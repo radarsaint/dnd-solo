@@ -1,0 +1,5 @@
+{
+  "schema_version": 1,
+  "maps": [],
+  "notes": "Populate with stable map IDs as project map files become available to the runtime. Do not key runtime behavior to chat attachment order or filenames alone."
+}
