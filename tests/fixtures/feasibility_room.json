@@ -1,0 +1,40 @@
+{
+  "id": "synthetic-feasibility-room-v1",
+  "fixture_only": true,
+  "starting_area": "entry",
+  "areas": {
+    "entry": {"name": "Test antechamber"},
+    "hall": {"name": "Test passage"},
+    "cache": {"name": "Unseen test cache"}
+  },
+  "exits": {
+    "main_door": {
+      "areas": ["entry", "hall"], "secret": false,
+      "labels": {"entry": "An open doorway in the east wall.", "hall": "The doorway back to the antechamber."}
+    },
+    "cache_panel": {
+      "areas": ["entry", "cache"], "secret": true,
+      "labels": {"entry": "A concealed panel in the west wall.", "cache": "The panel back to the antechamber."}
+    }
+  },
+  "facts": {
+    "damage": {"area": "entry", "visible": true, "text": "Fresh gouges cross the stone beside the east doorway."},
+    "latch": {"area": "entry", "visible": false, "text": "A concealed latch sits beneath the loose stone."},
+    "cache_contents": {"area": "cache", "visible": true, "text": "An unopened brass box rests on a shelf."}
+  },
+  "actors": {
+    "sentry": {
+      "name": "Test sentry", "location": "entry", "status": "alive", "visible": true,
+      "motive": "Protect the companion recovering in the passage.",
+      "knowledge": ["An ally waits beyond the east doorway."],
+      "secrets": ["The sentry hid a spare key in a boot."],
+      "communication_profile": {"rhythm": "Short practical answers.", "humor": "Little patience for jokes under threat."}
+    },
+    "hidden_watcher": {
+      "name": "Unseen watcher", "location": "entry", "status": "alive", "visible": false,
+      "motive": "Observe the sentry.", "knowledge": [], "secrets": [],
+      "communication_profile": {"rhythm": "Unestablished", "humor": "Unestablished"}
+    }
+  },
+  "resources": {"arrows": 4, "healing_potions": 1}
+}

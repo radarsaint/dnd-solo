@@ -14,13 +14,25 @@ The DM personality work now has a canonical live contract and a separate develop
 
 The technical runtime should integrate against the compact core rather than duplicating personality prose.
 
+## Executable state/context prototype
+
+`runtime/state_context.py` implements a small SQLite-backed prototype with atomic event batches, restartable snapshots, a player knowledge projection, fixed fixture topology, and bounded context assembly using the canonical personality core.
+
+Run the eight automated checks from the repository root:
+
+```sh
+python -m unittest discover -s tests -p 'test_*.py' -v
+```
+
+See [the prototype guide](docs/architecture/state-context-prototype.md) for runnable commands, tested behavior, and the remaining work. This is an offline backend prototype; model-driven DM play and full D&D adjudication are not implemented yet.
+
 ## Repository map
 
 - `docs/personality/` — canonical DM personality, development process, appetites, pillar biases, table presence, and personality design history.
 - `docs/architecture/` — runtime boundaries, data flow, interfaces, and integration decisions.
 - `docs/campaign/` — campaign-specific through-lines and authored concerns; campaign content stays separate from the generic DM runtime.
 - `docs/decisions/` — short architecture decision records.
-- `runtime/` — implementation code once the technical runtime is brought into this repo.
+- `runtime/` — executable state/context prototype and future runtime implementation.
 - `assets/maps/` — map manifest and eventually map files or stable external references.
 - `assets/art/` — art manifest and eventually art files or stable external references.
 - `tests/scenarios/` — table-situation tests used to validate DM behavior.
