@@ -10,3 +10,5 @@ coverage/
 dist/
 build/
 .tmp/
+*.sqlite
+*.sqlite-*
