@@ -26,5 +26,14 @@ Resolves rules, uncertainty, checks, costs, consequences, and state changes.
 ## 8. Presentation
 Chooses what the player actually sees: narration, NPC dialogue, direct DM voice, map/art references, rolls, mechanical information, and available choices when appropriate.
 
+### Visual asset resolution
+Presentation resolves visual resources through the role-specific manifests:
+
+- `assets/maps/index.json` for canonical DM/player map pairs;
+- `assets/art/index.json` for level/scene and entity art;
+- `assets/handouts/index.json` for reveal-gated handouts.
+
+DM maps are private geometry authority. Player maps are presentation bases and remain knowledge-gated. Art may illustrate established source/state but cannot create hidden canon. Composite handouts must support partial reveals.
+
 ## 9. Reflection/test telemetry
 After meaningful scenes, records a small amount of structured evidence about what worked or failed. This is for tuning the runtime, not for narrating self-evaluation to the player.
