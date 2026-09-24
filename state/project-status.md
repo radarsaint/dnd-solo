@@ -7,52 +7,30 @@ Status: v0.1 captured and ready for scenario testing.
 
 The current document defines identity, core appetites, pillar weighting, appetite resolution, inhibition rules, stakes telegraphing, NPC performance, visible DM presence, player relationship, character relationship, and self-evaluation.
 
-### Personality backend interface
-Status: alpha contract represented in-repo.
-
-`docs/architecture/runtime/DM_PERSONALITY_BACKEND_CONTRACT.md` defines the bounded `dm_context` packet the personality consumes. The backend supplies truth/state/evidence; personality selects emphasis among valid possibilities.
-
-Required persistent support includes separate player-model, player-character pattern, and recent-rhythm state.
-
 ### Technical DM runtime
-Status: architecture documented; persistence/implementation remains in development.
+Status: in development in a separate project conversation.
 
-The current runtime specification is in `docs/architecture/runtime/DND_SOLO_RUNTIME.md`. The next implementation work is concrete save schemas, state persistence, event-ledger storage, revealed-topology persistence, and executable context assembly.
+Action: migrate implementation into `runtime/` when the current technical branch/code is available. Preserve the separation between runtime machinery and personality/campaign data.
 
 ### Player-facing UX/UI
 Status: active design.
 
-Action: integrate presentation contracts against the runtime's eventual event/message shapes.
+Action: define explicit presentation contracts once technical message/event shapes are known.
 
 ### Maps and visual assets
-Status: asset collection/indexing is active in another project conversation.
+Status: asset collection/indexing underway in another project conversation.
 
-The runtime-side geometry contract is already documented. `docs/architecture/runtime/MAP_INDEX.md` binds levels to canonical DM/player maps and room numbering. Canonical DM geometry is fixed; runtime narration may not invent or reroute mapped space.
-
-The asset workstream should continue populating `assets/maps/index.json` with stable IDs and repository paths.
+Action: add files/references and stable IDs to `assets/maps/index.json` and `assets/art/index.json`. Runtime should request assets by stable ID and semantic role, not by chat attachment position.
 
 ### Campaign content
-Status: first campaign backend is represented in-repo.
+Status: campaign-specific runtime concerns are being examined separately from the generic DM personality.
 
-Added:
-- Halaster behavior layer;
-- Halaster campaign through-line layer;
-- shared level-story-engine contract;
-- game setup layer;
-- Skullport hub layer;
-- all 23 numbered *Dungeon of the Mad Mage* level layers.
-
-Each level owns its active NPC motives, story equilibrium, active motion, pressure points, reaction rules, escalation state, outcomes, player-facing evidence, cross-level consequences, and canonical map binding.
+Action: establish a campaign manifest and through-line schema before importing large adventure/source collections.
 
 ## Next integration milestone
 
 A playable vertical slice should prove this path:
 
-source + canonical map + persistent state
--> level/NPC/opposition execution
--> dm_context assembly
--> personality arbitration
--> adjudication/presentation
--> state + event/rhythm update
+source material -> current scene/state -> NPC/opposition execution -> personality arbitration -> adjudication -> player-facing response -> state update
 
-The first vertical slice should use a real keyed room and its level story engine rather than a synthetic demo scene.
+with maps/assets retrieved by stable manifest IDs.
