@@ -1,5 +1,462 @@
 {
-  "schema_version": 1,
-  "maps": [],
-  "notes": "Populate with stable map IDs as project map files become available to the runtime. Do not key runtime behavior to chat attachment order or filenames alone."
+  "schema_version": 2,
+  "campaign": "Waterdeep: Dungeon of the Mad Mage",
+  "authority": {
+    "geometry": "Canonical DM map. Never improvise replacement geometry when a canonical map exists.",
+    "contents": "Keyed adventure text controls room contents, creatures, traps, objects, and scripted rules.",
+    "changed_world": "Runtime spatial/campaign state overrides static source after play changes the world.",
+    "player_map": "Presentation base only; never treat an unlabeled player map as the player's complete knowledge ledger."
+  },
+  "levels": {
+    "10": {
+      "id": "level-10",
+      "name": "Muiral's Gauntlet",
+      "scale": "1 square = 10 feet",
+      "dm": {
+        "id": "map-10-dm",
+        "path": "assets/maps/levels/map-10.01-muirals-gauntlet-dm.png",
+        "visibility": "dm_only",
+        "authority": "canonical_geometry"
+      },
+      "player": {
+        "id": "map-10-player",
+        "path": "assets/maps/levels/map-10.01-muirals-gauntlet-player.jpg",
+        "visibility": "player_presentation",
+        "knowledge_gated": true
+      }
+    },
+    "11": {
+      "id": "level-11",
+      "name": "Troglodyte Warrens",
+      "scale": "1 square = 10 feet",
+      "dm": {
+        "id": "map-11-dm",
+        "path": "assets/maps/levels/map-11.01-troglodyte-warrens-dm.jpg",
+        "visibility": "dm_only",
+        "authority": "canonical_geometry"
+      },
+      "player": {
+        "id": "map-11-player",
+        "path": "assets/maps/levels/map-11.01-troglodyte-warrens-player.jpg",
+        "visibility": "player_presentation",
+        "knowledge_gated": true
+      }
+    },
+    "12": {
+      "id": "level-12",
+      "name": "Maze Level",
+      "scale": "1 square = 10 feet",
+      "dm": {
+        "id": "map-12-dm",
+        "path": "assets/maps/levels/map-12.01-maze-level-dm.jpg",
+        "visibility": "dm_only",
+        "authority": "canonical_geometry"
+      },
+      "player": {
+        "id": "map-12-player",
+        "path": "assets/maps/levels/map-12.01-maze-level-player.jpg",
+        "visibility": "player_presentation",
+        "knowledge_gated": true
+      }
+    },
+    "13": {
+      "id": "level-13",
+      "name": "Trobriand's Graveyard",
+      "scale": "1 square = 10 feet",
+      "dm": {
+        "id": "map-13-dm",
+        "path": "assets/maps/levels/map-13.01-trobriands-graveyard-dm.png",
+        "visibility": "dm_only",
+        "authority": "canonical_geometry"
+      },
+      "player": {
+        "id": "map-13-player",
+        "path": "assets/maps/levels/map-13.01-trobriands-graveyard-player.jpg",
+        "visibility": "player_presentation",
+        "knowledge_gated": true
+      }
+    },
+    "14": {
+      "id": "level-14",
+      "name": "Arcturiadoom",
+      "scale": "1 square = 10 feet",
+      "dm": {
+        "id": "map-14-dm",
+        "path": "assets/maps/levels/map-14.01-arcturiadoom-dm.png",
+        "visibility": "dm_only",
+        "authority": "canonical_geometry"
+      },
+      "player": {
+        "id": "map-14-player",
+        "path": "assets/maps/levels/map-14.01-arcturiadoom-player.jpg",
+        "visibility": "player_presentation",
+        "knowledge_gated": true
+      }
+    },
+    "15": {
+      "id": "level-15",
+      "name": "Obstacle Course",
+      "scale": "1 square = 10 feet",
+      "dm": {
+        "id": "map-15-dm",
+        "path": "assets/maps/levels/map-15.01-obstacle-course-dm.png",
+        "visibility": "dm_only",
+        "authority": "canonical_geometry"
+      },
+      "player": {
+        "id": "map-15-player",
+        "path": "assets/maps/levels/map-15.01-obstacle-course-player.jpg",
+        "visibility": "player_presentation",
+        "knowledge_gated": true
+      }
+    },
+    "16": {
+      "id": "level-16",
+      "name": "Crystal Labyrinth",
+      "scale": "1 square = 10 feet",
+      "dm": {
+        "id": "map-16-dm",
+        "path": "assets/maps/levels/map-16.01-crystal-labyrinth-dm.jpg",
+        "visibility": "dm_only",
+        "authority": "canonical_geometry"
+      },
+      "player": {
+        "id": "map-16-player",
+        "path": "assets/maps/levels/map-16.01-crystal-labyrinth-player.jpg",
+        "visibility": "player_presentation",
+        "knowledge_gated": true
+      }
+    },
+    "17": {
+      "id": "level-17",
+      "name": "Seadeeps",
+      "scale": "1 square = 10 feet",
+      "dm": {
+        "id": "map-17-dm",
+        "path": "assets/maps/levels/map-17.01-seadeeps-dm.png",
+        "visibility": "dm_only",
+        "authority": "canonical_geometry"
+      },
+      "player": {
+        "id": "map-17-player",
+        "path": "assets/maps/levels/map-17.01-seadeeps-player.jpg",
+        "visibility": "player_presentation",
+        "knowledge_gated": true
+      }
+    },
+    "18": {
+      "id": "level-18",
+      "name": "Vanrakdoom",
+      "scale": "1 square = 10 feet",
+      "dm": {
+        "id": "map-18-dm",
+        "path": "assets/maps/levels/map-18.01-vanrakdoom-dm.png",
+        "visibility": "dm_only",
+        "authority": "canonical_geometry"
+      },
+      "player": {
+        "id": "map-18-player",
+        "path": "assets/maps/levels/map-18.01-vanrakdoom-player.jpg",
+        "visibility": "player_presentation",
+        "knowledge_gated": true
+      }
+    },
+    "19": {
+      "id": "level-19",
+      "name": "Caverns of Ooze",
+      "scale": "1 square = 10 feet",
+      "dm": {
+        "id": "map-19-dm",
+        "path": "assets/maps/levels/map-19.01-caverns-of-ooze-dm.png",
+        "visibility": "dm_only",
+        "authority": "canonical_geometry"
+      },
+      "player": {
+        "id": "map-19-player",
+        "path": "assets/maps/levels/map-19.01-caverns-of-ooze-player.jpg",
+        "visibility": "player_presentation",
+        "knowledge_gated": true
+      }
+    },
+    "20": {
+      "id": "level-20",
+      "name": "Runestone Caverns",
+      "scale": "1 square = 10 feet",
+      "dm": {
+        "id": "map-20-dm",
+        "path": "assets/maps/levels/map-20.01-runestone-caverns-dm.png",
+        "visibility": "dm_only",
+        "authority": "canonical_geometry"
+      },
+      "player": {
+        "id": "map-20-player",
+        "path": "assets/maps/levels/map-20.01-runestone-caverns-player.jpg",
+        "visibility": "player_presentation",
+        "knowledge_gated": true
+      }
+    },
+    "21": {
+      "id": "level-21",
+      "name": "Terminus Level",
+      "scale": "1 square = 10 feet",
+      "dm": {
+        "id": "map-21-dm",
+        "path": "assets/maps/levels/map-21.01-terminus-level-dm.png",
+        "visibility": "dm_only",
+        "authority": "canonical_geometry"
+      },
+      "player": {
+        "id": "map-21-player",
+        "path": "assets/maps/levels/map-21.01-terminus-level-player.jpg",
+        "visibility": "player_presentation",
+        "knowledge_gated": true
+      }
+    },
+    "22": {
+      "id": "level-22",
+      "name": "Shadowdusk Hold",
+      "scale": "1 square = 10 feet",
+      "dm": {
+        "id": "map-22-dm",
+        "path": "assets/maps/levels/map-22.01-shadowdusk-hold-dm.png",
+        "visibility": "dm_only",
+        "authority": "canonical_geometry"
+      },
+      "player": {
+        "id": "map-22-player",
+        "path": "assets/maps/levels/map-22.01-shadowdusk-hold-player.jpg",
+        "visibility": "player_presentation",
+        "knowledge_gated": true
+      }
+    },
+    "23": {
+      "id": "level-23",
+      "name": "Mad Wizard's Lair",
+      "scale": "1 square = 10 feet",
+      "dm": {
+        "id": "map-23-dm",
+        "path": "assets/maps/levels/map-23.01-mad-wizards-lair-dm.png",
+        "visibility": "dm_only",
+        "authority": "canonical_geometry"
+      },
+      "player": {
+        "id": "map-23-player",
+        "path": "assets/maps/levels/map-23.01-mad-wizards-lair-player.jpg",
+        "visibility": "player_presentation",
+        "knowledge_gated": true
+      }
+    },
+    "01": {
+      "id": "level-01",
+      "name": "Dungeon Level",
+      "scale": "1 square = 10 feet",
+      "dm": {
+        "id": "map-01-dm",
+        "path": "assets/maps/levels/map-01.01-dungeon-level-dm.png",
+        "visibility": "dm_only",
+        "authority": "canonical_geometry"
+      },
+      "player": {
+        "id": "map-01-player",
+        "path": "assets/maps/levels/map-01.01-dungeon-level-player.jpg",
+        "visibility": "player_presentation",
+        "knowledge_gated": true
+      }
+    },
+    "02": {
+      "id": "level-02",
+      "name": "Arcane Chambers",
+      "scale": "1 square = 10 feet",
+      "dm": {
+        "id": "map-02-dm",
+        "path": "assets/maps/levels/map-02.01-arcane-chambers-dm.png",
+        "visibility": "dm_only",
+        "authority": "canonical_geometry"
+      },
+      "player": {
+        "id": "map-02-player",
+        "path": "assets/maps/levels/map-02.01-arcane-chambers-player.jpg",
+        "visibility": "player_presentation",
+        "knowledge_gated": true
+      }
+    },
+    "03": {
+      "id": "level-03",
+      "name": "Sargauth Level",
+      "scale": "1 square = 10 feet",
+      "dm": {
+        "id": "map-03-dm",
+        "path": "assets/maps/levels/map-03.01-sargauth-level-dm.png",
+        "visibility": "dm_only",
+        "authority": "canonical_geometry"
+      },
+      "player": {
+        "id": "map-03-player",
+        "path": "assets/maps/levels/map-03.01-sargauth-level-player.jpg",
+        "visibility": "player_presentation",
+        "knowledge_gated": true
+      }
+    },
+    "04": {
+      "id": "level-04",
+      "name": "Twisted Caverns",
+      "scale": "1 square = 10 feet",
+      "dm": {
+        "id": "map-04-dm",
+        "path": "assets/maps/levels/map-04.01-twisted-caverns-dm.png",
+        "visibility": "dm_only",
+        "authority": "canonical_geometry"
+      },
+      "player": {
+        "id": "map-04-player",
+        "path": "assets/maps/levels/map-04.01-twisted-caverns-player.jpg",
+        "visibility": "player_presentation",
+        "knowledge_gated": true
+      }
+    },
+    "05": {
+      "id": "level-05",
+      "name": "Wyllowwood",
+      "scale": "1 square = 10 feet",
+      "dm": {
+        "id": "map-05-dm",
+        "path": "assets/maps/levels/map-05.01-wyllowwood-dm.png",
+        "visibility": "dm_only",
+        "authority": "canonical_geometry"
+      },
+      "player": {
+        "id": "map-05-player",
+        "path": "assets/maps/levels/map-05.01-wyllowwood-player.jpg",
+        "visibility": "player_presentation",
+        "knowledge_gated": true
+      }
+    },
+    "06": {
+      "id": "level-06",
+      "name": "Lost Level",
+      "scale": "1 square = 10 feet",
+      "dm": {
+        "id": "map-06-dm",
+        "path": "assets/maps/levels/map-06.01-lost-level-dm.png",
+        "visibility": "dm_only",
+        "authority": "canonical_geometry"
+      },
+      "player": {
+        "id": "map-06-player",
+        "path": "assets/maps/levels/map-06.01-lost-level-player.jpg",
+        "visibility": "player_presentation",
+        "knowledge_gated": true
+      }
+    },
+    "07": {
+      "id": "level-07",
+      "name": "Maddgoth's Castle",
+      "scale": "1 square = 10 feet",
+      "dm": {
+        "id": "map-07-dm",
+        "path": "assets/maps/levels/map-07.01-maddgoths-castle-dm.png",
+        "visibility": "dm_only",
+        "authority": "canonical_geometry"
+      },
+      "player": {
+        "id": "map-07-player",
+        "path": "assets/maps/levels/map-07.01-maddgoths-castle-player.jpg",
+        "visibility": "player_presentation",
+        "knowledge_gated": true
+      }
+    },
+    "08": {
+      "id": "level-08",
+      "name": "Slitherswamp",
+      "scale": "1 square = 10 feet",
+      "dm": {
+        "id": "map-08-dm",
+        "path": "assets/maps/levels/map-08.01-slitherswamp-dm.png",
+        "visibility": "dm_only",
+        "authority": "canonical_geometry"
+      },
+      "player": {
+        "id": "map-08-player",
+        "path": "assets/maps/levels/map-08.01-slitherswamp-player.jpg",
+        "visibility": "player_presentation",
+        "knowledge_gated": true
+      }
+    },
+    "09": {
+      "id": "level-09",
+      "name": "Dweomercore",
+      "scale": "1 square = 10 feet",
+      "dm": {
+        "id": "map-09-dm",
+        "path": "assets/maps/levels/map-09.01-dweomercore-dm.png",
+        "visibility": "dm_only",
+        "authority": "canonical_geometry"
+      },
+      "player": {
+        "id": "map-09-player",
+        "path": "assets/maps/levels/map-09.01-dweomercore-player.jpg",
+        "visibility": "player_presentation",
+        "knowledge_gated": true
+      }
+    }
+  },
+  "hubs": {
+    "skullport": {
+      "id": "hub-skullport",
+      "name": "Skullport",
+      "note": "Skullport is a hub, not dungeon level 24. The 24.xx prefix is an asset-organization convention.",
+      "maps": [
+        {
+          "id": "map-skullport-skull-island",
+          "name": "Skull Island",
+          "scale": "1 square = 10 feet",
+          "dm": {
+            "path": "assets/maps/skullport/map-24.01-skull-island-dm.png",
+            "visibility": "dm_only",
+            "authority": "canonical_geometry"
+          },
+          "player": {
+            "path": "assets/maps/skullport/map-24.01-skull-island-player.jpg",
+            "visibility": "player_presentation",
+            "knowledge_gated": true
+          }
+        },
+        {
+          "id": "map-skullport-lower-middle",
+          "name": "Skullport Lower and Middle Levels",
+          "scale": "1 square = 10 feet",
+          "dm": {
+            "path": "assets/maps/skullport/map-24.02-skullport-lower-and-middle-levels-dm.png",
+            "visibility": "dm_only",
+            "authority": "canonical_geometry"
+          },
+          "player": {
+            "path": "assets/maps/skullport/map-24.02-skullport-lower-and-middle-levels-player.jpg",
+            "visibility": "player_presentation",
+            "knowledge_gated": true
+          }
+        },
+        {
+          "id": "map-skullport-upper",
+          "name": "Skullport Upper Level",
+          "scale": "1 square = 10 feet",
+          "dm": {
+            "path": "assets/maps/skullport/map-24.03-skullport-upper-level-dm.png",
+            "visibility": "dm_only",
+            "authority": "canonical_geometry"
+          },
+          "player": {
+            "path": "assets/maps/skullport/map-24.03-skullport-upper-level-player.jpg",
+            "visibility": "player_presentation",
+            "knowledge_gated": true
+          }
+        }
+      ]
+    }
+  },
+  "migration": {
+    "source": "ChatGPT project Library visual-asset pass",
+    "indexed_map_files": 52,
+    "note": "This manifest represents the canonical bindings established in the project. Binary migration into these repo-relative paths is a separate operation and must preserve these IDs and roles."
+  }
 }
