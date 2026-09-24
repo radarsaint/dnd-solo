@@ -10,3 +10,12 @@ coverage/
 dist/
 build/
 .tmp/
+
+# User-supplied licensed visual binaries.
+# Hydrate these locally with scripts/import_visual_assets.py.
+assets/art/levels/*
+assets/art/creatures/*
+assets/maps/levels/*
+assets/maps/skullport/*
+assets/handouts/*
+!assets/handouts/index.json

@@ -156,3 +156,24 @@ Future runtime work should assume these decisions are already made unless a sour
 - a second independent visual registry should not be created.
 
 The next visual-system problem is presentation: masking/cropping player maps to known topology and extracting individual cards/runes from composite sheets without leaking unrevealed information.
+
+
+## Private binary asset pack
+
+The indexed visual bytes are now packaged privately rather than committed to the public repository.
+
+Private project-library asset pack:
+
+`/Dnd solo/Private Asset Packs/dnd-solo-private-visual-assets.zip`
+
+The pack contains all 87 currently indexed image files at the exact repo-relative paths referenced by the manifests, plus `SHA256SUMS.txt`. The archive SHA-256 is:
+
+`d9cc62b2fba15c73b575a0903c6eb7866152ea3db9e99a31c0777263ca77b9ff`
+
+Hydrate a checkout with:
+
+```bash
+python scripts/import_visual_assets.py /path/to/dnd-solo-private-visual-assets.zip
+```
+
+The importer verifies every file before copying it. The binary target directories are gitignored because this repository is public and the source visuals are licensed campaign material. Runtime code still sees the same repo-relative paths after hydration, so this does not change the map/art lookup contract.
