@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "campaign": "Waterdeep: Dungeon of the Mad Mage",
+  "policy": {
+    "default_visibility": "reveal_gated",
+    "composite_sheet_rule": "If a sheet contains multiple independently gated entries, reveal only the earned component rather than the entire source sheet."
+  },
+  "handouts": [
+    {
+      "id": "elder-runes-deck",
+      "name": "Elder Runes Deck",
+      "path": "assets/handouts/26-001.elder-runes-deck.jpg",
+      "role": "dm_reference_composite",
+      "reveal_rule": "Reveal only the rune information legitimately earned by the player."
+    },
+    {
+      "id": "secrets-deck-1",
+      "name": "Secrets Deck 1",
+      "path": "assets/handouts/27-001.secrets-deck-1.jpg",
+      "role": "player_handout_composite",
+      "reveal_rule": "Reveal cards individually as they are learned."
+    }
+  ],
+  "migration": {
+    "source": "ChatGPT project Library visual-asset pass",
+    "indexed_handout_sheets": 2
+  }
+}
