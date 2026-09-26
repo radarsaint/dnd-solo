@@ -1,0 +1,10 @@
+{
+  "turn_id": "fixture-turn-001",
+  "expected_revision": 0,
+  "events": [
+    {"type": "spend_resource", "resource": "arrows", "amount": 1, "evidence": "Synthetic test: one shot was adjudicated."},
+    {"type": "actor_status", "actor": "sentry", "status": "dead", "evidence": "Synthetic test: adjudicated damage reduced the sentry to zero hit points."},
+    {"type": "advance_time", "seconds": 6, "evidence": "Synthetic test: one combat round elapsed."},
+    {"type": "beat", "tags": ["combat", "challenge"], "evidence": "Synthetic test: the sentry was defeated."}
+  ]
+}
