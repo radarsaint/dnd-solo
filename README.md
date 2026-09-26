@@ -18,13 +18,15 @@ The technical runtime should integrate against the compact core rather than dupl
 
 `runtime/state_context.py` implements a small SQLite-backed prototype with atomic event batches, restartable snapshots, a player knowledge projection, fixed fixture topology, and bounded context assembly using the canonical personality core.
 
-Run the eight automated checks from the repository root:
+Run the ten automated checks from the repository root:
 
 ```sh
 python -m unittest discover -s tests -p 'test_*.py' -v
 ```
 
 See [the prototype guide](docs/architecture/state-context-prototype.md) for runnable commands, tested behavior, and the remaining work. This is an offline backend prototype; model-driven DM play and full D&D adjudication are not implemented yet.
+
+The first source-grounded test scene is [Level 1, area 6c — Uktarl's room](tests/scenarios/level-01-area-06c-uktarl.md). Its fixture exercises context and secrecy; six play probes specify the DM decisions the future model loop must make.
 
 ## Repository map
 

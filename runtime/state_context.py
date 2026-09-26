@@ -204,13 +204,15 @@ class Runtime:
         revision, state = self.load()
         source, area = self.source(), state['area']
         packet = {
-            'prototype_version': '0.1.0', 'revision': revision,
+            'prototype_version': '0.1.1', 'revision': revision,
             'personality_core': personality_core,
             'dm_context': {
                 'scene': {'current_area': area, 'elapsed_seconds': state['elapsed_seconds']},
                 'source_id': source['id'], 'fixture_only': source['fixture_only'],
+                'source_ref': source.get('source_ref'), 'map_ref': source.get('map_ref'),
                 'player_perceivable': self._player_view(source, state),
                 'dm_only': {
+                    'room_rules': source.get('room_rules', []),
                     'unrevealed_facts': {k: f for k, f in source['facts'].items()
                                          if f['area'] == area and k not in state['known_facts']},
                     'geometry': {k: e for k, e in source['exits'].items() if area in e['areas']},
@@ -223,7 +225,9 @@ class Runtime:
                     'DM-only facts and actor secrets are private.',
                     'The source graph is immutable. Missing connections are not invented.',
                     'Writes require adjudication; this prototype does not check D&D legality.',
-                    'This fixture is not Mad Mage canon and is not a campaign save.',
+                    ('This is a conditional test snapshot grounded in the cited Mad Mage source, '
+                     'not a campaign save.' if source.get('source_ref') else
+                     'This synthetic fixture is not Mad Mage canon and is not a campaign save.'),
                 ],
                 'missing_production_layers': ['rules resolver', 'source retrieval', 'level story state',
                     'Halaster state', 'faction ticks', 'player model', 'character patterns'],

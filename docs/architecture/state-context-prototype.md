@@ -1,6 +1,6 @@
 # State and Context Prototype
 
-Status: executable feasibility prototype, version 0.1.0. This is an implementation experiment, not completion of the broader runtime 0.4.0 milestone.
+Status: executable feasibility prototype, version 0.1.1. This is an implementation experiment, not completion of the broader runtime 0.4.0 milestone.
 
 ## Feasibility assessment
 
@@ -14,7 +14,7 @@ This prototype makes a small part of the proposed architecture executable withou
 
 | Component | Behavior |
 | --- | --- |
-| Source baseline | A synthetic fixture is stored separately from live state. No published adventure text is included. |
+| Source baseline | Fixtures are stored separately from live state. The first room seed paraphrases a cited keyed area without embedding published adventure prose. |
 | Persistent state | SQLite snapshots retain location, elapsed time, actor status, discoveries, resources, and recent beat tags. |
 | Event ledger | Each accepted event records its adjudication evidence. Normal SQL update/delete operations on the ledger are rejected. |
 | Turn commit | Events and the new snapshot are committed together. Invalid batches roll back completely. |
@@ -23,6 +23,7 @@ This prototype makes a small part of the proposed architecture executable withou
 | Topology | Movement follows explicit fixture connections. A discovered exit does not expose the contents of the destination. |
 | Personality dependency | Context assembly reads `docs/personality/dm-personality-core.md` directly. No second personality copy is maintained. |
 | Context bound | Only current-area facts/actors/connections and the last 12 beat records are assembled. Oversized packets fail explicitly at a configurable byte cap. |
+| Room test metadata | Source and map references plus fixture room rules enter the DM-only context. They are not exposed in the player projection. |
 
 The packet is a partial implementation of the personality backend contract. It names missing production layers explicitly. Its byte cap is not a model token estimate.
 
@@ -43,6 +44,8 @@ Use a fresh database for `init`. It refuses to overwrite an existing session. Re
 `context` is a developer/DM operation and includes secrets. `view` is the player projection. Neither command advances the clock. Time changes require an accepted `advance_time` event.
 
 The supplied turn spends one of four arrows, marks a synthetic sentry dead after a stipulated adjudication, advances six seconds, and records a combat beat. These are test inputs; no attack or damage roll is calculated by this implementation.
+
+The [Level 1, area 6c scenario](../../tests/scenarios/level-01-area-06c-uktarl.md) supplies a second, source-grounded seed for behavioral playtests. Its snapshot is conditional on the occupants still being at the card table; the prototype does not simulate how the player reached it.
 
 ## Trust boundary and limits
 
@@ -67,7 +70,7 @@ This implementation does not yet include:
 
 ## Verification
 
-Eight automated tests passed on 2026-09-24:
+Ten automated tests passed on 2026-09-26:
 
 1. Accepted changes survive reopening the database; source retrieval does not revive the defeated fixture actor.
 2. Player projection excludes secret facts, hidden actors, motives, and unexplored destination names.
@@ -77,6 +80,8 @@ Eight automated tests passed on 2026-09-24:
 6. A second connection cannot overwrite a turn using a stale revision.
 7. An oversized context packet fails explicitly.
 8. Ledger entries reject in-place updates and deletion.
+9. The room 6c player view hides the key, marked cards, doppelganger identity, and NPC motives while the DM context retains them and the cited room rules.
+10. An adjudicated discovery reveals only the key itself and remains known after a restart; its use in area 14b stays hidden.
 
 ## Next playable milestone
 

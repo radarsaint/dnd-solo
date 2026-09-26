@@ -16,3 +16,5 @@ Initial suite should cover at least:
 10. a subtle long-term campaign through-line beat.
 
 Each test should record: input state, player action, expected leading appetite, prohibited failure modes, observable success criteria, and resulting state changes.
+
+The first source-grounded room test is [Level 1, area 6c — Uktarl's room](level-01-area-06c-uktarl.md), with a runnable state seed in `tests/fixtures/level_01_area_06c.json`.
