@@ -24,7 +24,7 @@ Run the automated checks from the repository root:
 python -m unittest discover -s tests -p 'test_*.py' -v
 ```
 
-See [the state/context prototype guide](docs/architecture/state-context-prototype.md) for the storage boundary. A [bounded area 6c play slice](docs/architecture/kit-06c-play-slice.md) now runs a two-stage model loop for Kit's private decision and player-facing performance, with atomic persistence and a conversational CLI. It requires an API key and model choice; full D&D adjudication and demonstrated entertainment quality remain open work.
+See [the state/context prototype guide](docs/architecture/state-context-prototype.md) for the storage boundary. A [bounded area 6c play slice](docs/architecture/kit-06c-play-slice.md) runs Kit's private decision and player-facing performance in two validated stages with atomic persistence. An assistant with access to this repository can host those stages in chat through `prepare`, `decide`, and `finish`, without a separate model choice or API key. The optional standalone `play` CLI uses a model ID and API key. Full D&D adjudication and demonstrated entertainment quality remain open work.
 
 The first source-grounded test scene is [Level 1, area 6c — Uktarl's room](tests/scenarios/level-01-area-06c-uktarl.md). Its fixture exercises context and secrecy; six play probes examine whether Kit's event appraisal, chosen moves, and table performance make her personality felt. The [personality backend contract](docs/architecture/runtime/DM_PERSONALITY_BACKEND_CONTRACT.md#cognitive-agent-model-for-kit) records the research grounding for that agent cycle.
 

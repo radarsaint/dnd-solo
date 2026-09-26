@@ -41,6 +41,10 @@ class Runtime:
             CREATE TABLE IF NOT EXISTS turns (id TEXT PRIMARY KEY, digest TEXT NOT NULL, revision INTEGER NOT NULL);
             CREATE TABLE IF NOT EXISTS ledger (seq INTEGER PRIMARY KEY, turn_id TEXT NOT NULL REFERENCES turns(id), body TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS kit_turns (turn_id TEXT PRIMARY KEY REFERENCES turns(id), body TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS kit_pending (
+                turn_id TEXT PRIMARY KEY, revision INTEGER NOT NULL,
+                body TEXT NOT NULL, plan TEXT
+            );
             CREATE TRIGGER IF NOT EXISTS immutable_ledger_update BEFORE UPDATE ON ledger
                 BEGIN SELECT RAISE(ABORT, 'Ledger is append-only'); END;
             CREATE TRIGGER IF NOT EXISTS immutable_ledger_delete BEFORE DELETE ON ledger
@@ -99,7 +103,7 @@ class Runtime:
         """Atomically accept an adjudicated event batch; safe to retry identically."""
         return self._commit(turn_id, expected_revision, events)
 
-    def commit_kit_turn(self, turn_id, expected_revision, events, record):
+    def commit_kit_turn(self, turn_id, expected_revision, events, record, consume_pending=False):
         """Commit world events, a private Kit episode, and the public turn together."""
         require(isinstance(record, dict), 'Kit turn record required')
         require(isinstance(record.get('player_input'), str) and record['player_input'].strip(),
@@ -114,9 +118,61 @@ class Runtime:
                 and isinstance(trace.get('move'), str), 'Private Kit decision required')
         require(all(len(encode(record[key]).encode()) <= 12000 for key in
                     ('player_input', 'public_event', 'spoken', 'trace')), 'Kit turn exceeds size limit')
-        return self._commit(turn_id, expected_revision, events, record)
+        return self._commit(turn_id, expected_revision, events, record, consume_pending)
 
-    def _commit(self, turn_id, expected_revision, events, kit_record=None):
+    def stage_kit_turn(self, turn_id, expected_revision, body):
+        """Save an uncommitted chat turn so a host can perform the two model stages."""
+        require(isinstance(turn_id, str) and bool(turn_id.strip()), 'Turn ID required')
+        require(isinstance(body, dict), 'Pending turn body required')
+        serialized = encode(body)
+        require(len(serialized.encode()) <= 16000, 'Pending turn exceeds size limit')
+        self.db.execute('BEGIN IMMEDIATE')
+        try:
+            require(self.db.execute('SELECT 1 FROM turns WHERE id=?', (turn_id,)).fetchone() is None,
+                    'Turn ID already committed')
+            revision, _ = self.load()
+            if revision != expected_revision:
+                raise StaleTurn(f'Expected revision {expected_revision}; current is {revision}')
+            row = self.db.execute('SELECT revision, body FROM kit_pending WHERE turn_id=?',
+                                  (turn_id,)).fetchone()
+            if row:
+                require(row == (expected_revision, serialized), 'Turn ID already staged differently')
+            else:
+                self.db.execute('INSERT INTO kit_pending VALUES (?, ?, ?, NULL)',
+                                (turn_id, expected_revision, serialized))
+            self.db.commit()
+        except Exception:
+            self.db.rollback()
+            raise
+
+    def pending_kit_turn(self, turn_id):
+        row = self.db.execute('SELECT revision, body, plan FROM kit_pending WHERE turn_id=?',
+                              (turn_id,)).fetchone()
+        require(row is not None, 'No pending Kit turn with that ID')
+        return {'revision': row[0], 'body': json.loads(row[1]),
+                'plan': json.loads(row[2]) if row[2] is not None else None}
+
+    def save_kit_plan(self, turn_id, expected_revision, plan):
+        serialized = encode(plan)
+        require(len(serialized.encode()) <= 12000, 'Private Kit decision exceeds size limit')
+        self.db.execute('BEGIN IMMEDIATE')
+        try:
+            revision, _ = self.load()
+            if revision != expected_revision:
+                raise StaleTurn(f'Expected revision {expected_revision}; current is {revision}')
+            row = self.db.execute('SELECT revision, plan FROM kit_pending WHERE turn_id=?',
+                                  (turn_id,)).fetchone()
+            require(row is not None and row[0] == expected_revision, 'No matching pending Kit turn')
+            require(row[1] is None or row[1] == serialized, 'Private decision already fixed for this turn')
+            if row[1] is None:
+                self.db.execute('UPDATE kit_pending SET plan=? WHERE turn_id=?',
+                                (serialized, turn_id))
+            self.db.commit()
+        except Exception:
+            self.db.rollback()
+            raise
+
+    def _commit(self, turn_id, expected_revision, events, kit_record=None, consume_pending=False):
         require(isinstance(turn_id, str) and bool(turn_id.strip()), 'Turn ID required')
         require(type(expected_revision) is int and expected_revision >= 0, 'Invalid revision')
         require(isinstance(events, list) and 0 < len(events) <= 100, 'Expected 1–100 events')
@@ -132,6 +188,15 @@ class Runtime:
             revision, state = self.load()
             if revision != expected_revision:
                 raise StaleTurn(f'Expected revision {expected_revision}; current is {revision}')
+            if consume_pending:
+                pending = self.db.execute('SELECT revision, body, plan FROM kit_pending WHERE turn_id=?',
+                                          (turn_id,)).fetchone()
+                require(pending is not None and pending[0] == expected_revision and
+                        pending[2] == encode(kit_record['trace']), 'Pending Kit decision changed')
+                staged = json.loads(pending[1])
+                require(staged['action'] == kit_record['player_input'] and
+                        staged['public_event'] == kit_record['public_event'] and
+                        staged['events'] == events, 'Pending Kit event changed')
             source = self.source()
             for event in events:
                 self._apply(state, source, event)
@@ -154,6 +219,8 @@ class Runtime:
             if kit_record is not None:
                 self.db.execute('INSERT INTO kit_turns VALUES (?, ?)', (turn_id, encode(kit_record)))
             self.db.execute('INSERT INTO snapshots VALUES (?, ?)', (next_revision, encode(state)))
+            if consume_pending:
+                self.db.execute('DELETE FROM kit_pending WHERE turn_id=?', (turn_id,))
             self.db.commit()
             return next_revision
         except Exception:

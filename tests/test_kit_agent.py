@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from runtime.kit_agent import (KitAgent, OpenAIResponsesModel, PendingRuling,
+from runtime.kit_agent import (KitAgent, KitChatBridge, OpenAIResponsesModel, PendingRuling,
                                Room6CAdjudicator, room_intent)
 from runtime.state_context import InvalidChange, Runtime, StaleTurn
 
@@ -196,6 +196,65 @@ class KitAgentTests(unittest.TestCase):
         self.assertFalse(captured[0]['store'])
         self.assertEqual(captured[0]['text']['format']['type'], 'json_schema')
         self.assertTrue(captured[0]['text']['format']['strict'])
+
+    def test_chat_bridge_runs_without_api_key_and_resumes_between_stages(self):
+        bridge = KitChatBridge(self.runtime, self.agent.adjudicator)
+        with patch.dict('os.environ', {'OPENAI_API_KEY': ''}):
+            prepared = bridge.prepare('I pull up a chair and ask the stakes.', 'chat-turn')
+            self.assertEqual(prepared['stage'], 'private_decision')
+            self.assertIn('marked_deck', prepared['input']['dm_context']['dm_only']['unrevealed_facts'])
+            self.assertEqual(self.runtime.load()[0], 0)
+            self.runtime.close()
+            self.runtime = Runtime(self.path)
+            bridge.runtime = self.runtime
+
+            plan = self.model.plan(prepared['input'])
+            performance = bridge.decide('chat-turn', plan)
+            self.assertEqual(performance['stage'], 'public_performance')
+            self.assertNotIn('dm_only', performance['input'])
+            self.assertNotIn('doppelganger', json.dumps(performance['input']).lower())
+            self.assertEqual(self.runtime.load()[0], 0)
+            self.runtime.close()
+            self.runtime = Runtime(self.path)
+            bridge.runtime = self.runtime
+
+            result = bridge.finish('chat-turn', self.model.perform(performance['input']))
+        self.assertEqual(result['revision'], 1)
+        self.assertIn('Kit:', result['spoken'])
+        self.assertEqual(self.runtime.recent_kit_turns()[0]['trace'], plan)
+        self.assertEqual(self.runtime.load()[1]['kit']['episodes'][0]['turn_id'], 'chat-turn')
+        with self.assertRaisesRegex(InvalidChange, 'No pending'):
+            self.runtime.pending_kit_turn('chat-turn')
+
+    def test_chat_bridge_rejects_leaks_and_locks_decision_before_performance(self):
+        bridge = KitChatBridge(self.runtime, self.agent.adjudicator)
+        prepared = bridge.prepare('I sit down.', 'guarded')
+        plan = self.model.plan(prepared['input'])
+        with self.assertRaisesRegex(InvalidChange, 'private fact'):
+            bridge.decide('guarded', {**plan, 'public_brief': 'Reveal the doppelganger.'})
+        self.assertIsNone(self.runtime.pending_kit_turn('guarded')['plan'])
+        with self.assertRaisesRegex(InvalidChange, 'before performance'):
+            bridge.finish('guarded', self.model.perform({}))
+        performance = bridge.decide('guarded', plan)
+        with self.assertRaisesRegex(InvalidChange, 'already fixed'):
+            bridge.decide('guarded', {**plan, 'tone': 'warm'})
+        with self.assertRaisesRegex(InvalidChange, 'private fact'):
+            bridge.finish('guarded', RecordingModel(leak=True).perform(performance['input']))
+        self.assertEqual(self.runtime.load()[0], 0)
+        self.assertEqual(self.runtime.recent_kit_turns(), [])
+        self.assertEqual(bridge.finish('guarded', self.model.perform(performance['input']))['revision'], 1)
+
+    def test_chat_bridge_stale_turn_cannot_commit_after_other_world_change(self):
+        bridge = KitChatBridge(self.runtime, self.agent.adjudicator)
+        prepared = bridge.prepare('I sit down.', 'stale-chat')
+        plan = self.model.plan(prepared['input'])
+        performance = bridge.decide('stale-chat', plan)
+        self.runtime.commit('interleaving', 0, [
+            {'type': 'beat', 'tags': ['test'], 'evidence': 'Another adjudicator committed.'}])
+        with self.assertRaises(StaleTurn):
+            bridge.finish('stale-chat', self.model.perform(performance['input']))
+        self.assertEqual(self.runtime.load()[0], 1)
+        self.assertEqual(self.runtime.recent_kit_turns(), [])
 
 
 if __name__ == '__main__':

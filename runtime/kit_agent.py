@@ -13,6 +13,7 @@ import urllib.error
 import urllib.request
 import uuid
 from dataclasses import dataclass
+from pathlib import Path
 
 from .state_context import InvalidChange, PROJECT_ROOT, Runtime, require
 
@@ -162,6 +163,31 @@ SPEECH_SCHEMA = {
     'required': ['segments'],
 }
 
+PRIVATE_INSTRUCTIONS = (
+    'You are Kit’s private decision stage, using the supplied canonical personality. '
+    'Read DM-only information to keep the scene grounded. The event has already been adjudicated; '
+    'do not change its result or request world writes. Copy accepted_public_event exactly into '
+    'observed_event. Appraise its relation to one of Kit’s actual '
+    'goals, or choose none. Reference only supplied episode IDs. Choose a high-level move and '
+    'regulate her table presence. Write a brief public-safe direction for the performer '
+    'that conveys the specific chosen move and Kit’s attitude without any hidden identity, '
+    'clue, or private motive. Keep the trace brief and specific. Do not write dialogue. '
+    'An NPC’s motives are distinct from Kit’s reaction. The player may surprise you; do not force a route.'
+)
+
+PUBLIC_INSTRUCTIONS = (
+    'Perform the chosen DM move as Kit. You have only player-visible room facts and a bounded '
+    'public resolution; do not invent discoveries, geometry, rules outcomes, NPC commitments, '
+    'combat results, or player thoughts/actions. Never assume a hidden fact from prior knowledge. '
+    'The Dealer is a practiced, self-important performer who wants a bargain; the other card '
+    'players have no established individual voice. Keep NPC speech separate from Kit’s direct '
+    'table comments. Follow the selected public brief, tone, and table presence; quiet means '
+    'no Kit segment. The brief conveys a choice, not authority to invent facts. '
+    'The accepted event will be displayed before your segments on physical/check turns; '
+    'do not repeat it verbatim. Leave a real decision for the player. '
+    'A mechanically consequential unsupported action should invite clarification, not resolve itself.'
+)
+
 
 class OpenAIResponsesModel:
     """Small standard-library Responses API adapter; each stage is a distinct call."""
@@ -202,33 +228,10 @@ class OpenAIResponsesModel:
             raise InvalidChange('Model returned invalid JSON') from exc
 
     def plan(self, payload):
-        instructions = (
-            'You are Kit’s private decision stage, using the supplied canonical personality. '
-            'Read DM-only information to keep the scene grounded. The event has already been adjudicated; '
-            'do not change its result or request world writes. Copy accepted_public_event exactly into '
-            'observed_event. Appraise its relation to one of Kit’s actual '
-            'goals, or choose none. Reference only supplied episode IDs. Choose a high-level move and '
-            'regulate her table presence. Write a brief public-safe direction for the performer '
-            'that conveys the specific chosen move and Kit’s attitude without any hidden identity, '
-            'clue, or private motive. Keep the trace brief and specific. Do not write dialogue. '
-            'An NPC’s motives are distinct from Kit’s reaction. The player may surprise you; do not force a route.'
-        )
-        return self._complete(instructions, payload, 'kit_private_decision', PLAN_SCHEMA)
+        return self._complete(PRIVATE_INSTRUCTIONS, payload, 'kit_private_decision', PLAN_SCHEMA)
 
     def perform(self, payload):
-        instructions = (
-            'Perform the chosen DM move as Kit. You have only player-visible room facts and a bounded '
-            'public resolution; do not invent discoveries, geometry, rules outcomes, NPC commitments, '
-            'combat results, or player thoughts/actions. Never assume a hidden fact from prior knowledge. '
-            'The Dealer is a practiced, self-important performer who wants a bargain; the other card '
-            'players have no established individual voice. Keep NPC speech separate from Kit’s direct '
-            'table comments. Follow the selected public brief, tone, and table presence; quiet means '
-            'no Kit segment. The brief conveys a choice, not authority to invent facts. '
-            'The accepted event will be displayed before your segments on physical/check turns; '
-            'do not repeat it verbatim. Leave a real decision for the player. '
-            'A mechanically consequential unsupported action should invite clarification, not resolve itself.'
-        )
-        return self._complete(instructions, payload, 'kit_public_performance', SPEECH_SCHEMA)
+        return self._complete(PUBLIC_INSTRUCTIONS, payload, 'kit_public_performance', SPEECH_SCHEMA)
 
 
 def check_plan(plan, episodes, public_event):
@@ -326,6 +329,55 @@ def check_speech(speech, plan, public_view, player_action):
     return spoken
 
 
+def prepare_turn(runtime, adjudicator, action, use_memory=True):
+    require(isinstance(action, str) and 0 < len(action.strip()) <= 1000,
+            'Player action must be 1–1000 characters')
+    revision, state = runtime.load()
+    resolution = adjudicator.resolve(action, revision, state)
+    public_view = runtime.preview(revision, resolution.events)
+    context = runtime.context()
+    episodes = state.get('kit', {}).get('episodes', [])[-8:] if use_memory else []
+    body = {'action': action, 'events': resolution.events, 'kind': resolution.kind,
+            'public_event': resolution.public_event, 'public_view': public_view,
+            'use_memory': use_memory}
+    planning_input = {
+        'personality_core': context['personality_core'],
+        'dm_context': context['dm_context'],
+        'kit_state': {'episodes': episodes,
+                      'current_appraisal': state.get('kit', {}).get('current_appraisal')
+                      if use_memory else None},
+        'player_action': action, 'accepted_public_event': resolution.public_event,
+        'action_kind': resolution.kind,
+    }
+    return revision, body, planning_input
+
+
+def performance_input(runtime, body, plan):
+    public_history = [{'player_input': turn['player_input'], 'spoken': turn['spoken'][-2000:]}
+                      for turn in runtime.recent_kit_turns(limit=6)]
+    return {
+        'personality_core': runtime.context()['personality_core'],
+        'player_view_after_event': body['public_view'],
+        'player_action': body['action'], 'accepted_public_event': body['public_event'],
+        'action_kind': body['kind'], 'public_history': public_history,
+        'selected_move': {
+            'move': plan['move'],
+            'focus_actor': {'uktarl': 'Dealer', 'other': 'Card player',
+                            'none': 'none'}[plan['focus_actor']],
+            'table_presence': plan['table_presence'], 'tone': plan['tone'],
+            'brief': plan['public_brief'],
+        },
+    }
+
+
+def checked_record(body, plan, speech):
+    spoken = check_speech(speech, plan, body['public_view'], body['action'])
+    if body['kind'] != 'social':
+        spoken = f"Narrator: {body['public_event']}\n{spoken}"
+    return {'player_input': body['action'], 'public_event': body['public_event'],
+            'trace': plan, 'spoken': spoken}
+
+
 class KitAgent:
     def __init__(self, runtime, model, adjudicator=None):
         self.runtime = runtime
@@ -333,43 +385,17 @@ class KitAgent:
         self.adjudicator = adjudicator or Room6CAdjudicator()
 
     def turn(self, action, turn_id=None, use_memory=True):
-        require(isinstance(action, str) and 0 < len(action.strip()) <= 1000,
-                'Player action must be 1–1000 characters')
-        revision, state = self.runtime.load()
+        revision, body, planning_input = prepare_turn(
+            self.runtime, self.adjudicator, action, use_memory)
         turn_id = turn_id or str(uuid.uuid4())
-        resolution = self.adjudicator.resolve(action, revision, state)
-        public_view = self.runtime.preview(revision, resolution.events)
-        context = self.runtime.context()
-        episodes = state.get('kit', {}).get('episodes', [])[-8:] if use_memory else []
-        plan = self.model.plan({
-            'personality_core': context['personality_core'],
-            'dm_context': context['dm_context'],
-            'kit_state': {'episodes': episodes,
-                          'current_appraisal': state.get('kit', {}).get('current_appraisal') if use_memory else None},
-            'player_action': action, 'accepted_public_event': resolution.public_event,
-            'action_kind': resolution.kind,
-        })
-        check_plan(plan, episodes, resolution.public_event)
-        check_public_content(plan['public_brief'], public_view, action)
-        public_history = [{'player_input': turn['player_input'], 'spoken': turn['spoken'][-2000:]}
-                          for turn in self.runtime.recent_kit_turns(limit=6)]
-        performance_payload = {
-            'personality_core': context['personality_core'],
-            'player_view_after_event': public_view,
-            'player_action': action, 'accepted_public_event': resolution.public_event,
-            'action_kind': resolution.kind, 'public_history': public_history,
-            'selected_move': {
-                'move': plan['move'],
-                'focus_actor': {'uktarl': 'Dealer', 'other': 'Card player',
-                                'none': 'none'}[plan['focus_actor']],
-                'table_presence': plan['table_presence'], 'tone': plan['tone'],
-                'brief': plan['public_brief'],
-            },
-        }
+        plan = self.model.plan(planning_input)
+        check_plan(plan, planning_input['kit_state']['episodes'], body['public_event'])
+        check_public_content(plan['public_brief'], body['public_view'], action)
+        performance_payload = performance_input(self.runtime, body, plan)
         for attempt in range(2):
             speech = self.model.perform(performance_payload)
             try:
-                spoken = check_speech(speech, plan, public_view, action)
+                record = checked_record(body, plan, speech)
                 break
             except InvalidChange:
                 if attempt:
@@ -377,13 +403,50 @@ class KitAgent:
                 performance_payload['retry_instruction'] = (
                     'The previous output failed the public visibility or format check. '
                     'Use only supplied player-visible facts and accepted event.')
-        if resolution.kind != 'social':
-            spoken = f'Narrator: {resolution.public_event}\n{spoken}'
-        record = {'player_input': action, 'public_event': resolution.public_event,
-                  'trace': plan, 'spoken': spoken}
-        next_revision = self.runtime.commit_kit_turn(turn_id, revision, resolution.events, record)
+        next_revision = self.runtime.commit_kit_turn(turn_id, revision, body['events'], record)
         return {'revision': next_revision, 'turn_id': turn_id,
-                'public_event': resolution.public_event, 'spoken': spoken}
+                'public_event': body['public_event'], 'spoken': record['spoken']}
+
+
+class KitChatBridge:
+    """Host this model loop in an assistant chat, with no API credential in Python."""
+    def __init__(self, runtime, adjudicator=None):
+        self.runtime = runtime
+        self.adjudicator = adjudicator or Room6CAdjudicator()
+
+    def prepare(self, action, turn_id=None, use_memory=True):
+        turn_id = turn_id or str(uuid.uuid4())
+        revision, body, planning_input = prepare_turn(
+            self.runtime, self.adjudicator, action, use_memory)
+        self.runtime.stage_kit_turn(turn_id, revision, body)
+        return {'turn_id': turn_id, 'stage': 'private_decision',
+                'instructions': PRIVATE_INSTRUCTIONS, 'schema': PLAN_SCHEMA,
+                'input': planning_input}
+
+    def decide(self, turn_id, plan):
+        pending = self.runtime.pending_kit_turn(turn_id)
+        revision, state = self.runtime.load()
+        if revision != pending['revision']:
+            raise StaleTurn(f"Expected revision {pending['revision']}; current is {revision}")
+        body = pending['body']
+        episodes = state.get('kit', {}).get('episodes', [])[-8:] if body['use_memory'] else []
+        check_plan(plan, episodes, body['public_event'])
+        check_public_content(plan['public_brief'], body['public_view'], body['action'])
+        payload = performance_input(self.runtime, body, plan)
+        self.runtime.save_kit_plan(turn_id, revision, plan)
+        return {'turn_id': turn_id, 'stage': 'public_performance',
+                'instructions': PUBLIC_INSTRUCTIONS, 'schema': SPEECH_SCHEMA,
+                'input': payload}
+
+    def finish(self, turn_id, speech):
+        pending = self.runtime.pending_kit_turn(turn_id)
+        require(pending['plan'] is not None, 'Complete private decision before performance')
+        body = pending['body']
+        record = checked_record(body, pending['plan'], speech)
+        revision = self.runtime.commit_kit_turn(
+            turn_id, pending['revision'], body['events'], record, consume_pending=True)
+        return {'revision': revision, 'turn_id': turn_id,
+                'public_event': body['public_event'], 'spoken': record['spoken']}
 
 
 def describe_view(view):
@@ -395,12 +458,17 @@ def describe_view(view):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('command', choices=['init', 'play', 'trace'])
+    parser.add_argument('command', choices=['init', 'view', 'prepare', 'decide', 'finish',
+                                            'play', 'trace'])
     parser.add_argument('--db', default='kit-06c.sqlite')
-    parser.add_argument('--model', help='OpenAI Responses API model for private decision and performance')
+    parser.add_argument('--model', help='Optional standalone Responses API model for play')
     parser.add_argument('--perception', type=int, help='Test character Wisdom (Perception) modifier')
     parser.add_argument('--insight', type=int, help='Test character Wisdom (Insight) modifier')
     parser.add_argument('--no-memory', action='store_true', help='Ablation: hide Kit’s prior episodes from her decision stage')
+    parser.add_argument('--action', help='Player action for prepare')
+    parser.add_argument('--action-file', help='UTF-8 player action file for prepare')
+    parser.add_argument('--turn-id', help='Turn ID returned by prepare')
+    parser.add_argument('--input-file', help='JSON plan for decide or JSON speech for finish; - reads stdin')
     args = parser.parse_args()
     runtime = Runtime(args.db)
     try:
@@ -408,13 +476,38 @@ def main():
             source = json.loads(ROOM_FIXTURE.read_text(encoding='utf-8'))
             runtime.initialize(source, source['starting_area'])
             print(json.dumps(runtime.player_view(), indent=2, ensure_ascii=False))
+        elif args.command == 'view':
+            print(json.dumps(runtime.player_view(), indent=2, ensure_ascii=False))
         elif args.command == 'trace':
             print(json.dumps(runtime.recent_kit_turns(), indent=2, ensure_ascii=False))
+        elif args.command in ('prepare', 'decide', 'finish'):
+            bridge = KitChatBridge(runtime, Room6CAdjudicator(args.perception, args.insight))
+            try:
+                if args.command == 'prepare':
+                    if (args.action is None) == (args.action_file is None):
+                        parser.error('prepare requires exactly one of --action or --action-file')
+                    action = (args.action if args.action_file is None else
+                              Path(args.action_file).read_text(encoding='utf-8').strip())
+                    result = bridge.prepare(action, args.turn_id, use_memory=not args.no_memory)
+                else:
+                    if not args.turn_id or not args.input_file:
+                        parser.error(f'{args.command} requires --turn-id and --input-file')
+                    raw = sys.stdin.read() if args.input_file == '-' else Path(args.input_file).read_text(encoding='utf-8')
+                    submitted = json.loads(raw)
+                    result = (bridge.decide(args.turn_id, submitted) if args.command == 'decide' else
+                              bridge.finish(args.turn_id, submitted))
+            except PendingRuling as exc:
+                result = {'stage': 'pending_ruling', 'message': str(exc), 'committed': False}
+            except InvalidChange as exc:
+                print(json.dumps({'stage': 'rejected', 'message': str(exc), 'committed': False},
+                                 ensure_ascii=False), file=sys.stderr)
+                return 2
+            print(json.dumps(result, indent=2, ensure_ascii=False))
         else:
             if not args.model:
-                parser.error('play requires --model YOUR_MODEL_ID')
+                parser.error('standalone play requires --model; for ChatGPT use prepare/decide/finish')
             if not os.environ.get('OPENAI_API_KEY'):
-                parser.error('play requires OPENAI_API_KEY in the process environment')
+                parser.error('standalone play requires OPENAI_API_KEY; for ChatGPT use prepare/decide/finish')
             model = OpenAIResponsesModel(args.model)
             agent = KitAgent(runtime, model, Room6CAdjudicator(args.perception, args.insight))
             print('Kit’s area 6c test. Enter an action, or /quit. Private traces: separate trace command.')
@@ -437,7 +530,8 @@ def main():
                     print(f'\nTurn rejected; no state was saved: {exc}', file=sys.stderr)
     finally:
         runtime.close()
+    return 0
 
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main())
