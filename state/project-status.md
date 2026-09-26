@@ -3,14 +3,14 @@
 ## Active workstreams
 
 ### DM personality / behavior
-Status: v0.1 captured and ready for scenario testing.
+Status: canonical core and area 6c personality protocol captured; live model evaluation is still pending.
 
 The current document defines identity, core appetites, pillar weighting, appetite resolution, inhibition rules, stakes telegraphing, NPC performance, visible DM presence, player relationship, character relationship, and self-evaluation.
 
 ### Technical DM runtime
-Status: in development in a separate project conversation.
+Status: SQLite source/state backend and a bounded area 6c Kit play loop implemented on `kit-area-06c-testbed`.
 
-Action: migrate implementation into `runtime/` when the current technical branch/code is available. Preserve the separation between runtime machinery and personality/campaign data.
+The play loop separates source-grounded room adjudication, a private Kit decision, and a public performance call. It persists world changes, a Kit episode, and the transcript atomically. See `docs/architecture/kit-06c-play-slice.md`. Full rules, combat, and measured entertainment quality remain open.
 
 ### Player-facing UX/UI
 Status: active design.
@@ -29,8 +29,8 @@ Action: establish a campaign manifest and through-line schema before importing l
 
 ## Next integration milestone
 
-A playable vertical slice should prove this path:
+A live playtest should now probe this path:
 
-source material -> current scene/state -> NPC/opposition execution -> personality arbitration -> adjudication -> player-facing response -> state update
+source material -> current scene/state -> bounded adjudication -> Kit event appraisal and move -> player-facing performance -> validated state update
 
-with maps/assets retrieved by stable manifest IDs.
+The current slice uses the area 6c fixture and a map reference. It does not load maps/assets from manifest IDs or execute tactical opposition. Compare player-facing runs, memory ablations, and eventually experienced human DMs before claiming that Kit's personality succeeds.

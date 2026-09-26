@@ -86,7 +86,7 @@ Also record an overall paired preference between two complete runs: which Kit wo
 
 ## Current runtime boundary
 
-The fixture can initialize the existing SQLite state/context prototype. That prototype exposes player-visible facts, protects the hidden facts in its structured view, commits a limited set of already-adjudicated events, and saves them. It cannot yet appraise events for Kit, maintain her autobiographical and affective state, select a DM move, express her table voice, apply full D&D rules, move fleeing actors into adjoining areas, handle treasure transfers, or score entertainment. The next playable adapter needs a concise causal trace for evaluation, kept private from the player, and an expressed response whose quality can be judged independently of that trace. It also needs relevant level, player, and recent-rhythm context; this room fixture by itself cannot support the full personality test.
+The [area 6c play slice](../../docs/architecture/kit-06c-play-slice.md) now connects bounded event adjudication, Kit's private appraisal and move selection, a separate public performance call, persistent episodes, and a private trace. Its context includes the room, a Level 1 concern, and the campaign boundary relevant here. It cannot yet apply full D&D rules, resolve combat, move fleeing actors into adjoining areas, transfer treasure, persist substantive NPC bargains, or score entertainment. The text router and literal secrecy check are experimental; a passing backend test is not a personality result.
 
 Run the seed from the repository root with:
 
@@ -95,3 +95,5 @@ python -m runtime.state_context init --db /tmp/kit-06c.sqlite --fixture tests/fi
 python -m runtime.state_context context --db /tmp/kit-06c.sqlite
 python -m runtime.state_context view --db /tmp/kit-06c.sqlite
 ```
+
+For model-driven play, initialize a fresh database with `python -m runtime.kit_agent init`, then run `python -m runtime.kit_agent play` as shown in the [play guide](../../docs/architecture/kit-06c-play-slice.md). Keep the private `trace` command out of the player's view until after blind scoring.

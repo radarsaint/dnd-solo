@@ -6,6 +6,7 @@ or future validated server adapter, never direct player tool access.
 import copy
 import hashlib
 import json
+import secrets
 import sqlite3
 from pathlib import Path
 
@@ -39,6 +40,7 @@ class Runtime:
             CREATE TABLE IF NOT EXISTS snapshots (revision INTEGER PRIMARY KEY, body TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS turns (id TEXT PRIMARY KEY, digest TEXT NOT NULL, revision INTEGER NOT NULL);
             CREATE TABLE IF NOT EXISTS ledger (seq INTEGER PRIMARY KEY, turn_id TEXT NOT NULL REFERENCES turns(id), body TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS kit_turns (turn_id TEXT PRIMARY KEY REFERENCES turns(id), body TEXT NOT NULL);
             CREATE TRIGGER IF NOT EXISTS immutable_ledger_update BEFORE UPDATE ON ledger
                 BEGIN SELECT RAISE(ABORT, 'Ledger is append-only'); END;
             CREATE TRIGGER IF NOT EXISTS immutable_ledger_delete BEFORE DELETE ON ledger
@@ -64,6 +66,8 @@ class Runtime:
             'visited': [area], 'known_facts': [], 'known_exits': [],
             'actors': copy.deepcopy(source['actors']),
             'resources': copy.deepcopy(source['resources']), 'rhythm': [],
+            'kit': {'episodes': [], 'current_appraisal': None},
+            'roll_seed': secrets.token_hex(16),
         }
         self._observe(state, source)
         with self.db:
@@ -93,10 +97,31 @@ class Runtime:
 
     def commit(self, turn_id, expected_revision, events):
         """Atomically accept an adjudicated event batch; safe to retry identically."""
+        return self._commit(turn_id, expected_revision, events)
+
+    def commit_kit_turn(self, turn_id, expected_revision, events, record):
+        """Commit world events, a private Kit episode, and the public turn together."""
+        require(isinstance(record, dict), 'Kit turn record required')
+        require(isinstance(record.get('player_input'), str) and record['player_input'].strip(),
+                'Player input required')
+        require(isinstance(record.get('public_event'), str) and record['public_event'].strip(),
+                'Public event required')
+        require(isinstance(record.get('spoken'), str) and record['spoken'].strip(),
+                'Player-facing turn required')
+        trace = record.get('trace')
+        require(isinstance(trace, dict) and isinstance(trace.get('appraisal'), dict)
+                and isinstance(trace.get('observed_event'), str)
+                and isinstance(trace.get('move'), str), 'Private Kit decision required')
+        require(all(len(encode(record[key]).encode()) <= 12000 for key in
+                    ('player_input', 'public_event', 'spoken', 'trace')), 'Kit turn exceeds size limit')
+        return self._commit(turn_id, expected_revision, events, record)
+
+    def _commit(self, turn_id, expected_revision, events, kit_record=None):
         require(isinstance(turn_id, str) and bool(turn_id.strip()), 'Turn ID required')
         require(type(expected_revision) is int and expected_revision >= 0, 'Invalid revision')
         require(isinstance(events, list) and 0 < len(events) <= 100, 'Expected 1–100 events')
-        digest = hashlib.sha256(encode(events).encode()).hexdigest()
+        payload = events if kit_record is None else {'events': events, 'kit_record': kit_record}
+        digest = hashlib.sha256(encode(payload).encode()).hexdigest()
         self.db.execute('BEGIN IMMEDIATE')
         try:
             prior = self.db.execute('SELECT digest, revision FROM turns WHERE id=?', (turn_id,)).fetchone()
@@ -110,16 +135,47 @@ class Runtime:
             source = self.source()
             for event in events:
                 self._apply(state, source, event)
+            if kit_record is not None:
+                kit = state.setdefault('kit', {'episodes': [], 'current_appraisal': None})
+                trace = kit_record['trace']
+                kit['current_appraisal'] = trace['appraisal']
+                kit['episodes'].append({
+                    'turn_id': turn_id, 'player_input': kit_record['player_input'],
+                    'event': trace['observed_event'], 'appraisal': trace['appraisal'],
+                    'goal': trace.get('goal'), 'move': trace['move'],
+                    'brief': trace.get('public_brief'),
+                    'public_event': kit_record['public_event'],
+                })
+                kit['episodes'] = kit['episodes'][-12:]
             next_revision = revision + 1
             self.db.execute('INSERT INTO turns VALUES (?, ?, ?)', (turn_id, digest, next_revision))
             self.db.executemany('INSERT INTO ledger(turn_id, body) VALUES (?, ?)',
                                 [(turn_id, encode(event)) for event in events])
+            if kit_record is not None:
+                self.db.execute('INSERT INTO kit_turns VALUES (?, ?)', (turn_id, encode(kit_record)))
             self.db.execute('INSERT INTO snapshots VALUES (?, ?)', (next_revision, encode(state)))
             self.db.commit()
             return next_revision
         except Exception:
             self.db.rollback()
             raise
+
+    def preview(self, expected_revision, events):
+        """Apply an adjudicated batch to a copy for pre-commit rendering."""
+        revision, state = self.load()
+        if revision != expected_revision:
+            raise StaleTurn(f'Expected revision {expected_revision}; current is {revision}')
+        source = self.source()
+        for event in events:
+            self._apply(state, source, event)
+        return self._player_view(source, state)
+
+    def recent_kit_turns(self, limit=8):
+        require(type(limit) is int and 0 <= limit <= 12, 'Invalid history limit')
+        rows = self.db.execute('''SELECT kit_turns.body FROM kit_turns
+            JOIN turns ON turns.id = kit_turns.turn_id
+            ORDER BY turns.revision DESC LIMIT ?''', (limit,)).fetchall()
+        return list(reversed([json.loads(row[0]) for row in rows]))
 
     def _apply(self, state, source, event):
         require(isinstance(event, dict), 'Event must be an object')
@@ -210,6 +266,8 @@ class Runtime:
                 'scene': {'current_area': area, 'elapsed_seconds': state['elapsed_seconds']},
                 'source_id': source['id'], 'fixture_only': source['fixture_only'],
                 'source_ref': source.get('source_ref'), 'map_ref': source.get('map_ref'),
+                'level_context': source.get('level_context'),
+                'campaign_context': source.get('campaign_context'),
                 'player_perceivable': self._player_view(source, state),
                 'dm_only': {
                     'room_rules': source.get('room_rules', []),

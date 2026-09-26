@@ -33,6 +33,8 @@ class UktarlRoomTests(unittest.TestCase):
         self.assertIn('marked_deck', context['dm_only']['unrevealed_facts'])
         self.assertIn('key_function', context['dm_only']['unrevealed_facts'])
         self.assertTrue(any('DC 14' in rule for rule in context['dm_only']['room_rules']))
+        self.assertIn('extort newcomers', context['level_context']['pressure_here'])
+        self.assertIn('No Halaster contact', context['campaign_context']['relevance_here'])
         self.assertTrue(context['map_ref'].endswith('map-01.01-dungeon-level-dm.png'))
         self.assertEqual(context['dm_only']['actors']['uktarl']['dm_identity'], 'Uktarl Krannoc')
         self.assertTrue(any('conditional test snapshot' in c for c in context['constraints']))

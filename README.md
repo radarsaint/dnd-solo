@@ -18,13 +18,13 @@ The technical runtime should integrate against the compact core rather than dupl
 
 `runtime/state_context.py` implements a small SQLite-backed prototype with atomic event batches, restartable snapshots, a player knowledge projection, fixed fixture topology, and bounded context assembly using the canonical personality core.
 
-Run the ten automated checks from the repository root:
+Run the automated checks from the repository root:
 
 ```sh
 python -m unittest discover -s tests -p 'test_*.py' -v
 ```
 
-See [the prototype guide](docs/architecture/state-context-prototype.md) for runnable commands, tested behavior, and the remaining work. This is an offline backend prototype; model-driven DM play and full D&D adjudication are not implemented yet.
+See [the state/context prototype guide](docs/architecture/state-context-prototype.md) for the storage boundary. A [bounded area 6c play slice](docs/architecture/kit-06c-play-slice.md) now runs a two-stage model loop for Kit's private decision and player-facing performance, with atomic persistence and a conversational CLI. It requires an API key and model choice; full D&D adjudication and demonstrated entertainment quality remain open work.
 
 The first source-grounded test scene is [Level 1, area 6c — Uktarl's room](tests/scenarios/level-01-area-06c-uktarl.md). Its fixture exercises context and secrecy; six play probes examine whether Kit's event appraisal, chosen moves, and table performance make her personality felt. The [personality backend contract](docs/architecture/runtime/DM_PERSONALITY_BACKEND_CONTRACT.md#cognitive-agent-model-for-kit) records the research grounding for that agent cycle.
 
