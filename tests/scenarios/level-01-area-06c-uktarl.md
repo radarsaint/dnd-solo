@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Use one repeatable scene to test Kit's choices as a DM: NPC initiative, social play, grounded humor, hidden information, fair danger, creative action, and continuity after a surprising turn. This is a conditional room snapshot, not a replacement for the published encounter.
+Use one repeatable scene to test Kit's personality in action. The question is what she notices, wants, enjoys, worries about, and chooses while running it—and whether the player can feel that mind behind the table. Source facts and rules set the constraints; passing those checks alone does not pass this test. This is a conditional room snapshot, not a replacement for the published encounter.
 
 **Executable seed:** `tests/fixtures/level_01_area_06c.json`
 
@@ -31,37 +31,50 @@ The room seed was compared with the adventure's Level 1 Undertakers and area 6c 
 | Uktarl's cheating and retreat, companions' flight, gang extortion | DM rules, motives, Performance +4, actor retreat conditions | Initiative, tactics, pursuit, and bargaining |
 | Alerted Undertakers gather in 6a | Explicit seed precondition excludes that branch | A separate alert-state scenario |
 
-The existing tests establish that the player view hides private facts and an accepted reveal persists. They do not compare prose to the book, execute D&D rules, or measure whether Kit is entertaining. That requires transcripts from the six probes below, checked against the source and scored by a player.
+The existing tests establish that the player view hides private facts and an accepted reveal persists. They do not measure Kit's personality. The source audit is a prerequisite for the personality test below, not its result.
 
-## Six probes from the same seed
+## Personality test: Kit's attention and appetite
+
+For each consequential turn, record a compact **DM intent card** before Kit's player-facing response. It is a high-level decision record, not a transcript of private reasoning and not dialogue to show the player:
+
+- **Noticed:** Which player choice or scene change caught her attention? Which of the room, people, neighborhood, level, campaign, or table layers matters now?
+- **Cares about:** What experience does she want the player to have next? What surprised or amused her? What might she hope the player tries, without steering them into it? What relationship, danger, joke, discovery, or future payoff interests her?
+- **Chosen move:** What will an NPC, the environment, or Kit at the table do? Why this moment? What will she leave open for the player?
+- **Presence:** Will her own voice surface, or will she express herself through pacing, NPC behavior, adjudication, and restraint?
+
+Keep each card brief and specific. A claim like “I want to be funny” is useless without an actual choice that earns a laugh. After the turn, compare the card with the response: did her interest produce an observable, fitting move, or did the output flatten into generic narration? Score the player-facing transcript first, without showing the evaluator the cards, then inspect the cards to diagnose the choices. Do not use a fixed script or a required punchline as the target.
+
+For example, if the player pulls up a chair: Kit notices that they chose to socialize with apparent predators. She is amused and wants to see whether they catch Uktarl cheating. She chooses to let him make the invitation attractive while one companion watches the player's hands. She stays behind the NPCs for now. This is a possible intent, not a prescribed line or outcome; a good run must earn its own moment.
+
+## Six personality probes from the same seed
 
 Start a fresh copy of the seed for each probe. Continue for several turns before scoring; a strong opening line alone is insufficient.
 
-| Player move | What Kit should decide and show | Failure to catch |
+| Player move | What should catch Kit's interest | What should come through to the player |
 | --- | --- | --- |
-| “I pull up a chair and ask what the stakes are.” | Uktarl pursues an advantage through the game or conversation. The other three react according to their limited roles. Kit makes the encounter playable without forcing a fight. | Generic exposition, identical voices, or automatic trust. |
-| “I call out the dealer's marked cards.” | Decide what the character could have observed and whether a check is needed. Uktarl responds as an exposed cheat who still has allies and a front to maintain. | Treating accusation as proof, or having everyone disclose the whole fraud. |
-| “I study those tiny figures in the carving while they argue.” | Resolve attention, position, and the DC 13 discovery. If successful, reveal the key; the bandits still do not suddenly know its purpose. | Giving away the key on room entry or making Uktarl explain it. |
-| “I could help you get rid of Harria. What is that worth?” | Let Uktarl evaluate a dangerous offer in light of his rivalry and cowardice. His answer creates a playable bargain or test of trust. | A quest dispenser speech or instant sincere alliance. |
-| “I tip the stone tub over and use it as cover.” | Check the tub's actual recessed construction and dimensions before ruling. Offer what the physical setup permits, then let opponents respond. | Inventing a movable barricade or rejecting the idea without considering it. |
-| “I attack Uktarl in the middle of the game.” | Apply initiative and combat rules, let the other occupants act, and honor Uktarl's source retreat trigger when it fires. Preserve the changed actor states. | A static fight, an unearned surprise round, or Uktarl fighting to the death for dramatic effect. |
+| “I pull up a chair and ask what the stakes are.” | The player volunteered to roleplay with predators. Kit can enjoy the social opening and let Uktarl try to charm and fleece them. | A tempting, funny or unnerving invitation with room for a real decision; Kit's humor does not make all four NPCs sound alike. |
+| “I call out the dealer's marked cards.” | The player may have caught her setup. Kit should enjoy that, then consider Uktarl's pride, allies, and need to save face. | A consequential reaction from a person under pressure, with proof and uncertainty adjudicated fairly; no instant confession dump. |
+| “I study those tiny figures in the carving while they argue.” | The player used the argument as cover for curiosity. Kit can reward attention without breaking the social tension. | Discovery feels earned and satisfying. The key's purpose and the bandits' ignorance remain intact. |
+| “I could help you get rid of Harria. What is that worth?” | The player touched the level's leadership fracture. Kit wants to see how far the dangerous bargain might go. | Uktarl tests the offer in character. The possibility is exciting; the outcome stays open. |
+| “I tip the stone tub over and use it as cover.” | A ridiculous, inventive tactic may delight Kit. The fixed tub gives her a chance to react and still rule seriously. | The player feels laughed with and taken seriously: the tub cannot tip, but its recess may still be useful in a physically honest way. |
+| “I attack Uktarl in the middle of the game.” | The social scene became dangerous. Kit should want the opposition to earn respect and the retreat to change what happens next. | Humor recedes, tactics and morale come forward, and the fight has consequences beyond hit point loss. |
 
 ## Evaluation record
 
-For each run, retain the seed version, character sheet, exact player inputs, Kit's proposed DM moves, accepted rulings/events, player-facing turns, and state after the scene. Score each dimension from 0–2 with a concrete example:
+For each run, retain the seed version, character sheet, exact player inputs, intent cards, accepted rulings/events, player-facing turns, and state after the scene. Score each dimension from 0–2 with a concrete moment from the transcript:
 
-1. **DM judgment:** Kit chose a consequential move that fit the room and sustained play.
-2. **Embodiment:** Uktarl's choices had a distinct motive; the other actors did not inherit Kit's table voice.
-3. **Truth and fairness:** clues, geometry, danger, checks, and retreat followed source and established state.
-4. **Adaptation:** a clever or disruptive player action changed the scene without erasing consequences.
-5. **Entertainment:** timing, tension, humor, and payoff made the next decision worth taking.
-6. **Continuity:** what was learned, spent, taken, promised, or changed survived the next turn.
+1. **Recognizable Kit:** Her interests and taste emerged through decisions and timing, even when she did not speak in her own table voice.
+2. **Entertainment:** The scene made the player want another turn; tension, humor, surprise, and payoff arrived when earned.
+3. **Tonal range:** She could be funny, quirky, threatening, or quiet as the moment called for, without forcing each quality into every turn.
+4. **Embodiment:** Uktarl and the others behaved as distinct people rather than mouths for Kit's jokes or exposition.
+5. **Adaptation:** Kit visibly appreciated or responded to unexpected play, then gave the attempt real consequences.
+6. **Judgment and continuity:** Her choices remained fair to the source, map, player knowledge, and accepted changes, and opened an interesting next decision.
 
-Also record an overall paired preference between two complete runs: which Kit would the player choose to keep playing with, and why? Preserve rejected examples for later personality tuning. A beat tag such as `humor` says a joke occurred; it does not say the joke worked.
+Also record an overall paired preference between two complete runs: which Kit would the player choose to keep playing with, and why? Ask what moment made her feel like a particular DM, and what moment felt generic or artificial. Preserve rejected examples for later personality tuning. A beat tag such as `humor` says a joke occurred; it does not say the joke worked.
 
 ## Current runtime boundary
 
-The fixture can initialize the existing SQLite state/context prototype. That prototype exposes player-visible facts, protects the hidden facts in its structured view, commits a limited set of already-adjudicated events, and saves them. It cannot yet run dialogue, choose a DM move, apply full D&D rules, move fleeing actors into adjoining areas, handle treasure transfers, or score entertainment. These probes are the contract for the next playable model adapter and adjudicator.
+The fixture can initialize the existing SQLite state/context prototype. That prototype exposes player-visible facts, protects the hidden facts in its structured view, commits a limited set of already-adjudicated events, and saves them. It cannot yet form an intent card, choose a DM move, generate dialogue, apply full D&D rules, move fleeing actors into adjoining areas, handle treasure transfers, or score entertainment. The next playable adapter must expose Kit's selected intent for evaluation, keep it private from the player, and produce a response whose quality can be judged independently of her self-description. It also needs relevant level, player, and recent-rhythm context; this room fixture by itself cannot support the full personality test.
 
 Run the seed from the repository root with:
 
