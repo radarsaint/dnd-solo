@@ -15,9 +15,23 @@ The seed assumes Uktarl, two bandits, and a doppelganger are still at their card
 
 ## Facts Kit must work with
 
-The occupants pose as vampires. Uktarl enjoys lying and cheating, blames others for his problems, wants Harria out of his way, and values his own safety. A marked deck creates an opening for player scrutiny. The mountain carving holds a hidden key that the bandits do not know about; inspecting it can reveal the key with the source's DC 13 Wisdom (Perception) check. Uktarl retreats toward area 7 after taking damage or watching an underling slaughtered; the others flee toward area 8 when their group breaks. Exact movement and combat positioning require the canonical map and a rules resolver.
+The occupants pose as vampires. The gang demands 10 gp per character for safe passage and prefers to turn hard targets against Xanathar's goblinoids. Uktarl enjoys lying and cheating, blames others for his problems, wants Harria out of his way, and values his own safety. He has Performance +4. A marked deck creates an opening for player scrutiny. The mountain carving holds a hidden key that the bandits do not know about; inspecting it can reveal the key with the source's DC 13 Wisdom (Perception) check. If Uktarl takes damage or sees an underling slaughtered, he retreats toward area 7; the others flee toward area 8 and join any bandits still there. Exact movement and combat positioning require the canonical map and a rules resolver.
 
 Visible at entry: four apparently vampiric card players, coins and a ring on the table, the mountain carving, the recessed tub, and the south door. Kit should let the players discover the disguise, marked cards, key, and stored gear through play. The bandits' ignorance of the key matters: they cannot bargain with knowledge they lack.
+
+## Source audit
+
+The room seed was compared with the adventure's Level 1 Undertakers and area 6c text and the DM map on 2026-09-26. The map shows a roughly 20-by-30-foot room and one door on its south wall into a short passage; its grid is 10 feet per square. The keyed text supplies the contents and behavior below. These are source checks, separate from the automated tests.
+
+| Source point | Seed representation | What still needs playtesting |
+| --- | --- | --- |
+| Four occupants, including Uktarl, two bandits, and a doppelganger in false-vampire dress | Four actors with private identities; DC 14 Insight in DM rules | Whether Kit handles the disguise fairly in conversation |
+| Card table by the door, marked deck, coins, and silver ring | Visible table and valuables; hidden deck marks and exact treasure count | Gambling, suspicion, and theft rulings |
+| North fresco, recessed 8-by-4-by-2-foot tub, hidden key on DC 13 Perception | Visible geometry; hidden key and its separate area 14b use | Physical stunts and player discovery |
+| Uktarl's cheating and retreat, companions' flight, gang extortion | DM rules, motives, Performance +4, actor retreat conditions | Initiative, tactics, pursuit, and bargaining |
+| Alerted Undertakers gather in 6a | Explicit seed precondition excludes that branch | A separate alert-state scenario |
+
+The existing tests establish that the player view hides private facts and an accepted reveal persists. They do not compare prose to the book, execute D&D rules, or measure whether Kit is entertaining. That requires transcripts from the six probes below, checked against the source and scored by a player.
 
 ## Six probes from the same seed
 

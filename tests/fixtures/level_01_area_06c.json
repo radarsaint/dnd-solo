@@ -6,9 +6,12 @@
   "test_precondition": "The four occupants have not been encountered elsewhere and have not relocated to the alert position in 6a. This is a conditional snapshot, not the default result of entering from the Yawning Portal.",
   "room_rules": [
     "The Undertakers' vampire disguises can be seen through with a DC 14 Wisdom (Insight) check; the appearance alone is not proof.",
+    "The gang demands 10 gp per character for safe passage. If they cannot extort or defeat adventurers, they try to turn them against the Xanathar goblinoids.",
+    "Uktarl is a bandit captain with Performance +4. He lies and cheats for fun and blames others for his failures.",
     "A character inspecting the mountain carving can locate the stone key with a DC 13 Wisdom (Perception) check.",
-    "Uktarl retreats toward area 7 if damaged or if an underling is slaughtered. His companions flee toward area 8 when the encounter breaks.",
-    "The bandits do not know about the stone key or its use."
+    "If Uktarl takes damage or sees an underling slaughtered, he retreats toward area 7; the others flee toward area 8 and join any bandits still there.",
+    "The bandits do not know about the stone key or its use.",
+    "The DM map shows area 6c as approximately 20 by 30 feet, with one door on its south wall opening to a short passage. The table is near that door; the fresco and recessed tub are at the north end."
   ],
   "starting_area": "area_06c",
   "areas": {
@@ -32,11 +35,11 @@
     },
     "fresco": {
       "area": "area_06c", "visible": true,
-      "text": "A carved mountain scene covers the north wall, with tiny dwarven figures in its caverns."
+      "text": "A carved mountain scene covers the north wall, with tiny dwarven figures in its caverns and rays of sunlight spreading outward."
     },
     "tub": {
       "area": "area_06c", "visible": true,
-      "text": "A shallow stone tub is recessed into the floor beneath the carving."
+      "text": "A stone tub about 8 feet long, 4 feet wide, and 2 feet deep is recessed into the floor beneath the carving."
     },
     "treasure_on_table": {
       "area": "area_06c", "visible": true,
@@ -56,7 +59,7 @@
     },
     "tub_stash": {
       "area": "area_06c", "visible": false,
-      "text": "A bedroll, thieves' tools, and stolen expedition gear are stored in the tub."
+      "text": "A bedroll, thieves' tools, and enough stolen gear to assemble one explorer's pack are stored in the tub."
     },
     "table_treasure": {
       "area": "area_06c", "visible": false,
@@ -66,7 +69,8 @@
   "actors": {
     "uktarl": {
       "name": "Pale man dealing cards", "dm_identity": "Uktarl Krannoc",
-      "type": "human bandit captain", "location": "area_06c", "status": "alive", "visible": true,
+      "type": "human bandit captain", "performance_bonus": 4,
+      "location": "area_06c", "status": "alive", "visible": true,
       "motive": "Profit from newcomers and displace Harria as leader of the Undertakers.",
       "immediate_goal": "Control the encounter without risking himself.",
       "knowledge": ["The Undertakers' vampire appearance is a disguise.", "His deck is marked.", "Harria is his rival."],
@@ -83,7 +87,7 @@
       "motive": "Share in the Undertakers' take and survive this encounter.",
       "knowledge": ["The vampire appearance is a disguise."],
       "secrets": ["Not a vampire."],
-      "retreat_condition": "When the group breaks, flee toward area 8.",
+      "retreat_condition": "When Uktarl retreats, flee toward area 8 and join any bandits still there.",
       "communication_profile": {"rhythm": "Unestablished", "humor": "Unestablished"}
     },
     "bandit_b": {
@@ -92,7 +96,7 @@
       "motive": "Share in the Undertakers' take and survive this encounter.",
       "knowledge": ["The vampire appearance is a disguise."],
       "secrets": ["Not a vampire."],
-      "retreat_condition": "When the group breaks, flee toward area 8.",
+      "retreat_condition": "When Uktarl retreats, flee toward area 8 and join any bandits still there.",
       "communication_profile": {"rhythm": "Unestablished", "humor": "Unestablished"}
     },
     "doppelganger": {
@@ -101,7 +105,7 @@
       "motive": "Support the current Undertaker arrangement while preserving its disguise and safety.",
       "knowledge": ["The group's vampire identity is a performance.", "Its own true nature."],
       "secrets": ["A doppelganger disguised as one of the apparent vampires."],
-      "retreat_condition": "When the group breaks, flee toward area 8.",
+      "retreat_condition": "When Uktarl retreats, flee toward area 8 and join any bandits still there.",
       "communication_profile": {"rhythm": "Unestablished", "humor": "Unestablished"}
     }
   },
