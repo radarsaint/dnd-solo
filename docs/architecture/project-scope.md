@@ -2,9 +2,11 @@
 
 ## Goal
 
-Build a single-player D&D experience in which the AI acts as a genuinely engaging Dungeon Master rather than a neutral story-completion engine.
+Build a single-player D&D experience with Kitiara, an AI Dungeon Master whose personality and competence make players want to keep playing. The long-term test is whether players would choose her over an experienced human DM given the same adventure and character. That preference has not been demonstrated yet.
 
 The DM should care about the campaign, enjoy roleplay, run competent opposition, embody NPCs, telegraph stakes, reward creativity, make loot exciting, maintain momentum, and develop an identifiable table relationship with the player over time.
+
+For a plain-English account of the approach, current progress, first playtest, and next steps, see [What We Are Building](../WHAT_WE_ARE_BUILDING.md).
 
 ## Separation of concerns
 

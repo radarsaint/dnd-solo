@@ -4,6 +4,10 @@ Canonical development repository for the D&D solo-DM project.
 
 This repository separates the project into layers so campaign content, runtime behavior, player-facing presentation, assets, and test material can evolve independently without turning into one giant prompt or design document.
 
+## In plain English
+
+We are building Kitiara (DM Kit), an AI Dungeon Master with a recognizable personality and the judgment to run a solo campaign. The goal is a DM a player would eventually prefer to an experienced human DM. Kit should care about the story and the player, embody NPCs, run fair danger, enjoy surprises, and know when to speak or let the world carry the scene. The [plain-English project outline](docs/WHAT_WE_ARE_BUILDING.md) explains the goal, what is working, the first playtest's failures, and what comes next.
+
 ## Current state
 
 The DM personality work now has a canonical live contract and a separate development pipeline:
@@ -26,7 +30,7 @@ python -m unittest discover -s tests -p 'test_*.py' -v
 
 See [the state/context prototype guide](docs/architecture/state-context-prototype.md) for the storage boundary. A [bounded area 6c play slice](docs/architecture/kit-06c-play-slice.md) runs Kit's private decision and player-facing performance in two validated stages with atomic persistence. An assistant with access to this repository can host those stages in chat through `prepare`, `decide`, and `finish`, without a separate model choice or API key. The optional standalone `play` CLI uses a model ID and API key. Full D&D adjudication and demonstrated entertainment quality remain open work.
 
-The first source-grounded test scene is [Level 1, area 6c — Uktarl's room](tests/scenarios/level-01-area-06c-uktarl.md). Its fixture exercises context and secrecy; six play probes examine whether Kit's event appraisal, chosen moves, and table performance make her personality felt. The [personality backend contract](docs/architecture/runtime/DM_PERSONALITY_BACKEND_CONTRACT.md#cognitive-agent-model-for-kit) records the research grounding for that agent cycle.
+The first source-grounded test scene is [Level 1, area 6c — Uktarl's room](tests/scenarios/level-01-area-06c-uktarl.md). Its fixture exercises context and secrecy; six play probes examine whether Kit's event appraisal, chosen moves, and table performance make her personality felt. The [personality backend contract](docs/architecture/runtime/DM_PERSONALITY_BACKEND_CONTRACT.md#cognitive-agent-model-for-kit) records the research grounding for that agent cycle. The earlier character-onboarding chat playtest found promising character engagement and adjudicative backbone, alongside problems with restraint, distinctive voice, and a causal campaign opening; those findings are summarized in the [project outline](docs/WHAT_WE_ARE_BUILDING.md).
 
 ## Repository map
 
