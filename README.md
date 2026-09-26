@@ -26,7 +26,7 @@ python -m unittest discover -s tests -p 'test_*.py' -v
 
 See [the prototype guide](docs/architecture/state-context-prototype.md) for runnable commands, tested behavior, and the remaining work. This is an offline backend prototype; model-driven DM play and full D&D adjudication are not implemented yet.
 
-The first source-grounded test scene is [Level 1, area 6c — Uktarl's room](tests/scenarios/level-01-area-06c-uktarl.md). Its fixture exercises context and secrecy; six play probes specify the DM decisions the future model loop must make.
+The first source-grounded test scene is [Level 1, area 6c — Uktarl's room](tests/scenarios/level-01-area-06c-uktarl.md). Its fixture exercises context and secrecy; six play probes examine whether Kit's event appraisal, chosen moves, and table performance make her personality felt. The [personality backend contract](docs/architecture/runtime/DM_PERSONALITY_BACKEND_CONTRACT.md#cognitive-agent-model-for-kit) records the research grounding for that agent cycle.
 
 ## Repository map
 
@@ -43,7 +43,7 @@ The first source-grounded test scene is [Level 1, area 6c — Uktarl's room](tes
 
 ## Design rule
 
-The DM is not implemented as a bag of witty lines. The personality core defines persistent wants, tastes, boundaries, pillar biases, and selective table presence. Runtime behavior should emerge from those stable preferences interacting with the actual scene, campaign state, NPC motives, adjudication, and player behavior.
+The DM is not implemented as a bag of witty lines. The personality core defines persistent wants, tastes, boundaries, pillar biases, and a vocal but calibrated table presence. Runtime behavior should emerge from those stable preferences interacting with the actual scene, campaign state, NPC motives, adjudication, and player behavior.
 
 The personality core does **not** override source truth, rules, map geometry, hidden-information boundaries, NPC state, or campaign state.
 

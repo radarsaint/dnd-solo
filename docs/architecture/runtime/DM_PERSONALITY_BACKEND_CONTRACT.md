@@ -19,6 +19,26 @@ The backend may not choose dramatic emphasis merely because it would be entertai
 
 This contract exists so the DM personality never has to manufacture the information it needs.
 
+### Cognitive-agent model for Kit
+
+Use **FAtiMA's perception–appraisal–decision cycle** as the principal model for Kit's character. Its agents receive events, update beliefs, appraise what an event means to their goals, retain event-linked emotional memory, and choose a high-level action for another component to embody. This is a documented model of a simulated person, not evidence that an AI feels emotions or will automatically entertain a player.
+
+The project's three views map to established distinctions, with specific jobs in this runtime:
+
+| Project view | Research grounding | Application to Kit |
+| --- | --- | --- |
+| Unconscious competence | CLARION separates procedural action knowledge from declarative knowledge, with implicit and explicit action processes. | DM procedures interpret attempts, check affordances and rules, run opposition, preserve secrecy, and track consequences. The published room, map, rules, and live state are **declarative knowledge consulted by those procedures**. Calling a prompt or a source file an unconscious would misstate the model. We have no learned implicit skill system yet. |
+| Thoughts and regulation | FAtiMA links events to beliefs, goals, appraisal, autobiographical memory, and action choice. CLARION describes motivational and metacognitive regulation. Generative Agents demonstrates retrieval and reflection over past observations in an LLM agent. | Kit has stable drives, current concerns, and relevant remembered episodes. She can find a player's move delightful, worrying, dull, or surprising for a *specific reason*. That reaction may change her chosen DM move and level of direct table presence. A turn can also cause no notable reaction. Reflection updates longer-lived beliefs only from play that actually occurred. |
+| Expressed performance | FAtiMA leaves embodiment to a separate component. *Façade* organizes responsive character behavior and dramatic beats around player interaction. | The chosen move is rendered as Kit's description, NPC acting, ruling, and direct commentary. NPCs have their own beliefs and motives. A dramatic beat is eligible only when the source and live world permit it; there is no required route or predetermined punchline. |
+
+The proposed turn transaction is: **player declaration → retrieve facts and propose a rules/affordance resolution → validate a provisional event → update Kit's beliefs, appraisal, and relevant memory → choose a high-level DM move among legal options → render Kit/NPC/world performance → validate and commit world and Kit state together → observe the player's response on the next turn**. The private decision record is captured *before* rendering. If validation fails, discard the provisional result and recalculate; do not save a feeling or memory about an event that never happened. An appraisal records its cause and the goal it affected; emotion names alone do no work.
+
+The current `runtime/state_context.py` implements a small source/state store, a context packet, and a validated commit for a limited event vocabulary. It does **not** implement Kit's appraisal, autobiographical memory, action selection, expressive model call, or a complete rules resolver. The first playable adapter must add these interfaces and keep Kit's private state out of player-visible output. Concordia's component-based LLM agents and separate Game Master provide a relevant implementation precedent for grounding proposed actions in an environment, although its simulation Game Master is not identical to our performing DM.
+
+This is an adaptation of research on virtual characters, LLM agents, and interactive drama; none of the cited systems establishes better-than-human DM performance. FAtiMA Toolkit itself is a C# library, so importing it into this Python prototype is a separate engineering choice. Area 6c will test the causal cycle and player preference before we commit to a persistence schema or a framework port.
+
+Primary references: [Mascarenhas et al., FAtiMA Toolkit](https://arxiv.org/abs/2103.03020) and [its implementation](https://github.com/GAIPS/FAtiMA-Toolkit); [Sun and Wilson, CLARION and personality](https://homepages.hass.rpi.edu/~rsun/folder-files/sun-COGSYS-2014.pdf); [Park et al., Generative Agents](https://arxiv.org/abs/2304.03442); [Mateas and Stern, *Façade* architecture](https://ojs.aaai.org/index.php/AIIDE/article/view/18722); [Vezhnevets et al., Concordia](https://deepmind.google/research/publications/64717/).
+
 ---
 
 ## 2. DM Context Packet
@@ -155,7 +175,7 @@ dm_context:
     active_inhibition_flags: []
 ```
 
-The packet is working context, not a save file. Persistent state lives in the runtime stores; the packet is assembled from those stores for the present decision.
+The packet is working context, not a save file. Persistent state lives in the runtime stores; the packet is assembled from those stores for the present decision. Kit's autobiographical and affective state needs its own logical record and a causal update rule, committed with the accepted turn; its schema remains to be tested. The backend does not compute what she ought to want from rhythm tags.
 
 ---
 
