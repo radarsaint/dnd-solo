@@ -31,6 +31,13 @@ class RecordingModel:
                           'cause': f"The player chose: {payload['player_action']}",
                           'goal_effect': 'advances', 'target': 'player'},
             'memory_refs': [episodes[-1]['turn_id']] if episodes else [],
+            'improv_read': {
+                'player_bid': f"The player declared: {payload['player_action']}",
+                'story_anchor': 'scene', 'story_basis': 'scene_state',
+                'actor_ref': 'uktarl', 'actor_basis': 'immediate_goal',
+                'connection': 'The visitor approaches the table while the dealer wants control of the encounter.',
+                'kit_choice': 'Kit favors the roleplay opening and lets the dealer try a bargain.',
+            },
             'move': 'kit_comment_then_npc',
             'public_brief': {
                 'objective': 'Invite the visitor to commit to the game or a passage bargain.',
@@ -91,9 +98,12 @@ class KitAgentTests(unittest.TestCase):
         self.assertEqual(len(self.model.plans), 1)
         self.assertEqual(len(self.model.performances), 1)
         self.assertIn('marked_deck', self.model.plans[0]['dm_context']['dm_only']['unrevealed_facts'])
+        self.assertEqual(set(self.model.plans[0]['discernment_candidates']['story_bases']),
+                         {'level', 'none', 'scene'})
         self.assertNotIn('dm_only', self.model.performances[0])
         self.assertNotIn('doppelganger', json.dumps(self.model.performances[0]).lower())
         self.assertNotIn('uktarl', json.dumps(self.model.performances[0]).lower())
+        self.assertNotIn('improv_read', self.model.performances[0])
         self.assertEqual(self.model.performances[0]['selected_move']['focus_actor'], 'Dealer')
         self.assertEqual(self.model.performances[0]['selected_move']['brief']['tactic'],
                          'The dealer treats the question as an opening bid.')
@@ -102,12 +112,14 @@ class KitAgentTests(unittest.TestCase):
         self.assertIn('Dealer:', result['spoken'])
         self.assertEqual(self.runtime.load()[1]['kit']['episodes'][0]['turn_id'], 'first')
         self.assertEqual(self.runtime.recent_kit_turns()[0]['trace']['memory_refs'], [])
+        self.assertEqual(self.runtime.recent_kit_turns()[0]['trace']['improv_read']['actor_ref'], 'uktarl')
         self.runtime.close()
         self.runtime = Runtime(self.path)
         self.agent.runtime = self.runtime
         self.assertEqual(self.runtime.recent_kit_turns()[0]['spoken'], result['spoken'])
         self.agent.turn('What if I offered you a deal?', 'second')
         self.assertEqual(self.model.plans[-1]['kit_state']['episodes'][0]['turn_id'], 'first')
+        self.assertEqual(self.model.plans[-1]['dialogue_history'][0]['spoken'], result['spoken'])
         self.assertEqual(self.runtime.recent_kit_turns()[-1]['trace']['memory_refs'], ['first'])
 
     def test_known_check_reveals_only_what_was_found(self):
@@ -135,6 +147,30 @@ class KitAgentTests(unittest.TestCase):
             agent.turn('I take a seat.', 'bad-brief')
         self.assertEqual(model.performances, [])
         self.assertEqual(self.runtime.load()[0], 0)
+
+    def test_private_discernment_selects_live_level_pressure_and_stays_private(self):
+        bridge = KitChatBridge(self.runtime, self.agent.adjudicator)
+        prepared = bridge.prepare('I could help you get rid of Harria. What is that worth?', 'faction')
+        plan = self.model.plan(prepared['input'])
+        plan['improv_read'].update(
+            story_anchor='level', story_basis='pressure_here', actor_basis='motive',
+            connection='The offer touches the live leadership rivalry, which Uktarl wants to exploit.',
+            kit_choice='Kit wants consequential roleplay, so she gives the offer room while Uktarl tests it.')
+        for bad_read, reason in [
+            ({'story_anchor': 'campaign'}, 'not active'),
+            ({'story_basis': 'invented_plot'}, 'not established'),
+            ({'actor_ref': 'harria'}, 'not available'),
+            ({'actor_ref': 'bandit_a'}, 'disagrees with selected actor'),
+        ]:
+            bad = {**plan, 'improv_read': {**plan['improv_read'], **bad_read}}
+            with self.subTest(bad_read=bad_read), self.assertRaisesRegex(InvalidChange, reason):
+                bridge.decide('faction', bad)
+        self.assertIsNone(self.runtime.pending_kit_turn('faction')['plan'])
+        performance = bridge.decide('faction', plan)
+        self.assertNotIn('improv_read', performance['input'])
+        self.assertNotIn('Harria', json.dumps(performance['input']['selected_move']))
+        bridge.finish('faction', self.model.perform(performance['input']))
+        self.assertEqual(self.runtime.recent_kit_turns()[0]['trace']['improv_read']['story_anchor'], 'level')
 
     def test_unsupported_actions_and_missing_modifier_do_not_consume_turn(self):
         for action in ('I attack Uktarl.', 'I pocket the silver ring.', 'I inspect the deck.'):

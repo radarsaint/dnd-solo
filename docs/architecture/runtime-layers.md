@@ -34,6 +34,8 @@ Applies the stable personality core to the current pillar(s) of play, scene pres
 
 The runtime should normally allow one personality drive to lead a response with at most one or two supporting influences. The goal is a coherent person making choices, not a checklist that tries to express every trait in every response.
 
+For NPC improv, the [scene-discernment step](scene-discernment.md) reads the actual player bid and recent dialogue, eligible scene/level/campaign pressure, the actor's established aim, and Kit's appraisal together. It chooses a causal connection or explicitly finds none. The resulting public-safe direction gives the performer an objective, tactic, visible cue, and player opening. This is a reusable decision protocol; actor cards and room-specific voice are inputs to it.
+
 ## 7. Adjudication
 Resolves rules, uncertainty, checks, costs, consequences, and state changes.
 

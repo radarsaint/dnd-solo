@@ -15,6 +15,7 @@ import uuid
 from dataclasses import dataclass
 from pathlib import Path
 
+from .scene_discernment import IMPROV_READ_SCHEMA, check_improv_read, discernment_candidates
 from .state_context import InvalidChange, PROJECT_ROOT, Runtime, StaleTurn, require
 
 
@@ -139,6 +140,7 @@ PLAN_SCHEMA = {
                           'target': {'type': 'string', 'enum': ['player', 'npc', 'scene', 'kit']}},
                       'required': ['label', 'intensity', 'cause', 'goal_effect', 'target']},
         'memory_refs': {'type': 'array', 'items': {'type': 'string'}},
+        'improv_read': IMPROV_READ_SCHEMA,
         'move': {'type': 'string', 'enum': [
             'npc_reply', 'kit_comment_then_npc', 'world_description', 'ruling', 'ask_clarification']},
         'public_brief': {'type': 'object', 'additionalProperties': False,
@@ -149,7 +151,7 @@ PLAN_SCHEMA = {
         'table_presence': {'type': 'string', 'enum': ['quiet', 'brief', 'present']},
         'tone': {'type': 'string', 'enum': ['wry', 'warm', 'threatening', 'curious', 'plain', 'quiet']},
     },
-    'required': ['observed_event', 'goal', 'appraisal', 'memory_refs', 'move', 'public_brief',
+    'required': ['observed_event', 'goal', 'appraisal', 'memory_refs', 'improv_read', 'move', 'public_brief',
                  'focus_actor', 'table_presence', 'tone'],
 }
 
@@ -178,7 +180,13 @@ PRIVATE_INSTRUCTIONS = (
     'do not change its result or request world writes. Copy accepted_public_event exactly into '
     'observed_event. Appraise its relation to one of Kit’s actual '
     'goals, or choose none. Reference only supplied episode IDs. Choose a high-level move and '
-    'regulate her table presence. In public_brief choose an immediate objective, a tactic '
+    'regulate her table presence. First make an improv_read: describe the player’s declared '
+    'bid without inventing their thoughts; choose a story anchor and its established basis '
+    'only if the move touches an active scene, level, or campaign pressure; choose a live actor and one established '
+    'goal basis, or none. State the specific connection among the bid, that pressure, the '
+    'actor’s aim, and Kit’s selected goal. In kit_choice say why she foregrounds this '
+    'reaction or lets it stay quiet. If no larger thread is relevant, do not insert one. '
+    'Then in public_brief choose an immediate objective, a tactic '
     'that pursues it, one observable action grounded in the room, and a real opening for '
     'the player. Use the actor’s private motives to decide what they try, but phrase the '
     'brief as safe direction for a performer who sees only the public scene. If action_kind '
@@ -193,7 +201,7 @@ PUBLIC_INSTRUCTIONS = (
     'Perform the chosen DM move as Kit. You have only player-visible room facts and a bounded '
     'public resolution; do not invent discoveries, geometry, rules outcomes, NPC commitments, '
     'combat results, or player thoughts/actions. Never assume a hidden fact from prior knowledge. '
-    'Use the supplied authored actor cards to give the Dealer a recognizable vocal signature '
+    'Use supplied actor cards, when present, for a recognizable vocal signature '
     'and physical touchstone across turns. Text can describe a voice and enact its rhythm; '
     'it cannot supply an audible accent. Avoid phonetic stereotypes and repeated catchphrases. '
     'If action_kind is opening, frame a scene in motion rather than listing the room inventory; '
@@ -217,7 +225,8 @@ ONE_PASS_INSTRUCTIONS = (
     'Apply the private decision instructions to the private input, then write the public '
     'performance using only the public input, accepted event, and the decision’s checked '
     'public_brief, move, tone, focus actor, and table presence. Keep the decision brief. '
-    'The decision is an appraisal and concrete DM move, not a justification of dialogue. '
+    'The decision connects the player bid, available story pressure, actor goal, and Kit’s '
+    'appraisal before selecting a concrete DM move; do not justify dialogue after the fact. '
     'The performance must remain grounded and give the player a meaningful response. '
     'This faster path is an experiment; it does not establish the same causal separation '
     'as the staged path.\n\nPRIVATE DECISION: ' + PRIVATE_INSTRUCTIONS +
@@ -270,7 +279,7 @@ class OpenAIResponsesModel:
         return self._complete(PUBLIC_INSTRUCTIONS, payload, 'kit_public_performance', SPEECH_SCHEMA)
 
 
-def check_plan(plan, episodes, public_event, action_kind=None):
+def check_plan(plan, episodes, public_event, action_kind=None, candidates=None):
     require(isinstance(plan, dict) and set(plan) == set(PLAN_SCHEMA['required']),
             'Incomplete private decision')
     for key in ('observed_event', 'goal'):
@@ -299,12 +308,23 @@ def check_plan(plan, episodes, public_event, action_kind=None):
             len(plan['memory_refs']) <= 8 and
             all(isinstance(ref, str) and ref in ids for ref in plan['memory_refs']),
             'Unknown or invalid memory reference')
+    require(candidates is not None, 'Scene discernment candidates required')
+    check_improv_read(plan['improv_read'], candidates)
     for field in ('move', 'focus_actor', 'table_presence', 'tone'):
         require(plan[field] in PLAN_SCHEMA['properties'][field]['enum'], f'Invalid {field}')
     require(plan['move'] != 'kit_comment_then_npc' or plan['table_presence'] != 'quiet',
             'Chosen move conflicts with quiet table presence')
     require(action_kind != 'opening' or plan['move'] == 'world_description',
             'Room entry needs a world description')
+    if plan['move'] in ('npc_reply', 'kit_comment_then_npc'):
+        if plan['focus_actor'] == 'uktarl':
+            require(plan['improv_read']['actor_ref'] == 'uktarl',
+                    'NPC move disagrees with selected actor')
+        elif plan['focus_actor'] == 'other':
+            require(plan['improv_read']['actor_ref'] not in ('none', 'uktarl'),
+                    'NPC move disagrees with selected actor')
+        else:
+            raise InvalidChange('NPC move needs a selected actor')
     brief = plan['public_brief']
     require(isinstance(brief, dict) and set(brief) ==
             {'objective', 'tactic', 'visible_cue', 'player_opening'} and
@@ -380,9 +400,13 @@ def prepare_inputs(runtime, revision, state, action, resolution, use_memory):
     if context['revision'] != revision:
         raise StaleTurn(f'Expected revision {revision}; current is {context["revision"]}')
     episodes = state.get('kit', {}).get('episodes', [])[-8:] if use_memory else []
+    public_history = [{'player_input': turn['player_input'], 'spoken': turn['spoken'][-1200:]}
+                      for turn in runtime.recent_kit_turns(limit=4)]
     body = {'action': action, 'events': resolution.events, 'kind': resolution.kind,
             'public_event': resolution.public_event, 'public_view': public_view,
-            'use_memory': use_memory}
+            'use_memory': use_memory,
+            'public_history': public_history,
+            'discernment_candidates': discernment_candidates(context['dm_context'])}
     planning_input = {
         'personality_core': context['personality_core'],
         'dm_context': context['dm_context'],
@@ -391,6 +415,8 @@ def prepare_inputs(runtime, revision, state, action, resolution, use_memory):
                       if use_memory else None},
         'player_action': action, 'accepted_public_event': resolution.public_event,
         'action_kind': resolution.kind,
+        'dialogue_history': public_history,
+        'discernment_candidates': body['discernment_candidates'],
     }
     return revision, body, planning_input
 
@@ -414,13 +440,11 @@ def prepare_opening(runtime):
 
 
 def public_performance_base(runtime, body):
-    public_history = [{'player_input': turn['player_input'], 'spoken': turn['spoken'][-2000:]}
-                      for turn in runtime.recent_kit_turns(limit=6)]
     return {
         'personality_core': runtime.context()['personality_core'],
         'player_view_after_event': body['public_view'],
         'player_action': body['action'], 'accepted_public_event': body['public_event'],
-        'action_kind': body['kind'], 'public_history': public_history,
+        'action_kind': body['kind'], 'public_history': body.get('public_history', []),
         'performance_reference': runtime.source().get('public_performance', {}),
     }
 
@@ -463,7 +487,8 @@ class KitAgent:
     def _run(self, revision, body, planning_input, turn_id):
         turn_id = turn_id or str(uuid.uuid4())
         plan = self.model.plan(planning_input)
-        check_plan(plan, planning_input['kit_state']['episodes'], body['public_event'], body['kind'])
+        check_plan(plan, planning_input['kit_state']['episodes'], body['public_event'],
+                   body['kind'], body['discernment_candidates'])
         check_public_content(json.dumps(plan['public_brief']), body['public_view'], body['action'])
         performance_payload = performance_input(self.runtime, body, plan)
         for attempt in range(2):
@@ -515,7 +540,8 @@ class KitChatBridge:
         body = pending['body']
         require(body['host_mode'] == 'staged', 'Use complete for a one-pass turn')
         episodes = state.get('kit', {}).get('episodes', [])[-8:] if body['use_memory'] else []
-        check_plan(plan, episodes, body['public_event'], body['kind'])
+        check_plan(plan, episodes, body['public_event'], body['kind'],
+                   body['discernment_candidates'])
         check_public_content(json.dumps(plan['public_brief']), body['public_view'], body['action'])
         payload = performance_input(self.runtime, body, plan)
         self.runtime.save_kit_plan(turn_id, revision, plan)
@@ -545,7 +571,8 @@ class KitChatBridge:
         if revision != pending['revision']:
             raise StaleTurn(f"Expected revision {pending['revision']}; current is {revision}")
         episodes = state.get('kit', {}).get('episodes', [])[-8:] if body['use_memory'] else []
-        check_plan(plan, episodes, body['public_event'], body['kind'])
+        check_plan(plan, episodes, body['public_event'], body['kind'],
+                   body['discernment_candidates'])
         check_public_content(json.dumps(plan['public_brief']), body['public_view'], body['action'])
         self.runtime.save_kit_plan(turn_id, revision, plan)
         record = checked_record(body, plan, output['performance'])

@@ -5,12 +5,14 @@
   "map_ref": "assets/maps/levels/map-01.01-dungeon-level-dm.png",
   "test_precondition": "The four occupants have not been encountered elsewhere and have not relocated to the alert position in 6a. This is a conditional snapshot, not the default result of entering from the Yawning Portal.",
   "level_context": {
+    "active_here": true,
     "source_ref": "docs/campaign/levels/LEVEL_01_DUNGEON_LEVEL.md",
     "story_question": "Who controls the upper dungeon's traffic and exploitation of new arrivals after the player disturbs the balance?",
     "pressure_here": "The Undertakers extort newcomers in areas 6–8; Uktarl and Harria privately compete for control.",
     "relevant_reaction": "If the Undertakers cannot extort or defeat a newcomer, they prefer to redirect that person toward Xanathar forces. Do not trigger this merely for drama."
   },
   "campaign_context": {
+    "active_here": false,
     "source_ref": "docs/campaign/HALASTER_THROUGH_LINE_LAYER.md / Level 1",
     "relevance_here": "No Halaster contact is keyed to area 6c. His Level 1 observation beats are source-conditional in areas 16 and 29; do not insert one here."
   },
