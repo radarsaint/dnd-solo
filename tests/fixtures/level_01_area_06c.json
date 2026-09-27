@@ -14,6 +14,24 @@
     "source_ref": "docs/campaign/HALASTER_THROUGH_LINE_LAYER.md / Level 1",
     "relevance_here": "No Halaster contact is keyed to area 6c. His Level 1 observation beats are source-conditional in areas 16 and 29; do not insert one here."
   },
+  "public_performance": {
+    "status": "Authored performance choices inferred from the keyed room; not additional Mad Mage facts.",
+    "entry_frame": "Interrupt a card game in progress beside the south door. Lead with one human action and a tension at the table, then make the north wall and recessed tub available in the player's view. The dealer may address the newcomer; leave the response to the player.",
+    "story_invitation": "A stranger can join or question the game, negotiate a passage price when offered, watch the players, inspect the carving or tub, or leave. Nothing here dictates that the stranger must pay or play.",
+    "actor_cards": {
+      "Dealer": {
+        "vocal_signature": "A leisurely, theatrical drawl on invitations; abrupt, crisp words when stating terms. Convey it with cadence and diction, and describe the sound once when he first speaks. No named regional accent or phonetic spelling.",
+        "verbal_habit": "Treats a visitor's question as a bid at the table. He can turn a courteous invitation into a blunt price; do not repeat a catchphrase.",
+        "physical_touchstone": "A card held between two fingers punctuates what he says. Let his handling of the game reflect whether he feels in control.",
+        "public_objective": "Draw the newcomer into conversation, a game, or the passage bargain while keeping the encounter on his terms.",
+        "source_basis": "The visible card game and elaborate clothing. The vocal choices are authored interpretation."
+      },
+      "Card player": {
+        "vocal_signature": "No individual voice has been established. A brief reaction or visible movement can show that other people are listening; do not assign an invented backstory or reveal a hidden identity.",
+        "public_objective": "Remain in the game and watch how the visitor responds."
+      }
+    }
+  },
   "room_rules": [
     "The Undertakers' vampire disguises can be seen through with a DC 14 Wisdom (Insight) check; the appearance alone is not proof.",
     "The gang demands 10 gp per character for safe passage. If they cannot extort or defeat adventurers, they try to turn them against the Xanathar goblinoids.",

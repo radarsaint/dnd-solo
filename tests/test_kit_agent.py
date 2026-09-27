@@ -32,8 +32,13 @@ class RecordingModel:
                           'goal_effect': 'advances', 'target': 'player'},
             'memory_refs': [episodes[-1]['turn_id']] if episodes else [],
             'move': 'kit_comment_then_npc',
-            'public_brief': ('Reveal the doppelganger.' if self.leaky_brief else
-                             'Kit briefly enjoys the social gamble; the dealer offers a bargain and leaves the choice open.'),
+            'public_brief': {
+                'objective': 'Invite the visitor to commit to the game or a passage bargain.',
+                'tactic': ('Reveal the doppelganger.' if self.leaky_brief else
+                           'The dealer treats the question as an opening bid.'),
+                'visible_cue': 'The dealer suspends a card over the table.',
+                'player_opening': 'The visitor may ask about the terms, play, or leave.',
+            },
             'focus_actor': 'uktarl',
             'table_presence': 'brief', 'tone': 'wry',
         }
@@ -90,6 +95,9 @@ class KitAgentTests(unittest.TestCase):
         self.assertNotIn('doppelganger', json.dumps(self.model.performances[0]).lower())
         self.assertNotIn('uktarl', json.dumps(self.model.performances[0]).lower())
         self.assertEqual(self.model.performances[0]['selected_move']['focus_actor'], 'Dealer')
+        self.assertEqual(self.model.performances[0]['selected_move']['brief']['tactic'],
+                         'The dealer treats the question as an opening bid.')
+        self.assertIn('drawl', self.model.performances[0]['performance_reference']['actor_cards']['Dealer']['vocal_signature'])
         self.assertIn('Kit:', result['spoken'])
         self.assertIn('Dealer:', result['spoken'])
         self.assertEqual(self.runtime.load()[1]['kit']['episodes'][0]['turn_id'], 'first')
@@ -231,7 +239,8 @@ class KitAgentTests(unittest.TestCase):
         prepared = bridge.prepare('I sit down.', 'guarded')
         plan = self.model.plan(prepared['input'])
         with self.assertRaisesRegex(InvalidChange, 'private fact'):
-            bridge.decide('guarded', {**plan, 'public_brief': 'Reveal the doppelganger.'})
+            bridge.decide('guarded', {**plan, 'public_brief': {
+                **plan['public_brief'], 'tactic': 'Reveal the doppelganger.'}})
         self.assertIsNone(self.runtime.pending_kit_turn('guarded')['plan'])
         with self.assertRaisesRegex(InvalidChange, 'before performance'):
             bridge.finish('guarded', self.model.perform({}))
@@ -255,6 +264,100 @@ class KitAgentTests(unittest.TestCase):
             bridge.finish('stale-chat', self.model.perform(performance['input']))
         self.assertEqual(self.runtime.load()[0], 1)
         self.assertEqual(self.runtime.recent_kit_turns(), [])
+
+    def test_stale_chat_decision_is_rejected_before_performance(self):
+        bridge = KitChatBridge(self.runtime, self.agent.adjudicator)
+        staged = bridge.prepare('What is this game?', 'old-stage')
+        fast = bridge.prepare('I take a seat.', 'old-fast', one_pass=True)
+        self.runtime.commit('interleaving', 0, [
+            {'type': 'beat', 'tags': ['test'], 'evidence': 'The scene changed.'}])
+        with self.assertRaises(StaleTurn):
+            bridge.decide('old-stage', self.model.plan(staged['input']))
+        with self.assertRaises(StaleTurn):
+            bridge.complete('old-fast', {'decision': self.model.plan(fast['input']['private']),
+                                         'performance': self.model.perform({})})
+        self.assertEqual(self.runtime.recent_kit_turns(), [])
+
+    def test_one_pass_chat_turn_commits_decision_and_speech_without_api_key(self):
+        bridge = KitChatBridge(self.runtime, self.agent.adjudicator)
+        with patch.dict('os.environ', {'OPENAI_API_KEY': ''}):
+            prepared = bridge.prepare('What are the stakes?', 'quick', one_pass=True)
+            self.assertEqual(prepared['stage'], 'one_pass')
+            self.assertNotIn('dm_only', prepared['input']['public'])
+            self.assertIn('dm_only', prepared['input']['private']['dm_context'])
+            plan = self.model.plan(prepared['input']['private'])
+            with self.assertRaisesRegex(InvalidChange, 'Use complete'):
+                bridge.decide('quick', plan)
+            speech = self.model.perform({})
+            result = bridge.complete('quick', {'decision': plan, 'performance': speech})
+        self.assertEqual(result['revision'], 1)
+        self.assertEqual(self.runtime.recent_kit_turns()[0]['trace'], plan)
+        with self.assertRaisesRegex(InvalidChange, 'No pending'):
+            self.runtime.pending_kit_turn('quick')
+
+    def test_one_pass_rejection_keeps_world_uncommitted_and_decision_fixed(self):
+        bridge = KitChatBridge(self.runtime, self.agent.adjudicator)
+        prepared = bridge.prepare('I take a seat.', 'quick-guarded', one_pass=True)
+        plan = self.model.plan(prepared['input']['private'])
+        bad = RecordingModel(leak=True).perform({})
+        with self.assertRaisesRegex(InvalidChange, 'private fact'):
+            bridge.complete('quick-guarded', {'decision': plan, 'performance': bad})
+        self.assertEqual(self.runtime.load()[0], 0)
+        self.assertEqual(self.runtime.pending_kit_turn('quick-guarded')['plan'], plan)
+        with self.assertRaisesRegex(InvalidChange, 'already fixed'):
+            bridge.complete('quick-guarded', {'decision': {**plan, 'tone': 'warm'},
+                                              'performance': self.model.perform({})})
+        self.assertEqual(bridge.complete('quick-guarded', {
+            'decision': plan, 'performance': self.model.perform({})})['revision'], 1)
+
+    def test_opening_is_a_saved_scene_turn_with_an_actor_card(self):
+        bridge = KitChatBridge(self.runtime)
+        prepared = bridge.prepare(opening=True, one_pass=True, turn_id='entry')
+        self.assertEqual(prepared['input']['private']['action_kind'], 'opening')
+        public = prepared['input']['public']
+        self.assertIn('entry_frame', public['performance_reference'])
+        self.assertIn('vocal_signature', public['performance_reference']['actor_cards']['Dealer'])
+        self.assertNotIn('doppelganger', json.dumps(public).lower())
+        self.assertNotIn('marked deck', json.dumps(public).lower())
+        plan = self.model.plan(prepared['input']['private'])
+        plan.update(move='world_description', table_presence='quiet',
+                    public_brief={
+                        'objective': 'Frame the interruption of the card game.',
+                        'tactic': 'Let the dealer weigh the visitor as a potential customer.',
+                        'visible_cue': 'The dealer suspends a card above the table.',
+                        'player_opening': 'The newcomer can speak, observe, or leave.',
+                    })
+        speech = {'segments': [
+            {'speaker': 'Narrator', 'text': 'A card pauses between the dealer’s fingers. Four pale players sit among coins; north of them, a mountain carving hangs above a recessed stone tub.'},
+            {'speaker': 'Dealer', 'text': 'A visitor. Care to make an offer?'}]}
+        result = bridge.complete('entry', {'decision': plan, 'performance': speech})
+        self.assertEqual(result['revision'], 1)
+        self.assertEqual(self.runtime.recent_kit_turns()[0]['player_input'], '[scene entry]')
+        self.assertEqual(self.runtime.load()[1]['rhythm'][0]['tags'], ['scene_entry'])
+        self.assertNotIn('A newcomer has reached', result['spoken'])
+        with self.assertRaisesRegex(InvalidChange, 'only before the first turn'):
+            bridge.prepare(opening=True)
+        bridge.prepare('Hello. What is this game?', turn_id='reply')
+        self.assertEqual(self.runtime.load()[0], 1)
+
+    def test_opening_requires_visible_scene_and_rejects_private_reveal(self):
+        bridge = KitChatBridge(self.runtime)
+        prepared = bridge.prepare(opening=True, turn_id='bad-entry')
+        plan = self.model.plan(prepared['input'])
+        plan.update(move='world_description', table_presence='quiet')
+        payload = bridge.decide('bad-entry', plan)
+        self.assertEqual(payload['input']['action_kind'], 'opening')
+        with self.assertRaisesRegex(InvalidChange, 'world description'):
+            bridge.finish('bad-entry', {'segments': [
+                {'speaker': 'Dealer', 'text': 'Sit and play.'}]})
+        with self.assertRaisesRegex(InvalidChange, 'narration and the dealer'):
+            bridge.finish('bad-entry', {'segments': [
+                {'speaker': 'Narrator', 'text': 'The game stops at the threshold.'}]})
+        with self.assertRaisesRegex(InvalidChange, 'private fact'):
+            bridge.finish('bad-entry', {'segments': [
+                {'speaker': 'Narrator', 'text': 'The doppelganger watches from the card table.'},
+                {'speaker': 'Dealer', 'text': 'Make an offer.'}]})
+        self.assertEqual(self.runtime.load()[0], 0)
 
 
 if __name__ == '__main__':

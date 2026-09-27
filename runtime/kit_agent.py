@@ -15,7 +15,7 @@ import uuid
 from dataclasses import dataclass
 from pathlib import Path
 
-from .state_context import InvalidChange, PROJECT_ROOT, Runtime, require
+from .state_context import InvalidChange, PROJECT_ROOT, Runtime, StaleTurn, require
 
 
 ROOM_FIXTURE = PROJECT_ROOT / 'tests/fixtures/level_01_area_06c.json'
@@ -141,7 +141,10 @@ PLAN_SCHEMA = {
         'memory_refs': {'type': 'array', 'items': {'type': 'string'}},
         'move': {'type': 'string', 'enum': [
             'npc_reply', 'kit_comment_then_npc', 'world_description', 'ruling', 'ask_clarification']},
-        'public_brief': {'type': 'string'},
+        'public_brief': {'type': 'object', 'additionalProperties': False,
+                         'properties': {key: {'type': 'string'} for key in
+                                        ('objective', 'tactic', 'visible_cue', 'player_opening')},
+                         'required': ['objective', 'tactic', 'visible_cue', 'player_opening']},
         'focus_actor': {'type': 'string', 'enum': ['uktarl', 'other', 'none']},
         'table_presence': {'type': 'string', 'enum': ['quiet', 'brief', 'present']},
         'tone': {'type': 'string', 'enum': ['wry', 'warm', 'threatening', 'curious', 'plain', 'quiet']},
@@ -163,15 +166,26 @@ SPEECH_SCHEMA = {
     'required': ['segments'],
 }
 
+ONE_PASS_SCHEMA = {
+    'type': 'object', 'additionalProperties': False,
+    'properties': {'decision': PLAN_SCHEMA, 'performance': SPEECH_SCHEMA},
+    'required': ['decision', 'performance'],
+}
+
 PRIVATE_INSTRUCTIONS = (
     'You are Kit’s private decision stage, using the supplied canonical personality. '
     'Read DM-only information to keep the scene grounded. The event has already been adjudicated; '
     'do not change its result or request world writes. Copy accepted_public_event exactly into '
     'observed_event. Appraise its relation to one of Kit’s actual '
     'goals, or choose none. Reference only supplied episode IDs. Choose a high-level move and '
-    'regulate her table presence. Write a brief public-safe direction for the performer '
-    'that conveys the specific chosen move and Kit’s attitude without any hidden identity, '
-    'clue, or private motive. Keep the trace brief and specific. Do not write dialogue. '
+    'regulate her table presence. In public_brief choose an immediate objective, a tactic '
+    'that pursues it, one observable action grounded in the room, and a real opening for '
+    'the player. Use the actor’s private motives to decide what they try, but phrase the '
+    'brief as safe direction for a performer who sees only the public scene. If action_kind '
+    'is opening, choose world_description and frame the people and pressure before the '
+    'player acts; the performance also needs the dealer’s first utterance. Show Kit’s '
+    'taste through the choice of beat. Do not include hidden identities, clues, or motives. '
+    'Keep the trace brief and specific. Do not write dialogue. '
     'An NPC’s motives are distinct from Kit’s reaction. The player may surprise you; do not force a route.'
 )
 
@@ -179,13 +193,35 @@ PUBLIC_INSTRUCTIONS = (
     'Perform the chosen DM move as Kit. You have only player-visible room facts and a bounded '
     'public resolution; do not invent discoveries, geometry, rules outcomes, NPC commitments, '
     'combat results, or player thoughts/actions. Never assume a hidden fact from prior knowledge. '
-    'The Dealer is a practiced, self-important performer who wants a bargain; the other card '
-    'players have no established individual voice. Keep NPC speech separate from Kit’s direct '
-    'table comments. Follow the selected public brief, tone, and table presence; quiet means '
+    'Use the supplied authored actor cards to give the Dealer a recognizable vocal signature '
+    'and physical touchstone across turns. Text can describe a voice and enact its rhythm; '
+    'it cannot supply an audible accent. Avoid phonetic stereotypes and repeated catchphrases. '
+    'If action_kind is opening, frame a scene in motion rather than listing the room inventory; '
+    'telegraph the public social and exploration invitations without announcing a hidden truth. '
+    'On a social reply, react to the player’s actual words. A character may take a few sentences '
+    'to test, tempt, threaten, or tell a short story when it earns the space, but stop at a real '
+    'player decision. Let a second card player react only when that changes the scene. '
+    'Keep NPC speech separate from Kit’s direct table comments. '
+    'Follow the selected public brief, tone, and table presence; quiet means '
     'no Kit segment. The brief conveys a choice, not authority to invent facts. '
     'The accepted event will be displayed before your segments on physical/check turns; '
-    'do not repeat it verbatim. Leave a real decision for the player. '
+    'do not repeat it verbatim. In a social scene, let the NPC pursue a specific objective '
+    'through a response, action, or question grounded in the room; a price or fact alone is '
+    'rarely the whole exchange. Give the player something meaningful to answer or act on. '
+    'Do not pad the turn with generic banter or extra speakers. Leave a real decision for the player. '
     'A mechanically consequential unsupported action should invite clarification, not resolve itself.'
+)
+
+ONE_PASS_INSTRUCTIONS = (
+    'For live chat, produce one object with decision first and performance second. '
+    'Apply the private decision instructions to the private input, then write the public '
+    'performance using only the public input, accepted event, and the decision’s checked '
+    'public_brief, move, tone, focus actor, and table presence. Keep the decision brief. '
+    'The decision is an appraisal and concrete DM move, not a justification of dialogue. '
+    'The performance must remain grounded and give the player a meaningful response. '
+    'This faster path is an experiment; it does not establish the same causal separation '
+    'as the staged path.\n\nPRIVATE DECISION: ' + PRIVATE_INSTRUCTIONS +
+    '\n\nPUBLIC PERFORMANCE: ' + PUBLIC_INSTRUCTIONS
 )
 
 
@@ -234,7 +270,7 @@ class OpenAIResponsesModel:
         return self._complete(PUBLIC_INSTRUCTIONS, payload, 'kit_public_performance', SPEECH_SCHEMA)
 
 
-def check_plan(plan, episodes, public_event):
+def check_plan(plan, episodes, public_event, action_kind=None):
     require(isinstance(plan, dict) and set(plan) == set(PLAN_SCHEMA['required']),
             'Incomplete private decision')
     for key in ('observed_event', 'goal'):
@@ -267,8 +303,13 @@ def check_plan(plan, episodes, public_event):
         require(plan[field] in PLAN_SCHEMA['properties'][field]['enum'], f'Invalid {field}')
     require(plan['move'] != 'kit_comment_then_npc' or plan['table_presence'] != 'quiet',
             'Chosen move conflicts with quiet table presence')
-    require(isinstance(plan['public_brief'], str) and
-            0 < len(plan['public_brief'].strip()) <= 350, 'Invalid public performance brief')
+    require(action_kind != 'opening' or plan['move'] == 'world_description',
+            'Room entry needs a world description')
+    brief = plan['public_brief']
+    require(isinstance(brief, dict) and set(brief) ==
+            {'objective', 'tactic', 'visible_cue', 'player_opening'} and
+            all(isinstance(value, str) and 0 < len(value.strip()) <= 240
+                for value in brief.values()), 'Invalid public performance brief')
 
 
 def check_public_content(text, public_view, player_action):
@@ -297,7 +338,7 @@ def check_public_content(text, public_view, player_action):
             raise InvalidChange('Public performance mentioned a private fact')
 
 
-def check_speech(speech, plan, public_view, player_action):
+def check_speech(speech, plan, public_view, player_action, action_kind=None):
     require(isinstance(speech, dict) and set(speech) == {'segments'}, 'Invalid public performance')
     segments = speech['segments']
     require(isinstance(segments, list) and 1 <= len(segments) <= 7,
@@ -324,18 +365,20 @@ def check_speech(speech, plan, public_view, player_action):
             ('npc_reply', 'kit_comment_then_npc') or
             any(segment['speaker'] == 'Dealer' for segment in segments),
             'Selected dealer did not speak')
+    require(action_kind != 'opening' or
+            all(any(segment['speaker'] == speaker for segment in segments)
+                for speaker in ('Narrator', 'Dealer')),
+            'Room entry needs narration and the dealer')
     spoken = '\n'.join(f"{segment['speaker']}: {segment['text'].strip()}" for segment in segments)
     check_public_content(spoken, public_view, player_action)
     return spoken
 
 
-def prepare_turn(runtime, adjudicator, action, use_memory=True):
-    require(isinstance(action, str) and 0 < len(action.strip()) <= 1000,
-            'Player action must be 1–1000 characters')
-    revision, state = runtime.load()
-    resolution = adjudicator.resolve(action, revision, state)
+def prepare_inputs(runtime, revision, state, action, resolution, use_memory):
     public_view = runtime.preview(revision, resolution.events)
     context = runtime.context()
+    if context['revision'] != revision:
+        raise StaleTurn(f'Expected revision {revision}; current is {context["revision"]}')
     episodes = state.get('kit', {}).get('episodes', [])[-8:] if use_memory else []
     body = {'action': action, 'events': resolution.events, 'kind': resolution.kind,
             'public_event': resolution.public_event, 'public_view': public_view,
@@ -352,7 +395,25 @@ def prepare_turn(runtime, adjudicator, action, use_memory=True):
     return revision, body, planning_input
 
 
-def performance_input(runtime, body, plan):
+def prepare_turn(runtime, adjudicator, action, use_memory=True):
+    require(isinstance(action, str) and 0 < len(action.strip()) <= 1000,
+            'Player action must be 1–1000 characters')
+    revision, state = runtime.load()
+    resolution = adjudicator.resolve(action, revision, state)
+    return prepare_inputs(runtime, revision, state, action, resolution, use_memory)
+
+
+def prepare_opening(runtime):
+    revision, state = runtime.load()
+    require(revision == 0 and state['area'] == 'area_06c',
+            'The room entry is available only before the first turn')
+    resolution = Resolution('opening', 'A newcomer has reached the card room.', [
+        {'type': 'beat', 'tags': ['scene_entry'],
+         'evidence': 'Initial framing of area 6c before the player acts.'}])
+    return prepare_inputs(runtime, revision, state, '[scene entry]', resolution, use_memory=True)
+
+
+def public_performance_base(runtime, body):
     public_history = [{'player_input': turn['player_input'], 'spoken': turn['spoken'][-2000:]}
                       for turn in runtime.recent_kit_turns(limit=6)]
     return {
@@ -360,19 +421,25 @@ def performance_input(runtime, body, plan):
         'player_view_after_event': body['public_view'],
         'player_action': body['action'], 'accepted_public_event': body['public_event'],
         'action_kind': body['kind'], 'public_history': public_history,
-        'selected_move': {
+        'performance_reference': runtime.source().get('public_performance', {}),
+    }
+
+
+def performance_input(runtime, body, plan):
+    payload = public_performance_base(runtime, body)
+    payload['selected_move'] = {
             'move': plan['move'],
             'focus_actor': {'uktarl': 'Dealer', 'other': 'Card player',
                             'none': 'none'}[plan['focus_actor']],
             'table_presence': plan['table_presence'], 'tone': plan['tone'],
             'brief': plan['public_brief'],
-        },
     }
+    return payload
 
 
 def checked_record(body, plan, speech):
-    spoken = check_speech(speech, plan, body['public_view'], body['action'])
-    if body['kind'] != 'social':
+    spoken = check_speech(speech, plan, body['public_view'], body['action'], body['kind'])
+    if body['kind'] not in ('social', 'opening'):
         spoken = f"Narrator: {body['public_event']}\n{spoken}"
     return {'player_input': body['action'], 'public_event': body['public_event'],
             'trace': plan, 'spoken': spoken}
@@ -387,10 +454,17 @@ class KitAgent:
     def turn(self, action, turn_id=None, use_memory=True):
         revision, body, planning_input = prepare_turn(
             self.runtime, self.adjudicator, action, use_memory)
+        return self._run(revision, body, planning_input, turn_id)
+
+    def opening(self, turn_id=None):
+        revision, body, planning_input = prepare_opening(self.runtime)
+        return self._run(revision, body, planning_input, turn_id)
+
+    def _run(self, revision, body, planning_input, turn_id):
         turn_id = turn_id or str(uuid.uuid4())
         plan = self.model.plan(planning_input)
-        check_plan(plan, planning_input['kit_state']['episodes'], body['public_event'])
-        check_public_content(plan['public_brief'], body['public_view'], action)
+        check_plan(plan, planning_input['kit_state']['episodes'], body['public_event'], body['kind'])
+        check_public_content(json.dumps(plan['public_brief']), body['public_view'], body['action'])
         performance_payload = performance_input(self.runtime, body, plan)
         for attempt in range(2):
             speech = self.model.perform(performance_payload)
@@ -414,11 +488,21 @@ class KitChatBridge:
         self.runtime = runtime
         self.adjudicator = adjudicator or Room6CAdjudicator()
 
-    def prepare(self, action, turn_id=None, use_memory=True):
+    def prepare(self, action=None, turn_id=None, use_memory=True, one_pass=False, opening=False):
         turn_id = turn_id or str(uuid.uuid4())
-        revision, body, planning_input = prepare_turn(
-            self.runtime, self.adjudicator, action, use_memory)
+        if opening:
+            require(action is None, 'Room opening does not take a player action')
+            revision, body, planning_input = prepare_opening(self.runtime)
+        else:
+            revision, body, planning_input = prepare_turn(
+                self.runtime, self.adjudicator, action, use_memory)
+        body['host_mode'] = 'one_pass' if one_pass else 'staged'
         self.runtime.stage_kit_turn(turn_id, revision, body)
+        if one_pass:
+            return {'turn_id': turn_id, 'stage': 'one_pass',
+                    'instructions': ONE_PASS_INSTRUCTIONS, 'schema': ONE_PASS_SCHEMA,
+                    'input': {'private': planning_input,
+                              'public': public_performance_base(self.runtime, body)}}
         return {'turn_id': turn_id, 'stage': 'private_decision',
                 'instructions': PRIVATE_INSTRUCTIONS, 'schema': PLAN_SCHEMA,
                 'input': planning_input}
@@ -429,9 +513,10 @@ class KitChatBridge:
         if revision != pending['revision']:
             raise StaleTurn(f"Expected revision {pending['revision']}; current is {revision}")
         body = pending['body']
+        require(body['host_mode'] == 'staged', 'Use complete for a one-pass turn')
         episodes = state.get('kit', {}).get('episodes', [])[-8:] if body['use_memory'] else []
-        check_plan(plan, episodes, body['public_event'])
-        check_public_content(plan['public_brief'], body['public_view'], body['action'])
+        check_plan(plan, episodes, body['public_event'], body['kind'])
+        check_public_content(json.dumps(plan['public_brief']), body['public_view'], body['action'])
         payload = performance_input(self.runtime, body, plan)
         self.runtime.save_kit_plan(turn_id, revision, plan)
         return {'turn_id': turn_id, 'stage': 'public_performance',
@@ -440,6 +525,7 @@ class KitChatBridge:
 
     def finish(self, turn_id, speech):
         pending = self.runtime.pending_kit_turn(turn_id)
+        require(pending['body']['host_mode'] == 'staged', 'Use complete for a one-pass turn')
         require(pending['plan'] is not None, 'Complete private decision before performance')
         body = pending['body']
         record = checked_record(body, pending['plan'], speech)
@@ -448,27 +534,42 @@ class KitChatBridge:
         return {'revision': revision, 'turn_id': turn_id,
                 'public_event': body['public_event'], 'spoken': record['spoken']}
 
-
-def describe_view(view):
-    lines = [view['area'], '']
-    lines.extend(view['known_facts_here'])
-    lines.extend(edge['description'] for edge in view['exits'])
-    return '\n'.join(lines)
+    def complete(self, turn_id, output):
+        """Validate and commit one model output in one host round trip."""
+        require(isinstance(output, dict) and set(output) == {'decision', 'performance'},
+                'Expected a decision and performance')
+        pending = self.runtime.pending_kit_turn(turn_id)
+        body, plan = pending['body'], output['decision']
+        require(body['host_mode'] == 'one_pass', 'Use decide and finish for a staged turn')
+        revision, state = self.runtime.load()
+        if revision != pending['revision']:
+            raise StaleTurn(f"Expected revision {pending['revision']}; current is {revision}")
+        episodes = state.get('kit', {}).get('episodes', [])[-8:] if body['use_memory'] else []
+        check_plan(plan, episodes, body['public_event'], body['kind'])
+        check_public_content(json.dumps(plan['public_brief']), body['public_view'], body['action'])
+        self.runtime.save_kit_plan(turn_id, revision, plan)
+        record = checked_record(body, plan, output['performance'])
+        next_revision = self.runtime.commit_kit_turn(
+            turn_id, revision, body['events'], record, consume_pending=True)
+        return {'revision': next_revision, 'turn_id': turn_id,
+                'public_event': body['public_event'], 'spoken': record['spoken']}
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('command', choices=['init', 'view', 'prepare', 'decide', 'finish',
+    parser.add_argument('command', choices=['init', 'view', 'prepare', 'decide', 'finish', 'complete',
                                             'play', 'trace'])
     parser.add_argument('--db', default='kit-06c.sqlite')
     parser.add_argument('--model', help='Optional standalone Responses API model for play')
     parser.add_argument('--perception', type=int, help='Test character Wisdom (Perception) modifier')
     parser.add_argument('--insight', type=int, help='Test character Wisdom (Insight) modifier')
     parser.add_argument('--no-memory', action='store_true', help='Ablation: hide Kit’s prior episodes from her decision stage')
+    parser.add_argument('--one-pass', action='store_true', help='One model output for live chat; use complete to commit')
+    parser.add_argument('--opening', action='store_true', help='Prepare the initial scene entry instead of a player action')
     parser.add_argument('--action', help='Player action for prepare')
     parser.add_argument('--action-file', help='UTF-8 player action file for prepare')
     parser.add_argument('--turn-id', help='Turn ID returned by prepare')
-    parser.add_argument('--input-file', help='JSON plan for decide or JSON speech for finish; - reads stdin')
+    parser.add_argument('--input-file', help='JSON plan, speech, or combined output; - reads stdin')
     args = parser.parse_args()
     runtime = Runtime(args.db)
     try:
@@ -480,22 +581,29 @@ def main():
             print(json.dumps(runtime.player_view(), indent=2, ensure_ascii=False))
         elif args.command == 'trace':
             print(json.dumps(runtime.recent_kit_turns(), indent=2, ensure_ascii=False))
-        elif args.command in ('prepare', 'decide', 'finish'):
+        elif args.command in ('prepare', 'decide', 'finish', 'complete'):
             bridge = KitChatBridge(runtime, Room6CAdjudicator(args.perception, args.insight))
             try:
                 if args.command == 'prepare':
-                    if (args.action is None) == (args.action_file is None):
-                        parser.error('prepare requires exactly one of --action or --action-file')
-                    action = (args.action if args.action_file is None else
-                              Path(args.action_file).read_text(encoding='utf-8').strip())
-                    result = bridge.prepare(action, args.turn_id, use_memory=not args.no_memory)
+                    if args.opening:
+                        if args.action is not None or args.action_file is not None:
+                            parser.error('--opening does not take an action')
+                        action = None
+                    else:
+                        if (args.action is None) == (args.action_file is None):
+                            parser.error('prepare requires exactly one of --action or --action-file')
+                        action = (args.action if args.action_file is None else
+                                  Path(args.action_file).read_text(encoding='utf-8').strip())
+                    result = bridge.prepare(action, args.turn_id, use_memory=not args.no_memory,
+                                            one_pass=args.one_pass, opening=args.opening)
                 else:
                     if not args.turn_id or not args.input_file:
                         parser.error(f'{args.command} requires --turn-id and --input-file')
                     raw = sys.stdin.read() if args.input_file == '-' else Path(args.input_file).read_text(encoding='utf-8')
                     submitted = json.loads(raw)
                     result = (bridge.decide(args.turn_id, submitted) if args.command == 'decide' else
-                              bridge.finish(args.turn_id, submitted))
+                              bridge.finish(args.turn_id, submitted) if args.command == 'finish' else
+                              bridge.complete(args.turn_id, submitted))
             except PendingRuling as exc:
                 result = {'stage': 'pending_ruling', 'message': str(exc), 'committed': False}
             except InvalidChange as exc:
@@ -511,7 +619,14 @@ def main():
             model = OpenAIResponsesModel(args.model)
             agent = KitAgent(runtime, model, Room6CAdjudicator(args.perception, args.insight))
             print('Kit’s area 6c test. Enter an action, or /quit. Private traces: separate trace command.')
-            print(describe_view(runtime.player_view()))
+            if runtime.load()[0] == 0:
+                try:
+                    print(agent.opening()['spoken'])
+                except InvalidChange as exc:
+                    print(f'Opening rejected; no state was saved: {exc}', file=sys.stderr)
+                    return 2
+            else:
+                print(f"Resuming in {runtime.player_view()['area']}.")
             while True:
                 try:
                     action = input('\nYou> ').strip()

@@ -80,13 +80,15 @@ For each run, retain the seed version, character sheet, exact player inputs, cau
 5. **Embodiment:** Uktarl and the others behaved as distinct people rather than mouths for Kit's jokes or exposition.
 6. **Adaptation:** Kit visibly appreciated or responded to unexpected play, then gave the attempt real consequences.
 
+For the opening and first two social exchanges, score **voice distinction**, **legible objective/tactic**, and **room invitation** separately. Listen for a recurring cadence or verbal habit that distinguishes the dealer from Kit, a specific thing he tries to get from Nik, and an interaction the player wants to pursue. A described stage accent or a longer speech is useful only if it makes the dealer more intelligible and gives the player room to answer. Check whether the next turn responds to the player's exact words and changes tactic if necessary. See the [research-backed performance method](../../docs/architecture/kit-06c-play-slice.md#performance-method-and-limits). Automated schema checks establish none of these judgments.
+
 Source, map, rule, secrecy, and continuity violations invalidate a run for this test. Passing those checks does not establish that Kit has a compelling personality.
 
 Also record an overall paired preference between two complete runs: which Kit would the player choose to keep playing with, and why? Ask what moment made her feel like a particular DM, and what moment felt generic or artificial. Preserve rejected examples for later personality tuning. A beat tag such as `humor` says a joke occurred; it does not say the joke worked.
 
 ## Current runtime boundary
 
-The [area 6c play slice](../../docs/architecture/kit-06c-play-slice.md) now connects bounded event adjudication, Kit's private appraisal and move selection, a separate public performance call, persistent episodes, and a private trace. Its context includes the room, a Level 1 concern, and the campaign boundary relevant here. It cannot yet apply full D&D rules, resolve combat, move fleeing actors into adjoining areas, transfer treasure, persist substantive NPC bargains, or score entertainment. The text router and literal secrecy check are experimental; a passing backend test is not a personality result.
+The [area 6c play slice](../../docs/architecture/kit-06c-play-slice.md) connects bounded event adjudication, Kit's private appraisal and move selection, public performance, persistent episodes, and a private trace. Its context includes the room, a Level 1 concern, and the campaign boundary relevant here. The [first live room exchange with Nik](../playtests/2026-09-26-area-06c-nik.md) failed on pace and expressed personality. The slice cannot yet apply full D&D rules, resolve combat, move fleeing actors into adjoining areas, transfer treasure, persist substantive NPC bargains, or score entertainment automatically. The text router and literal secrecy check are experimental; a passing backend test is not a personality result.
 
 Run the seed from the repository root with:
 
