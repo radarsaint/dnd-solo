@@ -200,6 +200,33 @@ EXCHANGE_MIN_SEGMENTS = 2    # an embodied beat or second reactor, not one speec
 FEATURE_MIN_WORDS = 80       # scene entry or scene-turning moment
 FEATURE_MIN_SEGMENTS = 2
 
+
+def performance_limits(scope=None):
+    """The flat-reply guard, stated up front so a chat host can meet it on the first try.
+
+    Generated from the constants above so the bridge never drifts from check_scope.
+    These are floors against flat replies, not length targets.
+    """
+    limits = {
+        'call': f'At most {CALL_MAX_WORDS} words in at most {CALL_MAX_SEGMENTS} segments. Answer and stop.',
+        'exchange': (f'The focus actor speaks at least {EXCHANGE_MIN_ACTOR_WORDS} words; at least '
+                     f'{EXCHANGE_MIN_WORDS} words across non-Kit segments; at least '
+                     f'{EXCHANGE_MIN_SEGMENTS} segments (e.g. a visible beat plus the actor).'),
+        'feature': (f'At least {FEATURE_MIN_WORDS} words across non-Kit segments in at least '
+                    f'{FEATURE_MIN_SEGMENTS} segments.'),
+        'note': ('Floors guard against flat replies; they are not targets. Kit segments do not count '
+                 'toward the actor side. Never pad.'),
+    }
+    return limits if scope is None else {'selected_scope': scope, 'rule': limits[scope],
+                                         'note': limits['note']}
+
+
+HOST_RETRY_NOTE = (
+    'If finish or complete is rejected, nothing was committed and the decision stays fixed. Read '
+    'message and retry_instruction, then submit a new performance for the same turn_id; for '
+    'complete, resubmit the identical decision with the new performance. If decide is rejected, '
+    'fix the plan and call decide again.')
+
 PRIVATE_INSTRUCTIONS = (
     'You are Kit’s private decision stage, using the supplied canonical personality. '
     'Read DM-only information to keep the scene grounded. The event has already been adjudicated; '
@@ -699,10 +726,12 @@ class KitChatBridge:
         if one_pass:
             return {'turn_id': turn_id, 'stage': 'one_pass',
                     'instructions': ONE_PASS_INSTRUCTIONS, 'schema': ONE_PASS_SCHEMA,
+                    'performance_limits': performance_limits(), 'host_retry': HOST_RETRY_NOTE,
                     'input': {'private': planning_input,
                               'public': public_performance_base(self.runtime, body)}}
         return {'turn_id': turn_id, 'stage': 'private_decision',
                 'instructions': PRIVATE_INSTRUCTIONS, 'schema': PLAN_SCHEMA,
+                'performance_limits': performance_limits(), 'host_retry': HOST_RETRY_NOTE,
                 'input': planning_input}
 
     def decide(self, turn_id, plan, performance_variant='current'):
@@ -723,7 +752,8 @@ class KitChatBridge:
         return {'turn_id': turn_id, 'stage': 'public_performance',
                 'performance_variant': performance_variant,
                 'instructions': PERFORMANCE_VARIANTS[performance_variant], 'schema': SPEECH_SCHEMA,
-                'input': payload}
+                'performance_limits': performance_limits(plan['public_brief']['scope']),
+                'host_retry': HOST_RETRY_NOTE, 'input': payload}
 
     def finish(self, turn_id, speech):
         pending = self.runtime.pending_kit_turn(turn_id)
@@ -838,8 +868,17 @@ def main():
             except PendingRuling as exc:
                 result = {'stage': 'pending_ruling', 'message': str(exc), 'committed': False}
             except InvalidChange as exc:
-                print(json.dumps({'stage': 'rejected', 'message': str(exc), 'committed': False},
-                                 ensure_ascii=False), file=sys.stderr)
+                rejected = {'stage': 'rejected', 'message': str(exc), 'committed': False}
+                if args.command in ('finish', 'complete') and not isinstance(exc, StaleTurn):
+                    pending = None
+                    try:
+                        pending = runtime.pending_kit_turn(args.turn_id)
+                    except InvalidChange:
+                        pass
+                    if pending and pending['plan'] is not None:
+                        rejected.update(decision_fixed=True, retry_instruction=retry_instruction(exc),
+                                        host_retry=HOST_RETRY_NOTE)
+                print(json.dumps(rejected, ensure_ascii=False), file=sys.stderr)
                 return 2
             print(json.dumps(result, indent=2, ensure_ascii=False))
         else:

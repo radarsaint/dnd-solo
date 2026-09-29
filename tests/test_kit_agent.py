@@ -1,3 +1,4 @@
+import contextlib
 import io
 import json
 import tempfile
@@ -5,6 +6,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from runtime import kit_agent
 from runtime.kit_agent import (EXCHANGE_MIN_ACTOR_WORDS, KitAgent, KitChatBridge,
                                OpenAIResponsesModel, PendingRuling, Room6CAdjudicator, room_intent)
 from runtime.state_context import InvalidChange, Runtime, StaleTurn
@@ -608,6 +610,99 @@ class KitFocusAndScopeTests(unittest.TestCase):
         self.assertEqual(result['timing']['mode'], 'staged')
         self.assertGreaterEqual(result['timing']['prepare_to_commit_s'], 0)
         self.assertEqual(self.runtime.recent_kit_timings()[-1]['turn_id'], 'staged')
+
+
+
+class ChatBridgeCarrierTests(unittest.TestCase):
+    """The ChatGPT host path must carry reply_to, scope, and kit_focus end to end."""
+
+    def setUp(self):
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        self.path = Path(temp.name) / 'kit.sqlite'
+        self.runtime = Runtime(self.path)
+        self.addCleanup(lambda: self.runtime.close())
+        self.runtime.initialize(json.loads(FIXTURE.read_text()), 'area_06c')
+        self.model = RecordingModel()
+        self.bridge = KitChatBridge(self.runtime, Room6CAdjudicator(perception=0, insight=0))
+
+    def assert_host_is_told_how_to_fill_the_carrier(self, instructions, brief_schema):
+        self.assertEqual(set(brief_schema['required']) & {'reply_to', 'scope', 'kit_focus'},
+                         {'reply_to', 'scope', 'kit_focus'})
+        for phrase in ('reply_to', 'copy verbatim', 'kit_focus', 'derived from your goal and kit_choice',
+                       'scope', 'own motives'):
+            self.assertIn(phrase, instructions)
+
+    def test_staged_bridge_carries_focus_fields_to_the_performer(self):
+        prepared = self.bridge.prepare(NIK_GREETING, 'staged')
+        self.assert_host_is_told_how_to_fill_the_carrier(
+            prepared['instructions'], prepared['schema']['properties']['public_brief'])
+        self.assertIn('exchange', prepared['performance_limits'])
+        self.assertIn('same turn_id', prepared['host_retry'])
+        plan = self.model.plan(prepared['input'])
+        plan.update(move='npc_reply', table_presence='quiet')
+        performance = self.bridge.decide('staged', plan)
+        brief = performance['input']['selected_move']['brief']
+        self.assertEqual((brief['reply_to'], brief['scope'], brief['kit_focus']),
+                         (NIK_GREETING, 'exchange', KIT_FOCUS))
+        self.assertNotIn(KIT_CHOICE, json.dumps(performance['input'], ensure_ascii=False))
+        for phrase in ('reply_to', 'kit_focus', 'grants no authority', 'mouthpieces'):
+            self.assertIn(phrase, performance['instructions'])
+        self.assertEqual(performance['performance_limits']['selected_scope'], 'exchange')
+        self.assertIn(str(EXCHANGE_MIN_ACTOR_WORDS), performance['performance_limits']['rule'])
+        trial = self.bridge.prepare(NIK_GREETING, 'staged-trial')
+        trial_perf = self.bridge.decide('staged-trial', self.model.plan(trial['input']), 'kit_expression_v1')
+        self.assertIn('kit_focus', trial_perf['instructions'])
+        with self.assertRaisesRegex(InvalidChange, 'Exchange scope'):
+            self.bridge.finish('staged', NIK_REPLY)
+        self.assertEqual(self.bridge.finish('staged', QUIET_EXCHANGE_SPEECH)['revision'], 1)
+
+    def test_one_pass_bridge_carries_and_checks_focus_fields(self):
+        prepared = self.bridge.prepare(NIK_GREETING, 'fast', one_pass=True)
+        self.assert_host_is_told_how_to_fill_the_carrier(
+            prepared['instructions'],
+            prepared['schema']['properties']['decision']['properties']['public_brief'])
+        self.assertIn('Do not copy improv_read', prepared['instructions'])
+        self.assertIn('feature', prepared['performance_limits'])
+        plan = self.model.plan(prepared['input']['private'])
+        plan.update(move='npc_reply', table_presence='quiet')
+        misquoted = {**plan, 'public_brief': {**plan['public_brief'], 'reply_to': 'How much to pass?'}}
+        with self.assertRaisesRegex(InvalidChange, 'reply_to must quote'):
+            self.bridge.complete('fast', {'decision': misquoted, 'performance': QUIET_EXCHANGE_SPEECH})
+        with self.assertRaisesRegex(InvalidChange, 'Exchange scope'):
+            self.bridge.complete('fast', {'decision': plan, 'performance': NIK_REPLY})
+        result = self.bridge.complete('fast', {'decision': plan, 'performance': QUIET_EXCHANGE_SPEECH})
+        self.assertEqual(result['revision'], 1)
+        self.assertEqual(self.runtime.recent_kit_turns()[0]['trace']['public_brief']['kit_focus'], KIT_FOCUS)
+
+    def _cli(self, *argv):
+        out, err = io.StringIO(), io.StringIO()
+        with patch('sys.argv', ['kit_agent', *argv, '--db', str(self.path)]), \
+                contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            code = kit_agent.main()
+        return code, out.getvalue(), err.getvalue()
+
+    def test_cli_rejection_tells_the_host_how_to_retry(self):
+        self.runtime.close()
+        code, out, _ = self._cli('prepare', '--action', NIK_GREETING, '--turn-id', 'cli')
+        self.assertEqual(code, 0)
+        prepared = json.loads(out)
+        plan = self.model.plan(prepared['input'])
+        plan.update(move='npc_reply', table_presence='quiet')
+        temp = Path(self.path).parent
+        (temp / 'plan.json').write_text(json.dumps(plan))
+        (temp / 'flat.json').write_text(json.dumps(NIK_REPLY))
+        (temp / 'good.json').write_text(json.dumps(QUIET_EXCHANGE_SPEECH))
+        self.assertEqual(self._cli('decide', '--turn-id', 'cli', '--input-file', str(temp / 'plan.json'))[0], 0)
+        code, _, err = self._cli('finish', '--turn-id', 'cli', '--input-file', str(temp / 'flat.json'))
+        self.assertEqual(code, 2)
+        rejected = json.loads(err)
+        self.assertTrue(rejected['decision_fixed'])
+        self.assertIn('Exchange scope: the Dealer spoke 23 words', rejected['retry_instruction'])
+        self.assertIn('same turn_id', rejected['host_retry'])
+        code, out, _ = self._cli('finish', '--turn-id', 'cli', '--input-file', str(temp / 'good.json'))
+        self.assertEqual((code, json.loads(out)['revision']), (0, 1))
+        self.runtime = Runtime(self.path)
 
 
 if __name__ == '__main__':

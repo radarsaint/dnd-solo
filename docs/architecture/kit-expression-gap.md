@@ -1,143 +1,188 @@
-# Kit's Expression Gap: What the Design Assumed, What the Code Did
+# Kit's Expression Gap: A Build Guide for GPT
 
-**Status:** 2026-09-28, branch `kit-focus-brief`. This document is written for whoever designs Kit next, including the model that wrote the original pipeline and prompts. It explains why Kit did not come across as a particular DM, what the code actually did, what this change fixes, and what it leaves unproven. Line numbers marked **@79173a1** refer to the baseline commit. Line numbers marked **@673e9cd** refer to the code the Nik playtest actually ran on. Unmarked line numbers refer to this branch.
+**Who this is for:** GPT, as the collaborator building and hosting Kit's runtime in ChatGPT through `KitChatBridge`. It explains why Kit did not come across as a particular DM, the one build principle that fixes that class of problem, a worked example of the principle (branch `kit-focus-brief`), and the next things to build, in order.
 
-## The short version
+**How to read the line numbers:** **@79173a1** means the code before this change. **@673e9cd** means the code the Nik playtest actually ran on. Unmarked line numbers refer to the current code on this branch.
 
-Kit's personality was written down, loaded, and labeled. It was never made to *do* anything the player could see. The private decision said "Kit cares about bringing this NPC to life". The performer that writes the words never received that decision. Nothing checked that the private plan agreed with its own goal. The validator only checked that the output had the right shape. A two-sentence price quote therefore passed every gate, and the 38 passing tests were telling the truth: they tested storage and formatting, not personality.
+---
 
-## What the design assumed vs. what the code did
+## (a) The gap: what the design assumed vs. what the code did
 
-| The design assumed | What the code actually did |
+The design was careful about secrecy, persistence, and rules. It assumed that if Kit's personality was *described* and *decided*, it would *show*. It did not show, because **nothing carried Kit's decision to the words the player reads.**
+
+| The design assumed | What the code did |
 | --- | --- |
-| Loading the personality core makes Kit's personality operate. | The core is read from disk (`runtime/state_context.py:14`, `:325-326` @79173a1) and pasted whole into both model calls (`runtime/kit_agent.py:434`, `:467` @79173a1). It is 97 lines of broad prose. Nothing turns "embody every important NPC" into a specific choice on a specific turn. Having the text in the prompt is not evidence that it changed anything. |
-| Kit's private choice shapes the spoken turn. | The private decision records `goal`, `appraisal` (with a `cause`), and `improv_read.kit_choice` (`kit_agent.py:125-156` @79173a1; `scene_discernment.py:20`). The performer's input is built in `performance_input` (`kit_agent.py:475-484` @79173a1) and receives only `move`, `focus_actor`, `table_presence`, `tone`, and the four-field `public_brief`. The goal, appraisal, and `kit_choice` are dropped there. A test locked in that separation (`tests/test_kit_agent.py:106` @79173a1: `assertNotIn('improv_read', ...)`). One-pass mode writes the decision and the speech in one output, but the instructions tell the model to write the speech only from the brief, move, tone, focus actor, and presence (`kit_agent.py:249-250` @79173a1). |
-| An emotion label is a sign of inner life. | `appraisal: interest (1)` is a string the model fills in. No code reads it to change anything the player sees. It is saved as `current_appraisal` and fed back to the next *private* decision only (`state_context.py:206` and `kit_agent.py:436-438`, both @79173a1). |
-| Kit has longer-lived appetites and a relationship with the player. | Kit's entire saved state is `{'episodes': [], 'current_appraisal': None}` (`state_context.py:73` @79173a1). Episodes are the last 8 turns by recency, not relevance (`kit_agent.py:425` @79173a1), and only the private stage sees them. "player model" is listed as a missing layer (`state_context.py:358` @79173a1). The appetite model lives only in `docs/personality/dm-personality-layer-v0.1.md`. |
-| The validator guards quality. | `check_speech` (`kit_agent.py:384-417` @79173a1) checks: 1–7 segments of at most 900 characters, known speakers, Kit's segment count against her presence choice, that the chosen move happened (an NPC spoke), and a literal list of banned secret phrases (`:358-381`). It has a maximum length and no minimum. It never asks whether the reply answers the player, follows the brief, or reflects Kit's goal. The brief check (`:351-355`) only requires four non-empty strings of 240 characters or fewer. |
-| Passing tests mean the system works. | The fake model in the tests returns a short, fixed, two-segment reply (`tests/test_kit_agent.py:62-65` @79173a1), and it passes. The tests prove that the database, secrecy list, and turn locking work. They cannot prove a performance is good, and they never tried. |
-| Latency was known to be 81 seconds. | Nothing in the code measured time. The only time-related value was a 90-second HTTP timeout (`kit_agent.py:281` @79173a1). The 81 seconds came from a chat screenshot, and most of it was the host model thinking between the `prepare → decide → finish` calls. The runtime could not see that time. |
+| Loading the personality core makes Kit behave like Kit. | The core is read from disk (`runtime/state_context.py:14`, `:325-326` @79173a1) and pasted whole into both model calls (`runtime/kit_agent.py:434`, `:467` @79173a1). It is 97 lines of broad prose. It never turns into a specific choice on a specific turn. |
+| Kit's private choice shapes the spoken turn. | The private decision records `goal`, `appraisal` (with a `cause`), and `improv_read.kit_choice` (`kit_agent.py:125-156` @79173a1; `runtime/scene_discernment.py:20`). The performer's input is built in `performance_input` (`kit_agent.py:475-484` @79173a1) and contains only move, focus actor, presence, tone, and a four-field brief. **The goal, appraisal, and `kit_choice` are dropped right there.** A test locked in that separation (`tests/test_kit_agent.py:106` @79173a1). In one-pass mode the model writes both parts together, but it is told to write the speech only from the brief, move, tone, focus actor, and presence (`kit_agent.py:249-250` @79173a1). |
+| An emotion label shows an inner life. | `appraisal: interest (1)` is a string the model fills in. Nothing reads it to change what the player sees. It is saved and handed back to the next *private* decision only (`state_context.py:206` and `kit_agent.py:436-438`, both @79173a1). |
+| Kit has appetites and a relationship with the player. | Kit's whole saved state is `{'episodes': [], 'current_appraisal': None}` (`state_context.py:73` @79173a1). Episodes are the last 8 turns by recency, not relevance (`kit_agent.py:425` @79173a1), and only the private stage sees them. "player model" is listed as a missing layer (`state_context.py:358` @79173a1). Appetites exist only in `docs/personality/dm-personality-layer-v0.1.md`. |
+| The validator guards the turn. | `check_speech` (`kit_agent.py:384-417` @79173a1) checks segment count, speaker names, maximum length, presence consistency, that the chosen move happened, and a literal list of banned secret phrases (`:358-381`). It has **no minimum**. It never asks whether the reply answers the player, follows the brief, or reflects Kit's goal. The brief check (`:351-355`) only requires four non-empty strings. |
+| Passing tests mean personality works. | The tests' fake model returns a short fixed reply (`tests/test_kit_agent.py:62-65` @79173a1), and it passes. The tests proved the database, secrecy list, and turn locking work. That is all they could prove. |
+| The 81-second turn was a known, measured number. | Nothing measured time. The only time-related value was a 90-second HTTP timeout (`kit_agent.py:281` @79173a1). The 81 seconds came from a chat screenshot. |
 
-## The Nik failure was partly a bad private decision
+### The Nik turn was partly a bad private decision
 
-The playtest record says the private trace had `goal: npc_embodiment` and "a brief telling the dealer to name the toll" (`tests/playtests/2026-09-26-area-06c-nik.md:20`). That was Kit's own decision contradicting itself. The goal said "make this person real", and the instruction to the performer said "state the price". At that time the brief was one free-text string of up to 350 characters (`kit_agent.py:144`, `:270-271` @673e9cd). `kit_choice` did not exist yet; it arrived later in commit `6160e1f`. Even a perfect handoff would have delivered "name the toll". **Nothing checked that the brief agreed with the goal.** Fixing only the handoff would have delivered the wrong instruction faithfully.
+The playtest record says the private decision had `goal: npc_embodiment` and "a brief telling the dealer to name the toll" (`tests/playtests/2026-09-26-area-06c-nik.md:20`). The goal said "make this person real" and the instruction to the performer said "state the price". At that time the brief was one free-text string (`kit_agent.py:144`, `:270-271` @673e9cd), and `kit_choice` did not exist yet (it came in commit `6160e1f`). **Nothing checked that the brief agreed with the goal.** A perfect handoff would still have delivered "name the toll".
 
-Three other things pulled the dealer toward a price quote:
+Three other things pushed toward a price quote:
 
-1. **The event was generic.** Every social turn becomes the same accepted event, "You address the figures at the card table." (`kit_agent.py:119` @79173a1), and the private decision must copy it word for word (`:310`). Kit's appraisal was therefore "about" a sentence that says nothing. Nik's actual words were in `player_action`, but no field required the plan to answer them.
-2. **The dealer was written as a price machine.** At Nik time, the performer's instructions described the dealer as a performer "who wants a bargain" (`kit_agent.py:182-183` @673e9cd). The actor card added afterwards says he "can turn a courteous invitation into a blunt price" (`tests/fixtures/level_01_area_06c.json:26`), and his goal is "Control the encounter without risking himself" (`:109`). Given a greeting, the quickest path to those instructions is the toll.
-3. **"Quiet" meant "absent".** `table_presence: quiet` bans any Kit segment (`kit_agent.py:213-214`, `:395` @79173a1). No other channel carried her influence, so when she stayed quiet she disappeared.
+1. **The accepted event said nothing.** Every social turn becomes "You address the figures at the card table." (`kit_agent.py:120`), and the decision must copy that word for word (`:387`). Kit's appraisal was attached to an empty sentence.
+2. **The dealer was written to quote prices.** At Nik time the performer was told the dealer "wants a bargain" (`kit_agent.py:182-183` @673e9cd). The actor card added afterwards says he "can turn a courteous invitation into a blunt price" (`tests/fixtures/level_01_area_06c.json:26`), and his goal is "Control the encounter without risking himself" (`:109`).
+3. **"Quiet" meant "absent".** Quiet presence bans any Kit segment (`kit_agent.py:213-214`, `:395` @79173a1), and nothing else carried her influence.
 
-## Why a document, a label, a prompt variant, or a schema test proved nothing
+### Why documents, labels, prompts, and schema tests didn't make personality happen
 
-- A **personality document** describes intent. It is evidence only if changing it changes what the player hears.
-- An **emotion label** is the model's own claim about itself. With nothing downstream reading it, it is decoration.
-- A **prompt variant** (such as `kit_expression_v1`) is a hypothesis until blind readers prefer its transcripts.
-- A **schema test** proves the output has the required fields. The Nik reply had every required field.
-- A **stronger private trace with the same generic transcript is a failed result**, not partial success. The player never sees the trace.
+A personality document, an emotion label, a prompt variant, and a passing schema test all have the same weakness: **none of them physically reaches the performer as an instruction for this turn, and none gives the validator anything to check.** The model that writes the words sees a general description of Kit, a generic brief, and the player's message. It writes a competent generic reply. That reply passes because the validator only checks shape. The private trace can say anything, because the player never sees it and no code acts on it.
 
-## What this change does
+---
 
-It was approved by Brendon on 2026-09-28 as the smallest general change. It adds no area-specific script, no dealer lines, and no new model calls.
+## (b) The principle to build by
 
-1. **Three new fields in the brief** (`PLAN_SCHEMA`, `kit_agent.py:147-154`). Because the whole brief already flows to the performer (`performance_input`, `:598-607`), into one-pass mode, into Kit's saved episodes, and through the leak check, almost no new wiring was needed.
-   - `reply_to`: the exact words from the player that the turn must answer. It must appear in the player's message after lower-casing, whitespace, and curly quotes are normalized (`check_reply_to`, `:427-436`). For the room opening it must be `none`.
-   - `scope`: `call`, `exchange`, or `feature`. The room opening must be `feature`. `call` is allowed only for a `ruling` or `ask_clarification` move, or when no actor is in focus (`check_plan`, `:406-411`). An NPC reply therefore cannot declare itself a one-liner.
-   - `kit_focus`: 200 characters or fewer. It is a public-safe statement of one visible effect of Kit's goal and `kit_choice` on this turn: what she foregrounds, which actor tactic she lets play out, how she frames a ruling, or a deliberate restraint. It must not contain quoted dialogue, and must not copy `kit_choice` or the appraisal cause verbatim (`:412-419`). It passes the same literal leak check as the rest of the brief (`check_brief_public`, `:499-503`). The raw `kit_choice` and appraisal cause stay private.
-2. **Instructions.** The private stage is told that the brief must agree with its goal ("for npc_embodiment or roleplay, the tactic is something the actor tries in answer to the player, not only a price or a fact"), how to fill the three fields, and that the actor's objective and tactic come from the actor's motives, not Kit's taste. The performer is told to answer `reply_to`, to act out `kit_focus` through framing, emphasis, ruling style, or a Kit remark only when her presence allows, and that `kit_focus` grants no authority over facts, rules outcomes, NPC knowledge or commitments, or the player's choices. NPCs keep their own motives and actor-card voices and are never used to voice Kit's taste.
-3. **A flat-reply guard in `check_speech`** (`check_scope`, `:442-470`; constants at `:182-201`).
-   - A `call` must stay within 60 words and 2 segments.
-   - An `exchange` needs the focus actor to speak at least 30 words, at least 40 words in non-Kit segments, and at least 2 segments.
-   - A `feature` needs at least 80 non-Kit words in at least 2 segments.
-   - Kit's own remarks do not count toward the actor's side.
-   - The exact Nik reply (a 13-word beat plus 23 words of dealer speech) is now rejected. A one-line roll prompt under `call` is accepted.
-4. **A specific retry reason.** When the performer is rejected, the retry now says exactly which check failed, e.g. "Exchange scope: the Dealer spoke 23 words (floor 30)…" (`retry_instruction`, `:610-613`). The old message was "failed the public visibility or format check". The chat bridge logs rejected attempts and the last reason.
-5. **Latency recording outside the turn hash.**
-   - A new `kit_telemetry` table (`state_context.py:48-52`, methods `:245-267`) stores timing separately from `turns`, `ledger`, and `kit_turns`, so it never enters the idempotency digest.
-   - API mode records time from receipt to commit or rejection, model call count, per-call seconds, and rejection reasons.
-   - Chat mode records `prepare_to_commit_s`. That covers the host model's time between stages, but not anything before `prepare` is called.
-   - See `python -m runtime.kit_agent timing --db …`.
-6. **Tests.** The fake model's replies were updated. There are new regression tests for:
-   - the exact Nik reply being rejected;
-   - a roll prompt accepted under `call`;
-   - a long `call` rejected;
-   - a misquoted `reply_to` rejected;
-   - `kit_focus` reaching the performer while the raw `kit_choice` and appraisal cause do not;
-   - bad `kit_focus` values;
-   - opening scope;
-   - the retry reason;
-   - telemetry staying out of the hash.
+> **Every private decision that should change the player's experience needs a public carrier: a field the performer receives, stated in public-safe terms, that the validator can check.**
 
-   One real bug was found while writing them: a player who says a secret word ("I accuse him of being a doppelganger") would have made the quoted `reply_to` fail the brief's leak check. The brief check now skips `reply_to`, because those are the player's own words, which the performer already receives. The performance itself is still checked.
+In practice:
 
-## What it deliberately does NOT do
+1. **Decide privately, carry publicly.** Kit's reasoning (`kit_choice`, appraisal, the actor's secrets, hidden facts) stays in the private stage. What crosses to the performer is a short, public-safe *consequence* of that reasoning: what to answer, what to foreground, how big the moment is.
+2. **Make the carrier checkable.** Where possible, give it a form code can verify: a quote that must appear in the player's words, a choice from a fixed list, a length limit, a ban on dialogue, a literal leak check. If code can't verify it, say so and check it in play.
+3. **The performer must be told how to use the carrier**, and told what the carrier does *not* permit: no new facts, outcomes, NPC commitments, or player actions.
+4. **NPCs keep their own motives and voices.** Kit's taste decides what the scene spotlights. It never becomes an NPC's words or opinions. An NPC can resist the direction Kit would like the scene to take.
+5. **Private reasoning stays private.** Never pipe raw `kit_choice`, appraisal text, or hidden facts into the performer "to help". Restate them as public direction or leave them out.
+6. **A carrier without a test is a hope.** For each carrier, write tests that it reaches the performer, that the private text it came from does not, and that the validator rejects a violation.
 
-- It does not send the raw `kit_choice` or appraisal to the performer.
-- It does not add appetite meters, relationship scores, or a player model.
-- It does not change the dealer's actor card, the source facts, the rules, or the accepted-event machinery. The generic social event string is unchanged.
-- It adds no model call and does not change any model.
-- It does not make the `kit_expression_v1` trial the default.
-- It does not claim Kit is now entertaining. **No real model has run this code yet.**
+---
 
-## Its limits: read these before trusting a passing test
+## (c) Worked example: what this change does
 
-- **Word floors are a guard, not proof.** They stop the specific "price and done" failure. A model can pass them with padding, and a 40-word reply can still be lifeless. They also run against the pipeline doc's "no universal word count" principle. The numbers are named constants so blind-review evidence can tune them. Longer is not better.
-- **The leak check is literal.** It catches "marked deck", not "those cards have a funny shine on the back". `kit_focus` is a new place where a paraphrased secret could slip through. Humans must still read for implied leaks.
-- **One-pass mode cannot prove causation.** The decision and the speech come from one output, so the speech may have come first and the decision written to justify it. Only staged mode (fixed decision, then a separate performance) can test whether Kit's choice caused the words.
-- **The ruling dodge.** A model that wants to be brief can label a turn `ruling` with no focus actor and use `call`. Checking whether that label is honest needs human review or a real rules router.
-- **`kit_focus` can be vague.** "Make it interesting" passes every check. Whether the focus is specific, and whether the speech actually acts it out, is a judgment for blind review.
-- **Kit's voice can leak into NPCs.** The instructions forbid it, but no code can detect it.
+This branch applies the principle to the gap above. It adds no area-specific script, no dealer lines, and no model calls.
 
-## Why "recent history first" is still the right order for appetites and relationship
+**Three new carriers in the brief** (`PLAN_SCHEMA`, `kit_agent.py:147-154`). The whole brief already flows to the performer (`performance_input`, `:625`), into one-pass output, into Kit's saved episodes (`state_context.py:216`), and through the leak check, so almost no extra wiring was needed.
 
-The long-form design proposes appetite pressure and relationship tracking. They are still unbuilt, and that is correct for now:
+| Carrier | Private source | What the performer does with it | What the validator checks |
+| --- | --- | --- | --- |
+| `reply_to` | The decision's reading of the player's bid | Answers those exact words | Must appear in the player's message after lower-casing, whitespace, and curly quotes are normalized; `none` only for the room opening (`check_reply_to`, `:454`) |
+| `scope` (`call`/`exchange`/`feature`) | Kit's judgment of how much the moment deserves | Changes the *kind* of material: answer and stop, a real exchange, or a scene in motion | Opening must be `feature`; `call` only for a `ruling` or `ask_clarification` move, or no focus actor (`:432-438`); flat-reply floors per scope (`check_scope`, `:469`) |
+| `kit_focus` | `goal` + `kit_choice` | Acts out Kit's choice through framing, emphasis, which actor tactic gets room, how a ruling is phrased, or a Kit remark when presence allows | 200 characters max, no quoted dialogue, not a verbatim copy of `kit_choice` or the appraisal cause (`:439-446`), literal leak check (`check_brief_public`, `:526`) |
 
-1. Kit does not yet reliably express one choice on one turn. A drive that shifts over many turns cannot show up until a single turn can.
-2. A numeric appetite or affection score is another label. Without an observable effect and a comparison against a simpler approach, it would repeat the `appraisal` mistake at a larger scale.
-3. Kit's episodes now keep `kit_focus` with each turn. The next test is whether a *relevant* remembered episode changes her next visible choice and an *irrelevant* one does not. If recent history is enough, meters are unnecessary. If it is not, the failure will show which event types a longer-lived state must track.
-4. Relationship state must come from observable player behavior and explicit feedback, not invented feelings, and Kit must be able to be wrong about the player.
+**Other parts of the change:**
 
-## How to gather the first real evidence
+- **Instructions.**
+  - The private stage (`PRIVATE_INSTRUCTIONS`, `:230`) is told the brief must agree with its goal: "for npc_embodiment or roleplay, the tactic is something the actor tries in answer to the player, not only a price or a fact". It is told how to fill each carrier, and that the actor's objective comes from the actor's motives, not Kit's taste.
+  - The performer (`PUBLIC_INSTRUCTIONS`, `:266`) is told to answer `reply_to` and act out `kit_focus`. `kit_focus` "grants no authority over facts, rules outcomes, NPC knowledge or commitments, or the player's choices", and NPCs are never "mouthpieces for Kit's taste or humor".
+  - One-pass instructions (`:321`) add "Do not copy improv_read or appraisal text into the performance".
+- **Flat-reply floors** (constants at `:182-201`, checked in `check_scope`):
+  - A `call` stays within 60 words and 2 segments.
+  - An `exchange` needs the focus actor to speak at least 30 words, at least 40 words in non-Kit segments, and at least 2 segments.
+  - A `feature` needs at least 80 non-Kit words.
+  - The exact Nik reply (a 13-word beat plus 23 dealer words) is rejected. A one-line roll prompt passes as a `call`.
+- **Retry reasons.** A rejected performance now hears exactly why, e.g. "Exchange scope: the Dealer spoke 23 words (floor 30)…" (`retry_instruction`, `:637`).
+- **Latency** is recorded in a `kit_telemetry` table (`state_context.py:48-52`, `:245-267`) that sits outside the turn's hash, so an identical retry stays idempotent.
+  - API mode records time from receipt to commit and per-call seconds.
+  - Bridge mode records `prepare_to_commit_s`, which cannot see anything before `prepare`.
+  - Read it with `python -m runtime.kit_agent timing --db …`.
+- **The bridge (the ChatGPT path) carries all of it.**
+  - `prepare` (both modes) returns the schema with the three fields, instructions on filling them, a `performance_limits` summary of the floors (generated from the same constants, `:204`), and a `host_retry` note (`:224`).
+  - `decide` returns the brief with the three fields, the performer instructions, and the limits for the chosen scope.
+  - When `finish` or `complete` is rejected on the command line, the output includes `decision_fixed`, the specific `retry_instruction`, and how to resubmit (`:879`). The host can therefore fix a turn in one retry instead of guessing.
+- **A leak-check fix.** When a player says a secret word ("I accuse him of being a doppelganger"), the quoted `reply_to` would have failed the brief's leak check. The brief check now skips `reply_to`, because those are the player's own words. The performance is still checked.
+- **Tests guard the build.** They cover:
+  - the exact Nik reply being rejected;
+  - a roll prompt accepted;
+  - a long call rejected;
+  - a misquoted `reply_to` rejected;
+  - `kit_focus` reaching the performer while `kit_choice` and the appraisal cause do not;
+  - bad `kit_focus` values;
+  - opening scope;
+  - the retry reason;
+  - telemetry staying outside the hash;
+  - the staged and one-pass bridge carrying and checking all three fields;
+  - the command-line rejection telling the host how to retry.
 
-```sh
-export OPENAI_API_KEY=...            # the script refuses to run without it and writes nothing
-python scripts/run_kit_live_comparison.py --check                  # exports both refs, no model calls
-python scripts/run_kit_live_comparison.py --model gpt-5 --samples 2 --jobs 10
-# writes OUT/blind/review.md (randomized A/B) and OUT/blind_answer_key.json automatically
-```
+---
 
-The script exports baseline `79173a1` and the candidate (default `HEAD`) with `git archive`, so your checkout is untouched. It runs each version's own agent with identical inputs and settings. Output goes to `tests/playtests/live-runs/<UTC stamp>-<model>/`: `transcripts/` (player-facing only), `traces/` (DM-only; do not show reviewers), `latency.csv`, `blind_pairs.json`, `blind/review.md` with `blind_answer_key.json`, and `run.json`. `--max-output-tokens` defaults to 8000 for both versions, because reasoning models spend output tokens on thinking and the runtime's own 1800 limit may cut them off. Pass `--max-output-tokens 1800` to reproduce the runtime default exactly. Dice for keyed checks come from each fresh session's seed, so a check result can differ between versions; compare those turns with that in mind.
+## (d) What this change deliberately does NOT do, and its limits
 
-## Checklist: what future design work must include to count as evidence
+**Not done, on purpose:**
 
-Nothing below is satisfied by a document, label, prompt, or passing unit test.
+- Raw `kit_choice` or appraisal is not sent to the performer.
+- No appetite meters, relationship scores, or player model.
+- The dealer card, source facts, rules, and the generic social event string are unchanged. They are next steps below.
+- No model calls added.
+- `kit_expression_v1` is not made the default.
 
-- [ ] **Real model transcripts.** Record the model ID, settings, commit SHA, fixture hash, exact player inputs, and whether staged or one-pass mode was used. Use `scripts/run_kit_live_comparison.py`.
-- [ ] **Same inputs, one change at a time.** Compare the baseline and candidate on the same room, player words, rules outcome, and model. Do not change the prompt, schema, and actor card together.
-- [ ] **More than one sample.** Generate at least two samples per arm, because a single run can be noise.
-- [ ] **Blind review before reading traces.** Reviewers see only public context and spoken turns (`scripts/blind_performance_review.py`). They say which DM they would keep playing with and quote the deciding moment. Open private traces only afterwards, to explain the result.
-- [ ] **A full session, not one line.** Review the opening plus at least two exchanges as one sample.
-- [ ] **Relevant vs. irrelevant memory.** Write the expected difference down in advance. A relevant earlier episode should change Kit's next visible choice; an irrelevant one should not. Run a no-memory control, remembering that the public dialogue history still carries earlier words.
-- [ ] **A narrow turn stays narrow.** Include a roll prompt or a ruling and confirm it stays short and direct.
-- [ ] **A quiet or serious moment.** Restraint is part of her identity, so include one and check she holds back.
-- [ ] **A second actor and a second scene.** Kit's signature should carry over while the dealer's mannerisms stay in area 6c. The runtime is currently hard-wired to area 6c (area check `kit_agent.py:72`, speaker enum `Dealer`/`Card player`, `focus_actor` enum `uktarl`/`other`/`none`). A general scene adapter and a second source-grounded room are prerequisites.
-- [ ] **Hard violations logged separately.** Source errors, private leaks, invented player actions, and unsupported results disqualify a sample, whatever its prose quality.
-- [ ] **Latency from real runs.** Report per-turn time (from `kit_telemetry` or the harness `latency.csv`), model calls, and retries. Speed is telemetry, not a gate, during this phase.
-- [ ] **A failure is a result.** If the private trace improves and the transcript does not, record that and do not promote the change.
+**Limits to keep in mind while building on it:**
 
-## Results so far
+- **Floors are a guard, not quality.** They stop "price and done". A model can pass them with padding, and a 40-word reply can still be lifeless. Never treat longer as better, and never raise the floors to force life into a scene.
+- **The leak check is literal.** It catches "marked deck", not "those cards have a funny shine on the back". `kit_focus` is a new place a paraphrased secret could slip through.
+- **One-pass mode can't show cause and effect.** Decision and speech come out together, so the decision may have been written to fit the speech. Staged mode (fixed decision, then a separate performance) is the way to see whether a change to the decision changes the speech.
+- **The ruling dodge.** A model that wants to be brief can call a social turn a `ruling` with no focus actor and use `call`.
+- **`kit_focus` can be vague.** "Keep it interesting" passes every check. Only reading the turn tells you whether the focus was specific and was acted out.
+- **Kit's voice can leak into NPCs.** The instructions forbid it; no code detects it.
 
-**No real-model evidence exists yet.** This section will change when it does.
+---
 
-- **Attempted:** 2026-09-28 at 7:12 PM PT. Command: `python scripts/run_kit_live_comparison.py --model gpt-5 --samples 2 --jobs 10`, with all five arms, baseline `79173a1` versus candidate `b6168e2`, and the default `--max-output-tokens 8000` for both versions.
-- **Result:** every request was refused with `HTTP 429 insufficient_quota` / `credit_balance_exhausted` ("You have no credits remaining"). The account's model list does include `gpt-5`, so the model choice was not the problem. A one-line request to `gpt-5-nano` and to `gpt-4.1-nano` got the same billing refusal, so no other model would have helped.
-- **No Kit turn reached a model**, so there are no transcripts, no validator pass/fail/retry counts, no latency figures, and no violation findings for either version. The error-only output folder was deleted rather than committed, because it would look like data.
-- **Harness changes made because of this:**
-  - The script now stops at once on an auth or quota failure (401, 403, or `insufficient_quota`) and writes nothing.
-  - It automatically writes a randomized blind A/B packet (`blind/review.md`) and a separate answer key (`blind_answer_key.json`) with a recorded seed.
-  - `--jobs N` runs the (version, arm) workers concurrently. Turns inside an arm stay in order, and per-call latency is still timed per request.
-- **To produce the first results once credits are added:** `python scripts/run_kit_live_comparison.py --model gpt-5 --samples 2 --jobs 10`. Output lands in `tests/playtests/live-runs/<UTC stamp>-gpt-5/`.
-- **Caveats that will still apply:**
-  - The author of this change also wrote the harness. Its first run is a check that the harness works and a list of violations, not a quality verdict. Quality needs blind reviewers who did not write the change.
-  - `other_scene` is a stand-in in the same room, not a second actor or room.
-  - Check outcomes use each session's random dice, so they can differ between versions.
+## (e) Next build steps, in order
+
+Each step uses the same pattern: **private source → public carrier → performer instruction → validator check → test.**
+
+1. **Replace the generic social event with the player's actual action.**
+   - *Now:* `Room6CAdjudicator.resolve` sets every social turn's event to "You address the figures at the card table." (`kit_agent.py:120`).
+   - *Build:* make the social event a faithful public restatement of the declared action (for example, `Nik says: "<exact words>"`, trimmed to the 500-character event limit checked at `:387`). Keep the full text in the event evidence.
+   - *Carrier:* the event is already public and already reaches the performer as `accepted_public_event`.
+   - *Check:* the existing "copy observed_event exactly" rule now forces the appraisal to be about what the player actually did.
+   - *Tests:* the social event contains the player's words, and the idempotency test's expected evidence string is updated.
+2. **Put Kit's choices into memory, and pick memories by relevance.**
+   - *Now:* episodes save the goal, move, and brief (so `kit_focus` is already saved) but not `kit_choice` or the player's bid (`state_context.py:212-219`). Decisions get the last 8 episodes by recency (`kit_agent.py:575`, `:745`, `:802`).
+   - *Build:*
+     - Save `improv_read.kit_choice` and `player_bid` in each episode. Episodes are private, so this is safe.
+     - Replace `[-8:]` with a small selector: always keep the last 2 episodes, then add those that share the current actor, story anchor, or meaningful words with the player's action, up to 8.
+     - Add one optional brief carrier, `callback`: a short quote of an earlier *public* moment (from `public_history`) that this turn picks up, or `none`.
+   - *Check:* `callback` must appear in the public history, the same way `reply_to` must appear in the player's words, and `memory_refs` stay limited to real episode IDs.
+   - *Tests:* a relevant earlier episode is selected over a more recent irrelevant one; `callback` must quote public history; private episode text never reaches the performer.
+3. **Add a minimal player relationship built from recent history, before any appetite meters.**
+   - *Build:* a short list of `player_notes` in Kit's state. Each note is an observable pattern with the turn IDs that show it, e.g. "accepted an NPC's invitation", "tried an audacious physical stunt", or "asked for fewer menus" from explicit feedback. Add a bridge command (e.g. `feedback --text`) so the host can record out-of-character player feedback as a note. No affection scores, no guessed emotions, and old notes can be contradicted by new behavior.
+   - *Carrier:* notes go to the private stage only. Their public effect travels through the existing carriers: `kit_focus` (what she chooses to spotlight for this player) and `callback`.
+   - *Check:* every note must cite committed turn IDs; the validator rejects a note without evidence.
+   - *Tests:* a note needs evidence; feedback is stored and reaches the next decision but never the performer verbatim.
+   - *Why not appetite meters yet:* a number that nothing observable reads repeats the `appraisal` mistake at a larger scale. Build appetites only if recent-history notes demonstrably fail to change Kit's choices, and let that failure say which event types an appetite must track.
+4. **Loosen the dealer card's pull toward the toll.**
+   - *Now:* the card says he "can turn a courteous invitation into a blunt price" (`tests/fixtures/level_01_area_06c.json:26`); his public objective lists "the passage bargain" (`:28`); his immediate goal is control (`:109`).
+   - *Build:*
+     - Rewrite the card so the price is one move among several. He sizes up a visitor, wants to learn what they are worth to him, and prefers a game where he controls the deck.
+     - Answer the visitor's actual words before naming terms. Keep the source facts (10 gp toll, marked deck, rivalry) intact.
+     - Pattern for future cards: state what the actor wants *from this visitor* and two or three tactics. Never state a default line.
+   - *Carrier:* the actor card is already public and reaches the performer.
+   - *Check:* no code can judge this. Check it in play (section f): does the dealer answer `reply_to` before any price?
+5. **Let the bridge's one-pass path honor the Kit expression profile.**
+   - *Now:* only staged `decide` accepts `performance_variant='kit_expression_v1'` (`kit_agent.py:737`). One-pass `prepare`, which is the ChatGPT live path, always uses the default instructions. The standalone API adapter hardcodes them too (`:379`).
+   - *Build:*
+     - Add `performance_variant` to `prepare(one_pass=True)` and to the `prepare` CLI. Build the one-pass instructions from the chosen variant, and store the variant in the pending body so `complete` records which one ran.
+     - Pass the variant through `OpenAIResponsesModel.perform` as well.
+   - *Check:* the variant name is on the fixed list.
+   - *Tests:* one-pass instructions include `KIT_EXPRESSION_V1` only when chosen; the input and schema are unchanged; the variant is recorded.
+
+After these, the larger items in `expressed-performance-pipeline.md` still apply: ingest player-supplied rolls, add typed social events for real offers and promises, and replace the area 6c enums (`kit_agent.py:72`, `:155`, `:169`) with a general scene adapter so a second room can be built.
+
+---
+
+## (f) How to check your own work while building (in ChatGPT, through the bridge)
+
+Use the bridge exactly as the player would experience it. No API key is needed.
+
+1. **Run the unit tests after every change** (`python -m unittest discover -s tests -p 'test_*.py'`). For each new carrier, add three tests: it reaches the performer, its private source does not, and the validator rejects a violation.
+2. **Play a short fresh room.** Run `init` on a new database, the opening, Nik's greeting ("Hi, I'm Nik. I wasn't expecting to find people gambling. Whats going on here?"), then a follow-up that pushes back, using `prepare --one-pass` / `complete`.
+3. **Read only the spoken text first.** Answer these before looking at any trace:
+   - Did the reply answer the player's actual words?
+   - What does the dealer want, and how is he trying to get it?
+   - What did Kit choose to spotlight, and can you name it without the trace?
+   - Could this line appear in any room with any NPC?
+   - Did the dealer sound like himself, not like Kit?
+4. **Then open the trace** (`python -m runtime.kit_agent trace --db …`) and hold `kit_focus` against the spoken turn. Point to the sentence that acts it out. If you can't, the carrier failed on that turn. Tighten `kit_focus` wording or the performer instruction, not the floors.
+5. **Check cause and effect in staged mode.**
+   - Copy the database (`cp kit-06c.sqlite /tmp/a.sqlite`, `cp kit-06c.sqlite /tmp/b.sqlite`). Prepare the same action in each, and `decide` with the same plan except a different `kit_focus`.
+   - Write each performance from its packet. If the two performances are interchangeable, `kit_focus` isn't doing work yet.
+6. **Check memory.**
+   - Play a turn that should matter later (e.g. Nik boasts about a lucky coin), then a turn where it could matter ("Deal me in."). See whether the spoken turn picks it up.
+   - Repeat on a copy with `prepare --no-memory`. Remember the public dialogue history is still visible there.
+7. **Check a narrow turn stays narrow.** Ask for a roll or a rule. The reply should be a short `call` with no chatter.
+8. **Watch rejections and time.** `python -m runtime.kit_agent timing --db …` shows `prepare_to_commit_s` and rejected attempts. Repeated rejections mean the host isn't reading `performance_limits` or the instructions; fix that before anything else, because every retry costs the player time.
+9. **Never show the player a trace, a brief, or a rejection message.** Show only `spoken`.
