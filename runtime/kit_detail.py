@@ -95,7 +95,7 @@ DETAIL_ASK = re.compile(
     r"\bwhat(?:'s| is| are| was| were| kind of| sort of)?\b[^.?!]{0,40}?\b("
     r"drink|drinking|eat|eating|smok|playing|game|wear|wearing|read|reading|carv|written|"
     r"says|inscri|made of|inside|in it|on it|smell|taste|called|name|"
-    r"look like|hum|singing|cooking|brewing|selling|for sale|cost)\w*"
+    r"look like|hum|singing|cooking|brewing|selling|for sale|cost|worth|price|fee|toll|go for|fetch)\w*"
     r"|\bhow much\b|\bwho (is|are)\b|\btell me (about|more)\b|\bdescribe\b")
 
 # Rules or stakes stated as settled. Naming any game as flavor is fine; offering one as
@@ -149,8 +149,17 @@ def is_none(value):
     return isinstance(value, str) and value.strip().casefold() == 'none'
 
 
+# "What is that worth (to you)?" bargains; it asks no item's price.
+_BARGAIN_WORTH = re.compile(r"\bwhat(?:'s| is| are| would| will)?\s+(?:that|it|this|those|these|they)\s+"
+                            r"(?:be\s+)?worth\b")
+
+
 def asks_for_detail(player_action):
-    return bool(player_action) and DETAIL_ASK.search(_norm(player_action)) is not None
+    text = _norm(player_action)
+    match = bool(player_action) and DETAIL_ASK.search(text)
+    if match and match.group(1) and match.group(1).startswith('worth') and _BARGAIN_WORTH.search(text):
+        return False
+    return bool(match)
 
 
 def generic_answer(text):

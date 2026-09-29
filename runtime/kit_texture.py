@@ -36,7 +36,7 @@ ITEM_KINDS = ('sense', 'material', 'mood', 'history', 'culture', 'wealth')
 
 # Facet vocabulary: what the player is asking about. Order matters (first match wins).
 FACETS = (
-    ('price', re.compile(r"\bhow much\b|\bcosts?\b|\bprice\b|\bfee\b|\btoll\b|\bworth\b")),
+    ('price', re.compile(r"\bhow much\b|\bcosts?\b|\bprice\b|\bfee\b|\btoll\b|\bworth\b|\bgo for\b|\bfetch\b")),
     ('game', re.compile(r"\bgame\b|\bplaying\b|\bwhat are (you|they|we) playing\b")),
     ('drink', re.compile(r"\bdrink\w*|\bsipping\b|\bpouring\b|\bin (his|her|their|that) (cup|glass|mug)\b")),
     ('food', re.compile(r"\beat\w*|\bstew\b|\bfood\b|\bcooking\b|\bin the pot\b")),

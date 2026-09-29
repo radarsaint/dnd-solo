@@ -655,6 +655,15 @@ def numeric_facts(source):
             if isinstance(fact, dict)}
 
 
+# An opening sentence that leads with the amount ("Thirty gold, to a jeweler", "Oh, about
+# 25 gp") is an elliptical answer; "I won twenty gold tonight" is not.
+ELLIPTIC_AMOUNT = re.compile(
+    r"^\W*(?:(?:oh|well|only|just|about|maybe|roughly|near|nearly|call it|that'?s|it'?s|its)\W+)*"
+    r"(?:an? )?(?:\d|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen"
+    r"|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty"
+    r"|ninety|hundred|thousand|dozen)")
+
+
 def check_numeric_facts(segments, facts, player_action, stake_amounts=(), game_terms=()):
     """HARD: a fixed source amount is not changed. While a table game runs, its stake
     amounts may be named in a sentence about the game (one with a game term) that is not
@@ -666,6 +675,14 @@ def check_numeric_facts(segments, facts, player_action, stake_amounts=(), game_t
         for sentence in sentences(player_action or ''):
             declared.update(_amounts(sentence, fact['unit_words']))
     stakes = set(stake_amounts or ())
+    # "What is that ring worth?" / "Thirty gold, to a jeweler." An opening sentence that
+    # leads with an amount answers the player's own question, so a fact the question names
+    # by its specific words is in play there (generic words like "cost" do not count).
+    question = ' ' + ' '.join(token for part in sentences(player_action or '')
+                              if part.rstrip('"\'” )').endswith('?') for token in tokens(part)) + ' '
+    asked = {name for name, fact in (facts or {}).items()
+             if any(f' {normalize(word)} ' in question
+                    for word in fact.get('specific_words') or fact['context_words'])}
     for segment in segments:
         parts = sentences(segment['text'])
         for index, sentence in enumerate(parts):
@@ -675,10 +692,12 @@ def check_numeric_facts(segments, facts, player_action, stake_amounts=(), game_t
                 words += ' '.join(tokens(parts[index - 1])) + ' '
             about_game = any(f' {normalize(term)} ' in words for term in game_terms or ())
             for name, fact in (facts or {}).items():
-                if not any(f' {normalize(word)} ' in words for word in fact['context_words']):
-                    continue
                 specific = fact.get('specific_words') or fact['context_words']
-                about_fact = any(f' {normalize(word)} ' in words for word in specific)
+                answers_question = index == 0 and name in asked and ELLIPTIC_AMOUNT.match(normalize(sentence))
+                if not answers_question and not any(f' {normalize(word)} ' in words
+                                                    for word in fact['context_words']):
+                    continue
+                about_fact = answers_question or any(f' {normalize(word)} ' in words for word in specific)
                 for amount in _amounts(sentence, fact['unit_words']):
                     if amount in fact['allowed_amounts'] or amount in declared:
                         continue

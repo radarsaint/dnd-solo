@@ -30,6 +30,16 @@ class PriceKeyTests(unittest.TestCase):
         self.assertEqual(oracle['status'], 'unpriced', '"Wand" (10 gp) is not a wand of fireballs')
         self.assertEqual(self.oracle('How much for that silver ring?')['slot'], 'taproom/price/silver_ring')
 
+    def test_worth_and_price_questions_open_the_oracle(self):
+        # Fix-pass host play: "What is that silver ring worth?" opened no oracle.
+        for ask in ('What is that silver ring worth?', "What's the price of that silver ring?",
+                    'What would that silver ring go for?'):
+            with self.subTest(ask=ask):
+                self.assertTrue(kit_detail.asks_for_detail(ask))
+                self.assertEqual(self.oracle(ask)['slot'], 'taproom/price/silver_ring')
+        # A bargain is not a price question.
+        self.assertFalse(kit_detail.asks_for_detail('I could help you get rid of Harria. What is that worth?'))
+
     def test_whole_item_matching(self):
         self.assertEqual(kit_prices.whole_item_matches('How much for a silver ring?'), [])
         self.assertEqual(kit_prices.whole_item_matches('How much is a wand of fireballs?'), [])

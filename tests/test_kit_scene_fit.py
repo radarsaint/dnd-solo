@@ -200,8 +200,8 @@ class RunningGameGuardTests(unittest.TestCase):
         with self.assertRaisesRegex(InvalidChange, 'Undeclared procedure'):
             kit_detail.check_detail_performance([seg('Dealer', 'The stakes are two gold.')], ())
 
-    def numeric(self, text, stakes=(11,)):
-        kit_guards.check_numeric_facts([seg('Dealer', text)], kit_guards.numeric_facts(SOURCE), '',
+    def numeric(self, text, stakes=(11,), asked=''):
+        kit_guards.check_numeric_facts([seg('Dealer', text)], kit_guards.numeric_facts(SOURCE), asked,
                                        stakes, kit_cards.RULE_TERMS)
 
     def test_stake_amounts_are_not_ring_or_toll_prices(self):
@@ -215,6 +215,19 @@ class RunningGameGuardTests(unittest.TestCase):
     def test_the_ring_value_may_be_stated(self):
         """Brendon: NPCs may state the ring's 25 gp; small stuff isn't a secret."""
         self.numeric('That ring is worth 25 gold, no more.')
+
+    def test_an_answer_to_the_players_ring_question_is_about_the_ring(self):
+        # Fix-pass host play: "Thirty gold, bright-eyes, to a jeweler" answered "What is
+        # that silver ring worth?" without naming the ring, and committed.
+        asked = 'What is that silver ring worth?'
+        with self.assertRaisesRegex(InvalidChange, 'ring value'):
+            self.numeric('Thirty gold, bright-eyes, to a jeweler. It is not for sale.', asked=asked)
+        self.numeric('Twenty-five gold, bright-eyes, to a jeweler. It is not for sale.', asked=asked)
+        # Only an opening sentence that leads with the amount answers; a generic word
+        # ("cost") names no fact.
+        self.numeric('Not for sale. The stakes are eleven gold a head.', asked=asked)
+        self.numeric('I won thirty gold tonight from the last fool.', asked=asked)
+        self.numeric('A hundred and eighteen thousand gold.', asked='What does a wand of fireballs cost?')
 
     def test_guard_context_never_merges_stakes_into_fixed_amounts(self):
         view = {'table_procedures': {'three_dragon_ante': {'stacks': {'Dealer': 11}, 'player': {'gp': 7}}}}
