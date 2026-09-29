@@ -2,7 +2,7 @@
 
 **Who this is for:** GPT, as the collaborator building and hosting Kit's runtime in ChatGPT through `KitChatBridge`. It explains why Kit did not come across as a particular DM, the one build principle that fixes that class of problem, a worked example of the principle (branch `kit-focus-brief`), and the next things to build, in order.
 
-**How to read the line numbers:** **@79173a1** means the code before this change. **@673e9cd** means the code the Nik playtest actually ran on. Unmarked line numbers refer to the current code on this branch.
+**How to read the line numbers:** **@79173a1** means the code before this change. **@673e9cd** means the code the Nik playtest actually ran on. Unmarked line numbers in sections (a) through (d) and in the not-yet-built steps refer to `kit-focus-brief` at **@cee2948**. Line numbers in the **Done** notes of section (e) refer to branch `kit-event-actor`, which shifted most of `kit_agent.py` down by about 34 lines.
 
 ---
 
@@ -105,7 +105,7 @@ This branch applies the principle to the gap above. It adds no area-specific scr
 
 - Raw `kit_choice` or appraisal is not sent to the performer.
 - No appetite meters, relationship scores, or player model.
-- The dealer card, source facts, rules, and the generic social event string are unchanged. They are next steps below.
+- The dealer card, source facts, rules, and the generic social event string are unchanged. They are next steps below. (Steps 1 and 4 have since been built on `kit-event-actor`; the source facts and rules are still unchanged.)
 - No model calls added.
 - `kit_expression_v1` is not made the default.
 
@@ -124,12 +124,27 @@ This branch applies the principle to the gap above. It adds no area-specific scr
 
 Each step uses the same pattern: **private source → public carrier → performer instruction → validator check → test.**
 
-1. **Replace the generic social event with the player's actual action.**
-   - *Now:* `Room6CAdjudicator.resolve` sets every social turn's event to "You address the figures at the card table." (`kit_agent.py:120`).
-   - *Build:* make the social event a faithful public restatement of the declared action (for example, `Nik says: "<exact words>"`, trimmed to the 500-character event limit checked at `:387`). Keep the full text in the event evidence.
+1. **Done (`kit-event-actor`): replace the generic social event with the player's actual action.**
+   - *Was:* `Room6CAdjudicator.resolve` set every social turn's event to "You address the figures at the card table." (`kit_agent.py:120` @cee2948).
+   - *What changed:*
+     - A social turn's accepted event is now `You declare: "<the player's words>"`, built by `social_event` (`kit_agent.py:45`) and returned from `resolve` (`:150`). Nothing is added: no outcome, NPC response, or hidden fact. The frame says "declare" because the router cannot tell speech from a described action ("I take a seat.").
+     - Whitespace is collapsed and curly quotes become straight quotes, so the private stage can copy the event exactly. The words are not changed. `reply_to` already treats both forms the same.
+     - Text past the 500-character event limit (`EVENT_MAX_CHARS`, `:40`; checked at `:421`) is cut at a word boundary and ends in `...`.
+     - The event evidence now keeps the whole declaration (`Player declared: <full text>. Resolution: social bid at the card table, restated as the accepted event; no world state changed.`). Physical and check turns keep their old public results; their evidence now keeps the full declaration too, where it used to stop at 500 characters.
+     - The ledger keeps the full evidence. The `recent_rhythm` copy in `dm_context` is cut to 600 characters per entry (`RHYTHM_EVIDENCE_MAX_CHARS`, `state_context.py:15`, applied in `_apply`). Without that cut, twelve long declarations could push `context()` past its 24,000-byte budget. Evidence written before this change was never longer than about 570 characters, so it is unaffected.
+     - Instructions: the private stage is told the social event restates the player's declared words and to "appraise what they actually said or did, not the scene in general" (`:264`). The performer is told to "answer them, do not echo them back" (`:315`). Social events are still not shown ahead of the performance (`checked_record`).
    - *Carrier:* the event is already public and already reaches the performer as `accepted_public_event`.
-   - *Check:* the existing "copy observed_event exactly" rule now forces the appraisal to be about what the player actually did.
-   - *Tests:* the social event contains the player's words, and the idempotency test's expected evidence string is updated.
+   - *Check:* the existing rule that `observed_event` must copy the event exactly now ties the appraisal, the saved episode, and the `kit_focus` decision to what the player actually did. A plan that copies the old placeholder is rejected.
+   - *Tests* (`tests/test_kit_agent.py`, `SocialEventTests`):
+     - the event quotes the player, and different bids give different events;
+     - the restated event reaches the decision, the performer, the trace, and Kit's episode, but is not printed in `spoken`;
+     - a decision copying the old placeholder or a paraphrase is rejected;
+     - a long bid is trimmed in the event but kept whole in the evidence and ledger, with a bounded rhythm entry;
+     - typography and whitespace are normalized without changing words;
+     - the event adds nothing but the player's words, and physical results are unchanged;
+     - twelve long bids stay inside the context budget.
+   - The two idempotency and telemetry tests use the new evidence string (`SEAT_EVIDENCE`).
+   - *Check it in play:* does Kit's `appraisal.cause` now name something the player actually said?
 2. **Put Kit's choices into memory, and pick memories by relevance.**
    - *Now:* episodes save the goal, move, and brief (so `kit_focus` is already saved) but not `kit_choice` or the player's bid (`state_context.py:212-219`). Decisions get the last 8 episodes by recency (`kit_agent.py:575`, `:745`, `:802`).
    - *Build:*
@@ -144,14 +159,26 @@ Each step uses the same pattern: **private source → public carrier → perform
    - *Check:* every note must cite committed turn IDs; the validator rejects a note without evidence.
    - *Tests:* a note needs evidence; feedback is stored and reaches the next decision but never the performer verbatim.
    - *Why not appetite meters yet:* a number that nothing observable reads repeats the `appraisal` mistake at a larger scale. Build appetites only if recent-history notes demonstrably fail to change Kit's choices, and let that failure say which event types an appetite must track.
-4. **Loosen the dealer card's pull toward the toll.**
-   - *Now:* the card says he "can turn a courteous invitation into a blunt price" (`tests/fixtures/level_01_area_06c.json:26`); his public objective lists "the passage bargain" (`:28`); his immediate goal is control (`:109`).
-   - *Build:*
-     - Rewrite the card so the price is one move among several. He sizes up a visitor, wants to learn what they are worth to him, and prefers a game where he controls the deck.
-     - Answer the visitor's actual words before naming terms. Keep the source facts (10 gp toll, marked deck, rivalry) intact.
-     - Pattern for future cards: state what the actor wants *from this visitor* and two or three tactics. Never state a default line.
-   - *Carrier:* the actor card is already public and reaches the performer.
-   - *Check:* no code can judge this. Check it in play (section f): does the dealer answer `reply_to` before any price?
+4. **Done (`kit-event-actor`): loosen the dealer card's pull toward the toll.**
+   - *Was:* the card said he "can turn a courteous invitation into a blunt price" (`tests/fixtures/level_01_area_06c.json:26` @cee2948), and his public objective listed "the passage bargain" (`:28` @cee2948).
+   - *What changed* (public actor card only, `tests/fixtures/level_01_area_06c.json:24-37`):
+     - `verbal_habit`: he answers what the visitor actually said before he steers, then treats it as a bid and raises (a question back, a dare, an invitation). His charm is salesmanship. He speaks for himself, never as a narrator or a commentator on the game, so he does not slide into Kit's table voice. No catchphrase, and no line reused across turns.
+     - `public_objective`: "Size up this visitor and keep the encounter on his terms." The passage bargain is no longer his headline.
+     - New `wants_from_visitor`: a read on *this* newcomer (what they came for, how much nerve and coin they carry, whether they are a customer, a mark, or trouble), and ideally the visitor seated in a game he deals.
+     - New `tactics` (three options): take up the visitor's own words and turn them back with a probing question; invite them into the game or a side wager to watch how they handle risk; name the passage price *when it serves him* (to test nerve, take back control, or because they asked for a way through). The card says outright that the price "is one move among these, not his opening."
+     - New `card_use`: tactics are options he picks in answer to what the visitor just did; "none is a default line or a required beat". He pursues his own interest, not the DM's.
+     - Unchanged: `vocal_signature` (the drawl, crisp terms), `physical_touchstone` (the card between two fingers), and every source fact, room rule, and private actor field. That includes the 10 gp toll, the marked deck, the Harria rivalry, `motive`, and `immediate_goal`. The card quotes no speech and names no secret.
+     - Performer instruction (`kit_agent.py:302`, in both staged and one-pass paths): "A card's wants and tactics are options the actor chooses in answer to the player's words, never a default line or a required beat." It is written for any card, not just the dealer.
+   - *Pattern for future cards:* `wants_from_visitor` (what the actor wants from *this* visitor) plus two or three `tactics`, and never a default line.
+   - *Carrier:* the actor card is already public and reaches the performer as `performance_reference.actor_cards`. The private stage still does not see the card; its tactic comes from the actor's private motives.
+   - *Tests* (`DealerCardTests`):
+     - wants are stated, and there are 2 or 3 tactics, exactly one of which concerns the toll, and not first;
+     - the first tactic answers the visitor's words, and the old "blunt price" and "passage bargain" wording is gone;
+     - the card contains no quoted lines, the voice and touchstone are intact, and it never mentions Kit;
+     - it passes the literal leak check and contains no secret words;
+     - source rules, the hidden deck fact, and Uktarl's motive, goal, knowledge, and secrets are exactly as before;
+     - staged and one-pass performers receive the card and the "never a default line" instruction.
+   - *Check it in play* (no code can judge this; see section f): does the dealer answer `reply_to` before any price? Does he try something other than the toll? Does he still sound like himself and not like Kit?
 5. **Let the bridge's one-pass path honor the Kit expression profile.**
    - *Now:* only staged `decide` accepts `performance_variant='kit_expression_v1'` (`kit_agent.py:737`). One-pass `prepare`, which is the ChatGPT live path, always uses the default instructions. The standalone API adapter hardcodes them too (`:379`).
    - *Build:*

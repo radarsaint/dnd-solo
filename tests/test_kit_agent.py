@@ -7,9 +7,10 @@ from pathlib import Path
 from unittest.mock import patch
 
 from runtime import kit_agent
-from runtime.kit_agent import (EXCHANGE_MIN_ACTOR_WORDS, KitAgent, KitChatBridge,
-                               OpenAIResponsesModel, PendingRuling, Room6CAdjudicator, room_intent)
-from runtime.state_context import InvalidChange, Runtime, StaleTurn
+from runtime.kit_agent import (EVENT_MAX_CHARS, EXCHANGE_MIN_ACTOR_WORDS, KitAgent, KitChatBridge,
+                               OpenAIResponsesModel, PendingRuling, Room6CAdjudicator,
+                               check_public_content, room_intent, social_event)
+from runtime.state_context import RHYTHM_EVIDENCE_MAX_CHARS, InvalidChange, Runtime, StaleTurn
 
 
 FIXTURE = Path(__file__).parent / 'fixtures/level_01_area_06c.json'
@@ -35,6 +36,10 @@ NIK_REPLY = {'segments': [
     {'speaker': 'Dealer', 'text': ('“Gambling? Cards, Nik. Passage is ten gold a head. If you came for '
                                    'something besides a game or a way through, I’m listening.”')},
 ]}
+
+# Evidence for a social turn keeps the full declaration; the accepted event restates it.
+SEAT_EVIDENCE = ('Player declared: I take a seat.. Resolution: social bid at the card table, '
+                 'restated as the accepted event; no world state changed.')
 
 
 class RecordingModel:
@@ -247,8 +252,7 @@ class KitAgentTests(unittest.TestCase):
     def test_same_kit_commit_is_idempotent_and_cannot_be_rewritten(self):
         result = self.agent.turn('I take a seat.', 'fixed-id')
         record = self.runtime.recent_kit_turns()[0]
-        event = {'type': 'beat', 'tags': ['social'],
-                 'evidence': 'Player declared: I take a seat.. Resolution: You address the figures at the card table.'}
+        event = {'type': 'beat', 'tags': ['social'], 'evidence': SEAT_EVIDENCE}
         self.assertEqual(self.runtime.commit_kit_turn('fixed-id', 0, [event], record), result['revision'])
         with self.assertRaises(InvalidChange):
             self.runtime.commit_kit_turn('fixed-id', 0, [event], {**record, 'spoken': 'changed'})
@@ -599,8 +603,7 @@ class KitFocusAndScopeTests(unittest.TestCase):
         self.assertNotIn('timing', record['trace'])
         # Telemetry changes never alter the idempotent commit.
         self.runtime.record_kit_timing('timed', note='later edit')
-        event = {'type': 'beat', 'tags': ['social'], 'evidence':
-                 'Player declared: I take a seat.. Resolution: You address the figures at the card table.'}
+        event = {'type': 'beat', 'tags': ['social'], 'evidence': SEAT_EVIDENCE}
         self.assertEqual(self.runtime.commit_kit_turn('timed', 0, [event], record), result['revision'])
 
     def test_staged_bridge_records_prepare_to_commit_time(self):
@@ -703,6 +706,185 @@ class ChatBridgeCarrierTests(unittest.TestCase):
         code, out, _ = self._cli('finish', '--turn-id', 'cli', '--input-file', str(temp / 'good.json'))
         self.assertEqual((code, json.loads(out)['revision']), (0, 1))
         self.runtime = Runtime(self.path)
+
+
+class SocialEventTests(unittest.TestCase):
+    """Next step #1: a social turn's accepted event restates the player's actual words."""
+
+    def setUp(self):
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        self.path = Path(temp.name) / 'kit.sqlite'
+        self.runtime = Runtime(self.path)
+        self.addCleanup(lambda: self.runtime.close())
+        self.runtime.initialize(json.loads(FIXTURE.read_text()), 'area_06c')
+        self.model = RecordingModel()
+        self.adjudicator = Room6CAdjudicator(perception=0, insight=0, roll=lambda: 20)
+        self.bridge = KitChatBridge(self.runtime, self.adjudicator)
+
+    def test_social_event_restates_the_players_words(self):
+        prepared = self.bridge.prepare(NIK_GREETING, 'nik')
+        self.assertEqual(prepared['input']['action_kind'], 'social')
+        self.assertEqual(prepared['input']['accepted_public_event'], f'You declare: "{NIK_GREETING}"')
+        other = self.bridge.prepare('Ten gold for passage? What happens if I say no?', 'price')
+        self.assertEqual(other['input']['accepted_public_event'],
+                         'You declare: "Ten gold for passage? What happens if I say no?"')
+        self.assertNotIn('address the figures', json.dumps(prepared, ensure_ascii=False))
+
+    def test_restated_event_reaches_appraisal_performer_and_memory(self):
+        agent = KitAgent(self.runtime, self.model, self.adjudicator)
+        result = agent.turn(NIK_GREETING, 'nik')
+        expected = f'You declare: "{NIK_GREETING}"'
+        self.assertEqual(self.model.plans[0]['accepted_public_event'], expected)
+        self.assertEqual(self.model.performances[0]['accepted_public_event'], expected)
+        record = self.runtime.recent_kit_turns()[0]
+        self.assertEqual(record['trace']['observed_event'], expected)
+        self.assertEqual(self.runtime.load()[1]['kit']['episodes'][0]['event'], expected)
+        # Social events are not printed ahead of the performance; the player's words are not echoed.
+        self.assertFalse(result['spoken'].startswith('Narrator: You declare'))
+        self.assertNotIn('You declare', result['spoken'])
+
+    def test_decision_must_copy_the_restated_event_not_the_old_placeholder(self):
+        prepared = self.bridge.prepare(NIK_GREETING, 'copy')
+        plan = self.model.plan(prepared['input'])
+        with self.assertRaisesRegex(InvalidChange, 'changed the accepted event'):
+            self.bridge.decide('copy', {**plan, 'observed_event': 'You address the figures at the card table.'})
+        with self.assertRaisesRegex(InvalidChange, 'changed the accepted event'):
+            self.bridge.decide('copy', {**plan, 'observed_event': 'You declare: "Hi."'})
+        self.bridge.decide('copy', plan)
+
+    def test_long_declaration_is_trimmed_in_event_but_kept_whole_in_evidence(self):
+        action = 'Deal me in? ' + ' '.join(f'word{i}' for i in range(100))
+        self.assertGreater(len(action), EVENT_MAX_CHARS)
+        prepared = self.bridge.prepare(action, 'long', one_pass=True)
+        event = prepared['input']['private']['accepted_public_event']
+        self.assertLessEqual(len(event), EVENT_MAX_CHARS)
+        self.assertTrue(event.startswith('You declare: "Deal me in? word0 word1'))
+        self.assertTrue(event.endswith('..."'))
+        self.assertNotIn('word99', event)
+        body = self.runtime.pending_kit_turn('long')['body']
+        self.assertIn(action, body['events'][0]['evidence'])
+        plan = self.model.plan(prepared['input']['private'])
+        plan['public_brief']['reply_to'] = 'Deal me in?'
+        plan['appraisal']['cause'] = 'The player asks to be dealt in at length.'
+        plan['improv_read']['player_bid'] = 'The player asks to be dealt in.'
+        self.bridge.complete('long', {'decision': plan, 'performance': EXCHANGE_SPEECH})
+        ledger = json.loads(self.runtime.db.execute('SELECT body FROM ledger').fetchone()[0])
+        self.assertIn(action, ledger['evidence'])
+        rhythm = self.runtime.load()[1]['rhythm'][-1]['evidence']
+        self.assertLessEqual(len(rhythm), RHYTHM_EVIDENCE_MAX_CHARS)
+
+    def test_typography_and_whitespace_are_normalized_but_words_kept(self):
+        action = 'I wasn’t  expecting\n this. “Deal me in?”'
+        self.assertEqual(social_event(action), 'You declare: "I wasn\'t expecting this. "Deal me in?""')
+        prepared = self.bridge.prepare(action, 'typed')
+        plan = self.model.plan(prepared['input'])
+        plan['public_brief']['reply_to'] = 'I wasn’t expecting this.'
+        self.bridge.decide('typed', plan)
+
+    def test_event_adds_no_hidden_fact_outcome_or_commitment(self):
+        public_view = self.runtime.player_view()
+        for action in (NIK_GREETING, 'I pull up a chair and ask about the stakes.',
+                       'What if I offered you a deal?', 'I wait and listen.'):
+            with self.subTest(action=action):
+                event = self.adjudicator.resolve(action, 0, self.runtime.load()[1]).public_event
+                # Nothing but the player's own words inside a fixed frame.
+                self.assertEqual(event, f'You declare: "{action}"')
+                check_public_content(event, public_view, '')
+        # Physical and check turns keep their adjudicated public results unchanged.
+        self.assertEqual(self.adjudicator.resolve('I tip the stone tub over.', 0, self.runtime.load()[1]).public_event,
+                         'The stone tub is recessed into the floor and cannot be tipped over.')
+        # A player naming a secret word is echoed only as their words; the performance leak check still applies.
+        accused = self.adjudicator.resolve('I accuse that player of being a doppelganger.', 0,
+                                           self.runtime.load()[1])
+        self.assertEqual(accused.public_event, 'You declare: "I accuse that player of being a doppelganger."')
+        self.assertNotIn('fact', accused.events[0])
+
+    def test_many_long_declarations_stay_inside_the_context_budget(self):
+        for turn in range(12):
+            revision, state = self.runtime.load()
+            action = f'Question {turn}? ' + 'x ' * 490
+            resolution = self.adjudicator.resolve(action, revision, state)
+            self.assertEqual(resolution.kind, 'social')
+            self.runtime.commit(f'long-{turn}', revision, resolution.events)
+        self.runtime.context()  # raises if recent_rhythm overran the budget
+        lengths = [len(json.loads(row[0])['evidence'])
+                   for row in self.runtime.db.execute('SELECT body FROM ledger')]
+        self.assertTrue(all(length > RHYTHM_EVIDENCE_MAX_CHARS for length in lengths))
+
+
+class DealerCardTests(unittest.TestCase):
+    """Next step #4: the dealer's price is one move among several; he answers first."""
+
+    def setUp(self):
+        self.source = json.loads(FIXTURE.read_text())
+        self.card = self.source['public_performance']['actor_cards']['Dealer']
+
+    def test_card_states_wants_and_tactics_with_price_as_one_move(self):
+        card = self.card
+        self.assertIn('this particular newcomer', card['wants_from_visitor'])
+        self.assertTrue(2 <= len(card['tactics']) <= 3)
+        price = [tactic for tactic in card['tactics']
+                 if any(word in tactic.lower() for word in ('price', 'gold', 'toll', 'passage'))]
+        self.assertEqual(len(price), 1, 'exactly one tactic concerns the toll')
+        self.assertNotEqual(card['tactics'][0], price[0], 'the toll is not his first move')
+        self.assertIn("visitor's own words", card['tactics'][0])
+        self.assertIn('not his opening', price[0])
+        self.assertIn('Answers what the visitor actually said before he steers', card['verbal_habit'])
+        self.assertIn('default line', card['card_use'])
+        for text in (card['verbal_habit'], card['public_objective']):
+            self.assertNotIn('blunt price', text)
+            self.assertNotIn('passage bargain', text)
+
+    def test_card_has_no_fixed_speech_and_keeps_his_voice_distinct_from_kit(self):
+        values = json.dumps(self.card, ensure_ascii=False)
+        for text in [value for value in self.card.values() if isinstance(value, str)] + self.card['tactics']:
+            self.assertNotRegex(text, r'["“”]', 'no quoted lines in the card')
+        self.assertIn('drawl', self.card['vocal_signature'])
+        self.assertIn('card held between two fingers', self.card['physical_touchstone'])
+        self.assertIn('never as a narrator or a commentator', self.card['verbal_habit'])
+        self.assertIn('his own interest', self.card['card_use'])
+        self.assertNotIn('Kit', values)
+
+    def test_card_is_public_safe(self):
+        text = json.dumps(self.card, ensure_ascii=False)
+        check_public_content(text, {}, '')
+        for secret in ('uktarl', 'harria', 'vampire', 'disguise', 'cheat', 'marked', 'rival',
+                       'xanathar', 'bandit', 'doppelganger', 'key'):
+            self.assertNotIn(secret, text.lower())
+
+    def test_source_facts_rules_and_hidden_info_are_unchanged(self):
+        source = self.source
+        self.assertIn('The gang demands 10 gp per character for safe passage. If they cannot extort or '
+                      'defeat adventurers, they try to turn them against the Xanathar goblinoids.',
+                      source['room_rules'])
+        self.assertEqual(source['facts']['marked_deck'],
+                         {'area': 'area_06c', 'visible': False,
+                          'text': "The dealer's card deck carries subtle marks."})
+        uktarl = source['actors']['uktarl']
+        self.assertEqual(uktarl['motive'],
+                         'Profit from newcomers and displace Harria as leader of the Undertakers.')
+        self.assertEqual(uktarl['immediate_goal'], 'Control the encounter without risking himself.')
+        self.assertEqual(uktarl['knowledge'], ["The Undertakers' vampire appearance is a disguise.",
+                                               'His deck is marked.', 'Harria is his rival.'])
+        self.assertEqual(uktarl['secrets'], ['He is not a vampire.', 'He cheats at cards.'])
+
+    def test_performer_receives_the_card_and_is_told_tactics_are_options(self):
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        runtime = Runtime(Path(temp.name) / 'kit.sqlite')
+        self.addCleanup(runtime.close)
+        runtime.initialize(self.source, 'area_06c')
+        bridge = KitChatBridge(runtime, Room6CAdjudicator())
+        prepared = bridge.prepare(NIK_GREETING, 'card')
+        payload = bridge.decide('card', RecordingModel().plan(prepared['input']))
+        dealer = payload['input']['performance_reference']['actor_cards']['Dealer']
+        self.assertEqual(dealer['tactics'], self.card['tactics'])
+        self.assertIn('wants_from_visitor', dealer)
+        self.assertIn('never a default line or a required beat', payload['instructions'])
+        one_pass = bridge.prepare(NIK_GREETING, 'card-fast', one_pass=True)
+        self.assertIn('never a default line or a required beat', one_pass['instructions'])
+        self.assertEqual(one_pass['input']['public']['performance_reference']['actor_cards']['Dealer'], dealer)
 
 
 if __name__ == '__main__':
