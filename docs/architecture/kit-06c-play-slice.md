@@ -62,7 +62,7 @@ python -m runtime.kit_agent play --db kit-06c.sqlite --model YOUR_MODEL_ID --per
 
 The modifiers are example test-character values. Enter an action at `You>`; `/quit` exits. This API mode resumes the same SQLite session when restarted.
 
-Examples: “I pull up a chair and ask the stakes”; “I study the tiny dwarves in the carving”; “I look inside the tub”; “I try to tip the tub”; “I question their fangs”; “I leave by the south door.” The text router is conservative and recognizes only a small set of room actions. Conversation is open ended; unsupported physical actions and combat pause with an explanation and make no state change.
+Examples: “I pull up a chair and ask the stakes”; “I study the tiny dwarves in the carving”; “I look inside the tub”; “I try to tip the tub”; “I question their fangs”; “I leave by the south door.” The text router is conservative and recognizes only a small set of room actions. Conversation is open ended; unsupported physical actions and combat pause with an explanation and make no state change. Only narration outside quotation marks decides whether an action is physical, a check, or combat, so quoted speech (even a spoken threat) is a social bid. Out-of-character or rules questions are answered as social turns and never resolve a check. Sneaking or quietly slipping out pauses for a Stealth ruling instead of passing as a free exit, and climbing into the tub finds what is stored in it (see the [approach-range playtest](../../tests/playtests/2026-09-28-approach-range/README.md)).
 
 For a developer to inspect Kit's **private** decision records after play:
 

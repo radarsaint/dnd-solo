@@ -1,0 +1,294 @@
+{
+  "label": "host model: Grok via KitChatBridge; not GPT; author-played, not a quality verdict.",
+  "approach": "Trying to sneak past",
+  "final_revision": 3,
+  "committed_turns": [
+    {
+      "performance_variant": "kit_expression_v1",
+      "player_input": "[scene entry]",
+      "public_event": "A newcomer has reached the card room.",
+      "spoken": "Narrator: A coin rings off the table edge and wobbles across the floor toward the south door, and nobody at the card table moves to catch it. Four of them sit at a worn table near that door, pale as candle tallow, pointed teeth showing when they breathe, dressed in lace and velvet gone shiny at the elbows. Each has coins stacked in front of them; a silver ring sits among the stacks in the middle. The man dealing has stopped mid-hand, one card pinned between two fingers. Beyond them, the whole north wall is a carved mountain, tiny dwarves in tiny caverns, stone sunbeams fanning over a long tub sunk into the floor.\nNarrator: When the dealer speaks it is slow and savoring, each word laid down like a card he means you to look at.\nDealer: Well, now. The door brought us company. Come in, come in, the passage is draftier than we are. That coin by your boot is the most interesting thing that has happened at this table in an hour, so tell me: are you the sort who picks it up, or the sort who waits to see whose it is?",
+      "trace": {
+        "appraisal": {
+          "cause": "A newcomer walks in on a game with a performer dealing.",
+          "goal_effect": "advances",
+          "intensity": 1,
+          "label": "interest",
+          "target": "scene"
+        },
+        "focus_actor": "uktarl",
+        "goal": "npc_embodiment",
+        "improv_read": {
+          "actor_basis": "immediate_goal",
+          "actor_ref": "uktarl",
+          "connection": "The gang works newcomers here; the dealer wants control of the encounter from the first word, so he speaks first and sets the terms of attention, not money.",
+          "kit_choice": "Let the room open on the dealer performing for an audience, and stay out of it herself so the player meets people, not a DM.",
+          "player_bid": "No bid yet; a newcomer has reached the card room.",
+          "story_anchor": "level",
+          "story_basis": "pressure_here"
+        },
+        "memory_refs": [],
+        "move": "world_description",
+        "observed_event": "A newcomer has reached the card room.",
+        "player_note": {
+          "evidence_turns": [],
+          "note": "none",
+          "replaces": "none"
+        },
+        "public_brief": {
+          "callback": "none",
+          "kit_focus": "Open on people in motion, a game interrupted, and put the carving and tub in view without comment; no DM voice yet.",
+          "objective": "Make the newcomer the center of the table's attention on the dealer's terms.",
+          "player_opening": "The newcomer can answer him, approach, ignore the table, or look at the carving and tub.",
+          "reply_to": "none",
+          "scope": "feature",
+          "tactic": "Welcome the newcomer as theatre and pull them toward the table before they decide anything.",
+          "visible_cue": "A dropped coin rolls toward the door; the dealer holds one card unplayed between two fingers."
+        },
+        "table_presence": "quiet",
+        "tone": "curious"
+      }
+    },
+    {
+      "performance_variant": "kit_expression_v1",
+      "player_input": "Fine. I wait in the dark by the wall and listen to what they talk about.",
+      "public_event": "You declare: \"Fine. I wait in the dark by the wall and listen to what they talk about.\"",
+      "spoken": "Kit: They all watched you come in. Standing still in the dark isn't hiding from four people in a room this size, so they know exactly where you are.\nDealer: Gentlemen, we have an audience, and a shy one. Listening from the wall, like a creditor. I'll tell you what we talk about, since you're so curious: cards, coin, and people who stand in corners instead of sitting down. That last one comes up more than you'd think. Come out, friend. The dark down here charges rent too.\nNarrator: Without looking up from his hand, the player by the door scoots his chair a few inches, until it sits squarely between the wall and the door.",
+      "trace": {
+        "appraisal": {
+          "cause": "The newcomer tries to lurk in the dark by the wall in a small room where four people already watched them come in.",
+          "goal_effect": "neutral",
+          "intensity": 1,
+          "label": "concern",
+          "target": "player"
+        },
+        "focus_actor": "uktarl",
+        "goal": "fair_challenge",
+        "improv_read": {
+          "actor_basis": "immediate_goal",
+          "actor_ref": "uktarl",
+          "connection": "He addressed this newcomer the moment they arrived and wants control of the encounter; a lurker is a small insult he answers by making the lurking part of his show.",
+          "kit_choice": "The player wants to be unseen, but nothing has made them hidden. Kit says so exactly, once, then lets the table perform an overheard conversation aimed at the listener.",
+          "player_bid": "Waits in the dark by the wall, listening to the table’s talk.",
+          "story_anchor": "scene",
+          "story_basis": "scene_state"
+        },
+        "memory_refs": [],
+        "move": "kit_comment_then_npc",
+        "observed_event": "You declare: \"Fine. I wait in the dark by the wall and listen to what they talk about.\"",
+        "player_note": {
+          "evidence_turns": [
+            "this_turn"
+          ],
+          "note": "Prefers to avoid notice and stay out of the conversation.",
+          "replaces": "none"
+        },
+        "public_brief": {
+          "callback": "none",
+          "kit_focus": "State plainly, once, that waiting in the dark is not hidden from people who already saw you; then let the dealer perform for his eavesdropper.",
+          "objective": "Show the lurker they are seen and draw them into the light on his terms.",
+          "player_opening": "The listener can step out, stay put, answer, or try something else.",
+          "reply_to": "I wait in the dark by the wall and listen",
+          "scope": "exchange",
+          "tactic": "Talk loudly to his table about the lurker as if they were not there, then invite them out.",
+          "visible_cue": "The player by the door shifts his chair a few inches so it sits squarely between the wall and the door."
+        },
+        "table_presence": "brief",
+        "tone": "wry"
+      }
+    },
+    {
+      "performance_variant": "kit_expression_v1",
+      "player_input": "I step into the candlelight. \"How much to walk through without the show?\"",
+      "public_event": "You declare: \"I step into the candlelight. \"How much to walk through without the show?\"\"",
+      "spoken": "Narrator: The drawl goes out of him the moment you say how much, and the card taps the table once for every coin he names.\nDealer: Without the show. Ten gold. That is the price for anyone who walks in through that door like a person. For someone who tried the wall first, twelve. The extra two are for my feelings. You can argue me back down to ten if you do it nicely, and sitting down.\nNarrator: The player by the door does not move his chair back.",
+      "trace": {
+        "appraisal": {
+          "cause": "The lurker comes into the light and asks the price directly, skipping the performance.",
+          "goal_effect": "advances",
+          "intensity": 1,
+          "label": "interest",
+          "target": "npc"
+        },
+        "focus_actor": "uktarl",
+        "goal": "momentum",
+        "improv_read": {
+          "actor_basis": "motive",
+          "actor_ref": "uktarl",
+          "connection": "A direct question about passage is the moment his card says the price serves him; this visitor tried to avoid paying attention, so he makes them pay a little extra for having tried.",
+          "kit_choice": "The player asked a straight question; Kit stays out and lets the price arrive crisp, with the dealer’s small revenge for the lurking built into it.",
+          "player_bid": "Steps into the light and asks how much it costs to walk through without the performance.",
+          "story_anchor": "level",
+          "story_basis": "pressure_here"
+        },
+        "memory_refs": [
+          "sneak-t2"
+        ],
+        "move": "npc_reply",
+        "observed_event": "You declare: \"I step into the candlelight. \"How much to walk through without the show?\"\"",
+        "player_note": {
+          "evidence_turns": [],
+          "note": "none",
+          "replaces": "none"
+        },
+        "public_brief": {
+          "callback": "none",
+          "kit_focus": "No DM voice; let the price land in his crisp register and let the surcharge for the skulking be his, not a ruling.",
+          "objective": "Collect the toll and make the visitor feel the cost of trying to slip by.",
+          "player_opening": "The visitor can pay, haggle the surcharge, refuse, or turn back.",
+          "reply_to": "How much to walk through without the show?",
+          "scope": "exchange",
+          "tactic": "Name the standard price in crisp terms, then add a mocking surcharge for the skulking, open to haggling.",
+          "visible_cue": "The drawl drops for the numbers; the card taps the table once per coin."
+        },
+        "table_presence": "quiet",
+        "tone": "plain"
+      }
+    }
+  ],
+  "player_notes": [
+    {
+      "evidence_turns": [
+        "sneak-t2"
+      ],
+      "id": "n2",
+      "note": "Prefers to avoid notice and stay out of the conversation.",
+      "source": "observed"
+    }
+  ],
+  "episodes": [
+    {
+      "actor_ref": "uktarl",
+      "appraisal": {
+        "cause": "A newcomer walks in on a game with a performer dealing.",
+        "goal_effect": "advances",
+        "intensity": 1,
+        "label": "interest",
+        "target": "scene"
+      },
+      "brief": {
+        "callback": "none",
+        "kit_focus": "Open on people in motion, a game interrupted, and put the carving and tub in view without comment; no DM voice yet.",
+        "objective": "Make the newcomer the center of the table's attention on the dealer's terms.",
+        "player_opening": "The newcomer can answer him, approach, ignore the table, or look at the carving and tub.",
+        "reply_to": "none",
+        "scope": "feature",
+        "tactic": "Welcome the newcomer as theatre and pull them toward the table before they decide anything.",
+        "visible_cue": "A dropped coin rolls toward the door; the dealer holds one card unplayed between two fingers."
+      },
+      "event": "A newcomer has reached the card room.",
+      "goal": "npc_embodiment",
+      "kit_choice": "Let the room open on the dealer performing for an audience, and stay out of it herself so the player meets people, not a DM.",
+      "move": "world_description",
+      "player_bid": "No bid yet; a newcomer has reached the card room.",
+      "player_input": "[scene entry]",
+      "public_event": "A newcomer has reached the card room.",
+      "story_anchor": "level",
+      "story_basis": "pressure_here",
+      "turn_id": "open"
+    },
+    {
+      "actor_ref": "uktarl",
+      "appraisal": {
+        "cause": "The newcomer tries to lurk in the dark by the wall in a small room where four people already watched them come in.",
+        "goal_effect": "neutral",
+        "intensity": 1,
+        "label": "concern",
+        "target": "player"
+      },
+      "brief": {
+        "callback": "none",
+        "kit_focus": "State plainly, once, that waiting in the dark is not hidden from people who already saw you; then let the dealer perform for his eavesdropper.",
+        "objective": "Show the lurker they are seen and draw them into the light on his terms.",
+        "player_opening": "The listener can step out, stay put, answer, or try something else.",
+        "reply_to": "I wait in the dark by the wall and listen",
+        "scope": "exchange",
+        "tactic": "Talk loudly to his table about the lurker as if they were not there, then invite them out.",
+        "visible_cue": "The player by the door shifts his chair a few inches so it sits squarely between the wall and the door."
+      },
+      "event": "You declare: \"Fine. I wait in the dark by the wall and listen to what they talk about.\"",
+      "goal": "fair_challenge",
+      "kit_choice": "The player wants to be unseen, but nothing has made them hidden. Kit says so exactly, once, then lets the table perform an overheard conversation aimed at the listener.",
+      "move": "kit_comment_then_npc",
+      "player_bid": "Waits in the dark by the wall, listening to the table’s talk.",
+      "player_input": "Fine. I wait in the dark by the wall and listen to what they talk about.",
+      "public_event": "You declare: \"Fine. I wait in the dark by the wall and listen to what they talk about.\"",
+      "story_anchor": "scene",
+      "story_basis": "scene_state",
+      "turn_id": "sneak-t2"
+    },
+    {
+      "actor_ref": "uktarl",
+      "appraisal": {
+        "cause": "The lurker comes into the light and asks the price directly, skipping the performance.",
+        "goal_effect": "advances",
+        "intensity": 1,
+        "label": "interest",
+        "target": "npc"
+      },
+      "brief": {
+        "callback": "none",
+        "kit_focus": "No DM voice; let the price land in his crisp register and let the surcharge for the skulking be his, not a ruling.",
+        "objective": "Collect the toll and make the visitor feel the cost of trying to slip by.",
+        "player_opening": "The visitor can pay, haggle the surcharge, refuse, or turn back.",
+        "reply_to": "How much to walk through without the show?",
+        "scope": "exchange",
+        "tactic": "Name the standard price in crisp terms, then add a mocking surcharge for the skulking, open to haggling.",
+        "visible_cue": "The drawl drops for the numbers; the card taps the table once per coin."
+      },
+      "event": "You declare: \"I step into the candlelight. \"How much to walk through without the show?\"\"",
+      "goal": "momentum",
+      "kit_choice": "The player asked a straight question; Kit stays out and lets the price arrive crisp, with the dealer’s small revenge for the lurking built into it.",
+      "move": "npc_reply",
+      "player_bid": "Steps into the light and asks how much it costs to walk through without the performance.",
+      "player_input": "I step into the candlelight. \"How much to walk through without the show?\"",
+      "public_event": "You declare: \"I step into the candlelight. \"How much to walk through without the show?\"\"",
+      "story_anchor": "level",
+      "story_basis": "pressure_here",
+      "turn_id": "sneak-t3"
+    }
+  ],
+  "known_facts": [
+    "card_table",
+    "fresco",
+    "tub",
+    "treasure_on_table"
+  ],
+  "area": "area_06c",
+  "timings": [
+    {
+      "turn_id": "open",
+      "committed_at": 1790649208.96536,
+      "mode": "one_pass",
+      "outcome": "committed",
+      "performance_variant": "kit_expression_v1",
+      "prepare_to_commit_s": 0.003,
+      "prepared_at": 1790649208.9625905
+    },
+    {
+      "turn_id": "sneak-t2",
+      "committed_at": 1790649208.970276,
+      "mode": "one_pass",
+      "outcome": "committed",
+      "performance_variant": "kit_expression_v1",
+      "prepare_to_commit_s": 0.002,
+      "prepared_at": 1790649208.9678693
+    },
+    {
+      "turn_id": "sneak-t3",
+      "committed_at": 1790649208.9740405,
+      "mode": "one_pass",
+      "outcome": "committed",
+      "performance_variant": "kit_expression_v1",
+      "prepare_to_commit_s": 0.002,
+      "prepared_at": 1790649208.971713
+    }
+  ],
+  "host_log_rejections_and_pending_rulings": [
+    {
+      "turn_id": "sneak-t1",
+      "player": "I keep to the shadows along the wall and try to sneak past them to the south door.",
+      "pending_ruling": "Slipping past the table unnoticed needs a Dexterity (Stealth) ruling against the people watching; this slice has no stealth resolver and the source gives no DC. No turn was committed. You can still walk out openly or talk."
+    }
+  ]
+}
