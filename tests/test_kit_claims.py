@@ -9,9 +9,9 @@ import unittest
 from pathlib import Path
 
 from runtime import kit_agent, kit_claims, kit_guards, pc_sheet
-from runtime.kit_agent import Room6CAdjudicator
+from runtime.kit_agent import PendingRuling, Room6CAdjudicator
 from runtime.state_context import InvalidChange, Runtime
-from test_kit_agent import FIXTURE
+from test_kit_agent import FIXTURE, RecordingModel
 
 NIK = json.loads((Path(__file__).parent / 'fixtures/characters/nik.json').read_text())
 SOURCE = json.loads(FIXTURE.read_text())
@@ -141,7 +141,7 @@ class PlayTests(unittest.TestCase):
         temp = tempfile.TemporaryDirectory()
         self.addCleanup(temp.cleanup)
         self.runtime = Runtime(Path(temp.name) / 'kit.sqlite')
-        self.addCleanup(self.runtime.close)
+        self.addCleanup(lambda: self.runtime.close())
         self.runtime.initialize(copy.deepcopy(SOURCE), 'area_06c')
 
     def test_the_sheet_loads_and_a_history_roll_learns_the_ring(self):
@@ -184,6 +184,217 @@ class PlayTests(unittest.TestCase):
         self.runtime.commit('t2', revision, events)
         said = self.runtime.load()[1]['claims']['said'][0]
         self.assertEqual((said['by'], said['stance'], said['contest']['lands']), ('uktarl', 'lie', True))
+
+    def test_ring_lie_does_not_authorize_a_different_toll(self):
+        plan = {'claims': [claim('ring_value', 'uktarl', 'lie', 'Forty gold.',
+                                 why='bait to profit from newcomers')]}
+        guards = {'numeric_facts': kit_guards.numeric_facts(SOURCE)}
+        for text in ('Passage costs forty gold.',
+                     'The ring is forty gold. Passage costs forty gold.',
+                     'The ring and passage both cost forty gold.'):
+            with self.subTest(text=text), self.assertRaisesRegex(InvalidChange, 'passage toll'):
+                kit_agent.check_claimed_numbers([{'speaker': 'Dealer', 'text': text}], plan,
+                                               guards, 'What are your prices?')
+        kit_agent.check_claimed_numbers(
+            [{'speaker': 'Dealer', 'text': 'The ring costs forty gold. Passage costs ten gold.'}],
+            plan, guards, 'What are your prices?')
+
+    def test_planned_amount_keeps_its_currency_and_silent_claims_allow_nothing(self):
+        guards = {'numeric_facts': kit_guards.numeric_facts(SOURCE)}
+        text = [{'speaker': 'Dealer', 'text': 'The ring is forty gold.'}]
+        for stance, version in (('lie', 'Forty silver.'), ('silence', 'Forty gold.')):
+            plan = {'claims': [claim('ring_value', 'uktarl', stance, version)]}
+            with self.subTest(stance=stance), self.assertRaisesRegex(InvalidChange, 'ring value'):
+                kit_agent.check_claimed_numbers(text, plan, guards, 'What is the ring worth?')
+
+    def commit_drink(self, turn_id, truth='cherry cordial', speaker='uktarl', holder='uktarl'):
+        revision, state = self.runtime.load()
+        item = claim('new', speaker, 'truth', truth, about='actor:uktarl/drink',
+                     truth=truth, roots=['card_table'], holder=holder)
+        packet = kit_claims.claims_here(SOURCE, state, state.get('player_sheet'))
+        kit_claims.check_claims([item], packet, SOURCE, state)
+        events = kit_claims.said_events([item], turn_id, packet, state)
+        self.runtime.commit(turn_id, revision, events)
+        return item
+
+    def test_new_claim_redefinition_is_rejected_in_plan_and_atomic_commit(self):
+        original = self.commit_drink('cordial')
+        revision, state = self.runtime.load()
+        changed = {**original, 'truth': 'ale', 'version': 'Ale.'}
+        packet = kit_claims.claims_here(SOURCE, state, None)
+        with self.assertRaisesRegex(InvalidChange, 'already established'):
+            kit_claims.check_claims([changed], packet, SOURCE, state)
+        events = [{'type': 'advance_time', 'seconds': 60, 'evidence': 'QA rollback check.'}]
+        events += kit_claims.said_events([changed], 'ale', packet, state)
+        with self.assertRaisesRegex(InvalidChange, 'already established'):
+            self.runtime.commit('ale', revision, events)
+        self.assertEqual(self.runtime.load(), (revision, state))
+        self.commit_drink('restatement', 'Cherry cordial.')
+
+    def test_new_claim_survives_history_eviction_and_restart(self):
+        original = self.commit_drink('cordial')
+        for index in range(kit_claims.SAID_LIMIT + 1):
+            revision, state = self.runtime.load()
+            item = claim('ring_value', 'uktarl', 'lie', 'Forty gold.',
+                         why='bait to profit from newcomers')
+            self.runtime.commit(f'lie-{index}', revision,
+                                kit_claims.said_events([item], f'lie-{index}', None, state))
+        path = self.runtime.db.execute('PRAGMA database_list').fetchone()[2]
+        self.runtime.close()
+        self.runtime = Runtime(path)
+        _, state = self.runtime.load()
+        self.assertFalse(any(record['claim'] == 'new' for record in state['claims']['said']))
+        # Simulate a pre-fix snapshot after its said window evicted the original.
+        legacy = copy.deepcopy(state)
+        legacy['claims'].pop('established')
+        revision = self.runtime.load()[0]
+        with self.runtime.db:
+            self.runtime.db.execute('UPDATE snapshots SET body=? WHERE revision=?',
+                                    (json.dumps(legacy), revision))
+        state = self.runtime.load()[1]
+        packet = kit_claims.claims_here(SOURCE, state, None)
+        self.assertEqual(packet['established']['actor:uktarl/drink']['truth'], 'cherry cordial')
+        with self.assertRaisesRegex(InvalidChange, 'already established'):
+            kit_claims.check_claims([{**original, 'truth': 'ale'}], packet, SOURCE, state)
+
+    def test_named_numeric_fact_mapping_handles_a_different_claim_id(self):
+        source = copy.deepcopy(SOURCE)
+        source['claims']['ring_lore'] = source['claims'].pop('ring_value')
+        source['claims']['ring_lore']['numeric_fact'] = 'ring_value'
+        guards = kit_agent.guard_context(source, {})
+        plan = {'claims': [claim('ring_lore', 'uktarl', 'lie', 'Forty gold.')]}
+        kit_agent.check_claimed_numbers([{'speaker': 'Dealer', 'text': 'The ring? Forty gold.'}],
+                                       plan, guards, 'What is the ring worth?')
+        with self.assertRaisesRegex(InvalidChange, 'passage toll'):
+            kit_agent.check_claimed_numbers([{'speaker': 'Dealer', 'text': 'Passage costs forty gold.'}],
+                                           plan, guards, 'What is the toll?')
+
+    def test_conflicting_new_claims_in_one_plan_are_rejected(self):
+        _, state = self.runtime.load()
+        first = claim('new', 'uktarl', 'truth', 'Cordial.', about='actor:uktarl/drink',
+                      truth='cherry cordial', roots=['card_table'], holder='uktarl')
+        second = {**first, 'truth': 'ale', 'version': 'Ale.'}
+        with self.assertRaisesRegex(InvalidChange, 'already established'):
+            kit_claims.check_claims([first, second], kit_claims.claims_here(SOURCE, state, None),
+                                  SOURCE, state)
+
+    def test_narrated_new_claim_is_durable_and_older_said_records_are_honored(self):
+        original = self.commit_drink('visible-drink', speaker='narrator', holder='room')
+        _, state = self.runtime.load()
+        self.assertEqual(state['claims']['established']['actor:uktarl/drink']['truth'], 'cherry cordial')
+        legacy = copy.deepcopy(state)
+        legacy['claims'].pop('established')
+        changed = {**original, 'truth': 'ale'}
+        with self.assertRaisesRegex(InvalidChange, 'already established'):
+            kit_claims.check_claims([changed], kit_claims.claims_here(SOURCE, legacy, None),
+                                  SOURCE, legacy)
+
+    def test_identity_only_character_change_clears_old_stats(self):
+        self.runtime.set_player_sheet(NIK)
+        self.runtime.set_player_character('Brakka', 'Half-Orc', 'Fighter', 3)
+        _, state = self.runtime.load()
+        self.assertEqual(self.runtime.player_view()['your_character']['name'], 'Brakka')
+        self.assertIsNone(state.get('player_sheet'))
+        packet = kit_claims.claims_here(SOURCE, state, state.get('player_sheet'))
+        self.assertIsNone(packet['pc'])
+        self.assertEqual(packet['claims']['false_vampires']['pc_band'], 'blind')
+
+    def test_reused_adjudicator_uses_current_sheet_without_caching_bonuses(self):
+        adjudicator = Room6CAdjudicator(source=SOURCE, roll=lambda: 10)
+        self.runtime.set_player_sheet(NIK)
+        revision, state = self.runtime.load()
+        first = adjudicator.resolve('I study their faces for a disguise.', revision, state)
+        self.assertIn('14 vs DC 14', first.public_event)
+        self.runtime.set_player_sheet(dull_fighter())
+        revision, state = self.runtime.load()
+        second = adjudicator.resolve('I study their faces for a disguise.', revision, state)
+        self.assertIn('9 vs DC 14', second.public_event)
+        self.runtime.set_player_character('Another', 'Human')
+        revision, state = self.runtime.load()
+        with self.assertRaisesRegex(PendingRuling, 'Supply your Insight modifier'):
+            adjudicator.resolve('I study their faces for a disguise.', revision, state)
+        explicit = Room6CAdjudicator(source=SOURCE, insight=2, roll=lambda: 10)
+        self.assertIn('12 vs DC 14', explicit.resolve('I study their faces for a disguise.',
+                                                     revision, state).public_event)
+
+    def test_one_pass_knowledge_uses_the_roll_result_before_commit_and_retries_safely(self):
+        self.runtime.set_player_sheet(NIK)
+        bridge = kit_agent.KitChatBridge(self.runtime)
+        before = self.runtime.load()
+        packet = bridge.prepare('I appraise the silver ring. I rolled 11 + 7 = 18', one_pass=True)
+        private = packet['input']['private']
+        self.assertEqual(private['claims_here']['claims']['ring_value']['pc_band'], 'learned')
+        self.assertEqual(self.runtime.load(), before)
+        plan = RecordingModel().plan(private)
+        plan['claims'] = [claim('ring_value', 'narrator', 'truth', 'The ring is worth twenty-five gold.')]
+        speech = {'segments': [
+            {'speaker': 'Narrator', 'text': 'The stamped dwarven figures identify a fertility charm. '
+             'The ring is worth twenty-five gold to a buyer who recognizes the work.'},
+            {'speaker': 'Dealer', 'text': 'You have an eye for silver. I had hoped the ears would '
+             'distract you, but the ring has stolen the evening. Take your time with it; the other '
+             'three are waiting for me to finish dealing.'},
+            {'speaker': 'Kit', 'text': 'An appraisal before a wager. You came prepared.',
+             'reacts_to': 'appraise the silver ring'},
+        ]}
+        output = {'decision': plan, 'performance': speech}
+        result = bridge.complete(packet['turn_id'], output)
+        self.assertIn('twenty-five gold', result['spoken'])
+        replay = bridge.complete(packet['turn_id'], output)
+        self.assertEqual(replay['revision'], result['revision'])
+        self.assertIn('ring_value', self.runtime.load()[1]['claims']['learned'])
+
+    def test_one_pass_wrong_toll_is_rejected_before_a_corrected_ring_lie_commits(self):
+        self.runtime.set_player_sheet(NIK)
+        bridge = kit_agent.KitChatBridge(self.runtime)
+        packet = bridge.prepare('I listen to the dealer.', one_pass=True)
+        plan = RecordingModel().plan(packet['input']['private'])
+        plan['claims'] = [claim('ring_value', 'uktarl', 'lie', 'Forty gold.',
+                                why='bait to profit from newcomers')]
+        speech = {'segments': [
+            {'speaker': 'Narrator', 'text': 'He turns the ring between finger and thumb, then '
+             'sets it down beside his coins.'},
+            {'speaker': 'Dealer', 'text': 'The ring? Forty gold. It was blessed by a dwarf with '
+             'excellent taste and very poor luck. You may look while I deal, but keep your hands '
+             'above the table; my friends have curious habits.'},
+            {'speaker': 'Kit', 'text': 'The jeweler has finished. The bouncer gets a turn.',
+             'reacts_to': 'keep your hands above the table'},
+        ]}
+        bad = copy.deepcopy(speech)
+        bad['segments'][1]['text'] += ' Passage costs forty gold.'
+        before = self.runtime.load()
+        with self.assertRaisesRegex(kit_agent.PerformanceRejected, 'passage toll'):
+            bridge.complete(packet['turn_id'], {'decision': plan, 'performance': bad})
+        self.assertEqual(self.runtime.load(), before)
+        result = bridge.complete(packet['turn_id'], {'decision': plan, 'performance': speech})
+        self.assertIn('Forty gold', result['spoken'])
+        self.assertEqual(self.runtime.load()[1]['claims']['said'][-1]['contest']['lands'], True)
+
+    def test_one_pass_new_claim_persists_and_a_later_redefinition_is_rejected(self):
+        bridge = kit_agent.KitChatBridge(self.runtime)
+        packet = bridge.prepare('I listen to the dealer.', one_pass=True)
+        plan = RecordingModel().plan(packet['input']['private'])
+        item = claim('new', 'uktarl', 'truth', 'Cherry cordial.', about='actor:uktarl/drink',
+                     truth='cherry cordial', roots=['card_table'], holder='uktarl')
+        plan['claims'] = [item]
+        speech = {'segments': [
+            {'speaker': 'Narrator', 'text': 'He leaves his cup beside the coins and squares the '
+             'deck with one slow tap.'},
+            {'speaker': 'Dealer', 'text': 'Cherry cordial. I save the strong drink for the walk '
+             'home, when nobody can reach my purse. You look like someone who asks questions '
+             'before sitting down. Do you want a chair, or an answer first?'},
+            {'speaker': 'Kit', 'text': 'At last, a drinking policy I can follow.',
+             'reacts_to': 'save the strong drink'},
+        ]}
+        bridge.complete(packet['turn_id'], {'decision': plan, 'performance': speech})
+        packet = bridge.prepare('I nod to the dealer.', one_pass=True)
+        self.assertEqual(packet['input']['private']['claims_here']['established']
+                         ['actor:uktarl/drink']['truth'], 'cherry cordial')
+        changed_plan = RecordingModel().plan(packet['input']['private'])
+        changed_plan['claims'] = [{**item, 'truth': 'ale', 'version': 'Ale.'}]
+        before = self.runtime.load()
+        with self.assertRaisesRegex(InvalidChange, 'already established'):
+            bridge.complete(packet['turn_id'], {'decision': changed_plan, 'performance': speech})
+        self.assertEqual(self.runtime.load(), before)
 
 
 if __name__ == '__main__':

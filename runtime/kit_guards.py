@@ -691,9 +691,16 @@ def check_numeric_facts(segments, facts, player_action, stake_amounts=(), game_t
                 # "The ring? Eleven gold." answers the question just asked.
                 words += ' '.join(tokens(parts[index - 1])) + ' '
             about_game = any(f' {normalize(term)} ' in words for term in game_terms or ())
+            named_facts = {name for name, fact in (facts or {}).items()
+                           if any(f' {normalize(word)} ' in words
+                                  for word in fact.get('specific_words') or fact['context_words'])}
             for name, fact in (facts or {}).items():
                 specific = fact.get('specific_words') or fact['context_words']
                 answers_question = index == 0 and name in asked and ELLIPTIC_AMOUNT.match(normalize(sentence))
+                # "The ring costs forty gold" names the ring, not the passage toll.
+                # Generic cost/price words must not attach it to another fact.
+                if named_facts and name not in named_facts and not answers_question:
+                    continue
                 if not answers_question and not any(f' {normalize(word)} ' in words
                                                     for word in fact['context_words']):
                     continue

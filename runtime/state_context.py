@@ -231,7 +231,20 @@ class Runtime:
     def load(self):
         row = self.db.execute('SELECT revision, body FROM snapshots ORDER BY revision DESC LIMIT 1').fetchone()
         require(row is not None, 'Initialize a session first')
-        return row[0], upgrade_state(json.loads(row[1]))
+        state = upgrade_state(json.loads(row[1]))
+        claims = state.get('claims')
+        if claims is not None and 'established' not in claims:
+            # Older saves retained only 32 said records. Recover first definitions
+            # from the append-only ledger, including those outside that window.
+            established = {}
+            for (body,) in self.db.execute(
+                    "SELECT body FROM ledger WHERE json_extract(body, '$.type') = 'claim_said' ORDER BY seq"):
+                said = json.loads(body)['said']
+                if said.get('claim') == 'new' and said.get('new'):
+                    definition = said['new']
+                    established.setdefault(definition['about'].strip().casefold(), definition)
+            claims['established'] = established
+        return row[0], state
 
     @staticmethod
     def _observe(state, source):
@@ -416,15 +429,19 @@ class Runtime:
             self.db.rollback()
             raise
 
-    def preview(self, expected_revision, events):
-        """Apply an adjudicated batch to a copy for pre-commit rendering."""
+    def preview_state(self, expected_revision, events):
+        """Apply an adjudicated batch to an unsaved copy, including earned knowledge."""
         revision, state = self.load()
         if revision != expected_revision:
             raise StaleTurn(f'Expected revision {expected_revision}; current is {revision}')
         source = self.source()
         for event in events:
             self._apply(state, source, event)
-        return self._player_view(source, state)
+        return state
+
+    def preview(self, expected_revision, events):
+        """Player-safe rendering of the adjudicated state before it is committed."""
+        return self._player_view(self.source(), self.preview_state(expected_revision, events))
 
     def record_kit_timing(self, turn_id, **fields):
         """Merge latency telemetry for a turn. Not part of the committed turn record."""
@@ -672,17 +689,26 @@ class Runtime:
             character = event.get('character')
             check_player_character(character)
             state['player_character'] = dict(character)
+            state.pop('player_sheet', None)
         elif kind == 'player_sheet':
             from . import pc_sheet
             sheet = pc_sheet.check_sheet(event.get('sheet'))
             state['player_sheet'] = copy.deepcopy(sheet)
             state['player_character'] = pc_sheet.identity(sheet)
         elif kind == 'claim_said':
+            from . import kit_claims
             said = event.get('said')
             require(isinstance(said, dict) and {'claim', 'by', 'version', 'stance', 'why', 'turn'} <= set(said),
                     'claim_said needs claim, by, version, stance, why, turn')
             claims = state.setdefault('claims', {'said': [], 'learned': []})
-            claims['said'] = (claims['said'] + [copy.deepcopy(said)])[-32:]
+            if said['claim'] == 'new':
+                definition = said.get('new')
+                require(isinstance(definition, dict), 'A new claim_said needs its definition')
+                established = kit_claims.established_claims(state)
+                subject = kit_claims.check_new_definition(definition, established)
+                established.setdefault(subject, copy.deepcopy(definition))
+                claims['established'] = established
+            claims['said'] = (claims['said'] + [copy.deepcopy(said)])[-kit_claims.SAID_LIMIT:]
         elif kind == 'claim_learned':
             key = event.get('claim')
             require(key in (source.get('claims') or {}), 'Unknown claim')

@@ -186,16 +186,18 @@ class Room6CAdjudicator:
         self.sleight_of_hand = sleight_of_hand
         self.source = source  # the room source, for its table procedures (set by the bridge)
 
+    def skill_modifier(self, skill, state):
+        """Host override, else the currently loaded sheet; never cache a PC's stats."""
+        override = getattr(self, skill)
+        if override is not None:
+            return override
+        sheet = state.get('player_sheet')
+        return pc_sheet.skill_bonus(sheet, skill) if sheet else None
+
     def resolve(self, action, revision, state, addressed=False):
         require(isinstance(action, str) and action.strip(), 'Player action required')
         if state['area'] != 'area_06c':
             raise PendingRuling('This play slice covers area 6c only. No turn was committed.')
-        sheet = state.get('player_sheet')
-        if sheet:
-            # Whatever sheet is loaded supplies the modifiers the host did not.
-            for skill in ('perception', 'insight', 'sleight_of_hand'):
-                if getattr(self, skill) is None:
-                    setattr(self, skill, pc_sheet.skill_bonus(sheet, skill))
         target = kit_claims.roll_target(action, self.source)
         if target and not QUOTED_SPEECH.search(action.translate(_TYPOGRAPHIC)):
             return self._resolve_knowledge(action, revision, state, *target)
@@ -237,7 +239,7 @@ class Room6CAdjudicator:
             event = {'type': 'reveal_fact', 'fact': 'tub_stash', 'evidence': evidence}
             return Resolution(kind, public, [event])
         elif kind in ('inspect_fresco', 'insight'):
-            modifier = self.perception if kind == 'inspect_fresco' else self.insight
+            modifier = self.skill_modifier('perception' if kind == 'inspect_fresco' else 'insight', state)
             if modifier is None:
                 skill = 'Perception' if kind == 'inspect_fresco' else 'Insight'
                 raise PendingRuling(f'Supply your {skill} modifier with --{skill.lower()} before this check. No turn was committed.')
@@ -309,8 +311,8 @@ class Room6CAdjudicator:
         """One card-table action through the declared procedure (runtime/kit_cards.py)."""
         key, config, body = table
         require('roll_seed' in state, 'This session predates stable checks; start a fresh test database.')
-        engine = kit_cards.CardTable(key, config, {'perception': self.perception, 'insight': self.insight,
-                                                   'sleight_of_hand': self.sleight_of_hand},
+        engine = kit_cards.CardTable(key, config, {skill: self.skill_modifier(skill, state)
+                                                   for skill in ('perception', 'insight', 'sleight_of_hand')},
                                      state['roll_seed'])
         try:
             public, new_state, reveals = engine.resolve(kind, action, revision, body)
@@ -1239,13 +1241,16 @@ def check_speech(speech, plan, public_view, player_action, action_kind=None, gua
 
 
 def check_claimed_numbers(segments, plan, guards, player_action, game_terms=()):
-    """HARD: a number a speaker says is the source's, or the version the decision planned
-    for that speaker (a checked lie or bargain with its why; runtime/kit_claims.py)."""
+    """HARD: numeric exceptions apply only to their speaker, fact, and currency."""
     planned = kit_claims.planned_amounts(plan.get('claims'), ACTOR_SPEAKERS)
     for segment in segments:
-        extra = sorted({amount for amount, _ in planned.get(segment['speaker'], ())})
-        facts = {name: {**fact, 'allowed_amounts': list(fact['allowed_amounts']) + extra}
-                 for name, fact in (guards.get('numeric_facts') or {}).items()}
+        facts = {}
+        for name, fact in (guards.get('numeric_facts') or {}).items():
+            units = {kit_guards.COIN_UNITS.get(unit, unit) for unit in fact['unit_words']}
+            extra = {amount for claim_id, amounts in planned.get(segment['speaker'], {}).items()
+                     if (guards.get('numeric_claims') or {}).get(claim_id, claim_id) == name
+                     for amount, unit in amounts if unit in units}
+            facts[name] = {**fact, 'allowed_amounts': list(fact['allowed_amounts']) + sorted(extra)}
         kit_guards.check_numeric_facts([segment], facts, player_action,
                                        guards.get('stake_amounts', ()), game_terms)
 
@@ -1461,7 +1466,8 @@ def check_decision(runtime, plan, memory, body):
 
 
 def prepare_inputs(runtime, revision, state, action, resolution, use_memory, one_pass=False):
-    public_view = runtime.preview(revision, resolution.events)
+    post_event_state = runtime.preview_state(revision, resolution.events)
+    public_view = runtime._player_view(runtime.source(), post_event_state)
     context = runtime.context()
     if context['revision'] != revision:
         raise StaleTurn(f'Expected revision {revision}; current is {context["revision"]}')
@@ -1499,7 +1505,7 @@ def prepare_inputs(runtime, revision, state, action, resolution, use_memory, one
     source = runtime.source()
     if source.get('claims'):
         # Private: each claim's knowers, the PC's band from the loaded sheet, the wink tier.
-        packet = kit_claims.claims_here(source, state, state.get('player_sheet'))
+        packet = kit_claims.claims_here(source, post_event_state, post_event_state.get('player_sheet'))
         body['claims_here'] = packet
         planning_input['claims_here'] = packet
     attempts = state.get('refused_attempts', [])[-REFUSED_ATTEMPTS_SHOWN:]
@@ -1647,6 +1653,8 @@ def guard_context(source, body):
     procedures = (body.get('public_view') or {}).get('table_procedures') or {}
     return {'leak_sets': kit_guards.leak_sets(source),
             'numeric_facts': kit_guards.numeric_facts(source),
+            'numeric_claims': {key: claim.get('numeric_fact', key)
+                               for key, claim in kit_claims.compile_claims(source).items()},
             'stake_amounts': sorted(stake_amounts(procedures)),
             'dealer_cheated': bool((body.get('scene_facts') or {}).get('dealer_cheated')),
             'declared_procedures': tuple(procedures),

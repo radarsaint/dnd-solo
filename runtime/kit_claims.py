@@ -27,7 +27,7 @@ blocks plus role fields). No model calls; deterministic Python.
 import re
 
 from . import pc_sheet
-from .state_context import require
+from .state_context import normalize_fact, require
 
 SOURCES = ('adventure', 'canon', 'procedure', 'kit')
 EXPOSURES = ('hidden', 'perceivable', 'public')
@@ -118,6 +118,9 @@ def compile_claims(source):
                 f'Claim {key}: roots must cite source facts or actors')
         if claim.get('fact'):
             require(claim['fact'] in source['facts'], f'Claim {key}: unknown fact')
+        if claim.get('numeric_fact'):
+            require(claim['numeric_fact'] in (source.get('numeric_facts') or {}),
+                    f'Claim {key}: unknown numeric fact')
         for holder, band in (claim.get('holders') or {}).items():
             require(holder in source.get('actors', {}) and band in NPC_BANDS,
                     f'Claim {key}: holder {holder} needs a live actor and a band')
@@ -127,6 +130,31 @@ def compile_claims(source):
                 f'Claim {key}: pc_access is passive (a shield: Insight/Perception) or roll (player-initiated)')
         claims[key] = claim
     return claims
+
+
+def established_claims(state):
+    """Durable definitions, with a fallback for pre-fix snapshots' said records."""
+    claims = state.get('claims') or {}
+    established = dict(claims.get('established') or {})
+    for record in claims.get('said') or ():
+        if record.get('claim') == 'new' and record.get('new'):
+            definition = record['new']
+            established.setdefault(definition['about'].strip().casefold(), definition)
+    return established
+
+
+def check_new_definition(definition, established):
+    """A subject's first committed truth is immutable, including within one batch."""
+    for key in ('about', 'truth'):
+        value = definition.get(key)
+        require(isinstance(value, str) and 0 < len(value.strip()) <= FIELD_MAX,
+                f'A new claim {key} must be 1-{FIELD_MAX} characters')
+    subject = definition['about'].strip().casefold()
+    require('/' in subject, 'A new claim about reads "<kind>:<thing>/<facet>"')
+    prior = established.get(subject)
+    require(prior is None or normalize_fact(prior['truth']) == normalize_fact(definition['truth']),
+            f'Claim {subject} is already established; its truth cannot be redefined')
+    return subject
 
 
 # ---------------------------------------------------------------------------
@@ -214,9 +242,13 @@ def claims_here(source, state, sheet):
             entry['player_roll'] = f"{claim['pc_check']} DC {entry['dc']}, only when the player asks"
         out[key] = entry
     lies = {actor: lie_lands(npc_profile(actors[actor]), sheet) for actor in present}
-    return {'pc': pc_sheet.private_summary(sheet) if sheet else None, 'claims': out,
-            'npc_lies_vs_passive_insight': lies,
-            'said': (state.get('claims') or {}).get('said', [])[-8:]}
+    packet = {'pc': pc_sheet.private_summary(sheet) if sheet else None, 'claims': out,
+              'npc_lies_vs_passive_insight': lies,
+              'said': (state.get('claims') or {}).get('said', [])[-8:]}
+    established = established_claims(state)
+    if established:
+        packet['established'] = established
+    return packet
 
 
 # ---------------------------------------------------------------------------
@@ -243,6 +275,7 @@ def check_claims(items, packet, source, state):
     require(isinstance(items, list) and len(items) <= MAX_CLAIMS, f'claims: at most {MAX_CLAIMS} entries')
     here = (packet or {}).get('claims') or {}
     actors = state.get('actors') or {}
+    established = established_claims(state)
     for item in items:
         require(isinstance(item, dict) and set(item) == set(CLAIMS_SCHEMA['items']['required']),
                 'Each claim needs ' + ', '.join(CLAIMS_SCHEMA['items']['required']))
@@ -259,7 +292,8 @@ def check_claims(items, packet, source, state):
                     'A new claim with no source is nonsense: roots must cite scene facts, canon, or actors')
             require(item['holder'] in actors or item['holder'] == 'room',
                     'A new claim names a holder in the scene (an actor id, or room for what anyone can see)')
-            require(item['truth'].strip() and item['about'].strip(), 'A new claim states about and truth')
+            subject = check_new_definition(item, established)
+            established.setdefault(subject, item)
             band = 'knows' if speaker == item['holder'] else None
             pc = 'learned' if item['holder'] == 'room' else 'blind'
             wink = 'none'
@@ -298,7 +332,7 @@ def said_events(items, turn_id, packet, state):
     actors = state.get('actors') or {}
     sheet = state.get('player_sheet')
     for item in items or ():
-        if item['speaker'] in ('narrator', 'kit') or item['stance'] == 'silence':
+        if item['stance'] == 'silence' or (item['speaker'] in ('narrator', 'kit') and item['claim'] != 'new'):
             continue
         record = {'claim': item['claim'], 'by': item['speaker'], 'to': 'pc', 'version': item['version'],
                   'stance': item['stance'], 'why': item['why'], 'turn': turn_id}
@@ -314,12 +348,15 @@ def said_events(items, turn_id, packet, state):
 
 
 def planned_amounts(items, speaker_labels):
-    """{public speaker label: set of (amount, unit)} for versions the decision planned."""
+    """Amounts keyed by speaker AND claim, retaining currency and excluding silence."""
     from . import kit_guards
     found = {}
     for item in items or ():
+        if item['stance'] == 'silence':
+            continue
         label = speaker_labels.get(item['speaker'], item['speaker'].capitalize())
-        found.setdefault(label, set()).update(kit_guards.spoken_amounts(item['version']))
+        found.setdefault(label, {}).setdefault(item['claim'], set()).update(
+            kit_guards.spoken_amounts(item['version']))
     return found
 
 
