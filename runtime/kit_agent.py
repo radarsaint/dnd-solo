@@ -17,7 +17,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .scene_discernment import IMPROV_READ_SCHEMA, check_improv_read, discernment_candidates
-from .state_context import InvalidChange, PROJECT_ROOT, Runtime, StaleTurn, require
+from .state_context import (InvalidChange, PLAYER_NOTE_MAX_EVIDENCE, PROJECT_ROOT, Runtime,
+                            StaleTurn, check_player_note_text, require)
 
 
 ROOM_FIXTURE = PROJECT_ROOT / 'tests/fixtures/level_01_area_06c.json'
@@ -224,16 +225,22 @@ PLAN_SCHEMA = {
                          'properties': {
                              **{key: {'type': 'string'} for key in
                                 ('objective', 'tactic', 'visible_cue', 'player_opening',
-                                 'reply_to', 'kit_focus')},
+                                 'reply_to', 'kit_focus', 'callback')},
                              'scope': {'type': 'string', 'enum': ['call', 'exchange', 'feature']}},
                          'required': ['objective', 'tactic', 'visible_cue', 'player_opening',
-                                      'reply_to', 'scope', 'kit_focus']},
+                                      'reply_to', 'scope', 'kit_focus', 'callback']},
         'focus_actor': {'type': 'string', 'enum': ['uktarl', 'other', 'none']},
         'table_presence': {'type': 'string', 'enum': ['quiet', 'brief', 'present']},
         'tone': {'type': 'string', 'enum': ['wry', 'warm', 'threatening', 'curious', 'plain', 'quiet']},
+        # Private: at most one new evidence-cited observation about this player.
+        'player_note': {'type': 'object', 'additionalProperties': False,
+                        'properties': {'note': {'type': 'string'},
+                                       'evidence_turns': {'type': 'array', 'items': {'type': 'string'}},
+                                       'replaces': {'type': 'string'}},
+                        'required': ['note', 'evidence_turns', 'replaces']},
     },
     'required': ['observed_event', 'goal', 'appraisal', 'memory_refs', 'improv_read', 'move', 'public_brief',
-                 'focus_actor', 'table_presence', 'tone'],
+                 'focus_actor', 'table_presence', 'tone', 'player_note'],
 }
 
 SPEECH_SCHEMA = {
@@ -256,8 +263,28 @@ ONE_PASS_SCHEMA = {
 }
 
 BRIEF_TEXT_FIELDS = ('objective', 'tactic', 'visible_cue', 'player_opening')
-BRIEF_FIELDS = BRIEF_TEXT_FIELDS + ('reply_to', 'scope', 'kit_focus')
+BRIEF_FIELDS = BRIEF_TEXT_FIELDS + ('reply_to', 'scope', 'kit_focus', 'callback')
+# Brief fields that quote public words verbatim (the player's, or an earlier
+# public turn's). They are checked as quotes, not as Kit's own direction.
+BRIEF_QUOTE_FIELDS = ('reply_to', 'callback')
 KIT_FOCUS_MAX_CHARS = 200
+CALLBACK_MAX_CHARS = 160
+THIS_TURN = 'this_turn'  # player_note evidence for the turn being decided
+
+# Memory selection: the decision sees the most recent episodes plus earlier ones
+# that share the actor, story thread, or meaningful words with this action.
+MEMORY_LIMIT = 8
+MEMORY_RECENT = 2
+# Room adapter: public words that name an actor. Area 6c exposes the dealer by role.
+ACTOR_ALIASES = {'uktarl': ('dealer', 'uktarl')}
+_STOPWORDS = frozenset('''
+    about above after again also another been before being below between both could does doing
+    down during each even ever every from further have having here hers herself himself into itself
+    just like make many more most much must myself only other ours over same shall should some such
+    than that their theirs them then there these they this those through under until upon very
+    want what when where which while whom whose will with would your yours yourself none
+    says said tell asks asked going really thing things well okay sure maybe
+'''.split())
 # Moves that may stay a short `call`: a direct ruling or clarification. A turn
 # with no focus actor (e.g. a narrow observation) may also be a call.
 CALL_MOVES = ('ruling', 'ask_clarification')
@@ -337,7 +364,23 @@ PRIVATE_INSTRUCTIONS = (
     'she lets play out, how she frames a ruling, or a deliberate restraint. kit_focus is not '
     'dialogue, not a copy of kit_choice or the appraisal, and never a hidden fact, an outcome, '
     'an NPC commitment, or a player action. The actor’s objective and tactic come from the '
-    'actor’s own motives, not from Kit’s taste.'
+    'actor’s own motives, not from Kit’s taste. '
+    'Memory: kit_state.episodes are the most recent turns plus earlier ones relevant to this '
+    'action (same actor, story thread, or words); each shows what the player did, your reading '
+    'of the bid, your kit_choice, and what was said in public. When an earlier public moment '
+    'from an episode you list in memory_refs should change this turn, put a short exact quote of '
+    'it (a few words the player saw or said) in callback; otherwise callback is none. Use a '
+    'callback for a reason: an actor who witnessed it reacts from their own motives, a detail '
+    'returns, or Kit frames a ruling by it. Never invent a past moment. '
+    'Player notes: kit_state.player_notes are evidence-cited observations of this player’s play '
+    'and their explicit out-of-character feedback (feedback outranks your inference). Let them '
+    'shape what Kit spotlights, how she frames rulings, and which callback she picks; their '
+    'public effect goes only through kit_focus or callback, restated as direction. Never copy '
+    'note text into public_brief. In player_note, record at most one new observable pattern in '
+    'what the player did or said, citing turn IDs from the episodes or this_turn in '
+    'evidence_turns; describe behavior, not guessed feelings, and never a score. Set replaces '
+    'to an observed note’s id when new behavior contradicts it; otherwise replaces is none. If '
+    'nothing new was shown, note is none with no evidence.'
 )
 
 PUBLIC_INSTRUCTIONS = (
@@ -369,7 +412,11 @@ PUBLIC_INSTRUCTIONS = (
     'gets space, how a ruling is phrased, or, only when table presence allows, a Kit remark. It '
     'is not a line for any NPC and grants no authority over facts, rules outcomes, NPC knowledge '
     'or commitments, or the player’s choices. NPCs pursue their own objectives in their own '
-    'voices from the actor card; never make them mouthpieces for Kit’s taste or humor. Scope: '
+    'voices from the actor card; never make them mouthpieces for Kit’s taste or humor. When '
+    'callback is not none, it quotes an earlier public moment (callback_source shows where it '
+    'came from): let it visibly return in this turn, through an actor who was there reacting from '
+    'their own motives, a returning detail, or Kit’s framing, without re-quoting it at length or '
+    'adding facts about it. Scope: '
     'call means answer directly and stop; exchange means the actor answers reply_to, pursues the '
     'tactic with a visible beat, and leaves a live opening; feature means a scene in motion with '
     'room for a short speech or more than one reaction. Never pad to reach a length.'
@@ -416,8 +463,9 @@ ONE_PASS_PREAMBLE = (
     'For live chat, produce one object with decision first and performance second. '
     'Apply the private decision instructions to the private input, then write the public '
     'performance using only the public input, accepted event, and the decision’s checked '
-    'public_brief (including reply_to, scope, and kit_focus), move, tone, focus actor, and '
-    'table presence. Do not copy improv_read or appraisal text into the performance. '
+    'public_brief (including reply_to, scope, kit_focus, and callback), move, tone, focus actor, '
+    'and table presence. Do not copy improv_read, appraisal, episode, or player note text into '
+    'the performance. '
     'Keep the decision brief. '
     'The decision connects the player bid, available story pressure, actor goal, and Kit’s '
     'appraisal before selecting a concrete DM move; do not justify dialogue after the fact. '
@@ -484,7 +532,8 @@ class OpenAIResponsesModel:
                               'kit_public_performance', SPEECH_SCHEMA)
 
 
-def check_plan(plan, episodes, public_event, action_kind=None, candidates=None, player_action=None):
+def check_plan(plan, episodes, public_event, action_kind=None, candidates=None, player_action=None,
+               player_notes=(), committed_turn_ids=()):
     require(isinstance(plan, dict) and set(plan) == set(PLAN_SCHEMA['required']),
             'Incomplete private decision')
     for key in ('observed_event', 'goal'):
@@ -549,6 +598,105 @@ def check_plan(plan, episodes, public_event, action_kind=None, candidates=None, 
     require(all(_normalized(text) not in _normalized(focus) for text in private_texts
                 if len(text.strip()) >= 20),
             'kit_focus copies private kit_choice or appraisal text; restate it as public direction')
+    for field in BRIEF_FIELDS:
+        if field in BRIEF_QUOTE_FIELDS:
+            continue
+        require(all(_normalized(note['note']) not in _normalized(brief[field])
+                    for note in player_notes if len(note['note'].strip()) >= 20),
+                f'public_brief {field} copies a private player note; restate its effect as '
+                'public direction in kit_focus')
+    check_callback(brief['callback'], plan['memory_refs'], episodes)
+    check_player_note(plan['player_note'], player_notes, committed_turn_ids)
+
+
+def keywords(text):
+    """Meaningful words for memory relevance and callback checks (crude stemming)."""
+    found = set()
+    for word in re.findall(r"[a-z][a-z'’]+", (text or '').casefold()):
+        word = re.sub(r"['’]s$", '', word).replace('’', "'").strip("'")
+        if word.endswith('ies') and len(word) > 4:
+            word = word[:-3] + 'y'
+        elif word.endswith('s') and not word.endswith('ss') and len(word) > 4:
+            word = word[:-1]
+        if len(word) >= 4 and word not in _STOPWORDS:
+            found.add(word)
+    return found
+
+
+def _public_units(record):
+    """Separately quotable public pieces of a committed turn: the player's words,
+    the accepted event, and each spoken line without its speaker label."""
+    units = []
+    if record.get('player_input') and record['player_input'] != '[scene entry]':
+        units.append(('player', record['player_input']))
+    if record.get('public_event'):
+        units.append(('event', record['public_event']))
+    for line in (record.get('spoken') or '').splitlines():
+        if line.strip():
+            units.append(('spoken', line))
+    return units
+
+
+def callback_source(callback, records):
+    """The public line an exact callback quote came from, or None."""
+    excerpt = _normalized(callback).strip(' .,!?;:"\'')
+    if not excerpt:
+        return None
+    for record in reversed(records):
+        for kind, text in _public_units(record):
+            if excerpt in _normalized(text):
+                return {'turn_id': record['turn_id'], 'player_input': record.get('player_input'),
+                        'kind': kind, 'line': text[:600]}
+    return None
+
+
+def check_callback(callback, memory_refs, episodes):
+    """callback quotes an earlier public moment from a turn Kit cites in memory_refs."""
+    callback = callback.strip()
+    if callback.casefold() == 'none':
+        return
+    require(len(callback) <= CALLBACK_MAX_CHARS,
+            f'callback exceeds {CALLBACK_MAX_CHARS} characters; quote a few words')
+    require(len(callback.split()) >= 2 and keywords(callback),
+            'callback must quote at least two words, including a distinctive one')
+    cited = [episode for episode in episodes if episode['turn_id'] in set(memory_refs)]
+    require(cited, 'callback needs the earlier turn it quotes listed in memory_refs')
+    require(callback_source(callback, cited) is not None,
+            'callback must quote words said or shown in public in a turn listed in memory_refs')
+
+
+def check_player_note(note, player_notes, committed_turn_ids):
+    """A private note is an observed pattern with evidence, never a score."""
+    require(isinstance(note, dict) and set(note) == {'note', 'evidence_turns', 'replaces'},
+            'Invalid player_note')
+    require(isinstance(note['note'], str) and isinstance(note['replaces'], str) and
+            isinstance(note['evidence_turns'], list), 'Invalid player_note')
+    if note['note'].strip().casefold() == 'none':
+        require(note['evidence_turns'] == [] and note['replaces'].strip().casefold() == 'none',
+                'An empty player_note has no evidence and replaces nothing')
+        return
+    check_player_note_text(note['note'])
+    allowed = set(committed_turn_ids) | {THIS_TURN}
+    require(0 < len(note['evidence_turns']) <= PLAYER_NOTE_MAX_EVIDENCE and
+            all(isinstance(ref, str) and ref in allowed for ref in note['evidence_turns']),
+            f'player_note must cite 1–{PLAYER_NOTE_MAX_EVIDENCE} committed turn IDs or this_turn '
+            'as evidence')
+    if note['replaces'].strip().casefold() != 'none':
+        old = next((item for item in player_notes if item['id'] == note['replaces']), None)
+        require(old is not None, 'player_note replaces an unknown note')
+        require(old['source'] == 'observed', 'Only new feedback can replace the player\'s own feedback')
+
+
+def check_callback_used(segments, plan):
+    """A callback the performance ignores changed nothing. A floor, not quality."""
+    callback = plan['public_brief'].get('callback', 'none').strip()
+    if callback.casefold() == 'none':
+        return
+    spoken = keywords(' '.join(segment['text'] for segment in segments))
+    require(keywords(callback) & spoken,
+            'The performance ignored the callback. Let the quoted earlier moment visibly return '
+            '(an actor who was there reacts to it, a detail comes back, or Kit frames the moment by '
+            'it) without re-quoting it at length.')
 
 
 def _normalized(text):
@@ -629,9 +777,9 @@ def check_public_content(text, public_view, player_action):
 
 
 def check_brief_public(brief, public_view, player_action):
-    """Literal leak check on Kit's direction. reply_to is excluded because it quotes
-    the player's own words, which the performer already receives verbatim."""
-    direction = {key: value for key, value in brief.items() if key != 'reply_to'}
+    """Literal leak check on Kit's direction. reply_to and callback are excluded because
+    they are checked verbatim quotes of words the player already said or saw."""
+    direction = {key: value for key, value in brief.items() if key not in BRIEF_QUOTE_FIELDS}
     check_public_content(json.dumps(direction, ensure_ascii=False), public_view, player_action)
 
 
@@ -669,7 +817,73 @@ def check_speech(speech, plan, public_view, player_action, action_kind=None):
     spoken = '\n'.join(f"{segment['speaker']}: {segment['text'].strip()}" for segment in segments)
     check_public_content(spoken, public_view, player_action)
     check_scope(segments, plan)
+    check_callback_used(segments, plan)
     return spoken
+
+
+def _named_actors(action):
+    words = set(re.findall(r"[a-z]+", action.casefold()))
+    return {actor for actor, aliases in ACTOR_ALIASES.items() if words & set(aliases)}
+
+
+def _episode_words(episode):
+    brief = episode.get('brief') or {}
+    texts = [episode.get('player_input'), episode.get('player_bid'), episode.get('kit_choice'),
+             episode.get('public_event')]
+    texts += [value for key, value in brief.items() if key != 'scope' and isinstance(value, str)]
+    return keywords(' '.join(text for text in texts if isinstance(text, str)))
+
+
+def select_episodes(episodes, action, limit=MEMORY_LIMIT, recent=MEMORY_RECENT):
+    """Always the last `recent` episodes, then earlier ones by relevance, up to `limit`.
+
+    Relevance is transparent: shared meaningful words with the action, the actor the
+    action names or the conversation is already with, and the active story thread
+    (a level or campaign anchor, not the generic scene). Irrelevant episodes are left
+    out rather than padded in. Output stays in chronological order.
+    """
+    if not episodes:
+        return []
+    kept = list(range(max(0, len(episodes) - recent), len(episodes)))
+    last = episodes[-1]
+    actors = _named_actors(action)
+    if last.get('actor_ref') not in (None, 'none'):
+        actors.add(last['actor_ref'])
+    thread = ((last.get('story_anchor'), last.get('story_basis'))
+              if last.get('story_anchor') not in (None, 'none', 'scene') else None)
+    words = keywords(action)
+    scored = []
+    for index, episode in enumerate(episodes[:kept[0]] if kept else episodes):
+        score = min(len(words & _episode_words(episode)), 3) * 2
+        score += episode.get('actor_ref') in actors
+        score += thread is not None and (episode.get('story_anchor'), episode.get('story_basis')) == thread
+        if score:
+            scored.append((score, index))
+    scored.sort(reverse=True)
+    kept += [index for _, index in scored[:max(0, limit - len(kept))]]
+    return [episodes[index] for index in sorted(kept)]
+
+
+def kit_memory(runtime, state, action, use_memory):
+    """Kit's private memory for one decision: relevant episodes (with what was said in
+    public on those turns, for callbacks) and her evidence-cited player notes."""
+    if not use_memory:
+        return {'episodes': [], 'player_notes': []}
+    chosen = select_episodes(state['kit']['episodes'], action)
+    spoken = {record['turn_id']: record['spoken']
+              for record in runtime.kit_turns_by_id([episode['turn_id'] for episode in chosen])}
+    episodes = [{**episode, 'spoken': spoken.get(episode['turn_id'], '')[-1200:]}
+                for episode in chosen]
+    return {'episodes': episodes, 'player_notes': state['kit']['player_notes']}
+
+
+def check_decision(runtime, plan, memory, body):
+    """Every private decision passes the same checks on every host path."""
+    check_plan(plan, memory['episodes'], body['public_event'], body['kind'],
+               body['discernment_candidates'], body['action'],
+               player_notes=memory['player_notes'],
+               committed_turn_ids=runtime.committed_kit_turn_ids())
+    check_brief_public(plan['public_brief'], body['public_view'], body['action'])
 
 
 def prepare_inputs(runtime, revision, state, action, resolution, use_memory):
@@ -677,7 +891,7 @@ def prepare_inputs(runtime, revision, state, action, resolution, use_memory):
     context = runtime.context()
     if context['revision'] != revision:
         raise StaleTurn(f'Expected revision {revision}; current is {context["revision"]}')
-    episodes = state.get('kit', {}).get('episodes', [])[-8:] if use_memory else []
+    memory = kit_memory(runtime, state, action, use_memory)
     public_history = [{'player_input': turn['player_input'], 'spoken': turn['spoken'][-1200:]}
                       for turn in runtime.recent_kit_turns(limit=4)]
     body = {'action': action, 'events': resolution.events, 'kind': resolution.kind,
@@ -688,8 +902,9 @@ def prepare_inputs(runtime, revision, state, action, resolution, use_memory):
     planning_input = {
         'personality_core': context['personality_core'],
         'dm_context': context['dm_context'],
-        'kit_state': {'episodes': episodes,
-                      'current_appraisal': state.get('kit', {}).get('current_appraisal')
+        'kit_state': {'episodes': memory['episodes'],
+                      'player_notes': memory['player_notes'],
+                      'current_appraisal': state['kit']['current_appraisal']
                       if use_memory else None},
         'player_action': action, 'accepted_public_event': resolution.public_event,
         'action_kind': resolution.kind,
@@ -736,6 +951,13 @@ def performance_input(runtime, body, plan):
             'table_presence': plan['table_presence'], 'tone': plan['tone'],
             'brief': plan['public_brief'],
     }
+    callback = plan['public_brief'].get('callback', 'none')
+    if callback.strip().casefold() != 'none':
+        # Public only: the earlier line the player already saw, so the performer knows
+        # who said it. Never the episode's private reading or Kit's reason.
+        source = callback_source(callback, runtime.kit_turns_by_id(plan['memory_refs']))
+        if source:
+            payload['callback_source'] = {key: source[key] for key in ('player_input', 'line')}
     return payload
 
 
@@ -784,9 +1006,7 @@ class KitAgent:
             plan = self.model.plan(planning_input)
             timing['model_calls'] += 1
             timing['plan_s'] = round(time.monotonic() - call_started, 3)
-            check_plan(plan, planning_input['kit_state']['episodes'], body['public_event'],
-                       body['kind'], body['discernment_candidates'], body['action'])
-            check_brief_public(plan['public_brief'], body['public_view'], body['action'])
+            check_decision(self.runtime, plan, planning_input['kit_state'], body)
             performance_payload = performance_input(self.runtime, body, plan)
             for attempt in range(2):
                 call_started = time.monotonic()
@@ -866,10 +1086,8 @@ class KitChatBridge:
         body = pending['body']
         require(body['host_mode'] == 'staged', 'Use complete for a one-pass turn')
         check_variant(performance_variant)
-        episodes = state.get('kit', {}).get('episodes', [])[-8:] if body['use_memory'] else []
-        check_plan(plan, episodes, body['public_event'], body['kind'],
-                   body['discernment_candidates'], body['action'])
-        check_brief_public(plan['public_brief'], body['public_view'], body['action'])
+        check_decision(self.runtime, plan,
+                       kit_memory(self.runtime, state, body['action'], body['use_memory']), body)
         payload = performance_input(self.runtime, body, plan)
         self.runtime.save_kit_plan(turn_id, revision, plan)
         # finish records the variant of the latest packet issued for this turn.
@@ -916,6 +1134,19 @@ class KitChatBridge:
         self.runtime.record_kit_timing(turn_id, outcome='committed', **fields)
         return self.runtime.kit_timing(turn_id)
 
+    def feedback(self, text, evidence_turns=None, replaces='none'):
+        """Record the player's out-of-character comment for Kit's next private decision.
+
+        Nothing here is shown to the player or sent to the performer. The note cites
+        the committed turn it is about (default: the latest). Record feedback between
+        turns: it commits a new revision, so a turn already prepared must be prepared again.
+        """
+        result = self.runtime.record_player_feedback(text, evidence_turns, replaces)
+        return {'stage': 'feedback_recorded', 'committed': True, **result,
+                'host_note': ('Private to Kit’s decision stage. Do not show or read this back '
+                              'to the player; its effect may appear only through kit_focus or '
+                              'callback on later turns. Prepare the next turn fresh.')}
+
     def complete(self, turn_id, output):
         """Validate and commit one model output in one host round trip."""
         require(isinstance(output, dict) and set(output) == {'decision', 'performance'},
@@ -926,10 +1157,8 @@ class KitChatBridge:
         revision, state = self.runtime.load()
         if revision != pending['revision']:
             raise StaleTurn(f"Expected revision {pending['revision']}; current is {revision}")
-        episodes = state.get('kit', {}).get('episodes', [])[-8:] if body['use_memory'] else []
-        check_plan(plan, episodes, body['public_event'], body['kind'],
-                   body['discernment_candidates'], body['action'])
-        check_brief_public(plan['public_brief'], body['public_view'], body['action'])
+        check_decision(self.runtime, plan,
+                       kit_memory(self.runtime, state, body['action'], body['use_memory']), body)
         self.runtime.save_kit_plan(turn_id, revision, plan)
         # Turns staged before variants reached one-pass ran the `current` instructions.
         variant = body.get('performance_variant', 'current')
@@ -944,7 +1173,7 @@ class KitChatBridge:
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('command', choices=['init', 'view', 'prepare', 'decide', 'finish', 'complete',
-                                            'play', 'trace', 'timing'])
+                                            'feedback', 'notes', 'play', 'trace', 'timing'])
     parser.add_argument('--db', default='kit-06c.sqlite')
     parser.add_argument('--model', help='Optional standalone Responses API model for play')
     parser.add_argument('--perception', type=int, help='Test character Wisdom (Perception) modifier')
@@ -959,6 +1188,11 @@ def main():
     parser.add_argument('--action-file', help='UTF-8 player action file for prepare')
     parser.add_argument('--turn-id', help='Turn ID returned by prepare')
     parser.add_argument('--input-file', help='JSON plan, speech, or combined output; - reads stdin')
+    parser.add_argument('--text', help='feedback: the player’s out-of-character comment')
+    parser.add_argument('--evidence', action='append',
+                        help='feedback: committed turn ID the comment is about (repeatable; '
+                             'default: latest turn)')
+    parser.add_argument('--replaces', default='none', help='feedback: note id this feedback supersedes')
     args = parser.parse_args()
     runtime = Runtime(args.db)
     try:
@@ -972,10 +1206,16 @@ def main():
             print(json.dumps(runtime.recent_kit_turns(), indent=2, ensure_ascii=False))
         elif args.command == 'timing':
             print(json.dumps(runtime.recent_kit_timings(), indent=2, ensure_ascii=False))
-        elif args.command in ('prepare', 'decide', 'finish', 'complete'):
+        elif args.command == 'notes':
+            print(json.dumps(runtime.player_notes(), indent=2, ensure_ascii=False))
+        elif args.command in ('prepare', 'decide', 'finish', 'complete', 'feedback'):
             bridge = KitChatBridge(runtime, Room6CAdjudicator(args.perception, args.insight))
             try:
-                if args.command == 'prepare':
+                if args.command == 'feedback':
+                    if not args.text:
+                        parser.error('feedback requires --text')
+                    result = bridge.feedback(args.text, args.evidence, args.replaces)
+                elif args.command == 'prepare':
                     if args.opening:
                         if args.action is not None or args.action_file is not None:
                             parser.error('--opening does not take an action')

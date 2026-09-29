@@ -6,6 +6,7 @@ or future validated server adapter, never direct player tool access.
 import copy
 import hashlib
 import json
+import re
 import secrets
 import sqlite3
 from pathlib import Path
@@ -13,6 +14,20 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 PERSONALITY_CORE = PROJECT_ROOT / 'docs/personality/dm-personality-core.md'
 RHYTHM_EVIDENCE_MAX_CHARS = 600  # per recent_rhythm entry; 12 entries stay inside context()
+
+# Version 2 adds Kit's player_notes and richer episodes (player_bid, kit_choice,
+# actor and story thread). Older snapshots are upgraded in memory on load; the
+# stored history is never rewritten, and the next commit saves the new shape.
+STATE_SCHEMA_VERSION = 2
+KIT_EPISODE_LIMIT = 24       # stored; the decision sees a relevance-selected subset
+PLAYER_NOTE_LIMIT = 8
+PLAYER_NOTE_MAX_CHARS = 300
+PLAYER_NOTE_MAX_EVIDENCE = 4
+PLAYER_NOTE_SOURCES = ('observed', 'feedback')
+EPISODE_DEFAULTS = {'player_bid': None, 'kit_choice': None, 'actor_ref': None,
+                    'story_anchor': None, 'story_basis': None}
+# Notes describe what the player did or said. They are not a relationship meter.
+_SCORE_PATTERN = r'\b\d+\s*(/|out of)\s*\d+\b|%|\b(score|meter|affection|rating)\b'
 
 
 class InvalidChange(ValueError):
@@ -30,6 +45,32 @@ def encode(value):
 def require(condition, message):
     if not condition:
         raise InvalidChange(message)
+
+
+def upgrade_state(state):
+    """Bring an older snapshot up to STATE_SCHEMA_VERSION without inventing history.
+
+    Version 1 Kit state had only episodes and current_appraisal. Missing episode
+    fields are filled with None (unknown), never guessed from other fields.
+    """
+    if state.get('schema_version', 1) >= STATE_SCHEMA_VERSION:
+        return state
+    kit = state.setdefault('kit', {})
+    kit.setdefault('episodes', [])
+    kit.setdefault('current_appraisal', None)
+    kit.setdefault('player_notes', [])
+    for episode in kit['episodes']:
+        for key, default in EPISODE_DEFAULTS.items():
+            episode.setdefault(key, default)
+    state['schema_version'] = STATE_SCHEMA_VERSION
+    return state
+
+
+def check_player_note_text(text):
+    require(isinstance(text, str) and 0 < len(text.strip()) <= PLAYER_NOTE_MAX_CHARS,
+            f'A player note must be 1–{PLAYER_NOTE_MAX_CHARS} characters')
+    require(re.search(_SCORE_PATTERN, text.casefold()) is None,
+            'A player note records observed behavior or feedback, not a score or meter')
 
 
 class Runtime:
@@ -72,11 +113,11 @@ class Runtime:
         for actor in source['actors'].values():
             require(actor['location'] in source['areas'], 'Unknown actor area')
         state = {
-            'schema_version': 1, 'area': area, 'elapsed_seconds': 0,
+            'schema_version': STATE_SCHEMA_VERSION, 'area': area, 'elapsed_seconds': 0,
             'visited': [area], 'known_facts': [], 'known_exits': [],
             'actors': copy.deepcopy(source['actors']),
             'resources': copy.deepcopy(source['resources']), 'rhythm': [],
-            'kit': {'episodes': [], 'current_appraisal': None},
+            'kit': {'episodes': [], 'current_appraisal': None, 'player_notes': []},
             'roll_seed': secrets.token_hex(16),
         }
         self._observe(state, source)
@@ -92,7 +133,7 @@ class Runtime:
     def load(self):
         row = self.db.execute('SELECT revision, body FROM snapshots ORDER BY revision DESC LIMIT 1').fetchone()
         require(row is not None, 'Initialize a session first')
-        return row[0], json.loads(row[1])
+        return row[0], upgrade_state(json.loads(row[1]))
 
     @staticmethod
     def _observe(state, source):
@@ -206,9 +247,11 @@ class Runtime:
             source = self.source()
             for event in events:
                 self._apply(state, source, event)
+            next_revision = revision + 1
             if kit_record is not None:
-                kit = state.setdefault('kit', {'episodes': [], 'current_appraisal': None})
+                kit = state['kit']
                 trace = kit_record['trace']
+                read = trace.get('improv_read') if isinstance(trace.get('improv_read'), dict) else {}
                 kit['current_appraisal'] = trace['appraisal']
                 kit['episodes'].append({
                     'turn_id': turn_id, 'player_input': kit_record['player_input'],
@@ -216,9 +259,20 @@ class Runtime:
                     'goal': trace.get('goal'), 'move': trace['move'],
                     'brief': trace.get('public_brief'),
                     'public_event': kit_record['public_event'],
+                    # Private: Kit's own reason and her reading of the bid, kept so a
+                    # later decision can see why she did what she did.
+                    'player_bid': read.get('player_bid'), 'kit_choice': read.get('kit_choice'),
+                    'actor_ref': read.get('actor_ref'), 'story_anchor': read.get('story_anchor'),
+                    'story_basis': read.get('story_basis'),
                 })
-                kit['episodes'] = kit['episodes'][-12:]
-            next_revision = revision + 1
+                kit['episodes'] = kit['episodes'][-KIT_EPISODE_LIMIT:]
+                note = trace.get('player_note')
+                if isinstance(note, dict) and str(note.get('note', 'none')).strip().casefold() != 'none':
+                    evidence = [turn_id if ref == 'this_turn' else ref
+                                for ref in note.get('evidence_turns', [])]
+                    self._add_player_note(state, f'n{next_revision}', 'observed', note['note'],
+                                          evidence, note.get('replaces', 'none'),
+                                          current_turn=turn_id)
             self.db.execute('INSERT INTO turns VALUES (?, ?, ?)', (turn_id, digest, next_revision))
             self.db.executemany('INSERT INTO ledger(turn_id, body) VALUES (?, ?)',
                                 [(turn_id, encode(event)) for event in events])
@@ -274,6 +328,78 @@ class Runtime:
             ORDER BY turns.revision DESC LIMIT ?''', (limit,)).fetchall()
         return list(reversed([json.loads(row[0]) for row in rows]))
 
+    def committed_kit_turn_ids(self):
+        return {row[0] for row in self.db.execute('SELECT turn_id FROM kit_turns')}
+
+    def kit_turns_by_id(self, turn_ids):
+        """Committed public records for the given turns, oldest first."""
+        wanted = [ref for ref in dict.fromkeys(turn_ids) if isinstance(ref, str)]
+        if not wanted:
+            return []
+        rows = self.db.execute(
+            f'''SELECT kit_turns.turn_id, kit_turns.body FROM kit_turns
+            JOIN turns ON turns.id = kit_turns.turn_id
+            WHERE kit_turns.turn_id IN ({','.join('?' * len(wanted))})
+            ORDER BY turns.revision''', wanted).fetchall()
+        return [{'turn_id': row[0], **json.loads(row[1])} for row in rows]
+
+    def latest_kit_turn_id(self):
+        row = self.db.execute('''SELECT kit_turns.turn_id FROM kit_turns
+            JOIN turns ON turns.id = kit_turns.turn_id ORDER BY turns.revision DESC LIMIT 1''').fetchone()
+        return row[0] if row else None
+
+    def player_notes(self):
+        return self.load()[1]['kit']['player_notes']
+
+    def record_player_feedback(self, text, evidence_turns=None, replaces='none'):
+        """Record the player's out-of-character comment as an evidence-cited note.
+
+        It is committed like any other adjudicated change (its own revision and an
+        append-only ledger entry), so a turn prepared before it must be prepared again.
+        Retrying the same comment about the same turn is idempotent.
+        """
+        check_player_note_text(text)
+        revision, _ = self.load()
+        if evidence_turns is None:
+            latest = self.latest_kit_turn_id()
+            require(latest is not None,
+                    'Feedback must cite a committed turn; play the opening first')
+            evidence_turns = [latest]
+        event = {'type': 'player_note', 'source': 'feedback', 'note': text.strip(),
+                 'evidence_turns': list(evidence_turns), 'replaces': replaces or 'none',
+                 'evidence': 'The host recorded the player\'s out-of-character feedback.'}
+        # Same comment about the same turn is the same feedback: a retry after a lost
+        # response returns the original revision instead of adding a duplicate note.
+        digest = hashlib.sha256(encode(event).encode()).hexdigest()[:16]
+        next_revision = self.commit(f'feedback-{digest}', revision, [event])
+        return {'revision': next_revision, 'note': next(
+            (note for note in self.player_notes() if note['id'] == f'n{next_revision}'), None)}
+
+    def _add_player_note(self, state, note_id, source, text, evidence_turns, replaces='none',
+                         current_turn=None):
+        """Every note cites committed turns; notes can retire older observed notes."""
+        require(source in PLAYER_NOTE_SOURCES, 'Unknown player note source')
+        check_player_note_text(text)
+        committed = self.committed_kit_turn_ids()
+        require(isinstance(evidence_turns, list) and
+                0 < len(evidence_turns) <= PLAYER_NOTE_MAX_EVIDENCE and
+                all(isinstance(ref, str) and (ref in committed or ref == current_turn)
+                    for ref in evidence_turns),
+                f'A player note must cite 1–{PLAYER_NOTE_MAX_EVIDENCE} committed turn IDs')
+        notes = state['kit']['player_notes']
+        if replaces not in (None, 'none'):
+            old = next((note for note in notes if note['id'] == replaces), None)
+            require(old is not None, 'replaces must name an existing player note')
+            require(source == 'feedback' or old['source'] == 'observed',
+                    'Only new feedback can replace the player\'s own feedback')
+            notes.remove(old)
+        notes.append({'id': note_id, 'source': source, 'note': text.strip(),
+                      'evidence_turns': list(dict.fromkeys(evidence_turns))})
+        while len(notes) > PLAYER_NOTE_LIMIT:
+            # Drop the oldest inferred note before any explicit feedback.
+            observed = [note for note in notes if note['source'] == 'observed']
+            notes.remove(observed[0] if observed else notes[0])
+
     def _apply(self, state, source, event):
         require(isinstance(event, dict), 'Event must be an object')
         require(isinstance(event.get('evidence'), str) and bool(event['evidence'].strip()),
@@ -319,6 +445,11 @@ class Runtime:
             seconds = event.get('seconds')
             require(type(seconds) is int and seconds > 0, 'Time increment must be a positive integer')
             state['elapsed_seconds'] += seconds
+        elif kind == 'player_note':
+            require(event.get('source') == 'feedback', 'Only host-recorded feedback is a note event')
+            revision, _ = self.load()
+            self._add_player_note(state, f'n{revision + 1}', 'feedback', event.get('note'),
+                                  event.get('evidence_turns'), event.get('replaces', 'none'))
         elif kind == 'beat':
             tags = event.get('tags')
             require(isinstance(tags, list) and all(isinstance(t, str) for t in tags), 'Invalid beat tags')
@@ -390,7 +521,8 @@ class Runtime:
                      'This synthetic fixture is not Mad Mage canon and is not a campaign save.'),
                 ],
                 'missing_production_layers': ['rules resolver', 'source retrieval', 'level story state',
-                    'Halaster state', 'faction ticks', 'player model', 'character patterns'],
+                    'Halaster state', 'faction ticks', 'player model beyond evidence-cited notes',
+                    'character patterns'],
             },
         }
         require(len(encode(packet).encode()) <= max_bytes, 'Context budget exceeded; narrow the source adapter')

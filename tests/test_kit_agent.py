@@ -79,9 +79,11 @@ class RecordingModel:
                              else payload['player_action']),
                 'scope': 'feature' if payload['action_kind'] == 'opening' else 'exchange',
                 'kit_focus': KIT_FOCUS,
+                'callback': 'none',
             },
             'focus_actor': 'uktarl',
             'table_presence': 'brief', 'tone': 'wry',
+            'player_note': {'note': 'none', 'evidence_turns': [], 'replaces': 'none'},
         }
 
     def perform(self, payload, performance_variant='current'):
@@ -417,6 +419,7 @@ class KitAgentTests(unittest.TestCase):
                         'player_opening': 'The newcomer can speak, observe, or leave.',
                         'reply_to': 'none', 'scope': 'feature',
                         'kit_focus': 'Let the interrupted game, not the room inventory, greet the newcomer.',
+                        'callback': 'none',
                     })
         speech = {'segments': [
             {'speaker': 'Narrator', 'text': ('A card pauses between the dealer’s fingers mid-deal. Four pale '
