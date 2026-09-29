@@ -1277,15 +1277,18 @@ def trim_order(chosen, stored, action, recent=MEMORY_RECENT):
 
 
 # Context budget. The private decision input (personality core, DM context, memory,
-# notes, public dialogue) stays within CONTEXT_BUDGET_BYTES (26 KB), the same budget
+# notes, public dialogue) stays within CONTEXT_BUDGET_BYTES (88 KB), the same budget
 # context() always enforced, now including memory. A one-pass input also carries the
-# public half (mostly the static actor cards, ~8 KB, with the core and dialogue history
-# deduplicated out), so the whole one-pass input stays within ONE_PASS_BUDGET_BYTES.
+# public half (the static actor cards, ~7 KB, plus the post-event player view when the
+# turn changes it, with the core and dialogue history deduplicated out), so the whole
+# one-pass input stays within ONE_PASS_BUDGET_BYTES.
 # When either would be exceeded, memory is trimmed in this order, least valuable first,
 # and the packet says what was trimmed. Player notes are never trimmed (at most 8).
-# 33 KB, up from 32 KB with CONTEXT_BUDGET_BYTES (kit-coherence-gambling): the same
-# ~1 KB for the amended core, plus the lean detail_oracle on a detail turn.
-ONE_PASS_BUDGET_BYTES = 33000
+# 118 KB, up from 33 KB (PR #15 fix pass, QA item 9): in the measured worst case (a long
+# card game plus 48 max-length canon entries, a card turn that changes the view) the
+# public half is ~27.4 KB and the combined floor after every memory trim is ~106.1 KB.
+# 118 KB is the private budget plus that public half, with ~2.6 KB to spare.
+ONE_PASS_BUDGET_BYTES = 118000
 CONTEXT_KEEP_HISTORY = 1          # public dialogue turns always kept
 CONTEXT_KEEP_RHYTHM = 3           # recent_rhythm entries always kept
 EPISODE_SPOKEN_TRIM_CHARS = 300   # public excerpt per episode after trimming

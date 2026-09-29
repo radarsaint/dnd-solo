@@ -27,7 +27,19 @@ RHYTHM_EVIDENCE_MAX_CHARS = 600  # per recent_rhythm entry; 12 entries stay insi
 # carries the private detail_oracle (~1.5-2.5 KB, only when the player asks for a detail).
 # Packet trimming is deliberately out of scope for this change (Brendon dropped the
 # latency fix), so the ceiling moves instead.
-CONTEXT_BUDGET_BYTES = 26000
+# 88 KB, up from 26 KB (PR #15 fix pass, QA item 9): a long card game plus a full detail
+# ledger must fit. Measured worst case (ContextBudgetTests.
+# test_a_long_card_game_with_a_full_detail_ledger_fits): 12 long turns, a Three-Dragon
+# Ante gambit mid-play (largest procedure state over 30 seeds, ~3.6 KB), and CANON_LIMIT
+# (48) canon entries at the maximum fact (240) and basis (200) lengths. The canon alone
+# is ~47 KB (canon_here ~33 KB DM-side plus established_details ~15 KB public). The
+# irreducible private floor after every memory trim is ~78.9 KB; 88 KB keeps ~9 KB for
+# memory. Nothing is trimmed for speed: Brendon put latency out of scope.
+CONTEXT_BUDGET_BYTES = 88000
+# A staged or one-pass body carries the post-event public view (with the whole ledger)
+# and the procedure state: ~49.4 KB in the same worst case.
+PENDING_TURN_MAX_BYTES = 64000
+CANON_BASIS_MAX_CHARS = 200
 
 # Version 2 adds Kit's player_notes and richer episodes (player_bid, kit_choice,
 # actor and story thread). Older snapshots are upgraded in memory on load; the
@@ -257,7 +269,7 @@ class Runtime:
         require(isinstance(turn_id, str) and bool(turn_id.strip()), 'Turn ID required')
         require(isinstance(body, dict), 'Pending turn body required')
         serialized = encode(body)
-        require(len(serialized.encode()) <= 16000, 'Pending turn exceeds size limit')
+        require(len(serialized.encode()) <= PENDING_TURN_MAX_BYTES, 'Pending turn exceeds size limit')
         self.db.execute('BEGIN IMMEDIATE')
         try:
             if self.db.execute('SELECT 1 FROM turns WHERE id=?', (turn_id,)).fetchone() is not None:
@@ -608,8 +620,8 @@ class Runtime:
                     'Unknown canon_entry kind or scope')
             require(isinstance(event.get('fact'), str) and 0 < len(event['fact'].strip()) <= 240,
                     'canon_entry fact must be 1-240 characters')
-            require(isinstance(event.get('basis'), str) and event['basis'].strip(),
-                    'canon_entry needs its basis')
+            require(isinstance(event.get('basis'), str) and 0 < len(event['basis'].strip()) <= CANON_BASIS_MAX_CHARS,
+                    f'canon_entry needs its basis (1-{CANON_BASIS_MAX_CHARS} characters)')
             require(type(event.get('public')) is bool, 'canon_entry public must be a boolean')
             procedure = event.get('procedure')
             if procedure is not None or event['kind'] == 'procedure':

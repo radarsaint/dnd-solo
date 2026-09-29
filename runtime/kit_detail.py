@@ -36,6 +36,7 @@ INVENTION_KINDS = ('object', 'drink_food', 'appearance', 'name', 'price', 'inscr
 SCOPES = ('scene', 'location', 'actor', 'campaign')
 MAX_INVENTIONS = 4
 INVENTION_FACT_MAX_CHARS = 240
+INVENTION_BASIS_MAX_CHARS = 200  # the canon ledger's bound (state_context.CANON_BASIS_MAX_CHARS)
 SLOT_PATTERN = re.compile(r'^[a-z0-9_:]+(/[a-z0-9_]+){1,3}$')
 MIN_CANDIDATES, MAX_CANDIDATES = 3, 5
 LINE_MAX_CHARS = 160
@@ -371,8 +372,10 @@ def _check_inventions(detail, source, state, supported, dealt, choice, target, q
         fact = item['fact']
         require(isinstance(fact, str) and 0 < len(fact.strip()) <= INVENTION_FACT_MAX_CHARS,
                 f'Invention fact must be 1-{INVENTION_FACT_MAX_CHARS} characters')
-        require(isinstance(item['basis'], str) and len(item['basis'].split()) >= 3,
-                'Invention basis must say why this is a DM choice (what the source leaves open)')
+        require(isinstance(item['basis'], str) and len(item['basis'].split()) >= 3 and
+                len(item['basis'].strip()) <= INVENTION_BASIS_MAX_CHARS,
+                'Invention basis must say why this is a DM choice (what the source leaves open), '
+                f'in at most {INVENTION_BASIS_MAX_CHARS} characters')
         require(not generic_answer(fact), GENERIC_REASON.format(answer=fact.strip()))
         require(slot.split('/')[-1] not in (source or {}).get('facts', {}),
                 'Invention collides with a source fact; the source already settles it')
