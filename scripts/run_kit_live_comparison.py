@@ -10,6 +10,7 @@ touched), runs the same fixed player inputs through each version's own
   traces/        Kit's private decisions (DM-only; keep away from reviewers)
   latency.csv    per-turn wall-clock time, model calls, and token usage
   blind_pairs.json  input for scripts/blind_performance_review.py
+  blind/review.md   randomized A/B reviewer packet (answer key: blind_answer_key.json)
   run.json       model, refs, SHAs, fixture hash, settings
 
 Arms (fresh room database each):
@@ -91,6 +92,9 @@ def export_ref(ref, dest):
 
 # ---------------------------------------------------------------- worker side
 
+class AccountBlocked(SystemExit):
+    """The API account cannot serve requests (auth, quota, or billing)."""
+
 def worker(args):
     sys.path.insert(0, str(args.root))
     from runtime import kit_agent
@@ -125,6 +129,10 @@ def worker(args):
                     result = json.load(response)
             except kit_agent.urllib.error.HTTPError as exc:
                 detail = exc.read().decode('utf-8', 'replace')[:500]
+                if exc.code in (401, 403) or 'insufficient_quota' in detail:
+                    # Account/billing/auth failure: nothing about Kit can be learned. Stop the
+                    # whole run instead of writing a folder of rejected turns that looks like data.
+                    raise AccountBlocked(f'HTTP {exc.code}: {detail}') from exc
                 call.update(seconds=round(time.monotonic() - started, 3), error=f'HTTP {exc.code}: {detail}')
                 self.calls.append(call)
                 raise InvalidChange(f'Model request failed: HTTP {exc.code}: {detail}') from exc
@@ -216,7 +224,7 @@ def orchestrate(args):
     stamp = dt.datetime.now(dt.timezone.utc).strftime('%Y%m%dT%H%M%SZ')
     out = args.out or REPO / 'tests/playtests/live-runs' / f'{stamp}-{args.model or "check"}'
     with tempfile.TemporaryDirectory() as temp:
-        raw = {}
+        raw, jobs = {}, []
         for label, sha in shas.items():
             root = Path(temp) / label
             export_ref(sha, root)
@@ -234,17 +242,36 @@ def orchestrate(args):
                 print(f'{label} {sha[:7]}: import/prepare {status}; brief fields {probe.stdout.strip()}'
                       f'{probe.stderr.strip()[-400:]}')
                 continue
-            output = Path(temp) / f'{label}.json'
-            print(f'Running {label} ({sha[:7]}) with {args.model}...', file=sys.stderr)
-            command = [sys.executable, str(Path(__file__).resolve()), '--worker', '--label', label,
-                       '--root', str(root), '--output', str(output), '--model', args.model,
-                       '--arms', ','.join(args.arms), '--samples', str(args.samples),
-                       '--perception', str(args.perception), '--insight', str(args.insight),
-                       '--max-output-tokens', str(args.max_output_tokens), '--timeout', str(args.timeout)]
-            if args.reasoning_effort:
-                command += ['--reasoning-effort', args.reasoning_effort]
-            subprocess.run(command, cwd=root, check=True)
-            raw[label] = json.loads(output.read_text(encoding='utf-8'))
+            # One worker per (version, arm); --jobs of them run at once. Turns inside an
+            # arm stay sequential, and latency is timed per request inside each worker.
+            for arm in args.arms:
+                output = Path(temp) / f'{label}-{arm}.json'
+                command = [sys.executable, str(Path(__file__).resolve()), '--worker', '--label', label,
+                           '--root', str(root), '--output', str(output), '--model', args.model,
+                           '--arms', arm, '--samples', str(args.samples),
+                           '--perception', str(args.perception), '--insight', str(args.insight),
+                           '--max-output-tokens', str(args.max_output_tokens), '--timeout', str(args.timeout)]
+                if args.reasoning_effort:
+                    command += ['--reasoning-effort', args.reasoning_effort]
+                jobs.append((label, root, output, command))
+        if not args.check:
+            print(f'Running {len(jobs)} workers with {args.model}, {args.jobs} at a time...', file=sys.stderr)
+            pending, running = list(jobs), []
+            while pending or running:
+                while pending and len(running) < args.jobs:
+                    label, root, output, command = pending.pop(0)
+                    running.append((subprocess.Popen(command, cwd=root), label, output))
+                for item in list(running):
+                    if item[0].poll() is not None:
+                        running.remove(item)
+                        if item[0].returncode != 0:
+                            for other in running:
+                                other[0].kill()
+                            raise SystemExit(f'Worker for {item[1]} failed ({item[0].returncode}); '
+                                             'no output was written.')
+                time.sleep(0.5)
+            for label, _, output, _ in jobs:
+                raw.setdefault(label, []).extend(json.loads(output.read_text(encoding='utf-8')))
         if args.check:
             return 0
     write_outputs(out, raw, refs, shas, args, stamp)
@@ -291,21 +318,29 @@ def write_outputs(out, raw, refs, shas, args, stamp):
     (out / 'blind_pairs.json').write_text(json.dumps(
         {'experiment': f'kit-live-{stamp}', 'pairs': pairs}, indent=2, ensure_ascii=False) + '\n',
         encoding='utf-8')
+    # Blind A/B packet: randomized left/right per arm/sample, answer key in a separate file.
+    sys.path.insert(0, str(REPO / 'scripts'))
+    import blind_performance_review as review_tool
+    data, digest = review_tool.load_experiment(out / 'blind_pairs.json')
+    review, key = review_tool.render_review(data, digest, args.blind_seed)
+    (out / 'blind').mkdir(exist_ok=True)
+    (out / 'blind' / 'review.md').write_text(review + '\n', encoding='utf-8')
+    (out / 'blind_answer_key.json').write_text(json.dumps(key, indent=2, ensure_ascii=False) + '\n',
+                                                 encoding='utf-8')
     fixture_bytes = (REPO / FIXTURE_REL).read_bytes()
     (out / 'run.json').write_text(json.dumps({
         'started_utc': stamp, 'model': args.model, 'refs': refs, 'shas': shas,
         'arms': {arm: {'steps': ARMS[arm], 'expectation': EXPECTATIONS[arm]} for arm in args.arms},
         'samples': args.samples, 'perception': args.perception, 'insight': args.insight,
         'max_output_tokens': args.max_output_tokens, 'reasoning_effort': args.reasoning_effort,
-        'timeout_s': args.timeout, 'fixture_sha256_candidate_checkout': hashlib.sha256(fixture_bytes).hexdigest(),
+        'timeout_s': args.timeout, 'jobs': getattr(args, 'jobs', 1), 'blind_seed': args.blind_seed, 'fixture_sha256_candidate_checkout': hashlib.sha256(fixture_bytes).hexdigest(),
         'python': platform.python_version(),
         'note': ('Same inputs and settings for both versions. Transcripts are player-facing only; traces are '
                  'DM-only. Review transcripts blind before opening traces. Dice for keyed checks come from '
                  'each fresh session\'s random roll_seed, so check outcomes can differ between versions.'),
     }, indent=2, ensure_ascii=False) + '\n', encoding='utf-8')
     print(f'Wrote {out}')
-    print('Blind packet: python scripts/blind_performance_review.py '
-          f'--input {out / "blind_pairs.json"} --review {out / "review.md"} --key {out / "answer_key.json"} --seed 19')
+    print(f'Blind packet: {out / "blind" / "review.md"} (answer key: {out / "blind_answer_key.json"})')
 
 
 def main(argv=None):
@@ -321,6 +356,8 @@ def main(argv=None):
                         help='Runtime default is 1800; reasoning models may need more. Same for both versions.')
     parser.add_argument('--reasoning-effort', choices=['minimal', 'low', 'medium', 'high'])
     parser.add_argument('--timeout', type=int, default=300, help='Per-request timeout in seconds')
+    parser.add_argument('--jobs', type=int, default=1, help='Concurrent (version, arm) workers')
+    parser.add_argument('--blind-seed', type=int, default=19, help='Recorded seed for the blind A/B order')
     parser.add_argument('--out', type=Path, help='Output directory (default tests/playtests/live-runs/<stamp>-<model>)')
     parser.add_argument('--check', action='store_true', help='Export and import both refs; no model calls')
     parser.add_argument('--worker', action='store_true', help=argparse.SUPPRESS)

@@ -102,12 +102,11 @@ The long-form design proposes appetite pressure and relationship tracking. They 
 ```sh
 export OPENAI_API_KEY=...            # the script refuses to run without it and writes nothing
 python scripts/run_kit_live_comparison.py --check                  # exports both refs, no model calls
-python scripts/run_kit_live_comparison.py --model gpt-5 --samples 2
-python scripts/blind_performance_review.py --input OUT/blind_pairs.json \
-    --review OUT/review.md --key OUT/answer_key.json --seed 19
+python scripts/run_kit_live_comparison.py --model gpt-5 --samples 2 --jobs 10
+# writes OUT/blind/review.md (randomized A/B) and OUT/blind_answer_key.json automatically
 ```
 
-The script exports baseline `79173a1` and the candidate (default `HEAD`) with `git archive`, so your checkout is untouched. It runs each version's own agent with identical inputs and settings. Output goes to `tests/playtests/live-runs/<UTC stamp>-<model>/`: `transcripts/` (player-facing only), `traces/` (DM-only; do not show reviewers), `latency.csv`, `blind_pairs.json`, and `run.json`. `--max-output-tokens` defaults to 8000 for both versions, because reasoning models spend output tokens on thinking and the runtime's own 1800 limit may cut them off. Pass `--max-output-tokens 1800` to reproduce the runtime default exactly. Dice for keyed checks come from each fresh session's seed, so a check result can differ between versions; compare those turns with that in mind.
+The script exports baseline `79173a1` and the candidate (default `HEAD`) with `git archive`, so your checkout is untouched. It runs each version's own agent with identical inputs and settings. Output goes to `tests/playtests/live-runs/<UTC stamp>-<model>/`: `transcripts/` (player-facing only), `traces/` (DM-only; do not show reviewers), `latency.csv`, `blind_pairs.json`, `blind/review.md` with `blind_answer_key.json`, and `run.json`. `--max-output-tokens` defaults to 8000 for both versions, because reasoning models spend output tokens on thinking and the runtime's own 1800 limit may cut them off. Pass `--max-output-tokens 1800` to reproduce the runtime default exactly. Dice for keyed checks come from each fresh session's seed, so a check result can differ between versions; compare those turns with that in mind.
 
 ## Checklist: what future design work must include to count as evidence
 
@@ -125,3 +124,20 @@ Nothing below is satisfied by a document, label, prompt, or passing unit test.
 - [ ] **Hard violations logged separately.** Source errors, private leaks, invented player actions, and unsupported results disqualify a sample, whatever its prose quality.
 - [ ] **Latency from real runs.** Report per-turn time (from `kit_telemetry` or the harness `latency.csv`), model calls, and retries. Speed is telemetry, not a gate, during this phase.
 - [ ] **A failure is a result.** If the private trace improves and the transcript does not, record that and do not promote the change.
+
+## Results so far
+
+**No real-model evidence exists yet.** This section will change when it does.
+
+- **Attempted:** 2026-09-28 at 7:12 PM PT. Command: `python scripts/run_kit_live_comparison.py --model gpt-5 --samples 2 --jobs 10`, with all five arms, baseline `79173a1` versus candidate `b6168e2`, and the default `--max-output-tokens 8000` for both versions.
+- **Result:** every request was refused with `HTTP 429 insufficient_quota` / `credit_balance_exhausted` ("You have no credits remaining"). The account's model list does include `gpt-5`, so the model choice was not the problem. A one-line request to `gpt-5-nano` and to `gpt-4.1-nano` got the same billing refusal, so no other model would have helped.
+- **No Kit turn reached a model**, so there are no transcripts, no validator pass/fail/retry counts, no latency figures, and no violation findings for either version. The error-only output folder was deleted rather than committed, because it would look like data.
+- **Harness changes made because of this:**
+  - The script now stops at once on an auth or quota failure (401, 403, or `insufficient_quota`) and writes nothing.
+  - It automatically writes a randomized blind A/B packet (`blind/review.md`) and a separate answer key (`blind_answer_key.json`) with a recorded seed.
+  - `--jobs N` runs the (version, arm) workers concurrently. Turns inside an arm stay in order, and per-call latency is still timed per request.
+- **To produce the first results once credits are added:** `python scripts/run_kit_live_comparison.py --model gpt-5 --samples 2 --jobs 10`. Output lands in `tests/playtests/live-runs/<UTC stamp>-gpt-5/`.
+- **Caveats that will still apply:**
+  - The author of this change also wrote the harness. Its first run is a check that the harness works and a list of violations, not a quality verdict. Quality needs blind reviewers who did not write the change.
+  - `other_scene` is a stand-in in the same room, not a second actor or room.
+  - Check outcomes use each session's random dice, so they can differ between versions.
