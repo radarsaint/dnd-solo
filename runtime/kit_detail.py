@@ -211,8 +211,9 @@ def source_quote(oracle):
             'basis': f'adventure source: {price["name"]}', 'source': 'adventure'}
 
 
-_MAGIC_KEYS = ('impact_kind', 'dice', 'charges', 'bonus', 'levels', 'utility', 'aoe', 'entry_level',
-               'category', 'official_price_gp')
+_MAGIC_KEYS = ('impact_kind', 'dice', 'charges', 'bonus', 'levels', 'utility', 'aoe', 'renews',
+               'entry_level', 'category', 'official_price_gp')
+_MAGIC_FLAGS = ('aoe', 'renews')
 
 
 def parse_magic(text):
@@ -227,6 +228,8 @@ def parse_magic(text):
         if value.casefold() in ('yes', 'true'):
             spec[key] = True
         elif value.casefold() in ('no', 'false', 'none'):
+            if key in _MAGIC_FLAGS:
+                spec[key] = False  # "renews=no" is a statement, not an omission
             continue
         elif re.fullmatch(r'-?\d+', value):
             spec[key] = int(value)

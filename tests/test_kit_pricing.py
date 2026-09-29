@@ -38,8 +38,29 @@ class FormulaExampleTests(unittest.TestCase):
         self.assertEqual(value, 784)
         self.assertIn('area of effect x4 = 784', text)
         result = pricing.price({'item': 'Wand of Fireballs', 'impact_kind': 'charged', 'dice': '8d6',
-                                'charges': 7, 'aoe': True, 'entry_level': 9, 'category': 'Complex Multi-Ability'})
+                                'charges': 7, 'aoe': True, 'renews': True, 'entry_level': 9,
+                                'category': 'Complex Multi-Ability'})
         self.assertEqual(result['final_price'], '784 x 200 = 156800 -> 157000 gp')
+
+    def test_renewing_charges_are_never_consumable(self):
+        """Brendon (2026-09-29): a wand of fireballs recharges daily, so it is not
+        Consumable; a necklace of fireballs' beads do not renew, so it is."""
+        wand = {'item': 'Wand of Fireballs', 'impact_kind': 'charged', 'dice': '8d6', 'charges': 7,
+                'aoe': True, 'renews': True, 'entry_level': 9}
+        with self.assertRaisesRegex(InvalidChange, 'never Consumable'):
+            pricing.price({**wand, 'category': 'Consumable'})
+        result = pricing.price({**wand, 'category': 'Utility'})
+        self.assertEqual((result['item_category'], result['amount']), ('Utility', 118000))
+        self.assertEqual(result['final_price'], '784 x 150 = 117600 -> 118000 gp')
+        necklace = {'item': 'Necklace of Fireballs', 'impact_kind': 'charged', 'dice': '8d6', 'charges': 6,
+                    'aoe': True, 'renews': False, 'entry_level': 9}
+        self.assertEqual(pricing.price({**necklace, 'category': 'Consumable'})['item_category'], 'Consumable')
+        with self.assertRaisesRegex(InvalidChange, 'non-renewing charges are Consumable'):
+            pricing.price({**necklace, 'category': 'Utility'})
+        from runtime import kit_detail
+        self.assertIs(kit_detail.parse_magic('impact_kind=charged; renews=no')['renews'], False)
+        with self.assertRaisesRegex(InvalidChange, 'must say whether its charges renew'):
+            pricing.price({key: value for key, value in wand.items() if key != 'renews'} | {'category': 'Utility'})
 
     def test_potion_of_healing_is_a_single_use_of_2d4_plus_2(self):
         result = pricing.price({'item': 'Potion of Healing', 'impact_kind': 'consumable', 'dice': '2d4+2',

@@ -587,21 +587,32 @@ And the priced version: **"How much for a mug of that?"**. Here the default is "
 | --- | --- |
 | Assistant default | "High card. A matching coin from each player." |
 | The deal | Three-Dragon Ante (published, procedure `three_dragon_ante`), Texas hold 'em called "Graves", blackjack called "Twenty-One Coffins", Old Maid as "Last Widow". Each card is familiar, and each cites `card_table` / `treasure_on_table`. |
-| DM answer | *Narrator:* The dealer fans dragon cards in five colors across the worn felt: Three-Dragon Ante, three to a hand, the stakes climbing before the reveal. *Dealer:* (his own voice, his own terms) |
-| Why | The owner is Uktarl, who wants a game where knowing the cards pays. The handle: buy in, bet, fold, or watch the deal. It's true because the four play cards with coins in front of them. It is a **DM choice, not the adventure's**: area 6c names no game. The choice is saved as canon with its procedure, so the runtime can run the game the dealer offers (i6). |
+| DM answer | *Narrator:* The dealer fans dragon cards in ten colors across the worn felt: Three-Dragon Ante, where each player antes a card and the strongest ante sets the stakes. *Dealer:* (his own voice, his own terms) |
+| Why | The owner is Uktarl, who wants a game where knowing the cards pays. The handle: buy in, ante a card, or watch the deal. It's true because the four play cards with coins in front of them. It is a **DM choice, not the adventure's**: area 6c names no game. The choice is saved as canon with its procedure, so the runtime can run the game the dealer offers (i6). |
 
 ### i6. Area 6c's card game, and the marked deck in three games
 
-`runtime/kit_cards.py` runs Kit's short table rules for **Three-Dragon Ante**. Dragon cards come in five colors, strengths 1-9, three to a hand. There's a 2 gp ante and 2 gp raises, and the table raises once. A flight beats a mixed hand, then the higher total wins. The player states their buy-in from their own purse. Seat stacks split the table's 85 gp (a DM choice). All public and private state persists as `procedure_state`, and a pot remainder carries over to the next hand.
+`runtime/kit_cards.py` runs **Three-Dragon Ante** in the published game's structure, with Kit's own short deck and power list, all written in our own words (no rulebook text is copied; `test_the_rules_summary_is_our_own_words` checks it):
 
-**The cheat, by rule:** Uktarl reads the marks as he deals. He knows roughly what you hold, and he deals himself the better of his own three and the next three (dealing seconds). His betting follows what he knows, with an occasional bluff.
+- **Deck and hands.** Ten dragon colors, five chromatic and five metallic, six cards each, strengths 1-13. Everyone holds six and refills to six before each gambit (Kit's simplification of the buy-cards rule).
+- **The ante sets the stakes.** Each player antes one card face down; all turn up together. The strongest ante card's strength is what every player pays into the stakes (all in when short), and its owner leads. Tied strongest antes: the tied player nearest the dealer's left leads.
+- **Three rounds of flights.** In turn, each player plays one card face up into their flight. The first card of a round, or a card no stronger than the card just before it that round, triggers its color's power. The strongest card of a round leads the next.
+- **Powers** (`kit_cards.POWERS`): chromatic colors move gold (red: the strongest other flight pays you 1 gp; blue: the others pay 1 gp into the stakes; green: the next player pays you 1 gp; black: take 2 gp from the stakes; white: the weakest flight pays 1 gp into the stakes). Metallic colors move cards (gold: draw 2; silver: everyone draws 1; bronze: take the weakest ante card; brass: draw 1; copper: discard your weakest and draw 2).
+- **Special flights.** Three of one color: every other player pays you the strength of that color's second-strongest card. Three of one strength: take that much from the stakes and up to two ante cards.
+- **Showdown.** After round three the highest flight total takes the stakes. Ties split them, and an odd gold piece carries to the next gambit.
+
+The player states their buy-in from their own purse. Seat stacks split the table's 85 gp (a DM choice). All public and private state persists as `procedure_state`. Gold only moves between seats, the player's table purse, and the stakes, so the total is conserved (`test_gold_is_conserved_across_many_gambits`).
+
+**The cheat, by rule:** Uktarl reads the marks as he deals. He knows roughly what you hold, and whenever the second card off the deck is stronger than the top one he deals himself the second (dealing seconds). He antes high to lead and raise the stakes when the marks say his hand beats yours.
 
 **Your counters:**
 
-- **Watch the deal:** your Perception against his Dex +3 (DM choice). Catching it reveals `marked_deck`.
-- **Read his betting:** Insight against his source Performance +4.
-- **Swap a card:** your Sleight of Hand against his passive Perception 10.
-- **Accuse:** with proof, the hand is void, every stake goes back to whoever paid it, and the dealer does not confess. Without proof, the game stops and every face turns to you.
+- **Watch the deal:** your Perception against his Dex +3 (DM choice). Catching it reveals `marked_deck`. "I watch the dealer for cheating" is a watch, not an accusation.
+- **Read him:** Insight against his source Performance +4.
+- **Swap a card:** your Sleight of Hand against his passive Perception 10. Caught, you are out of the gambit, your gold stays in the stakes, and nobody deals to you again.
+- **Accuse:** "You dealt yourself the second card" is an accusation. With proof, the gambit is void and every coin goes back to where it stood at the deal, and the dealer does not confess. Without proof, the game stops and every face turns to you.
+
+While the game runs, the rules/stakes guard stays on: only its own rules and stakes may be stated (a sentence of rules must use the game's terms, and another game's rules such as "high card takes it" are rejected). Stake amounts may be named in sentences about the game, never as the ring's or the toll's price. The dealer's voice contract lets him name his game's stakes and play.
 
 The player may give their own roll ("I rolled 14 + 3 = 17").
 
@@ -628,14 +639,18 @@ Nothing in the runtime invents a price. `runtime/kit_prices.py` applies Brendon'
 
 1. **The source adventure.** Area 6c's 10 gp toll (`numeric_facts.passage_toll`) and the ring's 25 gp (`ring_value`, from `table_treasure`). `kit_guards.check_numeric_facts` rejects any other number in a sentence about them.
 2. **The DMG's official price** for a magic item, when its data carries `official_price_gp`.
-3. **The SRD 5.1 equipment tables** for everyday goods (`runtime/data/srd_5_1_prices.json`): adventuring gear, weapons, armor, tools, mounts and vehicles, trade goods, food/drink/lodging, services, lifestyle. The data is CC-BY-4.0, with the attribution in the file. The first five tables were converted from the 5e-bits SRD dataset; the rest were entered from the SRD tables. Kit may give a local variant its own name. The price is always the closest SRD entry's: the decision names that entry exactly in `price_quote.srd_entry`, and the ledger records it. The prepare-time hint lists the closest entries. An entry matches only if its head noun (the first word of the SRD name) is among the player's words, so a glass eye never prices as a glass bottle.
+3. **The SRD 5.1 equipment tables** for everyday goods (`runtime/data/srd_5_1_prices.json`): adventuring gear, weapons, armor, tools, mounts and vehicles, trade goods, food/drink/lodging, services, lifestyle. The data is CC-BY-4.0, with the attribution in the file. The first five tables were converted from the 5e-bits SRD dataset; the rest were entered from the SRD tables. Kit may give a local variant its own name. The price is always the closest SRD entry's: the decision names that entry exactly in `price_quote.srd_entry`, and the ledger records it. The prepare-time hint lists the matching entries. Matching is whole-item: every word of the item the player asked about must be in the entry's name (with a small synonym map: a room is an inn stay, a pint of beer is an ale mug), and the entry's head noun must be asked, so a silver ring never prices as "Silver (1 lb.)", a wand of fireballs never as "Wand", and a glass eye never as a glass bottle.
 4. **Brendon's magic item formula** (`runtime/pricing.py`, from `research/kit-aliveness/05-brendon-price-formula.md`) for a magic item with no official price. It works in five steps. Impact comes from the average roll, bonus x 24 x levels in circulation, effect x charges, or the fixed utility values 4/6/8, and area of effect multiplies impact by 4. That gives a rarity band by entry level, then a category, then gold per impact, then impact x GPI rounded to a clean shop value. `pricing.trace_text` prints Brendon's output format for the host trace.
 5. **Unpriced.** Anything listed nowhere is flagged `UNPRICED`. The NPC answers without a number (not for sale, a trade, a favor), and a price invention is rejected.
 
-Once set, a price is saved in the canon ledger under `area/price/<item>` with its amount, unit, source, and basis (which SRD entry, or the formula trace), and it never changes.
+Once set, a price is saved in the canon ledger under `area/price/<item>`, where `<item>` is the whole item the player asked about ("wand_of_fireballs", "room_at_inn"), never the SRD word it matched. A tiered SRD entry (six inn stays, ale by the gallon or mug) is saved under `area/price/<item>/<tier>`, the tier quoted, and a later question names its tier or gets every tier already set. Each entry keeps its amount, unit, source, and basis (which SRD entry, or the formula trace), and it never changes. Amounts are read as whole spoken numbers ("five silver", "63,000 gp", "sixty-three thousand gold"), so 25 gp is never found inside 125 gp, and a priced answer must say the amount and the unit. The runtime ledger and the validator compare facts through one normalization (`state_context.normalize_fact`).
 
-**Needs Brendon's confirmation:**
+**Confirmed by Brendon (2026-09-29):**
 
-- **The rounding rule for "nearest clean shop value".** Current rule: nearest 10 under 100 gp; nearest 100 up to 999 gp (360 -> 400); nearest 500 up to 9,999 gp; nearest 1,000 above. Halves round up.
-- **The default of 4 levels in circulation for weapon bonuses** (one rarity band). It's an explicit input on every spec.
-- **Whether the fireball-wand example's 196 omits the area-of-effect 4x on purpose.** The code applies 4x only when the spec says `aoe`: 196 without it, 784 with it.
+- **The rounding rule for "nearest clean shop value".** Nearest 10 under 100 gp; nearest 100 up to 999 gp (360 -> 400); nearest 500 up to 9,999 gp; nearest 1,000 above. Halves round up.
+- **4 levels in circulation for weapon bonuses** (one rarity band). It's still an explicit input on every spec.
+- **Area of effect multiplies impact by 4.** The fireball wand's 196 becomes 784.
+- **Renewing charges are not Consumable.** An item whose charges renew (a wand of fireballs recharges daily) takes the Utility or Complex Multi-Ability GPI, per the item. Only single-use or non-renewing items (potions, a necklace of fireballs' beads) are Consumable. A charged spec must say `renews`, and `pricing.check_category` enforces it. The wand of fireballs has one ability, so it lands in **Utility**: 784 x 150 = 117,600 -> 118,000 gp (Rare). As Complex Multi-Ability it would be 157,000 gp.
+- **The DMG override stays as is:** `official_price_gp` on the spec, typed by the host.
+- **NPCs may state the ring's 25 gp value.** Small stuff isn't a secret. A bigger NPC-knowledge design is coming separately.
+

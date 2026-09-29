@@ -16,14 +16,18 @@ Source: Brendon's rules (research/kit-aliveness/05-brendon-price-formula.md), su
 5. Price = impact x GPI, rounded to the nearest clean shop value (360 -> 400).
    An official DMG price, when the item data carries one, overrides the formula.
 
-Two choices the rules leave open, both explicit inputs with documented defaults, and
-both flagged for Brendon's confirmation:
+Confirmed by Brendon (2026-09-29):
 
-- ``levels`` for a weapon bonus ("24 successful attacks per level"): how many levels
-  the item stays in circulation. Default ``DEFAULT_WEAPON_LEVELS = 4``, one rarity band.
-- ``clean_price``: "nearest clean shop value". Default: under 100 gp, nearest 10; 100 to
-  999 gp, nearest 100 (so 360 -> 400); 1,000 to 9,999 gp, nearest 500; 10,000 gp and up,
-  nearest 1,000. Halves round up.
+- ``clean_price``: "nearest clean shop value" is under 100 gp, nearest 10; 100 to 999 gp,
+  nearest 100 (so 360 -> 400); 1,000 to 9,999 gp, nearest 500; 10,000 gp and up, nearest
+  1,000. Halves round up.
+- ``levels`` for a weapon bonus ("24 successful attacks per level"): 4 levels in
+  circulation (one rarity band), ``DEFAULT_WEAPON_LEVELS = 4``; still an explicit input.
+- Area of effect multiplies impact by 4 (the fireball wand's 196 becomes 784).
+- Renewing charges are not Consumable. A charged item whose charges renew (a wand of
+  fireballs regains charges daily) is priced as Utility or Complex Multi-Ability, per
+  the item, never Consumable. Only single-use or non-renewing items (a potion, a
+  necklace of fireballs' beads) are Consumable. A charged spec must say ``renews``.
 
 Magic items only. Mundane goods, food, drink, lodging, and services never use this
 formula: they come from the source or the SRD 5.1 tables, or stay unpriced. The full
@@ -46,9 +50,10 @@ UTILITY_VALUES = {'minor': 4, 'reusable': 6, 'broad': 8}
 UTILITY_LABELS = {'minor': 'minor situational trick', 'reusable': 'reusable utility effect',
                   'broad': 'broad multi-purpose utility'}
 IMPACT_KINDS = ('damage_healing', 'weapon_bonus', 'charged', 'consumable', 'utility')
+RENEWING_CATEGORIES = ('Utility', 'Complex Multi-Ability')  # never Consumable (Brendon)
 ATTACKS_PER_LEVEL = 24
 AOE_MULTIPLIER = 4
-DEFAULT_WEAPON_LEVELS = 4  # one rarity band of levels; needs Brendon's confirmation
+DEFAULT_WEAPON_LEVELS = 4  # one rarity band of levels; confirmed by Brendon (2026-09-29)
 _DICE = re.compile(r'^\s*(\d+)d(\d+)\s*(?:([+-])\s*(\d+))?\s*$', re.I)
 
 
@@ -72,7 +77,7 @@ def rarity_band(entry_level):
 
 
 def clean_price(gp):
-    """Nearest clean shop value (default rule; needs Brendon's confirmation)."""
+    """Nearest clean shop value (Brendon's confirmed rule: 360 -> 400)."""
     require(gp >= 0, 'A price cannot be negative')
     step = 10 if gp < 100 else 100 if gp < 1000 else 500 if gp < 10000 else 1000
     return max(step, ((gp + step // 2) // step) * step) if gp else 0
@@ -111,6 +116,26 @@ def impact(spec):
     return value, text
 
 
+def check_category(spec, category):
+    """Brendon's rule: an item whose charges renew is not Consumable; it takes the
+    Utility or Complex Multi-Ability GPI, per the item. A single-use or non-renewing item
+    (a potion, a necklace of fireballs' beads) is Consumable."""
+    kind = spec.get('impact_kind')
+    if kind == 'charged':
+        renews = spec.get('renews')
+        require(type(renews) is bool, 'A charged item must say whether its charges renew (renews: '
+                'true for a wand that recharges daily, false for beads or single-use charges)')
+        if renews:
+            require(category in RENEWING_CATEGORIES,
+                    f'{spec.get("item", "This item")}: renewing charges are never Consumable; use '
+                    'Utility or Complex Multi-Ability, per the item')
+        else:
+            require(category == 'Consumable',
+                    f'{spec.get("item", "This item")}: non-renewing charges are Consumable')
+    elif kind == 'consumable':
+        require(category == 'Consumable', 'A single-use item is Consumable')
+
+
 def price(spec):
     """The formula's price for one magic item. Returns the trace fields in Brendon's
     output format plus 'amount' and 'unit'. An official DMG price overrides."""
@@ -119,6 +144,7 @@ def price(spec):
     band = rarity_band(spec.get('entry_level'))
     category = spec.get('category')
     require(category in CATEGORIES, f'category must be exactly one of {", ".join(CATEGORIES)}')
+    check_category(spec, category)
     value, calculation = impact(spec)
     gpi = GPI[band][category]
     raw = value * gpi
