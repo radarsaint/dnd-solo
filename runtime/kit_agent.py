@@ -59,15 +59,50 @@ def social_event(action):
     return f'{SOCIAL_EVENT_PREFIX}"{words}"'
 
 
+# Table talk addressed to Kit rather than the room: answered, never resolved as a check.
+OOC_MARKER = re.compile(r'^\s*[(\[]?\s*(ooc\b|out[- ]of[- ]character)|\brules question\b', re.I)
+# Words inside quotation marks are speech; a threat or a noun spoken aloud is not a physical act.
+QUOTED_SPEECH = re.compile(r'"[^"]*"')
+# A stealthy approach needs a Stealth ruling; it must never pass as a free, unopposed exit.
+STEALTH_INTENT = re.compile(r'\b(sneak|sneaks|sneaking|creep|creeps|creeping|tiptoe|tiptoes|tiptoeing|'
+                            r'stealth|stealthily|unnoticed|unseen)\b|\bslip(s|ping)? (past|by)\b')
+# Getting into the tub means landing on whatever is stored in it.
+TUB_ENTRY = re.compile(r'\b(climb|get|sit|lie|lay|jump|hop|step|lower|slide|settle|bathe|soak|lounge)'
+                       r'\w*\b[^.]*?\b(in|into)\b[^.]*?\btub\b')
+SOCIAL_WORDS = re.compile(
+    r'\b(ask|say|tell|talk|speak|offer|bargain|propose|accuse|call out|sit|greet|hello|wait|listen|'
+    r'wager|help|deal|promise|refuse|decline|pay|flirt|wink|smile|laugh|bow|introduce|threaten|'
+    r'intimidate|join|bet|watch|observe|nod|shrug|thank|insist|warn|demand|charm|compliment|stare|'
+    r'glare)(s|es|d|ed|ing)?\b')
+ADDRESS_WORDS = re.compile(r"\b(you|you're|your|yours|yourself|y'all)\b")
+
+
 def room_intent(action):
-    """Conservative routing; unrecognized text remains conversation or clarification."""
-    words = action.lower()
+    """Conservative routing; unrecognized text remains conversation or clarification.
+
+    Only the narration outside quotation marks decides whether an action is
+    physical, a check, or combat, so quoted speech ("pay up or I'll kill you")
+    routes as a social bid instead of a pending physical ruling.
+    """
+    text = action.translate(_TYPOGRAPHIC)
+    if OOC_MARKER.search(text):
+        return 'social'
+    quoted = bool(QUOTED_SPEECH.search(text))
+    words = QUOTED_SPEECH.sub(' ', text).lower()
     if re.search(r'\b(attack|stab|shoot|kill|cast|initiative|fireball)\b', words):
         return 'combat'
-    if re.search(r'\b(leave|go|walk|move|step)\b', words) and re.search(r'\b(south|door|out)\b', words):
+    if STEALTH_INTENT.search(words) or (
+            re.search(r'\b(quietly|silently|softly)\b', words) and
+            re.search(r'\b(walk|move|step|go|leave|head|edge|slip)\w*\b', words) and
+            re.search(r'\b(door|past|out)\b', words)):
+        return 'stealth'
+    if re.search(r'\b(leave|go|walk|move|step)\b', words) and (
+            re.search(r'\b(south|door)\b', words) or (re.search(r'\bout\b', words) and 'tub' not in words)):
         return 'exit'
     if re.search(r'\b(tip|overturn|flip|lift|move)\b', words) and 'tub' in words:
         return 'tip_tub'
+    if TUB_ENTRY.search(words):
+        return 'enter_tub'
     if re.search(r'\b(look|search|inspect|examine|check|peer)\b', words) and 'tub' in words:
         return 'inspect_tub'
     if re.search(r'\b(look|search|inspect|examine|study|check)\b', words) and re.search(r'\b(fresco|carving|dwarves|dwarf|figures|mountain)\b', words):
@@ -81,7 +116,7 @@ def room_intent(action):
     if re.search(r'\b(steal|pocket|grab|pick up|smash|break|hide|climb|force|open|disarm)\b', words) or \
             (re.search(r'\btake\b', words) and re.search(r'\b(coins?|ring|gear|key|cards|deck|treasure)\b', words)):
         return 'unsupported_action'
-    if '?' in words or re.search(r'\b(ask|say|tell|talk|speak|offer|bargain|propose|accuse|call out|sit|greet|hello|wait|listen|wager|help|deal|promise)\b', words):
+    if quoted or '?' in words or SOCIAL_WORDS.search(words) or ADDRESS_WORDS.search(words):
         return 'social'
     return 'unsupported_action'
 
@@ -99,6 +134,10 @@ class Room6CAdjudicator:
         kind = room_intent(action)
         if kind == 'combat':
             raise PendingRuling('Combat needs a character sheet, initiative, and tactical resolver. No turn was committed.')
+        if kind == 'stealth':
+            raise PendingRuling('Slipping past the table unnoticed needs a Dexterity (Stealth) ruling against '
+                                'the people watching; this slice has no stealth resolver and the source gives '
+                                'no DC. No turn was committed. You can still walk out openly or talk.')
         if kind == 'inspect_deck':
             raise PendingRuling('The source gives no discovery DC for the deck. A DM ruling is needed; no turn was committed. You can still question or accuse the dealer.')
         if kind == 'unsupported_action':
@@ -109,10 +148,17 @@ class Room6CAdjudicator:
             return Resolution(kind, 'You go through the south door into the short passage.', [event])
         if kind == 'tip_tub':
             public = 'The stone tub is recessed into the floor and cannot be tipped over.'
-        elif kind == 'inspect_tub':
-            public = 'You look into the recessed tub and see a bedroll, thieves’ tools, and a bundle of stolen travel gear.'
-            event = {'type': 'reveal_fact', 'fact': 'tub_stash',
-                     'evidence': 'The player explicitly looked inside the recessed tub.'}
+        elif kind in ('inspect_tub', 'enter_tub'):
+            if kind == 'inspect_tub':
+                public = ('You look into the recessed tub and see a bedroll, thieves’ tools, and a bundle of '
+                          'stolen travel gear.')
+                evidence = 'The player explicitly looked inside the recessed tub.'
+            else:
+                # Nobody climbs into a two-foot-deep tub without finding what is stored in it.
+                public = ('You climb down into the recessed tub and find it already occupied: a bedroll, '
+                          'thieves’ tools, and a bundle of stolen travel gear are stored in it.')
+                evidence = 'The player explicitly climbed into the recessed tub, which reveals what is stored in it.'
+            event = {'type': 'reveal_fact', 'fact': 'tub_stash', 'evidence': evidence}
             return Resolution(kind, public, [event])
         elif kind in ('inspect_fresco', 'insight'):
             modifier = self.perception if kind == 'inspect_fresco' else self.insight
