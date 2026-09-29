@@ -1459,7 +1459,9 @@ def prepare_turn(runtime, adjudicator, action, use_memory=True, one_pass=False):
 
 def prepare_opening(runtime, one_pass=False):
     revision, state = runtime.load()
-    require(revision == 0 and state['area'] == 'area_06c',
+    # The entry is the first Kit turn. Host bookkeeping committed before it (the player
+    # character, feedback) is its own revision and does not use it up.
+    require(runtime.latest_kit_turn_id() is None and state['area'] == 'area_06c',
             'The room entry is available only before the first turn')
     resolution = Resolution('opening', 'A newcomer has reached the card room.', [
         {'type': 'beat', 'tags': ['scene_entry'],
