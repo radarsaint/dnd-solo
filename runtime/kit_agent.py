@@ -298,7 +298,12 @@ CALL_MOVES = ('ruling', 'ask_clarification')
 CALL_MAX_WORDS = 60          # a roll prompt, ruling, or narrow answer stays short
 CALL_MAX_SEGMENTS = 2
 EXCHANGE_MIN_WORDS = 40      # narration + actor speech on a social exchange
-EXCHANGE_MIN_ACTOR_WORDS = 30  # the selected actor's own speech
+EXCHANGE_MIN_ACTOR_WORDS = 30  # the selected actor's own speech (voiced actors only)
+# The actor floor applies to actors whose card establishes a voice. The card
+# players' card asks for "a brief reaction or visible movement", so forcing 30
+# words from one made every card player a speechmaker and contradicted the card.
+# A card-player focus must still speak, and the exchange total floor still applies.
+VOICED_FLOOR_SPEAKERS = ('Dealer',)
 EXCHANGE_MIN_SEGMENTS = 2    # an embodied beat or second reactor, not one speech alone
 FEATURE_MIN_WORDS = 80       # scene entry or scene-turning moment
 FEATURE_MIN_SEGMENTS = 2
@@ -312,7 +317,8 @@ def performance_limits(scope=None):
     """
     limits = {
         'call': f'At most {CALL_MAX_WORDS} words in at most {CALL_MAX_SEGMENTS} segments. Answer and stop.',
-        'exchange': (f'The focus actor speaks at least {EXCHANGE_MIN_ACTOR_WORDS} words; at least '
+        'exchange': (f'The focus actor speaks at least {EXCHANGE_MIN_ACTOR_WORDS} words (a card player '
+                     'focus may be brief but must speak); at least '
                      f'{EXCHANGE_MIN_WORDS} words across non-Kit segments; at least '
                      f'{EXCHANGE_MIN_SEGMENTS} segments (e.g. a visible beat plus the actor).'),
         'feature': (f'At least {FEATURE_MIN_WORDS} words across non-Kit segments in at least '
@@ -732,7 +738,11 @@ def check_scope(segments, plan):
         return
     if scope == 'exchange':
         actor = {'uktarl': 'Dealer', 'other': 'Card player'}.get(plan['focus_actor'])
-        if actor:
+        if actor and actor not in VOICED_FLOOR_SPEAKERS:
+            require(any(segment['speaker'] == actor for segment in segments),
+                    f'Exchange scope: the selected {actor} never spoke. A brief line is enough; '
+                    'the exchange floor still applies to the whole turn.')
+        elif actor:
             actor_words = sum(_words(segment['text']) for segment in segments
                               if segment['speaker'] == actor)
             require(actor_words >= EXCHANGE_MIN_ACTOR_WORDS,
