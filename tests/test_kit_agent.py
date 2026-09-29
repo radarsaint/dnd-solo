@@ -41,6 +41,7 @@ class RecordingModel:
     def __init__(self, leak=False, on_perform=None, leaky_brief=False):
         self.plans = []
         self.performances = []
+        self.variants = []
         self.leak = leak
         self.leaky_brief = leaky_brief
         self.on_perform = on_perform
@@ -78,8 +79,9 @@ class RecordingModel:
             'table_presence': 'brief', 'tone': 'wry',
         }
 
-    def perform(self, payload):
+    def perform(self, payload, performance_variant='current'):
         self.performances.append(payload.copy())
+        self.variants.append(performance_variant)
         if self.on_perform:
             callback, self.on_perform = self.on_perform, None
             callback()
@@ -305,12 +307,13 @@ class KitAgentTests(unittest.TestCase):
         trial_prepared = bridge.prepare('Hi. What is going on here?', 'identity-trial')
         self.assertEqual(current_prepared['input'], trial_prepared['input'])
         plan = self.model.plan(current_prepared['input'])
-        current = bridge.decide('identity-current', plan)
-        trial = bridge.decide('identity-trial', plan, 'kit_expression_v1')
+        current = bridge.decide('identity-current', plan, 'current')
+        trial = bridge.decide('identity-trial', plan)  # the bridge default is Kit's voice
         self.assertEqual(current['input'], trial['input'])
         self.assertEqual(current['schema'], trial['schema'])
         self.assertNotEqual(current['instructions'], trial['instructions'])
         self.assertEqual(trial['performance_variant'], 'kit_expression_v1')
+        self.assertEqual(current['performance_variant'], 'current')
         self.assertNotIn('dm_only', json.dumps(trial['input']))
         self.assertEqual(self.runtime.load()[0], 0)
         with self.assertRaisesRegex(InvalidChange, 'Unknown performance variant'):
@@ -576,7 +579,7 @@ class KitFocusAndScopeTests(unittest.TestCase):
             def plan(inner, payload):
                 return {**super().plan(payload), 'move': 'npc_reply', 'table_presence': 'quiet'}
 
-            def perform(inner, payload):
+            def perform(inner, payload, performance_variant='current'):
                 seen.append(payload.get('retry_instruction'))
                 return json.loads(json.dumps(next(flat)))
 
@@ -703,6 +706,190 @@ class ChatBridgeCarrierTests(unittest.TestCase):
         code, out, _ = self._cli('finish', '--turn-id', 'cli', '--input-file', str(temp / 'good.json'))
         self.assertEqual((code, json.loads(out)['revision']), (0, 1))
         self.runtime = Runtime(self.path)
+
+
+class BridgeVoiceVariantTests(unittest.TestCase):
+    """Next step #5: the one-pass (ChatGPT live) path runs Kit's voice variant by default,
+    under the same validators, and every turn records which performer variant ran."""
+
+    def setUp(self):
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        self.path = Path(temp.name) / 'kit.sqlite'
+        self.runtime = Runtime(self.path)
+        self.addCleanup(lambda: self.runtime.close())
+        self.runtime.initialize(json.loads(FIXTURE.read_text()), 'area_06c')
+        self.model = RecordingModel()
+        self.adjudicator = Room6CAdjudicator(perception=0, insight=0, roll=lambda: 20)
+        self.bridge = KitChatBridge(self.runtime, self.adjudicator)
+
+    def _quiet_plan(self, private_input):
+        plan = self.model.plan(private_input)
+        plan.update(move='npc_reply', table_presence='quiet')
+        return plan
+
+    def test_one_pass_defaults_to_kit_voice_and_current_stays_selectable(self):
+        voiced = self.bridge.prepare(NIK_GREETING, 'voiced', one_pass=True)
+        baseline = self.bridge.prepare(NIK_GREETING, 'baseline', one_pass=True,
+                                       performance_variant='current')
+        self.assertEqual(kit_agent.DEFAULT_BRIDGE_VARIANT, 'kit_expression_v1')
+        self.assertEqual(voiced['performance_variant'], 'kit_expression_v1')
+        self.assertEqual(baseline['performance_variant'], 'current')
+        self.assertIn(kit_agent.KIT_EXPRESSION_V1, voiced['instructions'])
+        self.assertNotIn(kit_agent.KIT_EXPRESSION_V1, baseline['instructions'])
+        self.assertNotIn('KIT’S TABLE VOICE', baseline['instructions'])
+        # Only the performer instructions differ: same private stage, input, schema, limits.
+        for prepared in (voiced, baseline):
+            self.assertIn(kit_agent.PRIVATE_INSTRUCTIONS, prepared['instructions'])
+            self.assertIn(kit_agent.PUBLIC_INSTRUCTIONS, prepared['instructions'])
+            self.assertIn('Do not copy improv_read', prepared['instructions'])
+        self.assertEqual(voiced['input'], baseline['input'])
+        self.assertEqual(voiced['schema'], baseline['schema'])
+        self.assertEqual(voiced['performance_limits'], baseline['performance_limits'])
+        self.assertNotIn('dm_only', json.dumps(voiced['input']['public']))
+
+    def test_unknown_variant_and_staged_prepare_variant_are_rejected(self):
+        with self.assertRaisesRegex(InvalidChange, 'Unknown performance variant'):
+            self.bridge.prepare(NIK_GREETING, 'bad', one_pass=True, performance_variant='invented')
+        with self.assertRaisesRegex(InvalidChange, 'chooses its performance variant at decide'):
+            self.bridge.prepare(NIK_GREETING, 'staged', performance_variant='current')
+        with self.assertRaisesRegex(InvalidChange, 'No pending'):
+            self.runtime.pending_kit_turn('bad')
+
+    def test_one_pass_turn_record_names_the_variant_that_ran(self):
+        for turn_id, variant in (('v1', None), ('base', 'current')):
+            prepared = self.bridge.prepare(
+                'Hi. What is going on here?' if variant is None else 'What are the stakes?',
+                turn_id, one_pass=True, performance_variant=variant)
+            expected = variant or 'kit_expression_v1'
+            self.assertEqual(self.runtime.pending_kit_turn(turn_id)['body']['performance_variant'], expected)
+            plan = self._quiet_plan(prepared['input']['private'])
+            result = self.bridge.complete(turn_id, {'decision': plan,
+                                                    'performance': QUIET_EXCHANGE_SPEECH})
+            self.assertEqual(result['performance_variant'], expected)
+            record = self.runtime.recent_kit_turns()[-1]
+            self.assertEqual(record['performance_variant'], expected)
+            self.assertEqual(record['trace'], plan)
+            self.assertEqual(self.runtime.kit_timing(turn_id)['performance_variant'], expected)
+        # The recorded variant is part of the idempotent commit, not a later edit.
+        record = self.runtime.recent_kit_turns()[0]
+        event = {'type': 'beat', 'tags': ['social'], 'evidence':
+                 'Player declared: Hi. What is going on here?. Resolution: You address the figures at the card table.'}
+        self.assertEqual(self.runtime.commit_kit_turn('v1', 0, [event], record), 1)
+        with self.assertRaises(InvalidChange):
+            self.runtime.commit_kit_turn('v1', 0, [event], {**record, 'performance_variant': 'current'})
+
+    def test_kit_voice_faces_exactly_the_same_validators(self):
+        outcomes = {}
+        for variant in kit_agent.PERFORMANCE_VARIANTS:
+            path = Path(self.path).parent / f'{variant}.sqlite'
+            runtime = Runtime(path)
+            self.addCleanup(runtime.close)
+            runtime.initialize(json.loads(FIXTURE.read_text()), 'area_06c')
+            bridge = KitChatBridge(runtime, self.adjudicator)
+            prepared = bridge.prepare(NIK_GREETING, 'same', one_pass=True, performance_variant=variant)
+            plan = self._quiet_plan(prepared['input']['private'])
+            rejections = []
+            for bad in (NIK_REPLY, RecordingModel(leak=True).perform({}),
+                        {'segments': [{'speaker': 'Kit', 'text': 'Nice.'}, *QUIET_EXCHANGE_SPEECH['segments']]}):
+                with self.assertRaises(InvalidChange) as caught:
+                    bridge.complete('same', {'decision': plan, 'performance': bad})
+                rejections.append(str(caught.exception))
+            result = bridge.complete('same', {'decision': plan, 'performance': QUIET_EXCHANGE_SPEECH})
+            outcomes[variant] = (rejections, result['spoken'], result['revision'])
+        self.assertEqual(outcomes['current'], outcomes['kit_expression_v1'])
+        self.assertIn('Quiet Kit spoke directly', outcomes['current'][0][2])
+
+    def test_old_pending_one_pass_turn_records_current(self):
+        prepared = self.bridge.prepare(NIK_GREETING, 'legacy', one_pass=True)
+        body = self.runtime.pending_kit_turn('legacy')['body']
+        del body['performance_variant']
+        with self.runtime.db:
+            self.runtime.db.execute('UPDATE kit_pending SET body=? WHERE turn_id=?',
+                                    (json.dumps(body), 'legacy'))
+        plan = self._quiet_plan(prepared['input']['private'])
+        self.bridge.complete('legacy', {'decision': plan, 'performance': QUIET_EXCHANGE_SPEECH})
+        self.assertEqual(self.runtime.recent_kit_turns()[0]['performance_variant'], 'current')
+
+    def test_staged_finish_records_the_variant_issued_at_decide(self):
+        for turn_id, variant in (('staged-default', None), ('staged-current', 'current')):
+            prepared = self.bridge.prepare('What are the stakes?' if variant else NIK_GREETING, turn_id)
+            plan = self._quiet_plan(prepared['input'])
+            packet = (self.bridge.decide(turn_id, plan) if variant is None
+                      else self.bridge.decide(turn_id, plan, variant))
+            expected = variant or 'kit_expression_v1'
+            self.assertEqual(packet['performance_variant'], expected)
+            self.assertEqual(packet['instructions'], kit_agent.PERFORMANCE_VARIANTS[expected])
+            result = self.bridge.finish(turn_id, QUIET_EXCHANGE_SPEECH)
+            self.assertEqual(result['performance_variant'], expected)
+            self.assertEqual(self.runtime.recent_kit_turns()[-1]['performance_variant'], expected)
+
+    def test_api_agent_passes_and_records_its_variant(self):
+        agent = KitAgent(self.runtime, self.model, self.adjudicator)
+        agent.turn('I take a seat.', 'api-default')
+        voiced = KitAgent(self.runtime, self.model, self.adjudicator, performance_variant='kit_expression_v1')
+        voiced.turn('What are the stakes?', 'api-voiced')
+        self.assertEqual(self.model.variants, ['current', 'kit_expression_v1'])
+        self.assertEqual([turn['performance_variant'] for turn in self.runtime.recent_kit_turns()],
+                         ['current', 'kit_expression_v1'])
+        self.assertEqual(self.runtime.kit_timing('api-voiced')['performance_variant'], 'kit_expression_v1')
+        with self.assertRaisesRegex(InvalidChange, 'Unknown performance variant'):
+            KitAgent(self.runtime, self.model, self.adjudicator, performance_variant='invented')
+
+    def test_responses_adapter_sends_the_chosen_performer_instructions(self):
+        model = OpenAIResponsesModel('test-model', api_key='test-key')
+        response = {'status': 'completed', 'output': [
+            {'content': [{'type': 'output_text', 'text': json.dumps({'segments': []})}]}]}
+        captured = []
+
+        def open_fake(request, timeout):
+            captured.append(json.loads(request.data))
+            return io.BytesIO(json.dumps(response).encode())
+
+        with patch('runtime.kit_agent.urllib.request.urlopen', side_effect=open_fake):
+            model.perform({'player_action': 'Hello'})
+            model.perform({'player_action': 'Hello'}, performance_variant='kit_expression_v1')
+        systems = [body['input'][0]['content'] for body in captured]
+        self.assertEqual(systems[0], kit_agent.PUBLIC_INSTRUCTIONS)
+        self.assertEqual(systems[1], kit_agent.PERFORMANCE_VARIANTS['kit_expression_v1'])
+        self.assertEqual(captured[0]['input'][1], captured[1]['input'][1])
+
+    def test_voice_guidance_is_lean_bounded_and_not_an_npc_script(self):
+        voice = kit_agent.KIT_EXPRESSION_V1
+        # Keep the added performer prompt short for live latency.
+        self.assertLessEqual(len(voice), 1800)
+        for guard in ('table presence', 'quiet: none', 'brief: one short remark',
+                      'never changes a fact, rules outcome', 'never hints at hidden information',
+                      'never decides what the player thinks', 'NPCs never borrow her wit',
+                      'never reuse them or give them to anyone', 'generic praise or filler',
+                      'only when it lands', 'still rule fairly'):
+            self.assertIn(guard, voice)
+        # Illustrations come from other scenes: no room actors, speakers, or secrets.
+        for word in ('dealer', 'card player', 'uktarl', 'harria', 'toll', 'deck', 'vampire', 'ten gold'):
+            self.assertNotIn(word, voice.lower())
+        kit_agent.check_public_content(voice, {}, '')
+
+    def _cli(self, *argv):
+        out, err = io.StringIO(), io.StringIO()
+        with patch('sys.argv', ['kit_agent', *argv, '--db', str(self.path)]), \
+                contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            code = kit_agent.main()
+        return code, out.getvalue(), err.getvalue()
+
+    def test_cli_prepare_one_pass_takes_the_variant(self):
+        self.runtime.close()
+        code, out, _ = self._cli('prepare', '--one-pass', '--action', NIK_GREETING, '--turn-id', 'cli-v1')
+        self.assertEqual((code, json.loads(out)['performance_variant']), (0, 'kit_expression_v1'))
+        self.assertIn('KIT’S TABLE VOICE', json.loads(out)['instructions'])
+        code, out, _ = self._cli('prepare', '--one-pass', '--action', 'What are the stakes?',
+                                 '--turn-id', 'cli-base', '--performance-variant', 'current')
+        self.assertEqual((code, json.loads(out)['performance_variant']), (0, 'current'))
+        self.assertNotIn('KIT’S TABLE VOICE', json.loads(out)['instructions'])
+        with self.assertRaises(SystemExit):
+            self._cli('prepare', '--action', NIK_GREETING, '--turn-id', 'cli-staged',
+                      '--performance-variant', 'current')
+        self.runtime = Runtime(self.path)
+        self.assertEqual(self.runtime.pending_kit_turn('cli-base')['body']['performance_variant'], 'current')
 
 
 if __name__ == '__main__':

@@ -2,7 +2,7 @@
 
 **Who this is for:** GPT, as the collaborator building and hosting Kit's runtime in ChatGPT through `KitChatBridge`. It explains why Kit did not come across as a particular DM, the one build principle that fixes that class of problem, a worked example of the principle (branch `kit-focus-brief`), and the next things to build, in order.
 
-**How to read the line numbers:** **@79173a1** means the code before this change. **@673e9cd** means the code the Nik playtest actually ran on. Unmarked line numbers refer to the current code on this branch.
+**How to read the line numbers:** **@79173a1** means the code before this change. **@673e9cd** means the code the Nik playtest actually ran on. **@cee2948** means the code just before next step #5 was built. Unmarked line numbers refer to the current code (after step #5, branch `kit-bridge-voice`).
 
 ---
 
@@ -26,7 +26,7 @@ The playtest record says the private decision had `goal: npc_embodiment` and "a 
 
 Three other things pushed toward a price quote:
 
-1. **The accepted event said nothing.** Every social turn becomes "You address the figures at the card table." (`kit_agent.py:120`), and the decision must copy that word for word (`:387`). Kit's appraisal was attached to an empty sentence.
+1. **The accepted event said nothing.** Every social turn becomes "You address the figures at the card table." (`kit_agent.py:120`), and the decision must copy that word for word (`:412`). Kit's appraisal was attached to an empty sentence.
 2. **The dealer was written to quote prices.** At Nik time the performer was told the dealer "wants a bargain" (`kit_agent.py:182-183` @673e9cd). The actor card added afterwards says he "can turn a courteous invitation into a blunt price" (`tests/fixtures/level_01_area_06c.json:26`), and his goal is "Control the encounter without risking himself" (`:109`).
 3. **"Quiet" meant "absent".** Quiet presence bans any Kit segment (`kit_agent.py:213-214`, `:395` @79173a1), and nothing else carried her influence.
 
@@ -55,26 +55,26 @@ In practice:
 
 This branch applies the principle to the gap above. It adds no area-specific script, no dealer lines, and no model calls.
 
-**Three new carriers in the brief** (`PLAN_SCHEMA`, `kit_agent.py:147-154`). The whole brief already flows to the performer (`performance_input`, `:625`), into one-pass output, into Kit's saved episodes (`state_context.py:216`), and through the leak check, so almost no extra wiring was needed.
+**Three new carriers in the brief** (`PLAN_SCHEMA`, `kit_agent.py:147-154`). The whole brief already flows to the performer (`performance_input`, `:650`), into one-pass output, into Kit's saved episodes (`state_context.py:216`), and through the leak check, so almost no extra wiring was needed.
 
 | Carrier | Private source | What the performer does with it | What the validator checks |
 | --- | --- | --- | --- |
-| `reply_to` | The decision's reading of the player's bid | Answers those exact words | Must appear in the player's message after lower-casing, whitespace, and curly quotes are normalized; `none` only for the room opening (`check_reply_to`, `:454`) |
-| `scope` (`call`/`exchange`/`feature`) | Kit's judgment of how much the moment deserves | Changes the *kind* of material: answer and stop, a real exchange, or a scene in motion | Opening must be `feature`; `call` only for a `ruling` or `ask_clarification` move, or no focus actor (`:432-438`); flat-reply floors per scope (`check_scope`, `:469`) |
-| `kit_focus` | `goal` + `kit_choice` | Acts out Kit's choice through framing, emphasis, which actor tactic gets room, how a ruling is phrased, or a Kit remark when presence allows | 200 characters max, no quoted dialogue, not a verbatim copy of `kit_choice` or the appraisal cause (`:439-446`), literal leak check (`check_brief_public`, `:526`) |
+| `reply_to` | The decision's reading of the player's bid | Answers those exact words | Must appear in the player's message after lower-casing, whitespace, and curly quotes are normalized; `none` only for the room opening (`check_reply_to`, `:479`) |
+| `scope` (`call`/`exchange`/`feature`) | Kit's judgment of how much the moment deserves | Changes the *kind* of material: answer and stop, a real exchange, or a scene in motion | Opening must be `feature`; `call` only for a `ruling` or `ask_clarification` move, or no focus actor (`:457-463`); flat-reply floors per scope (`check_scope`, `:494`) |
+| `kit_focus` | `goal` + `kit_choice` | Acts out Kit's choice through framing, emphasis, which actor tactic gets room, how a ruling is phrased, or a Kit remark when presence allows | 200 characters max, no quoted dialogue, not a verbatim copy of `kit_choice` or the appraisal cause (`:464-471`), literal leak check (`check_brief_public`, `:551`) |
 
 **Other parts of the change:**
 
 - **Instructions.**
   - The private stage (`PRIVATE_INSTRUCTIONS`, `:230`) is told the brief must agree with its goal: "for npc_embodiment or roleplay, the tactic is something the actor tries in answer to the player, not only a price or a fact". It is told how to fill each carrier, and that the actor's objective comes from the actor's motives, not Kit's taste.
   - The performer (`PUBLIC_INSTRUCTIONS`, `:266`) is told to answer `reply_to` and act out `kit_focus`. `kit_focus` "grants no authority over facts, rules outcomes, NPC knowledge or commitments, or the player's choices", and NPCs are never "mouthpieces for Kit's taste or humor".
-  - One-pass instructions (`:321`) add "Do not copy improv_read or appraisal text into the performance".
+  - One-pass instructions (`ONE_PASS_PREAMBLE`, `:335`) add "Do not copy improv_read or appraisal text into the performance".
 - **Flat-reply floors** (constants at `:182-201`, checked in `check_scope`):
   - A `call` stays within 60 words and 2 segments.
   - An `exchange` needs the focus actor to speak at least 30 words, at least 40 words in non-Kit segments, and at least 2 segments.
   - A `feature` needs at least 80 non-Kit words.
   - The exact Nik reply (a 13-word beat plus 23 dealer words) is rejected. A one-line roll prompt passes as a `call`.
-- **Retry reasons.** A rejected performance now hears exactly why, e.g. "Exchange scope: the Dealer spoke 23 words (floor 30)…" (`retry_instruction`, `:637`).
+- **Retry reasons.** A rejected performance now hears exactly why, e.g. "Exchange scope: the Dealer spoke 23 words (floor 30)…" (`retry_instruction`, `:662`).
 - **Latency** is recorded in a `kit_telemetry` table (`state_context.py:48-52`, `:245-267`) that sits outside the turn's hash, so an identical retry stays idempotent.
   - API mode records time from receipt to commit and per-call seconds.
   - Bridge mode records `prepare_to_commit_s`, which cannot see anything before `prepare`.
@@ -82,7 +82,7 @@ This branch applies the principle to the gap above. It adds no area-specific scr
 - **The bridge (the ChatGPT path) carries all of it.**
   - `prepare` (both modes) returns the schema with the three fields, instructions on filling them, a `performance_limits` summary of the floors (generated from the same constants, `:204`), and a `host_retry` note (`:224`).
   - `decide` returns the brief with the three fields, the performer instructions, and the limits for the chosen scope.
-  - When `finish` or `complete` is rejected on the command line, the output includes `decision_fixed`, the specific `retry_instruction`, and how to resubmit (`:879`). The host can therefore fix a turn in one retry instead of guessing.
+  - When `finish` or `complete` is rejected on the command line, the output includes `decision_fixed`, the specific `retry_instruction`, and how to resubmit (`:934`). The host can therefore fix a turn in one retry instead of guessing.
 - **A leak-check fix.** When a player says a secret word ("I accuse him of being a doppelganger"), the quoted `reply_to` would have failed the brief's leak check. The brief check now skips `reply_to`, because those are the player's own words. The performance is still checked.
 - **Tests guard the build.** They cover:
   - the exact Nik reply being rejected;
@@ -107,7 +107,7 @@ This branch applies the principle to the gap above. It adds no area-specific scr
 - No appetite meters, relationship scores, or player model.
 - The dealer card, source facts, rules, and the generic social event string are unchanged. They are next steps below.
 - No model calls added.
-- `kit_expression_v1` is not made the default.
+- `kit_expression_v1` is not made the default. *(Superseded by next step #5 below: it is now the bridge default.)*
 
 **Limits to keep in mind while building on it:**
 
@@ -116,7 +116,7 @@ This branch applies the principle to the gap above. It adds no area-specific scr
 - **One-pass mode can't show cause and effect.** Decision and speech come out together, so the decision may have been written to fit the speech. Staged mode (fixed decision, then a separate performance) is the way to see whether a change to the decision changes the speech.
 - **The ruling dodge.** A model that wants to be brief can call a social turn a `ruling` with no focus actor and use `call`.
 - **`kit_focus` can be vague.** "Keep it interesting" passes every check. Only reading the turn tells you whether the focus was specific and was acted out.
-- **Kit's voice can leak into NPCs.** The instructions forbid it; no code detects it.
+- **Kit's voice can leak into NPCs.** The instructions forbid it; no code detects it. Step #5 states the ban more concretely in Kit's voice guidance; still no code detects it.
 
 ---
 
@@ -126,12 +126,12 @@ Each step uses the same pattern: **private source → public carrier → perform
 
 1. **Replace the generic social event with the player's actual action.**
    - *Now:* `Room6CAdjudicator.resolve` sets every social turn's event to "You address the figures at the card table." (`kit_agent.py:120`).
-   - *Build:* make the social event a faithful public restatement of the declared action (for example, `Nik says: "<exact words>"`, trimmed to the 500-character event limit checked at `:387`). Keep the full text in the event evidence.
+   - *Build:* make the social event a faithful public restatement of the declared action (for example, `Nik says: "<exact words>"`, trimmed to the 500-character event limit checked at `:412`). Keep the full text in the event evidence.
    - *Carrier:* the event is already public and already reaches the performer as `accepted_public_event`.
    - *Check:* the existing "copy observed_event exactly" rule now forces the appraisal to be about what the player actually did.
    - *Tests:* the social event contains the player's words, and the idempotency test's expected evidence string is updated.
 2. **Put Kit's choices into memory, and pick memories by relevance.**
-   - *Now:* episodes save the goal, move, and brief (so `kit_focus` is already saved) but not `kit_choice` or the player's bid (`state_context.py:212-219`). Decisions get the last 8 episodes by recency (`kit_agent.py:575`, `:745`, `:802`).
+   - *Now:* episodes save the goal, move, and brief (so `kit_focus` is already saved) but not `kit_choice` or the player's bid (`state_context.py:212-219`). Decisions get the last 8 episodes by recency (`kit_agent.py:600`, `:789`, `:849`).
    - *Build:*
      - Save `improv_read.kit_choice` and `player_bid` in each episode. Episodes are private, so this is safe.
      - Replace `[-8:]` with a small selector: always keep the last 2 episodes, then add those that share the current actor, story anchor, or meaningful words with the player's action, up to 8.
@@ -152,13 +152,16 @@ Each step uses the same pattern: **private source → public carrier → perform
      - Pattern for future cards: state what the actor wants *from this visitor* and two or three tactics. Never state a default line.
    - *Carrier:* the actor card is already public and reaches the performer.
    - *Check:* no code can judge this. Check it in play (section f): does the dealer answer `reply_to` before any price?
-5. **Let the bridge's one-pass path honor the Kit expression profile.**
-   - *Now:* only staged `decide` accepts `performance_variant='kit_expression_v1'` (`kit_agent.py:737`). One-pass `prepare`, which is the ChatGPT live path, always uses the default instructions. The standalone API adapter hardcodes them too (`:379`).
-   - *Build:*
-     - Add `performance_variant` to `prepare(one_pass=True)` and to the `prepare` CLI. Build the one-pass instructions from the chosen variant, and store the variant in the pending body so `complete` records which one ran.
-     - Pass the variant through `OpenAIResponsesModel.perform` as well.
-   - *Check:* the variant name is on the fixed list.
-   - *Tests:* one-pass instructions include `KIT_EXPRESSION_V1` only when chosen; the input and schema are unchanged; the variant is recorded.
+5. **Let the bridge's one-pass path honor the Kit expression profile.** ✅ **Done** (branch `kit-bridge-voice`).
+   - *Before:* only staged `decide` accepted `performance_variant='kit_expression_v1'` (`kit_agent.py:737` @cee2948). One-pass `prepare`, which is the ChatGPT live path, always used the default instructions. The standalone API adapter hardcoded them too (`:379` @cee2948).
+   - *Built:*
+     - `prepare(one_pass=True, performance_variant=…)` and `prepare --one-pass --performance-variant …` (`kit_agent.py:745`). The one-pass instructions are built from the chosen variant by `one_pass_instructions` (`:355`): the same private stage, plus the chosen performer instructions. The variant is stored in the pending body (`:762`), so `complete` records which one ran (`:855`). A staged `prepare` refuses a variant; staged turns still choose it at `decide`.
+     - **`kit_expression_v1` is now the bridge default** (`DEFAULT_BRIDGE_VARIANT`, `:333`) for both one-pass `prepare` and staged `decide` (`:781`). Pass `current` to get the baseline for a paired comparison. The standalone API path (`KitAgent`, `OpenAIResponsesModel.perform`, `play --performance-variant`) accepts the variant too but still defaults to `current`, because it is not the live path.
+     - Every committed turn record now has a `performance_variant` field (`checked_record`, `:668`), so `trace` shows it. It is also in the timing telemetry. A one-pass turn staged before this change records `current`, which is what it ran. For staged turns, `finish` records the variant of the last `decide` packet issued for that turn.
+     - **Kit's table voice** (`KIT_EXPRESSION_V1`, `:304`) was rewritten as short performer guidance distilled from the personality core. It covers when her own voice may appear (only in `Kit` segments, only as `table_presence` allows), what she does (react to the exact bid, hold an opinion and still rule fairly, be exact about rulings, dry humor only when it lands, chide and then adjudicate seriously, earned delight), and what she never does (generic praise or filler, recapping, option menus, advising the player, a remark every turn; changing facts, rules outcomes, or NPC stances; hinting at hidden information; deciding for the player; lending her wit or phrasing to NPCs). It ends with four brief register contrasts taken from *other* scenes (a lich, a portcullis, a ledge), labeled as never to be reused or given to anyone. It is about 1,700 characters, and a test caps it at 1,800 to protect latency.
+   - *Check:* the variant name must be on the fixed list, or the call is rejected before anything is staged. The variant changes only the instructions. Input, schema, performance limits, and every validator are identical, and a test runs the same plan and the same good and bad performances under both variants and gets identical results.
+   - *Tests (`BridgeVoiceVariantTests`):* the one-pass default is Kit's voice and `current` stays selectable; `KIT_EXPRESSION_V1` appears only when chosen; input, schema, and limits are unchanged; unknown variants and a staged-`prepare` variant are rejected; the turn record, telemetry, and idempotent commit hash include the variant; both variants face the same validators; old pending turns record `current`; staged `finish` records the `decide` variant; the API agent and Responses adapter send the chosen instructions; the voice guidance stays short, keeps its guardrails, and names no room actor, speaker, or secret; the CLI passes the variant.
+   - *Still unproven:* no blind or live comparison has run. Making it the default was Brendon's call, based on `current` producing a generic DM; it is not proof that v1 is better. Judge it with section (f): read the spoken `Kit:` lines first. Could this remark come from any DM at any table? Did she say what she makes of the bid? Did any NPC borrow her phrasing? If the contrasts start showing up word for word, cut them rather than adding more rules.
 
 After these, the larger items in `expressed-performance-pipeline.md` still apply: ingest player-supplied rolls, add typed social events for real offers and promises, and replace the area 6c enums (`kit_agent.py:72`, `:155`, `:169`) with a general scene adapter so a second room can be built.
 
@@ -169,7 +172,7 @@ After these, the larger items in `expressed-performance-pipeline.md` still apply
 Use the bridge exactly as the player would experience it. No API key is needed.
 
 1. **Run the unit tests after every change** (`python -m unittest discover -s tests -p 'test_*.py'`). For each new carrier, add three tests: it reaches the performer, its private source does not, and the validator rejects a violation.
-2. **Play a short fresh room.** Run `init` on a new database, the opening, Nik's greeting ("Hi, I'm Nik. I wasn't expecting to find people gambling. Whats going on here?"), then a follow-up that pushes back, using `prepare --one-pass` / `complete`.
+2. **Play a short fresh room.** `prepare --one-pass` uses Kit's voice (`kit_expression_v1`) by default; add `--performance-variant current` on a copy of the database for the baseline. Run `init` on a new database, the opening, Nik's greeting ("Hi, I'm Nik. I wasn't expecting to find people gambling. Whats going on here?"), then a follow-up that pushes back, using `prepare --one-pass` / `complete`.
 3. **Read only the spoken text first.** Answer these before looking at any trace:
    - Did the reply answer the player's actual words?
    - What does the dealer want, and how is he trying to get it?
