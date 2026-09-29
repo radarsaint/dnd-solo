@@ -573,18 +573,81 @@ NUMBER_WORDS = {'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5, 'six': 6, 
                 'eight': 8, 'nine': 9, 'ten': 10, 'eleven': 11, 'twelve': 12, 'thirteen': 13,
                 'fourteen': 14, 'fifteen': 15, 'sixteen': 16, 'seventeen': 17, 'eighteen': 18,
                 'nineteen': 19, 'twenty': 20, 'thirty': 30, 'forty': 40, 'fifty': 50,
+                'sixty': 60, 'seventy': 70, 'eighty': 80, 'ninety': 90,
                 'hundred': 100, 'a hundred': 100, 'a dozen': 12, 'dozen': 12}
+_ONES = {word: value for word, value in NUMBER_WORDS.items() if value < 20 and ' ' not in word}
+_TENS = {word: value for word, value in NUMBER_WORDS.items() if value in range(20, 100, 10)}
+# Coin units as people say them. Each maps to its SRD abbreviation.
+COIN_UNITS = {
+    'gp': 'gp', 'gold': 'gp', 'gold piece': 'gp', 'gold pieces': 'gp', 'gold coin': 'gp',
+    'gold coins': 'gp', 'golds': 'gp',
+    'sp': 'sp', 'silver': 'sp', 'silver piece': 'sp', 'silver pieces': 'sp', 'silver coin': 'sp',
+    'silver coins': 'sp', 'silvers': 'sp',
+    'cp': 'cp', 'copper': 'cp', 'copper piece': 'cp', 'copper pieces': 'cp', 'copper coin': 'cp',
+    'copper coins': 'cp', 'coppers': 'cp',
+    'ep': 'ep', 'electrum': 'ep', 'electrum pieces': 'ep',
+    'pp': 'pp', 'platinum': 'pp', 'platinum pieces': 'pp', 'platinum coins': 'pp',
+}
+
+
+def _parse_number(words, start):
+    """(value, end) for a spoken or written number at words[start]: "63000", "five",
+    "twenty five", "a hundred and twenty", "sixty three thousand", "63 thousand"."""
+    total, current, index, seen = 0, 0, start, False
+    while index < len(words):
+        word = words[index]
+        following = words[index + 1] if index + 1 < len(words) else None
+        if word.isdigit() and not seen:
+            current, seen = int(word), True
+        elif word in _ONES and (not seen or current % 10 == 0 and current % 100 >= 20 or current % 100 == 0):
+            current, seen = current + _ONES[word], True
+        elif word in _TENS and (not seen or current % 100 == 0):
+            current, seen = current + _TENS[word], True
+        elif word == 'hundred' and (seen or index > start):
+            current, seen = (current or 1) * 100, True
+        elif word == 'thousand' and (seen or index > start):
+            total, current, seen = total + (current or 1) * 1000, 0, True
+        elif word == 'dozen' and (seen or index > start):
+            current, seen = (current or 1) * 12, True
+        elif word == 'a' and not seen and following in ('hundred', 'thousand', 'dozen'):
+            pass
+        elif word == 'and' and seen and following and (following in _ONES or following in _TENS):
+            pass
+        else:
+            break
+        index += 1
+    return (total + current, index) if seen else None
+
+
+def spoken_amounts(text, units=None):
+    """Every (amount, unit) coin amount in the text, however it is said: "25 gp",
+    "63,000 gp", "five silver", "twenty-five gold pieces", "a hundred and ten gold".
+    Numbers are whole tokens, so "25 gp" is never found inside "125 gp". `units`
+    maps unit phrases to what to report (default: COIN_UNITS, to SRD abbreviations)."""
+    units = COIN_UNITS if units is None else units
+    cleaned = re.sub(r'(?<=\d),(?=\d{3}\b)', '', normalize(text)).replace('-', ' ')
+    words = re.findall(r"\d+|[a-z]+", cleaned)
+    phrases = sorted(((tuple(phrase.split()), unit) for phrase, unit in units.items()),
+                     key=lambda item: -len(item[0]))
+    found, index = [], 0
+    while index < len(words):
+        number = _parse_number(words, index)
+        if not number:
+            index += 1
+            continue
+        value, end = number
+        after = end + (1 if end < len(words) and words[end] == 'more' else 0)
+        unit = next((unit for phrase, unit in phrases if tuple(words[after:after + len(phrase)]) == phrase),
+                    None)
+        if unit is not None:
+            found.append((value, unit))
+        index = max(end, index + 1)
+    return found
 
 
 def _amounts(sentence, units):
-    text = ' '.join(tokens(sentence))
-    unit = '|'.join(re.escape(normalize(word)) for word in sorted(units, key=len, reverse=True))
-    number = r'\d+|' + '|'.join(sorted(NUMBER_WORDS, key=len, reverse=True))
-    found = []
-    for match in re.finditer(rf'\b({number})(?: more)? ({unit})\b', text):
-        raw = match.group(1)
-        found.append(int(raw) if raw.isdigit() else NUMBER_WORDS[raw])
-    return found
+    """Amounts in the sentence said in one of `units` (a fact's unit words)."""
+    return [amount for amount, _ in spoken_amounts(sentence, {normalize(word): True for word in units})]
 
 
 def numeric_facts(source):
@@ -592,21 +655,160 @@ def numeric_facts(source):
             if isinstance(fact, dict)}
 
 
-def check_numeric_facts(segments, facts, player_action):
+def check_numeric_facts(segments, facts, player_action, stake_amounts=(), game_terms=()):
+    """HARD: a fixed source amount is not changed. While a table game runs, its stake
+    amounts may be named in a sentence about the game (one with a game term) that is not
+    about the fact itself: "The stakes are eleven gold a head" is fine, but "Win and the
+    ring's yours for 11 gold" or "passage is 11 gold" still is not. Stake amounts are
+    never merged into a fact's allowed amounts."""
     declared = set()
     for fact in (facts or {}).values():
         for sentence in sentences(player_action or ''):
             declared.update(_amounts(sentence, fact['unit_words']))
+    stakes = set(stake_amounts or ())
     for segment in segments:
-        for sentence in sentences(segment['text']):
+        parts = sentences(segment['text'])
+        for index, sentence in enumerate(parts):
             words = ' ' + ' '.join(tokens(sentence)) + ' '
+            if index and parts[index - 1].rstrip('"\'” )').endswith('?'):
+                # "The ring? Eleven gold." answers the question just asked.
+                words += ' '.join(tokens(parts[index - 1])) + ' '
+            about_game = any(f' {normalize(term)} ' in words for term in game_terms or ())
             for name, fact in (facts or {}).items():
                 if not any(f' {normalize(word)} ' in words for word in fact['context_words']):
                     continue
+                specific = fact.get('specific_words') or fact['context_words']
+                about_fact = any(f' {normalize(word)} ' in words for word in specific)
                 for amount in _amounts(sentence, fact['unit_words']):
-                    if amount not in fact['allowed_amounts'] and amount not in declared:
-                        raise InvalidChange(
-                            f'Source fact: the {segment["speaker"]} named {amount} '
-                            f'{fact["unit_words"][0]} for {name.replace("_", " ")}; the source fixes '
-                            f'{" or ".join(str(a) for a in fact["allowed_amounts"])}. Characters may '
-                            'haggle in words, not change a fixed price.')
+                    if amount in fact['allowed_amounts'] or amount in declared:
+                        continue
+                    if amount in stakes and about_game and not about_fact:
+                        continue
+                    raise InvalidChange(
+                        f'Source fact: the {segment["speaker"]} named {amount} '
+                        f'{fact["unit_words"][0]} for {name.replace("_", " ")}; the source fixes '
+                        f'{" or ".join(str(a) for a in fact["allowed_amounts"])}. Characters may '
+                        'haggle in words, not change a fixed price.')
+
+
+# ---------------------------------------------------------------------------
+# 9. Scene fit (HARD): who the player is, what the deal was, what can be staked
+# ---------------------------------------------------------------------------
+# Ancestry words a line might pin on the player. The player's own ancestry, and plain
+# words for it (a Harengon is rabbit-folk), are always allowed.
+ANCESTRY_WORDS = (
+    'elf', 'elves', 'elven', 'elvish', 'elfling', 'half-elf', 'dwarf', 'dwarven', 'human', 'halfling',
+    'gnome', 'orc', 'half-orc', 'tiefling', 'dragonborn', 'goliath', 'aasimar', 'harengon', 'tabaxi',
+    'kenku', 'firbolg', 'genasi', 'goblin', 'hobgoblin', 'bugbear', 'kobold', 'lizardfolk', 'tortle',
+    'triton', 'warforged', 'satyr', 'owlin', 'centaur', 'minotaur', 'yuan-ti', 'githyanki', 'githzerai',
+    'rabbit', 'hare', 'bunny', 'rabbitfolk', 'catfolk', 'birdfolk')
+ANCESTRY_ALIASES = {
+    'harengon': ('harengon', 'rabbit', 'hare', 'bunny', 'rabbitfolk'),
+    'elf': ('elf', 'elves', 'elven', 'elvish'), 'dwarf': ('dwarf', 'dwarven'),
+    'tabaxi': ('tabaxi', 'catfolk'), 'kenku': ('kenku', 'birdfolk'), 'owlin': ('owlin', 'birdfolk'),
+    'half-elf': ('half-elf', 'elf', 'elven'), 'half-orc': ('half-orc', 'orc'),
+}
+
+
+def _identity_patterns(wrong):
+    words = '|'.join(re.escape(word) for word in sorted(wrong, key=len, reverse=True))
+    adjectives = r"(?:[\w'-]+\s+){0,3}?"
+    return (
+        # "You're an elf", "you are a pretty little elf"
+        re.compile(rf"\byou(?:'re| are)\s+(?:a|an|some|the|one)\s+{adjectives}({words})\b"),
+        # vocatives: "Sit down, elf." "Well, little elf, ..."
+        re.compile(rf"(?:^|[,;:]\s*|\b(?:hey|oi|listen|well|so|now|come)\s+)(?:my\s+|dear\s+|little\s+|"
+                   rf"young\s+|sweet\s+|good\s+)?({words})\s*[,!?.]"),
+        # "an elf like you", "for an elf"
+        re.compile(rf"\b(?:a|an)\s+{adjectives}({words})\s+like\s+you\b"),
+        re.compile(rf"\bfor (?:a|an)\s+{adjectives}({words})\b(?=[^.?!]*\byou)"),
+    )
+
+
+_EPITHET = r"^(?:a|an)\s+(?:[\w'-]+\s+){{0,3}}?({words})\b(?:\s+(?:with|who|that|in|at|come)\b|\s*[,.!?\u2014-])"
+
+
+def check_player_identity(segments, character):
+    """HARD: no line calls the player something their character is not. With a
+    Harengon player, "A love-struck elf with a purse to empty" (an NPC's epithet for
+    the visitor) or "You're an elf" is rejected; "your elf" (a possession) is not an
+    identity claim and passes. Quiet without a recorded player character."""
+    ancestry = normalize((character or {}).get('ancestry'))
+    if not ancestry:
+        return
+    allowed = set(ANCESTRY_ALIASES.get(ancestry, (ancestry,))) | {ancestry}
+    wrong = [word for word in ANCESTRY_WORDS if word not in allowed]
+    patterns = _identity_patterns(wrong)
+    epithet = re.compile(_EPITHET.format(words='|'.join(re.escape(w) for w in sorted(wrong, key=len, reverse=True))))
+    for segment in segments:
+        parts = sentences(segment['text'])
+        for index, sentence in enumerate(parts):
+            text = normalize(sentence)
+            hit = next((found for pattern in patterns for found in [pattern.search(text)] if found), None)
+            if not hit and index == 0 and segment['speaker'] in NPC_SPEAKERS:
+                hit = epithet.search(text)
+            if hit:
+                raise InvalidChange(
+                    f'Scene fit: the {segment["speaker"]} calls the player "{hit.group(1)}", but the '
+                    f'player character is {character.get("name") or "the player"}, a {character["ancestry"]} '
+                    '(public view your_character). Get who they are right.')
+
+
+CLEAN_DEAL = re.compile(
+    r"\b(?:fingers|hands|wrists) (?:stay |stayed |are |were |kept |keep )?(?:clear|clean|honest|still)\b"
+    r"|\bdeals? (?:it |them |the cards )?(?:clean|straight|honest|fair)(?:ly)?\b"
+    r"|\bdealt (?:it |them )?(?:clean|straight|honest|honestly|fair|fairly)\b"
+    r"|\b(?:clean|honest|fair|straight) deal\b|\bnot a finger (?:near|on|out of place)\b"
+    r"|\bstraight off the top\b|\bevery card (?:from|off) the top\b|\boff the top,? (?:every|each) card\b"
+    r"|\bthe deal (?:is|was|looks|looked|seems|seemed) (?:clean|fair|honest|straight)\b"
+    r"|\bno (?:tricks?|sleight|funny business) (?:in|with) the deal\b|\bnothing (?:wrong|off|amiss) (?:with|about|in) the deal\b")
+_PERCEIVED = re.compile(r"\b(?:to you|you see|you can see|you notice|you spot|you can tell|you catch|as far as you)\b")
+
+
+def check_clean_deal(segments, dealer_cheated):
+    """HARD: when the game state says the dealer cheated this deal, the Narrator and
+    Kit cannot describe a clean one ("his fingers stay clear of the deck", "a straight
+    deal"). What the player perceived may be said as perception ("nothing looks wrong
+    to you"). NPCs may lie; that is theirs."""
+    if not dealer_cheated:
+        return
+    for segment in segments:
+        if segment['speaker'] not in ('Narrator', 'Kit'):
+            continue
+        for sentence in sentences(segment['text']):
+            text = normalize(sentence)
+            if CLEAN_DEAL.search(text) and not _PERCEIVED.search(text):
+                raise InvalidChange(
+                    f'Scene fit: the {segment["speaker"]} describes a clean deal ("{sentence[:60]}"), '
+                    'but the game state says otherwise. Describe only what the player can see.')
+
+
+STAKE_CUE = re.compile(
+    r"\b(?:wager|wagers|wagering|stake|staking|put up|puts up|putting up|play (?:you )?for|playing for|"
+    r"bet|bets|betting|throw in|throws in|toss in|in(?:to)? the (?:pot|stakes)|on the table as|as stakes|"
+    r"win (?:a|the|one|this|that) (?:gambit|hand|game|round))\b")
+UNCARRIED_STAKES = re.compile(
+    r"\b(ring|rings|toll|tolls|passage|key|keys|bottle|cordial|door|way through|your (?:sword|blade|weapon|"
+    r"horse|boots|pack|cloak|bow)|favou?r|secret|secrets)\b")
+
+
+def check_stake_offers(segments, stake_unit='gp'):
+    """HARD: the card game carries gold only. An NPC who offers to stake the ring, the
+    toll, passage, or anything else ("I'll stake the ring against your purse", "Win a
+    gambit and the toll's waived") offers a wager the runtime cannot pay out. A pronoun
+    ("put it in the pot") right after the item counts."""
+    for segment in segments:
+        if segment['speaker'] not in NPC_SPEAKERS:
+            continue
+        parts = sentences(segment['text'])
+        for index, sentence in enumerate(parts):
+            text = normalize(sentence)
+            if not STAKE_CUE.search(text):
+                continue
+            item = UNCARRIED_STAKES.search(text)
+            if not item and index and re.search(r"\b(it|that|them)\b", text):
+                item = UNCARRIED_STAKES.search(normalize(parts[index - 1]))
+            if item:
+                raise InvalidChange(
+                    f'Scene fit: the {segment["speaker"]} offers to stake "{item.group(1)}", but the table '
+                    f'game stakes only {stake_unit}. Offer only what the game can carry.')

@@ -2,6 +2,7 @@
 Kit's asides answer what happened; the router hears an answer to the dealer as speech;
 the detail oracle and canon ledger answer "What game is it?"; and the card game is a
 procedure the runtime runs, marked deck and all."""
+import copy
 import json
 import tempfile
 import unittest
@@ -98,7 +99,7 @@ class GameModel(RecordingModel):
                 'request': payload['player_action'], 'slot': oracle['slot'], 'choice': dealt['draw_id'],
                 'candidates': [], 'typical': -1, 'chosen': -1,
                 'owner': 'uktarl: a game where knowing the cards pays',
-                'handle': 'buy in, bet, fold, or watch the deal',
+                'handle': 'buy in, ante a card, or watch the deal',
                 'because': 'true because the four play cards at this table with coins in front of them',
                 'price_quote': [],
                 'inventions': [{'slot': oracle['slot'], 'kind': 'procedure', 'fact': dealt['entry'],
@@ -110,8 +111,8 @@ class GameModel(RecordingModel):
         if 'new_procedures' not in payload:
             return super().perform(payload, performance_variant)
         self.performances.append(payload.copy())
-        narration = ('The dealer fans dragon cards in five colors across the worn felt: Three-Dragon Ante, '
-                     'three to a hand, the stakes climbing before the reveal.')
+        narration = ('The dealer fans dragon cards in ten colors across the worn felt: Three-Dragon Ante, '
+                     'where each player antes a card and the strongest ante sets the stakes.')
         return {'segments': [
             {'speaker': 'Kit', 'text': 'A real game, then. Good.', 'reacts_to': 'Three-Dragon Ante'},
             {'speaker': 'Narrator', 'text': narration},
@@ -195,154 +196,276 @@ class GameDetailTests(unittest.TestCase):
 
 
 class CardTableTests(unittest.TestCase):
-    """The marked deck is playable: the dealer cheats by rule, the player can catch it,
-    counter it, or accuse, and every coin is persisted in procedure state."""
+    """The marked deck is playable in real Three-Dragon Ante structure: card antes set
+    the stakes, three rounds of flights, color powers, special flights. The dealer cheats
+    by rule at the deal, the player can catch it, counter it, or accuse, and every coin
+    is persisted in procedure state and conserved."""
 
     config = json.loads(FIXTURE.read_text())['procedures']['three_dragon_ante']
+    MODS = {'perception': 2, 'insight': 1, 'sleight_of_hand': 3}
 
-    def table(self, **modifiers):
-        return kit_cards.CardTable('three_dragon_ante', self.config,
-                                   {'perception': modifiers.get('perception', 0),
-                                    'insight': modifiers.get('insight', 0),
-                                    'sleight_of_hand': modifiers.get('sleight_of_hand', 0)}, 'seed-1')
+    def table(self, seed='seed'):
+        return kit_cards.CardTable('three_dragon_ante', self.config, dict(self.MODS), seed)
 
     def play(self, table, kind, action, state, revision=1):
         return table.resolve(kind, action, revision, state)
 
-    def test_buy_in_needs_a_stated_purse_and_covers_the_ante(self):
+    def seated(self, seed='seed', action='I buy in with 30 gold and deal me in.'):
+        table = self.table(seed)
+        _, state, reveals = table.resolve('card_join', action, 1, kit_cards.initial_state(self.config))
+        return table, state, reveals
+
+    def finish_gambit(self, table, state, revision=2):
+        """Ante the weakest card, then play the strongest each turn until the showdown."""
+        state = table.resolve('card_ante', 'I ante my weakest card.', revision, state)[1]
+        while state['public']['gambit']['phase'] == 'play':
+            revision += 1
+            state = table.resolve('card_play', 'I play my strongest card.', revision, state)[1]
+        return state, revision + 1
+
+    def seed_where(self, cheated):
+        for number in range(200):
+            table, state, _ = self.seated(f'seed{number}')
+            if state['private']['cheated'] == cheated:
+                return f'seed{number}'
+        self.fail('no seed found')
+
+    def test_buy_in_needs_a_stated_purse(self):
         state = kit_cards.initial_state(self.config)
         with self.assertRaises(kit_cards.NeedsRuling):
             self.play(self.table(), 'card_join', 'I sit in.', state)
         text, state, _ = self.play(self.table(), 'card_join', 'I buy in with 20 gold.', state)
-        self.assertEqual(state['public']['player']['gp'], 20)
-        self.assertIn('ante 2 gp', text)
+        self.assertIn('20 gp', text)
+        self.assertIsNone(state['public']['gambit'], 'no deal until the player asks for one')
 
-    def test_a_deal_takes_the_ante_and_keeps_the_private_half_private(self):
-        state = kit_cards.initial_state(self.config)
-        _, state, _ = self.play(self.table(), 'card_join', 'I buy in with 20 gold and deal me in.', state)
-        hand = state['public']['hand']
-        self.assertEqual(len(hand['your_cards']), kit_cards.HAND_SIZE)
-        self.assertEqual(state['public']['player']['gp'], 18)
-        self.assertNotIn('hands', state['public']['hand'])
-        dealt = state['private']['hands']['1']['hands']
-        self.assertEqual(set(dealt), {'player', 'bandit_a', 'bandit_b', 'doppelganger', 'uktarl'})
-        for card_ in dealt['uktarl']:
-            self.assertNotIn(kit_cards.card_name(card_), hand['your_cards'])
+    def test_a_deal_gives_six_cards_and_keeps_the_private_half_private(self):
+        _, state, _ = self.seated()
+        gambit = state['public']['gambit']
+        self.assertEqual((gambit['phase'], gambit['to_act']), ('ante', 'player'))
+        self.assertEqual(len(state['public']['player']['hand']), kit_cards.HAND_SIZE)
+        for seat in gambit['seats']:
+            self.assertEqual(len(state['private']['hands'][seat]), kit_cards.HAND_SIZE)
+        public = json.dumps(state['public'])
+        self.assertNotIn('hands', public)
+        self.assertNotIn('cheated', public)
 
-    def test_the_player_may_supply_their_own_roll(self):
+    def test_supplied_rolls_are_parsed(self):
         self.assertEqual(kit_cards.supplied_roll('I watch his hands. I rolled 14 + 3 = 17.'), (14, 3))
         self.assertEqual(kit_cards.supplied_roll('I watch his hands. Rolled a 15.'), (15, None))
 
-    def cheating_seed(self):
-        for number in range(200):
-            seed = f'seed-{number}'
-            table = kit_cards.CardTable('three_dragon_ante', self.config,
-                                        {'perception': 0, 'insight': 0, 'sleight_of_hand': 0}, seed)
-            _, state, _ = table.resolve('card_join', 'I buy in with 20 gold and deal me in.', 1,
-                                        kit_cards.initial_state(self.config))
-            if state['private']['hands']['1']['cheated']:
-                return seed
-        self.fail('no cheating deal in 200 seeds')
+    def test_the_strongest_ante_card_sets_the_stakes_and_the_lead(self):
+        """QA PR #15 item 7: real Three-Dragon Ante structure, not a three-card poker hand."""
+        table, state, _ = self.seated()
+        before = {seat: table._gp(state['public'], seat) for seat in state['public']['gambit']['seats']}
+        text, state, _ = self.play(table, 'card_ante', 'I ante my weakest card.', state, revision=2)
+        gambit = state['public']['gambit']
+        antes = {seat: kit_cards._parse_name(name)[1] for seat, name in gambit['antes_revealed'].items()}
+        top = max(antes.values())
+        self.assertEqual(gambit['ante_amount'], top)
+        self.assertIn(f'Stakes {top} gp each', text)
+        self.assertEqual(gambit['plays'][0][0], [s for s in gambit['seats'] if antes[s] == top][0],
+                         'the strongest ante leads the first round')
+        for seat, gp in before.items():
+            paid = gp - table._gp(state['public'], seat)
+            # paid covers the ante (all in when short), give or take powers already triggered
+            self.assertTrue(paid >= min(top, gp) - 3, (seat, paid, top))
 
-    @staticmethod
-    def gold(state):
-        public = state['public']
-        return (sum(public['stacks'].values()) + (public['player'] or {}).get('gp', 0) +
-                ((public['hand'] or {}).get('pot') or 0))
+    def test_three_rounds_of_flights_powers_and_the_strongest_flight_wins(self):
+        for number in range(12):
+            table, state, _ = self.seated(f'rounds{number}')
+            state, _ = self.finish_gambit(table, state)
+            public = state['public']
+            gambit = public['gambit']
+            self.assertEqual(gambit['phase'], 'done')
+            active = [s for s in gambit['seats'] if s not in gambit['out']]
+            for seat in active:
+                self.assertEqual(len(gambit['flights'][seat]), kit_cards.ROUNDS)
+            # A card triggers its power when it opens a round or is no stronger than the
+            # card played just before it that round.
+            previous = {}
+            for seat, name, round_number, triggered in gambit['plays']:
+                value = kit_cards._parse_name(name)[1]
+                expected = round_number not in previous or value <= previous[round_number]
+                self.assertEqual(triggered, expected, (name, round_number))
+                previous[round_number] = value
+            result = public['last_result']
+            best = max(result['flights'].values())
+            self.assertEqual(sorted(result['winners']),
+                             sorted(label for label, total in result['flights'].items() if total == best))
 
-    def test_watching_the_deal_can_catch_the_marked_deck_and_proof_voids_the_hand(self):
-        seed = self.cheating_seed()
-        table = kit_cards.CardTable('three_dragon_ante', self.config,
-                                    {'perception': 5, 'insight': 0, 'sleight_of_hand': 0}, seed)
+    def test_gold_is_conserved_across_many_gambits(self):
+        for number in range(25):
+            table, state, _ = self.seated(f'gold{number}', 'I buy in with 40 gold and deal me in.')
+            total = kit_cards.table_gold(state['public'])
+            revision = 2
+            for _ in range(5):
+                if state['public']['player']['gp'] < 1:
+                    break
+                if state['public']['gambit']['phase'] == 'done':
+                    state = table.resolve('card_join', 'Deal again.', revision, state)[1]
+                    revision += 1
+                state, revision = self.finish_gambit(table, state, revision)
+                self.assertEqual(kit_cards.table_gold(state['public']), total)
+                self.assertTrue(all(gp >= 0 for gp in state['public']['stacks'].values()))
+            self.assertLessEqual(len(json.dumps(state)), 6000, 'fits the procedure state bound')
+
+    def test_the_dealer_deals_seconds_from_the_marked_deck(self):
+        table = self.table('marks')
         state = kit_cards.initial_state(self.config)
-        _, state, _ = table.resolve('card_join', 'I buy in with 20 gold.', 1, state)
-        total = self.gold(state)
-        state['public']['player']['watch_next_deal'] = True
-        text, state, reveals = table.resolve('card_join', 'Deal me in. I rolled 20 + 5 = 25.', 2, state)
-        self.assertEqual(self.gold(state), total, 'the ante moves coins, it never makes them')
-        self.assertTrue(state['private']['hands']['1']['cheated'])
+        state = table.resolve('card_join', 'I buy in with 30 gold.', 1, state)[1]
+        deck = [[color, value] for color in kit_cards.COLORS for value in kit_cards.DECK[color]]
+        kit_cards._rng('marks', 'deck').shuffle(deck)
+        state = table.resolve('card_join', 'Deal me in.', 2, state)[1]
+        dealer = self.config['cheat']['actor']
+        honest = sorted(deck[4:len(deck):5][:6])  # every fifth card from his seat, with no cheating
+        self.assertEqual(state['private']['cheated'], sorted(state['private']['hands'][dealer]) != honest)
+
+    def test_watching_the_deal_can_catch_the_marked_deck_and_proof_voids_the_gambit(self):
+        seed = self.seed_where(cheated=True)
+        table = self.table(seed)
+        state = kit_cards.initial_state(self.config)
+        state = table.resolve('card_join', 'I buy in with 30 gold.', 1, state)[1]
+        total = kit_cards.table_gold(state['public'])
+        before = dict(state['public']['stacks'])
+        text, state, reveals = table.resolve('card_watch', 'I watch the dealer\'s hands for cheating as he '
+                                             'deals. I rolled 20 + 5 = 25.', 2, state)
         self.assertEqual(reveals, ['marked_deck'])
-        self.assertTrue(state['public']['hand']['cheat_seen'])
-        self.assertIn(self.config['cheat']['caught_text'], text)
-        text, state, _ = table.resolve('card_accuse', 'I accuse him of dealing seconds!', 3, state)
-        self.assertEqual(state['public']['player']['gp'], 20, 'every stake goes back to whoever paid it')
-        self.assertEqual(self.gold(state), total)
-        self.assertIn('does not confess', text)
+        self.assertTrue(state['public']['gambit']['cheat_seen'])
+        self.assertIn('Perception 25', text)
+        state = table.resolve('card_ante', 'I ante my weakest card.', 3, state)[1]
+        self.assertNotEqual(state['public']['stacks'], before, 'the antes are in the stakes')
+        text, state, _ = table.resolve('card_accuse', 'You dealt yourself the second card.', 4, state)
+        self.assertIn('void', text)
+        self.assertEqual(state['public']['stacks'], before)
+        self.assertEqual(state['public']['player']['gp'], 30)
+        self.assertEqual(kit_cards.table_gold(state['public']), total)
+        self.assertEqual(state['public']['gambit']['phase'], 'done')
+
+    def test_a_proven_accusation_keeps_gold_carried_from_the_last_gambit(self):
+        seed = self.seed_where(cheated=True)
+        table = self.table(seed)
+        state = kit_cards.initial_state(self.config)
+        state = table.resolve('card_join', 'I buy in with 30 gold.', 1, state)[1]
+        state['public']['carried'] = 3  # an odd split left over from the gambit before
+        state['public']['stacks'][self.config['cheat']['actor']] -= 3
+        total = kit_cards.table_gold(state['public'])
+        state = table.resolve('card_watch', 'I watch the deal closely. I rolled 20 + 5 = 25.', 2, state)[1]
+        state = table.resolve('card_ante', 'I ante my strongest card.', 3, state)[1]
+        state = table.resolve('card_accuse', 'I accuse him of dealing seconds.', 4, state)[1]
+        self.assertEqual(state['public']['carried'], 3)
+        self.assertEqual(kit_cards.table_gold(state['public']), total)
 
     def test_an_accusation_without_proof_stops_the_game_and_refunds_nothing(self):
-        state = kit_cards.initial_state(self.config)
-        _, state, _ = self.play(self.table(), 'card_join', 'I buy in with 20 gold and deal me in.', state)
-        text, state, _ = self.play(self.table(), 'card_accuse', 'You are cheating!', state, revision=2)
-        self.assertEqual(state['public']['player']['gp'], 18)
-        self.assertEqual(state['public']['table_mood'], 'tense: accused without proof')
+        table, state, _ = self.seated()
+        state = table.resolve('card_ante', 'I ante my weakest card.', 2, state)[1]
+        gold = copy.deepcopy((state['public']['stacks'], state['public']['player']['gp']))
+        text, state, _ = table.resolve('card_accuse', 'You\'re cheating!', 3, state)
         self.assertIn('Nothing on the table proves it', text)
+        self.assertEqual((state['public']['stacks'], state['public']['player']['gp']), gold)
+        self.assertEqual(state['public']['table_mood'], 'tense: accused without proof')
 
-    def test_seats_that_checked_before_a_raise_call_it_or_fold(self):
-        """QA PR #15: a seat acting before the raiser stayed in the hand for the ante alone."""
-        checked = 0
-        for number in range(200):
-            table = kit_cards.CardTable('three_dragon_ante', self.config,
-                                        {'perception': 0, 'insight': 0, 'sleight_of_hand': 0}, f'raise-{number}')
-            _, state, _ = table.resolve('card_join', 'I buy in with 20 gold and deal me in.', 1,
-                                        kit_cards.initial_state(self.config))
-            hand = state['public']['hand']
-            if not hand['raised_by']:
-                continue
-            for seat in hand['in_hand']:
-                self.assertEqual(hand['paid'][seat], state['public']['ante'] + state['public']['raise'])
-            checked += 1
-        self.assertGreater(checked, 0)
+    def test_a_failed_swap_puts_the_player_out_and_the_table_plays_on(self):
+        table, state, _ = self.seated()
+        total = kit_cards.table_gold(state['public'])
+        state = table.resolve('card_ante', 'I ante my weakest card.', 2, state)[1]
+        text, state, _ = table.resolve('card_swap', 'I palm a card. I rolled 1 + 0 = 1.', 3, state)
+        self.assertTrue(state['public']['player']['unwelcome'])
+        self.assertEqual(state['public']['gambit']['phase'], 'done', 'the others played it out')
+        self.assertEqual(kit_cards.table_gold(state['public']), total)
+        with self.assertRaises(kit_cards.NeedsRuling):
+            table.resolve('card_join', 'Deal me in.', 4, state)
 
-    def test_a_proven_accusation_keeps_the_remainder_carried_from_the_last_hand(self):
-        """QA PR #15: voiding the hand zeroed the pot, destroying a split remainder."""
-        for number in range(3000):
-            table = kit_cards.CardTable('three_dragon_ante', self.config,
-                                        {'perception': 5, 'insight': 0, 'sleight_of_hand': 0}, f'carry-{number}')
-            _, state, _ = table.resolve('card_join', 'I buy in with 20 gold and deal me in.', 1,
-                                        kit_cards.initial_state(self.config))
-            _, state, _ = table.resolve('card_bet', 'I call.', 2, state)
-            if not state['public']['hand']['pot']:
-                continue
-            state['public']['player']['watch_next_deal'] = True
-            _, state, _ = table.resolve('card_join', 'Deal me in. I rolled 20 + 5 = 25.', 3, state)
-            if not state['public']['hand']['cheat_seen']:
-                continue
-            total = self.gold(state)
-            _, state, _ = table.resolve('card_accuse', 'You are cheating!', 4, state)
-            self.assertEqual(self.gold(state), total)
-            return
-        self.fail('no carried remainder with a caught cheat in 3000 seeds')
+    def test_a_good_swap_trades_the_weakest_card(self):
+        table, state, _ = self.seated()
+        weakest = min(state['private']['hands']['player'], key=lambda card: card[1])
+        text, state, _ = table.resolve('card_swap', 'I slip a card up my sleeve. I rolled 18 + 3 = 21.', 2, state)
+        self.assertIn(kit_cards.card_name(weakest), text)
+        self.assertEqual(len(state['public']['player']['hand']), kit_cards.HAND_SIZE)
 
-    def test_betting_words_are_ordinary_words_without_a_live_hand(self):
+    def test_leaving_mid_gambit_forfeits_it_so_the_table_can_deal_again(self):
+        table, state, _ = self.seated()
+        total = kit_cards.table_gold(state['public'])
+        state = table.resolve('card_ante', 'I ante my weakest card.', 2, state)[1]
+        purse = state['public']['player']['gp']
+        text, state, _ = table.resolve('card_leave', 'I cash out.', 3, state)
+        self.assertIn('You drop out of the gambit', text)
+        self.assertEqual(state['public']['gambit']['phase'], 'done')
+        self.assertIsNone(state['public']['player'])
+        self.assertEqual(kit_cards.table_gold(state['public']) + purse, total)
+
+    def test_card_names_parse_from_the_players_words(self):
+        hand = [('red', 8), ('gold', 13), ('red', 2), ('white', 4)]
+        self.assertEqual(kit_cards.parse_card('I ante the red 8.', hand), ('red', 8))
+        self.assertEqual(kit_cards.parse_card('I play red eight', hand), ('red', 8))
+        self.assertEqual(kit_cards.parse_card('the gold dragon, please', hand), ('gold', 13))
+        self.assertEqual(kit_cards.parse_card('I lay down my weakest card', hand), ('red', 2))
+        self.assertIsNone(kit_cards.parse_card('I play a red one', hand), 'two reds and no red 1')
+        table, state, _ = self.seated()
+        with self.assertRaisesRegex(kit_cards.NeedsRuling, 'Name the card'):
+            table.resolve('card_ante', 'I ante.', 2, state)
+
+    def test_card_move_matching(self):
+        """QA PR #15 item 3: watching is a watch, a claim is an accusation, a question
+        that is not a card move is speech."""
+        _, state, _ = self.seated()
+        intent = kit_cards.card_intent
+        self.assertEqual(intent('I watch the dealer for cheating.', state), 'card_watch')
+        self.assertEqual(intent('I keep an eye on his hands for any cheating as he deals.', state), 'card_watch')
+        self.assertEqual(intent('You dealt yourself the second card.', state), 'card_accuse')
+        self.assertEqual(intent('He\'s dealing seconds!', state), 'card_accuse')
+        self.assertEqual(intent('I accuse the dealer.', state), 'card_accuse')
+        self.assertIsNone(intent('Tell me about the ring.', state))
+        self.assertIsNone(intent('Tell me about the ring', state))
+        self.assertIsNone(intent('Are you cheating?', state))
+        self.assertIsNone(intent('What does the blue power do?', state))
+        self.assertEqual(intent('I ante my weakest card.', state), 'card_ante')
+        self.assertEqual(intent(f"The {state['public']['player']['hand'][0]}.", state), 'card_ante')
+        self.assertEqual(intent('I read his face for a bluff.', state), 'card_read')
+
+    def test_a_question_mid_gambit_routes_to_speech(self):
+        source = json.loads(FIXTURE.read_text())
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        runtime = Runtime(Path(temp.name) / 'kit.sqlite')
+        self.addCleanup(runtime.close)
+        runtime.initialize(source, 'area_06c')
+        state = runtime.load()[1]
+        _, table, _ = self.seated()
+        state['procedures'] = {'three_dragon_ante': table}
+        adjudicator = Room6CAdjudicator(perception=0, insight=0, sleight_of_hand=0, source=source)
+        self.assertEqual(adjudicator.resolve('Tell me about the ring', 1, state).kind, 'social')
+        self.assertEqual(adjudicator.resolve('I watch the dealer for cheating.', 1, state).kind, 'card_watch')
+        self.assertEqual(adjudicator.resolve('You dealt yourself the second card.', 1, state).kind,
+                         'card_accuse')
+
+    def test_betting_words_are_ordinary_words_without_a_live_gambit(self):
         state = kit_cards.initial_state(self.config)
         _, state, _ = self.play(self.table(), 'card_join', 'I buy in with 20 gold.', state)
         self.assertIsNone(kit_cards.card_intent('What do they call this game?', state))
-        _, state, _ = self.play(self.table(), 'card_join', 'Deal me in.', state, revision=2)
-        _, state, _ = self.play(self.table(), 'card_bet', 'I call.', state, revision=3)
-        self.assertIsNone(kit_cards.card_intent('I call.', state), 'no bet on a finished hand')
-
-    def test_leaving_mid_hand_folds_it_so_the_table_can_deal_again(self):
-        """QA PR #15: cashing out mid-hand left the hand in betting forever."""
-        state = kit_cards.initial_state(self.config)
-        _, state, _ = self.play(self.table(), 'card_join', 'I buy in with 20 gold and deal me in.', state)
-        total = self.gold(state)
-        text, state, _ = self.play(self.table(), 'card_leave', 'I cash out.', state, revision=2)
-        self.assertEqual(state['public']['hand']['phase'], 'done')
-        self.assertIn('You fold.', text)
-        self.assertEqual(self.gold(state) + 18, total, 'your 18 gp left with you; the rest stayed')
-        _, state, _ = self.play(self.table(), 'card_join', 'I buy in with 10 gold and deal me in.', state,
-                                revision=3)
-        self.assertEqual(state['public']['hand']['phase'], 'betting')
+        self.assertIsNone(kit_cards.card_intent('I play it cool.', state), 'no card move without a gambit')
 
     def test_the_public_table_names_seats_only_by_their_labels(self):
         """QA PR #15: public stack keys were actor ids ("doppelganger"), and the public
         dm_choice named the marked deck, which also switched off the literal leak check."""
-        state = kit_cards.initial_state(self.config)
-        _, state, _ = self.play(self.table(), 'card_join', 'I buy in with 20 gold and deal me in.', state)
+        table, state, _ = self.seated()
+        state = table.resolve('card_ante', 'I ante my weakest card.', 2, state)[1]
         public = json.dumps(kit_cards.public_view(self.config, state['public'])).casefold()
         for secret in ('doppelganger', 'uktarl', 'bandit', 'marked'):
             self.assertNotIn(secret, public)
         self.assertIn('fourth player', public)
+        self.assertIn('strongest ante card sets the stakes', public)
+
+    def test_the_rules_summary_is_our_own_words(self):
+        """No published rulebook sentence is copied: no 8-word run from the rulebook
+        phrasing the implementation was checked against appears in the rules or powers."""
+        published = ('if the number on your card is equal to or lower than that of the card just '
+                     'played by the person on your right or if you play first in a round you get to use '
+                     'your card\'s special power otherwise ignore the power each player chooses one card '
+                     'in his or her hand and puts it face down in the center of the table')
+        from runtime import kit_guards
+        ours = ' '.join(kit_cards.RULES) + ' ' + ' '.join(kit_cards.POWERS.values())
+        self.assertFalse(kit_guards.ngrams(kit_guards.tokens(ours), 8) &
+                         kit_guards.ngrams(kit_guards.tokens(published), 8))
 
     def test_combat_and_stealth_keep_their_rulings_at_the_card_table(self):
         temp = tempfile.TemporaryDirectory()
@@ -352,15 +475,14 @@ class CardTableTests(unittest.TestCase):
         source = json.loads(FIXTURE.read_text())
         runtime.initialize(source, 'area_06c')
         state = runtime.load()[1]
-        table = kit_cards.initial_state(self.config)
-        _, table, _ = self.play(self.table(), 'card_join', 'I buy in with 20 gold and deal me in.', table)
+        _, table, _ = self.seated()
         state['procedures'] = {'three_dragon_ante': table}
         adjudicator = Room6CAdjudicator(perception=0, insight=0, sleight_of_hand=0, source=source)
         with self.assertRaisesRegex(kit_agent.PendingRuling, 'Combat'):
             adjudicator.resolve('I raise my crossbow and shoot the dealer.', 1, state)
         with self.assertRaisesRegex(kit_agent.PendingRuling, 'Stealth'):
             adjudicator.resolve('I sneak out while they check their hands.', 1, state)
-        self.assertEqual(adjudicator.resolve('I raise.', 1, state).kind, 'card_bet')
+        self.assertEqual(adjudicator.resolve('I ante my weakest card.', 1, state).kind, 'card_ante')
         view = json.dumps(Runtime._player_view(source, state)).casefold()
         self.assertNotIn('doppelganger', view)
 

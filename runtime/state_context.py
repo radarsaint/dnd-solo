@@ -60,6 +60,19 @@ EPISODE_DEFAULTS = {'player_bid': None, 'kit_choice': None, 'actor_ref': None,
 _SCORE_PATTERN = r'\b\d+\s*(/|out of)\s*\d+\b|%|\b(score|meter|affection|rating)\b'
 
 
+def check_player_character(character):
+    require(isinstance(character, dict) and set(character) == {'name', 'ancestry', 'class', 'level'},
+            'A player character records name, ancestry, class, and level')
+    for key in ('name', 'ancestry'):
+        require(isinstance(character[key], str) and 0 < len(character[key].strip()) <= 60,
+                f'Player character {key} must be 1-60 characters')
+    require(character['class'] is None or (isinstance(character['class'], str) and
+                                           0 < len(character['class'].strip()) <= 60),
+            'Player character class must be 1-60 characters or omitted')
+    require(character['level'] is None or (type(character['level']) is int and 1 <= character['level'] <= 20),
+            'Player character level must be 1-20 or omitted')
+
+
 def canon_in_scope(state):
     """Canon entries that apply here: this location's, present actors', campaign-wide."""
     area = state['area']
@@ -466,6 +479,19 @@ class Runtime:
         return {'revision': next_revision, 'note': next(
             (note for note in self.player_notes() if note['id'] == f'n{next_revision}'), None)}
 
+    def set_player_character(self, name, ancestry, class_name=None, level=None):
+        """Record who the player is playing (name, ancestry, class, level), as the host
+        states it. Its own revision like feedback; the public view shows it as
+        ``your_character`` so every character in the scene can get it right."""
+        character = {'name': name, 'ancestry': ancestry, 'class': class_name, 'level': level}
+        check_player_character(character)
+        revision, _ = self.load()
+        event = {'type': 'player_character', 'character': character,
+                 'evidence': 'The host stated the player character\'s established identity.'}
+        digest = hashlib.sha256(f'{revision}:{encode(event)}'.encode()).hexdigest()[:16]
+        next_revision = self.commit(f'character-{digest}', revision, [event])
+        return {'revision': next_revision, 'character': character}
+
     def record_refused_attempt(self, action, ruling):
         """Commit a public note that the player tried something the table could not
         resolve. It is its own revision (like feedback), changes nothing in the world,
@@ -605,6 +631,10 @@ class Runtime:
                                'area': state['area'], 'revision': revision + 1,
                                **({'supersedes': {'fact': prior['fact'], 'revision': prior['revision'],
                                                   'reason': event['change_reason']}} if prior else {})}
+        elif kind == 'player_character':
+            character = event.get('character')
+            check_player_character(character)
+            state['player_character'] = dict(character)
         elif kind == 'oracle_draw':
             slot = event.get('slot')
             require(isinstance(slot, str) and CANON_SLOT.match(slot), 'oracle_draw needs a slot')
@@ -668,6 +698,7 @@ class Runtime:
             'actors': [{'name': a['name'], 'status': a['status']} for a in state['actors'].values()
                        if a['location'] == state['area'] and a['visible'] and a['status'] != 'fled'],
             'resources': state['resources'], 'elapsed_seconds': state['elapsed_seconds'],
+            **({'your_character': dict(state['player_character'])} if state.get('player_character') else {}),
         }
 
     def player_view(self):

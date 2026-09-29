@@ -366,7 +366,7 @@ class TempleSceneTests(unittest.TestCase):
         line = [{'speaker': 'Acolyte', 'text': 'The rules are simple: each player puts in a candle.'}]
         with self.assertRaisesRegex(InvalidChange, 'Undeclared procedure'):
             kit_detail.check_detail_performance(line, ())
-        kit_detail.check_detail_performance(line, ('liars_dice',))
+        kit_detail.check_detail_performance(line, ('liars_dice',), ('candle', 'dice'))
         kit_detail.check_detail_performance([{'speaker': 'Acolyte', 'text': 'We play liar\'s dice after vespers.'}], ())
 
 

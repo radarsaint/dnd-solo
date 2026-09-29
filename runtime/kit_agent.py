@@ -54,6 +54,9 @@ class Resolution:
 # a restatement of the player's declared words, so Kit's appraisal and the
 # performer react to what was actually said instead of a generic placeholder.
 EVENT_MAX_CHARS = 500
+# A card turn reports every card played until the player acts again (up to a round and
+# a half at a five-seat table, plus the showdown), so it gets a longer bound.
+CARD_EVENT_MAX_CHARS = 1200
 SOCIAL_EVENT_PREFIX = 'You declare: '
 _TYPOGRAPHIC = str.maketrans({'‘': "'", '’': "'", '“': '"', '”': '"'})
 
@@ -270,7 +273,7 @@ class Room6CAdjudicator:
             public, new_state, reveals = engine.resolve(kind, action, revision, body)
         except kit_cards.NeedsRuling as exc:
             raise PendingRuling(str(exc), attempt=exc.attempt) from exc
-        require(len(public) <= EVENT_MAX_CHARS, 'Card result exceeds the event bound')
+        require(len(public) <= CARD_EVENT_MAX_CHARS, 'Card result exceeds the event bound')
         events = [{'type': 'procedure_state', 'procedure': key, 'state': new_state,
                    'evidence': f'Player declared: {action[:300]}. {config["name"]}: {kind}.'}]
         events += [{'type': 'reveal_fact', 'fact': fact,
@@ -653,7 +656,8 @@ PUBLIC_INSTRUCTIONS = (
     'NPC VOICES: every NPC speaks only from their own card’s voice_contract: its rhythm, '
     'register, tics, and humor; never_says and never_words are hard limits, and '
     'max_words_per_sentence caps that NPC’s sentences. Each card player has their own speaker '
-    'label and card. NPCs never use table talk (rules, dice, checks, the story as a story), '
+    'label and card. NPCs never use table talk (dice, checks, rulings, the story as a story); a '
+    'dealer naming his running game\u2019s stakes and play in its own terms is not table talk. '
     'one-word verdicts, deadpan asides or understatement about the moment, or Kit’s phrasing; '
     'two NPCs in one turn never sound alike, and no NPC reuses a pet name, opener, or phrase '
     'from their recent turns. Fixed source numbers such as a price never change. '
@@ -669,7 +673,11 @@ PUBLIC_INSTRUCTIONS = (
     'happen when it just did. new_details, when present, are the details the decision chose: '
     'let them land in the scene as stated, with their numbers exact, and never shrink them to '
     'a stock answer. new_procedures, when present, are table games the runtime can run; only '
-    'those may be offered as playable with rules or stakes.'
+    'those may be offered as playable with rules or stakes, and while one runs (table_procedures) '
+    'only its own rules and stakes are stated. SCENE FIT: call the player only what '
+    'your_character says they are; never narrate a deal as clean or honest (say only what the '
+    'player can see); a table game stakes only the gold it tracks, never the ring, a toll, '
+    'passage, or anything else.'
 )
 
 # Kit's direct table voice: Brendon's voice spec (docs/personality/dm-personality-core.md,
@@ -1122,13 +1130,19 @@ def check_speech(speech, plan, public_view, player_action, action_kind=None, gua
                                            guards.get('leak_sets', ()))
     kit_guards.check_player_agency(segments)
     kit_guards.check_npc_meta(segments)
-    kit_guards.check_numeric_facts(segments, guards.get('numeric_facts'), player_action)
+    running = declared_procedures(guards.get('declared_procedures', ()), plan)
+    game_terms = kit_cards.RULE_TERMS if running else ()
+    kit_guards.check_numeric_facts(segments, guards.get('numeric_facts'), player_action,
+                                   guards.get('stake_amounts', ()), game_terms)
     kit_guards.check_clarification_shape(segments, plan)
+    # HARD: scene fit. Who the player is, what the deal really was, what can be staked.
+    kit_guards.check_player_identity(segments, (public_view or {}).get('your_character'))
+    kit_guards.check_clean_deal(segments, guards.get('dealer_cheated', False))
+    kit_guards.check_stake_offers(segments)
     # HARD: Kit reacts to what actually happened this turn; no procedure the runtime
     # cannot carry is stated as settled.
     kit_voice.check_kit_asides(segments, player_action, public_event, action_kind)
-    kit_detail.check_detail_performance(segments,
-                                        declared_procedures(guards.get('declared_procedures', ()), plan))
+    kit_detail.check_detail_performance(segments, running, game_terms)
     # SOFT: style floors. Recorded as warnings, not rejections, in degraded mode.
     history = guards.get('public_history', ())
     soft = (lambda: check_scope(segments, plan),
@@ -1366,6 +1380,7 @@ def prepare_inputs(runtime, revision, state, action, resolution, use_memory, one
             'public_event': resolution.public_event, 'public_view': public_view,
             'use_memory': use_memory,
             'public_history': public_history,
+            'scene_facts': scene_facts(state, resolution.events),
             'discernment_candidates': discernment_candidates(context['dm_context'])}
     # Only needed to dedupe the one-pass public view; not kept in the staged body.
     body['view_before_event'] = context['dm_context']['player_perceivable'] if one_pass else None
@@ -1398,6 +1413,18 @@ def prepare_inputs(runtime, revision, state, action, resolution, use_memory, one
     if 'memory_trimmed' in planning_input['kit_state']:
         body['memory_turn_ids'] = kept
     return revision, body, planning_input
+
+
+def scene_facts(state, events):
+    """DM-only facts the scene-fit checks need (never shown to the performer): whether
+    the dealer cheated the deal now on the table, after this turn's events."""
+    procedures = {key: body for key, body in (state.get('procedures') or {}).items()}
+    for event in events or ():
+        if event.get('type') == 'procedure_state':
+            procedures[event['procedure']] = event['state']
+    cheated = any(bool((body.get('private') or {}).get('cheated')) and (body.get('public') or {}).get('gambit')
+                  for body in procedures.values())
+    return {'dealer_cheated': cheated}
 
 
 def detail_oracle(runtime, state, action, action_kind):
@@ -1511,15 +1538,19 @@ def guard_context(source, body):
     cards = (source or {}).get('public_performance', {}).get('actor_cards', {})
     procedures = (body.get('public_view') or {}).get('table_procedures') or {}
     return {'leak_sets': kit_guards.leak_sets(source),
-            'numeric_facts': stake_aware_numeric_facts(kit_guards.numeric_facts(source), procedures),
+            'numeric_facts': kit_guards.numeric_facts(source),
+            'stake_amounts': sorted(stake_amounts(procedures)),
+            'dealer_cheated': bool((body.get('scene_facts') or {}).get('dealer_cheated')),
             'declared_procedures': tuple(procedures),
             'voice_contracts': {name: card.get('voice_contract') or {} for name, card in cards.items()},
             'public_history': body.get('public_history', [])}
 
 
 def stake_amounts(procedures):
-    """Every coin amount a running table procedure makes public: ante, raise, pot, stacks,
-    the player's purse, and the last payout. Characters may name these at the table."""
+    """Every coin amount a running table procedure makes public: stacks, the player's
+    purse, the gambit's stakes and ante, and the last payout. Characters may name these
+    in sentences about the game (kit_guards.check_numeric_facts), never as a price.
+    Card strengths in public card names ("red 8") are strings, so they never count."""
     found = set()
 
     def walk(value):
@@ -1532,18 +1563,8 @@ def stake_amounts(procedures):
             for item in value:
                 walk(item)
     for body in procedures.values():
-        walk({key: body.get(key) for key in ('ante', 'raise', 'stacks', 'player', 'hand', 'last_result')})
+        walk({key: body.get(key) for key in ('stacks', 'player', 'gambit', 'carried', 'last_result')})
     return found
-
-
-def stake_aware_numeric_facts(facts, procedures):
-    """While a table game runs, its public stake amounts are true numbers, not a changed
-    price. Limit: a passage price equal to a stake amount is then not caught."""
-    amounts = stake_amounts(procedures)
-    if not amounts:
-        return facts
-    return {name: {**fact, 'allowed_amounts': sorted(set(fact['allowed_amounts']) | amounts)}
-            for name, fact in facts.items()}
 
 
 def checked_record(body, plan, speech, performance_variant, source=None, degraded=False):
@@ -1909,7 +1930,8 @@ class KitChatBridge:
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('command', choices=['init', 'view', 'prepare', 'decide', 'finish', 'complete',
-                                            'abandon', 'feedback', 'notes', 'play', 'trace', 'timing'])
+                                            'abandon', 'feedback', 'character', 'notes', 'play', 'trace',
+                                            'timing'])
     parser.add_argument('--db', default='kit-06c.sqlite')
     parser.add_argument('--model', help='Optional standalone Responses API model for play')
     parser.add_argument('--perception', type=int, help='Test character Wisdom (Perception) modifier')
@@ -1930,6 +1952,10 @@ def main():
     parser.add_argument('--evidence', action='append',
                         help='feedback: committed turn ID the comment is about (repeatable; '
                              'default: latest turn)')
+    parser.add_argument('--name', help='character: the player character\'s name')
+    parser.add_argument('--ancestry', help='character: the player character\'s ancestry (e.g. Harengon)')
+    parser.add_argument('--class-name', dest='class_name', help='character: class (optional)')
+    parser.add_argument('--level', type=int, help='character: level (optional)')
     parser.add_argument('--replaces', default='none', help='feedback: note id this feedback supersedes')
     parser.add_argument('--degraded', action='store_true',
                         help=f'finish/complete: accept style misses as warnings (only after '
@@ -1949,6 +1975,11 @@ def main():
             print(json.dumps(runtime.recent_kit_timings(), indent=2, ensure_ascii=False))
         elif args.command == 'notes':
             print(json.dumps(runtime.player_notes(), indent=2, ensure_ascii=False))
+        elif args.command == 'character':
+            if not (args.name and args.ancestry):
+                parser.error('character requires --name and --ancestry')
+            print(json.dumps(runtime.set_player_character(args.name, args.ancestry, args.class_name,
+                                                          args.level), indent=2, ensure_ascii=False))
         elif args.command in ('prepare', 'decide', 'finish', 'complete', 'abandon', 'feedback'):
             bridge = KitChatBridge(runtime, Room6CAdjudicator(args.perception, args.insight,
                                                              sleight_of_hand=args.sleight_of_hand))

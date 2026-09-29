@@ -443,18 +443,39 @@ def public_inventions(detail):
     return [item for item in (detail or NO_DETAIL)['inventions'] if item['public']]
 
 
-def check_detail_performance(segments, declared_procedures=()):
-    """HARD: rules or stakes stated as settled with no runtime procedure declared."""
-    if declared_procedures:
-        return
+# Rules from some other game, stated while a table game runs. Kit's game is the one the
+# runtime runs; "high card takes it" or "one card apiece" is a game nobody is playing.
+FOREIGN_RULES = re.compile(
+    r"\bhigh(?:est)? card\b|\bone card (?:apiece|each)\b|\btwenty[- ]one\b|\bhole cards?\b"
+    r"|\bthe (?:flop|turn|river)\b[^.]{0,30}\bcards?\b|\bfull house\b|\bstraight flush\b|\bpoker hand\b"
+    r"|\b(?:fold|call|raise), or\b|\bcheck or raise\b")
+
+
+def check_detail_performance(segments, declared_procedures=(), game_terms=()):
+    """HARD: rules or stakes stated as settled with no runtime procedure declared.
+
+    While a procedure runs the guard stays on: only the running game's rules and stakes
+    may be stated. A rules or stakes sentence must use that game's own terms
+    (``game_terms``: ante, flight, gambit, stakes, strength...), and rules from another
+    game ("highest card takes the pot", "one card apiece") are rejected."""
     for segment in segments:
         if segment['speaker'] == 'Kit':
             continue
         for sentence in re.split(r'(?<=[.!?])\s+|\n+', segment['text']):
-            require(not PROCEDURE_STATEMENT.search(_norm(sentence)),
-                    f'Undeclared procedure: the {segment["speaker"]} states rules or stakes '
-                    f'("{sentence[:70]}") that no runtime procedure backs. Name any game as flavor, '
-                    'or declare a supported one as a procedure invention.')
+            text = _norm(sentence)
+            if not declared_procedures:
+                require(not PROCEDURE_STATEMENT.search(text),
+                        f'Undeclared procedure: the {segment["speaker"]} states rules or stakes '
+                        f'("{sentence[:70]}") that no runtime procedure backs. Name any game as flavor, '
+                        'or declare a supported one as a procedure invention.')
+                continue
+            words = set(re.findall(r"[a-z]+", text))
+            foreign = FOREIGN_RULES.search(text)
+            stated = PROCEDURE_STATEMENT.search(text)
+            require(not foreign and not (stated and not words & set(game_terms)),
+                    f'Rules the running game does not use: the {segment["speaker"]} states '
+                    f'("{sentence[:70]}"). While a table game runs, only its own rules and stakes '
+                    '(the procedure in table_procedures) may be stated.')
 
 
 def check_detail_answer(segments, detail, player_action=''):

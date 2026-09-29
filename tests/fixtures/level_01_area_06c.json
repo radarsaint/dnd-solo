@@ -43,7 +43,7 @@
             "Lets the card in his hand do the punctuating."
           ],
           "never_says": [
-            "Rules, dice, or checks; he lives inside the fiction.",
+            "Dice, checks, or the DM's rulings; he lives inside the fiction. Naming his own table's game, its stakes, and how it plays is a dealer's job, not table talk.",
             "The DM's asides, verdicts on the visitor's choices, or commentary on the game as a story.",
             "Anything he would rather keep quiet about his table.",
             "A plain yes when a counter-offer would serve him better.",
@@ -147,8 +147,8 @@
   },
   "numeric_facts": {
     "_note": "DM-only. A public amount in unit_words, in a sentence with a context word, must be in allowed_amounts unless the player said that number first.",
-    "passage_toll": {"allowed_amounts": [10], "unit_words": ["gp", "gold", "gold pieces", "gold coins", "gold coin"], "context_words": ["passage", "toll", "door", "through", "pass", "price", "cost", "costs", "fee", "head", "each", "per", "way", "safe"]},
-    "ring_value": {"allowed_amounts": [25], "unit_words": ["gp", "gold", "gold pieces", "gold coins", "gold coin"], "context_words": ["ring"], "_basis": "table_treasure: the silver ring is worth 25 gold pieces (source). No other price may be invented for it."}
+    "passage_toll": {"allowed_amounts": [10], "unit_words": ["gp", "gold", "gold pieces", "gold coins", "gold coin"], "context_words": ["passage", "toll", "door", "through", "pass", "price", "cost", "costs", "fee", "head", "each", "per", "way", "safe"], "specific_words": ["passage", "toll", "door", "through", "pass", "way", "safe"]},
+    "ring_value": {"allowed_amounts": [25], "unit_words": ["gp", "gold", "gold pieces", "gold coins", "gold coin"], "context_words": ["ring"], "specific_words": ["ring"], "_basis": "table_treasure: the silver ring is worth 25 gold pieces (source). No other price may be invented for it."}
   },
   "leak_keywords": {
     "_note": "DM-only. A set leaks when one public sentence contains a word from every group. Skipped once revealed_by is public, or when the player raised it.",
@@ -160,6 +160,10 @@
     "tub_stash": {"revealed_by": "tub_stash", "groups": [["tub", "basin", "trough"], ["tools", "lockpicks", "picks", "bedroll", "gear", "pack", "stash", "stashed", "stolen", "loot", "bundle"]]},
     "cheating": {"revealed_by": "marked_deck", "groups": [["cheat", "cheats", "cheating", "cheated", "cheater", "swindle", "swindled", "swindling", "crooked"]]},
     "hidden_truth_hint": {"revealed_by": "false_vampires", "groups": [["not the truth", "the truth is", "what they really are", "what he really is", "what they seem", "what he seems", "what it seems", "more than meets the eye", "more to them than", "more to him than", "not what they appear", "isn't real", "aren't real", "is not real", "are not real", "not really vampires", "only an act", "just an act", "all an act"]]},
+    "concealment_hint": {"revealed_by": null, "groups": [["to cover something", "cover something", "covering something", "cover up something", "something else underneath", "hiding something", "hide something", "something to hide", "what's under", "what is under", "what's beneath", "what they're hiding", "what he's hiding", "what they are hiding", "what he is hiding", "masking something", "to mask the", "cover the smell", "cover the stink", "covering the smell", "covering for", "not all it seems", "keeping something", "are covering", "is covering", "what's covering"]]},
+    "fresco_key_loose": {"revealed_by": "fresco_key", "groups": [["dwarf", "dwarves", "dwarven", "figure", "figures", "carving", "carvings", "carved", "niche", "relief", "fresco"], ["loose", "looser", "lift", "lifts", "lifted", "lifting", "proud of the stone", "wobble", "wobbles", "wobbly", "pry", "pried", "prised", "removable", "comes out", "come out", "socket", "out of place", "rattles", "shifts", "gap around", "seam around", "sits wrong", "newer than", "fits badly", "not set", "unmortared"]]},
+    "performance_hint": {"revealed_by": "false_vampires", "groups": [["four", "they", "them", "table", "gamblers", "players", "teeth", "fangs", "pale", "pallor", "vampire", "vampires", "undertakers"], ["in character", "rehearsed", "rehearsal", "costume", "costumes", "costumed", "posing", "posed", "playing a part", "playing parts", "stagecraft", "staged", "on stage", "audience", "an act", "props", "prop", "playacted"]]},
+    "blood_prop": {"revealed_by": "false_vampires", "groups": [["pass for", "passes for", "could pass for", "looks like", "look like", "stand in for", "stands in for", "mistaken for", "fake"], ["blood", "gore", "something worse"]]},
     "rivalry": {"revealed_by": null, "groups": [["rival", "rivals", "rivalry", "usurp", "usurper", "displace", "unseat", "depose", "overthrow", "mutiny", "coup"]]}
   },
   "room_rules": [
@@ -276,16 +280,8 @@
     "three_dragon_ante": {
       "kind": "card_game",
       "name": "Three-Dragon Ante (Kit's table rules)",
-      "dm_choice": "DM choice, not the adventure's: the adventure names no game, rules, or stakes for this table. Kit chose Three-Dragon Ante, a Forgotten Realms card game many D&D players know, and runs it with her own short table rules, not the published rules. Texas hold 'em or blackjack would have been just as valid.",
-      "public_rules": [
-        "Dragon cards in five colors (red, blue, green, black, white), strengths 1 to 9.",
-        "Everyone antes 2 gp. The dealer deals three cards to each player, face down.",
-        "The others check or raise 2 gp before you act; the table raises at most once, and you may raise once more.",
-        "Fold, call, or raise. Then the cards show: a flight (all three one color) beats any mixed hand; otherwise the higher total strength wins. Ties split the pot."
-      ],
-      "unit": "gp",
-      "ante": 2,
-      "raise": 2,
+      "dm_choice": "DM choice, not the adventure's: the adventure names no game, rules, or stakes for this table. Kit chose Three-Dragon Ante, a Forgotten Realms card game many D&D players know, and runs it in the published game's shape (card antes set the stakes, three rounds of flights, color powers) with her own short deck and power list, written in her own words. Texas hold 'em or blackjack would have been just as valid.",
+         "unit": "gp",
       "seats": {"bandit_a": 15, "bandit_b": 18, "doppelganger": 22, "uktarl": 30},
       "stacks_note": "The gold stacks are the table's gold split by seat (a DM choice). The silver and copper stay on the table as color, not stakes.",
       "labels": {
@@ -296,7 +292,7 @@
       },
       "cheat": {
         "actor": "uktarl",
-        "method": "He reads the marks on the backs as he deals: he knows roughly what you hold, and he deals himself the better of his own three cards and the next three (dealing seconds).",
+        "method": "He reads the marks on the backs as he deals: he knows roughly what you hold, and whenever the second card off the deck is stronger than the top one he deals himself the second (dealing seconds).",
         "sleight_bonus": 3,
         "sleight_basis": "DM choice: bandit captain Dexterity +3 opposes a player watching the deal; the adventure gives no DC.",
         "deception_bonus": 4,
@@ -351,7 +347,7 @@
           {
             "id": "costume_pride",
             "kind": "mood",
-            "text": "The four sit like people who rehearsed sitting.",
+            "text": "The four sit close, elbows in, the way people do who have shared a table for a long time.",
             "roots": ["card_table", "actor:uktarl"]
           }
         ],
@@ -359,11 +355,11 @@
           "game": [
             {
               "id": "three_dragon_ante",
-              "entry": "Three-Dragon Ante, Kit's table rules: dragon cards in five colors, three to a hand, the stakes climb before the reveal",
+              "entry": "Three-Dragon Ante: each player antes a dragon card, the strongest ante sets the stakes, and three rounds of flights decide who takes them",
               "basis": "published: Three-Dragon Ante, a Forgotten Realms card game",
               "roots": ["card_table", "treasure_on_table"],
               "tags": ["familiar", "watchable_cheat", "gives_player_a_handle"],
-              "handle": "buy in, bet, fold, or watch the deal",
+              "handle": "buy in, ante a card, or watch the deal",
               "procedure": "three_dragon_ante"
             },
             {
@@ -415,11 +411,11 @@
             },
             {
               "id": "beet_shrub",
-              "entry": "A beet-and-vinegar shrub, red enough to pass for something worse, and sour enough to make them wince in character",
+              "entry": "A beet-and-vinegar shrub, sour enough to make a newcomer's eyes water, poured by the dealer with a flourish",
               "basis": "real: drinking vinegar (shrub)",
               "roots": ["card_table", "actor:uktarl"],
               "tags": ["grave_humor", "gives_player_a_handle"],
-              "handle": "accept a sip and watch their faces",
+              "handle": "accept a sip, or ask for something sweeter",
               "procedure": null
             },
             {
@@ -482,20 +478,20 @@
             },
             {
               "id": "clove_smoke",
-              "entry": "Cloves, heavy, as if someone burned a handful to cover something else",
-              "basis": "palette: the brazier and the costume",
+              "entry": "Cloves and orange peel smoldering in the brazier under the table, a card-room habit against the chill",
+              "basis": "palette: the brazier under the table",
               "roots": ["card_table"],
               "tags": ["grave_humor", "owner_with_a_want"],
-              "handle": "ask what the cloves are covering",
+              "handle": "warm your hands at the brazier, or ask for a clove",
               "procedure": null
             },
             {
               "id": "damp_stone",
-              "entry": "Damp stone and old bathwater rising from the recess in the floor",
+              "entry": "Cold stone and lamp oil, the smell of an old bathhouse long since dry",
               "basis": "palette: the stone tub",
               "roots": ["tub"],
               "tags": ["tactile"],
-              "handle": "look at the tub",
+              "handle": "look at the recess in the floor",
               "procedure": null
             }
           ]
