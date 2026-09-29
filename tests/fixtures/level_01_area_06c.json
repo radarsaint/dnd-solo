@@ -46,9 +46,11 @@
             "Rules, dice, or checks; he lives inside the fiction.",
             "The DM's asides, verdicts on the visitor's choices, or commentary on the game as a story.",
             "Anything he would rather keep quiet about his table.",
-            "A plain yes when a counter-offer would serve him better."
+            "A plain yes when a counter-offer would serve him better.",
+            "The same pet name or opener two turns running; he finds a new angle each time."
           ],
           "wants": "To learn what this visitor is worth to him and to seat them in a game he deals.",
+          "humor": "A salesman's humor: flattery, dares, and raising the stakes, always aimed at getting something from the visitor. Never deadpan understatement, one-word asides, or wry remarks about the moment; that register belongs to the DM, not to him.",
           "never_words": [
             "okay",
             "guys",
@@ -59,35 +61,93 @@
           ]
         }
       },
-      "Card player": {
-        "vocal_signature": "Authored voice, not from the source: clipped and plain (see voice_contract). A brief reaction or visible movement can show that other people are listening; do not assign an invented backstory or reveal a hidden identity.",
-        "public_objective": "Remain in the game and watch how the visitor responds.",
+      "Door-side player": {
+        "vocal_signature": "Authored voice, not from the source: quick and anxious, half-sentences that trail off. Do not assign an invented backstory or reveal a hidden identity.",
+        "public_objective": "Keep the peace at the table so nobody, least of all him, gets hurt.",
         "voice_contract": {
-          "rhythm": "Clipped: one short sentence or a fragment at a time; a glance or silence does most of the talking.",
-          "register": "Blunt and plain: short common words, no flourishes, no titles, no salesmanship.",
+          "rhythm": "Hurried fragments that trail off or get cut short; he rarely finishes a thought before glancing away.",
+          "register": "Nervous everyday words, hedges, and pleas; no threats, no bargaining terms.",
           "tics": [
-            "Glances at the dealer before answering.",
-            "Answers with a grunt, a shrug, or two or three words.",
-            "Guards or taps their own stack of coins."
+            "Starts a sentence, stops, and starts again.",
+            "Keeps an eye on the door and on whoever holds a weapon."
           ],
           "never_says": [
-            "Speeches, bargains, or terms; that is the dealer's job.",
+            "Terms, prices, or orders; that is the dealer's job.",
             "Rules, dice, or the DM's asides.",
             "Personal history or backstory; none has been established."
           ],
-          "wants": "To keep their seat and their share of the pot, and not be the one who gets hurt.",
-          "max_words_per_sentence": 8,
+          "wants": "For the visitor to sit or go quietly, before anything turns violent.",
+          "humor": "None of his own; at most a nervous laugh that dies quickly.",
+          "max_words_per_sentence": 9,
           "never_words": [
             "friend",
             "splendid",
-            "my dear",
             "indeed",
-            "delightful"
+            "darling",
+            "stakes"
+          ]
+        }
+      },
+      "Fresco-side player": {
+        "vocal_signature": "Authored voice, not from the source: low, blunt, and territorial. Do not assign an invented backstory or reveal a hidden identity.",
+        "public_objective": "Protect his seat and his coins from newcomers.",
+        "voice_contract": {
+          "rhythm": "Flat, heavy commands of two to six words, then silence.",
+          "register": "Blunt street words and short orders; no questions, no flattery, no titles.",
+          "tics": [
+            "Leans forward over his coins when someone comes close.",
+            "Gives orders rather than asking."
+          ],
+          "never_says": [
+            "Complaints about the game or his luck.",
+            "Speeches, bargains, or terms.",
+            "Rules, dice, or the DM's asides."
+          ],
+          "wants": "Newcomers kept at arm's length from him and his stack.",
+          "humor": "None; he takes every joke as a challenge.",
+          "max_words_per_sentence": 6,
+          "never_words": [
+            "friend",
+            "please",
+            "perhaps",
+            "splendid",
+            "sorry"
+          ]
+        }
+      },
+      "Fourth player": {
+        "vocal_signature": "Authored voice, not from the source: flat and practical, interested only in the game in front of them. Do not assign an invented backstory or reveal a hidden identity.",
+        "public_objective": "Get the game moving again.",
+        "voice_contract": {
+          "rhythm": "Short, even statements about the game, spoken without looking up.",
+          "register": "Gambler's shorthand about the game itself: whose deal, what is bid, what is owed.",
+          "tics": [
+            "Taps the table to hurry the deal.",
+            "Talks to the cards more than to people."
+          ],
+          "never_says": [
+            "Anything personal about themselves, the other players, or the visitor.",
+            "Rules, dice, or the DM's asides.",
+            "Speeches, bargains, or terms."
+          ],
+          "wants": "The interruption over and the next hand dealt.",
+          "humor": "Rarely; a dry count of what someone owes is the most they offer.",
+          "max_words_per_sentence": 8,
+          "never_words": [
+            "friend",
+            "darling",
+            "splendid",
+            "please",
+            "honestly"
           ]
         }
       }
     },
-    "voice_contract_use": "Each NPC speaks only from their own card's voice_contract: its rhythm, register, and tics. never_says and never_words are hard limits; max_words_per_sentence, when present, is the longest sentence that NPC speaks. Two NPCs never share a phrase or sound interchangeable."
+    "voice_contract_use": "Each NPC speaks only from their own card's voice_contract: its rhythm, register, tics, and humor. never_says and never_words are hard limits; max_words_per_sentence, when present, is the longest sentence that NPC speaks. The three card players are different people with their own speaker labels; two NPCs never share a phrase or sound interchangeable, and no NPC reuses a pet name, opener, or phrase from their recent turns."
+  },
+  "numeric_facts": {
+    "_note": "DM-only. A public amount in unit_words, in a sentence with a context word, must be in allowed_amounts unless the player said that number first.",
+    "passage_toll": {"allowed_amounts": [10], "unit_words": ["gp", "gold", "gold pieces", "gold coins", "gold coin"], "context_words": ["passage", "toll", "door", "through", "pass", "price", "cost", "costs", "fee", "head", "each", "per", "way", "safe"]}
   },
   "leak_keywords": {
     "_note": "DM-only. A set leaks when one public sentence contains a word from every group. Skipped once revealed_by is public, or when the player raised it.",
@@ -97,6 +157,8 @@
     "doppelganger_tell": {"revealed_by": null, "groups": [["face", "features", "skin", "flesh"], ["ripple", "ripples", "rippled", "rippling", "melt", "melts", "melted", "melting", "blur", "blurs", "blurred", "borrowed", "stolen", "runs like wax"]]},
     "fresco_key": {"revealed_by": "fresco_key", "groups": [["key", "keys"], ["carving", "carved", "fresco", "dwarf", "dwarves", "dwarven", "figure", "figures", "figurine", "mountain", "wall"]]},
     "tub_stash": {"revealed_by": "tub_stash", "groups": [["tub", "basin", "trough"], ["tools", "lockpicks", "picks", "bedroll", "gear", "pack", "stash", "stashed", "stolen", "loot", "bundle"]]},
+    "cheating": {"revealed_by": "marked_deck", "groups": [["cheat", "cheats", "cheating", "cheated", "cheater", "swindle", "swindled", "swindling", "crooked"]]},
+    "hidden_truth_hint": {"revealed_by": "false_vampires", "groups": [["not the truth", "the truth is", "what they really are", "what he really is", "what they seem", "what he seems", "what it seems", "more than meets the eye", "more to them than", "more to him than", "not what they appear", "isn't real", "aren't real", "is not real", "are not real", "not really vampires", "only an act", "just an act", "all an act"]]},
     "rivalry": {"revealed_by": null, "groups": [["rival", "rivals", "rivalry", "usurp", "usurper", "displace", "unseat", "depose", "overthrow", "mutiny", "coup"]]}
   },
   "room_rules": [

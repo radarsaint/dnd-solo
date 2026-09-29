@@ -112,11 +112,9 @@ This branch applies the principle to the gap above. It adds no area-specific scr
 **Limits to keep in mind while building on it:**
 
 - **Floors are a guard, not quality.** They stop "price and done". A model can pass them with padding, and a 40-word reply can still be lifeless. Never treat longer as better, and never raise the floors to force life into a scene.
-- **The leak check is literal.** It catches "marked deck", not "those cards have a funny shine on the back". `kit_focus` is a new place a paraphrased secret could slip through.
+- **The leak check is no longer only literal, but it is still a word list.** Section (g) adds a paraphrase check over every public speaker, Kit included, and over every brief field. It catches "those cards have a funny shine on the back". It does not catch a paraphrase whose words are not in the fixture's `leak_keywords`.
 - **One-pass mode can't show cause and effect.** Decision and speech come out together, so the decision may have been written to fit the speech. Staged mode (fixed decision, then a separate performance) is the way to see whether a change to the decision changes the speech.
-- **The ruling dodge.** A model that wants to be brief can call a social turn a `ruling` with no focus actor and use `call`.
-- **`kit_focus` can be vague.** "Keep it interesting" passes every check. Only reading the turn tells you whether the focus was specific and was acted out.
-- **Kit's voice can leak into NPCs.** The instructions forbid it; no code detects it. Step #5 states the ban more concretely in Kit's voice guidance; still no code detects it.
+- **The ruling dodge, a vague `kit_focus`, and Kit's voice in NPC mouths are now guarded in code** (section g). Each guard is lexical: it stops the common shapes, not every one. Reading the turn is still the final check.
 
 ---
 
@@ -246,3 +244,160 @@ Use the bridge exactly as the player would experience it. No API key is needed.
 7. **Check a narrow turn stays narrow.** Ask for a roll or a rule. The reply should be a short `call` with no chatter.
 8. **Watch rejections and time.** `python -m runtime.kit_agent timing --db …` shows `prepare_to_commit_s` and rejected attempts. Repeated rejections mean the host isn't reading `performance_limits` or the instructions; fix that before anything else, because every retry costs the player time.
 9. **Never show the player a trace, a brief, or a rejection message.** Show only `spoken`.
+
+---
+
+## (g) Anticipated failure modes, and the guard for each
+
+Built on `kit-hardening`, which merges #8, #9 and #10 and cherry-picks two runtime fixes from #11 (`kit-approach-range`). The guards live in `runtime/kit_guards.py`, the bridge wiring in `runtime/kit_agent.py`, and the tests in `tests/test_kit_hardening.py` (one class per failure mode, named below).
+
+Every guard follows the same pattern as section (e): **source → public field → instruction → check → test.** Checks come in two kinds:
+
+- **Hard checks** always reject. They cover secrets, player agency, NPC meta-talk, fixed numbers and the clarification shape.
+- **Soft checks** reject during normal retries. They cover padding, NPC voice, repetition, Kit's tics, scope and callbacks. After `DEGRADED_AFTER_REJECTIONS` = 2 rejections the host may commit with `--degraded`. Soft failures are then recorded as `soft_warnings` on the turn instead of blocking it (see g7).
+
+Every check is lexical: word lists, n-gram runs and sentence shapes. None of them judges quality. Each one stops the common way a model gets something wrong, and can be dodged by a model trying to dodge it. The limits are listed so no one mistakes a pass for a good turn.
+
+### PR #11 fixes pulled in (cherry-picked with `-x`)
+
+- **Approach routing reads narration, not quoted speech** (`0869415`, from `e714420`). "I say 'let's fight about it'" is a social bid, not an attack. The limit: an action with no quotes and mixed verbs still routes on the first match.
+- **`VOICED_FLOOR_SPEAKERS` = ('Dealer',)** (`93741b1`, from `aea3811`). The 30-word voiced floor applies only when the dealer has the focus, so a terse card player can stay terse. `TerseCardPlayerTests` now uses the 'Fresco-side player' label (see g12).
+
+### g1. Padding to clear the floors (`PaddingTests`)
+
+- **Check:** `check_padding` (soft) rejects:
+  - the same 6-word run twice in a turn (`PADDING_REPEAT_RUN_WORDS`);
+  - 7 or more consecutive words echoed from the player (`RESTATE_MAX_RUN_WORDS`);
+  - on a social turn, narration that opens by retelling the bid ("You ask whether…");
+  - an 8-word run recycled from recent public turns (`RECYCLED_RUN_WORDS`);
+  - stock filler (`FILLER_PHRASES`).
+- **Instruction:** PUBLIC_PERFORMANCE_INSTRUCTIONS says the floors are a minimum, not a target.
+- **Can't catch:** new words that say nothing. A 40-word reply of fresh, empty adjectives passes.
+
+### g2. Kit's voice leaking into NPCs (`NpcVoiceTests`)
+
+- **Source:** every actor card in the fixture has a `voice_contract` with `rhythm`, `register`, `tics`, `never_says`, `wants` and `humor`, plus optional `never_words` and `max_words_per_sentence`. `check_voice_contracts` requires every field and rejects two cards with the same rhythm or register. The cards describe how a character talks; they never script lines.
+- **Instruction:** an NPC VOICES paragraph tells the performer to speak each NPC from its own card and never in Kit's register. That rules out deadpan asides, one-word verdicts and commentary on the scene.
+- **Checks:**
+  - `check_npc_meta` (hard) rejects table talk in an NPC's mouth.
+  - `check_npc_voices` (soft) rejects Kit's signature phrases, a verdict of two words or fewer (`KIT_VERDICT_MAX_WORDS`), and the dry-register shapes from the #11 run (`KIT_DRY_REGISTER`). Those shapes are:
+    - a trailing deadpan hedge ("Nothing indecent. Probably.");
+    - "But I admire the posture";
+    - "for my feelings";
+    - "haven't been this X since";
+    - asides to an audience.
+  - The same check rejects an NPC reusing a 4-word run from Kit's lines this turn or recently (`KIT_SHARED_RUN_WORDS`), a card's `never_words`, and sentences over its `max_words_per_sentence`.
+  - It also rejects two NPCs in one turn that sound interchangeable: content-word Jaccard ≥ 0.5 (`NPC_OVERLAP_MAX_JACCARD`), or a shared 4-word run, once each has at least 5 content words.
+- **Can't catch:** a new dry joke in a shape not on the list, or two NPCs with different words but the same attitude. The overlap test is crude; a human ear is still the real check.
+
+### g3. Kit's direction setting NPC diction (`DirectionNotDictionTests`)
+
+- **Rule:** Kit may shape NPCs through tactic, pacing and framing only.
+- **Check:** `check_direction_not_diction` rejects:
+  - a `kit_focus` that pairs a diction word (say, word, phrase, accent, drawl, tone…) with an NPC reference;
+  - any quote longer than 2 words (`BRIEF_QUOTE_MAX_WORDS`) in `objective`, `tactic`, `visible_cue` or `player_opening`.
+- **Can't catch:** diction set by description rather than those words ("make him sound like a sailor").
+
+### g4. Vague `kit_focus` (`VagueFocusTests`)
+
+- **Check:** `check_focus_specific` (at plan and at `decide`) needs at least 2 concrete words (`KIT_FOCUS_MIN_CONCRETE_WORDS`) after removing empty directive words, and rejects the stock phrases ("keep it interesting").
+- **Can't catch:** a concrete-sounding focus that is never acted out. Section (f) step 4 remains the test for that.
+
+### g5. The ruling dodge (`RulingDodgeTests`)
+
+- **Check:** `check_ruling_dodge` rejects `ruling` or `call` on a social turn unless the player's words contain a rules cue (`RULES_CUE`: roll, check, DC, rule, advantage…).
+- **Check:** `check_clarification_shape` (hard) requires a clarification to ask a question and to contain no NPC speech.
+- **Can't catch:** a social bid phrased with a rules word ("can I roll to charm him?") legitimately allows a short call.
+
+### g6. Paraphrased secrets, from any speaker including Kit (`ParaphraseLeakTests`)
+
+- **Source:** the DM-only `leak_keywords` sets in the fixture cover the marked deck, false vampires, doppelgänger and its tell, fresco key, tub stash, cheating, the hidden-truth hint and the rivalry. Each set is a list of word groups.
+- **Check:** `check_paraphrased_leaks` (hard) rejects any public sentence with a word from every group of a set, or a single-group set's word. It checks:
+  - every speaker, **including Kit**. This closes the #11 leak "you get his answer, not the truth";
+  - every brief field, before the performer sees it.
+- A set stops applying once its `revealed_by` fact is public. If the player raised the subject, only questions and denials are allowed.
+- **Can't catch:** a paraphrase that uses none of the listed words, or splits one across two sentences. Each new room needs its own `leak_keywords`.
+
+### g7. Retry loops (`RetryCapTests`)
+
+- **Rules:**
+  - After 2 rejections the rejection says `--degraded` is available. Degraded mode relaxes soft checks only and records `degraded: true` and `soft_warnings`.
+  - After 4 rejections (`ABANDON_SUGGEST_AFTER`) the host is offered `abandon`, which frees the action for a fresh decision.
+  - The API path makes 2 performance attempts (`API_PERFORMANCE_ATTEMPTS`); the last one is degraded.
+  - Rejection JSON carries `next_step` and `guidance`.
+- **Can't catch:** a degraded turn is still a weaker turn. Watch `timing` and `soft_warnings`.
+
+### g8. Context budget (`ContextBudgetTests`)
+
+- **Why two budgets:** a one-pass turn sends private and public input together. At turn 1 that is already about 22 KB (private about 14.4 KB, public about 7.3 KB), which cannot fit a 24 KB limit meant for one packet. So:
+  - the private input has its own `CONTEXT_BUDGET_BYTES` = 24000;
+  - the one-pass total has `ONE_PASS_BUDGET_BYTES` = 32000.
+- One-pass also stops duplicating content: the personality core and public history are sent once, and `shared_with_private` says so.
+- **Check:** `fit_to_budget` trims in this order:
+  1. the least relevant memory episodes;
+  2. the oldest dialogue history (keeping 1 turn);
+  3. old rhythm entries (keeping 3);
+  4. episode excerpts, shortened to 300 characters.
+- It then raises rather than sending an oversized packet. `kit_state.memory_trimmed` says what was cut, and the callback check only accepts turns that are still visible.
+- **Can't catch:** trimming can drop the one old moment that mattered. Relevance is a keyword score.
+
+### g9. Host sequencing mistakes (`HostSequenceTests`)
+
+- `HostSequenceError` carries a `next_step`:
+  - an unknown or abandoned turn → `prepare`;
+  - an already-committed turn → `prepare_new_turn`;
+  - `finish` before `decide` → `decide`.
+- An identical resubmission of a committed turn returns it (`already_committed`) instead of failing. A stale turn tells the host to prepare again.
+
+### g10. Narrating the player's actions or feelings (`PlayerAgencyTests`)
+
+- **Check:** `check_player_agency` (hard) rejects:
+  - narration that declares what the player does or feels;
+  - an NPC stating the player's decision;
+  - imposed body reactions.
+- Questions are allowed, and so are conditionals within 3 words ("if you agree"), perception, and offers.
+- **Can't catch:** agency taken by implication ("The deal is done.").
+
+### g11. Merge reconciliation (`MergeReconciliationTests`)
+
+Asserts that the brief schema and instructions still carry what #8, #9 and #10 each added: the event actor, the Kit voice variant, and memory and player notes. A later merge that drops one fails here.
+
+### g12. Three interchangeable card players (`CardPlayerIdentityTests`)
+
+- **Fixture only:** the shared 'Card player' card is replaced by 'Door-side player', 'Fresco-side player' and 'Fourth player'. Each has its own speaker id and a short voice card with different rhythm, register and `max_words_per_sentence` (9 / 6 / 8). Source facts, actors and room rules are unchanged, and the test checks this.
+- The Fourth player's card has no tell words, so the doppelgänger is not given away.
+- The speaker enum drops 'Card player'. The guards still treat a legacy 'Card player' line as an NPC.
+- **Can't catch:** the three can still drift toward one voice. g2's overlap check catches only near-identical wording.
+
+### g13. Repeated pet names and phrases per NPC (`NpcRepetitionTests`)
+
+- **Why:** in the #11 run the dealer said "friend" in 18 of 29 lines.
+- **Check:** `check_npc_repetition` (soft) rejects:
+  - a vocative the same NPC used in the last 2 public turns (`NPC_VOCATIVE_WINDOW_TURNS`; "my friend" counts as "friend");
+  - an NPC repeating its own 4-word run carrying 2 content words (`NPC_REPEAT_RUN_WORDS`).
+- The dealer's card lists "same pet name or opener two turns running" under `never_says`.
+- **Can't catch:** a pet name every third turn, or rotating synonyms ("friend", "pal", "chum") that make the same tic.
+
+### g14. Kit's ruling tics (`KitTicTests`)
+
+- The `KIT_EXPRESSION_V1` example that seeded the "X, not Y" template is reworded to "…the portcullis weighs more than you do, so this is a haul." The voice guidance adds that no ruling template or stock acknowledgement may become a habit.
+- **Check:** `check_kit_tics` (soft) rejects the ", not" contrast or "noted" / "writing that down" when either is used twice in one turn, or once when it already appears in Kit's recent lines.
+- **Can't catch:** new templates. Add each one to `KIT_TIC_CONSTRUCTIONS` when a play run finds it.
+
+### g15. Fixed numbers changed (`NumericFactTests`)
+
+- **Why:** the #11 dealer charged 12 gp against the fixed 10 gp.
+- **Source:** the DM-only `numeric_facts.passage_toll` has `allowed_amounts` [10], plus unit words and context words.
+- **Check:** `check_numeric_facts` (hard, every speaker) rejects an amount in those units, in a sentence with a context word, that is not allowed. The exception is an amount the player said first (for example, the player offering 12). Digits and number words are both read.
+- **Can't catch:** amounts in other units ("a dozen silver"), prices spread across sentences, or facts not listed in `numeric_facts`. Every fixed number that matters needs an entry.
+
+### g16. Refused attempts leave no trace (`RefusedAttemptTests`)
+
+- When the bridge refuses a physical attempt (sneak, attack, inspect the deck, unsupported action), it records a public `refused_attempt` event: `state.refused_attempts`, last 4, 300 characters each.
+- The `pending_ruling` output reports `attempt_recorded` and the new revision. The next packet shows the last 3 (`REFUSED_ATTEMPTS_SHOWN`), so Kit can refer to the attempt.
+- Host input problems are not recorded. A missing Perception modifier, for example, is a question for the host, not an attempt the player made.
+- **Limit:** only the bridge records them. The `KitAgent` API path does not, so its existing unsupported-action test still expects revision 0.
+
+### g17. Exit narration before the NPC reaction (`ExitOrderTests`)
+
+For `exit` events (`EVENT_AFTER_PERFORMANCE_KINDS`), the committed turn appends the event line after the performance. The room now reacts, then the player leaves. The instructions say the exit event is printed afterwards, so the performer must not narrate the exit itself.

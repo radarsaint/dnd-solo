@@ -28,7 +28,14 @@ ROOM_FIXTURE = PROJECT_ROOT / 'tests/fixtures/level_01_area_06c.json'
 
 
 class PendingRuling(Exception):
-    """The room slice cannot establish this outcome without more game machinery."""
+    """The room slice cannot establish this outcome without more game machinery.
+
+    `attempt` marks an in-fiction attempt the table refused (combat, stealth, an
+    unsupported physical act, the deck), as opposed to a host input problem such as a
+    missing modifier. The bridge records attempts in public history."""
+    def __init__(self, message, attempt=False):
+        super().__init__(message)
+        self.attempt = attempt
 
 
 @dataclass(frozen=True)
@@ -137,15 +144,15 @@ class Room6CAdjudicator:
             raise PendingRuling('This play slice covers area 6c only. No turn was committed.')
         kind = room_intent(action)
         if kind == 'combat':
-            raise PendingRuling('Combat needs a character sheet, initiative, and tactical resolver. No turn was committed.')
+            raise PendingRuling('Combat needs a character sheet, initiative, and tactical resolver. No turn was committed.', attempt=True)
         if kind == 'stealth':
             raise PendingRuling('Slipping past the table unnoticed needs a Dexterity (Stealth) ruling against '
                                 'the people watching; this slice has no stealth resolver and the source gives '
-                                'no DC. No turn was committed. You can still walk out openly or talk.')
+                                'no DC. No turn was committed. You can still walk out openly or talk.', attempt=True)
         if kind == 'inspect_deck':
-            raise PendingRuling('The source gives no discovery DC for the deck. A DM ruling is needed; no turn was committed. You can still question or accuse the dealer.')
+            raise PendingRuling('The source gives no discovery DC for the deck. A DM ruling is needed; no turn was committed. You can still question or accuse the dealer.', attempt=True)
         if kind == 'unsupported_action':
-            raise PendingRuling('This physical action needs a room/rules ruling beyond the test slice. No turn was committed.')
+            raise PendingRuling('This physical action needs a room/rules ruling beyond the test slice. No turn was committed.', attempt=True)
         if kind == 'exit':
             event = {'type': 'move', 'exit': 'south_door',
                      'evidence': 'The player explicitly left through the known south door.'}
@@ -252,7 +259,7 @@ SPEECH_SCHEMA = {
         'segments': {'type': 'array', 'items': {'type': 'object',
                      'additionalProperties': False,
                      'properties': {'speaker': {'type': 'string', 'enum': [
-                         'Narrator', 'Kit', 'Dealer', 'Card player']},
+                         'Narrator', 'Kit', 'Dealer', *kit_guards.CARD_PLAYER_SPEAKERS]},
                          'text': {'type': 'string'}},
                      'required': ['speaker', 'text']}},
     },
@@ -280,6 +287,22 @@ MEMORY_LIMIT = 8
 MEMORY_RECENT = 2
 # Room adapter: public words that name an actor. Area 6c exposes the dealer by role.
 ACTOR_ALIASES = {'uktarl': ('dealer', 'uktarl')}
+# Room adapter: the public speaker label for each actor. Each card player has their own
+# label and card (approach-range playtest: one shared label made them interchangeable).
+ACTOR_SPEAKERS = {'uktarl': 'Dealer', 'bandit_a': 'Door-side player',
+                  'bandit_b': 'Fresco-side player', 'doppelganger': 'Fourth player'}
+NPC_SPEECH_SPEAKERS = ('Dealer',) + kit_guards.CARD_PLAYER_SPEAKERS
+
+
+def focus_speaker(plan):
+    """The public speaker label of the plan's focus actor: 'Dealer', one card player,
+    'a card player' when an 'other' focus names no known actor, or None."""
+    if plan.get('focus_actor') == 'uktarl':
+        return 'Dealer'
+    if plan.get('focus_actor') == 'other':
+        actor = (plan.get('improv_read') or {}).get('actor_ref')
+        return ACTOR_SPEAKERS.get(actor, 'a card player')
+    return None
 _STOPWORDS = frozenset('''
     about above after again also another been before being below between both could does doing
     down during each even ever every from further have having here hers herself himself into itself
@@ -433,7 +456,8 @@ PRIVATE_INSTRUCTIONS = (
     'they pick, pacing, and framing, never their words, humor, or diction; never script an NPC '
     'line in the brief. On a social turn, choose ruling or call only when the player asked a '
     'rules or mechanics question, or ask_clarification when you genuinely cannot tell what they '
-    'mean; otherwise the actor answers in an exchange.'
+    'mean; otherwise the actor answers in an exchange. refused_attempts, when present, are '
+    'recent attempts the table could not resolve (nothing happened); Kit may pick them up.'
 )
 
 PUBLIC_INSTRUCTIONS = (
@@ -453,8 +477,8 @@ PUBLIC_INSTRUCTIONS = (
     'Keep NPC speech separate from Kit’s direct table comments. '
     'Follow the selected public brief, tone, and table presence; quiet means '
     'no Kit segment. The brief conveys a choice, not authority to invent facts. '
-    'The accepted event will be displayed before your segments on physical/check turns; '
-    'do not repeat it verbatim. On a social turn it restates the player’s own words: answer '
+    'The accepted event will be displayed before your segments on physical/check turns (after '
+    'them on an exit, so perform the room reacting as the player goes); do not repeat it verbatim. On a social turn it restates the player’s own words: answer '
     'them, do not echo them back. In a social scene, let the NPC pursue a specific objective '
     'through a response, action, or question grounded in the room; a price or fact alone is '
     'rarely the whole exchange. Give the player something meaningful to answer or act on. '
@@ -475,10 +499,15 @@ PUBLIC_INSTRUCTIONS = (
     'room for a short speech or more than one reaction. Never pad to reach a length: no '
     'repeated phrases, no retelling what the player said, no stock filler, no recycled lines. '
     'NPC VOICES: every NPC speaks only from their own card’s voice_contract: its rhythm, '
-    'register, and tics; never_says and never_words are hard limits, and max_words_per_sentence '
-    'caps that NPC’s sentences. NPCs never use table talk (rules, dice, checks, the story as a '
-    'story), one-word verdicts on the player’s choice, or Kit’s phrasing; two NPCs in one turn '
-    'never sound alike. Tone and kit_focus shape narration, pacing, and which tactic plays out; '
+    'register, tics, and humor; never_says and never_words are hard limits, and '
+    'max_words_per_sentence caps that NPC’s sentences. Each card player has their own speaker '
+    'label and card. NPCs never use table talk (rules, dice, checks, the story as a story), '
+    'one-word verdicts, deadpan asides or understatement about the moment, or Kit’s phrasing; '
+    'two NPCs in one turn never sound alike, and no NPC reuses a pet name, opener, or phrase '
+    'from their recent turns. Fixed source numbers such as a price never change. '
+    'refused_attempts, when present, lists recent attempts the table could not resolve; they '
+    'changed nothing in the world, Kit may refer to them, and NPCs react only to what they '
+    'could visibly have seen. Tone and kit_focus shape narration, pacing, and which tactic plays out; '
     'they never change an NPC’s diction. PLAYER AGENCY: never state what the player does, '
     'decides, agrees to, or feels; narrate what others do and what the player can perceive, and '
     'leave the player’s response to the player.'
@@ -505,10 +534,11 @@ KIT_EXPRESSION_V1 = (
     'or NPC stance, never hints at hidden information, and never decides what the player thinks '
     'or does. NPCs never borrow her wit, asides, opinions, or phrasing; a line that sounds like Kit '
     'is not an NPC line. No catchphrases or repeated openers. '
+    'Vary how rulings are phrased; no sentence template or stock acknowledgement becomes a habit. '
     'Register contrasts (from other scenes; never reuse them or give them to anyone): filler '
     '"What an interesting choice!" vs taste "You shook the lich’s hand. Bold. I did not see that '
-    'coming."; flat "Roll a check." vs exact "Strength, not Dexterity: you are hauling the '
-    'portcullis, not slipping under it."; fake-neutral "Anything could happen." vs fair '
+    'coming."; flat "Roll a check." vs exact "Strength (Athletics): the portcullis weighs more '
+    'than you do, so this is a haul."; fake-neutral "Anything could happen." vs fair '
     '"Terrible plan. Roll Athletics; the ledge does not care how confident you are."; forced '
     'quip vs restraint: in real danger she says nothing and lets the threat speak.'
 )
@@ -798,9 +828,10 @@ def check_scope(segments, plan):
                 f'{CALL_MAX_WORDS} words in {CALL_MAX_SEGMENTS}). Answer directly and stop.')
         return
     if scope == 'exchange':
-        actor = {'uktarl': 'Dealer', 'other': 'Card player'}.get(plan['focus_actor'])
+        actor = focus_speaker(plan)
         if actor and actor not in VOICED_FLOOR_SPEAKERS:
-            require(any(segment['speaker'] == actor for segment in segments),
+            speakers = (kit_guards.CARD_PLAYER_SPEAKERS if actor == 'a card player' else (actor,))
+            require(any(segment['speaker'] in speakers for segment in segments),
                     f'Exchange scope: the selected {actor} never spoke. A brief line is enough; '
                     'the exchange floor still applies to the whole turn.')
         elif actor:
@@ -878,10 +909,10 @@ def check_speech(speech, plan, public_view, player_action, action_kind=None, gua
     require(plan['table_presence'] != 'brief' or kit_count <= 1, 'Brief Kit took over the scene')
     require(plan['table_presence'] != 'present' or kit_count >= 1, 'Present Kit did not speak')
     require(plan['move'] != 'kit_comment_then_npc' or
-            (kit_count >= 1 and any(segment['speaker'] in ('Dealer', 'Card player') for segment in segments)),
+            (kit_count >= 1 and any(segment['speaker'] in NPC_SPEECH_SPEAKERS for segment in segments)),
             'Chosen Kit and NPC move was not performed')
     require(plan['move'] != 'npc_reply' or
-            any(segment['speaker'] in ('Dealer', 'Card player') for segment in segments),
+            any(segment['speaker'] in NPC_SPEECH_SPEAKERS for segment in segments),
             'Chosen NPC reply was not performed')
     require(plan['move'] != 'world_description' or
             any(segment['speaker'] == 'Narrator' for segment in segments),
@@ -903,12 +934,15 @@ def check_speech(speech, plan, public_view, player_action, action_kind=None, gua
                                            guards.get('leak_sets', ()))
     kit_guards.check_player_agency(segments)
     kit_guards.check_npc_meta(segments)
+    kit_guards.check_numeric_facts(segments, guards.get('numeric_facts'), player_action)
     kit_guards.check_clarification_shape(segments, plan)
     # SOFT: style floors. Recorded as warnings, not rejections, in degraded mode.
     history = guards.get('public_history', ())
     soft = (lambda: check_scope(segments, plan),
             lambda: kit_guards.check_padding(segments, player_action, action_kind, history),
             lambda: kit_guards.check_npc_voices(segments, guards.get('voice_contracts'), history),
+            lambda: kit_guards.check_npc_repetition(segments, history),
+            lambda: kit_guards.check_kit_tics(segments, history),
             lambda: check_callback_used(segments, plan))
     warnings = []
     for check in soft:
@@ -1002,9 +1036,14 @@ def trim_order(chosen, stored, action, recent=MEMORY_RECENT):
     return [turn_id for _, _, turn_id in sorted(earlier)] + recent_ids[:-1]
 
 
-# Context budget (CONTEXT_BUDGET_BYTES, 24 KB per model input). When a prepared input
-# would exceed it, memory is trimmed in this order, least valuable first, and the
-# packet says what was trimmed. Player notes are never trimmed (at most 8 short notes).
+# Context budget. The private decision input (personality core, DM context, memory,
+# notes, public dialogue) stays within CONTEXT_BUDGET_BYTES (24 KB), the same budget
+# context() always enforced, now including memory. A one-pass input also carries the
+# public half (mostly the static actor cards, ~8 KB, with the core and dialogue history
+# deduplicated out), so the whole one-pass input stays within ONE_PASS_BUDGET_BYTES.
+# When either would be exceeded, memory is trimmed in this order, least valuable first,
+# and the packet says what was trimmed. Player notes are never trimmed (at most 8).
+ONE_PASS_BUDGET_BYTES = 32000
 CONTEXT_KEEP_HISTORY = 1          # public dialogue turns always kept
 CONTEXT_KEEP_RHYTHM = 3           # recent_rhythm entries always kept
 EPISODE_SPOKEN_TRIM_CHARS = 300   # public excerpt per episode after trimming
@@ -1014,9 +1053,10 @@ def _bytes(value):
     return len(encode(value).encode())
 
 
-def fit_to_budget(planning_input, drop_order, reserve_bytes=0, budget=CONTEXT_BUDGET_BYTES):
-    """Trim the private input in place until it (plus reserve_bytes, e.g. the one-pass
-    public half) fits the budget. Returns the kept episode IDs."""
+def fit_to_budget(planning_input, drop_order, reserve_bytes=0, budget=CONTEXT_BUDGET_BYTES,
+                  combined_budget=ONE_PASS_BUDGET_BYTES):
+    """Trim the private input in place until it fits `budget` and, with reserve_bytes
+    (the one-pass public half), fits `combined_budget`. Returns the kept episode IDs."""
     kit_state = planning_input['kit_state']
     history = planning_input['dialogue_history']
     rhythm = planning_input['dm_context'].get('recent_rhythm', [])
@@ -1024,7 +1064,8 @@ def fit_to_budget(planning_input, drop_order, reserve_bytes=0, budget=CONTEXT_BU
               'excerpts_shortened': False}
 
     def over():
-        return _bytes(planning_input) + reserve_bytes > budget
+        size = _bytes(planning_input)
+        return size > budget or (reserve_bytes and size + reserve_bytes > combined_budget)
 
     def note():
         kit_state['memory_trimmed'] = {**report, 'reason': 'context budget; oldest and least '
@@ -1049,8 +1090,9 @@ def fit_to_budget(planning_input, drop_order, reserve_bytes=0, budget=CONTEXT_BU
             episode['spoken'] = (episode.get('spoken') or '')[-EPISODE_SPOKEN_TRIM_CHARS:]
         report['excerpts_shortened'] = True
         note()
-    require(not over(), f'Context budget exceeded ({_bytes(planning_input) + reserve_bytes} bytes; '
-            f'budget {budget}) even after trimming memory; narrow the source adapter')
+    require(not over(), f'Context budget exceeded ({_bytes(planning_input)} private + {reserve_bytes} '
+            f'public bytes; budgets {budget} and {combined_budget}) even after trimming memory; '
+            'narrow the source adapter')
     return [episode['turn_id'] for episode in kit_state['episodes']]
 
 
@@ -1077,10 +1119,13 @@ def prepare_inputs(runtime, revision, state, action, resolution, use_memory, one
     public_history = [{'player_input': turn['player_input'], 'spoken': turn['spoken'][-1200:]}
                       for turn in runtime.recent_kit_turns(limit=4)]
     body = {'action': action, 'events': resolution.events, 'kind': resolution.kind,
+            'view_before_event': None,
             'public_event': resolution.public_event, 'public_view': public_view,
             'use_memory': use_memory,
             'public_history': public_history,
             'discernment_candidates': discernment_candidates(context['dm_context'])}
+    # Only needed to dedupe the one-pass public view; not kept in the staged body.
+    body['view_before_event'] = context['dm_context']['player_perceivable'] if one_pass else None
     planning_input = {
         'personality_core': context['personality_core'],
         'dm_context': context['dm_context'],
@@ -1093,6 +1138,11 @@ def prepare_inputs(runtime, revision, state, action, resolution, use_memory, one
         'dialogue_history': public_history,
         'discernment_candidates': body['discernment_candidates'],
     }
+    attempts = state.get('refused_attempts', [])[-REFUSED_ATTEMPTS_SHOWN:]
+    if attempts:
+        # Public: the player saw these pending rulings. Both stages may refer to them.
+        body['refused_attempts'] = attempts
+        planning_input['refused_attempts'] = attempts
     reserve = _bytes(public_performance_base(runtime, body, one_pass=True)) if one_pass else 0
     kept = fit_to_budget(planning_input, memory['drop_order'], reserve)
     if 'memory_trimmed' in planning_input['kit_state']:
@@ -1125,14 +1175,19 @@ def public_performance_base(runtime, body, one_pass=False):
     reference = runtime.source().get('public_performance', {})
     kit_guards.check_voice_contracts(reference.get('actor_cards'))
     payload = {
-        'player_view_after_event': body['public_view'],
+        'player_view_after_event': body['public_view'],  # replaced below when unchanged
         'player_action': body['action'], 'accepted_public_event': body['public_event'],
         'action_kind': body['kind'],
         'performance_reference': reference,
     }
+    if body.get('refused_attempts'):
+        payload['refused_attempts'] = body['refused_attempts']
     if one_pass:
         payload['shared_with_private'] = ('personality_core and public dialogue history are in '
                                           'input.private (personality_core, dialogue_history)')
+        if body['public_view'] == body.get('view_before_event'):
+            payload['player_view_after_event'] = ('unchanged by this event: see '
+                                                  'input.private.dm_context.player_perceivable')
     else:
         payload['personality_core'] = PERSONALITY_CORE.read_text(encoding='utf-8')
         payload['public_history'] = body.get('public_history', [])
@@ -1143,8 +1198,7 @@ def performance_input(runtime, body, plan):
     payload = public_performance_base(runtime, body)
     payload['selected_move'] = {
             'move': plan['move'],
-            'focus_actor': {'uktarl': 'Dealer', 'other': 'Card player',
-                            'none': 'none'}[plan['focus_actor']],
+            'focus_actor': focus_speaker(plan) or 'none',
             'table_presence': plan['table_presence'], 'tone': plan['tone'],
             'brief': plan['public_brief'],
     }
@@ -1164,11 +1218,20 @@ def retry_instruction(exc):
             'supplied player-visible facts and the accepted event.')
 
 
+# Refused attempts shown to both stages (they are public: the player saw the ruling).
+REFUSED_ATTEMPTS_SHOWN = 3
+
+# Kinds whose accepted event is printed after the performance: on an exit the NPCs'
+# reaction happens as the player leaves, so it must read before the departure line.
+EVENT_AFTER_PERFORMANCE_KINDS = ('exit',)
+
+
 def guard_context(source, body):
     """What the style and leak guards need beyond the performance: DM-only paraphrase
     sets and public voice contracts from the room source, and recent public turns."""
     cards = (source or {}).get('public_performance', {}).get('actor_cards', {})
     return {'leak_sets': kit_guards.leak_sets(source),
+            'numeric_facts': kit_guards.numeric_facts(source),
             'voice_contracts': {name: card.get('voice_contract') or {} for name, card in cards.items()},
             'public_history': body.get('public_history', [])}
 
@@ -1181,7 +1244,10 @@ def checked_record(body, plan, speech, performance_variant, source=None, degrade
     result = check_speech(speech, plan, body['public_view'], body['action'], body['kind'],
                           guards=guard_context(source, body), degraded=degraded)
     spoken, warnings = result if degraded else (result, [])
-    if body['kind'] not in ('social', 'opening'):
+    if body['kind'] in EVENT_AFTER_PERFORMANCE_KINDS:
+        # The room reacts while the player is still there; then they are gone.
+        spoken = f"{spoken}\nNarrator: {body['public_event']}"
+    elif body['kind'] not in ('social', 'opening'):
         spoken = f"Narrator: {body['public_event']}\n{spoken}"
     record = {'player_input': body['action'], 'public_event': body['public_event'],
               'trace': plan, 'spoken': spoken, 'performance_variant': performance_variant}
@@ -1309,8 +1375,17 @@ class KitChatBridge:
             require(action is None, 'Room opening does not take a player action')
             revision, body, planning_input = prepare_opening(self.runtime, one_pass=one_pass)
         else:
-            revision, body, planning_input = prepare_turn(
-                self.runtime, self.adjudicator, action, use_memory, one_pass=one_pass)
+            try:
+                revision, body, planning_input = prepare_turn(
+                    self.runtime, self.adjudicator, action, use_memory, one_pass=one_pass)
+            except PendingRuling as exc:
+                if not exc.attempt:
+                    raise
+                # Record the refused attempt publicly so the next turn can refer to it.
+                recorded = self.runtime.record_refused_attempt(action, str(exc))
+                ruling = PendingRuling(f'{exc} The attempt is noted in the public history.', attempt=True)
+                ruling.recorded_revision = recorded
+                raise ruling from exc
         body['host_mode'] = 'one_pass' if one_pass else 'staged'
         if one_pass:
             body['performance_variant'] = performance_variant
@@ -1593,6 +1668,8 @@ def main():
                               bridge.complete(args.turn_id, submitted, degraded=args.degraded))
             except PendingRuling as exc:
                 result = {'stage': 'pending_ruling', 'message': str(exc), 'committed': False}
+                if getattr(exc, 'recorded_revision', None) is not None:
+                    result.update(attempt_recorded=True, revision=exc.recorded_revision)
             except InvalidChange as exc:
                 rejected = {'stage': 'rejected', 'message': str(exc), 'committed': False}
                 if isinstance(exc, HostSequenceError):

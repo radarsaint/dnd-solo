@@ -1177,22 +1177,27 @@ class ApproachRoutingTests(unittest.TestCase):
 class TerseCardPlayerTests(unittest.TestCase):
     """Approach-range playtest: a card-player focus is not forced into a 30-word speech."""
 
-    def plan(self, focus):
-        return {'public_brief': {'scope': 'exchange'}, 'focus_actor': focus}
+    def plan(self, focus, actor=None):
+        return {'public_brief': {'scope': 'exchange'}, 'focus_actor': focus,
+                'improv_read': {'actor_ref': actor or ('uktarl' if focus == 'uktarl' else 'bandit_b')}}
 
     def test_card_player_focus_may_be_terse_but_must_speak(self):
         terse = [{'speaker': 'Narrator', 'text': ' '.join(['word'] * 30)},
-                 {'speaker': 'Card player', 'text': 'Out. Get out of there. That is not yours.'},
+                 {'speaker': 'Fresco-side player', 'text': 'Out. Get out of there. That is not yours.'},
                  {'speaker': 'Dealer', 'text': 'Sit down, he is comfortable.'}]
         kit_agent.check_scope(terse, self.plan('other'))
-        silent = [segment for segment in terse if segment['speaker'] != 'Card player']
+        silent = [segment for segment in terse if segment['speaker'] != 'Fresco-side player']
         silent[0] = {'speaker': 'Narrator', 'text': ' '.join(['word'] * 45)}
-        with self.assertRaisesRegex(InvalidChange, 'selected Card player never spoke'):
+        with self.assertRaisesRegex(InvalidChange, 'selected Fresco-side player never spoke'):
             kit_agent.check_scope(silent, self.plan('other'))
+        # The selected card player must be the one who speaks, not another at the table.
+        wrong = [terse[0], {'speaker': 'Door-side player', 'text': 'Please, just sit.'}, terse[2]]
+        with self.assertRaisesRegex(InvalidChange, 'selected Fresco-side player never spoke'):
+            kit_agent.check_scope(wrong, self.plan('other'))
         # The whole-turn floor still guards against a flat card-player beat.
         with self.assertRaisesRegex(InvalidChange, 'Exchange scope was flat'):
             kit_agent.check_scope([{'speaker': 'Narrator', 'text': 'He glares.'},
-                                   {'speaker': 'Card player', 'text': 'Out.'}], self.plan('other'))
+                                   {'speaker': 'Fresco-side player', 'text': 'Out.'}], self.plan('other'))
 
     def test_dealer_focus_keeps_the_actor_floor(self):
         speech = [{'speaker': 'Narrator', 'text': ' '.join(['word'] * 30)},

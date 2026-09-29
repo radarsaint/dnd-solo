@@ -27,6 +27,10 @@ PLAYER_NOTE_LIMIT = 8
 PLAYER_NOTE_MAX_CHARS = 300
 PLAYER_NOTE_MAX_EVIDENCE = 4
 PLAYER_NOTE_SOURCES = ('observed', 'feedback')
+# Refused attempts (pending rulings on in-fiction actions) kept in public state so a
+# later turn can refer to them. Nothing about the world changes when one is recorded.
+REFUSED_ATTEMPT_LIMIT = 4
+REFUSED_ATTEMPT_MAX_CHARS = 300
 EPISODE_DEFAULTS = {'player_bid': None, 'kit_choice': None, 'actor_ref': None,
                     'story_anchor': None, 'story_basis': None}
 # Notes describe what the player did or said. They are not a relationship meter.
@@ -414,6 +418,19 @@ class Runtime:
         return {'revision': next_revision, 'note': next(
             (note for note in self.player_notes() if note['id'] == f'n{next_revision}'), None)}
 
+    def record_refused_attempt(self, action, ruling):
+        """Commit a public note that the player tried something the table could not
+        resolve. It is its own revision (like feedback), changes nothing in the world,
+        and a retry of the same attempt at the same revision is idempotent."""
+        require(isinstance(action, str) and action.strip(), 'Player action required')
+        revision, _ = self.load()
+        event = {'type': 'refused_attempt', 'action': action.strip()[:REFUSED_ATTEMPT_MAX_CHARS],
+                 'ruling': str(ruling).strip()[:REFUSED_ATTEMPT_MAX_CHARS],
+                 'evidence': 'The player attempted an action the slice could not adjudicate; '
+                             'nothing changed in the world.'}
+        digest = hashlib.sha256(f'{revision}:{encode(event)}'.encode()).hexdigest()[:16]
+        return self.commit(f'attempt-{digest}', revision, [event])
+
     def _add_player_note(self, state, note_id, source, text, evidence_turns, replaces='none',
                          current_turn=None):
         """Every note cites committed turns; notes can retire older observed notes."""
@@ -489,6 +506,14 @@ class Runtime:
             revision, _ = self.load()
             self._add_player_note(state, f'n{revision + 1}', 'feedback', event.get('note'),
                                   event.get('evidence_turns'), event.get('replaces', 'none'))
+        elif kind == 'refused_attempt':
+            require(isinstance(event.get('action'), str) and isinstance(event.get('ruling'), str),
+                    'A refused attempt needs the action and the ruling')
+            revision, _ = self.load()
+            attempts = state.setdefault('refused_attempts', [])
+            attempts.append({'action': event['action'], 'ruling': event['ruling'],
+                             'revision': revision + 1})
+            state['refused_attempts'] = attempts[-REFUSED_ATTEMPT_LIMIT:]
         elif kind == 'beat':
             tags = event.get('tags')
             require(isinstance(tags, list) and all(isinstance(t, str) for t in tags), 'Invalid beat tags')

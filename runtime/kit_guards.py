@@ -20,7 +20,11 @@ import re
 
 from .state_context import InvalidChange, require
 
-NPC_SPEAKERS = ('Dealer', 'Card player')   # room adapter: speakers voiced from actor cards
+# Room adapter: speakers voiced from actor cards. The three card players are separate
+# people with separate labels; 'Card player' is the retired shared label, kept only so
+# older committed turns are still read as NPC lines.
+CARD_PLAYER_SPEAKERS = ('Door-side player', 'Fresco-side player', 'Fourth player')
+NPC_SPEAKERS = ('Dealer',) + CARD_PLAYER_SPEAKERS + ('Card player',)
 _APOSTROPHES = str.maketrans({'’': "'", '‘': "'", '“': '"', '”': '"'})
 _SMALL_WORDS = frozenset('''
     a an the and or but if of to in on at by for with from as is are was were be been am
@@ -139,7 +143,23 @@ NPC_META_PATTERN = re.compile(
 # verdict, or one of these table-side phrases, sounds like Kit, not like the character.
 KIT_VERDICT_WORDS = frozenset((
     'bold', 'clever', 'reckless', 'doomed', 'audacious', 'daring', 'ambitious', 'interesting',
-    'noted', 'terrible', 'fascinating', 'delightful', 'brave', 'cute'))
+    'noted', 'terrible', 'fascinating', 'delightful', 'brave', 'cute', 'coward', 'cowards',
+    'pity', 'shame', 'tragic', 'rude', 'adorable', 'riveting', 'thrilling', 'impressive'))
+# Kit's dry register as constructions, not lines (approach-range playtest, 2026-09-28:
+# the dealer drifted into deadpan understatement and asides). Each is a class of
+# phrasing that comments on the moment instead of pursuing something.
+KIT_DRY_REGISTER = (
+    ('a one-word deadpan hedge', re.compile(
+        r"^(probably|allegedly|apparently|mostly|presumably|arguably|possibly|supposedly|reportedly|"
+        r"technically|theoretically|obviously|naturally|clearly|sadly|tragically|evidently)$")),
+    ('understated approval of the player', re.compile(
+        r"^(but|still|well|and|though)?,? ?i (do |must say i )?(admire|respect|appreciate|applaud|"
+        r"salute|commend) (the|your|that)\b")),
+    ('ironic self-pity', re.compile(r"\bfor my (feelings|nerves|heart|pride|dignity|sanity)\b")),
+    ('an ironic comparison', re.compile(r"\b(haven't|hasn't|have not|has not) been this \w+ since\b")),
+    ('an aside to the audience', re.compile(
+        r"\b(if i do say so myself|as one does|how original|what a surprise|shocking,? i know)\b")),
+)
 KIT_VERDICT_MAX_WORDS = 2      # a sentence this short that is a verdict word is Kit's move
 KIT_SIGNATURE_PHRASES = (
     'that is a choice', "that's a choice", 'what a choice', 'interesting choice',
@@ -151,7 +171,7 @@ KIT_SHARED_RUN_WORDS = 4       # an NPC reusing a 4-word run from Kit's own line
 NPC_COMPARE_MIN_WORDS = 5      # each NPC needs this many content words before comparing
 NPC_OVERLAP_MAX_JACCARD = 0.5  # shared content-word ratio at or above this is interchangeable
 NPC_SHARED_RUN_WORDS = 4       # or a shared 4-word run carrying two content words
-VOICE_CONTRACT_FIELDS = ('rhythm', 'register', 'tics', 'never_says', 'wants')
+VOICE_CONTRACT_FIELDS = ('rhythm', 'register', 'tics', 'never_says', 'wants', 'humor')
 
 
 def kit_lines(segments, public_history=()):
@@ -197,6 +217,13 @@ def check_npc_voices(segments, voice_contracts=None, public_history=()):
                 raise InvalidChange(
                     f'NPC voice: the {speaker} delivered a one-word verdict ("{sentence}"), which '
                     'is Kit\'s register. Let the NPC react from their own wants and diction.')
+            plain = ' '.join(words)
+            for label, pattern in KIT_DRY_REGISTER:
+                if pattern.search(plain):
+                    raise InvalidChange(
+                        f'NPC voice: the {speaker} slipped into Kit\'s dry register ({label}: '
+                        f'"{sentence[:60]}"). NPC humor comes from their own card and pursues '
+                        'something; wry comments on the moment belong to Kit.')
         for line in kit:
             shared = distinctive_runs(text, line, KIT_SHARED_RUN_WORDS)
             if shared:
@@ -234,13 +261,87 @@ def check_npc_voices(segments, voice_contracts=None, public_history=()):
                     f'"{_run_text(sorted(shared)[0])}". Two characters do not talk alike.')
 
 
+# SOFT, across turns (approach-range playtest: the dealer said "friend" in 18 of 29
+# lines). An NPC may not reuse a pet name/vocative from their own recent turns, nor a
+# distinctive phrase.
+NPC_VOCATIVE_WINDOW_TURNS = 2  # a vocative used by the same NPC in the last 2 public turns
+NPC_REPEAT_RUN_WORDS = 4       # a 4-word run (2+ content words) from the same NPC's recent lines
+_NOT_VOCATIVES = frozenset('''
+    then please eh no yes right too again now still though anyway indeed perhaps maybe surely
+    well so oh look listen and but here come sit go ah yes okay alright course after all
+    tonight today instead either neither first
+'''.split())
+
+
+def _vocatives(text):
+    found = set()
+    for sentence in sentences(text):
+        norm = normalize(sentence)
+        tail = re.search(r",\s*([a-z']+(?: [a-z']+)?)\s*[.!?]*$", norm)
+        head = re.match(r"^([a-z']+(?: [a-z']+)?),\s", norm)
+        for match in (tail, head):
+            if match:
+                words = match.group(1).split()
+                if not set(words) & _NOT_VOCATIVES and not set(words) & _SMALL_WORDS - {'my'}:
+                    found.add(re.sub(r'^my ', '', match.group(1)))
+    return found
+
+
+def speaker_history(public_history, speaker):
+    """The given speaker's lines per recent public turn, oldest first."""
+    prefix = f'{speaker}:'
+    return [[line[len(prefix):].strip() for line in (turn.get('spoken') or '').splitlines()
+             if line.startswith(prefix)] for turn in public_history or ()]
+
+
+def check_npc_repetition(segments, public_history=()):
+    by_speaker = {}
+    for segment in segments:
+        if segment['speaker'] in NPC_SPEAKERS:
+            by_speaker[segment['speaker']] = by_speaker.get(segment['speaker'], '') + ' ' + segment['text']
+    for speaker, text in by_speaker.items():
+        turns = speaker_history(public_history, speaker)
+        recent = ' '.join(' '.join(lines) for lines in turns[-NPC_VOCATIVE_WINDOW_TURNS:])
+        reused = _vocatives(text) & _vocatives(recent)
+        if reused:
+            raise InvalidChange(
+                f'NPC voice: the {speaker} reused the pet name "{sorted(reused)[0]}" from a recent '
+                'turn. A repeated vocative becomes a catchphrase; find a new angle.')
+        earlier = ' '.join(' '.join(lines) for lines in turns)
+        shared = distinctive_runs(text, earlier, NPC_REPEAT_RUN_WORDS)
+        if shared:
+            raise InvalidChange(
+                f'NPC voice: the {speaker} repeated their own phrase "{_run_text(sorted(shared)[0])}" '
+                'from a recent turn. Characters do not run on catchphrases.')
+
+
+# SOFT, across turns (approach-range playtest: Kit's rulings fell into "X, not Y" and
+# "noted"). The same construction may not appear in Kit's lines this turn if it
+# appeared in any of her recent public lines, or twice this turn.
+KIT_TIC_CONSTRUCTIONS = (
+    ('the "X, not Y" contrast', re.compile(r",\s+not\s+\w")),
+    ('a "noted" acknowledgement', re.compile(r"\b(duly )?noted\b|\bwriting that down\b|"
+                                            r"\bi'll remember that\b")),
+)
+
+
+def check_kit_tics(segments, public_history=()):
+    current = [normalize(segment['text']) for segment in segments if segment['speaker'] == 'Kit']
+    if not current:
+        return
+    recent = [normalize(line) for line in kit_lines([], public_history)]
+    for label, pattern in KIT_TIC_CONSTRUCTIONS:
+        uses = sum(len(pattern.findall(line)) for line in current)
+        if uses >= 2 or (uses and any(pattern.search(line) for line in recent)):
+            raise InvalidChange(
+                f'Kit voice: {label} again. A ruling template repeated across turns becomes a tic; '
+                'phrase this one differently.')
+
+
 def check_voice_contracts(actor_cards):
     """Every speaking NPC card carries a distinct voice contract (fail loud at prepare)."""
     contracts = {}
-    for speaker in NPC_SPEAKERS:
-        card = (actor_cards or {}).get(speaker)
-        if card is None:
-            continue
+    for speaker, card in (actor_cards or {}).items():
         contract = card.get('voice_contract')
         require(isinstance(contract, dict) and all(contract.get(key) for key in VOICE_CONTRACT_FIELDS),
                 f'Actor card {speaker} needs a voice_contract with {", ".join(VOICE_CONTRACT_FIELDS)}')
@@ -381,15 +482,23 @@ def leak_sets(source):
     return sets
 
 
+_NEGATION = re.compile(r"\b(not|never|no|nothing|n't)\b|n't\b")
+
+
 def check_paraphrased_leaks(text, public_view, player_action, sets):
+    """Applies to every speaker, Kit included: her exact-ruling voice is a leak path too.
+    When the player raised the subject themselves, only a question or a denial about it
+    is allowed; a statement that confirms it is still a leak."""
     public = normalize(str(public_view))
     declared = sentences(player_action or '')
     for entry in sets or ():
         if entry['revealed_text'] and normalize(entry['revealed_text']) in public:
             continue
-        if any(_sentence_hits(sentence, entry['groups']) for sentence in declared):
-            continue
+        raised = any(_sentence_hits(sentence, entry['groups']) for sentence in declared)
         for sentence in sentences(text):
+            if raised and (sentence.rstrip('"\'” )').endswith('?') or
+                           _NEGATION.search(normalize(sentence))):
+                continue
             if _sentence_hits(sentence, entry['groups']):
                 # Name the set, never the hidden fact, so the retry reason is public-safe.
                 raise InvalidChange(
@@ -445,3 +554,55 @@ def check_player_agency(segments):
                         f'Player agency: the {segment["speaker"]} decided for the player '
                         f'("{found.group(0)}"). Say what others do and what the player perceives; '
                         'the player chooses what they do, agree to, and feel.')
+
+
+# ---------------------------------------------------------------------------
+# 8. Source numbers (HARD)
+# ---------------------------------------------------------------------------
+# Approach-range playtest: the dealer charged 12 gp for passage; the source fixes 10.
+# The room fixture's DM-only `numeric_facts` name a fixed amount, its units, and the
+# words that tie a sentence to it. An amount in those units, in a sentence with a
+# context word, must be an allowed amount, unless the player said that number first
+# (an NPC may repeat or refuse a player's own offer). Arithmetic spread across
+# sentences ("ten, plus two for my trouble") is not caught.
+NUMBER_WORDS = {'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5, 'six': 6, 'seven': 7,
+                'eight': 8, 'nine': 9, 'ten': 10, 'eleven': 11, 'twelve': 12, 'thirteen': 13,
+                'fourteen': 14, 'fifteen': 15, 'sixteen': 16, 'seventeen': 17, 'eighteen': 18,
+                'nineteen': 19, 'twenty': 20, 'thirty': 30, 'forty': 40, 'fifty': 50,
+                'hundred': 100, 'a hundred': 100, 'a dozen': 12, 'dozen': 12}
+
+
+def _amounts(sentence, units):
+    text = ' '.join(tokens(sentence))
+    unit = '|'.join(re.escape(normalize(word)) for word in sorted(units, key=len, reverse=True))
+    number = r'\d+|' + '|'.join(sorted(NUMBER_WORDS, key=len, reverse=True))
+    found = []
+    for match in re.finditer(rf'\b({number})(?: more)? ({unit})\b', text):
+        raw = match.group(1)
+        found.append(int(raw) if raw.isdigit() else NUMBER_WORDS[raw])
+    return found
+
+
+def numeric_facts(source):
+    return {name: fact for name, fact in (source or {}).get('numeric_facts', {}).items()
+            if isinstance(fact, dict)}
+
+
+def check_numeric_facts(segments, facts, player_action):
+    declared = set()
+    for fact in (facts or {}).values():
+        for sentence in sentences(player_action or ''):
+            declared.update(_amounts(sentence, fact['unit_words']))
+    for segment in segments:
+        for sentence in sentences(segment['text']):
+            words = ' ' + ' '.join(tokens(sentence)) + ' '
+            for name, fact in (facts or {}).items():
+                if not any(f' {normalize(word)} ' in words for word in fact['context_words']):
+                    continue
+                for amount in _amounts(sentence, fact['unit_words']):
+                    if amount not in fact['allowed_amounts'] and amount not in declared:
+                        raise InvalidChange(
+                            f'Source fact: the {segment["speaker"]} named {amount} '
+                            f'{fact["unit_words"][0]} for {name.replace("_", " ")}; the source fixes '
+                            f'{" or ".join(str(a) for a in fact["allowed_amounts"])}. Characters may '
+                            'haggle in words, not change a fixed price.')

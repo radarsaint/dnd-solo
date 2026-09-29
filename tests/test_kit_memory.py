@@ -28,7 +28,7 @@ CALLBACK_SPEECH = {'segments': [
     {'speaker': 'Narrator', 'text': 'He deals you in, and his glance drops once to the pocket where the coin went.'},
     {'speaker': 'Dealer', 'text': ('Before the first card, that lucky coin of yours. Put it in the pot and I '
                                    'will match it with gold, since you seem so sure of its shine. Or keep '
-                                   'it and play for copper like everyone else. Your choice, friend.')}]}
+                                   'it and play for copper like everyone else. Your choice.')}]}
 # A competent reply that ignores the callback entirely.
 FORGETFUL_SPEECH = {'segments': [
     {'speaker': 'Narrator', 'text': 'He deals you in with a practiced snap of the wrist.'},
