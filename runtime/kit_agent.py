@@ -50,7 +50,8 @@ class Resolution:
     events: list
 
 
-# The accepted event is bounded at 500 characters (check_plan). A social event is
+# The accepted event is bounded at 500 characters (check_plan; card turns use
+# CARD_EVENT_MAX_CHARS). A social event is
 # a restatement of the player's declared words, so Kit's appraisal and the
 # performer react to what was actually said instead of a generic placeholder.
 EVENT_MAX_CHARS = 500
@@ -826,7 +827,8 @@ def check_plan(plan, episodes, public_event, action_kind=None, candidates=None, 
     require(isinstance(appraisal['cause'], str) and appraisal['cause'].strip()
             and len(appraisal['cause']) <= 500,
             'Appraisal must have a cause')
-    require(len(plan['observed_event']) <= 500, 'Decision exceeds event bound')
+    bound = CARD_EVENT_MAX_CHARS if str(action_kind or '').startswith('card_') else EVENT_MAX_CHARS
+    require(len(plan['observed_event']) <= bound, 'Decision exceeds event bound')
     require(appraisal['goal_effect'] in ('advances', 'threatens', 'neutral') and
             appraisal['target'] in ('player', 'npc', 'scene', 'kit'),
             'Invalid goal effect or appraisal target')

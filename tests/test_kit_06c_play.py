@@ -6,6 +6,7 @@ import copy
 import json
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 from runtime import kit_agent, kit_cards, kit_voice
@@ -174,6 +175,27 @@ class GameDetailTests(unittest.TestCase):
         self.assertEqual(resolution.kind, 'card_join')
         self.assertIn('procedure_state', [event['type'] for event in resolution.events])
 
+    def test_a_long_card_event_commits_through_the_decision(self):
+        # Fix-pass host play: a round of play reported more than 500 characters, and the
+        # decision (which must restate the event) hit the social bound. The deal is seeded,
+        # so this seed and sequence reproduce a 540-character round.
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        self.runtime = Runtime(Path(temp.name) / 'seeded.sqlite')
+        self.addCleanup(self.runtime.close)
+        with mock.patch('runtime.state_context.secrets.token_hex', return_value=f'{6:032x}'):
+            self.runtime.initialize(json.loads(FIXTURE.read_text()), 'area_06c')
+        self.agent = KitAgent(self.runtime, GameModel(), Room6CAdjudicator(
+            perception=2, insight=1, sleight_of_hand=3, roll=lambda: 20))
+        actions = [GAME_ASK, 'I buy in with 20 gold. Deal me in.', 'I ante my strongest card.',
+                   'I play my strongest card.', 'I play my strongest card.', 'I play my strongest card.']
+        for index, action in enumerate(actions):
+            self.agent.turn(action, action[:8] + str(index))
+        events = [turn['public_event'] for turn in self.runtime.recent_kit_turns()]
+        self.assertEqual(len(events), len(actions))
+        self.assertGreater(max(map(len, events)), kit_agent.EVENT_MAX_CHARS)
+        self.assertTrue(all(len(event) <= kit_agent.CARD_EVENT_MAX_CHARS for event in events))
+
     def test_the_staged_bridge_carries_the_oracle_from_prepare_to_commit(self):
         bridge = kit_agent.KitChatBridge(self.runtime, self.agent.adjudicator)
         prepared = bridge.prepare(GAME_ASK, 'bridge-game')
@@ -217,7 +239,7 @@ class CardTableTests(unittest.TestCase):
 
     def finish_gambit(self, table, state, revision=2):
         """Ante the weakest card, then play the strongest each turn until the showdown."""
-        state = table.resolve('card_ante', 'I ante my weakest card.', revision, state)[1]
+        state = table.resolve('card_ante', 'I ante my strongest card.', revision, state)[1]
         while state['public']['gambit']['phase'] == 'play':
             revision += 1
             state = table.resolve('card_play', 'I play my strongest card.', revision, state)[1]
@@ -257,7 +279,7 @@ class CardTableTests(unittest.TestCase):
         """QA PR #15 item 7: real Three-Dragon Ante structure, not a three-card poker hand."""
         table, state, _ = self.seated()
         before = {seat: table._gp(state['public'], seat) for seat in state['public']['gambit']['seats']}
-        text, state, _ = self.play(table, 'card_ante', 'I ante my weakest card.', state, revision=2)
+        text, state, _ = self.play(table, 'card_ante', 'I ante my strongest card.', state, revision=2)
         gambit = state['public']['gambit']
         antes = {seat: kit_cards._parse_name(name)[1] for seat, name in gambit['antes_revealed'].items()}
         top = max(antes.values())
@@ -332,7 +354,7 @@ class CardTableTests(unittest.TestCase):
         self.assertEqual(reveals, ['marked_deck'])
         self.assertTrue(state['public']['gambit']['cheat_seen'])
         self.assertIn('Perception 25', text)
-        state = table.resolve('card_ante', 'I ante my weakest card.', 3, state)[1]
+        state = table.resolve('card_ante', 'I ante my strongest card.', 3, state)[1]
         self.assertNotEqual(state['public']['stacks'], before, 'the antes are in the stakes')
         text, state, _ = table.resolve('card_accuse', 'You dealt yourself the second card.', 4, state)
         self.assertIn('void', text)
@@ -357,7 +379,7 @@ class CardTableTests(unittest.TestCase):
 
     def test_an_accusation_without_proof_stops_the_game_and_refunds_nothing(self):
         table, state, _ = self.seated()
-        state = table.resolve('card_ante', 'I ante my weakest card.', 2, state)[1]
+        state = table.resolve('card_ante', 'I ante my strongest card.', 2, state)[1]
         gold = copy.deepcopy((state['public']['stacks'], state['public']['player']['gp']))
         text, state, _ = table.resolve('card_accuse', 'You\'re cheating!', 3, state)
         self.assertIn('Nothing on the table proves it', text)
@@ -367,7 +389,7 @@ class CardTableTests(unittest.TestCase):
     def test_a_failed_swap_puts_the_player_out_and_the_table_plays_on(self):
         table, state, _ = self.seated()
         total = kit_cards.table_gold(state['public'])
-        state = table.resolve('card_ante', 'I ante my weakest card.', 2, state)[1]
+        state = table.resolve('card_ante', 'I ante my strongest card.', 2, state)[1]
         text, state, _ = table.resolve('card_swap', 'I palm a card. I rolled 1 + 0 = 1.', 3, state)
         self.assertTrue(state['public']['player']['unwelcome'])
         self.assertEqual(state['public']['gambit']['phase'], 'done', 'the others played it out')
@@ -385,7 +407,7 @@ class CardTableTests(unittest.TestCase):
     def test_leaving_mid_gambit_forfeits_it_so_the_table_can_deal_again(self):
         table, state, _ = self.seated()
         total = kit_cards.table_gold(state['public'])
-        state = table.resolve('card_ante', 'I ante my weakest card.', 2, state)[1]
+        state = table.resolve('card_ante', 'I ante my strongest card.', 2, state)[1]
         purse = state['public']['player']['gp']
         text, state, _ = table.resolve('card_leave', 'I cash out.', 3, state)
         self.assertIn('You drop out of the gambit', text)
@@ -418,7 +440,7 @@ class CardTableTests(unittest.TestCase):
         self.assertIsNone(intent('Tell me about the ring', state))
         self.assertIsNone(intent('Are you cheating?', state))
         self.assertIsNone(intent('What does the blue power do?', state))
-        self.assertEqual(intent('I ante my weakest card.', state), 'card_ante')
+        self.assertEqual(intent('I ante my strongest card.', state), 'card_ante')
         self.assertEqual(intent(f"The {state['public']['player']['hand'][0]}.", state), 'card_ante')
         self.assertEqual(intent('I read his face for a bluff.', state), 'card_read')
 
@@ -448,7 +470,7 @@ class CardTableTests(unittest.TestCase):
         """QA PR #15: public stack keys were actor ids ("doppelganger"), and the public
         dm_choice named the marked deck, which also switched off the literal leak check."""
         table, state, _ = self.seated()
-        state = table.resolve('card_ante', 'I ante my weakest card.', 2, state)[1]
+        state = table.resolve('card_ante', 'I ante my strongest card.', 2, state)[1]
         public = json.dumps(kit_cards.public_view(self.config, state['public'])).casefold()
         for secret in ('doppelganger', 'uktarl', 'bandit', 'marked'):
             self.assertNotIn(secret, public)
@@ -482,7 +504,7 @@ class CardTableTests(unittest.TestCase):
             adjudicator.resolve('I raise my crossbow and shoot the dealer.', 1, state)
         with self.assertRaisesRegex(kit_agent.PendingRuling, 'Stealth'):
             adjudicator.resolve('I sneak out while they check their hands.', 1, state)
-        self.assertEqual(adjudicator.resolve('I ante my weakest card.', 1, state).kind, 'card_ante')
+        self.assertEqual(adjudicator.resolve('I ante my strongest card.', 1, state).kind, 'card_ante')
         view = json.dumps(Runtime._player_view(source, state)).casefold()
         self.assertNotIn('doppelganger', view)
 
