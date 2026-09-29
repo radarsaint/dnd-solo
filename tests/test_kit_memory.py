@@ -13,7 +13,7 @@ from runtime import kit_agent
 from runtime.kit_agent import (KitAgent, KitChatBridge, MEMORY_LIMIT, Room6CAdjudicator,
                                select_episodes)
 from runtime.state_context import InvalidChange, Runtime, STATE_SCHEMA_VERSION, encode
-from test_kit_agent import FIXTURE, KIT_CHOICE, QUIET_EXCHANGE_SPEECH, RecordingModel
+from test_kit_agent import FIXTURE, KIT_CHOICE, QUIET_EXCHANGE_SPEECH, RecordingModel, exchange_speech
 
 NO_NOTE = {'note': 'none', 'evidence_turns': [], 'replaces': 'none'}
 COIN = 'I say, flipping my lucky silver coin onto the table: this coin never loses.'
@@ -61,7 +61,10 @@ class Scripted(RecordingModel):
 
     def perform(self, payload, performance_variant='current'):
         super().perform(payload, performance_variant)
-        return json.loads(json.dumps(self.speeches.pop(0) if self.speeches else QUIET_EXCHANGE_SPEECH))
+        # Rotate the default reply: a line recycled from a recent turn is rejected as padding.
+        self.performed += 1
+        return json.loads(json.dumps(self.speeches.pop(0) if self.speeches
+                                     else exchange_speech(self.performed - 1, kit=False)))
 
 
 class MemoryTestCase(unittest.TestCase):

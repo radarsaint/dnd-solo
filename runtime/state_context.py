@@ -14,6 +14,9 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 PERSONALITY_CORE = PROJECT_ROOT / 'docs/personality/dm-personality-core.md'
 RHYTHM_EVIDENCE_MAX_CHARS = 600  # per recent_rhythm entry; 12 entries stay inside context()
+# Byte budget for one model input. context() enforces it on the core + DM context; the
+# Kit bridge trims memory to keep each whole prepared input inside it (kit_agent.fit_to_budget).
+CONTEXT_BUDGET_BYTES = 24000
 
 # Version 2 adds Kit's player_notes and richer episodes (player_bid, kit_choice,
 # actor and story thread). Older snapshots are upgraded in memory on load; the
@@ -36,6 +39,14 @@ class InvalidChange(ValueError):
 
 class StaleTurn(InvalidChange):
     pass
+
+
+class HostSequenceError(InvalidChange):
+    """The host called the bridge out of order or with an unknown or finished turn ID.
+    `next_step` names what to do instead, so the CLI can hand it back verbatim."""
+    def __init__(self, message, next_step):
+        super().__init__(message)
+        self.next_step = next_step
 
 
 def encode(value):
@@ -175,15 +186,21 @@ class Runtime:
         require(len(serialized.encode()) <= 16000, 'Pending turn exceeds size limit')
         self.db.execute('BEGIN IMMEDIATE')
         try:
-            require(self.db.execute('SELECT 1 FROM turns WHERE id=?', (turn_id,)).fetchone() is None,
-                    'Turn ID already committed')
+            if self.db.execute('SELECT 1 FROM turns WHERE id=?', (turn_id,)).fetchone() is not None:
+                raise HostSequenceError(
+                    f'Turn ID already committed: {turn_id!r} is a finished turn. Use a new turn_id '
+                    'for a new player action.', 'prepare_new_turn')
             revision, _ = self.load()
             if revision != expected_revision:
                 raise StaleTurn(f'Expected revision {expected_revision}; current is {revision}')
             row = self.db.execute('SELECT revision, body FROM kit_pending WHERE turn_id=?',
                                   (turn_id,)).fetchone()
             if row:
-                require(row == (expected_revision, serialized), 'Turn ID already staged differently')
+                if row != (expected_revision, serialized):
+                    raise HostSequenceError(
+                        f'Turn ID already staged differently: {turn_id!r} is pending for another '
+                        'action or revision. Finish or abandon it, or prepare with a new turn_id.',
+                        'new_turn_id_or_abandon')
             else:
                 self.db.execute('INSERT INTO kit_pending VALUES (?, ?, ?, NULL)',
                                 (turn_id, expected_revision, serialized))
@@ -195,9 +212,31 @@ class Runtime:
     def pending_kit_turn(self, turn_id):
         row = self.db.execute('SELECT revision, body, plan FROM kit_pending WHERE turn_id=?',
                               (turn_id,)).fetchone()
-        require(row is not None, 'No pending Kit turn with that ID')
+        if row is None:
+            committed = self.db.execute('SELECT revision FROM turns WHERE id=?', (turn_id,)).fetchone()
+            if committed:
+                raise HostSequenceError(
+                    f'No pending Kit turn with that ID: {turn_id!r} was already committed at revision '
+                    f'{committed[0]}. Do not resubmit it; prepare the next player action with a new '
+                    'turn_id.', 'prepare_new_turn')
+            raise HostSequenceError(
+                f'No pending Kit turn with that ID: {turn_id!r} was never prepared, or was abandoned. '
+                'Call prepare first and use the turn_id it returns.', 'prepare')
         return {'revision': row[0], 'body': json.loads(row[1]),
                 'plan': json.loads(row[2]) if row[2] is not None else None}
+
+    def discard_pending_kit_turn(self, turn_id):
+        """Drop an uncommitted staged turn (nothing in the world or ledger changes)."""
+        self.pending_kit_turn(turn_id)  # clear error when unknown or already committed
+        with self.db:
+            self.db.execute('DELETE FROM kit_pending WHERE turn_id=?', (turn_id,))
+
+    def committed_kit_turn(self, turn_id):
+        """The committed public record and revision for a turn ID, or None."""
+        row = self.db.execute('''SELECT kit_turns.body, turns.revision FROM kit_turns
+            JOIN turns ON turns.id = kit_turns.turn_id WHERE kit_turns.turn_id=?''',
+                              (turn_id,)).fetchone()
+        return {**json.loads(row[0]), 'revision': row[1]} if row else None
 
     def save_kit_plan(self, turn_id, expected_revision, plan):
         serialized = encode(plan)
@@ -487,7 +526,7 @@ class Runtime:
         _, state = self.load()
         return self._player_view(self.source(), state)
 
-    def context(self, personality_core=None, max_bytes=24000):
+    def context(self, personality_core=None, max_bytes=CONTEXT_BUDGET_BYTES):
         if personality_core is None:
             personality_core = PERSONALITY_CORE.read_text(encoding='utf-8')
         revision, state = self.load()

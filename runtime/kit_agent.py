@@ -16,9 +16,12 @@ import uuid
 from dataclasses import dataclass
 from pathlib import Path
 
+from . import kit_guards
 from .scene_discernment import IMPROV_READ_SCHEMA, check_improv_read, discernment_candidates
-from .state_context import (InvalidChange, PLAYER_NOTE_MAX_EVIDENCE, PROJECT_ROOT, Runtime,
-                            StaleTurn, check_player_note_text, require)
+from .state_context import (CONTEXT_BUDGET_BYTES, HostSequenceError, InvalidChange,
+                            PERSONALITY_CORE, PLAYER_NOTE_MAX_EVIDENCE, PROJECT_ROOT, Runtime,
+                            StaleTurn,
+                            check_player_note_text, encode, require)
 
 
 ROOM_FIXTURE = PROJECT_ROOT / 'tests/fixtures/level_01_area_06c.json'
@@ -273,16 +276,53 @@ def performance_limits(scope=None):
                     f'{FEATURE_MIN_SEGMENTS} segments.'),
         'note': ('Floors guard against flat replies; they are not targets. Kit segments do not count '
                  'toward the actor side. Never pad.'),
+        'padding': (f'Rejected as padding: any {kit_guards.PADDING_REPEAT_RUN_WORDS}-word run said twice, '
+                    f'{kit_guards.RESTATE_MAX_RUN_WORDS}+ consecutive words echoed from the player, '
+                    f'an {kit_guards.RECYCLED_RUN_WORDS}-word run reused from recent turns, narration '
+                    'retelling what the player said, and stock filler.'),
+        'npc_voices': ('Each NPC speaks from their own card voice_contract (rhythm, register, tics, '
+                       'never_says, never_words, max_words_per_sentence). No NPC uses table talk, '
+                       'one-word verdicts, or Kit\'s phrasing, and two NPCs never sound alike.'),
+        'player_agency': ('Never state what the player does, decides, agrees to, or feels (no '
+                          '"you agree", "you feel", "your heart races"). Questions and conditions are fine.'),
     }
-    return limits if scope is None else {'selected_scope': scope, 'rule': limits[scope],
-                                         'note': limits['note']}
+    if scope is None:
+        return limits
+    return {'selected_scope': scope, 'rule': limits[scope],
+            **{key: limits[key] for key in ('note', 'padding', 'npc_voices', 'player_agency')}}
 
+
+# Retry cap. A live table cannot wait on an endless rejection loop. After this many
+# rejected attempts on one turn, the host may resubmit with degraded=True (CLI
+# --degraded): soft style checks (floors, padding, NPC voice heuristics, callback use)
+# become warnings saved with the turn; hard checks (secrets, player agency, NPC table
+# talk, presence, the chosen move) still apply. After ABANDON_SUGGEST_AFTER rejections
+# the host is told to abandon the pending turn and prepare it again, because a fixed
+# decision may itself be the problem. The API path makes API_PERFORMANCE_ATTEMPTS
+# performer calls and treats the last one as degraded.
+DEGRADED_AFTER_REJECTIONS = 2
+ABANDON_SUGGEST_AFTER = 4
+API_PERFORMANCE_ATTEMPTS = 2
 
 HOST_RETRY_NOTE = (
     'If finish or complete is rejected, nothing was committed and the decision stays fixed. Read '
     'message and retry_instruction, then submit a new performance for the same turn_id; for '
     'complete, resubmit the identical decision with the new performance. If decide is rejected, '
-    'fix the plan and call decide again.')
+    f'fix the plan and call decide again. After {DEGRADED_AFTER_REJECTIONS} rejections the '
+    'rejection offers degraded mode (resubmit with --degraded): style floors become warnings, '
+    f'secrecy and player agency still apply. After {ABANDON_SUGGEST_AFTER}, run abandon for the '
+    'turn_id and prepare the action again with a new turn_id. A lost response is safe to retry: '
+    'resubmitting an already committed turn returns the committed result.')
+
+DEGRADED_INSTRUCTION = (
+    'Degraded mode is available for this turn. Resubmit the same decision with a plain, short '
+    'performance and degraded=true (CLI --degraded): one Narrator sentence of visible action, then '
+    'the focus actor answering reply_to in two or three sentences in their own card voice, ending '
+    'on a real choice for the player. Style floors become warnings saved with the turn; secrecy, '
+    'player agency, NPC table talk, presence, and the chosen move are still checked.')
+ABANDON_INSTRUCTION = (
+    'This turn keeps failing. Run abandon for this turn_id (nothing is committed), then prepare '
+    'the same player action again with a new turn_id and a simpler decision.')
 
 PRIVATE_INSTRUCTIONS = (
     'You are Kit’s private decision stage, using the supplied canonical personality. '
@@ -334,7 +374,14 @@ PRIVATE_INSTRUCTIONS = (
     'what the player did or said, citing turn IDs from the episodes or this_turn in '
     'evidence_turns; describe behavior, not guessed feelings, and never a score. Set replaces '
     'to an observed note’s id when new behavior contradicts it; otherwise replaces is none. If '
-    'nothing new was shown, note is none with no evidence.'
+    'nothing new was shown, note is none with no evidence. '
+    'kit_focus must name something concrete in this turn (a detail, which actor tactic gets '
+    'room, how a ruling is framed, or a deliberate restraint); a generic aim such as making it '
+    'engaging or interesting is rejected. Kit’s direction reaches NPCs only through which tactic '
+    'they pick, pacing, and framing, never their words, humor, or diction; never script an NPC '
+    'line in the brief. On a social turn, choose ruling or call only when the player asked a '
+    'rules or mechanics question, or ask_clarification when you genuinely cannot tell what they '
+    'mean; otherwise the actor answers in an exchange.'
 )
 
 PUBLIC_INSTRUCTIONS = (
@@ -373,7 +420,16 @@ PUBLIC_INSTRUCTIONS = (
     'adding facts about it. Scope: '
     'call means answer directly and stop; exchange means the actor answers reply_to, pursues the '
     'tactic with a visible beat, and leaves a live opening; feature means a scene in motion with '
-    'room for a short speech or more than one reaction. Never pad to reach a length.'
+    'room for a short speech or more than one reaction. Never pad to reach a length: no '
+    'repeated phrases, no retelling what the player said, no stock filler, no recycled lines. '
+    'NPC VOICES: every NPC speaks only from their own card’s voice_contract: its rhythm, '
+    'register, and tics; never_says and never_words are hard limits, and max_words_per_sentence '
+    'caps that NPC’s sentences. NPCs never use table talk (rules, dice, checks, the story as a '
+    'story), one-word verdicts on the player’s choice, or Kit’s phrasing; two NPCs in one turn '
+    'never sound alike. Tone and kit_focus shape narration, pacing, and which tactic plays out; '
+    'they never change an NPC’s diction. PLAYER AGENCY: never state what the player does, '
+    'decides, agrees to, or feels; narrate what others do and what the player can perceive, and '
+    'leave the player’s response to the player.'
 )
 
 # Kit's direct table voice, distilled from docs/personality/dm-personality-core.md
@@ -419,7 +475,9 @@ ONE_PASS_PREAMBLE = (
     'performance using only the public input, accepted event, and the decision’s checked '
     'public_brief (including reply_to, scope, kit_focus, and callback), move, tone, focus actor, '
     'and table presence. Do not copy improv_read, appraisal, episode, or player note text into '
-    'the performance. '
+    'the performance. To save context, the personality core and the public dialogue history '
+    'appear once, in the private input (personality_core, dialogue_history); the performance '
+    'uses them from there. '
     'Keep the decision brief. '
     'The decision connects the player bid, available story pressure, actor goal, and Kit’s '
     'appraisal before selecting a concrete DM move; do not justify dialogue after the fact. '
@@ -552,6 +610,9 @@ def check_plan(plan, episodes, public_event, action_kind=None, candidates=None, 
     require(all(_normalized(text) not in _normalized(focus) for text in private_texts
                 if len(text.strip()) >= 20),
             'kit_focus copies private kit_choice or appraisal text; restate it as public direction')
+    kit_guards.check_focus_specific(focus)
+    kit_guards.check_direction_not_diction(brief)
+    kit_guards.check_ruling_dodge(plan, action_kind, player_action)
     for field in BRIEF_FIELDS:
         if field in BRIEF_QUOTE_FIELDS:
             continue
@@ -704,7 +765,7 @@ def check_scope(segments, plan):
             'and pressure in motion, then stop at a player decision.')
 
 
-def check_public_content(text, public_view, player_action):
+def check_public_content(text, public_view, player_action, leak_sets=()):
     public = json.dumps(public_view, ensure_ascii=False).lower()
     declared = player_action.lower()
     text = text.lower()
@@ -728,16 +789,25 @@ def check_public_content(text, public_view, player_action):
         player_named_person = phrase in ('harria', 'uktarl') and phrase in declared
         if phrase in text and allow not in public and not player_named_person:
             raise InvalidChange('Public performance mentioned a private fact')
+    # Paraphrases: DM-only keyword sets from the room source (kit_guards section 6).
+    kit_guards.check_paraphrased_leaks(text, public_view, player_action, leak_sets)
 
 
-def check_brief_public(brief, public_view, player_action):
-    """Literal leak check on Kit's direction. reply_to and callback are excluded because
+def check_brief_public(brief, public_view, player_action, leak_sets=()):
+    """Leak check on Kit's direction. reply_to and callback are excluded because
     they are checked verbatim quotes of words the player already said or saw."""
     direction = {key: value for key, value in brief.items() if key not in BRIEF_QUOTE_FIELDS}
     check_public_content(json.dumps(direction, ensure_ascii=False), public_view, player_action)
+    # Paraphrase sets are checked per field so one field's words cannot pair with another's.
+    for value in direction.values():
+        kit_guards.check_paraphrased_leaks(value, public_view, player_action, leak_sets)
 
 
-def check_speech(speech, plan, public_view, player_action, action_kind=None):
+def check_speech(speech, plan, public_view, player_action, action_kind=None, guards=None,
+                 degraded=False):
+    """Validate one performance. Returns the spoken text, or (spoken, soft_warnings)
+    when degraded is True. Hard checks always raise; soft checks raise unless degraded."""
+    guards = guards or {}
     require(isinstance(speech, dict) and set(speech) == {'segments'}, 'Invalid public performance')
     segments = speech['segments']
     require(isinstance(segments, list) and 1 <= len(segments) <= 7,
@@ -769,10 +839,30 @@ def check_speech(speech, plan, public_view, player_action, action_kind=None):
                 for speaker in ('Narrator', 'Dealer')),
             'Room entry needs narration and the dealer')
     spoken = '\n'.join(f"{segment['speaker']}: {segment['text'].strip()}" for segment in segments)
+    # HARD: secrets (literal and paraphrased), the player's agency, NPC table talk, and
+    # a clarification that really asks something.
     check_public_content(spoken, public_view, player_action)
-    check_scope(segments, plan)
-    check_callback_used(segments, plan)
-    return spoken
+    for segment in segments:
+        kit_guards.check_paraphrased_leaks(segment['text'], public_view, player_action,
+                                           guards.get('leak_sets', ()))
+    kit_guards.check_player_agency(segments)
+    kit_guards.check_npc_meta(segments)
+    kit_guards.check_clarification_shape(segments, plan)
+    # SOFT: style floors. Recorded as warnings, not rejections, in degraded mode.
+    history = guards.get('public_history', ())
+    soft = (lambda: check_scope(segments, plan),
+            lambda: kit_guards.check_padding(segments, player_action, action_kind, history),
+            lambda: kit_guards.check_npc_voices(segments, guards.get('voice_contracts'), history),
+            lambda: check_callback_used(segments, plan))
+    warnings = []
+    for check in soft:
+        try:
+            check()
+        except InvalidChange as exc:
+            if not degraded:
+                raise
+            warnings.append(str(exc))
+    return (spoken, warnings) if degraded else spoken
 
 
 def _named_actors(action):
@@ -788,17 +878,10 @@ def _episode_words(episode):
     return keywords(' '.join(text for text in texts if isinstance(text, str)))
 
 
-def select_episodes(episodes, action, limit=MEMORY_LIMIT, recent=MEMORY_RECENT):
-    """Always the last `recent` episodes, then earlier ones by relevance, up to `limit`.
-
-    Relevance is transparent: shared meaningful words with the action, the actor the
-    action names or the conversation is already with, and the active story thread
-    (a level or campaign anchor, not the generic scene). Irrelevant episodes are left
-    out rather than padded in. Output stays in chronological order.
-    """
-    if not episodes:
-        return []
-    kept = list(range(max(0, len(episodes) - recent), len(episodes)))
+def _relevance(episodes, action):
+    """Score function for earlier episodes: shared meaningful words with the action
+    (weighted most), the actor the action names or the conversation is already with,
+    and the active story thread (a level or campaign anchor, not the generic scene)."""
     last = episodes[-1]
     actors = _named_actors(action)
     if last.get('actor_ref') not in (None, 'none'):
@@ -806,11 +889,28 @@ def select_episodes(episodes, action, limit=MEMORY_LIMIT, recent=MEMORY_RECENT):
     thread = ((last.get('story_anchor'), last.get('story_basis'))
               if last.get('story_anchor') not in (None, 'none', 'scene') else None)
     words = keywords(action)
+
+    def score(episode):
+        value = min(len(words & _episode_words(episode)), 3) * 2
+        value += episode.get('actor_ref') in actors
+        value += thread is not None and (episode.get('story_anchor'), episode.get('story_basis')) == thread
+        return value
+    return score
+
+
+def select_episodes(episodes, action, limit=MEMORY_LIMIT, recent=MEMORY_RECENT):
+    """Always the last `recent` episodes, then earlier ones by relevance, up to `limit`.
+
+    Relevance is transparent (see _relevance). Irrelevant episodes are left out rather
+    than padded in. Output stays in chronological order.
+    """
+    if not episodes:
+        return []
+    kept = list(range(max(0, len(episodes) - recent), len(episodes)))
+    score_of = _relevance(episodes, action)
     scored = []
     for index, episode in enumerate(episodes[:kept[0]] if kept else episodes):
-        score = min(len(words & _episode_words(episode)), 3) * 2
-        score += episode.get('actor_ref') in actors
-        score += thread is not None and (episode.get('story_anchor'), episode.get('story_basis')) == thread
+        score = score_of(episode)
         if score:
             scored.append((score, index))
     scored.sort(reverse=True)
@@ -822,25 +922,97 @@ def kit_memory(runtime, state, action, use_memory):
     """Kit's private memory for one decision: relevant episodes (with what was said in
     public on those turns, for callbacks) and her evidence-cited player notes."""
     if not use_memory:
-        return {'episodes': [], 'player_notes': []}
-    chosen = select_episodes(state['kit']['episodes'], action)
+        return {'episodes': [], 'player_notes': [], 'drop_order': []}
+    stored = state['kit']['episodes']
+    chosen = select_episodes(stored, action)
     spoken = {record['turn_id']: record['spoken']
               for record in runtime.kit_turns_by_id([episode['turn_id'] for episode in chosen])}
     episodes = [{**episode, 'spoken': spoken.get(episode['turn_id'], '')[-1200:]}
                 for episode in chosen]
-    return {'episodes': episodes, 'player_notes': state['kit']['player_notes']}
+    return {'episodes': episodes, 'player_notes': state['kit']['player_notes'],
+            'drop_order': trim_order(chosen, stored, action)}
+
+
+def trim_order(chosen, stored, action, recent=MEMORY_RECENT):
+    """Episode IDs in the order the budget drops them: earlier episodes least relevant
+    first (oldest first on ties), then the recent ones oldest first. The very last
+    episode is never listed; fit_to_budget always keeps it."""
+    if not chosen:
+        return []
+    recent_ids = [episode['turn_id'] for episode in stored[-recent:]]
+    score_of = _relevance(stored, action)
+    earlier = [(score_of(episode), index, episode['turn_id'])
+               for index, episode in enumerate(chosen) if episode['turn_id'] not in recent_ids]
+    return [turn_id for _, _, turn_id in sorted(earlier)] + recent_ids[:-1]
+
+
+# Context budget (CONTEXT_BUDGET_BYTES, 24 KB per model input). When a prepared input
+# would exceed it, memory is trimmed in this order, least valuable first, and the
+# packet says what was trimmed. Player notes are never trimmed (at most 8 short notes).
+CONTEXT_KEEP_HISTORY = 1          # public dialogue turns always kept
+CONTEXT_KEEP_RHYTHM = 3           # recent_rhythm entries always kept
+EPISODE_SPOKEN_TRIM_CHARS = 300   # public excerpt per episode after trimming
+
+
+def _bytes(value):
+    return len(encode(value).encode())
+
+
+def fit_to_budget(planning_input, drop_order, reserve_bytes=0, budget=CONTEXT_BUDGET_BYTES):
+    """Trim the private input in place until it (plus reserve_bytes, e.g. the one-pass
+    public half) fits the budget. Returns the kept episode IDs."""
+    kit_state = planning_input['kit_state']
+    history = planning_input['dialogue_history']
+    rhythm = planning_input['dm_context'].get('recent_rhythm', [])
+    report = {'episodes_dropped': 0, 'history_dropped': 0, 'rhythm_dropped': 0,
+              'excerpts_shortened': False}
+
+    def over():
+        return _bytes(planning_input) + reserve_bytes > budget
+
+    def note():
+        kit_state['memory_trimmed'] = {**report, 'reason': 'context budget; oldest and least '
+                                       'relevant memory dropped first'}
+    order = [turn_id for turn_id in drop_order]
+    while over() and order:
+        turn_id = order.pop(0)
+        before = len(kit_state['episodes'])
+        kit_state['episodes'] = [e for e in kit_state['episodes'] if e['turn_id'] != turn_id]
+        report['episodes_dropped'] += before - len(kit_state['episodes'])
+        note()
+    while over() and len(history) > CONTEXT_KEEP_HISTORY:
+        history.pop(0)
+        report['history_dropped'] += 1
+        note()
+    while over() and len(rhythm) > CONTEXT_KEEP_RHYTHM:
+        rhythm.pop(0)
+        report['rhythm_dropped'] += 1
+        note()
+    if over():
+        for episode in kit_state['episodes']:
+            episode['spoken'] = (episode.get('spoken') or '')[-EPISODE_SPOKEN_TRIM_CHARS:]
+        report['excerpts_shortened'] = True
+        note()
+    require(not over(), f'Context budget exceeded ({_bytes(planning_input) + reserve_bytes} bytes; '
+            f'budget {budget}) even after trimming memory; narrow the source adapter')
+    return [episode['turn_id'] for episode in kit_state['episodes']]
 
 
 def check_decision(runtime, plan, memory, body):
-    """Every private decision passes the same checks on every host path."""
+    """Every private decision passes the same checks on every host path. When the
+    budget trimmed memory at prepare, only the episodes the model saw can be cited."""
+    if body.get('memory_turn_ids') is not None:
+        seen = set(body['memory_turn_ids'])
+        memory = {**memory, 'episodes': [e for e in memory['episodes'] if e['turn_id'] in seen]}
     check_plan(plan, memory['episodes'], body['public_event'], body['kind'],
                body['discernment_candidates'], body['action'],
                player_notes=memory['player_notes'],
                committed_turn_ids=runtime.committed_kit_turn_ids())
-    check_brief_public(plan['public_brief'], body['public_view'], body['action'])
+    check_brief_public(plan['public_brief'], body['public_view'], body['action'],
+                       kit_guards.leak_sets(runtime.source()))
 
 
-def prepare_inputs(runtime, revision, state, action, resolution, use_memory):
+def prepare_inputs(runtime, revision, state, action, resolution, use_memory, one_pass=False):
     public_view = runtime.preview(revision, resolution.events)
     context = runtime.context()
     if context['revision'] != revision:
@@ -865,35 +1037,50 @@ def prepare_inputs(runtime, revision, state, action, resolution, use_memory):
         'dialogue_history': public_history,
         'discernment_candidates': body['discernment_candidates'],
     }
+    reserve = _bytes(public_performance_base(runtime, body, one_pass=True)) if one_pass else 0
+    kept = fit_to_budget(planning_input, memory['drop_order'], reserve)
+    if 'memory_trimmed' in planning_input['kit_state']:
+        body['memory_turn_ids'] = kept
     return revision, body, planning_input
 
 
-def prepare_turn(runtime, adjudicator, action, use_memory=True):
+def prepare_turn(runtime, adjudicator, action, use_memory=True, one_pass=False):
     require(isinstance(action, str) and 0 < len(action.strip()) <= 1000,
             'Player action must be 1–1000 characters')
     revision, state = runtime.load()
     resolution = adjudicator.resolve(action, revision, state)
-    return prepare_inputs(runtime, revision, state, action, resolution, use_memory)
+    return prepare_inputs(runtime, revision, state, action, resolution, use_memory, one_pass)
 
 
-def prepare_opening(runtime):
+def prepare_opening(runtime, one_pass=False):
     revision, state = runtime.load()
     require(revision == 0 and state['area'] == 'area_06c',
             'The room entry is available only before the first turn')
     resolution = Resolution('opening', 'A newcomer has reached the card room.', [
         {'type': 'beat', 'tags': ['scene_entry'],
          'evidence': 'Initial framing of area 6c before the player acts.'}])
-    return prepare_inputs(runtime, revision, state, '[scene entry]', resolution, use_memory=True)
+    return prepare_inputs(runtime, revision, state, '[scene entry]', resolution, use_memory=True,
+                          one_pass=one_pass)
 
 
-def public_performance_base(runtime, body):
-    return {
-        'personality_core': runtime.context()['personality_core'],
+def public_performance_base(runtime, body, one_pass=False):
+    """The performer's public input. In one-pass mode the same model already reads the
+    personality core and dialogue history in the private half, so they are sent once."""
+    reference = runtime.source().get('public_performance', {})
+    kit_guards.check_voice_contracts(reference.get('actor_cards'))
+    payload = {
         'player_view_after_event': body['public_view'],
         'player_action': body['action'], 'accepted_public_event': body['public_event'],
-        'action_kind': body['kind'], 'public_history': body.get('public_history', []),
-        'performance_reference': runtime.source().get('public_performance', {}),
+        'action_kind': body['kind'],
+        'performance_reference': reference,
     }
+    if one_pass:
+        payload['shared_with_private'] = ('personality_core and public dialogue history are in '
+                                          'input.private (personality_core, dialogue_history)')
+    else:
+        payload['personality_core'] = PERSONALITY_CORE.read_text(encoding='utf-8')
+        payload['public_history'] = body.get('public_history', [])
+    return payload
 
 
 def performance_input(runtime, body, plan):
@@ -921,15 +1108,30 @@ def retry_instruction(exc):
             'supplied player-visible facts and the accepted event.')
 
 
-def checked_record(body, plan, speech, performance_variant):
+def guard_context(source, body):
+    """What the style and leak guards need beyond the performance: DM-only paraphrase
+    sets and public voice contracts from the room source, and recent public turns."""
+    cards = (source or {}).get('public_performance', {}).get('actor_cards', {})
+    return {'leak_sets': kit_guards.leak_sets(source),
+            'voice_contracts': {name: card.get('voice_contract') or {} for name, card in cards.items()},
+            'public_history': body.get('public_history', [])}
+
+
+def checked_record(body, plan, speech, performance_variant, source=None, degraded=False):
     """Validate a performance. Every variant faces the same checks; the record names
-    which performer instructions ran so play reviews can tell the variants apart."""
+    which performer instructions ran so play reviews can tell the variants apart. A
+    degraded record says so and keeps the soft warnings it was accepted with."""
     check_variant(performance_variant)
-    spoken = check_speech(speech, plan, body['public_view'], body['action'], body['kind'])
+    result = check_speech(speech, plan, body['public_view'], body['action'], body['kind'],
+                          guards=guard_context(source, body), degraded=degraded)
+    spoken, warnings = result if degraded else (result, [])
     if body['kind'] not in ('social', 'opening'):
         spoken = f"Narrator: {body['public_event']}\n{spoken}"
-    return {'player_input': body['action'], 'public_event': body['public_event'],
-            'trace': plan, 'spoken': spoken, 'performance_variant': performance_variant}
+    record = {'player_input': body['action'], 'public_event': body['public_event'],
+              'trace': plan, 'spoken': spoken, 'performance_variant': performance_variant}
+    if warnings:
+        record.update(degraded=True, soft_warnings=warnings)
+    return record
 
 
 class KitAgent:
@@ -962,20 +1164,27 @@ class KitAgent:
             timing['plan_s'] = round(time.monotonic() - call_started, 3)
             check_decision(self.runtime, plan, planning_input['kit_state'], body)
             performance_payload = performance_input(self.runtime, body, plan)
-            for attempt in range(2):
+            source = self.runtime.source()
+            for attempt in range(API_PERFORMANCE_ATTEMPTS):
+                last = attempt == API_PERFORMANCE_ATTEMPTS - 1
                 call_started = time.monotonic()
                 speech = self.model.perform(performance_payload,
                                             performance_variant=self.performance_variant)
                 timing['model_calls'] += 1
                 timing['perform_s'].append(round(time.monotonic() - call_started, 3))
                 try:
-                    record = checked_record(body, plan, speech, self.performance_variant)
+                    # The last attempt is degraded: style misses become warnings so the
+                    # table is not stalled; hard checks still reject.
+                    record = checked_record(body, plan, speech, self.performance_variant, source,
+                                            degraded=last and attempt > 0)
                     break
                 except InvalidChange as exc:
                     timing['rejections'].append(str(exc))
-                    if attempt:
+                    if last:
                         raise
                     performance_payload['retry_instruction'] = retry_instruction(exc)
+            if record.get('degraded'):
+                timing['degraded'] = True
             next_revision = self.runtime.commit_kit_turn(turn_id, revision, body['events'], record)
             outcome = 'committed'
         except StaleTurn:
@@ -990,12 +1199,47 @@ class KitAgent:
                 'timing': self.runtime.kit_timing(turn_id)}
 
 
+class PerformanceRejected(InvalidChange):
+    """A rejected performance. `guidance` tells the host its options at this point:
+    retry, degraded mode (after DEGRADED_AFTER_REJECTIONS), or abandon."""
+    def __init__(self, message, guidance):
+        super().__init__(message)
+        self.guidance = guidance
+
+
+STALE_GUIDANCE = ('The world changed after this turn was prepared (another turn or player feedback '
+                  'was committed), so nothing was saved. Prepare the same player action again with '
+                  'a new turn_id.')
+
+
+def _stale_guided(method):
+    """Bridge calls explain a stale turn instead of only naming revisions."""
+    def wrapper(self, *args, **kwargs):
+        try:
+            return method(self, *args, **kwargs)
+        except StaleTurn as exc:
+            if STALE_GUIDANCE in str(exc):
+                raise
+            raise StaleTurn(f'{exc}. {STALE_GUIDANCE}') from exc
+    wrapper.__name__, wrapper.__doc__ = method.__name__, method.__doc__
+    return wrapper
+
+
+def _spoken_lines(speech):
+    try:
+        return '\n'.join(f"{segment['speaker']}: {segment['text'].strip()}"
+                         for segment in speech['segments'])
+    except (TypeError, KeyError, AttributeError):
+        return None
+
+
 class KitChatBridge:
     """Host this model loop in an assistant chat, with no API credential in Python."""
     def __init__(self, runtime, adjudicator=None):
         self.runtime = runtime
         self.adjudicator = adjudicator or Room6CAdjudicator()
 
+    @_stale_guided
     def prepare(self, action=None, turn_id=None, use_memory=True, one_pass=False, opening=False,
                 performance_variant=None):
         """Stage a turn. One-pass turns fix their performer variant here (default
@@ -1007,10 +1251,10 @@ class KitChatBridge:
             performance_variant = check_variant(performance_variant or DEFAULT_BRIDGE_VARIANT)
         if opening:
             require(action is None, 'Room opening does not take a player action')
-            revision, body, planning_input = prepare_opening(self.runtime)
+            revision, body, planning_input = prepare_opening(self.runtime, one_pass=one_pass)
         else:
             revision, body, planning_input = prepare_turn(
-                self.runtime, self.adjudicator, action, use_memory)
+                self.runtime, self.adjudicator, action, use_memory, one_pass=one_pass)
         body['host_mode'] = 'one_pass' if one_pass else 'staged'
         if one_pass:
             body['performance_variant'] = performance_variant
@@ -1026,19 +1270,21 @@ class KitChatBridge:
                     'schema': ONE_PASS_SCHEMA,
                     'performance_limits': performance_limits(), 'host_retry': HOST_RETRY_NOTE,
                     'input': {'private': planning_input,
-                              'public': public_performance_base(self.runtime, body)}}
+                              'public': public_performance_base(self.runtime, body, one_pass=True)}}
         return {'turn_id': turn_id, 'stage': 'private_decision',
                 'instructions': PRIVATE_INSTRUCTIONS, 'schema': PLAN_SCHEMA,
                 'performance_limits': performance_limits(), 'host_retry': HOST_RETRY_NOTE,
                 'input': planning_input}
 
+    @_stale_guided
     def decide(self, turn_id, plan, performance_variant=DEFAULT_BRIDGE_VARIANT):
         pending = self.runtime.pending_kit_turn(turn_id)
+        body = pending['body']
+        if body['host_mode'] != 'staged':
+            raise HostSequenceError('Use complete for a one-pass turn', 'complete')
         revision, state = self.runtime.load()
         if revision != pending['revision']:
             raise StaleTurn(f"Expected revision {pending['revision']}; current is {revision}")
-        body = pending['body']
-        require(body['host_mode'] == 'staged', 'Use complete for a one-pass turn')
         check_variant(performance_variant)
         check_decision(self.runtime, plan,
                        kit_memory(self.runtime, state, body['action'], body['use_memory']), body)
@@ -1053,33 +1299,101 @@ class KitChatBridge:
                 'performance_limits': performance_limits(plan['public_brief']['scope']),
                 'host_retry': HOST_RETRY_NOTE, 'input': payload}
 
-    def finish(self, turn_id, speech):
-        pending = self.runtime.pending_kit_turn(turn_id)
-        require(pending['body']['host_mode'] == 'staged', 'Use complete for a one-pass turn')
-        require(pending['plan'] is not None, 'Complete private decision before performance')
+    @_stale_guided
+    def finish(self, turn_id, speech, degraded=False):
+        pending = self._pending_or_replay(turn_id, speech=speech)
+        if 'already_committed' in pending:
+            return pending
+        if pending['body']['host_mode'] != 'staged':
+            raise HostSequenceError('Use complete for a one-pass turn', 'complete')
+        if pending['plan'] is None:
+            raise HostSequenceError('Complete private decision before performance: call decide '
+                                    'with the private decision first, then finish.', 'decide')
         body = pending['body']
+        self._check_degraded_allowed(turn_id, degraded)
         variant = (self.runtime.kit_timing(turn_id) or {}).get('performance_variant', 'current')
-        record = self._checked_or_log(turn_id, body, pending['plan'], speech, variant)
+        record = self._checked_or_log(turn_id, body, pending['plan'], speech, variant, degraded)
         revision = self.runtime.commit_kit_turn(
             turn_id, pending['revision'], body['events'], record, consume_pending=True)
-        return {'revision': revision, 'turn_id': turn_id,
-                'public_event': body['public_event'], 'spoken': record['spoken'],
-                'performance_variant': variant, 'timing': self._finish_timing(turn_id)}
+        return self._committed_result(turn_id, revision, body, record, variant)
 
-    def _checked_or_log(self, turn_id, body, plan, speech, performance_variant):
+    def _committed_result(self, turn_id, revision, body, record, variant):
+        result = {'revision': revision, 'turn_id': turn_id,
+                  'public_event': body['public_event'], 'spoken': record['spoken'],
+                  'performance_variant': variant, 'timing': self._finish_timing(turn_id, record)}
+        if record.get('degraded'):
+            result.update(degraded=True, soft_warnings=record['soft_warnings'])
+        return result
+
+    def _pending_or_replay(self, turn_id, speech=None, decision=None):
+        """The pending turn, or, for an identical resubmission of a committed turn (a host
+        retrying after a lost response), the committed result instead of an error."""
         try:
-            return checked_record(body, plan, speech, performance_variant)
-        except InvalidChange as exc:
-            prior = self.runtime.kit_timing(turn_id) or {}
-            self.runtime.record_kit_timing(
-                turn_id, rejected_attempts=prior.get('rejected_attempts', 0) + 1,
-                last_rejection=str(exc))
+            return self.runtime.pending_kit_turn(turn_id)
+        except HostSequenceError as exc:
+            committed = self.runtime.committed_kit_turn(turn_id)
+            spoken = _spoken_lines(speech)
+            if (committed and spoken and committed['spoken'].endswith(spoken) and
+                    (decision is None or committed['trace'] == decision)):
+                return {'already_committed': True, 'revision': committed['revision'],
+                        'turn_id': turn_id, 'public_event': committed['public_event'],
+                        'spoken': committed['spoken'],
+                        'performance_variant': committed.get('performance_variant', 'current')}
+            if committed:
+                raise HostSequenceError(
+                    f'{exc} The submitted output differs from what was committed; show the '
+                    'committed spoken text (see trace) and move on.', 'prepare_new_turn') from exc
             raise
 
-    def _finish_timing(self, turn_id):
+    def _rejections(self, turn_id):
+        return (self.runtime.kit_timing(turn_id) or {}).get('rejected_attempts', 0)
+
+    def _check_degraded_allowed(self, turn_id, degraded):
+        if degraded and self._rejections(turn_id) < DEGRADED_AFTER_REJECTIONS:
+            raise HostSequenceError(
+                f'Degraded mode unlocks after {DEGRADED_AFTER_REJECTIONS} rejected attempts on this '
+                f'turn ({self._rejections(turn_id)} so far). Fix the performance and resubmit normally.',
+                'retry')
+
+    def guidance(self, turn_id):
+        """The host's options after a rejection, by how many this turn has had."""
+        count = self._rejections(turn_id)
+        guidance = {'rejected_attempts': count, 'degraded_available': count >= DEGRADED_AFTER_REJECTIONS,
+                    'next_step': 'retry'}
+        if count >= DEGRADED_AFTER_REJECTIONS:
+            guidance.update(next_step='retry_degraded', degraded_instruction=DEGRADED_INSTRUCTION)
+        if count >= ABANDON_SUGGEST_AFTER:
+            guidance.update(next_step='abandon_and_prepare_again', abandon_instruction=ABANDON_INSTRUCTION)
+        return guidance
+
+    def _log_rejection(self, turn_id, exc):
+        prior = self.runtime.kit_timing(turn_id) or {}
+        self.runtime.record_kit_timing(
+            turn_id, rejected_attempts=prior.get('rejected_attempts', 0) + 1,
+            last_rejection=str(exc))
+        guidance = self.guidance(turn_id)
+        message = str(exc)
+        if guidance.get('abandon_instruction'):
+            message += ' ' + ABANDON_INSTRUCTION
+        elif guidance['degraded_available']:
+            message += ' ' + DEGRADED_INSTRUCTION
+        return PerformanceRejected(message, guidance)
+
+    def _checked_or_log(self, turn_id, body, plan, speech, performance_variant, degraded=False):
+        try:
+            return checked_record(body, plan, speech, performance_variant, self.runtime.source(),
+                                  degraded=degraded)
+        except StaleTurn:
+            raise
+        except InvalidChange as exc:
+            raise self._log_rejection(turn_id, exc) from exc
+
+    def _finish_timing(self, turn_id, record=None):
         timing = self.runtime.kit_timing(turn_id) or {}
         now = time.time()
         fields = {'committed_at': now}
+        if record is not None and record.get('degraded'):
+            fields['degraded'] = True
         if 'prepared_at' in timing:
             # Includes host model time between stages; excludes anything before prepare.
             fields['prepare_to_commit_s'] = round(now - timing['prepared_at'], 3)
@@ -1087,6 +1401,14 @@ class KitChatBridge:
             fields['decide_to_commit_s'] = round(now - timing['decided_at'], 3)
         self.runtime.record_kit_timing(turn_id, outcome='committed', **fields)
         return self.runtime.kit_timing(turn_id)
+
+    def abandon(self, turn_id):
+        """Drop an uncommitted pending turn so the host can prepare the action again,
+        e.g. when a fixed decision keeps producing rejected performances."""
+        self.runtime.discard_pending_kit_turn(turn_id)
+        self.runtime.record_kit_timing(turn_id, outcome='abandoned', abandoned_at=time.time())
+        return {'stage': 'abandoned', 'turn_id': turn_id, 'committed': False,
+                'next_step': 'prepare the same player action again with a new turn_id'}
 
     def feedback(self, text, evidence_turns=None, replaces='none'):
         """Record the player's out-of-character comment for Kit's next private decision.
@@ -1101,33 +1423,44 @@ class KitChatBridge:
                               'to the player; its effect may appear only through kit_focus or '
                               'callback on later turns. Prepare the next turn fresh.')}
 
-    def complete(self, turn_id, output):
+    @_stale_guided
+    def complete(self, turn_id, output, degraded=False):
         """Validate and commit one model output in one host round trip."""
         require(isinstance(output, dict) and set(output) == {'decision', 'performance'},
                 'Expected a decision and performance')
-        pending = self.runtime.pending_kit_turn(turn_id)
+        pending = self._pending_or_replay(turn_id, speech=output['performance'],
+                                          decision=output['decision'])
+        if 'already_committed' in pending:
+            return pending
         body, plan = pending['body'], output['decision']
-        require(body['host_mode'] == 'one_pass', 'Use decide and finish for a staged turn')
+        if body['host_mode'] != 'one_pass':
+            raise HostSequenceError('Use decide and finish for a staged turn', 'decide')
         revision, state = self.runtime.load()
         if revision != pending['revision']:
             raise StaleTurn(f"Expected revision {pending['revision']}; current is {revision}")
-        check_decision(self.runtime, plan,
-                       kit_memory(self.runtime, state, body['action'], body['use_memory']), body)
+        self._check_degraded_allowed(turn_id, degraded)
+        if pending['plan'] is None:
+            try:
+                check_decision(self.runtime, plan,
+                               kit_memory(self.runtime, state, body['action'], body['use_memory']),
+                               body)
+            except StaleTurn:
+                raise
+            except InvalidChange as exc:
+                raise self._log_rejection(turn_id, exc) from exc
         self.runtime.save_kit_plan(turn_id, revision, plan)
         # Turns staged before variants reached one-pass ran the `current` instructions.
         variant = body.get('performance_variant', 'current')
-        record = self._checked_or_log(turn_id, body, plan, output['performance'], variant)
+        record = self._checked_or_log(turn_id, body, plan, output['performance'], variant, degraded)
         next_revision = self.runtime.commit_kit_turn(
             turn_id, revision, body['events'], record, consume_pending=True)
-        return {'revision': next_revision, 'turn_id': turn_id,
-                'public_event': body['public_event'], 'spoken': record['spoken'],
-                'performance_variant': variant, 'timing': self._finish_timing(turn_id)}
+        return self._committed_result(turn_id, next_revision, body, record, variant)
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('command', choices=['init', 'view', 'prepare', 'decide', 'finish', 'complete',
-                                            'feedback', 'notes', 'play', 'trace', 'timing'])
+                                            'abandon', 'feedback', 'notes', 'play', 'trace', 'timing'])
     parser.add_argument('--db', default='kit-06c.sqlite')
     parser.add_argument('--model', help='Optional standalone Responses API model for play')
     parser.add_argument('--perception', type=int, help='Test character Wisdom (Perception) modifier')
@@ -1147,6 +1480,9 @@ def main():
                         help='feedback: committed turn ID the comment is about (repeatable; '
                              'default: latest turn)')
     parser.add_argument('--replaces', default='none', help='feedback: note id this feedback supersedes')
+    parser.add_argument('--degraded', action='store_true',
+                        help=f'finish/complete: accept style misses as warnings (only after '
+                             f'{DEGRADED_AFTER_REJECTIONS} rejections on the turn)')
     args = parser.parse_args()
     runtime = Runtime(args.db)
     try:
@@ -1162,10 +1498,14 @@ def main():
             print(json.dumps(runtime.recent_kit_timings(), indent=2, ensure_ascii=False))
         elif args.command == 'notes':
             print(json.dumps(runtime.player_notes(), indent=2, ensure_ascii=False))
-        elif args.command in ('prepare', 'decide', 'finish', 'complete', 'feedback'):
+        elif args.command in ('prepare', 'decide', 'finish', 'complete', 'abandon', 'feedback'):
             bridge = KitChatBridge(runtime, Room6CAdjudicator(args.perception, args.insight))
             try:
-                if args.command == 'feedback':
+                if args.command == 'abandon':
+                    if not args.turn_id:
+                        parser.error('abandon requires --turn-id')
+                    result = bridge.abandon(args.turn_id)
+                elif args.command == 'feedback':
                     if not args.text:
                         parser.error('feedback requires --text')
                     result = bridge.feedback(args.text, args.evidence, args.replaces)
@@ -1192,12 +1532,19 @@ def main():
                     submitted = json.loads(raw)
                     variant = args.performance_variant or DEFAULT_BRIDGE_VARIANT
                     result = (bridge.decide(args.turn_id, submitted, variant) if args.command == 'decide' else
-                              bridge.finish(args.turn_id, submitted) if args.command == 'finish' else
-                              bridge.complete(args.turn_id, submitted))
+                              bridge.finish(args.turn_id, submitted, degraded=args.degraded)
+                              if args.command == 'finish' else
+                              bridge.complete(args.turn_id, submitted, degraded=args.degraded))
             except PendingRuling as exc:
                 result = {'stage': 'pending_ruling', 'message': str(exc), 'committed': False}
             except InvalidChange as exc:
                 rejected = {'stage': 'rejected', 'message': str(exc), 'committed': False}
+                if isinstance(exc, HostSequenceError):
+                    rejected['next_step'] = exc.next_step
+                elif isinstance(exc, StaleTurn):
+                    rejected['next_step'] = 'prepare_again'
+                if isinstance(exc, PerformanceRejected):
+                    rejected.update(exc.guidance)
                 if args.command in ('finish', 'complete') and not isinstance(exc, StaleTurn):
                     pending = None
                     try:

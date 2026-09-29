@@ -18,16 +18,40 @@ FIXTURE = Path(__file__).parent / 'fixtures/level_01_area_06c.json'
 KIT_CHOICE = 'Kit favors the roleplay opening and lets the dealer try a bargain.'
 KIT_FOCUS = 'Spotlight the dealer sizing up the visitor’s nerve rather than the passage price.'
 
-# A performed exchange that clears the flat-reply floor. Its length is not a
-# quality claim; it only gives the format tests a turn the guard accepts.
-EXCHANGE_SPEECH = {'segments': [
-    {'speaker': 'Kit', 'text': 'That is a choice.'},
-    {'speaker': 'Narrator', 'text': 'The dealer lets a card hang between two fingers while the others go still.'},
-    {'speaker': 'Dealer', 'text': ('Sit, then, and let us see what kind of guest you are. Ten gold buys '
-                                   'safe passage, but a player who sits at this table usually wants more '
-                                   'than a door. So tell me plainly, friend: what would you wager tonight?')},
-]}
-QUIET_EXCHANGE_SPEECH = {'segments': EXCHANGE_SPEECH['segments'][1:]}
+# Performed exchanges that clear the flat-reply floor. Their length is not a
+# quality claim; they only give the format tests turns the guards accept. There are
+# several because a performance that recycles an earlier turn's line is rejected
+# as padding, so multi-turn tests rotate through them.
+DEALER_EXCHANGES = [
+    ('The dealer lets a card hang between two fingers while the others go still.',
+     'Sit, then, and let us see what kind of guest you are. Ten gold buys safe passage, but a player '
+     'who sits at this table usually wants more than a door. So tell me plainly, friend: what would '
+     'you wager tonight?'),
+    ('He squares the deck with one slow tap and leans back to study the doorway.',
+     'A newcomer who asks questions before placing a bet is either careful or broke, and I have no use '
+     'for broke. Which are you? Name the reason you walked in here, and I will tell you what it costs.'),
+    ('Coins shift across the worn table as the dealer fans the cards and waits.',
+     'Stakes are whatever the house says they are, and tonight the house is feeling generous toward '
+     'brave faces. A silver to see the next hand, or gold if you want my attention. Well? Shall I deal '
+     'you in?'),
+    ('One of the pale players drums a finger beside a stack of copper.',
+     'Patience is a virtue at most tables, not at mine. Every moment you stand in that doorway is a '
+     'moment someone else could be losing money to me. Take the empty stool or step aside. Which will '
+     'it be?'),
+    ('The dealer flips the top card face down, then face up again, smiling thinly.',
+     'I have met travelers who talk their way through doors and travelers who pay their way through. '
+     'The talkers usually end up paying double. What sort of traveler do you intend to be this evening?'),
+]
+
+
+def exchange_speech(index=0, kit=True):
+    narration, dealer = DEALER_EXCHANGES[index % len(DEALER_EXCHANGES)]
+    segments = [{'speaker': 'Narrator', 'text': narration}, {'speaker': 'Dealer', 'text': dealer}]
+    return {'segments': ([{'speaker': 'Kit', 'text': 'That is a choice.'}] if kit else []) + segments}
+
+
+EXCHANGE_SPEECH = exchange_speech(0)
+QUIET_EXCHANGE_SPEECH = exchange_speech(0, kit=False)
 
 # The saved Nik reply from tests/playtests/2026-09-26-area-06c-nik.md, verbatim.
 NIK_GREETING = "Hi, I'm Nik. I wasn't expecting to find people gambling. Whats going on here?"
@@ -50,6 +74,7 @@ class RecordingModel:
         self.leak = leak
         self.leaky_brief = leaky_brief
         self.on_perform = on_perform
+        self.performed = 0
 
     def plan(self, payload):
         self.plans.append(payload)
@@ -98,7 +123,8 @@ class RecordingModel:
                 {'speaker': 'Dealer', 'text': 'Ten gold for safe passage.'},
                 {'speaker': 'Narrator', 'text': 'The doppelganger smiles.'},
             ]}
-        return json.loads(json.dumps(EXCHANGE_SPEECH))
+        self.performed += 1
+        return exchange_speech(self.performed - 1)
 
 
 class KitAgentTests(unittest.TestCase):
@@ -942,7 +968,7 @@ class BridgeVoiceVariantTests(unittest.TestCase):
             self.runtime.pending_kit_turn('bad')
 
     def test_one_pass_turn_record_names_the_variant_that_ran(self):
-        for turn_id, variant in (('v1', None), ('base', 'current')):
+        for index, (turn_id, variant) in enumerate((('v1', None), ('base', 'current'))):
             prepared = self.bridge.prepare(
                 'Hi. What is going on here?' if variant is None else 'What are the stakes?',
                 turn_id, one_pass=True, performance_variant=variant)
@@ -950,7 +976,7 @@ class BridgeVoiceVariantTests(unittest.TestCase):
             self.assertEqual(self.runtime.pending_kit_turn(turn_id)['body']['performance_variant'], expected)
             plan = self._quiet_plan(prepared['input']['private'])
             result = self.bridge.complete(turn_id, {'decision': plan,
-                                                    'performance': QUIET_EXCHANGE_SPEECH})
+                                                    'performance': exchange_speech(index, kit=False)})
             self.assertEqual(result['performance_variant'], expected)
             record = self.runtime.recent_kit_turns()[-1]
             self.assertEqual(record['performance_variant'], expected)
@@ -998,7 +1024,7 @@ class BridgeVoiceVariantTests(unittest.TestCase):
         self.assertEqual(self.runtime.recent_kit_turns()[0]['performance_variant'], 'current')
 
     def test_staged_finish_records_the_variant_issued_at_decide(self):
-        for turn_id, variant in (('staged-default', None), ('staged-current', 'current')):
+        for index, (turn_id, variant) in enumerate((('staged-default', None), ('staged-current', 'current'))):
             prepared = self.bridge.prepare('What are the stakes?' if variant else NIK_GREETING, turn_id)
             plan = self._quiet_plan(prepared['input'])
             packet = (self.bridge.decide(turn_id, plan) if variant is None
@@ -1006,7 +1032,7 @@ class BridgeVoiceVariantTests(unittest.TestCase):
             expected = variant or 'kit_expression_v1'
             self.assertEqual(packet['performance_variant'], expected)
             self.assertEqual(packet['instructions'], kit_agent.PERFORMANCE_VARIANTS[expected])
-            result = self.bridge.finish(turn_id, QUIET_EXCHANGE_SPEECH)
+            result = self.bridge.finish(turn_id, exchange_speech(index, kit=False))
             self.assertEqual(result['performance_variant'], expected)
             self.assertEqual(self.runtime.recent_kit_turns()[-1]['performance_variant'], expected)
 
