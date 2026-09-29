@@ -91,12 +91,18 @@ def parse_npc_notice(notice):
     return found.group('kind').strip().casefold().replace(' ', '_'), found.group('what').strip()
 
 
+def is_table_procedure(action_kind):
+    return isinstance(action_kind, str) and action_kind.startswith('card_')
+
+
 def mode_hint(action_kind, is_ooc):
     """What code can detect about the turn mode; None leaves it to Kit's read."""
     if action_kind == 'opening':
         return 'description'
     if is_ooc:
         return 'meta'
+    if is_table_procedure(action_kind):
+        return None  # a card-table action can be banter or description; Kit reads it
     if action_kind != 'social':
         return 'description'  # a room action and its public result
     return None
@@ -182,7 +188,7 @@ def check_turn_mode(plan, action_kind, is_ooc):
     hint = mode_hint(action_kind, is_ooc)
     if action_kind == 'opening' or is_ooc:
         require(mode == hint, f'turn_mode must be {hint} for this turn')
-    elif action_kind != 'social':
+    elif action_kind != 'social' and not is_table_procedure(action_kind):
         require(mode in ('description', 'combat'), 'A room action is a description (or combat) turn')
     if mode == 'meta':
         require(plan['table_presence'] != 'quiet', 'Meta talk is answered by Kit; table presence cannot be quiet')
@@ -280,3 +286,96 @@ def check_voice_performance(segments, plan, focus_speakers=()):
     """Both halves, for callers outside check_speech."""
     check_voice_presence(segments, plan, focus_speakers)
     check_voice_style(segments, plan)
+
+
+# ---------------------------------------------------------------------------
+# Kit's asides respond to reality (playtest 03: "He could have said hello" right
+# after the dealer's full welcome). Brendon: "Nonsensical is not entertaining.
+# That's a fiction we need to burn."
+# ---------------------------------------------------------------------------
+REACTS_TO_MAX_CHARS = 160
+REACTS_TO_MIN_WORDS = 2
+_REACT_SMALL = frozenset('a an the and or but of to in on at is it its i you he she they we '
+                         'this that was were be so as for with my your his her'.split())
+
+# A Kit claim that someone did not do something, and what in the same turn shows
+# they did. Best effort and lexical: it catches the obvious pattern only. Meaning is
+# the host's job (performance_limits.kit_asides, the self-check before commit).
+ABSENCE_CLAIMS = (
+    ('greeting',
+     r"\b(could|might|should|would) have (said|offered|managed) (a )?(hello|hi|greeting|good evening|"
+     r"welcome)|\b(no|without a|not even a|not so much as a) (hello|greeting|welcome)\b|"
+     r"\b(didn't|did not|never|doesn't|does not|won't) (say hello|greet|welcome|bother with hello)",
+     r"\b(welcome|welcomes|welcomed|hello|greet|greets|greeted|greeting|greetings|"
+     r"good (evening|day|morning)|well met|a guest|our guest|make (space|room)|come in|"
+     r"join us|pull up a)\b"),
+    ('question',
+     r"\b(didn't|did not|never|doesn't|does not|won't|not even) (ask|asked|asking)\b|"
+     r"\bwithout (asking|a single question)\b|\bno questions?\b",
+     r"\?"),
+    ('speech',
+     r"\b(didn't|did not|never|doesn't|does not) (say|said|speak|spoke|utter) (a word|anything|a thing)|"
+     r"\bwithout a word\b|\bnot a word\b|\b(says|said) nothing\b",
+     None),  # any NPC line this turn contradicts it
+    ('look',
+     r"\b(didn't|did not|never|doesn't|does not|won't|not even) (look|looked|glance|glanced) "
+     r"(up|at you|your way|over)",
+     r"\b(look|looks|looked|glance|glances|glanced|eyes|watch|watches|watched|turns to|meets your)\b"),
+    ('offer',
+     r"\b(didn't|did not|never|doesn't|does not|won't) (offer|offered|invite|invited)\b|"
+     r"\bno (offer|invitation)\b",
+     r"\b(offer|offers|offered|invite|invites|invited|join|sit|seat|make (space|room)|deal you in|"
+     r"if you've coin|wager|stake)\b"),
+)
+ABSENCE_CLAIMS = tuple((name, re.compile(claim), re.compile(evidence) if evidence else None)
+                       for name, claim, evidence in ABSENCE_CLAIMS)
+
+
+def _react_units(segments, player_action, public_event, action_kind):
+    """Public lines Kit may react to this turn: the player's words, the accepted
+    event, and every non-Kit line in this performance."""
+    units = []
+    if action_kind != 'opening' and player_action:
+        units.append(player_action)
+    if public_event:
+        units.append(public_event)
+    units += [segment['text'] for segment in segments if segment['speaker'] != 'Kit']
+    return units
+
+
+def check_kit_asides(segments, player_action, public_event, action_kind):
+    """HARD: every Kit segment names, verbatim, the public line it reacts to, and does
+    not claim someone failed to do what this same turn shows them doing."""
+    units = [_norm(text) for text in _react_units(segments, player_action, public_event, action_kind)]
+    npc_text = ' '.join(_norm(segment['text']) for segment in segments
+                        if segment['speaker'] != 'Kit')
+    npc_spoke = any(segment['speaker'] not in ('Kit', 'Narrator') for segment in segments)
+    for segment in segments:
+        if segment['speaker'] != 'Kit':
+            require(segment.get('reacts_to') in (None, '') or is_none(segment.get('reacts_to')),
+                    'reacts_to belongs on Kit segments only')
+            continue
+        quote = segment.get('reacts_to')
+        require(isinstance(quote, str) and quote.strip() and not is_none(quote),
+                'Every Kit segment needs reacts_to: a short verbatim quote of the public line from '
+                'this turn (the player\'s words, the accepted event, or a Narrator or NPC line) that '
+                'her remark answers.')
+        excerpt = _norm(quote).strip(' .,!?;:"\'')
+        content = [word for word in re.findall(r"[\w']+", excerpt) if word not in _REACT_SMALL]
+        require(len(quote) <= REACTS_TO_MAX_CHARS and len(excerpt.split()) >= REACTS_TO_MIN_WORDS
+                and content,
+                f'reacts_to must quote at least {REACTS_TO_MIN_WORDS} words (one distinctive) and at '
+                f'most {REACTS_TO_MAX_CHARS} characters')
+        require(any(excerpt in unit for unit in units),
+                'reacts_to must quote words actually said or shown this turn (the player\'s words, the '
+                'accepted event, or a Narrator or NPC line in this performance). Kit reacts to what '
+                'happened, not to an imagined version of it.')
+        said = _norm(segment['text'])
+        for name, claim, evidence in ABSENCE_CLAIMS:
+            if not claim.search(said):
+                continue
+            shown = npc_spoke if evidence is None else bool(evidence.search(npc_text))
+            require(not shown,
+                    f'Kit aside contradicts this turn ({name}): she says someone did not do what the '
+                    'turn just showed them doing. Nonsensical is not entertaining; react to what '
+                    'actually happened.')

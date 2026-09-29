@@ -45,13 +45,15 @@ DRAGGING_COMBAT = {'segments': [
 SHOWTIME_SPEECH = {'segments': [
     {'speaker': 'Kit', 'text': ('Oh, you want the room? You get the room. Picture it: lamplight the colour of '
                                 'weak tea, a carved mountain crowded with tiny dwarves glaring down, and four '
-                                'gamblers holding perfectly, magnificently still.')},
+                                'gamblers holding perfectly, magnificently still.'),
+     'reacts_to': 'take in the whole room'},
     {'speaker': 'Narrator', 'text': 'A card pauses.'},
     {'speaker': 'Dealer', 'text': ('A visitor who stops to admire the decor. Most people look at the coins '
                                    'first, friend. The table is where the real art is. Care to sit, or shall '
                                    'I keep you as an audience?')}]}
 ROLL_PROMPT = {'segments': [
-    {'speaker': 'Kit', 'text': 'Wisdom (Insight): you are reading people. Tell me you study them and I will call it.'}]}
+    {'speaker': 'Kit', 'text': 'Wisdom (Insight): you are reading people. Tell me you study them and I will call it.',
+     'reacts_to': 'what do I roll'}]}
 
 
 class VoiceTestCase(unittest.TestCase):
@@ -242,7 +244,7 @@ class ShowtimeTests(VoiceTestCase):
         with self.assertRaisesRegex(InvalidChange, 'Exchange scope was flat'):
             check_speech(SHOWTIME_SPEECH, present, {}, 'I stop and take in the whole room', 'social')
         check_speech(SHOWTIME_SPEECH, plan, {}, 'I stop and take in the whole room', 'social')
-        too_much = {'segments': [{'speaker': 'Kit', 'text': 'Look at it.'}] * 4 + SHOWTIME_SPEECH['segments'][1:]}
+        too_much = {'segments': [{'speaker': 'Kit', 'text': 'Look at it.', 'reacts_to': 'take in the whole room'}] * 4 + SHOWTIME_SPEECH['segments'][1:]}
         with self.assertRaisesRegex(InvalidChange, 'Showtime: Kit takes the stage in 1-3'):
             self.bridge.finish('show', too_much)
         self.assertEqual(self.bridge.finish('show', SHOWTIME_SPEECH)['revision'], 1)
@@ -260,7 +262,8 @@ class ShowtimeTests(VoiceTestCase):
             self.bridge.decide('roll', frustrated)
         # A simple roll prompt stays a short call at brief presence.
         self.bridge.decide('roll', {**plan, 'table_presence': 'brief'})
-        self.assertEqual(self.bridge.finish('roll', ROLL_PROMPT)['revision'], 1)
+        prompt = {'segments': [{**ROLL_PROMPT['segments'][0], 'reacts_to': 'roll Insight on them'}]}
+        self.assertEqual(self.bridge.finish('roll', prompt)['revision'], 1)
 
 
 class NpcNoticeTests(VoiceTestCase):
@@ -350,7 +353,7 @@ class HardeningGuardTests(VoiceTestCase):
         ]
         for reason, kit_line in cases:
             with self.subTest(reason=reason), self.assertRaisesRegex(InvalidChange, reason):
-                self.guarded({'segments': [{'speaker': 'Kit', 'text': kit_line}] + dealer}, plan)
+                self.guarded({'segments': [{'speaker': 'Kit', 'text': kit_line, 'reacts_to': 'take in the whole room'}] + dealer}, plan)
 
     def test_voice_style_floors_soften_in_degraded_mode_but_presence_does_not(self):
         prepared = self.bridge.prepare(BORED, 'degrade')

@@ -10,6 +10,7 @@
 - Combat should feel engaged, tense, evocative.
 - NPCs should notice what's up with the players (and stay wildly varied, nothing like Kit).
 - Guiding star: she should say the MOST ENTERTAINING thing more often than 'the right thing' (still never breaking source facts, hidden info, rules outcomes, or player agency).
+- **Amendment (Brendon, 2026-09-29), verbatim:** "Nonsensical is not entertaining. That's a fiction we need to burn." The most entertaining thing must first be coherent and true to what just happened. A quip that contradicts or ignores the scene is a failure, never flavor.
 
 **How to read the line numbers:** **@79173a1** means the code before this change. **@673e9cd** means the code the Nik playtest actually ran on. Unmarked line numbers in sections (a) through (d) and in the not-yet-built steps refer to `kit-focus-brief` at **@cee2948**. Line numbers in each **Done** note of section (e) refer to the branch named in that note (`kit-event-actor`, `kit-bridge-voice`), before those branches were merged together in `kit-hardening`; after the merge they drift, so search for the named function or constant rather than trusting the number. The `kit-memory-relationship` *Built* notes and section (g) name functions and constants instead of line numbers for the same reason.
 
@@ -340,7 +341,7 @@ Every check is lexical: word lists, n-gram runs and sentence shapes. None of the
 ### g8. Context budget (`ContextBudgetTests`)
 
 - **Why two budgets:** a one-pass turn sends private and public input together. At turn 1 that is already about 22 KB (private about 14.4 KB, public about 7.3 KB), which cannot fit a 24 KB limit meant for one packet. So:
-  - the private input has its own `CONTEXT_BUDGET_BYTES` = 24000 (25000 since `kit-voice-spec`; see h6);
+  - the private input has its own `CONTEXT_BUDGET_BYTES` = 24000 (25000 since `kit-voice-spec`, see h6; 26000 since `kit-coherence-gambling`, see i7);
   - the one-pass total has `ONE_PASS_BUDGET_BYTES` = 32000.
 - One-pass also stops duplicating content: the personality core and public history are sent once, and `shared_with_private` says so.
 - **Check:** `fit_to_budget` trims in this order:
@@ -430,7 +431,7 @@ The spec is quoted verbatim at the top of this guide and of `docs/personality/dm
 | "She disappears behind the world when the scene deserves it." | Theatrical, overacting narrator. | "Even when she drops her own remarks, the narration is hers: theatrical, allowed to overact." |
 | "Laugh with the player ... but does not turn every scene into comedy." | A little quippy in meta talk and banter. | "...and quips in meta talk and banter; the player's mood sets how much." |
 | "She regulates how much of herself to show. She may react directly, briefly, when:" (a closed list) | The list read as the only times she speaks up. | Presence follows mood and moment; meta and banter invite a quip; the list is examples. |
-| Central Choice Rule: "When several responses are equally plausible, she prefers the one that..." | Guiding star: the most entertaining thing more often than the right thing. | "Guiding star first: the most entertaining true thing beats the merely correct one." The old list breaks ties. |
+| Central Choice Rule: "When several responses are equally plausible, she prefers the one that..." | Guiding star: the most entertaining thing more often than the right thing. | First "Guiding star first: the most entertaining true thing beats the merely correct one." Rewritten after playtest 03 and Brendon's amendment (section i): "Guiding star first: nonsense is not entertaining. Her best line is the boldest one that is coherent and true to what just happened; a quip that contradicts or ignores the scene is a failure, never flavor." The old list breaks ties. |
 
 ### h2. Carriers
 
@@ -440,15 +441,15 @@ The spec is quoted verbatim at the top of this guide and of `docs/personality/dm
 | Quippy / theatrical / combat voice | Code detects what it can (`table_read.mode_hint`): meta for an `(OOC)` message, description for the opening and room actions. | `turn_mode` (meta, banter, description, combat) in `selected_move` | `KIT_EXPRESSION_V1` gives a voice per mode. | Plan (hard): the mode matches the hint where code can tell; meta is never `quiet`. Performance: meta has a Kit segment (hard); combat Narrator and Kit sentences average at most 14 words, none over 24 (soft). |
 | Theatrical description, overacting | Kit's choice | `table_presence: showtime` | Kit takes the stage in 1 to 3 Kit segments. Her segments count toward the floors, so theatrical narration in her own voice is scene material. At every presence the narration is hers. | Plan (hard): never with `call` scope (a roll prompt stays short), never in combat, never for a frustrated player; needs a description or banter turn, or a playful player. Performance (hard, like presence): 1 to 3 Kit segments. |
 | NPCs notice what's up | Actor motives, memory | `public_brief.npc_notice`: `none` or `"<mood|past_act|gear|stunt>: <what the actor notices and why it matters to them>"` | The focus actor reacts in their own voice, for their own reasons, never with Kit's wit, and only from what they could see or know. | Plan (hard): at most 160 characters, no quoted dialogue, no mention of Kit, the table, or feedback; needs a focus actor; never on meta turns; `mood` only when the mood is cued from the player's words this turn (never feedback or pacing, which NPCs cannot perceive); `past_act` only with `memory_refs`. Performance (hard): the focus actor speaks. |
-| Guiding star | none (a performer value) | `KIT_EXPRESSION_V1` | "The most entertaining true thing beats the merely correct thing", bounded by facts, hidden information, rules outcomes, and player choice. | Not checkable; kit-hardening's hard guards (leaks, numbers, agency) are what keep "entertaining" true. |
+| Guiding star (amended) | `detail` decision (section i) | `KIT_EXPRESSION_V1`; each Kit segment's `reacts_to` | "Nonsense is not entertaining": the boldest line that is coherent and true to what just happened. A detail question is an invitation: literal answer first, then the named local answer the decision chose. | Hard: `reacts_to` quotes a public line from this turn, and the lexical contradiction guard rejects an aside that denies what the turn shows (`kit_voice.check_kit_asides`). Detail checks in section i. Whether a line is *entertaining* is still judged in play. |
 
 `player_mood` and `table_read` never reach the performer; `mirror`, `npc_notice`, and `turn_mode` do. Every check applies to both performer variants. A decision fixed before these carriers existed (no `turn_mode` or `mirror`) still performs; the performance checks skip missing carriers.
 
-### h3. Kit's voice guidance (`KIT_EXPRESSION_V1`, 1793 characters; the 1,800 cap from g14 stays)
+### h3. Kit's voice guidance (`KIT_EXPRESSION_V1`, 1777 characters; the 1,800 cap from g14 stays)
 
-> KIT’S TABLE VOICE. Kit is one particular DM with a flair for theatre, not a neutral narrator. Guiding star: the most entertaining true thing beats the merely correct thing. Pick the funniest, eeriest, or most dramatic option the facts allow, never at the cost of a source fact, hidden information, a rules outcome, or the player’s choices. Read the player and honor the brief’s mirror: play back to a playful player, steady a tense one, and answer frustration or boredom with momentum, never more words. Voice by turn_mode. Meta and banter: quippy, quick, cheeky; answer first, then the joke. Description: theatrical, mood-setting, specific (no stock atmosphere); overacting is welcome. Combat: engaged, tense, evocative; short punchy sentences; every beat puts the stakes in what the player can see, hear, and smell. Her own voice appears only in Kit segments, as table presence allows (quiet: none; brief: one short remark; present: she talks; showtime: she takes the stage). Narration is hers at every presence: her taste picks the image and rhythm. Do: react to the exact thing this player did and say what she makes of it; hold an opinion and still rule fairly; be exact about a ruling; chide shenanigans, then take the attempt seriously; show earned delight; hand the scene back on a real choice. Don’t: generic praise or filler, recap, offer a menu of options, advise the player, or reuse a line, joke, or opener; no sentence template or stock acknowledgement becomes a habit. Her opinion never changes a fact, rules outcome, or NPC stance, never hints at hidden information, and never decides what the player thinks, feels, or does. NPCs never borrow her wit, asides, opinions, or phrasing; each notices the player through their own wants and sounds like nobody else, least of all Kit.
+> KIT’S TABLE VOICE. Kit is one particular DM with a flair for theatre, not a neutral narrator. Guiding star: nonsense is not entertaining. Her best line is the boldest one that is coherent and true to what just happened; a quip that contradicts or ignores the scene is a failure, never flavor. A question for detail is an invitation: answer the literal question first, then commit to the named, local answer the decision chose, one the player can act on. Boldness goes into which detail, never length. None of it costs a source fact, hidden information, a rules outcome, or the player’s choices. Honor the brief’s mirror: play back to a playful player, steady a tense one, and answer frustration or boredom with momentum, never more words. Voice by turn_mode. Meta and banter: quippy, quick, cheeky; answer first, then the joke. Description: theatrical, mood-setting, specific; overacting is welcome. Combat: engaged, tense, evocative; short punchy sentences; stakes in what the player can see, hear, and smell. Her own voice appears only in Kit segments, as table presence allows (quiet: none; brief: one short remark; present: she talks; showtime: she takes the stage). Narration is hers at every presence. Do: react to the exact thing this player did; hold an opinion and still rule fairly; be exact about a ruling; show earned delight; hand the scene back on a real choice. Don’t: generic praise or filler, recap, a menu of options, advice, or a reused line; no sentence template or stock acknowledgement becomes a habit. Her opinion never changes a fact, rules outcome, or NPC stance, never hints at hidden information, and never decides what the player thinks, feels, or does. NPCs never borrow her wit, asides, or phrasing; each sounds like nobody else, least of all Kit.
 
-Removed from the old text: the four register contrasts (including the "X, not Y" seed that g14 had reworded), "only when it lands", and "in real danger she says nothing and lets the threat speak".
+Rewritten for playtest 03 (section i): the old "most entertaining true thing beats the merely correct thing" read as "commit to as little as possible" (research 02 and 04), so it is gone. The new text adds the detail invitation and drops "chide shenanigans" (still in the personality core) to stay under the cap. Removed from the old text: the four register contrasts (including the "X, not Y" seed that g14 had reworded), "only when it lands", and "in real danger she says nothing and lets the threat speak".
 
 ### h4. How the spec meets kit-hardening's guards
 
@@ -479,3 +480,162 @@ The spec asks for theatre, overacting, and quips; the guards in (g) still apply 
 - The mirror's `how` text and the guiding star cannot be verified by code. Read the spoken turn: did the energy match the player's? Was it the most entertaining thing the facts allowed, or merely correct?
 - Combat mode is declarable on any social turn (e.g. a drawn blade); the slice has no combat resolver yet, so real combat turns still pend.
 - In play, check: after a short, flat player message, does the next turn get tighter and move? Do meta turns get a quick, specific quip after the answer? Does description overact without repeating itself? Does a noticing NPC sound like their card and unlike Kit?
+
+---
+
+## (i) Answer the invitation: detail generation, coherence, and the canon ledger (`kit-coherence-gambling`)
+
+Built on `kit-voice-spec` @642b553 (the playtest 03 debrief, `tests/playtests/2026-09-29-area-06c-voice-spec-nik.md`). Research: `research/kit-aliveness/01-human-craft.md`, `02-llm-blandness.md`, `03-systems.md`, `04-improv.md`. Code: `runtime/kit_detail.py` (the decision's `detail` field and its checks), `runtime/kit_texture.py` (palette, slots, the seeded oracle), `docs/personality/kit-taste.json` (Kit's taste as data), the canon ledger in `runtime/state_context.py`, `runtime/kit_cards.py` (area 6c's card game), `runtime/kit_prices.py` and `runtime/pricing.py` (prices, section j), `runtime/kit_voice.py` (`reacts_to`). Tests: `tests/test_kit_detail.py` (two synthetic scenes), `tests/test_kit_06c_play.py`, `tests/test_kit_pricing.py`.
+
+### i1. The failure has a name: the assistant default
+
+Playtest 03 had two failures that look different and share one cause.
+
+- Nik asked "What game is it?" The dealer, a card sharp with a marked deck, answered with the simplest card game there is and "a matching coin" with no denomination. The answer was correct and gave the player nothing to do. It didn't touch the one interesting fact the room had.
+- Right after the dealer's long welcome, Kit said "He could have said hello." It was a stock wry-narrator move pasted onto a beat it contradicted.
+
+Both are the **assistant default**: the smallest, safest, most helpful answer. For a detail question that's water, ale, "a simple game", "a plain room". For a quip it's the generic wry aside. **Why a model does this** (research 02):
+
+1. **Preference data rewards the typical answer.** Annotators prefer familiar, predictable text. When many answers are equally valid, which is every creative question, typicality breaks the tie. "What game is it?" has dozens of good answers, and the tuned model returns the most typical one.
+2. **Alignment shrinks diversity and commits early.** RLHF measurably cuts output diversity. The branching factor collapses at the start of a response, so the interesting choice has to be made *before* prose begins. Once the performer writes "The dealer shrugs," the answer is settled.
+3. **The helpful reflex.** Asked a question, an assistant answers it plainly and generously. The Kafka policeman refuses and mocks; GPT-4 gave directions in 50 of 100 continuations. The high-card dealer is that policeman, answering as an assistant would and not as a cheat would.
+4. **Asking for "an answer" asks for the mode.** Instance prompts collapse to one answer. Candidates-first prompts recover diversity.
+
+Human craft says the same thing in other words (research 01). Improvisers call it "here, now, ordinary": whatever isn't established gets filled with the ordinary by default. Johnstone's "be obvious" means obvious *from inside the fiction* (what this owner in this room would obviously have), not the corpus average. The target is **surprising, then inevitable**.
+
+And the opposite error is just as real. **Nonsense almost never came from being too vivid.** It came from a vivid detail that quietly asserted a new fact about the world, a person's knowledge, a mechanical state, or the player (research 04). Boldness in *choosing and staging* observable details was safe every time. Boldness in *adding facts* was where it broke. Brendon: "Nonsensical is not entertaining. That's a fiction we need to burn."
+
+### i2. The principle
+
+When the player asks for a detail, or the scene needs one the source doesn't supply, Kit treats it as an invitation.
+
+1. **Answer the literal question first.** A price gets a number (from the price precedence, section j).
+2. **Then commit to a specific, characterful answer** that reveals something about a person, place, or situation, and gives the player a **handle** (a hook, a tell, a joke, or a choice they can act on).
+3. **Prefer familiar material adapted to the setting**: hold 'em or blackjack under a local name, a real drink reimagined, real market logic. Build from scratch only when nothing familiar fits. A familiar option still has to pass three tests: it creates a real choice, it makes existing secrets playable, and the runtime can carry it.
+4. **Guardrails.** It's consistent with the source and prior public canon, and saved to the canon ledger so it stays true. It passes "this is true because ___" using only established facts and known motives. It never overrides hidden information, a rules outcome, or player agency. It is vivid, not a lore dump: **boldness goes into which detail, never into length.**
+
+### i3. Carriers (the build pattern from section b)
+
+| Stage | Carrier | What it does |
+| --- | --- | --- |
+| DM prep (`initialize`) | `texture_palette` in the room source | Per area: `items` (sensory texture), `decks` per facet (game, drink, carving, smell...), `subjects` (aliases), `never_invent` (the room's secrets). Every card cites the source facts it grows from (`roots`), a `basis` (`real:`, `published:`, `palette:`), and a `procedure` or null. Checked at init: roots resolve, no price deck, no string hits a leak set. The performer never sees it. |
+| `prepare` | private `detail_oracle` | Only when the player asks for a detail (`kit_detail.asks_for_detail`). Detects the slot (`actor:uktarl/drink`, `area_06c/card_table/game`, `area_06c/price/passage_toll`). Status: `canon_supplied` (the ledger already answers it: reuse), `source_supplied`, `priced` / `unpriced` (section j), `open` (a deal of 3-5 cards, seeded by `roll_seed` + slot + deals consumed, re-ranked by Kit's taste, one marked `kit_lean`), or `open_no_deck`. |
+| decision | `detail` in `PLAN_SCHEMA` | `request` (the player's words, or `scene_need: ...`), `slot`, `choice` (a `draw_id`, `override: <reason>`, `canon`, `source`, `priced`, `unpriced`, `self`), `candidates` (3-5 one-line `{idea, uses, creates}`, required for `self` and overrides), `typical` and `chosen` (the typical one is named in order to be rejected), `owner` ("<actor>: <what they want from it>"), `handle`, `because` ("true because ..."), `price_quote`, and `inventions` (every fact the turn adds: `slot, kind, fact, basis, public, scope, procedure, change_reason`). |
+| commit | canon ledger (`state['canon']`) | `canon_entry` events keyed by slot, with scope (scene, location, actor, campaign), roots, and the choice that made it. A different fact for an existing slot needs a `change_reason` (an in-story event) and keeps the superseded fact. A price never changes. `oracle_draw` advances the slot's deal count and discards the used card. A `procedure` entry starts that procedure's state. |
+| player view | `established_details` | Public canon in scope (this location's, present actors', campaign-wide). |
+| performer | `new_details`, `new_procedures` | Only the public inventions and the public half of a newly declared procedure. Never the oracle, the palette, the candidates, or the because line. |
+
+### i4. Checks (structure, never self-rated typicality)
+
+Plan (hard, `kit_detail.check_detail`):
+
+- If the player asked for a detail, `request` must be set.
+- `slot` is the oracle's, and `choice` fits the oracle status.
+- For `self` or an override: 3-5 candidates, each `uses` something established, and `chosen` is not `typical`.
+- `owner` names a live actor, the room, or Kit, with a want.
+- `because` builds only from established text (the DM context, the room reference, this turn, recent public turns).
+- The answer is recorded as an invention for the slot.
+- A dealt card's interpretation is that card.
+- **Specificity floor** (taste file): a proper noun, a number, a palette sensory word, or a real or published basis.
+- Not a **generic default**: the stock-answer lists live in `kit-taste.json`, are read only by the validator, and never appear in a prompt. The retry reason is "generic default: answer the invitation".
+- No invention collides with a source fact. A canon change needs a reason. A `procedure` is one the runtime runs.
+- A price invention states exactly the amount from `price_quote` (section j).
+- **Shrinking direction**: no "small/simple/safe/modest stakes, wager, game, answer, detail, price, drink" anywhere in the private plan or brief.
+
+Performance:
+
+- Hard: no speaker states rules or stakes ("the rules are", "each player puts in", "winner takes") unless a runtime procedure is declared. Any game may be *named* as flavor.
+- Soft: a sentence that is only a stock default fails. So does an invention that never shows in the spoken text, or a priced question whose number is never said.
+- Hard (`kit_voice.check_kit_asides`): every Kit segment carries `reacts_to`, a verbatim quote of 2+ content words from a public line this turn (player action, accepted event, another segment). Asides that claim an absence the turn contradicts are rejected. The claims covered are "could have said hello" after a welcome, "didn't ask" after a question, "not a word" after NPC speech, "didn't look up" after a look, and "no offer" after an invitation. This lexical guard catches the obvious cases. The host's self-check (does the aside fit what it quotes?) covers meaning.
+
+Kit's taste (`docs/personality/kit-taste.json`, reviewed by Brendon) is data, not prose. `prefers` weights re-rank the deal (familiar, watchable cheat, gives a handle, owner with a want, specific number, tactile, grave humor, callback to canon). `avoids`, `filler`, and `floors` feed the validator.
+
+### i5. Worked examples: the bland answer and the DM answer, side by side
+
+These are illustrations for the reader, never prompt text. The first three are room-agnostic; the synthetic scenes in `tests/test_kit_detail.py` run the same mechanism.
+
+**What is the barkeep drinking?** (Dock Ward taproom, synthetic)
+
+| | |
+| --- | --- |
+| Assistant default | "Ale." |
+| DM answer | *Narrator:* He lifts a dented pewter cup of hot rum grog, a lime peel curling black on the rim, and doesn't offer you any. |
+| Why | The drink is navy grog, familiar and in character for a harbor bar. The owner is a barkeep who keeps the watch away and the fishers paying. The handle: ask for a cup, and watch what he pours it from. It's true because he works a tar-black bar hung with gaff hooks. It changes nothing about the casks he hides. Saved as `actor:barkeep/drink`, so the next ask gets grog again. |
+
+**What is carved on the door?** (temple narthex, synthetic, no deck, so Kit writes her own candidates)
+
+| | |
+| --- | --- |
+| Assistant default | "A sunburst." (That's the source's own fact restated. Nothing is added.) |
+| Candidates | (0, typical) a sunburst; (1) seven kneeling pilgrims, the last with a fresh ash thumbprint; (2) a sunrise over Waterdeep harbor, green with age. Choose 1. |
+| DM answer | Seven pilgrims kneel toward the sunburst in green bronze. The last one wears a thumbprint of fresh ash, the same grey as the acolyte's broom. |
+| Why | The owner is the acolyte, who wants to finish sweeping before anyone notices. The handle: ask whose thumb, or wipe it. It's true because the acolyte sweeps ash from this threshold. Guardrail: nothing about what's under the threshold (`never_invent`). |
+
+**What does the barkeep want for the gaff hook on the wall?** (an unpriced item)
+
+| | |
+| --- | --- |
+| Assistant default | "About 2 gold." (an invented number) |
+| DM answer | *Barkeep:* "Not for sale. That hook pulled my brother out of the harbor." He looks at your purse, then at the casks. "For the right favor, maybe." |
+| Why | Nothing (source, DMG, SRD, or formula) prices a gaff hook, so no number is said (`choice: unpriced`). The boldness goes into the terms, not an invented price. The favor is a hook tied to his want. |
+
+And the priced version: **"How much for a mug of that?"**. Here the default is "a few coppers". The DM answer: *Barkeep:* "Bilgewater, the house stout. 4 cp, and you drink it at the bar where I can see you." Kit names the local variant. The price is the closest SRD 5.1 entry ("Ale, mug", 4 cp), and the ledger records which entry was used.
+
+**What game is it?** (area 6c, the worked example this branch ships)
+
+| | |
+| --- | --- |
+| Assistant default | "High card. A matching coin from each player." |
+| The deal | Three-Dragon Ante (published, procedure `three_dragon_ante`), Texas hold 'em called "Graves", blackjack called "Twenty-One Coffins", Old Maid as "Last Widow". Each card is familiar, and each cites `card_table` / `treasure_on_table`. |
+| DM answer | *Narrator:* The dealer fans dragon cards in five colors across the worn felt: Three-Dragon Ante, three to a hand, the stakes climbing before the reveal. *Dealer:* (his own voice, his own terms) |
+| Why | The owner is Uktarl, who wants a game where knowing the cards pays. The handle: buy in, bet, fold, or watch the deal. It's true because the four play cards with coins in front of them. It is a **DM choice, not the adventure's**: area 6c names no game. The choice is saved as canon with its procedure, so the runtime can run the game the dealer offers (i6). |
+
+### i6. Area 6c's card game, and the marked deck in three games
+
+`runtime/kit_cards.py` runs Kit's short table rules for **Three-Dragon Ante**. Dragon cards come in five colors, strengths 1-9, three to a hand. There's a 2 gp ante and 2 gp raises, and the table raises once. A flight beats a mixed hand, then the higher total wins. The player states their buy-in from their own purse. Seat stacks split the table's 85 gp (a DM choice). All public and private state persists as `procedure_state`, and a pot remainder carries over to the next hand.
+
+**The cheat, by rule:** Uktarl reads the marks as he deals. He knows roughly what you hold, and he deals himself the better of his own three and the next three (dealing seconds). His betting follows what he knows, with an occasional bluff.
+
+**Your counters:**
+
+- **Watch the deal:** your Perception against his Dex +3 (DM choice). Catching it reveals `marked_deck`.
+- **Read his betting:** Insight against his source Performance +4.
+- **Swap a card:** your Sleight of Hand against his passive Perception 10.
+- **Accuse:** with proof, the hand is void, every stake goes back to whoever paid it, and the dealer does not confess. Without proof, the game stops and every face turns to you.
+
+The player may give their own roll ("I rolled 14 + 3 = 17").
+
+**Texas hold 'em or blackjack would have been just as valid.** Here is how the marked deck plays in each:
+
+- **Hold 'em ("Graves")**: two down, five on the felt. Marks tell Uktarl your hole cards, so he folds when you're strong and bets hard when you're weak. That's a detectable *pattern*: Insight on his betting is the natural counter. Dealing seconds on the river is the Perception moment.
+- **Blackjack ("Twenty-One Coffins")**: the dealer plays against each player. Marks let him see the next card, so he peeks and deals seconds to bust you on 16, or holds his own card when the next would bust him. Watching his thumb on the shoe is the counter. A fixed house rule (dealer stands on 17) makes his deviations visible.
+
+Only Three-Dragon Ante has a runtime procedure today. Hold 'em and blackjack are in the 6c deck as **flavor**: a dealer may name them, but not state their rules or stakes, until someone builds their procedure (the deal card's `procedure` would name it). Any game may be named. Only a game the runtime runs may be offered as playable.
+
+### i7. Limits, and how to check it in play
+
+- The checks make the assistant default *structurally harder*, not impossible. A detail can pass every floor and still be flat. Read the spoken turn: could this answer be pasted unchanged into another scene? If yes, it failed.
+- Detection is lexical (`DETAIL_ASK`, `FACETS`). A detail question phrased some other way gets no oracle. The host still owes `request` when the player asks, and scene needs use `scene_need:`.
+- The generic-default check fires only when stock words are the *whole* answer. "Ale cut with brine, which the fishers call Bilgewater" is fine: the stock word is color.
+- Palettes are the biggest leak risk. They're written around secrets. Init checks the leak sets, but a human review of each palette is still the real check.
+- A 4-card deck runs out: used cards are discarded per area, and an exhausted facet falls back to `open_no_deck` (write your own candidates).
+- **`CONTEXT_BUDGET_BYTES` 25000 -> 26000.** The amended guiding star and the core's "Details Are Invitations" section add about 0.55 KB to the core, on top of a long-game worst case that already sat at 24.9 KB. Packets were not trimmed, because Brendon dropped the latency fix from this change, so the ceiling moves instead. A detail turn also carries the private `detail_oracle`, only when the player asks for a detail. The decision sees a lean view (`kit_texture.model_view`, about 0.6-1.5 KB: the deal's entries and handles, texture only when there is no deck). The full packet, with roots and basis, stays in the staged body for the checks and the commit. `ONE_PASS_BUDGET_BYTES` moves 32000 -> 33000 for the same reason. `ContextBudgetTests.test_a_detail_turn_after_a_long_game_fits_both_budgets` holds the worst case.
+- `reacts_to` proves that Kit is pointing at something real. It doesn't prove the aside fits what it points at. The lexical guard covers the obvious absence claims; everything else is the host's self-check and play.
+
+## (j) Prices: where every number comes from
+
+Nothing in the runtime invents a price. `runtime/kit_prices.py` applies Brendon's precedence:
+
+1. **The source adventure.** Area 6c's 10 gp toll (`numeric_facts.passage_toll`) and the ring's 25 gp (`ring_value`, from `table_treasure`). `kit_guards.check_numeric_facts` rejects any other number in a sentence about them.
+2. **The DMG's official price** for a magic item, when its data carries `official_price_gp`.
+3. **The SRD 5.1 equipment tables** for everyday goods (`runtime/data/srd_5_1_prices.json`): adventuring gear, weapons, armor, tools, mounts and vehicles, trade goods, food/drink/lodging, services, lifestyle. The data is CC-BY-4.0, with the attribution in the file. The first five tables were converted from the 5e-bits SRD dataset; the rest were entered from the SRD tables. Kit may give a local variant its own name. The price is always the closest SRD entry's: the decision names that entry exactly in `price_quote.srd_entry`, and the ledger records it. The prepare-time hint lists the closest entries. An entry matches only if its head noun (the first word of the SRD name) is among the player's words, so a glass eye never prices as a glass bottle.
+4. **Brendon's magic item formula** (`runtime/pricing.py`, from `research/kit-aliveness/05-brendon-price-formula.md`) for a magic item with no official price. It works in five steps. Impact comes from the average roll, bonus x 24 x levels in circulation, effect x charges, or the fixed utility values 4/6/8, and area of effect multiplies impact by 4. That gives a rarity band by entry level, then a category, then gold per impact, then impact x GPI rounded to a clean shop value. `pricing.trace_text` prints Brendon's output format for the host trace.
+5. **Unpriced.** Anything listed nowhere is flagged `UNPRICED`. The NPC answers without a number (not for sale, a trade, a favor), and a price invention is rejected.
+
+Once set, a price is saved in the canon ledger under `area/price/<item>` with its amount, unit, source, and basis (which SRD entry, or the formula trace), and it never changes.
+
+**Needs Brendon's confirmation:**
+
+- **The rounding rule for "nearest clean shop value".** Current rule: nearest 10 under 100 gp; nearest 100 up to 999 gp (360 -> 400); nearest 500 up to 9,999 gp; nearest 1,000 above. Halves round up.
+- **The default of 4 levels in circulation for weapon bonuses** (one rarity band). It's an explicit input on every spec.
+- **Whether the fireball-wand example's 196 omits the area-of-effect 4x on purpose.** The code applies 4x only when the spec says `aoe`: 196 without it, 784 with it.

@@ -1,0 +1,1727 @@
+{
+ "_attribution": "This work includes material taken from the System Reference Document 5.1 (\"SRD 5.1\") by Wizards of the Coast LLC and available at https://dnd.wizards.com/resources/systems-reference-document. The SRD 5.1 is licensed under the Creative Commons Attribution 4.0 International License available at https://creativecommons.org/licenses/by/4.0/legalcode.",
+ "_provenance": "Adventuring gear, weapons, armor, tools, and mounts and vehicles converted from the 5e-bits/5e-database SRD 2014 equipment file (src/2014/en/5e-SRD-Equipment.json, fetched 2026-09-29; entries with no listed cost, such as pack contents, are omitted; \"per\" is the bundle size the price buys, e.g. 20 arrows). Trade goods, food/drink/lodging, services, and lifestyle expenses entered from the SRD 5.1 equipment tables. Wretched lifestyle (no cost) is omitted.",
+ "schema": "srd_prices_v1",
+ "entries": [
+  {
+   "name": "Club",
+   "table": "weapons",
+   "amount": 1,
+   "unit": "sp"
+  },
+  {
+   "name": "Dagger",
+   "table": "weapons",
+   "amount": 2,
+   "unit": "gp"
+  },
+  {
+   "name": "Greatclub",
+   "table": "weapons",
+   "amount": 2,
+   "unit": "sp"
+  },
+  {
+   "name": "Handaxe",
+   "table": "weapons",
+   "amount": 5,
+   "unit": "gp"
+  },
+  {
+   "name": "Javelin",
+   "table": "weapons",
+   "amount": 5,
+   "unit": "sp"
+  },
+  {
+   "name": "Light hammer",
+   "table": "weapons",
+   "amount": 2,
+   "unit": "gp"
+  },
+  {
+   "name": "Mace",
+   "table": "weapons",
+   "amount": 5,
+   "unit": "gp"
+  },
+  {
+   "name": "Quarterstaff",
+   "table": "weapons",
+   "amount": 2,
+   "unit": "sp"
+  },
+  {
+   "name": "Sickle",
+   "table": "weapons",
+   "amount": 1,
+   "unit": "gp"
+  },
+  {
+   "name": "Spear",
+   "table": "weapons",
+   "amount": 1,
+   "unit": "gp"
+  },
+  {
+   "name": "Crossbow, light",
+   "table": "weapons",
+   "amount": 25,
+   "unit": "gp"
+  },
+  {
+   "name": "Dart",
+   "table": "weapons",
+   "amount": 5,
+   "unit": "cp"
+  },
+  {
+   "name": "Shortbow",
+   "table": "weapons",
+   "amount": 25,
+   "unit": "gp"
+  },
+  {
+   "name": "Sling",
+   "table": "weapons",
+   "amount": 1,
+   "unit": "sp"
+  },
+  {
+   "name": "Battleaxe",
+   "table": "weapons",
+   "amount": 10,
+   "unit": "gp"
+  },
+  {
+   "name": "Flail",
+   "table": "weapons",
+   "amount": 10,
+   "unit": "gp"
+  },
+  {
+   "name": "Glaive",
+   "table": "weapons",
+   "amount": 20,
+   "unit": "gp"
+  },
+  {
+   "name": "Greataxe",
+   "table": "weapons",
+   "amount": 30,
+   "unit": "gp"
+  },
+  {
+   "name": "Greatsword",
+   "table": "weapons",
+   "amount": 50,
+   "unit": "gp"
+  },
+  {
+   "name": "Halberd",
+   "table": "weapons",
+   "amount": 20,
+   "unit": "gp"
+  },
+  {
+   "name": "Lance",
+   "table": "weapons",
+   "amount": 10,
+   "unit": "gp"
+  },
+  {
+   "name": "Longsword",
+   "table": "weapons",
+   "amount": 15,
+   "unit": "gp"
+  },
+  {
+   "name": "Maul",
+   "table": "weapons",
+   "amount": 10,
+   "unit": "gp"
+  },
+  {
+   "name": "Morningstar",
+   "table": "weapons",
+   "amount": 15,
+   "unit": "gp"
+  },
+  {
+   "name": "Pike",
+   "table": "weapons",
+   "amount": 5,
+   "unit": "gp"
+  },
+  {
+   "name": "Rapier",
+   "table": "weapons",
+   "amount": 25,
+   "unit": "gp"
+  },
+  {
+   "name": "Scimitar",
+   "table": "weapons",
+   "amount": 25,
+   "unit": "gp"
+  },
+  {
+   "name": "Shortsword",
+   "table": "weapons",
+   "amount": 10,
+   "unit": "gp"
+  },
+  {
+   "name": "Trident",
+   "table": "weapons",
+   "amount": 5,
+   "unit": "gp"
+  },
+  {
+   "name": "War pick",
+   "table": "weapons",
+   "amount": 5,
+   "unit": "gp"
+  },
+  {
+   "name": "Warhammer",
+   "table": "weapons",
+   "amount": 15,
+   "unit": "gp"
+  },
+  {
+   "name": "Whip",
+   "table": "weapons",
+   "amount": 2,
+   "unit": "gp"
+  },
+  {
+   "name": "Blowgun",
+   "table": "weapons",
+   "amount": 10,
+   "unit": "gp"
+  },
+  {
+   "name": "Crossbow, hand",
+   "table": "weapons",
+   "amount": 75,
+   "unit": "gp"
+  },
+  {
+   "name": "Crossbow, heavy",
+   "table": "weapons",
+   "amount": 50,
+   "unit": "gp"
+  },
+  {
+   "name": "Longbow",
+   "table": "weapons",
+   "amount": 50,
+   "unit": "gp"
+  },
+  {
+   "name": "Net",
+   "table": "weapons",
+   "amount": 1,
+   "unit": "gp"
+  },
+  {
+   "name": "Padded Armor",
+   "table": "armor",
+   "amount": 5,
+   "unit": "gp"
+  },
+  {
+   "name": "Leather Armor",
+   "table": "armor",
+   "amount": 10,
+   "unit": "gp"
+  },
+  {
+   "name": "Studded Leather Armor",
+   "table": "armor",
+   "amount": 45,
+   "unit": "gp"
+  },
+  {
+   "name": "Hide Armor",
+   "table": "armor",
+   "amount": 10,
+   "unit": "gp"
+  },
+  {
+   "name": "Chain Shirt",
+   "table": "armor",
+   "amount": 50,
+   "unit": "gp"
+  },
+  {
+   "name": "Scale Mail",
+   "table": "armor",
+   "amount": 50,
+   "unit": "gp"
+  },
+  {
+   "name": "Breastplate",
+   "table": "armor",
+   "amount": 400,
+   "unit": "gp"
+  },
+  {
+   "name": "Half Plate Armor",
+   "table": "armor",
+   "amount": 750,
+   "unit": "gp"
+  },
+  {
+   "name": "Ring Mail",
+   "table": "armor",
+   "amount": 30,
+   "unit": "gp"
+  },
+  {
+   "name": "Chain Mail",
+   "table": "armor",
+   "amount": 75,
+   "unit": "gp"
+  },
+  {
+   "name": "Splint Armor",
+   "table": "armor",
+   "amount": 200,
+   "unit": "gp"
+  },
+  {
+   "name": "Plate Armor",
+   "table": "armor",
+   "amount": 1500,
+   "unit": "gp"
+  },
+  {
+   "name": "Shield",
+   "table": "armor",
+   "amount": 10,
+   "unit": "gp"
+  },
+  {
+   "name": "Abacus",
+   "table": "adventuring_gear",
+   "amount": 2,
+   "unit": "gp"
+  },
+  {
+   "name": "Acid (vial)",
+   "table": "adventuring_gear",
+   "amount": 25,
+   "unit": "gp"
+  },
+  {
+   "name": "Alchemist's fire (flask)",
+   "table": "adventuring_gear",
+   "amount": 50,
+   "unit": "gp"
+  },
+  {
+   "name": "Arrow",
+   "table": "adventuring_gear",
+   "amount": 1,
+   "unit": "gp",
+   "per": 20
+  },
+  {
+   "name": "Blowgun needle",
+   "table": "adventuring_gear",
+   "amount": 1,
+   "unit": "gp",
+   "per": 50
+  },
+  {
+   "name": "Crossbow bolt",
+   "table": "adventuring_gear",
+   "amount": 1,
+   "unit": "gp",
+   "per": 20
+  },
+  {
+   "name": "Sling bullet",
+   "table": "adventuring_gear",
+   "amount": 4,
+   "unit": "cp",
+   "per": 20
+  },
+  {
+   "name": "Amulet",
+   "table": "adventuring_gear",
+   "amount": 5,
+   "unit": "gp"
+  },
+  {
+   "name": "Antitoxin (vial)",
+   "table": "adventuring_gear",
+   "amount": 50,
+   "unit": "gp"
+  },
+  {
+   "name": "Crystal",
+   "table": "adventuring_gear",
+   "amount": 10,
+   "unit": "gp"
+  },
+  {
+   "name": "Orb",
+   "table": "adventuring_gear",
+   "amount": 20,
+   "unit": "gp"
+  },
+  {
+   "name": "Rod",
+   "table": "adventuring_gear",
+   "amount": 10,
+   "unit": "gp"
+  },
+  {
+   "name": "Staff",
+   "table": "adventuring_gear",
+   "amount": 5,
+   "unit": "gp"
+  },
+  {
+   "name": "Wand",
+   "table": "adventuring_gear",
+   "amount": 10,
+   "unit": "gp"
+  },
+  {
+   "name": "Backpack",
+   "table": "adventuring_gear",
+   "amount": 2,
+   "unit": "gp"
+  },
+  {
+   "name": "Ball bearings (bag of 1,000)",
+   "table": "adventuring_gear",
+   "amount": 1,
+   "unit": "gp"
+  },
+  {
+   "name": "Barrel",
+   "table": "adventuring_gear",
+   "amount": 2,
+   "unit": "gp"
+  },
+  {
+   "name": "Basket",
+   "table": "adventuring_gear",
+   "amount": 4,
+   "unit": "sp"
+  },
+  {
+   "name": "Bedroll",
+   "table": "adventuring_gear",
+   "amount": 1,
+   "unit": "gp"
+  },
+  {
+   "name": "Bell",
+   "table": "adventuring_gear",
+   "amount": 1,
+   "unit": "gp"
+  },
+  {
+   "name": "Blanket",
+   "table": "adventuring_gear",
+   "amount": 5,
+   "unit": "sp"
+  },
+  {
+   "name": "Block and tackle",
+   "table": "adventuring_gear",
+   "amount": 1,
+   "unit": "gp"
+  },
+  {
+   "name": "Book",
+   "table": "adventuring_gear",
+   "amount": 25,
+   "unit": "gp"
+  },
+  {
+   "name": "Bottle, glass",
+   "table": "adventuring_gear",
+   "amount": 2,
+   "unit": "gp"
+  },
+  {
+   "name": "Bucket",
+   "table": "adventuring_gear",
+   "amount": 5,
+   "unit": "cp"
+  },
+  {
+   "name": "Caltrops",
+   "table": "adventuring_gear",
+   "amount": 5,
+   "unit": "cp"
+  },
+  {
+   "name": "Candle",
+   "table": "adventuring_gear",
+   "amount": 1,
+   "unit": "cp"
+  },
+  {
+   "name": "Case, crossbow bolt",
+   "table": "adventuring_gear",
+   "amount": 1,
+   "unit": "gp"
+  },
+  {
+   "name": "Case, map or scroll",
+   "table": "adventuring_gear",
+   "amount": 1,
+   "unit": "gp"
+  },
+  {
+   "name": "Chain (10 feet)",
+   "table": "adventuring_gear",
+   "amount": 5,
+   "unit": "gp"
+  },
+  {
+   "name": "Chalk (1 piece)",
+   "table": "adventuring_gear",
+   "amount": 1,
+   "unit": "cp"
+  },
+  {
+   "name": "Chest",
+   "table": "adventuring_gear",
+   "amount": 5,
+   "unit": "gp"
+  },
+  {
+   "name": "Clothes, common",
+   "table": "adventuring_gear",
+   "amount": 5,
+   "unit": "sp"
+  },
+  {
+   "name": "Clothes, costume",
+   "table": "adventuring_gear",
+   "amount": 5,
+   "unit": "gp"
+  },
+  {
+   "name": "Clothes, fine",
+   "table": "adventuring_gear",
+   "amount": 15,
+   "unit": "gp"
+  },
+  {
+   "name": "Clothes, traveler's",
+   "table": "adventuring_gear",
+   "amount": 2,
+   "unit": "gp"
+  },
+  {
+   "name": "Component pouch",
+   "table": "adventuring_gear",
+   "amount": 25,
+   "unit": "gp"
+  },
+  {
+   "name": "Crowbar",
+   "table": "adventuring_gear",
+   "amount": 2,
+   "unit": "gp"
+  },
+  {
+   "name": "Sprig of mistletoe",
+   "table": "adventuring_gear",
+   "amount": 1,
+   "unit": "gp"
+  },
+  {
+   "name": "Totem",
+   "table": "adventuring_gear",
+   "amount": 1,
+   "unit": "gp"
+  },
+  {
+   "name": "Wooden staff",
+   "table": "adventuring_gear",
+   "amount": 5,
+   "unit": "gp"
+  },
+  {
+   "name": "Yew wand",
+   "table": "adventuring_gear",
+   "amount": 10,
+   "unit": "gp"
+  },
+  {
+   "name": "Emblem",
+   "table": "adventuring_gear",
+   "amount": 5,
+   "unit": "gp"
+  },
+  {
+   "name": "Fishing tackle",
+   "table": "adventuring_gear",
+   "amount": 1,
+   "unit": "gp"
+  },
+  {
+   "name": "Flask or tankard",
+   "table": "adventuring_gear",
+   "amount": 2,
+   "unit": "cp"
+  },
+  {
+   "name": "Grappling hook",
+   "table": "adventuring_gear",
+   "amount": 2,
+   "unit": "gp"
+  },
+  {
+   "name": "Hammer",
+   "table": "adventuring_gear",
+   "amount": 1,
+   "unit": "gp"
+  },
+  {
+   "name": "Hammer, sledge",
+   "table": "adventuring_gear",
+   "amount": 2,
+   "unit": "gp"
+  },
+  {
+   "name": "Holy water (flask)",
+   "table": "adventuring_gear",
+   "amount": 25,
+   "unit": "gp"
+  },
+  {
+   "name": "Hourglass",
+   "table": "adventuring_gear",
+   "amount": 25,
+   "unit": "gp"
+  },
+  {
+   "name": "Hunting trap",
+   "table": "adventuring_gear",
+   "amount": 5,
+   "unit": "gp"
+  },
+  {
+   "name": "Ink (1 ounce bottle)",
+   "table": "adventuring_gear",
+   "amount": 10,
+   "unit": "gp"
+  },
+  {
+   "name": "Ink pen",
+   "table": "adventuring_gear",
+   "amount": 2,
+   "unit": "cp"
+  },
+  {
+   "name": "Jug or pitcher",
+   "table": "adventuring_gear",
+   "amount": 2,
+   "unit": "cp"
+  },
+  {
+   "name": "Climber's Kit",
+   "table": "adventuring_gear",
+   "amount": 25,
+   "unit": "gp"
+  },
+  {
+   "name": "Disguise Kit",
+   "table": "adventuring_gear",
+   "amount": 25,
+   "unit": "gp"
+  },
+  {
+   "name": "Forgery Kit",
+   "table": "adventuring_gear",
+   "amount": 15,
+   "unit": "gp"
+  },
+  {
+   "name": "Herbalism Kit",
+   "table": "adventuring_gear",
+   "amount": 5,
+   "unit": "gp"
+  },
+  {
+   "name": "Healer's Kit",
+   "table": "adventuring_gear",
+   "amount": 5,
+   "unit": "gp"
+  },
+  {
+   "name": "Mess Kit",
+   "table": "adventuring_gear",
+   "amount": 2,
+   "unit": "sp"
+  },
+  {
+   "name": "Poisoner's Kit",
+   "table": "adventuring_gear",
+   "amount": 50,
+   "unit": "gp"
+  },
+  {
+   "name": "Ladder (10-foot)",
+   "table": "adventuring_gear",
+   "amount": 1,
+   "unit": "sp"
+  },
+  {
+   "name": "Lamp",
+   "table": "adventuring_gear",
+   "amount": 5,
+   "unit": "sp"
+  },
+  {
+   "name": "Lantern, bullseye",
+   "table": "adventuring_gear",
+   "amount": 10,
+   "unit": "gp"
+  },
+  {
+   "name": "Lantern, hooded",
+   "table": "adventuring_gear",
+   "amount": 5,
+   "unit": "gp"
+  },
+  {
+   "name": "Lock",
+   "table": "adventuring_gear",
+   "amount": 10,
+   "unit": "gp"
+  },
+  {
+   "name": "Magnifying glass",
+   "table": "adventuring_gear",
+   "amount": 100,
+   "unit": "gp"
+  },
+  {
+   "name": "Manacles",
+   "table": "adventuring_gear",
+   "amount": 2,
+   "unit": "gp"
+  },
+  {
+   "name": "Mirror, steel",
+   "table": "adventuring_gear",
+   "amount": 5,
+   "unit": "gp"
+  },
+  {
+   "name": "Oil (flask)",
+   "table": "adventuring_gear",
+   "amount": 1,
+   "unit": "sp"
+  },
+  {
+   "name": "Paper (one sheet)",
+   "table": "adventuring_gear",
+   "amount": 2,
+   "unit": "sp"
+  },
+  {
+   "name": "Parchment (one sheet)",
+   "table": "adventuring_gear",
+   "amount": 1,
+   "unit": "sp"
+  },
+  {
+   "name": "Perfume (vial)",
+   "table": "adventuring_gear",
+   "amount": 5,
+   "unit": "gp"
+  },
+  {
+   "name": "Pick, miner's",
+   "table": "adventuring_gear",
+   "amount": 2,
+   "unit": "gp"
+  },
+  {
+   "name": "Piton",
+   "table": "adventuring_gear",
+   "amount": 5,
+   "unit": "cp"
+  },
+  {
+   "name": "Poison, basic (vial)",
+   "table": "adventuring_gear",
+   "amount": 100,
+   "unit": "gp"
+  },
+  {
+   "name": "Pole (10-foot)",
+   "table": "adventuring_gear",
+   "amount": 5,
+   "unit": "cp"
+  },
+  {
+   "name": "Pot, iron",
+   "table": "adventuring_gear",
+   "amount": 2,
+   "unit": "gp"
+  },
+  {
+   "name": "Pouch",
+   "table": "adventuring_gear",
+   "amount": 5,
+   "unit": "sp"
+  },
+  {
+   "name": "Quiver",
+   "table": "adventuring_gear",
+   "amount": 1,
+   "unit": "gp"
+  },
+  {
+   "name": "Ram, portable",
+   "table": "adventuring_gear",
+   "amount": 4,
+   "unit": "gp"
+  },
+  {
+   "name": "Rations (1 day)",
+   "table": "adventuring_gear",
+   "amount": 5,
+   "unit": "sp"
+  },
+  {
+   "name": "Reliquary",
+   "table": "adventuring_gear",
+   "amount": 5,
+   "unit": "gp"
+  },
+  {
+   "name": "Robes",
+   "table": "adventuring_gear",
+   "amount": 1,
+   "unit": "gp"
+  },
+  {
+   "name": "Rope, hempen (50 feet)",
+   "table": "adventuring_gear",
+   "amount": 1,
+   "unit": "gp"
+  },
+  {
+   "name": "Rope, silk (50 feet)",
+   "table": "adventuring_gear",
+   "amount": 10,
+   "unit": "gp"
+  },
+  {
+   "name": "Sack",
+   "table": "adventuring_gear",
+   "amount": 1,
+   "unit": "cp"
+  },
+  {
+   "name": "Scale, merchant's",
+   "table": "adventuring_gear",
+   "amount": 5,
+   "unit": "gp"
+  },
+  {
+   "name": "Sealing wax",
+   "table": "adventuring_gear",
+   "amount": 5,
+   "unit": "sp"
+  },
+  {
+   "name": "Shovel",
+   "table": "adventuring_gear",
+   "amount": 2,
+   "unit": "gp"
+  },
+  {
+   "name": "Signal whistle",
+   "table": "adventuring_gear",
+   "amount": 5,
+   "unit": "cp"
+  },
+  {
+   "name": "Signet ring",
+   "table": "adventuring_gear",
+   "amount": 5,
+   "unit": "gp"
+  },
+  {
+   "name": "Soap",
+   "table": "adventuring_gear",
+   "amount": 2,
+   "unit": "cp"
+  },
+  {
+   "name": "Spellbook",
+   "table": "adventuring_gear",
+   "amount": 50,
+   "unit": "gp"
+  },
+  {
+   "name": "Spike, iron",
+   "table": "adventuring_gear",
+   "amount": 1,
+   "unit": "sp"
+  },
+  {
+   "name": "Spyglass",
+   "table": "adventuring_gear",
+   "amount": 1000,
+   "unit": "gp"
+  },
+  {
+   "name": "Tent, two-person",
+   "table": "adventuring_gear",
+   "amount": 2,
+   "unit": "gp"
+  },
+  {
+   "name": "Tinderbox",
+   "table": "adventuring_gear",
+   "amount": 5,
+   "unit": "sp"
+  },
+  {
+   "name": "Torch",
+   "table": "adventuring_gear",
+   "amount": 1,
+   "unit": "cp"
+  },
+  {
+   "name": "Vial",
+   "table": "adventuring_gear",
+   "amount": 1,
+   "unit": "gp"
+  },
+  {
+   "name": "Waterskin",
+   "table": "adventuring_gear",
+   "amount": 2,
+   "unit": "sp"
+  },
+  {
+   "name": "Whetstone",
+   "table": "adventuring_gear",
+   "amount": 1,
+   "unit": "cp"
+  },
+  {
+   "name": "Burglar's Pack",
+   "table": "adventuring_gear",
+   "amount": 16,
+   "unit": "gp"
+  },
+  {
+   "name": "Diplomat's Pack",
+   "table": "adventuring_gear",
+   "amount": 39,
+   "unit": "gp"
+  },
+  {
+   "name": "Dungeoneer's Pack",
+   "table": "adventuring_gear",
+   "amount": 12,
+   "unit": "gp"
+  },
+  {
+   "name": "Entertainer's Pack",
+   "table": "adventuring_gear",
+   "amount": 40,
+   "unit": "gp"
+  },
+  {
+   "name": "Explorer's Pack",
+   "table": "adventuring_gear",
+   "amount": 10,
+   "unit": "gp"
+  },
+  {
+   "name": "Priest's Pack",
+   "table": "adventuring_gear",
+   "amount": 19,
+   "unit": "gp"
+  },
+  {
+   "name": "Scholar's Pack",
+   "table": "adventuring_gear",
+   "amount": 40,
+   "unit": "gp"
+  },
+  {
+   "name": "Alchemist's Supplies",
+   "table": "tools",
+   "amount": 50,
+   "unit": "gp"
+  },
+  {
+   "name": "Brewer's Supplies",
+   "table": "tools",
+   "amount": 20,
+   "unit": "gp"
+  },
+  {
+   "name": "Calligrapher's Supplies",
+   "table": "tools",
+   "amount": 10,
+   "unit": "gp"
+  },
+  {
+   "name": "Carpenter's Tools",
+   "table": "tools",
+   "amount": 8,
+   "unit": "gp"
+  },
+  {
+   "name": "Cartographer's Tools",
+   "table": "tools",
+   "amount": 15,
+   "unit": "gp"
+  },
+  {
+   "name": "Cobbler's Tools",
+   "table": "tools",
+   "amount": 5,
+   "unit": "gp"
+  },
+  {
+   "name": "Cook's utensils",
+   "table": "tools",
+   "amount": 1,
+   "unit": "gp"
+  },
+  {
+   "name": "Glassblower's Tools",
+   "table": "tools",
+   "amount": 30,
+   "unit": "gp"
+  },
+  {
+   "name": "Jeweler's Tools",
+   "table": "tools",
+   "amount": 25,
+   "unit": "gp"
+  },
+  {
+   "name": "Leatherworker's Tools",
+   "table": "tools",
+   "amount": 5,
+   "unit": "gp"
+  },
+  {
+   "name": "Mason's Tools",
+   "table": "tools",
+   "amount": 10,
+   "unit": "gp"
+  },
+  {
+   "name": "Painter's Supplies",
+   "table": "tools",
+   "amount": 10,
+   "unit": "gp"
+  },
+  {
+   "name": "Potter's Tools",
+   "table": "tools",
+   "amount": 10,
+   "unit": "gp"
+  },
+  {
+   "name": "Smith's Tools",
+   "table": "tools",
+   "amount": 20,
+   "unit": "gp"
+  },
+  {
+   "name": "Tinker's Tools",
+   "table": "tools",
+   "amount": 50,
+   "unit": "gp"
+  },
+  {
+   "name": "Weaver's Tools",
+   "table": "tools",
+   "amount": 1,
+   "unit": "gp"
+  },
+  {
+   "name": "Woodcarver's Tools",
+   "table": "tools",
+   "amount": 1,
+   "unit": "gp"
+  },
+  {
+   "name": "Dice Set",
+   "table": "tools",
+   "amount": 1,
+   "unit": "sp"
+  },
+  {
+   "name": "Playing Card Set",
+   "table": "tools",
+   "amount": 5,
+   "unit": "sp"
+  },
+  {
+   "name": "Bagpipes",
+   "table": "tools",
+   "amount": 30,
+   "unit": "gp"
+  },
+  {
+   "name": "Drum",
+   "table": "tools",
+   "amount": 6,
+   "unit": "gp"
+  },
+  {
+   "name": "Dulcimer",
+   "table": "tools",
+   "amount": 25,
+   "unit": "gp"
+  },
+  {
+   "name": "Flute",
+   "table": "tools",
+   "amount": 2,
+   "unit": "gp"
+  },
+  {
+   "name": "Lute",
+   "table": "tools",
+   "amount": 35,
+   "unit": "gp"
+  },
+  {
+   "name": "Lyre",
+   "table": "tools",
+   "amount": 30,
+   "unit": "gp"
+  },
+  {
+   "name": "Horn",
+   "table": "tools",
+   "amount": 3,
+   "unit": "gp"
+  },
+  {
+   "name": "Pan flute",
+   "table": "tools",
+   "amount": 12,
+   "unit": "gp"
+  },
+  {
+   "name": "Shawm",
+   "table": "tools",
+   "amount": 2,
+   "unit": "gp"
+  },
+  {
+   "name": "Viol",
+   "table": "tools",
+   "amount": 30,
+   "unit": "gp"
+  },
+  {
+   "name": "Navigator's Tools",
+   "table": "tools",
+   "amount": 25,
+   "unit": "gp"
+  },
+  {
+   "name": "Thieves' Tools",
+   "table": "tools",
+   "amount": 25,
+   "unit": "gp"
+  },
+  {
+   "name": "Camel",
+   "table": "mounts_and_vehicles",
+   "amount": 50,
+   "unit": "gp"
+  },
+  {
+   "name": "Donkey",
+   "table": "mounts_and_vehicles",
+   "amount": 8,
+   "unit": "gp"
+  },
+  {
+   "name": "Mule",
+   "table": "mounts_and_vehicles",
+   "amount": 8,
+   "unit": "gp"
+  },
+  {
+   "name": "Elephant",
+   "table": "mounts_and_vehicles",
+   "amount": 200,
+   "unit": "gp"
+  },
+  {
+   "name": "Horse, draft",
+   "table": "mounts_and_vehicles",
+   "amount": 50,
+   "unit": "gp"
+  },
+  {
+   "name": "Horse, riding",
+   "table": "mounts_and_vehicles",
+   "amount": 75,
+   "unit": "gp"
+  },
+  {
+   "name": "Mastiff",
+   "table": "mounts_and_vehicles",
+   "amount": 25,
+   "unit": "gp"
+  },
+  {
+   "name": "Pony",
+   "table": "mounts_and_vehicles",
+   "amount": 30,
+   "unit": "gp"
+  },
+  {
+   "name": "Warhorse",
+   "table": "mounts_and_vehicles",
+   "amount": 400,
+   "unit": "gp"
+  },
+  {
+   "name": "Barding: Padded",
+   "table": "mounts_and_vehicles",
+   "amount": 20,
+   "unit": "gp"
+  },
+  {
+   "name": "Barding: Leather",
+   "table": "mounts_and_vehicles",
+   "amount": 40,
+   "unit": "gp"
+  },
+  {
+   "name": "Barding: Studded Leather",
+   "table": "mounts_and_vehicles",
+   "amount": 180,
+   "unit": "gp"
+  },
+  {
+   "name": "Barding: Hide",
+   "table": "mounts_and_vehicles",
+   "amount": 40,
+   "unit": "gp"
+  },
+  {
+   "name": "Barding: Chain shirt",
+   "table": "mounts_and_vehicles",
+   "amount": 200,
+   "unit": "gp"
+  },
+  {
+   "name": "Barding: Scale mail",
+   "table": "mounts_and_vehicles",
+   "amount": 200,
+   "unit": "gp"
+  },
+  {
+   "name": "Barding: Breastplate",
+   "table": "mounts_and_vehicles",
+   "amount": 1600,
+   "unit": "gp"
+  },
+  {
+   "name": "Barding: Half plate",
+   "table": "mounts_and_vehicles",
+   "amount": 3000,
+   "unit": "gp"
+  },
+  {
+   "name": "Barding: Ring mail",
+   "table": "mounts_and_vehicles",
+   "amount": 12,
+   "unit": "gp"
+  },
+  {
+   "name": "Barding: Chain mail",
+   "table": "mounts_and_vehicles",
+   "amount": 300,
+   "unit": "gp"
+  },
+  {
+   "name": "Barding: Splint",
+   "table": "mounts_and_vehicles",
+   "amount": 800,
+   "unit": "gp"
+  },
+  {
+   "name": "Barding: Plate",
+   "table": "mounts_and_vehicles",
+   "amount": 6000,
+   "unit": "gp"
+  },
+  {
+   "name": "Bit and bridle",
+   "table": "mounts_and_vehicles",
+   "amount": 2,
+   "unit": "gp"
+  },
+  {
+   "name": "Carriage",
+   "table": "mounts_and_vehicles",
+   "amount": 100,
+   "unit": "gp"
+  },
+  {
+   "name": "Cart",
+   "table": "mounts_and_vehicles",
+   "amount": 15,
+   "unit": "gp"
+  },
+  {
+   "name": "Chariot",
+   "table": "mounts_and_vehicles",
+   "amount": 250,
+   "unit": "gp"
+  },
+  {
+   "name": "Animal Feed (1 day)",
+   "table": "mounts_and_vehicles",
+   "amount": 5,
+   "unit": "cp"
+  },
+  {
+   "name": "Saddle, Exotic",
+   "table": "mounts_and_vehicles",
+   "amount": 60,
+   "unit": "gp"
+  },
+  {
+   "name": "Saddle, Military",
+   "table": "mounts_and_vehicles",
+   "amount": 20,
+   "unit": "gp"
+  },
+  {
+   "name": "Saddle, Pack",
+   "table": "mounts_and_vehicles",
+   "amount": 5,
+   "unit": "gp"
+  },
+  {
+   "name": "Saddle, Riding",
+   "table": "mounts_and_vehicles",
+   "amount": 10,
+   "unit": "gp"
+  },
+  {
+   "name": "Saddlebags",
+   "table": "mounts_and_vehicles",
+   "amount": 4,
+   "unit": "gp"
+  },
+  {
+   "name": "Sled",
+   "table": "mounts_and_vehicles",
+   "amount": 20,
+   "unit": "gp"
+  },
+  {
+   "name": "Stabling (1 day)",
+   "table": "mounts_and_vehicles",
+   "amount": 5,
+   "unit": "sp"
+  },
+  {
+   "name": "Wagon",
+   "table": "mounts_and_vehicles",
+   "amount": 35,
+   "unit": "gp"
+  },
+  {
+   "name": "Galley",
+   "table": "mounts_and_vehicles",
+   "amount": 30000,
+   "unit": "gp"
+  },
+  {
+   "name": "Keelboat",
+   "table": "mounts_and_vehicles",
+   "amount": 3000,
+   "unit": "gp"
+  },
+  {
+   "name": "Longship",
+   "table": "mounts_and_vehicles",
+   "amount": 10000,
+   "unit": "gp"
+  },
+  {
+   "name": "Rowboat",
+   "table": "mounts_and_vehicles",
+   "amount": 50,
+   "unit": "gp"
+  },
+  {
+   "name": "Sailing ship",
+   "table": "mounts_and_vehicles",
+   "amount": 10000,
+   "unit": "gp"
+  },
+  {
+   "name": "Warship",
+   "table": "mounts_and_vehicles",
+   "amount": 25000,
+   "unit": "gp"
+  },
+  {
+   "name": "Wheat (1 lb.)",
+   "table": "trade_goods",
+   "amount": 1,
+   "unit": "cp"
+  },
+  {
+   "name": "Flour (1 lb.)",
+   "table": "trade_goods",
+   "amount": 2,
+   "unit": "cp"
+  },
+  {
+   "name": "Chicken",
+   "table": "trade_goods",
+   "amount": 2,
+   "unit": "cp"
+  },
+  {
+   "name": "Salt (1 lb.)",
+   "table": "trade_goods",
+   "amount": 5,
+   "unit": "cp"
+  },
+  {
+   "name": "Iron (1 lb.)",
+   "table": "trade_goods",
+   "amount": 1,
+   "unit": "sp"
+  },
+  {
+   "name": "Canvas (1 sq. yd.)",
+   "table": "trade_goods",
+   "amount": 1,
+   "unit": "sp"
+  },
+  {
+   "name": "Copper (1 lb.)",
+   "table": "trade_goods",
+   "amount": 5,
+   "unit": "sp"
+  },
+  {
+   "name": "Cotton cloth (1 sq. yd.)",
+   "table": "trade_goods",
+   "amount": 5,
+   "unit": "sp"
+  },
+  {
+   "name": "Ginger (1 lb.)",
+   "table": "trade_goods",
+   "amount": 1,
+   "unit": "gp"
+  },
+  {
+   "name": "Goat",
+   "table": "trade_goods",
+   "amount": 1,
+   "unit": "gp"
+  },
+  {
+   "name": "Cinnamon (1 lb.)",
+   "table": "trade_goods",
+   "amount": 2,
+   "unit": "gp"
+  },
+  {
+   "name": "Pepper (1 lb.)",
+   "table": "trade_goods",
+   "amount": 2,
+   "unit": "gp"
+  },
+  {
+   "name": "Sheep",
+   "table": "trade_goods",
+   "amount": 2,
+   "unit": "gp"
+  },
+  {
+   "name": "Cloves (1 lb.)",
+   "table": "trade_goods",
+   "amount": 3,
+   "unit": "gp"
+  },
+  {
+   "name": "Pig",
+   "table": "trade_goods",
+   "amount": 3,
+   "unit": "gp"
+  },
+  {
+   "name": "Silver (1 lb.)",
+   "table": "trade_goods",
+   "amount": 5,
+   "unit": "gp"
+  },
+  {
+   "name": "Linen (1 sq. yd.)",
+   "table": "trade_goods",
+   "amount": 5,
+   "unit": "gp"
+  },
+  {
+   "name": "Silk (1 sq. yd.)",
+   "table": "trade_goods",
+   "amount": 10,
+   "unit": "gp"
+  },
+  {
+   "name": "Cow",
+   "table": "trade_goods",
+   "amount": 10,
+   "unit": "gp"
+  },
+  {
+   "name": "Saffron (1 lb.)",
+   "table": "trade_goods",
+   "amount": 15,
+   "unit": "gp"
+  },
+  {
+   "name": "Ox",
+   "table": "trade_goods",
+   "amount": 15,
+   "unit": "gp"
+  },
+  {
+   "name": "Gold (1 lb.)",
+   "table": "trade_goods",
+   "amount": 50,
+   "unit": "gp"
+  },
+  {
+   "name": "Platinum (1 lb.)",
+   "table": "trade_goods",
+   "amount": 500,
+   "unit": "gp"
+  },
+  {
+   "name": "Ale, gallon",
+   "table": "food_drink_lodging",
+   "amount": 2,
+   "unit": "sp"
+  },
+  {
+   "name": "Ale, mug",
+   "table": "food_drink_lodging",
+   "amount": 4,
+   "unit": "cp"
+  },
+  {
+   "name": "Banquet (per person)",
+   "table": "food_drink_lodging",
+   "amount": 10,
+   "unit": "gp"
+  },
+  {
+   "name": "Bread, loaf",
+   "table": "food_drink_lodging",
+   "amount": 2,
+   "unit": "cp"
+  },
+  {
+   "name": "Cheese, hunk",
+   "table": "food_drink_lodging",
+   "amount": 1,
+   "unit": "sp"
+  },
+  {
+   "name": "Inn stay, squalid (per day)",
+   "table": "food_drink_lodging",
+   "amount": 7,
+   "unit": "cp"
+  },
+  {
+   "name": "Inn stay, poor (per day)",
+   "table": "food_drink_lodging",
+   "amount": 1,
+   "unit": "sp"
+  },
+  {
+   "name": "Inn stay, modest (per day)",
+   "table": "food_drink_lodging",
+   "amount": 5,
+   "unit": "sp"
+  },
+  {
+   "name": "Inn stay, comfortable (per day)",
+   "table": "food_drink_lodging",
+   "amount": 8,
+   "unit": "sp"
+  },
+  {
+   "name": "Inn stay, wealthy (per day)",
+   "table": "food_drink_lodging",
+   "amount": 2,
+   "unit": "gp"
+  },
+  {
+   "name": "Inn stay, aristocratic (per day)",
+   "table": "food_drink_lodging",
+   "amount": 4,
+   "unit": "gp"
+  },
+  {
+   "name": "Meals, squalid (per day)",
+   "table": "food_drink_lodging",
+   "amount": 3,
+   "unit": "cp"
+  },
+  {
+   "name": "Meals, poor (per day)",
+   "table": "food_drink_lodging",
+   "amount": 6,
+   "unit": "cp"
+  },
+  {
+   "name": "Meals, modest (per day)",
+   "table": "food_drink_lodging",
+   "amount": 3,
+   "unit": "sp"
+  },
+  {
+   "name": "Meals, comfortable (per day)",
+   "table": "food_drink_lodging",
+   "amount": 5,
+   "unit": "sp"
+  },
+  {
+   "name": "Meals, wealthy (per day)",
+   "table": "food_drink_lodging",
+   "amount": 8,
+   "unit": "sp"
+  },
+  {
+   "name": "Meals, aristocratic (per day)",
+   "table": "food_drink_lodging",
+   "amount": 2,
+   "unit": "gp"
+  },
+  {
+   "name": "Meat, chunk",
+   "table": "food_drink_lodging",
+   "amount": 3,
+   "unit": "sp"
+  },
+  {
+   "name": "Wine, common (pitcher)",
+   "table": "food_drink_lodging",
+   "amount": 2,
+   "unit": "sp"
+  },
+  {
+   "name": "Wine, fine (bottle)",
+   "table": "food_drink_lodging",
+   "amount": 10,
+   "unit": "gp"
+  },
+  {
+   "name": "Coach cab, between towns (per mile)",
+   "table": "services",
+   "amount": 3,
+   "unit": "cp"
+  },
+  {
+   "name": "Coach cab, within a city",
+   "table": "services",
+   "amount": 1,
+   "unit": "cp"
+  },
+  {
+   "name": "Hireling, skilled (per day)",
+   "table": "services",
+   "amount": 2,
+   "unit": "gp"
+  },
+  {
+   "name": "Hireling, untrained (per day)",
+   "table": "services",
+   "amount": 2,
+   "unit": "sp"
+  },
+  {
+   "name": "Messenger (per mile)",
+   "table": "services",
+   "amount": 2,
+   "unit": "cp"
+  },
+  {
+   "name": "Road or gate toll",
+   "table": "services",
+   "amount": 1,
+   "unit": "cp"
+  },
+  {
+   "name": "Ship's passage (per mile)",
+   "table": "services",
+   "amount": 1,
+   "unit": "sp"
+  },
+  {
+   "name": "Lifestyle, squalid (per day)",
+   "table": "lifestyle",
+   "amount": 1,
+   "unit": "sp"
+  },
+  {
+   "name": "Lifestyle, poor (per day)",
+   "table": "lifestyle",
+   "amount": 2,
+   "unit": "sp"
+  },
+  {
+   "name": "Lifestyle, modest (per day)",
+   "table": "lifestyle",
+   "amount": 1,
+   "unit": "gp"
+  },
+  {
+   "name": "Lifestyle, comfortable (per day)",
+   "table": "lifestyle",
+   "amount": 2,
+   "unit": "gp"
+  },
+  {
+   "name": "Lifestyle, wealthy (per day)",
+   "table": "lifestyle",
+   "amount": 4,
+   "unit": "gp"
+  },
+  {
+   "name": "Lifestyle, aristocratic (per day, minimum)",
+   "table": "lifestyle",
+   "amount": 10,
+   "unit": "gp"
+  }
+ ]
+}

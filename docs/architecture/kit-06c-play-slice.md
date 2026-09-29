@@ -99,6 +99,14 @@ The first live result named an `npc_embodiment` goal in private but gave the pla
 
 ## Scope and evaluation
 
+**Since playtest 03** (`kit-expression-gap.md`, sections i and j):
+
+- An unquoted reply to an NPC's question routes as speech. Only a clearly declared physical action still asks for a ruling.
+- Every Kit aside quotes what it reacts to.
+- Detail questions go through the detail oracle and the canon ledger.
+- Prices come from the source, the DMG, the SRD 5.1 tables, or Brendon's magic item formula, or they stay unpriced.
+- Once a card game is declared, it is a runtime procedure: Three-Dragon Ante, with the marked deck, player counters, and a persisted wager. Pass `--sleight-of-hand` with `--perception` and `--insight` for card play, or give your own roll in the action ("I rolled 14 + 3 = 17").
+
 This slice supports conversation and a few explicit room interactions. It has no character-sheet store, complete 5e rules, initiative/combat, validated NPC promises or inventory transfer, pathing beyond the south door, or background faction simulation. Social dialogue is retained as transcript and Kit memory; material NPC bargains need a future state transition before they can be authoritative.
 
 The public packet lacks private facts and a small literal-leak check rejects known phrases, but this **does not guarantee** that free-form prose cannot imply a secret or invent a new fact. In chat-host mode, the assistant still has access to the private planning context. Human review and adversarial model tests are required before treating the output as source-safe. The model may also choose an unconvincing reaction or flat dialogue. The automated tests use a fake model and one mocked API response; they verify orchestration and rollback, not humor or personality quality. The chat tool transcript may expose private packets to a person inspecting tool calls, so a blind player playtest needs a separate player-facing surface.

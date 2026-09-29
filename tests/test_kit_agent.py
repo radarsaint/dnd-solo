@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from runtime import kit_agent
+from runtime import kit_agent, kit_detail
 from runtime.kit_agent import (EVENT_MAX_CHARS, EXCHANGE_MIN_ACTOR_WORDS, KitAgent, KitChatBridge,
                                OpenAIResponsesModel, PendingRuling, Room6CAdjudicator,
                                check_public_content, room_intent, social_event)
@@ -32,9 +32,9 @@ DEALER_EXCHANGES = [
      'A newcomer who asks questions before placing a bet is either careful or broke, and I have no use '
      'for broke. Which are you? Name the reason you walked in here, and I will tell you what it costs.'),
     ('Coins shift across the worn table as the dealer fans the cards and waits.',
-     'Stakes are whatever the house says they are, and tonight the house is feeling generous toward '
-     'brave faces. A silver to see the next hand, or gold if you want my attention. Well? Shall I deal '
-     'you in?'),
+     'The house sets its own terms, and tonight the house is feeling generous toward brave faces. '
+     'Sit first and I will name what my game costs, or keep your purse shut and watch. Well? Shall I '
+     'deal you in?'),
     ('One of the pale players drums a finger beside a stack of copper.',
      'Patience is a virtue at most tables, not at mine. Every moment you stand in that doorway is a '
      'moment someone else could be losing money to me. Take the empty stool or step aside. Which will '
@@ -48,7 +48,9 @@ DEALER_EXCHANGES = [
 def exchange_speech(index=0, kit=True):
     narration, dealer = DEALER_EXCHANGES[index % len(DEALER_EXCHANGES)]
     segments = [{'speaker': 'Narrator', 'text': narration}, {'speaker': 'Dealer', 'text': dealer}]
-    return {'segments': ([{'speaker': 'Kit', 'text': 'That is a choice.'}] if kit else []) + segments}
+    # Kit reacts to something shown this turn, quoted verbatim (kit_voice.check_kit_asides).
+    aside = {'speaker': 'Kit', 'text': 'That is a choice.', 'reacts_to': ' '.join(narration.split()[:4])}
+    return {'segments': ([aside] if kit else []) + segments}
 
 
 EXCHANGE_SPEECH = exchange_speech(0)
@@ -114,6 +116,7 @@ class RecordingModel:
             'player_note': {'note': 'none', 'evidence_turns': [], 'replaces': 'none'},
             'player_mood': {'read': 'neutral', 'cue': 'none'},
             'turn_mode': (payload.get('table_read') or {}).get('mode_hint') or 'banter',
+            'detail': dict(kit_detail.NO_DETAIL, inventions=[]),
         }
 
     def perform(self, payload, performance_variant='current'):
@@ -531,7 +534,8 @@ class KitFocusAndScopeTests(unittest.TestCase):
         plan['improv_read'].update(actor_ref='none', actor_basis='none')
         self.bridge.decide('roll', plan)
         result = self.bridge.finish('roll', {'segments': [
-            {'speaker': 'Kit', 'text': 'Give me a Wisdom (Insight) check.'}]})
+            {'speaker': 'Kit', 'text': 'Give me a Wisdom (Insight) check.',
+             'reacts_to': 'Can I tell if they are friendly'}]})
         self.assertEqual(result['spoken'], 'Kit: Give me a Wisdom (Insight) check.')
 
     def test_call_scope_cannot_run_long_or_cover_an_npc_reply(self):
@@ -544,7 +548,8 @@ class KitFocusAndScopeTests(unittest.TestCase):
         self.bridge.decide('long-call', plan)
         with self.assertRaisesRegex(InvalidChange, 'Call scope ran long'):
             self.bridge.finish('long-call', {'segments': [
-                {'speaker': 'Kit', 'text': 'Roll Insight. ' + 'Very long table chatter. ' * 20}]})
+                {'speaker': 'Kit', 'text': 'Roll Insight. ' + 'Very long table chatter. ' * 20,
+                 'reacts_to': 'tell if they are friendly'}]})
 
     def test_reply_to_must_quote_the_players_own_words(self):
         prepared, plan = self._prepared_plan(NIK_GREETING, 'misquote',
@@ -1079,8 +1084,15 @@ class BridgeVoiceVariantTests(unittest.TestCase):
                       'never changes a fact, rules outcome', 'never hints at hidden information',
                       'never decides what the player thinks', 'NPCs never borrow her wit',
                       'generic praise or filler', 'still rule fairly', 'mirror',
-                      'the most entertaining true thing beats the merely correct thing'):
+                      'Guiding star: nonsense is not entertaining',
+                      'coherent and true to what just happened',
+                      'a quip that contradicts or ignores the scene is a failure, never flavor',
+                      'A question for detail is an invitation', 'answer the literal question first',
+                      'Boldness goes into which detail, never length'):
             self.assertIn(guard, voice)
+        # Research (02-llm-blandness): "most entertaining true thing" read as "commit to as
+        # little as possible". Retired everywhere it was the guiding star.
+        self.assertNotIn('most entertaining true thing', voice)
         # Brendon's spec, by mode: quippy table talk, theatrical description, tense combat.
         for spec in ('Meta and banter: quippy', 'Description: theatrical, mood-setting',
                      'overacting is welcome', 'Combat: engaged, tense, evocative',

@@ -26,8 +26,8 @@ LEAKS = kit_guards.leak_sets(SOURCE)
 EMPTY_VIEW = {'known_facts_here': []}
 
 
-def seg(speaker, text):
-    return {'speaker': speaker, 'text': text}
+def seg(speaker, text, reacts_to=None):
+    return {'speaker': speaker, 'text': text, **({'reacts_to': reacts_to} if reacts_to else {})}
 
 
 def history(*turns):
@@ -252,18 +252,18 @@ class RulingDodgeTests(BridgeCase):
     def test_real_rules_question_may_be_a_call(self):
         prepared = self.bridge.prepare('Can I roll Insight on the dealer?', 'rules')
         self.bridge.decide('rules', self.dodge(prepared, move='ruling'))
-        result = self.bridge.finish('rules', {'segments': [seg('Kit', 'Wisdom (Insight), yes. Go ahead.')]})
+        result = self.bridge.finish('rules', {'segments': [seg('Kit', 'Wisdom (Insight), yes. Go ahead.', 'roll Insight on the dealer')]})
         self.assertEqual(result['revision'], 1)
 
     def test_clarification_must_ask_and_cannot_hide_an_npc_reply(self):
         prepared = self.bridge.prepare('I say: do the thing with the cards.', 'clarify')
         self.bridge.decide('clarify', self.dodge(prepared, move='ask_clarification'))
         with self.assertRaisesRegex(InvalidChange, 'must actually ask'):
-            self.bridge.finish('clarify', {'segments': [seg('Kit', 'Cards it is.')]})
+            self.bridge.finish('clarify', {'segments': [seg('Kit', 'Cards it is.', 'do the thing with the cards')]})
         with self.assertRaisesRegex(InvalidChange, 'cannot carry an NPC reply'):
-            self.bridge.finish('clarify', {'segments': [seg('Kit', 'Which thing?'),
+            self.bridge.finish('clarify', {'segments': [seg('Kit', 'Which thing?', 'do the thing'),
                                                         seg('Dealer', 'Show me, then.')]})
-        self.bridge.finish('clarify', {'segments': [seg('Kit', 'Which thing: shuffle, cut, or palm one?')]})
+        self.bridge.finish('clarify', {'segments': [seg('Kit', 'Which thing: shuffle, cut, or palm one?', 'the thing with the cards')]})
 
 
 class ParaphraseLeakTests(BridgeCase):
@@ -427,6 +427,29 @@ class ContextBudgetTests(BridgeCase):
         with self.assertRaisesRegex(InvalidChange, 'Context budget exceeded'):
             fit_to_budget({'kit_state': {'episodes': []}, 'dialogue_history': [],
                            'dm_context': {'recent_rhythm': [], 'big': 'q' * 5000}}, [], budget=1000)
+
+    def test_a_detail_turn_after_a_long_game_fits_both_budgets(self):
+        class LongTalk(RecordingModel):
+            def plan(inner, payload):
+                plan = super().plan(payload)
+                action = payload['player_action']
+                plan['appraisal']['cause'] = action[:300]
+                plan['improv_read']['player_bid'] = action[:300]
+                plan['public_brief']['reply_to'] = action[:200]
+                return plan
+
+        agent = KitAgent(self.runtime, LongTalk(), self.adjudicator)
+        for turn in range(12):
+            agent.turn(f'Question {turn}: ' + ' '.join(f'word{turn}x{i}' for i in range(90)) + '?',
+                       f'long-{turn}')
+        for ask in ('What game is it?', 'What is the dealer drinking?', 'How much for passage?'):
+            prepared = self.bridge.prepare(ask, f'detail-{len(ask)}', one_pass=True)
+            private = len(encode(prepared['input']['private']).encode())
+            public = len(encode(prepared['input']['public']).encode())
+            self.assertIn('detail_oracle', prepared['input']['private'])
+            self.assertLessEqual(private, CONTEXT_BUDGET_BYTES)
+            self.assertLessEqual(private + public, kit_agent.ONE_PASS_BUDGET_BYTES)
+            self.runtime.discard_pending_kit_turn(f'detail-{len(ask)}')
 
     def test_long_game_stays_inside_both_budgets(self):
         class LongTalk(RecordingModel):

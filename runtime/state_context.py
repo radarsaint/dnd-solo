@@ -21,7 +21,13 @@ RHYTHM_EVIDENCE_MAX_CHARS = 600  # per recent_rhythm entry; 12 entries stay insi
 # and npc_notice, ~0.25 KB) to every private input. That raised the irreducible floor of
 # the long-game worst case (ContextBudgetTests) from about 22.9 KB to about 24.2 KB; 25 KB
 # restores roughly the headroom kit-hardening had. About 250 more tokens per decision.
-CONTEXT_BUDGET_BYTES = 25000
+# 26 KB, up from 25 KB (kit-coherence-gambling): the guiding-star amendment and the
+# "Details Are Invitations" section add ~0.55 KB to the core, and the room's procedure
+# list ~0.1 KB, on top of a worst case that already sat at 24.9 KB. A detail turn also
+# carries the private detail_oracle (~1.5-2.5 KB, only when the player asks for a detail).
+# Packet trimming is deliberately out of scope for this change (Brendon dropped the
+# latency fix), so the ceiling moves instead.
+CONTEXT_BUDGET_BYTES = 26000
 
 # Version 2 adds Kit's player_notes and richer episodes (player_bid, kit_choice,
 # actor and story thread). Older snapshots are upgraded in memory on load; the
@@ -36,10 +42,37 @@ PLAYER_NOTE_SOURCES = ('observed', 'feedback')
 # later turn can refer to them. Nothing about the world changes when one is recorded.
 REFUSED_ATTEMPT_LIMIT = 4
 REFUSED_ATTEMPT_MAX_CHARS = 300
+# The canon ledger: details the source does not supply that the DM established in play
+# (runtime/kit_detail.py), keyed by slot ("actor:uktarl/drink", "area_06c/card_table/game").
+# Persisted so an invented answer stays true later; a change needs an in-story reason and
+# keeps the superseded fact.
+CANON_LIMIT = 48
+CANON_KINDS = ('object', 'drink_food', 'appearance', 'name', 'price', 'inscription',
+               'procedure', 'history', 'other')
+CANON_SCOPES = ('scene', 'location', 'actor', 'campaign')
+CANON_SLOT = re.compile(r'^[a-z0-9_:]+(/[a-z0-9_]+){1,3}$')
+# Events a Kit turn may add at commit, after the adjudicated batch it was prepared with:
+# the decision's canon entries, the oracle deal it consumed, and procedure state.
+COMMIT_APPENDED_EVENTS = ('canon_entry', 'oracle_draw', 'procedure_state')
 EPISODE_DEFAULTS = {'player_bid': None, 'kit_choice': None, 'actor_ref': None,
                     'story_anchor': None, 'story_basis': None}
 # Notes describe what the player did or said. They are not a relationship meter.
 _SCORE_PATTERN = r'\b\d+\s*(/|out of)\s*\d+\b|%|\b(score|meter|affection|rating)\b'
+
+
+def canon_in_scope(state):
+    """Canon entries that apply here: this location's, present actors', campaign-wide."""
+    area = state['area']
+    present = {key for key, actor in state.get('actors', {}).items()
+               if actor.get('location') == area and actor.get('status') != 'fled'}
+    kept = {}
+    for slot, entry in (state.get('canon') or {}).items():
+        scope, subject = entry.get('scope'), slot.split('/')[0]
+        if scope == 'campaign' or \
+                (scope == 'actor' and subject.startswith('actor:') and subject[6:] in present) or \
+                (scope in ('location', 'scene') and entry.get('area') == area):
+            kept[slot] = entry
+    return kept
 
 
 class InvalidChange(ValueError):
@@ -132,6 +165,13 @@ class Runtime:
             require(fact['area'] in source['areas'], 'Unknown fact area')
         for actor in source['actors'].values():
             require(actor['location'] in source['areas'], 'Unknown actor area')
+        # DM prep is checked once, before play: the texture palette (roots, no prices, no
+        # leaks) and every table procedure's config. Local import: both import this module.
+        from . import kit_cards, kit_texture
+        kit_texture.check_palette(source)
+        for key, config in (source.get('procedures') or {}).items():
+            if not key.startswith('_') and config.get('kind') == 'card_game':
+                kit_cards.check_config(config)
         state = {
             'schema_version': STATE_SCHEMA_VERSION, 'area': area, 'elapsed_seconds': 0,
             'visited': [area], 'known_facts': [], 'known_exits': [],
@@ -289,9 +329,12 @@ class Runtime:
                 require(pending is not None and pending[0] == expected_revision and
                         pending[2] == encode(kit_record['trace']), 'Pending Kit decision changed')
                 staged = json.loads(pending[1])
+                prepared = staged['events']
                 require(staged['action'] == kit_record['player_input'] and
                         staged['public_event'] == kit_record['public_event'] and
-                        staged['events'] == events, 'Pending Kit event changed')
+                        events[:len(prepared)] == prepared and
+                        all(event.get('type') in COMMIT_APPENDED_EVENTS
+                            for event in events[len(prepared):]), 'Pending Kit event changed')
             source = self.source()
             for event in events:
                 self._apply(state, source, event)
@@ -519,6 +562,67 @@ class Runtime:
             attempts.append({'action': event['action'], 'ruling': event['ruling'],
                              'revision': revision + 1})
             state['refused_attempts'] = attempts[-REFUSED_ATTEMPT_LIMIT:]
+        elif kind == 'canon_entry':
+            slot = event.get('slot')
+            require(isinstance(slot, str) and CANON_SLOT.match(slot), 'canon_entry needs a slot')
+            require(slot.split('/')[-1] not in source['facts'], 'canon_entry collides with a source fact')
+            require(event.get('kind') in CANON_KINDS and event.get('scope') in CANON_SCOPES,
+                    'Unknown canon_entry kind or scope')
+            require(isinstance(event.get('fact'), str) and 0 < len(event['fact'].strip()) <= 240,
+                    'canon_entry fact must be 1-240 characters')
+            require(isinstance(event.get('basis'), str) and event['basis'].strip(),
+                    'canon_entry needs its basis')
+            require(type(event.get('public')) is bool, 'canon_entry public must be a boolean')
+            procedure = event.get('procedure')
+            if procedure is not None or event['kind'] == 'procedure':
+                require(event['kind'] == 'procedure' and procedure in
+                        {k for k in source.get('procedures', {}) if not k.startswith('_')},
+                        'A procedure entry must name a procedure this room can run')
+            price = event.get('price')
+            if event['kind'] == 'price':
+                require(isinstance(price, dict) and type(price.get('amount')) is int and
+                        price.get('unit') in ('cp', 'sp', 'ep', 'gp', 'pp') and price.get('basis'),
+                        'A price entry records its amount, unit, and which source, SRD entry, or '
+                        'formula set it')
+            canon = state.setdefault('canon', {})
+            prior = canon.get(slot)
+            fact = event['fact'].strip()
+            revision, _ = self.load()
+            if prior and prior['fact'] == fact:
+                pass  # restating canon is fine
+            else:
+                if prior:
+                    require(prior['kind'] != 'price', f'{slot} already has its price: {prior["fact"]}')
+                    require(isinstance(event.get('change_reason'), str) and
+                            len(event['change_reason'].split()) >= 4,
+                            f'canon_entry contradicts {slot} ({prior["fact"]}) without an in-story reason')
+                else:
+                    require(len(canon) < CANON_LIMIT, 'Too many canon entries for one session')
+                canon[slot] = {'kind': event['kind'], 'fact': fact, 'basis': event['basis'].strip(),
+                               'public': event['public'], 'scope': event['scope'],
+                               'procedure': procedure, 'roots': list(event.get('roots') or []),
+                               'choice': event.get('choice'), 'price': price,
+                               'area': state['area'], 'revision': revision + 1,
+                               **({'supersedes': {'fact': prior['fact'], 'revision': prior['revision'],
+                                                  'reason': event['change_reason']}} if prior else {})}
+        elif kind == 'oracle_draw':
+            slot = event.get('slot')
+            require(isinstance(slot, str) and CANON_SLOT.match(slot), 'oracle_draw needs a slot')
+            oracle = state.setdefault('oracle', {'deals': {}, 'used': {}})
+            oracle['deals'][slot] = oracle['deals'].get(slot, 0) + 1
+            if event.get('card'):
+                used = oracle['used'].setdefault(state['area'], [])
+                if event['card'] not in used:
+                    used.append(event['card'])
+        elif kind == 'procedure_state':
+            key = event.get('procedure')
+            require(key in {k for k in source.get('procedures', {}) if not k.startswith('_')},
+                    'Unknown table procedure')
+            body = event.get('state')
+            require(isinstance(body, dict) and set(body) == {'public', 'private'},
+                    'Procedure state needs public and private halves')
+            require(len(encode(body).encode()) <= 6000, 'Procedure state exceeds size limit')
+            state.setdefault('procedures', {})[key] = copy.deepcopy(body)
         elif kind == 'beat':
             tags = event.get('tags')
             require(isinstance(tags, list) and all(isinstance(t, str) for t in tags), 'Invalid beat tags')
@@ -534,6 +638,18 @@ class Runtime:
 
     @staticmethod
     def _player_view(source, state):
+        view = Runtime._base_player_view(source, state)
+        established = [{'slot': key, 'fact': item['fact']}
+                       for key, item in canon_in_scope(state).items() if item['public']]
+        if established:
+            view['established_details'] = established
+        procedures = {key: body['public'] for key, body in (state.get('procedures') or {}).items()}
+        if procedures:
+            view['table_procedures'] = procedures
+        return view
+
+    @staticmethod
+    def _base_player_view(source, state):
         exits = []
         for key in state['known_exits']:
             edge = source['exits'][key]
@@ -578,6 +694,14 @@ class Runtime:
                     'geometry': {k: e for k, e in source['exits'].items() if area in e['areas']},
                     'actors': {k: a for k, a in state['actors'].items()
                                if a['location'] == area and a['status'] != 'fled'},
+                    **({'canon_here': canon_in_scope(state)} if canon_in_scope(state) else {}),
+                    **({'procedures_private': {k: body['private'] for k, body in
+                                               state['procedures'].items()}}
+                       if state.get('procedures') else {}),
+                    **({'supported_procedures': {
+                        k: {'kind': p.get('kind'), 'name': p.get('name')}
+                        for k, p in source['procedures'].items() if not k.startswith('_')}}
+                       if source.get('procedures') else {}),
                 },
                 'recent_rhythm': state['rhythm'],
                 'constraints': [

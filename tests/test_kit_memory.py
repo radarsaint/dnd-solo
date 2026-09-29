@@ -32,7 +32,7 @@ CALLBACK_SPEECH = {'segments': [
 # A competent reply that ignores the callback entirely.
 FORGETFUL_SPEECH = {'segments': [
     {'speaker': 'Narrator', 'text': 'He deals you in with a practiced snap of the wrist.'},
-    {'speaker': 'Dealer', 'text': ('Ante is two silver and the house deals. Aces high, no questions about '
+    {'speaker': 'Dealer', 'text': ('Sit, and the house deals. Aces high, no questions about '
                                    'the order of the deck, and nobody leaves mid-hand. Those are the rules '
                                    'of my table. Do we understand each other?')}]}
 
@@ -89,7 +89,7 @@ class MemoryTestCase(unittest.TestCase):
     def coin_then_filler(self, filler=MEMORY_LIMIT):
         self.play(COIN, 'coin', COIN_SPEECH)
         for index in range(filler):
-            self.play(f'Tell me about the weather {index}?', f'filler-{index}')
+            self.play(f'Quite the weather down here {index}, eh?', f'filler-{index}')
 
 
 class EpisodeMemoryTests(MemoryTestCase):

@@ -1,0 +1,29 @@
+{
+  "schema": "kit_taste_v1",
+  "version": 1,
+  "_status": "Kit's taste for invented detail, as data code reads. Never pasted into a prompt: preferences re-rank the oracle's deal, vetoes and floors are validator-only (naming a banned answer in a prompt primes it). Reviewed by Brendon.",
+  "prefers": {
+    "familiar": 3,
+    "watchable_cheat": 3,
+    "gives_player_a_handle": 3,
+    "owner_with_a_want": 2,
+    "specific_number": 2,
+    "tactile": 2,
+    "grave_humor": 2,
+    "callback_to_canon": 2
+  },
+  "avoids": {
+    "stock_fare": ["water", "ale", "beer", "wine", "mead", "bread", "stew", "cheese", "gruel", "porridge", "soup", "tea", "milk"],
+    "stock_game": ["high card", "a simple game", "simple game", "cards", "card", "a game", "dice", "games", "game"],
+    "stock_nothing": ["nothing special", "nothing much", "nothing", "ordinary", "plain", "normal", "the usual", "usual", "regular", "standard", "basic", "common", "typical", "generic", "stuff", "things", "something"],
+    "vague_quantity": ["a matching coin", "some coins", "a few coins", "a coin", "coins", "coin", "some"],
+    "stock_setting": ["stone", "wood", "wooden", "old", "room", "drink", "food", "meal", "book", "cloth", "rag", "rags", "high", "much", "special", "anything"]
+  },
+  "filler": ["a", "an", "the", "just", "only", "some", "it", "its", "it's", "is", "was", "this", "that", "that's", "they're", "same", "kind", "sort", "of", "mug", "cup", "glass", "bowl", "flagon", "tankard", "piece", "bit", "plus", "and", "or", "really", "very", "he", "she", "they", "we", "i", "you", "his", "her", "their", "our", "my", "your", "drinks", "drinking", "eats", "eating", "plays", "playing", "we're", "he's", "she's", "there's", "here", "few", "matching", "from", "each", "player", "one", "as", "always"],
+  "generic_max_words": 8,
+  "floors": {
+    "detail_min_specifics": 1,
+    "specifics": ["proper_noun", "number_with_unit", "palette_sensory_word", "real_world_basis"]
+  },
+  "override_budget_per_turn": 1
+}
