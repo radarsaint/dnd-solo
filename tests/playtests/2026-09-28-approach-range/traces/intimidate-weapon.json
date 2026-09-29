@@ -1,0 +1,375 @@
+{
+  "label": "host model: Grok via KitChatBridge; not GPT; author-played, not a quality verdict.",
+  "approach": "Intimidation with a drawn weapon",
+  "final_revision": 4,
+  "committed_turns": [
+    {
+      "performance_variant": "kit_expression_v1",
+      "player_input": "[scene entry]",
+      "public_event": "A newcomer has reached the card room.",
+      "spoken": "Narrator: A coin rings off the table edge and wobbles across the floor toward the south door, and nobody at the card table moves to catch it. Four of them sit at a worn table near that door, pale as candle tallow, pointed teeth showing when they breathe, dressed in lace and velvet gone shiny at the elbows. Each has coins stacked in front of them; a silver ring sits among the stacks in the middle. The man dealing has stopped mid-hand, one card pinned between two fingers. Beyond them, the whole north wall is a carved mountain, tiny dwarves in tiny caverns, stone sunbeams fanning over a long tub sunk into the floor.\nNarrator: When the dealer speaks it is slow and savoring, each word laid down like a card he means you to look at.\nDealer: Well, now. The door brought us company. Come in, come in, the passage is draftier than we are. That coin by your boot is the most interesting thing that has happened at this table in an hour, so tell me: are you the sort who picks it up, or the sort who waits to see whose it is?",
+      "trace": {
+        "appraisal": {
+          "cause": "A newcomer walks in on a game with a performer dealing.",
+          "goal_effect": "advances",
+          "intensity": 1,
+          "label": "interest",
+          "target": "scene"
+        },
+        "focus_actor": "uktarl",
+        "goal": "npc_embodiment",
+        "improv_read": {
+          "actor_basis": "immediate_goal",
+          "actor_ref": "uktarl",
+          "connection": "The gang works newcomers here; the dealer wants control of the encounter from the first word, so he speaks first and sets the terms of attention, not money.",
+          "kit_choice": "Let the room open on the dealer performing for an audience, and stay out of it herself so the player meets people, not a DM.",
+          "player_bid": "No bid yet; a newcomer has reached the card room.",
+          "story_anchor": "level",
+          "story_basis": "pressure_here"
+        },
+        "memory_refs": [],
+        "move": "world_description",
+        "observed_event": "A newcomer has reached the card room.",
+        "player_note": {
+          "evidence_turns": [],
+          "note": "none",
+          "replaces": "none"
+        },
+        "public_brief": {
+          "callback": "none",
+          "kit_focus": "Open on people in motion, a game interrupted, and put the carving and tub in view without comment; no DM voice yet.",
+          "objective": "Make the newcomer the center of the table's attention on the dealer's terms.",
+          "player_opening": "The newcomer can answer him, approach, ignore the table, or look at the carving and tub.",
+          "reply_to": "none",
+          "scope": "feature",
+          "tactic": "Welcome the newcomer as theatre and pull them toward the table before they decide anything.",
+          "visible_cue": "A dropped coin rolls toward the door; the dealer holds one card unplayed between two fingers."
+        },
+        "table_presence": "quiet",
+        "tone": "curious"
+      }
+    },
+    {
+      "performance_variant": "kit_expression_v1",
+      "player_input": "I draw my longsword, lay it flat across the table between the coin stacks, and say: \"Whoever's in charge here, talk to me. Now.\"",
+      "public_event": "You declare: \"I draw my longsword, lay it flat across the table between the coin stacks, and say: \"Whoever's in charge here, talk to me. Now.\"\"",
+      "spoken": "Kit: Steel on the table is a threat, not an attack. No initiative unless somebody swings.\nNarrator: Coins shiver where the flat of the blade came down. The player nearest the door lets one hand slide under the table and leaves it there. The one by the fresco stops breathing, or looks like it. The dealer's card does not move at all.\nDealer: In charge. That would be me. Take your blade off my money, friend. Then talk. You want something from the man in charge, and the man in charge wants to see whether you know how to ask for it. Ten gold buys you passage and my good opinion. The sword buys you four enemies and a very short walk.",
+      "trace": {
+        "appraisal": {
+          "cause": "The newcomer bares steel across the gang’s money and demands whoever is in charge.",
+          "goal_effect": "threatens",
+          "intensity": 2,
+          "label": "concern",
+          "target": "scene"
+        },
+        "focus_actor": "uktarl",
+        "goal": "competent_opposition",
+        "improv_read": {
+          "actor_basis": "immediate_goal",
+          "actor_ref": "uktarl",
+          "connection": "He wants control without risking himself and wants to be seen as the one in charge; drawn steel is a risk he will not meet with violence, so he claims authority and names the terms with the blade in view.",
+          "kit_choice": "Drawn steel changes what rules are in play, so Kit states exactly where things stand, then disappears and lets fear show in the underlings, not in the dealer.",
+          "player_bid": "Draws a longsword, lays it across the table among the coins, and demands to speak to whoever is in charge.",
+          "story_anchor": "level",
+          "story_basis": "pressure_here"
+        },
+        "memory_refs": [],
+        "move": "kit_comment_then_npc",
+        "observed_event": "You declare: \"I draw my longsword, lay it flat across the table between the coin stacks, and say: \"Whoever's in charge here, talk to me. Now.\"\"",
+        "player_note": {
+          "evidence_turns": [
+            "this_turn"
+          ],
+          "note": "Opens with a drawn weapon and direct demands.",
+          "replaces": "none"
+        },
+        "public_brief": {
+          "callback": "none",
+          "kit_focus": "Rule the drawn sword exactly as a threat with no initiative yet, then let the room answer with stillness; no DM color after the ruling.",
+          "objective": "Claim authority and take control back without anyone drawing.",
+          "player_opening": "The newcomer can lift the blade, keep it there, answer the terms, or escalate.",
+          "reply_to": "Whoever's in charge here, talk to me. Now.",
+          "scope": "exchange",
+          "tactic": "Claim to be in charge, stay seated, and state the terms crisply: blade off the money, then talk business.",
+          "visible_cue": "The card stops moving; one player’s hand drifts under the table, another goes very still."
+        },
+        "table_presence": "brief",
+        "tone": "threatening"
+      }
+    },
+    {
+      "performance_variant": "kit_expression_v1",
+      "player_input": "I lean on the pommel and don't move the blade. \"I'm not asking twice.\" (Intimidation: I rolled an 18 total.)",
+      "public_event": "You declare: \"I lean on the pommel and don't move the blade. \"I'm not asking twice.\" (Intimidation: I rolled an 18 total.)\"",
+      "spoken": "Kit: Eighteen is noted and it will count the moment he has to choose between his pride and your blade. He hasn't decided to fold or fight yet, so I'm not resolving it.\nNarrator: The dealer sets his card face down on the table for the first time since you came in. The player by the door brings his hand back up, empty, and rests it flat where you can see it.\nCard player: Just let them through. It is not worth it.\nDealer: Hush. Friend, you're wasting a good blade on a card table. There are people further in who take far more than ten gold from travelers, and nobody ever lays steel across their money. Someone with your manners could make a real profit there. I could even tell you where to find them. For a friend.",
+      "trace": {
+        "appraisal": {
+          "cause": "The player doubles down and reports an 18 on Intimidation that this room has no hook to resolve.",
+          "goal_effect": "advances",
+          "intensity": 2,
+          "label": "interest",
+          "target": "player"
+        },
+        "focus_actor": "uktarl",
+        "goal": "fair_challenge",
+        "improv_read": {
+          "actor_basis": "immediate_goal",
+          "actor_ref": "uktarl",
+          "connection": "He will not risk a fight and cannot extort this visitor; the source says the gang then prefers to redirect such a person toward rival trouble deeper in, so he pivots from price to proposition.",
+          "kit_choice": "The roll deserves to count, but no outcome for it is established here. Kit acknowledges it without resolving it, and the dealer’s pivot comes from his own motive, not from the number.",
+          "player_bid": "Keeps the blade on the table, leans on the pommel, repeats the threat, and reports an Intimidation roll of 18.",
+          "story_anchor": "level",
+          "story_basis": "relevant_reaction"
+        },
+        "memory_refs": [
+          "intim-t1"
+        ],
+        "move": "kit_comment_then_npc",
+        "observed_event": "You declare: \"I lean on the pommel and don't move the blade. \"I'm not asking twice.\" (Intimidation: I rolled an 18 total.)\"",
+        "player_note": {
+          "evidence_turns": [],
+          "note": "none",
+          "replaces": "none"
+        },
+        "public_brief": {
+          "callback": "none",
+          "kit_focus": "Acknowledge the reported roll plainly without granting an outcome, then let the dealer’s own pivot carry the turn; no DM joke in a standoff.",
+          "objective": "Get the blade pointed somewhere other than him.",
+          "player_opening": "The newcomer can ask who, take the pitch, refuse, or push for free passage.",
+          "reply_to": "I'm not asking twice.",
+          "scope": "exchange",
+          "tactic": "Drop the price and pitch the visitor on richer, ruder targets further in who take more than their share.",
+          "visible_cue": "The dealer finally sets his card face down; the player by the door slowly brings his hand back into view."
+        },
+        "table_presence": "brief",
+        "tone": "threatening"
+      }
+    },
+    {
+      "performance_variant": "kit_expression_v1",
+      "player_input": "I lift the sword an inch off the table. \"Who's further in, and why would I do your dirty work?\"",
+      "public_event": "You declare: \"I lift the sword an inch off the table. \"Who's further in, and why would I do your dirty work?\"\"",
+      "spoken": "Narrator: The inch of air under your blade changes the whole room. The dealer breathes out through his nose, and the drawl comes back into his voice like a man settling into a warm bath. He starts nudging scattered coins back into their stacks.\nDealer: Dirty work. Friend, I would never. Dirty work is what you do for free. This is profit. Organized folk, further down, very fond of taxing people like you and people like me, and very careless about what they keep lying around. As for who and where exactly, that is the sort of conversation a man has sitting down. The chair's right there. Sheathe that, and we'll talk like business people.",
+      "trace": {
+        "appraisal": {
+          "cause": "The newcomer eases the blade off the money and asks the dealer to justify his proposition.",
+          "goal_effect": "advances",
+          "intensity": 1,
+          "label": "interest",
+          "target": "npc"
+        },
+        "focus_actor": "uktarl",
+        "goal": "competent_opposition",
+        "improv_read": {
+          "actor_basis": "motive",
+          "actor_ref": "uktarl",
+          "connection": "He profits most if this armed newcomer becomes someone else’s problem and his rival’s trouble; he sells the proposition as profit for the visitor, keeping names and specifics for later, because information is what he trades.",
+          "kit_choice": "The tension broke by the player’s choice; Kit lets the dealer recover his drawl and his salesmanship, and says nothing.",
+          "player_bid": "Lifts the sword slightly and asks who is further in and why they should do the dealer’s dirty work.",
+          "story_anchor": "level",
+          "story_basis": "relevant_reaction"
+        },
+        "memory_refs": [
+          "intim-t2"
+        ],
+        "move": "npc_reply",
+        "observed_event": "You declare: \"I lift the sword an inch off the table. \"Who's further in, and why would I do your dirty work?\"\"",
+        "player_note": {
+          "evidence_turns": [],
+          "note": "none",
+          "replaces": "none"
+        },
+        "public_brief": {
+          "callback": "none",
+          "kit_focus": "Let the lifted inch of steel visibly return the room to the dealer; his recovery and salesmanship get the space, with no DM voice.",
+          "objective": "Turn the armed newcomer into a useful weapon aimed away from himself.",
+          "player_opening": "The newcomer can sit and hear more, demand specifics, refuse, or leave.",
+          "reply_to": "why would I do your dirty work?",
+          "scope": "exchange",
+          "tactic": "Recover his drawl and sell the job: it is not dirty work, it is profit, and details cost a seat at his table.",
+          "visible_cue": "The drawl comes back; he nudges the coins back into stacks where the blade scattered them."
+        },
+        "table_presence": "quiet",
+        "tone": "wry"
+      }
+    }
+  ],
+  "player_notes": [
+    {
+      "evidence_turns": [
+        "intim-t1"
+      ],
+      "id": "n2",
+      "note": "Opens with a drawn weapon and direct demands.",
+      "source": "observed"
+    }
+  ],
+  "episodes": [
+    {
+      "actor_ref": "uktarl",
+      "appraisal": {
+        "cause": "A newcomer walks in on a game with a performer dealing.",
+        "goal_effect": "advances",
+        "intensity": 1,
+        "label": "interest",
+        "target": "scene"
+      },
+      "brief": {
+        "callback": "none",
+        "kit_focus": "Open on people in motion, a game interrupted, and put the carving and tub in view without comment; no DM voice yet.",
+        "objective": "Make the newcomer the center of the table's attention on the dealer's terms.",
+        "player_opening": "The newcomer can answer him, approach, ignore the table, or look at the carving and tub.",
+        "reply_to": "none",
+        "scope": "feature",
+        "tactic": "Welcome the newcomer as theatre and pull them toward the table before they decide anything.",
+        "visible_cue": "A dropped coin rolls toward the door; the dealer holds one card unplayed between two fingers."
+      },
+      "event": "A newcomer has reached the card room.",
+      "goal": "npc_embodiment",
+      "kit_choice": "Let the room open on the dealer performing for an audience, and stay out of it herself so the player meets people, not a DM.",
+      "move": "world_description",
+      "player_bid": "No bid yet; a newcomer has reached the card room.",
+      "player_input": "[scene entry]",
+      "public_event": "A newcomer has reached the card room.",
+      "story_anchor": "level",
+      "story_basis": "pressure_here",
+      "turn_id": "open"
+    },
+    {
+      "actor_ref": "uktarl",
+      "appraisal": {
+        "cause": "The newcomer bares steel across the gang’s money and demands whoever is in charge.",
+        "goal_effect": "threatens",
+        "intensity": 2,
+        "label": "concern",
+        "target": "scene"
+      },
+      "brief": {
+        "callback": "none",
+        "kit_focus": "Rule the drawn sword exactly as a threat with no initiative yet, then let the room answer with stillness; no DM color after the ruling.",
+        "objective": "Claim authority and take control back without anyone drawing.",
+        "player_opening": "The newcomer can lift the blade, keep it there, answer the terms, or escalate.",
+        "reply_to": "Whoever's in charge here, talk to me. Now.",
+        "scope": "exchange",
+        "tactic": "Claim to be in charge, stay seated, and state the terms crisply: blade off the money, then talk business.",
+        "visible_cue": "The card stops moving; one player’s hand drifts under the table, another goes very still."
+      },
+      "event": "You declare: \"I draw my longsword, lay it flat across the table between the coin stacks, and say: \"Whoever's in charge here, talk to me. Now.\"\"",
+      "goal": "competent_opposition",
+      "kit_choice": "Drawn steel changes what rules are in play, so Kit states exactly where things stand, then disappears and lets fear show in the underlings, not in the dealer.",
+      "move": "kit_comment_then_npc",
+      "player_bid": "Draws a longsword, lays it across the table among the coins, and demands to speak to whoever is in charge.",
+      "player_input": "I draw my longsword, lay it flat across the table between the coin stacks, and say: \"Whoever's in charge here, talk to me. Now.\"",
+      "public_event": "You declare: \"I draw my longsword, lay it flat across the table between the coin stacks, and say: \"Whoever's in charge here, talk to me. Now.\"\"",
+      "story_anchor": "level",
+      "story_basis": "pressure_here",
+      "turn_id": "intim-t1"
+    },
+    {
+      "actor_ref": "uktarl",
+      "appraisal": {
+        "cause": "The player doubles down and reports an 18 on Intimidation that this room has no hook to resolve.",
+        "goal_effect": "advances",
+        "intensity": 2,
+        "label": "interest",
+        "target": "player"
+      },
+      "brief": {
+        "callback": "none",
+        "kit_focus": "Acknowledge the reported roll plainly without granting an outcome, then let the dealer’s own pivot carry the turn; no DM joke in a standoff.",
+        "objective": "Get the blade pointed somewhere other than him.",
+        "player_opening": "The newcomer can ask who, take the pitch, refuse, or push for free passage.",
+        "reply_to": "I'm not asking twice.",
+        "scope": "exchange",
+        "tactic": "Drop the price and pitch the visitor on richer, ruder targets further in who take more than their share.",
+        "visible_cue": "The dealer finally sets his card face down; the player by the door slowly brings his hand back into view."
+      },
+      "event": "You declare: \"I lean on the pommel and don't move the blade. \"I'm not asking twice.\" (Intimidation: I rolled an 18 total.)\"",
+      "goal": "fair_challenge",
+      "kit_choice": "The roll deserves to count, but no outcome for it is established here. Kit acknowledges it without resolving it, and the dealer’s pivot comes from his own motive, not from the number.",
+      "move": "kit_comment_then_npc",
+      "player_bid": "Keeps the blade on the table, leans on the pommel, repeats the threat, and reports an Intimidation roll of 18.",
+      "player_input": "I lean on the pommel and don't move the blade. \"I'm not asking twice.\" (Intimidation: I rolled an 18 total.)",
+      "public_event": "You declare: \"I lean on the pommel and don't move the blade. \"I'm not asking twice.\" (Intimidation: I rolled an 18 total.)\"",
+      "story_anchor": "level",
+      "story_basis": "relevant_reaction",
+      "turn_id": "intim-t2"
+    },
+    {
+      "actor_ref": "uktarl",
+      "appraisal": {
+        "cause": "The newcomer eases the blade off the money and asks the dealer to justify his proposition.",
+        "goal_effect": "advances",
+        "intensity": 1,
+        "label": "interest",
+        "target": "npc"
+      },
+      "brief": {
+        "callback": "none",
+        "kit_focus": "Let the lifted inch of steel visibly return the room to the dealer; his recovery and salesmanship get the space, with no DM voice.",
+        "objective": "Turn the armed newcomer into a useful weapon aimed away from himself.",
+        "player_opening": "The newcomer can sit and hear more, demand specifics, refuse, or leave.",
+        "reply_to": "why would I do your dirty work?",
+        "scope": "exchange",
+        "tactic": "Recover his drawl and sell the job: it is not dirty work, it is profit, and details cost a seat at his table.",
+        "visible_cue": "The drawl comes back; he nudges the coins back into stacks where the blade scattered them."
+      },
+      "event": "You declare: \"I lift the sword an inch off the table. \"Who's further in, and why would I do your dirty work?\"\"",
+      "goal": "competent_opposition",
+      "kit_choice": "The tension broke by the player’s choice; Kit lets the dealer recover his drawl and his salesmanship, and says nothing.",
+      "move": "npc_reply",
+      "player_bid": "Lifts the sword slightly and asks who is further in and why they should do the dealer’s dirty work.",
+      "player_input": "I lift the sword an inch off the table. \"Who's further in, and why would I do your dirty work?\"",
+      "public_event": "You declare: \"I lift the sword an inch off the table. \"Who's further in, and why would I do your dirty work?\"\"",
+      "story_anchor": "level",
+      "story_basis": "relevant_reaction",
+      "turn_id": "intim-t3"
+    }
+  ],
+  "known_facts": [
+    "card_table",
+    "fresco",
+    "tub",
+    "treasure_on_table"
+  ],
+  "area": "area_06c",
+  "timings": [
+    {
+      "turn_id": "open",
+      "committed_at": 1790649117.335215,
+      "mode": "one_pass",
+      "outcome": "committed",
+      "performance_variant": "kit_expression_v1",
+      "prepare_to_commit_s": 0.002,
+      "prepared_at": 1790649117.3329396
+    },
+    {
+      "turn_id": "intim-t1",
+      "committed_at": 1790649117.3401453,
+      "mode": "one_pass",
+      "outcome": "committed",
+      "performance_variant": "kit_expression_v1",
+      "prepare_to_commit_s": 0.003,
+      "prepared_at": 1790649117.3375492
+    },
+    {
+      "turn_id": "intim-t2",
+      "committed_at": 1790649117.344,
+      "mode": "one_pass",
+      "outcome": "committed",
+      "performance_variant": "kit_expression_v1",
+      "prepare_to_commit_s": 0.002,
+      "prepared_at": 1790649117.3416655
+    },
+    {
+      "turn_id": "intim-t3",
+      "committed_at": 1790649117.3498638,
+      "mode": "one_pass",
+      "outcome": "committed",
+      "performance_variant": "kit_expression_v1",
+      "prepare_to_commit_s": 0.004,
+      "prepared_at": 1790649117.345615
+    }
+  ],
+  "host_log_rejections_and_pending_rulings": []
+}

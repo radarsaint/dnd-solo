@@ -1,0 +1,376 @@
+{
+  "label": "host model: Grok via KitChatBridge; not GPT; author-played, not a quality verdict.",
+  "approach": "Out-of-character rules question to Kit",
+  "final_revision": 4,
+  "committed_turns": [
+    {
+      "performance_variant": "kit_expression_v1",
+      "player_input": "[scene entry]",
+      "public_event": "A newcomer has reached the card room.",
+      "spoken": "Narrator: A coin rings off the table edge and wobbles across the floor toward the south door, and nobody at the card table moves to catch it. Four of them sit at a worn table near that door, pale as candle tallow, pointed teeth showing when they breathe, dressed in lace and velvet gone shiny at the elbows. Each has coins stacked in front of them; a silver ring sits among the stacks in the middle. The man dealing has stopped mid-hand, one card pinned between two fingers. Beyond them, the whole north wall is a carved mountain, tiny dwarves in tiny caverns, stone sunbeams fanning over a long tub sunk into the floor.\nNarrator: When the dealer speaks it is slow and savoring, each word laid down like a card he means you to look at.\nDealer: Well, now. The door brought us company. Come in, come in, the passage is draftier than we are. That coin by your boot is the most interesting thing that has happened at this table in an hour, so tell me: are you the sort who picks it up, or the sort who waits to see whose it is?",
+      "trace": {
+        "appraisal": {
+          "cause": "A newcomer walks in on a game with a performer dealing.",
+          "goal_effect": "advances",
+          "intensity": 1,
+          "label": "interest",
+          "target": "scene"
+        },
+        "focus_actor": "uktarl",
+        "goal": "npc_embodiment",
+        "improv_read": {
+          "actor_basis": "immediate_goal",
+          "actor_ref": "uktarl",
+          "connection": "The gang works newcomers here; the dealer wants control of the encounter from the first word, so he speaks first and sets the terms of attention, not money.",
+          "kit_choice": "Let the room open on the dealer performing for an audience, and stay out of it herself so the player meets people, not a DM.",
+          "player_bid": "No bid yet; a newcomer has reached the card room.",
+          "story_anchor": "level",
+          "story_basis": "pressure_here"
+        },
+        "memory_refs": [],
+        "move": "world_description",
+        "observed_event": "A newcomer has reached the card room.",
+        "player_note": {
+          "evidence_turns": [],
+          "note": "none",
+          "replaces": "none"
+        },
+        "public_brief": {
+          "callback": "none",
+          "kit_focus": "Open on people in motion, a game interrupted, and put the carving and tub in view without comment; no DM voice yet.",
+          "objective": "Make the newcomer the center of the table's attention on the dealer's terms.",
+          "player_opening": "The newcomer can answer him, approach, ignore the table, or look at the carving and tub.",
+          "reply_to": "none",
+          "scope": "feature",
+          "tactic": "Welcome the newcomer as theatre and pull them toward the table before they decide anything.",
+          "visible_cue": "A dropped coin rolls toward the door; the dealer holds one card unplayed between two fingers."
+        },
+        "table_presence": "quiet",
+        "tone": "curious"
+      }
+    },
+    {
+      "performance_variant": "kit_expression_v1",
+      "player_input": "(OOC) Kit, quick rules question: how would I tell if they're really vampires? What do I roll, and does it take my action?",
+      "public_event": "You declare: \"(OOC) Kit, quick rules question: how would I tell if they're really vampires? What do I roll, and does it take my action?\"",
+      "spoken": "Kit: Wisdom (Insight): you are reading people, not the room. Out of combat there's no action to spend; just tell me your character is studying them and I'll call for it. What I won't tell you is whether there's anything to find.",
+      "trace": {
+        "appraisal": {
+          "cause": "An out-of-character rules question about reading the figures; no fiction happened.",
+          "goal_effect": "neutral",
+          "intensity": 0,
+          "label": "none",
+          "target": "player"
+        },
+        "focus_actor": "none",
+        "goal": "fair_challenge",
+        "improv_read": {
+          "actor_basis": "none",
+          "actor_ref": "none",
+          "connection": "This is table talk, not a move in the room; no actor hears it and no story pressure applies.",
+          "kit_choice": "A direct rules question gets a direct, exact answer in Kit’s own voice, with the fiction paused and nothing about what the roll would find.",
+          "player_bid": "Asks Kit out of character which roll would tell whether the figures are really vampires and whether it costs an action.",
+          "story_anchor": "none",
+          "story_basis": "none"
+        },
+        "memory_refs": [],
+        "move": "ruling",
+        "observed_event": "You declare: \"(OOC) Kit, quick rules question: how would I tell if they're really vampires? What do I roll, and does it take my action?\"",
+        "player_note": {
+          "evidence_turns": [
+            "this_turn"
+          ],
+          "note": "Asks out-of-character rules questions before committing to an action.",
+          "replaces": "none"
+        },
+        "public_brief": {
+          "callback": "none",
+          "kit_focus": "Answer out of character, plainly and exactly: which skill and why, no action cost outside combat, and an explicit refusal to hint at the result.",
+          "objective": "Answer the rules question exactly and return the table to the player.",
+          "player_opening": "The player can have the character study the figures, or do something else.",
+          "reply_to": "What do I roll, and does it take my action?",
+          "scope": "call",
+          "tactic": "State the skill and the action economy plainly, and say what Kit will not reveal.",
+          "visible_cue": "None; the fiction is paused."
+        },
+        "table_presence": "present",
+        "tone": "plain"
+      }
+    },
+    {
+      "performance_variant": "kit_expression_v1",
+      "player_input": "(OOC) Got it. And if I'm wrong and call them out anyway, does that start a fight?",
+      "public_event": "You declare: \"(OOC) Got it. And if I'm wrong and call them out anyway, does that start a fight?\"",
+      "spoken": "Kit: Not by itself. An accusation is talk; a fight starts when somebody swings or casts. How they take being called out is up to them, and I'll play them honestly, including if they decide they're insulted.",
+      "trace": {
+        "appraisal": {
+          "cause": "A second rules question, now about the consequences of a public accusation.",
+          "goal_effect": "neutral",
+          "intensity": 1,
+          "label": "interest",
+          "target": "player"
+        },
+        "focus_actor": "none",
+        "goal": "fair_challenge",
+        "improv_read": {
+          "actor_basis": "none",
+          "actor_ref": "none",
+          "connection": "Still table talk; the question is about how Kit adjudicates, not about any actor’s decision.",
+          "kit_choice": "Kit answers the mechanical question exactly and is honest that NPC reactions are theirs, without promising or threatening a fight.",
+          "player_bid": "Asks out of character whether calling the figures out, even wrongly, would start a fight.",
+          "story_anchor": "none",
+          "story_basis": "none"
+        },
+        "memory_refs": [
+          "ooc-t1"
+        ],
+        "move": "ruling",
+        "observed_event": "You declare: \"(OOC) Got it. And if I'm wrong and call them out anyway, does that start a fight?\"",
+        "player_note": {
+          "evidence_turns": [],
+          "note": "none",
+          "replaces": "none"
+        },
+        "public_brief": {
+          "callback": "none",
+          "kit_focus": "Keep it exact and even-handed: talk is talk, a fight starts with a swing or a spell, and the NPCs react as themselves; no prediction.",
+          "objective": "Explain how accusations and fights work at this table, without predicting any NPC.",
+          "player_opening": "The player can accuse, study, or do something else, knowing the stakes.",
+          "reply_to": "does that start a fight?",
+          "scope": "call",
+          "tactic": "Separate talk from violence, and say that the people in the room decide their own reactions.",
+          "visible_cue": "None; the fiction is paused."
+        },
+        "table_presence": "present",
+        "tone": "plain"
+      }
+    },
+    {
+      "performance_variant": "kit_expression_v1",
+      "player_input": "Okay, back in character. I walk up to the dealer and say, \"Nice teeth. Real?\"",
+      "public_event": "You declare: \"Okay, back in character. I walk up to the dealer and say, \"Nice teeth. Real?\"\"",
+      "spoken": "Kit: You asked him instead of reading him, so no roll; you get his answer, not the truth.\nNarrator: He smiles, slowly, all the way back, and leans into the lamplight so you get a good long look. He rests the edge of his card against his lower lip.\nDealer: Real? Friend, I have been asked that by braver people than you, standing about where you're standing. Most of them left. Some of them stayed for cards. One or two I'd rather not talk about while I'm eating. Now: why would a person want to know a thing like that, unless they meant to do something about it?",
+      "trace": {
+        "appraisal": {
+          "cause": "After two rules questions, the player skips the roll entirely and just asks the dealer to his face.",
+          "goal_effect": "advances",
+          "intensity": 2,
+          "label": "amusement",
+          "target": "player"
+        },
+        "focus_actor": "uktarl",
+        "goal": "npc_embodiment",
+        "improv_read": {
+          "actor_basis": "immediate_goal",
+          "actor_ref": "uktarl",
+          "connection": "The vampire act is the gang’s leverage; a direct question is a challenge to his performance, and he is a practiced liar who enjoys it, so he lies beautifully and turns the question into a test of the visitor’s nerve.",
+          "kit_choice": "The player chose to ask rather than roll, so no check is made. Kit frames the moment by her own earlier answer about reading people and lets the dealer perform a lie with total commitment.",
+          "player_bid": "Returns to character, walks up to the dealer, and asks him directly whether his teeth are real.",
+          "story_anchor": "level",
+          "story_basis": "pressure_here"
+        },
+        "memory_refs": [
+          "ooc-t1",
+          "ooc-t2"
+        ],
+        "move": "kit_comment_then_npc",
+        "observed_event": "You declare: \"Okay, back in character. I walk up to the dealer and say, \"Nice teeth. Real?\"\"",
+        "player_note": {
+          "evidence_turns": [],
+          "note": "none",
+          "replaces": "none"
+        },
+        "public_brief": {
+          "callback": "reading people, not the room",
+          "kit_focus": "Frame it by the earlier out-of-character answer: asking is not rolling, so no check happens; then give the dealer’s committed lie all the room.",
+          "objective": "Keep the act intact and make the visitor doubt their nerve.",
+          "player_opening": "The visitor can believe him, call for the Insight they now know about, accuse, or play along.",
+          "reply_to": "Nice teeth. Real?",
+          "scope": "exchange",
+          "tactic": "Lie with relish, lean in to show the teeth, and turn the question back on the visitor.",
+          "visible_cue": "He smiles slowly and wide, close enough to see the teeth in the lamplight, card held to his lips."
+        },
+        "table_presence": "brief",
+        "tone": "wry"
+      }
+    }
+  ],
+  "player_notes": [
+    {
+      "evidence_turns": [
+        "ooc-t1"
+      ],
+      "id": "n2",
+      "note": "Asks out-of-character rules questions before committing to an action.",
+      "source": "observed"
+    }
+  ],
+  "episodes": [
+    {
+      "actor_ref": "uktarl",
+      "appraisal": {
+        "cause": "A newcomer walks in on a game with a performer dealing.",
+        "goal_effect": "advances",
+        "intensity": 1,
+        "label": "interest",
+        "target": "scene"
+      },
+      "brief": {
+        "callback": "none",
+        "kit_focus": "Open on people in motion, a game interrupted, and put the carving and tub in view without comment; no DM voice yet.",
+        "objective": "Make the newcomer the center of the table's attention on the dealer's terms.",
+        "player_opening": "The newcomer can answer him, approach, ignore the table, or look at the carving and tub.",
+        "reply_to": "none",
+        "scope": "feature",
+        "tactic": "Welcome the newcomer as theatre and pull them toward the table before they decide anything.",
+        "visible_cue": "A dropped coin rolls toward the door; the dealer holds one card unplayed between two fingers."
+      },
+      "event": "A newcomer has reached the card room.",
+      "goal": "npc_embodiment",
+      "kit_choice": "Let the room open on the dealer performing for an audience, and stay out of it herself so the player meets people, not a DM.",
+      "move": "world_description",
+      "player_bid": "No bid yet; a newcomer has reached the card room.",
+      "player_input": "[scene entry]",
+      "public_event": "A newcomer has reached the card room.",
+      "story_anchor": "level",
+      "story_basis": "pressure_here",
+      "turn_id": "open"
+    },
+    {
+      "actor_ref": "none",
+      "appraisal": {
+        "cause": "An out-of-character rules question about reading the figures; no fiction happened.",
+        "goal_effect": "neutral",
+        "intensity": 0,
+        "label": "none",
+        "target": "player"
+      },
+      "brief": {
+        "callback": "none",
+        "kit_focus": "Answer out of character, plainly and exactly: which skill and why, no action cost outside combat, and an explicit refusal to hint at the result.",
+        "objective": "Answer the rules question exactly and return the table to the player.",
+        "player_opening": "The player can have the character study the figures, or do something else.",
+        "reply_to": "What do I roll, and does it take my action?",
+        "scope": "call",
+        "tactic": "State the skill and the action economy plainly, and say what Kit will not reveal.",
+        "visible_cue": "None; the fiction is paused."
+      },
+      "event": "You declare: \"(OOC) Kit, quick rules question: how would I tell if they're really vampires? What do I roll, and does it take my action?\"",
+      "goal": "fair_challenge",
+      "kit_choice": "A direct rules question gets a direct, exact answer in Kit’s own voice, with the fiction paused and nothing about what the roll would find.",
+      "move": "ruling",
+      "player_bid": "Asks Kit out of character which roll would tell whether the figures are really vampires and whether it costs an action.",
+      "player_input": "(OOC) Kit, quick rules question: how would I tell if they're really vampires? What do I roll, and does it take my action?",
+      "public_event": "You declare: \"(OOC) Kit, quick rules question: how would I tell if they're really vampires? What do I roll, and does it take my action?\"",
+      "story_anchor": "none",
+      "story_basis": "none",
+      "turn_id": "ooc-t1"
+    },
+    {
+      "actor_ref": "none",
+      "appraisal": {
+        "cause": "A second rules question, now about the consequences of a public accusation.",
+        "goal_effect": "neutral",
+        "intensity": 1,
+        "label": "interest",
+        "target": "player"
+      },
+      "brief": {
+        "callback": "none",
+        "kit_focus": "Keep it exact and even-handed: talk is talk, a fight starts with a swing or a spell, and the NPCs react as themselves; no prediction.",
+        "objective": "Explain how accusations and fights work at this table, without predicting any NPC.",
+        "player_opening": "The player can accuse, study, or do something else, knowing the stakes.",
+        "reply_to": "does that start a fight?",
+        "scope": "call",
+        "tactic": "Separate talk from violence, and say that the people in the room decide their own reactions.",
+        "visible_cue": "None; the fiction is paused."
+      },
+      "event": "You declare: \"(OOC) Got it. And if I'm wrong and call them out anyway, does that start a fight?\"",
+      "goal": "fair_challenge",
+      "kit_choice": "Kit answers the mechanical question exactly and is honest that NPC reactions are theirs, without promising or threatening a fight.",
+      "move": "ruling",
+      "player_bid": "Asks out of character whether calling the figures out, even wrongly, would start a fight.",
+      "player_input": "(OOC) Got it. And if I'm wrong and call them out anyway, does that start a fight?",
+      "public_event": "You declare: \"(OOC) Got it. And if I'm wrong and call them out anyway, does that start a fight?\"",
+      "story_anchor": "none",
+      "story_basis": "none",
+      "turn_id": "ooc-t2"
+    },
+    {
+      "actor_ref": "uktarl",
+      "appraisal": {
+        "cause": "After two rules questions, the player skips the roll entirely and just asks the dealer to his face.",
+        "goal_effect": "advances",
+        "intensity": 2,
+        "label": "amusement",
+        "target": "player"
+      },
+      "brief": {
+        "callback": "reading people, not the room",
+        "kit_focus": "Frame it by the earlier out-of-character answer: asking is not rolling, so no check happens; then give the dealer’s committed lie all the room.",
+        "objective": "Keep the act intact and make the visitor doubt their nerve.",
+        "player_opening": "The visitor can believe him, call for the Insight they now know about, accuse, or play along.",
+        "reply_to": "Nice teeth. Real?",
+        "scope": "exchange",
+        "tactic": "Lie with relish, lean in to show the teeth, and turn the question back on the visitor.",
+        "visible_cue": "He smiles slowly and wide, close enough to see the teeth in the lamplight, card held to his lips."
+      },
+      "event": "You declare: \"Okay, back in character. I walk up to the dealer and say, \"Nice teeth. Real?\"\"",
+      "goal": "npc_embodiment",
+      "kit_choice": "The player chose to ask rather than roll, so no check is made. Kit frames the moment by her own earlier answer about reading people and lets the dealer perform a lie with total commitment.",
+      "move": "kit_comment_then_npc",
+      "player_bid": "Returns to character, walks up to the dealer, and asks him directly whether his teeth are real.",
+      "player_input": "Okay, back in character. I walk up to the dealer and say, \"Nice teeth. Real?\"",
+      "public_event": "You declare: \"Okay, back in character. I walk up to the dealer and say, \"Nice teeth. Real?\"\"",
+      "story_anchor": "level",
+      "story_basis": "pressure_here",
+      "turn_id": "ooc-t3"
+    }
+  ],
+  "known_facts": [
+    "card_table",
+    "fresco",
+    "tub",
+    "treasure_on_table"
+  ],
+  "area": "area_06c",
+  "timings": [
+    {
+      "turn_id": "open",
+      "committed_at": 1790649198.1999826,
+      "mode": "one_pass",
+      "outcome": "committed",
+      "performance_variant": "kit_expression_v1",
+      "prepare_to_commit_s": 0.002,
+      "prepared_at": 1790649198.1977253
+    },
+    {
+      "turn_id": "ooc-t1",
+      "committed_at": 1790649198.2038877,
+      "mode": "one_pass",
+      "outcome": "committed",
+      "performance_variant": "kit_expression_v1",
+      "prepare_to_commit_s": 0.002,
+      "prepared_at": 1790649198.2015707
+    },
+    {
+      "turn_id": "ooc-t2",
+      "committed_at": 1790649198.207715,
+      "mode": "one_pass",
+      "outcome": "committed",
+      "performance_variant": "kit_expression_v1",
+      "prepare_to_commit_s": 0.002,
+      "prepared_at": 1790649198.2052605
+    },
+    {
+      "turn_id": "ooc-t3",
+      "committed_at": 1790649198.21248,
+      "mode": "one_pass",
+      "outcome": "committed",
+      "performance_variant": "kit_expression_v1",
+      "prepare_to_commit_s": 0.003,
+      "prepared_at": 1790649198.2098804
+    }
+  ],
+  "host_log_rejections_and_pending_rulings": []
+}
