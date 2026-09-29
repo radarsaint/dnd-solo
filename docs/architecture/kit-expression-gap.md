@@ -260,7 +260,7 @@ Every check is lexical: word lists, n-gram runs and sentence shapes. None of the
 
 ### PR #11 fixes pulled in (cherry-picked with `-x`)
 
-- **Approach routing reads narration, not quoted speech** (`0869415`, from `e714420`). "I say 'let's fight about it'" is a social bid, not an attack. The limit: an action with no quotes and mixed verbs still routes on the first match.
+- **Approach routing reads narration, not quoted speech** (`0869415`, from `e714420`). A quoted threat is a social bid, not an attack. Stealthy movement pends for a Stealth ruling instead of passing as a free exit, and getting into the tub finds the stash. The limit: speech is recognised only inside quotation marks, so reported speech without quotes ("I tell him I'll kill him") still routes on its keywords.
 - **`VOICED_FLOOR_SPEAKERS` = ('Dealer',)** (`93741b1`, from `aea3811`). The 30-word voiced floor applies only when the dealer has the focus, so a terse card player can stay terse. `TerseCardPlayerTests` now uses the 'Fresco-side player' label (see g12).
 
 ### g1. Padding to clear the floors (`PaddingTests`)
