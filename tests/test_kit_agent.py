@@ -5,12 +5,34 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from runtime.kit_agent import (KitAgent, KitChatBridge, OpenAIResponsesModel, PendingRuling,
-                               Room6CAdjudicator, room_intent)
+from runtime.kit_agent import (EXCHANGE_MIN_ACTOR_WORDS, KitAgent, KitChatBridge,
+                               OpenAIResponsesModel, PendingRuling, Room6CAdjudicator, room_intent)
 from runtime.state_context import InvalidChange, Runtime, StaleTurn
 
 
 FIXTURE = Path(__file__).parent / 'fixtures/level_01_area_06c.json'
+
+KIT_CHOICE = 'Kit favors the roleplay opening and lets the dealer try a bargain.'
+KIT_FOCUS = 'Spotlight the dealer sizing up the visitor’s nerve rather than the passage price.'
+
+# A performed exchange that clears the flat-reply floor. Its length is not a
+# quality claim; it only gives the format tests a turn the guard accepts.
+EXCHANGE_SPEECH = {'segments': [
+    {'speaker': 'Kit', 'text': 'That is a choice.'},
+    {'speaker': 'Narrator', 'text': 'The dealer lets a card hang between two fingers while the others go still.'},
+    {'speaker': 'Dealer', 'text': ('Sit, then, and let us see what kind of guest you are. Ten gold buys '
+                                   'safe passage, but a player who sits at this table usually wants more '
+                                   'than a door. So tell me plainly, friend: what would you wager tonight?')},
+]}
+QUIET_EXCHANGE_SPEECH = {'segments': EXCHANGE_SPEECH['segments'][1:]}
+
+# The saved Nik reply from tests/playtests/2026-09-26-area-06c-nik.md, verbatim.
+NIK_GREETING = "Hi, I'm Nik. I wasn't expecting to find people gambling. Whats going on here?"
+NIK_REPLY = {'segments': [
+    {'speaker': 'Narrator', 'text': 'The dealer keeps a hand on the deck and gives you his attention.'},
+    {'speaker': 'Dealer', 'text': ('“Gambling? Cards, Nik. Passage is ten gold a head. If you came for '
+                                   'something besides a game or a way through, I’m listening.”')},
+]}
 
 
 class RecordingModel:
@@ -36,7 +58,7 @@ class RecordingModel:
                 'story_anchor': 'scene', 'story_basis': 'scene_state',
                 'actor_ref': 'uktarl', 'actor_basis': 'immediate_goal',
                 'connection': 'The visitor approaches the table while the dealer wants control of the encounter.',
-                'kit_choice': 'Kit favors the roleplay opening and lets the dealer try a bargain.',
+                'kit_choice': KIT_CHOICE,
             },
             'move': 'kit_comment_then_npc',
             'public_brief': {
@@ -45,6 +67,10 @@ class RecordingModel:
                            'The dealer treats the question as an opening bid.'),
                 'visible_cue': 'The dealer suspends a card over the table.',
                 'player_opening': 'The visitor may ask about the terms, play, or leave.',
+                'reply_to': ('none' if payload['action_kind'] == 'opening'
+                             else payload['player_action']),
+                'scope': 'feature' if payload['action_kind'] == 'opening' else 'exchange',
+                'kit_focus': KIT_FOCUS,
             },
             'focus_actor': 'uktarl',
             'table_presence': 'brief', 'tone': 'wry',
@@ -61,10 +87,7 @@ class RecordingModel:
                 {'speaker': 'Dealer', 'text': 'Ten gold for safe passage.'},
                 {'speaker': 'Narrator', 'text': 'The doppelganger smiles.'},
             ]}
-        return {'segments': [
-            {'speaker': 'Kit', 'text': 'That is a choice.'},
-            {'speaker': 'Dealer', 'text': 'Sit, then. Ten gold buys safe passage. What would you wager?'},
-        ]}
+        return json.loads(json.dumps(EXCHANGE_SPEECH))
 
 
 class KitAgentTests(unittest.TestCase):
@@ -168,7 +191,11 @@ class KitAgentTests(unittest.TestCase):
         self.assertIsNone(self.runtime.pending_kit_turn('faction')['plan'])
         performance = bridge.decide('faction', plan)
         self.assertNotIn('improv_read', performance['input'])
-        self.assertNotIn('Harria', json.dumps(performance['input']['selected_move']))
+        # reply_to quotes the player, who named Harria; Kit's own direction must not.
+        direction = {**performance['input']['selected_move'],
+                     'brief': {k: v for k, v in performance['input']['selected_move']['brief'].items()
+                               if k != 'reply_to'}}
+        self.assertNotIn('Harria', json.dumps(direction))
         bridge.finish('faction', self.model.perform(performance['input']))
         self.assertEqual(self.runtime.recent_kit_turns()[0]['trace']['improv_read']['story_anchor'], 'level')
 
@@ -379,10 +406,18 @@ class KitAgentTests(unittest.TestCase):
                         'tactic': 'Let the dealer weigh the visitor as a potential customer.',
                         'visible_cue': 'The dealer suspends a card above the table.',
                         'player_opening': 'The newcomer can speak, observe, or leave.',
+                        'reply_to': 'none', 'scope': 'feature',
+                        'kit_focus': 'Let the interrupted game, not the room inventory, greet the newcomer.',
                     })
         speech = {'segments': [
-            {'speaker': 'Narrator', 'text': 'A card pauses between the dealer’s fingers. Four pale players sit among coins; north of them, a mountain carving hangs above a recessed stone tub.'},
-            {'speaker': 'Dealer', 'text': 'A visitor. Care to make an offer?'}]}
+            {'speaker': 'Narrator', 'text': ('A card pauses between the dealer’s fingers mid-deal. Four pale '
+                                             'players sit among scattered coins and a silver ring, and one of '
+                                             'them slowly turns to look at the doorway. North of the table, a '
+                                             'carved mountain crowded with tiny dwarves hangs above a recessed '
+                                             'stone tub.')},
+            {'speaker': 'Dealer', 'text': ('Well now. A visitor, and on such a slow night. Come in, come in; '
+                                           'the table is far friendlier than the corridor. Care to make an offer, '
+                                           'or shall I name one?')}]}
         result = bridge.complete('entry', {'decision': plan, 'performance': speech})
         self.assertEqual(result['revision'], 1)
         self.assertEqual(self.runtime.recent_kit_turns()[0]['player_input'], '[scene entry]')
@@ -411,6 +446,168 @@ class KitAgentTests(unittest.TestCase):
                 {'speaker': 'Narrator', 'text': 'The doppelganger watches from the card table.'},
                 {'speaker': 'Dealer', 'text': 'Make an offer.'}]})
         self.assertEqual(self.runtime.load()[0], 0)
+
+
+class KitFocusAndScopeTests(unittest.TestCase):
+    """Regression tests for the kit_focus brief and the flat-reply guard."""
+
+    def setUp(self):
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        self.path = Path(temp.name) / 'kit.sqlite'
+        self.runtime = Runtime(self.path)
+        self.addCleanup(lambda: self.runtime.close())
+        self.runtime.initialize(json.loads(FIXTURE.read_text()), 'area_06c')
+        self.model = RecordingModel()
+        self.adjudicator = Room6CAdjudicator(perception=0, insight=0, roll=lambda: 20)
+        self.bridge = KitChatBridge(self.runtime, self.adjudicator)
+
+    def _prepared_plan(self, action, turn_id, **brief):
+        prepared = self.bridge.prepare(action, turn_id)
+        plan = self.model.plan(prepared['input'])
+        plan['public_brief'].update(brief)
+        return prepared, plan
+
+    def test_exact_nik_reply_is_rejected_as_a_flat_exchange(self):
+        prepared, plan = self._prepared_plan(NIK_GREETING, 'nik', reply_to='Whats going on here?')
+        plan.update(move='npc_reply', table_presence='quiet')
+        self.bridge.decide('nik', plan)
+        with self.assertRaisesRegex(InvalidChange, rf'Dealer spoke 23 words \(floor {EXCHANGE_MIN_ACTOR_WORDS}\)'):
+            self.bridge.finish('nik', NIK_REPLY)
+        self.assertEqual(self.runtime.load()[0], 0)
+        self.assertEqual(self.runtime.kit_timing('nik')['rejected_attempts'], 1)
+        self.assertIn('Exchange scope', self.runtime.kit_timing('nik')['last_rejection'])
+        # The fixed decision still accepts a performance that actually plays the exchange.
+        self.assertEqual(self.bridge.finish('nik', QUIET_EXCHANGE_SPEECH)['revision'], 1)
+
+    def test_one_line_roll_prompt_is_accepted_as_a_call(self):
+        prepared, plan = self._prepared_plan(
+            'Can I tell if they are friendly?', 'roll', reply_to='Can I tell if they are friendly',
+            scope='call', kit_focus='Rule plainly and hand the moment back to the player.')
+        plan.update(move='ruling', table_presence='brief', focus_actor='none')
+        plan['improv_read'].update(actor_ref='none', actor_basis='none')
+        self.bridge.decide('roll', plan)
+        result = self.bridge.finish('roll', {'segments': [
+            {'speaker': 'Kit', 'text': 'Give me a Wisdom (Insight) check.'}]})
+        self.assertEqual(result['spoken'], 'Kit: Give me a Wisdom (Insight) check.')
+
+    def test_call_scope_cannot_run_long_or_cover_an_npc_reply(self):
+        prepared, plan = self._prepared_plan('Can I tell if they are friendly?', 'long-call',
+                                             reply_to='friendly', scope='call')
+        with self.assertRaisesRegex(InvalidChange, 'Call scope is only for'):
+            self.bridge.decide('long-call', plan)  # kit_comment_then_npc with a dealer focus
+        plan.update(move='ruling', focus_actor='none')
+        plan['improv_read'].update(actor_ref='none', actor_basis='none')
+        self.bridge.decide('long-call', plan)
+        with self.assertRaisesRegex(InvalidChange, 'Call scope ran long'):
+            self.bridge.finish('long-call', {'segments': [
+                {'speaker': 'Kit', 'text': 'Roll Insight. ' + 'Very long table chatter. ' * 20}]})
+
+    def test_reply_to_must_quote_the_players_own_words(self):
+        prepared, plan = self._prepared_plan(NIK_GREETING, 'misquote',
+                                             reply_to='What does the passage cost?')
+        with self.assertRaisesRegex(InvalidChange, 'reply_to must quote'):
+            self.bridge.decide('misquote', plan)
+        # Case, whitespace, and curly apostrophes do not matter; the words do.
+        plan['public_brief']['reply_to'] = 'I WASN’T expecting  to find people gambling'
+        self.bridge.decide('misquote', plan)
+
+    def test_player_quoting_a_secret_word_does_not_fail_the_brief(self):
+        prepared, plan = self._prepared_plan('I accuse that player of being a doppelganger.', 'accuse',
+                                             reply_to='being a doppelganger')
+        self.bridge.decide('accuse', plan)
+        with self.assertRaisesRegex(InvalidChange, 'private fact'):
+            self.bridge.finish('accuse', {'segments': [
+                {'speaker': 'Kit', 'text': 'Bold.'},
+                {'speaker': 'Narrator', 'text': 'The doppelganger smiles.'},
+                {'speaker': 'Dealer', 'text': 'Sit down.'}]})
+
+    def test_kit_focus_reaches_performer_but_private_choice_and_cause_do_not(self):
+        agent = KitAgent(self.runtime, self.model, self.adjudicator)
+        agent.turn(NIK_GREETING, 'focus')
+        plan = self.runtime.recent_kit_turns()[0]['trace']
+        performed = json.dumps(self.model.performances[0], ensure_ascii=False)
+        self.assertEqual(self.model.performances[0]['selected_move']['brief']['kit_focus'], KIT_FOCUS)
+        self.assertEqual(self.model.performances[0]['selected_move']['brief']['reply_to'], NIK_GREETING)
+        self.assertNotIn(KIT_CHOICE, performed)
+        self.assertNotIn(plan['appraisal']['cause'], performed)
+        self.assertNotIn('improv_read', self.model.performances[0])
+        self.assertNotIn('appraisal', self.model.performances[0]['selected_move'])
+        # Kit's focus is remembered with the episode for her later decisions.
+        self.assertEqual(self.runtime.load()[1]['kit']['episodes'][0]['brief']['kit_focus'], KIT_FOCUS)
+
+    def test_kit_focus_must_be_public_short_direction(self):
+        prepared, plan = self._prepared_plan(NIK_GREETING, 'bad-focus')
+        for focus, reason in [
+            (KIT_CHOICE, 'copies private kit_choice'),
+            ('Have the dealer say “Ten gold, friend.”', 'not quoted dialogue'),
+            ('x' * 201, 'Invalid public performance brief|exceeds 200'),
+        ]:
+            bad = {**plan, 'public_brief': {**plan['public_brief'], 'kit_focus': focus}}
+            with self.subTest(focus=focus[:30]), self.assertRaisesRegex(InvalidChange, reason):
+                self.bridge.decide('bad-focus', bad)
+        leaky = {**plan, 'public_brief': {**plan['public_brief'],
+                                          'kit_focus': 'Hint that the deck is marked.'}}
+        with self.assertRaisesRegex(InvalidChange, 'private fact'):
+            self.bridge.decide('bad-focus', leaky)
+
+    def test_opening_must_be_feature_scope_with_no_reply_to(self):
+        prepared = self.bridge.prepare(opening=True, turn_id='entry')
+        plan = self.model.plan(prepared['input'])
+        plan.update(move='world_description', table_presence='quiet')
+        with self.assertRaisesRegex(InvalidChange, 'feature scope'):
+            self.bridge.decide('entry', {**plan, 'public_brief': {**plan['public_brief'], 'scope': 'exchange'}})
+        with self.assertRaisesRegex(InvalidChange, 'reply_to must be none'):
+            self.bridge.decide('entry', {**plan, 'public_brief': {**plan['public_brief'],
+                                                                  'reply_to': '[scene entry]'}})
+        self.bridge.decide('entry', plan)
+        with self.assertRaisesRegex(InvalidChange, 'Feature scope was flat'):
+            self.bridge.finish('entry', {'segments': [
+                {'speaker': 'Narrator', 'text': 'Four pale figures play cards.'},
+                {'speaker': 'Dealer', 'text': 'Ten gold.'}]})
+
+    def test_retry_carries_the_specific_rejection_reason(self):
+        flat = iter([NIK_REPLY, QUIET_EXCHANGE_SPEECH])
+        seen = []
+
+        class FlatThenFixed(RecordingModel):
+            def plan(inner, payload):
+                return {**super().plan(payload), 'move': 'npc_reply', 'table_presence': 'quiet'}
+
+            def perform(inner, payload):
+                seen.append(payload.get('retry_instruction'))
+                return json.loads(json.dumps(next(flat)))
+
+        agent = KitAgent(self.runtime, FlatThenFixed(), self.adjudicator)
+        result = agent.turn(NIK_GREETING, 'retry')
+        self.assertIsNone(seen[0])
+        self.assertIn('Exchange scope: the Dealer spoke 23 words', seen[1])
+        self.assertEqual(result['timing']['model_calls'], 3)
+        self.assertEqual(len(result['timing']['rejections']), 1)
+
+    def test_latency_is_recorded_outside_the_turn_hash(self):
+        agent = KitAgent(self.runtime, self.model, self.adjudicator)
+        result = agent.turn('I take a seat.', 'timed')
+        timing = self.runtime.kit_timing('timed')
+        self.assertEqual(timing['outcome'], 'committed')
+        self.assertEqual(timing['model_calls'], 2)
+        self.assertGreaterEqual(timing['received_to_done_s'], 0)
+        record = self.runtime.recent_kit_turns()[0]
+        self.assertNotIn('timing', record)
+        self.assertNotIn('timing', record['trace'])
+        # Telemetry changes never alter the idempotent commit.
+        self.runtime.record_kit_timing('timed', note='later edit')
+        event = {'type': 'beat', 'tags': ['social'], 'evidence':
+                 'Player declared: I take a seat.. Resolution: You address the figures at the card table.'}
+        self.assertEqual(self.runtime.commit_kit_turn('timed', 0, [event], record), result['revision'])
+
+    def test_staged_bridge_records_prepare_to_commit_time(self):
+        prepared, plan = self._prepared_plan('I take a seat.', 'staged')
+        payload = self.bridge.decide('staged', plan)
+        result = self.bridge.finish('staged', self.model.perform(payload['input']))
+        self.assertEqual(result['timing']['mode'], 'staged')
+        self.assertGreaterEqual(result['timing']['prepare_to_commit_s'], 0)
+        self.assertEqual(self.runtime.recent_kit_timings()[-1]['turn_id'], 'staged')
 
 
 if __name__ == '__main__':

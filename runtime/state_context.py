@@ -45,6 +45,11 @@ class Runtime:
                 turn_id TEXT PRIMARY KEY, revision INTEGER NOT NULL,
                 body TEXT NOT NULL, plan TEXT
             );
+            -- Timing telemetry is deliberately outside turns/ledger/kit_turns: it never
+            -- enters a turn digest, so an identical retry stays idempotent.
+            CREATE TABLE IF NOT EXISTS kit_telemetry (
+                seq INTEGER PRIMARY KEY, turn_id TEXT NOT NULL UNIQUE, body TEXT NOT NULL
+            );
             CREATE TRIGGER IF NOT EXISTS immutable_ledger_update BEFORE UPDATE ON ledger
                 BEGIN SELECT RAISE(ABORT, 'Ledger is append-only'); END;
             CREATE TRIGGER IF NOT EXISTS immutable_ledger_delete BEFORE DELETE ON ledger
@@ -236,6 +241,30 @@ class Runtime:
         for event in events:
             self._apply(state, source, event)
         return self._player_view(source, state)
+
+    def record_kit_timing(self, turn_id, **fields):
+        """Merge latency telemetry for a turn. Not part of the committed turn record."""
+        require(isinstance(turn_id, str) and bool(turn_id.strip()), 'Turn ID required')
+        with self.db:
+            row = self.db.execute('SELECT body FROM kit_telemetry WHERE turn_id=?',
+                                  (turn_id,)).fetchone()
+            body = {**(json.loads(row[0]) if row else {}), **fields}
+            if row:
+                self.db.execute('UPDATE kit_telemetry SET body=? WHERE turn_id=?',
+                                (encode(body), turn_id))
+            else:
+                self.db.execute('INSERT INTO kit_telemetry(turn_id, body) VALUES (?, ?)',
+                                (turn_id, encode(body)))
+
+    def kit_timing(self, turn_id):
+        row = self.db.execute('SELECT body FROM kit_telemetry WHERE turn_id=?', (turn_id,)).fetchone()
+        return json.loads(row[0]) if row else None
+
+    def recent_kit_timings(self, limit=8):
+        require(type(limit) is int and 0 <= limit <= 50, 'Invalid timing limit')
+        rows = self.db.execute('SELECT turn_id, body FROM kit_telemetry ORDER BY seq DESC LIMIT ?',
+                               (limit,)).fetchall()
+        return list(reversed([{'turn_id': row[0], **json.loads(row[1])} for row in rows]))
 
     def recent_kit_turns(self, limit=8):
         require(type(limit) is int and 0 <= limit <= 12, 'Invalid history limit')
