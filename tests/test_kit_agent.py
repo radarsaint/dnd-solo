@@ -1104,5 +1104,75 @@ class BridgeVoiceVariantTests(unittest.TestCase):
         self.assertEqual(self.runtime.pending_kit_turn('cli-base')['body']['performance_variant'], 'current')
 
 
+class ApproachRoutingTests(unittest.TestCase):
+    """Approach-range playtest (2026-09-28): routing that flattened distinct approaches."""
+
+    def setUp(self):
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        self.runtime = Runtime(Path(temp.name) / 'kit.sqlite')
+        self.addCleanup(lambda: self.runtime.close())
+        self.runtime.initialize(json.loads(FIXTURE.read_text()), 'area_06c')
+
+    def resolve(self, action, adjudicator=None):
+        revision, state = self.runtime.load()
+        return (adjudicator or Room6CAdjudicator()).resolve(action, revision, state)
+
+    def test_quoted_speech_is_a_social_bid_not_combat_or_a_physical_ruling(self):
+        probes = {
+            'I lean on the pommel. "Deal me through or I\'ll kill whoever\'s closest."': 'social',
+            'I tell him: “Your deck\'s marked. Let me check the cards.”': 'social',
+            '"Break the bank or break my heart, dealer."': 'social',
+            'I kill the dealer. "Sorry."': 'combat',
+            'I grab his wrist and say "Stop."': 'unsupported_action',
+        }
+        for action, kind in probes.items():
+            with self.subTest(action=action):
+                self.assertEqual(room_intent(action), kind)
+
+    def test_plain_address_and_watching_are_social_but_stunts_still_need_a_ruling(self):
+        for action in ("Whatever you're selling, I'm not buying.", 'I stay by the wall and watch the game.',
+                       'I refuse to pay.', 'I smile at the dealer.'):
+            with self.subTest(action=action):
+                self.assertEqual(room_intent(action), 'social')
+                self.assertEqual(self.resolve(action).public_event, social_event(action))
+        self.assertEqual(room_intent('I dance a jig on the fresco ledge.'), 'unsupported_action')
+
+    def test_out_of_character_question_is_answered_not_resolved_as_a_check(self):
+        for action in ('(OOC) Can I make an Insight check on them, and what is the DC?',
+                       'Out of character: what happens if I attack?',
+                       'Rules question: does studying the carving use my action?'):
+            with self.subTest(action=action):
+                self.assertEqual(room_intent(action), 'social')
+                # No modifier needed and no fact revealed: it is table talk, not the check.
+                resolution = self.resolve(action)
+                self.assertEqual([event['type'] for event in resolution.events], ['beat'])
+        self.assertEqual(room_intent('I study their fangs. Insight check.'), 'insight')
+
+    def test_stealth_needs_a_ruling_and_is_never_a_free_exit(self):
+        for action in ('I sneak along the wall and slip out the south door.',
+                       'I quietly walk out the south door while they are busy.',
+                       'I try to slip past the table unnoticed.'):
+            with self.subTest(action=action):
+                self.assertEqual(room_intent(action), 'stealth')
+                with self.assertRaisesRegex(PendingRuling, 'Stealth'):
+                    self.resolve(action)
+        self.assertEqual(self.runtime.load()[0], 0)
+        self.assertEqual(room_intent('I walk out the south door.'), 'exit')
+        self.assertEqual(room_intent('I stay by the door and quietly watch the game.'), 'social')
+
+    def test_climbing_into_the_tub_finds_the_stash_and_leaving_the_tub_is_not_an_exit(self):
+        action = 'I climb into the stone tub and lie back like it is a hot bath.'
+        self.assertEqual(room_intent(action), 'enter_tub')
+        resolution = self.resolve(action)
+        self.assertEqual(resolution.events[0]['type'], 'reveal_fact')
+        self.assertEqual(resolution.events[0]['fact'], 'tub_stash')
+        self.assertIn('climb down into the recessed tub', resolution.public_event)
+        self.assertEqual(room_intent('I flip the tub over.'), 'tip_tub')
+        self.assertEqual(room_intent('I look in the tub.'), 'inspect_tub')
+        self.assertNotEqual(room_intent('I step out of the tub.'), 'exit')
+        self.assertEqual(room_intent('I walk out.'), 'exit')
+
+
 if __name__ == '__main__':
     unittest.main()
