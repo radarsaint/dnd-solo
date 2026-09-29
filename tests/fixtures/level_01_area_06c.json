@@ -276,7 +276,7 @@
     "three_dragon_ante": {
       "kind": "card_game",
       "name": "Three-Dragon Ante (Kit's table rules)",
-      "dm_choice": "DM choice, not the adventure's: area 6c says only that the four play cards with a marked deck the dealer carries, with coins on the table. Kit chose Three-Dragon Ante, a Forgotten Realms card game many D&D players know, and runs it with her own short table rules, not the published rules. Texas hold 'em or blackjack would have been just as valid.",
+      "dm_choice": "DM choice, not the adventure's: the adventure names no game, rules, or stakes for this table. Kit chose Three-Dragon Ante, a Forgotten Realms card game many D&D players know, and runs it with her own short table rules, not the published rules. Texas hold 'em or blackjack would have been just as valid.",
       "public_rules": [
         "Dragon cards in five colors (red, blue, green, black, white), strengths 1 to 9.",
         "Everyone antes 2 gp. The dealer deals three cards to each player, face down.",
@@ -287,7 +287,7 @@
       "ante": 2,
       "raise": 2,
       "seats": {"bandit_a": 15, "bandit_b": 18, "doppelganger": 22, "uktarl": 30},
-      "stacks_note": "The gold stacks are the table's 85 gp split by seat (a DM choice). The silver and copper stay on the table as color, not stakes.",
+      "stacks_note": "The gold stacks are the table's gold split by seat (a DM choice). The silver and copper stay on the table as color, not stakes.",
       "labels": {
         "uktarl": "Dealer",
         "bandit_a": "Door-side player",

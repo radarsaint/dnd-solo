@@ -134,6 +134,33 @@ class PrecedenceTests(unittest.TestCase):
                                                'srd_entry': 'Road or gate toll'})
         self.assertEqual((result['amount'], result['source']), (10, 'adventure'))
 
+    def test_the_source_ring_price_is_quoted_and_recorded_as_the_adventures(self):
+        """QA PR #15: a source price could not be recorded: choice priced needs an SRD or
+        magic quote, and the ring's closest SRD entry is a pound of silver."""
+        from runtime import kit_detail
+        source = json.loads(FIXTURE.read_text())
+        hint = kit_prices.lookup_hint('What does that silver ring cost?', self.source_prices)
+        oracle = {'slot': 'area_06c/price/ring_value', 'facet': 'price', 'subject': 'room',
+                  'status': 'priced', 'price': hint}
+        detail = {**kit_detail.NO_DETAIL, 'request': 'What does that silver ring cost?',
+                  'slot': oracle['slot'], 'choice': 'source',
+                  'inventions': [{'slot': oracle['slot'], 'kind': 'price', 'fact': 'The silver ring is worth 25 gp',
+                                  'basis': 'adventure source: table_treasure', 'public': True,
+                                  'scope': 'location', 'procedure': 'none', 'change_reason': 'none'}]}
+        kit_detail.check_detail(detail, 'What does that silver ring cost?', 'social', source,
+                                {'area': 'area_06c'}, oracle=oracle)
+        entry = kit_detail.canon_events(detail, 't1', oracle)[0]
+        self.assertEqual((entry['price']['amount'], entry['price']['source']), (25, 'adventure'))
+        wrong = {**detail, 'inventions': [{**detail['inventions'][0], 'fact': 'The silver ring is worth 5 gp'}]}
+        with self.assertRaisesRegex(InvalidChange, 'Never invent one'):
+            kit_detail.check_detail(wrong, 'What does that silver ring cost?', 'social', source,
+                                    {'area': 'area_06c'}, oracle=oracle)
+        srd = {**detail, 'choice': 'priced',
+               'price_quote': [{'item': 'silver ring', 'srd_entry': 'Silver (1 lb.)', 'magic': 'none'}]}
+        with self.assertRaisesRegex(InvalidChange, 'choice must be'):
+            kit_detail.check_detail(srd, 'What does that silver ring cost?', 'social', source,
+                                    {'area': 'area_06c'}, oracle=oracle)
+
     def test_dmg_official_then_srd_then_formula(self):
         potion = {'impact_kind': 'consumable', 'dice': '2d4+2', 'entry_level': 1, 'category': 'Consumable'}
         official = kit_prices.price_for('Potion of Healing', {'magic_item': {**potion, 'official_price_gp': 50}})

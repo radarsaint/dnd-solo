@@ -202,6 +202,15 @@ def price_result(quote):
     return result
 
 
+def source_quote(oracle):
+    """The adventure's own price when the oracle found one (precedence 1), as a quote."""
+    price = (oracle or {}).get('price') or {}
+    if price.get('status') != 'source' or not price.get('amounts'):
+        return None
+    return {'item': price['name'], 'amount': price['amounts'][0], 'unit': price['unit'],
+            'basis': f'adventure source: {price["name"]}', 'source': 'adventure'}
+
+
 _MAGIC_KEYS = ('impact_kind', 'dice', 'charges', 'bonus', 'levels', 'utility', 'aoe', 'entry_level',
                'category', 'official_price_gp')
 
@@ -302,6 +311,8 @@ def check_detail(detail, player_action, action_kind, source, state, supported_pr
             allowed = {'canon_supplied': ('canon',), 'source_supplied': ('source',),
                        'priced': ('priced', 'unpriced'), 'unpriced': ('priced', 'unpriced'),
                        'open_no_deck': ('self',)}.get(status)
+            if source_quote(oracle):
+                allowed = ('source', 'unpriced')  # the adventure prices it; no SRD or formula
             if status == 'open':
                 require(choice in dealt or choice.casefold().startswith(OVERRIDE_PREFIX),
                         'Pick a dealt card by draw_id, or override once: "override: <reason>"')
@@ -327,13 +338,17 @@ def check_detail(detail, player_action, action_kind, source, state, supported_pr
             _check_owner_handle_because(detail, owners, known)
     # Prices: only through the precedence in kit_prices; never invented.
     quotes = [price_result(quote) for quote in detail['price_quote']]
+    sourced = source_quote(oracle) if choice == 'source' else None
+    require(not (sourced and quotes), 'The adventure sets this price; leave price_quote empty')
+    quotes += [sourced] if sourced else []
     require(choice != 'priced' or quotes, 'choice priced needs a price_quote')
     target = oracle['slot'] if oracle else (slot[len(SELF_PREFIX):].strip()
                                             if slot.casefold().startswith(SELF_PREFIX) else None)
-    _check_inventions(detail, source, state, supported_procedures, dealt, choice, target, quotes)
+    _check_inventions(detail, source, state, supported_procedures, dealt, choice, target, quotes,
+                      needs_price=bool(sourced))
 
 
-def _check_inventions(detail, source, state, supported, dealt, choice, target, quotes):
+def _check_inventions(detail, source, state, supported, dealt, choice, target, quotes, needs_price=False):
     inventions = detail['inventions']
     require(len(inventions) <= MAX_INVENTIONS, f'At most {MAX_INVENTIONS} inventions per turn')
     canon = (state or {}).get('canon') or {}
@@ -389,7 +404,7 @@ def _check_inventions(detail, source, state, supported, dealt, choice, target, q
                         'Specificity floor: the detail needs a proper noun, a number, a sensory word '
                         'from this place\'s texture, or a real-world or published basis.')
     needs_answer = choice in dealt or choice == 'self' or choice.casefold().startswith(OVERRIDE_PREFIX) \
-        or choice == 'priced'
+        or choice == 'priced' or needs_price
     require(not needs_answer or answers_target,
             f'Record the answer: an invention for slot {target!r} persists it in the canon ledger')
 
@@ -399,6 +414,8 @@ def canon_events(detail, turn_id, oracle, supported_prices=()):
     detail = detail or NO_DETAIL
     dealt = {card['draw_id']: card for card in ((oracle or {}).get('deal') or [])}
     quotes = [price_result(quote) for quote in detail['price_quote']]
+    sourced = source_quote(oracle) if detail['choice'] == 'source' else None
+    quotes += [sourced] if sourced else []
     events = []
     for item in detail['inventions']:
         roots = dealt[detail['choice']]['roots'] if detail['choice'] in dealt and oracle and \
@@ -455,6 +472,11 @@ def check_detail_answer(segments, detail, player_action=''):
     wanted = {word for item in shown for word in keywords(item['fact'])}
     require(not wanted or spoken & wanted,
             'The performance never showed the detail it chose. Let the answer land in the scene.')
+    if detail.get('choice') == 'source':
+        amounts = {number for item in shown if item['kind'] == 'price'
+                   for number in re.findall(r'\d+', item['fact'])}
+        require(not amounts or spoken & amounts, 'Answer the literal question first: the player asked '
+                'a price, so someone names it. Put the boldness in the terms around it.')
     if detail.get('choice') == 'priced':
         amounts = {str(price_result(quote)['amount']) for quote in detail['price_quote']}
         require(spoken & amounts, 'Answer the literal question first: the player asked a price, so '

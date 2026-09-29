@@ -277,6 +277,80 @@ class CardTableTests(unittest.TestCase):
         self.assertEqual(state['public']['table_mood'], 'tense: accused without proof')
         self.assertIn('Nothing on the table proves it', text)
 
+    def test_seats_that_checked_before_a_raise_call_it_or_fold(self):
+        """QA PR #15: a seat acting before the raiser stayed in the hand for the ante alone."""
+        checked = 0
+        for number in range(200):
+            table = kit_cards.CardTable('three_dragon_ante', self.config,
+                                        {'perception': 0, 'insight': 0, 'sleight_of_hand': 0}, f'raise-{number}')
+            _, state, _ = table.resolve('card_join', 'I buy in with 20 gold and deal me in.', 1,
+                                        kit_cards.initial_state(self.config))
+            hand = state['public']['hand']
+            if not hand['raised_by']:
+                continue
+            for seat in hand['in_hand']:
+                self.assertEqual(hand['paid'][seat], state['public']['ante'] + state['public']['raise'])
+            checked += 1
+        self.assertGreater(checked, 0)
+
+    def test_a_proven_accusation_keeps_the_remainder_carried_from_the_last_hand(self):
+        """QA PR #15: voiding the hand zeroed the pot, destroying a split remainder."""
+        for number in range(3000):
+            table = kit_cards.CardTable('three_dragon_ante', self.config,
+                                        {'perception': 5, 'insight': 0, 'sleight_of_hand': 0}, f'carry-{number}')
+            _, state, _ = table.resolve('card_join', 'I buy in with 20 gold and deal me in.', 1,
+                                        kit_cards.initial_state(self.config))
+            _, state, _ = table.resolve('card_bet', 'I call.', 2, state)
+            if not state['public']['hand']['pot']:
+                continue
+            state['public']['player']['watch_next_deal'] = True
+            _, state, _ = table.resolve('card_join', 'Deal me in. I rolled 20 + 5 = 25.', 3, state)
+            if not state['public']['hand']['cheat_seen']:
+                continue
+            total = self.gold(state)
+            _, state, _ = table.resolve('card_accuse', 'You are cheating!', 4, state)
+            self.assertEqual(self.gold(state), total)
+            return
+        self.fail('no carried remainder with a caught cheat in 3000 seeds')
+
+    def test_betting_words_are_ordinary_words_without_a_live_hand(self):
+        state = kit_cards.initial_state(self.config)
+        _, state, _ = self.play(self.table(), 'card_join', 'I buy in with 20 gold.', state)
+        self.assertIsNone(kit_cards.card_intent('What do they call this game?', state))
+        _, state, _ = self.play(self.table(), 'card_join', 'Deal me in.', state, revision=2)
+        _, state, _ = self.play(self.table(), 'card_bet', 'I call.', state, revision=3)
+        self.assertIsNone(kit_cards.card_intent('I call.', state), 'no bet on a finished hand')
+
+    def test_the_public_table_names_seats_only_by_their_labels(self):
+        """QA PR #15: public stack keys were actor ids ("doppelganger"), and the public
+        dm_choice named the marked deck, which also switched off the literal leak check."""
+        state = kit_cards.initial_state(self.config)
+        _, state, _ = self.play(self.table(), 'card_join', 'I buy in with 20 gold and deal me in.', state)
+        public = json.dumps(kit_cards.public_view(self.config, state['public'])).casefold()
+        for secret in ('doppelganger', 'uktarl', 'bandit', 'marked'):
+            self.assertNotIn(secret, public)
+        self.assertIn('fourth player', public)
+
+    def test_combat_and_stealth_keep_their_rulings_at_the_card_table(self):
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        runtime = Runtime(Path(temp.name) / 'kit.sqlite')
+        self.addCleanup(runtime.close)
+        source = json.loads(FIXTURE.read_text())
+        runtime.initialize(source, 'area_06c')
+        state = runtime.load()[1]
+        table = kit_cards.initial_state(self.config)
+        _, table, _ = self.play(self.table(), 'card_join', 'I buy in with 20 gold and deal me in.', table)
+        state['procedures'] = {'three_dragon_ante': table}
+        adjudicator = Room6CAdjudicator(perception=0, insight=0, sleight_of_hand=0, source=source)
+        with self.assertRaisesRegex(kit_agent.PendingRuling, 'Combat'):
+            adjudicator.resolve('I raise my crossbow and shoot the dealer.', 1, state)
+        with self.assertRaisesRegex(kit_agent.PendingRuling, 'Stealth'):
+            adjudicator.resolve('I sneak out while they check their hands.', 1, state)
+        self.assertEqual(adjudicator.resolve('I raise.', 1, state).kind, 'card_bet')
+        view = json.dumps(Runtime._player_view(source, state)).casefold()
+        self.assertNotIn('doppelganger', view)
+
     def test_the_card_intents_need_a_declared_game(self):
         self.assertIsNone(kit_cards.card_intent('I buy in with 20 gold.', None))
         state = kit_cards.initial_state(self.config)

@@ -186,9 +186,13 @@ class Room6CAdjudicator:
             raise PendingRuling('This play slice covers area 6c only. No turn was committed.')
         table = card_procedure(self.source, state)
         card_kind = kit_cards.card_intent(action, table[2]) if table else None
-        if card_kind:
-            return self._resolve_card(card_kind, action, revision, state, table)
         kind = room_intent(action, addressed)
+        # Combat and stealth keep their rulings at the card table: "I raise my crossbow" is
+        # not a raise, and sneaking out "while they check their hands" is not a check.
+        # A sleight at the table ("unseen") stays a card swap.
+        overrides = kind == 'combat' or (kind == 'stealth' and card_kind != 'card_swap')
+        if card_kind and not overrides:
+            return self._resolve_card(card_kind, action, revision, state, table)
         if kind == 'combat':
             raise PendingRuling('Combat needs a character sheet, initiative, and tactical resolver. No turn was committed.', attempt=True)
         if kind == 'stealth':
@@ -576,7 +580,8 @@ PRIVATE_INSTRUCTIONS = (
     'when the scene needs a fact the source leaves open; else none). When detail_oracle is '
     'present, copy its slot; by status: canon_supplied, reuse the canon fact (choice canon); '
     'source_supplied, the source answers (choice source); priced, the price comes only from '
-    'detail_oracle.price: name the closest SRD entry exactly in price_quote.srd_entry (magic '
+    'detail_oracle.price (status source: the adventure sets it, choice source, record and '
+    'state that amount); otherwise name the closest SRD entry exactly in price_quote.srd_entry (magic '
     'items: a pricing spec in magic) and state that amount; a local name for the thing is '
     'yours, the price is not (choice priced); unpriced, nobody names a number (choice '
     'unpriced); open, pick one dealt card by draw_id and interpret it, or override once with '
@@ -1474,7 +1479,8 @@ def performance_input(runtime, body, plan):
     for procedure in declared_procedures((), plan):
         config = source.get('procedures', {}).get(procedure)
         if config and config.get('kind') == 'card_game':
-            payload.setdefault('new_procedures', {})[procedure] = kit_cards.initial_state(config)['public']
+            payload.setdefault('new_procedures', {})[procedure] = kit_cards.public_view(
+                config, kit_cards.initial_state(config)['public'])
     callback = plan['public_brief'].get('callback', 'none')
     if callback.strip().casefold() != 'none':
         # Public only: the earlier line the player already saw, so the performer knows

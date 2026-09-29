@@ -129,11 +129,8 @@ def card_intent(action, procedure_state):
             continue
         if kind == 'card_accuse' and not (seated or hand):
             return None  # an accusation away from the game is ordinary conversation
-        if kind in ('card_swap', 'card_read', 'card_bet') and not (hand and hand['phase'] == 'betting'):
-            if kind == 'card_bet' and not seated:
-                continue
-            if kind != 'card_bet':
-                continue
+        if kind in ('card_swap', 'card_read', 'card_bet') and not (seated and hand and hand['phase'] == 'betting'):
+            continue  # no live hand: "call", "check", "tell" are ordinary words
         if kind == 'card_watch' and not seated:
             continue
         if kind == 'card_leave' and not seated:
@@ -263,6 +260,18 @@ class CardTable:
                 pot += public['raise']
                 paid[seat] += public['raise']
             elif level and seat != raised_by:
+                stays = (mine > known) if seat == dealer else mine >= 14
+                if stays and public['stacks'][seat] >= public['raise']:
+                    public['stacks'][seat] -= public['raise']
+                    pot += public['raise']
+                    paid[seat] += public['raise']
+                else:
+                    folded.append(seat)
+        if raised_by:
+            # Seats that checked before the raise must now call it or fold; nobody stays
+            # in the hand for less than the bet.
+            for seat in in_hand[:in_hand.index(raised_by)]:
+                mine = score(hands[seat])
                 stays = (mine > known) if seat == dealer else mine >= 14
                 if stays and public['stacks'][seat] >= public['raise']:
                     public['stacks'][seat] -= public['raise']
@@ -459,7 +468,7 @@ class CardTable:
                 else:
                     public['stacks'][seat] += amount
             hand['phase'] = 'done'
-            hand['pot'] = 0
+            hand['pot'] -= sum(hand['paid'].values())  # a remainder carried from the last hand stays
             public['hands_played'] = hand['number']
             public['table_mood'] = 'tense: accused with proof'
             record.append({'hand': hand['number'], 'backed': True})
@@ -477,6 +486,25 @@ class CardTable:
         public['player'] = None
         return (f'You gather your {player["gp"]} gp and leave the game '
                 f'({"up" if net >= 0 else "down"} {abs(net)} gp on your {player["bought_in"]} gp buy-in).'), []
+
+
+def public_view(config, public):
+    """The player-visible half with every seat under its public label. Seat keys are DM
+    actor ids (one of them names a hidden identity), so they never leave the DM side."""
+    labels = {**config.get('labels', {}), 'player': 'you'}
+
+    def label(seat):
+        return labels.get(seat, seat)
+    view = copy.deepcopy(public)
+    view['stacks'] = {label(seat): gp for seat, gp in view['stacks'].items()}
+    hand = view.get('hand')
+    if hand:
+        hand['paid'] = {label(seat): gp for seat, gp in hand.get('paid', {}).items()}
+        hand['in_hand'] = [label(seat) for seat in hand.get('in_hand', [])]
+        hand['folded'] = [label(seat) for seat in hand.get('folded', [])]
+        if hand.get('raised_by'):
+            hand['raised_by'] = label(hand['raised_by'])
+    return view
 
 
 def declared_procedures(state):

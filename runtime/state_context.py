@@ -643,7 +643,9 @@ class Runtime:
                        for key, item in canon_in_scope(state).items() if item['public']]
         if established:
             view['established_details'] = established
-        procedures = {key: body['public'] for key, body in (state.get('procedures') or {}).items()}
+        from . import kit_cards  # local import: kit_cards imports this module
+        procedures = {key: kit_cards.public_view((source.get('procedures') or {}).get(key) or {}, body['public'])
+                      for key, body in (state.get('procedures') or {}).items()}
         if procedures:
             view['table_procedures'] = procedures
         return view
