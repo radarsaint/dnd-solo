@@ -254,9 +254,10 @@ class TavernSceneTests(unittest.TestCase):
     def test_prices_come_from_the_srd_with_the_entry_recorded(self):
         ask = 'How much for a mug of that ale?'
         oracle = kit_texture.oracle_packet(ask, TAVERN, self.state, 'social', price_lookup=kit_prices.lookup_hint)
-        self.assertEqual((oracle['status'], oracle['slot']), ('priced', 'taproom/price/ale_mug'))
+        # Keyed by the item asked about, not the SRD word; "mug" is the tier quoted.
+        self.assertEqual((oracle['status'], oracle['slot']), ('priced', 'taproom/price/ale'))
         quote = {'item': 'Bilgewater stout', 'srd_entry': 'Ale, mug', 'magic': 'none'}
-        priced = invention(oracle['slot'], 'A mug of Bilgewater stout is 4 cp.', kind='price',
+        priced = invention(oracle['slot'] + '/mug', 'A mug of Bilgewater stout is 4 cp.', kind='price',
                            basis='SRD 5.1 closest entry; the house names its stout', scope='location')
         detail = decide(ask, oracle['slot'], 'priced', [priced], price_quote=[quote])
         check_detail(detail, ask, 'social', TAVERN, self.state, (), self.established, ['barkeep'], oracle)

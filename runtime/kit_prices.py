@@ -56,24 +56,88 @@ def srd_entry(name):
     return next((entry for entry in srd_entries() if entry['name'].casefold() == wanted), None)
 
 
+# Everyday words for what an SRD entry calls something else: a "room at the inn" is an
+# "Inn stay", a "pint of beer" is an "Ale, mug". Only words that name the same thing.
+SYNONYMS = {'room': 'stay', 'bed': 'stay', 'lodging': 'stay', 'beer': 'ale', 'pint': 'mug',
+            'tankard': 'mug', 'lodge': 'stay', 'meal': 'meal', 'food': 'meal', 'tavern': 'inn'}
+# Time and quantity words an entry's bundle ("(per day)") already covers.
+_BUNDLE_WORDS = frozenset('night nights day days tonight evening week here there place house at in on '
+                          'with from to by that this these those your my our their his her yon'.split())
+_ASKS = (
+    re.compile(r"\bhow much (?:is|are|for|does|do|would|will|to|'s|would it be for|does it cost to|"
+               r"to buy|to rent|to hire)?\s*(?P<item>[^?.!,;]+)"),
+    re.compile(r"\bwhat (?:is|does|do|would|will|'s)\s+(?P<item>[^?.!,;]+?)\s+(?:cost|costs|go for|run|"
+               r"sell for|fetch|worth)\b"),
+    re.compile(r"\bwhat(?:'s| is) the (?:price|cost|going rate) (?:of|for|on)\s+(?P<item>[^?.!,;]+)"),
+    re.compile(r"\b(?:price|cost) (?:of|for|on)\s+(?P<item>[^?.!,;]+)"),
+    re.compile(r"\b(?:sell|buy|rent|hire) (?:me |you |us )?(?P<item>[^?.!,;]+?)(?: for| at the price|$)"),
+)
+_LEADING = re.compile(r"^(?:(?:a|an|the|your|that|this|those|these|one|some|my|his|her|their|of|for|to|"
+                      r"buy|rent|get|cost)\s+)+")
+_TRAILING = re.compile(r"(?:\s+(?:cost|costs|go for|run|be|worth|cost me|here|tonight|around here|"
+                       r"in here|these days|then|now|exactly|again))+$")
+
+
+def asked_item(text):
+    """The item a price question names, in the player's words, whole: "wand of
+    fireballs", "silver ring", "room at the inn". Falls back to the whole question."""
+    norm = ' '.join((text or '').casefold().replace('\u2019', "'").split())
+    for pattern in _ASKS:
+        found = pattern.search(norm)
+        if found:
+            item = _TRAILING.sub('', _LEADING.sub('', found.group('item').strip())).strip()
+            if re.search(r'[a-z]', item):
+                return item
+    return norm.strip(' ?.!')
+
+
+def _entry_parts(name):
+    """(head tokens, qualifier tokens, bundle tokens) of an SRD name:
+    "Inn stay, modest (per day)" -> ([inn, stay], [modest], [day])."""
+    bundle = ' '.join(re.findall(r'\(([^)]*)\)', name))
+    bare = re.sub(r'\([^)]*\)', ' ', name)
+    head, _, qualifier = bare.partition(',')
+    return _tokens(head), _tokens(qualifier), _tokens(bundle)
+
+
+def _query_words(text):
+    words = [SYNONYMS.get(word, word) for word in _tokens(asked_item(text))]
+    return {word for word in words if word not in _BUNDLE_WORDS}
+
+
+def whole_item_matches(text):
+    """SRD entries that are the whole item asked about, in table order. Every content
+    word of the asked item must be in the entry's name (after SYNONYMS), and the entry's
+    head noun must be asked: "silver ring" never matches "Silver (1 lb.)", and "wand of
+    fireballs" never matches "Wand"."""
+    query = _query_words(text)
+    if not query:
+        return []
+    found = []
+    for entry in srd_entries():
+        head, qualifier, bundle = _entry_parts(entry['name'])
+        if head and head[0] in query and query <= set(head) | set(qualifier) | set(bundle):
+            found.append(entry)
+    return found
+
+
+def tier_of(name):
+    """The qualifier of a tiered SRD entry (one of several with the same head: the six
+    "Inn stay" entries, "Ale, gallon" / "Ale, mug"), as a slot segment, else None."""
+    entry = srd_entry(name)
+    if entry is None:
+        return None
+    head, qualifier, _ = _entry_parts(entry['name'])
+    if not qualifier:
+        return None
+    siblings = [other for other in srd_entries() if _entry_parts(other['name'])[0] == head]
+    return '_'.join(qualifier) if len(siblings) > 1 else None
+
+
 def closest_srd(text):
-    """(best entry, alternatives) by shared words with an item description, or (None, []).
-    The entry's head noun (the first word of its SRD name: "Ale" in "Ale, mug") must be
-    among the words, so "glass eye" never matches "Bottle, glass"."""
-    query = set(_tokens(text))
-    scored = []
-    for index, entry in enumerate(srd_entries()):
-        tokens = _tokens(entry['name'])
-        names = set(tokens)
-        shared = len(query & names)
-        if shared and tokens and tokens[0] in query:
-            scored.append((shared / len(names), shared, -index, entry))
-    if not scored:
-        return None, []
-    scored.sort(key=lambda item: item[:3], reverse=True)
-    best = scored[0]
-    ties = [item[3] for item in scored[1:] if item[:2] == best[:2]]
-    return best[3], ties
+    """(best entry, alternatives) that are the whole item asked about, or (None, [])."""
+    found = whole_item_matches(text)
+    return (found[0], found[1:]) if found else (None, [])
 
 
 def _srd_result(entry, item):
@@ -116,9 +180,16 @@ def lookup_hint(text, source_prices=()):
         if words & cues:
             return {'status': 'source', 'name': name, 'amounts': fact['allowed_amounts'],
                     'unit': fact['unit_words'][0]}
-    best, ties = closest_srd(text)
-    if best:
-        return {'status': 'srd', 'closest': [_srd_result(entry, text)['basis'] for entry in [best] + ties[:3]]}
+    found = whole_item_matches(text)
+    if found:
+        tiers = [tier_of(entry['name']) for entry in found]
+        hint = {'status': 'srd', 'item': asked_item(text),
+                'closest': [_srd_result(entry, text)['basis'] for entry in found[:6]]}
+        if any(tiers):
+            hint['tiers'] = [tier for tier in tiers[:6] if tier]
+            hint['tier_rule'] = ('Tiered entry: quote the tier the NPC names, and record it under '
+                                 'the slot plus "/<tier>" (e.g. .../modest).')
+        return hint
     return {'status': 'unpriced', 'flag': 'UNPRICED: no source, DMG, SRD, or formula price. Answer '
             'without a number; do not invent one.'}
 

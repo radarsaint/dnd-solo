@@ -60,6 +60,18 @@ EPISODE_DEFAULTS = {'player_bid': None, 'kit_choice': None, 'actor_ref': None,
 _SCORE_PATTERN = r'\b\d+\s*(/|out of)\s*\d+\b|%|\b(score|meter|affection|rating)\b'
 
 
+_FACT_QUOTES = str.maketrans({'\u2019': "'", '\u2018': "'", '\u201c': '"', '\u201d': '"'})
+
+
+def normalize_fact(text):
+    """The one comparison form for canon facts, used by the runtime ledger and the
+    detail validator alike: curly quotes straightened, case folded, whitespace
+    collapsed, and trailing sentence punctuation dropped. "The toll is 10 gp." and
+    "the toll is 10 gp" are the same fact; "10 gp" and "12 gp" are not."""
+    text = ' '.join((text or '').translate(_FACT_QUOTES).casefold().split())
+    return text.rstrip(' .!;')
+
+
 def check_player_character(character):
     require(isinstance(character, dict) and set(character) == {'name', 'ancestry', 'class', 'level'},
             'A player character records name, ancestry, class, and level')
@@ -614,7 +626,7 @@ class Runtime:
             prior = canon.get(slot)
             fact = event['fact'].strip()
             revision, _ = self.load()
-            if prior and prior['fact'] == fact:
+            if prior and normalize_fact(prior['fact']) == normalize_fact(fact):
                 pass  # restating canon is fine
             else:
                 if prior:

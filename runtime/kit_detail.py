@@ -27,9 +27,9 @@ never put in a prompt (naming a banned answer primes it).
 """
 import re
 
-from . import kit_prices
+from . import kit_guards, kit_prices
 from . import kit_texture
-from .state_context import require
+from .state_context import normalize_fact, require
 
 INVENTION_KINDS = ('object', 'drink_food', 'appearance', 'name', 'price', 'inscription',
                    'procedure', 'history', 'other')
@@ -374,7 +374,7 @@ def _check_inventions(detail, source, state, supported, dealt, choice, target, q
         require(slot.split('/')[-1] not in (source or {}).get('facts', {}),
                 'Invention collides with a source fact; the source already settles it')
         prior = canon.get(slot)
-        if prior and _norm(prior['fact']) != _norm(fact):
+        if prior and normalize_fact(prior['fact']) != normalize_fact(fact):
             require(not is_none(item['change_reason']) and len(item['change_reason'].split()) >= 4,
                     f'Canon says {slot} is: {prior["fact"]} Keep it, or give the in-story event that '
                     'changed it in change_reason.')
@@ -386,10 +386,16 @@ def _check_inventions(detail, source, state, supported, dealt, choice, target, q
         require(item['kind'] != 'procedure' or not is_none(procedure),
                 'A procedure invention names the runtime procedure that runs it')
         if item['kind'] == 'price':
-            require(any(f'{quote["amount"]} {quote["unit"]}' in _norm(fact) for quote in quotes),
+            quote = quote_in(fact, quotes)
+            require(quote is not None,
                     'A price comes from the source, the DMG, the SRD, or Brendon\'s formula through '
                     'price_quote, and the fact states that amount and unit. Never invent one.')
-        if slot == target:
+            tier = kit_prices.tier_of(quote.get('srd_entry') or '') if target else None
+            if tier:
+                require(slot == f'{target}/{tier}',
+                        f'{quote["srd_entry"]} is one tier of several: record it under {target}/{tier}, '
+                        'the tier quoted')
+        if slot == target or (target and slot.startswith(target + '/')):
             answers_target = True
             if choice in dealt:
                 card = dealt[choice]
@@ -409,6 +415,13 @@ def _check_inventions(detail, source, state, supported, dealt, choice, target, q
             f'Record the answer: an invention for slot {target!r} persists it in the canon ledger')
 
 
+def quote_in(fact, quotes):
+    """The quote whose amount and unit the fact states, however it is said ("5 sp",
+    "five silver"); whole numbers only, so a 25 gp quote is never found in "125 gp"."""
+    stated = set(kit_guards.spoken_amounts(fact))
+    return next((quote for quote in quotes if (quote['amount'], quote['unit']) in stated), None)
+
+
 def canon_events(detail, turn_id, oracle, supported_prices=()):
     """Ledger events for this turn's inventions, plus the oracle draw it consumed."""
     detail = detail or NO_DETAIL
@@ -420,8 +433,7 @@ def canon_events(detail, turn_id, oracle, supported_prices=()):
     for item in detail['inventions']:
         roots = dealt[detail['choice']]['roots'] if detail['choice'] in dealt and oracle and \
             item['slot'] == oracle['slot'] else []
-        price = next((quote for quote in quotes if item['kind'] == 'price' and
-                      f'{quote["amount"]} {quote["unit"]}' in _norm(item['fact'])), None)
+        price = quote_in(item['fact'], quotes) if item['kind'] == 'price' else None
         events.append({'type': 'canon_entry', 'slot': item['slot'].strip(), 'kind': item['kind'],
                        'fact': item['fact'].strip(), 'basis': item['basis'].strip(),
                        'public': item['public'], 'scope': item['scope'],
@@ -493,12 +505,14 @@ def check_detail_answer(segments, detail, player_action=''):
     wanted = {word for item in shown for word in keywords(item['fact'])}
     require(not wanted or spoken & wanted,
             'The performance never showed the detail it chose. Let the answer land in the scene.')
+    said = set(kit_guards.spoken_amounts(' '.join(segment['text'] for segment in segments)))
     if detail.get('choice') == 'source':
-        amounts = {number for item in shown if item['kind'] == 'price'
-                   for number in re.findall(r'\d+', item['fact'])}
-        require(not amounts or spoken & amounts, 'Answer the literal question first: the player asked '
+        amounts = {pair for item in shown if item['kind'] == 'price'
+                   for pair in kit_guards.spoken_amounts(item['fact'])}
+        require(not amounts or said & amounts, 'Answer the literal question first: the player asked '
                 'a price, so someone names it. Put the boldness in the terms around it.')
     if detail.get('choice') == 'priced':
-        amounts = {str(price_result(quote)['amount']) for quote in detail['price_quote']}
-        require(spoken & amounts, 'Answer the literal question first: the player asked a price, so '
-                'someone names it. Put the boldness in the terms around it.')
+        amounts = {(result['amount'], result['unit'])
+                   for result in (price_result(quote) for quote in detail['price_quote'])}
+        require(said & amounts, 'Answer the literal question first: the player asked a price, so '
+                'someone names it (amount and unit). Put the boldness in the terms around it.')

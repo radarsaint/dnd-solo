@@ -26,7 +26,7 @@ import json
 import random
 import re
 
-from . import kit_guards
+from . import kit_guards, kit_prices
 from .state_context import PROJECT_ROOT, require
 
 TASTE_FILE = PROJECT_ROOT / 'docs/personality/kit-taste.json'
@@ -192,6 +192,8 @@ def oracle_packet(action, source, state, action_kind, price_lookup=None):
         slot = f'{state["area"]}/price/{price_slug(action, hint)}'
     packet = {'slot': slot, 'facet': facet, 'subject': subject}
     canon = (state.get('canon') or {}).get(slot)
+    if facet == 'price' and not canon:
+        canon = price_canon(state.get('canon') or {}, slot, hint or {})
     answers = palette.get('source_answers') or {}
     if canon:
         packet.update(status='canon_supplied', canon=canon)
@@ -214,16 +216,37 @@ _PRICE_WORDS = frozenset('how much does do is are the a an for of cost costs pri
                          'would will it this that one your you me i buy sell'.split())
 
 
+_SLUG_FILLER = frozenset('a an the that this these those your my our their his her yon'.split())
+
+
 def price_slug(action, hint):
-    """A stable name for the priced thing: the source price's name, else the closest
-    SRD entry's, else the player's own content words."""
+    """A stable name for the priced thing: the source price's name, else the whole item
+    the player asked about ("wand_of_fireballs", "room_at_the_inn"), never the SRD word it
+    happened to match. A tiered SRD match drops the tier word from the item: the tier is
+    its own slot segment (".../room_at_the_inn/modest"), keyed by the tier quoted."""
     if hint.get('status') == 'source':
         return hint['name']
-    if hint.get('status') == 'srd' and hint.get('closest'):
-        name = hint['closest'][0].split(': ', 1)[1]
-    else:
-        name = ' '.join(word for word in re.findall(r"[a-z]+", _norm(action)) if word not in _PRICE_WORDS)
-    return re.sub(r'[^a-z0-9]+', '_', name.casefold()).strip('_')[:40] or 'item'
+    item = hint.get('item') or kit_prices.asked_item(action)
+    tiers = set(hint.get('tiers') or ())
+    words = [word for word in re.findall(r"[a-z0-9]+", _norm(item))
+             if word not in tiers and word not in _SLUG_FILLER]
+    while words and words[0] in _PRICE_WORDS:
+        words.pop(0)
+    return re.sub(r'[^a-z0-9]+', '_', ' '.join(words)).strip('_')[:60] or 'item'
+
+
+def price_canon(canon, slot, hint):
+    """The ledger entry that answers a price question: the slot itself, or for a tiered
+    item the tier the player named, or every tier already priced when they named none."""
+    if slot in canon:
+        return canon[slot]
+    tiers = {key[len(slot) + 1:]: entry for key, entry in canon.items() if key.startswith(slot + '/')}
+    if not tiers:
+        return None
+    named = hint.get('tiers') or []
+    if len(named) == 1:
+        return tiers.get(named[0])
+    return {'fact': '; '.join(entry['fact'] for entry in tiers.values()), 'tiers': sorted(tiers)}
 
 
 def model_view(packet):
