@@ -1174,5 +1174,33 @@ class ApproachRoutingTests(unittest.TestCase):
         self.assertEqual(room_intent('I walk out.'), 'exit')
 
 
+class TerseCardPlayerTests(unittest.TestCase):
+    """Approach-range playtest: a card-player focus is not forced into a 30-word speech."""
+
+    def plan(self, focus):
+        return {'public_brief': {'scope': 'exchange'}, 'focus_actor': focus}
+
+    def test_card_player_focus_may_be_terse_but_must_speak(self):
+        terse = [{'speaker': 'Narrator', 'text': ' '.join(['word'] * 30)},
+                 {'speaker': 'Card player', 'text': 'Out. Get out of there. That is not yours.'},
+                 {'speaker': 'Dealer', 'text': 'Sit down, he is comfortable.'}]
+        kit_agent.check_scope(terse, self.plan('other'))
+        silent = [segment for segment in terse if segment['speaker'] != 'Card player']
+        silent[0] = {'speaker': 'Narrator', 'text': ' '.join(['word'] * 45)}
+        with self.assertRaisesRegex(InvalidChange, 'selected Card player never spoke'):
+            kit_agent.check_scope(silent, self.plan('other'))
+        # The whole-turn floor still guards against a flat card-player beat.
+        with self.assertRaisesRegex(InvalidChange, 'Exchange scope was flat'):
+            kit_agent.check_scope([{'speaker': 'Narrator', 'text': 'He glares.'},
+                                   {'speaker': 'Card player', 'text': 'Out.'}], self.plan('other'))
+
+    def test_dealer_focus_keeps_the_actor_floor(self):
+        speech = [{'speaker': 'Narrator', 'text': ' '.join(['word'] * 30)},
+                  {'speaker': 'Dealer', 'text': 'Out. Get out of there. That is not yours.'}]
+        with self.assertRaisesRegex(InvalidChange, rf'Dealer spoke 9 words \(floor {EXCHANGE_MIN_ACTOR_WORDS}\)'):
+            kit_agent.check_scope(speech, self.plan('uktarl'))
+        self.assertIn('card player focus may be brief', kit_agent.performance_limits()['exchange'])
+
+
 if __name__ == '__main__':
     unittest.main()
