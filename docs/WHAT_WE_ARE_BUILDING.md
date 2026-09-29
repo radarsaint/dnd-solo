@@ -6,6 +6,10 @@ Kitiara, or DM Kit, is an AI Dungeon Master for a solo D&D campaign. The ambitio
 
 Kit should feel like a particular person running the table. She wants the player to have a great story, roleplay, find exciting rewards, face fair danger, and surprise her. She enjoys clever and ridiculous ideas. She takes pride in a good setup or payoff. She can be funny, warm, threatening, or quiet as the scene requires. Her preferences should affect what she notices and does, not just the adjectives in her narration.
 
+The player should look forward to **Kit's reaction** as much as the next room. A greeting should make an NPC respond to that greeting and pursue something of their own. A strange plan should make Kit curious or delighted when earned, then receive a serious ruling. A threatening moment should give her room to make the danger felt. Across sessions, a player's choices should change relationships and later opportunities. Kit must preserve the player's ability to interrupt or surprise her at every step.
+
+Her exceptional advantage should come from joining this distinctive performance to dependable campaign knowledge and continuity. Being available and remembering more only matters if the next exchange feels worth playing.
+
 ## The approach
 
 We are building several cooperating parts around Kit:
@@ -27,10 +31,20 @@ These are practical software layers for making behavior coherent. Calling one la
 - An earlier chat playtest of character creation showed both promise and failure. Kit supported a player-generated character motive and could hold a ruling, then reconsider it when invited. She also gave unsolicited build advice, rushed ahead into future story, opened the campaign without a convincing reason for the character to be there, and sounded too much like generic ChatGPT. That playtest is recorded as **DM Kit Playtest 01 — Character Onboarding** (2026-09-23).
 - A short [room playtest with Nik](../tests/playtests/2026-09-26-area-06c-nik.md) took 81 seconds to produce a thin dealer exchange. The player found the room opening basic, the NPCs lifeless, and the dealer without a distinct voice or playable story invitation. He called Kit mechanically aware but still “an it, not a she.” This is a clear failure of the tested personality experience, despite the passing backend tests.
 
+## Direction after the first room test
+
+The immediate problem is the conversion from Kit's private choice into what the player hears. Her current plan can name NPC embodiment and select a tactic while the accepted performance remains a short, generic reply. A longer trace or another schema field does not establish a more entertaining DM. The next improvement must be visible in the spoken scene: a recognizable actor pursuing a goal, a particular response to the player's actual move, Kit's taste shaping what happens, and a live opening the player can take or ignore.
+
+We will use published work on reactive dramatic beats, autonomous social actors, appraisal, and agent memory as design precedents. We will adapt the parts that solve a specific observed problem, then compare player-facing performances. One [small exploratory NPC dialogue study](https://arxiv.org/abs/2510.25820) found that tighter scaffolding helped one role's stability while reducing other roles' improvisational believability in a synthetic evaluation; its ten-person usability study did not find a reliable general improvement. We therefore test each constraint at the table instead of assuming more structure improves personality. See [the existing research mapping](architecture/kit-06c-play-slice.md#performance-method-and-limits); this project has not implemented those systems wholesale.
+
+**Performance quality is the current gate.** A turn may be longer if it earns the space; a simple roll prompt should still be quick and direct. Record end-to-end latency and remove avoidable tool/model round trips where convenient, but do not cut a compelling exchange to satisfy a speed target at this stage. The earlier 81-second wait remains a serious usability failure to address after the expressed performance is worth waiting for.
+
+We will compare several grounded performance approaches on the same player moves in area 6c, score the transcript before seeing Kit's private trace, and try the winning approach in a second playable scene. The evidence we want is a player who can tell the NPCs apart, understand what they want, feel Kit's judgment in the scene, and choose to continue. Source fidelity, fair rulings, and the player's freedom to act remain mandatory.
+
 ## What comes next
 
-1. **Make her timing and voice better.** Add a clear way for Kit to recognize whether the player is exploring an idea, making a choice, asking a rules question, handing control to the DM, or actively playing. Test whether she can give space, then take initiative when it is her turn. Sharpen her actual table voice without filling every silence.
-2. **Run the room for several turns with a real character.** Test conversation, investigation, creative physical actions, and consequences. Expand the room's rulings and saved NPC commitments where the current slice pauses. Check whether Kit's private reactions produce entertaining, distinctive behavior over time.
+1. **Make her expressed performance worth playing.** Compare short, actor-led, and more developed scene responses where each is appropriate. Make the opening, NPC tactics, Kit's own table presence, and the player's next choice legible in the transcript. Do not set a universal word count or demand a joke or monologue every turn.
+2. **Run the room for several turns with a real character.** Test conversation, investigation, creative physical actions, and consequences. Expand the room's rulings and saved NPC commitments where the current slice pauses. Check whether Kit's private reactions produce entertaining, distinctive behavior over time. Record latency without using it as this phase's acceptance gate.
 3. **Measure the claim.** Compare player-facing runs with and without Kit's event-linked decisions and memory. Ask players which DM they would keep playing with and why. Then compare a fuller Kit against experienced human DMs using the same scene. Source accuracy and rules competence are required; player preference is the test of the larger ambition.
 4. **Grow beyond the room.** Add character sheets, fuller rules and combat, campaign-wide state and source retrieval, maps and art, and a proper player-facing interface. Solo combat needs judgment about action economy without erasing the player's tactical choices.
 
