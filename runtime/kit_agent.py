@@ -292,7 +292,8 @@ class Room6CAdjudicator:
                 require('roll_seed' in state, 'This session predates stable checks; start a fresh database.')
                 material = f"{state['roll_seed']}:{revision}:{claim_id}:{action.casefold()}".encode()
                 die = int.from_bytes(hashlib.sha256(material).digest()[:8], 'big') % 20 + 1
-        dc = kit_claims.claim_dc(claim, state.get('actors', {}))
+        dc = kit_claims.claim_dc(claim, state.get('actors', {}),
+                                  kit_claims.current_floor_level(self.source, state.get('area')))
         total = die + modifier
         name = skill.replace('_', ' ').title()
         evidence = f'Player rolled {name} for {claim_id}: d20 {die} + {modifier} = {total} vs DC {dc}.'
@@ -663,7 +664,9 @@ PRIVATE_INSTRUCTIONS = (
     'perceives, what their passive Insight or Perception has earned (pc_band fingerprint: '
     'deniable evidence, never the label), and what their own rolls found; Kit\u2019s asides hint '
     'only as far as the wink tier allows (point: where to look; name_kind: the kind of thing; '
-    'never the secret). Motive: why would this person say it now? Choose truth, lie, boast, '
+    'never the secret). A missing adventure concealment DC defaults to 10 + floor(dungeon '
+    'floor level / 3); the current area may provide optional floor_level, otherwise use 1. '
+    'Motive: why would this person say it now? Choose truth, lie, boast, '
     'bargain, hedge, or silence from their wants; Charisma decides how well they manage it. '
     'Intelligence changes how far someone reasons and how they go wrong, never how well they '
     'talk. Nobody answers like a helpful assistant, and nobody sounds like Kit. When the player '

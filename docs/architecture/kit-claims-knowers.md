@@ -19,13 +19,13 @@ states a detail, Kit answers three questions:
 > - Kit's asides tie to the PC's passive Insight: "the higher the Wisdom, the more she winks." Below the DC she stays in the narrator's band; at the DC she may point at where the tell is; at 5+ over she may name the kind of thing going on; she never names the secret.
 > - "Nonsensical is not entertaining." Beat the assistant default (small, safe answers). NPCs are wildly varied and nothing like Kit. Intelligence sets how far someone can reason and what kind of mistake they make; Charisma sets how they talk.
 
-## Open defaults (Brendon to confirm)
+## Rulings
 
 1. An NPC lie is a flat 10 + Deception against the PC's passive Insight. The runtime rolls nothing. If it meets or beats passive Insight, the lie lands.
-2. When the adventure gives no concealment DC, the default is 10 + the concealer's bonus.
+2. When the adventure gives no concealment DC, the default is 10 + floor(dungeon floor level / 3). The current area's optional `floor_level` supplies the floor; it defaults to 1.
 3. Read Thoughts (the doppelganger) grants its claims passively.
-4. The marked deck is found with passive **Perception**, not Insight, because the dealer's slip is a visible action. Nik's 19 against 13 puts him six over, so Kit may name what kind of thing is happening.
-5. Under the design's numbers the bandits come out *close* on the marked deck (10 against 13, 3 short), not *anchored* as the design's example says. The band rule wins.
+4. The marked deck is found with passive **Perception**, not Insight, because the dealer's slip is a visible action. Nik's 19 against 10 puts him nine over, so Kit may name what kind of thing is happening.
+5. Under the design's numbers the bandits come out *knowing* on the marked deck (10 meets the default DC 10), not *anchored* as the design's example says. The band rule wins.
 
 ## What is built
 

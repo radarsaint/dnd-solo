@@ -17,9 +17,8 @@ Brendon's rulings (2026-09-29), which this module implements:
   the tell is; at 5+ over she may name the kind of thing going on; she never names the
   secret.
 
-Open defaults (flagged for Brendon): an NPC lie is a flat 10 + Deception against the PC's
-passive Insight, no runtime roll; a concealment with no adventure DC is 10 + the
-concealer's bonus.
+Defaults: an NPC lie is a flat 10 + Deception against the PC's passive Insight, no
+runtime roll; a concealment with no adventure DC is 10 + floor(dungeon floor level / 3).
 
 Everything the PC side uses comes from whatever sheet is loaded (runtime/pc_sheet.py).
 NPC numbers come from the actor's ``stats`` block in the room source (SRD 5.1 stat
@@ -82,18 +81,23 @@ def npc_profile(actor):
             'wants': actor.get('motive', '')}
 
 
-def _concealer_bonus(claim, actors):
-    concealer = claim.get('concealer')
-    if not concealer or concealer not in actors:
-        return 0
-    return npc_profile(actors[concealer]).get(claim.get('conceal_skill', 'deception'), 0)
+
+def current_floor_level(source, area=None):
+    """Return the dungeon floor for an area, defaulting to floor 1.
+
+    Area data may carry ``floor_level``; a fixture-level value is the fallback for
+    sources whose areas share one floor.
+    """
+    area_data = ((source or {}).get('areas') or {}).get(area, {}) if area else {}
+    level = area_data.get('floor_level', (source or {}).get('floor_level', 1))
+    return level if type(level) is int and level >= 1 else 1
 
 
-def claim_dc(claim, actors):
-    """The adventure's DC, else 10 + the concealer's bonus (open default)."""
+def claim_dc(claim, actors, floor_level=1):
+    """The adventure's DC, else 10 + floor(dungeon floor level / 3)."""
     if type(claim.get('dc')) is int:
         return claim['dc']
-    return 10 + _concealer_bonus(claim, actors)
+    return 10 + floor_level // 3
 
 
 # ---------------------------------------------------------------------------
@@ -128,7 +132,7 @@ def compile_claims(source):
 # ---------------------------------------------------------------------------
 # Bands
 # ---------------------------------------------------------------------------
-def npc_band(claim, actor_id, actors, area=None):
+def npc_band(claim, actor_id, actors, area=None, floor_level=1):
     actor = actors.get(actor_id) or {}
     if area and actor.get('location') != area:
         return 'unaware'
@@ -142,13 +146,13 @@ def npc_band(claim, actor_id, actors, area=None):
     score = profile['insight'] if ability == 'insight' else 10 + profile[REASON_ABILITY]
     if set(profile['domains']) & set(claim.get('domains') or ()):
         score += profile['proficiency_bonus']
-    short = claim_dc(claim, actors) - score
+    short = claim_dc(claim, actors, floor_level) - score
     if short <= 0:
         return 'knows'
     return 'close' if short <= 4 else 'anchored'
 
 
-def pc_band(claim_id, claim, sheet, state):
+def pc_band(claim_id, claim, sheet, state, floor_level=1):
     """learned (a player roll succeeded or it came out in play), fingerprint (the PC's
     passive meets the concealer's DC; passive access only), else blind."""
     learned = set(state.get('known_facts') or []) | set((state.get('claims') or {}).get('learned') or [])
@@ -157,17 +161,17 @@ def pc_band(claim_id, claim, sheet, state):
     if claim.get('exposure') != 'hidden':
         return 'learned'
     if sheet and claim.get('pc_access') == 'passive' and \
-            pc_sheet.passive(sheet, claim['pc_check']) >= claim_dc(claim, state.get('actors', {})):
+            pc_sheet.passive(sheet, claim['pc_check']) >= claim_dc(claim, state.get('actors', {}), floor_level):
         return 'fingerprint'
     return 'blind'
 
 
-def wink_tier(claim, sheet, actors, band):
+def wink_tier(claim, sheet, actors, band, floor_level=1):
     """How far Kit may hint: none below the DC, point at the DC, name_kind at 5+ over.
     Keyed to the PC's passive Insight for people's secrets, or the claim's passive skill."""
     if not sheet or band == 'blind' or claim.get('pc_access') != 'passive':
         return 'none'
-    margin = pc_sheet.passive(sheet, claim['pc_check']) - claim_dc(claim, actors)
+    margin = pc_sheet.passive(sheet, claim['pc_check']) - claim_dc(claim, actors, floor_level)
     if margin < 0:
         return 'none'
     return 'name_kind' if margin >= WINK_NAME_KIND_MARGIN else 'point'
@@ -190,17 +194,18 @@ def claims_here(source, state, sheet):
     claims = compile_claims(source)
     area = state['area']
     actors = state.get('actors') or {}
+    level = current_floor_level(source, area)
     present = [key for key, actor in actors.items() if actor.get('location') == area and actor.get('status') != 'fled']
     out = {}
     for key, claim in claims.items():
         fact = source['facts'].get(claim.get('fact') or '', {})
         if fact and fact.get('area') != area:
             continue
-        band = pc_band(key, claim, sheet, state)
+        band = pc_band(key, claim, sheet, state, level)
         entry = {'about': claim['about'], 'truth': claim['truth'], 'source': claim['source'],
-                 'dc': claim_dc(claim, actors), 'pc_band': band,
-                 'wink': wink_tier(claim, sheet, actors, band),
-                 'npc_bands': {actor: npc_band(claim, actor, actors, area) for actor in present}}
+                 'dc': claim_dc(claim, actors, level), 'pc_band': band,
+                 'wink': wink_tier(claim, sheet, actors, band, level),
+                 'npc_bands': {actor: npc_band(claim, actor, actors, area, level) for actor in present}}
         if band == 'fingerprint' and claim.get('fingerprint'):
             entry['fingerprint'] = claim['fingerprint']
         if claim.get('anchored_version'):

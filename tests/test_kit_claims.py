@@ -64,8 +64,8 @@ class BandTests(unittest.TestCase):
         # Passive Insight 14 meets the adventure's DC 14: fingerprint, and Kit may point.
         self.assertEqual((vamp['dc'], vamp['pc_band'], vamp['wink']), (14, 'fingerprint', 'point'))
         self.assertIn('fingerprint', vamp)
-        # Passive Perception 19 vs the dealer's slip, 10 + sleight 3 = 13: six over.
-        self.assertEqual((deck['dc'], deck['pc_band'], deck['wink']), (13, 'fingerprint', 'name_kind'))
+        # No adventure DC: floor 1 defaults to 10, so Nik is nine over.
+        self.assertEqual((deck['dc'], deck['pc_band'], deck['wink']), (10, 'fingerprint', 'name_kind'))
         # Knowledge is never passive: the ring waits for a player's History roll.
         self.assertEqual((ring['pc_band'], ring['wink']), ('blind', 'none'))
         self.assertIn('only when the player asks', ring['player_roll'])
@@ -75,13 +75,18 @@ class BandTests(unittest.TestCase):
         self.assertEqual((claims['false_vampires']['pc_band'], claims['false_vampires']['wink']), ('blind', 'none'))
         self.assertEqual(claims['marked_deck']['pc_band'], 'blind')
 
+    def test_missing_dc_uses_dungeon_floor_level(self):
+        deck = SOURCE['claims']['marked_deck']
+        self.assertEqual(kit_claims.claim_dc(deck, SOURCE['actors'], floor_level=1), 10)
+        self.assertEqual(kit_claims.claim_dc(deck, SOURCE['actors'], floor_level=4), 11)
+
     def test_npc_bands_come_from_stats_role_and_special_senses(self):
         ring = self.packet(NIK)['ring_value']['npc_bands']
         self.assertEqual(ring['uktarl'], 'knows')          # he counted the take
         self.assertEqual(ring['doppelganger'], 'knows')    # Read Thoughts
         self.assertEqual(ring['bandit_b'], 'anchored')     # 10 vs 15, jewelry not his domain
         deck = self.packet(NIK)['marked_deck']['npc_bands']
-        self.assertEqual(deck['bandit_a'], 'close')        # passive Insight 10 vs 13
+        self.assertEqual(deck['bandit_a'], 'knows')        # passive Insight 10 meets default DC 10
 
     def test_a_revealed_fact_is_learned(self):
         self.assertEqual(self.packet(NIK, known=['false_vampires'])['false_vampires']['pc_band'], 'learned')

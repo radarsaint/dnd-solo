@@ -23,7 +23,8 @@ plain English.
    `srd_basis`), plus role `domains` and `special` senses. Add only what a room uses.
 3. **Claims for other areas.** For each hidden fact that someone could be asked about, add
    a claim. It needs `about`, `truth`, `source`, `fact`, `roots`, `exposure`, a `dc` (the
-   adventure's, or leave it out to get 10 + the concealer's bonus), a `concealer`, a
+   adventure's, or leave it out to get 10 + floor(dungeon floor level / 3); the area's
+   optional `floor_level` defaults to 1), a `concealer`, a
    `pc_check`, and a `pc_access` (passive or roll). Also give the known `holders`, an
    `anchored_version` (the wrong answer someone gets from the most obvious feature), and a
    `fingerprint` (deniable evidence, never the label).

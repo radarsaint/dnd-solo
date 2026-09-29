@@ -167,7 +167,7 @@
     "rivalry": {"revealed_by": null, "groups": [["rival", "rivals", "rivalry", "usurp", "usurper", "displace", "unseat", "depose", "overthrow", "mutiny", "coup"]]}
   },
   "claims": {
-    "_note": "DM-only. Claims and knowers (runtime/kit_claims.py). Keyed by the thing itself. holders are granted by the source (knowledge lists, role); everyone else's band is computed from stats. dc: the adventure's, else 10 + the concealer's bonus. pc_access passive: the PC's passive skill is a shield (fingerprint); roll: only a player-initiated roll finds it.",
+    "_note": "DM-only. Claims and knowers (runtime/kit_claims.py). Keyed by the thing itself. holders are granted by the source (knowledge lists, role); everyone else's band is computed from stats. dc: the adventure's, else 10 + floor(dungeon floor level / 3). pc_access passive: the PC's passive skill is a shield (fingerprint); roll: only a player-initiated roll finds it.",
     "false_vampires": {
       "about": "group:undertakers/true_nature",
       "truth": "Their pallor and fangs are theatrical; they are pretending to be vampires.",
@@ -259,7 +259,7 @@
   ],
   "starting_area": "area_06c",
   "areas": {
-    "area_06c": {"name": "Card room"},
+    "area_06c": {"name": "Card room", "floor_level": 1},
     "south_passage": {"name": "Short passage south of area 6c"}
   },
   "exits": {
