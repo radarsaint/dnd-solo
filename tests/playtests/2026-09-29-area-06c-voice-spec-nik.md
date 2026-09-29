@@ -58,3 +58,5 @@ The local one-pass `prepare`-to-commit timings were 135.6 seconds for the origin
 This was an **unblinded, host-authored live test**, not a paired preference comparison or a controlled test of a separate API model. It shows that the current chat-host protocol and validators can accept a semantically contradictory Kit aside and source-unsupported gambling rules, even with passing automated tests. It does not establish that every model or surface would make the same choices.
 
 The flawed run was retained locally as evidence. A separate continuation was restored to after Nik's wish and before “What game is it?” so play will not build on the invented high-card rules. The player paused the test. **No runtime, fixture, personality, or game-rule fix was made in response to this feedback.**
+
+*Follow-up (2026-09-29):* fixes for all four failures (the contradictory aside, the invented high-card rules, the missing card-game procedure, and the refused reply) were built afterward on branch `kit-coherence-gambling`; see `docs/architecture/kit-expression-gap.md`, section (i). The record above is unchanged.

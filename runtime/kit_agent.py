@@ -16,7 +16,9 @@ import uuid
 from dataclasses import dataclass
 from pathlib import Path
 
+from . import kit_coherence
 from . import kit_guards
+from . import kit_table_game
 from . import kit_voice
 from .scene_discernment import IMPROV_READ_SCHEMA, check_improv_read, discernment_candidates
 from .state_context import (CONTEXT_BUDGET_BYTES, HostSequenceError, InvalidChange,
@@ -89,12 +91,18 @@ SOCIAL_WORDS = re.compile(
 ADDRESS_WORDS = re.compile(r"\b(you|you're|your|yours|yourself|y'all)\b")
 
 
-def room_intent(action):
+def room_intent(action, addressed=False):
     """Conservative routing; unrecognized text remains conversation or clarification.
 
     Only the narration outside quotation marks decides whether an action is
     physical, a check, or combat, so quoted speech ("pay up or I'll kill you")
     routes as a social bid instead of a pending physical ruling.
+
+    `addressed` is True when the last public turn asked the player a question or an
+    NPC spoke to them. Then an input that matches no physical action is an answer,
+    so it routes as social speech (the Nik playtest: his unquoted reply to the
+    dealer's question was refused as an unsupported physical action). Sneaking,
+    combat, and every other physical pattern are checked first and still win.
     """
     text = action.translate(_TYPOGRAPHIC)
     if OOC_MARKER.search(text):
@@ -130,20 +138,53 @@ def room_intent(action):
         return 'unsupported_action'
     if quoted or '?' in words or SOCIAL_WORDS.search(words) or ADDRESS_WORDS.search(words):
         return 'social'
+    if addressed:
+        return 'social'
     return 'unsupported_action'
 
 
+NPC_SPEAKER_LABELS = ('Dealer', 'Door-side player', 'Fresco-side player', 'Fourth player', 'Card player')
+ADDRESSED_WORDS = re.compile(r"\b(you|your|you're|you've|yours|traveler|traveller|stranger|visitor|guest)\b", re.I)
+
+
+def player_was_addressed(last_turn):
+    """Did the last public turn ask the player something or speak to them? A Kit or NPC
+    line with a question mark, or an NPC line that addresses the player."""
+    for line in ((last_turn or {}).get('spoken') or '').splitlines():
+        speaker, sep, text = line.partition(': ')
+        if not sep:
+            continue
+        if speaker in NPC_SPEAKER_LABELS + ('Kit',) and '?' in text:
+            return True
+        if speaker in NPC_SPEAKER_LABELS and ADDRESSED_WORDS.search(text):
+            return True
+    return False
+
+
 class Room6CAdjudicator:
-    def __init__(self, perception=None, insight=None, roll=None):
+    """`roll` is a d20 callable: a test die, or the player's own roll (CLI --roll).
+    `purse_gp` is the character's gold for joining the card game (no sheet is loaded)."""
+    def __init__(self, perception=None, insight=None, roll=None, purse_gp=None):
         self.perception = perception
         self.insight = insight
         self.roll = roll
+        self.purse_gp = purse_gp
 
-    def resolve(self, action, revision, state):
+    def resolve(self, action, revision, state, game_move=None, addressed=False):
         require(isinstance(action, str) and action.strip(), 'Player action required')
         if state['area'] != 'area_06c':
             raise PendingRuling('This play slice covers area 6c only. No turn was committed.')
-        kind = room_intent(action)
+        if game_move is not None:
+            return self.resolve_game(action, state, game_move)
+        game = state.get('table_game') or kit_table_game.fresh_state()
+        text = action.translate(_TYPOGRAPHIC)
+        if not OOC_MARKER.search(text):
+            if game['phase'] in kit_table_game.IN_HAND_PHASES and kit_table_game.GAME_MOVE_WORDS.search(text):
+                raise PendingRuling(
+                    f'A hand of {kit_table_game.GAME_NAME} is being played. Pass the player\'s move as '
+                    f'game_move (--game-move); moves now: '
+                    f'{", ".join(kit_table_game.MOVES_BY_PHASE[game["phase"]])}. No turn was committed.')
+        kind = room_intent(action, addressed=addressed)
         if kind == 'combat':
             raise PendingRuling('Combat needs a character sheet, initiative, and tactical resolver. No turn was committed.', attempt=True)
         if kind == 'stealth':
@@ -210,6 +251,27 @@ class Room6CAdjudicator:
                  'evidence': f'Player declared: {action}. Resolution: {public}'}
         return Resolution(kind, public, [event])
 
+    def resolve_game(self, action, state, game_move):
+        """One move of the table's card game (runtime/kit_table_game.py)."""
+        dealer = state['actors'].get('uktarl') or {}
+        if dealer.get('status') != 'alive' or dealer.get('location') != state['area']:
+            raise PendingRuling('Nobody is dealing at this table now. No turn was committed.')
+        if 'roll_seed' not in state:
+            raise PendingRuling('This session predates stable checks; start a fresh area 6c test database.')
+        try:
+            move = kit_table_game.play(state.get('table_game'), game_move, seed=state['roll_seed'],
+                                       perception=self.perception, insight=self.insight,
+                                       purse_gp=self.purse_gp, roll=self.roll,
+                                       known_facts=state['known_facts'])
+        except kit_table_game.MissingInput as exc:
+            raise PendingRuling(str(exc)) from exc
+        events = [{'type': 'table_game', 'move': game_move, 'state': move.state,
+                   'evidence': f'Player declared: {action}. Move: {game_move}. {move.evidence}'}]
+        events += [{'type': 'reveal_fact', 'fact': fact,
+                    'evidence': f'Seen during {kit_table_game.GAME_NAME}: {move.public}'}
+                   for fact in move.reveals]
+        return Resolution('table_game', move.public, events)
+
 
 PLAN_SCHEMA = {
     'type': 'object', 'additionalProperties': False,
@@ -254,9 +316,13 @@ PLAN_SCHEMA = {
         # and the brief's mirror and npc_notice are its public carriers.
         'player_mood': kit_voice.PLAYER_MOOD_SCHEMA,
         'turn_mode': {'type': 'string', 'enum': list(kit_voice.TURN_MODES)},
+        # Details the DM makes up that the source and state do not supply (kit_coherence).
+        # Spoken ones are saved to world state; an empty list declares none.
+        'inventions': kit_coherence.INVENTIONS_SCHEMA,
     },
     'required': ['observed_event', 'goal', 'appraisal', 'memory_refs', 'improv_read', 'move', 'public_brief',
-                 'focus_actor', 'table_presence', 'tone', 'player_note', 'player_mood', 'turn_mode'],
+                 'focus_actor', 'table_presence', 'tone', 'player_note', 'player_mood', 'turn_mode',
+                 'inventions'],
 }
 
 SPEECH_SCHEMA = {
@@ -266,10 +332,15 @@ SPEECH_SCHEMA = {
                      'additionalProperties': False,
                      'properties': {'speaker': {'type': 'string', 'enum': [
                          'Narrator', 'Kit', 'Dealer', *kit_guards.CARD_PLAYER_SPEAKERS]},
-                         'text': {'type': 'string'}},
-                     'required': ['speaker', 'text']}},
+                         'text': {'type': 'string'},
+                         # Kit segments: a short exact quote of the public line the aside
+                         # answers (kit_coherence). Other speakers: none.
+                         'reacts_to': {'type': 'string'}},
+                     'required': ['speaker', 'text', 'reacts_to']}},
+        # The host's answers to HOST_SELF_CHECK, given before commit.
+        'self_check': kit_coherence.SELF_CHECK_SCHEMA,
     },
-    'required': ['segments'],
+    'required': ['segments', 'self_check'],
 }
 
 ONE_PASS_SCHEMA = {
@@ -492,7 +563,20 @@ PRIVATE_INSTRUCTIONS = (
     'line in the brief. On a social turn, choose ruling or call only when the player asked a '
     'rules or mechanics question, or ask_clarification when you genuinely cannot tell what they '
     'mean; otherwise the actor answers in an exchange. refused_attempts, when present, are '
-    'recent attempts the table could not resolve (nothing happened); Kit may pick them up.'
+    'recent attempts the table could not resolve (nothing happened); Kit may pick them up. '
+    'COHERENCE: nonsensical is not entertaining. Every choice must fit what was just said and '
+    'done; a reaction that contradicts the scene or does not follow from it is a failure. '
+    'INVENTIONS: anything you decide that the source, the saved state, and dm_inventions do not '
+    'supply (a name, an object, a bit of history, a house custom) is a DM invention. Declare it '
+    'in inventions as {kind, detail} before the brief uses it; once spoken it is saved and must '
+    'stay true on later turns. Never present an invention as the adventure’s own fact. Use [] '
+    'when you invent nothing. TABLE GAME: the card game at this table is table_game ('
+    f'{kit_table_game.GAME_NAME}), a declared DM choice; the adventure names no game. Its rules, '
+    'stakes, deals, checks, and payouts come only from the procedure, never from an invention or '
+    'the brief. A brief that mentions stakes or rules names the game. The brief may invite the '
+    'player to play or react to a result; on a table_game turn the accepted event is the '
+    'procedure’s result, so appraise it and let the table react. table_game.dm_only shows the '
+    'hands and the dealer’s trick: use it for what actors try, never put it in the brief.'
 )
 
 PUBLIC_INSTRUCTIONS = (
@@ -556,38 +640,51 @@ PUBLIC_INSTRUCTIONS = (
     'could visibly have seen. Tone and kit_focus shape narration, pacing, and which tactic plays out; '
     'they never change an NPC’s diction. PLAYER AGENCY: never state what the player does, '
     'decides, agrees to, or feels; narrate what others do and what the player can perceive, and '
-    'leave the player’s response to the player.'
+    'leave the player’s response to the player. '
+    'COHERENCE: every line agrees with what was said and done this turn and earlier. Each Kit '
+    'segment carries reacts_to: a short exact quote of the public line or beat it answers (the '
+    'player’s words, the accepted event, an earlier segment of this turn, or a line from the '
+    'previous turn); other segments use none. An aside that contradicts its anchor, could sit '
+    'under any line, or states an invented fact as canon is a failure, not a style. Before you '
+    'submit, answer host_self_check in self_check. TABLE GAME: the only card game here is '
+    'table_game. Anyone who offers, explains, or plays it uses its name, rules, and amounts '
+    '(table_game.offer_limits) and promises nothing else. On a table_game turn the accepted event '
+    'is the procedure’s result (cards, bets, checks, payouts): perform the table reacting to it, '
+    'never change it, and never show another player’s cards before a showdown. Nobody deals, '
+    'bets, or pays out on any other turn. established_inventions were said earlier: keep them true.'
 )
 
 # Kit's direct table voice: Brendon's voice spec (docs/personality/dm-personality-core.md,
-# "Brendon's voice spec") as lean performer guidance. Default for KitChatBridge (one-pass
-# and staged) at Brendon's direction; the standalone API path still defaults to `current`.
+# "Brendon's voice spec") as lean performer guidance. The guiding star carries Brendon's
+# 2026-09-29 amendment: entertainment counts only when it is coherent with what was just
+# said and done ("Nonsensical is not entertaining. That's a fiction we need to burn.").
+# Default for KitChatBridge (one-pass and staged) at Brendon's direction; the standalone API path still defaults to `current`.
 # It only adds performer instructions: the input, schema, and every validator are
 # identical to `current`. It carries no example lines, so nothing in it can be reused
 # verbatim or handed to an NPC. Tests cap it at 1,800 characters for live latency (Brendon's
 # ceiling is about 2,000).
 KIT_EXPRESSION_V1 = (
     'KIT’S TABLE VOICE. Kit is one particular DM with a flair for theatre, not a neutral '
-    'narrator. Guiding star: the most entertaining true thing beats the merely correct thing. '
-    'Pick the funniest, eeriest, or most dramatic option the facts allow, never at the cost of '
-    'a source fact, hidden information, a rules outcome, or the player’s choices. Read the '
-    'player and honor the brief’s mirror: play back to a playful player, steady a tense one, '
-    'and answer frustration or boredom with momentum, never more words. Voice by turn_mode. '
+    'narrator. Guiding star: the most entertaining thing beats the merely correct thing, and it '
+    'only counts when it is coherent with what was just said and done. Nonsensical is not '
+    'entertaining: contradicting the scene, a non sequitur quip, or an invented fact passed off '
+    'as canon is a failure, never a style. Pick the funniest, eeriest, or most dramatic option '
+    'the facts allow. Honor the brief’s mirror: play back to a playful player, steady a tense '
+    'one, answer frustration or boredom with momentum, never more words. Voice by turn_mode. '
     'Meta and banter: quippy, quick, cheeky; answer first, then the joke. Description: '
     'theatrical, mood-setting, specific (no stock atmosphere); overacting is welcome. Combat: '
-    'engaged, tense, evocative; short punchy sentences; every beat puts the stakes in what the '
-    'player can see, hear, and smell. Her own voice appears only in Kit segments, as table '
-    'presence allows (quiet: none; brief: one short remark; present: she talks; showtime: she '
-    'takes the stage). Narration is hers at every presence: her taste picks the image and '
-    'rhythm. Do: react to the exact thing this player did and say what she makes of it; hold an '
-    'opinion and still rule fairly; be exact about a ruling; chide shenanigans, then take the '
-    'attempt seriously; show earned delight; hand the scene back on a real choice. Don’t: '
-    'generic praise or filler, recap, offer a menu of options, advise the player, or reuse a '
-    'line, joke, or opener; no sentence template or stock acknowledgement becomes a habit. Her '
-    'opinion never changes a fact, rules outcome, or NPC stance, never hints at hidden '
-    'information, and never decides what the player thinks, feels, or does. NPCs never borrow '
-    'her wit, asides, opinions, or phrasing; each notices the player through their own wants '
-    'and sounds like nobody else, least of all Kit.'
+    'engaged, tense, evocative; short punchy sentences; stakes the player can see, hear, and '
+    'smell. Her own voice appears only in Kit segments, as table presence allows (quiet: none; '
+    'brief: one short remark; present: she talks; showtime: she takes the stage). Narration is '
+    'always hers. Do: react to the exact thing this player did and say what she makes of it; '
+    'hold an opinion and still rule fairly; be exact about a ruling; chide shenanigans, then '
+    'take the attempt seriously; show earned delight; hand the scene back on a real choice. '
+    'Don’t: generic praise or filler, recap, offer a menu of options, advise the player, or '
+    'reuse a line, joke, or opener; no sentence template or stock acknowledgement becomes a '
+    'habit. Her opinion never changes a fact, rules outcome, or NPC stance, never hints at '
+    'hidden information, and never decides what the player thinks, feels, or does. NPCs never '
+    'borrow her wit, asides, opinions, or phrasing; each notices the player through their own '
+    'wants and sounds like nobody else.'
 )
 
 PERFORMANCE_VARIANTS = {
@@ -608,6 +705,8 @@ ONE_PASS_PREAMBLE = (
     'appear once, in the private input (personality_core, dialogue_history); the performance '
     'uses them from there. '
     'Keep the decision brief. '
+    'The performance ends with self_check: the host’s answers to host_self_check, written after '
+    'rereading the lines against the scene. '
     'The performance also follows turn_mode and the brief’s mirror and npc_notice; player_mood '
     'and table_read are private and never appear in it. '
     'The decision connects the player bid, available story pressure, actor goal, and Kit’s '
@@ -676,7 +775,7 @@ class OpenAIResponsesModel:
 
 
 def check_plan(plan, episodes, public_event, action_kind=None, candidates=None, player_action=None,
-               player_notes=(), committed_turn_ids=()):
+               player_notes=(), committed_turn_ids=(), established_inventions=(), table_game_name=None):
     require(isinstance(plan, dict) and set(plan) == set(PLAN_SCHEMA['required']),
             'Incomplete private decision')
     for key in ('observed_event', 'goal'):
@@ -755,6 +854,11 @@ def check_plan(plan, episodes, public_event, action_kind=None, candidates=None, 
     check_player_note(plan['player_note'], player_notes, committed_turn_ids)
     kit_voice.check_voice_plan(plan, action_kind, player_action, is_ooc(player_action),
                                player_notes, has_history=bool(committed_turn_ids))
+    # Coherence: the DM's own inventions are declared, and the brief asks only for
+    # stakes and rules that the table game or a declared invention supplies.
+    kit_coherence.check_inventions(plan['inventions'], table_game_name)
+    kit_coherence.check_brief_supported(brief, plan['inventions'], established_inventions, table_game_name,
+                                        player_action)
 
 
 def is_ooc(player_action):
@@ -948,17 +1052,23 @@ def check_brief_public(brief, public_view, player_action, leak_sets=()):
         kit_guards.check_paraphrased_leaks(value, public_view, player_action, leak_sets)
 
 
+TOLL_WORDS = re.compile(r'\b(passage|toll|through|pass|door|safe|fee|way)\b', re.I)
+
+
 def check_speech(speech, plan, public_view, player_action, action_kind=None, guards=None,
-                 degraded=False):
+                 degraded=False, require_self_check=False):
     """Validate one performance. Returns the spoken text, or (spoken, soft_warnings)
-    when degraded is True. Hard checks always raise; soft checks raise unless degraded."""
+    when degraded is True. Hard checks always raise; soft checks raise unless degraded.
+    With require_self_check (the chat bridge), the host's self_check answers are required."""
     guards = guards or {}
-    require(isinstance(speech, dict) and set(speech) == {'segments'}, 'Invalid public performance')
+    require(isinstance(speech, dict) and set(speech) in ({'segments'}, {'segments', 'self_check'}),
+            'Invalid public performance')
     segments = speech['segments']
     require(isinstance(segments, list) and 1 <= len(segments) <= 7,
             'Expected 1–7 spoken segments')
     for segment in segments:
-        require(isinstance(segment, dict) and set(segment) == {'speaker', 'text'} and
+        require(isinstance(segment, dict) and set(segment) in ({'speaker', 'text'},
+                                                               {'speaker', 'text', 'reacts_to'}) and
                 segment['speaker'] in SPEECH_SCHEMA['properties']['segments']['items']['properties']['speaker']['enum'] and
                 isinstance(segment['text'], str) and 0 < len(segment['text'].strip()) <= 900,
                 'Invalid spoken segment')
@@ -993,10 +1103,16 @@ def check_speech(speech, plan, public_view, player_action, action_kind=None, gua
                                            guards.get('leak_sets', ()))
     kit_guards.check_player_agency(segments)
     kit_guards.check_npc_meta(segments)
-    kit_guards.check_numeric_facts(segments, guards.get('numeric_facts'), player_action)
+    game_name = guards.get('table_game_name')
+    # A wager sentence ("ante two gold each") is checked against the table game's
+    # amounts below, not against the passage toll, unless it also talks about passage.
+    kit_guards.check_numeric_facts(
+        segments, guards.get('numeric_facts'), player_action,
+        skip=(lambda sentence: kit_coherence.is_wager_sentence(sentence) and not TOLL_WORDS.search(sentence))
+        if game_name else None)
     kit_guards.check_clarification_shape(segments, plan)
-    # SOFT: style floors. Recorded as warnings, not rejections, in degraded mode.
     history = guards.get('public_history', ())
+    # SOFT: style floors. Recorded as warnings, not rejections, in degraded mode.
     soft = (lambda: check_scope(segments, plan),
             lambda: kit_guards.check_padding(segments, player_action, action_kind, history),
             lambda: kit_guards.check_npc_voices(segments, guards.get('voice_contracts'), history),
@@ -1012,6 +1128,20 @@ def check_speech(speech, plan, public_view, player_action, action_kind=None, gua
             if not degraded:
                 raise
             warnings.append(str(exc))
+    # HARD, checked after the style floors (a retry hears the most specific reason first)
+    # and never softened by degraded mode: coherence. Every Kit aside is anchored to a
+    # real public line, nothing claims an NPC failed to greet, speak, or ask when they
+    # did, only the table's own game and amounts are offered, and the host has
+    # answered the self-check.
+    kit_coherence.check_kit_anchors(segments, player_action, guards.get('public_event'), history,
+                                    action_kind)
+    kit_coherence.check_claims_against_lines(segments, player_action, history)
+    if game_name:
+        kit_coherence.check_other_games(segments, player_action, game_name)
+        kit_coherence.check_wager_amounts(segments, guards.get('wager_amounts') or set(), player_action,
+                                          game_name)
+    if require_self_check:
+        kit_coherence.check_self_check(speech.get('self_check'), segments)
     return (spoken, warnings) if degraded else spoken
 
 
@@ -1097,7 +1227,7 @@ def trim_order(chosen, stored, action, recent=MEMORY_RECENT):
 
 
 # Context budget. The private decision input (personality core, DM context, memory,
-# notes, public dialogue) stays within CONTEXT_BUDGET_BYTES (25 KB), the same budget
+# notes, public dialogue) stays within CONTEXT_BUDGET_BYTES (26 KB), the same budget
 # context() always enforced, now including memory. A one-pass input also carries the
 # public half (mostly the static actor cards, ~8 KB, with the core and dialogue history
 # deduplicated out), so the whole one-pass input stays within ONE_PASS_BUDGET_BYTES.
@@ -1165,9 +1295,16 @@ def check_decision(runtime, plan, memory, body):
     check_plan(plan, memory['episodes'], body['public_event'], body['kind'],
                body['discernment_candidates'], body['action'],
                player_notes=memory['player_notes'],
-               committed_turn_ids=runtime.committed_kit_turn_ids())
+               committed_turn_ids=runtime.committed_kit_turn_ids(),
+               established_inventions=body.get('dm_inventions', []),
+               table_game_name=body.get('table_game_name'))
     check_brief_public(plan['public_brief'], body['public_view'], body['action'],
                        kit_guards.leak_sets(runtime.source()))
+    # Inventions will be spoken, so they face the same leak checks as the brief.
+    for item in plan['inventions']:
+        check_public_content(item['detail'], body['public_view'], body['action'])
+        kit_guards.check_paraphrased_leaks(item['detail'], body['public_view'], body['action'],
+                                           kit_guards.leak_sets(runtime.source()))
 
 
 def prepare_inputs(runtime, revision, state, action, resolution, use_memory, one_pass=False):
@@ -1200,6 +1337,25 @@ def prepare_inputs(runtime, revision, state, action, resolution, use_memory, one
         'dialogue_history': public_history,
         'discernment_candidates': body['discernment_candidates'],
     }
+    # The table's card game (the DM's declared choice; kit_table_game) and the DM's
+    # spoken inventions. The game state is the one after this turn's move, if any.
+    game_state = next((event['state'] for event in resolution.events if event.get('type') == 'table_game'),
+                      state.get('table_game'))
+    game_public = kit_table_game.public_view(game_state)
+    body['table_game_name'] = kit_table_game.GAME_NAME
+    body['table_game_public'] = game_public
+    body['wager_amounts'] = sorted(kit_table_game.allowed_amounts(game_state))
+    body['dm_inventions'] = state.get('dm_inventions', [])
+    # The private stage gets the game's state and the DM-only view; its full rules and
+    # offer limits go to the performer (in one-pass the same model reads both halves).
+    # One-pass: the same model reads input.public.table_game, so only the DM-only view
+    # is added here (no duplicate bytes; see ONE_PASS_BUDGET_BYTES).
+    planning_input['table_game'] = (
+        {'dm_only': kit_table_game.private_view(game_state)} if one_pass else
+        {**{key: game_public[key] for key in game_public if key not in ('rules', 'offer_limits')},
+         'dm_only': kit_table_game.private_view(game_state)})
+    if body['dm_inventions']:
+        planning_input['dm_inventions'] = body['dm_inventions']
     attempts = state.get('refused_attempts', [])[-REFUSED_ATTEMPTS_SHOWN:]
     if attempts:
         # Public: the player saw these pending rulings. Both stages may refer to them.
@@ -1212,11 +1368,13 @@ def prepare_inputs(runtime, revision, state, action, resolution, use_memory, one
     return revision, body, planning_input
 
 
-def prepare_turn(runtime, adjudicator, action, use_memory=True, one_pass=False):
+def prepare_turn(runtime, adjudicator, action, use_memory=True, one_pass=False, game_move=None):
     require(isinstance(action, str) and 0 < len(action.strip()) <= 1000,
             'Player action must be 1–1000 characters')
     revision, state = runtime.load()
-    resolution = adjudicator.resolve(action, revision, state)
+    last = runtime.recent_kit_turns(limit=1)
+    resolution = adjudicator.resolve(action, revision, state, game_move=game_move,
+                                     addressed=player_was_addressed(last[-1] if last else None))
     return prepare_inputs(runtime, revision, state, action, resolution, use_memory, one_pass)
 
 
@@ -1244,9 +1402,16 @@ def public_performance_base(runtime, body, one_pass=False):
     }
     if body.get('refused_attempts'):
         payload['refused_attempts'] = body['refused_attempts']
+    if body.get('table_game_public'):
+        payload['table_game'] = body['table_game_public']
+    if body.get('dm_inventions'):
+        # Spoken earlier, so public: repeat them, never contradict them.
+        payload['established_inventions'] = [{key: item[key] for key in ('kind', 'detail')}
+                                             for item in body['dm_inventions']]
     if one_pass:
         payload['shared_with_private'] = ('personality_core and public dialogue history are in '
-                                          'input.private (personality_core, dialogue_history)')
+                                          'input.private (personality_core, dialogue_history); the '
+                                          'table game\'s DM-only view is input.private.table_game')
         if body['public_view'] == body.get('view_before_event'):
             payload['player_view_after_event'] = ('unchanged by this event: see '
                                                   'input.private.dm_context.player_perceivable')
@@ -1296,16 +1461,21 @@ def guard_context(source, body):
     return {'leak_sets': kit_guards.leak_sets(source),
             'numeric_facts': kit_guards.numeric_facts(source),
             'voice_contracts': {name: card.get('voice_contract') or {} for name, card in cards.items()},
-            'public_history': body.get('public_history', [])}
+            'public_history': body.get('public_history', []),
+            'public_event': body.get('public_event'),
+            'table_game_name': body.get('table_game_name'),
+            'wager_amounts': set(body.get('wager_amounts') or ())}
 
 
-def checked_record(body, plan, speech, performance_variant, source=None, degraded=False):
+def checked_record(body, plan, speech, performance_variant, source=None, degraded=False,
+                   require_self_check=False):
     """Validate a performance. Every variant faces the same checks; the record names
     which performer instructions ran so play reviews can tell the variants apart. A
     degraded record says so and keeps the soft warnings it was accepted with."""
     check_variant(performance_variant)
     result = check_speech(speech, plan, body['public_view'], body['action'], body['kind'],
-                          guards=guard_context(source, body), degraded=degraded)
+                          guards=guard_context(source, body), degraded=degraded,
+                          require_self_check=require_self_check)
     spoken, warnings = result if degraded else (result, [])
     if body['kind'] in EVENT_AFTER_PERFORMANCE_KINDS:
         # The room reacts while the player is still there; then they are gone.
@@ -1314,6 +1484,11 @@ def checked_record(body, plan, speech, performance_variant, source=None, degrade
         spoken = f"Narrator: {body['public_event']}\n{spoken}"
     record = {'player_input': body['action'], 'public_event': body['public_event'],
               'trace': plan, 'spoken': spoken, 'performance_variant': performance_variant}
+    spoken_inventions = kit_coherence.inventions_spoken(plan.get('inventions'), spoken)
+    if spoken_inventions:
+        record['inventions_spoken'] = spoken_inventions
+    if speech.get('self_check') is not None:
+        record['self_check'] = speech['self_check']
     if warnings:
         record.update(degraded=True, soft_warnings=warnings)
     return record
@@ -1418,15 +1593,33 @@ def _spoken_lines(speech):
         return None
 
 
+def table_game_host(body, action):
+    """What the host needs to run the card game: the moves legal now, how to pass one,
+    and a cue when the player's words sound like taking a hand on a turn with no move."""
+    public = body.get('table_game_public') or {}
+    phase = public.get('phase', 'idle')
+    view = {'game': kit_table_game.GAME_NAME, 'phase': phase,
+            'moves_now': list(kit_table_game.MOVES_BY_PHASE[phase]), 'how': kit_table_game.HOST_HOW}
+    if (body.get('kind') != 'table_game' and action and phase in ('idle', 'left', 'between_hands') and
+            kit_table_game.SEAT_WORDS.search(action.translate(_TYPOGRAPHIC))):
+        view['cue'] = ('The player\'s words sound like taking a hand. Nothing is dealt on this turn. If '
+                       'they mean to play, abandon this turn and prepare it again with --game-move '
+                       f'{"deal" if phase == "between_hands" else "join"} (joining needs --purse-gp and '
+                       '--perception), so the procedure deals.')
+    return view
+
+
 class KitChatBridge:
     """Host this model loop in an assistant chat, with no API credential in Python."""
-    def __init__(self, runtime, adjudicator=None):
+    def __init__(self, runtime, adjudicator=None, require_self_check=True):
         self.runtime = runtime
         self.adjudicator = adjudicator or Room6CAdjudicator()
+        # The host answers HOST_SELF_CHECK in every performance before commit.
+        self.require_self_check = require_self_check
 
     @_stale_guided
     def prepare(self, action=None, turn_id=None, use_memory=True, one_pass=False, opening=False,
-                performance_variant=None):
+                performance_variant=None, game_move=None):
         """Stage a turn. One-pass turns fix their performer variant here (default
         DEFAULT_BRIDGE_VARIANT); staged turns choose it at decide."""
         turn_id = turn_id or str(uuid.uuid4())
@@ -1436,11 +1629,13 @@ class KitChatBridge:
             performance_variant = check_variant(performance_variant or DEFAULT_BRIDGE_VARIANT)
         if opening:
             require(action is None, 'Room opening does not take a player action')
+            require(game_move is None, 'The room opening takes no game move')
             revision, body, planning_input = prepare_opening(self.runtime, one_pass=one_pass)
         else:
             try:
                 revision, body, planning_input = prepare_turn(
-                    self.runtime, self.adjudicator, action, use_memory, one_pass=one_pass)
+                    self.runtime, self.adjudicator, action, use_memory, one_pass=one_pass,
+                    game_move=game_move)
             except PendingRuling as exc:
                 if not exc.attempt:
                     raise
@@ -1457,17 +1652,19 @@ class KitChatBridge:
         self.runtime.record_kit_timing(turn_id, mode=body['host_mode'], prepared_at=time.time(),
                                        **({'performance_variant': performance_variant}
                                           if one_pass else {}))
+        host = {'host_self_check': kit_coherence.HOST_SELF_CHECK,
+                'table_game_host': table_game_host(body, action)}
         if one_pass:
             return {'turn_id': turn_id, 'stage': 'one_pass',
                     'performance_variant': performance_variant,
                     'instructions': one_pass_instructions(performance_variant),
                     'schema': ONE_PASS_SCHEMA,
-                    'performance_limits': performance_limits(), 'host_retry': HOST_RETRY_NOTE,
+                    'performance_limits': performance_limits(), 'host_retry': HOST_RETRY_NOTE, **host,
                     'input': {'private': planning_input,
                               'public': public_performance_base(self.runtime, body, one_pass=True)}}
         return {'turn_id': turn_id, 'stage': 'private_decision',
                 'instructions': PRIVATE_INSTRUCTIONS, 'schema': PLAN_SCHEMA,
-                'performance_limits': performance_limits(), 'host_retry': HOST_RETRY_NOTE,
+                'performance_limits': performance_limits(), 'host_retry': HOST_RETRY_NOTE, **host,
                 'input': planning_input}
 
     @_stale_guided
@@ -1491,7 +1688,8 @@ class KitChatBridge:
                 'performance_variant': performance_variant,
                 'instructions': PERFORMANCE_VARIANTS[performance_variant], 'schema': SPEECH_SCHEMA,
                 'performance_limits': performance_limits(plan['public_brief']['scope']),
-                'host_retry': HOST_RETRY_NOTE, 'input': payload}
+                'host_retry': HOST_RETRY_NOTE, 'host_self_check': kit_coherence.HOST_SELF_CHECK,
+                'input': payload}
 
     @_stale_guided
     def finish(self, turn_id, speech, degraded=False):
@@ -1576,7 +1774,7 @@ class KitChatBridge:
     def _checked_or_log(self, turn_id, body, plan, speech, performance_variant, degraded=False):
         try:
             return checked_record(body, plan, speech, performance_variant, self.runtime.source(),
-                                  degraded=degraded)
+                                  degraded=degraded, require_self_check=self.require_self_check)
         except StaleTurn:
             raise
         except InvalidChange as exc:
@@ -1654,7 +1852,8 @@ class KitChatBridge:
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('command', choices=['init', 'view', 'prepare', 'decide', 'finish', 'complete',
-                                            'abandon', 'feedback', 'notes', 'play', 'trace', 'timing'])
+                                            'abandon', 'feedback', 'notes', 'game', 'play', 'trace',
+                                            'timing'])
     parser.add_argument('--db', default='kit-06c.sqlite')
     parser.add_argument('--model', help='Optional standalone Responses API model for play')
     parser.add_argument('--perception', type=int, help='Test character Wisdom (Perception) modifier')
@@ -1665,6 +1864,10 @@ def main():
                         help=f'Performer instructions: for prepare --one-pass or decide (default '
                              f'{DEFAULT_BRIDGE_VARIANT}), or for play (default current)')
     parser.add_argument('--opening', action='store_true', help='Prepare the initial scene entry instead of a player action')
+    parser.add_argument('--game-move', help=f'prepare: one {kit_table_game.GAME_NAME} move (join [watch], deal '
+                                            '[watch], keep, swap N, check, bet N, call, fold, challenge, leave)')
+    parser.add_argument('--purse-gp', type=int, help='Gold the character brings to the card table (no sheet is loaded)')
+    parser.add_argument('--roll', type=int, help='The player\'s own d20 for this turn\'s check')
     parser.add_argument('--action', help='Player action for prepare')
     parser.add_argument('--action-file', help='UTF-8 player action file for prepare')
     parser.add_argument('--turn-id', help='Turn ID returned by prepare')
@@ -1692,8 +1895,16 @@ def main():
             print(json.dumps(runtime.recent_kit_timings(), indent=2, ensure_ascii=False))
         elif args.command == 'notes':
             print(json.dumps(runtime.player_notes(), indent=2, ensure_ascii=False))
+        elif args.command == 'game':
+            # Host view only: the legal moves and what the player can see. No private cards.
+            print(json.dumps(kit_table_game.host_view(runtime.load()[1].get('table_game')), indent=2,
+                             ensure_ascii=False))
         elif args.command in ('prepare', 'decide', 'finish', 'complete', 'abandon', 'feedback'):
-            bridge = KitChatBridge(runtime, Room6CAdjudicator(args.perception, args.insight))
+            if args.roll is not None and not 1 <= args.roll <= 20:
+                parser.error('--roll is a d20 result from 1 to 20')
+            player_roll = (lambda: args.roll) if args.roll is not None else None
+            bridge = KitChatBridge(runtime, Room6CAdjudicator(args.perception, args.insight, roll=player_roll,
+                                                              purse_gp=args.purse_gp))
             try:
                 if args.command == 'abandon':
                     if not args.turn_id:
@@ -1718,7 +1929,8 @@ def main():
                                      'staged turns choose it at decide')
                     result = bridge.prepare(action, args.turn_id, use_memory=not args.no_memory,
                                             one_pass=args.one_pass, opening=args.opening,
-                                            performance_variant=args.performance_variant)
+                                            performance_variant=args.performance_variant,
+                                            game_move=args.game_move)
                 else:
                     if not args.turn_id or not args.input_file:
                         parser.error(f'{args.command} requires --turn-id and --input-file')

@@ -21,7 +21,10 @@ RHYTHM_EVIDENCE_MAX_CHARS = 600  # per recent_rhythm entry; 12 entries stay insi
 # and npc_notice, ~0.25 KB) to every private input. That raised the irreducible floor of
 # the long-game worst case (ContextBudgetTests) from about 22.9 KB to about 24.2 KB; 25 KB
 # restores roughly the headroom kit-hardening had. About 250 more tokens per decision.
-CONTEXT_BUDGET_BYTES = 25000
+# 26 KB since kit-coherence-gambling: the table game's state and DM-only view (~0.4 KB
+# idle, ~0.45 KB more during a hand) and the amended guiding star in the core (~0.35 KB) pushed
+# the API-path worst case to about 25.03 KB idle; 26 KB keeps a hand in progress inside it.
+CONTEXT_BUDGET_BYTES = 26000
 
 # Version 2 adds Kit's player_notes and richer episodes (player_bid, kit_choice,
 # actor and story thread). Older snapshots are upgraded in memory on load; the
@@ -36,6 +39,8 @@ PLAYER_NOTE_SOURCES = ('observed', 'feedback')
 # later turn can refer to them. Nothing about the world changes when one is recorded.
 REFUSED_ATTEMPT_LIMIT = 4
 REFUSED_ATTEMPT_MAX_CHARS = 300
+# DM inventions (details the source does not supply) kept once spoken; see kit_coherence.
+DM_INVENTION_LIMIT = 24
 EPISODE_DEFAULTS = {'player_bid': None, 'kit_choice': None, 'actor_ref': None,
                     'story_anchor': None, 'story_basis': None}
 # Notes describe what the player did or said. They are not a relationship meter.
@@ -321,6 +326,15 @@ class Runtime:
                     self._add_player_note(state, f'n{next_revision}', 'observed', note['note'],
                                           evidence, note.get('replaces', 'none'),
                                           current_turn=turn_id)
+                # Declared DM inventions the turn actually spoke become world state, so a
+                # later turn repeats them instead of contradicting them (kit_coherence).
+                spoken = kit_record.get('inventions_spoken') or []
+                if spoken:
+                    kept = state.setdefault('dm_inventions', [])
+                    for index, item in enumerate(spoken):
+                        kept.append({'id': f'i{next_revision}.{index + 1}', 'turn_id': turn_id,
+                                     'kind': item['kind'], 'detail': item['detail']})
+                    state['dm_inventions'] = kept[-DM_INVENTION_LIMIT:]
             self.db.execute('INSERT INTO turns VALUES (?, ?, ?)', (turn_id, digest, next_revision))
             self.db.executemany('INSERT INTO ledger(turn_id, body) VALUES (?, ?)',
                                 [(turn_id, encode(event)) for event in events])
@@ -519,6 +533,12 @@ class Runtime:
             attempts.append({'action': event['action'], 'ruling': event['ruling'],
                              'revision': revision + 1})
             state['refused_attempts'] = attempts[-REFUSED_ATTEMPT_LIMIT:]
+        elif kind == 'table_game':
+            # The card game's whole state after one adjudicated move (runtime/kit_table_game.py).
+            from . import kit_table_game
+            game = event.get('state')
+            kit_table_game.check_state(game, state.get('table_game'))
+            state['table_game'] = copy.deepcopy(game)
         elif kind == 'beat':
             tags = event.get('tags')
             require(isinstance(tags, list) and all(isinstance(t, str) for t in tags), 'Invalid beat tags')

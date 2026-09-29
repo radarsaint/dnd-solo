@@ -10,6 +10,7 @@
 - Combat should feel engaged, tense, evocative.
 - NPCs should notice what's up with the players (and stay wildly varied, nothing like Kit).
 - Guiding star: she should say the MOST ENTERTAINING thing more often than 'the right thing' (still never breaking source facts, hidden info, rules outcomes, or player agency).
+- **Amendment (Brendon, 2026-09-29), verbatim: "Nonsensical is not entertaining. That's a fiction we need to burn."** So the guiding star now reads: say the most entertaining thing, and it only counts as entertaining when it is coherent with what was just said and done. Contradicting the scene, a non sequitur quip, or an invented fact presented as canon is a failure, never a style choice. Section (i) builds it.
 
 **How to read the line numbers:** **@79173a1** means the code before this change. **@673e9cd** means the code the Nik playtest actually ran on. Unmarked line numbers in sections (a) through (d) and in the not-yet-built steps refer to `kit-focus-brief` at **@cee2948**. Line numbers in each **Done** note of section (e) refer to the branch named in that note (`kit-event-actor`, `kit-bridge-voice`), before those branches were merged together in `kit-hardening`; after the merge they drift, so search for the named function or constant rather than trusting the number. The `kit-memory-relationship` *Built* notes and section (g) name functions and constants instead of line numbers for the same reason.
 
@@ -340,7 +341,7 @@ Every check is lexical: word lists, n-gram runs and sentence shapes. None of the
 ### g8. Context budget (`ContextBudgetTests`)
 
 - **Why two budgets:** a one-pass turn sends private and public input together. At turn 1 that is already about 22 KB (private about 14.4 KB, public about 7.3 KB), which cannot fit a 24 KB limit meant for one packet. So:
-  - the private input has its own `CONTEXT_BUDGET_BYTES` = 24000 (25000 since `kit-voice-spec`; see h6);
+  - the private input has its own `CONTEXT_BUDGET_BYTES` = 24000 (25000 since `kit-voice-spec`, see h6; 26000 since `kit-coherence-gambling`, see i6);
   - the one-pass total has `ONE_PASS_BUDGET_BYTES` = 32000.
 - One-pass also stops duplicating content: the personality core and public history are sent once, and `shared_with_private` says so.
 - **Check:** `fit_to_budget` trims in this order:
@@ -430,7 +431,7 @@ The spec is quoted verbatim at the top of this guide and of `docs/personality/dm
 | "She disappears behind the world when the scene deserves it." | Theatrical, overacting narrator. | "Even when she drops her own remarks, the narration is hers: theatrical, allowed to overact." |
 | "Laugh with the player ... but does not turn every scene into comedy." | A little quippy in meta talk and banter. | "...and quips in meta talk and banter; the player's mood sets how much." |
 | "She regulates how much of herself to show. She may react directly, briefly, when:" (a closed list) | The list read as the only times she speaks up. | Presence follows mood and moment; meta and banter invite a quip; the list is examples. |
-| Central Choice Rule: "When several responses are equally plausible, she prefers the one that..." | Guiding star: the most entertaining thing more often than the right thing. | "Guiding star first: the most entertaining true thing beats the merely correct one." The old list breaks ties. |
+| Central Choice Rule: "When several responses are equally plausible, she prefers the one that..." | Guiding star: the most entertaining thing more often than the right thing. | "Guiding star first: the most entertaining true thing beats the merely correct one." The old list breaks ties. *Amended 2026-09-29 (section i):* entertainment counts only when it is coherent with what was just said and done; contradicting the scene, a non sequitur quip, or an invented fact presented as canon is a failure, never a style choice. |
 
 ### h2. Carriers
 
@@ -440,15 +441,15 @@ The spec is quoted verbatim at the top of this guide and of `docs/personality/dm
 | Quippy / theatrical / combat voice | Code detects what it can (`table_read.mode_hint`): meta for an `(OOC)` message, description for the opening and room actions. | `turn_mode` (meta, banter, description, combat) in `selected_move` | `KIT_EXPRESSION_V1` gives a voice per mode. | Plan (hard): the mode matches the hint where code can tell; meta is never `quiet`. Performance: meta has a Kit segment (hard); combat Narrator and Kit sentences average at most 14 words, none over 24 (soft). |
 | Theatrical description, overacting | Kit's choice | `table_presence: showtime` | Kit takes the stage in 1 to 3 Kit segments. Her segments count toward the floors, so theatrical narration in her own voice is scene material. At every presence the narration is hers. | Plan (hard): never with `call` scope (a roll prompt stays short), never in combat, never for a frustrated player; needs a description or banter turn, or a playful player. Performance (hard, like presence): 1 to 3 Kit segments. |
 | NPCs notice what's up | Actor motives, memory | `public_brief.npc_notice`: `none` or `"<mood|past_act|gear|stunt>: <what the actor notices and why it matters to them>"` | The focus actor reacts in their own voice, for their own reasons, never with Kit's wit, and only from what they could see or know. | Plan (hard): at most 160 characters, no quoted dialogue, no mention of Kit, the table, or feedback; needs a focus actor; never on meta turns; `mood` only when the mood is cued from the player's words this turn (never feedback or pacing, which NPCs cannot perceive); `past_act` only with `memory_refs`. Performance (hard): the focus actor speaks. |
-| Guiding star | none (a performer value) | `KIT_EXPRESSION_V1` | "The most entertaining true thing beats the merely correct thing", bounded by facts, hidden information, rules outcomes, and player choice. | Not checkable; kit-hardening's hard guards (leaks, numbers, agency) are what keep "entertaining" true. |
+| Guiding star (amended 2026-09-29) | `inventions` in the decision (section i) | `KIT_EXPRESSION_V1`; each Kit segment's `reacts_to`; the performance's `self_check` | "The most entertaining thing beats the merely correct thing, and it only counts when it is coherent with what was just said and done", bounded by facts, hidden information, rules outcomes, and player choice. | Whether a line is funny is not checkable. Coherence is judged by the host through `self_check`; code checks that every Kit aside quotes a real anchor (hard) and catches plain contradictions such as "could have said hello" after a greeting (hard, word patterns only). kit-hardening's guards (leaks, numbers, agency) still apply. |
 
 `player_mood` and `table_read` never reach the performer; `mirror`, `npc_notice`, and `turn_mode` do. Every check applies to both performer variants. A decision fixed before these carriers existed (no `turn_mode` or `mirror`) still performs; the performance checks skip missing carriers.
 
-### h3. Kit's voice guidance (`KIT_EXPRESSION_V1`, 1793 characters; the 1,800 cap from g14 stays)
+### h3. Kit's voice guidance (`KIT_EXPRESSION_V1`, 1792 characters; the 1,800 cap from g14 stays)
 
-> KIT’S TABLE VOICE. Kit is one particular DM with a flair for theatre, not a neutral narrator. Guiding star: the most entertaining true thing beats the merely correct thing. Pick the funniest, eeriest, or most dramatic option the facts allow, never at the cost of a source fact, hidden information, a rules outcome, or the player’s choices. Read the player and honor the brief’s mirror: play back to a playful player, steady a tense one, and answer frustration or boredom with momentum, never more words. Voice by turn_mode. Meta and banter: quippy, quick, cheeky; answer first, then the joke. Description: theatrical, mood-setting, specific (no stock atmosphere); overacting is welcome. Combat: engaged, tense, evocative; short punchy sentences; every beat puts the stakes in what the player can see, hear, and smell. Her own voice appears only in Kit segments, as table presence allows (quiet: none; brief: one short remark; present: she talks; showtime: she takes the stage). Narration is hers at every presence: her taste picks the image and rhythm. Do: react to the exact thing this player did and say what she makes of it; hold an opinion and still rule fairly; be exact about a ruling; chide shenanigans, then take the attempt seriously; show earned delight; hand the scene back on a real choice. Don’t: generic praise or filler, recap, offer a menu of options, advise the player, or reuse a line, joke, or opener; no sentence template or stock acknowledgement becomes a habit. Her opinion never changes a fact, rules outcome, or NPC stance, never hints at hidden information, and never decides what the player thinks, feels, or does. NPCs never borrow her wit, asides, opinions, or phrasing; each notices the player through their own wants and sounds like nobody else, least of all Kit.
+> KIT’S TABLE VOICE. Kit is one particular DM with a flair for theatre, not a neutral narrator. Guiding star: the most entertaining thing beats the merely correct thing, and it only counts when it is coherent with what was just said and done. Nonsensical is not entertaining: contradicting the scene, a non sequitur quip, or an invented fact passed off as canon is a failure, never a style. Pick the funniest, eeriest, or most dramatic option the facts allow. Honor the brief’s mirror: play back to a playful player, steady a tense one, answer frustration or boredom with momentum, never more words. Voice by turn_mode. Meta and banter: quippy, quick, cheeky; answer first, then the joke. Description: theatrical, mood-setting, specific (no stock atmosphere); overacting is welcome. Combat: engaged, tense, evocative; short punchy sentences; stakes the player can see, hear, and smell. Her own voice appears only in Kit segments, as table presence allows (quiet: none; brief: one short remark; present: she talks; showtime: she takes the stage). Narration is always hers. Do: react to the exact thing this player did and say what she makes of it; hold an opinion and still rule fairly; be exact about a ruling; chide shenanigans, then take the attempt seriously; show earned delight; hand the scene back on a real choice. Don’t: generic praise or filler, recap, offer a menu of options, advise the player, or reuse a line, joke, or opener; no sentence template or stock acknowledgement becomes a habit. Her opinion never changes a fact, rules outcome, or NPC stance, never hints at hidden information, and never decides what the player thinks, feels, or does. NPCs never borrow her wit, asides, opinions, or phrasing; each notices the player through their own wants and sounds like nobody else.
 
-Removed from the old text: the four register contrasts (including the "X, not Y" seed that g14 had reworded), "only when it lands", and "in real danger she says nothing and lets the threat speak".
+Removed from the old text: the four register contrasts (including the "X, not Y" seed that g14 had reworded), "only when it lands", and "in real danger she says nothing and lets the threat speak". Changed on 2026-09-29 (section i): the guiding star gained the coherence clause ("it only counts when it is coherent with what was just said and done ... never a style"); to stay under the cap, four phrases were shortened: "Read the player and honor" became "Honor"; "never at the cost of a source fact, hidden information, a rules outcome, or the player's choices" was cut because the "Her opinion never changes a fact, rules outcome ..." sentence already carries it; "every beat puts the stakes in what the player can see" became "stakes the player can see"; "Narration is hers at every presence: her taste picks the image and rhythm" became "Narration is always hers"; and ", least of all Kit" was cut.
 
 ### h4. How the spec meets kit-hardening's guards
 
@@ -476,6 +477,104 @@ The spec asks for theatre, overacting, and quips; the guards in (g) still apply 
 ### h7. Limits, and how to check it in play
 
 - A mood read is a guess the cue makes checkable, not correct. A bored player misread as curious gets a roomy turn.
-- The mirror's `how` text and the guiding star cannot be verified by code. Read the spoken turn: did the energy match the player's? Was it the most entertaining thing the facts allowed, or merely correct?
+- The mirror's `how` text and the guiding star cannot be verified by code. Read the spoken turn: did the energy match the player's? Was it the most entertaining thing the facts allowed, or merely correct? And first (amended 2026-09-29): was it coherent with what was just said and done? A funny line that contradicts the scene or follows from nothing is a failure, not a near miss (section i).
 - Combat mode is declarable on any social turn (e.g. a drawn blade); the slice has no combat resolver yet, so real combat turns still pend.
 - In play, check: after a short, flat player message, does the next turn get tighter and move? Do meta turns get a quick, specific quip after the answer? Does description overact without repeating itself? Does a noticing NPC sound like their card and unlike Kit?
+
+---
+
+## (i) Coherence, inventions, a real card game, and answering a question (`kit-coherence-gambling`)
+
+This section is written for you, GPT, as the builder and host. It explains what went wrong in the third Nik playtest (`tests/playtests/2026-09-29-area-06c-voice-spec-nik.md`), why it went wrong, and what was built so it cannot quietly happen again. Read it before you host another turn.
+
+Brendon's rule, verbatim:
+
+> "Nonsensical is not entertaining. That's a fiction we need to burn."
+
+The guiding star used to be "say the most entertaining thing more often than the right thing." It is amended everywhere it appears (the spec quotes at the top of this guide and of the personality core, the core's Central Choice Rule, `KIT_EXPRESSION_V1`, and h1, h2, h3, and h7 above). It now means: say the most entertaining thing, **and it only counts as entertaining when it is coherent with what was just said and done.** A line that contradicts the scene, a quip that does not follow from anything that happened, or a detail made up on the spot and spoken as if the adventure said it is a failure. It is never a style choice, and it never earns credit for being bold.
+
+### i1. What went wrong, in plain terms
+
+Four separate things failed in one short scene.
+
+1. **Kit commented on something that did not happen.** The dealer gave Nik a long, theatrical welcome ("A guest at the turn of a card. How extravagantly lucky for us..."), and Kit's aside right after it was "He could have said hello. Apparently there's no money in it." The joke only works if the dealer had been rude or silent. He had just greeted Nik. The line sounded like a quip, so it passed every check we had, but it was nonsense. Nothing in the runtime asked "what is this aside about?", so nothing noticed that it was about nothing.
+2. **The private plan invented rules and they became canon.** When Nik asked "What game is it?", the adventure had no answer: it says only that Uktarl and three companions play cards with a marked deck and have coins on the table. The private decision asked for "the simple stakes of the current hand", and the performance filled the hole with "High card. A matching coin from each player." That was an invention, and it was spoken as the room's fact. Nobody recorded it, so a later turn could have contradicted it, and nothing checked whether the plan asked for facts that did not exist.
+3. **The game could not actually be played.** Even with invented rules, the runtime had no way to deal a hand, hold a wager, let Uktarl cheat with the marked deck, let Nik catch him, or pay anyone. The dealer's invitation promised play that the runtime could not carry out. The marked deck, which is the reason this room is interesting, stayed locked in private notes.
+4. **Answering the dealer was refused.** The dealer asked Nik directly what he was hoping to find. Nik answered in plain words, without quotation marks: "I was hoping to find. I dunno. An exceedingly hot elvin maiden whose all sex crazed and ready to heap treasure at me." The router saw no quotes, no question mark, and no social keyword, so it filed the reply as an unsupported physical action. The host had to prefix "I answer the dealer," to get it through.
+
+The common thread: the runtime checked the **shape** of what was said (length, voice, secrets, numbers) but not whether it **made sense next to what had just been said**, and it had no procedure for the one activity the room exists to offer.
+
+### i2. Coherence: every Kit aside says what it is reacting to
+
+**What was built.** Every Kit segment in a performance now carries a `reacts_to` field. It must be a short, exact quote (two words or more, at most 160 characters) of the public line or beat the aside answers. It can quote the player's words this turn, the accepted event, an earlier segment in this same turn (a line that comes *before* the aside), or a line from the previous turn. Narrator and NPC segments use `none` or leave the field out. The validator (`kit_coherence.check_kit_anchors`) rejects a Kit segment whose anchor is missing, is `none`, or quotes something that was never said.
+
+This does not prove the aside is good. It makes the question answerable. "He could have said hello" would have had to quote its anchor, and the only thing it could quote was "A guest at the turn of a card...", which is a hello. Writing the anchor down puts the contradiction in front of you.
+
+**The host self-check.** Every `prepare` (and every staged `decide`) now returns `host_self_check`, and every performance must include a `self_check` object answering it before commit:
+
+- `contradiction`: reread every line against what was said and done this turn and earlier (who spoke, who greeted or asked, what was offered, what is on the table, and the table game's rules and amounts). If any line contradicts it, rewrite that line first. Answer exactly `none`.
+- `aside_follows`: for each Kit segment, say in a few words how the aside follows from its anchor. If there is no Kit segment, answer exactly `no aside`.
+
+The bridge rejects a performance with no `self_check`, one whose `contradiction` answer is anything but `none`, and one whose `aside_follows` is a one-word dodge when there is an aside. Answer it honestly. It exists because you are the only part of this system that can actually judge whether a line makes sense.
+
+**The simple word guard.** `kit_coherence.check_claims_against_lines` catches the plainest version of the Nik failure by matching words. If a Kit or Narrator sentence claims someone did not greet ("could have said hello", "not even a hello"), stayed silent ("didn't say a word", "said nothing"), or did not ask ("didn't even ask"), and an NPC line this turn or last turn shows the opposite (a greeting word or a long line addressed to the visitor, a long line of speech, a question mark), the turn is rejected with the line quoted back to you.
+
+**Be honest about the limits.** Coherence is judged by the host. The anchor check only proves the quote exists; it cannot tell whether the aside actually follows from it. The word guard catches a handful of phrasings and is easy to get around with different words. A clever non sequitur can pass all of this. What these checks do is make every aside point at something real and make you say, every turn, that you read the lines against each other.
+
+### i3. Inventions: if you make it up, say so, and then keep it true
+
+**The rule.** Anything the private decision decides that the source, the saved state, and earlier inventions do not supply (a name, an object, a bit of history, a house custom) is a DM invention. Declare it in the decision's new `inventions` list as `{kind, detail}` (kinds: name, object, history, custom, stake, rule; at most three per turn; `[]` when you invent nothing). Never present an invention as the adventure's own fact.
+
+**What happens to it.** When the performance actually says a declared invention aloud (two or more of its content words appear in the spoken lines), the commit saves it to world state in `dm_inventions` (up to 24, with an id). From then on the private stage sees it as `dm_inventions` and the performer sees it as `established_inventions`, with the instruction to keep it true. An invention that was declared but never spoken is not saved.
+
+**What the validator checks.**
+
+- A `public_brief` direction field that asks for stakes or rules ("stakes", "wager", "ante", "pot", "high card", "house rules", and similar) is rejected unless the table game is named in it, a declared or earlier stake/rule invention covers it, or the player used those words themselves. The playtest brief, "the simple stakes of the current hand", is now rejected with a message pointing at the table game.
+- At this table, a `stake` or `rule` invention about cards is rejected outright, because the table game procedure owns the game's rules and stakes (see i4).
+- Invention details are checked for secret leaks like every other brief field.
+- A spoken line naming another game (high card, poker, blackjack, Three-Dragon Ante, and so on) is rejected unless the player named it first. A gold amount spoken in a wager sentence must be one the procedure allows right now (the ante, a legal bet, the pot, the player's purse, the amount to call) or one the player said.
+
+### i4. Gravedigger: a card game the runtime can actually run
+
+**Where it comes from.** The adventure names no game. Gravedigger is **the DM's declared choice**, an original draw-and-bluff game written for this runtime (`runtime/kit_table_game.py`). It is not Three-Dragon Ante or any other published game, and nothing may claim the adventure named it. The private stage is told this in `table_game.dm_only.dm_choice`.
+
+**The rules, as the table knows them.** Everyone antes 2 gp and gets three cards from a 36-card deck (ranks 1 to 9 in Bones, Candles, Crowns, and Spades). A hand is worth the total of its best single suit; three cards of one rank, a "full grave", is worth 25 and beats everything. After the deal each player keeps their hand or swaps one card for the top of the stock. Then one round of betting: check, or bet 1 to 10 gp; a bet is called or folded, and the dealer may bet once into a check. The best hand still in takes the pot; ties split it. The decisions are real: which card to swap, whether to bet into players who may be bluffing, and whether to trust the dealer.
+
+**Where the money comes from.** The four card players' stacks are the DM's split of the 85 gp on the table (18, 20, 16, and Uktarl's 31). The player's purse comes from the host, because no character sheet is loaded. Gold is conserved: every hand is checked so no coin is created or lost, and every result is saved in state (`table_game`: phase, hand number, stacks, pot, hands, the last six results).
+
+**How Uktarl cheats.** While his cheat is working, he reads the marked backs. That means he knows the player's hand when he decides to bet, call, or fold, and on the deal he slips himself the best of the next three cards if it improves his hand. His Sleight of Hand is d20 + 3 (a DM choice, rolled from the session's seed so the result is repeatable).
+
+**How the player can catch him.**
+
+- *Without trying:* passive Perception (10 + the character's Perception modifier) against his Sleight of Hand, and only on a hand where he actually slipped a card. Reading the backs is only a glance, too small to catch without watching.
+- *Watching the deal:* the move `join watch` or `deal watch` makes an active Perception check (the player's own d20 through `--roll`, or a seeded roll) that can catch either trick.
+- If the player notices, the room learns the `marked_deck` fact. A `challenge` after noticing is upheld: the hand is void, every stake goes back, and the dealer is exposed.
+- A `challenge` without having noticed anything is Insight (the player's modifier and d20) against his Deception, d20 + 4. If the player wins, the marks are found and the hand is void. If not, the hand goes on, and the failed accusation is remembered.
+- Once exposed, Uktarl stops reading the backs and plays honestly for the rest of the session.
+
+**How you run it as host.** The table's state after each move is in the packet: `table_game` in the public input (rules, what the dealer may offer, the phase, the player's cards and purse, who is still in, the last result) and `table_game.dm_only` in the private input (every hand, stacks, the cheat record). `prepare` also returns `table_game_host`, which lists the moves legal now and explains how to pass one. To play, map the player's words to one move and pass it with `--game-move` (moves: `join`, `join watch`, `deal`, `deal watch`, `keep`, `swap 1|2|3`, `check`, `bet N`, `call`, `fold`, `challenge`, `leave`), keeping the player's own words as the action. Joining needs `--purse-gp` and `--perception`; a blind challenge needs `--insight`; the player's own die goes in `--roll`. `kit_agent game` prints the current table. On a game turn the accepted event *is* the procedure's result: the performance reacts to it and never changes it, and nobody shows another player's cards before a showdown. If the player types "I fold" in prose during a hand without a game move, the turn is refused and sent back to you, so the move always goes through the procedure.
+
+**The invitation only promises what the procedure can do.** The performer gets `table_game.offer_limits`: Gravedigger only, on its rules and amounts, and no other game, prize, side bet, or house rule. The checks in i3 enforce the parts of that which words can catch.
+
+### i5. The router: an answer to a question is speech
+
+**What was built.** The router now looks at the last committed turn. If an NPC or Kit asked the player a question there, or an NPC spoke directly to them (`player_was_addressed`), then an input that matches no physical-action pattern is routed as social speech, an answer, instead of an unsupported physical action. Nik's exact reply routes as social after the dealer's question and still routes as unsupported when nobody asked him anything.
+
+**What did not change.** Physical actions are checked first and still win. Sneaking past the table still needs a Dexterity (Stealth) ruling (the #11 behavior), grabbing coins still needs a ruling, and attacking is still combat, even right after a question. An answer that happens to contain a physical verb ("I'd take the treasure") can still be caught by the physical patterns; that is the conservative direction on purpose.
+
+### i6. Other changes and numbers
+
+- The personality core is **not** sent twice in the one-pass packet. It was measured: it appears once (about 8 KB of about 44 KB), with the public half pointing to it through `shared_with_private`; kit-hardening's g8 already removed the duplicate. The 96 to 135 second turns are mostly the instructions, the actor cards, and the host's own authoring time, not a duplicate core. No change was made there. To keep the packet small, the one-pass private input carries only the game's DM-only view, because the same model reads the public `table_game`.
+- `CONTEXT_BUDGET_BYTES` rose from 25000 to 26000. The table game adds about 0.4 KB to every private input when idle (about 0.45 KB more during a hand), and the amended core adds about 0.35 KB; the long-game worst case on the standalone path reached about 25.03 KB. `ONE_PASS_BUDGET_BYTES` (32000) is unchanged.
+- `KIT_EXPRESSION_V1` stays under its 1,800-character cap (see h3 for what was shortened).
+- `kit_voice` treats a table-game turn like a social turn for `turn_mode` (banter is allowed; it is not forced into description).
+
+### i7. Limits, stated plainly
+
+- Coherence is judged by you. The anchor check proves the quote exists, the word guard catches a few plain phrasings, and neither can tell a clever non sequitur from a good aside.
+- The standalone API path (`KitAgent`) does not require `self_check`; only the chat bridge does.
+- "Deal me in" without `--game-move` is still an ordinary social turn. `table_game_host` adds a cue telling you to prepare the turn again with `join`, but it does not deal by itself.
+- The player cannot use the marks themselves, and the silver ring and the passage toll cannot be wagered. Copper and silver on the table are not part of the stacks.
+- The other players follow a simple fixed policy (swap when weak, stay or call above set values). Uktarl's betting uses what the marks tell him while his cheat works, and set values once he is exposed.
+- Stakes and amounts spoken outside a wager sentence, and games described without being named, can slip past the word checks.
+- An invention counts as spoken when two of its words appear in the lines; a paraphrase can be missed, and a coincidence can save one that was barely mentioned.

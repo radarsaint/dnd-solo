@@ -45,10 +45,26 @@ DEALER_EXCHANGES = [
 ]
 
 
+def self_check(aside=None):
+    """The host's answers to the bridge's self-check (kit_coherence.HOST_SELF_CHECK)."""
+    return {'contradiction': 'none', 'aside_follows': aside or 'no aside'}
+
+
+def with_check(speech, aside=None):
+    """A performance plus the host's self-check answers; a Kit segment needs `aside`."""
+    if aside is None and any(segment['speaker'] == 'Kit' for segment in speech['segments']):
+        aside = 'Kit reacts to the line she quotes in reacts_to and says what she makes of it.'
+    return {**speech, 'self_check': self_check(aside)}
+
+
 def exchange_speech(index=0, kit=True):
     narration, dealer = DEALER_EXCHANGES[index % len(DEALER_EXCHANGES)]
     segments = [{'speaker': 'Narrator', 'text': narration}, {'speaker': 'Dealer', 'text': dealer}]
-    return {'segments': ([{'speaker': 'Kit', 'text': 'That is a choice.'}] if kit else []) + segments}
+    if kit:
+        # Kit's aside follows the dealer's line and quotes it as its anchor (kit_coherence).
+        segments.append({'speaker': 'Kit', 'text': 'That is a choice.',
+                         'reacts_to': ' '.join(dealer.split()[:5])})
+    return with_check({'segments': segments})
 
 
 EXCHANGE_SPEECH = exchange_speech(0)
@@ -56,11 +72,11 @@ QUIET_EXCHANGE_SPEECH = exchange_speech(0, kit=False)
 
 # The saved Nik reply from tests/playtests/2026-09-26-area-06c-nik.md, verbatim.
 NIK_GREETING = "Hi, I'm Nik. I wasn't expecting to find people gambling. Whats going on here?"
-NIK_REPLY = {'segments': [
+NIK_REPLY = with_check({'segments': [
     {'speaker': 'Narrator', 'text': 'The dealer keeps a hand on the deck and gives you his attention.'},
     {'speaker': 'Dealer', 'text': ('“Gambling? Cards, Nik. Passage is ten gold a head. If you came for '
                                    'something besides a game or a way through, I’m listening.”')},
-]}
+]})
 
 # Evidence for a social turn keeps the full declaration; the accepted event restates it.
 SEAT_EVIDENCE = ('Player declared: I take a seat.. Resolution: social bid at the card table, '
@@ -114,6 +130,7 @@ class RecordingModel:
             'player_note': {'note': 'none', 'evidence_turns': [], 'replaces': 'none'},
             'player_mood': {'read': 'neutral', 'cue': 'none'},
             'turn_mode': (payload.get('table_read') or {}).get('mode_hint') or 'banter',
+            'inventions': [],
         }
 
     def perform(self, payload, performance_variant='current'):
@@ -452,7 +469,7 @@ class KitAgentTests(unittest.TestCase):
                         'kit_focus': 'Let the interrupted game, not the room inventory, greet the newcomer.',
                         'callback': 'none', 'mirror': MIRROR, 'npc_notice': 'none',
                     })
-        speech = {'segments': [
+        speech = with_check({'segments': [
             {'speaker': 'Narrator', 'text': ('A card pauses between the dealer’s fingers mid-deal. Four pale '
                                              'players sit among scattered coins and a silver ring, and one of '
                                              'them slowly turns to look at the doorway. North of the table, a '
@@ -460,7 +477,7 @@ class KitAgentTests(unittest.TestCase):
                                              'stone tub.')},
             {'speaker': 'Dealer', 'text': ('Well now. A visitor, and on such a slow night. Come in, come in; '
                                            'the table is far friendlier than the corridor. Care to make an offer, '
-                                           'or shall I name one?')}]}
+                                           'or shall I name one?')}]})
         result = bridge.complete('entry', {'decision': plan, 'performance': speech})
         self.assertEqual(result['revision'], 1)
         self.assertEqual(self.runtime.recent_kit_turns()[0]['player_input'], '[scene entry]')
@@ -530,8 +547,9 @@ class KitFocusAndScopeTests(unittest.TestCase):
         plan.update(move='ruling', table_presence='brief', focus_actor='none')
         plan['improv_read'].update(actor_ref='none', actor_basis='none')
         self.bridge.decide('roll', plan)
-        result = self.bridge.finish('roll', {'segments': [
-            {'speaker': 'Kit', 'text': 'Give me a Wisdom (Insight) check.'}]})
+        result = self.bridge.finish('roll', with_check({'segments': [
+            {'speaker': 'Kit', 'text': 'Give me a Wisdom (Insight) check.',
+             'reacts_to': 'Can I tell if they are friendly'}]}))
         self.assertEqual(result['spoken'], 'Kit: Give me a Wisdom (Insight) check.')
 
     def test_call_scope_cannot_run_long_or_cover_an_npc_reply(self):
@@ -1079,7 +1097,10 @@ class BridgeVoiceVariantTests(unittest.TestCase):
                       'never changes a fact, rules outcome', 'never hints at hidden information',
                       'never decides what the player thinks', 'NPCs never borrow her wit',
                       'generic praise or filler', 'still rule fairly', 'mirror',
-                      'the most entertaining true thing beats the merely correct thing'):
+                      'the most entertaining thing beats the merely correct thing',
+                      'only counts when it is coherent with what was just said and done',
+                      'Nonsensical is not entertaining', 'a non sequitur quip',
+                      'an invented fact passed off as canon is a failure, never a style'):
             self.assertIn(guard, voice)
         # Brendon's spec, by mode: quippy table talk, theatrical description, tense combat.
         for spec in ('Meta and banter: quippy', 'Description: theatrical, mood-setting',

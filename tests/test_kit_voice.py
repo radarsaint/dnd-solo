@@ -11,14 +11,14 @@ from runtime import kit_agent, kit_voice
 from runtime.kit_agent import KitAgent, KitChatBridge, Room6CAdjudicator, check_speech
 from runtime.state_context import InvalidChange, Runtime
 from test_kit_agent import (EXCHANGE_SPEECH, FIXTURE, MIRROR, NIK_GREETING, QUIET_EXCHANGE_SPEECH,
-                            RecordingModel, exchange_speech)
+                            RecordingModel, exchange_speech, with_check)
 
 OOC = "(OOC) Kit, quick rules question: what do I roll to tell if they're really vampires?"
 PACING_CUE = 'pacing: replies shrank from forty words to three'
 TIGHT = 'high energy, tight, no humor: skip the scenery and get the dealer to the point'
 BORED = 'This is taking forever. Just deal.'
 THREAT = 'I draw my blade and snarl, "Last chance to deal me in."'
-LONG_SPEECH = {'segments': [
+LONG_SPEECH = with_check({'segments': [
     {'speaker': 'Narrator', 'text': ('The dealer takes his time. He squares the deck, taps it twice, fans '
                                      'it, closes it, and sets it down with the care of a jeweler laying out '
                                      'a necklace. The lamplight wobbles. Somebody coughs. The silver ring in '
@@ -28,30 +28,32 @@ LONG_SPEECH = {'segments': [
                                    'savored, not wolfed. I have dealt at this table longer than you have '
                                    'been walking these halls, and I have learned that the ones who hurry '
                                    'are the ones who lose. So sit, breathe, and tell me what you came to '
-                                   'wager tonight, and we shall begin when I say we begin.')}]}
-COMBAT_SPEECH = {'segments': [
+                                   'wager tonight, and we shall begin when I say we begin.')}]})
+COMBAT_SPEECH = with_check({'segments': [
     {'speaker': 'Narrator', 'text': ('Steel hisses free. Coins jump. A stool scrapes back and topples. '
                                      'Every pale face turns to the blade in your hand.')},
     {'speaker': 'Dealer', 'text': ('Put that away before you cut yourself, friend. You want in? Then pay in '
                                    'like everyone else. Draw on me again and the whole table stops being '
-                                   'friendly. Your move, friend: coin or steel?')}]}
-DRAGGING_COMBAT = {'segments': [
+                                   'friendly. Your move, friend: coin or steel?')}]})
+DRAGGING_COMBAT = with_check({'segments': [
     {'speaker': 'Narrator', 'text': ('As the steel slides free of its scabbard with a long and lingering hiss '
                                      'that seems to echo off every carved dwarf in the mountain behind the '
                                      'table, the pale players slowly and deliberately turn their heads '
                                      'toward you in a single unhurried motion.')},
-    COMBAT_SPEECH['segments'][1]]}
+    COMBAT_SPEECH['segments'][1]]})
 # Kit's theatrical narration carries the scene; the dealer answers.
-SHOWTIME_SPEECH = {'segments': [
-    {'speaker': 'Kit', 'text': ('Oh, you want the room? You get the room. Picture it: lamplight the colour of '
-                                'weak tea, a carved mountain crowded with tiny dwarves glaring down, and four '
-                                'gamblers holding perfectly, magnificently still.')},
+SHOWTIME_SPEECH = with_check({'segments': [
+    {'speaker': 'Kit', 'reacts_to': 'take in the whole room',
+     'text': ('Oh, you want the room? You get the room. Picture it: lamplight the colour of '
+              'weak tea, a carved mountain crowded with tiny dwarves glaring down, and four '
+              'gamblers holding perfectly, magnificently still.')},
     {'speaker': 'Narrator', 'text': 'A card pauses.'},
     {'speaker': 'Dealer', 'text': ('A visitor who stops to admire the decor. Most people look at the coins '
                                    'first, friend. The table is where the real art is. Care to sit, or shall '
-                                   'I keep you as an audience?')}]}
-ROLL_PROMPT = {'segments': [
-    {'speaker': 'Kit', 'text': 'Wisdom (Insight): you are reading people. Tell me you study them and I will call it.'}]}
+                                   'I keep you as an audience?')}]})
+ROLL_PROMPT = with_check({'segments': [
+    {'speaker': 'Kit', 'reacts_to': 'I roll',
+     'text': 'Wisdom (Insight): you are reading people. Tell me you study them and I will call it.'}]})
 
 
 class VoiceTestCase(unittest.TestCase):

@@ -17,7 +17,7 @@ from runtime.kit_agent import (KitAgent, KitChatBridge, PendingRuling, Room6CAdj
                                fit_to_budget)
 from runtime.state_context import (CONTEXT_BUDGET_BYTES, HostSequenceError, InvalidChange,
                                    PERSONALITY_CORE, Runtime, StaleTurn, encode)
-from test_kit_agent import FIXTURE, NIK_GREETING, NIK_REPLY, RecordingModel, exchange_speech
+from test_kit_agent import FIXTURE, NIK_GREETING, NIK_REPLY, RecordingModel, exchange_speech, with_check
 
 SOURCE = json.loads(FIXTURE.read_text())
 CARDS = SOURCE['public_performance']['actor_cards']
@@ -26,8 +26,8 @@ LEAKS = kit_guards.leak_sets(SOURCE)
 EMPTY_VIEW = {'known_facts_here': []}
 
 
-def seg(speaker, text):
-    return {'speaker': speaker, 'text': text}
+def seg(speaker, text, reacts_to=None):
+    return {'speaker': speaker, 'text': text, **({'reacts_to': reacts_to} if reacts_to else {})}
 
 
 def history(*turns):
@@ -252,18 +252,20 @@ class RulingDodgeTests(BridgeCase):
     def test_real_rules_question_may_be_a_call(self):
         prepared = self.bridge.prepare('Can I roll Insight on the dealer?', 'rules')
         self.bridge.decide('rules', self.dodge(prepared, move='ruling'))
-        result = self.bridge.finish('rules', {'segments': [seg('Kit', 'Wisdom (Insight), yes. Go ahead.')]})
+        result = self.bridge.finish('rules', with_check(
+            {'segments': [seg('Kit', 'Wisdom (Insight), yes. Go ahead.', 'roll Insight on the dealer')]}))
         self.assertEqual(result['revision'], 1)
 
     def test_clarification_must_ask_and_cannot_hide_an_npc_reply(self):
         prepared = self.bridge.prepare('I say: do the thing with the cards.', 'clarify')
         self.bridge.decide('clarify', self.dodge(prepared, move='ask_clarification'))
         with self.assertRaisesRegex(InvalidChange, 'must actually ask'):
-            self.bridge.finish('clarify', {'segments': [seg('Kit', 'Cards it is.')]})
+            self.bridge.finish('clarify', with_check({'segments': [seg('Kit', 'Cards it is.', 'the thing with the cards')]}))
         with self.assertRaisesRegex(InvalidChange, 'cannot carry an NPC reply'):
             self.bridge.finish('clarify', {'segments': [seg('Kit', 'Which thing?'),
                                                         seg('Dealer', 'Show me, then.')]})
-        self.bridge.finish('clarify', {'segments': [seg('Kit', 'Which thing: shuffle, cut, or palm one?')]})
+        self.bridge.finish('clarify', with_check(
+            {'segments': [seg('Kit', 'Which thing: shuffle, cut, or palm one?', 'the thing with the cards')]}))
 
 
 class ParaphraseLeakTests(BridgeCase):

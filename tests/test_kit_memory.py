@@ -13,28 +13,29 @@ from runtime import kit_agent
 from runtime.kit_agent import (KitAgent, KitChatBridge, MEMORY_LIMIT, Room6CAdjudicator,
                                select_episodes)
 from runtime.state_context import InvalidChange, Runtime, STATE_SCHEMA_VERSION, encode
-from test_kit_agent import FIXTURE, KIT_CHOICE, QUIET_EXCHANGE_SPEECH, RecordingModel, exchange_speech
+from test_kit_agent import (FIXTURE, KIT_CHOICE, QUIET_EXCHANGE_SPEECH, RecordingModel, exchange_speech,
+                            with_check)
 
 NO_NOTE = {'note': 'none', 'evidence_turns': [], 'replaces': 'none'}
 COIN = 'I say, flipping my lucky silver coin onto the table: this coin never loses.'
 COIN_LINE = 'That coin of yours has a greedy shine'
-COIN_SPEECH = {'segments': [
+COIN_SPEECH = with_check({'segments': [
     {'speaker': 'Narrator', 'text': 'The dealer’s eyes follow the spinning coin until it settles.'},
     {'speaker': 'Dealer', 'text': (f'{COIN_LINE}, friend. Keep it close; tables like this one have '
                                    'a way of learning what a guest values most, and I am a very '
-                                   'attentive student of such things. Will you sit?')}]}
+                                   'attentive student of such things. Will you sit?')}]})
 # Picks up the earlier coin moment: "coin" and "shine" return.
-CALLBACK_SPEECH = {'segments': [
+CALLBACK_SPEECH = with_check({'segments': [
     {'speaker': 'Narrator', 'text': 'He deals you in, and his glance drops once to the pocket where the coin went.'},
     {'speaker': 'Dealer', 'text': ('Before the first card, that lucky coin of yours. Put it in the pot and I '
                                    'will match it with gold, since you seem so sure of its shine. Or keep '
-                                   'it and play for copper like everyone else. Your choice.')}]}
+                                   'it and play for copper like everyone else. Your choice.')}]})
 # A competent reply that ignores the callback entirely.
-FORGETFUL_SPEECH = {'segments': [
+FORGETFUL_SPEECH = with_check({'segments': [
     {'speaker': 'Narrator', 'text': 'He deals you in with a practiced snap of the wrist.'},
     {'speaker': 'Dealer', 'text': ('Ante is two silver and the house deals. Aces high, no questions about '
                                    'the order of the deck, and nobody leaves mid-hand. Those are the rules '
-                                   'of my table. Do we understand each other?')}]}
+                                   'of my table. Do we understand each other?')}]})
 
 
 def episode(turn_id, text, actor='uktarl', anchor='scene', basis='scene_state'):

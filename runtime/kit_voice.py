@@ -97,9 +97,9 @@ def mode_hint(action_kind, is_ooc):
         return 'description'
     if is_ooc:
         return 'meta'
-    if action_kind != 'social':
+    if action_kind not in ('social', 'table_game'):
         return 'description'  # a room action and its public result
-    return None
+    return None  # social play, or a hand of the table's card game: Kit's read
 
 
 def table_read(action, action_kind, is_ooc, public_history, player_notes):
@@ -182,7 +182,7 @@ def check_turn_mode(plan, action_kind, is_ooc):
     hint = mode_hint(action_kind, is_ooc)
     if action_kind == 'opening' or is_ooc:
         require(mode == hint, f'turn_mode must be {hint} for this turn')
-    elif action_kind != 'social':
+    elif action_kind not in ('social', 'table_game'):
         require(mode in ('description', 'combat'), 'A room action is a description (or combat) turn')
     if mode == 'meta':
         require(plan['table_presence'] != 'quiet', 'Meta talk is answered by Kit; table presence cannot be quiet')

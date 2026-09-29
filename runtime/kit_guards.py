@@ -592,13 +592,16 @@ def numeric_facts(source):
             if isinstance(fact, dict)}
 
 
-def check_numeric_facts(segments, facts, player_action):
+def check_numeric_facts(segments, facts, player_action, skip=None):
+    """`skip(sentence)` exempts sentences another check owns (a wager at the card table)."""
     declared = set()
     for fact in (facts or {}).values():
         for sentence in sentences(player_action or ''):
             declared.update(_amounts(sentence, fact['unit_words']))
     for segment in segments:
         for sentence in sentences(segment['text']):
+            if skip and skip(sentence):
+                continue
             words = ' ' + ' '.join(tokens(sentence)) + ' '
             for name, fact in (facts or {}).items():
                 if not any(f' {normalize(word)} ' in words for word in fact['context_words']):
