@@ -329,30 +329,44 @@ PUBLIC_INSTRUCTIONS = (
     'room for a short speech or more than one reaction. Never pad to reach a length.'
 )
 
-# Trial-only identity calibration. It does not replace the canonical core and
-# should not become the default until a blind, multi-turn comparison wins.
+# Kit's direct table voice, distilled from docs/personality/dm-personality-core.md
+# into performer guidance. Default for KitChatBridge (both one-pass and staged) at
+# Brendon's direction; the standalone API path still defaults to `current`. It only
+# adds performer instructions: the input, schema, and every validator are identical
+# to `current`. No blind comparison has run yet; judge it in play and revise it.
+# The contrasts are register illustrations from other scenes, never lines for an NPC.
 KIT_EXPRESSION_V1 = (
-    'Kit expression experiment: use the supplied personality core to make one '
-    'recognizable choice about this particular player bid. Her interest in '
-    'surprising, characterful, or audacious play affects which permitted detail '
-    'or actor response she foregrounds; it cannot create a new fact or outcome. '
-    'When she speaks as Kit, keep her direct voice candid, precise about rulings, '
-    'and capable of dry delight or a brief challenge when earned. Avoid generic '
-    'praise, canned jokes, and commentary on every turn. When her table presence '
-    'is quiet, her choice must still shape the scene through a specific focus, '
-    'an NPC tactic, or purposeful restraint. Give NPCs their own motives and '
-    'cadences; do not make them mouthpieces for Kit’s humor. A narrow question or '
-    'roll prompt deserves a direct answer. Let a significant social bid develop '
-    'long enough for the actor to pursue something and the player to respond. '
-    'Stop before deciding the player’s next move.'
+    'KIT’S TABLE VOICE. Kit is one particular DM with taste, not a neutral narrator. Her taste '
+    'always shows through kit_focus: what gets space, which actor tactic plays out, how a ruling '
+    'is framed. Her own voice appears only in Kit segments, only as table presence allows (quiet: '
+    'none; brief: one short remark), and only when she has something specific to say. '
+    'Do: react to the exact thing this player did and say what she makes of it; hold an opinion '
+    '(bold, reckless, clever, doomed) and still rule fairly; be plain and exact about a ruling '
+    '(which check and why, in public terms); let humor come from the situation, dry and short, '
+    'only when it lands; chide shenanigans, then take the attempt seriously; show delight or pride '
+    'only when earned; then hand the scene back. '
+    'Don’t: generic praise or filler, recap the narration, offer a menu of options, advise the '
+    'player what to do, or remark on every turn. Her opinion never changes a fact, rules outcome, '
+    'or NPC stance, never hints at hidden information, and never decides what the player thinks '
+    'or does. NPCs never borrow her wit, asides, opinions, or phrasing; a line that sounds like Kit '
+    'is not an NPC line. No catchphrases or repeated openers. '
+    'Register contrasts (from other scenes; never reuse them or give them to anyone): filler '
+    '"What an interesting choice!" vs taste "You shook the lich’s hand. Bold. I did not see that '
+    'coming."; flat "Roll a check." vs exact "Strength, not Dexterity: you are hauling the '
+    'portcullis, not slipping under it."; fake-neutral "Anything could happen." vs fair '
+    '"Terrible plan. Roll Athletics; the ledge does not care how confident you are."; forced '
+    'quip vs restraint: in real danger she says nothing and lets the threat speak.'
 )
 
 PERFORMANCE_VARIANTS = {
     'current': PUBLIC_INSTRUCTIONS,
     'kit_expression_v1': PUBLIC_INSTRUCTIONS + '\n\n' + KIT_EXPRESSION_V1,
 }
+# The ChatGPT bridge (one-pass and staged) uses Kit's voice unless the host asks
+# for the `current` baseline, e.g. for a paired comparison.
+DEFAULT_BRIDGE_VARIANT = 'kit_expression_v1'
 
-ONE_PASS_INSTRUCTIONS = (
+ONE_PASS_PREAMBLE = (
     'For live chat, produce one object with decision first and performance second. '
     'Apply the private decision instructions to the private input, then write the public '
     'performance using only the public input, accepted event, and the decision’s checked '
@@ -363,9 +377,19 @@ ONE_PASS_INSTRUCTIONS = (
     'appraisal before selecting a concrete DM move; do not justify dialogue after the fact. '
     'The performance must remain grounded and give the player a meaningful response. '
     'This faster path is an experiment; it does not establish the same causal separation '
-    'as the staged path.\n\nPRIVATE DECISION: ' + PRIVATE_INSTRUCTIONS +
-    '\n\nPUBLIC PERFORMANCE: ' + PUBLIC_INSTRUCTIONS
+    'as the staged path.'
 )
+
+
+def check_variant(performance_variant):
+    require(performance_variant in PERFORMANCE_VARIANTS, 'Unknown performance variant')
+    return performance_variant
+
+
+def one_pass_instructions(performance_variant=DEFAULT_BRIDGE_VARIANT):
+    """One-pass host instructions: the same private stage plus the chosen performer variant."""
+    return (ONE_PASS_PREAMBLE + '\n\nPRIVATE DECISION: ' + PRIVATE_INSTRUCTIONS +
+            '\n\nPUBLIC PERFORMANCE: ' + PERFORMANCE_VARIANTS[check_variant(performance_variant)])
 
 
 class OpenAIResponsesModel:
@@ -409,8 +433,9 @@ class OpenAIResponsesModel:
     def plan(self, payload):
         return self._complete(PRIVATE_INSTRUCTIONS, payload, 'kit_private_decision', PLAN_SCHEMA)
 
-    def perform(self, payload):
-        return self._complete(PUBLIC_INSTRUCTIONS, payload, 'kit_public_performance', SPEECH_SCHEMA)
+    def perform(self, payload, performance_variant='current'):
+        return self._complete(PERFORMANCE_VARIANTS[check_variant(performance_variant)], payload,
+                              'kit_public_performance', SPEECH_SCHEMA)
 
 
 def check_plan(plan, episodes, public_event, action_kind=None, candidates=None, player_action=None):
@@ -674,19 +699,23 @@ def retry_instruction(exc):
             'supplied player-visible facts and the accepted event.')
 
 
-def checked_record(body, plan, speech):
+def checked_record(body, plan, speech, performance_variant):
+    """Validate a performance. Every variant faces the same checks; the record names
+    which performer instructions ran so play reviews can tell the variants apart."""
+    check_variant(performance_variant)
     spoken = check_speech(speech, plan, body['public_view'], body['action'], body['kind'])
     if body['kind'] not in ('social', 'opening'):
         spoken = f"Narrator: {body['public_event']}\n{spoken}"
     return {'player_input': body['action'], 'public_event': body['public_event'],
-            'trace': plan, 'spoken': spoken}
+            'trace': plan, 'spoken': spoken, 'performance_variant': performance_variant}
 
 
 class KitAgent:
-    def __init__(self, runtime, model, adjudicator=None):
+    def __init__(self, runtime, model, adjudicator=None, performance_variant='current'):
         self.runtime = runtime
         self.model = model
         self.adjudicator = adjudicator or Room6CAdjudicator()
+        self.performance_variant = check_variant(performance_variant)
 
     def turn(self, action, turn_id=None, use_memory=True):
         started = time.monotonic()
@@ -701,7 +730,8 @@ class KitAgent:
 
     def _run(self, revision, body, planning_input, turn_id, started):
         turn_id = turn_id or str(uuid.uuid4())
-        timing = {'mode': 'api', 'model_calls': 0, 'perform_s': [], 'rejections': []}
+        timing = {'mode': 'api', 'model_calls': 0, 'perform_s': [], 'rejections': [],
+                  'performance_variant': self.performance_variant}
         outcome = 'rejected'
         try:
             call_started = time.monotonic()
@@ -714,11 +744,12 @@ class KitAgent:
             performance_payload = performance_input(self.runtime, body, plan)
             for attempt in range(2):
                 call_started = time.monotonic()
-                speech = self.model.perform(performance_payload)
+                speech = self.model.perform(performance_payload,
+                                            performance_variant=self.performance_variant)
                 timing['model_calls'] += 1
                 timing['perform_s'].append(round(time.monotonic() - call_started, 3))
                 try:
-                    record = checked_record(body, plan, speech)
+                    record = checked_record(body, plan, speech, self.performance_variant)
                     break
                 except InvalidChange as exc:
                     timing['rejections'].append(str(exc))
@@ -745,8 +776,15 @@ class KitChatBridge:
         self.runtime = runtime
         self.adjudicator = adjudicator or Room6CAdjudicator()
 
-    def prepare(self, action=None, turn_id=None, use_memory=True, one_pass=False, opening=False):
+    def prepare(self, action=None, turn_id=None, use_memory=True, one_pass=False, opening=False,
+                performance_variant=None):
+        """Stage a turn. One-pass turns fix their performer variant here (default
+        DEFAULT_BRIDGE_VARIANT); staged turns choose it at decide."""
         turn_id = turn_id or str(uuid.uuid4())
+        require(one_pass or performance_variant is None,
+                'A staged turn chooses its performance variant at decide')
+        if one_pass:
+            performance_variant = check_variant(performance_variant or DEFAULT_BRIDGE_VARIANT)
         if opening:
             require(action is None, 'Room opening does not take a player action')
             revision, body, planning_input = prepare_opening(self.runtime)
@@ -754,12 +792,18 @@ class KitChatBridge:
             revision, body, planning_input = prepare_turn(
                 self.runtime, self.adjudicator, action, use_memory)
         body['host_mode'] = 'one_pass' if one_pass else 'staged'
+        if one_pass:
+            body['performance_variant'] = performance_variant
         self.runtime.stage_kit_turn(turn_id, revision, body)
         # Wall clock, not monotonic: stages may run in separate processes.
-        self.runtime.record_kit_timing(turn_id, mode=body['host_mode'], prepared_at=time.time())
+        self.runtime.record_kit_timing(turn_id, mode=body['host_mode'], prepared_at=time.time(),
+                                       **({'performance_variant': performance_variant}
+                                          if one_pass else {}))
         if one_pass:
             return {'turn_id': turn_id, 'stage': 'one_pass',
-                    'instructions': ONE_PASS_INSTRUCTIONS, 'schema': ONE_PASS_SCHEMA,
+                    'performance_variant': performance_variant,
+                    'instructions': one_pass_instructions(performance_variant),
+                    'schema': ONE_PASS_SCHEMA,
                     'performance_limits': performance_limits(), 'host_retry': HOST_RETRY_NOTE,
                     'input': {'private': planning_input,
                               'public': public_performance_base(self.runtime, body)}}
@@ -768,21 +812,23 @@ class KitChatBridge:
                 'performance_limits': performance_limits(), 'host_retry': HOST_RETRY_NOTE,
                 'input': planning_input}
 
-    def decide(self, turn_id, plan, performance_variant='current'):
+    def decide(self, turn_id, plan, performance_variant=DEFAULT_BRIDGE_VARIANT):
         pending = self.runtime.pending_kit_turn(turn_id)
         revision, state = self.runtime.load()
         if revision != pending['revision']:
             raise StaleTurn(f"Expected revision {pending['revision']}; current is {revision}")
         body = pending['body']
         require(body['host_mode'] == 'staged', 'Use complete for a one-pass turn')
-        require(performance_variant in PERFORMANCE_VARIANTS, 'Unknown performance variant')
+        check_variant(performance_variant)
         episodes = state.get('kit', {}).get('episodes', [])[-8:] if body['use_memory'] else []
         check_plan(plan, episodes, body['public_event'], body['kind'],
                    body['discernment_candidates'], body['action'])
         check_brief_public(plan['public_brief'], body['public_view'], body['action'])
         payload = performance_input(self.runtime, body, plan)
         self.runtime.save_kit_plan(turn_id, revision, plan)
-        self.runtime.record_kit_timing(turn_id, decided_at=time.time())
+        # finish records the variant of the latest packet issued for this turn.
+        self.runtime.record_kit_timing(turn_id, decided_at=time.time(),
+                                       performance_variant=performance_variant)
         return {'turn_id': turn_id, 'stage': 'public_performance',
                 'performance_variant': performance_variant,
                 'instructions': PERFORMANCE_VARIANTS[performance_variant], 'schema': SPEECH_SCHEMA,
@@ -794,16 +840,17 @@ class KitChatBridge:
         require(pending['body']['host_mode'] == 'staged', 'Use complete for a one-pass turn')
         require(pending['plan'] is not None, 'Complete private decision before performance')
         body = pending['body']
-        record = self._checked_or_log(turn_id, body, pending['plan'], speech)
+        variant = (self.runtime.kit_timing(turn_id) or {}).get('performance_variant', 'current')
+        record = self._checked_or_log(turn_id, body, pending['plan'], speech, variant)
         revision = self.runtime.commit_kit_turn(
             turn_id, pending['revision'], body['events'], record, consume_pending=True)
         return {'revision': revision, 'turn_id': turn_id,
                 'public_event': body['public_event'], 'spoken': record['spoken'],
-                'timing': self._finish_timing(turn_id)}
+                'performance_variant': variant, 'timing': self._finish_timing(turn_id)}
 
-    def _checked_or_log(self, turn_id, body, plan, speech):
+    def _checked_or_log(self, turn_id, body, plan, speech, performance_variant):
         try:
-            return checked_record(body, plan, speech)
+            return checked_record(body, plan, speech, performance_variant)
         except InvalidChange as exc:
             prior = self.runtime.kit_timing(turn_id) or {}
             self.runtime.record_kit_timing(
@@ -838,12 +885,14 @@ class KitChatBridge:
                    body['discernment_candidates'], body['action'])
         check_brief_public(plan['public_brief'], body['public_view'], body['action'])
         self.runtime.save_kit_plan(turn_id, revision, plan)
-        record = self._checked_or_log(turn_id, body, plan, output['performance'])
+        # Turns staged before variants reached one-pass ran the `current` instructions.
+        variant = body.get('performance_variant', 'current')
+        record = self._checked_or_log(turn_id, body, plan, output['performance'], variant)
         next_revision = self.runtime.commit_kit_turn(
             turn_id, revision, body['events'], record, consume_pending=True)
         return {'revision': next_revision, 'turn_id': turn_id,
                 'public_event': body['public_event'], 'spoken': record['spoken'],
-                'timing': self._finish_timing(turn_id)}
+                'performance_variant': variant, 'timing': self._finish_timing(turn_id)}
 
 
 def main():
@@ -857,7 +906,8 @@ def main():
     parser.add_argument('--no-memory', action='store_true', help='Ablation: hide Kit’s prior episodes from her decision stage')
     parser.add_argument('--one-pass', action='store_true', help='One model output for live chat; use complete to commit')
     parser.add_argument('--performance-variant', choices=PERFORMANCE_VARIANTS,
-                        default='current', help='Trial-only staged performer instructions for decide')
+                        help=f'Performer instructions: for prepare --one-pass or decide (default '
+                             f'{DEFAULT_BRIDGE_VARIANT}), or for play (default current)')
     parser.add_argument('--opening', action='store_true', help='Prepare the initial scene entry instead of a player action')
     parser.add_argument('--action', help='Player action for prepare')
     parser.add_argument('--action-file', help='UTF-8 player action file for prepare')
@@ -889,14 +939,19 @@ def main():
                             parser.error('prepare requires exactly one of --action or --action-file')
                         action = (args.action if args.action_file is None else
                                   Path(args.action_file).read_text(encoding='utf-8').strip())
+                    if args.performance_variant and not args.one_pass:
+                        parser.error('--performance-variant on prepare needs --one-pass; '
+                                     'staged turns choose it at decide')
                     result = bridge.prepare(action, args.turn_id, use_memory=not args.no_memory,
-                                            one_pass=args.one_pass, opening=args.opening)
+                                            one_pass=args.one_pass, opening=args.opening,
+                                            performance_variant=args.performance_variant)
                 else:
                     if not args.turn_id or not args.input_file:
                         parser.error(f'{args.command} requires --turn-id and --input-file')
                     raw = sys.stdin.read() if args.input_file == '-' else Path(args.input_file).read_text(encoding='utf-8')
                     submitted = json.loads(raw)
-                    result = (bridge.decide(args.turn_id, submitted, args.performance_variant) if args.command == 'decide' else
+                    variant = args.performance_variant or DEFAULT_BRIDGE_VARIANT
+                    result = (bridge.decide(args.turn_id, submitted, variant) if args.command == 'decide' else
                               bridge.finish(args.turn_id, submitted) if args.command == 'finish' else
                               bridge.complete(args.turn_id, submitted))
             except PendingRuling as exc:
@@ -921,7 +976,8 @@ def main():
             if not os.environ.get('OPENAI_API_KEY'):
                 parser.error('standalone play requires OPENAI_API_KEY; for ChatGPT use prepare/decide/finish')
             model = OpenAIResponsesModel(args.model)
-            agent = KitAgent(runtime, model, Room6CAdjudicator(args.perception, args.insight))
+            agent = KitAgent(runtime, model, Room6CAdjudicator(args.perception, args.insight),
+                             performance_variant=args.performance_variant or 'current')
             print('Kit’s area 6c test. Enter an action, or /quit. Private traces: separate trace command.')
             if runtime.load()[0] == 0:
                 try:
