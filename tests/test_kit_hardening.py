@@ -529,8 +529,9 @@ class MergeReconciliationTests(unittest.TestCase):
 
     def test_brief_schema_and_instructions_carry_all_three_prs(self):
         brief = kit_agent.PLAN_SCHEMA['properties']['public_brief']
-        self.assertEqual(set(brief['required']), {'objective', 'tactic', 'visible_cue', 'player_opening',
-                                                  'reply_to', 'scope', 'kit_focus', 'callback'})
+        # kit-voice-spec adds mirror and npc_notice (tests/test_kit_voice.py); the three PRs' fields stay.
+        self.assertLessEqual({'objective', 'tactic', 'visible_cue', 'player_opening',
+                              'reply_to', 'scope', 'kit_focus', 'callback'}, set(brief['required']))
         self.assertIn('player_note', kit_agent.PLAN_SCHEMA['required'])
         for variant in kit_agent.PERFORMANCE_VARIANTS.values():
             self.assertIn('answer them, do not echo them back', variant)        # PR #8

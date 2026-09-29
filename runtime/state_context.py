@@ -16,7 +16,12 @@ PERSONALITY_CORE = PROJECT_ROOT / 'docs/personality/dm-personality-core.md'
 RHYTHM_EVIDENCE_MAX_CHARS = 600  # per recent_rhythm entry; 12 entries stay inside context()
 # Byte budget for one model input. context() enforces it on the core + DM context; the
 # Kit bridge trims memory to keep each whole prepared input inside it (kit_agent.fit_to_budget).
-CONTEXT_BUDGET_BYTES = 24000
+# 25 KB, up from 24 KB (kit-voice-spec): Brendon's voice spec is carried verbatim in the
+# personality core (+0.9 KB) and adds small voice carriers (table_read, the brief's mirror
+# and npc_notice, ~0.25 KB) to every private input. That raised the irreducible floor of
+# the long-game worst case (ContextBudgetTests) from about 22.9 KB to about 24.2 KB; 25 KB
+# restores roughly the headroom kit-hardening had. About 250 more tokens per decision.
+CONTEXT_BUDGET_BYTES = 25000
 
 # Version 2 adds Kit's player_notes and richer episodes (player_bid, kit_choice,
 # actor and story thread). Older snapshots are upgraded in memory on load; the
