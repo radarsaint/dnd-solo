@@ -32,6 +32,8 @@ See [the state/context prototype guide](docs/architecture/state-context-prototyp
 
 The first source-grounded test scene is [Level 1, area 6c — Uktarl's room](tests/scenarios/level-01-area-06c-uktarl.md). Its fixture exercises context and secrecy; six play probes examine whether Kit's event appraisal, chosen moves, and table performance make her personality felt. The [personality backend contract](docs/architecture/runtime/DM_PERSONALITY_BACKEND_CONTRACT.md#cognitive-agent-model-for-kit) records the research grounding for that agent cycle. Character onboarding showed promising engagement and adjudicative backbone alongside restraint and voice problems. The [first live room exchange](tests/playtests/2026-09-26-area-06c-nik.md) failed on speed and expressed personality. The [project outline](docs/WHAT_WE_ARE_BUILDING.md) gives the plain-English goal and current scope.
 
+The next phase follows an [expressed-performance pipeline](docs/architecture/expressed-performance-pipeline.md) and a [blind area 6c comparison packet](tests/scenarios/expressed-performance-v1.md). **Quality is the current gate**: compare player-facing exchanges on the same accepted situation, promote the behavior that makes Kit and her NPCs worth continuing with, then transfer it to another playable room. Record latency and remove obvious overhead, but do not shorten an earned moment to meet a timing target during this pass.
+
 ## Repository map
 
 - `docs/personality/` — canonical DM personality, development process, appetites, pillar biases, table presence, and personality design history.
