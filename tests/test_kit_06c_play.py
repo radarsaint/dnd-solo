@@ -321,6 +321,19 @@ class CardTableTests(unittest.TestCase):
         _, state, _ = self.play(self.table(), 'card_bet', 'I call.', state, revision=3)
         self.assertIsNone(kit_cards.card_intent('I call.', state), 'no bet on a finished hand')
 
+    def test_leaving_mid_hand_folds_it_so_the_table_can_deal_again(self):
+        """QA PR #15: cashing out mid-hand left the hand in betting forever."""
+        state = kit_cards.initial_state(self.config)
+        _, state, _ = self.play(self.table(), 'card_join', 'I buy in with 20 gold and deal me in.', state)
+        total = self.gold(state)
+        text, state, _ = self.play(self.table(), 'card_leave', 'I cash out.', state, revision=2)
+        self.assertEqual(state['public']['hand']['phase'], 'done')
+        self.assertIn('You fold.', text)
+        self.assertEqual(self.gold(state) + 18, total, 'your 18 gp left with you; the rest stayed')
+        _, state, _ = self.play(self.table(), 'card_join', 'I buy in with 10 gold and deal me in.', state,
+                                revision=3)
+        self.assertEqual(state['public']['hand']['phase'], 'betting')
+
     def test_the_public_table_names_seats_only_by_their_labels(self):
         """QA PR #15: public stack keys were actor ids ("doppelganger"), and the public
         dm_choice named the marked deck, which also switched off the literal leak check."""

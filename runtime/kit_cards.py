@@ -481,10 +481,15 @@ class CardTable:
 
     def _leave(self, action, revision, public, private):
         player = public['player']
+        lead = ''
+        if public['hand'] and public['hand']['phase'] == 'betting':
+            # Leaving mid-hand folds it: the others play it out, so the table never waits
+            # on an empty seat and the pot has an owner.
+            lead = self._showdown(public, private, player_in=False, lead='You fold.') + ' '
         net = player['gp'] - player['bought_in']
         public['last_result'] = {'left_table': True, 'your_gp': player['gp'], 'net_since_buy_in': net}
         public['player'] = None
-        return (f'You gather your {player["gp"]} gp and leave the game '
+        return (f'{lead}You gather your {player["gp"]} gp and leave the game '
                 f'({"up" if net >= 0 else "down"} {abs(net)} gp on your {player["bought_in"]} gp buy-in).'), []
 
 
