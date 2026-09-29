@@ -220,6 +220,29 @@ PUBLIC_INSTRUCTIONS = (
     'A mechanically consequential unsupported action should invite clarification, not resolve itself.'
 )
 
+# Trial-only identity calibration. It does not replace the canonical core and
+# should not become the default until a blind, multi-turn comparison wins.
+KIT_EXPRESSION_V1 = (
+    'Kit expression experiment: use the supplied personality core to make one '
+    'recognizable choice about this particular player bid. Her interest in '
+    'surprising, characterful, or audacious play affects which permitted detail '
+    'or actor response she foregrounds; it cannot create a new fact or outcome. '
+    'When she speaks as Kit, keep her direct voice candid, precise about rulings, '
+    'and capable of dry delight or a brief challenge when earned. Avoid generic '
+    'praise, canned jokes, and commentary on every turn. When her table presence '
+    'is quiet, her choice must still shape the scene through a specific focus, '
+    'an NPC tactic, or purposeful restraint. Give NPCs their own motives and '
+    'cadences; do not make them mouthpieces for Kit’s humor. A narrow question or '
+    'roll prompt deserves a direct answer. Let a significant social bid develop '
+    'long enough for the actor to pursue something and the player to respond. '
+    'Stop before deciding the player’s next move.'
+)
+
+PERFORMANCE_VARIANTS = {
+    'current': PUBLIC_INSTRUCTIONS,
+    'kit_expression_v1': PUBLIC_INSTRUCTIONS + '\n\n' + KIT_EXPRESSION_V1,
+}
+
 ONE_PASS_INSTRUCTIONS = (
     'For live chat, produce one object with decision first and performance second. '
     'Apply the private decision instructions to the private input, then write the public '
@@ -532,13 +555,14 @@ class KitChatBridge:
                 'instructions': PRIVATE_INSTRUCTIONS, 'schema': PLAN_SCHEMA,
                 'input': planning_input}
 
-    def decide(self, turn_id, plan):
+    def decide(self, turn_id, plan, performance_variant='current'):
         pending = self.runtime.pending_kit_turn(turn_id)
         revision, state = self.runtime.load()
         if revision != pending['revision']:
             raise StaleTurn(f"Expected revision {pending['revision']}; current is {revision}")
         body = pending['body']
         require(body['host_mode'] == 'staged', 'Use complete for a one-pass turn')
+        require(performance_variant in PERFORMANCE_VARIANTS, 'Unknown performance variant')
         episodes = state.get('kit', {}).get('episodes', [])[-8:] if body['use_memory'] else []
         check_plan(plan, episodes, body['public_event'], body['kind'],
                    body['discernment_candidates'])
@@ -546,7 +570,8 @@ class KitChatBridge:
         payload = performance_input(self.runtime, body, plan)
         self.runtime.save_kit_plan(turn_id, revision, plan)
         return {'turn_id': turn_id, 'stage': 'public_performance',
-                'instructions': PUBLIC_INSTRUCTIONS, 'schema': SPEECH_SCHEMA,
+                'performance_variant': performance_variant,
+                'instructions': PERFORMANCE_VARIANTS[performance_variant], 'schema': SPEECH_SCHEMA,
                 'input': payload}
 
     def finish(self, turn_id, speech):
@@ -592,6 +617,8 @@ def main():
     parser.add_argument('--insight', type=int, help='Test character Wisdom (Insight) modifier')
     parser.add_argument('--no-memory', action='store_true', help='Ablation: hide Kit’s prior episodes from her decision stage')
     parser.add_argument('--one-pass', action='store_true', help='One model output for live chat; use complete to commit')
+    parser.add_argument('--performance-variant', choices=PERFORMANCE_VARIANTS,
+                        default='current', help='Trial-only staged performer instructions for decide')
     parser.add_argument('--opening', action='store_true', help='Prepare the initial scene entry instead of a player action')
     parser.add_argument('--action', help='Player action for prepare')
     parser.add_argument('--action-file', help='UTF-8 player action file for prepare')
@@ -628,7 +655,7 @@ def main():
                         parser.error(f'{args.command} requires --turn-id and --input-file')
                     raw = sys.stdin.read() if args.input_file == '-' else Path(args.input_file).read_text(encoding='utf-8')
                     submitted = json.loads(raw)
-                    result = (bridge.decide(args.turn_id, submitted) if args.command == 'decide' else
+                    result = (bridge.decide(args.turn_id, submitted, args.performance_variant) if args.command == 'decide' else
                               bridge.finish(args.turn_id, submitted) if args.command == 'finish' else
                               bridge.complete(args.turn_id, submitted))
             except PendingRuling as exc:

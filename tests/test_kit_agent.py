@@ -270,6 +270,23 @@ class KitAgentTests(unittest.TestCase):
         with self.assertRaisesRegex(InvalidChange, 'No pending'):
             self.runtime.pending_kit_turn('chat-turn')
 
+    def test_kit_expression_trial_changes_only_staged_instructions(self):
+        bridge = KitChatBridge(self.runtime, self.agent.adjudicator)
+        current_prepared = bridge.prepare('Hi. What is going on here?', 'identity-current')
+        trial_prepared = bridge.prepare('Hi. What is going on here?', 'identity-trial')
+        self.assertEqual(current_prepared['input'], trial_prepared['input'])
+        plan = self.model.plan(current_prepared['input'])
+        current = bridge.decide('identity-current', plan)
+        trial = bridge.decide('identity-trial', plan, 'kit_expression_v1')
+        self.assertEqual(current['input'], trial['input'])
+        self.assertEqual(current['schema'], trial['schema'])
+        self.assertNotEqual(current['instructions'], trial['instructions'])
+        self.assertEqual(trial['performance_variant'], 'kit_expression_v1')
+        self.assertNotIn('dm_only', json.dumps(trial['input']))
+        self.assertEqual(self.runtime.load()[0], 0)
+        with self.assertRaisesRegex(InvalidChange, 'Unknown performance variant'):
+            bridge.decide('identity-trial', plan, 'invented')
+
     def test_chat_bridge_rejects_leaks_and_locks_decision_before_performance(self):
         bridge = KitChatBridge(self.runtime, self.agent.adjudicator)
         prepared = bridge.prepare('I sit down.', 'guarded')

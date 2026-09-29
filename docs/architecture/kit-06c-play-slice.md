@@ -39,6 +39,8 @@ python -m runtime.kit_agent finish --db kit-06c.sqlite --turn-id TURN_ID --input
 
 The assistant shows the player only the `spoken` field from `complete` or `finish`, never the private packet or `trace`. Pending stages survive a Python process restart. A stale revision leaves the world turn uncommitted. `init` refuses to overwrite an existing session; use `view` to resume. For a keyed check, supply the character's actual `--perception` or `--insight` modifier to `prepare`. Without it, that check pauses without consuming a turn. The current CLI does **not** ingest a player-supplied die result; do not silently reroll one. `--no-memory` on `prepare` hides previous Kit episodes for an ablation.
 
+For the [Kit identity comparison](../personality/kit-personality-implementation.md), the staged `decide` command accepts `--performance-variant kit_expression_v1`; the default remains `current`. The trial variant changes only the performer instruction and leaves the accepted event, plan, public packet, and schema unchanged. Prepare isolated copies of the same room snapshot for a fair comparison. This has not passed a blind or live quality test, and the one-pass path does not offer the variant.
+
 These chat-host paths need **no** `--model` choice and **no** `OPENAI_API_KEY`. The commands are a protocol for the assistant, not steps the player has to type. The Work interface may show tool/progress activity; a dedicated player surface is needed to hide it.
 
 ## Optional standalone API CLI

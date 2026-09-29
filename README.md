@@ -34,6 +34,8 @@ The first source-grounded test scene is [Level 1, area 6c — Uktarl's room](tes
 
 The next phase follows an [expressed-performance pipeline](docs/architecture/expressed-performance-pipeline.md) and a [blind area 6c comparison packet](tests/scenarios/expressed-performance-v1.md). **Quality is the current gate**: compare player-facing exchanges on the same accepted situation, promote the behavior that makes Kit and her NPCs worth continuing with, then transfer it to another playable room. Record latency and remove obvious overhead, but do not shorten an earned moment to meet a timing target during this pass.
 
+The [personality implementation audit](docs/personality/kit-personality-implementation.md) corrects a key gap: the core is written and loaded, but Kit's distinctive expressive behavior and longer-lived appetites/relationship dynamics are not yet built or validated. The next comparison tests **Kit's identity**, then NPC and scene performance.
+
 ## Repository map
 
 - `docs/personality/` — canonical DM personality, development process, appetites, pillar biases, table presence, and personality design history.

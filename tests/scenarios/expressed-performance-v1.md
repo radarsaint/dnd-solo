@@ -36,10 +36,13 @@ Keep the answer key and Kit's traces out of the player's view. The tool rejects 
 | Arm | Change from the present branch | Reason to test |
 | --- | --- | --- |
 | A: current | The existing staged plan and public performer instructions, with no extra fields | Baseline after the post-Nik structural changes; never describe the old 81-second output as a test of this revision |
-| B: actor-led | Change only the public performance instruction to prioritize answer to exact bid, actor's own tactic, recurring voice, grounded behavior, and open reply | Tests whether the public performance handoff is the bottleneck |
-| C: scope-aware | Hold the B performer stable; let Kit choose call, exchange, or feature as a public-safe direction | Tests whether a richer moment needs a selected response shape; requires a planned schema change after B is evaluated |
+| B: Kit expression | Hold the fixed private decision and actor card; give the performer the [candidate Kit expression profile](../../docs/personality/kit-personality-implementation.md#first-candidate-expression-profile-for-testing) as a separately versioned trial instruction | Tests whether a more specific, recognizable DM identity changes the expressed turn |
+| C: causal handoff | Hold B stable; add one short, checked, public-safe expression intent derived from that *same* fixed Kit choice | Tests whether the private personality decision actually needs to cross into performance; this is an offline experiment before a live schema change |
+| D: actor-led and scope | After the Kit experiments, separately test stronger actor tactics and call/exchange/feature direction | Tests NPC performance and response scale without confusing them with Kit's identity |
 
-Avoid presenting B and C as established improvements. Keep the room's vocal card and personality core unchanged while testing them. Do not write a mandatory dealer monologue, joke, accent, or answer line into the fixture.
+Avoid presenting any candidate as an established improvement. Keep the room's source and vocal card unchanged, and record exactly which instruction differed. Do not write a mandatory dealer monologue, joke, accent, or answer line into the fixture. Do not send the private `kit_choice` or appraisal cause unfiltered into a public performance packet; a live handoff requires a new checked public-safe field and secrecy review.
+
+Arm B is now selectable in the staged chat bridge with `python -m runtime.kit_agent decide --db TRIAL_DB --turn-id TURN_ID --input-file PLAN.json --performance-variant kit_expression_v1`. The default is `current`. Prepare matching isolated trial databases, use the same valid private plan and source snapshot, and generate both public continuations from the returned packets. Do not commit both to one world revision. The variant changes only the performer instruction; its existence does not count as a successful personality test.
 
 ## Runnable first-pass probes
 
@@ -55,6 +58,8 @@ The current area 6c router can prepare these actions. A `social` result currentl
 | P5 surprising offer | `I could help you get rid of Harria. What is that worth?` | The player has named Harria; the actor can test the offer in his own interests. He cannot reveal facts he would keep private or complete an unvalidated bargain. Run separately from the no-Harria-knowledge branch to examine what the player already knew. |
 | P6 tub | `I tip the stone tub over and use it as cover.` | The fixed, recessed tub cannot tip. Kit can enjoy the audacity while ruling clearly and inviting a legal follow-up. The accepted result is repeated faithfully, with no false cover grant. |
 | P7 investigation | `I study those tiny figures in the carving while they argue.` | With a predetermined successful or failed DC 13 Perception result, the discovery is fairly presented; the unrelated card talk does not swallow the investigation. The source's hidden key purpose stays hidden. |
+
+Across P0–P7, also compare **Kit herself**: does the same DM seem to be choosing what matters, responding to audacity, ruling cleanly, and knowing when the NPC should carry the scene? A dealer who becomes more theatrical while Kit remains generic does not pass the identity test. Add a serious or quiet second-room scene before promoting a voice rule that works only around this card table.
 
 **Blocked regression probes, implement before claiming full play:** Nik's player-supplied Insight `7 + 4 = 11` as a continuation of an intent-reading request; a durable deal, wager, promise, or faction switch; combat and retreat. The existing DC 14 Insight check covers the vampire disguise and is not automatically a check to judge friendliness. Do not silently reuse that DC for the intent-reading request.
 
