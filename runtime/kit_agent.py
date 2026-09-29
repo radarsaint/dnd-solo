@@ -34,6 +34,31 @@ class Resolution:
     events: list
 
 
+# The accepted event is bounded at 500 characters (check_plan). A social event is
+# a restatement of the player's declared words, so Kit's appraisal and the
+# performer react to what was actually said instead of a generic placeholder.
+EVENT_MAX_CHARS = 500
+SOCIAL_EVENT_PREFIX = 'You declare: '
+_TYPOGRAPHIC = str.maketrans({'‘': "'", '’': "'", '“': '"', '”': '"'})
+
+
+def social_event(action):
+    """Public restatement of a social bid: the player's own words, nothing added.
+
+    Whitespace is collapsed and curly quotes become straight quotes so the private
+    stage can copy the event exactly; the words themselves are not changed. Text
+    past the event bound is cut at a word boundary and marked with '...'. It says
+    nothing about how anyone responds; the full declaration stays in the evidence.
+    """
+    words = ' '.join(action.translate(_TYPOGRAPHIC).split())
+    room = EVENT_MAX_CHARS - len(SOCIAL_EVENT_PREFIX) - 2
+    if len(words) > room:
+        cut = words[:room - 3]
+        cut = cut[:cut.rfind(' ')] if ' ' in cut else cut
+        words = cut.rstrip(' ,;:') + '...'
+    return f'{SOCIAL_EVENT_PREFIX}"{words}"'
+
+
 def room_intent(action):
     """Conservative routing; unrecognized text remains conversation or clarification."""
     words = action.lower()
@@ -117,9 +142,14 @@ class Room6CAdjudicator:
                 return Resolution(kind, f'{public} ({total} vs DC {dc})', [event])
             public = f'Your careful look reveals nothing further. ({total} vs DC {dc})'
         else:
-            public = 'You address the figures at the card table.'
+            # Social bid: restate the player's actual words. No outcome, NPC
+            # commitment, or hidden fact is added; the full text stays in evidence.
+            event = {'type': 'beat', 'tags': [kind],
+                     'evidence': f'Player declared: {action}. Resolution: social bid at the card '
+                                 'table, restated as the accepted event; no world state changed.'}
+            return Resolution(kind, social_event(action), [event])
         event = {'type': 'beat', 'tags': [kind],
-                 'evidence': f'Player declared: {action[:500]}. Resolution: {public}'}
+                 'evidence': f'Player declared: {action}. Resolution: {public}'}
         return Resolution(kind, public, [event])
 
 
@@ -231,7 +261,8 @@ PRIVATE_INSTRUCTIONS = (
     'You are Kit’s private decision stage, using the supplied canonical personality. '
     'Read DM-only information to keep the scene grounded. The event has already been adjudicated; '
     'do not change its result or request world writes. Copy accepted_public_event exactly into '
-    'observed_event. Appraise its relation to one of Kit’s actual '
+    'observed_event. On a social turn that event restates the player’s declared words; appraise '
+    'what they actually said or did, not the scene in general. Appraise its relation to one of Kit’s actual '
     'goals, or choose none. Reference only supplied episode IDs. Choose a high-level move and '
     'regulate her table presence. First make an improv_read: describe the player’s declared '
     'bid without inventing their thoughts; choose a story anchor and its established basis '
@@ -268,7 +299,9 @@ PUBLIC_INSTRUCTIONS = (
     'public resolution; do not invent discoveries, geometry, rules outcomes, NPC commitments, '
     'combat results, or player thoughts/actions. Never assume a hidden fact from prior knowledge. '
     'Use supplied actor cards, when present, for a recognizable vocal signature '
-    'and physical touchstone across turns. Text can describe a voice and enact its rhythm; '
+    'and physical touchstone across turns. A card’s wants and tactics are options the actor '
+    'chooses in answer to the player’s words, never a default line or a required beat. '
+    'Text can describe a voice and enact its rhythm; '
     'it cannot supply an audible accent. Avoid phonetic stereotypes and repeated catchphrases. '
     'If action_kind is opening, frame a scene in motion rather than listing the room inventory; '
     'telegraph the public social and exploration invitations without announcing a hidden truth. '
@@ -279,7 +312,8 @@ PUBLIC_INSTRUCTIONS = (
     'Follow the selected public brief, tone, and table presence; quiet means '
     'no Kit segment. The brief conveys a choice, not authority to invent facts. '
     'The accepted event will be displayed before your segments on physical/check turns; '
-    'do not repeat it verbatim. In a social scene, let the NPC pursue a specific objective '
+    'do not repeat it verbatim. On a social turn it restates the player’s own words: answer '
+    'them, do not echo them back. In a social scene, let the NPC pursue a specific objective '
     'through a response, action, or question grounded in the room; a price or fact alone is '
     'rarely the whole exchange. Give the player something meaningful to answer or act on. '
     'Do not pad the turn with generic banter or extra speakers. Leave a real decision for the player. '

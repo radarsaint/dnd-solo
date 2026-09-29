@@ -12,6 +12,7 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 PERSONALITY_CORE = PROJECT_ROOT / 'docs/personality/dm-personality-core.md'
+RHYTHM_EVIDENCE_MAX_CHARS = 600  # per recent_rhythm entry; 12 entries stay inside context()
 
 
 class InvalidChange(ValueError):
@@ -321,7 +322,12 @@ class Runtime:
         elif kind == 'beat':
             tags = event.get('tags')
             require(isinstance(tags, list) and all(isinstance(t, str) for t in tags), 'Invalid beat tags')
-            state['rhythm'].append({'tags': tags, 'evidence': event['evidence']})
+            # The ledger keeps the full evidence; the rhythm window keeps a bounded
+            # excerpt so long player declarations cannot exhaust the context budget.
+            evidence = event['evidence']
+            if len(evidence) > RHYTHM_EVIDENCE_MAX_CHARS:
+                evidence = evidence[:RHYTHM_EVIDENCE_MAX_CHARS - 3] + '...'
+            state['rhythm'].append({'tags': tags, 'evidence': evidence})
             state['rhythm'] = state['rhythm'][-12:]
         else:
             raise InvalidChange(f'Unsupported event: {kind}')

@@ -23,10 +23,17 @@
     "actor_cards": {
       "Dealer": {
         "vocal_signature": "A leisurely, theatrical drawl on invitations; abrupt, crisp words when stating terms. Convey it with cadence and diction, and describe the sound once when he first speaks. No named regional accent or phonetic spelling.",
-        "verbal_habit": "Treats a visitor's question as a bid at the table. He can turn a courteous invitation into a blunt price; do not repeat a catchphrase.",
+        "verbal_habit": "Answers what the visitor actually said before he steers anywhere, then hears it as a bid and raises: a question back, a dare, an invitation. His charm is salesmanship, self-assured and fishing; he speaks for himself, never as a narrator or a commentator on the game. Do not repeat a catchphrase or reuse a line across turns.",
         "physical_touchstone": "A card held between two fingers punctuates what he says. Let his handling of the game reflect whether he feels in control.",
-        "public_objective": "Draw the newcomer into conversation, a game, or the passage bargain while keeping the encounter on his terms.",
-        "source_basis": "The visible card game and elaborate clothing. The vocal choices are authored interpretation."
+        "public_objective": "Size up this visitor and keep the encounter on his terms.",
+        "wants_from_visitor": "A read on this particular newcomer: what they came for, how much nerve and coin they carry, and whether they are a customer, a mark, or trouble. Best of all, the visitor seated at his table in a game he deals.",
+        "tactics": [
+          "Take up the visitor's own words, then turn them back with a probing question about what they expected or why they are here.",
+          "Invite them into the game or a small side wager, and watch how they handle risk.",
+          "Name the price of passage when it serves him: to test their nerve, to take back control, or when they ask for a way through. It is one move among these, not his opening."
+        ],
+        "card_use": "Tactics are options he picks in answer to what the visitor just did; none is a default line or a required beat. He pursues his own interest, not the DM's.",
+        "source_basis": "The visible card game and elaborate clothing. The vocal choices, wants, and tactics are authored interpretation; the passage price comes from the room rules."
       },
       "Card player": {
         "vocal_signature": "No individual voice has been established. A brief reaction or visible movement can show that other people are listening; do not assign an invented backstory or reveal a hidden identity.",
