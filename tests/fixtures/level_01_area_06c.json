@@ -166,6 +166,88 @@
     "blood_prop": {"revealed_by": "false_vampires", "groups": [["pass for", "passes for", "could pass for", "looks like", "look like", "stand in for", "stands in for", "mistaken for", "fake"], ["blood", "gore", "something worse"]]},
     "rivalry": {"revealed_by": null, "groups": [["rival", "rivals", "rivalry", "usurp", "usurper", "displace", "unseat", "depose", "overthrow", "mutiny", "coup"]]}
   },
+  "claims": {
+    "_note": "DM-only. Claims and knowers (runtime/kit_claims.py). Keyed by the thing itself. holders are granted by the source (knowledge lists, role); everyone else's band is computed from stats. dc: the adventure's, else 10 + the concealer's bonus. pc_access passive: the PC's passive skill is a shield (fingerprint); roll: only a player-initiated roll finds it.",
+    "false_vampires": {
+      "about": "group:undertakers/true_nature",
+      "truth": "Their pallor and fangs are theatrical; they are pretending to be vampires.",
+      "source": "adventure",
+      "fact": "false_vampires",
+      "roots": [
+        "false_vampires",
+        "card_table"
+      ],
+      "exposure": "hidden",
+      "dc": 14,
+      "concealer": "uktarl",
+      "conceal_skill": "deception",
+      "pc_check": "insight",
+      "pc_access": "passive",
+      "holders": {
+        "uktarl": "knows",
+        "bandit_a": "knows",
+        "bandit_b": "knows",
+        "doppelganger": "knows"
+      },
+      "fingerprint": "The dealer wipes his chin a beat too fast after he drinks; the fangs sit a little proud of his lip."
+    },
+    "marked_deck": {
+      "about": "item:dealer_deck/marks",
+      "truth": "The dealer's deck carries subtle marks and he deals seconds.",
+      "source": "adventure",
+      "fact": "marked_deck",
+      "roots": [
+        "marked_deck",
+        "card_table"
+      ],
+      "exposure": "hidden",
+      "concealer": "uktarl",
+      "conceal_skill": "sleight_of_hand",
+      "pc_check": "perception",
+      "pc_access": "passive",
+      "npc_check": "insight",
+      "holders": {
+        "uktarl": "knows"
+      },
+      "granted_by": [
+        "read_thoughts"
+      ],
+      "anchored_version": "Dealer's luck; he always wins.",
+      "fingerprint": "His eyes drop to the backs of the cards as he deals."
+    },
+    "ring_value": {
+      "about": "item:silver_ring/value",
+      "truth": "25 gp; dwarven fertility symbols.",
+      "source": "adventure",
+      "fact": "table_treasure",
+      "roots": [
+        "table_treasure",
+        "treasure_on_table"
+      ],
+      "exposure": "hidden",
+      "dc": 15,
+      "_dc_basis": "DM choice (design 06): the adventure gives no appraisal DC.",
+      "pc_check": "history",
+      "pc_access": "roll",
+      "npc_check": "int",
+      "domains": [
+        "coin and loot",
+        "jewelry"
+      ],
+      "holders": {
+        "uktarl": "knows"
+      },
+      "granted_by": [
+        "read_thoughts"
+      ],
+      "anchored_version": "It's silver; melt it and it's worth five gold.",
+      "subject_words": [
+        "ring",
+        "silver ring"
+      ],
+      "learned_text": "Dwarven fertility marks. Twenty-five gold to the right buyer."
+    }
+  },
   "room_rules": [
     "The Undertakers' vampire disguises can be seen through with a DC 14 Wisdom (Insight) check; the appearance alone is not proof.",
     "The gang demands 10 gp per character for safe passage. If they cannot extort or defeat adventurers, they try to turn them against the Xanathar goblinoids.",
@@ -242,6 +324,7 @@
       "knowledge": ["The Undertakers' vampire appearance is a disguise.", "His deck is marked.", "Harria is his rival."],
       "secrets": ["He is not a vampire.", "He cheats at cards."],
       "retreat_condition": "If damaged or if an underling is slaughtered, retreat toward area 7.",
+      "stats": {"srd_basis": "Bandit Captain, SRD 5.1 (CC-BY-4.0, Wizards of the Coast; https://creativecommons.org/licenses/by/4.0/)", "abilities": {"str": 15, "dex": 16, "con": 14, "int": 14, "wis": 11, "cha": 14}, "proficiency_bonus": 2, "skills": {"athletics": 4, "deception": 4, "sleight_of_hand": 3}, "domains": ["the Undertakers", "this card table", "gambling", "coin and loot"], "special": [], "_role": "Room source: Performance +4; sleight_of_hand +3 is the room's DM-choice Dexterity for the deal."},
       "communication_profile": {
         "rhythm": "Performer with a practiced front; blames others when pressed.",
         "humor": "Unspecified by source; derive from his cheating and self-importance only when the moment earns it."
@@ -254,6 +337,7 @@
       "knowledge": ["The vampire appearance is a disguise."],
       "secrets": ["Not a vampire."],
       "retreat_condition": "When Uktarl retreats, flee toward area 8 and join any bandits still there.",
+      "stats": {"srd_basis": "Bandit, SRD 5.1 (CC-BY-4.0, Wizards of the Coast; https://creativecommons.org/licenses/by/4.0/)", "abilities": {"str": 11, "dex": 12, "con": 12, "int": 10, "wis": 10, "cha": 10}, "proficiency_bonus": 2, "skills": {}, "domains": ["the Undertakers", "this card table", "knives"], "special": []},
       "communication_profile": {"rhythm": "Unestablished", "humor": "Unestablished"}
     },
     "bandit_b": {
@@ -263,6 +347,7 @@
       "knowledge": ["The vampire appearance is a disguise."],
       "secrets": ["Not a vampire."],
       "retreat_condition": "When Uktarl retreats, flee toward area 8 and join any bandits still there.",
+      "stats": {"srd_basis": "Bandit, SRD 5.1 (CC-BY-4.0, Wizards of the Coast; https://creativecommons.org/licenses/by/4.0/)", "abilities": {"str": 11, "dex": 12, "con": 12, "int": 10, "wis": 10, "cha": 10}, "proficiency_bonus": 2, "skills": {}, "domains": ["the Undertakers", "this card table", "knives"], "special": []},
       "communication_profile": {"rhythm": "Unestablished", "humor": "Unestablished"}
     },
     "doppelganger": {
@@ -272,6 +357,7 @@
       "knowledge": ["The group's vampire identity is a performance.", "Its own true nature."],
       "secrets": ["A doppelganger disguised as one of the apparent vampires."],
       "retreat_condition": "When Uktarl retreats, flee toward area 8 and join any bandits still there.",
+      "stats": {"srd_basis": "Doppelganger, SRD 5.1 (CC-BY-4.0, Wizards of the Coast; https://creativecommons.org/licenses/by/4.0/)", "abilities": {"str": 11, "dex": 18, "con": 14, "int": 11, "wis": 12, "cha": 14}, "proficiency_bonus": 2, "skills": {"deception": 6, "insight": 3}, "domains": ["the Undertakers", "disguise"], "special": ["read_thoughts"]},
       "communication_profile": {"rhythm": "Unestablished", "humor": "Unestablished"}
     }
   },

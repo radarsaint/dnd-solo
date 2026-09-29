@@ -1,0 +1,43 @@
+{
+  "schema": "character_sheet_v1",
+  "_note": "Stats only, typed from Brendon's D&D Beyond sheet for Nik (the PDF form itself is not committed). One example sheet; the runtime has no Nik-specific code.",
+  "name": "Nik",
+  "ancestry": "Harengon",
+  "size": "Small",
+  "class": "Wizard (Chronurgy)",
+  "level": 5,
+  "background": "Sage",
+  "alignment": "Chaotic Neutral",
+  "abilities": {"str": 10, "dex": 14, "con": 15, "int": 18, "wis": 13, "cha": 12},
+  "proficiency_bonus": 3,
+  "saving_throws": {"str": 0, "dex": 2, "con": 2, "int": 7, "wis": 4, "cha": 1},
+  "skills": {
+    "acrobatics": 2, "animal_handling": 1, "arcana": 10, "athletics": 0, "deception": 1,
+    "history": 7, "insight": 4, "intimidation": 1, "investigation": 7, "medicine": 1,
+    "nature": 4, "perception": 4, "performance": 1, "persuasion": 1, "religion": 4,
+    "sleight_of_hand": 7, "stealth": 2, "survival": 1
+  },
+  "expertise": ["arcana"],
+  "advantage_on": ["perception"],
+  "passives": {"perception": 19, "insight": 14, "investigation": 17},
+  "initiative": 9,
+  "ac": 14,
+  "hp": 32,
+  "speed_ft": 30,
+  "spell_save_dc": 15,
+  "spell_attack": 7,
+  "gold_gp": 805,
+  "languages": ["Common", "Deep Speech"],
+  "magic_items": ["Gloves of Thievery", "Sentinel Shield"],
+  "features": ["Chronal Shift (2/long rest)", "Temporal Awareness", "War Caster", "Lucky Footwork",
+               "Rabbit Hop (3/long rest)", "Hare-Trigger", "Leporine Senses", "Arcane Recovery",
+               "Ritual Adept", "Scholar (Arcana expertise)", "Magic Initiate (Wizard)"],
+  "spells": {
+    "cantrips": ["Light", "Mind Sliver", "Toll the Dead", "Fire Bolt"],
+    "1": ["Clue", "Mage Armor", "Shield", "Find Familiar", "Comprehend Languages", "Detect Magic",
+          "Identify", "Tenser's Floating Disk", "Color Spray", "Arcane Aegis", "Magic Missile", "Witch Bolt"],
+    "2": ["Dragon's Breath", "Knock", "Mind Spike"],
+    "3": ["Slow", "Fireball", "Leomund's Tiny Hut", "Water Breathing", "Dispel Magic"]
+  },
+  "slots": {"1": 4, "2": 3, "3": 2}
+}
