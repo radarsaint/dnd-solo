@@ -2,7 +2,7 @@
 
 **Who this is for:** GPT, as the collaborator building and hosting Kit's runtime in ChatGPT through `KitChatBridge`. It explains why Kit did not come across as a particular DM, the one build principle that fixes that class of problem, a worked example of the principle (branch `kit-focus-brief`), and the next things to build, in order.
 
-**How to read the line numbers:** **@79173a1** means the code before this change. **@673e9cd** means the code the Nik playtest actually ran on. Unmarked line numbers in sections (a) through (d) and in the not-yet-built steps refer to `kit-focus-brief` at **@cee2948**. Line numbers in each **Done** note of section (e) refer to the branch named in that note (`kit-event-actor`, `kit-bridge-voice`, `kit-memory-relationship`), before those branches were merged together in `kit-hardening`; after the merge they drift, so search for the named function or constant rather than trusting the number. Section (g) names functions and constants instead of line numbers for the same reason.
+**How to read the line numbers:** **@79173a1** means the code before this change. **@673e9cd** means the code the Nik playtest actually ran on. Unmarked line numbers in sections (a) through (d) and in the not-yet-built steps refer to `kit-focus-brief` at **@cee2948**. Line numbers in each **Done** note of section (e) refer to the branch named in that note (`kit-event-actor`, `kit-bridge-voice`), before those branches were merged together in `kit-hardening`; after the merge they drift, so search for the named function or constant rather than trusting the number. The `kit-memory-relationship` *Built* notes and section (g) name functions and constants instead of line numbers for the same reason.
 
 ---
 
@@ -104,7 +104,7 @@ This branch applies the principle to the gap above. It adds no area-specific scr
 **Not done, on purpose:**
 
 - Raw `kit_choice` or appraisal is not sent to the performer.
-- No appetite meters, relationship scores, or player model.
+- No appetite meters, relationship scores, or player model. (Step 3 below later added evidence-cited `player_notes`, which are still none of these.)
 - The dealer card, source facts, rules, and the generic social event string are unchanged. They are next steps below. (Steps 1 and 4 have since been built on `kit-event-actor`; the source facts and rules are still unchanged.)
 - No model calls added.
 - `kit_expression_v1` is not made the default. *(Superseded by next step #5 below: it is now the bridge default.)*
@@ -123,6 +123,8 @@ This branch applies the principle to the gap above. It adds no area-specific scr
 ## (e) Next build steps, in order
 
 Each step uses the same pattern: **private source → public carrier → performer instruction → validator check → test.**
+
+**Status (branch `kit-hardening`, which merges `kit-event-actor`, `kit-bridge-voice`, and `kit-memory-relationship`):** all five steps are **done**. Section (g) covers the failure-mode guards built on top of them.
 
 1. **Done (`kit-event-actor`): replace the generic social event with the player's actual action.**
    - *Was:* `Room6CAdjudicator.resolve` set every social turn's event to "You address the figures at the card table." (`kit_agent.py:120` @cee2948).
@@ -145,20 +147,46 @@ Each step uses the same pattern: **private source → public carrier → perform
      - twelve long bids stay inside the context budget.
    - The two idempotency and telemetry tests use the new evidence string (`SEAT_EVIDENCE`).
    - *Check it in play:* does Kit's `appraisal.cause` now name something the player actually said?
-2. **Put Kit's choices into memory, and pick memories by relevance.**
-   - *Now:* episodes save the goal, move, and brief (so `kit_focus` is already saved) but not `kit_choice` or the player's bid (`state_context.py:212-219`). Decisions get the last 8 episodes by recency (`kit_agent.py:600`, `:789`, `:849`).
+2. **Done (`kit-memory-relationship`): put Kit's choices into memory, and pick memories by relevance.**
+   - *Was:* episodes saved the goal, move, and brief (so `kit_focus` is already saved) but did not save `kit_choice` or the player's bid (`state_context.py:212-219`). Decisions got the last 8 episodes by recency (`kit_agent.py:575`, `:745`, `:802` @cee2948).
    - *Build:*
      - Save `improv_read.kit_choice` and `player_bid` in each episode. Episodes are private, so this is safe.
      - Replace `[-8:]` with a small selector: always keep the last 2 episodes, then add those that share the current actor, story anchor, or meaningful words with the player's action, up to 8.
      - Add one optional brief carrier, `callback`: a short quote of an earlier *public* moment (from `public_history`) that this turn picks up, or `none`.
    - *Check:* `callback` must appear in the public history, the same way `reply_to` must appear in the player's words, and `memory_refs` stay limited to real episode IDs.
    - *Tests:* a relevant earlier episode is selected over a more recent irrelevant one; `callback` must quote public history; private episode text never reaches the performer.
-3. **Add a minimal player relationship built from recent history, before any appetite meters.**
+   - *Built:*
+     - **Private source.** Each episode now also saves `player_bid`, `kit_choice`, `actor_ref`, `story_anchor`, and `story_basis` from the `improv_read`, and the store keeps 24 episodes (`_commit` in `state_context.py`).
+     - **Selector.** `select_episodes` (`kit_agent.py`) always keeps the last 2 episodes. It then scores earlier ones and adds the best, up to 8. The score counts meaningful words shared with the action (weighted most), the actor the action names or the conversation is already with (`ACTOR_ALIASES` maps "dealer" to the dealer's id), and the active level or campaign thread (not the generic scene). Episodes that score zero are left out, not padded in. `kit_memory` runs the same selection in `prepare`, `decide`, and `complete`, so `memory_refs` are checked against exactly what Kit was shown. Each selected episode also carries that turn's public `spoken` text, so Kit can quote it.
+     - **Carrier.** `public_brief.callback`, required in the schema, is a short exact quote or `none`.
+     - **Checks.** `check_callback`: at most 160 characters, at least two words including a distinctive one, and it must quote the player's words, the accepted event, or a spoken line from a turn **listed in `memory_refs`**. So a callback always has a private reason ("I remembered turn X") and a public origin ("the player saw this"). `check_callback_used` then rejects a performance that shares no meaningful word with the callback. The brief's leak check skips `callback`, just as it skips `reply_to`, because it is a verified quote of words already seen or said.
+     - **Performer.** The performer receives the callback and a `callback_source` (that public line and the player's words on that turn, never the episode's private reading). It is told to let the moment visibly return through an actor who was there reacting from their own motives, a returning detail, or Kit's framing, without re-quoting it or adding facts.
+     - **Tests:** `tests/test_kit_memory.py` (`EpisodeMemoryTests`, `CallbackTests`).
+     - **Limit:** the used-callback check is a floor. One echoed word passes. Whether the callback mattered is judged in play.
+3. **Done (`kit-memory-relationship`): add a minimal player relationship built from recent history, before any appetite meters.**
    - *Build:* a short list of `player_notes` in Kit's state. Each note is an observable pattern with the turn IDs that show it, e.g. "accepted an NPC's invitation", "tried an audacious physical stunt", or "asked for fewer menus" from explicit feedback. Add a bridge command (e.g. `feedback --text`) so the host can record out-of-character player feedback as a note. No affection scores, no guessed emotions, and old notes can be contradicted by new behavior.
    - *Carrier:* notes go to the private stage only. Their public effect travels through the existing carriers: `kit_focus` (what she chooses to spotlight for this player) and `callback`.
    - *Check:* every note must cite committed turn IDs; the validator rejects a note without evidence.
    - *Tests:* a note needs evidence; feedback is stored and reaches the next decision but never the performer verbatim.
    - *Why not appetite meters yet:* a number that nothing observable reads repeats the `appraisal` mistake at a larger scale. Build appetites only if recent-history notes demonstrably fail to change Kit's choices, and let that failure say which event types an appetite must track.
+   - *Built:*
+     - **State.** `kit.player_notes` holds at most 8 notes. Each is `{id, source: observed|feedback, note, evidence_turns}`.
+     - **Two ways in.**
+       - The private decision's new `player_note` field records at most one observable pattern per turn. Its `evidence_turns` are committed turn IDs, or `this_turn`, which is stored as the real ID when the turn commits. `replaces` retires an observed note that new behavior contradicts.
+       - The bridge command `feedback --text "…" [--evidence TURN_ID] [--replaces nX]` (`KitChatBridge.feedback`, `Runtime.record_player_feedback`) records the player's out-of-character comment verbatim. It cites the latest committed turn by default.
+     - **Feedback is a committed change.** It becomes an append-only `player_note` ledger event and a new revision, so a turn prepared before it must be prepared again. Retrying the same comment about the same turn does not duplicate it.
+     - **Feedback outranks inference.** Only new feedback can replace feedback. When the list is full, the oldest *observed* note is dropped first.
+     - `notes` prints the list for the host.
+     - **Checks** (`check_player_note`, `_add_player_note`):
+       - every note needs 1–4 committed turn IDs as evidence;
+       - notes are 1–300 characters;
+       - ratings are rejected (`7/10`, `%`, "score", "meter", "affection", "rating");
+       - `replaces` must name a real note.
+       The same rules run when the decision is checked and again inside the commit transaction.
+     - **Carrier.** Notes reach `kit_state.player_notes` in the private stage only. They are hidden by `--no-memory`. Their public effect travels through `kit_focus` or `callback`. `check_plan` rejects any brief direction field that copies a note's text (20 or more characters) verbatim.
+     - **Tests:** `tests/test_kit_memory.py` (`PlayerNoteTests`).
+     - **Migration.** `STATE_SCHEMA_VERSION` is 2. `upgrade_state` runs on every `load`: it adds an empty `player_notes` and fills missing episode fields with `None` (unknown, not guessed). Stored snapshots are never rewritten; the next commit saves the new shape. A decision fixed before the upgrade (no `callback` or `player_note`) can still finish. Tests: `MigrationTests`.
+     - **Limit:** code cannot tell whether a note is a fair reading of the player, or whether `kit_focus` really reflects one. Check that in play (section f).
 4. **Done (`kit-event-actor`): loosen the dealer card's pull toward the toll.**
    - *Was:* the card said he "can turn a courteous invitation into a blunt price" (`tests/fixtures/level_01_area_06c.json:26` @cee2948), and his public objective listed "the passage bargain" (`:28` @cee2948).
    - *What changed* (public actor card only, `tests/fixtures/level_01_area_06c.json:24-37`):
@@ -211,8 +239,10 @@ Use the bridge exactly as the player would experience it. No API key is needed.
    - Copy the database (`cp kit-06c.sqlite /tmp/a.sqlite`, `cp kit-06c.sqlite /tmp/b.sqlite`). Prepare the same action in each, and `decide` with the same plan except a different `kit_focus`.
    - Write each performance from its packet. If the two performances are interchangeable, `kit_focus` isn't doing work yet.
 6. **Check memory.**
-   - Play a turn that should matter later (e.g. Nik boasts about a lucky coin), then a turn where it could matter ("Deal me in."). See whether the spoken turn picks it up.
+   - Play a turn that should matter later (e.g. Nik boasts about a lucky coin), then several unrelated turns, then a turn where it could matter ("Deal me in; my lucky coin is my stake."). In the `prepare` packet, confirm the coin episode was selected even though it is no longer among the last few.
+   - If the decision uses a `callback`, point to the sentence where the moment returns, and check that the actor who reacts to it was actually there.
    - Repeat on a copy with `prepare --no-memory`. Remember the public dialogue history is still visible there.
+   - **Check the relationship.** Record out-of-character feedback with `feedback --text "…"` between turns, then prepare the next turn fresh. The note should appear in `kit_state.player_notes`, and the next `kit_focus` should change in a way you can name. The feedback text itself must never appear in the performance packet or the spoken turn. Use `notes` to see what Kit has recorded.
 7. **Check a narrow turn stays narrow.** Ask for a roll or a rule. The reply should be a short `call` with no chatter.
 8. **Watch rejections and time.** `python -m runtime.kit_agent timing --db …` shows `prepare_to_commit_s` and rejected attempts. Repeated rejections mean the host isn't reading `performance_limits` or the instructions; fix that before anything else, because every retry costs the player time.
 9. **Never show the player a trace, a brief, or a rejection message.** Show only `spoken`.
