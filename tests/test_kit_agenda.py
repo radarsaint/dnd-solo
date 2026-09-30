@@ -297,7 +297,7 @@ class PcStateBySituationTests(unittest.TestCase):
             kit_agenda.check_pc_state({**self.SHIELD, 'why': 'Held.'})
 
     def plan(self, packet, **extra):
-        plan = RecordingModel().plan(packet['input']['private'])
+        plan = RecordingModel().plan(packet['input'].get('private', packet['input']))
         plan.update(extra)
         return plan
 
@@ -359,6 +359,44 @@ class PcStateBySituationTests(unittest.TestCase):
             self.assertEqual(after.get(key), before.get(key), key)
         self.assertNotIn('held', after['player_sheet'])
         self.assertEqual(after['rhythm'][-1]['tags'], ['asked'])
+
+
+    def test_check_waits_on_unknown_state_nothing_rolled_or_shown(self):
+        """Ask before adjudicating: the held check never reaches either stage."""
+        rolls = []
+        self.bridge = kit_agent.KitChatBridge(self.runtime, Room6CAdjudicator(roll=lambda: rolls.append(1) or 20))
+        action = 'I study the fresco carefully.'
+        for one_pass in (True, False):
+            packet = self.bridge.prepare(action, one_pass=one_pass)
+            private = packet['input']['private'] if one_pass else packet['input']
+            self.assertEqual(private['action_kind'], 'ask_first')
+            self.assertEqual(private['ask_first']['unknown'], [{'source': 'Sentinel Shield', 'while': 'held'}])
+            self.assertNotIn('vs DC', json.dumps(packet['input']))
+            self.assertNotIn('key', private['accepted_public_event'])
+            with self.assertRaisesRegex(InvalidChange, 'ask_player about Sentinel Shield'):
+                kit_agent.check_decision(self.runtime, self.plan(packet), {'episodes': [], 'player_notes': []},
+                                         self.runtime.pending_kit_turn(packet['turn_id'])['body'])
+            if not one_pass:
+                performed = self.bridge.decide(packet['turn_id'], self.ask_plan(packet))
+                self.assertNotIn('vs DC', json.dumps(performed['input']))
+                self.bridge.abandon(packet['turn_id'])
+        self.assertEqual(rolls, [])
+        ask = {'segments': [{'speaker': 'Kit', 'text': self.ASK['question'], 'reacts_to': action}]}
+        packet = self.bridge.prepare(action, one_pass=True)
+        self.bridge.complete(packet['turn_id'], {'decision': self.ask_plan(packet), 'performance': ask})
+        self.assertEqual(rolls, [])
+        # The answer turn resolves: asked once, the check now rolls.
+        packet = self.bridge.prepare(action + ' (slung on my back)', one_pass=True)
+        self.assertEqual(packet['input']['private']['action_kind'], 'inspect_fresco')
+        self.assertIn('vs DC', packet['input']['private']['accepted_public_event'])
+        self.assertEqual(rolls, [1])
+
+    def test_no_ask_once_the_outcome_is_adjudicated(self):
+        packet = self.bridge.prepare('I ask the dealer his name.', one_pass=True)
+        self.assertNotEqual(packet['input']['private']['action_kind'], 'ask_first')
+        ask = {'segments': [{'speaker': 'Kit', 'text': self.ASK['question'], 'reacts_to': 'his name'}]}
+        with self.assertRaisesRegex(InvalidChange, 'already adjudicated'):
+            self.bridge.complete(packet['turn_id'], {'decision': self.ask_plan(packet), 'performance': ask})
 
 
 if __name__ == '__main__':

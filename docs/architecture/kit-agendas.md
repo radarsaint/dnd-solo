@@ -82,11 +82,16 @@ present actor, canon, or an established claim. A root that is still a secret is 
   reaches the performer through `npc_notice` (`gear:` or `stunt:`). An agenda agent whose actor
   noticed counts as having acted this turn, and a move with `trigger: odd` fires only with a
   `pc_oddity`.
-- **Ask only when unknown.** When the state is genuinely unknown and it matters, Kit asks:
-  `ask_player {about, question}`, with one short plain question, `ask_clarification`, and call scope.
+- **Ask before adjudicating.** The runtime decides when the state is unknown and matters: a check
+  (Perception, Insight, a knowledge roll, a card read/watch/swap) whose skill has conditional
+  advantage on a PC state the sheet has not set is not rolled. `prepare` returns `action_kind:
+  ask_first` with the unknown sources, no events, and no outcome, so neither stage sees a roll and no
+  seed is spent. Only then may Kit ask, and she must: `ask_player {about, question}`, with one short plain question, `ask_clarification`, and call scope.
   It is rejected when the item is already in force (known, even if odd). The turn resolves nothing. It
   commits only the public question and an `asked` rhythm beat: no adjudicated events, claims, canon,
-  agenda turn, or `pc_state`. The host prepares the original action again with the answer.
+  agenda turn, or `pc_state`. The host prepares the original action again with the answer; right after
+  an ask the check resolves (one question per unknown). `ask_player` on any other turn is rejected: its
+  outcome is already adjudicated.
 
 ## Natural routing
 

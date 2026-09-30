@@ -50,6 +50,30 @@ class Resolution:
     kind: str
     public_event: str
     events: list
+    ask_first: dict = None  # kind 'ask_first': the unknown PC state a check needs; nothing rolled
+
+
+# Ask before adjudicating. A check whose advantage hangs on a PC state nobody has set
+# (a shield that grants advantage while held, and no held list yet) is not rolled: the
+# runtime returns an ask_first resolution with no events and no outcome, so neither the
+# decision nor the performer ever sees a roll it might want to ask its way out of, and
+# no seed is spent. The next turn (the answer) resolves normally.
+ASK_FIRST_SKILLS = {'inspect_fresco': 'perception', 'insight': 'insight', 'observe': 'perception',
+                    'card_watch': 'perception', 'card_read': 'insight', 'card_swap': 'sleight_of_hand'}
+
+
+def ask_first(state, skill):
+    """The ask_first resolution when this skill's advantage depends on an unset PC state
+    and the last Kit turn was not already that question; else None."""
+    sheet = state.get('player_sheet') or {}
+    unknown = [{'source': e['source'], 'while': e['while']} for e in sheet.get('advantage_on', [])
+               if isinstance(e, dict) and e.get('skill') == skill and e.get('while') not in sheet]
+    rhythm = state.get('rhythm') or []
+    if not unknown or (rhythm and 'asked' in rhythm[-1].get('tags', ())):
+        return None
+    names = ', '.join(f"{u['source']} ({u['while']}?)" for u in unknown)
+    return Resolution('ask_first', f'{ASKED_EVENT_PREFIX}{skill} check waits on {names}; nothing rolled.',
+                      [], {'skill': skill, 'unknown': unknown})
 
 
 # The accepted event is bounded at 500 characters (check_plan; card turns use
@@ -211,7 +235,8 @@ class Room6CAdjudicator:
             raise PendingRuling('This play slice covers area 6c only. No turn was committed.')
         target = kit_claims.roll_target(action, self.source)
         if target and not QUOTED_SPEECH.search(action.translate(_TYPOGRAPHIC)):
-            return self._resolve_knowledge(action, revision, state, *target)
+            return ask_first(state, target[1]['pc_check']) or \
+                self._resolve_knowledge(action, revision, state, *target)
         table = card_procedure(self.source, state)
         card_kind = kit_cards.card_intent(action, table[2]) if table else None
         kind = room_intent(action, addressed)
@@ -222,6 +247,9 @@ class Room6CAdjudicator:
         # (state kept, no forced choice) unless the player is watching the table itself.
         overrides = kind in ('combat', 'observe') and card_kind != 'card_watch' or \
             (kind == 'stealth' and card_kind != 'card_swap')
+        gated = ask_first(state, ASK_FIRST_SKILLS.get(card_kind if card_kind and not overrides else kind))
+        if gated:
+            return gated
         if card_kind and not overrides:
             return self._resolve_card(card_kind, action, revision, state, table)
         if kind == 'combat':
@@ -726,8 +754,9 @@ PRIVATE_INSTRUCTIONS = (
     'that is odd for the situation stands (advantage too, if really met); never quietly undo it. '
     'Reacting to odd habits is a goal: pc_oddity names who present notices and how their wants '
     'make them react (suspicion, a joke, a higher price, refusing to deal), carried in npc_notice. '
-    'Only when the state is genuinely unknown and it matters, ask_player: one short plain '
-    'question (ask_clarification, call scope); that turn resolves and commits nothing. Advantage '
+    'Only when input has ask_first (the runtime held a check for an unknown PC state), ask_player '
+    'about that source: one short plain question (ask_clarification, call scope); nothing was '
+    'rolled and nothing resolves. Advantage '
     'or disadvantage needs a reason true now (held, equipped, active, or a position); owning is '
     'not holding. Record it in roll_call and name the cause aloud.'
 )
@@ -1517,6 +1546,15 @@ def check_decision(runtime, plan, memory, body):
                claims_packet=body.get('claims_here'))
     check_brief_public(plan['public_brief'], body['public_view'], body['action'],
                        kit_guards.leak_sets(source), kit_guards.leak_phrases(source))
+    gate = body.get('ask_first')
+    if gate:
+        require(plan.get('ask_player') and plan['ask_player']['about'].casefold() in
+                {u['source'].casefold() for u in gate['unknown']},
+                'This check waits on an unknown PC state: ask_player about ' +
+                ' or '.join(u['source'] for u in gate['unknown']))
+    else:
+        require(not plan.get('ask_player'), 'ask_player only when the runtime holds a check for an '
+                'unknown PC state (ask_first); this outcome is already adjudicated, so play it')
     if not plan.get('ask_player'):  # a question to the player moves no agenda
         kit_agenda.check_agenda(plan.get('agenda'), body.get('agenda_here'), source, runtime.load()[1],
                                 kit_agenda.oddity_reactors(plan.get('pc_oddity'), source))
@@ -1542,6 +1580,8 @@ def prepare_inputs(runtime, revision, state, action, resolution, use_memory, one
             'public_history': public_history,
             'scene_facts': scene_facts(state, resolution.events),
             'discernment_candidates': discernment_candidates(context['dm_context'])}
+    if resolution.ask_first:
+        body['ask_first'] = resolution.ask_first
     # Only needed to dedupe the one-pass public view; not kept in the staged body.
     body['view_before_event'] = context['dm_context']['player_perceivable'] if one_pass else None
     planning_input = {
@@ -1558,7 +1598,9 @@ def prepare_inputs(runtime, revision, state, action, resolution, use_memory, one
         'dialogue_history': public_history,
         'discernment_candidates': body['discernment_candidates'],
     }
-    oracle = detail_oracle(runtime, state, action, resolution.kind)
+    if resolution.ask_first:
+        planning_input['ask_first'] = {**resolution.ask_first, 'note': ASK_FIRST_NOTE}
+    oracle = None if resolution.ask_first else detail_oracle(runtime, state, action, resolution.kind)
     if oracle:
         # Private: the slot, canon, texture, and a seeded deal for the detail decision.
         body['detail_oracle'] = oracle
@@ -1590,6 +1632,9 @@ def prepare_inputs(runtime, revision, state, action, resolution, use_memory, one
                                                             planning_input['dialogue_history'])
     return revision, body, planning_input
 
+
+ASK_FIRST_NOTE = ('Not resolved: this check waits on the PC state listed. Ask the player '
+                  '(ask_player about one of these sources); nothing is rolled or narrated.')
 
 BACKGROUNDED = ('backgrounded: the player is doing something else. Its state is kept. Do not remind them '
                'of it, prompt a choice in it, or make one for them; it resumes when they act in it again.')
