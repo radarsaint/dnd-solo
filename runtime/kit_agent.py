@@ -1044,8 +1044,6 @@ def check_plan(plan, episodes, public_event, action_kind=None, candidates=None, 
                             supported_procedures(source), established=established,
                             owners=[key for key in candidates['actor_bases'] if key != 'none'],
                             oracle=oracle)
-    kit_detail.check_not_shrinking([plan['improv_read']['kit_choice']] +
-                                   [brief[key] for key in BRIEF_FIELDS if key not in BRIEF_QUOTE_FIELDS])
     if plan.get('pc_oddity'):
         kit_agenda.check_pc_oddity(plan['pc_oddity'], plan, state or {})
     if plan.get('ask_player'):

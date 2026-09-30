@@ -21,9 +21,9 @@ prepare's ``detail_oracle`` (slot, canon, texture, a seeded deal) -> the private
 candidates first when there is no deal) -> ``canon_entry`` events in the ledger and the
 public ``established_details`` view -> performer instruction -> checks -> tests.
 
-Checks validate structure, never self-rated typicality. The stock-default vetoes live
-in docs/personality/kit-taste.json and are read only here, by the validator; they are
-never put in a prompt (naming a banned answer primes it).
+Checks validate structure, never self-rated typicality or word lists: a candidate
+builds from something established, the typical one is rejected, and the canon ledger
+makes the chosen answer stick.
 """
 import re
 
@@ -105,15 +105,6 @@ PROCEDURE_STATEMENT = re.compile(
     r"|\b(stakes?|ante|buy-in) (is|are)\b|\b(matching )?coin from each\b|\bone card (apiece|each)\b"
     r"|\beach player (puts|antes|pays|bets|gets)\b")
 
-GENERIC_REASON = ('generic default: answer the invitation. "{answer}" is the smallest safe answer, the '
-                  'one any table would give. Give the specific, local detail this owner would have, '
-                  'with a handle the player can act on.')
-SHRINKING = re.compile(
-    r"\b(small|simple|simplest|modest|minor|trivial|token|safe|harmless|basic|plain|low[- ]key|"
-    r"minimal|nominal)[\s,]+(?:[\w-]+[\s,]+){0,2}?(stakes?|wagers?|bets?|games?|antes?|answers?|details?|"
-    r"prices?|drinks?|reply|replies|offers?)\b")
-SHRINK_REASON = ('Shrinking direction: "{found}". The private plan never asks for small, simple, or '
-                 'safe answers; choose the specific one the scene\'s facts and people make obvious.')
 _SMALL = frozenset('''
     a an the and or but of to in on at is it its this that with for from by as be are was were
     he she they them his her their you your i me my we our who what which when where how why
@@ -121,16 +112,6 @@ _SMALL = frozenset('''
 '''.split())
 _NUMBER = re.compile(r"\b\d+\b|\b(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|"
                      r"twenty|thirty|forty|fifty|hundred|dozen)\b")
-_TASTE = None
-
-
-def taste():
-    global _TASTE
-    if _TASTE is None:
-        _TASTE = kit_texture.load_taste()
-    return _TASTE
-
-
 _CONTRACTION = re.compile(r"\b(what|where|who|how|that|there|here)s\b")
 
 
@@ -165,23 +146,6 @@ def asks_for_detail(player_action):
     if match and match.group(1) and match.group(1).startswith('worth') and _BARGAIN_WORTH.search(text):
         return False
     return bool(match)
-
-
-def generic_answer(text):
-    """The text is only a stock default (validator-only lists in kit-taste.json)."""
-    profile = taste()
-    words = _tokens(text)
-    if not words or len(words) > profile['generic_max_words']:
-        return False
-    vetoed = {word for group in profile['avoids'].values() for phrase in group for word in _tokens(phrase)}
-    filler = set(profile['filler'])
-    return all(word in vetoed or word in filler for word in words) and any(word in vetoed for word in words)
-
-
-def check_not_shrinking(texts):
-    for text in texts:
-        found = SHRINKING.search(_norm(text))
-        require(found is None, SHRINK_REASON.format(found=found.group(0) if found else ''))
 
 
 def specific_enough(fact, basis, sensory_words):
@@ -270,8 +234,6 @@ def _check_candidates(detail, known):
             'detail typical and chosen must index the candidates')
     require(detail['chosen'] != detail['typical'],
             'The most typical candidate is written down to be rejected; choose another')
-    require(not generic_answer(candidates[detail['chosen']]['idea']),
-            GENERIC_REASON.format(answer=candidates[detail['chosen']]['idea']))
 
 
 def _check_owner_handle_because(detail, owners, known):
@@ -304,9 +266,6 @@ def check_detail(detail, player_action, action_kind, source, state, supported_pr
     request, choice, slot = detail['request'], detail['choice'].strip(), detail['slot'].strip()
     known = keywords(established) | keywords(player_action)
     asked = action_kind != 'opening' and asks_for_detail(player_action)
-    check_not_shrinking([request, detail['owner'], detail['handle'], detail['because']] +
-                        [item.get(field, '') for item in detail['candidates'] if isinstance(item, dict)
-                         for field in ('idea', 'creates')])
     dealt = {card['draw_id']: card for card in ((oracle or {}).get('deal') or [])}
     if is_none(request):
         require(not asked, 'The player asked for a detail. Set detail.request to their words and '
@@ -390,7 +349,6 @@ def _check_inventions(detail, source, state, supported, dealt, choice, target, q
                 len(item['basis'].strip()) <= INVENTION_BASIS_MAX_CHARS,
                 'Invention basis must say why this is a DM choice (what the source leaves open), '
                 f'in at most {INVENTION_BASIS_MAX_CHARS} characters')
-        require(not generic_answer(fact), GENERIC_REASON.format(answer=fact.strip()))
         require(slot.split('/')[-1] not in (source or {}).get('facts', {}),
                 'Invention collides with a source fact; the source already settles it')
         prior = canon.get(slot)
@@ -511,15 +469,9 @@ def check_detail_performance(segments, declared_procedures=(), game_terms=()):
 
 
 def check_detail_answer(segments, detail, player_action=''):
-    """SOFT: the detail request got a stock default, the invention never showed, or a
-    priced question got no number."""
+    """SOFT: the invention never showed, or a priced question got no number."""
     if detail is None or is_none(detail.get('request', 'none')):
         return
-    for segment in segments:
-        if segment['speaker'] == 'Kit':
-            continue
-        for sentence in re.split(r'(?<=[.!?])\s+|\n+', segment['text']):
-            require(not generic_answer(sentence), GENERIC_REASON.format(answer=sentence.strip()))
     spoken = set(_tokens(' '.join(segment['text'] for segment in segments)))
     shown = public_inventions(detail)
     wanted = {word for item in shown for word in keywords(item['fact'])}
