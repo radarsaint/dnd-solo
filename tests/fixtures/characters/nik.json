@@ -18,7 +18,8 @@
     "sleight_of_hand": 7, "stealth": 2, "survival": 1
   },
   "expertise": ["arcana"],
-  "advantage_on": ["perception"],
+  "advantage_on": [{"skill": "perception", "source": "Sentinel Shield", "while": "held"}],
+  "held": [],
   "passives": {"perception": 19, "insight": 14, "investigation": 17},
   "initiative": 9,
   "ac": 14,

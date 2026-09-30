@@ -131,10 +131,15 @@ def taste():
     return _TASTE
 
 
+_CONTRACTION = re.compile(r"\b(what|where|who|how|that|there|here)s\b")
+
+
 def _norm(text):
     text = (text or '').replace('\u2019', "'").replace('\u2018', "'")
     text = text.replace('\u201c', '"').replace('\u201d', '"')
-    return ' '.join(text.casefold().split())
+    # Typed without the apostrophe ("whats the game"): the same question.
+    text = _CONTRACTION.sub(r"\1's", text.casefold())
+    return ' '.join(text.split())
 
 
 def _tokens(text):
