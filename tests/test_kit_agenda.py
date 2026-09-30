@@ -192,8 +192,12 @@ class SalienceAndAdvantageTests(unittest.TestCase):
     def test_attention_needs_a_visible_reason(self):
         source = room(ENVIRONMENT)
         here = state('hall')
-        with self.assertRaisesRegex(InvalidChange, 'salience'):
-            kit_agenda.check_attention_spoken('Narrator: The carving catches your eye.', {})
+        # Decision first: no phrase triggers a demand; the decided carrier must be voiced.
+        kit_agenda.check_carriers_spoken('Narrator: The carving catches your eye.', {})
+        plan = {'salience': [{'thing': 'handprint', 'reason': 'one clean handprint in thick dust', 'roots': ['dust']}]}
+        with self.assertRaisesRegex(InvalidChange, 'carrier: handprint'):
+            kit_agenda.check_carriers_spoken('Narrator: The dust lies thick.', plan)
+        kit_agenda.check_carriers_spoken('Narrator: One clean Handprint in the dust.', plan)
         kit_agenda.check_salience([{'thing': 'dust', 'reason': 'one clean handprint in thick dust', 'roots': ['dust']}],
                                   source, here)
         with self.assertRaisesRegex(InvalidChange, 'never a secret'):
@@ -205,10 +209,15 @@ class SalienceAndAdvantageTests(unittest.TestCase):
         with self.assertRaisesRegex(InvalidChange, 'owning it is not holding it'):
             kit_agenda.check_roll_call(call, SIXC, {'player_sheet': NIK})
         kit_agenda.check_roll_call(call, SIXC, {'player_sheet': {**NIK, 'held': ['Sentinel Shield']}})
-        with self.assertRaisesRegex(InvalidChange, 'name Sentinel Shield'):
-            kit_agenda.check_roll_spoken('Narrator: Roll Perception with advantage.', {'roll_call': call})
-        kit_agenda.check_roll_spoken('Narrator: Shield up, so the Sentinel Shield lets you roll Perception with advantage.',
-                                     {'roll_call': call})
+        with self.assertRaisesRegex(InvalidChange, 'carrier: Sentinel Shield'):
+            kit_agenda.check_carriers_spoken('Narrator: Roll Perception with advantage.', {'roll_call': call})
+        with self.assertRaisesRegex(InvalidChange, 'carrier: advantage'):
+            kit_agenda.check_carriers_spoken('Narrator: The Sentinel Shield helps. Roll Perception.', {'roll_call': call})
+        kit_agenda.check_carriers_spoken('Narrator: Shield up, so the Sentinel Shield lets you roll Perception with advantage.',
+                                         {'roll_call': call})
+        normal = {**call, 'mode': 'normal'}
+        self.assertEqual(kit_agenda.carriers({'roll_call': normal}), [])
+        kit_agenda.check_carriers_spoken('Narrator: Roll Perception.', {'roll_call': normal})
 
     def test_held_state_changes_the_passive_in_play(self):
         temp = tempfile.TemporaryDirectory()
