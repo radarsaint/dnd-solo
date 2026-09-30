@@ -780,5 +780,70 @@ class ExitOrderTests(BridgeCase):
         self.assertIn('after them on an exit', kit_agent.PUBLIC_INSTRUCTIONS)
 
 
+class PacketSlimTests(BridgeCase):
+    """kit-slim: the one-pass packet sends a changed player view as a delta, and the
+    CLI prints compact JSON. Checks still read the full view."""
+
+    def test_view_changes_keeps_only_what_changed(self):
+        before = {'area': 'Card room', 'facts': ['a'], 'table': {'game': {'rules': ['r'], 'hand': [1, 2],
+                                                                          'last': 3}}, 'gone': 1}
+        after = {'area': 'Card room', 'facts': ['a', 'b'], 'table': {'game': {'rules': ['r'], 'hand': [2],
+                                                                          'last': None}}, 'new': {'x': 1}}
+        self.assertEqual(kit_agent.view_changes(after, before),
+                         {'set': {'table.game.hand': [2], 'table.game.last': None, 'new': {'x': 1}},
+                          'appended': {'facts': ['b']}, 'removed': ['gone']})
+        self.assertEqual(kit_agent.view_changes(before, before), {})
+
+    def test_a_card_turn_sends_the_view_delta_without_the_static_rules(self):
+        from test_kit_06c_play import GAME_ASK, GameModel
+        model = GameModel()
+        adjudicator = Room6CAdjudicator(perception=2, insight=1, sleight_of_hand=3, roll=lambda: 20)
+        agent = KitAgent(self.runtime, model, adjudicator)
+        agent.turn(GAME_ASK, 'game')
+        agent.turn('I buy in with 20 gold. Deal me in.', 'join')
+        bridge = KitChatBridge(self.runtime, adjudicator)
+        prepared = bridge.prepare('I ante my strongest card.', 'ante', one_pass=True)
+        delta = prepared['input']['public']['player_view_after_event']
+        self.assertIn('as_changes_to_private_view', delta)
+        self.assertIn('table_procedures.three_dragon_ante.gambit', delta['set'])
+        self.assertNotIn('rules', json.dumps(list(delta['set'])))
+        self.assertNotIn('Kit\'s table version', json.dumps(delta))
+        # Applying the changes to the private view gives exactly the full post-event view.
+        view = json.loads(json.dumps(prepared['input']['private']['dm_context']['player_perceivable']))
+
+        def at(path):
+            *parents, leaf = path.split('.')
+            node = view
+            for key in parents:
+                node = node[key]
+            return node, leaf
+        for path, value in delta.get('set', {}).items():
+            node, leaf = at(path)
+            node[leaf] = value
+        for path, items in delta.get('appended', {}).items():
+            node, leaf = at(path)
+            node[leaf] = node[leaf] + items
+        for path in delta.get('removed', []):
+            node, leaf = at(path)
+            del node[leaf]
+        self.assertEqual(view, self.runtime.pending_kit_turn('ante')['body']['public_view'])
+
+    def test_cli_prints_compact_json_unless_pretty(self):
+        self.runtime.close()
+        outputs = []
+        for extra, turn in (([], 'compact'), (['--pretty'], 'pretty')):
+            out = io.StringIO()
+            with patch('sys.argv', ['kit_agent', 'prepare', '--one-pass', '--db', str(self.path),
+                                    '--turn-id', turn, '--action', NIK_GREETING] + extra), \
+                    contextlib.redirect_stdout(out):
+                self.assertEqual(kit_agent.main(), 0)
+            outputs.append(out.getvalue())
+        compact, pretty = outputs
+        self.assertEqual(compact.count('\n'), 1)
+        self.assertEqual(json.loads(compact)['stage'], 'one_pass')
+        self.assertGreater(len(pretty), len(compact) * 1.15)
+        self.runtime = Runtime(self.path)
+
+
 if __name__ == '__main__':
     unittest.main()
