@@ -96,6 +96,31 @@ class PaddingTests(unittest.TestCase):
             self.check([seg('Dealer', 'Sit, but every chair at this table costs something before the night is out.')],
                        past=past)
 
+    def test_naming_the_current_public_card_state_is_not_padding(self):
+        # The player's hand is on the table in the public view: reading it back is the state.
+        hand = 'red 7, gold 9, blue 3, green 5, white 2, black 8'
+        table = json.dumps({'three_dragon_ante': {'player': {'hand': hand.split(', ')}}})
+        past = history([('Narrator', f'Your hand: {hand}.')])
+        line = [seg('Narrator', f'Your hand still reads {hand}.')]
+        with self.assertRaisesRegex(InvalidChange, 'recycles an earlier line'):
+            self.check(line, past=past)
+        kit_guards.check_padding(line, 'What do I hold?', 'social', past, table)
+        # Anything beyond the state is still checked.
+        with self.assertRaisesRegex(InvalidChange, 'recycles an earlier line'):
+            kit_guards.check_padding([seg('Dealer', 'Every chair at this table costs something before the night is out.')],
+                                     'Well?', 'social',
+                                     history([('Dealer', 'Every chair at this table costs something before the night is out.')]),
+                                     table)
+
+    def test_literal_leak_phrases_are_room_data_not_code(self):
+        import inspect
+        code = inspect.getsource(kit_agent.check_public_content).lower()
+        for phrase in kit_guards.leak_phrases(SOURCE)['phrases']:
+            self.assertNotIn(phrase, code)
+        with self.assertRaisesRegex(InvalidChange, 'private fact'):
+            kit_agent.check_public_content('The stone key is warm.', {}, '', phrases=kit_guards.leak_phrases(SOURCE))
+        kit_agent.check_public_content('Harria, you say?', {}, 'Who is Harria?', phrases=kit_guards.leak_phrases(SOURCE))
+
     def test_stock_filler_is_padding(self):
         with self.assertRaisesRegex(InvalidChange, 'stock filler'):
             self.check([seg('Narrator', 'The tension is palpable as the cards fall.')])
@@ -173,7 +198,7 @@ class NpcVoiceTests(unittest.TestCase):
 
     def test_voice_cards_are_public_safe_and_script_no_lines(self):
         text = json.dumps(CARDS, ensure_ascii=False).lower()
-        kit_agent.check_public_content(text, {}, '')
+        kit_agent.check_public_content(text, {}, '', phrases=kit_guards.leak_phrases(SOURCE))
         for word in ('doppel', 'mimic', 'shape', 'imitat', 'copy', 'vampire', 'disguise', 'cheat',
                      'marked', 'rival', 'bandit', 'harria', 'uktarl'):
             self.assertNotIn(word, text)

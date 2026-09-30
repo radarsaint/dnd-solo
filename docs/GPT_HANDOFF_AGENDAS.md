@@ -6,7 +6,15 @@ is yours. Area 6c has **no agenda yet**. Add a top-level `agenda` block to
 (`tests/scenarios/level-01-area-06c-uktarl.md`) and the fixture's existing facts, actors, and
 claims. Every `roots` entry must cite one of those. Keep the prose short and plain.
 
-## What 6c's agenda should say
+## 1. First: the hidden key
+
+The bandits do not know about the hidden key. Before any move touches the fresco key, add a
+`fresco_key` claim (DC 13 Perception, `pc_access: roll`) with `holders: {"uktarl": "unaware",
+"bandit_a": "unaware", "bandit_b": "unaware", "doppelganger": "unaware"}`. Nobody can bargain with
+it. Its use is in area 14b. Only `unaware` blocks an agenda move; `close` and `anchored` NPCs act on
+what they believe.
+
+## 2. What 6c's agenda should say
 
 - **`uktarl` (npc, actor `uktarl`).**
   - Wants: the newcomer's money, or their usefulness to him; his own safety; Harria out of his
@@ -33,17 +41,22 @@ claims. Every `roots` entry must cite one of those. Keep the prose short and pla
     calls it out.
   - Choose segments of 3 to 6.
 
-## Preserve
+## 3. Preserve
 
-- **The key.** The bandits do not know about the hidden key. Before any move touches the
-  fresco key, add a `fresco_key` claim (DC 13 Perception, `pc_access: roll`) with
-  `holders: {"uktarl": "unaware", "bandit_a": "unaware", "bandit_b": "unaware", "doppelganger":
-  "unaware"}`. Nobody can bargain with it. Its use is in area 14b.
 - **Halaster.** No Halaster contact is keyed here. Do not add one.
 - **Choices stay open.** Keep negotiation, exposure, exploiting the fraud, bypassing, fighting,
   and discovery all available. The agenda gives pressure, not a route.
 - **The card game is optional.** It should recede when the player looks elsewhere. Don't make
   any agent's only move "invite another hand".
+
+## 4. The PC's state and odd habits
+
+What the PC holds is not a sheet default. It follows the situation (seated at cards: hands on the
+cards, shield slung; a fight: weapon, shield, or focus in hand), and the player's word wins. A state
+that is odd for the situation (a shield up at the card table) stands, and the people present react
+from their wants. An agent can declare a move with `trigger: odd` for this, e.g. Uktarl pricing a
+nervous, armored mark higher, or a bandit getting jumpy. It fires only with the decision's
+`pc_oddity`. See `docs/architecture/kit-agendas.md`.
 
 ## Other rooms
 
@@ -68,5 +81,6 @@ present reason.
 
 Now that claims and agendas exist, retire the older word-list guards one at a time, with tests.
 That means `never_invent`, `forbidden`, the stock vetoes (avoids and filler), SHRINKING, and
-owner/handle/because. See `docs/GPT_HANDOFF_CLAIMS.md` item 5. Keep `numeric_facts` and
+owner/handle/because. See `docs/GPT_HANDOFF_CLAIMS.md` item 5 and the step-by-step plan in
+`docs/architecture/guard-consolidation-plan.md`. Keep `numeric_facts` and
 `price_slug`, because pricing is frozen.

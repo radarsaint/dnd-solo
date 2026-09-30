@@ -255,5 +255,111 @@ class BridgeAgendaTests(unittest.TestCase):
         self.assertEqual((mem['turn'], mem['last_acted'], mem['last_advance']), (1, {'uktarl': 1}, 1))
 
 
+
+class PcStateBySituationTests(unittest.TestCase):
+    """Held state follows the situation; the player's word wins; odd is a scene event;
+    Kit asks only when the state is genuinely unknown, and that turn commits nothing."""
+    SHIELD = {'held': ['Sentinel Shield'], 'equipped': [], 'active': [],
+              'why': 'The player says the shield stays on their arm at the table.'}
+    ODD = {'what': 'a shield kept on the arm at a card table', 'noticed_by': ['uktarl'],
+           'reaction': 'He prices the stranger as nervous money and raises the ante.'}
+    NOTICE = 'gear: the dealer sees a shield kept up at a card table and reads a nervous mark'
+    ASK = {'about': 'Sentinel Shield', 'question': 'Is your shield on your arm or slung on your back?'}
+
+    def setUp(self):
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        self.runtime = Runtime(Path(temp.name) / 'kit.sqlite')
+        self.addCleanup(self.runtime.close)
+        source = copy.deepcopy(SIXC)
+        source['agenda'] = {'agents': {'uktarl': {
+            'kind': 'npc', 'actor': 'uktarl', 'wants': 'the newcomer\'s coin', 'roots': ['uktarl', 'card_table'],
+            'moves': {'probe': move('Asks what the newcomer carries.', ['uktarl']),
+                      'price_gear': move('Prices the stranger by their gear.', ['uktarl'], trigger='odd')}}}}
+        self.runtime.initialize(source, 'area_06c')
+        self.runtime.set_player_sheet(NIK)
+        self.bridge = kit_agent.KitChatBridge(self.runtime)
+
+    def test_no_static_default_unknown_is_not_true(self):
+        self.assertNotIn('held', NIK)
+        pc = pc_sheet.private_summary(NIK)
+        self.assertEqual((pc['in_force'], pc['not_established']), ({}, ['held', 'equipped', 'active']))
+        self.assertEqual(pc['conditional_advantage'][0]['source'], 'Sentinel Shield')
+        self.assertEqual(pc_sheet.passive(NIK, 'perception'), 14)
+
+    def test_declared_state_counts_for_this_turns_roll(self):
+        call = {'skill': 'perception', 'mode': 'advantage', 'cause': {'kind': 'item', 'ref': 'Sentinel Shield', 'roots': []}}
+        live = {'player_sheet': NIK}
+        with self.assertRaisesRegex(InvalidChange, 'not held'):
+            kit_agenda.check_roll_call(call, SIXC, live)
+        kit_agenda.check_roll_call(call, SIXC, kit_agenda.with_pc_state(live, self.SHIELD))
+        with self.assertRaisesRegex(InvalidChange, 'why names the situation'):
+            kit_agenda.check_pc_state({**self.SHIELD, 'why': 'Held.'})
+
+    def plan(self, packet, **extra):
+        plan = RecordingModel().plan(packet['input']['private'])
+        plan.update(extra)
+        return plan
+
+    def test_odd_state_stands_and_the_dealer_reacts_as_his_advance(self):
+        packet = self.bridge.prepare('I sit down at the table, shield still on my arm.', one_pass=True)
+        plan = self.plan(packet, pc_state=self.SHIELD, agenda=block([advance('uktarl', 'price_gear', roots=['uktarl'])]))
+        speech = {'segments': [
+            {'speaker': 'Narrator', 'text': 'The dealer\'s eyes go to the shield on your arm and stay there a beat too long.'},
+            {'speaker': 'Dealer', 'text': 'Nobody fights at my table, little one, but if you must sit armored like a '
+             'sentry, the ante for sentries is doubled; nervous money always bets hard, and I do love nervous money.'},
+            {'speaker': 'Kit', 'text': 'Shield up at cards. Bold.', 'reacts_to': 'shield still on my arm'}]}
+        # The odd-trigger move fires only when the oddity is recorded, and it must reach the brief.
+        with self.assertRaisesRegex(InvalidChange, 'record it in pc_oddity'):
+            self.bridge.complete(packet['turn_id'], {'decision': plan, 'performance': speech})
+        plan['pc_oddity'] = self.ODD
+        with self.assertRaisesRegex(InvalidChange, 'npc_notice'):
+            self.bridge.complete(packet['turn_id'], {'decision': plan, 'performance': speech})
+        with self.assertRaisesRegex(InvalidChange, 'present in this area'):
+            kit_agenda.check_pc_oddity({**self.ODD, 'noticed_by': ['harria']}, plan, self.runtime.load()[1])
+        plan['public_brief']['npc_notice'] = self.NOTICE
+        # The reaction alone is the dealer's advance: no declared move is needed.
+        plan['agenda'] = block()
+        self.bridge.complete(packet['turn_id'], {'decision': plan, 'performance': speech})
+        state = self.runtime.load()[1]
+        self.assertEqual(state['player_sheet']['held'], ['Sentinel Shield'])
+        self.assertEqual(pc_sheet.passive(state['player_sheet'], 'perception'), 19)
+        self.assertEqual(state['agenda']['last_acted'], {'uktarl': 1})
+        # Known now, so no question: odd is for the table to notice, not for Kit to ask.
+        with self.assertRaisesRegex(InvalidChange, 'already held.*pc_oddity'):
+            kit_agenda.check_ask_player(self.ASK, plan, state)
+
+    def ask_plan(self, packet, **extra):
+        plan = self.plan(packet, move='ask_clarification', focus_actor='none', table_presence='brief',
+                         turn_mode='description', ask_player=self.ASK, **extra)
+        plan['improv_read'].update(actor_ref='none', actor_basis='none')
+        plan['public_brief']['scope'] = 'call'
+        return plan
+
+    def test_unknown_state_asks_and_commits_nothing_mechanical(self):
+        revision, before = self.runtime.load()
+        packet = self.bridge.prepare('I look around the room.', one_pass=True)
+        ask = {'segments': [{'speaker': 'Kit', 'text': 'Quick one first: is your shield on your arm or slung on your back?',
+                             'reacts_to': 'I look around the room'}]}
+        roll = {'skill': 'perception', 'mode': 'normal', 'cause': {'kind': 'item', 'ref': 'none', 'roots': []}}
+        with self.assertRaisesRegex(InvalidChange, 'commits nothing mechanical; drop roll_call'):
+            self.bridge.complete(packet['turn_id'], {'decision': self.ask_plan(packet, roll_call=roll), 'performance': ask})
+        plan = self.ask_plan(packet)
+        with self.assertRaisesRegex(InvalidChange, 'in those words'):
+            self.bridge.complete(packet['turn_id'], {'decision': plan, 'performance': {'segments': [
+                {'speaker': 'Kit', 'text': 'Shield: arm or back?', 'reacts_to': 'I look around the room'}]}})
+        result = self.bridge.complete(packet['turn_id'], {'decision': plan, 'performance': ask})
+        self.assertTrue(result['asked'])
+        self.assertIn('prepare their original action again', result['next_step'])
+        self.assertTrue(result['public_event'].startswith('Kit asks before resolving'))
+        self.assertEqual(result['spoken'], 'Kit: ' + ask['segments'][0]['text'])  # no narrated result
+        after = self.runtime.load()[1]
+        self.assertEqual(self.runtime.load()[0], revision + 1)
+        for key in ('known_facts', 'procedures', 'canon', 'claims', 'agenda'):
+            self.assertEqual(after.get(key), before.get(key), key)
+        self.assertNotIn('held', after['player_sheet'])
+        self.assertEqual(after['rhythm'][-1]['tags'], ['asked'])
+
+
 if __name__ == '__main__':
     unittest.main()

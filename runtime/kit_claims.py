@@ -32,7 +32,6 @@ from .state_context import normalize_fact, require
 SOURCES = ('adventure', 'canon', 'procedure', 'kit')
 EXPOSURES = ('hidden', 'perceivable', 'public')
 NPC_BANDS = ('knows', 'close', 'anchored', 'unaware')
-PC_BANDS = ('learned', 'fingerprint', 'blind')
 STANCES = ('truth', 'lie', 'boast', 'bargain', 'hedge', 'silence', 'guess', 'fingerprint', 'wink')
 # What each band lets a speaker do with a claim.
 BAND_STANCES = {
@@ -42,7 +41,6 @@ BAND_STANCES = {
     'unaware': ('silence', 'guess'),
 }
 MOTIVE_STANCES = ('lie', 'bargain', 'boast')
-WINK_TIERS = ('none', 'point', 'name_kind')
 WINK_NAME_KIND_MARGIN = 5
 SAID_LIMIT = 32
 FIELD_MAX = 200

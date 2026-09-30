@@ -17,8 +17,11 @@ Schema ``character_sheet_v1``:
                                                  "equipped" (source in that list) or "active"
                                                  (source in `active`: a spell or condition).
                                                  Ownership alone is not holding.
-    held, equipped, active: [name, ...]          optional; what is true right now (play updates
-                                                 them with a pc_state event)
+    held, equipped, active: [name, ...]          optional; what is true right now. Not a sheet
+                                                 default: absent means not yet established. The
+                                                 situation and the player's word set it (the
+                                                 decision's pc_state, or the CLI, commits a
+                                                 pc_state event). Unknown is never true.
     passives: {skill: score}                     optional; printed passives, checked against
                                                  10 + bonus (+5 with advantage, conditional
                                                  advantage counted either way)
@@ -127,5 +130,7 @@ def private_summary(sheet):
             'level': sheet['level'], 'abilities': sheet['abilities'],
             'passives': {skill: passive(sheet, skill) for skill in ('perception', 'insight', 'investigation')},
             'skills': sheet.get('skills', {}),
-            'in_force': {key: sheet.get(key, []) for key in CONDITIONS},
+            'in_force': {key: sheet[key] for key in CONDITIONS if key in sheet},
+            'not_established': [key for key in CONDITIONS if key not in sheet],
+            'conditional_advantage': [e for e in sheet.get('advantage_on', []) if isinstance(e, dict)],
             'advantage_now': {skill: src for skill in SKILLS if (src := advantage_sources(sheet, skill))}}

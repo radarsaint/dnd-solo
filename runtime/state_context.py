@@ -16,25 +16,9 @@ PERSONALITY_CORE = PROJECT_ROOT / 'docs/personality/dm-personality-core.md'
 RHYTHM_EVIDENCE_MAX_CHARS = 600  # per recent_rhythm entry; 12 entries stay inside context()
 # Byte budget for one model input. context() enforces it on the core + DM context; the
 # Kit bridge trims memory to keep each whole prepared input inside it (kit_agent.fit_to_budget).
-# 25 KB, up from 24 KB (kit-voice-spec): Brendon's voice spec is carried verbatim in the
-# personality core (+0.9 KB) and adds small voice carriers (table_read, the brief's mirror
-# and npc_notice, ~0.25 KB) to every private input. That raised the irreducible floor of
-# the long-game worst case (ContextBudgetTests) from about 22.9 KB to about 24.2 KB; 25 KB
-# restores roughly the headroom kit-hardening had. About 250 more tokens per decision.
-# 26 KB, up from 25 KB (kit-coherence-gambling): the guiding-star amendment and the
-# "Details Are Invitations" section add ~0.55 KB to the core, and the room's procedure
-# list ~0.1 KB, on top of a worst case that already sat at 24.9 KB. A detail turn also
-# carries the private detail_oracle (~1.5-2.5 KB, only when the player asks for a detail).
-# Packet trimming is deliberately out of scope for this change (Brendon dropped the
-# latency fix), so the ceiling moves instead.
-# 88 KB, up from 26 KB (PR #15 fix pass, QA item 9): a long card game plus a full detail
-# ledger must fit. Measured worst case (ContextBudgetTests.
-# test_a_long_card_game_with_a_full_detail_ledger_fits): 12 long turns, a Three-Dragon
-# Ante gambit mid-play (largest procedure state over 30 seeds, ~3.6 KB), and CANON_LIMIT
-# (48) canon entries at the maximum fact (240) and basis (200) lengths. The canon alone
-# is ~47 KB (canon_here ~33 KB DM-side plus established_details ~15 KB public). The
-# irreducible private floor after every memory trim is ~78.9 KB; 88 KB keeps ~9 KB for
-# memory. Nothing is trimmed for speed: Brendon put latency out of scope.
+# Sized for the worst case (ContextBudgetTests.test_a_long_card_game_with_a_full_detail_ledger_fits):
+# 12 long turns, a Three-Dragon Ante gambit mid-play, and a full canon ledger (CANON_LIMIT
+# entries at maximum length, ~47 KB). The private floor after every memory trim is ~79 KB.
 CONTEXT_BUDGET_BYTES = 88000
 # A staged or one-pass body carries the post-event public view (with the whole ledger)
 # and the procedure state: ~49.4 KB in the same worst case.
@@ -65,7 +49,11 @@ CANON_SCOPES = ('scene', 'location', 'actor', 'campaign')
 CANON_SLOT = re.compile(r'^[a-z0-9_:]+(/[a-z0-9_]+){1,3}$')
 # Events a Kit turn may add at commit, after the adjudicated batch it was prepared with:
 # the decision's canon entries, the oracle deal it consumed, and procedure state.
-COMMIT_APPENDED_EVENTS = ('canon_entry', 'oracle_draw', 'procedure_state', 'claim_said', 'agenda_turn')
+COMMIT_APPENDED_EVENTS = ('canon_entry', 'oracle_draw', 'procedure_state', 'claim_said', 'agenda_turn',
+                          'pc_state')
+# A turn whose decision asks the player a question resolves nothing: its only event is a
+# rhythm beat tagged 'asked' whose evidence is the question.
+ASKED_EVENT_PREFIX = 'Kit asks before resolving: '
 EPISODE_DEFAULTS = {'player_bid': None, 'kit_choice': None, 'actor_ref': None,
                     'story_anchor': None, 'story_basis': None}
 # Notes describe what the player did or said. They are not a relationship meter.
@@ -382,11 +370,14 @@ class Runtime:
                         pending[2] == encode(kit_record['trace']), 'Pending Kit decision changed')
                 staged = json.loads(pending[1])
                 prepared = staged['events']
+                asked = isinstance(kit_record['trace'].get('ask_player'), dict)
                 require(staged['action'] == kit_record['player_input'] and
-                        staged['public_event'] == kit_record['public_event'] and
-                        events[:len(prepared)] == prepared and
-                        all(event.get('type') in COMMIT_APPENDED_EVENTS
-                            for event in events[len(prepared):]), 'Pending Kit event changed')
+                        (asked and events == [{'type': 'beat', 'tags': ['asked'],
+                                                'evidence': kit_record['public_event']}] and kit_record['public_event'].startswith(ASKED_EVENT_PREFIX) or
+                         not asked and staged['public_event'] == kit_record['public_event'] and
+                         events[:len(prepared)] == prepared and
+                         all(event.get('type') in COMMIT_APPENDED_EVENTS
+                             for event in events[len(prepared):])), 'Pending Kit event changed')
             source = self.source()
             for event in events:
                 self._apply(state, source, event)

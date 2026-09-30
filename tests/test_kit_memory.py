@@ -206,7 +206,7 @@ class CallbackTests(MemoryTestCase):
         self.assertIn('callback', brief_schema['required'])
         self.assertIn('player_note', prepared['schema']['properties']['decision']['required'])
         for phrase in ('callback', 'memory_refs', 'player_notes', 'evidence_turns', 'never a score',
-                       'Do not copy improv_read, appraisal, episode, or player note text'):
+                       'Do not copy improv_read, appraisal, player_mood, table_read, episode, or'):
             self.assertIn(phrase, prepared['instructions'])
         plan = self.model.plan(prepared['input']['private'])
         plan.update(memory_refs=['coin'], move='npc_reply', table_presence='quiet')

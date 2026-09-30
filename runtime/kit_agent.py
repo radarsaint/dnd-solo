@@ -25,7 +25,7 @@ from . import kit_texture
 from . import kit_guards
 from . import kit_voice
 from .scene_discernment import IMPROV_READ_SCHEMA, check_improv_read, discernment_candidates
-from .state_context import (CONTEXT_BUDGET_BYTES, HostSequenceError, InvalidChange,
+from .state_context import (ASKED_EVENT_PREFIX, CONTEXT_BUDGET_BYTES, HostSequenceError, InvalidChange,
                             PERSONALITY_CORE, PLAYER_NOTE_MAX_EVIDENCE, PROJECT_ROOT, Runtime,
                             StaleTurn,
                             check_player_note_text, encode, require)
@@ -404,6 +404,14 @@ PLAN_SCHEMA = {
         'salience': kit_agenda.SALIENCE_SCHEMA,
         # A roll called with advantage/disadvantage cites a condition true right now.
         'roll_call': kit_agenda.ROLL_CALL_SCHEMA,
+        # What the PC holds, wears, and has running now, when the situation or the
+        # player's words change it. The player's declared state wins.
+        'pc_state': kit_agenda.PC_STATE_SCHEMA,
+        # The PC's state or habit is odd for the situation: who present notices, and how
+        # they react from their wants. It stands; the reaction is the scene event.
+        'pc_oddity': kit_agenda.PC_ODDITY_SCHEMA,
+        # The PC's state is genuinely unknown and it matters: Kit asks. Commits nothing mechanical.
+        'ask_player': kit_agenda.ASK_PLAYER_SCHEMA,
     },
     'required': ['observed_event', 'goal', 'appraisal', 'memory_refs', 'improv_read', 'move', 'public_brief',
                  'focus_actor', 'table_presence', 'tone', 'player_note', 'player_mood', 'turn_mode',
@@ -412,8 +420,14 @@ PLAN_SCHEMA = {
 
 # The strict API schema needs every property required.
 API_PLAN_SCHEMA = json.loads(json.dumps(PLAN_SCHEMA))
-OPTIONAL_PLAN_KEYS = ('claims', 'agenda', 'salience', 'roll_call')
-API_PLAN_SCHEMA['required'] = API_PLAN_SCHEMA['required'] + list(OPTIONAL_PLAN_KEYS)
+OPTIONAL_PLAN_KEYS = ('claims', 'agenda', 'salience', 'roll_call', 'pc_state', 'pc_oddity', 'ask_player')
+# Strict mode cannot leave an object out, so the chat-only paths (a PC state change, an
+# oddity reaction, a question to the player) are not offered to the API model at all.
+CHAT_ONLY_PLAN_KEYS = ('pc_state', 'pc_oddity', 'ask_player')
+for _key in CHAT_ONLY_PLAN_KEYS:
+    API_PLAN_SCHEMA['properties'].pop(_key)
+API_PLAN_SCHEMA['required'] = API_PLAN_SCHEMA['required'] + [
+    key for key in OPTIONAL_PLAN_KEYS if key not in CHAT_ONLY_PLAN_KEYS]
 
 SPEECH_SCHEMA = {
     'type': 'object', 'additionalProperties': False,
@@ -607,7 +621,7 @@ PRIVATE_INSTRUCTIONS = (
     '(use none only for the room opening). Choose scope: call for a narrow roll prompt, ruling, '
     'fact, or clarification (only with a ruling or ask_clarification move, or with no focus actor); '
     'exchange for most social moves; feature for the room opening, a newly important NPC, or a '
-    'move that turns the scene. Scope selects the kind of material, never padding. In kit_focus '
+    'move that turns the scene. In kit_focus '
     'write one short public-safe direction, derived from your goal and kit_choice, naming the '
     'visible consequence of Kit’s taste in this turn: what she foregrounds, which actor tactic '
     'she lets play out, how she frames a ruling, or a deliberate restraint. kit_focus is not '
@@ -620,7 +634,7 @@ PRIVATE_INSTRUCTIONS = (
     'of player_action, feedback <note id> (or note <note id>), or pacing: <what changed>; neutral '
     'may use none. player_mood is private. In the brief’s mirror, tell the performer how Kit '
     f'matches or answers that mood, as "{kit_voice.MIRROR_FORMAT}". Frustrated or bored: tight, '
-    'and give momentum (a consequence, a decision, a scene turn), never padding. Tense, '
+    'and give momentum (a consequence, a decision, a scene turn). Tense, '
     'frustrated, or cautious: no playful humor. Playful or gleeful: play back. Choose turn_mode: '
     'meta for table talk to Kit (required for an out-of-character message), banter for social '
     'back-and-forth, description for exploration, mood, and room results (required for the '
@@ -649,15 +663,13 @@ PRIVATE_INSTRUCTIONS = (
     'nothing new was shown, note is none with no evidence. '
     'kit_focus must name something concrete in this turn (a detail, which actor tactic gets '
     'room, how a ruling is framed, or a deliberate restraint); a generic aim such as making it '
-    'engaging or interesting is rejected. Kit’s direction reaches NPCs only through which tactic '
-    'they pick, pacing, and framing, never their words, humor, or diction; never script an NPC '
-    'line in the brief. On a social turn, choose ruling or call only when the player asked a '
+    'engaging or interesting is rejected. Never script an NPC line in the brief. On a social turn, choose ruling or call only when the player asked a '
     'rules or mechanics question, or ask_clarification when you genuinely cannot tell what they '
     'mean; otherwise the actor answers in an exchange. refused_attempts, when present, are '
     'recent attempts the table could not resolve (nothing happened); Kit may pick them up. '
     'DETAIL: a player asking for a detail (what someone drinks, plays, wears, what is carved, '
-    'what a thing costs) is an invitation, not a request for the least you can say. Decide the '
-    'answer here, before any prose. Put their words in detail.request (or scene_need: <what> '
+    'what a thing costs) is an invitation: the specific answer is the job, never the least you '
+    'can say or a small, simple, or safe one. Decide the answer here, before any prose. Put their words in detail.request (or scene_need: <what> '
     'when the scene needs a fact the source leaves open; else none). When detail_oracle is '
     'present, copy its slot; by status: canon_supplied, reuse the canon fact (choice canon); '
     'source_supplied, the source answers (choice source); priced, the price comes only from '
@@ -674,14 +686,12 @@ PRIVATE_INSTRUCTIONS = (
     'choose another. Prefer familiar real-world or published material adapted to the setting '
     'before building from scratch. owner is "<actor id|room|kit>: <what they want from it>"; '
     'handle is what the player can do with it; because reads "true because <established '
-    'facts or known motives>". If it needs a new world fact, a hidden-information leak, or an '
-    'NPC knowing something new, it is nonsense; choose again. Record every fact this turn adds '
+    'facts or known motives>". Record every fact this turn adds '
     'that the source does not supply as an invention (slot, kind, fact, basis, public, scope, '
-    'procedure, change_reason): it becomes canon and stays true. procedure names a runtime '
+    'procedure, change_reason). procedure names a runtime '
     'procedure from supported_procedures only when the thing is offered as playable; any other '
     'game is flavor (procedure none), and nobody states rules or stakes for it. A canon fact '
-    'changes only with an in-story change_reason. Never ask for small, simple, or safe '
-    'stakes, answers, or details: the specific one is the job. '
+    'changes only with an in-story change_reason. '
     'CLAIMS. Every detail anyone states is a claim someone in the world holds. Before you say '
     'one, answer three questions. Source: is it the adventure\u2019s, established canon, or your '
     'choice? If yours, grow it from a fact already in the scene, write it once, and it stays '
@@ -697,7 +707,7 @@ PRIVATE_INSTRUCTIONS = (
     'Motive: why would this person say it now? Choose truth, lie, boast, '
     'bargain, hedge, or silence from their wants; Charisma decides how well they manage it. '
     'Intelligence changes how far someone reasons and how they go wrong, never how well they '
-    'talk. Nobody answers like a helpful assistant, and nobody sounds like Kit. When the player '
+    'talk. Nobody answers like a helpful assistant. When the player '
     'asks, someone answers, even if it\u2019s a lie or a refusal. Record each stated claim in '
     'claims (claim id or new, speaker, stance, version, why); a lie, boast, or bargain\u2019s why '
     'cites the speaker\u2019s want. Never roll a knowledge check for the player. '
@@ -709,26 +719,30 @@ PRIVATE_INSTRUCTIONS = (
     'dealing with that agent right now, hold as engaged: that exchange is its advance. A quiet '
     'room is fine; say why it is calm. Optional activities recede: when activities says '
     'backgrounded, do not remind, prompt, or choose for the player. When something catches the '
-    'eye, say why in salience: the concrete visible detail. Advantage or disadvantage needs a '
-    'reason that is true now (held, equipped, active, or a position); owning a shield is not '
-    'holding it. Record it in roll_call and name the cause aloud.'
+    'eye, say why in salience: the concrete visible detail. '
+    'PC STATE follows the situation, never a default (claims_here.pc): at cards, hands on the '
+    'cards and a shield slung; in a fight, weapon, shield, or focus in hand. The player\u2019s word '
+    'wins. When the fiction changes it, record the whole picture in pc_state. A declared state '
+    'that is odd for the situation stands (advantage too, if really met); never quietly undo it. '
+    'Reacting to odd habits is a goal: pc_oddity names who present notices and how their wants '
+    'make them react (suspicion, a joke, a higher price, refusing to deal), carried in npc_notice. '
+    'Only when the state is genuinely unknown and it matters, ask_player: one short plain '
+    'question (ask_clarification, call scope); that turn resolves and commits nothing. Advantage '
+    'or disadvantage needs a reason true now (held, equipped, active, or a position); owning is '
+    'not holding. Record it in roll_call and name the cause aloud.'
 )
 
 PUBLIC_INSTRUCTIONS = (
     'Perform the chosen DM move as Kit. You have only player-visible room facts and a bounded '
     'public resolution; do not invent discoveries, geometry, rules outcomes, NPC commitments, '
-    'combat results, or player thoughts/actions. Never assume a hidden fact from prior knowledge. '
-    'Use supplied actor cards, when present, for a recognizable vocal signature '
-    'and physical touchstone across turns. A card’s wants and tactics are options the actor '
-    'chooses in answer to the player’s words, never a default line or a required beat. '
-    'Text can describe a voice and enact its rhythm; '
-    'it cannot supply an audible accent. Avoid phonetic stereotypes and repeated catchphrases. '
+    'or combat results. Never assume a hidden fact from prior knowledge. '
+    'A card’s wants and tactics are options the actor chooses in answer to the player’s words, '
+    'never a default line or a required beat. '
     'If action_kind is opening, frame a scene in motion rather than listing the room inventory; '
     'telegraph the public social and exploration invitations without announcing a hidden truth. '
     'On a social reply, react to the player’s actual words. A character may take a few sentences '
     'to test, tempt, threaten, or tell a short story when it earns the space, but stop at a real '
     'player decision. Let a second card player react only when that changes the scene. '
-    'Keep NPC speech separate from Kit’s direct table comments. '
     'Follow the selected public brief, tone, and table presence; quiet means '
     'no Kit segment, brief at most one, present at least one, and showtime one to '
     f'{kit_voice.SHOWTIME_MAX_KIT_SEGMENTS} Kit segments where she takes the stage (they count '
@@ -739,43 +753,44 @@ PUBLIC_INSTRUCTIONS = (
     'them, do not echo them back. In a social scene, let the NPC pursue a specific objective '
     'through a response, action, or question grounded in the room; a price or fact alone is '
     'rarely the whole exchange. Give the player something meaningful to answer or act on. '
-    'Do not pad the turn with generic banter or extra speakers. Leave a real decision for the player. '
     'A mechanically consequential unsupported action should invite clarification, not resolve itself. '
+    'When ask_player is present, Kit asks that question in her own segment, in those words, and '
+    'nothing is resolved or narrated as happening. '
     'turn_mode names the moment: meta and banter are table talk and social play; description '
     'sets the mood; combat is tense and fast, in short sentences. The brief’s mirror says how to '
     'answer the player’s energy: honor its energy, length, and humor; tight means at most '
     f'{kit_voice.TIGHT_MAX_WORDS["exchange"]} words in an exchange or '
     f'{kit_voice.TIGHT_MAX_WORDS["feature"]} in a feature, and the scene moves. When npc_notice '
-    'is not none, the focus actor reacts to that thing about the player’s character in their '
-    'own voice and for their own reasons, never with Kit’s wit or phrasing, and only from what '
-    'they could see or know. '
+    'is not none, the focus actor reacts to that thing about the player’s character for their '
+    'own reasons, and only from what they could see or know. '
     'The brief’s reply_to names the player’s words the turn must answer. kit_focus is Kit’s own '
     'choice of what this turn foregrounds: enact it through framing, which detail or reaction '
     'gets space, how a ruling is phrased, or, only when table presence allows, a Kit remark. It '
     'is not a line for any NPC and grants no authority over facts, rules outcomes, NPC knowledge '
-    'or commitments, or the player’s choices. NPCs pursue their own objectives in their own '
-    'voices from the actor card; never make them mouthpieces for Kit’s taste or humor. When '
+    'or commitments, or the player’s choices. When '
     'callback is not none, it quotes an earlier public moment (callback_source shows where it '
     'came from): let it visibly return in this turn, through an actor who was there reacting from '
     'their own motives, a returning detail, or Kit’s framing, without re-quoting it at length or '
     'adding facts about it. Scope: '
     'call means answer directly and stop; exchange means the actor answers reply_to, pursues the '
     'tactic with a visible beat, and leaves a live opening; feature means a scene in motion with '
-    'room for a short speech or more than one reaction. Never pad to reach a length: no '
-    'repeated phrases, no retelling what the player said, no stock filler, no recycled lines. '
-    'NPC VOICES: every NPC speaks only from their own card’s voice_contract: its rhythm, '
-    'register, tics, and humor; never_says and never_words are hard limits, and '
+    'room for a short speech or more than one reaction. Never pad to reach a length: no extra '
+    'speakers or generic banter, no repeated phrases, no retelling what the player said, no stock '
+    'filler, no recycled lines. '
+    'NPC VOICES: every NPC speaks only from their own card: its voice_contract rhythm, register, '
+    'tics, and humor, and its physical touchstone; never_says and never_words are hard limits, and '
     'max_words_per_sentence caps that NPC’s sentences. Each card player has their own speaker '
-    'label and card. NPCs never use table talk (dice, checks, rulings, the story as a story); a '
-    'dealer naming his running game\u2019s stakes and play in its own terms is not table talk. '
-    'one-word verdicts, deadpan asides or understatement about the moment, or Kit’s phrasing; '
-    'two NPCs in one turn never sound alike, and no NPC reuses a pet name, opener, or phrase '
-    'from their recent turns. Fixed source numbers such as a price never change. '
+    'label and card. Enact a voice through rhythm, never a phonetic accent or stereotype. NPCs '
+    'pursue their own objectives and never use table talk (dice, checks, rulings, the story as a '
+    'story); a dealer naming his running game\u2019s stakes and play in its own terms is not table '
+    'talk. NPC speech stays separate from Kit’s: no NPC borrows her wit, asides, one-word verdicts, '
+    'or phrasing, or voices her taste; tone and kit_focus never change an NPC’s diction. Two NPCs '
+    'in one turn never sound alike, and no NPC reuses a pet name, opener, or phrase from their '
+    'recent turns. Fixed source numbers such as a price never change. '
     'refused_attempts, when present, lists recent attempts the table could not resolve; they '
     'changed nothing in the world, Kit may refer to them, and NPCs react only to what they '
-    'could visibly have seen. Tone and kit_focus shape narration, pacing, and which tactic plays out; '
-    'they never change an NPC’s diction. PLAYER AGENCY: never state what the player does, '
-    'decides, agrees to, or feels; narrate what others do and what the player can perceive, and '
+    'could visibly have seen. PLAYER AGENCY: never state what the player does, '
+    'decides, agrees to, thinks, or feels; narrate what others do and what the player can perceive, and '
     'leave the player’s response to the player. '
     'Every Kit segment carries reacts_to: a short verbatim quote (a few words) of the public '
     'line it answers this turn, from player_action, the accepted event, or an earlier segment; '
@@ -805,21 +820,15 @@ KIT_EXPRESSION_V1 = (
     'scene is a failure, never flavor. A question for detail is an invitation: answer the '
     'literal question first, then commit to the named, local answer the decision chose, one '
     'the player can act on. Boldness goes into which detail, never length. None of it costs '
-    'a source fact, hidden information, a rules outcome, or the player’s choices. Honor the '
-    'brief’s mirror: play back to a playful player, steady a tense one, and answer frustration '
-    'or boredom with momentum, never more words. Voice by turn_mode. Meta and banter: quippy, '
-    'quick, cheeky; answer first, then the joke. Description: theatrical, mood-setting, '
-    'specific; overacting is welcome. Combat: engaged, tense, evocative; short punchy '
-    'sentences; stakes in what the player can see, hear, and smell. Her own voice appears only '
-    'in Kit segments, as table presence allows (quiet: none; brief: one short remark; present: '
-    'she talks; showtime: she takes the stage). Narration is hers at every presence. Do: react '
-    'to the exact thing this player did; hold an opinion and still rule fairly; be exact about '
-    'a ruling; show earned delight; hand the scene back on a real choice. Don’t: generic praise '
-    'or filler, recap, a menu of options, advice, or a reused line; no sentence template or '
+    'a source fact, hidden information, a rules outcome, or the player’s choices. Voice by '
+    'turn_mode. Meta and banter: quippy, quick, cheeky; answer first, then the joke. '
+    'Description: theatrical, mood-setting, specific; overacting is welcome. Combat: engaged, '
+    'tense, evocative; short punchy sentences; stakes in what the player can see, hear, and '
+    'smell. Do: react to the exact thing this player did; hold an opinion and still rule '
+    'fairly; be exact about a ruling; show earned delight; hand the scene back on a real '
+    'choice. Don’t: generic praise, a menu of options, or advice; no sentence template or '
     'stock acknowledgement becomes a habit. Her opinion never changes a fact, rules outcome, or '
-    'NPC stance, never hints at hidden information, and never decides what the player thinks, '
-    'feels, or does. NPCs never borrow her wit, asides, or phrasing; each sounds like nobody '
-    'else, least of all Kit.'
+    'NPC stance, and never hints at hidden information.'
 )
 
 PERFORMANCE_VARIANTS = {
@@ -835,18 +844,12 @@ ONE_PASS_PREAMBLE = (
     'Apply the private decision instructions to the private input, then write the public '
     'performance using only the public input, accepted event, and the decision’s checked '
     'public_brief (including reply_to, scope, kit_focus, and callback), move, tone, focus actor, '
-    'and table presence. Do not copy improv_read, appraisal, episode, or player note text into '
-    'the performance. To save context, the personality core and the public dialogue history '
-    'appear once, in the private input (personality_core, dialogue_history); the performance '
-    'uses them from there. '
-    'Keep the decision brief. '
-    'The performance also follows turn_mode and the brief’s mirror and npc_notice; player_mood '
-    'and table_read are private and never appear in it. '
+    'and table presence. Do not copy improv_read, appraisal, player_mood, table_read, episode, or '
+    'player note text into the performance. To save context, the personality core and the public '
+    'dialogue history appear once, in the private input (personality_core, dialogue_history); the '
+    'performance uses them from there. Keep the decision brief. '
     'The decision connects the player bid, available story pressure, actor goal, and Kit’s '
-    'appraisal before selecting a concrete DM move; do not justify dialogue after the fact. '
-    'The performance must remain grounded and give the player a meaningful response. '
-    'This faster path is an experiment; it does not establish the same causal separation '
-    'as the staged path.'
+    'appraisal before selecting a concrete DM move; do not justify dialogue after the fact.'
 )
 
 
@@ -924,8 +927,12 @@ def check_plan(plan, episodes, public_event, action_kind=None, candidates=None, 
         kit_claims.check_claims(plan['claims'], claims_packet, source or {}, state or {})
     if plan.get('salience'):
         kit_agenda.check_salience(plan['salience'], source or {}, state or {})
+    if plan.get('pc_state'):
+        kit_agenda.check_pc_state(plan['pc_state'])
     if plan.get('roll_call'):
-        kit_agenda.check_roll_call(plan['roll_call'], source or {}, state or {})
+        # A state the player declares this turn counts for this turn's roll.
+        kit_agenda.check_roll_call(plan['roll_call'], source or {},
+                                   kit_agenda.with_pc_state(state or {}, plan.get('pc_state')))
     for key in ('observed_event', 'goal'):
         require(isinstance(plan[key], str) and plan[key].strip(), f'Missing {key}')
     require(plan['observed_event'] == public_event, 'Private decision changed the accepted event')
@@ -1009,6 +1016,10 @@ def check_plan(plan, episodes, public_event, action_kind=None, candidates=None, 
                             oracle=oracle)
     kit_detail.check_not_shrinking([plan['improv_read']['kit_choice']] +
                                    [brief[key] for key in BRIEF_FIELDS if key not in BRIEF_QUOTE_FIELDS])
+    if plan.get('pc_oddity'):
+        kit_agenda.check_pc_oddity(plan['pc_oddity'], plan, state or {})
+    if plan.get('ask_player'):
+        kit_agenda.check_ask_player(plan['ask_player'], plan, state or {})
 
 
 def is_ooc(player_action):
@@ -1167,39 +1178,28 @@ def check_scope(segments, plan):
             'and pressure in motion, then stop at a player decision.')
 
 
-def check_public_content(text, public_view, player_action, leak_sets=()):
+def check_public_content(text, public_view, player_action, leak_sets=(), phrases=None):
+    """Literal leaks: the room source's DM-only phrases (leak_phrases), allowed once the
+    phrase is in the public view, and a name the player said first is theirs to use.
+    Paraphrases: DM-only keyword sets from the room source (kit_guards section 6)."""
     public = json.dumps(public_view, ensure_ascii=False).lower()
     declared = player_action.lower()
     text = text.lower()
-    # The performer receives no DM-only text. These checks catch common literal leaks;
-    # paraphrases still require human evaluation before any production use.
-    forbidden = {
-        'doppelganger': 'doppelganger',
-        'area 14b': 'area 14b',
-        'stone key': 'stone key',
-        'marked deck': 'marked deck',
-        'marked cards': 'marked cards',
-        'deck is marked': 'deck is marked',
-        'thieves’ tools': 'thieves’ tools',
-        'thieves\' tools': "thieves' tools",
-        'pretending to be vampires': 'pretending to be vampires',
-        'uktarl': 'uktarl',
-        'harria': 'harria',
-        'bandit': 'bandit',
-    }
-    for phrase, allow in forbidden.items():
-        player_named_person = phrase in ('harria', 'uktarl') and phrase in declared
-        if phrase in text and allow not in public and not player_named_person:
+    phrases = phrases or {}
+    for phrase in phrases.get('phrases', ()):
+        phrase = phrase.lower()
+        player_named = phrase in phrases.get('player_may_name', ()) and phrase in declared
+        if phrase in text and phrase not in public and not player_named:
             raise InvalidChange('Public performance mentioned a private fact')
-    # Paraphrases: DM-only keyword sets from the room source (kit_guards section 6).
     kit_guards.check_paraphrased_leaks(text, public_view, player_action, leak_sets)
 
 
-def check_brief_public(brief, public_view, player_action, leak_sets=()):
+def check_brief_public(brief, public_view, player_action, leak_sets=(), phrases=None):
     """Leak check on Kit's direction. reply_to and callback are excluded because
     they are checked verbatim quotes of words the player already said or saw."""
     direction = {key: value for key, value in brief.items() if key not in BRIEF_QUOTE_FIELDS}
-    check_public_content(json.dumps(direction, ensure_ascii=False), public_view, player_action)
+    check_public_content(json.dumps(direction, ensure_ascii=False), public_view, player_action,
+                         phrases=phrases)
     # Paraphrase sets are checked per field so one field's words cannot pair with another's.
     for value in direction.values():
         kit_guards.check_paraphrased_leaks(value, public_view, player_action, leak_sets)
@@ -1245,7 +1245,7 @@ def check_speech(speech, plan, public_view, player_action, action_kind=None, gua
     spoken = '\n'.join(f"{segment['speaker']}: {segment['text'].strip()}" for segment in segments)
     # HARD: secrets (literal and paraphrased), the player's agency, NPC table talk, and
     # a clarification that really asks something.
-    check_public_content(spoken, public_view, player_action)
+    check_public_content(spoken, public_view, player_action, phrases=guards.get('leak_phrases'))
     for segment in segments:
         kit_guards.check_paraphrased_leaks(segment['text'], public_view, player_action,
                                            guards.get('leak_sets', ()))
@@ -1266,7 +1266,9 @@ def check_speech(speech, plan, public_view, player_action, action_kind=None, gua
     # SOFT: style floors. Recorded as warnings, not rejections, in degraded mode.
     history = guards.get('public_history', ())
     soft = (lambda: check_scope(segments, plan),
-            lambda: kit_guards.check_padding(segments, player_action, action_kind, history),
+            lambda: kit_guards.check_padding(segments, player_action, action_kind, history,
+                                             json.dumps((public_view or {}).get('table_procedures') or {},
+                                                        ensure_ascii=False)),
             lambda: kit_guards.check_npc_voices(segments, guards.get('voice_contracts'), history),
             lambda: kit_guards.check_npc_repetition(segments, history),
             lambda: kit_guards.check_kit_tics(segments, history),
@@ -1309,14 +1311,22 @@ def declared_procedures(in_state, plan):
 def turn_events(runtime, body, plan, turn_id):
     """The adjudicated events plus what the decision establishes: its canon entries, the
     oracle deal it consumed, and the starting state of a table procedure it declares."""
+    if plan.get('ask_player'):
+        # A question to the player: the action is not resolved and nothing mechanical
+        # commits; one rhythm beat keeps the pacing record honest.
+        return [{'type': 'beat', 'tags': ['asked'],
+                 'evidence': f"{ASKED_EVENT_PREFIX}{plan['ask_player']['question']}"}]
     events = list(body['events'])
+    if plan.get('pc_state'):
+        events.append(kit_agenda.pc_state_event(plan['pc_state'], turn_id))
     if plan.get('claims'):
         events += kit_claims.said_events(plan['claims'], turn_id, body.get('claims_here'),
                                          runtime.load()[1])
     if body.get('agenda_here') is not None:
+        reactors = kit_agenda.oddity_reactors(plan.get('pc_oddity'), runtime.source())
         ticks = kit_agenda.check_agenda(plan.get('agenda'), body['agenda_here'], runtime.source(),
-                                        runtime.load()[1])
-        events.append(kit_agenda.agenda_event(plan['agenda'], body['agenda_here'], turn_id, ticks))
+                                        runtime.load()[1], reactors)
+        events.append(kit_agenda.agenda_event(plan['agenda'], body['agenda_here'], turn_id, ticks, reactors))
     detail = plan.get('detail')
     if not detail:
         return events
@@ -1506,12 +1516,14 @@ def check_decision(runtime, plan, memory, body):
                established=established_text(runtime, body), oracle=body.get('detail_oracle'),
                claims_packet=body.get('claims_here'))
     check_brief_public(plan['public_brief'], body['public_view'], body['action'],
-                       kit_guards.leak_sets(source))
-    kit_agenda.check_agenda(plan.get('agenda'), body.get('agenda_here'), source, runtime.load()[1])
+                       kit_guards.leak_sets(source), kit_guards.leak_phrases(source))
+    if not plan.get('ask_player'):  # a question to the player moves no agenda
+        kit_agenda.check_agenda(plan.get('agenda'), body.get('agenda_here'), source, runtime.load()[1],
+                                kit_agenda.oddity_reactors(plan.get('pc_oddity'), source))
     # A public invention reaches the performer and the player: same leak checks as the brief.
     for item in kit_detail.public_inventions(plan['detail']):
         check_brief_public({'invention': item['fact']}, body['public_view'], body['action'],
-                           kit_guards.leak_sets(source))
+                           kit_guards.leak_sets(source), kit_guards.leak_phrases(source))
 
 
 def prepare_inputs(runtime, revision, state, action, resolution, use_memory, one_pass=False):
@@ -1727,6 +1739,9 @@ def performance_input(runtime, body, plan):
             'turn_mode': plan.get('turn_mode'),
             'brief': plan['public_brief'],
     }
+    if plan.get('ask_player'):
+        payload['ask_player'] = {'question': plan['ask_player']['question'],
+                                 'note': 'Kit asks this in her own segment and resolves nothing'}
     detail = plan.get('detail') or kit_detail.NO_DETAIL
     shown = kit_detail.public_inventions(detail)
     if shown:
@@ -1774,7 +1789,7 @@ def guard_context(source, body):
     sets and public voice contracts from the room source, and recent public turns."""
     cards = (source or {}).get('public_performance', {}).get('actor_cards', {})
     procedures = (body.get('public_view') or {}).get('table_procedures') or {}
-    return {'leak_sets': kit_guards.leak_sets(source),
+    return {'leak_sets': kit_guards.leak_sets(source), 'leak_phrases': kit_guards.leak_phrases(source),
             'numeric_facts': kit_guards.numeric_facts(source),
             'numeric_claims': {key: claim.get('numeric_fact', key)
                                for key, claim in kit_claims.compile_claims(source).items()},
@@ -1811,18 +1826,23 @@ def checked_record(body, plan, speech, performance_variant, source=None, degrade
     which performer instructions ran so play reviews can tell the variants apart. A
     degraded record says so and keeps the soft warnings it was accepted with."""
     check_variant(performance_variant)
+    ask = plan.get('ask_player')
+    # An ask_player turn resolves nothing: its public event is the question, not the result.
+    public_event = f"{ASKED_EVENT_PREFIX}{ask['question']}" if ask else body['public_event']
     result = check_speech(speech, plan, body['public_view'], body['action'], body['kind'],
                           guards=guard_context(source, body), degraded=degraded,
-                          public_event=body['public_event'])
+                          public_event=public_event)
     spoken, warnings = result if degraded else (result, [])
     kit_agenda.check_attention_spoken(spoken, plan)
     kit_agenda.check_roll_spoken(spoken, plan)
-    if body['kind'] in EVENT_AFTER_PERFORMANCE_KINDS:
+    if ask:
+        kit_agenda.check_ask_spoken(speech['segments'], ask)
+    elif body['kind'] in EVENT_AFTER_PERFORMANCE_KINDS:
         # The room reacts while the player is still there; then they are gone.
         spoken = f"{spoken}\nNarrator: {body['public_event']}"
     elif body['kind'] not in ('social', 'opening'):
         spoken = f"Narrator: {body['public_event']}\n{spoken}"
-    record = {'player_input': body['action'], 'public_event': body['public_event'],
+    record = {'player_input': body['action'], 'public_event': public_event,
               'trace': plan, 'spoken': spoken, 'performance_variant': performance_variant}
     asides = [{'text': segment['text'], 'reacts_to': segment['reacts_to']}
               for segment in speech['segments'] if segment['speaker'] == 'Kit']
@@ -1909,6 +1929,10 @@ class PerformanceRejected(InvalidChange):
         super().__init__(message)
         self.guidance = guidance
 
+
+ASKED_NEXT_STEP = ('Kit asked the player a question; the action was not resolved and nothing '
+                   'mechanical was committed. Show the question. When the player answers, prepare '
+                   'their original action again with the answer added, e.g. "<action> (<answer>)".')
 
 STALE_GUIDANCE = ('The world changed after this turn was prepared (another turn or player feedback '
                   'was committed), so nothing was saved. Prepare the same player action again with '
@@ -2032,8 +2056,10 @@ class KitChatBridge:
 
     def _committed_result(self, turn_id, revision, body, record, variant):
         result = {'revision': revision, 'turn_id': turn_id,
-                  'public_event': body['public_event'], 'spoken': record['spoken'],
+                  'public_event': record['public_event'], 'spoken': record['spoken'],
                   'performance_variant': variant, 'timing': self._finish_timing(turn_id, record)}
+        if record['trace'].get('ask_player'):
+            result.update(asked=True, next_step=ASKED_NEXT_STEP)
         if record.get('degraded'):
             result.update(degraded=True, soft_warnings=record['soft_warnings'])
         return result
