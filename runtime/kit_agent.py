@@ -1517,7 +1517,27 @@ def prepare_inputs(runtime, revision, state, action, resolution, use_memory, one
     kept = fit_to_budget(planning_input, memory['drop_order'], reserve)
     if 'memory_trimmed' in planning_input['kit_state']:
         body['memory_turn_ids'] = kept
+    planning_input['kit_state']['episodes'] = episode_views(planning_input['kit_state']['episodes'],
+                                                            planning_input['dialogue_history'])
     return revision, body, planning_input
+
+
+def episode_views(episodes, dialogue_history):
+    """The decision's copy of its episodes without text it already reads elsewhere in
+    the same packet: `event` (always the copied accepted event, so equal to
+    public_event) and a `spoken` excerpt identical to one in dialogue_history, which
+    becomes a pointer to it. Checks run on kit_memory, never on this view."""
+    shared = {turn.get('spoken'): index for index, turn in enumerate(dialogue_history)
+              if turn.get('spoken')}
+    views = []
+    for episode in episodes:
+        view = dict(episode)
+        if view.get('event') == view.get('public_event'):
+            view.pop('event', None)
+        if view.get('spoken') in shared:
+            view['spoken'] = f"same as dialogue_history[{shared[view['spoken']]}].spoken"
+        views.append(view)
+    return views
 
 
 def scene_facts(state, events):
@@ -1570,6 +1590,41 @@ def prepare_opening(runtime, one_pass=False):
                           one_pass=one_pass)
 
 
+VIEW_UNCHANGED_NOTE = ('the view after this event is input.private.dm_context.player_perceivable '
+                       'with these changes; a path names nested keys joined by "."')
+VIEW_DIFF_DEPTH = 3  # view keys, then table_procedures, then one procedure's keys
+
+
+def view_changes(after, before, depth=VIEW_DIFF_DEPTH, prefix=''):
+    """The post-event player view as changes to the pre-event view, keyed by path.
+
+    `set` gives the new whole value at a path; `appended` the items added to the end
+    of a list that only grew (a new established detail); `removed` the paths that are
+    gone. Dicts are compared `depth` levels deep, so a card turn sends the gambit and
+    stacks but not the table's unchanged rules and powers.
+    """
+    changes = {'set': {}, 'appended': {}, 'removed': []}
+    for key, value in after.items():
+        path, old = prefix + key, before.get(key, _MISSING)
+        if old == value:
+            continue
+        if depth > 1 and isinstance(value, dict) and isinstance(old, dict):
+            inner = view_changes(value, old, depth - 1, path + '.')
+            for kind in ('set', 'appended'):
+                changes[kind].update(inner.get(kind, {}))
+            changes['removed'] += inner.get('removed', [])
+        elif (isinstance(value, list) and isinstance(old, list) and old and
+              len(value) > len(old) and value[:len(old)] == old):
+            changes['appended'][path] = value[len(old):]
+        else:
+            changes['set'][path] = value
+    changes['removed'] += [prefix + key for key in before if key not in after]
+    return {kind: found for kind, found in changes.items() if found}
+
+
+_MISSING = object()
+
+
 def public_performance_base(runtime, body, one_pass=False):
     """The performer's public input. In one-pass mode the same model already reads the
     personality core and dialogue history in the private half, so they are sent once."""
@@ -1586,9 +1641,16 @@ def public_performance_base(runtime, body, one_pass=False):
     if one_pass:
         payload['shared_with_private'] = ('personality_core and public dialogue history are in '
                                           'input.private (personality_core, dialogue_history)')
-        if body['public_view'] == body.get('view_before_event'):
+        before = body.get('view_before_event')
+        if body['public_view'] == before:
             payload['player_view_after_event'] = ('unchanged by this event: see '
                                                   'input.private.dm_context.player_perceivable')
+        elif isinstance(before, dict):
+            # Same model, same packet: send only what this event changed, so a card
+            # turn does not repeat the table's rules, powers, and canon ledger.
+            payload['player_view_after_event'] = {
+                'as_changes_to_private_view': VIEW_UNCHANGED_NOTE,
+                **view_changes(body['public_view'], before)}
     else:
         payload['personality_core'] = PERSONALITY_CORE.read_text(encoding='utf-8')
         payload['public_history'] = body.get('public_history', [])
@@ -1736,7 +1798,10 @@ class KitAgent:
             plan = self.model.plan(planning_input)
             timing['model_calls'] += 1
             timing['plan_s'] = round(time.monotonic() - call_started, 3)
-            check_decision(self.runtime, plan, planning_input['kit_state'], body)
+            # Checks use the full memory, as the bridge does; the packet's episodes are a
+            # slimmed view (episode_views).
+            check_decision(self.runtime, plan, kit_memory(self.runtime, self.runtime.load()[1],
+                                                          body['action'], body['use_memory']), body)
             performance_payload = performance_input(self.runtime, body, plan)
             source = self.runtime.source()
             for attempt in range(API_PERFORMANCE_ATTEMPTS):
@@ -2077,6 +2142,8 @@ def main():
     parser.add_argument('--degraded', action='store_true',
                         help=f'finish/complete: accept style misses as warnings (only after '
                              f'{DEGRADED_AFTER_REJECTIONS} rejections on the turn)')
+    parser.add_argument('--pretty', action='store_true',
+                        help='prepare/decide/finish/complete: indent the JSON for reading (default compact)')
     args = parser.parse_args()
     runtime = Runtime(args.db)
     try:
@@ -2161,7 +2228,10 @@ def main():
                                         host_retry=HOST_RETRY_NOTE)
                 print(json.dumps(rejected, ensure_ascii=False), file=sys.stderr)
                 return 2
-            print(json.dumps(result, indent=2, ensure_ascii=False))
+            # Compact by default: the chat host reads this whole packet every turn, and
+            # indentation alone added about a quarter to its size. --pretty for people.
+            print(json.dumps(result, ensure_ascii=False,
+                             **({'indent': 2} if args.pretty else {'separators': (',', ':')})))
         else:
             if not args.model:
                 parser.error('standalone play requires --model; for ChatGPT use prepare/decide/finish')
