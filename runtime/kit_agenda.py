@@ -27,7 +27,6 @@ clock carries across areas and a revisited room remembers. A move grounded in a 
 respects that claim's knower bands: an actor unaware of a secret cannot act on it.
 No model calls; deterministic Python.
 """
-import re
 
 from . import kit_claims
 from .state_context import require
@@ -294,8 +293,6 @@ def apply_event(state, source, event):
 # ---------------------------------------------------------------------------
 # Salience and conditioned advantage: say why, and only what is true now
 # ---------------------------------------------------------------------------
-ATTENTION = re.compile(r"\b(catch\w*|caught|draw\w*|drew|pull\w*|grab\w*|hold\w*|snag\w*)\s+(your|the|his|her|their)?"
-                       r"\s*(eye|eyes|attention|gaze|notice)\b|\bstands? out\b", re.I)
 SALIENCE_SCHEMA = {'type': 'array', 'items': {
     'type': 'object', 'additionalProperties': False,
     'properties': {'thing': _LINE, 'reason': _LINE, 'roots': {'type': 'array', 'items': _LINE}},
@@ -322,12 +319,6 @@ def check_salience(items, source, state):
             'never a secret they have not found')
 
 
-def check_attention_spoken(text, plan):
-    if ATTENTION.search(text or ''):
-        require(plan.get('salience'), 'The performance says something draws attention: the decision\'s salience '
-                'must name the concrete observable reason')
-
-
 ROLL_MODES = ('normal', 'advantage', 'disadvantage')
 CAUSE_KINDS = ('item', 'spell', 'condition', 'feature', 'position')
 ROLL_CALL_SCHEMA = {'type': 'object', 'additionalProperties': False, 'properties': {
@@ -337,10 +328,6 @@ ROLL_CALL_SCHEMA = {'type': 'object', 'additionalProperties': False, 'properties
                              'roots': {'type': 'array', 'items': _LINE}},
               'required': ['kind', 'ref', 'roots']}},
     'required': ['skill', 'mode', 'cause']}
-CALLED_MODE = re.compile(r"\broll\b[^.]{0,40}\bwith (advantage|disadvantage)\b|"
-                         r"\b(advantage|disadvantage) on (your|the|this|that|a)\b", re.I)
-
-
 def check_roll_call(call, source, state):
     """Advantage or disadvantage cites a condition that is true in state right now."""
     from . import pc_sheet
@@ -366,14 +353,20 @@ def check_roll_call(call, source, state):
         _roots(cause.get('roots'), source, f'{call["mode"].title()} from position', state)
 
 
-def check_roll_spoken(text, plan):
-    found = CALLED_MODE.search(text or '')
-    if not found:
-        return
-    mode = (found.group(1) or found.group(2)).casefold()
+def carriers(plan):
+    """What the performer must voice from the decision, decided first: each salient thing
+    (with its reason), and a called advantage/disadvantage with its cause."""
+    found = [{'say': [item['thing']], 'why': item['reason']} for item in plan.get('salience') or ()]
     call = plan.get('roll_call') or {}
-    require(call.get('mode') == mode, f'The performance calls {mode}: the decision\'s roll_call must too, with its cause')
-    require(call['cause']['ref'].casefold() in text.casefold(), f'Say why: name {call["cause"]["ref"]} when calling {mode}')
+    if call.get('mode') in ('advantage', 'disadvantage'):
+        found.append({'say': [call['mode'], call['cause']['ref']], 'why': call['cause']['kind']})
+    return found
+
+
+def check_carriers_spoken(text, plan):
+    folded = ' '.join((text or '').casefold().split())
+    missing = [w for item in carriers(plan) for w in item['say'] if ' '.join(w.casefold().split()) not in folded]
+    require(not missing, 'The performance must name each decision carrier: ' + ', '.join(missing))
 
 
 # ---------------------------------------------------------------------------

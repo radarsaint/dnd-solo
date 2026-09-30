@@ -746,8 +746,9 @@ PRIVATE_INSTRUCTIONS = (
     'facts, and never on a secret they are unaware of), or a pressure ticks. If the player is '
     'dealing with that agent right now, hold as engaged: that exchange is its advance. A quiet '
     'room is fine; say why it is calm. Optional activities recede: when activities says '
-    'backgrounded, do not remind, prompt, or choose for the player. When something catches the '
-    'eye, say why in salience: the concrete visible detail. '
+    'backgrounded, do not remind, prompt, or choose for the player. What stands out goes in '
+    'salience (thing as the performance names it, reason: the concrete visible detail); the '
+    'performance names each thing. '
     'PC STATE follows the situation, never a default (claims_here.pc): at cards, hands on the '
     'cards and a shield slung; in a fight, weapon, shield, or focus in hand. The player\u2019s word '
     'wins. When the fiction changes it, record the whole picture in pc_state. A declared state '
@@ -758,7 +759,7 @@ PRIVATE_INSTRUCTIONS = (
     'about that source: one short plain question (ask_clarification, call scope); nothing was '
     'rolled and nothing resolves. Advantage '
     'or disadvantage needs a reason true now (held, equipped, active, or a position); owning is '
-    'not holding. Record it in roll_call and name the cause aloud.'
+    'not holding. Record it in roll_call; the performance names the mode and the cause ref.'
 )
 
 PUBLIC_INSTRUCTIONS = (
@@ -1784,6 +1785,8 @@ def performance_input(runtime, body, plan):
             'turn_mode': plan.get('turn_mode'),
             'brief': plan['public_brief'],
     }
+    if kit_agenda.carriers(plan):
+        payload['carriers'] = kit_agenda.carriers(plan)
     if plan.get('ask_player'):
         payload['ask_player'] = {'question': plan['ask_player']['question'],
                                  'note': 'Kit asks this in her own segment and resolves nothing'}
@@ -1878,8 +1881,7 @@ def checked_record(body, plan, speech, performance_variant, source=None, degrade
                           guards=guard_context(source, body), degraded=degraded,
                           public_event=public_event)
     spoken, warnings = result if degraded else (result, [])
-    kit_agenda.check_attention_spoken(spoken, plan)
-    kit_agenda.check_roll_spoken(spoken, plan)
+    kit_agenda.check_carriers_spoken(spoken, plan)
     if ask:
         kit_agenda.check_ask_spoken(speech['segments'], ask)
     elif body['kind'] in EVENT_AFTER_PERFORMANCE_KINDS:
