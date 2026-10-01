@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from runtime import kit_agent, kit_detail
+from runtime import kit_agent, kit_detail, kit_guards
 from runtime.kit_agent import (EVENT_MAX_CHARS, EXCHANGE_MIN_ACTOR_WORDS, KitAgent, KitChatBridge,
                                OpenAIResponsesModel, PendingRuling, Room6CAdjudicator,
                                check_public_content, room_intent, social_event)
@@ -14,6 +14,8 @@ from runtime.state_context import RHYTHM_EVIDENCE_MAX_CHARS, InvalidChange, Runt
 
 
 FIXTURE = Path(__file__).parent / 'fixtures/level_01_area_06c.json'
+# The room's DM-only literal phrases (fixture data, not code).
+PHRASES = kit_guards.leak_phrases(json.loads(FIXTURE.read_text()))
 
 KIT_CHOICE = 'Kit favors the roleplay opening and lets the dealer try a bargain.'
 KIT_FOCUS = 'Spotlight the dealer sizing up the visitor’s nerve rather than the passage price.'
@@ -691,7 +693,7 @@ class ChatBridgeCarrierTests(unittest.TestCase):
         self.assertEqual((brief['reply_to'], brief['scope'], brief['kit_focus']),
                          (NIK_GREETING, 'exchange', KIT_FOCUS))
         self.assertNotIn(KIT_CHOICE, json.dumps(performance['input'], ensure_ascii=False))
-        for phrase in ('reply_to', 'kit_focus', 'grants no authority', 'mouthpieces'):
+        for phrase in ('reply_to', 'kit_focus', 'grants no authority', 'voices her taste'):
             self.assertIn(phrase, performance['instructions'])
         self.assertEqual(performance['performance_limits']['selected_scope'], 'exchange')
         self.assertIn(str(EXCHANGE_MIN_ACTOR_WORDS), performance['performance_limits']['rule'])
@@ -832,7 +834,7 @@ class SocialEventTests(unittest.TestCase):
                 event = self.adjudicator.resolve(action, 0, self.runtime.load()[1]).public_event
                 # Nothing but the player's own words inside a fixed frame.
                 self.assertEqual(event, f'You declare: "{action}"')
-                check_public_content(event, public_view, '')
+                check_public_content(event, public_view, '', phrases=PHRASES)
         # Physical and check turns keep their adjudicated public results unchanged.
         self.assertEqual(self.adjudicator.resolve('I tip the stone tub over.', 0, self.runtime.load()[1]).public_event,
                          'The stone tub is recessed into the floor and cannot be tipped over.')
@@ -890,7 +892,7 @@ class DealerCardTests(unittest.TestCase):
 
     def test_card_is_public_safe(self):
         text = json.dumps(self.card, ensure_ascii=False)
-        check_public_content(text, {}, '')
+        check_public_content(text, {}, '', phrases=PHRASES)
         for secret in ('uktarl', 'harria', 'vampire', 'disguise', 'cheat', 'marked', 'rival',
                        'xanathar', 'bandit', 'doppelganger', 'key'):
             self.assertNotIn(secret, text.lower())
@@ -1080,10 +1082,16 @@ class BridgeVoiceVariantTests(unittest.TestCase):
         voice = kit_agent.KIT_EXPRESSION_V1
         # Keep the added performer prompt short for live latency (Brendon: under ~2000).
         self.assertLessEqual(len(voice), 2000)
-        for guard in ('table presence', 'quiet: none', 'brief: one short remark', 'showtime',
-                      'never changes a fact, rules outcome', 'never hints at hidden information',
-                      'never decides what the player thinks', 'NPCs never borrow her wit',
-                      'generic praise or filler', 'still rule fairly', 'mirror',
+        # One authoritative copy each: table presence, the mirror, player agency, NPC voices,
+        # and padding live in PUBLIC_INSTRUCTIONS, which every variant carries.
+        for gone in ('quiet: none', 'Honor the brief', 'never decides what the player thinks',
+                     'NPCs never borrow her wit', 'filler'):
+            self.assertNotIn(gone, voice)
+        for authoritative in ('quiet means no Kit segment', 'honor its energy, length, and humor',
+                              'PLAYER AGENCY', 'no NPC borrows her wit', 'Never pad to reach a length'):
+            self.assertEqual(kit_agent.PUBLIC_INSTRUCTIONS.count(authoritative), 1)
+        for guard in ('never changes a fact, rules outcome', 'never hints at hidden information',
+                      'generic praise', 'still rule fairly',
                       'Guiding star: nonsense is not entertaining',
                       'coherent and true to what just happened',
                       'a quip that contradicts or ignores the scene is a failure, never flavor',
@@ -1096,7 +1104,7 @@ class BridgeVoiceVariantTests(unittest.TestCase):
         # Brendon's spec, by mode: quippy table talk, theatrical description, tense combat.
         for spec in ('Meta and banter: quippy', 'Description: theatrical, mood-setting',
                      'overacting is welcome', 'Combat: engaged, tense, evocative',
-                     'short punchy sentences', 'momentum, never more words'):
+                     'short punchy sentences'):
             self.assertIn(spec, voice)
         # Removed: the 'X, not Y' example seed, the reusable contrast lines, and the
         # 'quiet in danger' guidance that made combat go silent.
@@ -1106,7 +1114,7 @@ class BridgeVoiceVariantTests(unittest.TestCase):
         # Illustrations come from other scenes: no room actors, speakers, or secrets.
         for word in ('dealer', 'card player', 'uktarl', 'harria', 'toll', 'deck', 'vampire', 'ten gold'):
             self.assertNotIn(word, voice.lower())
-        kit_agent.check_public_content(voice, {}, '')
+        kit_agent.check_public_content(voice, {}, '', phrases=PHRASES)
 
     def _cli(self, *argv):
         out, err = io.StringIO(), io.StringIO()

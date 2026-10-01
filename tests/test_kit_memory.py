@@ -206,7 +206,7 @@ class CallbackTests(MemoryTestCase):
         self.assertIn('callback', brief_schema['required'])
         self.assertIn('player_note', prepared['schema']['properties']['decision']['required'])
         for phrase in ('callback', 'memory_refs', 'player_notes', 'evidence_turns', 'never a score',
-                       'Do not copy improv_read, appraisal, episode, or player note text'):
+                       'Do not copy improv_read, appraisal, player_mood, table_read, episode, or'):
             self.assertIn(phrase, prepared['instructions'])
         plan = self.model.plan(prepared['input']['private'])
         plan.update(memory_refs=['coin'], move='npc_reply', table_presence='quiet')
@@ -384,6 +384,33 @@ class MigrationTests(MemoryTestCase):
         self.runtime.db.commit()
         self.assertEqual(self.bridge.finish('old-plan', QUIET_EXCHANGE_SPEECH)['revision'], 2)
         self.assertEqual(self.runtime.player_notes(), [])
+
+
+class EpisodeViewTests(MemoryTestCase):
+    """kit-slim: the decision packet does not repeat text it already carries."""
+
+    def test_episodes_drop_the_copied_event_and_point_at_shared_dialogue(self):
+        self.play(COIN, 'coin', COIN_SPEECH)
+        self.play('What are the stakes?', 'stakes')
+        prepared = self.bridge.prepare('Deal me in.', 'deal', one_pass=True)
+        private = prepared['input']['private']
+        episodes = private['kit_state']['episodes']
+        self.assertTrue(episodes)
+        for episode in episodes:
+            self.assertNotIn('event', episode, 'event always equals public_event')
+            self.assertIn('public_event', episode)
+            index = int(episode['spoken'].split('[')[1].split(']')[0])
+            self.assertEqual(episode['spoken'], f'same as dialogue_history[{index}].spoken')
+            self.assertIn(private['dialogue_history'][index]['spoken'],
+                          self.runtime.kit_turns_by_id([episode['turn_id']])[0]['spoken'])
+        # The stored episode keeps its full record; only the packet is slimmed.
+        self.assertIn('event', self.runtime.load()[1]['kit']['episodes'][0])
+        # A callback into a pointed-at episode is still checked against the real words.
+        plan = self.model.plan(private)
+        plan.update(memory_refs=['coin'], move='npc_reply', table_presence='quiet')
+        plan['public_brief']['callback'] = COIN_LINE
+        self.assertEqual(self.bridge.complete('deal', {'decision': plan,
+                                                       'performance': CALLBACK_SPEECH})['revision'], 3)
 
 
 if __name__ == '__main__':

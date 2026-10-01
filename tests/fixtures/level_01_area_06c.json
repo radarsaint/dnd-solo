@@ -150,6 +150,12 @@
     "passage_toll": {"allowed_amounts": [10], "unit_words": ["gp", "gold", "gold pieces", "gold coins", "gold coin"], "context_words": ["passage", "toll", "door", "through", "pass", "price", "cost", "costs", "fee", "head", "each", "per", "way", "safe"], "specific_words": ["passage", "toll", "door", "through", "pass", "way", "safe"]},
     "ring_value": {"allowed_amounts": [25], "unit_words": ["gp", "gold", "gold pieces", "gold coins", "gold coin"], "context_words": ["ring"], "specific_words": ["ring"], "_basis": "table_treasure: the silver ring is worth 25 gold pieces (source). No other price may be invented for it."}
   },
+  "leak_phrases": {
+    "_note": "DM-only. Literal phrases the public text may not contain until the phrase appears in the public view. A name in player_may_name is allowed once the player says it.",
+    "phrases": ["doppelganger", "area 14b", "stone key", "marked deck", "marked cards", "deck is marked",
+                "thieves\u2019 tools", "thieves' tools", "pretending to be vampires", "uktarl", "harria", "bandit"],
+    "player_may_name": ["uktarl", "harria"]
+  },
   "leak_keywords": {
     "_note": "DM-only. A set leaks when one public sentence contains a word from every group. Skipped once revealed_by is public, or when the player raised it.",
     "marked_deck": {"revealed_by": "marked_deck", "groups": [["card", "cards", "deck", "decks", "hand", "deal", "dealing"], ["marked", "marks", "marking", "markings", "nicked", "nicks", "crimped", "crimp", "shaved", "rigged", "cheat", "cheats", "cheating", "cheated", "notched", "scuffed", "pinpricks", "pricked", "doctored", "shine on the back"]]},

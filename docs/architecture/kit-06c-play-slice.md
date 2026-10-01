@@ -9,10 +9,10 @@ Ask the assistant to start Kit's area 6c room, then give Kit an action in ordina
 For live chat, the shorter one-pass procedure is an experiment. From the repository root:
 
 ```sh
-python -m runtime.kit_agent init --db kit-06c.sqlite
-python -m runtime.kit_agent prepare --opening --one-pass --db kit-06c.sqlite
-python -m runtime.kit_agent complete --db kit-06c.sqlite --turn-id ENTRY_ID --input-file /tmp/kit-entry.json
-python -m runtime.kit_agent prepare --one-pass --db kit-06c.sqlite --action 'I pull up a chair and ask the stakes.'
+python3 -m runtime.kit_agent init --db kit-06c.sqlite
+python3 -m runtime.kit_agent prepare --opening --one-pass --db kit-06c.sqlite
+python3 -m runtime.kit_agent complete --db kit-06c.sqlite --turn-id ENTRY_ID --input-file /tmp/kit-entry.json
+python3 -m runtime.kit_agent prepare --one-pass --db kit-06c.sqlite --action 'I pull up a chair and ask the stakes.'
 ```
 
 `prepare --opening --one-pass` stages the **initial room introduction** before any player action. Its performance needs narration and a dealer utterance. Complete it using the returned entry ID and a combined JSON object, then show only its `spoken` field. It is saved as a scene-entry turn, so the first player response has its public words in history. An opening cannot be staged after a turn has committed. For a fresh room after an earlier turn, initialize a new test database; a previously initialized database retains its original fixture.
@@ -20,30 +20,32 @@ python -m runtime.kit_agent prepare --one-pass --db kit-06c.sqlite --action 'I p
 For ordinary turns, `prepare --one-pass` returns a turn ID, private decision context, a separate player-visible performance base, instructions, and a combined JSON schema. The assistant writes a single object with `decision` and `performance` to a temporary file, then calls:
 
 ```sh
-python -m runtime.kit_agent complete --db kit-06c.sqlite --turn-id TURN_ID --input-file /tmp/kit-turn.json
+python3 -m runtime.kit_agent complete --db kit-06c.sqlite --turn-id TURN_ID --input-file /tmp/kit-turn.json
 ```
 
 `complete` validates the decision, fixes it for the pending turn, checks the speech, and commits the accepted event, Kit episode, and transcript together. A rejected performance leaves the world uncommitted and keeps the decision fixed for a retry. Every `prepare` response includes `performance_limits` (the flat-reply floors for `call`, `exchange`, and `feature`) and a `host_retry` note. Fill the brief's `reply_to` (verbatim player words), `scope`, and `kit_focus` as the instructions describe. If `complete` or `finish` is rejected, the error JSON carries `decision_fixed` and a specific `retry_instruction`; resubmit a corrected performance for the same turn ID, with the identical decision for `complete`. See [Kit's expression gap](kit-expression-gap.md). It saves one model/tool round trip compared with the staged route. **The model produces both parts in one output, so this route does not prove that the private decision caused the spoken performance.** The first live exchange took 81 seconds with the staged route; no end-to-end speed improvement has been measured yet.
 
+**Packet size (branch `kit-slim`).** Bridge commands (`prepare`, `decide`, `finish`, `complete`, `abandon`, `feedback`) print compact JSON; pass `--pretty` to indent it for reading. On a one-pass turn whose event changes the player view (a card play, a new detail), `input.public.player_view_after_event` is sent as changes to `input.private.dm_context.player_perceivable`: `set` (new value at a dotted path), `appended` (items added to a list), and `removed`, so the table's unchanged rules, powers, and canon ledger are not repeated. The decision's episodes omit `event` (always equal to `public_event`), and an episode whose public words are already in `dialogue_history` says `same as dialogue_history[i].spoken` instead of repeating them. Validation always reads the full view and memory. Measured on the fourth turn of a seeded card game, the printed one-pass packet fell from 103.8 KB to 69.9 KB; the behavior rules, instructions, schema, and checks are unchanged.
+
 For causal evaluation, use the original staged protocol. Run `prepare` without `--one-pass`, create the private plan JSON, and call:
 
 ```sh
-python -m runtime.kit_agent decide --db kit-06c.sqlite --turn-id TURN_ID --input-file /tmp/kit-plan.json
+python3 -m runtime.kit_agent decide --db kit-06c.sqlite --turn-id TURN_ID --input-file /tmp/kit-plan.json
 ```
 
 `decide` validates and fixes the plan, then returns a public performance packet and speech schema. Create the speech JSON and call:
 
 ```sh
-python -m runtime.kit_agent finish --db kit-06c.sqlite --turn-id TURN_ID --input-file /tmp/kit-speech.json
+python3 -m runtime.kit_agent finish --db kit-06c.sqlite --turn-id TURN_ID --input-file /tmp/kit-speech.json
 ```
 
-The assistant shows the player only the `spoken` field from `complete` or `finish`, never the private packet or `trace`. Pending stages survive a Python process restart. A stale revision leaves the world turn uncommitted. `init` refuses to overwrite an existing session; use `view` to resume. For a keyed check, supply the character's actual `--perception` or `--insight` modifier to `prepare`. Without it, that check pauses without consuming a turn. The current CLI does **not** ingest a player-supplied die result; do not silently reroll one. `--no-memory` on `prepare` hides previous Kit episodes and player notes for an ablation.
+The assistant shows the player only the `spoken` field from `complete` or `finish`, never the private packet or `trace`. Pending stages survive a Python process restart. A stale revision leaves the world turn uncommitted. `init` refuses to overwrite an existing session; use `view` to resume. For a keyed check, supply the character's actual `--perception` or `--insight` modifier to `prepare`. Without it, that check pauses without consuming a turn. A player's own roll written in the action ("I rolled 14 + 3 = 17") is used for knowledge checks and card play; the keyed Perception and Insight checks still roll from the session seed with the supplied modifier. Never silently reroll a result. `--no-memory` on `prepare` hides previous Kit episodes and player notes for an ablation.
 
 When the player says something out of character about how the game is going ("fewer menus, please", "more of the dealer"), record it between turns. Do not show the result to the player:
 
 ```sh
-python -m runtime.kit_agent feedback --db kit-06c.sqlite --text 'Fewer menus of options, please.'
-python -m runtime.kit_agent notes --db kit-06c.sqlite
+python3 -m runtime.kit_agent feedback --db kit-06c.sqlite --text 'Fewer menus of options, please.'
+python3 -m runtime.kit_agent notes --db kit-06c.sqlite
 ```
 
 `feedback` saves a private note that cites the latest committed turn (pass `--evidence TURN_ID` to cite another). It commits a new revision, so prepare the next turn afresh. Kit's decision stage sees the note; the performer never does. Its effect can reach the player only through `kit_focus` or `callback`.
@@ -57,7 +59,7 @@ These chat-host paths need **no** `--model` choice and **no** `OPENAI_API_KEY`. 
 For a separate terminal process to call a model on its own, provide a Responses API model ID and `OPENAI_API_KEY`:
 
 ```sh
-python -m runtime.kit_agent play --db kit-06c.sqlite --model YOUR_MODEL_ID --perception 2 --insight 1
+python3 -m runtime.kit_agent play --db kit-06c.sqlite --model YOUR_MODEL_ID --perception 2 --insight 1
 ```
 
 The modifiers are example test-character values. Enter an action at `You>`; `/quit` exits. This API mode resumes the same SQLite session when restarted.
@@ -67,7 +69,7 @@ Examples: “I pull up a chair and ask the stakes”; “I study the tiny dwarve
 For a developer to inspect Kit's **private** decision records after play:
 
 ```sh
-python -m runtime.kit_agent trace --db kit-06c.sqlite
+python3 -m runtime.kit_agent trace --db kit-06c.sqlite
 ```
 
 Do not show `trace` or `runtime.state_context context` to a player during a blind playtest; both expose private state or source information.
@@ -78,7 +80,7 @@ Do not show `trace` or `runtime.state_context context` to a player during a blin
 2. `Runtime.preview` validates provisional events and produces the resulting player projection. The accepted event is fixed before Kit plans.
 3. The private decision stage sees the canonical personality core, bounded DM room context, relevant Level 1 pressure, the campaign through-line boundary, relevance-selected Kit episodes (the last two, plus earlier ones sharing the actor, story thread, or words with the action), evidence-cited player notes, the last four public dialogue turns, and the accepted event. A [reusable scene-discernment read](scene-discernment.md) selects a player bid, an eligible story basis (or none), a live actor and established goal (or none), and Kit's reason for foregrounding the collision. It also records her event appraisal, move, tone, and table-presence choice. The staged chat and API modes fix this decision before a separate performance generation. The one-pass mode validates and saves the decision before checking speech, but both are generated together.
 4. The public performance packet contains the player projection, accepted event, prior **public** dialogue, personality core, a checked brief with objective, tactic, visible cue, player opening, `reply_to` (a verified quote of the player's words), `scope` (`call`/`exchange`/`feature`), `kit_focus` (Kit's public-safe visible choice, derived from her goal and `kit_choice`), and `callback` (a verified quote of an earlier public moment from a turn Kit cites in `memory_refs`, with its public source line, or `none`), plus a curated, public-safe actor card and entry frame. It omits hidden room facts, actor secrets, and the private appraisal text. Its structured segments distinguish Kit, narrator, dealer, and other card players. The API mode uses a separate model request. In a single assistant chat, the same model has already read the private stage, so the packet boundary is **not** a hard context isolation boundary.
-5. A limited output check catches literal secret leaks and mismatches between chosen presence and performance. A scope-based flat-reply guard rejects, for example, an `exchange` whose focus actor says fewer than 30 words; a `call` must stay short. These are floors against flat replies, not quality judgments (see [Kit's expression gap](kit-expression-gap.md)). A rejected performance's retry names the failed check. Per-turn timing is stored outside the turn hash; inspect it with `python -m runtime.kit_agent timing --db kit-06c.sqlite`. Accepted speech, world events, and Kit's episode are committed together with revision and turn-ID checks. A rejected or stale result commits nothing.
+5. A limited output check catches literal secret leaks and mismatches between chosen presence and performance. A scope-based flat-reply guard rejects, for example, an `exchange` whose focus actor says fewer than 30 words; a `call` must stay short. These are floors against flat replies, not quality judgments (see [Kit's expression gap](kit-expression-gap.md)). A rejected performance's retry names the failed check. Per-turn timing is stored outside the turn hash; inspect it with `python3 -m runtime.kit_agent timing --db kit-06c.sqlite`. Accepted speech, world events, and Kit's episode are committed together with revision and turn-ID checks. A rejected or stale result commits nothing.
 
 The code borrows FAtiMA's event, appraisal, memory, and high-level action distinction; it does **not** port FAtiMA's C# toolkit or prove its emotional model has been reproduced. The model chooses the appraisal and move; deterministic rules constrain the world outcome. The staged chat protocol fixes the decision before performance. The one-pass option is a speed experiment with weaker evidence for causal order.
 

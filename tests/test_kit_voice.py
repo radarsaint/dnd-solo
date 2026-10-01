@@ -93,8 +93,8 @@ class MoodMirrorTests(VoiceTestCase):
         self.assertEqual(decision['properties']['player_mood']['properties']['read']['enum'],
                          list(kit_voice.MOOD_READS))
         self.assertIn('mirror', decision['properties']['public_brief']['required'])
-        for phrase in ('player_mood', kit_voice.MIRROR_FORMAT, 'momentum', 'never padding',
-                       'player_mood and table_read are private', 'honor its energy, length, and humor'):
+        for phrase in ('player_mood', kit_voice.MIRROR_FORMAT, 'momentum', 'Never pad to reach a length',
+                       'player_mood is private', 'honor its energy, length, and humor'):
             self.assertIn(phrase, prepared['instructions'])
         self.assertIn('tight', prepared['performance_limits']['mirror'])
         read = prepared['input']['private']['table_read']
@@ -271,7 +271,7 @@ class NpcNoticeTests(VoiceTestCase):
 
     def test_npc_notice_reaches_the_performer_as_the_actors_own_reaction(self):
         prepared = self.bridge.prepare('Ha! I love this place. Deal me in!', 'glee', one_pass=True)
-        for phrase in ('npc_notice', 'own voice and for their own reasons', 'never with Kit’s wit'):
+        for phrase in ('npc_notice', 'for their own reasons', 'no NPC borrows her wit'):
             self.assertIn(phrase, prepared['instructions'])
         plan = self.plan(prepared['input']['private'], player_mood={'read': 'gleeful', 'cue': 'I love this place'},
                          brief={'npc_notice': self.NOTICE,
@@ -393,7 +393,8 @@ class CompatibilityTests(VoiceTestCase):
         for key in ('mirror', 'npc_notice'):
             old['public_brief'].pop(key)
         check_speech(EXCHANGE_SPEECH, old, {}, NIK_GREETING, 'social')
-        kit_voice.check_voice_performance(LONG_SPEECH['segments'], old)
+        kit_voice.check_voice_presence(LONG_SPEECH['segments'], old)
+        kit_voice.check_voice_style(LONG_SPEECH['segments'], old)
 
 
 if __name__ == '__main__':

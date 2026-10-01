@@ -87,8 +87,15 @@ _RESTATE_OPENERS = re.compile(
     r"explain|explained|mention|mentioned|inquire|inquired|reply|replied|announce|announced)\b")
 
 
-def check_padding(segments, player_action, action_kind, public_history=()):
-    """Reject crude padding: repetition, restating the player, recycled lines, filler."""
+def check_padding(segments, player_action, action_kind, public_history=(), public_state=''):
+    """Reject crude padding: repetition, restating the player, recycled lines, filler.
+    public_state is the current public table state (e.g. the player's hand): naming what
+    is on the table again is reporting the state, not padding."""
+    state_words = tokens(public_state or '')
+
+    def stated(run):
+        size = len(run)
+        return any(tuple(state_words[i:i + size]) == run for i in range(len(state_words) - size + 1))
     seen = {}
     for segment in segments:
         # Every position, not the ngram set: a set hides a run repeated inside one
@@ -96,7 +103,7 @@ def check_padding(segments, player_action, action_kind, public_history=()):
         words = tokens(segment['text'])
         for run in [tuple(words[i:i + PADDING_REPEAT_RUN_WORDS])
                     for i in range(len(words) - PADDING_REPEAT_RUN_WORDS + 1)]:
-            if run in seen and len(content_words(run)) >= 2:
+            if run in seen and len(content_words(run)) >= 2 and not stated(run):
                 raise InvalidChange(
                     f'Padding: the turn repeats "{_run_text(run)}". Say each thing once; the floors '
                     'are not targets.')
@@ -120,7 +127,7 @@ def check_padding(segments, player_action, action_kind, public_history=()):
     for turn in public_history or ():
         recycled = ngrams(tokens(performed), RECYCLED_RUN_WORDS) & ngrams(
             tokens(turn.get('spoken', '')), RECYCLED_RUN_WORDS)
-        recycled = {run for run in recycled if len(content_words(run)) >= 2}
+        recycled = {run for run in recycled if len(content_words(run)) >= 2 and not stated(run)}
         if recycled:
             raise InvalidChange(
                 f'Padding: the turn recycles an earlier line ("{_run_text(sorted(recycled)[0])}"). '
@@ -484,6 +491,13 @@ def leak_sets(source):
         sets.append({'name': name, 'groups': entry['groups'],
                      'revealed_text': source['facts'][fact]['text'] if fact else None})
     return sets
+
+
+def leak_phrases(source):
+    """DM-only literal phrases from the room source: {phrases, player_may_name}."""
+    entry = (source or {}).get('leak_phrases') or {}
+    return {'phrases': [p.lower() for p in entry.get('phrases', [])],
+            'player_may_name': [p.lower() for p in entry.get('player_may_name', [])]}
 
 
 _NEGATION = re.compile(r"\b(not|never|no|nothing|n't)\b|n't\b")

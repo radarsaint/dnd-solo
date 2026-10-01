@@ -56,16 +56,37 @@ present actor, canon, or an established claim. A root that is still a secret is 
 ## Advantage needs a present reason
 
 - **Sheet.** `advantage_on` entries may be conditional: `{skill, source, while: held|equipped|active}`.
-- **State.** `held`, `equipped`, and `active` say what is true now. A `pc_state` event (CLI
-  `character --held "Sentinel Shield"`, `--active "..."`) changes them.
+- **State.** `held`, `equipped`, and `active` say what is true now. They are not a sheet default:
+  absent means not yet established, and unknown is never true. The decision's `pc_state` (or the CLI,
+  `character --held "Sentinel Shield"`) commits a `pc_state` event.
 - **Passives.** A passive gets +5 only while its condition is true.
-- **Nik.** Nik's sheet now holds nothing by default, so passive Perception is 14. Holding the
-  Sentinel Shield makes it 19.
+- **Nik.** Nik's sheet sets no held state. Passive Perception is 14 until the Sentinel Shield is
+  established as held, then 19.
 - **Decide.** `roll_call {skill, mode, cause {kind, ref, roots}}`. Advantage or disadvantage
   needs an item held or equipped, an active spell or condition, a sheet feature, or a position
   rooted in scene facts.
 - **Performance.** When the performance calls a roll with advantage or disadvantage, the plan's
   `roll_call` must match it and the text must name the cause.
+
+## The PC's state follows the situation
+
+- **Situation, then the player's word.** Seated at cards: hands on the cards, a shield slung or set
+  aside. A fight or on guard: weapon, shield, or focus in hand. The player's declared state always
+  wins. When the fiction changes it, the decision records the whole picture in
+  `pc_state {held, equipped, active, why}`. It counts for that turn's `roll_call` and commits with the
+  turn.
+- **Odd is a scene event, not a correction.** A declared state that is odd for the situation (a shield
+  up at the card table, a blade drawn at dinner, a focus in hand for a handshake) stands, with its
+  advantage when it is really met. The people present notice and react from their wants:
+  `pc_oddity {what, noticed_by, reaction}`. `noticed_by` names actors present here. The reaction
+  reaches the performer through `npc_notice` (`gear:` or `stunt:`). An agenda agent whose actor
+  noticed counts as having acted this turn, and a move with `trigger: odd` fires only with a
+  `pc_oddity`.
+- **Ask only when unknown.** When the state is genuinely unknown and it matters, Kit asks:
+  `ask_player {about, question}`, with one short plain question, `ask_clarification`, and call scope.
+  It is rejected when the item is already in force (known, even if odd). The turn resolves nothing. It
+  commits only the public question and an `asked` rhythm beat: no adjudicated events, claims, canon,
+  agenda turn, or `pc_state`. The host prepares the original action again with the answer.
 
 ## Natural routing
 

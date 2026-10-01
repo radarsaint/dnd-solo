@@ -282,12 +282,6 @@ def check_voice_style(segments, plan):
                     f'{COMBAT_MAX_SENTENCE_WORDS}). Short, punchy, sensory beats.')
 
 
-def check_voice_performance(segments, plan, focus_speakers=()):
-    """Both halves, for callers outside check_speech."""
-    check_voice_presence(segments, plan, focus_speakers)
-    check_voice_style(segments, plan)
-
-
 # ---------------------------------------------------------------------------
 # Kit's asides respond to reality (playtest 03: "He could have said hello" right
 # after the dealer's full welcome). Brendon: "Nonsensical is not entertaining.

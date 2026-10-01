@@ -17,7 +17,7 @@ mechanism, because an *agent* is anything that wants something:
           wants: "what it wants from the PC specifically"
           roots: [fact | actor | claim ids]
           moves:
-            <move id>: {does, roots, trigger: stall|elsewhere|engaged|any,
+            <move id>: {does, roots, trigger: stall|elsewhere|engaged|odd|any,
                         needs: [claim ids the actor must be aware of], ticks: <pressure id>}
       pressures:
         <id>: {segments, ticks_on, when_full, roots, areas: [...] | "*"}
@@ -34,7 +34,7 @@ from .state_context import require
 
 KINDS = ('npc', 'monster', 'faction', 'environment', 'clock')
 DISPOSITIONS = ('hostile', 'friendly', 'neutral')
-TRIGGERS = ('stall', 'elsewhere', 'engaged', 'any')
+TRIGGERS = ('stall', 'elsewhere', 'engaged', 'odd', 'any')  # odd: the PC does something odd for the situation
 # none: something advanced. engaged: the player is dealing with that agent right now, and
 # that exchange IS its advance. quiet: nothing here wants anything live. paced: the area's
 # pace has not come due.
@@ -200,8 +200,9 @@ AGENDA_SCHEMA = {
 NO_AGENDA = {'advances': [], 'ticks': [], 'hold': {'reason': 'quiet', 'agent': 'none', 'why': 'No agenda here.'}}
 
 
-def check_agenda(block, packet, source, state):
-    """Structure plus the hard pacing rule. Returns the ticks this decision implies."""
+def check_agenda(block, packet, source, state, reactors=()):
+    """Structure plus the hard pacing rule. Returns the ticks this decision implies.
+    reactors: agents reacting to a pc_oddity this turn; that reaction is their advance."""
     if packet is None:
         return {}
     require(isinstance(block, dict) and set(block) == set(AGENDA_SCHEMA['required']),
@@ -225,6 +226,9 @@ def check_agenda(block, packet, source, state):
                     f'{item["agent"]} has no available move {item["move"]!r}'
                     + (f' ({agent["blocked_moves"][item["move"]]})' if item['move'] in agent.get('blocked_moves', {})
                        else '; use a declared move or "new" with roots'))
+            require(agent['moves'][item['move']].get('trigger') != 'odd' or item['agent'] in reactors,
+                    f'{item["move"]} fires when the PC does something odd for the situation: record it in '
+                    f'pc_oddity with {item["agent"]}\'s actor in noticed_by')
             if agent['moves'][item['move']].get('ticks'):
                 ticks[agent['moves'][item['move']]['ticks']] = ticks.get(agent['moves'][item['move']]['ticks'], 0) + 1
     require(isinstance(block['ticks'], list), 'agenda.ticks is a list')
@@ -241,7 +245,8 @@ def check_agenda(block, packet, source, state):
     hold = block['hold']
     require(isinstance(hold, dict) and hold.get('reason') in HOLDS, 'agenda.hold.reason: ' + ', '.join(HOLDS))
     _text(hold.get('why'), 'agenda.hold.why')
-    moved = bool(block['advances'] or ticks)
+    reacting = [r for r in reactors if r in agents]
+    moved = bool(block['advances'] or ticks or reacting)
     require(hold['reason'] != 'none' or moved, 'hold none means something advanced: list the advance or tick')
     if hold['reason'] == 'engaged':
         require(hold.get('agent') in agents and agents[hold['agent']]['presence'] == 'onstage',
@@ -259,9 +264,10 @@ def check_agenda(block, packet, source, state):
     return ticks
 
 
-def agenda_event(block, packet, turn_id, ticks):
+def agenda_event(block, packet, turn_id, ticks, reactors=()):
     """Commit record: turn count, who acted on their want, clock ticks."""
-    acted = [item['agent'] for item in block.get('advances', [])]
+    acted = [item['agent'] for item in block.get('advances', [])] + \
+        [r for r in reactors if r in packet['agents']]
     if block.get('hold', {}).get('reason') == 'engaged':
         acted.append(block['hold']['agent'])
     moves = [f'{i["agent"]}:{i["move"]}' for i in block.get('advances', [])]
@@ -368,3 +374,112 @@ def check_roll_spoken(text, plan):
     call = plan.get('roll_call') or {}
     require(call.get('mode') == mode, f'The performance calls {mode}: the decision\'s roll_call must too, with its cause')
     require(call['cause']['ref'].casefold() in text.casefold(), f'Say why: name {call["cause"]["ref"]} when calling {mode}')
+
+
+# ---------------------------------------------------------------------------
+# PC state follows the situation; the player's word wins; odd is a scene event
+# ---------------------------------------------------------------------------
+# What the PC holds, wears, or has running is not a sheet default. It follows the fiction
+# (seated at cards: hands on cards; a fight: weapon, shield, or focus in hand) and the
+# player's own word always wins. A declared state that is odd for the situation (a shield at
+# the card table, a blade drawn at dinner) stands, advantage included when it is really met:
+# the people present notice and react from their wants (pc_oddity). Only when the state is
+# genuinely unknown and it matters does Kit ask (ask_player), and that turn commits nothing
+# mechanical.
+PC_STATE_SCHEMA = {'type': 'object', 'additionalProperties': False, 'properties': {
+    'held': {'type': 'array', 'items': _LINE}, 'equipped': {'type': 'array', 'items': _LINE},
+    'active': {'type': 'array', 'items': _LINE}, 'why': _LINE},
+    'required': ['held', 'equipped', 'active', 'why']}
+ASK_PLAYER_SCHEMA = {'type': 'object', 'additionalProperties': False,
+                     'properties': {'about': _LINE, 'question': _LINE}, 'required': ['about', 'question']}
+PC_ODDITY_SCHEMA = {'type': 'object', 'additionalProperties': False, 'properties': {
+    'what': _LINE, 'noticed_by': {'type': 'array', 'items': _LINE}, 'reaction': _LINE},
+    'required': ['what', 'noticed_by', 'reaction']}
+ASK_MAX_WORDS = 25
+PC_STATE_ITEMS = 12
+
+
+def check_pc_state(block):
+    """The PC's full in-force picture now, with the fiction or player words behind it."""
+    from . import pc_sheet
+    require(isinstance(block, dict) and set(block) == set(PC_STATE_SCHEMA['required']),
+            'pc_state needs held, equipped, active, why')
+    for key in pc_sheet.CONDITIONS:
+        require(isinstance(block[key], list) and len(block[key]) <= PC_STATE_ITEMS and
+                all(isinstance(v, str) and 0 < len(v.strip()) <= 60 for v in block[key]),
+                f'pc_state {key} lists up to {PC_STATE_ITEMS} names')
+    _text(block['why'], 'pc_state why')
+    require(len(block['why'].split()) >= 4, 'pc_state why names the situation or the player\'s words that set it')
+
+
+def with_pc_state(state, block):
+    """A copy of state with the decision's pc_state applied (for this turn's roll_call)."""
+    if not block or not state.get('player_sheet'):
+        return state
+    from . import pc_sheet
+    sheet = dict(state['player_sheet'], **{k: list(block[k]) for k in pc_sheet.CONDITIONS})
+    return {**state, 'player_sheet': sheet}
+
+
+def pc_state_event(block, turn_id):
+    from . import pc_sheet
+    return {'type': 'pc_state', **{k: list(block[k]) for k in pc_sheet.CONDITIONS},
+            'evidence': f'Set with turn {turn_id}: {block["why"][:TEXT_MAX]}'}
+
+
+def check_ask_player(block, plan, state):
+    """A short plain question when the PC's state is genuinely unknown. Nothing else rides on it."""
+    from . import pc_sheet
+    require(isinstance(block, dict) and set(block) == {'about', 'question'}, 'ask_player needs about, question')
+    _text(block['about'], 'ask_player about')
+    question = block['question'].strip()
+    require(question.endswith('?') and 0 < len(question.split()) <= ASK_MAX_WORDS,
+            f'ask_player.question is one short plain question (at most {ASK_MAX_WORDS} words, ending "?")')
+    sheet = state.get('player_sheet') or {}
+    for key in pc_sheet.CONDITIONS:
+        require(not pc_sheet.condition_true(sheet, block['about'], key),
+                f'{block["about"]} is already {key}: its state is known, so do not ask. If it is odd for '
+                'the situation, let the people present notice it (pc_oddity)')
+    require(plan['move'] == 'ask_clarification' and plan['public_brief']['scope'] == 'call',
+            'ask_player is an ask_clarification move with call scope')
+    require(plan['table_presence'] != 'quiet', 'Kit asks the question herself: table_presence cannot be quiet')
+    busy = [key for key in ('pc_state', 'roll_call', 'salience', 'pc_oddity') if plan.get(key)]
+    busy += ['claims'] if plan.get('claims') else []
+    busy += ['detail.inventions'] if (plan.get('detail') or {}).get('inventions') else []
+    require(not busy, 'An ask_player turn commits nothing mechanical; drop ' + ', '.join(busy))
+
+
+def check_ask_spoken(segments, block):
+    words = ' '.join(block['question'].casefold().split())
+    require(any(segment['speaker'] == 'Kit' and words in ' '.join(segment['text'].casefold().split())
+                for segment in segments),
+            'Kit asks ask_player.question in her own segment, in those words, and resolves nothing')
+
+
+def check_pc_oddity(block, plan, state):
+    """The PC's declared state or habit is odd for the situation: present people notice."""
+    from . import kit_voice
+    require(isinstance(block, dict) and set(block) == set(PC_ODDITY_SCHEMA['required']),
+            'pc_oddity needs what, noticed_by, reaction')
+    _text(block['what'], 'pc_oddity what')
+    _text(block['reaction'], 'pc_oddity reaction')
+    require(len(block['what'].split()) >= 3, 'pc_oddity.what names the odd thing and the situation it jars with')
+    require(len(block['reaction'].split()) >= 4,
+            'pc_oddity.reaction says how they react and which of their wants drives it')
+    area = state.get('area')
+    present = {k for k, a in (state.get('actors') or {}).items()
+               if a.get('location') == area and a.get('status') not in GONE}
+    require(isinstance(block['noticed_by'], list) and 1 <= len(block['noticed_by']) <= 3 and
+            all(n in present for n in block['noticed_by']),
+            'pc_oddity.noticed_by lists 1-3 actor ids present in this area')
+    notice = kit_voice.parse_npc_notice(plan['public_brief'].get('npc_notice', ''))
+    require(notice is not None and notice[0] in ('gear', 'stunt'),
+            'A pc_oddity reaches the table through the brief: npc_notice "gear: ..." or "stunt: ..."')
+
+
+def oddity_reactors(block, source):
+    """Agenda agents whose actor noticed the oddity: their reaction is their advance."""
+    agenda = compile_agenda(source)
+    if not block or not agenda:
+        return []
+    return sorted(k for k, a in agenda['agents'].items() if a.get('actor') in block['noticed_by'])
