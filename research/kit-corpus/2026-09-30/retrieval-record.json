@@ -1,0 +1,561 @@
+{
+  "captured_on": "2026-09-30",
+  "timezone": "America/Los_Angeles",
+  "source": "personal_context.search retrieval responses",
+  "limits": "These are retrieved excerpts and summaries, not a complete archive export. Provider-local c-number references are not global conversation identifiers. Source UTC timestamps are retained; relative ages are unreliable and not used.",
+  "results": [
+    {
+      "query_label": "bastion-modeled",
+      "text": "[convo search]\n- [USER_FACT] [c0] U@2025-03-19T03:16:21Z, -1y 6m: Brendon-authored campaign prompt: player nat 20 recovers Lighthouse-abandonment police blotter; wants 10-hour escalation from Enders looting and Lamplighter failures through Divination Engine compromise to Flaming Blades replacing Lamplighters as peacekeepers.\n- [PRIOR_ASSISTANT_OUTPUT] [c0] A@2025-03-19T03:16:23Z, -1y 6m: Exact artifact: “Lamplighter command dissolved”; Flaming Blades seize outpost, execute/press officers, melt Lamplighter sigils, and Captain Sorrin declares, “The age of order is over. The law now burns.” Final: “The streets burn. The city is lost. The Lighthouse is dark.”\n- [USER_FACT] [c0] U@2025-03-19T03:29:38Z, -1y 6m: Brendon-authored NPC/faction investigation setup: Orxta investigates missing Darius Quinn’s office for clues to Lamplighter downfall; Darius is Lamplighter Internal Affairs, with Flaming Blades and Lighthouse Armory connections.\n\n- [USER_FACT] [c1] U@2025-04-01T23:28:46Z, -543d: Campaign: Lamplighters guard HQ is the largely abandoned Lighthouse; known gangs include Bride’s Maids/Bloody Brides, Flaming Swords/Blades, and Enders.\n- [USER_FACT] [c1] U@2025-04-03T23:45:37Z, -543d: Enders graffiti dark conspiracy theories/blasphemies against Bast and accuse Flaming Blades of devil worship; their body-horror augmentations are “the more cracked out the better.”\n- [USER_FACT] [c1] U@2025-04-30T01:18:03Z, -519d: After six months’ disaster and an illusionary prison, players fortified the Lighthouse; a young halfling fleeing Enders is intended to lead them to citizens needing help.\n- [PRIOR_ASSISTANT_OUTPUT] [c1] A@2025-04-16T02:50:03Z, -532d: Exact prior scene: asylum-seeker Quill Siltbrand says, “Please! Please—I know you're Lamplighters! Let me in! They're coming!”; claims Enders wanted her tongue “to make a good sigil.” Assistant then designed augmented Ender attackers and Quill’s badge/father hook.\n- [PRIOR_ASSISTANT_OUTPUT\n\n- [USER_FACT] [c2] U@2025-10-28T23:53:47Z, -11mo: Bastion & Redoubt campaign: Enders defeated Flaming Blades; now operate domain-level from the Lighthouse; Darius Quin joined as supposed Lamplighter, secretly serial killer, friendly with party.\n- [USER_CONSTRAINT] [c2] U@2025-10-29T00:27:32Z, -11mo: Crown of Bast quest: place it on a young girl from Redoubt to make her queen; Darius should steer them toward a false princess as red herring, then take the crown after coronation.\n- [USER_PREFERENCE] [c2] U@2025-10-29T00:55:42Z, -11mo: Discovery must emerge through investigation and subtle, player-perspective clues; avoid hammering clues, obvious reveals, and railroading.\n- [PRIOR_ASSISTANT_OUTPUT] [c2] A@2025-10-29T01:18:36Z, -11mo: Boat-arrival scene: young girl reaches Lighthouse soaked, carrying crate of three kittens; Redoubt ferry tag; heterochromia; says “I thought the light was calling me”; Darius appears, says “Tide brings what it wants. Looks like it wants her.”\n\n- [USER_FACT] [c3] U@2025-04-02T03:36:30Z, 1y 6mo: Brendon-authored Aric notes model Lamplighters’ Patrol Division slaughtered by Flaming Blades; Crown Vespers attached to Pope/Castle; Aric is last patrol member, keeps lamps burning, fears last Lighthouse lighting, prays to Bast.\n- [PRIOR_ASSISTANT_OUTPUT] [c3] A@2025-04-02T03:36:32Z, 1y 6mo: Exact assistant rendering of that requested scene: “There *are* monsters in Bastion and Redoubt”; “I will light the lamps”; “Who will remember that we tried?”; “Let your light give hope to the lost… terror to those who love the dark.”\n- [PRIOR_ASSISTANT_OUTPUT] [c3] A@2025-04-02T03:08:43Z, 1y 6mo: Aric’s office aftermath modeled restrained evidence: no defenses/tricks; inventory key opens deliberate, still office; last log says “Will keep order for as long as I’m able”; hidden box preserves a pale gray/gold feather.\n\n- [USER_FACT] [c4] U@2025-08-05T23:10:01Z, -421d: Brendon is running Bastion & Redoubt’s D&D campaign; authored Enders/Flaming Blades faction designs emphasizing Ender crowd control/augment versatility versus Blade buffs, mobility, brutality, and organized tactics.\n- [USER_FACT] [c4] U@2025-08-20T01:16:58Z, -406d: In “Angel’s Garten,” players enter a besieged healing temple from a north spiral staircase; Vane is already bloody among Enders, blocking the southern door.\n- [PRIOR_ASSISTANT_OUTPUT] [c4] A@2025-08-20T01:34:56Z, -406d: Proposed a 120-ft lightning line crossing Vane, Bore Gasket, Dr. Mireth, Morrow Echo, augmented grunts, Barrak Oln, Commander Vex Harn, Rax, Thol, and Sira; Brendon supplied DC 13 and 13 lightning damage, modeling actual player-response adjudication."
+    },
+    {
+      "query_label": "dnd-project-inventory",
+      "text": "[convo search]\n- [USER_FACT] [c2] U@2025-02-25T03:04:17Z, -1y7mo: D&D worldbuilding project includes Sċēawere/“the Illusion Engine,” made during the Great War to contain creatures capable of war crimes; user requested codex/lore development and linked all illusion magic to it.\n- [USER_FACT] [c2] U@2025-02-05T03:49:08Z, -1y7mo: Character Kaith is a warforged with shame as a weapon of mass destruction, seeking his kin; user modeled consequences, boon/bane, and narrative play around implanting an Illusion Engine piece.\n- [PRIOR_ASSISTANT_OUTPUT] [c4][c6][c9] A@2024-07-10T02:53:25Z, -2y2mo: Bastion and Redoubt project evidence includes twin-city setting, Lamplighters campaign/play-by-post framing, Castle Bastile, River Illyndra, and districts; [c10] is a one-off stable/goblin scene.\n\n- [USER_FACT] [c8][c12] U@2025-10-28T23:53:47Z, -11mo: **Bastion & Redoubt** is an active campaign; Enders defeated Flaming Blades, returned to the Lighthouse, and now do domain-level play. Darius/Darious Quin is a Lamplighter/serial killer ally; Crown of Bast is tied to crowning a young Redoubt queen.\n- [USER_FACT] [c8] U@2024-11-13T02:03:30Z, -1y10mo: **Bastion and Redoubt** are the paired fortress cities; Redoubt contains the Divination Engine. Good King Brindlecoats is a Hadozee king of both.\n- [PRIOR_ASSISTANT_OUTPUT] [c3] A@2024-04-15T05:54:49Z, -2y5mo: Assistant-created setting names include **Storm Spire, Veil Shard, Mirror Maze, Genesis Gate, Bastion Seal, Alchemist’s Crucible**, and countries Tempestas Regnum, Mortis Dominion, Fata Morgana, Arcadia, Fortalis; no user-authored project evidence in this entry."
+    },
+    {
+      "query_label": "earthfall-authored",
+      "text": "[convo search]\n- [USER_FACT] [c0] U@2026-08-18T01:50:04Z, +1mo12d: Live-play DM reports players tagged themselves, successfully avoiding combat; requested urgent ownership puzzle.\n- [USER_CONSTRAINT] [c0] U@2026-08-18T00:46:52Z, +1mo12d: Rejected invented computer/membership opening; required only the manticore fight, with difficulty dial, classification label gun, and physical remote.\n- [USER_FACT] [c0] U@2026-08-18T02:10:45Z, +1mo12d: Live-play player action—poured Coke on manticore; later commanded “reboot”; nat 20 RFID hack produced ownership transfer.\n\n- [USER_FACT] [c1] U@2026-09-02T00:21:44Z, -28d: DM/designer premise: Earthfall is a “system apocalypse isekai”; modern structures collapse at 2 a.m.; outside survivors enter a timed, escalating dungeon with explicit mechanics, loot, sponsors, ratings, and spectacle.\n- [PRIOR_ASSISTANT_OUTPUT] [c1] A@2026-09-02T00:21:00Z, -28d: Live-play ledger: in Bear Grylls Bulk Survival Club, party obtained the classification gun; most tagged themselves `EMPLOYEE`, Bear Grylls `PRINCIPAL TALENT`; Coke poured into animatronic manticore; commanded reboot; natural 20 hacked it through RFID.\n- [USER_FACT] [c1] U@2026-09-02T01:45:11Z, -28d: DM requested player-facing Fryvern combat information/stat block; live feed was used to reveal behavior: clustered cone, isolated “grab, climb, sting, drop,” and exploitable post-breath vulnerability.\n\n- [USER_FACT] [c2] U@2026-09-20T17:46:04Z, -10d: Brendon accepted the planned bit “Nick cage in a cage”; this is user approval, not live-play evidence.\n- [PRIOR_ASSISTANT_OUTPUT] [c2] A@2026-09-20T17:46:04Z, -10d: Planned scene: Nicolas Cage is introduced literally in an iron hanging cage in Skullport; players hear “Before you leave, I should tell you the lock is decorative. …The chain is not.” He stole an artifact from Xanathar/Blackbeard.\n- [PRIOR_ASSISTANT_OUTPUT] [c2] A@2026-09-20T17:23:21Z, -10d: Planned NPC craft: Zeke enables player ideas—“You want the cannon pointed backward?” / “Give me twenty minutes.” Maribel makes treasure tangible—“Open the blue ones. Sell the red ones. Don’t open anything stamped with a church seal until we’re offshore.” Mama Celestine gives informed costs, not prohibitions.\n\n- [USER_FACT] [c3] U@2026-09-30T03:17:08Z, -16h: Brendon’s planned transition to Nassau: “their own boat crewed by the damned,” with “nick cage in cage as the mandatory entertanment prisoner in a hanging cage on the ship”; requested “a full introduction.”\n- [PRIOR_ASSISTANT_OUTPUT] [c3] A@2026-09-30T03:20:46Z, -16h: Nassau premise: Starcade survivors arrive; damned crew aboard unnamed ship; Nicolas Cage cage interaction includes white/red ropes and player responsibility; Mercy Pike gives orders; Xanathar announces six-day treasure race. (Assistant-authored, not Brendon’s model.)\n- [USER_FACT] [c3] U@2026-09-30T01:28:02Z, -18h: Live-play input: player used “spot osha violation,” rolled nat 20, remained in Starcade, searched for prize-counter tickets.\n\n- [USER_FACT] [c4] U@2026-07-22T02:55:14Z, +2mo: Brendon’s Earthfall DM/designer premise: Bear is “our baby bear,” a real person bound to the club after he “found the right spot”; his party knowingly stays to help him.\n- [USER_FACT] [c4] U@2026-07-22T03:16:36Z, +2mo: In live play, a player walks to Membership Services computer with a real-world exploit; Brendon requested a realistic, anachronistic, frustrating 1980s sequence and “the actions,” not an image.\n- [USER_FACT] [c4] U@2026-07-22T02:00:32Z, +2mo: Live-play input: “vee attempts to fill out the membership”; requested a form “make her hate it.”\n\n- [USER_CONSTRAINT] [c5] U@2026-07-22T00:33:19Z, -70d: DM/designer planned Area 16 arena: Bear Grylls as a “sell out who slaps his name on everything”; many named contestants, including Bear.\n- [USER_CONSTRAINT] [c5] U@2026-07-22T00:42:13Z, -70d: explicitly rejected irrelevant race-document framing: “the race document has nothing to do with this”; limited design time.\n- [USER_CONSTRAINT] [c5] U@2026-07-22T00:45:13Z, -70d: required an actual runnable “official WOTC style session for 3 hours of play,” overengineered Bear Grylls/Cosco room with table mechanics, not vibes.\n\n- [USER_FACT] [c6] U@2026-06-24T01:16:20Z, -98d: DM/designer planned encounter: Gary Busey, Noel Armitage, Sasha Crowe; Corporate Goldilocks with Coke Bear, Naked and Afraid Bear Grylls, and cyberpunk Stern Bear Stearns Bear.\n- [USER_PREFERENCE] [c6] U@2026-06-24T01:38:39Z, -98d: rejected assistant draft for “too many gpt isms”; requested read-aloud prose, not scaffolding/explanation.\n- [PRIOR_ASSISTANT_OUTPUT] [c6] A@2026-06-24T01:38:55Z, -98d: revised Liability Lounge scene: Auntie Nacre interviews survivors; exact premise includes “The floor is not a prison… This is built to see what comes out.”"
+    },
+    {
+      "query_label": "bastion-raw-aric",
+      "text": "[convo search]\n- [USER_CONSTRAINT] [c0] U@2025-04-02T03:36:30Z, +1y5m28d: User wording: “write his notes about the fall of the lamplighters. The Crown Vespers, the attachment of the lamplighters given to the Pope and to the Castle, it is the Patrol Division that has fallen under the knives of the flaming blades. it was a blood bath. but here it is, the real truth. There *are* monsters in Bastion and Redoubt. I am the last of the patrol division, and I will keep the light burning until my last breath. I hope the other divisions survive. I pray to bast that the king lives. But if the city has fallen from within, what how do we have that she will remember us. I do not fear my death. I know it is comming. I fear that I will be the last to light the lamp at the lighthouse. Please bast, let your light give hope to the lost and fear to those that love evil.”\n- [PRIOR_ASSISTANT_OUTPUT] [c0] A@2025-04-02T03:36:32Z, +1y5m28d: Separate assistant prose, not user wording: titled “Log Entry — Not For Circulation,” describing Patrol Division slaughter by Flaming Blades, Aric as last survivor, continued patrols/lamp-light"
+    },
+    {
+      "query_label": "casio-modeled",
+      "text": "[convo search]\n- [USER_PREFERENCE] [c0] U@2026-08-26T00:52:52Z, -35d: rejected slang/glossary; wanted a Captain Kirk style guide for Casio, with grandiose monologue cadence.\n- [USER_CONSTRAINT] [c0] U@2026-08-26T01:08:39Z, -35d: “Always write in this cadence”; accepted cadence uses repetition, mythic/civilizational scale, rising parallelism, and an absolute closing.\n- [USER_FACT] [c0] U@2026-08-26T02:53:53Z, -35d: Casio’s partner is Vrixil, a slaad; campaign context includes unstable portals/collapsing Sigil.\n\n- [USER_FACT] [c1] U@2026-09-23T01:38:28Z, 7d: Casio is a Mechanus envoy/monodrone PC; paired with Vrixil the slaad; gambles before spending to disprove chaos; Captain Kirk cadence; ratatosk pit fighter and lost warlock companions.\n- [USER_CONSTRAINT] [c1] U@2026-09-23T01:49:40Z, 7d: portals in/out of Sigil are not working; investigating black market in the Lady’s Ward to determine whether goods still move with or without portals.\n- [PRIOR_ASSISTANT_OUTPUT] [c1] A@2026-09-23T01:49:42Z, 7d: suggested Casio cross-examination questions about recent arrivals, routes, prices, delivery, return logistics, keys, bypasses, and “Are you moving through doors, or around them?”; no direct user-authored dialogue retrieved.\n\n- [PRIOR_ASSISTANT_OUTPUT] [c2] A@2026-08-12T01:37:21Z, -49d: No direct Brendon-authored Casio performance retrieved; assistant suggestions include “Steady now.” and green-slaad dialogue, not user speech.\n- [PRIOR_ASSISTANT_OUTPUT] [c2] A@2026-08-12T01:42:16Z, -49d: “Aziraphale”/Good Omens angel voice was an explicit style model; suggested Casio lines include “No, thank you,” “You may wait over there,” and “My dear, I asked for discretion, not a quieter crime.”\n- [PRIOR_ASSISTANT_OUTPUT] [c2] A@2026-08-12T02:02:02Z, -49d: Assistant-authored campaign goal: Casio composes “the First Free Law”; exact proposed recurring line: “No one belongs to anyone. I intend to make that legally true.”"
+    },
+    {
+      "query_label": "neverwinter-wellspring",
+      "text": "[convo search]\n- [USER_FACT] [c0] U@2026-04-07T14:20:25Z, -176d: User asks about Neverwinter; context is lore research, not their authored D&D project.\n- [PRIOR_ASSISTANT_OUTPUT] [c0] A@2026-04-07T14:17:44Z, -176d: Assistant-generated Neverwinter lore overview; no Brendon-authored scene openings, NPC dialogue, mechanics, encounters, rulings, or player performances identified.\n- [PRIOR_ASSISTANT_OUTPUT] [c0] A@2026-04-07T15:03:20Z, -176d: Assistant linked Neverwinter to Waterdeep: Dragon Heist via Dagult Neverember’s missing 500,000 gold; this is assistant-authored lore, not evidence of Brendon’s project work.\n\n- [USER_FACT] [c1] U@2025-08-22T22:59:11Z, -1y1m: Neverwinter becomes “Winter”; later “The Remember” is the Shadowfell/Net counterpart to Neverember (assistant-generated elaboration, not user-authored campaign evidence).\n- [USER_CONSTRAINT] [c5] U@2026-05-29T00:34:07Z, -4mo: Requested Neverwinter grounding material for a Circle of Stars druid after Greengrass; described him as claiming another plane and needing roots “down here.”\n- [PRIOR_ASSISTANT_OUTPUT] [c5] A@2026-05-29T00:34:29Z, -4mo: Assistant-authored scene packet: “The morning after Greengrass, Neverwinter does not smell like a city…”; local NPCs, objects, encounters, Circle of Stars mechanics, and “The Counting of First Lights.”\n\n- [USER_FACT] [c2] U@2026-05-23T16:01:28Z, -4mo: Neverwinter one-shot/campaign work: “Neverwinter: The Lamp & Hook Job,” explicitly a Guy Ritchie fantasy-crime heist for 4–6 level 1–3 players; user: “I'm going to use info from this thread to build a quick one shot…”\n- [USER_FACT] [c2] U@2026-05-28T22:57:20Z, -4mo: User explicitly calls “The Witch in the Jar” “a continuation of my neverwinter campaign”; prior campaign elements include Lamp & Hook, Blackflag Docks, House of Measured Coin, Evernight, Brick, Mara Hook, and Jerek Vale.\n- [PRIOR_ASSISTANT_OUTPUT] [c2] A@2026-05-16T22:02:01Z, -4mo: Assistant-authored—not user-authored—Lamp & Hook scene opening and NPC dialogue: “Rain drums softly against the windows of the Lamp & Hook…”; Brick fight scene and Neverwinter animal list are likewise assistant-generated.\n\n- [USER_FACT] [c3] U@2026-06-27T22:42:38Z, -95d: Brendon’s Neverwinter work is an actual campaign context: asked about a heavy-duty bank ward; later designed vault-entry/heist clues with the House of Measured Coin, Waukeen, Evernight, and Tasha-related material.\n- [PRIOR_ASSISTANT_OUTPUT] [c3] A@2026-06-27T22:52:03Z, -95d: Assistant-authored mechanics/encounters, not confirmed Brendon authorship: four-key opening; ledger-as-lock; maintenance shutdown; Evernight reflection/crawlspace; security-audit clue.\n- [USER_FACT] [c8] U@2026-04-14T23:16:34Z, -169d: Explicitly connected campaign/location name: Neverwinter; requested Guy Ritchie-style grudgel pugilist, then stated “his name is brick” (no Wellspring evidence retrieved).\n\n- [USER_FACT] [c6] U@2026-05-14T02:44:19Z, -139d: Brendon’s Neverwinter project is framed as a D&D campaign: low-caste mobsters/criminals in a city rebuilt by fallen politician Dagult Neverember; “Competency is the real coin of the realm”; player characters know each other and are rooted in the city.\n- [USER_FACT] [c6] U@2026-05-14T02:43:54Z, -139d: Brendon-authored Neverwinter setting/mechanics include Neverwinter/Evernight sharing space, the Chasm enabling Shadowfell passage, gang movement between cities, homebrew abilities to store/escape/affect worlds, sentient items, and industrial mass-produced magic.\n- [PRIOR_ASSISTANT_OUTPUT] [c6] A@2026-05-14T02:44:22Z, -139d: Assistant-generated Neverwinter expansion includes “You are not strangers arriving in Neverwinter,” criminal archetypes, five session-zero questions, districts (Blackflag Docks, Ashmarket, Grimhollow, Cinderworks), NPC fixtures, and the “city claim”; not Brendon-authored."
+    },
+    {
+      "query_label": "fable-isekai-modeled",
+      "text": "[convo search]\n- [USER_FACT] [c0] U@2025-08-23T07:11:29Z, -1y1m: Brendon’s OP Isekai/Fable setup: transported to a video-game-like world with overpowered abilities that improve over time; tagged NSFW.\n- [USER_PREFERENCE] [c0] U@2025-08-23T07:17:08Z, -1y1m: Brendon rejected overly bleak “asshole mode”; preferred balanced dark/playful tone where indulgence is rewarding, consequences complicate, and NPCs can be authentic lovers or political players.\n- [PRIOR_ASSISTANT_OUTPUT] [c8] A@2026-02-22T21:57:37Z, -7m: Prior project overview authored by assistant: Earthfall: Live uses physical dungeon-collapse mechanics, timed floors, Waterdeep intervals every third floor, D&D-location themes, artifacts/curses with hard rules, and only telepathic announcements.\n\n- [USER_FACT] [c1] U@2026-03-05T16:31:59Z, 6mo: Players are themselves in a DCC-inspired apocalypse; choose from long DDB/purchased-content reskin list, seeing descriptions but hidden mechanics; AI mocks humanity, choices imply permanent bodily consequences.\n- [USER_CONSTRAINT] [c1] U@2026-03-05T16:42:02Z, 6mo: Standalone race headers name player-facing identities whose following stat blocks are 1:1 mechanical reskins (e.g., Dwarf→Time Bandit, Drow→Themyscirian); preserve concrete, recognizable identities that obscure chassis.\n- [PRIOR_ASSISTANT_OUTPUT] [c1] A@2026-03-05T16:42:12Z, 6mo: Mapping summary: Aasimar→Asari; Dragonborn→Yautja; Dwarf→Time Bandit; Drow→Themyscirian; High Elf→Vulcan; Deep Rock Gnome→Gelfling; Goliath→Na’vi; Halfling→Care Bear; Aarakocra→Gargoyle; Changeling→Renuyu.\n\n- [USER_FACT] [c2] U@2025-09-24T05:30:26Z, +1y6d: Isekai D&D campaign where players are whisked into the game as themselves; user requested conversational, incremental development.\n- [USER_FACT] [c2] U@2025-09-24T05:50:59Z, +1y6d: Concrete world setup: 80th crawl; NPCs were humans, some born in-game, memories wiped between crawls; floors last ~30 days; indentured contracts can span ~100 years; escape is extremely difficult.\n- [PRIOR_ASSISTANT_OUTPUT] [c2] A@2025-09-24T23:44:40Z, +1y5d: Assistant-authored setup: commoner-stat opening, “Character Mall/Race Bazaar,” subclass reskins, and NPC cautionary tales; no user-performed scene/dialogue is present. Source gap: retrieved context contains no Brendon-authored performed roleplay scene or concrete NPC/world exchange.\n\n- [USER_FACT] [c3] U@2026-02-15T22:10:52Z, -227d: Brendon’s campaign: *Dungeon of the Mad Mage* architecture blended with *Dungeon Crawler Carl* pacing; Faerûn cities/social-shopping between dungeon sections.\n- [USER_FACT] [c3] U@2026-02-15T22:21:33Z, -227d: Player-authored setup: real-life backpacks with starting gear; XP purchased with gold; per-level spending caps; Earth’s disappearance/horror deliberately excluded from DCC.\n- [PRIOR_ASSISTANT_OUTPUT] [c3] A@2026-02-21T17:57:18Z, -221d: Prior premise summary: 2 a.m. Earth collapse; survivors start as commoners with carried gear, enter a televised multiversal dungeon; R.O.D., sponsors, loot boxes, ratings, gold-based advancement; every 3rd floor is Waterdeep, with timed descent and consequences.\n\n- [PRIOR_ASSISTANT_OUTPUT] [c4] A@2026-02-14T05:14:29Z, -228d: Assistant-authored summary of Brendon’s D&D ethos, not performed scenes: “NPCs want things… They lie. They remember. They react”; consequences persist (“burn a bridge it stays burned”).\n- [PRIOR_ASSISTANT_OUTPUT] [c6] A@2026-02-13T01:10:37Z, -229d: Assistant-authored Amazon-isekai item scenario list (mushroom kit, microscope, UV light, glow powder, etc.); explicitly suggested content, not Brendon-authored performed play.\n- [USER_FACT] [c10] U@2026-03-09T20:59:29Z, -205d: User identified thread “Isekai dnd dungeon crawl”; retrieved context contains no user-authored scene/dialogue from it.\n\n- [PRIOR_ASSISTANT_OUTPUT] [c5] A@2026-05-17T19:40:00Z, -4mo: Earthfall project context only; no Brendon-performed scene or concrete authored NPC/world situation identified.\n- [USER_FACT] [c5] U@2026-05-18T03:13:23Z, -4mo: User says existing plane/TTRPG work must not be redone or reassigned; this is design constraint, not a performed roleplay example.\n- [PRIOR_ASSISTANT_OUTPUT] [c5] A@2026-05-18T03:17:26Z, -4mo: Assistant-authored Great Wheel conversion bible contains proposed mechanics and R.O.D. lines, but no user-authored dialogue/actions; exclude as assistant-only suggested scenes.\n\n- [USER_FACT] [c7] U@2025-01-04T18:38:40Z, +1y8m: Isekai D&D project; Brendon authored setup for Fuun, an 18-year-old male harengon chronurgist, class president/mathlete and math prodigy.\n- [PRIOR_ASSISTANT_OUTPUT] [c7] A@2025-01-04T18:38:56Z, +1y8m: Character situation: Fuun transforms into a white-furred harengon; aloof, respected, mathematically brilliant, with clockwork staff “Chronolometer”; time abilities include extra action/future glimpse and granting an ally an action.\n- [USER_FACT] [c7] U@2025-01-04T18:41:59Z, +1y8m: Brendon requested visual depictions of Fuun in school uniform with staff; no performed scene/dialogue or consequences retrieved."
+    },
+    {
+      "query_label": "aggro-authored",
+      "text": "[convo search]\n- [USER_FACT] [c6] U@2026-09-22T17:18:08Z, -8d: Floor 2 monster context: 14 Tortuga Muerta creatures; repo had combat scripts/chat writing but zero monster portraits.\n- [PRIOR_ASSISTANT_OUTPUT] [c6] A@2026-09-22T17:18:26Z, -8d: Roster listed: Cutthroat, Press-Ganged Dead, Dead Man’s Rig, Deadman’s Teeth, Dead Bosun, Gallows Hound, Bilge Toad, Drowned Powderman, Drowned Hand, Powder Drake, Rigging Widow, Gravewater Octopus, Dead Siren, Mangrove Widow.\n- [PRIOR_ASSISTANT_OUTPUT] [c2] A@2026-09-18T19:29:12Z, -12d: Review output supplied concrete dialogue replacements and revision guidance for Amber Silk, Cinder Crew, Grin, Rattlewire, High creatures, Glasswing, Hexhive, and state flags; this is assistant-authored review, not Brendon-authored passages.\n\n- [USER_FACT] [c1] U@2026-09-14T20:28:49Z, -16d: Brendon’s AGGRO repo is radarsaint/aggro; repository ownership alone does not establish authorship.\n- [USER_CONSTRAINT] [c1] U@2026-09-16T06:38:12Z, -14d: requested analysis of player-facing writing, rejecting “AI slop”; later required top-tier, monster-true chat and battle banter plus item/gear text.\n- [PRIOR_ASSISTANT_OUTPUT] [c1] A@2026-09-16T06:41:35Z, -14d: assistant-authored critique/examples only: Patches/Chrome Edge/Patchwire concrete voice directions; quoted lines include “Motion to eat the tall one. Seconded. Unanimous.” and healing reactions. No retrieved user-authored passages for floor 2 pirates, High/Glasswing/Hexhive, Tony’s Amber Silk, or state-dependent banter.\n\n- [PRIOR_ASSISTANT_OUTPUT] [c3] A@2026-09-23T14:31:25Z, -7d: Assistant displayed 14 Floor 2 monster portraits: Cutthroat, Press-Ganged Dead, Dead Man’s Rig, Deadman’s Teeth, Dead Bosun, Gallows Hound, Bilge Toad, Drowned Powderman, Drowned Hand, Powder Drake, Rigging Widow, Gravewater Octopus, Dead Siren, Mangrove Widow; no authorship evidence.\n- [USER_CONSTRAINT] [c4] U@2026-09-22T15:41:40Z, -8d: User requested inspection/preparation of PR #13 terminology fixes for onboarding and Dating prefs; old encounter labels remained, but this is a requirement, not authored creature/dialogue content.\n- [PRIOR_ASSISTANT_OUTPUT] [c4] A@2026-09-22T15:41:42Z, -8d: Assistant only promised to inspect PR #13 and player-facing wording; no retrieved edits or authored passages.\n\n- [USER_PREFERENCE] [c7] U@2026-07-08T20:11:27Z, -83d: Use **Bunkr** for daily cost-of-living/safe-zone rentals; use **Aggro/AGGRO Gold** for solo monster hunts and crafting support.\n- [USER_CONSTRAINT] [c7] U@2026-07-08T20:30:24Z, -83d: AGGRO is solo, optional between live sessions, playable in ~10 minutes; remove distance/logistical friction.\n- [USER_CONSTRAINT] [c7] U@2026-07-08T20:32:24Z, -83d: AGGRO base must have few controls; environment and crafting-material filters excluded from base, with crafting materials reserved for premium."
+    },
+    {
+      "query_label": "dnd-other-models",
+      "text": "[convo search]\n- [USER_FACT] [c0] U@2026-05-23T21:27:23Z, +4mo: Innkeep player homes become publicly visible in-game homes after onboarding; users can keep notes, character sheets, and art there.\n- [PRIOR_ASSISTANT_OUTPUT] [c0] A@2026-05-23T21:27:28Z, +4mo: Proposed room states: ROOM_DRAFT, ROOM_READY, ROOM_OPEN, ROOM_AWAY, ROOM_ARCHIVED; home channels may include guestbook, character, art, downtime, and session-note threads.\n- [PRIOR_ASSISTANT_OUTPUT] [c0] A@2026-05-23T21:25:47Z, +4mo: Proposed architecture: private onboarding room, then community-visible home; example `#home-brendon`; channel/forum scalability caveat.\n\n- [PRIOR_ASSISTANT_OUTPUT] [c1] A@2026-05-08T03:02:37Z, -4mo: **Earthfall: Live** solo D&D campaign/session; assistant-authored DM prep and roleplay included Brendon as commoner, R.O.D., Tutorial Guild, Janitors, Nell Barrow, Marn Tallow, Orris Vell, and direct scene/action play.\n- [USER_FACT] [c1] U@2026-05-08T03:21:33Z, -4mo: User explicitly chose to play Brendon while assistant DMed; then investigated the security guard in-session.\n\n- [USER_FACT] [c2] U@2026-09-23T17:53:05Z, +7d: owns *Waterdeep: Dungeon of the Mad Mage* physically and digitally via D&D Beyond; no user-authored campaign recap, session prep, play-by-post log, NPC speech, encounter/ruling, or character-action transcript is present.\n- [PRIOR_ASSISTANT_OUTPUT] [c2] A@2026-09-23T17:57:33Z, +7d: 5etools link was identified as a third-party copy of *Mad Mage*, not verified authorized source material; assistant did not establish additional authored project/campaign names.\n- [PRIOR_ASSISTANT_OUTPUT] [c2] A@2026-09-23T17:59:16Z, +7d: only additional named item is **BeyondPrinting**, a Chrome extension for exporting D&D Beyond books; this is a tool, not a project/campaign/character work. No additional qualifying names or full transcripts found in this context.\n\n- [PRIOR_ASSISTANT_OUTPUT] [c3] A@2026-09-26T22:44:09Z, -4d: **Kit** is an additional AI-DM project/campaign test: runnable **area 6c** D&D room slice with card-playing NPCs, private DM decisions, public dialogue, saved consequences, and dated implementation/playtest evidence.\n- [PRIOR_ASSISTANT_OUTPUT] [c3] A@2026-09-26T23:03:59Z, -4d: Kit project includes documented personality, rules/maps/NPC motives/memory/world-state goals; onboarding playtest found overstepping, unwanted advice, generic banter, and weak campaign opening.\n- [PRIOR_ASSISTANT_OUTPUT] [c3] A@2026-09-27T03:09:05Z, -4d: Full dated area-6c scene setup exists: four pale pointed-tooth card players, coins/stacks/silver ring, carved mountain wall with dwarves, recessed stone tub, and south passage; user was prompted for a character action.\n\n- [PRIOR_ASSISTANT_OUTPUT] [c13] A@2026-09-24T02:27:51Z, -6d: `radarsaint/dnd-solo` is canonical Git for the D&D Solo project; contains DM Personality Layer, architecture docs, campaign/source ingestion, maps/assets manifests, tests, status, and validation.\n\n- [PRIOR_ASSISTANT_OUTPUT] [c6] A@2026-06-08T05:34:08Z, -114d: Mentioned “Dresden Files,” “Drizzt,” “Dragonlance Chronicles,” “Wheel of Time,” “Discworld,” “Old School Essentials,” “Mothership RPG,” “Dungeon Crawl Classics,” “Blades in the Dark,” and “The Monsters Know What They’re Doing” only as books/systems/search suggestions; no dated user-authored campaign, scene, NPC, encounter, ruling, or character-action evidence.\n- [USER_CONSTRAINT] [c6] U@2026-06-08T05:31:10Z, -114d: Explicitly rejects invented identity/project framing and wants exact, evidence-based personalization; relevant names must be actual work, not suggested or casually mentioned media.\n- [PRIOR_ASSISTANT_OUTPUT] [c6] A@2026-06-08T05:34:08Z, -114d: Retrieved group contains no additional dated campaign names or full user-authored D&D/tabletop transcripts beyond the projects already excluded.\n\n- [USER_FACT] [c7] U@2026-09-24T00:11:26Z, -6d: Existing known project is `/Dnd solo/Runtime/HALASTER_DM_LAYER.md`; retrieved evidence concerns Dungeon of the Mad Mage/Halaster only, not an additional tabletop project or campaign name.\n- [PRIOR_ASSISTANT_OUTPUT] [c7] A@2026-09-24T00:11:26Z, -6d: Assistant documented an operational Halaster DM layer with persistent state, escalation thresholds, floor through-line notes, and runtime rules; no user-authored session recap, play-by-post transcript, NPC speech, encounter/ruling, or character-action evidence is present.\n- [USER_CONSTRAINT] [c7] U@2026-09-24T00:09:26Z, -6d: User explicitly required concrete operational documentation rather than “vibes”; this retrieved group provides no additional dated project/campaign/character name beyond the already known Dnd solo/Kit/Mad Mage material.\n\n- [PRIOR_ASSISTANT_OUTPUT] [c8] A@2025-04-16T17:06:28Z, -1y5m: Additional named D&D work: **Bagman Encounter Setup**, a horror encounter in an abandoned servants’ room; no dated full transcript or user-authored campaign recap is present here.\n- [USER_FACT] [c10] U@2026-08-12T00:11:44Z, -49d: **Sigil campaign**, character **Casio**, a level-12 **monodron**; this is already among the known Citizen Casio/Sigil material and should not be counted as additional.\n- [PRIOR_ASSISTANT_OUTPUT] [c9] A@2026-09-24T01:30:21Z, -6d: Runtime project work, not a campaign name: authored system design includes campaign/scene hierarchy, geometry authority, DM voice, encounters, NPC/faction state, and player-facing topology; no additional named campaign or full roleplay transcript appears.\n\n- [USER_FACT] [c11] U@2023-06-15T20:01:43Z, -3y 3mo: old west D&D 5e campaign; user planned Discord/Owlbear Rodeo/Avrea/D&D Beyond play-by-post, but no dated recap, character work, encounter, or transcript appears.\n- [USER_FACT] [c12] U@2026-09-23T21:25:43Z, -7d: “dnd solo” is a user project building a persistent GPT-DM environment for *Mad Mage*; evidence concerns tooling/library/runtime design, not a played campaign transcript or modeled character/scene.\n- [PRIOR_ASSISTANT_OUTPUT] [c12] A@2026-09-23T21:30:21Z, -7d: prior output names `Mad_Mage_Source.txt`, `/Dnd solo/SRD/5.1/`, and `Mad_Mage_Sage_Advice_2014.md`; these are library artifacts, not additional campaign/project names."
+    },
+    {
+      "query_label": "neverwinter-raw",
+      "text": "[convo search]\n- [USER_FACT] [c0] U@2026-05-14T02:43:54Z, +4mo: Neverwinter campaign setting: criminals rooted in the city; Dagult Neverember rebuilt it; Chasm enables Shadowfell passage; Evernight mirrors Neverwinter; gangs crossing both cities are the setting; industrial-scale mass-produced magic; widespread sentient items.\n- [USER_FACT] [c0] U@2026-05-14T02:44:19Z, +4mo: “The game's pace is meant to be low caste mobsters and criminals in a city rebuilt by a fallen from grace politician.” “No one really knows whats going on, because every two bit crook has ambitions.” “Competency is the real coin of the realm.” Characters are deeply rooted in Neverwinter and know each other or each other’s reputations.\n- [USER_FACT] [c0] U@2026-05-28T22:57:20Z, +4mo: No retrieved user message at this timestamp; exact source text unavailable, so no quote or concrete premise can be reproduced.\n\n- [USER_FACT] [c1] U@2026-05-14T02:43:54Z, 4mo: Brendon’s setting: Dagult Neverember rebuilt Neverwinter after Hotenow; Chasm enables Shadowfell passage; Evernight mirrors Neverwinter; gangs crossing both cities are the setting; industrial-scale mass-produced magic and widespread sentient items.\n- [USER_CONSTRAINT] [c1] U@2026-05-14T02:44:19Z, 4mo: Campaign pace is “low caste mobsters and criminals” in a city rebuilt by a fallen-from-grace politician; “No one really knows whats going on, because every two bit crook has ambitions”; exact phrase: “Competency is the real coin of the realm.” Characters should be deeply rooted in Neverwinter.\n- [USER_FACT] [c1] U@2026-05-28T22:57:20Z, 4mo: No retrieved user message at this timestamp; only requested retrieval context, so no concrete premise can be quoted or safely paraphrased."
+    },
+    {
+      "query_label": "bastion-blotter-raw",
+      "text": "[convo search]\n- [USER_FACT] [c0] U@2025-03-19T03:16:21Z, -1y 6m: Brendon’s exact prompt: “a player rolled a nat 20 to get the police blotter from the day that the light house was abandoned. include an gradual escalation over 10 hours that shows increasing violence and etc leading to the rise of the flaming blades suplanting the lamplighters as peace keepers”\n- [PRIOR_ASSISTANT_OUTPUT] [c0] A@2025-03-19T03:14:17Z, -1y 6m: Immediately preceding assistant explanation defined a police blotter as a brief factual incident/arrest/report log with time, location, event, names, and outcome.\n- [USER_FACT] [c0] U@2025-03-19T03:29:38Z, -1y 6m: Next follow-up: “a player, orxta is promoted by this person…” introducing Orxta investigating missing Darius Quinn’s office for clues about Lamplighters’ downfall."
+    },
+    {
+      "query_label": "oldwest-bagman",
+      "text": "[convo search]\n- [USER_FACT] [c0] U@2023-06-15T20:09:52Z, -3y3mo: “Welcome to Legend” is an Old West D&D 5e play-by-post, 24/7 for three weeks; trek Sierra Nevada to City of Legend (Los Angeles); paths: rancher, miner, gambler; dangers include rogue warden Oro and cryptids. User-authored premise; no campaign membership stated.\n- [USER_CONSTRAINT] [c0] U@2023-06-15T20:01:43Z, -3y3mo: Requested software/logistics explanation using Discord, Owlbear Rodeo, Avrae, D&D Beyond; later clarified Owlbear is a VTT and Avrae relays D&D Beyond rolls/effects/attacks into Discord. This is not modeled DM craft.\n- [PRIOR_ASSISTANT_OUTPUT] [c0] A@2023-06-15T20:13:44Z, -3y3mo: Assistant-composed introductions/ad copy add framing (“immersive,” “shape your destiny”) but are not user-authored narration; no retrieved evidence for “Bagman Encounter Setup” or abandoned servants’ room, so that lead remains unsupported/thin."
+    },
+    {
+      "query_label": "wellspring-authorship",
+      "text": "[convo search]\n- [USER_CONSTRAINT] [c2] U@2025-05-07T03:38:50Z, -1y4m: Wellspring is not D&D; reject Strength/Dexterity/Intelligence and invented Baldur’s Gate material.\n- [USER_CONSTRAINT] [c2] U@2025-05-07T03:40:47Z, -1y4m: Battle Dispositions changed to “charge withdraw and hold respectively.”\n- [USER_CONSTRAINT] [c2] U@2025-05-07T03:46:49Z, -1y4m: “DON'T USE THE WEB UNLESS I REQUEST IT”; help finish the game using Wellsprings as the basic idea.\n\n- [USER_FACT] [c1] U@2025-05-04T18:51:00Z, +1y4m: Brendon’s design: Wellsprings Arcane/Divine/Valor/Eldritch Shadow grant odd-level abilities; Corporea/Essentia Foci grant even-level class features; Saga, Masks, Core Principles drive social play.\n- [USER_CONSTRAINT] [c1] U@2025-05-04T18:51:00Z, +1y4m: Battle Momentum: first action or adjacent-range move is free; further actions, movement, disposition changes, attacks, and Wellspring/Focus abilities cost momentum; pool = level+1 and is gone until adventure ends.\n- [USER_CONSTRAINT] [c1] U@2025-05-06T21:53:46Z, +1y4m: Silver Quarters are spent to start adventures; Speed determines who chooses close/midfield/far; Adventure Momentum = level+1 and can guarantee story/challenge success; party explores rooms/conversations until momentum is exhausted and challenge passes/fails.\n\n- [USER_CONSTRAINT] [c3] U@2025-06-06T00:48:43Z, -1y115d: Wellsprings, Focus, Battle Momentum, Saga, Masks, and Core Principles are the framework; moving game concepts into the novel’s codified magic system and Obsidian-linked character bios, not a TTRPG; keep replies short (300–500 tokens).\n- [USER_CONSTRAINT] [c3] U@2025-06-06T00:55:02Z, -1y115d: Alan’s Wellspring is “arcane”; Focus is “virtuoso,” an Essentia Focus expressed through his hands; primary job is running his theater; magic mends and tinkers; avoid the word “transmutation” and move away from D&D-derived terminology.\n- [PRIOR_ASSISTANT_OUTPUT] [c3] A@2025-06-06T00:55:04Z, -1y115d: Assistant proposed Arcane Wellspring features and Virtuoso milestones, including “Echo of Creation,” “Weave of Resonance,” “Harmonic Restoration,” “Symphony of Repair,” “Master’s Embrace”; Momentum pool 3 with regeneration tied to repair/reinforcement.\n\n- [USER_CONSTRAINT] [c5] U@2025-05-06T22:14:34Z, -513d: “use my original words”; “don't make shit up”; don’t draw; stop talking about Wardens.\n- [USER_FACT] [c5] U@2025-05-06T22:16:08Z, -513d: Rejected invented terms (“acrobats,” “wardens,” “harmonious artisans,” “valiant flyers”) as not his words.\n- [PRIOR_ASSISTANT_OUTPUT] [c5] A@2025-05-06T22:16:10Z, -513d: Mechanics attributed in prior recap: Battle Momentum = Level + 1; Adventure Momentum = Level + 1; Speed sets initiative/initial range; one free Battle Disposition action, later actions/range movement cost Momentum; Wellsprings at levels 1/3/5/7/9; Focus channels combat style; Corporea physical, Essentia mental/spiritual; Saga/Core Principles/Masks define narrative/social identity.\n\n- [USER_FACT] [c7] U@2026-07-10T03:44:18Z, -82d: Defined core terminology: Awakening Story shapes initial combat positioning; Battle Momentum is renewable action resource dependent on Wellspring/level; Wellsprings grant features at 1/3/5/7/9; Focus governs tactical abilities; Focus mastery at 2/4/6/8/10; Saga governs noncombat identity via Core Principles and Masks.\n- [USER_FACT] [c7] U@2026-07-10T03:45:22Z, -82d: Defined Corporea Foci as bodily channels and Essentia Foci as personality/intellect/emotion channels; choosing Focus shapes abilities, challenges, interactions, motivations, strengths, weaknesses.\n- [USER_FACT] [c7] U@2026-07-10T03:46:00Z, -82d: Original Valor confluences: Guts–Berserker, Stride–Dragoon, Atlas–Sentinel, Maul–Soldier, Icarus–Dragoon, Virtuoso–Scribe, with exact rationale text supplied for each."
+    },
+    {
+      "query_label": "bastion-darius-detail",
+      "text": "[convo search]\n- [USER_FACT] [c0] U@2025-10-28T23:53:47Z, -11mo 2d: Brendon-authored setup: Enders defeated Flaming Blades; party returned to the Lighthouse for domain-level activity; Darius Quin is supposedly a Lamplighter but secretly a serial killer, now friendly with the party.\n- [USER_CONSTRAINT] [c0] U@2025-10-29T00:27:32Z, -11mo 2d: Brendon’s plan: quest is to place Crown of Bast on a young girl from Redoubt as its new queen; deliberately lead players wrong with Darius’s hints about a false princess, intending Darius to take the crown after they crown her.\n- [USER_PREFERENCE] [c0] U@2025-10-29T00:29:09Z, -11mo 2d: Requested depiction of “the girl with heterochromia and a box of kittens”; this directly follows the accepted false-princess setup but retrieved context contains no assistant image/text response."
+    },
+    {
+      "query_label": "bastion-goblin-attribution",
+      "text": "[convo search]\n- [PRIOR_ASSISTANT_OUTPUT] [c0] A@2024-07-10T02:53:25Z, -2y2m: Stable-search scene: players find goblins’ satchel (rotten food, shiny trinkets, crude map), horse-disguise pieces, dried Glimmerfern leaves that caused illness, Goblin notes describing food theft and Snaggle’s horse-disguise plan, bone dice, carvings, and a family drawing; DM narration and four player reactions explicitly frame clues, humor/crudeness, sympathy, and next-step investigation."
+    }
+  ],
+  "native_metadata_inventories": [
+    {
+      "query_label": "folders",
+      "next_cursor": null,
+      "items": [
+        {
+          "name": "Google Drive",
+          "id": "external-gdrive:root",
+          "path": "/Google Drive",
+          "mime_type": null,
+          "kind": "folder",
+          "size_bytes": null,
+          "created_at": null,
+          "modified_at": null
+        },
+        {
+          "name": "Dnd solo",
+          "id": "6ab4449e9ec48191b830012887797f2d",
+          "path": "/Dnd solo",
+          "mime_type": null,
+          "kind": "folder",
+          "size_bytes": null,
+          "created_at": null,
+          "modified_at": null
+        },
+        {
+          "name": "Earthfall",
+          "id": "6ab2e168575c8191aeaeced7a27553c2",
+          "path": "/Earthfall",
+          "mime_type": null,
+          "kind": "folder",
+          "size_bytes": null,
+          "created_at": null,
+          "modified_at": null
+        },
+        {
+          "name": "Earthfall:live",
+          "id": "6a500306b44c8191939a3170b9db11b6",
+          "path": "/Earthfall:live",
+          "mime_type": null,
+          "kind": "folder",
+          "size_bytes": null,
+          "created_at": null,
+          "modified_at": null
+        },
+        {
+          "name": "rpg maker",
+          "id": "6a502be1ca248191b3f335b5c0d84cbf",
+          "path": "/rpg maker",
+          "mime_type": null,
+          "kind": "folder",
+          "size_bytes": null,
+          "created_at": null,
+          "modified_at": null
+        },
+        {
+          "name": "satruday dnd",
+          "id": "6a52a413c9fc8191837f33926d355840",
+          "path": "/satruday dnd",
+          "mime_type": null,
+          "kind": "folder",
+          "size_bytes": null,
+          "created_at": null,
+          "modified_at": null
+        },
+        {
+          "name": "Shared with me",
+          "id": "library:collection:shared-with-me",
+          "path": "/Shared with me",
+          "mime_type": null,
+          "kind": "folder",
+          "size_bytes": null,
+          "created_at": null,
+          "modified_at": null
+        }
+      ]
+    },
+    {
+      "query_label": "exact-file-leads",
+      "next_cursor": null,
+      "items": [
+        {
+          "name": "wellspring_combat_lab_v3.html",
+          "id": "libfile_752fd6a2c5908191a09d7a31e2853662",
+          "path": "/rpg maker/wellspring_combat_lab_v3.html",
+          "mime_type": "text/html",
+          "size_bytes": 16417,
+          "created_at": "2026-07-09T23:33:11.397647Z",
+          "modified_at": "2026-07-09T23:33:11.398015Z"
+        },
+        {
+          "name": "wellspring_tactics_prototype_v2.html",
+          "id": "libfile_efb1aec982bc81918d63664badc252fa",
+          "path": "/rpg maker/wellspring_tactics_prototype_v2.html",
+          "mime_type": "text/html",
+          "size_bytes": 10334,
+          "created_at": "2026-07-09T23:22:47.583231Z",
+          "modified_at": "2026-07-09T23:22:47.583576Z"
+        },
+        {
+          "name": "wellspring_tactics_prototype.html",
+          "id": "libfile_c30dc1028a2881918abc5ef1f311c256",
+          "path": "/rpg maker/wellspring_tactics_prototype.html",
+          "mime_type": "text/html",
+          "size_bytes": 17461,
+          "created_at": "2026-07-09T23:16:50.356751Z",
+          "modified_at": "2026-07-09T23:16:50.357009Z"
+        },
+        {
+          "name": "Neverwinter adventure handouts collage.png",
+          "id": "libfile_226ea57494d481919d90c99969a18923",
+          "path": "/Neverwinter adventure handouts collage.png",
+          "mime_type": "image/png",
+          "size_bytes": 3541564,
+          "created_at": "2026-05-28T23:14:26.233162Z",
+          "modified_at": "2026-05-28T23:14:26.233162Z"
+        }
+      ]
+    },
+    {
+      "query_label": "folder-saturday",
+      "next_cursor": null,
+      "items": [
+        {
+          "name": "tasha_vault_custodian_combat_tracker.zip",
+          "id": "libfile_4e90c9637a948191a318cefc7cdf323f",
+          "path": "/satruday dnd/tasha_vault_custodian_combat_tracker.zip",
+          "mime_type": "application/zip",
+          "kind": "file",
+          "size_bytes": 10509,
+          "created_at": "2026-08-08T20:54:54.637384Z",
+          "modified_at": "2026-08-08T20:54:54.637384Z"
+        },
+        {
+          "name": "tasha_vault_custodian_combat_tracker.html",
+          "id": "libfile_c0d6aabe951c8191a81f699b2d13358c",
+          "path": "/satruday dnd/tasha_vault_custodian_combat_tracker.html",
+          "mime_type": "text/html",
+          "kind": "file",
+          "size_bytes": 34572,
+          "created_at": "2026-08-08T20:54:53.734873Z",
+          "modified_at": "2026-08-08T20:54:53.734873Z"
+        },
+        {
+          "name": "image-gen-1.png",
+          "id": "libfile_1eeaed50766081918f0c3e380efbb65d",
+          "path": "/satruday dnd/image-gen-1.png",
+          "mime_type": "image/png",
+          "kind": "file",
+          "size_bytes": 2732090,
+          "created_at": "2026-08-08T20:38:27.245312Z",
+          "modified_at": "2026-08-08T20:38:27.245312Z"
+        },
+        {
+          "name": "Antique Portfolio of Contracts.png",
+          "id": "libfile_6155956f84808191a2f878f35bc74ad0",
+          "path": "/satruday dnd/Antique Portfolio of Contracts.png",
+          "mime_type": "image/png",
+          "kind": "file",
+          "size_bytes": 2794347,
+          "created_at": "2026-07-30T05:24:10.507405Z",
+          "modified_at": "2026-07-30T05:24:10.507675Z"
+        },
+        {
+          "name": "Memory processing at the House of the Measuring Coin.png",
+          "id": "libfile_d2d4608cade081919e52ebc0d2568f27",
+          "path": "/satruday dnd/Memory processing at the House of the Measuring Coin.png",
+          "mime_type": "image/png",
+          "kind": "file",
+          "size_bytes": 3401854,
+          "created_at": "2026-07-11T21:50:30.350831Z",
+          "modified_at": "2026-07-11T21:50:30.351107Z"
+        },
+        {
+          "name": "Antique desk with family portrait.png",
+          "id": "libfile_eeb9db7093548191a46d91f717c9592e",
+          "path": "/satruday dnd/Antique desk with family portrait.png",
+          "mime_type": "image/png",
+          "kind": "file",
+          "size_bytes": 2763184,
+          "created_at": "2026-07-11T21:45:12.085368Z",
+          "modified_at": "2026-07-11T21:45:12.085659Z"
+        },
+        {
+          "name": "Fierce orc warrior portrait.png",
+          "id": "libfile_415cbf475d508191bd8455e23614a9a7",
+          "path": "/satruday dnd/Fierce orc warrior portrait.png",
+          "mime_type": "image/png",
+          "kind": "file",
+          "size_bytes": 2259218,
+          "created_at": "2026-07-11T21:16:09.748347Z",
+          "modified_at": "2026-07-11T21:16:09.748564Z"
+        },
+        {
+          "name": "88e4c2e1-bca0-43ae-a014-d0e8967ab959.png",
+          "id": "libfile_28bfec4f0f2c8191ad90d8ddcbafd53f",
+          "path": "/satruday dnd/88e4c2e1-bca0-43ae-a014-d0e8967ab959.png",
+          "mime_type": "image/png",
+          "kind": "file",
+          "size_bytes": 1542105,
+          "created_at": "2026-07-11T21:15:27.828019Z",
+          "modified_at": "2026-07-11T21:15:27.828272Z"
+        },
+        {
+          "name": "Ninja rogue in energy-infused combat.png",
+          "id": "libfile_85079288e1448191bb692f1bb6a679cd",
+          "path": "/satruday dnd/Ninja rogue in energy-infused combat.png",
+          "mime_type": "image/png",
+          "kind": "file",
+          "size_bytes": 2272395,
+          "created_at": "2026-07-11T21:11:33.258693Z",
+          "modified_at": "2026-07-11T21:11:33.258928Z"
+        },
+        {
+          "name": "426b83fe-d9d1-4eb7-8f08-d1a1f400d801.png",
+          "id": "libfile_79a1b366a24c8191a4e43c59d93e5115",
+          "path": "/satruday dnd/426b83fe-d9d1-4eb7-8f08-d1a1f400d801.png",
+          "mime_type": "image/png",
+          "kind": "file",
+          "size_bytes": 495400,
+          "created_at": "2026-07-11T21:10:51.377012Z",
+          "modified_at": "2026-07-11T21:10:51.377292Z"
+        },
+        {
+          "name": "Intake and memory processing ward.png",
+          "id": "libfile_6bbc1ec760948191ac940a699c265562",
+          "path": "/satruday dnd/Intake and memory processing ward.png",
+          "mime_type": "image/png",
+          "kind": "file",
+          "size_bytes": 2628719,
+          "created_at": "2026-07-11T21:09:27.543111Z",
+          "modified_at": "2026-07-11T21:09:27.543384Z"
+        },
+        {
+          "name": "Gothic steampunk hall of mystery.png",
+          "id": "libfile_602af9652870819187dcd9afb5425269",
+          "path": "/satruday dnd/Gothic steampunk hall of mystery.png",
+          "mime_type": "image/png",
+          "kind": "file",
+          "size_bytes": 2432697,
+          "created_at": "2026-07-11T21:06:27.883316Z",
+          "modified_at": "2026-07-11T21:06:27.883564Z"
+        },
+        {
+          "name": "House of the Measuring Coin map.png",
+          "id": "libfile_b30b11b6ecc08191814dc2b3d40ba4f1",
+          "path": "/satruday dnd/House of the Measuring Coin map.png",
+          "mime_type": "image/png",
+          "kind": "file",
+          "size_bytes": 3175138,
+          "created_at": "2026-07-11T21:00:51.550928Z",
+          "modified_at": "2026-07-11T21:00:51.551194Z"
+        },
+        {
+          "name": "Dungeon temple map with intricate details.png",
+          "id": "libfile_ee5675fdc0e48191883232d652f02f45",
+          "path": "/satruday dnd/Dungeon temple map with intricate details.png",
+          "mime_type": "image/png",
+          "kind": "file",
+          "size_bytes": 4110730,
+          "created_at": "2026-07-11T20:19:27.308425Z",
+          "modified_at": "2026-07-11T20:19:27.308687Z"
+        },
+        {
+          "name": "Fantasy dungeon map with mechanical elements.png",
+          "id": "libfile_c2dcc04a356c8191907d7ec711d7683e",
+          "path": "/satruday dnd/Fantasy dungeon map with mechanical elements.png",
+          "mime_type": "image/png",
+          "kind": "file",
+          "size_bytes": 3704780,
+          "created_at": "2026-07-11T20:15:42.620395Z",
+          "modified_at": "2026-07-11T20:15:42.620713Z"
+        },
+        {
+          "name": "Dungeon fortress interior map layout.png",
+          "id": "libfile_fcf99f96538c8191898d0acb308d4354",
+          "path": "/satruday dnd/Dungeon fortress interior map layout.png",
+          "mime_type": "image/png",
+          "kind": "file",
+          "size_bytes": 3809272,
+          "created_at": "2026-07-11T20:15:10.905265Z",
+          "modified_at": "2026-07-11T20:15:10.905499Z"
+        },
+        {
+          "name": "Desert Ruins - Flooded - 23x16.jpg",
+          "id": "libfile_7985170587f88191805ec15b8b98d979",
+          "path": "/satruday dnd/Desert Ruins - Flooded - 23x16.jpg",
+          "mime_type": "image/jpeg",
+          "kind": "file",
+          "size_bytes": 562335,
+          "created_at": "2026-07-11T20:14:23.749893Z",
+          "modified_at": "2026-07-11T20:14:23.750135Z"
+        },
+        {
+          "name": "Dungeon Jail (22x16) Base Map, Dark.jpg",
+          "id": "libfile_e131437e2f4481918ee40dae702b19f0",
+          "path": "/satruday dnd/Dungeon Jail (22x16) Base Map, Dark.jpg",
+          "mime_type": "image/jpeg",
+          "kind": "file",
+          "size_bytes": 1173184,
+          "created_at": "2026-07-11T20:14:22.955072Z",
+          "modified_at": "2026-07-11T20:14:22.955343Z"
+        },
+        {
+          "name": "Wild West Saloon - Everyday - Floor 1 - Day - 16x22 - 72 DPI.jpg",
+          "id": "libfile_e63fa2aae3588191a0271e9a35462f2c",
+          "path": "/satruday dnd/Wild West Saloon - Everyday - Floor 1 - Day - 16x22 - 72 DPI.jpg",
+          "mime_type": "image/jpeg",
+          "kind": "file",
+          "size_bytes": 499749,
+          "created_at": "2026-07-11T20:14:12.443120Z",
+          "modified_at": "2026-07-11T20:14:12.443374Z"
+        }
+      ]
+    },
+    {
+      "query_label": "folder-rpg-maker",
+      "next_cursor": null,
+      "items": [
+        {
+          "name": "Pasted text(3).txt",
+          "id": "libfile_5fddd3c5ddbc81918f63da25c388d726",
+          "path": "/rpg maker/Pasted text(3).txt",
+          "mime_type": "text/plain",
+          "kind": "file",
+          "size_bytes": 11936,
+          "created_at": "2026-07-10T03:50:09.300690Z",
+          "modified_at": "2026-07-10T03:50:09.301082Z"
+        },
+        {
+          "name": "Pasted text(2).txt",
+          "id": "libfile_554e3c2e60ec8191bb711cd4cef12163",
+          "path": "/rpg maker/Pasted text(2).txt",
+          "mime_type": "text/plain",
+          "kind": "file",
+          "size_bytes": 16143,
+          "created_at": "2026-07-10T03:04:36.429506Z",
+          "modified_at": "2026-07-10T03:04:36.429983Z"
+        },
+        {
+          "name": "Pasted text(1).txt",
+          "id": "libfile_2f9c8ff4c37881919f0371127ec96ef1",
+          "path": "/rpg maker/Pasted text(1).txt",
+          "mime_type": "text/plain",
+          "kind": "file",
+          "size_bytes": 16143,
+          "created_at": "2026-07-10T03:03:54.424803Z",
+          "modified_at": "2026-07-10T03:03:54.425169Z"
+        },
+        {
+          "name": "Pasted text.txt",
+          "id": "libfile_e7388286b9e08191848b1c0b49448625",
+          "path": "/rpg maker/Pasted text.txt",
+          "mime_type": "text/plain",
+          "kind": "file",
+          "size_bytes": 16143,
+          "created_at": "2026-07-10T02:58:56.611850Z",
+          "modified_at": "2026-07-10T02:58:56.612161Z"
+        },
+        {
+          "name": "wellspring_combat_lab_v3.html",
+          "id": "libfile_752fd6a2c5908191a09d7a31e2853662",
+          "path": "/rpg maker/wellspring_combat_lab_v3.html",
+          "mime_type": "text/html",
+          "kind": "file",
+          "size_bytes": 16417,
+          "created_at": "2026-07-09T23:33:11.397647Z",
+          "modified_at": "2026-07-09T23:33:11.398015Z"
+        },
+        {
+          "name": "wellspring_tactics_prototype_v2.html",
+          "id": "libfile_efb1aec982bc81918d63664badc252fa",
+          "path": "/rpg maker/wellspring_tactics_prototype_v2.html",
+          "mime_type": "text/html",
+          "kind": "file",
+          "size_bytes": 10334,
+          "created_at": "2026-07-09T23:22:47.583231Z",
+          "modified_at": "2026-07-09T23:22:47.583576Z"
+        },
+        {
+          "name": "wellspring_tactics_prototype.html",
+          "id": "libfile_c30dc1028a2881918abc5ef1f311c256",
+          "path": "/rpg maker/wellspring_tactics_prototype.html",
+          "mime_type": "text/html",
+          "kind": "file",
+          "size_bytes": 17461,
+          "created_at": "2026-07-09T23:16:50.356751Z",
+          "modified_at": "2026-07-09T23:16:50.357009Z"
+        }
+      ]
+    },
+    {
+      "query_label": "folder-earthfall-text",
+      "next_cursor": null,
+      "items": [
+        {
+          "name": "Aggro",
+          "id": "6ab2e168d62c819199b0febbdd1a02d7",
+          "path": "/Earthfall/Aggro",
+          "mime_type": null,
+          "kind": "folder",
+          "size_bytes": null,
+          "created_at": null,
+          "modified_at": null
+        },
+        {
+          "name": "Floor2",
+          "id": "6ab2e16968a48191b25d862aff6e2786",
+          "path": "/Earthfall/Aggro/Floor2",
+          "mime_type": null,
+          "kind": "folder",
+          "size_bytes": null,
+          "created_at": null,
+          "modified_at": null
+        },
+        {
+          "name": "monster-portraits",
+          "id": "6ab2e169fdf081918f75ca9971652e56",
+          "path": "/Earthfall/Aggro/Floor2/monster-portraits",
+          "mime_type": null,
+          "kind": "folder",
+          "size_bytes": null,
+          "created_at": null,
+          "modified_at": null
+        },
+        {
+          "name": "README_floor2_monster_portraits.txt",
+          "id": "libfile_9b2f9e793f2481919e41d18b1d02f3b9",
+          "path": "/Earthfall/Aggro/Floor2/monster-portraits/README_floor2_monster_portraits.txt",
+          "mime_type": "text/plain",
+          "kind": "file",
+          "size_bytes": 1521,
+          "created_at": "2026-09-22T20:13:56.325708Z",
+          "modified_at": "2026-09-22T21:02:55.263488Z"
+        }
+      ]
+    },
+    {
+      "query_label": "folder-earthfall-live-text",
+      "next_cursor": null,
+      "items": [
+        {
+          "name": "Earthfall_Floor_02_Dead_Turtle_Run_Design_Doc.docx",
+          "id": "libfile_ad4e708e37288191a74c47a441625e16",
+          "path": "/Earthfall:live/Earthfall_Floor_02_Dead_Turtle_Run_Design_Doc.docx",
+          "mime_type": null,
+          "kind": "file",
+          "size_bytes": 3295089,
+          "created_at": "2026-09-21T16:20:16.805292Z",
+          "modified_at": "2026-09-21T16:20:16.805292Z"
+        },
+        {
+          "name": "Area-16-Animatronic-Manticore.md",
+          "id": "libfile_22db48b4dfb08191b5e6053aa429c62b",
+          "path": "/Earthfall:live/Area-16-Animatronic-Manticore.md",
+          "mime_type": "text/markdown",
+          "kind": "file",
+          "size_bytes": 26871,
+          "created_at": "2026-08-18T00:39:42.258422Z",
+          "modified_at": "2026-08-18T00:39:42.258422Z"
+        }
+      ]
+    }
+  ],
+  "native_read_windows": [
+    {
+      "name": "Area-16-Animatronic-Manticore.md",
+      "id": "libfile_22db48b4dfb08191b5e6053aa429c62b",
+      "start_line": 1,
+      "end_line": 100,
+      "total_lines": 374,
+      "has_more": true,
+      "note": "Text window inspected as an artifact lead; authorship not established by file ownership. Content not copied into training targets."
+    },
+    {
+      "name": "Pasted text(3).txt",
+      "id": "libfile_5fddd3c5ddbc81918f63da25c388d726",
+      "start_line": 1,
+      "end_line": 110,
+      "total_lines": 134,
+      "has_more": true,
+      "note": "Text window inspected as an artifact lead; authorship not established by file ownership. Content not copied into training targets."
+    },
+    {
+      "name": "tasha_vault_custodian_combat_tracker.html",
+      "id": "libfile_c0d6aabe951c8191a81f699b2d13358c",
+      "start_line": 1,
+      "end_line": 90,
+      "total_lines": 640,
+      "has_more": true,
+      "note": "Text window inspected as an artifact lead; authorship not established by file ownership. Content not copied into training targets."
+    }
+  ]
+}
