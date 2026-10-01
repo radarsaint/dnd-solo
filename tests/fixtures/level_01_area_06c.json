@@ -62,6 +62,7 @@
         }
       },
       "Door-side player": {
+        "speech_floor": false,
         "vocal_signature": "Authored voice, not from the source: quick and anxious, half-sentences that trail off. Do not assign an invented backstory or reveal a hidden identity.",
         "public_objective": "Keep the peace at the table so nobody, least of all him, gets hurt.",
         "voice_contract": {
@@ -89,6 +90,7 @@
         }
       },
       "Fresco-side player": {
+        "speech_floor": false,
         "vocal_signature": "Authored voice, not from the source: low, blunt, and territorial. Do not assign an invented backstory or reveal a hidden identity.",
         "public_objective": "Protect his seat and his coins from newcomers.",
         "voice_contract": {
@@ -116,6 +118,7 @@
         }
       },
       "Fourth player": {
+        "speech_floor": false,
         "vocal_signature": "Authored voice, not from the source: flat and practical, interested only in the game in front of them. Do not assign an invented backstory or reveal a hidden identity.",
         "public_objective": "Get the game moving again.",
         "voice_contract": {
@@ -195,7 +198,9 @@
         "bandit_b": "knows",
         "doppelganger": "knows"
       },
-      "fingerprint": "The dealer wipes his chin a beat too fast after he drinks; the fangs sit a little proud of his lip."
+      "fingerprint": "The dealer wipes his chin a beat too fast after he drinks; the fangs sit a little proud of his lip.",
+      "subject_words": ["vampire", "vampires", "fang", "fangs", "pallor", "pale skin", "disguise", "disguises", "makeup", "make-up", "undead", "costume", "costumes"],
+      "learned_text": "Their pallor and fangs are theatrical. They are posing as vampires."
     },
     "marked_deck": {
       "about": "item:dealer_deck/marks",
@@ -219,7 +224,33 @@
         "read_thoughts"
       ],
       "anchored_version": "Dealer's luck; he always wins.",
-      "fingerprint": "His eyes drop to the backs of the cards as he deals."
+      "fingerprint": "His eyes drop to the backs of the cards as he deals.",
+      "_dc_basis": "No adventure DC: the dealer hides it with Sleight of Hand +3, so the flat 10 + 3 = 13 (claim_dc). Watching the deal at the table uses the same 13.",
+      "subject_words": ["deck", "the cards", "his cards", "dealer's cards", "card backs", "backs of the cards", "marks"],
+      "learned_text": "Faint marks run along the card backs, and the dealer reads them as he deals."
+    },
+    "fresco_key": {
+      "about": "item:fresco/loose_dwarf",
+      "truth": "One of the tiny carved dwarves can be lifted out; it is a stone key.",
+      "source": "adventure",
+      "fact": "fresco_key",
+      "roots": [
+        "fresco_key",
+        "fresco"
+      ],
+      "exposure": "hidden",
+      "dc": 13,
+      "_dc_basis": "Room source: DC 13 Wisdom (Perception) to locate the stone key when inspecting the carving.",
+      "pc_check": "perception",
+      "pc_access": "roll",
+      "holders": {
+        "uktarl": "unaware",
+        "bandit_a": "unaware",
+        "bandit_b": "unaware",
+        "doppelganger": "unaware"
+      },
+      "subject_words": ["fresco", "carving", "carvings", "carved dwarves", "dwarven figures", "tiny dwarves", "tiny figures", "carved figures", "mountain"],
+      "learned_text": "One carved dwarf lifts out of the fresco. It is a small stone key."
     },
     "ring_value": {
       "about": "item:silver_ring/value",
@@ -231,8 +262,7 @@
         "treasure_on_table"
       ],
       "exposure": "hidden",
-      "dc": 15,
-      "_dc_basis": "DM choice (design 06): the adventure gives no appraisal DC.",
+      "_dc_basis": "The adventure gives no appraisal DC, so Brendon's default applies: 10 + floor(floor level / 3) = 10 on floor 1.",
       "pc_check": "history",
       "pc_access": "roll",
       "npc_check": "int",

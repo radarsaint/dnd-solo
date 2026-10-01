@@ -51,11 +51,12 @@ what they believe.
 
 ## 4. The PC's state and odd habits
 
-What the PC holds is not a sheet default. It follows the situation (seated at cards: hands on the
-cards, shield slung; a fight: weapon, shield, or focus in hand), and the player's word wins. A state
-that is odd for the situation (a shield up at the card table) stands, and the people present react
-from their wants. An agent can declare a move with `trigger: odd` for this, e.g. Uktarl pricing a
-nervous, armored mark higher, or a bandit getting jumpy. It fires only with the decision's
+What the PC holds is not a sheet default. It follows the situation (seated at a table or talking: hands
+free, a carried item slung or stowed unless the player says it is in hand; a fight: a weapon or focus
+in hand), and the player's word wins. A state that is odd for the situation (a held item kept up at a
+friendly table) stands, and the people present react
+from their wants. An agent can declare a move with `trigger: odd` for this, e.g. a merchant pricing a
+nervous, armored customer higher, or a guard getting jumpy. It fires only with the decision's
 `pc_oddity`. See `docs/architecture/kit-agendas.md`.
 
 ## Other rooms
@@ -68,13 +69,15 @@ nervous, armored mark higher, or a bandit getting jumpy. It fires only with the 
 - **Lairs with an absent owner.** An actor-bound agent with `areas` for the lair, plus a
   "returns" clock.
 - **Factions.** Use `areas: "*"` or several areas. Their clocks persist across rooms.
-- **Quiet rooms.** Leave them without an agent, or use `pace` so they move less often.
+- **Quiet rooms.** Leave them without an agent, or use `pace` so they move less often. While no
+  advance is due, a quiet hold with a stated reason is valid even when agents are present.
 
 ## Teach, don't script
 
 When a turn is rejected, read the reason and author better content. Don't build harnesses
 around the rejection. The decision guide's AGENDA paragraph covers the rest: something wants and
-moves every turn, activities recede, say why something catches the eye, advantage needs a
+moves when it should (when `must_advance` says it is due; otherwise quiet with a reason is fine),
+activities recede, say why something catches the eye, advantage needs a
 present reason.
 
 ## Retire old word-matching guards over time

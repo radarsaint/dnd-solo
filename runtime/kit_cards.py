@@ -267,10 +267,17 @@ def seat_order(config):
 class CardTable:
     """Resolve one card action into (public_event, new_state, reveal_facts)."""
 
-    def __init__(self, procedure_id, config, modifiers, seed):
+    def __init__(self, procedure_id, config, modifiers, seed, passives=None, dcs=None):
         self.id = procedure_id
         self.config = config
         self.modifiers = modifiers  # {'perception': int|None, 'insight': ..., 'sleight_of_hand': ...}
+        # The PC's passive scores: a passive that meets the number succeeds with no roll.
+        self.passives = passives or {}
+        # NPCs never roll here: each contest is a fixed number, the NPC's flat 10 + skill
+        # (or, for watching the deal, the hidden claim's own DC so both paths agree).
+        cheat = config['cheat']
+        self.dcs = {'watch': 10 + cheat['sleight_bonus'], 'read': 10 + cheat['deception_bonus'],
+                    'swap': cheat['passive_perception'], **(dcs or {})}
         self.seed = seed
         self.labels = {**config['labels'], 'player': 'You'}
 
@@ -288,6 +295,27 @@ class CardTable:
     def _player_roll(self, action, revision, label):
         supplied = supplied_roll(action)
         return supplied[0] if supplied else _d20(self.seed, revision, label, action.casefold())
+
+    def _contest(self, skill, key, action, revision, label, passive_counts=True):
+        """The PC against one fixed number (meet or beat). When their passive already
+        meets it the result is automatic and nothing is rolled (passive_counts False for
+        something the PC must actively pull off, like a sleight)."""
+        dc = self.dcs[key]
+        passive = self.passives.get(skill) if passive_counts else None
+        if passive is not None and passive >= dc:
+            return {'auto': True, 'total': passive, 'dc': dc, 'success': True, 'die': None, 'modifier': None}
+        modifier = self._modifier(skill, action)
+        die = self._player_roll(action, revision, label)
+        return {'auto': False, 'die': die, 'modifier': modifier, 'total': die + modifier, 'dc': dc,
+                'success': die + modifier >= dc}
+
+    @staticmethod
+    def _note(name, result, against='DC'):
+        if result['auto']:
+            return f'(passive {name} {result["total"]} meets {against} {result["dc"]})'
+        if result['success']:
+            return f'({name} {result["total"]} vs {against} {result["dc"]})'
+        return f'({name} {result["total"]})'
 
     def resolve(self, kind, action, revision, state):
         game = copy.deepcopy(state)
@@ -411,12 +439,11 @@ class CardTable:
         player['watch_next_deal'] = False
         detection, reveals = None, []
         if watched:
-            modifier = self._modifier('perception', action)
-            die = self._player_roll(action, revision, 'watch')
-            his = _d20(self.seed, revision, 'deal-sleight', number) + self.config['cheat']['sleight_bonus']
-            caught = cheated and die + modifier > his
-            detection = {'skill': 'Perception', 'die': die, 'modifier': modifier,
-                         'total': die + modifier, 'opposed': his, 'caught': caught}
+            result = self._contest('perception', 'watch', action, revision, 'watch')
+            caught = cheated and result['success']
+            detection = {'skill': 'Perception', 'die': result['die'], 'modifier': result['modifier'],
+                         'total': result['total'], 'dc': result['dc'], 'auto': result['auto'],
+                         'success': result['success'], 'caught': caught}
             if caught:
                 reveals.append(self.config['cheat']['reveals_fact'])
         public['gambit'] = {
@@ -434,7 +461,7 @@ class CardTable:
         if detection:
             outcome = (self.config['cheat']['caught_text'] if detection['caught'] else
                        'Nothing about the deal looks wrong to you.')
-            lines.append(f'{outcome} (Perception {detection["total"]} vs {detection["opposed"]})')
+            lines.append(f'{outcome} {self._note("Perception", detection)}')
         lines.append('Choose a card to ante.')
         return ' '.join(lines), reveals
 
@@ -681,28 +708,23 @@ class CardTable:
     # -- reading, counter-cheating, accusing, leaving --------------------------
     def _read(self, action, revision, public, private):
         gambit = public['gambit']
-        modifier = self._modifier('insight', action)
-        die = self._player_roll(action, revision, 'read')
-        his = _d20(self.seed, revision, 'deception', gambit['number']) + self.config['cheat']['deception_bonus']
-        total = die + modifier
-        if total > his:
+        result = self._contest('insight', 'read', action, revision, 'read')
+        if result['success']:
             seen = ('He plays like a man who already knows what you are holding.' if private['cheated']
                     else 'He is playing it straight this gambit, and he does not love his cards.')
         else:
-            seen = 'You cannot see past the performance.'
+            seen = 'He gives you nothing to read.'
         gambit['read'] = seen
-        return f'{seen} (Insight {total} vs {his})', []
+        return f'{seen} {self._note("Insight", result)}', []
 
     def _swap(self, action, revision, public, private):
         gambit = public['gambit']
         require(not gambit['swapped'], 'You already worked a card this gambit')
-        modifier = self._modifier('sleight_of_hand', action)
-        die = self._player_roll(action, revision, 'swap')
-        passive = self.config['cheat']['passive_perception']
-        total = die + modifier
+        result = self._contest('sleight_of_hand', 'swap', action, revision, 'swap', passive_counts=False)
+        passive, total = result['dc'], result['total']
         gambit['swapped'] = True
         hand = private['hands']['player']
-        if total >= passive:
+        if result['success']:
             fresh = self._draw(private, gambit['number'])
             lowest = min(hand, key=strength)
             hand[hand.index(lowest)] = fresh

@@ -1,4 +1,4 @@
-"""Claims and knowers (research/kit-aliveness/06-claim-and-knower-design.md). Room-agnostic.
+"""Claims and knowers (docs/architecture/kit-claims-knowers.md). Room-agnostic.
 
 A detail is not a string. It is a claim, and someone in the world holds it. Before a
 detail is said, three questions: Source (adventure, canon, procedure, or Kit's choice
@@ -18,7 +18,10 @@ Brendon's rulings (2026-09-29), which this module implements:
   secret.
 
 Defaults: an NPC lie is a flat 10 + Deception against the PC's passive Insight, no
-runtime roll; a concealment with no adventure DC is 10 + floor(dungeon floor level / 3).
+runtime roll (the PC rolls Insight against that same number only when the player asks);
+an NPC who actively hides something brings a flat 10 + their concealing skill; any other
+check the source gives no DC is 10 + floor(dungeon floor level / 3). A PC whose passive
+meets the number succeeds without a roll.
 
 Everything the PC side uses comes from whatever sheet is loaded (runtime/pc_sheet.py).
 NPC numbers come from the actor's ``stats`` block in the room source (SRD 5.1 stat
@@ -91,11 +94,68 @@ def current_floor_level(source, area=None):
     return level if type(level) is int and level >= 1 else 1
 
 
+def default_dc(floor_level=1):
+    """Brendon's rule for any check the source gives no DC: 10 + floor(floor level / 3)."""
+    return 10 + floor_level // 3
+
+
+def npc_skill(actor, skill):
+    """An NPC's bonus in any skill: the stat block's printed skill, else the ability modifier."""
+    stats = (actor or {}).get('stats') or {}
+    abilities = stats.get('abilities') or {key: 10 for key in pc_sheet.ABILITIES}
+    return (stats.get('skills') or {}).get(skill, _mod(abilities[pc_sheet.SKILLS[skill]]))
+
+
+def npc_passive(actor, skill):
+    """Flat 10 + skill: the number an NPC brings to any opposed check (no NPC dice)."""
+    return 10 + npc_skill(actor, skill)
+
+
 def claim_dc(claim, actors, floor_level=1):
-    """The adventure's DC, else 10 + floor(dungeon floor level / 3)."""
+    """One number per secret, used by every path (passive shield, active look, card table):
+
+    1. the adventure's DC (``dc``);
+    2. else, when an NPC actively hides it (``concealer`` + ``conceal_skill``), that NPC's
+       flat 10 + skill, because NPCs never roll in opposed checks;
+    3. else the default for any check the source gives no DC: 10 + floor(floor level / 3).
+    """
     if type(claim.get('dc')) is int:
         return claim['dc']
-    return 10 + floor_level // 3
+    concealer = (actors or {}).get(claim.get('concealer') or '')
+    if concealer and claim.get('conceal_skill') in pc_sheet.SKILLS:
+        return npc_passive(concealer, claim['conceal_skill'])
+    return default_dc(floor_level)
+
+
+def pc_check(dc, modifier, passive_score, roll):
+    """Brendon's rulings for any PC check against a fixed number (a DC or an NPC's flat
+    10 + skill): when the PC's relevant passive already meets it, the result is automatic
+    and nothing is rolled; otherwise the PC rolls d20 + modifier and meeting the number
+    succeeds (5e: meet or beat). ``roll`` is only called when a roll is needed."""
+    if passive_score is not None and passive_score >= dc:
+        return {'auto': True, 'passive': passive_score, 'dc': dc, 'total': passive_score, 'success': True}
+    die = roll()
+    require(type(die) is int and 1 <= die <= 20, 'Invalid d20 roll')
+    total = die + modifier
+    return {'auto': False, 'die': die, 'modifier': modifier, 'dc': dc, 'total': total, 'success': total >= dc}
+
+
+def check_note(skill, result):
+    """The public parenthetical. A failure shows only the PC's total, so it never tells the
+    player how close they came to something that may not be there."""
+    name = skill.replace('_', ' ').title()
+    if result['auto']:
+        return f'(passive {name} {result["passive"]} meets DC {result["dc"]})'
+    if result['success']:
+        return f'({name} {result["total"]} vs DC {result["dc"]})'
+    return f'({name} {result["total"]})'
+
+
+def check_evidence(skill, result):
+    name = skill.replace('_', ' ').title()
+    if result['auto']:
+        return f'passive {name} {result["passive"]} meets DC {result["dc"]}; no roll'
+    return f'{name} d20 {result["die"]} + {result["modifier"]} = {result["total"]} vs DC {result["dc"]}'
 
 
 # ---------------------------------------------------------------------------
@@ -194,19 +254,29 @@ def pc_band(claim_id, claim, sheet, state, floor_level=1):
 
 def wink_tier(claim, sheet, actors, band, floor_level=1):
     """How far Kit may hint: none below the DC, point at the DC, name_kind at 5+ over.
-    Keyed to the PC's passive Insight for people's secrets, or the claim's passive skill."""
+
+    Brendon's ruling: "the higher the Wisdom, the more she winks." The margin is always
+    the PC's passive Insight against the claim's DC, whatever skill finds the claim
+    itself (the deck's Perception decides the fingerprint, not the wink)."""
     if not sheet or band == 'blind' or claim.get('pc_access') != 'passive':
         return 'none'
-    margin = pc_sheet.passive(sheet, claim['pc_check']) - claim_dc(claim, actors, floor_level)
+    margin = pc_sheet.passive(sheet, 'insight') - claim_dc(claim, actors, floor_level)
     if margin < 0:
         return 'none'
     return 'name_kind' if margin >= WINK_NAME_KIND_MARGIN else 'point'
 
 
+def lie_dc(speaker_profile):
+    """The one number for an NPC's lie: flat 10 + Deception. The PC's passive Insight meets
+    it (the lie fails and the narrator gets its fingerprint), or the PC's active Insight
+    roll, when the player asks, has to meet it."""
+    return 10 + speaker_profile['deception']
+
+
 def lie_lands(speaker_profile, sheet):
     """An NPC lie: flat 10 + Deception (open default) against passive Insight as AC.
     Meets or beats it: the lie lands. Short: the narrator gets a fingerprint of the lie."""
-    attack = 10 + speaker_profile['deception']
+    attack = lie_dc(speaker_profile)
     defence = pc_sheet.passive(sheet, 'insight') if sheet else 10
     return {'deception': attack, 'passive_insight': defence, 'lands': attack >= defence}
 
@@ -365,13 +435,55 @@ _RECALL = re.compile(r"\b(appraise|apprais\w+|history|recall|remember|know (?:ab
                      r"what do i know|identify|arcana|study the)\b")
 
 
+# Skills that find something in front of the PC (a look, a read) rather than recall it.
+OBSERVATION_SKILLS = ('perception', 'insight', 'investigation')
+
+
+def _mentions(text, claim):
+    return any(re.search(rf"\b{re.escape(w.casefold())}\b", text) for w in claim.get('subject_words') or ())
+
+
 def roll_target(action, source):
-    """(claim id, claim) a player's knowledge roll is aimed at, or None."""
+    """(claim id, claim) a player's knowledge roll (History, Arcana...) is aimed at, or None."""
     text = (action or '').casefold()
     if not _RECALL.search(text):
         return None
     for key, claim in compile_claims(source).items():
-        if claim.get('pc_access') == 'roll' and any(re.search(rf"\b{re.escape(w)}\b", text)
-                                                     for w in claim.get('subject_words') or ()):
+        if claim.get('pc_access') == 'roll' and claim['pc_check'] not in OBSERVATION_SKILLS and \
+                _mentions(text, claim):
             return key, claim
     return None
+
+
+_LOOK = re.compile(r"\b(look\w*|search\w*|inspect\w*|examin\w*|stud(?:y|ies|ying)|check\w*|peer\w*|"
+                   r"scrutini[sz]\w*|insight|perception|investigat\w*|notice|watch\w*|"
+                   r"see (?:if|whether|through)|tell (?:if|whether)|are they|is he|is she)\b")
+
+
+def check_target(action, source, state=None):
+    """(claim id, claim) an active look or read is aimed at, by the claim's own subject
+    words, or None. Only hidden claims found by observation (Perception, Insight,
+    Investigation) qualify; what the check can reveal is exactly that claim, never another."""
+    text = (action or '').casefold()
+    if not _LOOK.search(text):
+        return None
+    area = (state or {}).get('area')
+    for key, claim in compile_claims(source).items():
+        fact = (source.get('facts') or {}).get(claim.get('fact') or '', {})
+        if area and fact and fact.get('area') != area:
+            continue
+        if claim.get('exposure') == 'hidden' and claim['pc_check'] in OBSERVATION_SKILLS and _mentions(text, claim):
+            return key, claim
+    return None
+
+
+_LIE_WORDS = re.compile(r"\b(lying|lie|lies|lied|liar|truth\w*|honest\w*|sincere\w*|straight with|"
+                        r"mean(?:s)? it|level(?:ing)? with|bullshit\w*|deceiv\w*|decept\w*)\b")
+_READ_WORDS = re.compile(r"\b(insight|read|reading|sense|tell|judge|gauge|study|studying|watch|watching|"
+                         r"whether|if|is he|is she|are they|are you)\b")
+
+
+def is_lie_read(action):
+    """An Insight read on whether someone is lying (unquoted narration only)."""
+    text = (action or '').casefold()
+    return bool(_LIE_WORDS.search(text) and _READ_WORDS.search(text))

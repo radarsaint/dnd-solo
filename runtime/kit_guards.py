@@ -20,11 +20,12 @@ import re
 
 from .state_context import InvalidChange, require
 
-# Room adapter: speakers voiced from actor cards. The three card players are separate
-# people with separate labels; 'Card player' is the retired shared label, kept only so
-# older committed turns are still read as NPC lines.
-CARD_PLAYER_SPEAKERS = ('Door-side player', 'Fresco-side player', 'Fourth player')
-NPC_SPEAKERS = ('Dealer',) + CARD_PLAYER_SPEAKERS + ('Card player',)
+# Every speaker label except these is an NPC voiced from the room source's actor cards.
+NON_NPC_SPEAKERS = ('Narrator', 'Kit')
+
+
+def is_npc(speaker):
+    return isinstance(speaker, str) and bool(speaker.strip()) and speaker.strip() not in NON_NPC_SPEAKERS
 _APOSTROPHES = str.maketrans({'’': "'", '‘': "'", '“': '"', '”': '"'})
 _SMALL_WORDS = frozenset('''
     a an the and or but if of to in on at by for with from as is are was were be been am
@@ -197,7 +198,7 @@ def kit_lines(segments, public_history=()):
 def check_npc_meta(segments):
     """HARD: no table talk or mechanics in an NPC's mouth."""
     for segment in segments:
-        if segment['speaker'] in NPC_SPEAKERS:
+        if is_npc(segment['speaker']):
             found = NPC_META_PATTERN.search(normalize(segment['text']))
             if found:
                 raise InvalidChange(
@@ -212,7 +213,7 @@ def check_npc_voices(segments, voice_contracts=None, public_history=()):
     kit = kit_lines(segments, public_history)
     by_speaker = {}
     for segment in segments:
-        if segment['speaker'] not in NPC_SPEAKERS:
+        if not is_npc(segment['speaker']):
             continue
         speaker, text = segment['speaker'], segment['text']
         by_speaker[speaker] = by_speaker.get(speaker, '') + ' ' + text
@@ -308,7 +309,7 @@ def speaker_history(public_history, speaker):
 def check_npc_repetition(segments, public_history=()):
     by_speaker = {}
     for segment in segments:
-        if segment['speaker'] in NPC_SPEAKERS:
+        if is_npc(segment['speaker']):
             by_speaker[segment['speaker']] = by_speaker.get(segment['speaker'], '') + ' ' + segment['text']
     for speaker, text in by_speaker.items():
         turns = speaker_history(public_history, speaker)
@@ -465,7 +466,7 @@ def check_clarification_shape(segments, plan):
     require(any('?' in segment['text'] for segment in segments),
             'ask_clarification must actually ask the player a question')
     require(plan['public_brief']['scope'] != 'call' or
-            not any(segment['speaker'] in NPC_SPEAKERS for segment in segments),
+            not any(is_npc(segment['speaker']) for segment in segments),
             'A clarification call cannot carry an NPC reply; use an exchange for that')
 
 
@@ -561,7 +562,7 @@ def _conditional(sentence_norm, start):
 
 def check_player_agency(segments):
     for segment in segments:
-        pattern = _NPC_AGENCY if segment['speaker'] in NPC_SPEAKERS else _NARRATION_AGENCY
+        pattern = _NPC_AGENCY if is_npc(segment['speaker']) else _NARRATION_AGENCY
         for sentence in sentences(segment['text']):
             if sentence.rstrip('"\'” )').endswith('?'):
                 continue
@@ -785,7 +786,7 @@ def check_player_identity(segments, character):
         for index, sentence in enumerate(parts):
             text = normalize(sentence)
             hit = next((found for pattern in patterns for found in [pattern.search(text)] if found), None)
-            if not hit and index == 0 and segment['speaker'] in NPC_SPEAKERS:
+            if not hit and index == 0 and is_npc(segment['speaker']):
                 hit = epithet.search(text)
             if hit:
                 raise InvalidChange(
@@ -838,7 +839,7 @@ def check_stake_offers(segments, stake_unit='gp'):
     gambit and the toll's waived") offers a wager the runtime cannot pay out. A pronoun
     ("put it in the pot") right after the item counts."""
     for segment in segments:
-        if segment['speaker'] not in NPC_SPEAKERS:
+        if not is_npc(segment['speaker']):
             continue
         parts = sentences(segment['text'])
         for index, sentence in enumerate(parts):

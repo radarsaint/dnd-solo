@@ -37,8 +37,8 @@ ROOM_FIXTURE = PROJECT_ROOT / 'tests/fixtures/level_01_area_06c.json'
 class PendingRuling(Exception):
     """The room slice cannot establish this outcome without more game machinery.
 
-    `attempt` marks an in-fiction attempt the table refused (combat, stealth, an
-    unsupported physical act, the deck), as opposed to a host input problem such as a
+    `attempt` marks an in-fiction attempt the table refused (combat, a spell effect, an
+    unsupported physical act), as opposed to a host input problem such as a
     missing modifier. The bridge records attempts in public history."""
     def __init__(self, message, attempt=False):
         super().__init__(message)
@@ -117,7 +117,7 @@ def npc_addressed_player(spoken):
     """True when an NPC line in a public turn asks the player something or speaks to them."""
     for line in (spoken or '').splitlines():
         speaker, _, text = line.partition(':')
-        if speaker.strip() in NPC_SPEECH_SPEAKERS and (
+        if is_npc_speaker(speaker) and (
                 '?' in text or ADDRESS_WORDS.search(text.translate(_TYPOGRAPHIC).lower())):
             return True
     return False
@@ -141,8 +141,11 @@ def room_intent(action, addressed=False):
         return 'social'
     quoted = bool(QUOTED_SPEECH.search(text))
     words = QUOTED_SPEECH.sub(' ', text).lower()
-    if re.search(r'\b(attack|stab|shoot|kill|cast|initiative|fireball)\b', words):
+    if re.search(r'\b(attack|stab|shoot|kill|initiative|fireball)\b', words) or (
+            re.search(r'\bcast\b', words) and re.search(r'\b(at|on|against|into)\s+(him|her|them|the|it|his)\b', words)):
         return 'combat'
+    if re.search(r'\b(cast|casts|casting)\b', words):
+        return 'spell'  # a spell aimed at nobody (Detect Magic, Light...) is not combat
     if STEALTH_INTENT.search(words) or (
             re.search(r'\b(quietly|silently|softly)\b', words) and
             re.search(r'\b(walk|move|step|go|leave|head|edge|slip)\w*\b', words) and
@@ -157,12 +160,6 @@ def room_intent(action, addressed=False):
         return 'enter_tub'
     if re.search(r'\b(look|search|inspect|examine|check|peer)\b', words) and 'tub' in words:
         return 'inspect_tub'
-    if re.search(r'\b(look|search|inspect|examine|study|check)\b', words) and re.search(r'\b(fresco|carving|dwarves|dwarf|figures|mountain)\b', words):
-        return 'inspect_fresco'
-    if re.search(r'\b(insight|disguise|vampire|fangs|makeup)\b', words) and re.search(r'\b(check|inspect|study|look|see|tell|notice|are they)\b', words):
-        return 'insight'
-    if re.search(r'\b(inspect|study|search|examine|check)\b', words) and re.search(r'\b(cards|deck|marks)\b', words):
-        return 'inspect_deck'
     if OBSERVE.search(words):
         return 'observe'
     if re.search(r'\b(take a seat|pull up a chair)\b', words):
@@ -209,9 +206,15 @@ class Room6CAdjudicator:
         require(isinstance(action, str) and action.strip(), 'Player action required')
         if state['area'] != 'area_06c':
             raise PendingRuling('This play slice covers area 6c only. No turn was committed.')
+        narration = QUOTED_SPEECH.sub(' ', action.translate(_TYPOGRAPHIC))
+        # Speech and table talk to Kit are never resolved as checks.
+        spoken = bool(QUOTED_SPEECH.search(action.translate(_TYPOGRAPHIC))) or is_ooc(action)
         target = kit_claims.roll_target(action, self.source)
-        if target and not QUOTED_SPEECH.search(action.translate(_TYPOGRAPHIC)):
+        if target and not spoken:
             return self._resolve_knowledge(action, revision, state, *target)
+        # An Insight read on whether someone is lying is the lie rule, whatever it is about.
+        if not spoken and kit_claims.is_lie_read(narration):
+            return self._resolve_lie_read(action, narration, revision, state)
         table = card_procedure(self.source, state)
         card_kind = kit_cards.card_intent(action, table[2]) if table else None
         kind = room_intent(action, addressed)
@@ -220,18 +223,27 @@ class Room6CAdjudicator:
         # A sleight at the table ("unseen") stays a card swap.
         # Looking around the room is about something else: the table procedure recedes
         # (state kept, no forced choice) unless the player is watching the table itself.
-        overrides = kind in ('combat', 'observe') and card_kind != 'card_watch' or \
+        overrides = kind in ('combat', 'observe', 'spell') and card_kind != 'card_watch' or \
             (kind == 'stealth' and card_kind != 'card_swap')
         if card_kind and not overrides:
             return self._resolve_card(card_kind, action, revision, state, table)
+        # An active look or read at something hidden: the claim it names, and only that claim.
+        check = None if spoken or kind in ('combat', 'stealth', 'exit', 'spell') else \
+            kit_claims.check_target(narration, self.source, state)
+        if check:
+            return self._resolve_check(action, revision, state, *check)
+        if not spoken and '?' not in narration and re.search(r'\binsight\b', narration, re.I) and \
+                kind not in ('combat', 'stealth', 'exit'):
+            raise PendingRuling('What are you reading with Insight: whether someone is telling the truth, '
+                                'or something about how they look or act? No turn was committed.')
         if kind == 'combat':
-            raise PendingRuling('Combat needs a character sheet, initiative, and tactical resolver. No turn was committed.', attempt=True)
+            raise PendingRuling('Fights are not run in this slice yet: it has no initiative or tactical '
+                                'resolver. No turn was committed.', attempt=True)
+        if kind == 'spell':
+            raise PendingRuling('Spell effects outside combat are not resolved in this slice yet, so the '
+                                'spell is not cast. No turn was committed.', attempt=True)
         if kind == 'stealth':
-            raise PendingRuling('Slipping past the table unnoticed needs a Dexterity (Stealth) ruling against '
-                                'the people watching; this slice has no stealth resolver and the source gives '
-                                'no DC. No turn was committed. You can still walk out openly or talk.', attempt=True)
-        if kind == 'inspect_deck':
-            raise PendingRuling('The source gives no discovery DC for the deck. A DM ruling is needed; no turn was committed. You can still question or accuse the dealer.', attempt=True)
+            return self._resolve_stealth(action, narration, revision, state)
         if kind == 'unsupported_action':
             raise PendingRuling('This physical action needs a room/rules ruling beyond the test slice. No turn was committed.', attempt=True)
         if kind == 'observe':
@@ -256,33 +268,6 @@ class Room6CAdjudicator:
                 evidence = 'The player explicitly climbed into the recessed tub, which reveals what is stored in it.'
             event = {'type': 'reveal_fact', 'fact': 'tub_stash', 'evidence': evidence}
             return Resolution(kind, public, [event])
-        elif kind in ('inspect_fresco', 'insight'):
-            modifier = self.skill_modifier('perception' if kind == 'inspect_fresco' else 'insight', state)
-            if modifier is None:
-                skill = 'Perception' if kind == 'inspect_fresco' else 'Insight'
-                raise PendingRuling(f'Supply your {skill} modifier with --{skill.lower()} before this check. No turn was committed.')
-            if self.roll:
-                die = self.roll()
-            else:
-                # An uncommitted model failure must not reroll the same attempted check.
-                if 'roll_seed' not in state:
-                    raise PendingRuling('This session predates stable checks; start a fresh area 6c test database.')
-                material = f"{state['roll_seed']}:{revision}:{kind}:{action.casefold()}".encode()
-                die = int.from_bytes(hashlib.sha256(material).digest()[:8], 'big') % 20 + 1
-            require(type(die) is int and 1 <= die <= 20, 'Invalid d20 roll')
-            dc = 13 if kind == 'inspect_fresco' else 14
-            total = die + modifier
-            if total >= dc:
-                if kind == 'inspect_fresco':
-                    public, fact = ('One carved dwarf lifts out of the fresco. It is a small stone key.',
-                                    'fresco_key')
-                else:
-                    public, fact = ('Their pallor and fangs are theatrical. They are posing as vampires.',
-                                    'false_vampires')
-                event = {'type': 'reveal_fact', 'fact': fact,
-                         'evidence': f'Player attempted {kind}; d20 {die} + {modifier} = {total} vs DC {dc}.'}
-                return Resolution(kind, f'{public} ({total} vs DC {dc})', [event])
-            public = f'Your careful look reveals nothing further. ({total} vs DC {dc})'
         else:
             # Social bid: restate the player's actual words. No outcome, NPC
             # commitment, or hidden fact is added; the full text stays in evidence.
@@ -293,6 +278,142 @@ class Room6CAdjudicator:
         event = {'type': 'beat', 'tags': [kind],
                  'evidence': f'Player declared: {action}. Resolution: {public}'}
         return Resolution(kind, public, [event])
+
+    # -- general checks: any room, any PC -------------------------------------------
+    def _die(self, state, revision, label, action):
+        """The player's own stated d20, else a stable seeded roll (an uncommitted model
+        failure must not reroll the same attempted check)."""
+        supplied = kit_cards.supplied_roll(action)
+        if supplied:
+            return supplied[0]
+        if self.roll:
+            return self.roll()
+        if 'roll_seed' not in state:
+            raise PendingRuling('This session predates stable checks; start a fresh area 6c test database.')
+        material = f"{state['roll_seed']}:{revision}:{label}:{action.casefold()}".encode()
+        return int.from_bytes(hashlib.sha256(material).digest()[:8], 'big') % 20 + 1
+
+    def _pc_numbers(self, skill, state, action):
+        """(modifier, passive) for the PC: a stated "d20 + modifier = total" wins, then a
+        host override, then the loaded sheet. Passive is 10 + modifier unless the sheet
+        knows better (advantage in force)."""
+        supplied = kit_cards.supplied_roll(action)
+        override = getattr(self, skill, None)
+        sheet = state.get('player_sheet')
+        if override is not None:
+            modifier, passive = override, 10 + override
+        elif sheet:
+            modifier, passive = pc_sheet.skill_bonus(sheet, skill), pc_sheet.passive(sheet, skill)
+        else:
+            modifier = passive = None
+        if supplied and supplied[1] is not None:
+            modifier = supplied[1]
+            passive = passive if passive is not None else 10 + modifier
+        if modifier is None:
+            name = skill.replace('_', ' ').title()
+            raise PendingRuling(f'Load a character sheet or state the {name} roll (e.g. "I rolled 12 + 4 = 16") '
+                                'before this check. No turn was committed.')
+        return modifier, passive
+
+    def _check(self, skill, dc, state, revision, label, action):
+        modifier, passive = self._pc_numbers(skill, state, action)
+        return kit_claims.pc_check(dc, modifier, passive, lambda: self._die(state, revision, label, action))
+
+    def _present_actors(self, state):
+        return {key: actor for key, actor in (state.get('actors') or {}).items()
+                if actor.get('location') == state['area'] and actor.get('status') not in ('fled', 'dead')}
+
+    def _resolve_check(self, action, revision, state, claim_id, claim):
+        """An active look or read at one hidden claim, against that claim's single DC.
+        Success shows that claim and nothing else; failure shows only the roll."""
+        skill = claim['pc_check']
+        dc = kit_claims.claim_dc(claim, state.get('actors', {}),
+                                 kit_claims.current_floor_level(self.source, state.get('area')))
+        result = self._check(skill, dc, state, revision, f'check:{claim_id}', action)
+        evidence = f'Player actively checked {claim_id}: {kit_claims.check_evidence(skill, result)}.'
+        note = kit_claims.check_note(skill, result)
+        if result['success']:
+            text = claim.get('learned_text') or claim['truth']
+            events = [{'type': 'claim_learned', 'claim': claim_id, 'evidence': evidence}]
+            if claim.get('fact') and claim['fact'] not in state.get('known_facts', []):
+                events.append({'type': 'reveal_fact', 'fact': claim['fact'], 'evidence': evidence})
+            events.append({'type': 'beat', 'tags': ['check'], 'evidence': evidence})
+            return Resolution('check', f'{text} {note}', events)
+        return Resolution('check', f'You find nothing you can be sure of. {note}',
+                          [{'type': 'beat', 'tags': ['check'], 'evidence': evidence}])
+
+    def _lie_read_target(self, narration, state):
+        """Whose words the player is reading: the actor they name, else whoever spoke to
+        them last, else the only person present."""
+        present = self._present_actors(state)
+        text = narration.casefold()
+        speakers = actor_speakers(self.source)
+        for key, actor in present.items():
+            names = {key.replace('_', ' '), actor.get('name', ''), speakers.get(key, '')}
+            names |= set((((self.source or {}).get('texture_palette') or {}).get('areas', {})
+                          .get(state['area'], {}).get('subjects', {}).get(f'actor:{key}')) or ())
+            if any(n and re.search(rf"\b{re.escape(n.casefold())}\b", text) for n in names):
+                return key
+        for record in reversed((state.get('claims') or {}).get('said') or []):
+            if record.get('by') in present:
+                return record['by']
+        return next(iter(present)) if len(present) == 1 else None
+
+    def _resolve_lie_read(self, action, narration, revision, state):
+        """Brendon's lie rule, used whatever the lie is about: the NPC's flat 10 + Deception
+        against the PC's passive Insight (automatic when it meets), else the PC's active
+        Insight roll against that same number. The result is only whether they are being
+        straight; it never prints a secret."""
+        who = self._lie_read_target(narration, state)
+        if who is None:
+            raise PendingRuling('Whose words are you weighing? Name who you are reading. No turn was committed.')
+        actor = state['actors'][who]
+        dc = kit_claims.lie_dc(kit_claims.npc_profile(actor))
+        result = self._check('insight', dc, state, revision, f'lie:{who}', action)
+        label = actor_speakers(self.source).get(who) or actor.get('name') or who
+        said = [r for r in (state.get('claims') or {}).get('said') or [] if r.get('by') == who]
+        stance = said[-1]['stance'] if said else None
+        evidence = (f'Player read {who} for a lie: {kit_claims.check_evidence("insight", result)} '
+                    f'(10 + Deception); last recorded stance {stance or "none"}.')
+        note = kit_claims.check_note('insight', result)
+        if not result['success']:
+            public = f'The {label.lower()} gives you nothing to read. {note}'
+        elif stance == 'lie':
+            public = f'The {label.lower()} is lying to you about that. {note}'
+        elif stance in ('boast', 'bargain'):
+            public = f'The {label.lower()} is selling it harder than it deserves. {note}'
+        elif stance == 'hedge':
+            public = f'The {label.lower()} is choosing every word carefully. {note}'
+        else:
+            public = f'As far as you can tell, the {label.lower()} means it. {note}'
+        return Resolution('lie_read', public, [{'type': 'beat', 'tags': ['lie_read'], 'evidence': evidence}])
+
+    def _resolve_stealth(self, action, narration, revision, state):
+        """Stealth is the PC's roll against the best passive Perception among the people
+        present ("passive Perception is an AC against being snuck up on"). Nobody present
+        to notice: no roll."""
+        present = self._present_actors(state)
+        watchers = {key: kit_claims.npc_passive(actor, 'perception') for key, actor in present.items()}
+        leaving = bool(re.search(r'\b(door|out|leave|south|past)\b', narration, re.I))
+        exit_event = {'type': 'move', 'exit': 'south_door',
+                      'evidence': 'The player left through the known south door, unnoticed.'}
+        if not watchers:
+            public = 'You slip out through the south door.' if leaving else 'You move without a sound.'
+            return Resolution('stealth', public, [exit_event] if leaving else
+                              [{'type': 'beat', 'tags': ['stealth'], 'evidence': f'Player declared: {action}. Nobody present.'}])
+        dc = max(watchers.values())
+        modifier, _ = self._pc_numbers('stealth', state, action)
+        die = self._die(state, revision, 'stealth', action)
+        total = die + modifier
+        evidence = (f'Player tried Stealth: d20 {die} + {modifier} = {total} vs best passive Perception {dc} '
+                    f'({", ".join(f"{k} {v}" for k, v in watchers.items())}).')
+        if total >= dc:
+            public = (f'You slip out through the south door unnoticed. (Stealth {total} vs passive Perception {dc})'
+                      if leaving else f'You move without drawing an eye. (Stealth {total} vs passive Perception {dc})')
+            beat = {'type': 'beat', 'tags': ['stealth'], 'evidence': evidence}
+            return Resolution('stealth', public, ([dict(exit_event, evidence=evidence)] if leaving else []) + [beat])
+        return Resolution('stealth', f'Eyes at the table turn your way before you get far. (Stealth {total})',
+                          [{'type': 'beat', 'tags': ['stealth', 'noticed'], 'evidence': evidence}])
 
     def _resolve_knowledge(self, action, revision, state, claim_id, claim):
         """A player-initiated knowledge roll (History, Arcana...) against a claim's DC.
@@ -325,13 +446,28 @@ class Room6CAdjudicator:
         return Resolution('knowledge', f'Nothing you know places it. ({name} {total} vs DC {dc})',
                           [{'type': 'beat', 'tags': ['knowledge'], 'evidence': evidence}])
 
+    def _card_dcs(self, config, state):
+        """One number per secret: watching the deal uses the same DC as the hidden claim
+        the cheat reveals (claim_dc), so looking is never harder than not looking."""
+        fact = config['cheat'].get('reveals_fact')
+        for claim in kit_claims.compile_claims(self.source or {}).values():
+            if fact and claim.get('fact') == fact:
+                level = kit_claims.current_floor_level(self.source, state.get('area'))
+                return {'watch': kit_claims.claim_dc(claim, state.get('actors', {}), level)}
+        return {}
+
     def _resolve_card(self, kind, action, revision, state, table):
         """One card-table action through the declared procedure (runtime/kit_cards.py)."""
         key, config, body = table
         require('roll_seed' in state, 'This session predates stable checks; start a fresh test database.')
-        engine = kit_cards.CardTable(key, config, {skill: self.skill_modifier(skill, state)
-                                                   for skill in ('perception', 'insight', 'sleight_of_hand')},
-                                     state['roll_seed'])
+        skills = ('perception', 'insight', 'sleight_of_hand')
+        sheet = state.get('player_sheet')
+        modifiers = {skill: self.skill_modifier(skill, state) for skill in skills}
+        passives = {skill: (pc_sheet.passive(sheet, skill) if getattr(self, skill) is None and sheet else
+                            (10 + modifiers[skill] if modifiers[skill] is not None else None))
+                    for skill in skills}
+        engine = kit_cards.CardTable(key, config, modifiers, state['roll_seed'], passives=passives,
+                                     dcs=self._card_dcs(config, state))
         try:
             public, new_state, reveals = engine.resolve(kind, action, revision, body)
         except kit_cards.NeedsRuling as exc:
@@ -381,7 +517,8 @@ PLAN_SCHEMA = {
                          'required': ['objective', 'tactic', 'visible_cue', 'player_opening',
                                       'reply_to', 'scope', 'kit_focus', 'callback', 'mirror',
                                       'npc_notice']},
-        'focus_actor': {'type': 'string', 'enum': ['uktarl', 'other', 'none']},
+        # Any actor id present in the scene (agenda_here / claims_here list them), or none.
+        'focus_actor': {'type': 'string'},
         'table_presence': {'type': 'string', 'enum': list(kit_voice.TABLE_PRESENCE)},
         'tone': {'type': 'string', 'enum': ['wry', 'warm', 'threatening', 'curious', 'plain', 'quiet']},
         # Private: at most one new evidence-cited observation about this player.
@@ -434,8 +571,8 @@ SPEECH_SCHEMA = {
     'properties': {
         'segments': {'type': 'array', 'items': {'type': 'object',
                      'additionalProperties': False,
-                     'properties': {'speaker': {'type': 'string', 'enum': [
-                         'Narrator', 'Kit', 'Dealer', *kit_guards.CARD_PLAYER_SPEAKERS]},
+                     # Narrator, Kit, or an actor's speaker label (public_view.speakers).
+                     'properties': {'speaker': {'type': 'string'},
                          'text': {'type': 'string'},
                          # Required on every Kit segment: a verbatim quote of the public
                          # line from this turn her remark answers (kit_voice.check_kit_asides).
@@ -467,30 +604,70 @@ THIS_TURN = 'this_turn'  # player_note evidence for the turn being decided
 # that share the actor, story thread, or meaningful words with this action.
 MEMORY_LIMIT = 8
 MEMORY_RECENT = 2
-# Room adapter: public words that name an actor. Area 6c exposes the dealer by role.
-ACTOR_ALIASES = {'uktarl': ('dealer', 'uktarl')}
-# Room adapter: the public speaker label for each actor. Each card player has their own
-# label and card (approach-range playtest: one shared label made them interchangeable).
-ACTOR_SPEAKERS = {'uktarl': 'Dealer', 'bandit_a': 'Door-side player',
-                  'bandit_b': 'Fresco-side player', 'doppelganger': 'Fourth player'}
-NPC_SPEECH_SPEAKERS = ('Dealer',) + kit_guards.CARD_PLAYER_SPEAKERS
+# Speakers that are never an NPC. Every other speaker label is an actor from the room source.
+NON_NPC_SPEAKERS = kit_guards.NON_NPC_SPEAKERS
+is_npc_speaker = kit_guards.is_npc
 
 
-def focus_speakers(plan):
-    """Speaker labels that count as the focus actor speaking."""
-    actor = focus_speaker(plan)
-    return kit_guards.CARD_PLAYER_SPEAKERS if actor == 'a card player' else ((actor,) if actor else ())
+def actor_speakers(source):
+    """Room adapter, built from the room source: actor id -> public speaker label.
+
+    An actor's own ``speaker`` field wins; else a running procedure's ``labels`` (the card
+    table names its seats); else the actor's public ``name``. Each NPC has their own label
+    and card (approach-range playtest: one shared label made them interchangeable)."""
+    source = source or {}
+    labels = {}
+    for config in (source.get('procedures') or {}).values():
+        if isinstance(config, dict):
+            labels.update(config.get('labels') or {})
+    out = {}
+    for key, actor in (source.get('actors') or {}).items():
+        out[key] = actor.get('speaker') or labels.get(key) or actor.get('name') or key
+    return out
 
 
-def focus_speaker(plan):
-    """The public speaker label of the plan's focus actor: 'Dealer', one card player,
-    'a card player' when an 'other' focus names no known actor, or None."""
-    if plan.get('focus_actor') == 'uktarl':
-        return 'Dealer'
-    if plan.get('focus_actor') == 'other':
+def actor_aliases(source):
+    """Public words that name each actor: their speaker label and the palette's subject words."""
+    out = {}
+    subjects = {}
+    for area in (((source or {}).get('texture_palette') or {}).get('areas') or {}).values():
+        for subject, words in (area.get('subjects') or {}).items():
+            if subject.startswith('actor:'):
+                subjects.setdefault(subject[6:], set()).update(w.casefold() for w in words)
+    for key, label in actor_speakers(source).items():
+        out[key] = {label.casefold(), key.replace('_', ' '), *subjects.get(key, ())}
+    return out
+
+
+def speech_speakers(source):
+    """Every speaker label a performance may use in this room."""
+    return NON_NPC_SPEAKERS + tuple(actor_speakers(source).values())
+
+
+def focus_actor_id(plan):
+    """The plan's focus actor id, or None. focus_actor is any present actor id; the older
+    value 'other' still means the improv_read's actor_ref."""
+    focus = plan.get('focus_actor')
+    if focus in (None, 'none'):
+        return None
+    if focus == 'other':
         actor = (plan.get('improv_read') or {}).get('actor_ref')
-        return ACTOR_SPEAKERS.get(actor, 'a card player')
-    return None
+        return None if actor in (None, 'none') else actor
+    return focus
+
+
+def focus_speakers(plan, speakers=None):
+    """Speaker labels that count as the focus actor speaking."""
+    actor = focus_speaker(plan, speakers)
+    return (actor,) if actor else ()
+
+
+def focus_speaker(plan, speakers=None):
+    """The public speaker label of the plan's focus actor (from actor_speakers), or None."""
+    actor = focus_actor_id(plan)
+    if actor is None:
+        return None
+    return (speakers or {}).get(actor, actor)
 _STOPWORDS = frozenset('''
     about above after again also another been before being below between both could does doing
     down during each even ever every from further have having here hers herself himself into itself
@@ -513,11 +690,10 @@ CALL_MAX_WORDS = 60          # a roll prompt, ruling, or narrow answer stays sho
 CALL_MAX_SEGMENTS = 2
 EXCHANGE_MIN_WORDS = 40      # narration + actor speech on a social exchange
 EXCHANGE_MIN_ACTOR_WORDS = 30  # the selected actor's own speech (voiced actors only)
-# The actor floor applies to actors whose card establishes a voice. The card
-# players' card asks for "a brief reaction or visible movement", so forcing 30
-# words from one made every card player a speechmaker and contradicted the card.
-# A card-player focus must still speak, and the exchange total floor still applies.
-VOICED_FLOOR_SPEAKERS = ('Dealer',)
+# The actor floor applies to every focus actor unless their actor card says
+# "speech_floor": false (a terse background voice: forcing 30 words from one made every
+# card player a speechmaker and contradicted their card). Such a focus must still speak,
+# and the exchange total floor still applies.
 EXCHANGE_MIN_SEGMENTS = 2    # an embodied beat or second reactor, not one speech alone
 FEATURE_MIN_WORDS = 80       # scene entry or scene-turning moment
 FEATURE_MIN_SEGMENTS = 2
@@ -531,8 +707,8 @@ def performance_limits(scope=None):
     """
     limits = {
         'call': f'At most {CALL_MAX_WORDS} words in at most {CALL_MAX_SEGMENTS} segments. Answer and stop.',
-        'exchange': (f'The focus actor speaks at least {EXCHANGE_MIN_ACTOR_WORDS} words (a card player '
-                     'focus may be brief but must speak); at least '
+        'exchange': (f'The focus actor speaks at least {EXCHANGE_MIN_ACTOR_WORDS} words (an actor whose '
+                     'card sets speech_floor false may be brief but must speak); at least '
                      f'{EXCHANGE_MIN_WORDS} words across non-Kit segments; at least '
                      f'{EXCHANGE_MIN_SEGMENTS} segments (e.g. a visible beat plus the actor).'),
         'feature': (f'At least {FEATURE_MIN_WORDS} words across non-Kit segments in at least '
@@ -600,7 +776,9 @@ PRIVATE_INSTRUCTIONS = (
     'observed_event. On a social turn that event restates the player’s declared words; appraise '
     'what they actually said or did, not the scene in general. Appraise its relation to one of Kit’s actual '
     'goals, or choose none. Reference only supplied episode IDs. Choose a high-level move and '
-    'regulate her table presence. First make an improv_read: describe the player’s declared '
+    'regulate her table presence. focus_actor is the id of any actor present in the scene who '
+    'carries the turn (the ids claims_here and agenda_here use), or none; an NPC move needs one '
+    'and improv_read.actor_ref names the same actor. First make an improv_read: describe the player’s declared '
     'bid without inventing their thoughts; choose a story anchor and its established basis '
     'only if the move touches an active scene, level, or campaign pressure; choose a live actor and one established '
     'goal basis, or none. State the specific connection among the bid, that pressure, the '
@@ -611,7 +789,8 @@ PRIVATE_INSTRUCTIONS = (
     'the player. Use the actor’s private motives to decide what they try, but phrase the '
     'brief as safe direction for a performer who sees only the public scene. If action_kind '
     'is opening, choose world_description and frame the people and pressure before the '
-    'player acts; the performance also needs the dealer’s first utterance. Show Kit’s '
+    'player acts; set focus_actor to the person who speaks first, and the performance needs '
+    'that actor’s first line. Show Kit’s '
     'taste through the choice of beat. Do not include hidden identities, clues, or motives. '
     'Keep the trace brief and specific. Do not write dialogue. '
     'An NPC’s motives are distinct from Kit’s reaction. The player may surprise you; do not force a route. '
@@ -702,8 +881,17 @@ PRIVATE_INSTRUCTIONS = (
     'perceives, what their passive Insight or Perception has earned (pc_band fingerprint: '
     'deniable evidence, never the label), and what their own rolls found; Kit\u2019s asides hint '
     'only as far as the wink tier allows (point: where to look; name_kind: the kind of thing; '
-    'never the secret). A missing adventure concealment DC defaults to 10 + floor(dungeon '
-    'floor level / 3); the current area may provide optional floor_level, otherwise use 1. '
+    'never the secret); the wink tier always comes from the PC\u2019s passive Insight. CHECKS: '
+    'claims_here dc is the one number for that secret on every path. Any check the source gives '
+    'no DC is 10 + floor(dungeon floor level / 3) (the area may give floor_level, else 1); an NPC '
+    'who actively hides something brings a flat 10 + their skill instead. NPCs never roll: in any '
+    'opposed check they bring flat 10 + skill (passive). When the PC\u2019s relevant passive meets '
+    'the number, they simply notice or succeed, no roll; the player rolls only when actively '
+    'trying something that is not automatic, and meeting the number succeeds. An NPC lie is '
+    'flat 10 + Deception against the PC\u2019s passive Insight; if the player actively reads '
+    'whether someone is lying, they roll Insight against that same number, and it answers '
+    'only whether that person is being straight, never another secret. Never tell the player '
+    'that the source gives no DC; apply the default. '
     'Motive: why would this person say it now? Choose truth, lie, boast, '
     'bargain, hedge, or silence from their wants; Charisma decides how well they manage it. '
     'Intelligence changes how far someone reasons and how they go wrong, never how well they '
@@ -711,18 +899,20 @@ PRIVATE_INSTRUCTIONS = (
     'asks, someone answers, even if it\u2019s a lie or a refusal. Record each stated claim in '
     'claims (claim id or new, speaker, stance, version, why); a lie, boast, or bargain\u2019s why '
     'cites the speaker\u2019s want. Never roll a knowledge check for the player. '
-    'AGENDA. Every turn something in the scene wants something and moves: a person, a monster, a '
-    'faction, the room itself, a clock. agenda_here lists who is present, what they want from '
-    'this player character, their moves, and the clocks. When the player stalls, looks away, or '
-    'is busy elsewhere, advance one: an actor makes a declared move (or a new one rooted in scene '
-    'facts, and never on a secret they are unaware of), or a pressure ticks. If the player is '
-    'dealing with that agent right now, hold as engaged: that exchange is its advance. A quiet '
-    'room is fine; say why it is calm. Optional activities recede: when activities says '
+    'AGENDA. Something in the scene wants something, and it moves when it should: a person, a '
+    'monster, a faction, the room itself, a clock. agenda_here lists who is present, what they '
+    'want from this player character, their moves, the clocks, and must_advance (the pace says '
+    'an advance is due). When an advance is due, or the player stalls, looks away, or is busy '
+    'elsewhere, advance one: an actor makes a declared move (or a new one rooted in scene facts, '
+    'and never on a secret they are unaware of), or a pressure ticks. If the player is dealing '
+    'with that agent right now, hold as engaged: that exchange is its advance. When no advance '
+    'is due, a quiet turn is valid even with agents present: hold quiet and say in why what '
+    'keeps them waiting this turn. Optional activities recede: when activities says '
     'backgrounded, do not remind, prompt, or choose for the player. When something catches the '
     'eye, say why in salience: the concrete visible detail. '
-    'PC STATE follows the situation, never a default (claims_here.pc): at cards, hands on the '
-    'cards and a shield slung; in a fight, weapon, shield, or focus in hand. The player\u2019s word '
-    'wins. When the fiction changes it, record the whole picture in pc_state. A declared state '
+    'PC STATE follows the situation, never a default (claims_here.pc): seated at a table or '
+    'talking, hands free and a carried item slung or stowed unless the player says it is in hand; '
+    'in a fight, a weapon or focus in hand. The player\u2019s word wins. When the fiction changes it, record the whole picture in pc_state. A declared state '
     'that is odd for the situation stands (advantage too, if really met); never quietly undo it. '
     'Reacting to odd habits is a goal: pc_oddity names who present notices and how their wants '
     'make them react (suspicion, a joke, a higher price, refusing to deal), carried in npc_notice. '
@@ -742,7 +932,7 @@ PUBLIC_INSTRUCTIONS = (
     'telegraph the public social and exploration invitations without announcing a hidden truth. '
     'On a social reply, react to the player’s actual words. A character may take a few sentences '
     'to test, tempt, threaten, or tell a short story when it earns the space, but stop at a real '
-    'player decision. Let a second card player react only when that changes the scene. '
+    'player decision. Let a second NPC react only when that changes the scene. '
     'Follow the selected public brief, tone, and table presence; quiet means '
     'no Kit segment, brief at most one, present at least one, and showtime one to '
     f'{kit_voice.SHOWTIME_MAX_KIT_SEGMENTS} Kit segments where she takes the stage (they count '
@@ -779,11 +969,11 @@ PUBLIC_INSTRUCTIONS = (
     'filler, no recycled lines. '
     'NPC VOICES: every NPC speaks only from their own card: its voice_contract rhythm, register, '
     'tics, and humor, and its physical touchstone; never_says and never_words are hard limits, and '
-    'max_words_per_sentence caps that NPC’s sentences. Each card player has their own speaker '
-    'label and card. Enact a voice through rhythm, never a phonetic accent or stereotype. NPCs '
+    'max_words_per_sentence caps that NPC’s sentences. Each NPC has their own speaker '
+    'label (speakers) and card. Enact a voice through rhythm, never a phonetic accent or stereotype. NPCs '
     'pursue their own objectives and never use table talk (dice, checks, rulings, the story as a '
-    'story); a dealer naming his running game\u2019s stakes and play in its own terms is not table '
-    'talk. NPC speech stays separate from Kit’s: no NPC borrows her wit, asides, one-word verdicts, '
+    'story); an NPC running a table procedure who names its stakes and play in its own terms is '
+    'not table talk. NPC speech stays separate from Kit’s: no NPC borrows her wit, asides, one-word verdicts, '
     'or phrasing, or voices her taste; tone and kit_focus never change an NPC’s diction. Two NPCs '
     'in one turn never sound alike, and no NPC reuses a pet name, opener, or phrase from their '
     'recent turns. Fixed source numbers such as a price never change. '
@@ -801,9 +991,9 @@ PUBLIC_INSTRUCTIONS = (
     'that speaker would, and never correct or explain it. new_procedures, when present, are table games the runtime can run; only '
     'those may be offered as playable with rules or stakes, and while one runs (table_procedures) '
     'only its own rules and stakes are stated. SCENE FIT: call the player only what '
-    'your_character says they are; never narrate a deal as clean or honest (say only what the '
-    'player can see); a table game stakes only the gold it tracks, never the ring, a toll, '
-    'passage, or anything else.'
+    'your_character says they are; never narrate anything hidden as clean, honest, or fair (say '
+    'only what the player can see); a running procedure stakes only what it tracks, never other '
+    'items, prices, or favors.'
 )
 
 # Kit's direct table voice: Brendon's voice spec (docs/personality/dm-personality-core.md,
@@ -962,21 +1152,25 @@ def check_plan(plan, episodes, public_event, action_kind=None, candidates=None, 
             'Unknown or invalid memory reference')
     require(candidates is not None, 'Scene discernment candidates required')
     check_improv_read(plan['improv_read'], candidates)
-    for field in ('move', 'focus_actor', 'table_presence', 'tone'):
+    for field in ('move', 'table_presence', 'tone'):
         require(plan[field] in PLAN_SCHEMA['properties'][field]['enum'], f'Invalid {field}')
+    focus = plan['focus_actor']
+    require(isinstance(focus, str) and focus.strip(), 'Invalid focus_actor')
+    if focus not in ('none', 'other'):
+        actors = (state or {}).get('actors')
+        if actors is not None:
+            actor = actors.get(focus) or {}
+            require(actor and actor.get('location') == (state or {}).get('area') and
+                    actor.get('status') not in ('fled', 'dead'),
+                    f'focus_actor {focus!r} is not an actor present here; use a present actor id or none')
     require(plan['move'] != 'kit_comment_then_npc' or plan['table_presence'] != 'quiet',
             'Chosen move conflicts with quiet table presence')
     require(action_kind != 'opening' or plan['move'] == 'world_description',
             'Room entry needs a world description')
     if plan['move'] in ('npc_reply', 'kit_comment_then_npc'):
-        if plan['focus_actor'] == 'uktarl':
-            require(plan['improv_read']['actor_ref'] == 'uktarl',
-                    'NPC move disagrees with selected actor')
-        elif plan['focus_actor'] == 'other':
-            require(plan['improv_read']['actor_ref'] not in ('none', 'uktarl'),
-                    'NPC move disagrees with selected actor')
-        else:
-            raise InvalidChange('NPC move needs a selected actor')
+        require(focus_actor_id(plan) is not None, 'NPC move needs a selected actor')
+        require(plan['improv_read']['actor_ref'] == focus_actor_id(plan),
+                'NPC move disagrees with selected actor')
     brief = plan['public_brief']
     require(isinstance(brief, dict) and set(brief) == set(BRIEF_FIELDS) and
             all(isinstance(brief[key], str) and 0 < len(brief[key].strip()) <= 240
@@ -1140,7 +1334,7 @@ def _words(text):
     return len(re.findall(r"[\w’']+", text))
 
 
-def check_scope(segments, plan):
+def check_scope(segments, plan, guards=None):
     """Flat-reply guard per selected scope. A floor, not a measure of quality."""
     scope = plan['public_brief']['scope']
     # Showtime: Kit's theatrical narration in her own segments is scene material.
@@ -1154,10 +1348,11 @@ def check_scope(segments, plan):
                 f'{CALL_MAX_WORDS} words in {CALL_MAX_SEGMENTS}). Answer directly and stop.')
         return
     if scope == 'exchange':
-        actor = focus_speaker(plan)
-        if actor and actor not in VOICED_FLOOR_SPEAKERS:
-            speakers = (kit_guards.CARD_PLAYER_SPEAKERS if actor == 'a card player' else (actor,))
-            require(any(segment['speaker'] in speakers for segment in segments),
+        guards = guards or {}
+        # Without the room's speaker labels there is no actor to count; the total floor applies.
+        actor = focus_speaker(plan, guards['speakers']) if 'speakers' in guards else None
+        if actor and actor in guards.get('brief_speakers', ()):
+            require(any(segment['speaker'] == actor for segment in segments),
                     f'Exchange scope: the selected {actor} never spoke. A brief line is enough; '
                     'the exchange floor still applies to the whole turn.')
         elif actor:
@@ -1217,31 +1412,33 @@ def check_speech(speech, plan, public_view, player_action, action_kind=None, gua
     for segment in segments:
         require(isinstance(segment, dict) and set(segment) in ({'speaker', 'text'},
                                                               {'speaker', 'text', 'reacts_to'}) and
-                segment['speaker'] in SPEECH_SCHEMA['properties']['segments']['items']['properties']['speaker']['enum'] and
+                isinstance(segment['speaker'], str) and segment['speaker'].strip() and
+                ('labels' not in guards or segment['speaker'] in guards['labels']) and
                 isinstance(segment['text'], str) and 0 < len(segment['text'].strip()) <= 900,
                 'Invalid spoken segment')
     kit_count = sum(segment['speaker'] == 'Kit' for segment in segments)
     require(plan['table_presence'] != 'quiet' or kit_count == 0, 'Quiet Kit spoke directly')
     require(plan['table_presence'] != 'brief' or kit_count <= 1, 'Brief Kit took over the scene')
     require(plan['table_presence'] != 'present' or kit_count >= 1, 'Present Kit did not speak')
-    kit_voice.check_voice_presence(segments, plan, focus_speakers(plan))
+    speakers = guards.get('speakers')
+    focus = focus_speaker(plan, speakers)
+    kit_voice.check_voice_presence(segments, plan, focus_speakers(plan, speakers))
     require(plan['move'] != 'kit_comment_then_npc' or
-            (kit_count >= 1 and any(segment['speaker'] in NPC_SPEECH_SPEAKERS for segment in segments)),
+            (kit_count >= 1 and any(is_npc_speaker(segment['speaker']) for segment in segments)),
             'Chosen Kit and NPC move was not performed')
     require(plan['move'] != 'npc_reply' or
-            any(segment['speaker'] in NPC_SPEECH_SPEAKERS for segment in segments),
+            any(is_npc_speaker(segment['speaker']) for segment in segments),
             'Chosen NPC reply was not performed')
     require(plan['move'] != 'world_description' or
             any(segment['speaker'] == 'Narrator' for segment in segments),
             'Chosen world description was not performed')
-    require(plan['focus_actor'] != 'uktarl' or plan['move'] not in
-            ('npc_reply', 'kit_comment_then_npc') or
-            any(segment['speaker'] == 'Dealer' for segment in segments),
-            'Selected dealer did not speak')
+    require(focus is None or speakers is None or plan['move'] not in ('npc_reply', 'kit_comment_then_npc') or
+            any(segment['speaker'] == focus for segment in segments),
+            f'Selected focus actor ({focus}) did not speak')
     require(action_kind != 'opening' or
-            all(any(segment['speaker'] == speaker for segment in segments)
-                for speaker in ('Narrator', 'Dealer')),
-            'Room entry needs narration and the dealer')
+            (any(segment['speaker'] == 'Narrator' for segment in segments) and
+             (focus is None or speakers is None or any(segment['speaker'] == focus for segment in segments))),
+            'Room entry needs narration and the focus actor\'s first line')
     spoken = '\n'.join(f"{segment['speaker']}: {segment['text'].strip()}" for segment in segments)
     # HARD: secrets (literal and paraphrased), the player's agency, NPC table talk, and
     # a clarification that really asks something.
@@ -1265,7 +1462,7 @@ def check_speech(speech, plan, public_view, player_action, action_kind=None, gua
     kit_detail.check_detail_performance(segments, running, game_terms)
     # SOFT: style floors. Recorded as warnings, not rejections, in degraded mode.
     history = guards.get('public_history', ())
-    soft = (lambda: check_scope(segments, plan),
+    soft = (lambda: check_scope(segments, plan, guards),
             lambda: kit_guards.check_padding(segments, player_action, action_kind, history,
                                              json.dumps((public_view or {}).get('table_procedures') or {},
                                                         ensure_ascii=False)),
@@ -1288,7 +1485,7 @@ def check_speech(speech, plan, public_view, player_action, action_kind=None, gua
 
 def check_claimed_numbers(segments, plan, guards, player_action, game_terms=()):
     """HARD: numeric exceptions apply only to their speaker, fact, and currency."""
-    planned = kit_claims.planned_amounts(plan.get('claims'), ACTOR_SPEAKERS)
+    planned = kit_claims.planned_amounts(plan.get('claims'), guards.get('speakers') or {})
     for segment in segments:
         facts = {}
         for name, fact in (guards.get('numeric_facts') or {}).items():
@@ -1345,9 +1542,11 @@ def turn_events(runtime, body, plan, turn_id):
     return events
 
 
-def _named_actors(action):
-    words = set(re.findall(r"[a-z]+", action.casefold()))
-    return {actor for actor, aliases in ACTOR_ALIASES.items() if words & set(aliases)}
+def _named_actors(action, aliases=None):
+    """Actors the action names, by the room source's public aliases (actor_aliases)."""
+    text = action.casefold()
+    return {actor for actor, names in (aliases or {}).items()
+            if any(re.search(rf"\b{re.escape(name)}\b", text) for name in names if name)}
 
 
 def _episode_words(episode):
@@ -1358,12 +1557,12 @@ def _episode_words(episode):
     return keywords(' '.join(text for text in texts if isinstance(text, str)))
 
 
-def _relevance(episodes, action):
+def _relevance(episodes, action, aliases=None):
     """Score function for earlier episodes: shared meaningful words with the action
     (weighted most), the actor the action names or the conversation is already with,
     and the active story thread (a level or campaign anchor, not the generic scene)."""
     last = episodes[-1]
-    actors = _named_actors(action)
+    actors = _named_actors(action, aliases)
     if last.get('actor_ref') not in (None, 'none'):
         actors.add(last['actor_ref'])
     thread = ((last.get('story_anchor'), last.get('story_basis'))
@@ -1378,7 +1577,7 @@ def _relevance(episodes, action):
     return score
 
 
-def select_episodes(episodes, action, limit=MEMORY_LIMIT, recent=MEMORY_RECENT):
+def select_episodes(episodes, action, limit=MEMORY_LIMIT, recent=MEMORY_RECENT, aliases=None):
     """Always the last `recent` episodes, then earlier ones by relevance, up to `limit`.
 
     Relevance is transparent (see _relevance). Irrelevant episodes are left out rather
@@ -1387,7 +1586,7 @@ def select_episodes(episodes, action, limit=MEMORY_LIMIT, recent=MEMORY_RECENT):
     if not episodes:
         return []
     kept = list(range(max(0, len(episodes) - recent), len(episodes)))
-    score_of = _relevance(episodes, action)
+    score_of = _relevance(episodes, action, aliases)
     scored = []
     for index, episode in enumerate(episodes[:kept[0]] if kept else episodes):
         score = score_of(episode)
@@ -1404,23 +1603,24 @@ def kit_memory(runtime, state, action, use_memory):
     if not use_memory:
         return {'episodes': [], 'player_notes': [], 'drop_order': []}
     stored = state['kit']['episodes']
-    chosen = select_episodes(stored, action)
+    aliases = actor_aliases(runtime.source())
+    chosen = select_episodes(stored, action, aliases=aliases)
     spoken = {record['turn_id']: record['spoken']
               for record in runtime.kit_turns_by_id([episode['turn_id'] for episode in chosen])}
     episodes = [{**episode, 'spoken': spoken.get(episode['turn_id'], '')[-1200:]}
                 for episode in chosen]
     return {'episodes': episodes, 'player_notes': state['kit']['player_notes'],
-            'drop_order': trim_order(chosen, stored, action)}
+            'drop_order': trim_order(chosen, stored, action, aliases=aliases)}
 
 
-def trim_order(chosen, stored, action, recent=MEMORY_RECENT):
+def trim_order(chosen, stored, action, recent=MEMORY_RECENT, aliases=None):
     """Episode IDs in the order the budget drops them: earlier episodes least relevant
     first (oldest first on ties), then the recent ones oldest first. The very last
     episode is never listed; fit_to_budget always keeps it."""
     if not chosen:
         return []
     recent_ids = [episode['turn_id'] for episode in stored[-recent:]]
-    score_of = _relevance(stored, action)
+    score_of = _relevance(stored, action, aliases)
     earlier = [(score_of(episode), index, episode['turn_id'])
                for index, episode in enumerate(chosen) if episode['turn_id'] not in recent_ids]
     return [turn_id for _, _, turn_id in sorted(earlier)] + recent_ids[:-1]
@@ -1708,6 +1908,8 @@ def public_performance_base(runtime, body, one_pass=False):
         'player_action': body['action'], 'accepted_public_event': body['public_event'],
         'action_kind': body['kind'],
         'performance_reference': reference,
+        # The only speaker labels this room allows: Narrator, Kit, and one per actor.
+        'speakers': list(speech_speakers(runtime.source())),
     }
     if body.get('refused_attempts'):
         payload['refused_attempts'] = body['refused_attempts']
@@ -1734,7 +1936,7 @@ def performance_input(runtime, body, plan):
     payload = public_performance_base(runtime, body)
     payload['selected_move'] = {
             'move': plan['move'],
-            'focus_actor': focus_speaker(plan) or 'none',
+            'focus_actor': focus_speaker(plan, actor_speakers(runtime.source())) or 'none',
             'table_presence': plan['table_presence'], 'tone': plan['tone'],
             'turn_mode': plan.get('turn_mode'),
             'brief': plan['public_brief'],
@@ -1748,7 +1950,8 @@ def performance_input(runtime, body, plan):
         # Public details this decision establishes; they persist when the turn commits.
         payload['new_details'] = [{'slot': item['slot'], 'fact': item['fact']} for item in shown]
     cues = [{'speaker': 'Kit' if item['speaker'] == 'kit' else
-             'Narrator' if item['speaker'] == 'narrator' else ACTOR_SPEAKERS.get(item['speaker'], item['speaker']),
+             'Narrator' if item['speaker'] == 'narrator' else
+             actor_speakers(runtime.source()).get(item['speaker'], item['speaker']),
              'says': item['version']}
             for item in plan.get('claims') or () if item['stance'] != 'silence']
     if cues:
@@ -1797,6 +2000,8 @@ def guard_context(source, body):
             'dealer_cheated': bool((body.get('scene_facts') or {}).get('dealer_cheated')),
             'declared_procedures': tuple(procedures),
             'voice_contracts': {name: card.get('voice_contract') or {} for name, card in cards.items()},
+            'speakers': actor_speakers(source), 'labels': speech_speakers(source),
+            'brief_speakers': tuple(name for name, card in cards.items() if card.get('speech_floor') is False),
             'public_history': body.get('public_history', [])}
 
 

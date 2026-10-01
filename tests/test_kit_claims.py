@@ -66,8 +66,10 @@ class BandTests(unittest.TestCase):
         # Passive Insight 14 meets the adventure's DC 14: fingerprint, and Kit may point.
         self.assertEqual((vamp['dc'], vamp['pc_band'], vamp['wink']), (14, 'fingerprint', 'point'))
         self.assertIn('fingerprint', vamp)
-        # No adventure DC: floor 1 defaults to 10. Shield not held: 14, four over, Kit may point.
-        self.assertEqual((deck['dc'], deck['pc_band'], deck['wink']), (10, 'fingerprint', 'point'))
+        # No adventure DC, but the dealer hides it with Sleight of Hand +3: flat 10 + 3 = 13.
+        # Shield not held: passive Perception 14 meets it, so the fingerprint. The wink is keyed
+        # to passive Insight (14, one over 13): Kit may point.
+        self.assertEqual((deck['dc'], deck['pc_band'], deck['wink']), (13, 'fingerprint', 'point'))
         # Knowledge is never passive: the ring waits for a player's History roll.
         self.assertEqual((ring['pc_band'], ring['wink']), ('blind', 'none'))
         self.assertIn('only when the player asks', ring['player_roll'])
@@ -78,17 +80,22 @@ class BandTests(unittest.TestCase):
         self.assertEqual(claims['marked_deck']['pc_band'], 'blind')
 
     def test_missing_dc_uses_dungeon_floor_level(self):
+        # Any check the source gives no DC, concealment or not (here the ring's appraisal).
+        ring = SOURCE['claims']['ring_value']
+        self.assertNotIn('dc', ring)
+        self.assertEqual(kit_claims.claim_dc(ring, SOURCE['actors'], floor_level=1), 10)
+        self.assertEqual(kit_claims.claim_dc(ring, SOURCE['actors'], floor_level=4), 11)
+        # An NPC actively hiding it brings a flat 10 + skill instead, whatever the floor.
         deck = SOURCE['claims']['marked_deck']
-        self.assertEqual(kit_claims.claim_dc(deck, SOURCE['actors'], floor_level=1), 10)
-        self.assertEqual(kit_claims.claim_dc(deck, SOURCE['actors'], floor_level=4), 11)
+        self.assertEqual(kit_claims.claim_dc(deck, SOURCE['actors'], floor_level=4), 13)
 
     def test_npc_bands_come_from_stats_role_and_special_senses(self):
         ring = self.packet(NIK)['ring_value']['npc_bands']
         self.assertEqual(ring['uktarl'], 'knows')          # he counted the take
         self.assertEqual(ring['doppelganger'], 'knows')    # Read Thoughts
-        self.assertEqual(ring['bandit_b'], 'anchored')     # 10 vs 15, jewelry not his domain
+        self.assertEqual(ring['bandit_b'], 'knows')        # Int 10 meets the default DC 10 on floor 1
         deck = self.packet(NIK)['marked_deck']['npc_bands']
-        self.assertEqual(deck['bandit_a'], 'knows')        # passive Insight 10 meets default DC 10
+        self.assertEqual(deck['bandit_a'], 'close')        # passive Insight 10, three short of 13
 
     def test_a_revealed_fact_is_learned(self):
         self.assertEqual(self.packet(NIK, known=['false_vampires'])['false_vampires']['pc_band'], 'learned')
@@ -124,9 +131,16 @@ class DecisionTests(unittest.TestCase):
             self.check([claim('false_vampires', 'kit', 'wink', 'Watch the napkin.')], sheet=dull_fighter())
 
     def test_bands_limit_what_a_speaker_can_do(self):
-        self.check([claim('ring_value', 'bandit_b', 'truth', 'Silver. Melt it, five gold.')])
+        # A source that did give a hard appraisal DC (15): an Int 10 bandit is anchored.
+        source = copy.deepcopy(SOURCE)
+        source['claims']['ring_value']['dc'] = 15
+        state = state_for(NIK)
+        packet = kit_claims.claims_here(source, state, NIK)
+        kit_claims.check_claims([claim('ring_value', 'bandit_b', 'truth', 'Silver. Melt it, five gold.')],
+                                packet, source, state)
         with self.assertRaisesRegex(InvalidChange, 'anchored'):
-            self.check([claim('ring_value', 'bandit_b', 'lie', 'Twenty-five.', why='share in the take')])
+            kit_claims.check_claims([claim('ring_value', 'bandit_b', 'lie', 'Twenty-five.', why='share in the take')],
+                                    packet, source, state)
 
     def test_a_new_kit_claim_needs_roots_and_a_holder(self):
         self.check([claim('new', 'uktarl', 'boast', 'The house red. A very good year for somebody.',
@@ -162,12 +176,12 @@ class PlayTests(unittest.TestCase):
     def test_a_missed_history_roll_learns_nothing(self):
         self.runtime.set_player_sheet(NIK)
         revision, state = self.runtime.load()
-        result = Room6CAdjudicator(source=SOURCE).resolve('What do I know about the ring? I rolled 3 + 7 = 10',
+        result = Room6CAdjudicator(source=SOURCE).resolve('What do I know about the ring? I rolled 2 + 7 = 9',
                                                           revision, state)
         self.assertNotIn('claim_learned', [event['type'] for event in result.events])
 
     def test_a_planned_lie_may_name_its_number_and_an_unplanned_one_may_not(self):
-        guards = {'numeric_facts': kit_guards.numeric_facts(SOURCE)}
+        guards = {'numeric_facts': kit_guards.numeric_facts(SOURCE), 'speakers': kit_agent.actor_speakers(SOURCE)}
         line = [{'speaker': 'Dealer', 'text': 'That ring? Forty gold. The priests in the Ward pay double.'}]
         with self.assertRaisesRegex(InvalidChange, 'ring value'):
             kit_agent.check_claimed_numbers(line, {}, guards, 'What is the ring worth?')
@@ -190,7 +204,7 @@ class PlayTests(unittest.TestCase):
     def test_ring_lie_does_not_authorize_a_different_toll(self):
         plan = {'claims': [claim('ring_value', 'uktarl', 'lie', 'Forty gold.',
                                  why='bait to profit from newcomers')]}
-        guards = {'numeric_facts': kit_guards.numeric_facts(SOURCE)}
+        guards = {'numeric_facts': kit_guards.numeric_facts(SOURCE), 'speakers': kit_agent.actor_speakers(SOURCE)}
         for text in ('Passage costs forty gold.',
                      'The ring is forty gold. Passage costs forty gold.',
                      'The ring and passage both cost forty gold.'):
@@ -306,17 +320,19 @@ class PlayTests(unittest.TestCase):
         self.runtime.set_player_sheet(NIK)
         revision, state = self.runtime.load()
         first = adjudicator.resolve('I study their faces for a disguise.', revision, state)
-        self.assertIn('14 vs DC 14', first.public_event)
+        # Passive Insight 14 meets DC 14: automatic, nothing rolled (the roll lambda is unused).
+        self.assertIn('passive Insight 14 meets DC 14', first.public_event)
         self.runtime.set_player_sheet(dull_fighter())
         revision, state = self.runtime.load()
         second = adjudicator.resolve('I study their faces for a disguise.', revision, state)
-        self.assertIn('9 vs DC 14', second.public_event)
+        self.assertIn('(Insight 9)', second.public_event)
+        self.assertNotIn('vampire', second.public_event)
         self.runtime.set_player_character('Another', 'Human')
         revision, state = self.runtime.load()
-        with self.assertRaisesRegex(PendingRuling, 'Supply your Insight modifier'):
+        with self.assertRaisesRegex(PendingRuling, 'Load a character sheet or state the Insight roll'):
             adjudicator.resolve('I study their faces for a disguise.', revision, state)
         explicit = Room6CAdjudicator(source=SOURCE, insight=2, roll=lambda: 10)
-        self.assertIn('12 vs DC 14', explicit.resolve('I study their faces for a disguise.',
+        self.assertIn('(Insight 12)', explicit.resolve('I study their faces for a disguise.',
                                                      revision, state).public_event)
 
     def test_one_pass_knowledge_uses_the_roll_result_before_commit_and_retries_safely(self):

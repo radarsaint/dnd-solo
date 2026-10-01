@@ -20,17 +20,21 @@ the module docstring), and it is validated when the session initializes.
   spans rooms (`"*"`). Hazards, decay, and traps are `environment` agents.
 - **Pressures.** Each pressure is a clock with `segments`, `ticks_on`, `when_full`, `roots`, and
   `areas`.
-- **Pacing.** The default `every: 1` means something advances every turn. `pace: {area: N}`
-  makes a calmer room. A room with nothing live is **quiet**, and that is valid. The rule is that
-  something moves when it should, not that drama is forced.
+- **Pacing.** Something moves when it should, not every turn by force. `every: N` (default 1)
+  says an advance is due once N turns pass without one; `pace: {area: N}` makes a calmer room.
+  `must_advance` in `agenda_here` says when an advance is due. When it is not due, a **quiet** turn
+  is valid even with agents present, as long as the decision's `hold.why` says why nothing
+  advances this turn.
 - **prepare.** `agenda_here` lists each present agent: its presence, disposition, want,
   available moves, moves blocked by knower bands, and turns since it last acted. It also lists
   the clocks, turns since the last advance, and `must_advance`.
 - **decide.** `agenda {advances, ticks, hold}` is required whenever `agenda_here` is present. An
   advance is a declared move id, or `new` with roots (same root rules as new claims). A hold is
   `engaged` (the player is dealing with that onstage agent now, and the exchange is its advance),
-  `quiet`, `paced`, or `none`. When `must_advance` is true and nothing advanced, only `engaged`
-  passes. A full clock cannot tick.
+  `quiet` (nothing advances, for the stated reason), `paced` (the same, named for the pace), or
+  `none`. When `must_advance` is true and nothing advanced, only `engaged` passes: a quiet hold is
+  rejected only when an advance is overdue. With agents present, a quiet `why` needs at least four
+  words. A full clock cannot tick.
 - **Knowers.** If a move's `needs` or roots touch a claim, or the fact behind a claim, that the
   agent's actor is `unaware` of, the move is blocked in prepare and rejected in decide.
 - **finish.** An `agenda_turn` event persists the turn count, `last_acted` for each agent
@@ -58,10 +62,11 @@ present actor, canon, or an established claim. A root that is still a secret is 
 - **Sheet.** `advantage_on` entries may be conditional: `{skill, source, while: held|equipped|active}`.
 - **State.** `held`, `equipped`, and `active` say what is true now. They are not a sheet default:
   absent means not yet established, and unknown is never true. The decision's `pc_state` (or the CLI,
-  `character --held "Sentinel Shield"`) commits a `pc_state` event.
+  `character --held "<item>"`) commits a `pc_state` event.
 - **Passives.** A passive gets +5 only while its condition is true.
-- **Nik.** Nik's sheet sets no held state. Passive Perception is 14 until the Sentinel Shield is
-  established as held, then 19.
+- **Example (one sheet, not a rule).** A sheet whose item grants advantage on Perception only while
+  held sets no held state; its passive Perception stays at 10 + bonus until the item is established
+  as held, then gains +5. (Nik's sheet is one such case: 14, then 19.)
 - **Decide.** `roll_call {skill, mode, cause {kind, ref, roots}}`. Advantage or disadvantage
   needs an item held or equipped, an active spell or condition, a sheet feature, or a position
   rooted in scene facts.
@@ -70,13 +75,13 @@ present actor, canon, or an established claim. A root that is still a secret is 
 
 ## The PC's state follows the situation
 
-- **Situation, then the player's word.** Seated at cards: hands on the cards, a shield slung or set
-  aside. A fight or on guard: weapon, shield, or focus in hand. The player's declared state always
+- **Situation, then the player's word.** Seated at a table or talking: hands free, a carried item
+  slung or stowed unless the player says it is in hand. A fight or on guard: a weapon or focus in hand. The player's declared state always
   wins. When the fiction changes it, the decision records the whole picture in
   `pc_state {held, equipped, active, why}`. It counts for that turn's `roll_call` and commits with the
   turn.
-- **Odd is a scene event, not a correction.** A declared state that is odd for the situation (a shield
-  up at the card table, a blade drawn at dinner, a focus in hand for a handshake) stands, with its
+- **Odd is a scene event, not a correction.** A declared state that is odd for the situation (a held item
+  kept up at a friendly table, a blade drawn at dinner, a focus in hand for a handshake) stands, with its
   advantage when it is really met. The people present notice and react from their wants:
   `pc_oddity {what, noticed_by, reaction}`. `noticed_by` names actors present here. The reaction
   reaches the performer through `npc_notice` (`gear:` or `stunt:`). An agenda agent whose actor

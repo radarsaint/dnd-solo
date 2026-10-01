@@ -1,4 +1,10 @@
-"""Agendas: every turn, something in the scene wants something and moves. Room-agnostic.
+"""Agendas: something in the scene wants something, and it moves when it should. Room-agnostic.
+
+The pace decides when: ``agenda_here.must_advance`` is True once an advance is due (every
+N turns, per area). When it is not due, a quiet turn is valid even with agents present, as
+long as the decision says why nothing advances; it is rejected only when an advance is
+overdue and the reason does not fit (only "engaged", the player dealing with that agent
+right now, excuses an overdue advance).
 
 Modeled on Dungeon World fronts and GM moves and Blades in the Dark clocks. The source
 may declare one top-level ``agenda`` block. It covers every kind of room with one
@@ -36,8 +42,8 @@ KINDS = ('npc', 'monster', 'faction', 'environment', 'clock')
 DISPOSITIONS = ('hostile', 'friendly', 'neutral')
 TRIGGERS = ('stall', 'elsewhere', 'engaged', 'odd', 'any')  # odd: the PC does something odd for the situation
 # none: something advanced. engaged: the player is dealing with that agent right now, and
-# that exchange IS its advance. quiet: nothing here wants anything live. paced: the area's
-# pace has not come due.
+# that exchange IS its advance. quiet: nothing advances this turn, for the stated reason
+# (valid with agents present while no advance is due). paced: the same, named for the pace.
 HOLDS = ('none', 'engaged', 'quiet', 'paced')
 GONE = ('fled', 'dead', 'defeated', 'gone')
 TEXT_MAX = 200
@@ -256,11 +262,11 @@ def check_agenda(block, packet, source, state, reactors=()):
         require(hold['reason'] == 'engaged',
                 'Something here wants something and has waited long enough: advance an agent\'s move or '
                 'tick a pressure, or hold as engaged when the player is dealing with that agent now')
-    if hold['reason'] == 'quiet':
-        require(not agents and all(p['full'] for p in pressures.values()) or moved,
-                'Not quiet: agenda_here lists agents or live pressures')
-    if hold['reason'] == 'paced':
-        require(not packet['must_advance'], 'The pace is due this turn')
+    if hold['reason'] in ('quiet', 'paced') and not moved:
+        require(not packet['must_advance'], 'An advance is due this turn: a quiet hold does not fit')
+        live = bool(agents) or any(not p['full'] for p in pressures.values())
+        require(not live or len(hold['why'].split()) >= 4,
+                'A quiet turn with agents present says why nothing advances (who is waiting, and why now)')
     return ticks
 
 

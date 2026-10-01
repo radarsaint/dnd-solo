@@ -22,10 +22,12 @@ plain English.
    to that actor. Use SRD 5.1 ability scores and skills (CC-BY-4.0, and say so in
    `srd_basis`), plus role `domains` and `special` senses. Add only what a room uses.
 3. **Claims for other areas.** For each hidden fact that someone could be asked about, add
-   a claim. It needs `about`, `truth`, `source`, `fact`, `roots`, `exposure`, a `dc` (the
-   adventure's, or leave it out to get 10 + floor(dungeon floor level / 3); the area's
-   optional `floor_level` defaults to 1), a `concealer`, a
-   `pc_check`, and a `pc_access` (passive or roll). Also give the known `holders`, an
+   a claim. It needs `about`, `truth`, `source`, `fact`, `roots`, `exposure`, a `pc_check`,
+   and a `pc_access` (passive or roll). Give a `dc` only when the adventure gives one. Without
+   it, an NPC who actively hides the thing (`concealer` + `conceal_skill`) sets the DC at their
+   flat 10 + skill; otherwise any check gets 10 + floor(dungeon floor level / 3) (the area's
+   optional `floor_level` defaults to 1). Add `subject_words` so an active look or a knowledge
+   roll can target it, and `learned_text` for what a success shows. Also give the known `holders`, an
    `anchored_version` (the wrong answer someone gets from the most obvious feature), and a
    `fingerprint` (deniable evidence, never the label).
 4. **Kit claims in play.** When a player asks something the adventure leaves open, record a
@@ -51,6 +53,6 @@ plain English.
    - A Kit wink at that tier ("Watch the napkin").
    - Uktarl's "Forty" lie on the ring, planned as a `lie` with his why (Deception 14 against
      passive Insight 14: the lie lands).
-   - Nik's History roll for the ring (DC 15; on a success the narrator may say 25 gp).
+   - Nik's History roll for the ring (default DC 10 on floor 1; on a success the narrator may say 25 gp).
    - The dealer's drink as a `new` Kit claim.
    Write up what was rejected and why.
