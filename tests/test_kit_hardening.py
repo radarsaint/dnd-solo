@@ -26,8 +26,8 @@ LEAKS = kit_guards.leak_sets(SOURCE)
 EMPTY_VIEW = {'known_facts_here': []}
 
 
-def seg(speaker, text):
-    return {'speaker': speaker, 'text': text}
+def seg(speaker, text, reacts_to=None):
+    return {'speaker': speaker, 'text': text, **({'reacts_to': reacts_to} if reacts_to else {})}
 
 
 def history(*turns):
@@ -252,18 +252,18 @@ class RulingDodgeTests(BridgeCase):
     def test_real_rules_question_may_be_a_call(self):
         prepared = self.bridge.prepare('Can I roll Insight on the dealer?', 'rules')
         self.bridge.decide('rules', self.dodge(prepared, move='ruling'))
-        result = self.bridge.finish('rules', {'segments': [seg('Kit', 'Wisdom (Insight), yes. Go ahead.')]})
+        result = self.bridge.finish('rules', {'segments': [seg('Kit', 'Wisdom (Insight), yes. Go ahead.', 'roll Insight on the dealer')]})
         self.assertEqual(result['revision'], 1)
 
     def test_clarification_must_ask_and_cannot_hide_an_npc_reply(self):
         prepared = self.bridge.prepare('I say: do the thing with the cards.', 'clarify')
         self.bridge.decide('clarify', self.dodge(prepared, move='ask_clarification'))
         with self.assertRaisesRegex(InvalidChange, 'must actually ask'):
-            self.bridge.finish('clarify', {'segments': [seg('Kit', 'Cards it is.')]})
+            self.bridge.finish('clarify', {'segments': [seg('Kit', 'Cards it is.', 'do the thing with the cards')]})
         with self.assertRaisesRegex(InvalidChange, 'cannot carry an NPC reply'):
-            self.bridge.finish('clarify', {'segments': [seg('Kit', 'Which thing?'),
+            self.bridge.finish('clarify', {'segments': [seg('Kit', 'Which thing?', 'do the thing'),
                                                         seg('Dealer', 'Show me, then.')]})
-        self.bridge.finish('clarify', {'segments': [seg('Kit', 'Which thing: shuffle, cut, or palm one?')]})
+        self.bridge.finish('clarify', {'segments': [seg('Kit', 'Which thing: shuffle, cut, or palm one?', 'the thing with the cards')]})
 
 
 class ParaphraseLeakTests(BridgeCase):
@@ -428,6 +428,102 @@ class ContextBudgetTests(BridgeCase):
             fit_to_budget({'kit_state': {'episodes': []}, 'dialogue_history': [],
                            'dm_context': {'recent_rhythm': [], 'big': 'q' * 5000}}, [], budget=1000)
 
+    def test_a_detail_turn_after_a_long_game_fits_both_budgets(self):
+        class LongTalk(RecordingModel):
+            def plan(inner, payload):
+                plan = super().plan(payload)
+                action = payload['player_action']
+                plan['appraisal']['cause'] = action[:300]
+                plan['improv_read']['player_bid'] = action[:300]
+                plan['public_brief']['reply_to'] = action[:200]
+                return plan
+
+        agent = KitAgent(self.runtime, LongTalk(), self.adjudicator)
+        for turn in range(12):
+            agent.turn(f'Question {turn}: ' + ' '.join(f'word{turn}x{i}' for i in range(90)) + '?',
+                       f'long-{turn}')
+        for ask in ('What game is it?', 'What is the dealer drinking?', 'How much for passage?'):
+            prepared = self.bridge.prepare(ask, f'detail-{len(ask)}', one_pass=True)
+            private = len(encode(prepared['input']['private']).encode())
+            public = len(encode(prepared['input']['public']).encode())
+            self.assertIn('detail_oracle', prepared['input']['private'])
+            self.assertLessEqual(private, CONTEXT_BUDGET_BYTES)
+            self.assertLessEqual(private + public, kit_agent.ONE_PASS_BUDGET_BYTES)
+            self.runtime.discard_pending_kit_turn(f'detail-{len(ask)}')
+
+    def test_a_long_card_game_with_a_full_detail_ledger_fits(self):
+        """QA PR #15 item 9: the measured worst case. 12 long turns, a Three-Dragon Ante
+        gambit mid-play (the largest procedure state over 30 seeds), and CANON_LIMIT canon
+        entries at the maximum fact and basis lengths; both a detail turn and a card turn
+        (whose public half carries the changed view) fit, with nothing trimmed but memory."""
+        from runtime import kit_cards, state_context
+
+        class LongTalk(RecordingModel):
+            def plan(inner, payload):
+                plan = super().plan(payload)
+                action = payload['player_action']
+                plan['appraisal']['cause'] = action[:300]
+                plan['improv_read']['player_bid'] = action[:300]
+                plan['public_brief']['reply_to'] = action[:200]
+                return plan
+
+        adjudicator = Room6CAdjudicator(perception=0, insight=0, roll=lambda: 20, sleight_of_hand=0)
+        agent = KitAgent(self.runtime, LongTalk(), adjudicator)
+        self.runtime.set_player_character('Nik', 'Harengon', 'Rogue', 3)
+        for turn in range(12):
+            agent.turn(f'Question {turn}: ' + ' '.join(f'word{turn}x{i}' for i in range(90)) + '?',
+                       f'long-{turn}')
+        config = self.runtime.source()['procedures']['three_dragon_ante']
+        biggest = None
+        for seed in range(30):
+            table = kit_cards.CardTable('three_dragon_ante', config, {'perception': 0}, f'm{seed}')
+            game = table.resolve('card_join', 'I buy in with 40 gold and deal me in.', 1,
+                                 kit_cards.initial_state(config))[1]
+            revision = 2
+            for _ in range(4):
+                if game['public']['player']['gp'] < 1:
+                    break
+                if game['public']['gambit']['phase'] == 'done':
+                    game = table.resolve('card_join', 'Deal again.', revision, game)[1]
+                    revision += 1
+                game = table.resolve('card_ante', 'I ante my weakest card.', revision, game)[1]
+                revision += 1
+                while game['public']['gambit']['phase'] == 'play':
+                    if biggest is None or len(encode(game)) > len(encode(biggest)):
+                        biggest = json.loads(json.dumps(game))
+                    game = table.resolve('card_play', 'I play my strongest card.', revision, game)[1]
+                    revision += 1
+        basis = 'b' * state_context.CANON_BASIS_MAX_CHARS
+        events = [{'type': 'canon_entry', 'slot': 'area_06c/card_table/game', 'kind': 'procedure',
+                   'fact': ('Three-Dragon Ante: ' + 'x' * 240)[:240], 'basis': basis, 'public': True,
+                   'scope': 'location', 'procedure': 'three_dragon_ante', 'roots': ['card_table'],
+                   'choice': 'd0.three_dragon_ante', 'price': None, 'evidence': 'worst case'}]
+        for index in range(state_context.CANON_LIMIT - 1):
+            priced = index % 3 == 0
+            events.append({
+                'type': 'canon_entry', 'kind': 'price' if priced else 'object',
+                'slot': f'area_06c/{"price" if priced else "detail"}/item_{index:02d}_' + 'q' * 20,
+                'fact': ((f'{index} gp ' if priced else '') + 'f' * 240)[:240], 'basis': basis,
+                'public': True, 'scope': 'location', 'procedure': None,
+                'roots': ['card_table', 'treasure_on_table'], 'choice': 'priced' if priced else 'self',
+                'price': {'amount': index, 'unit': 'gp', 'source': 'srd',
+                          'basis': 'SRD 5.1 food_drink_lodging: Inn stay, aristocratic (per day)'}
+                if priced else None, 'evidence': 'worst case'})
+        events.append({'type': 'procedure_state', 'procedure': 'three_dragon_ante', 'state': biggest,
+                       'evidence': 'worst case'})
+        self.runtime.commit('worst-case', self.runtime.load()[0], events)
+        bridge = KitChatBridge(self.runtime, adjudicator)
+        for ask in ('How much for passage through the door?', 'I play my strongest card.'):
+            turn_id = f'worst-{len(ask)}'
+            prepared = bridge.prepare(ask, turn_id, one_pass=True)
+            private = len(encode(prepared['input']['private']).encode())
+            public = len(encode(prepared['input']['public']).encode())
+            self.assertLessEqual(private, CONTEXT_BUDGET_BYTES)
+            self.assertLessEqual(private + public, kit_agent.ONE_PASS_BUDGET_BYTES)
+            self.assertEqual(len(prepared['input']['private']['dm_context']['dm_only']['canon_here']),
+                             state_context.CANON_LIMIT, 'the whole ledger is sent, never trimmed')
+            self.runtime.discard_pending_kit_turn(turn_id)
+
     def test_long_game_stays_inside_both_budgets(self):
         class LongTalk(RecordingModel):
             def plan(inner, payload):
@@ -448,7 +544,8 @@ class ContextBudgetTests(BridgeCase):
         self.assertLessEqual(private, CONTEXT_BUDGET_BYTES)
         self.assertLessEqual(private + public, kit_agent.ONE_PASS_BUDGET_BYTES)
         kit_state = prepared['input']['private']['kit_state']
-        self.assertIn('memory_trimmed', kit_state)
+        # With the 88 KB budget, 12 long turns need no trim; fit_to_budget's trim order is
+        # covered by test_fit_to_budget_drops_least_relevant_then_oldest_and_says_so.
         self.assertEqual(kit_state['episodes'][-1]['turn_id'], 'long-11')
         # The model may only cite episodes it was shown.
         dropped = {f'long-{i}' for i in range(12)} - {e['turn_id'] for e in kit_state['episodes']}

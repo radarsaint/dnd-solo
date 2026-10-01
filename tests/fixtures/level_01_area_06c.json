@@ -43,7 +43,7 @@
             "Lets the card in his hand do the punctuating."
           ],
           "never_says": [
-            "Rules, dice, or checks; he lives inside the fiction.",
+            "Dice, checks, or the DM's rulings; he lives inside the fiction. Naming his own table's game, its stakes, and how it plays is a dealer's job, not table talk.",
             "The DM's asides, verdicts on the visitor's choices, or commentary on the game as a story.",
             "Anything he would rather keep quiet about his table.",
             "A plain yes when a counter-offer would serve him better.",
@@ -147,7 +147,8 @@
   },
   "numeric_facts": {
     "_note": "DM-only. A public amount in unit_words, in a sentence with a context word, must be in allowed_amounts unless the player said that number first.",
-    "passage_toll": {"allowed_amounts": [10], "unit_words": ["gp", "gold", "gold pieces", "gold coins", "gold coin"], "context_words": ["passage", "toll", "door", "through", "pass", "price", "cost", "costs", "fee", "head", "each", "per", "way", "safe"]}
+    "passage_toll": {"allowed_amounts": [10], "unit_words": ["gp", "gold", "gold pieces", "gold coins", "gold coin"], "context_words": ["passage", "toll", "door", "through", "pass", "price", "cost", "costs", "fee", "head", "each", "per", "way", "safe"], "specific_words": ["passage", "toll", "door", "through", "pass", "way", "safe"]},
+    "ring_value": {"allowed_amounts": [25], "unit_words": ["gp", "gold", "gold pieces", "gold coins", "gold coin"], "context_words": ["ring"], "specific_words": ["ring"], "_basis": "table_treasure: the silver ring is worth 25 gold pieces (source). No other price may be invented for it."}
   },
   "leak_keywords": {
     "_note": "DM-only. A set leaks when one public sentence contains a word from every group. Skipped once revealed_by is public, or when the player raised it.",
@@ -159,6 +160,10 @@
     "tub_stash": {"revealed_by": "tub_stash", "groups": [["tub", "basin", "trough"], ["tools", "lockpicks", "picks", "bedroll", "gear", "pack", "stash", "stashed", "stolen", "loot", "bundle"]]},
     "cheating": {"revealed_by": "marked_deck", "groups": [["cheat", "cheats", "cheating", "cheated", "cheater", "swindle", "swindled", "swindling", "crooked"]]},
     "hidden_truth_hint": {"revealed_by": "false_vampires", "groups": [["not the truth", "the truth is", "what they really are", "what he really is", "what they seem", "what he seems", "what it seems", "more than meets the eye", "more to them than", "more to him than", "not what they appear", "isn't real", "aren't real", "is not real", "are not real", "not really vampires", "only an act", "just an act", "all an act"]]},
+    "concealment_hint": {"revealed_by": null, "groups": [["to cover something", "cover something", "covering something", "cover up something", "something else underneath", "hiding something", "hide something", "something to hide", "what's under", "what is under", "what's beneath", "what they're hiding", "what he's hiding", "what they are hiding", "what he is hiding", "masking something", "to mask the", "cover the smell", "cover the stink", "covering the smell", "covering for", "not all it seems", "keeping something", "are covering", "is covering", "what's covering"]]},
+    "fresco_key_loose": {"revealed_by": "fresco_key", "groups": [["dwarf", "dwarves", "dwarven", "figure", "figures", "carving", "carvings", "carved", "niche", "relief", "fresco"], ["loose", "looser", "lift", "lifts", "lifted", "lifting", "proud of the stone", "wobble", "wobbles", "wobbly", "pry", "pried", "prised", "removable", "comes out", "come out", "socket", "out of place", "rattles", "shifts", "gap around", "seam around", "sits wrong", "newer than", "fits badly", "not set", "unmortared"]]},
+    "performance_hint": {"revealed_by": "false_vampires", "groups": [["four", "they", "them", "table", "gamblers", "players", "teeth", "fangs", "pale", "pallor", "vampire", "vampires", "undertakers"], ["in character", "rehearsed", "rehearsal", "costume", "costumes", "costumed", "posing", "posed", "playing a part", "playing parts", "stagecraft", "staged", "on stage", "audience", "an act", "props", "prop", "playacted"]]},
+    "blood_prop": {"revealed_by": "false_vampires", "groups": [["pass for", "passes for", "could pass for", "looks like", "look like", "stand in for", "stands in for", "mistaken for", "fake"], ["blood", "gore", "something worse"]]},
     "rivalry": {"revealed_by": null, "groups": [["rival", "rivals", "rivalry", "usurp", "usurper", "displace", "unseat", "depose", "overthrow", "mutiny", "coup"]]}
   },
   "room_rules": [
@@ -268,6 +273,230 @@
       "secrets": ["A doppelganger disguised as one of the apparent vampires."],
       "retreat_condition": "When Uktarl retreats, flee toward area 8 and join any bandits still there.",
       "communication_profile": {"rhythm": "Unestablished", "humor": "Unestablished"}
+    }
+  },
+  "procedures": {
+    "_note": "DM-only adapter. Table procedures the runtime can run in this room. The source names no game, rules, or stakes for area 6c; everything here is a declared DM choice, persisted as a canon entry (with its procedure) when first chosen.",
+    "three_dragon_ante": {
+      "kind": "card_game",
+      "name": "Three-Dragon Ante (Kit's table rules)",
+      "dm_choice": "DM choice, not the adventure's: the adventure names no game, rules, or stakes for this table. Kit chose Three-Dragon Ante, a Forgotten Realms card game many D&D players know, and runs it in the published game's shape (card antes set the stakes, three rounds of flights, color powers) with her own short deck and power list, written in her own words. Texas hold 'em or blackjack would have been just as valid.",
+         "unit": "gp",
+      "seats": {"bandit_a": 15, "bandit_b": 18, "doppelganger": 22, "uktarl": 30},
+      "stacks_note": "The gold stacks are the table's gold split by seat (a DM choice). The silver and copper stay on the table as color, not stakes.",
+      "labels": {
+        "uktarl": "Dealer",
+        "bandit_a": "Door-side player",
+        "bandit_b": "Fresco-side player",
+        "doppelganger": "Fourth player"
+      },
+      "cheat": {
+        "actor": "uktarl",
+        "method": "He reads the marks on the backs as he deals: he knows roughly what you hold, and whenever the second card off the deck is stronger than the top one he deals himself the second (dealing seconds).",
+        "sleight_bonus": 3,
+        "sleight_basis": "DM choice: bandit captain Dexterity +3 opposes a player watching the deal; the adventure gives no DC.",
+        "deception_bonus": 4,
+        "deception_basis": "Room source: Uktarl has Performance +4; it opposes Insight read on his betting.",
+        "passive_perception": 10,
+        "passive_basis": "DM choice: bandit captain passive Perception 10 opposes a player's Sleight of Hand.",
+        "reveals_fact": "marked_deck",
+        "caught_text": "You catch it: his eyes read the backs of the cards as he deals, and he gives himself the second card instead of the top one."
+      }
+    }
+  },
+  "texture_palette": {
+    "schema": "palette_v1",
+    "_status": "DM texture, not adventure fact. Written by the DM before play from the keyed room text; every entry cites the source facts it grows from. A dealt card becomes true only when the turn that uses it commits a canon_entry. Never shown to the performer; prices are never dealt here (runtime/kit_prices.py).",
+    "areas": {
+      "area_06c": {
+        "never_invent": [
+          "anything about the dealer's deck beyond what the player has seen",
+          "what the four really are",
+          "anything that can be lifted out of the carving",
+          "what is inside the stone tub",
+          "the count of the table coins or what the ring is worth"
+        ],
+        "subjects": {
+          "actor:uktarl": ["dealer", "uktarl", "pale man"],
+          "actor:bandit_a": ["door-side", "near the door", "by the door"],
+          "actor:bandit_b": ["fresco-side", "beside the fresco", "by the fresco"],
+          "actor:doppelganger": ["fourth", "quiet one"],
+          "fresco": ["fresco", "carving", "carved", "mountain", "wall"],
+          "tub": ["tub"],
+          "card_table": ["table", "game", "cards", "playing", "deck"]
+        },
+        "items": [
+          {
+            "id": "candle_soot",
+            "kind": "sense",
+            "text": "Candle soot sits in the grooves of the sunrise rays.",
+            "roots": ["fresco"]
+          },
+          {
+            "id": "cold_copper",
+            "kind": "sense",
+            "text": "The table smells of cold copper and candle tallow.",
+            "roots": ["treasure_on_table"]
+          },
+          {
+            "id": "worn_felt",
+            "kind": "material",
+            "text": "The table's felt is worn to the grain where the dealer's wrists rest.",
+            "roots": ["card_table"]
+          },
+          {
+            "id": "costume_pride",
+            "kind": "mood",
+            "text": "The four sit close, elbows in, the way people do who have shared a table for a long time.",
+            "roots": ["card_table", "actor:uktarl"]
+          }
+        ],
+        "decks": {
+          "game": [
+            {
+              "id": "three_dragon_ante",
+              "entry": "Three-Dragon Ante: each player antes a dragon card, the strongest ante sets the stakes, and three rounds of flights decide who takes them",
+              "basis": "published: Three-Dragon Ante, a Forgotten Realms card game",
+              "roots": ["card_table", "treasure_on_table"],
+              "tags": ["familiar", "watchable_cheat", "gives_player_a_handle"],
+              "handle": "buy in, ante a card, or watch the deal",
+              "procedure": "three_dragon_ante"
+            },
+            {
+              "id": "holdem_graves",
+              "entry": "Texas hold 'em, which this table calls \"Graves\": two cards down, five laid out on the felt like headstones",
+              "basis": "real: Texas hold 'em",
+              "roots": ["card_table", "treasure_on_table"],
+              "tags": ["familiar", "grave_humor"],
+              "handle": "ask to sit in; the dealer names what it takes",
+              "procedure": null
+            },
+            {
+              "id": "blackjack_coffins",
+              "entry": "Blackjack, called \"Twenty-One Coffins\" here: beat the dealer to twenty-one without going over",
+              "basis": "real: blackjack",
+              "roots": ["card_table", "actor:uktarl"],
+              "tags": ["familiar", "watchable_cheat", "grave_humor"],
+              "handle": "watch how the dealer plays his own cards",
+              "procedure": null
+            },
+            {
+              "id": "last_widow",
+              "entry": "A round of \"Last Widow\", the old-maid game, where whoever holds the widow card at the end pays the table",
+              "basis": "real: Old Maid",
+              "roots": ["card_table", "treasure_on_table"],
+              "tags": ["familiar", "grave_humor"],
+              "handle": "ask who is holding the widow",
+              "procedure": null
+            }
+          ],
+          "drink": [
+            {
+              "id": "cherry_cordial",
+              "entry": "Black-cherry cordial, dark as a bruise, poured from a stoppered clay bottle by the dealer's elbow",
+              "basis": "real: cherry cordial",
+              "roots": ["card_table", "actor:uktarl"],
+              "tags": ["familiar", "grave_humor", "tactile"],
+              "handle": "ask for a pour, or watch who refills whom",
+              "procedure": null
+            },
+            {
+              "id": "mulled_red",
+              "entry": "Mulled red with cloves, kept warm on a brazier under the table, where it scents the whole room",
+              "basis": "real: mulled wine",
+              "roots": ["card_table"],
+              "tags": ["familiar", "tactile"],
+              "handle": "warm your hands at the brazier and listen",
+              "procedure": null
+            },
+            {
+              "id": "beet_shrub",
+              "entry": "A beet-and-vinegar shrub, sour enough to make a newcomer's eyes water, poured by the dealer with a flourish",
+              "basis": "real: drinking vinegar (shrub)",
+              "roots": ["card_table", "actor:uktarl"],
+              "tags": ["grave_humor", "gives_player_a_handle"],
+              "handle": "accept a sip, or ask for something sweeter",
+              "procedure": null
+            },
+            {
+              "id": "firewater_flask",
+              "entry": "Clear firewater from a dented tin flask stamped with a pickaxe, passed left each hand",
+              "basis": "palette: dwarven-made flask, an Undermountain commonplace",
+              "roots": ["card_table"],
+              "tags": ["tactile", "owner_with_a_want"],
+              "handle": "wait for the flask to pass your way",
+              "procedure": null
+            }
+          ],
+          "carving": [
+            {
+              "id": "soot_sunrise",
+              "entry": "The sunrise rays are cut so deep that candle soot has settled black in every groove",
+              "basis": "palette: the fresco's sunlight rays",
+              "roots": ["fresco"],
+              "tags": ["tactile"],
+              "handle": "run a finger down a ray",
+              "procedure": null
+            },
+            {
+              "id": "singing_dwarves",
+              "entry": "The tiny dwarves are cut mid-song, mouths open, beards braided into the rock seams",
+              "basis": "palette: the fresco's dwarven figures",
+              "roots": ["fresco"],
+              "tags": ["specific_number", "tactile"],
+              "handle": "count them, or hum along",
+              "procedure": null
+            },
+            {
+              "id": "charcoal_fangs",
+              "entry": "Someone has added charcoal fangs to three of the tiny dwarves, recently, by the look of the smudges",
+              "basis": "palette: the fresco and the table's costume",
+              "roots": ["fresco", "card_table"],
+              "tags": ["grave_humor", "owner_with_a_want", "specific_number"],
+              "handle": "ask who has been drawing on the wall",
+              "procedure": null
+            },
+            {
+              "id": "tally_scratch",
+              "entry": "A tally of twelve scratches runs under the mountain's foot, each crossed through",
+              "basis": "palette: the fresco's lower edge",
+              "roots": ["fresco"],
+              "tags": ["specific_number", "gives_player_a_handle"],
+              "handle": "ask what the tally counts",
+              "procedure": null
+            }
+          ],
+          "smell": [
+            {
+              "id": "tallow_copper",
+              "entry": "Candle tallow and cold copper from the coin stacks",
+              "basis": "palette: the coins and candles on the table",
+              "roots": ["treasure_on_table"],
+              "tags": ["tactile"],
+              "handle": "lean closer to the table",
+              "procedure": null
+            },
+            {
+              "id": "clove_smoke",
+              "entry": "Cloves and orange peel smoldering in the brazier under the table, a card-room habit against the chill",
+              "basis": "palette: the brazier under the table",
+              "roots": ["card_table"],
+              "tags": ["grave_humor", "owner_with_a_want"],
+              "handle": "warm your hands at the brazier, or ask for a clove",
+              "procedure": null
+            },
+            {
+              "id": "damp_stone",
+              "entry": "Cold stone and lamp oil, the smell of an old bathhouse long since dry",
+              "basis": "palette: the stone tub",
+              "roots": ["tub"],
+              "tags": ["tactile"],
+              "handle": "look at the recess in the floor",
+              "procedure": null
+            }
+          ]
+        }
+      }
     }
   },
   "resources": {}
