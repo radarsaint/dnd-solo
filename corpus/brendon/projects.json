@@ -1,0 +1,53 @@
+{
+  "schema": "brendon-corpus-project-index-v1",
+  "generated": "2026-10-01",
+  "projects": [
+    {
+      "project": "Roanoke",
+      "source_container_count": 37,
+      "evidence_ids": [
+        "BCE-000002",
+        "BCE-000003"
+      ],
+      "status": "ACTIVE_PROVENANCE_AUDIT",
+      "notes": "Mixed authorship across source family; comments/revisions require passage-level attribution."
+    },
+    {
+      "project": "Empire City",
+      "source_container_count": 16,
+      "evidence_ids": [],
+      "status": "EVALUATION_QUARANTINE",
+      "notes": "Metadata organization only; keep discovery model out."
+    },
+    {
+      "project": "Exploration Impossible",
+      "source_container_count": 1,
+      "evidence_ids": [
+        "BCE-000001"
+      ],
+      "status": "THIRD_PARTY_CONTEXT_WITH_BRENDON_EDITS",
+      "notes": "Manuscript is Michael Kennish's. Only Brendon's attributable editorial work is corpus evidence."
+    },
+    {
+      "project": "Earthfall",
+      "source_container_count": 2,
+      "evidence_ids": [],
+      "status": "PROVENANCE_PENDING",
+      "notes": "Brendon ownership verified; authorship not promoted from ownership alone."
+    },
+    {
+      "project": "Bastion/Redoubt",
+      "source_container_count": 3,
+      "evidence_ids": [],
+      "status": "PROVENANCE_PENDING",
+      "notes": "Discovered Drive sources; authorship/source role pending."
+    },
+    {
+      "project": "At War's End",
+      "source_container_count": 8,
+      "evidence_ids": [],
+      "status": "PROVENANCE_AND_VERSION_AUDIT_PENDING",
+      "notes": "Multiple drafts/outlines need author/collaborator and version relation audit."
+    }
+  ]
+}
