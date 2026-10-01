@@ -17,6 +17,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from . import kit_guards
+from . import kit_voice
 from .scene_discernment import IMPROV_READ_SCHEMA, check_improv_read, discernment_candidates
 from .state_context import (CONTEXT_BUDGET_BYTES, HostSequenceError, InvalidChange,
                             PERSONALITY_CORE, PLAYER_NOTE_MAX_EVIDENCE, PROJECT_ROOT, Runtime,
@@ -235,12 +236,13 @@ PLAN_SCHEMA = {
                          'properties': {
                              **{key: {'type': 'string'} for key in
                                 ('objective', 'tactic', 'visible_cue', 'player_opening',
-                                 'reply_to', 'kit_focus', 'callback')},
+                                 'reply_to', 'kit_focus', 'callback', 'mirror', 'npc_notice')},
                              'scope': {'type': 'string', 'enum': ['call', 'exchange', 'feature']}},
                          'required': ['objective', 'tactic', 'visible_cue', 'player_opening',
-                                      'reply_to', 'scope', 'kit_focus', 'callback']},
+                                      'reply_to', 'scope', 'kit_focus', 'callback', 'mirror',
+                                      'npc_notice']},
         'focus_actor': {'type': 'string', 'enum': ['uktarl', 'other', 'none']},
-        'table_presence': {'type': 'string', 'enum': ['quiet', 'brief', 'present']},
+        'table_presence': {'type': 'string', 'enum': list(kit_voice.TABLE_PRESENCE)},
         'tone': {'type': 'string', 'enum': ['wry', 'warm', 'threatening', 'curious', 'plain', 'quiet']},
         # Private: at most one new evidence-cited observation about this player.
         'player_note': {'type': 'object', 'additionalProperties': False,
@@ -248,9 +250,13 @@ PLAN_SCHEMA = {
                                        'evidence_turns': {'type': 'array', 'items': {'type': 'string'}},
                                        'replaces': {'type': 'string'}},
                         'required': ['note', 'evidence_turns', 'replaces']},
+        # Brendon's voice spec (runtime/kit_voice.py): player_mood is private; turn_mode
+        # and the brief's mirror and npc_notice are its public carriers.
+        'player_mood': kit_voice.PLAYER_MOOD_SCHEMA,
+        'turn_mode': {'type': 'string', 'enum': list(kit_voice.TURN_MODES)},
     },
     'required': ['observed_event', 'goal', 'appraisal', 'memory_refs', 'improv_read', 'move', 'public_brief',
-                 'focus_actor', 'table_presence', 'tone', 'player_note'],
+                 'focus_actor', 'table_presence', 'tone', 'player_note', 'player_mood', 'turn_mode'],
 }
 
 SPEECH_SCHEMA = {
@@ -273,7 +279,7 @@ ONE_PASS_SCHEMA = {
 }
 
 BRIEF_TEXT_FIELDS = ('objective', 'tactic', 'visible_cue', 'player_opening')
-BRIEF_FIELDS = BRIEF_TEXT_FIELDS + ('reply_to', 'scope', 'kit_focus', 'callback')
+BRIEF_FIELDS = BRIEF_TEXT_FIELDS + ('reply_to', 'scope', 'kit_focus', 'callback', 'mirror', 'npc_notice')
 # Brief fields that quote public words verbatim (the player's, or an earlier
 # public turn's). They are checked as quotes, not as Kit's own direction.
 BRIEF_QUOTE_FIELDS = ('reply_to', 'callback')
@@ -292,6 +298,12 @@ ACTOR_ALIASES = {'uktarl': ('dealer', 'uktarl')}
 ACTOR_SPEAKERS = {'uktarl': 'Dealer', 'bandit_a': 'Door-side player',
                   'bandit_b': 'Fresco-side player', 'doppelganger': 'Fourth player'}
 NPC_SPEECH_SPEAKERS = ('Dealer',) + kit_guards.CARD_PLAYER_SPEAKERS
+
+
+def focus_speakers(plan):
+    """Speaker labels that count as the focus actor speaking."""
+    actor = focus_speaker(plan)
+    return kit_guards.CARD_PLAYER_SPEAKERS if actor == 'a card player' else ((actor,) if actor else ())
 
 
 def focus_speaker(plan):
@@ -349,6 +361,12 @@ def performance_limits(scope=None):
                      f'{EXCHANGE_MIN_SEGMENTS} segments (e.g. a visible beat plus the actor).'),
         'feature': (f'At least {FEATURE_MIN_WORDS} words across non-Kit segments in at least '
                     f'{FEATURE_MIN_SEGMENTS} segments.'),
+        'mirror': (f'When the brief mirror says tight: at most {kit_voice.TIGHT_MAX_WORDS["exchange"]} '
+                   f'words in an exchange, {kit_voice.TIGHT_MAX_WORDS["feature"]} in a feature (a call '
+                   'keeps its own cap). Combat narration: short sentences (average at most '
+                   f'{kit_voice.COMBAT_MAX_AVG_SENTENCE_WORDS} words, none over '
+                   f'{kit_voice.COMBAT_MAX_SENTENCE_WORDS}). Showtime: 1 to '
+                   f'{kit_voice.SHOWTIME_MAX_KIT_SEGMENTS} Kit segments, and they count toward the floors.'),
         'note': ('Floors guard against flat replies; they are not targets. Kit segments do not count '
                  'toward the actor side. Never pad.'),
         'padding': (f'Rejected as padding: any {kit_guards.PADDING_REPEAT_RUN_WORDS}-word run said twice, '
@@ -434,6 +452,23 @@ PRIVATE_INSTRUCTIONS = (
     'dialogue, not a copy of kit_choice or the appraisal, and never a hidden fact, an outcome, '
     'an NPC commitment, or a player action. The actor’s objective and tactic come from the '
     'actor’s own motives, not from Kit’s taste. '
+    'Table read: in player_mood.read, read the player’s mood from their words, their pacing '
+    '(table_read counts their recent message lengths), and out-of-character feedback: playful, '
+    'curious, tense, frustrated, bored, cautious, gleeful, or neutral. Its cue is a verbatim quote '
+    'of player_action, feedback <note id> (or note <note id>), or pacing: <what changed>; neutral '
+    'may use none. player_mood is private. In the brief’s mirror, tell the performer how Kit '
+    f'matches or answers that mood, as "{kit_voice.MIRROR_FORMAT}". Frustrated or bored: tight, '
+    'and give momentum (a consequence, a decision, a scene turn), never padding. Tense, '
+    'frustrated, or cautious: no playful humor. Playful or gleeful: play back. Choose turn_mode: '
+    'meta for table talk to Kit (required for an out-of-character message), banter for social '
+    'back-and-forth, description for exploration, mood, and room results (required for the '
+    'opening and room actions), combat for a fight. table_presence showtime lets Kit take the '
+    'stage with theatrical description or banter (or for a playful player); never with call '
+    'scope, in combat, or for a frustrated player. In npc_notice write none, or "<mood|past_act|'
+    'gear|stunt>: <what the focus actor notices about the player’s character and why it matters '
+    'to them>", from the actor’s own motives, never Kit’s: mood only from the player’s words '
+    'this turn (never feedback or pacing), past_act only from an episode in memory_refs, never '
+    'in meta mode, and no dialogue. '
     'Memory: kit_state.episodes are the most recent turns plus earlier ones relevant to this '
     'action (same actor, story thread, or words); each shows what the player did, your reading '
     'of the bid, your kit_choice, and what was said in public. When an earlier public moment '
@@ -476,7 +511,10 @@ PUBLIC_INSTRUCTIONS = (
     'player decision. Let a second card player react only when that changes the scene. '
     'Keep NPC speech separate from Kit’s direct table comments. '
     'Follow the selected public brief, tone, and table presence; quiet means '
-    'no Kit segment. The brief conveys a choice, not authority to invent facts. '
+    'no Kit segment, brief at most one, present at least one, and showtime one to '
+    f'{kit_voice.SHOWTIME_MAX_KIT_SEGMENTS} Kit segments where she takes the stage (they count '
+    'toward the floors). At every presence the narration carries her taste. The brief conveys '
+    'a choice, not authority to invent facts. '
     'The accepted event will be displayed before your segments on physical/check turns (after '
     'them on an exit, so perform the room reacting as the player goes); do not repeat it verbatim. On a social turn it restates the player’s own words: answer '
     'them, do not echo them back. In a social scene, let the NPC pursue a specific objective '
@@ -484,6 +522,14 @@ PUBLIC_INSTRUCTIONS = (
     'rarely the whole exchange. Give the player something meaningful to answer or act on. '
     'Do not pad the turn with generic banter or extra speakers. Leave a real decision for the player. '
     'A mechanically consequential unsupported action should invite clarification, not resolve itself. '
+    'turn_mode names the moment: meta and banter are table talk and social play; description '
+    'sets the mood; combat is tense and fast, in short sentences. The brief’s mirror says how to '
+    'answer the player’s energy: honor its energy, length, and humor; tight means at most '
+    f'{kit_voice.TIGHT_MAX_WORDS["exchange"]} words in an exchange or '
+    f'{kit_voice.TIGHT_MAX_WORDS["feature"]} in a feature, and the scene moves. When npc_notice '
+    'is not none, the focus actor reacts to that thing about the player’s character in their '
+    'own voice and for their own reasons, never with Kit’s wit or phrasing, and only from what '
+    'they could see or know. '
     'The brief’s reply_to names the player’s words the turn must answer. kit_focus is Kit’s own '
     'choice of what this turn foregrounds: enact it through framing, which detail or reaction '
     'gets space, how a ruling is phrased, or, only when table presence allows, a Kit remark. It '
@@ -513,34 +559,35 @@ PUBLIC_INSTRUCTIONS = (
     'leave the player’s response to the player.'
 )
 
-# Kit's direct table voice, distilled from docs/personality/dm-personality-core.md
-# into performer guidance. Default for KitChatBridge (both one-pass and staged) at
-# Brendon's direction; the standalone API path still defaults to `current`. It only
-# adds performer instructions: the input, schema, and every validator are identical
-# to `current`. No blind comparison has run yet; judge it in play and revise it.
-# The contrasts are register illustrations from other scenes, never lines for an NPC.
+# Kit's direct table voice: Brendon's voice spec (docs/personality/dm-personality-core.md,
+# "Brendon's voice spec") as lean performer guidance. Default for KitChatBridge (one-pass
+# and staged) at Brendon's direction; the standalone API path still defaults to `current`.
+# It only adds performer instructions: the input, schema, and every validator are
+# identical to `current`. It carries no example lines, so nothing in it can be reused
+# verbatim or handed to an NPC. Tests cap it at 1,800 characters for live latency (Brendon's
+# ceiling is about 2,000).
 KIT_EXPRESSION_V1 = (
-    'KIT’S TABLE VOICE. Kit is one particular DM with taste, not a neutral narrator. Her taste '
-    'always shows through kit_focus: what gets space, which actor tactic plays out, how a ruling '
-    'is framed. Her own voice appears only in Kit segments, only as table presence allows (quiet: '
-    'none; brief: one short remark), and only when she has something specific to say. '
-    'Do: react to the exact thing this player did and say what she makes of it; hold an opinion '
-    '(bold, reckless, clever, doomed) and still rule fairly; be plain and exact about a ruling '
-    '(which check and why, in public terms); let humor come from the situation, dry and short, '
-    'only when it lands; chide shenanigans, then take the attempt seriously; show delight or pride '
-    'only when earned; then hand the scene back. '
-    'Don’t: generic praise or filler, recap the narration, offer a menu of options, advise the '
-    'player what to do, or remark on every turn. Her opinion never changes a fact, rules outcome, '
-    'or NPC stance, never hints at hidden information, and never decides what the player thinks '
-    'or does. NPCs never borrow her wit, asides, opinions, or phrasing; a line that sounds like Kit '
-    'is not an NPC line. No catchphrases or repeated openers. '
-    'Vary how rulings are phrased; no sentence template or stock acknowledgement becomes a habit. '
-    'Register contrasts (from other scenes; never reuse them or give them to anyone): filler '
-    '"What an interesting choice!" vs taste "You shook the lich’s hand. Bold. I did not see that '
-    'coming."; flat "Roll a check." vs exact "Strength (Athletics): the portcullis weighs more '
-    'than you do, so this is a haul."; fake-neutral "Anything could happen." vs fair '
-    '"Terrible plan. Roll Athletics; the ledge does not care how confident you are."; forced '
-    'quip vs restraint: in real danger she says nothing and lets the threat speak.'
+    'KIT’S TABLE VOICE. Kit is one particular DM with a flair for theatre, not a neutral '
+    'narrator. Guiding star: the most entertaining true thing beats the merely correct thing. '
+    'Pick the funniest, eeriest, or most dramatic option the facts allow, never at the cost of '
+    'a source fact, hidden information, a rules outcome, or the player’s choices. Read the '
+    'player and honor the brief’s mirror: play back to a playful player, steady a tense one, '
+    'and answer frustration or boredom with momentum, never more words. Voice by turn_mode. '
+    'Meta and banter: quippy, quick, cheeky; answer first, then the joke. Description: '
+    'theatrical, mood-setting, specific (no stock atmosphere); overacting is welcome. Combat: '
+    'engaged, tense, evocative; short punchy sentences; every beat puts the stakes in what the '
+    'player can see, hear, and smell. Her own voice appears only in Kit segments, as table '
+    'presence allows (quiet: none; brief: one short remark; present: she talks; showtime: she '
+    'takes the stage). Narration is hers at every presence: her taste picks the image and '
+    'rhythm. Do: react to the exact thing this player did and say what she makes of it; hold an '
+    'opinion and still rule fairly; be exact about a ruling; chide shenanigans, then take the '
+    'attempt seriously; show earned delight; hand the scene back on a real choice. Don’t: '
+    'generic praise or filler, recap, offer a menu of options, advise the player, or reuse a '
+    'line, joke, or opener; no sentence template or stock acknowledgement becomes a habit. Her '
+    'opinion never changes a fact, rules outcome, or NPC stance, never hints at hidden '
+    'information, and never decides what the player thinks, feels, or does. NPCs never borrow '
+    'her wit, asides, opinions, or phrasing; each notices the player through their own wants '
+    'and sounds like nobody else, least of all Kit.'
 )
 
 PERFORMANCE_VARIANTS = {
@@ -561,6 +608,8 @@ ONE_PASS_PREAMBLE = (
     'appear once, in the private input (personality_core, dialogue_history); the performance '
     'uses them from there. '
     'Keep the decision brief. '
+    'The performance also follows turn_mode and the brief’s mirror and npc_notice; player_mood '
+    'and table_read are private and never appear in it. '
     'The decision connects the player bid, available story pressure, actor goal, and Kit’s '
     'appraisal before selecting a concrete DM move; do not justify dialogue after the fact. '
     'The performance must remain grounded and give the player a meaningful response. '
@@ -704,6 +753,13 @@ def check_plan(plan, episodes, public_event, action_kind=None, candidates=None, 
                 'public direction in kit_focus')
     check_callback(brief['callback'], plan['memory_refs'], episodes)
     check_player_note(plan['player_note'], player_notes, committed_turn_ids)
+    kit_voice.check_voice_plan(plan, action_kind, player_action, is_ooc(player_action),
+                               player_notes, has_history=bool(committed_turn_ids))
+
+
+def is_ooc(player_action):
+    """Out-of-character table talk, by the same marker the router uses."""
+    return bool(player_action and OOC_MARKER.search(player_action.translate(_TYPOGRAPHIC)))
 
 
 def keywords(text):
@@ -819,7 +875,9 @@ def _words(text):
 def check_scope(segments, plan):
     """Flat-reply guard per selected scope. A floor, not a measure of quality."""
     scope = plan['public_brief']['scope']
-    performed = [segment for segment in segments if segment['speaker'] != 'Kit']
+    # Showtime: Kit's theatrical narration in her own segments is scene material.
+    showtime = plan.get('table_presence') == 'showtime'
+    performed = [segment for segment in segments if segment['speaker'] != 'Kit' or showtime]
     performed_words = sum(_words(segment['text']) for segment in performed)
     if scope == 'call':
         total = sum(_words(segment['text']) for segment in segments)
@@ -908,6 +966,7 @@ def check_speech(speech, plan, public_view, player_action, action_kind=None, gua
     require(plan['table_presence'] != 'quiet' or kit_count == 0, 'Quiet Kit spoke directly')
     require(plan['table_presence'] != 'brief' or kit_count <= 1, 'Brief Kit took over the scene')
     require(plan['table_presence'] != 'present' or kit_count >= 1, 'Present Kit did not speak')
+    kit_voice.check_voice_presence(segments, plan, focus_speakers(plan))
     require(plan['move'] != 'kit_comment_then_npc' or
             (kit_count >= 1 and any(segment['speaker'] in NPC_SPEECH_SPEAKERS for segment in segments)),
             'Chosen Kit and NPC move was not performed')
@@ -943,7 +1002,8 @@ def check_speech(speech, plan, public_view, player_action, action_kind=None, gua
             lambda: kit_guards.check_npc_voices(segments, guards.get('voice_contracts'), history),
             lambda: kit_guards.check_npc_repetition(segments, history),
             lambda: kit_guards.check_kit_tics(segments, history),
-            lambda: check_callback_used(segments, plan))
+            lambda: check_callback_used(segments, plan),
+            lambda: kit_voice.check_voice_style(segments, plan))
     warnings = []
     for check in soft:
         try:
@@ -1037,7 +1097,7 @@ def trim_order(chosen, stored, action, recent=MEMORY_RECENT):
 
 
 # Context budget. The private decision input (personality core, DM context, memory,
-# notes, public dialogue) stays within CONTEXT_BUDGET_BYTES (24 KB), the same budget
+# notes, public dialogue) stays within CONTEXT_BUDGET_BYTES (25 KB), the same budget
 # context() always enforced, now including memory. A one-pass input also carries the
 # public half (mostly the static actor cards, ~8 KB, with the core and dialogue history
 # deduplicated out), so the whole one-pass input stays within ONE_PASS_BUDGET_BYTES.
@@ -1134,6 +1194,8 @@ def prepare_inputs(runtime, revision, state, action, resolution, use_memory, one
                       'current_appraisal': state['kit']['current_appraisal']
                       if use_memory else None},
         'player_action': action, 'accepted_public_event': resolution.public_event,
+        'table_read': kit_voice.table_read(action, resolution.kind, is_ooc(action), public_history,
+                                           memory['player_notes']),
         'action_kind': resolution.kind,
         'dialogue_history': public_history,
         'discernment_candidates': body['discernment_candidates'],
@@ -1200,6 +1262,7 @@ def performance_input(runtime, body, plan):
             'move': plan['move'],
             'focus_actor': focus_speaker(plan) or 'none',
             'table_presence': plan['table_presence'], 'tone': plan['tone'],
+            'turn_mode': plan.get('turn_mode'),
             'brief': plan['public_brief'],
     }
     callback = plan['public_brief'].get('callback', 'none')

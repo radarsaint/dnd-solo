@@ -65,6 +65,8 @@ Across P0–P7, also compare **Kit herself**: does the same DM seem to be choosi
 
 **Blocked regression probes, implement before claiming full play:** Nik's player-supplied Insight `7 + 4 = 11` as a continuation of an intent-reading request; a durable deal, wager, promise, or faction switch; combat and retreat. The existing DC 14 Insight check covers the vampire disguise and is not automatically a check to judge friendliness. Do not silently reuse that DC for the intent-reading request.
 
+**Observed P3-type failure on `kit-voice-spec`:** In the [2026-09-29 live test](../playtests/2026-09-29-area-06c-voice-spec-nik.md), Nik asked “What game is it?” rather than using P3's exact scripted input. The host declared an invented high-card game and matching-coin stakes as the current game, then offered no procedure for Uktarl's marked deck or an in-play chance to catch cheating. Passing the one-pass validators did not satisfy this part of the probe.
+
 ## Blind review sheet
 
 Show a reviewer only the current player-visible situation, exact player input, and anonymized public continuation. Before any numerical score, ask: **Which DM would you choose to keep playing with, and which exact moment makes you choose?** Ask what Nik might do next. An answer that relies on an action the scene has already forced or performed for Nik is a failure.

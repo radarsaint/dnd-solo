@@ -17,6 +17,7 @@ FIXTURE = Path(__file__).parent / 'fixtures/level_01_area_06c.json'
 
 KIT_CHOICE = 'Kit favors the roleplay opening and lets the dealer try a bargain.'
 KIT_FOCUS = 'Spotlight the dealer sizing up the visitor’s nerve rather than the passage price.'
+MIRROR = 'steady energy, standard, dry humor: meet the visitor’s even pace and let the answer land.'
 
 # Performed exchanges that clear the flat-reply floor. Their length is not a
 # quality claim; they only give the format tests turns the guards accept. There are
@@ -105,10 +106,14 @@ class RecordingModel:
                 'scope': 'feature' if payload['action_kind'] == 'opening' else 'exchange',
                 'kit_focus': KIT_FOCUS,
                 'callback': 'none',
+                'mirror': MIRROR,
+                'npc_notice': 'none',
             },
             'focus_actor': 'uktarl',
             'table_presence': 'brief', 'tone': 'wry',
             'player_note': {'note': 'none', 'evidence_turns': [], 'replaces': 'none'},
+            'player_mood': {'read': 'neutral', 'cue': 'none'},
+            'turn_mode': (payload.get('table_read') or {}).get('mode_hint') or 'banter',
         }
 
     def perform(self, payload, performance_variant='current'):
@@ -445,7 +450,7 @@ class KitAgentTests(unittest.TestCase):
                         'player_opening': 'The newcomer can speak, observe, or leave.',
                         'reply_to': 'none', 'scope': 'feature',
                         'kit_focus': 'Let the interrupted game, not the room inventory, greet the newcomer.',
-                        'callback': 'none',
+                        'callback': 'none', 'mirror': MIRROR, 'npc_notice': 'none',
                     })
         speech = {'segments': [
             {'speaker': 'Narrator', 'text': ('A card pauses between the dealer’s fingers mid-deal. Four pale '
@@ -1068,14 +1073,24 @@ class BridgeVoiceVariantTests(unittest.TestCase):
 
     def test_voice_guidance_is_lean_bounded_and_not_an_npc_script(self):
         voice = kit_agent.KIT_EXPRESSION_V1
-        # Keep the added performer prompt short for live latency.
-        self.assertLessEqual(len(voice), 1800)
-        for guard in ('table presence', 'quiet: none', 'brief: one short remark',
+        # Keep the added performer prompt short for live latency (Brendon: under ~2000).
+        self.assertLessEqual(len(voice), 2000)
+        for guard in ('table presence', 'quiet: none', 'brief: one short remark', 'showtime',
                       'never changes a fact, rules outcome', 'never hints at hidden information',
                       'never decides what the player thinks', 'NPCs never borrow her wit',
-                      'never reuse them or give them to anyone', 'generic praise or filler',
-                      'only when it lands', 'still rule fairly'):
+                      'generic praise or filler', 'still rule fairly', 'mirror',
+                      'the most entertaining true thing beats the merely correct thing'):
             self.assertIn(guard, voice)
+        # Brendon's spec, by mode: quippy table talk, theatrical description, tense combat.
+        for spec in ('Meta and banter: quippy', 'Description: theatrical, mood-setting',
+                     'overacting is welcome', 'Combat: engaged, tense, evocative',
+                     'short punchy sentences', 'momentum, never more words'):
+            self.assertIn(spec, voice)
+        # Removed: the 'X, not Y' example seed, the reusable contrast lines, and the
+        # 'quiet in danger' guidance that made combat go silent.
+        for gone in ('not slipping under it', 'Register contrasts', 'says nothing and lets the threat',
+                     'in real danger', '"'):
+            self.assertNotIn(gone, voice)
         # Illustrations come from other scenes: no room actors, speakers, or secrets.
         for word in ('dealer', 'card player', 'uktarl', 'harria', 'toll', 'deck', 'vampire', 'ten gold'):
             self.assertNotIn(word, voice.lower())

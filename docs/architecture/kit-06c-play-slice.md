@@ -1,6 +1,6 @@
 # Kit's Area 6c Play Slice
 
-**Status:** Executable, bounded integration experiment. The first live room exchange failed the player's pace and personality test; see [Nik's playtest record](../../tests/playtests/2026-09-26-area-06c-nik.md). The performance revision is code-complete but has not passed a live player test. No blind preference score yet.
+**Status:** Executable, bounded integration experiment. The first live room exchange failed the player's pace and personality test; see [Nik's first playtest record](../../tests/playtests/2026-09-26-area-06c-nik.md). The [voice-spec live test](../../tests/playtests/2026-09-29-area-06c-voice-spec-nik.md) found somewhat better dialogue but failed on a contradictory Kit aside and invented gambling rules that did not make the marked deck playable. No blind preference score yet.
 
 ## Play with Kit in this ChatGPT workspace (no API key)
 
@@ -48,7 +48,7 @@ python -m runtime.kit_agent notes --db kit-06c.sqlite
 
 `feedback` saves a private note that cites the latest committed turn (pass `--evidence TURN_ID` to cite another). It commits a new revision, so prepare the next turn afresh. Kit's decision stage sees the note; the performer never does. Its effect can reach the player only through `kit_focus` or `callback`.
 
-Both chat paths use Kit's table-voice performer instructions (`kit_expression_v1`) by default: `prepare --one-pass` fixes the variant when the turn is staged, and staged `decide` applies it to the performance packet. For the baseline in a [Kit identity comparison](../personality/kit-personality-implementation.md), pass `--performance-variant current` to `prepare --one-pass` or to `decide`. The variant changes only the performer instruction and leaves the accepted event, plan, public packet, schema, and validators unchanged. Each committed turn records `performance_variant`, which `trace` shows. Prepare isolated copies of the same room snapshot for a fair comparison. The voice has not passed a blind or live quality test; see [next step #5](kit-expression-gap.md#e-next-build-steps-in-order).
+Both chat paths use Kit's table-voice performer instructions (`kit_expression_v1`) by default: `prepare --one-pass` fixes the variant when the turn is staged, and staged `decide` applies it to the performance packet. For the baseline in a [Kit identity comparison](../personality/kit-personality-implementation.md), pass `--performance-variant current` to `prepare --one-pass` or to `decide`. The variant changes only the performer instruction and leaves the accepted event, plan, public packet, schema, and validators unchanged. Each committed turn records `performance_variant`, which `trace` shows. Prepare isolated copies of the same room snapshot for a fair comparison. The voice failed its first live test on this branch and has no blind quality score; see the [playtest record](../../tests/playtests/2026-09-29-area-06c-voice-spec-nik.md).
 
 These chat-host paths need **no** `--model` choice and **no** `OPENAI_API_KEY`. The commands are a protocol for the assistant, not steps the player has to type. The Work interface may show tool/progress activity; a dedicated player surface is needed to hide it.
 

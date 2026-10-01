@@ -91,7 +91,11 @@ def check_padding(segments, player_action, action_kind, public_history=()):
     """Reject crude padding: repetition, restating the player, recycled lines, filler."""
     seen = {}
     for segment in segments:
-        for run in ngrams(tokens(segment['text']), PADDING_REPEAT_RUN_WORDS):
+        # Every position, not the ngram set: a set hides a run repeated inside one
+        # segment, which is exactly how overacted narration pads (kit-voice-spec).
+        words = tokens(segment['text'])
+        for run in [tuple(words[i:i + PADDING_REPEAT_RUN_WORDS])
+                    for i in range(len(words) - PADDING_REPEAT_RUN_WORDS + 1)]:
             if run in seen and len(content_words(run)) >= 2:
                 raise InvalidChange(
                     f'Padding: the turn repeats "{_run_text(run)}". Say each thing once; the floors '

@@ -2,6 +2,15 @@
 
 **Who this is for:** GPT, as the collaborator building and hosting Kit's runtime in ChatGPT through `KitChatBridge`. It explains why Kit did not come across as a particular DM, the one build principle that fixes that class of problem, a worked example of the principle (branch `kit-focus-brief`), and the next things to build, in order.
 
+**Source of truth for Kit's voice: Brendon's spec (2026-09-28), verbatim.** It supersedes this guide, the personality core, and every other repo document wherever they conflict. Section (h) builds it with the carrier pattern.
+
+- Check for player mood and mirror appropriately.
+- A little quippy during meta talk and banter.
+- Prone to theatrical description to set the mood, and overacting.
+- Combat should feel engaged, tense, evocative.
+- NPCs should notice what's up with the players (and stay wildly varied, nothing like Kit).
+- Guiding star: she should say the MOST ENTERTAINING thing more often than 'the right thing' (still never breaking source facts, hidden info, rules outcomes, or player agency).
+
 **How to read the line numbers:** **@79173a1** means the code before this change. **@673e9cd** means the code the Nik playtest actually ran on. Unmarked line numbers in sections (a) through (d) and in the not-yet-built steps refer to `kit-focus-brief` at **@cee2948**. Line numbers in each **Done** note of section (e) refer to the branch named in that note (`kit-event-actor`, `kit-bridge-voice`), before those branches were merged together in `kit-hardening`; after the merge they drift, so search for the named function or constant rather than trusting the number. The `kit-memory-relationship` *Built* notes and section (g) name functions and constants instead of line numbers for the same reason.
 
 ---
@@ -122,7 +131,7 @@ This branch applies the principle to the gap above. It adds no area-specific scr
 
 Each step uses the same pattern: **private source → public carrier → performer instruction → validator check → test.**
 
-**Status (branch `kit-hardening`, which merges `kit-event-actor`, `kit-bridge-voice`, and `kit-memory-relationship`):** all five steps are **done**. Section (g) covers the failure-mode guards built on top of them.
+**Status (branch `kit-hardening`, which merges `kit-event-actor`, `kit-bridge-voice`, and `kit-memory-relationship`):** all five steps are **done**. Section (g) covers the failure-mode guards built on top of them. Section (h) (branch `kit-voice-spec`, on top of `kit-hardening`) builds Brendon's voice spec.
 
 1. **Done (`kit-event-actor`): replace the generic social event with the player's actual action.**
    - *Was:* `Room6CAdjudicator.resolve` set every social turn's event to "You address the figures at the card table." (`kit_agent.py:120` @cee2948).
@@ -215,6 +224,7 @@ Each step uses the same pattern: **private source → public carrier → perform
    - *Check:* the variant name must be on the fixed list, or the call is rejected before anything is staged. The variant changes only the instructions. Input, schema, performance limits, and every validator are identical, and a test runs the same plan and the same good and bad performances under both variants and gets identical results.
    - *Tests (`BridgeVoiceVariantTests`):* the one-pass default is Kit's voice and `current` stays selectable; `KIT_EXPRESSION_V1` appears only when chosen; input, schema, and limits are unchanged; unknown variants and a staged-`prepare` variant are rejected; the turn record, telemetry, and idempotent commit hash include the variant; both variants face the same validators; old pending turns record `current`; staged `finish` records the `decide` variant; the API agent and Responses adapter send the chosen instructions; the voice guidance stays short, keeps its guardrails, and names no room actor, speaker, or secret; the CLI passes the variant.
    - *Still unproven:* no blind or live comparison has run. Making it the default was Brendon's call, based on `current` producing a generic DM; it is not proof that v1 is better. Judge it with section (f): read the spoken `Kit:` lines first. Could this remark come from any DM at any table? Did she say what she makes of the bid? Did any NPC borrow her phrasing? If the contrasts start showing up word for word, cut them rather than adding more rules.
+   - *Superseded (`kit-voice-spec`, section h):* `KIT_EXPRESSION_V1` was rewritten from Brendon's spec. The register contrasts (including the "X, not Y" seed) and "in real danger she says nothing" are gone; it now carries the guiding star, voice by `turn_mode`, the `mirror`, and `showtime`.
 
 After these, the larger items in `expressed-performance-pipeline.md` still apply: ingest player-supplied rolls, add typed social events for real offers and promises, and replace the area 6c enums (`kit_agent.py:72`, `:155`, `:169`) with a general scene adapter so a second room can be built.
 
@@ -330,7 +340,7 @@ Every check is lexical: word lists, n-gram runs and sentence shapes. None of the
 ### g8. Context budget (`ContextBudgetTests`)
 
 - **Why two budgets:** a one-pass turn sends private and public input together. At turn 1 that is already about 22 KB (private about 14.4 KB, public about 7.3 KB), which cannot fit a 24 KB limit meant for one packet. So:
-  - the private input has its own `CONTEXT_BUDGET_BYTES` = 24000;
+  - the private input has its own `CONTEXT_BUDGET_BYTES` = 24000 (25000 since `kit-voice-spec`; see h6);
   - the one-pass total has `ONE_PASS_BUDGET_BYTES` = 32000.
 - One-pass also stops duplicating content: the personality core and public history are sent once, and `shared_with_private` says so.
 - **Check:** `fit_to_budget` trims in this order:
@@ -401,3 +411,71 @@ Asserts that the brief schema and instructions still carry what #8, #9 and #10 e
 ### g17. Exit narration before the NPC reaction (`ExitOrderTests`)
 
 For `exit` events (`EVENT_AFTER_PERFORMANCE_KINDS`), the committed turn appends the event line after the performance. The room now reacts, then the player leaves. The instructions say the exit event is printed afterwards, so the performer must not narrate the exit itself.
+
+---
+
+## (h) Brendon's voice spec, built as carriers (`kit-voice-spec`)
+
+Built on `kit-hardening` (PR #12). Code: `runtime/kit_voice.py` (constants and checks, no imports from `kit_agent`), wired into `runtime/kit_agent.py` (`PLAN_SCHEMA`, `check_plan`, `check_speech`, `prepare_inputs`, `performance_input`, instructions). Tests: `tests/test_kit_voice.py`.
+
+### h1. The spec and where the old core conflicted
+
+The spec is quoted verbatim at the top of this guide and of `docs/personality/dm-personality-core.md`. These core lines conflicted and were revised (the core is in every model input, so contradictions there reach the model directly):
+
+| Earlier core wording | Conflict with the spec | Revised to |
+| --- | --- | --- |
+| Combat: "Her own table personality becomes quieter." | Combat should feel engaged, tense, evocative. | "Engaged, tense, evocative: short punchy beats, sensory stakes, no playful humor." |
+| "In a dangerous or emotional moment, she can let the world and its people carry the scene without adding a joke. That restraint is still an active choice." | Read as "go quiet in danger"; fights went flat. | "In danger she makes the threat vivid, and skips the joke if the player is tense." |
+| "She does not make every scene dramatic, emotional, or important." | Prone to theatrical description and overacting. | "She mirrors the player's mood; a frustrated or bored player gets momentum, not more words." The limiter is the mood, not restraint. |
+| "She disappears behind the world when the scene deserves it." | Theatrical, overacting narrator. | "Even when she drops her own remarks, the narration is hers: theatrical, allowed to overact." |
+| "Laugh with the player ... but does not turn every scene into comedy." | A little quippy in meta talk and banter. | "...and quips in meta talk and banter; the player's mood sets how much." |
+| "She regulates how much of herself to show. She may react directly, briefly, when:" (a closed list) | The list read as the only times she speaks up. | Presence follows mood and moment; meta and banter invite a quip; the list is examples. |
+| Central Choice Rule: "When several responses are equally plausible, she prefers the one that..." | Guiding star: the most entertaining thing more often than the right thing. | "Guiding star first: the most entertaining true thing beats the merely correct one." The old list breaks ties. |
+
+### h2. Carriers
+
+| Spec line | Private source | Public carrier | Performer instruction | Validator check (hard/soft) |
+| --- | --- | --- | --- | --- |
+| Check for mood, mirror it | `player_mood` `{read, cue}`; `read` from a fixed list (neutral, playful, curious, tense, frustrated, bored, cautious, gleeful). Private input `table_read` gives counts: this message's words, recent message lengths, `!` count, OOC flag, feedback note IDs. | `public_brief.mirror`: `"<low|steady|high> energy, <tight|standard|roomy>, <no|dry|playful> humor: <how>"` | Honor its energy, length, and humor; tight means the scene moves. | Plan (hard): `cue` must quote the player's words, name a real note (`feedback nX`), or be `pacing: <what changed>` with earlier turns; the opening is neutral. Mirror must parse, be at most 200 characters, and fit the mood: frustrated or bored is `tight`; tense, frustrated, or cautious gets no `playful` humor; playful or gleeful gets some humor; combat gets no `playful` humor. Performance (soft): a tight exchange is at most 110 words, a tight feature at most 150 (`TIGHT_MAX_WORDS`; a call keeps its 60). |
+| Quippy / theatrical / combat voice | Code detects what it can (`table_read.mode_hint`): meta for an `(OOC)` message, description for the opening and room actions. | `turn_mode` (meta, banter, description, combat) in `selected_move` | `KIT_EXPRESSION_V1` gives a voice per mode. | Plan (hard): the mode matches the hint where code can tell; meta is never `quiet`. Performance: meta has a Kit segment (hard); combat Narrator and Kit sentences average at most 14 words, none over 24 (soft). |
+| Theatrical description, overacting | Kit's choice | `table_presence: showtime` | Kit takes the stage in 1 to 3 Kit segments. Her segments count toward the floors, so theatrical narration in her own voice is scene material. At every presence the narration is hers. | Plan (hard): never with `call` scope (a roll prompt stays short), never in combat, never for a frustrated player; needs a description or banter turn, or a playful player. Performance (hard, like presence): 1 to 3 Kit segments. |
+| NPCs notice what's up | Actor motives, memory | `public_brief.npc_notice`: `none` or `"<mood|past_act|gear|stunt>: <what the actor notices and why it matters to them>"` | The focus actor reacts in their own voice, for their own reasons, never with Kit's wit, and only from what they could see or know. | Plan (hard): at most 160 characters, no quoted dialogue, no mention of Kit, the table, or feedback; needs a focus actor; never on meta turns; `mood` only when the mood is cued from the player's words this turn (never feedback or pacing, which NPCs cannot perceive); `past_act` only with `memory_refs`. Performance (hard): the focus actor speaks. |
+| Guiding star | none (a performer value) | `KIT_EXPRESSION_V1` | "The most entertaining true thing beats the merely correct thing", bounded by facts, hidden information, rules outcomes, and player choice. | Not checkable; kit-hardening's hard guards (leaks, numbers, agency) are what keep "entertaining" true. |
+
+`player_mood` and `table_read` never reach the performer; `mirror`, `npc_notice`, and `turn_mode` do. Every check applies to both performer variants. A decision fixed before these carriers existed (no `turn_mode` or `mirror`) still performs; the performance checks skip missing carriers.
+
+### h3. Kit's voice guidance (`KIT_EXPRESSION_V1`, 1793 characters; the 1,800 cap from g14 stays)
+
+> KIT’S TABLE VOICE. Kit is one particular DM with a flair for theatre, not a neutral narrator. Guiding star: the most entertaining true thing beats the merely correct thing. Pick the funniest, eeriest, or most dramatic option the facts allow, never at the cost of a source fact, hidden information, a rules outcome, or the player’s choices. Read the player and honor the brief’s mirror: play back to a playful player, steady a tense one, and answer frustration or boredom with momentum, never more words. Voice by turn_mode. Meta and banter: quippy, quick, cheeky; answer first, then the joke. Description: theatrical, mood-setting, specific (no stock atmosphere); overacting is welcome. Combat: engaged, tense, evocative; short punchy sentences; every beat puts the stakes in what the player can see, hear, and smell. Her own voice appears only in Kit segments, as table presence allows (quiet: none; brief: one short remark; present: she talks; showtime: she takes the stage). Narration is hers at every presence: her taste picks the image and rhythm. Do: react to the exact thing this player did and say what she makes of it; hold an opinion and still rule fairly; be exact about a ruling; chide shenanigans, then take the attempt seriously; show earned delight; hand the scene back on a real choice. Don’t: generic praise or filler, recap, offer a menu of options, advise the player, or reuse a line, joke, or opener; no sentence template or stock acknowledgement becomes a habit. Her opinion never changes a fact, rules outcome, or NPC stance, never hints at hidden information, and never decides what the player thinks, feels, or does. NPCs never borrow her wit, asides, opinions, or phrasing; each notices the player through their own wants and sounds like nobody else, least of all Kit.
+
+Removed from the old text: the four register contrasts (including the "X, not Y" seed that g14 had reworded), "only when it lands", and "in real danger she says nothing and lets the threat speak".
+
+### h4. How the spec meets kit-hardening's guards
+
+The spec asks for theatre, overacting, and quips; the guards in (g) still apply to all of it. `HardeningGuardTests` pins the interaction:
+
+- **Overacting vs padding (g1).** Theatre is specific images, not repetition or stock atmosphere. `showtime` counts Kit's words toward the floors, so the padding guard now matters for her segments too. The guidance says "specific (no stock atmosphere)" to steer clear of `FILLER_PHRASES`. Fix in `kit_guards.check_padding`: the "same 6-word run twice in one turn" check iterated a set of n-grams, so a run repeated inside one segment was never caught; overacted narration pads exactly that way. It now checks every position.
+- **Theatrical narration vs agency (g10).** Sensory stakes are what the player can see, hear, and smell, never "your heart pounds" or what they feel: the voice guidance frames stakes that way, the performer's PLAYER AGENCY rule forbids the rest, and a test confirms the agency guard still rejects it in a showtime Kit segment.
+- **Theatrical words vs paraphrase leaks (g6).** "Theatrical" is a `false_vampires` tell. A theatrical narrator describing the pale gamblers "theatrically still" hints at the disguise, and the leak set only had "theatrical", so the fixture's set gains "theatrically".
+- **Quips vs Kit tics (g14).** A quippy Kit is more likely to repeat a template; the guidance keeps "no sentence template or stock acknowledgement becomes a habit", and `check_kit_tics` is unchanged. (`MergeReconciliationTests`, g11, now checks that the brief keeps the three PRs' fields as a subset, since `mirror` and `npc_notice` join them.)
+- **NPC noticing vs NPC register (g2).** `npc_notice` is direction, not diction: it names what the actor notices and why, and the actor's card decides how they say it. kit-hardening's `check_direction_not_diction` covers `kit_focus`; extend it to `npc_notice` if play shows diction creeping in.
+- **Degraded mode (g7).** The mirror length and combat rhythm checks are soft (warnings in degraded mode). Meta needing Kit, showtime's Kit segments, and `npc_notice` needing the actor are hard, like presence and the chosen move.
+
+### h5. What is deliberately not done
+
+- No NPC voice cards, leak, price, or repetition checks beyond the two fixes above; those belong to kit-hardening.
+- No mood persistence: the mood read is per turn (saved in the trace). Pacing comes from `table_read` and recent public history.
+- No model calls added. No area-specific lines.
+
+### h6. Thresholds changed, and why
+
+- **`CONTEXT_BUDGET_BYTES` 24000 → 25000** (`state_context.py`). The verbatim spec adds about 0.9 KB to the personality core, and the voice carriers add about 0.25 KB to every private input. The long-game worst case (`ContextBudgetTests`) could no longer fit even after trimming (24.2 KB); 25 KB restores the headroom kit-hardening had. `ONE_PASS_BUDGET_BYTES` (32000) is unchanged.
+- **New thresholds** (all in `kit_voice.py`, tune with play evidence): `TIGHT_MAX_WORDS` (110 exchange, 150 feature), `COMBAT_MAX_AVG_SENTENCE_WORDS` 14 and `COMBAT_MAX_SENTENCE_WORDS` 24, `SHOWTIME_MAX_KIT_SEGMENTS` 3, `MIRROR_MAX_CHARS` 200, `NPC_NOTICE_MAX_CHARS` 160, `MOOD_CUE_MAX_CHARS` 160.
+- **Unchanged:** the voice cap (1,800), every kit-hardening floor, padding run length, agency pattern, and tic list.
+
+### h7. Limits, and how to check it in play
+
+- A mood read is a guess the cue makes checkable, not correct. A bored player misread as curious gets a roomy turn.
+- The mirror's `how` text and the guiding star cannot be verified by code. Read the spoken turn: did the energy match the player's? Was it the most entertaining thing the facts allowed, or merely correct?
+- Combat mode is declarable on any social turn (e.g. a drawn blade); the slice has no combat resolver yet, so real combat turns still pend.
+- In play, check: after a short, flat player message, does the next turn get tighter and move? Do meta turns get a quick, specific quip after the answer? Does description overact without repeating itself? Does a noticing NPC sound like their card and unlike Kit?
