@@ -298,9 +298,19 @@ def main() -> int:
     args = parser.parse_args()
 
     if args.install_url:
-        if not args.client_id:
-            raise SystemExit("Missing --client-id (or DISCORD_APPLICATION_ID).")
-        print(build_install_url(args.client_id, args.guild))
+        client_id = args.client_id
+        if not client_id:
+            token = os.environ.get(args.token_env)
+            if not token:
+                raise SystemExit(
+                    "Missing application ID. Set DISCORD_APPLICATION_ID/--client-id, "
+                    f"or set {args.token_env} so the application ID can be read safely."
+                )
+            application = DiscordAPI(token).get("/oauth2/applications/@me")
+            client_id = str(application.get("id", ""))
+            if not client_id:
+                raise SystemExit("Discord did not return the bot application ID.")
+        print(build_install_url(client_id, args.guild))
         if not args.probe:
             return 0
 
