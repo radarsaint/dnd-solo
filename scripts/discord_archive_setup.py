@@ -219,10 +219,34 @@ def channel_rows(
     )
 
 
-def run_probe(token: str, guild_id: str, *, json_output: bool = False) -> int:
+def resolve_guild_id(api: DiscordAPI, requested_guild_id: str | None) -> str:
+    if requested_guild_id:
+        return str(requested_guild_id)
+
+    guilds = api.get("/users/@me/guilds")
+    if not isinstance(guilds, list):
+        raise DiscordAPIError("Discord did not return the bot's guild list.")
+    if not guilds:
+        raise SystemExit(
+            "The bot is not installed in any servers yet. Open the install URL, "
+            "install it in Roanoke Season 3, then run --probe again."
+        )
+    if len(guilds) == 1:
+        return str(guilds[0]["id"])
+
+    print("The bot is installed in more than one server. Choose the Roanoke server:")
+    for guild in guilds:
+        print(f"  {guild.get('id')}\t{guild.get('name', 'Unknown guild')}")
+    raise SystemExit("Run --probe --guild YOUR_ROANOKE_SERVER_ID.")
+
+
+def run_probe(
+    token: str, guild_id: str | None = None, *, json_output: bool = False
+) -> int:
     api = DiscordAPI(token)
     bot = api.get("/users/@me")
     application = api.get("/oauth2/applications/@me")
+    guild_id = resolve_guild_id(api, guild_id)
     guild = api.get(f"/guilds/{guild_id}")
     member = api.get(f"/guilds/{guild_id}/members/{bot['id']}")
     roles = api.get(f"/guilds/{guild_id}/roles")
@@ -315,15 +339,13 @@ def main() -> int:
             return 0
 
     if args.probe:
-        if not args.guild:
-            raise SystemExit("Missing --guild (or DISCORD_GUILD_ID).")
         token = os.environ.get(args.token_env)
         if not token:
             raise SystemExit(
                 f"Missing bot token. Set {args.token_env} locally; "
                 "never paste it into chat or git."
             )
-        return run_probe(token, str(args.guild), json_output=args.json)
+        return run_probe(token, str(args.guild) if args.guild else None, json_output=args.json)
 
     raise SystemExit("Choose --install-url and/or --probe.")
 
