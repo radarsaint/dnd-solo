@@ -1,0 +1,1254 @@
+{
+  "schema": "kit-source-index-v1",
+  "captured_date": "2026-10-01",
+  "scope": "53 imported files plus 10 source, report or hypothesis entries; not a complete archive enumeration.",
+  "sources": [
+    {
+      "source_id": "IMP-001",
+      "project": "Empire City",
+      "source_name": "Crafting in Empire City.docx",
+      "locator": {
+        "library_path": "/Dnd solo source imports/Empire City/Crafting in Empire City.docx",
+        "library_file_id": "libfile_5f79d3b35ff48191b31f6ebfbc44aec1",
+        "file_id": "file_00000000762c823095a0f0c8a3152475"
+      },
+      "approximate_source_date": null,
+      "imported_at": "2026-09-30T23:03:37.826131Z",
+      "authorship": "UNKNOWN",
+      "authorship_basis": "Not established; uploader and file ownership do not establish authorship.",
+      "evidence_type": "Unreviewed source",
+      "reliability": "UNASSESSED",
+      "partition": "EVALUATION_QUARANTINE",
+      "split_group": "empire-city-entire-project",
+      "exposure_before_this_pass": "Metadata only in this session",
+      "review_status": "NOT_READ_THIS_PASS"
+    },
+    {
+      "source_id": "IMP-002",
+      "project": "Empire City",
+      "source_name": "Draft to do list.docx",
+      "locator": {
+        "library_path": "/Dnd solo source imports/Empire City/Draft to do list.docx",
+        "library_file_id": "libfile_041b29c026c081919f79ec125ef9fd13",
+        "file_id": "file_0000000032f48230a126d49d156dd4b6"
+      },
+      "approximate_source_date": null,
+      "imported_at": "2026-09-30T23:03:39.731628Z",
+      "authorship": "UNKNOWN",
+      "authorship_basis": "Not established; uploader and file ownership do not establish authorship.",
+      "evidence_type": "Unreviewed source",
+      "reliability": "UNASSESSED",
+      "partition": "EVALUATION_QUARANTINE",
+      "split_group": "empire-city-entire-project",
+      "exposure_before_this_pass": "Prior planning search snippet; exposed snippet excluded from evaluation",
+      "review_status": "NOT_READ_THIS_PASS"
+    },
+    {
+      "source_id": "IMP-003",
+      "project": "Empire City",
+      "source_name": "Empire City Backlog Notes.docx",
+      "locator": {
+        "library_path": "/Dnd solo source imports/Empire City/Empire City Backlog Notes.docx",
+        "library_file_id": "libfile_080fcc48fbe08191a6e2a5cdc1e2163c",
+        "file_id": "file_00000000317481fb8262f62dc5387364"
+      },
+      "approximate_source_date": null,
+      "imported_at": "2026-09-30T23:03:16.857085Z",
+      "authorship": "UNKNOWN",
+      "authorship_basis": "Not established; uploader and file ownership do not establish authorship.",
+      "evidence_type": "Unreviewed source",
+      "reliability": "UNASSESSED",
+      "partition": "EVALUATION_QUARANTINE",
+      "split_group": "empire-city-entire-project",
+      "exposure_before_this_pass": "First 15 rendered lines (table of contents) only",
+      "review_status": "NOT_READ_THIS_PASS"
+    },
+    {
+      "source_id": "IMP-004",
+      "project": "Empire City",
+      "source_name": "Empire City Into Video.docx",
+      "locator": {
+        "library_path": "/Dnd solo source imports/Empire City/Empire City Into Video.docx",
+        "library_file_id": "libfile_681323ef78e8819194adc0743b499072",
+        "file_id": "file_0000000041a08230bba18185c5a59f0d"
+      },
+      "approximate_source_date": null,
+      "imported_at": "2026-09-30T23:03:12.250405Z",
+      "authorship": "UNKNOWN",
+      "authorship_basis": "Not established; uploader and file ownership do not establish authorship.",
+      "evidence_type": "Unreviewed source",
+      "reliability": "UNASSESSED",
+      "partition": "EVALUATION_QUARANTINE",
+      "split_group": "empire-city-entire-project",
+      "exposure_before_this_pass": "Metadata only in this session",
+      "review_status": "NOT_READ_THIS_PASS"
+    },
+    {
+      "source_id": "IMP-005",
+      "project": "Empire City",
+      "source_name": "Empire City Post 7-10.docx",
+      "locator": {
+        "library_path": "/Dnd solo source imports/Empire City/Empire City Post 7-10.docx",
+        "library_file_id": "libfile_61e1b4b428588191ba296e6deac4c57e",
+        "file_id": "file_00000000118c8230be89d05108533aa1"
+      },
+      "approximate_source_date": null,
+      "imported_at": "2026-09-30T23:03:30.867310Z",
+      "authorship": "UNKNOWN",
+      "authorship_basis": "Not established; uploader and file ownership do not establish authorship.",
+      "evidence_type": "Unreviewed source",
+      "reliability": "UNASSESSED",
+      "partition": "EVALUATION_QUARANTINE",
+      "split_group": "empire-city-entire-project",
+      "exposure_before_this_pass": "Metadata only in this session",
+      "review_status": "NOT_READ_THIS_PASS"
+    },
+    {
+      "source_id": "IMP-006",
+      "project": "Empire City",
+      "source_name": "Empire City Post 7-11.docx",
+      "locator": {
+        "library_path": "/Dnd solo source imports/Empire City/Empire City Post 7-11.docx",
+        "library_file_id": "libfile_04f52549d35081919118347f981536c0",
+        "file_id": "file_00000000183881fda3276bef45550ec4"
+      },
+      "approximate_source_date": null,
+      "imported_at": "2026-09-30T23:03:36.032188Z",
+      "authorship": "UNKNOWN",
+      "authorship_basis": "Not established; uploader and file ownership do not establish authorship.",
+      "evidence_type": "Unreviewed source",
+      "reliability": "UNASSESSED",
+      "partition": "EVALUATION_QUARANTINE",
+      "split_group": "empire-city-entire-project",
+      "exposure_before_this_pass": "Metadata only in this session",
+      "review_status": "NOT_READ_THIS_PASS"
+    },
+    {
+      "source_id": "IMP-007",
+      "project": "Empire City",
+      "source_name": "Empire City Post 7-12.docx",
+      "locator": {
+        "library_path": "/Dnd solo source imports/Empire City/Empire City Post 7-12.docx",
+        "library_file_id": "libfile_acb7cbcd5874819181c627dd02f2340a",
+        "file_id": "file_00000000ae0482309c117be24b3e1a51"
+      },
+      "approximate_source_date": null,
+      "imported_at": "2026-09-30T23:03:28.950161Z",
+      "authorship": "UNKNOWN",
+      "authorship_basis": "Not established; uploader and file ownership do not establish authorship.",
+      "evidence_type": "Unreviewed source",
+      "reliability": "UNASSESSED",
+      "partition": "EVALUATION_QUARANTINE",
+      "split_group": "empire-city-entire-project",
+      "exposure_before_this_pass": "Metadata only in this session",
+      "review_status": "NOT_READ_THIS_PASS"
+    },
+    {
+      "source_id": "IMP-008",
+      "project": "Empire City",
+      "source_name": "Empire City Post 7-13.docx",
+      "locator": {
+        "library_path": "/Dnd solo source imports/Empire City/Empire City Post 7-13.docx",
+        "library_file_id": "libfile_c3aaaa0ace108191a51e9cbbb3e73e6e",
+        "file_id": "file_00000000330c823084b22f1b41a539d2"
+      },
+      "approximate_source_date": null,
+      "imported_at": "2026-09-30T23:03:22.953103Z",
+      "authorship": "UNKNOWN",
+      "authorship_basis": "Not established; uploader and file ownership do not establish authorship.",
+      "evidence_type": "Unreviewed source",
+      "reliability": "UNASSESSED",
+      "partition": "EVALUATION_QUARANTINE",
+      "split_group": "empire-city-entire-project",
+      "exposure_before_this_pass": "Metadata only in this session",
+      "review_status": "NOT_READ_THIS_PASS"
+    },
+    {
+      "source_id": "IMP-009",
+      "project": "Empire City",
+      "source_name": "Empire City Post 7-16.docx",
+      "locator": {
+        "library_path": "/Dnd solo source imports/Empire City/Empire City Post 7-16.docx",
+        "library_file_id": "libfile_c0747cbeab8481919f4b4e074d1a212b",
+        "file_id": "file_00000000dd3081fda91608f91841c34b"
+      },
+      "approximate_source_date": null,
+      "imported_at": "2026-09-30T23:03:14.136265Z",
+      "authorship": "UNKNOWN",
+      "authorship_basis": "Not established; uploader and file ownership do not establish authorship.",
+      "evidence_type": "Unreviewed source",
+      "reliability": "UNASSESSED",
+      "partition": "EVALUATION_QUARANTINE",
+      "split_group": "empire-city-entire-project",
+      "exposure_before_this_pass": "Metadata only in this session",
+      "review_status": "NOT_READ_THIS_PASS"
+    },
+    {
+      "source_id": "IMP-010",
+      "project": "Empire City",
+      "source_name": "Empire City Post 7-17.docx",
+      "locator": {
+        "library_path": "/Dnd solo source imports/Empire City/Empire City Post 7-17.docx",
+        "library_file_id": "libfile_8f3533db49848191a3f7cee18adb77b1",
+        "file_id": "file_000000006fb08230aa7661250ae3c978"
+      },
+      "approximate_source_date": null,
+      "imported_at": "2026-09-30T23:03:20.925739Z",
+      "authorship": "UNKNOWN",
+      "authorship_basis": "Not established; uploader and file ownership do not establish authorship.",
+      "evidence_type": "Unreviewed source",
+      "reliability": "UNASSESSED",
+      "partition": "EVALUATION_QUARANTINE",
+      "split_group": "empire-city-entire-project",
+      "exposure_before_this_pass": "Metadata only in this session",
+      "review_status": "NOT_READ_THIS_PASS"
+    },
+    {
+      "source_id": "IMP-011",
+      "project": "Empire City",
+      "source_name": "Empire City Post 7-19.docx",
+      "locator": {
+        "library_path": "/Dnd solo source imports/Empire City/Empire City Post 7-19.docx",
+        "library_file_id": "libfile_3f0c0263b08c8191b138a19413e6e317",
+        "file_id": "file_00000000712482308ae8f5671944dc2f"
+      },
+      "approximate_source_date": null,
+      "imported_at": "2026-09-30T23:03:34.414155Z",
+      "authorship": "UNKNOWN",
+      "authorship_basis": "Not established; uploader and file ownership do not establish authorship.",
+      "evidence_type": "Unreviewed source",
+      "reliability": "UNASSESSED",
+      "partition": "EVALUATION_QUARANTINE",
+      "split_group": "empire-city-entire-project",
+      "exposure_before_this_pass": "Metadata only in this session",
+      "review_status": "NOT_READ_THIS_PASS"
+    },
+    {
+      "source_id": "IMP-012",
+      "project": "Empire City",
+      "source_name": "Empire City Post 7-21.docx",
+      "locator": {
+        "library_path": "/Dnd solo source imports/Empire City/Empire City Post 7-21.docx",
+        "library_file_id": "libfile_29eb3cb5a7f481918a91bbf54839c1df",
+        "file_id": "file_00000000f94c8230b985e73ae102c511"
+      },
+      "approximate_source_date": null,
+      "imported_at": "2026-09-30T23:03:19.000023Z",
+      "authorship": "UNKNOWN",
+      "authorship_basis": "Not established; uploader and file ownership do not establish authorship.",
+      "evidence_type": "Unreviewed source",
+      "reliability": "UNASSESSED",
+      "partition": "EVALUATION_QUARANTINE",
+      "split_group": "empire-city-entire-project",
+      "exposure_before_this_pass": "Metadata only in this session",
+      "review_status": "NOT_READ_THIS_PASS"
+    },
+    {
+      "source_id": "IMP-013",
+      "project": "Empire City",
+      "source_name": "Empire City Post 7-22.docx",
+      "locator": {
+        "library_path": "/Dnd solo source imports/Empire City/Empire City Post 7-22.docx",
+        "library_file_id": "libfile_b3413ea8095c8191b1a1ef0c488f0b74",
+        "file_id": "file_000000009ea88230a091ae20376142ef"
+      },
+      "approximate_source_date": null,
+      "imported_at": "2026-09-30T23:03:26.921717Z",
+      "authorship": "UNKNOWN",
+      "authorship_basis": "Not established; uploader and file ownership do not establish authorship.",
+      "evidence_type": "Unreviewed source",
+      "reliability": "UNASSESSED",
+      "partition": "EVALUATION_QUARANTINE",
+      "split_group": "empire-city-entire-project",
+      "exposure_before_this_pass": "Metadata only in this session",
+      "review_status": "NOT_READ_THIS_PASS"
+    },
+    {
+      "source_id": "IMP-014",
+      "project": "Empire City",
+      "source_name": "Empire City Post 7-23.docx",
+      "locator": {
+        "library_path": "/Dnd solo source imports/Empire City/Empire City Post 7-23.docx",
+        "library_file_id": "libfile_83def887d8dc8191ae4b146d193714fb",
+        "file_id": "file_00000000c3808230bc397f31dc5001e5"
+      },
+      "approximate_source_date": null,
+      "imported_at": "2026-09-30T23:03:25.012276Z",
+      "authorship": "UNKNOWN",
+      "authorship_basis": "Not established; uploader and file ownership do not establish authorship.",
+      "evidence_type": "Unreviewed source",
+      "reliability": "UNASSESSED",
+      "partition": "EVALUATION_QUARANTINE",
+      "split_group": "empire-city-entire-project",
+      "exposure_before_this_pass": "Metadata only in this session",
+      "review_status": "NOT_READ_THIS_PASS"
+    },
+    {
+      "source_id": "IMP-015",
+      "project": "Empire City",
+      "source_name": "Empire City Post 7-24.docx",
+      "locator": {
+        "library_path": "/Dnd solo source imports/Empire City/Empire City Post 7-24.docx",
+        "library_file_id": "libfile_0707bdd424f88191abbd9eaf95d5efd2",
+        "file_id": "file_00000000321c823092d2ebee0a161797"
+      },
+      "approximate_source_date": null,
+      "imported_at": "2026-09-30T23:03:32.765689Z",
+      "authorship": "UNKNOWN",
+      "authorship_basis": "Not established; uploader and file ownership do not establish authorship.",
+      "evidence_type": "Unreviewed source",
+      "reliability": "UNASSESSED",
+      "partition": "EVALUATION_QUARANTINE",
+      "split_group": "empire-city-entire-project",
+      "exposure_before_this_pass": "Metadata only in this session",
+      "review_status": "NOT_READ_THIS_PASS"
+    },
+    {
+      "source_id": "IMP-016",
+      "project": "Empire City",
+      "source_name": "Empire City RP Sign Up. (Responses).xlsx",
+      "locator": {
+        "library_path": "/Dnd solo source imports/Empire City/Empire City RP Sign Up. (Responses).xlsx",
+        "library_file_id": "libfile_9f2df77ff06881918dd600c97b1de2ee",
+        "file_id": "file_00000000fb78823088f566dbb1259e86"
+      },
+      "approximate_source_date": null,
+      "imported_at": "2026-09-30T23:03:09.994648Z",
+      "authorship": "UNKNOWN",
+      "authorship_basis": "Not established; uploader and file ownership do not establish authorship.",
+      "evidence_type": "Unreviewed source",
+      "reliability": "UNASSESSED",
+      "partition": "EXCLUDED_PERSONAL_RESPONSES",
+      "split_group": "empire-city-entire-project",
+      "exposure_before_this_pass": "Metadata only in this session",
+      "review_status": "NOT_READ_THIS_PASS"
+    },
+    {
+      "source_id": "IMP-017",
+      "project": "Roanoke",
+      "source_name": "Leaf and Rockman's Roanoke Epilogue.docx",
+      "locator": {
+        "library_path": "/Dnd solo source imports/Roanoke/Leaf and Rockman's Roanoke Epilogue.docx",
+        "library_file_id": "libfile_2f02824e9e78819187ca77d7a919fe83",
+        "file_id": "file_0000000071a08230b2cc6d1585b96d56"
+      },
+      "approximate_source_date": null,
+      "imported_at": "2026-09-30T23:03:02.518456Z",
+      "authorship": "UNKNOWN",
+      "authorship_basis": "Not established; uploader and file ownership do not establish authorship.",
+      "evidence_type": "Unreviewed source",
+      "reliability": "UNASSESSED",
+      "partition": "DISCOVERY",
+      "split_group": "roanoke-all-versions",
+      "exposure_before_this_pass": "Metadata only in this session",
+      "review_status": "NOT_READ_THIS_PASS"
+    },
+    {
+      "source_id": "IMP-018",
+      "project": "Roanoke",
+      "source_name": "Roanoke 3 Master Schedule.xlsx",
+      "locator": {
+        "library_path": "/Dnd solo source imports/Roanoke/Roanoke 3 Master Schedule.xlsx",
+        "library_file_id": "libfile_71d955c3de0881919d5a9696cf377ea3",
+        "file_id": "file_00000000490081fd84ba5ec30ec067b1"
+      },
+      "approximate_source_date": null,
+      "imported_at": "2026-09-30T23:02:32.628242Z",
+      "authorship": "UNKNOWN",
+      "authorship_basis": "Not established; uploader and file ownership do not establish authorship.",
+      "evidence_type": "Unreviewed source",
+      "reliability": "UNASSESSED",
+      "partition": "DISCOVERY",
+      "split_group": "roanoke-all-versions",
+      "exposure_before_this_pass": "Metadata only in this session",
+      "review_status": "NOT_READ_THIS_PASS"
+    },
+    {
+      "source_id": "IMP-019",
+      "project": "Roanoke",
+      "source_name": "Roanoke city directory..docx",
+      "locator": {
+        "library_path": "/Dnd solo source imports/Roanoke/Roanoke city directory..docx",
+        "library_file_id": "libfile_a113a768aea48191bd28fd188fe99e20",
+        "file_id": "file_00000000ff348230a707bf78bad722c7"
+      },
+      "approximate_source_date": null,
+      "imported_at": "2026-09-30T23:02:21.627006Z",
+      "authorship": "UNKNOWN",
+      "authorship_basis": "Not established; uploader and file ownership do not establish authorship.",
+      "evidence_type": "Unreviewed source",
+      "reliability": "UNASSESSED",
+      "partition": "DISCOVERY",
+      "split_group": "roanoke-all-versions",
+      "exposure_before_this_pass": "Metadata only in this session",
+      "review_status": "NOT_READ_THIS_PASS"
+    },
+    {
+      "source_id": "IMP-020",
+      "project": "Roanoke",
+      "source_name": "Roanoke Crafting.docx",
+      "locator": {
+        "library_path": "/Dnd solo source imports/Roanoke/Roanoke Crafting.docx",
+        "library_file_id": "libfile_294e522c60b88191aafe4750862c701c",
+        "file_id": "file_0000000041048230b48301a6c84bcd3b"
+      },
+      "approximate_source_date": null,
+      "imported_at": "2026-09-30T23:03:04.588405Z",
+      "authorship": "UNKNOWN",
+      "authorship_basis": "Not established; uploader and file ownership do not establish authorship.",
+      "evidence_type": "Unreviewed source",
+      "reliability": "UNASSESSED",
+      "partition": "DISCOVERY",
+      "split_group": "roanoke-all-versions",
+      "exposure_before_this_pass": "Metadata only in this session",
+      "review_status": "NOT_READ_THIS_PASS"
+    },
+    {
+      "source_id": "IMP-021",
+      "project": "Roanoke",
+      "source_name": "Roanoke FAQ.docx",
+      "locator": {
+        "library_path": "/Dnd solo source imports/Roanoke/Roanoke FAQ.docx",
+        "library_file_id": "libfile_05c08fc992ac819192d0e1a25902401e",
+        "file_id": "file_000000009f04823095eaf9233bb28dc3"
+      },
+      "approximate_source_date": "2020",
+      "imported_at": "2026-09-30T23:02:14.219735Z",
+      "authorship": "UNKNOWN",
+      "authorship_basis": "Signature BFDM not independently resolved.",
+      "evidence_type": "Procedures and intent",
+      "reliability": "PRIMARY_TEXT; PASSAGE_ATTRIBUTION_VARIES",
+      "partition": "DISCOVERY",
+      "split_group": "roanoke-all-versions",
+      "exposure_before_this_pass": "Metadata only in this session",
+      "review_status": "All 125 rendered lines."
+    },
+    {
+      "source_id": "IMP-022",
+      "project": "Roanoke",
+      "source_name": "Roanoke Island Beastiary.docx",
+      "locator": {
+        "library_path": "/Dnd solo source imports/Roanoke/Roanoke Island Beastiary.docx",
+        "library_file_id": "libfile_1c1b838038c08191968f82f2ff2b5c1f",
+        "file_id": "file_000000009b4082308b65e9909e8dec00"
+      },
+      "approximate_source_date": null,
+      "imported_at": "2026-09-30T23:02:52.461143Z",
+      "authorship": "UNKNOWN",
+      "authorship_basis": "Not established; uploader and file ownership do not establish authorship.",
+      "evidence_type": "Unreviewed source",
+      "reliability": "UNASSESSED",
+      "partition": "DISCOVERY",
+      "split_group": "roanoke-all-versions",
+      "exposure_before_this_pass": "Metadata only in this session",
+      "review_status": "NOT_READ_THIS_PASS"
+    },
+    {
+      "source_id": "IMP-023",
+      "project": "Roanoke",
+      "source_name": "Roanoke Lore: Chinnokin Prophesy.docx",
+      "locator": {
+        "library_path": "/Dnd solo source imports/Roanoke/Roanoke Lore: Chinnokin Prophesy.docx",
+        "library_file_id": "libfile_00831982d9408191931a1e9fb0a7f4f4",
+        "file_id": "file_0000000030208230a87e72a8846bb024"
+      },
+      "approximate_source_date": null,
+      "imported_at": "2026-09-30T23:02:54.090430Z",
+      "authorship": "UNKNOWN",
+      "authorship_basis": "Not established; uploader and file ownership do not establish authorship.",
+      "evidence_type": "Unreviewed source",
+      "reliability": "UNASSESSED",
+      "partition": "DISCOVERY",
+      "split_group": "roanoke-all-versions",
+      "exposure_before_this_pass": "Metadata only in this session",
+      "review_status": "NOT_READ_THIS_PASS"
+    },
+    {
+      "source_id": "IMP-024",
+      "project": "Roanoke",
+      "source_name": "Roanoke S2.docx",
+      "locator": {
+        "library_path": "/Dnd solo source imports/Roanoke/Roanoke S2.docx",
+        "library_file_id": "libfile_7992f1feab548191968fa153f32b60ff",
+        "file_id": "file_00000000e23c823083b1fa1f697481f2"
+      },
+      "approximate_source_date": null,
+      "imported_at": "2026-09-30T23:02:05.002379Z",
+      "authorship": "UNKNOWN",
+      "authorship_basis": "Not established; uploader and file ownership do not establish authorship.",
+      "evidence_type": "Unreviewed source",
+      "reliability": "UNASSESSED",
+      "partition": "DISCOVERY",
+      "split_group": "roanoke-all-versions",
+      "exposure_before_this_pass": "Metadata only in this session",
+      "review_status": "NOT_READ_THIS_PASS"
+    },
+    {
+      "source_id": "IMP-025",
+      "project": "Roanoke",
+      "source_name": "Roanoke S3 Lookout hill lodestone..docx",
+      "locator": {
+        "library_path": "/Dnd solo source imports/Roanoke/Roanoke S3 Lookout hill lodestone..docx",
+        "library_file_id": "libfile_be7ed75c7e1c8191ab0bd38d566ee879",
+        "file_id": "file_0000000043308230b8ac6d4c082664de"
+      },
+      "approximate_source_date": null,
+      "imported_at": "2026-09-30T23:02:24.985953Z",
+      "authorship": "UNKNOWN",
+      "authorship_basis": "Not established; uploader and file ownership do not establish authorship.",
+      "evidence_type": "Unreviewed source",
+      "reliability": "UNASSESSED",
+      "partition": "DISCOVERY",
+      "split_group": "roanoke-all-versions",
+      "exposure_before_this_pass": "Metadata only in this session",
+      "review_status": "NOT_READ_THIS_PASS"
+    },
+    {
+      "source_id": "IMP-026",
+      "project": "Roanoke",
+      "source_name": "Roanoke S3 Main Map.docx",
+      "locator": {
+        "library_path": "/Dnd solo source imports/Roanoke/Roanoke S3 Main Map.docx",
+        "library_file_id": "libfile_5bb8cd83a6a08191ac9ae2062d58ddd2",
+        "file_id": "file_00000000352c823082bdff36849ff0df"
+      },
+      "approximate_source_date": null,
+      "imported_at": "2026-09-30T23:02:29.294811Z",
+      "authorship": "UNKNOWN",
+      "authorship_basis": "Not established; uploader and file ownership do not establish authorship.",
+      "evidence_type": "Unreviewed source",
+      "reliability": "UNASSESSED",
+      "partition": "DISCOVERY",
+      "split_group": "roanoke-all-versions",
+      "exposure_before_this_pass": "Metadata only in this session",
+      "review_status": "NOT_READ_THIS_PASS"
+    },
+    {
+      "source_id": "IMP-027",
+      "project": "Roanoke",
+      "source_name": "Roanoke S3 Secret Society Lore.docx",
+      "locator": {
+        "library_path": "/Dnd solo source imports/Roanoke/Roanoke S3 Secret Society Lore.docx",
+        "library_file_id": "libfile_0e720f1bec3881918789bd537a6ec620",
+        "file_id": "file_00000000692c82308c1a41e293b5d842"
+      },
+      "approximate_source_date": null,
+      "imported_at": "2026-09-30T23:02:57.472287Z",
+      "authorship": "UNKNOWN",
+      "authorship_basis": "Not established; uploader and file ownership do not establish authorship.",
+      "evidence_type": "Unreviewed source",
+      "reliability": "UNASSESSED",
+      "partition": "DISCOVERY",
+      "split_group": "roanoke-all-versions",
+      "exposure_before_this_pass": "Metadata only in this session",
+      "review_status": "NOT_READ_THIS_PASS"
+    },
+    {
+      "source_id": "IMP-028",
+      "project": "Roanoke",
+      "source_name": "Roanoke S3 Social Media.docx",
+      "locator": {
+        "library_path": "/Dnd solo source imports/Roanoke/Roanoke S3 Social Media.docx",
+        "library_file_id": "libfile_f8266fc913c881918b47ab03676a265e",
+        "file_id": "file_000000003d148230b6fc9cfd2706d2d6"
+      },
+      "approximate_source_date": null,
+      "imported_at": "2026-09-30T23:02:12.229443Z",
+      "authorship": "UNKNOWN",
+      "authorship_basis": "Not established; uploader and file ownership do not establish authorship.",
+      "evidence_type": "Unreviewed source",
+      "reliability": "UNASSESSED",
+      "partition": "DISCOVERY",
+      "split_group": "roanoke-all-versions",
+      "exposure_before_this_pass": "Metadata only in this session",
+      "review_status": "NOT_READ_THIS_PASS"
+    },
+    {
+      "source_id": "IMP-029",
+      "project": "Roanoke",
+      "source_name": "Roanoke S3 v2 W2 Breakdown.docx",
+      "locator": {
+        "library_path": "/Dnd solo source imports/Roanoke/Roanoke S3 v2 W2 Breakdown.docx",
+        "library_file_id": "libfile_3e0866960748819187c755b5bf263902",
+        "file_id": "file_000000002228823084af679a52703b0a"
+      },
+      "approximate_source_date": null,
+      "imported_at": "2026-09-30T23:02:43.980004Z",
+      "authorship": "UNKNOWN",
+      "authorship_basis": "Not established; uploader and file ownership do not establish authorship.",
+      "evidence_type": "Unreviewed source",
+      "reliability": "UNASSESSED",
+      "partition": "DISCOVERY",
+      "split_group": "roanoke-all-versions",
+      "exposure_before_this_pass": "Metadata only in this session",
+      "review_status": "NOT_READ_THIS_PASS"
+    },
+    {
+      "source_id": "IMP-030",
+      "project": "Roanoke",
+      "source_name": "Roanoke S3W1 Set List..docx",
+      "locator": {
+        "library_path": "/Dnd solo source imports/Roanoke/Roanoke S3W1 Set List..docx",
+        "library_file_id": "libfile_5e7a1e0de14c819196017dcb72877d9e",
+        "file_id": "file_0000000047888230878b205a95c3fdcb"
+      },
+      "approximate_source_date": null,
+      "imported_at": "2026-09-30T23:02:03.098722Z",
+      "authorship": "UNKNOWN",
+      "authorship_basis": "Not established; uploader and file ownership do not establish authorship.",
+      "evidence_type": "Unreviewed source",
+      "reliability": "UNASSESSED",
+      "partition": "DISCOVERY",
+      "split_group": "roanoke-all-versions",
+      "exposure_before_this_pass": "Metadata only in this session",
+      "review_status": "NOT_READ_THIS_PASS"
+    },
+    {
+      "source_id": "IMP-031",
+      "project": "Roanoke",
+      "source_name": "Roanoke S3W2 Passdown.docx",
+      "locator": {
+        "library_path": "/Dnd solo source imports/Roanoke/Roanoke S3W2 Passdown.docx",
+        "library_file_id": "libfile_6ebfd21d70f48191a298adaa02c1c335",
+        "file_id": "file_0000000072508230a973ad3ce6ce0a87"
+      },
+      "approximate_source_date": null,
+      "imported_at": "2026-09-30T23:02:41.625090Z",
+      "authorship": "UNKNOWN",
+      "authorship_basis": "Not established; uploader and file ownership do not establish authorship.",
+      "evidence_type": "Unreviewed source",
+      "reliability": "UNASSESSED",
+      "partition": "DISCOVERY",
+      "split_group": "roanoke-all-versions",
+      "exposure_before_this_pass": "Metadata only in this session",
+      "review_status": "NOT_READ_THIS_PASS"
+    },
+    {
+      "source_id": "IMP-032",
+      "project": "Roanoke",
+      "source_name": "Roanoke S3W2 Set List.docx",
+      "locator": {
+        "library_path": "/Dnd solo source imports/Roanoke/Roanoke S3W2 Set List.docx",
+        "library_file_id": "libfile_eb93c71069f081918511533d08ab8b87",
+        "file_id": "file_00000000498882308adc4beec186cc8f"
+      },
+      "approximate_source_date": null,
+      "imported_at": "2026-09-30T23:02:49.085601Z",
+      "authorship": "UNKNOWN",
+      "authorship_basis": "Not established; uploader and file ownership do not establish authorship.",
+      "evidence_type": "Unreviewed source",
+      "reliability": "UNASSESSED",
+      "partition": "DISCOVERY",
+      "split_group": "roanoke-all-versions",
+      "exposure_before_this_pass": "Metadata only in this session",
+      "review_status": "NOT_READ_THIS_PASS"
+    },
+    {
+      "source_id": "IMP-033",
+      "project": "Roanoke",
+      "source_name": "Roanoke S3W3 Cast.docx",
+      "locator": {
+        "library_path": "/Dnd solo source imports/Roanoke/Roanoke S3W3 Cast.docx",
+        "library_file_id": "libfile_e234b050f67081918dce462b947c9e80",
+        "file_id": "file_00000000aed4823083e04bbe46cfc269"
+      },
+      "approximate_source_date": null,
+      "imported_at": "2026-09-30T23:02:50.717674Z",
+      "authorship": "UNKNOWN",
+      "authorship_basis": "Not established; uploader and file ownership do not establish authorship.",
+      "evidence_type": "Unreviewed source",
+      "reliability": "UNASSESSED",
+      "partition": "DISCOVERY",
+      "split_group": "roanoke-all-versions",
+      "exposure_before_this_pass": "Metadata only in this session",
+      "review_status": "NOT_READ_THIS_PASS"
+    },
+    {
+      "source_id": "IMP-034",
+      "project": "Roanoke",
+      "source_name": "Roanoke S3W3 Passdown.docx",
+      "locator": {
+        "library_path": "/Dnd solo source imports/Roanoke/Roanoke S3W3 Passdown.docx",
+        "library_file_id": "libfile_77685a89b0008191a77ac819ad2a7275",
+        "file_id": "file_00000000f60c81fda99391125f4f9bbf"
+      },
+      "approximate_source_date": null,
+      "imported_at": "2026-09-30T23:02:39.994826Z",
+      "authorship": "UNKNOWN",
+      "authorship_basis": "Not established; uploader and file ownership do not establish authorship.",
+      "evidence_type": "Unreviewed source",
+      "reliability": "UNASSESSED",
+      "partition": "DISCOVERY",
+      "split_group": "roanoke-all-versions",
+      "exposure_before_this_pass": "Metadata only in this session",
+      "review_status": "NOT_READ_THIS_PASS"
+    },
+    {
+      "source_id": "IMP-035",
+      "project": "Roanoke",
+      "source_name": "Roanoke S3W3 Set List.docx",
+      "locator": {
+        "library_path": "/Dnd solo source imports/Roanoke/Roanoke S3W3 Set List.docx",
+        "library_file_id": "libfile_8b8f360f071081918489ad886f441c38",
+        "file_id": "file_00000000eb948230956eaa8cc3ec3c46"
+      },
+      "approximate_source_date": null,
+      "imported_at": "2026-09-30T23:02:16.044221Z",
+      "authorship": "UNKNOWN",
+      "authorship_basis": "Not established; uploader and file ownership do not establish authorship.",
+      "evidence_type": "Unreviewed source",
+      "reliability": "UNASSESSED",
+      "partition": "DISCOVERY",
+      "split_group": "roanoke-all-versions",
+      "exposure_before_this_pass": "Metadata only in this session",
+      "review_status": "NOT_READ_THIS_PASS"
+    },
+    {
+      "source_id": "IMP-036",
+      "project": "Roanoke",
+      "source_name": "Roanoke S3W3 Voice Event Draft.docx",
+      "locator": {
+        "library_path": "/Dnd solo source imports/Roanoke/Roanoke S3W3 Voice Event Draft.docx",
+        "library_file_id": "libfile_39e74b29706c8191869369f432ea0a59",
+        "file_id": "file_00000000af808230807598f33e14effc"
+      },
+      "approximate_source_date": null,
+      "imported_at": "2026-09-30T23:02:55.722717Z",
+      "authorship": "UNKNOWN",
+      "authorship_basis": "Not established; uploader and file ownership do not establish authorship.",
+      "evidence_type": "Unreviewed source",
+      "reliability": "UNASSESSED",
+      "partition": "DISCOVERY",
+      "split_group": "roanoke-all-versions",
+      "exposure_before_this_pass": "Metadata only in this session",
+      "review_status": "NOT_READ_THIS_PASS"
+    },
+    {
+      "source_id": "IMP-037",
+      "project": "Roanoke",
+      "source_name": "Roanoke s3w4 Break down.docx",
+      "locator": {
+        "library_path": "/Dnd solo source imports/Roanoke/Roanoke s3w4 Break down.docx",
+        "library_file_id": "libfile_735277f37ab8819196431abe914cd3b7",
+        "file_id": "file_00000000ff3081fdb76ee84e2b102b1b"
+      },
+      "approximate_source_date": null,
+      "imported_at": "2026-09-30T23:02:06.563642Z",
+      "authorship": "UNKNOWN",
+      "authorship_basis": "Not established; uploader and file ownership do not establish authorship.",
+      "evidence_type": "Unreviewed source",
+      "reliability": "UNASSESSED",
+      "partition": "DISCOVERY",
+      "split_group": "roanoke-all-versions",
+      "exposure_before_this_pass": "Metadata only in this session",
+      "review_status": "NOT_READ_THIS_PASS"
+    },
+    {
+      "source_id": "IMP-038",
+      "project": "Roanoke",
+      "source_name": "Roanoke S3W4 Passdown.docx",
+      "locator": {
+        "library_path": "/Dnd solo source imports/Roanoke/Roanoke S3W4 Passdown.docx",
+        "library_file_id": "libfile_3e84871a36e48191919d88c84358f38e",
+        "file_id": "file_000000008ca48230a8545159d06d816f"
+      },
+      "approximate_source_date": null,
+      "imported_at": "2026-09-30T23:02:38.647308Z",
+      "authorship": "UNKNOWN",
+      "authorship_basis": "Not established; uploader and file ownership do not establish authorship.",
+      "evidence_type": "Unreviewed source",
+      "reliability": "UNASSESSED",
+      "partition": "DISCOVERY",
+      "split_group": "roanoke-all-versions",
+      "exposure_before_this_pass": "Metadata only in this session",
+      "review_status": "NOT_READ_THIS_PASS"
+    },
+    {
+      "source_id": "IMP-039",
+      "project": "Roanoke",
+      "source_name": "Roanoke S3W4 Set List.docx",
+      "locator": {
+        "library_path": "/Dnd solo source imports/Roanoke/Roanoke S3W4 Set List.docx",
+        "library_file_id": "libfile_8867e03f90988191b930eaff43887572",
+        "file_id": "file_000000009e9882308b0586cc49d8336e"
+      },
+      "approximate_source_date": null,
+      "imported_at": "2026-09-30T23:02:31.014039Z",
+      "authorship": "UNKNOWN",
+      "authorship_basis": "Not established; uploader and file ownership do not establish authorship.",
+      "evidence_type": "Unreviewed source",
+      "reliability": "UNASSESSED",
+      "partition": "DISCOVERY",
+      "split_group": "roanoke-all-versions",
+      "exposure_before_this_pass": "Metadata only in this session",
+      "review_status": "NOT_READ_THIS_PASS"
+    },
+    {
+      "source_id": "IMP-040",
+      "project": "Roanoke",
+      "source_name": "Roanoke S3W5 Passdown.docx",
+      "locator": {
+        "library_path": "/Dnd solo source imports/Roanoke/Roanoke S3W5 Passdown.docx",
+        "library_file_id": "libfile_ae806ee5c7bc8191bf4b8a5bc0c85a2f",
+        "file_id": "file_00000000441882309ad9166ecb4712f6"
+      },
+      "approximate_source_date": null,
+      "imported_at": "2026-09-30T23:02:36.601942Z",
+      "authorship": "UNKNOWN",
+      "authorship_basis": "Not established; uploader and file ownership do not establish authorship.",
+      "evidence_type": "Unreviewed source",
+      "reliability": "UNASSESSED",
+      "partition": "DISCOVERY",
+      "split_group": "roanoke-all-versions",
+      "exposure_before_this_pass": "Metadata only in this session",
+      "review_status": "NOT_READ_THIS_PASS"
+    },
+    {
+      "source_id": "IMP-041",
+      "project": "Roanoke",
+      "source_name": "ROANOKE S:3 2.0.docx",
+      "locator": {
+        "library_path": "/Dnd solo source imports/Roanoke/ROANOKE S:3 2.0.docx",
+        "library_file_id": "libfile_efafc55f46fc81919ab76722e53ce72b",
+        "file_id": "file_00000000d7308230858e9056958ff78e"
+      },
+      "approximate_source_date": null,
+      "imported_at": "2026-09-30T23:02:01.300649Z",
+      "authorship": "UNKNOWN",
+      "authorship_basis": "Not established; uploader and file ownership do not establish authorship.",
+      "evidence_type": "Unreviewed source",
+      "reliability": "UNASSESSED",
+      "partition": "DISCOVERY",
+      "split_group": "roanoke-all-versions",
+      "exposure_before_this_pass": "Metadata only in this session",
+      "review_status": "NOT_READ_THIS_PASS"
+    },
+    {
+      "source_id": "IMP-042",
+      "project": "Roanoke",
+      "source_name": "Roanoke Season 2.docx",
+      "locator": {
+        "library_path": "/Dnd solo source imports/Roanoke/Roanoke Season 2.docx",
+        "library_file_id": "libfile_3b9d866141a48191b8fa4455d5cbf984",
+        "file_id": "file_00000000ef9081fd8d83c73c20465566"
+      },
+      "approximate_source_date": null,
+      "imported_at": "2026-09-30T23:02:23.188028Z",
+      "authorship": "UNKNOWN",
+      "authorship_basis": "Not established; uploader and file ownership do not establish authorship.",
+      "evidence_type": "Unreviewed source",
+      "reliability": "UNASSESSED",
+      "partition": "DISCOVERY",
+      "split_group": "roanoke-all-versions",
+      "exposure_before_this_pass": "Metadata only in this session",
+      "review_status": "NOT_READ_THIS_PASS"
+    },
+    {
+      "source_id": "IMP-043",
+      "project": "Roanoke",
+      "source_name": "Roanoke season 3 Brainstorming.docx",
+      "locator": {
+        "library_path": "/Dnd solo source imports/Roanoke/Roanoke season 3 Brainstorming.docx",
+        "library_file_id": "libfile_4e41b0d1e0d481919b4cc397ad87d71e",
+        "file_id": "file_00000000ed308230bd7a809e36cff35c"
+      },
+      "approximate_source_date": "2019-08/2019-09",
+      "imported_at": "2026-09-30T23:02:10.095423Z",
+      "authorship": "COLLABORATIVE",
+      "authorship_basis": "Comments name Brendon and Noah; body passages remain individually unattributed.",
+      "evidence_type": "Brainstorming and postmortem",
+      "reliability": "PRIMARY_TEXT; PASSAGE_ATTRIBUTION_VARIES",
+      "partition": "DISCOVERY",
+      "split_group": "roanoke-all-versions",
+      "exposure_before_this_pass": "Metadata only in this session",
+      "review_status": "First 240/407 rendered lines; all 9 comment threads."
+    },
+    {
+      "source_id": "IMP-044",
+      "project": "Roanoke",
+      "source_name": "Roanoke Season 3 Lore.docx",
+      "locator": {
+        "library_path": "/Dnd solo source imports/Roanoke/Roanoke Season 3 Lore.docx",
+        "library_file_id": "libfile_6297634ed494819193bddf5506ea7646",
+        "file_id": "file_00000000c4908230afbc34bd6e77c863"
+      },
+      "approximate_source_date": null,
+      "imported_at": "2026-09-30T23:02:45.489339Z",
+      "authorship": "UNKNOWN",
+      "authorship_basis": "Not established; uploader and file ownership do not establish authorship.",
+      "evidence_type": "Unreviewed source",
+      "reliability": "UNASSESSED",
+      "partition": "DISCOVERY",
+      "split_group": "roanoke-all-versions",
+      "exposure_before_this_pass": "Metadata only in this session",
+      "review_status": "NOT_READ_THIS_PASS"
+    },
+    {
+      "source_id": "IMP-045",
+      "project": "Roanoke",
+      "source_name": "Roanoke Season 3 Rough Draft.txt",
+      "locator": {
+        "library_path": "/Dnd solo source imports/Roanoke/Roanoke Season 3 Rough Draft.txt",
+        "library_file_id": "libfile_a558cf377d34819185788aa5eca11fc3",
+        "file_id": "file_000000007d388230a8e77136fd8a511e"
+      },
+      "approximate_source_date": null,
+      "imported_at": "2026-09-30T23:04:49.740349Z",
+      "authorship": "UNKNOWN",
+      "authorship_basis": "Not established; uploader and file ownership do not establish authorship.",
+      "evidence_type": "Unreviewed source",
+      "reliability": "UNASSESSED",
+      "partition": "DISCOVERY",
+      "split_group": "roanoke-all-versions",
+      "exposure_before_this_pass": "Metadata only in this session",
+      "review_status": "NOT_READ_THIS_PASS"
+    },
+    {
+      "source_id": "IMP-046",
+      "project": "Roanoke",
+      "source_name": "Roanoke Season3 Change Log.docx",
+      "locator": {
+        "library_path": "/Dnd solo source imports/Roanoke/Roanoke Season3 Change Log.docx",
+        "library_file_id": "libfile_e1bd0386858481919436787b17c88caa",
+        "file_id": "file_000000004d188230a2826c6ea22d6a28"
+      },
+      "approximate_source_date": "2020-04/2020-06",
+      "imported_at": "2026-09-30T23:02:17.711004Z",
+      "authorship": "UNKNOWN",
+      "authorship_basis": "Only the inspected addition has Brendon-attributed revision evidence.",
+      "evidence_type": "Dated development log",
+      "reliability": "PRIMARY_TEXT; PASSAGE_ATTRIBUTION_VARIES",
+      "partition": "DISCOVERY",
+      "split_group": "roanoke-all-versions",
+      "exposure_before_this_pass": "First 15 rendered lines",
+      "review_status": "All 213 rendered lines; 66 revision metadata rows; revisions 8672,8751,9007."
+    },
+    {
+      "source_id": "IMP-047",
+      "project": "Roanoke",
+      "source_name": "Roanoke Song.docx",
+      "locator": {
+        "library_path": "/Dnd solo source imports/Roanoke/Roanoke Song.docx",
+        "library_file_id": "libfile_df0269e3d6cc8191ae4dfc1486db1974",
+        "file_id": "file_0000000049e082309b683cfc6205dfeb"
+      },
+      "approximate_source_date": null,
+      "imported_at": "2026-09-30T23:03:00.425654Z",
+      "authorship": "UNKNOWN",
+      "authorship_basis": "Not established; uploader and file ownership do not establish authorship.",
+      "evidence_type": "Unreviewed source",
+      "reliability": "UNASSESSED",
+      "partition": "DISCOVERY",
+      "split_group": "roanoke-all-versions",
+      "exposure_before_this_pass": "Metadata only in this session",
+      "review_status": "NOT_READ_THIS_PASS"
+    },
+    {
+      "source_id": "IMP-048",
+      "project": "Roanoke",
+      "source_name": "RoanokeS3 doc V2 W1.docx",
+      "locator": {
+        "library_path": "/Dnd solo source imports/Roanoke/RoanokeS3 doc V2 W1.docx",
+        "library_file_id": "libfile_368c99a807048191afacb8ab81d5da3a",
+        "file_id": "file_00000000b3e48230ac58f00e54984c4e"
+      },
+      "approximate_source_date": null,
+      "imported_at": "2026-09-30T23:02:08.307794Z",
+      "authorship": "UNKNOWN",
+      "authorship_basis": "Not established; uploader and file ownership do not establish authorship.",
+      "evidence_type": "Unreviewed source",
+      "reliability": "UNASSESSED",
+      "partition": "DISCOVERY",
+      "split_group": "roanoke-all-versions",
+      "exposure_before_this_pass": "Metadata only in this session",
+      "review_status": "NOT_READ_THIS_PASS"
+    },
+    {
+      "source_id": "IMP-049",
+      "project": "Roanoke",
+      "source_name": "RoanokeS3W1 Cast.docx",
+      "locator": {
+        "library_path": "/Dnd solo source imports/Roanoke/RoanokeS3W1 Cast.docx",
+        "library_file_id": "libfile_53f5231b4cf88191b76f3f42c647832c",
+        "file_id": "file_000000008e048230bf1c6ad02616c2f2"
+      },
+      "approximate_source_date": null,
+      "imported_at": "2026-09-30T23:02:26.680366Z",
+      "authorship": "UNKNOWN",
+      "authorship_basis": "Not established; uploader and file ownership do not establish authorship.",
+      "evidence_type": "Unreviewed source",
+      "reliability": "UNASSESSED",
+      "partition": "DISCOVERY",
+      "split_group": "roanoke-all-versions",
+      "exposure_before_this_pass": "Metadata only in this session",
+      "review_status": "NOT_READ_THIS_PASS"
+    },
+    {
+      "source_id": "IMP-050",
+      "project": "Roanoke",
+      "source_name": "RoanokeS3W1 Passdown..docx",
+      "locator": {
+        "library_path": "/Dnd solo source imports/Roanoke/RoanokeS3W1 Passdown..docx",
+        "library_file_id": "libfile_9bff2790bbcc819188bbd5faeb81fec9",
+        "file_id": "file_00000000bfd082308689de4d61683c56"
+      },
+      "approximate_source_date": null,
+      "imported_at": "2026-09-30T23:02:34.853145Z",
+      "authorship": "UNKNOWN",
+      "authorship_basis": "Not established; uploader and file ownership do not establish authorship.",
+      "evidence_type": "Unreviewed source",
+      "reliability": "UNASSESSED",
+      "partition": "DISCOVERY",
+      "split_group": "roanoke-all-versions",
+      "exposure_before_this_pass": "Metadata only in this session",
+      "review_status": "NOT_READ_THIS_PASS"
+    },
+    {
+      "source_id": "IMP-051",
+      "project": "Roanoke",
+      "source_name": "RoanokeS3W2 Cast.docx",
+      "locator": {
+        "library_path": "/Dnd solo source imports/Roanoke/RoanokeS3W2 Cast.docx",
+        "library_file_id": "libfile_109f357270908191b6f89d43ed2fb9b9",
+        "file_id": "file_000000006f1482309eddb186ce119a37"
+      },
+      "approximate_source_date": null,
+      "imported_at": "2026-09-30T23:02:47.299252Z",
+      "authorship": "UNKNOWN",
+      "authorship_basis": "Not established; uploader and file ownership do not establish authorship.",
+      "evidence_type": "Unreviewed source",
+      "reliability": "UNASSESSED",
+      "partition": "DISCOVERY",
+      "split_group": "roanoke-all-versions",
+      "exposure_before_this_pass": "Metadata only in this session",
+      "review_status": "NOT_READ_THIS_PASS"
+    },
+    {
+      "source_id": "IMP-052",
+      "project": "Roanoke",
+      "source_name": "RoanokeS3W3 Breakdown.docx",
+      "locator": {
+        "library_path": "/Dnd solo source imports/Roanoke/RoanokeS3W3 Breakdown.docx",
+        "library_file_id": "libfile_b8d893a942e88191a852342954b689ad",
+        "file_id": "file_0000000029f88230ba3e832b4291e515"
+      },
+      "approximate_source_date": null,
+      "imported_at": "2026-09-30T23:01:58.897556Z",
+      "authorship": "UNKNOWN",
+      "authorship_basis": "Not established; uploader and file ownership do not establish authorship.",
+      "evidence_type": "Unreviewed source",
+      "reliability": "UNASSESSED",
+      "partition": "DISCOVERY",
+      "split_group": "roanoke-all-versions",
+      "exposure_before_this_pass": "Metadata only in this session",
+      "review_status": "NOT_READ_THIS_PASS"
+    },
+    {
+      "source_id": "IMP-053",
+      "project": "Roanoke",
+      "source_name": "RoanokeS3W5 Break Down.docx",
+      "locator": {
+        "library_path": "/Dnd solo source imports/Roanoke/RoanokeS3W5 Break Down.docx",
+        "library_file_id": "libfile_e4c3a9e1df0881918ca03c9d604985a6",
+        "file_id": "file_00000000b4b8823097163107b5dd75c8"
+      },
+      "approximate_source_date": null,
+      "imported_at": "2026-09-30T23:02:19.388567Z",
+      "authorship": "UNKNOWN",
+      "authorship_basis": "Not established; uploader and file ownership do not establish authorship.",
+      "evidence_type": "Unreviewed source",
+      "reliability": "UNASSESSED",
+      "partition": "DISCOVERY",
+      "split_group": "roanoke-all-versions",
+      "exposure_before_this_pass": "Metadata only in this session",
+      "review_status": "NOT_READ_THIS_PASS"
+    },
+    {
+      "source_id": "SRC-KIT02",
+      "source_name": "Kit playtest 02",
+      "project": "Kit",
+      "approximate_source_date": "2026-09-26",
+      "authorship": "AI_GENERATED",
+      "evidence_type": "Report with user quotes",
+      "reliability": "SECONDARY_REPORT",
+      "locator": {
+        "repo": "radarsaint/dnd-solo",
+        "commit": "4f4f0a35af3f54ef73bf6d7e59c2ffd001ac848e",
+        "path": "tests/playtests/2026-09-26-area-06c-nik.md"
+      },
+      "authorship_basis": "Report author and quoted player are separate.",
+      "partition": "DISCOVERY",
+      "review_status": "READ_SCOPED",
+      "split_group": "Kit"
+    },
+    {
+      "source_id": "SRC-KIT03",
+      "source_name": "Kit playtest 03",
+      "project": "Kit",
+      "approximate_source_date": "2026-09-28/2026-09-29",
+      "authorship": "AI_GENERATED",
+      "evidence_type": "Failed live test and criticism",
+      "reliability": "SECONDARY_REPORT; ACTUAL_REJECTED_OUTPUT",
+      "locator": {
+        "repo": "radarsaint/dnd-solo",
+        "commit": "4f4f0a35af3f54ef73bf6d7e59c2ffd001ac848e",
+        "path": "tests/playtests/2026-09-29-area-06c-voice-spec-nik.md"
+      },
+      "authorship_basis": "Host performances and report analysis are not user judgment; criticism is attributed to Brendon.",
+      "partition": "DISCOVERY",
+      "review_status": "READ_SCOPED",
+      "split_group": "Kit"
+    },
+    {
+      "source_id": "SRC-KIT04",
+      "source_name": "Kit playtest 04 evidence",
+      "project": "Kit",
+      "approximate_source_date": "2026-09-29",
+      "authorship": "COLLABORATIVE",
+      "evidence_type": "Turn export, feedback notes, final user quote",
+      "reliability": "STRUCTURED_EXPORT; FEEDBACK_PARAPHRASES",
+      "locator": {
+        "repo": "radarsaint/dnd-solo",
+        "commit": "4f4f0a35af3f54ef73bf6d7e59c2ffd001ac848e",
+        "path": "tests/playtests/2026-09-29-area-06c-claims-nik-evidence.json",
+        "report_path": "tests/playtests/2026-09-29-area-06c-claims-nik.md"
+      },
+      "authorship_basis": "User actions and final criticism are separate from AI notes and performances.",
+      "partition": "DISCOVERY",
+      "review_status": "READ_SCOPED",
+      "split_group": "Kit"
+    },
+    {
+      "source_id": "SRC-ROA-COM",
+      "source_name": "Roanoke brainstorming native comments",
+      "project": "Roanoke",
+      "approximate_source_date": "2019-08/2019-09",
+      "authorship": "COLLABORATIVE",
+      "evidence_type": "Attributed comments",
+      "reliability": "PRIMARY_COMMENTS",
+      "locator": {
+        "document_url": "https://docs.google.com/document/d/1-8bOpRzSB08qxESL7Y9tboWYe5eb90eMso3RKyZgjBE"
+      },
+      "authorship_basis": "Brendon and Noah named as comment authors; quoted anchors remain unattributed.",
+      "partition": "DISCOVERY",
+      "review_status": "READ_SCOPED",
+      "split_group": "Roanoke"
+    },
+    {
+      "source_id": "SRC-ROA-REV",
+      "source_name": "Roanoke change log revision comparison",
+      "project": "Roanoke",
+      "approximate_source_date": "2020-05-13",
+      "authorship": "BRENDON",
+      "evidence_type": "Before/after diagnostic addition",
+      "reliability": "PRIMARY_REVISION; MODIFIER_LEVEL_ATTRIBUTION",
+      "locator": {
+        "file_id": "1rX3drh0uGXMASZSYqistWxEaX1wzeS55rv3YmXaL594",
+        "revisions": [
+          "8672",
+          "8751",
+          "9007"
+        ],
+        "document_url": "https://docs.google.com/document/d/1rX3drh0uGXMASZSYqistWxEaX1wzeS55rv3YmXaL594"
+      },
+      "authorship_basis": "Last-modifier metadata plus inspected delta; not per-character attribution.",
+      "partition": "DISCOVERY",
+      "review_status": "READ_SCOPED",
+      "split_group": "Roanoke"
+    },
+    {
+      "source_id": "SRC-NOV-COM",
+      "source_name": "Exploration Impossible editorial comments",
+      "project": "Exploration Impossible",
+      "approximate_source_date": "2020-04/2020-05",
+      "authorship": "COLLABORATIVE",
+      "evidence_type": "Named editorial comments and replies",
+      "reliability": "PRIMARY_COMMENTS",
+      "locator": {
+        "document_url": "https://docs.google.com/document/d/1t4xOCSj7E6WlEDNyHuBrsBkqwui0IRgMIzTaUCqOy_g"
+      },
+      "authorship_basis": "78 threads fetched; Brendon comments attributable, manuscript authorship unconfirmed.",
+      "partition": "DISCOVERY",
+      "review_status": "READ_SCOPED",
+      "split_group": "Exploration Impossible"
+    },
+    {
+      "source_id": "SRC-PILOT",
+      "source_name": "September 30 campaign evidence pilot",
+      "project": "Multiple campaigns",
+      "approximate_source_date": "2025-03/2026-09",
+      "authorship": "AI_GENERATED",
+      "evidence_type": "Semantic retrieval fragments and summaries",
+      "reliability": "RETRIEVAL_LEADS",
+      "locator": {
+        "repo": "radarsaint/dnd-solo",
+        "commit": "54a8ece196c30979152b3bb37167cd3ab7a7ffd6",
+        "path": "research/kit-corpus/2026-09-30/evidence.json",
+        "retrieval_path": "research/kit-corpus/2026-09-30/retrieval-record.json"
+      },
+      "authorship_basis": "User contributions attributed by retrieval; no full original conversation export.",
+      "partition": "DISCOVERY",
+      "review_status": "READ_SCOPED",
+      "split_group": "Multiple campaigns"
+    },
+    {
+      "source_id": "SRC-NOV-RETR",
+      "source_name": "September 30 novel evidence notes",
+      "project": "At War's End",
+      "approximate_source_date": "2024-11/2025-06",
+      "authorship": "AI_GENERATED",
+      "evidence_type": "Retrieval and transcribed notes",
+      "reliability": "RETRIEVAL_LEADS",
+      "locator": {
+        "repo": "radarsaint/dnd-solo",
+        "commit": "54a8ece196c30979152b3bb37167cd3ab7a7ffd6",
+        "path": "research/kit-personality/2026-09-30/novel-retrieval.json"
+      },
+      "authorship_basis": "Notes are AI-authored; original-window verification pending.",
+      "partition": "DISCOVERY",
+      "review_status": "READ_SCOPED",
+      "split_group": "At War's End"
+    },
+    {
+      "source_id": "SRC-CORE",
+      "source_name": "Current and candidate Kit personalities",
+      "project": "Kit",
+      "approximate_source_date": "2026-09/2026-10",
+      "authorship": "COLLABORATIVE",
+      "evidence_type": "Models to audit",
+      "reliability": "NOT_GROUND_TRUTH",
+      "locator": {
+        "repo": "radarsaint/dnd-solo",
+        "main_commit": "4f4f0a35af3f54ef73bf6d7e59c2ffd001ac848e",
+        "candidate_commit": "a3cfa71aa4c70f3d9859f92dd59cf7472925220d",
+        "path": "docs/personality/dm-personality-core.md"
+      },
+      "authorship_basis": "Verbatim user spec embedded in a larger AI-authored hypothesis.",
+      "partition": "DISCOVERY",
+      "review_status": "READ_SCOPED",
+      "split_group": "Kit"
+    },
+    {
+      "source_id": "SRC-HANDOFF",
+      "source_name": "Skippy collaboration handoff",
+      "project": "Kit",
+      "approximate_source_date": "2026-09-30 PT",
+      "authorship": "AI_GENERATED",
+      "evidence_type": "Project implementation guidance",
+      "reliability": "NOT_BRENDON_DECISION_EVIDENCE",
+      "locator": {
+        "repo": "radarsaint/dnd-solo",
+        "commit": "4f4f0a35af3f54ef73bf6d7e59c2ffd001ac848e",
+        "paths": [
+          "docs/collab/README.md",
+          "docs/collab/BOARD.md",
+          "docs/GPT_HANDOFF_AGENDAS.md"
+        ]
+      },
+      "authorship_basis": "Board identifies Skippy as Grok Bot.",
+      "partition": "DISCOVERY",
+      "review_status": "READ_SCOPED",
+      "split_group": "Kit"
+    }
+  ]
+}

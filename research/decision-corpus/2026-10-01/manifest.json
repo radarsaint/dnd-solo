@@ -1,0 +1,34 @@
+{
+  "schema": "kit-extraction-manifest-v0.1",
+  "created_at_utc": "2026-10-01T06:14:43.346708+00:00",
+  "base_commit": "4f4f0a35af3f54ef73bf6d7e59c2ffd001ac848e",
+  "counts": {
+    "source_rows": 63,
+    "imported_files": 53,
+    "decision_records": 23,
+    "preferences": 8,
+    "trait_hypotheses": 6,
+    "blind_development_probes": 3,
+    "quarantined_files": 15,
+    "validated_held_out_cases": 0
+  },
+  "files": {
+    "CONTRADICTIONS.md": "a1a1a986518a9701be53667871f832ecf53e2063a9b3f357d75b011422264db6",
+    "DATASET_CARD.md": "76833865bdd56bc7a5712e470860e58c2bd23e91e8d0b1745e1bace54f53dc17",
+    "DECISIONS.md": "285daab9268d19026547a121fdc2966acb28fdfc4f24cc7430a724a1508555fc",
+    "MODEL_AUDIT.md": "645f20d9f8cd46ea178e24473659122596d9193d1af7d88ddbb49b0534405a0b",
+    "PROTOCOL.md": "4dd57aaed315caf6d62fb329f60ee676860345ef59e221aa2a9b027156d52740",
+    "README.md": "f224dd2922cf7f9178caf7b60e56e90ff71ca0315f5758f5027aaf71ed28bc25",
+    "SOURCE_INDEX.md": "205e2d855b90df538c50be07ff5c34db51b53a75ba920ca17d217cb174446b5b",
+    "TRAITS.md": "b6e58ae10d78610830fa0ae039c69484e12a1b21eed0bf3234ecf1132f5b14bf",
+    "decisions.jsonl": "1a1ea30a68dc96f82173d6f743da2a9dc03b45fe024d8e3e3f2ea0323359c518",
+    "evaluation/BLIND_AB.md": "c3ea7c357b7787631324e2d7a144e3e9c65c5d0a84406af0a98aa4ce529649de",
+    "evaluation/ab-analysis.json": "4b6f0bc72822848576e55e45c5afeb03ea86863c58b20aa215530f5376a6a027",
+    "evaluation/blind-ab-cases.jsonl": "1a4e37173801557a089060abb03bdd9bcd1bd91b22e70f3c4900b51c697cf775",
+    "evaluation/partition.json": "f45be3784a5a894f87d73d4deb53d3ffa34d873f560ffdd18196ba6e913ff694",
+    "evidence-excerpts.json": "47544649913a087d9e8f79f5bd4197b09ac94c8d2106284ed31001bbceed1673",
+    "preferences.jsonl": "a75aca7018f2e0e1c9a21341f8bc583be10b8ee553bd3c6561c010dc34f3fb9f",
+    "source-index.json": "0c6ec94429ded984c68e92ad8168de8cf917a596cd78c8749e9cdda3558735b6",
+    "trait-evidence.json": "afeac32055f087fce1557c151051e2dea8e43f12a15c097d8c82905cea956c20"
+  }
+}
