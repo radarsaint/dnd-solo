@@ -102,8 +102,30 @@ class PresenceAndPacingTests(unittest.TestCase):
                                                                         'clocks': {}, 'last_acted': {}}))
         self.assertFalse(packet['must_advance'])
         kit_agenda.check_agenda(block(reason='paced', why='The drip is slow tonight.'), packet, room(paced), state('crypt'))
-        with self.assertRaisesRegex(InvalidChange, 'Not quiet'):
+        # Agents are present but no advance is due: quiet is valid with a stated reason.
+        kit_agenda.check_agenda(block(reason='quiet', why='The air settles while the torch burns steady.'),
+                                packet, room(paced), state('crypt'))
+        with self.assertRaisesRegex(InvalidChange, 'says why nothing advances'):
             kit_agenda.check_agenda(block(reason='quiet', why='Calm.'), packet, room(paced), state('crypt'))
+
+    def test_quiet_is_rejected_only_when_an_advance_is_overdue(self):
+        paced = copy.deepcopy(ENVIRONMENT)
+        paced['pace'] = {'crypt': 2}
+        source = room(paced)
+        # One turn since the last advance, pace 2: the advance is due now.
+        due = kit_agenda.agenda_here(source, state('crypt', mem={'turn': 1, 'last_advance': 0,
+                                                                 'clocks': {}, 'last_acted': {}}))
+        self.assertTrue(due['must_advance'])
+        for reason in ('quiet', 'paced'):
+            with self.subTest(reason=reason), self.assertRaisesRegex(InvalidChange, 'waited long enough'):
+                kit_agenda.check_agenda(block(reason=reason, why='The air settles while the torch burns steady.'),
+                                        due, source, state('crypt'))
+        # Not yet due: the same quiet hold stands.
+        fresh = kit_agenda.agenda_here(source, state('crypt', mem={'turn': 1, 'last_advance': 1,
+                                                                   'clocks': {}, 'last_acted': {}}))
+        self.assertFalse(fresh['must_advance'])
+        kit_agenda.check_agenda(block(reason='quiet', why='The air settles while the torch burns steady.'),
+                                fresh, source, state('crypt'))
 
     def test_a_lair_owner_acts_from_offstage_and_a_faction_clock_spans_rooms(self):
         actors = {'ogre': {'location': 'crypt', 'status': 'alive'}}

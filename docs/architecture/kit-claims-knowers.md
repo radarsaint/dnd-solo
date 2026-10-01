@@ -1,6 +1,6 @@
 # Claims and knowers
 
-Design: `research/kit-aliveness/06-claim-and-knower-design.md`. Code: `runtime/kit_claims.py`,
+Code: `runtime/kit_claims.py`,
 `runtime/pc_sheet.py`. Tests: `tests/test_kit_claims.py`.
 
 A detail isn't a string. It's a claim, and someone in the world holds it. Before anyone
@@ -21,17 +21,22 @@ states a detail, Kit answers three questions:
 
 ## Rulings
 
-1. An NPC lie is a flat 10 + Deception against the PC's passive Insight. The runtime rolls nothing. If it meets or beats passive Insight, the lie lands.
-2. When the adventure gives no concealment DC, the default is 10 + floor(dungeon floor level / 3). The current area's optional `floor_level` supplies the floor; it defaults to 1.
-3. Read Thoughts (the doppelganger) grants its claims passively.
-4. The marked deck is found with passive **Perception**, not Insight, because the dealer's slip is a visible action. Nik's passive is 14 when the Sentinel Shield is not held (it gives advantage only while held), four over DC 10, so Kit may point; holding it makes 19, and she may name the kind of thing.
-5. Under the design's numbers the bandits come out *knowing* on the marked deck (10 meets the default DC 10), not *anchored* as the design's example says. The band rule wins.
+1. An NPC lie is a flat 10 + Deception against the PC's passive Insight. The runtime rolls nothing for the NPC. If it meets or beats passive Insight, the lie lands. When the player actively reads whether someone is lying, the PC rolls Insight against that same flat number (meet or beat). The read answers only whether that person is being straight; it never reveals another secret.
+2. NPCs never roll. In any opposed check (a card-table contest, a concealment, a lie) the NPC brings a flat 10 + skill. The PC rolls only when actively trying something that isn't automatic.
+3. When the PC's relevant passive meets the number, the result is automatic: no roll, the PC notices. A failed roll shows only the PC's total, never the DC, so it never hints that something is there.
+4. One number per secret, used by every path (passive shield, active look, card table), from `claim_dc`: the adventure's DC; else, when an NPC actively hides it (`concealer` + `conceal_skill`), that NPC's flat 10 + skill; else the default for **any** check the source gives no DC, 10 + floor(dungeon floor level / 3). The current area's optional `floor_level` supplies the floor; it defaults to 1. The player is never told "the source gives no DC".
+5. Stealth is the PC's roll against the best passive Perception among the people present.
+6. Read Thoughts (the doppelganger) grants its claims passively.
+7. Winks scale with the PC's **passive Insight** (Brendon's ruling: "the higher the Wisdom, the more she winks"), whatever skill finds the claim itself. The skill that finds the claim (`pc_check`) decides the fingerprint band; passive Insight against the same DC decides the wink tier.
+8. Bands follow the numbers, even where an early design example said otherwise.
+
+Example (6c, one sheet; not a rule): the marked deck is found with Perception because the dealer's slip is a visible action. The dealer hides it with Sleight of Hand +3, so its DC is 13 on every path. A PC with passive Perception 14 gets the fingerprint; with passive Insight 14 (one over) Kit may point. The ring's appraisal has no adventure DC, so it is the default 10 on floor 1.
 
 ## What is built
 
 - **Any PC sheet.** `character --sheet <file>` loads a `character_sheet_v1` JSON file for any class, ancestry, or level. Passive scores are 10 + the skill bonus, plus 5 with advantage in force now (see `docs/architecture/kit-agendas.md`). Nik (`tests/fixtures/characters/nik.json`, stats only) is one example. Nothing is keyed to him.
 - **NPC profiles.** Each 6c actor has a `stats` block holding SRD 5.1 ability scores and skills (CC-BY-4.0) plus role domains and special senses.
-- **Claims** (`claims` in the room fixture): each has a source, roots, exposure, a DC, the concealer, the skill that finds it, `pc_access` (passive shield or player roll), the first holders, the anchored version, and the fingerprint.
+- **Claims** (`claims` in the room fixture): each has a source, roots, exposure, an optional DC, an optional concealer and concealing skill (used for the DC when the adventure gives none), the skill that finds it, optional `subject_words` (what an active look or knowledge roll must name to target it), `pc_access` (passive shield or player roll), the first holders, the anchored version, and the fingerprint.
 - **NPC bands.** Holders listed in the fixture, and holders granted by a special sense, *know*. Everyone else scores 10 + a modifier (Insight for people, Intelligence for things), plus proficiency when the claim is in their domain. At or above the DC they *know*. 1 to 4 short is *close*, and 5 or more short is *anchored*.
 - **PC bands.** *learned* comes from a player roll or a reveal in play. *fingerprint* means the passive skill meets the DC (passive claims only). Otherwise the PC is *blind*.
 - **prepare** adds `claims_here` to the private input: the PC summary from the loaded sheet, every band, the wink tier, the lie contests, and durable new definitions. It uses an unsaved preview of the adjudicated events, so a successful knowledge roll earns the *learned* band in that same turn. Nothing is saved until the turn commits.

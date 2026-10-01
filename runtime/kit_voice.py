@@ -58,7 +58,6 @@ COMBAT_MAX_AVG_SENTENCE_WORDS = 14                   # Narrator and Kit sentence
 COMBAT_MAX_SENTENCE_WORDS = 24
 SHOWTIME_MAX_KIT_SEGMENTS = 3
 
-FOCUS_ACTORS = ('uktarl', 'other')  # focus_actor values that name someone who can notice
 
 
 def _norm(text):
@@ -218,7 +217,7 @@ def check_npc_notice(plan, is_ooc, player_notes):
     kind, _ = parsed
     require(not re.search(r'\b(kit|dm|table talk|out of character|ooc|feedback)\b', _norm(notice)),
             'npc_notice is what the actor sees in the fiction, never Kit, the table, or feedback')
-    require(plan['focus_actor'] in FOCUS_ACTORS, 'npc_notice needs a focus actor to do the noticing')
+    require(plan['focus_actor'] not in (None, 'none'), 'npc_notice needs a focus actor to do the noticing')
     require(plan['turn_mode'] != 'meta' and not is_ooc, 'NPCs do not hear table talk; npc_notice is none in meta mode')
     if kind == 'mood':
         mood = plan['player_mood']

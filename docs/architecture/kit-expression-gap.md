@@ -98,8 +98,8 @@ The player states their buy-in from their own purse. Seat stacks split the table
 
 **Your counters:**
 
-- **Watch the deal:** your Perception against his Dex +3 (DM choice). Catching it reveals `marked_deck`. "I watch the dealer for cheating" is a watch, not an accusation.
-- **Read him:** Insight against his source Performance +4.
+- **Watch the deal:** your Perception against DC 13 (his flat 10 + Sleight of Hand +3, a DM choice; the same DC the marked-deck claim uses everywhere). Meet it and you catch him; a passive Perception of 13 or more catches it without a roll. Catching it reveals `marked_deck`. "I watch the dealer for cheating" is a watch, not an accusation.
+- **Read him:** Insight against DC 14 (his flat 10 + source Performance +4). A passive Insight that meets it reads him without a roll. The NPC never rolls.
 - **Swap a card:** your Sleight of Hand against his passive Perception 10. Caught, you are out of the gambit, your gold stays in the stakes, and nobody deals to you again.
 - **Accuse:** "You dealt yourself the second card" is an accusation. With proof, the gambit is void and every coin goes back to where it stood at the deal, and the dealer does not confess. Without proof, the game stops and every face turns to you.
 

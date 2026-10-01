@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from runtime import kit_agent, kit_detail, kit_guards
+from runtime import kit_agent, kit_claims, kit_detail, kit_guards
 from runtime.kit_agent import (EVENT_MAX_CHARS, EXCHANGE_MIN_ACTOR_WORDS, KitAgent, KitChatBridge,
                                OpenAIResponsesModel, PendingRuling, Room6CAdjudicator,
                                check_public_content, room_intent, social_event)
@@ -153,7 +153,6 @@ class KitAgentTests(unittest.TestCase):
         probes = {
             'I pull up a chair and ask what the stakes are.': 'social',
             "I call out the dealer's marked cards.": 'social',
-            'I study those tiny figures in the carving while they argue.': 'inspect_fresco',
             'I could help you get rid of Harria. What is that worth?': 'social',
             'I tip the stone tub over and use it as cover.': 'tip_tub',
             'I attack Uktarl in the middle of the game.': 'combat',
@@ -247,11 +246,11 @@ class KitAgentTests(unittest.TestCase):
         self.assertEqual(self.runtime.recent_kit_turns()[0]['trace']['improv_read']['story_anchor'], 'level')
 
     def test_unsupported_actions_and_missing_modifier_do_not_consume_turn(self):
-        for action in ('I attack Uktarl.', 'I pocket the silver ring.', 'I inspect the deck.'):
+        for action in ('I attack Uktarl.', 'I pocket the silver ring.', 'I cast Detect Magic.'):
             with self.assertRaises(PendingRuling):
                 self.agent.turn(action)
         agent = KitAgent(self.runtime, self.model, Room6CAdjudicator())
-        with self.assertRaisesRegex(PendingRuling, 'Perception modifier'):
+        with self.assertRaisesRegex(PendingRuling, 'Load a character sheet or state the Perception roll'):
             agent.turn('I inspect the fresco.')
         self.assertEqual(self.runtime.load()[0], 0)
         self.assertEqual(self.model.plans, [])
@@ -260,10 +259,12 @@ class KitAgentTests(unittest.TestCase):
         agent = KitAgent(self.runtime, self.model, Room6CAdjudicator(
             perception=0, insight=0, roll=lambda: 1))
         result = agent.turn('I inspect the fresco.', 'failed-check')
-        self.assertIn('1 vs DC 13', result['spoken'])
+        # A failure shows only the PC's total: no DC, nothing that says a secret is there.
+        self.assertIn('(Perception 1)', result['spoken'])
+        self.assertNotIn('DC', result['spoken'].split('\n')[0])
         self.assertNotIn('stone key', json.dumps(self.runtime.player_view()))
         self.assertEqual(self.runtime.recent_kit_turns()[0]['public_event'],
-                         'Your careful look reveals nothing further. (1 vs DC 13)')
+                         'You find nothing you can be sure of. (Perception 1)')
 
     def test_model_failure_does_not_reroll_same_uncommitted_check(self):
         bad = KitAgent(self.runtime, RecordingModel(leak=True),
@@ -486,7 +487,7 @@ class KitAgentTests(unittest.TestCase):
         with self.assertRaisesRegex(InvalidChange, 'world description'):
             bridge.finish('bad-entry', {'segments': [
                 {'speaker': 'Dealer', 'text': 'Sit and play.'}]})
-        with self.assertRaisesRegex(InvalidChange, 'narration and the dealer'):
+        with self.assertRaisesRegex(InvalidChange, "narration and the focus actor's first line"):
             bridge.finish('bad-entry', {'segments': [
                 {'speaker': 'Narrator', 'text': 'The game stops at the threshold.'}]})
         with self.assertRaisesRegex(InvalidChange, 'private fact'):
@@ -1182,7 +1183,8 @@ class ApproachRoutingTests(unittest.TestCase):
                 # No modifier needed and no fact revealed: it is table talk, not the check.
                 resolution = self.resolve(action)
                 self.assertEqual([event['type'] for event in resolution.events], ['beat'])
-        self.assertEqual(room_intent('I study their fangs. Insight check.'), 'insight')
+        target = kit_claims.check_target('I study their fangs. Insight check.', json.loads(FIXTURE.read_text()))
+        self.assertEqual(target[0], 'false_vampires')
 
     def test_stealth_needs_a_ruling_and_is_never_a_free_exit(self):
         for action in ('I sneak along the wall and slip out the south door.',
@@ -1212,34 +1214,36 @@ class ApproachRoutingTests(unittest.TestCase):
 class TerseCardPlayerTests(unittest.TestCase):
     """Approach-range playtest: a card-player focus is not forced into a 30-word speech."""
 
+    GUARDS = kit_agent.guard_context(json.loads(FIXTURE.read_text()), {})
+
     def plan(self, focus, actor=None):
         return {'public_brief': {'scope': 'exchange'}, 'focus_actor': focus,
-                'improv_read': {'actor_ref': actor or ('uktarl' if focus == 'uktarl' else 'bandit_b')}}
+                'improv_read': {'actor_ref': actor or focus}}
 
     def test_card_player_focus_may_be_terse_but_must_speak(self):
         terse = [{'speaker': 'Narrator', 'text': ' '.join(['word'] * 30)},
                  {'speaker': 'Fresco-side player', 'text': 'Out. Get out of there. That is not yours.'},
                  {'speaker': 'Dealer', 'text': 'Sit down, he is comfortable.'}]
-        kit_agent.check_scope(terse, self.plan('other'))
+        kit_agent.check_scope(terse, self.plan('bandit_b'), self.GUARDS)
         silent = [segment for segment in terse if segment['speaker'] != 'Fresco-side player']
         silent[0] = {'speaker': 'Narrator', 'text': ' '.join(['word'] * 45)}
         with self.assertRaisesRegex(InvalidChange, 'selected Fresco-side player never spoke'):
-            kit_agent.check_scope(silent, self.plan('other'))
+            kit_agent.check_scope(silent, self.plan('bandit_b'), self.GUARDS)
         # The selected card player must be the one who speaks, not another at the table.
         wrong = [terse[0], {'speaker': 'Door-side player', 'text': 'Please, just sit.'}, terse[2]]
         with self.assertRaisesRegex(InvalidChange, 'selected Fresco-side player never spoke'):
-            kit_agent.check_scope(wrong, self.plan('other'))
+            kit_agent.check_scope(wrong, self.plan('bandit_b'), self.GUARDS)
         # The whole-turn floor still guards against a flat card-player beat.
         with self.assertRaisesRegex(InvalidChange, 'Exchange scope was flat'):
             kit_agent.check_scope([{'speaker': 'Narrator', 'text': 'He glares.'},
-                                   {'speaker': 'Fresco-side player', 'text': 'Out.'}], self.plan('other'))
+                                   {'speaker': 'Fresco-side player', 'text': 'Out.'}], self.plan('bandit_b'), self.GUARDS)
 
     def test_dealer_focus_keeps_the_actor_floor(self):
         speech = [{'speaker': 'Narrator', 'text': ' '.join(['word'] * 30)},
                   {'speaker': 'Dealer', 'text': 'Out. Get out of there. That is not yours.'}]
         with self.assertRaisesRegex(InvalidChange, rf'Dealer spoke 9 words \(floor {EXCHANGE_MIN_ACTOR_WORDS}\)'):
-            kit_agent.check_scope(speech, self.plan('uktarl'))
-        self.assertIn('card player focus may be brief', kit_agent.performance_limits()['exchange'])
+            kit_agent.check_scope(speech, self.plan('uktarl'), self.GUARDS)
+        self.assertIn('speech_floor false may be brief', kit_agent.performance_limits()['exchange'])
 
 
 if __name__ == '__main__':

@@ -184,7 +184,7 @@ class NpcVoiceTests(unittest.TestCase):
 
     def test_every_card_has_a_complete_distinct_voice_contract(self):
         contracts = kit_guards.check_voice_contracts(CARDS)
-        self.assertEqual(set(contracts), {'Dealer', *kit_guards.CARD_PLAYER_SPEAKERS})
+        self.assertEqual(set(contracts), set(kit_agent.actor_speakers(SOURCE).values()))
         for field in ('rhythm', 'register', 'humor'):
             self.assertEqual(len({c[field] for c in contracts.values()}), len(contracts), field)
         broken = {**CARDS, 'Dealer': {**CARDS['Dealer'], 'voice_contract': {
@@ -669,9 +669,9 @@ class CardPlayerIdentityTests(BridgeCase):
     """(g12) Each card player is a separate speaker with their own card."""
 
     def test_three_card_player_labels_replace_the_shared_one(self):
-        speakers = kit_agent.SPEECH_SCHEMA['properties']['segments']['items']['properties']['speaker']['enum']
+        speakers = kit_agent.speech_speakers(SOURCE)
         self.assertNotIn('Card player', speakers)
-        for label in kit_guards.CARD_PLAYER_SPEAKERS:
+        for label in ('Door-side player', 'Fresco-side player', 'Fourth player'):
             self.assertIn(label, speakers)
             self.assertIn(label, CARDS)
 
@@ -687,14 +687,14 @@ class CardPlayerIdentityTests(BridgeCase):
     def test_focus_card_player_reaches_performer_by_label_only(self):
         prepared = self.bridge.prepare('I ask the player by the door what they think.', 'door')
         plan = self.quiet_plan(prepared['input'])
-        plan.update(focus_actor='other')
+        plan.update(focus_actor='doppelganger')
         plan['improv_read'].update(actor_ref='doppelganger', actor_basis='motive')
         payload = self.bridge.decide('door', plan)
         self.assertEqual(payload['input']['selected_move']['focus_actor'], 'Fourth player')
         packed = json.dumps(payload['input'], ensure_ascii=False).lower()
         for private in ('doppelganger', 'bandit_a', 'bandit_b'):
             self.assertNotIn(private, packed)
-        with self.assertRaisesRegex(InvalidChange, 'selected Fourth player never spoke'):
+        with self.assertRaisesRegex(InvalidChange, r'Fourth player\)? (never spoke|did not speak)'):
             self.bridge.finish('door', {'segments': [
                 seg('Narrator', 'The dealer and the player by the fresco both look up from the table at once.'),
                 seg('Door-side player', 'I, uh. Just sit. Please.'),
@@ -763,13 +763,14 @@ class NumericFactTests(unittest.TestCase):
 class RefusedAttemptTests(BridgeCase):
     """(g16) A refused attempt leaves a public trace the next turn can pick up."""
 
-    def test_refused_sneak_is_recorded_and_reaches_the_next_turn(self):
+    def test_refused_spell_is_recorded_and_reaches_the_next_turn(self):
         with self.assertRaisesRegex(PendingRuling, 'noted in the public history'):
-            self.bridge.prepare('I sneak past the table toward the door.', 'sneak')
+            self.bridge.prepare('I cast Detect Magic.', 'spell')
         self.assertEqual(self.runtime.load()[0], 1)
         attempts = self.runtime.load()[1]['refused_attempts']
-        self.assertEqual(attempts[0]['action'], 'I sneak past the table toward the door.')
-        self.assertIn('Stealth', attempts[0]['ruling'])
+        self.assertEqual(attempts[0]['action'], 'I cast Detect Magic.')
+        self.assertIn('Spell effects outside combat', attempts[0]['ruling'])
+        self.assertNotIn('Combat', attempts[0]['ruling'])
         prepared = self.bridge.prepare('Fine. What are you all playing?', 'after', one_pass=True)
         self.assertEqual(prepared['input']['private']['refused_attempts'], attempts)
         self.assertEqual(prepared['input']['public']['refused_attempts'], attempts)
@@ -778,7 +779,7 @@ class RefusedAttemptTests(BridgeCase):
 
     def test_host_input_problems_are_not_recorded(self):
         bridge = KitChatBridge(self.runtime, Room6CAdjudicator())
-        with self.assertRaisesRegex(PendingRuling, 'Perception modifier'):
+        with self.assertRaisesRegex(PendingRuling, 'Load a character sheet or state the Perception roll'):
             bridge.prepare('I inspect the fresco.', 'nomod')
         self.assertEqual(self.runtime.load()[0], 0)
 
@@ -786,7 +787,7 @@ class RefusedAttemptTests(BridgeCase):
         self.runtime.close()
         out = io.StringIO()
         with patch('sys.argv', ['kit_agent', 'prepare', '--db', str(self.path),
-                                '--action', 'I creep toward the south door.']), contextlib.redirect_stdout(out):
+                                '--action', 'I cast Light.']), contextlib.redirect_stdout(out):
             self.assertEqual(kit_agent.main(), 0)
         result = json.loads(out.getvalue())
         self.assertEqual((result['stage'], result['attempt_recorded']), ('pending_ruling', True))

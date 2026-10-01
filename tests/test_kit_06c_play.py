@@ -500,7 +500,7 @@ class CardTableTests(unittest.TestCase):
         _, table, _ = self.seated()
         state['procedures'] = {'three_dragon_ante': table}
         adjudicator = Room6CAdjudicator(perception=0, insight=0, sleight_of_hand=0, source=source)
-        with self.assertRaisesRegex(kit_agent.PendingRuling, 'Combat'):
+        with self.assertRaisesRegex(kit_agent.PendingRuling, 'Fights are not run'):
             adjudicator.resolve('I raise my crossbow and shoot the dealer.', 1, state)
         with self.assertRaisesRegex(kit_agent.PendingRuling, 'Stealth'):
             adjudicator.resolve('I sneak out while they check their hands.', 1, state)
