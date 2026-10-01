@@ -23,10 +23,10 @@ function Read-BotToken {
     }
 }
 
-function Invoke-DiscordGet([string]$Path, [string]$Token) {
+function Invoke-DiscordGet([string]$Path, [string]$Token, [string]$Label) {
     $headers = @{
         Authorization = "Bot $Token"
-        "User-Agent" = "KitDiscordArchiveProbe/0.1"
+        "User-Agent" = "KitDiscordArchiveProbe/0.2"
     }
     try {
         return Invoke-RestMethod -Method Get -Uri "$ApiBase$Path" -Headers $headers
@@ -34,8 +34,9 @@ function Invoke-DiscordGet([string]$Path, [string]$Token) {
     catch {
         $status = $null
         try { $status = [int]$_.Exception.Response.StatusCode } catch {}
-        if ($status -eq 401) { throw "Discord rejected the bot token. Reset/copy it again in the Developer Portal." }
-        if ($status -eq 403) { throw "Discord denied access. Check that the bot is installed in the Roanoke server." }
+        if ($status -eq 401) { throw "Discord rejected the bot token while checking $Label. Reset/copy the bot token again." }
+        if ($status -eq 403) { throw "Discord denied access while checking $Label. Confirm Roanoke Archive is installed in that server." }
+        if ($status) { throw "Discord returned HTTP $status while checking $Label." }
         throw
     }
 }
@@ -45,35 +46,39 @@ function To-Int64($Value) {
     return [int64]::Parse([string]$Value)
 }
 
-function Get-BasePermissions($GuildId, $Member, $Roles) {
-    $permissions = [int64]0
+function Get-BotRole($BotId, $Roles) {
+    foreach ($role in $Roles) {
+        if ($role.tags -and $role.tags.bot_id -and [string]$role.tags.bot_id -eq [string]$BotId) {
+            return $role
+        }
+    }
+    return $null
+}
+
+function Get-BasePermissions($GuildId, $BotRole, $Roles) {
+    [int64]$permissions = 0
     foreach ($role in $Roles) {
         if ([string]$role.id -eq [string]$GuildId) {
             $permissions = $permissions -bor (To-Int64 $role.permissions)
             break
         }
     }
-    foreach ($roleId in @($Member.roles)) {
-        foreach ($role in $Roles) {
-            if ([string]$role.id -eq [string]$roleId) {
-                $permissions = $permissions -bor (To-Int64 $role.permissions)
-                break
-            }
-        }
+    if ($BotRole) {
+        $permissions = $permissions -bor (To-Int64 $BotRole.permissions)
     }
     return $permissions
 }
 
 function Apply-Overwrite([int64]$Permissions, $Overwrite) {
-    $deny = To-Int64 $Overwrite.deny
-    $allow = To-Int64 $Overwrite.allow
+    [int64]$deny = To-Int64 $Overwrite.deny
+    [int64]$allow = To-Int64 $Overwrite.allow
     $Permissions = $Permissions -band (-bnot $deny)
     $Permissions = $Permissions -bor $allow
     return $Permissions
 }
 
-function Get-ChannelPermissions($GuildId, $BotId, $Member, $Roles, $Channel) {
-    [int64]$permissions = Get-BasePermissions $GuildId $Member $Roles
+function Get-ChannelPermissions($GuildId, $BotId, $BotRole, $Roles, $Channel) {
+    [int64]$permissions = Get-BasePermissions $GuildId $BotRole $Roles
 
     if (($permissions -band $Administrator) -ne 0) {
         return [int64]::MaxValue
@@ -88,17 +93,18 @@ function Get-ChannelPermissions($GuildId, $BotId, $Member, $Roles, $Channel) {
         }
     }
 
-    [int64]$roleAllow = 0
-    [int64]$roleDeny = 0
-    $memberRoles = @($Member.roles | ForEach-Object { [string]$_ })
-    foreach ($ow in $overwrites) {
-        if ([int]$ow.type -eq 0 -and $memberRoles -contains [string]$ow.id) {
-            $roleAllow = $roleAllow -bor (To-Int64 $ow.allow)
-            $roleDeny = $roleDeny -bor (To-Int64 $ow.deny)
+    if ($BotRole) {
+        [int64]$roleAllow = 0
+        [int64]$roleDeny = 0
+        foreach ($ow in $overwrites) {
+            if ([int]$ow.type -eq 0 -and [string]$ow.id -eq [string]$BotRole.id) {
+                $roleAllow = $roleAllow -bor (To-Int64 $ow.allow)
+                $roleDeny = $roleDeny -bor (To-Int64 $ow.deny)
+            }
         }
+        $permissions = $permissions -band (-bnot $roleDeny)
+        $permissions = $permissions -bor $roleAllow
     }
-    $permissions = $permissions -band (-bnot $roleDeny)
-    $permissions = $permissions -bor $roleAllow
 
     foreach ($ow in $overwrites) {
         if ([int]$ow.type -eq 1 -and [string]$ow.id -eq [string]$BotId) {
@@ -110,44 +116,38 @@ function Get-ChannelPermissions($GuildId, $BotId, $Member, $Roles, $Channel) {
     return $permissions
 }
 
+if (-not $GuildId) {
+    $GuildId = (Read-Host "Paste the Roanoke Season 3 server ID").Trim()
+}
+if ([string]::IsNullOrWhiteSpace($GuildId) -or $GuildId -notmatch '^\d{15,22}$') {
+    throw "That does not look like a Discord server ID."
+}
+
 $token = Read-BotToken
 try {
-    $bot = Invoke-DiscordGet "/users/@me" $token
-    $guilds = @(Invoke-DiscordGet "/users/@me/guilds" $token)
+    Write-Host ""
+    Write-Host "Checking bot authentication..."
+    $bot = Invoke-DiscordGet "/users/@me" $token "bot authentication"
 
-    if ($guilds.Count -eq 0) {
-        throw "The bot is authenticated but is not installed in any server."
+    Write-Host "Checking Roanoke server access..."
+    $guild = Invoke-DiscordGet "/guilds/$GuildId" $token "the Roanoke server"
+
+    Write-Host "Reading role permissions..."
+    $roles = @(Invoke-DiscordGet "/guilds/$GuildId/roles" $token "server roles")
+    $botRole = Get-BotRole $bot.id $roles
+    if (-not $botRole) {
+        throw "Could not find the managed Roanoke Archive role for this bot."
     }
 
-    if (-not $GuildId) {
-        if ($guilds.Count -eq 1) {
-            $GuildId = [string]$guilds[0].id
-        }
-        else {
-            Write-Host ""
-            Write-Host "The bot is installed in multiple servers:"
-            for ($i = 0; $i -lt $guilds.Count; $i++) {
-                Write-Host ("[{0}] {1}" -f ($i + 1), $guilds[$i].name)
-            }
-            do {
-                $choice = Read-Host "Enter the number for the Roanoke Season 3 server"
-                $index = 0
-                $valid = [int]::TryParse($choice, [ref]$index) -and $index -ge 1 -and $index -le $guilds.Count
-            } until ($valid)
-            $GuildId = [string]$guilds[$index - 1].id
-        }
-    }
+    Write-Host "Reading channel metadata..."
+    $channels = @(Invoke-DiscordGet "/guilds/$GuildId/channels" $token "server channels")
 
-    $guild = Invoke-DiscordGet "/guilds/$GuildId" $token
-    $member = Invoke-DiscordGet "/guilds/$GuildId/members/$($bot.id)" $token
-    $roles = @(Invoke-DiscordGet "/guilds/$GuildId/roles" $token)
-    $channels = @(Invoke-DiscordGet "/guilds/$GuildId/channels" $token)
-
-    [int64]$base = Get-BasePermissions $GuildId $member $roles
+    [int64]$base = Get-BasePermissions $GuildId $botRole $roles
 
     Write-Host ""
     Write-Host ("Bot:    {0}" -f $bot.username)
     Write-Host ("Server: {0}" -f $guild.name)
+    Write-Host ("Role:   {0}" -f $botRole.name)
     Write-Host ""
 
     if (($base -band $Administrator) -ne 0) {
@@ -165,7 +165,7 @@ try {
     foreach ($channel in $channels) {
         if (@(0,5) -notcontains [int]$channel.type) { continue }
 
-        [int64]$perms = Get-ChannelPermissions $GuildId $bot.id $member $roles $channel
+        [int64]$perms = Get-ChannelPermissions $GuildId $bot.id $botRole $roles $channel
         $canView = ($perms -band $ViewChannel) -ne 0
         $canHistory = ($perms -band $ReadMessageHistory) -ne 0
 
