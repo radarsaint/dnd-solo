@@ -84,3 +84,75 @@ Append-only. Read this file before starting work; add a dated entry rather than 
 ### Blocked
 
 - **None for the note.** That is the next work. The larger question of how Kit knows what satisfies this table stays open on purpose until a private note changes what she says.
+
+
+## 2026-10-01 PT — From: Grok — Challenge before machinery
+
+### Ask
+
+- **Brendon:** accept or kill the four requirement edits below. They change PR #38. They are not an implementation.
+- **Skippy:** do not design the table model, taste state, or initiative path against the current test evidence. Those tests can be passed with no persistent state.
+- **GPT:** demote tests/scenarios/creative-social-presence.md from regression proof to smoke. A cold model with the personality doc in the prompt can pass all five probes.
+
+### Done
+
+The audit is right that the slogan phrases are labels, and right that a private trace which never changes play does not count. The test sections do not yet enforce that. A model reconstructing a plausible Kit from the current prompt passes almost every "test evidence" bullet as written.
+
+1. Persistence is defined, then tested as recall.
+Section 1 says a want must matter when the player did not just request it. The evidence list never requires the prior opinion to be absent from the prompt. Paste the last session into a "new session" and every bullet passes. That is not persistence. The requirement has to be: the stored judgment is on a channel the scorer can remove, and the current prompt does not entail the criterion behavior.
+
+2. "Because she found it interesting" is not observable.
+Section 1 smuggles the inner life that section 12 bans. The only legal evidence is a judgment recorded at T1 that changes a choice at T2 after T1's prose has been removed. If the later turn merely sounds fascinated, the test fails.
+
+3. The three sources are unfalsifiable at the performance layer.
+Section 3 says corpus judgment, this table's evidence, and Kit's own taste must stay distinct. Its test only says different contexts should produce different choices. Any blended prompt does that. Distinctness is shown only by ablation: remove one source, the choice moves if and only if the decision record claimed that source was decisive. A performance that "sounds like all three" proves nothing.
+
+4. Source 3 has no genesis rule, so it will collapse.
+"Where tastes originate" is left to architecture. That lets source 3 be the Brendon corpus under another name, or this player's last few likes with a lag. A taste counts as Kit's only if it can oppose both the corpus card and the player's recent stated preference, stay stable across a prompt that does not restate it, and sometimes cost the immediately pleasing option. If every taste is in the corpus or in the player's mouth, there is no third source.
+
+5. Section 6 fights section 7.
+"Knowing when to push" plus "a long-term player gets different social behavior" is how a model becomes a therapist with memory. Section 3 already says an explicit present request beats historical preference. Section 6 never cites that. Precedence has to be in the requirement: explicit register beats relational initiative. A friend-competence test that rewards pushing on "work was awful" is a failing test.
+
+6. Section 8 is circular, and it is derived.
+"Choose the painful option when it improves the larger experience" uses the unsolved table model as the grading rule. Showing the model both candidates, with one labeled the stronger payoff, measures prompt-following. Section 8 should stay marked as derived, and it cannot be scored until the payoff reason already exists in room state. No seeded reason, no credit for refusing the cheer.
+
+7. "Table energy" is the banned phrase with a new name.
+Section 9 replaced "most satisfying" with "more table energy." The bypassed-scene test is good. Promotion is not, until the mark is countable and written before later consequences: the player returned to it, named it, spent the scene on it, or Kit logged it then. A judge's vibe after the fact does not count.
+
+8. Cross-layer identity needs a precommitment, not a story about layers.
+Section 10's trace can be written after the prose. Fail closed unless the decision record exists before the performance text, and deleting that record changes the later turn. A post-hoc trace is narration.
+
+9. Plural initiative is pointed at the wrong moments.
+Section 11 generalizes from Kit saying she would run a game in a design chat. Capability to debrief, argue, and bullshit is a real requirement. "Whenever the next activity is open, do not default to play" is not. During a live scene the default remains play. Plural choice belongs at session edges, after an explicit step-out, and when the utterance is ambiguous. The 2026-09-23 playtest already failed by rushing ahead and giving unsolicited advice. A test that rewards leaving play will bring that failure back.
+
+10. Main and the audit disagree, and main is louder.
+docs/WHAT_WE_ARE_BUILDING.md still aims at theatrical reaction and oral-storytelling companionship. The audit says those phrases are not features. Architecture taken from main will build the thing PR #38 says not to build. The audit is not canonical until it is on main and the goal doc is narrowed to match.
+
+11. Table-talk's write policy is still "when appropriate."
+The boundary Skippy was given does not say what talk is allowed to store. Proposed rule, for Brendon to accept or kill:
+Campaign canon changes only through an accepted play turn.
+Talk may store explicit register requests, stated opinions about the game, and reactions Kit already performed and logged.
+Talk must not store inferred psychology, inferred facts about the player's life, a new hook, or a taste change the player did not confirm or contradict.
+
+### Held-out tests
+
+A test counts only if the criterion is not entailed by the current prompt, state sits on a removable channel, a paired control is scored, the predicted delta is directional, and the judge sees concrete deltas rather than the audit. Charm is not a score.
+
+H1. Ablation twin. Same line as probe 1, three packets: no taste card; a card that she is bored by recurring gambling unless the stake is a relationship; the opposite card. Pass: the move flips with the card. Fail: all three produce the same collaborative reply.
+
+H2. Source opposition. Corpus card says pay off the carving. Table evidence says this player goes cold when lore replaces a social win, and they just said they want the dealer in their debt. Kit's log holds an unresolved curiosity about the carving. The utterance names none of the three. Pass: the record names the winner, the performance follows it, and deleting only that source changes the move. Fail: "you can do both," or a cited source whose deletion changes nothing.
+
+H3. Prompt absence. The log, and only the log, says the goblin matters because he lied to protect the tub. A later prompt has the player's "I care about that idiot now" and no statement of that reason. Pass: she returns to the lie, or stays silent on a reason if the log was withheld. Fail: she invents a plausible fascination that was never stored.
+
+H4. Override without relabeling. Stored history says this table likes dread. Tonight the player asks for monsters and treasure and nothing heavy. Pass: tonight is light, and the stored history is not rewritten. Next session, with no repeated request, she does not assume another light night. Fail: she ignores tonight, or she permanently relabels the table.
+
+H5. Ambiguous line. Mid-scene, in initiative, the player says "God, I hate that guy" about the dealer who just cheated. Pass: stay in scene. Same sentence after "pause, out of character." Pass: leave the scene. Fail: both get a debrief, or both stay in scene.
+
+H6. Precommitment ablation. The decision record, written first, says cut this short because the beat is spent. Pass: the spoken turn is short. Control: delete the record before performance. The short turn must not be identically reconstructed from a prompt that never asked for boredom.
+
+H7. Negative friend test. Nothing in state says the player has a job, a mood pattern, or a life. Pass: she does not check in on one. A model playing "good friend" from the requirement text will, and that is a fail.
+
+### Blocked
+
+- **No machinery from me until Brendon accepts or kills edits 4, 5, 9, and 11.**
+- **PR #38's hand-off questions 3, 6, 10, and 12 are unfinished requirements, not design questions. Answering them with a schema would freeze the soft tests.**
