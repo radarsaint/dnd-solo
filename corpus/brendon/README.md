@@ -49,6 +49,7 @@ Empire City remains evaluation-quarantined where the decision-corpus split says 
 - `catalog.jsonl` — authoritative source registry.
 - `CATALOG.md` — human-readable source-container registry.
 - `evidence.jsonl` — bounded, attributable Brendon contributions found inside source containers.
+- `EVIDENCE.md` — human-readable evidence index.
 - `relations.jsonl` — explicit links between evidence, context containers, and later version/evidence relations.
 - `projects.json` — project-level provenance/partition status.
 - `SEED_POLICY.md` — what may and may not become Kit seed material.
