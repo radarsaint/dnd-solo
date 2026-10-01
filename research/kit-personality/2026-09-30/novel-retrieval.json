@@ -1,0 +1,131 @@
+{
+  "date_local": "2026-09-30",
+  "purpose": "Recover the author's design decisions for Kit; no record is an approved training target.",
+  "capture_note": "Evidence notes below were transcribed from Personal Context outputs visible in this conversation. Earlier in-memory response objects were unavailable after the pause; these notes are paraphrases and short returned quote fragments, not original full message exports.",
+  "limitations": [
+    "Conversation sources are retrieval excerpts/summaries, not original full exports.",
+    "Relative ages returned by retrieval are inconsistent; preserve original UTC timestamps.",
+    "One result anachronistically described a February 2025 novel request as being for Kit; that gloss is excluded.",
+    "Exploration Impossible evidence is attributed editorial comments; ownership/authorship of manuscript unconfirmed."
+  ],
+  "evidence_records": [
+    {
+      "id": "N1",
+      "project": "At War's End",
+      "dates_utc": [
+        "2025-02-15T04:00:24Z",
+        "2025-02-15T04:13:46Z"
+      ],
+      "source_kind": "retrieved user creative direction",
+      "decision": "Reject the divination-engine setup. Introduce character and world through cold beauty, actions, servants from Armada/Oligard/Reigning Citadel, juxtaposition, and deliberate obfuscation.",
+      "quote_fragments": [
+        "cavalcade of strange interests and deliberate obfuscation",
+        "beauty that refuses to be obtainable"
+      ],
+      "status": "Direction evidenced; not proof that every proposed feature was implemented."
+    },
+    {
+      "id": "N2",
+      "project": "At War's End",
+      "dates_utc": [
+        "2024-11-12T03:36:34Z",
+        "2024-11-12T03:37:35Z"
+      ],
+      "source_kind": "retrieved user revision",
+      "decision": "Gerdie must acknowledge Lost as a rat; Lost need not explain that identity in narration.",
+      "status": "Repeated user direction; later generated example is not the user's authored wording."
+    },
+    {
+      "id": "N3",
+      "project": "At War's End / Wellsprings adaptation",
+      "dates_utc": [
+        "2025-06-03T03:10:34Z"
+      ],
+      "source_kind": "retrieved user revision",
+      "decision": "Keep Alan the Fan and Flame's owner/theater manager and preserve who he is; frame only his abilities as Arcane Virtuoso.",
+      "quote_fragments": [
+        "I just want his abilities to be framed in terms of as an Arcane Virtuoso."
+      ],
+      "status": "User correction; current fetched Wellsprings document has no Alan passage, so actual implementation unconfirmed."
+    },
+    {
+      "id": "N4",
+      "project": "At War's End / last-performance development",
+      "dates_utc": [
+        "2025-02-16T21:31:30Z",
+        "2025-02-16T22:00:00Z"
+      ],
+      "source_kind": "retrieved user creative direction and rejection",
+      "decision": "Ask for care, preparations, repairs, shared nerves, poignant sadness, layered meaning, point/counterpoint, opposites, and lyrical writing. Subsequently reject using the play itself as the scene's vehicle and request a fresh start.",
+      "quote_fragments": [
+        "its good as a thought experiment, but using the play itself is not working for me"
+      ],
+      "status": "Direction and subsequent rejection. Do not treat the assistant's staged-cataclysm scene as an approved result."
+    },
+    {
+      "id": "N5",
+      "project": "At War's End",
+      "dates_utc": [
+        "2024-12-06T04:55:29Z"
+      ],
+      "source_kind": "retrieved user structural direction",
+      "decision": "Preserve whole-project connections; writing each worked section as fully resolved can harm the novel.",
+      "status": "Summary-level retrieved direction; original full message not recovered."
+    },
+    {
+      "id": "N6",
+      "project": "At War's End / Copper Lantern interlude",
+      "dates_utc": [
+        "2025-05-15T23:10:50Z"
+      ],
+      "source_kind": "retrieved user scene design",
+      "decision": "Recount one Copper Lantern evening through Lost with interwoven dealings, revelations, warnings, escape, and pursuit involving the named participants.",
+      "status": "Summary-level evidence; details should be verified from the original message before becoming a full demonstration."
+    },
+    {
+      "id": "N7",
+      "project": "Mirabelle – A Tragedy in Five Acts (embedded in At War's End)",
+      "dates_utc": [
+        "2025-05-19T17:50:04Z",
+        "2025-05-19T17:56:27Z"
+      ],
+      "source_kind": "retrieved user development and register choices",
+      "decision": "Work one small part at a time, keep the outline as reference, write for performance in character, and give the Chorus beautiful poetry.",
+      "quote_fragments": [
+        "write one small part at a time",
+        "in beautiful poetry"
+      ],
+      "status": "User direction. Assistant-written outline contents are separately attributed; Mirabelle is an embedded play."
+    },
+    {
+      "id": "N8",
+      "project": "Exploration Impossible (Manuscript)",
+      "dates_utc": [
+        "2020-05-14",
+        "2020-05-16"
+      ],
+      "source_kind": "retrieved manuscript editorial comments attributed to Brendon",
+      "decision": "Show friendship and troublemaking through events; introduce combatants before dialogue depends on them; replace an exhaust-port explanation with an opportunity earned by observing a pod launch and shield flicker.",
+      "quote_fragments": [
+        "introduce the combatants way earlier than this dialogue"
+      ],
+      "status": "Editorial judgment only. Manuscript authorship is not established. Michael Kennish's comments and character narration are excluded."
+    }
+  ],
+  "retrieval_responses": [
+    {
+      "retrieval_key": "novelContinue2",
+      "status": "fulfilled",
+      "response": {
+        "messages": [
+          {
+            "author_role": "tool",
+            "content": "[convo search]\n- [USER_CONSTRAINT] [c0] U@2024-11-12T03:36:34Z, -1y10m: In At War’s End, Lost does not need to acknowledge being rats; Gerdie, the innkeeper offering rooms, must acknowledge Lost as a rat—“4th time. GERDIE ACKNOWLEDGES THAT LOST IS A RAT” [c0] U@2024-11-12T03:37:35Z, -1y10m.\n- [PRIOR_ASSISTANT_OUTPUT] [c0] A@2024-11-12T03:37:42Z, -1y10m: Prior rewrite has Gerdie look directly at “a cluster of rats in small, hand-stitched robes” and say the room will fit “everyone—fur and all,” accepting them as guests; narration is from Lost’s collective “we,” observing Gerdie’s acknowledgment.\n- [USER_CONSTRAINT] [c4] U@2025-02-19T02:42:27Z, -1y7m: Alan’s background is running the Fan and Flame; later plans center on rebuilding a business from the Trident Dance Hall. No retrieved evidence states the Arcane Virtuoso conversion or explicitly preserving Alan, Flame’s owner/manager, unchanged.\n\n- [USER_CONSTRAINT] [c1] U@2025-06-03T03:10:34Z, 1y4mo: Keep Alan’s position as Fan and Flame owner/theater manager and who he is unchanged; only frame his abilities in Arcane Virtuoso terms.\n- [PRIOR_ASSISTANT_OUTPUT] [c1] A@2025-06-03T03:10:37Z, 1y4mo: “Alan Vauxhall, Owner & Manager of the Fan and Flame—and Arcane Virtuoso”; summarized unchanged duties/personality as managing performances, props, stage, troupe, crises; reframed familiar repairs/warding as “playing elemental runes,” without new schooling or altered relationships.\n- [PRIOR_ASSISTANT_OUTPUT] [c1] A@2025-06-03T03:08:45Z, 1y4mo: Prior Chapter 10 portrait: Alan does not seek applause; he is a modest, observant craftsman deeply connected to the Fan and Flame, with pride/longing for Kaliope and awareness of war’s shadow.\n\n- [USER_CONSTRAINT] [c2] U@2025-08-09T02:14:43Z, -417d: Requested accurate manuscript outline from the actual book/file; no momentum, memory substitution, paraphrase, omissions, or invented material.\n- [USER_PREFERENCE] [c3] U@2025-02-16T04:36:59Z, -593d: For Kit’s DM voice, wanted We Are Lost’s POV recalling a rat’s first view of a play from the Fan and Flame rafters; preserve the correct people in the play.\n- [PRIOR_ASSISTANT_OUTPUT] [c3] A@2025-02-16T04:40:36Z, -593d: Prior framing: a Nocturne in which We Are Lost remembers a rat watching *Poor Duncan* from the Fan and Flame rafters, captivated despite danger; theater becomes revelation beyond survival.\n\n[gmail]\n[INSUFFICIENT] No matching Gmail emails found.\n\n[files]\n[INSUFFICIENT] No relevant file context found."
+          }
+        ],
+        "error": null
+      }
+    }
+  ],
+  "primary_conversation_ids": "Not returned; UTC dates and named scenes are search locators, not verified permanent message IDs."
+}

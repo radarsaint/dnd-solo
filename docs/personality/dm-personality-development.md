@@ -1,8 +1,14 @@
 # DM Personality Development
 
 **Purpose:** Development and QA process for the D&D Solo Dungeon Master's higher-level personality.
-**Live runtime identity:** `/Dnd solo/Runtime/DM_PERSONALITY_CORE.md`
+**Live runtime identity:** [dm-personality-core.md](dm-personality-core.md)
 **Status:** Design/test layer. Do not treat this document as additional live personality instructions during ordinary play.
+
+## Development from modeled craft, 2026-09-30
+
+The [current character development](kit-character-development.md) starts with what Brendon chose while designing campaigns and shaping his novel: attributable interventions, their context, and the alternatives preserved or rejected. Finished prose is supporting evidence. Assistant-authored guides and drafts do not establish Brendon's voice merely because they appear in his files.
+
+The candidate has been wired at his direction before live preference evaluation. This is an explicit exception to the promotion order below, not evidence that the profile has passed it. The [transfer probes](../../tests/scenarios/modeled-personality-transfer.md) include mundane work, serious care, emotional counterpoint, creative success, and quick rulings. Passing software tests verifies integration only.
 
 ## What Changed
 

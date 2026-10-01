@@ -18,6 +18,8 @@ The DM personality work now has a canonical live contract and a separate develop
 
 The technical runtime should integrate against the compact core rather than duplicating personality prose.
 
+The [2026-09-30 character development](docs/personality/kit-character-development.md) connects Brendon's campaign craft and novel design decisions to Kit's tastes, emotional range, and voice. The candidate is wired into the core and existing prompts; its demonstrations and [transfer probes](tests/scenarios/modeled-personality-transfer.md) await live preference evaluation.
+
 ## Executable state/context prototype
 
 `runtime/state_context.py` implements a small SQLite-backed prototype with atomic event batches, restartable snapshots, a player knowledge projection, fixed fixture topology, and bounded context assembly using the canonical personality core.

@@ -1,0 +1,363 @@
+{
+  "schema": "kit_modeled_craft_evidence_v1",
+  "created_on": "2026-09-30",
+  "purpose": "Pilot retrieval evidence and design hypotheses, not a training-ready dataset.",
+  "global_limits": [
+    "No complete ChatGPT project/conversation export or global conversation enumeration was available.",
+    "Quote fidelity is reported by the retrieval tool unless marked visible_conversation_excerpt; no source wording is reconstructed.",
+    "Every record keeps authorship separate from role, approval, and observed outcome.",
+    "No inference in this file has been promoted to Kit's personality or game rules."
+  ],
+  "evidence": [
+    {
+      "id": "BR-01",
+      "project": "Bastion & Redoubt",
+      "source": {
+        "retrieval_record": "retrieval-record.json",
+        "query_label": "bastion-raw-aric",
+        "utc_timestamp": "2025-04-02T03:36:30Z",
+        "provider_local_ref": "c0",
+        "conversation_title": null
+      },
+      "role": "user_embedded_npc_writing",
+      "text_fidelity": "quoted_by_retrieval",
+      "text": "write his notes about the fall of the lamplighters. The Crown Vespers, the attachment of the lamplighters given to the Pope and to the Castle, it is the Patrol Division that has fallen under the knives of the flaming blades. it was a blood bath. but here it is, the real truth. There *are* monsters in Bastion and Redoubt. I am the last of the patrol division, and I will keep the light burning until my last breath. I hope the other divisions survive. I pray to bast that the king lives. But if the city has fallen from within, what how do we have that she will remember us. I do not fear my death. I know it is comming. I fear that I will be the last to light the lamp at the lighthouse. Please bast, let your light give hope to the lost and fear to those that love evil.",
+      "modeled_behavior": "Brendon supplies an NPC's first-person stance inside an instruction: institutional loss, continued duty, a concrete fear about the lamp, and a prayer for others.",
+      "kit_transfer_hypothesis": "Build NPC speech from a particular obligation, action, fear, and value; preserve room for earnestness and tragedy alongside humor.",
+      "limits": [
+        "Exact wording is reported by retrieval; a raw conversation export with durable message IDs was not available.",
+        "The assistant's subsequent polished monologue is separate authorship.",
+        "No actual player reaction or delivered-at-table outcome was recovered."
+      ],
+      "disposition": "candidate_for_context_review",
+      "approved_training_target": false
+    },
+    {
+      "id": "BR-02",
+      "project": "Bastion & Redoubt",
+      "source": {
+        "retrieval_record": "retrieval-record.json",
+        "query_label": "bastion-blotter-raw",
+        "utc_timestamp": "2025-03-19T03:16:21Z",
+        "provider_local_ref": "c0",
+        "conversation_title": null
+      },
+      "role": "user_dm_design_from_reported_roll",
+      "text_fidelity": "quoted_by_retrieval",
+      "text": "a player rolled a nat 20 to get the police blotter from the day that the light house was abandoned. include an gradual escalation over 10 hours that shows increasing violence and etc leading to the rise of the flaming blades suplanting the lamplighters as peace keepers",
+      "modeled_behavior": "An investigation roll earns an in-world record that reveals an escalating institutional collapse over ten hours.",
+      "kit_transfer_hypothesis": "Reward investigation with concrete, structured evidence that exposes causal relationships and opens further inquiry.",
+      "limits": [
+        "The natural 20 is reported by the DM; the completed handout and player response are not present here.",
+        "Do not universalize this into a rule that every natural 20 automatically reveals all information."
+      ],
+      "disposition": "candidate_for_context_review",
+      "approved_training_target": false
+    },
+    {
+      "id": "BR-03",
+      "project": "Bastion & Redoubt",
+      "source": {
+        "retrieval_record": "retrieval-record.json",
+        "query_label": "bastion-darius-detail",
+        "utc_timestamps": [
+          "2025-10-28T23:53:47Z",
+          "2025-10-29T00:27:32Z",
+          "2025-10-29T00:29:09Z"
+        ],
+        "conversation_title": null
+      },
+      "role": "user_campaign_and_npc_design",
+      "text_fidelity": "retrieval_paraphrase",
+      "text": "Darius Quin is a friendly apparent Lamplighter with a hidden serial-killer identity. Brendon plans a Crown of Bast quest involving a young girl from Redoubt, a false-princess lead supplied by Darius, and Darius's intention to take the crown after coronation. The girl is described with heterochromia and a box of kittens.",
+      "modeled_behavior": "An NPC's public relationship and private intention intersect with the party's ongoing quest. A concrete presentation makes the new person easy to picture.",
+      "kit_transfer_hypothesis": "Let NPCs use current events to pursue their own agendas; keep their intended outcome contingent on player action and what they can know.",
+      "limits": [
+        "This is a planned situation, not evidence that the players followed it or that the deception succeeded.",
+        "Quin/Quinn/Darious are retrieval aliases to verify, not automatically merged identities.",
+        "Do not transfer the specific secret, crown plot, or prescribed betrayal into unrelated Kit scenes."
+      ],
+      "disposition": "candidate_for_context_review",
+      "approved_training_target": false
+    },
+    {
+      "id": "BR-04",
+      "project": "Bastion & Redoubt",
+      "source": {
+        "retrieval_record": "retrieval-record.json",
+        "query_label": "bastion-modeled",
+        "utc_timestamp": "2025-08-05T23:10:01Z",
+        "conversation_title": null
+      },
+      "role": "user_faction_combat_design",
+      "text_fidelity": "retrieval_paraphrase",
+      "text": "Ender faction design emphasizes crowd control and augmentation versatility; Flaming Blade design emphasizes buffs, mobility, brutality, and organized tactics.",
+      "modeled_behavior": "Faction identity is expressed in what combatants can do and how they fight.",
+      "kit_transfer_hypothesis": "Make opponents' decisions and abilities distinguish them in action.",
+      "limits": [
+        "Full stat blocks, original passage, and played combat outcome have not been recovered.",
+        "Do not infer alignment, intelligence, or specific abilities beyond the retrieved design."
+      ],
+      "disposition": "candidate_for_context_review",
+      "approved_training_target": false
+    },
+    {
+      "id": "BR-05",
+      "project": "Bastion & Redoubt",
+      "source": {
+        "retrieval_record": "retrieval-record.json",
+        "query_label": "bastion-goblin-attribution",
+        "utc_timestamp": "2024-07-10T02:53:25Z",
+        "conversation_title": null
+      },
+      "role": "assistant_scene_draft",
+      "text_fidelity": "retrieval_paraphrase",
+      "text": "A stable-search scene includes horse disguises, Glimmerfern, goblin notes, a crude map, and a family drawing. Retrieval attributes its narration and player reactions to an assistant output.",
+      "modeled_behavior": "This is a useful attribution trap: a detailed scene requested by the user is not proof that he wrote or played it.",
+      "kit_transfer_hypothesis": null,
+      "limits": [
+        "No user approval or user-authored rewrite was recovered."
+      ],
+      "disposition": "exclude_from_user_modeling_targets",
+      "approved_training_target": false
+    },
+    {
+      "id": "NW-01",
+      "project": "Neverwinter",
+      "source": {
+        "retrieval_record": "retrieval-record.json",
+        "query_label": "neverwinter-raw",
+        "utc_timestamp": "2026-05-14T02:44:19Z",
+        "conversation_title": null
+      },
+      "role": "user_campaign_design",
+      "text_fidelity": "quoted_fragments_by_retrieval",
+      "text": [
+        "The game's pace is meant to be low caste mobsters and criminals in a city rebuilt by a fallen from grace politician.",
+        "No one really knows whats going on, because every two bit crook has ambitions.",
+        "Competency is the real coin of the realm."
+      ],
+      "modeled_behavior": "Brendon establishes a social world of competing ambitions, limited knowledge, practical competence, and characters already rooted in it.",
+      "kit_transfer_hypothesis": "Have people pursue overlapping interests from incomplete information; give relationships and demonstrated competence consequences.",
+      "limits": [
+        "The full original message is not available; these are quoted fragments returned by conversation retrieval.",
+        "The subsequent assistant's districts, archetypes, and session-zero questions are separate authorship.",
+        "The native 'satruday dnd' folder is a related lead, not a proven conversation-project alias."
+      ],
+      "disposition": "candidate_for_context_review",
+      "approved_training_target": false
+    },
+    {
+      "id": "EF-01",
+      "project": "Earthfall",
+      "source": {
+        "retrieval_record": "retrieval-record.json",
+        "query_label": "earthfall-authored",
+        "utc_timestamps": [
+          "2026-08-18T01:50:04Z",
+          "2026-08-18T02:10:45Z"
+        ],
+        "conversation_title": null
+      },
+      "role": "user_dm_live_play_report",
+      "text_fidelity": "retrieval_paraphrase",
+      "text": "Brendon reports that players tagged themselves and successfully avoided combat, then asks for an ownership puzzle. Later reported actions include pouring Coke on the manticore, commanding a reboot, and a natural-20 RFID hack leading to ownership transfer.",
+      "modeled_behavior": "Player experimentation changes the encounter's direction; the DM follows the changed situation toward a new interaction.",
+      "kit_transfer_hypothesis": "Honor an established interaction's consequences and continue from the resulting world state.",
+      "limits": [
+        "Player-originated ideas must remain attributed to players; the report does not establish that Brendon invented those actions.",
+        "Reported table outcome is not a complete transcript.",
+        "The older authored encounter artifact may contain subsequently rejected elements; its file date is not an approval date."
+      ],
+      "disposition": "candidate_for_context_review",
+      "approved_training_target": false
+    },
+    {
+      "id": "EF-02",
+      "project": "Earthfall",
+      "source": {
+        "retrieval_record": "retrieval-record.json",
+        "query_label": "earthfall-authored",
+        "utc_timestamp": "2026-09-30T03:17:08Z",
+        "conversation_title": null
+      },
+      "role": "user_scene_premise",
+      "text_fidelity": "quoted_fragments_by_retrieval",
+      "text": [
+        "their own boat crewed by the damned",
+        "nick cage in cage as the mandatory entertanment prisoner in a hanging cage on the ship"
+      ],
+      "modeled_behavior": "An absurd premise becomes a persistent, tangible part of a ship and its crew.",
+      "kit_transfer_hypothesis": "Make a comic idea something players can interact with and carry forward, with its own place in the world.",
+      "limits": [
+        "This establishes a planned premise, not delivery or player approval.",
+        "The assistant-added Mercy Pike, rope procedure, and six-day race are not Brendon's words in this record.",
+        "Keep Earthfall's specific tone and celebrity premise local."
+      ],
+      "disposition": "candidate_for_context_review",
+      "approved_training_target": false
+    },
+    {
+      "id": "CS-01",
+      "project": "Sigil / Citizen Casio",
+      "source": {
+        "retrieval_record": "retrieval-record.json",
+        "query_label": "casio-modeled",
+        "utc_timestamp": "2026-09-23T01:38:28Z",
+        "conversation_title": null
+      },
+      "role": "user_pc_design",
+      "text_fidelity": "retrieval_paraphrase",
+      "text": "Casio is a monodrone envoy from Mechanus, paired with Vrixil the slaad, who gambles before spending money in an attempt to disprove chaos.",
+      "modeled_behavior": "A belief becomes a recurring behavior with practical consequences.",
+      "kit_transfer_hypothesis": "Give an NPC a worldview that changes what they repeatedly choose to do.",
+      "limits": [
+        "No full user-performed Casio exchange was recovered.",
+        "This is PC design, not Kit's table persona.",
+        "Captain Kirk cadence is a character-local instruction and must not become Kit's default cadence."
+      ],
+      "disposition": "candidate_for_context_review",
+      "approved_training_target": false
+    },
+    {
+      "id": "LG-01",
+      "project": "Welcome to Legend",
+      "source": {
+        "retrieval_record": "retrieval-record.json",
+        "query_label": "oldwest-bagman",
+        "utc_timestamp": "2023-06-15T20:09:52Z",
+        "conversation_title": null
+      },
+      "role": "user_campaign_premise",
+      "text_fidelity": "retrieval_paraphrase",
+      "text": "An Old West D&D 5e play-by-post game runs around the clock for three weeks, following a trek from the Sierra Nevada to the City of Legend (Los Angeles), with rancher, miner, or gambler paths and dangers including rogue warden Oro and cryptids.",
+      "modeled_behavior": "Setting, playable roles, route, and bounded format are specified together.",
+      "kit_transfer_hypothesis": "Frame a campaign invitation around concrete roles and a situation players can enter.",
+      "limits": [
+        "No played scene or complete authored announcement has been recovered.",
+        "Subsequent assistant promotional prose is excluded."
+      ],
+      "disposition": "candidate_for_context_review",
+      "approved_training_target": false
+    },
+    {
+      "id": "WS-01",
+      "project": "Wellspring / rpg maker",
+      "source": {
+        "retrieval_record": "retrieval-record.json",
+        "query_label": "wellspring-authorship",
+        "utc_timestamps": [
+          "2025-05-04T18:51:00Z",
+          "2025-05-06T21:53:46Z",
+          "2026-07-10T03:44:18Z",
+          "2026-07-10T03:45:22Z"
+        ],
+        "conversation_title": null
+      },
+      "role": "user_system_design",
+      "text_fidelity": "retrieval_paraphrase",
+      "text": "Brendon connects Awakening Story, combat position, Wellspring abilities, Focus, and Saga/Core Principles/Masks. Retrieved versions differ: 2025 momentum is an adventure-limited level+1 pool, while a July 2026 definition calls Battle Momentum renewable.",
+      "modeled_behavior": "Character identity is connected to decisions and procedures. The history also demonstrates why versions and media must remain separate.",
+      "kit_transfer_hypothesis": "Study the relationship between identity and available choices; do not import Wellspring's rules into D&D.",
+      "limits": [
+        "Wellspring is explicitly its own system, not D&D; this is adjacent craft evidence.",
+        "A June 2025 branch adapts concepts into a novel; preserve medium and version.",
+        "Neither an uploaded file nor generated prototype proves authorship of every sentence.",
+        "Resource-rule conflicts require scoped chronology and source review."
+      ],
+      "disposition": "candidate_for_context_review",
+      "approved_training_target": false
+    },
+    {
+      "id": "WB-01",
+      "project": "Sċēawere / Illusion Engine / Kaith",
+      "source": {
+        "retrieval_record": "retrieval-record.json",
+        "query_label": "dnd-project-inventory",
+        "utc_timestamps": [
+          "2025-02-05T03:49:08Z",
+          "2025-02-25T03:04:17Z"
+        ],
+        "conversation_title": null
+      },
+      "role": "user_world_and_character_design",
+      "text_fidelity": "retrieval_paraphrase",
+      "text": "Kaith is a warforged ashamed of being a weapon of mass destruction and searching for kin; an Illusion Engine fragment introduces boon/bane consequences. Sċēawere was made during the Great War to contain beings capable of war crimes, and Brendon explicitly denied that it was created in Bastion and Redoubt.",
+      "modeled_behavior": "Power, history, identity, and cost are linked.",
+      "kit_transfer_hypothesis": "Give a powerful object or ability implications that matter to a character's existing concerns.",
+      "limits": [
+        "Campaign membership is unverified; keep the thread separate from Bastion & Redoubt.",
+        "No exact original passage or played consequence is present."
+      ],
+      "disposition": "candidate_for_context_review",
+      "approved_training_target": false
+    },
+    {
+      "id": "AG-01",
+      "project": "Aggro",
+      "source": {
+        "retrieval_record": "retrieval-record.json",
+        "query_label": "aggro-authored",
+        "utc_timestamp": "2026-07-08T20:30:24Z",
+        "conversation_title": null
+      },
+      "role": "user_product_and_play_format_design",
+      "text_fidelity": "retrieval_paraphrase",
+      "text": "AGGRO is a solo optional activity between live sessions, intended to take about ten minutes with little logistical friction.",
+      "modeled_behavior": "An optional activity has a bounded role in the larger play experience.",
+      "kit_transfer_hypothesis": "Support concise optional procedures and rejoining the broader scene.",
+      "limits": [
+        "This is product/format design, not an example of Brendon's spoken DM performance.",
+        "The many creature lines in the repository are not attributed to him by ownership.",
+        "Keep review requirements and assistant-authored replacements separate."
+      ],
+      "disposition": "candidate_for_context_review",
+      "approved_training_target": false
+    },
+    {
+      "id": "KI-01",
+      "project": "Dnd solo / Kit",
+      "source": {
+        "retrieval_record": "retrieval-record.json",
+        "query_label": "current-visible-playtest",
+        "source_path": "../../../tests/playtests/2026-09-29-area-06c-claims-nik-evidence.json",
+        "conversation_title": "Area 6c claims/Nik live playtest"
+      },
+      "role": "user_pc_actions_and_table_questions",
+      "text_fidelity": "visible_conversation_excerpt",
+      "text": [
+        "I join and watch his hands. I dont know how to play. Can I try to bluff my way through with a performance check?",
+        "Hey kit, whats going on in this room besides the gambling. Do I notice anything interesting?"
+      ],
+      "modeled_behavior": "The player initiates a social deception and later redirects attention beyond the optional activity.",
+      "kit_transfer_hypothesis": "Use these as evaluation inputs: maintain the NPC situation while resolving a bluff, and respond productively when the player changes focus.",
+      "limits": [
+        "These are player turns, not DM speech targets.",
+        "The tested Kit continuation failed; preserve that verdict rather than treating the exchange as a positive model."
+      ],
+      "disposition": "evaluation_input",
+      "approved_training_target": false
+    },
+    {
+      "id": "FA-01",
+      "project": "Fable / OP Isekai",
+      "source": {
+        "retrieval_record": "retrieval-record.json",
+        "query_label": "fable-isekai-modeled",
+        "utc_timestamp": "2025-08-23T07:11:29Z",
+        "conversation_title": null
+      },
+      "role": "user_premise_and_preferences",
+      "text_fidelity": "retrieval_paraphrase",
+      "text": "A separate overpowered-isekai roleplay premise and tonal preferences were retrieved, but no full user-performed scene was recovered.",
+      "modeled_behavior": "Insufficient direct modeled performance in this retrieval.",
+      "kit_transfer_hypothesis": null,
+      "limits": [
+        "The older player-sovereignty policy was superseded for Kit in September 2026.",
+        "Do not promote general preferences or assistant-only NPC examples into user-authored positive targets."
+      ],
+      "disposition": "coverage_gap",
+      "approved_training_target": false
+    }
+  ]
+}

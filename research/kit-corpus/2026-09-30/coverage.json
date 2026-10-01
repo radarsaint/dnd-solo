@@ -1,0 +1,211 @@
+{
+  "schema": "kit_project_coverage_v1",
+  "created_on": "2026-09-30",
+  "complete_project_inventory": false,
+  "counts": {
+    "source_families": 13,
+    "evidence_records": 15
+  },
+  "projects": [
+    {
+      "id": "bastion_redoubt",
+      "name": "Bastion & Redoubt",
+      "kind": "D&D campaign",
+      "aliases": [
+        "Bastion and Redoubt",
+        "Lamplighters"
+      ],
+      "entities": [
+        "Aric",
+        "Darius Quin",
+        "Darius Quinn",
+        "Darious Quin",
+        "Crown of Bast",
+        "Lighthouse",
+        "Flaming Blades",
+        "Enders",
+        "Castle Bastile",
+        "Divination Engine",
+        "Orxta"
+      ],
+      "evidence": [
+        "BR-01",
+        "BR-02",
+        "BR-03",
+        "BR-04",
+        "BR-05"
+      ],
+      "coverage": "User wording and design summaries recovered; complete scenes and conversation inventory missing.",
+      "next": "Expand Aric, blotter, Darius and faction-combat source windows; trace setup to player response. Verify aliases."
+    },
+    {
+      "id": "earthfall",
+      "name": "Earthfall / Earthfall:live",
+      "kind": "D&D campaign family with DM-design and solo-player material",
+      "aliases": [
+        "Isekai dnd dungeon crawl",
+        "Dead Turtle Run",
+        "Baatorasaka"
+      ],
+      "entities": [
+        "Bear Grylls",
+        "Starcade",
+        "Fryvern",
+        "Nassau",
+        "R.O.D."
+      ],
+      "evidence": [
+        "EF-01",
+        "EF-02"
+      ],
+      "coverage": "Live-play reports, premises and native artifact leads recovered; original multi-turn windows incomplete.",
+      "next": "Separate user-as-DM from user-as-player runs. Recover pre-action state and subsequent ruling for manticore, Starcade, and transition scenes."
+    },
+    {
+      "id": "kit",
+      "name": "Dnd solo / Kit / Mad Mage",
+      "kind": "D&D runtime and playtests",
+      "aliases": [
+        "Kitiara",
+        "DM Kit",
+        "Nik"
+      ],
+      "evidence": [
+        "KI-01"
+      ],
+      "coverage": "Current visible playtest and repository report available; user acts as player/designer.",
+      "next": "Use failures as evaluation cases and player bids as inputs; exclude failed assistant answers from positive targets."
+    },
+    {
+      "id": "neverwinter",
+      "name": "Neverwinter",
+      "kind": "D&D campaign",
+      "aliases": [
+        "The Lamp & Hook Job",
+        "The Witch in the Jar"
+      ],
+      "entities": [
+        "Evernight",
+        "Brick",
+        "House of Measured Coin",
+        "House of the Measuring Coin",
+        "Tasha"
+      ],
+      "possible_folder_alias": "/satruday dnd",
+      "evidence": [
+        "NW-01"
+      ],
+      "coverage": "User-authored social premise fragments and artifact leads recovered.",
+      "next": "Recover the full May 14 source message and heist sequences; verify folder/campaign relationship and source authorship."
+    },
+    {
+      "id": "sigil",
+      "name": "Sigil / Citizen Casio",
+      "kind": "D&D player-character work",
+      "aliases": [
+        "Citizen Cass",
+        "Casio"
+      ],
+      "entities": [
+        "Vrixil",
+        "Cause and Effect"
+      ],
+      "evidence": [
+        "CS-01"
+      ],
+      "coverage": "PC beliefs and action intentions recovered; direct performed dialogue missing.",
+      "next": "Find actual PC action/dialogue exchanges rather than generated voice suggestions."
+    },
+    {
+      "id": "legend",
+      "name": "Welcome to Legend",
+      "kind": "Old West D&D 5e play-by-post",
+      "aliases": [
+        "City of Legend"
+      ],
+      "entities": [
+        "Oro"
+      ],
+      "evidence": [
+        "LG-01"
+      ],
+      "coverage": "Dated user campaign premise recovered; play logs missing.",
+      "next": "Expand 2023-06-15 conversation and follow recruitment/session leads."
+    },
+    {
+      "id": "aggro",
+      "name": "Aggro",
+      "kind": "D&D companion and game tooling",
+      "aliases": [
+        "AGGRO Gold",
+        "Tortuga Muerta"
+      ],
+      "evidence": [
+        "AG-01"
+      ],
+      "coverage": "User format design and repository dialogue inventory leads; little personally authored speech recovered.",
+      "next": "Trace concrete user contributions through original prompts and revisions; do not attribute generated scripts by repo ownership."
+    },
+    {
+      "id": "early_isekai",
+      "name": "Earlier Isekai D&D",
+      "kind": "D&D campaign-development lead",
+      "aliases": [
+        "Isekai - D&D game discord"
+      ],
+      "entities": [
+        "Fuun",
+        "80th crawl"
+      ],
+      "evidence": [],
+      "coverage": "2025 character and campaign premises surfaced; relationship to later Earthfall uncertain.",
+      "next": "Preserve dates and verify project lineage before merging."
+    },
+    {
+      "id": "illusion_engine",
+      "name": "Sċēawere / Illusion Engine / Kaith",
+      "kind": "D&D worldbuilding/character thread; campaign assignment uncertain",
+      "evidence": [
+        "WB-01"
+      ],
+      "coverage": "User design summaries recovered.",
+      "next": "Recover original fragment/boon/bane scenes; preserve explicit no-Bastion/Redoubt-origin constraint."
+    },
+    {
+      "id": "wellspring",
+      "name": "Wellspring / rpg maker",
+      "kind": "Adjacent original tabletop system and a separate novel adaptation; not D&D",
+      "evidence": [
+        "WS-01"
+      ],
+      "coverage": "Native files, prototypes and user design history found; versions conflict.",
+      "next": "Split system and novel; associate uploaded text with original dated user messages."
+    },
+    {
+      "id": "fable",
+      "name": "Fable / OP Isekai",
+      "kind": "Adjacent roleplay project",
+      "evidence": [
+        "FA-01"
+      ],
+      "coverage": "Premise and constraints found; direct user performance missing.",
+      "next": "Recover actual exchanges; retain supersession boundary for old sovereignty rules."
+    },
+    {
+      "id": "innkeep",
+      "name": "Innkeep",
+      "kind": "Adjacent tabletop community tooling",
+      "evidence": [],
+      "coverage": "User design of visible in-game homes found; no DM-performance passage.",
+      "next": "Keep out of voice targets unless a concrete interaction example is recovered."
+    },
+    {
+      "id": "bagman",
+      "name": "Bagman Encounter Setup",
+      "kind": "Unassigned D&D scene lead",
+      "evidence": [],
+      "coverage": "Assistant-described April 2025 lead; no verified user passage.",
+      "next": "Find original prompt and campaign assignment; otherwise leave unresolved."
+    }
+  ]
+}

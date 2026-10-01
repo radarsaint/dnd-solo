@@ -1,0 +1,47 @@
+{
+  "date_local": "2026-09-30",
+  "files": [
+    {
+      "title": "at wars end prompt crafting",
+      "url": "https://docs.google.com/document/d/1Be1DJAjxq8Dqrczp_rGfRR_cqpeinBClzeybjEIBERY/edit?usp=drivesdk",
+      "id": "1Be1DJAjxq8Dqrczp_rGfRR_cqpeinBClzeybjEIBERY",
+      "mime_type": "application/vnd.google-apps.document",
+      "modified_at": "2025-05-14T23:27:44.219Z",
+      "characters_fetched": 3374,
+      "read_scope": "Full text inspected; explicitly assistant-authored; not primary evidence of user decisions.",
+      "attribution": "Collaborative artifact. File ownership does not establish line authorship."
+    },
+    {
+      "title": "at wars end outline",
+      "url": "https://docs.google.com/document/d/128BltD2VK70w_Vt56GCYvIMfsLBa99POSSmj00cnS2Y/edit?usp=drivesdk",
+      "id": "128BltD2VK70w_Vt56GCYvIMfsLBa99POSSmj00cnS2Y",
+      "mime_type": "application/vnd.google-apps.document",
+      "modified_at": "2025-05-31T18:25:59.189Z",
+      "characters_fetched": 41389,
+      "read_scope": "Text fetched; targeted windows inspected only. Not a full manuscript analysis.",
+      "attribution": "Collaborative artifact. File ownership does not establish line authorship."
+    },
+    {
+      "title": "At War's End draft 5",
+      "url": "https://docs.google.com/document/d/1kzjgpNWeVC_JObur0Om0rPVHbITObtNbgr8NneRKR0k/edit?usp=drivesdk",
+      "id": "1kzjgpNWeVC_JObur0Om0rPVHbITObtNbgr8NneRKR0k",
+      "mime_type": "application/vnd.google-apps.document",
+      "modified_at": "2025-08-09T02:09:00.271Z",
+      "characters_fetched": 356934,
+      "read_scope": "Text fetched; targeted windows inspected only. Not a full manuscript analysis.",
+      "attribution": "Collaborative artifact. File ownership does not establish line authorship."
+    },
+    {
+      "title": "Wellsprings in At War's End",
+      "url": "https://docs.google.com/document/d/1lLh1vvzHi19-IVJWjwnnURLDAPBCefL3o6k3riMN9bk/edit?usp=drivesdk",
+      "id": "1lLh1vvzHi19-IVJWjwnnURLDAPBCefL3o6k3riMN9bk",
+      "mime_type": "application/vnd.google-apps.document",
+      "modified_at": "2025-06-03T03:04:00.586Z",
+      "characters_fetched": 50052,
+      "read_scope": "Text fetched; targeted windows inspected only. Not a full manuscript analysis.",
+      "attribution": "Collaborative artifact. File ownership does not establish line authorship."
+    }
+  ],
+  "coverage": "At War's End, embedded Mirabelle, Wellsprings adaptation discussions, and editorial comments on Exploration Impossible. Not a complete inventory of all novel projects.",
+  "full_manuscripts_copied_into_repo": false
+}
