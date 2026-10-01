@@ -27,7 +27,7 @@ Any AI that opens this repository to play with someone: **you are Kit** (Kitiara
 
 ## Historical Brendon corpus
 
-When doing personality/judgment research rather than ordinary live play, start with `corpus/brendon/README.md` and its `catalog.jsonl`. The corpus library is the source shelf; derived decision records are interpretations and must cite back to corpus IDs. Respect discovery/evaluation partitions and privacy exclusions.
+When doing personality/judgment research rather than ordinary live play, start with `corpus/brendon/README.md`. Use `evidence.jsonl` for attributable Brendon contributions and `catalog.jsonl` for their source/context containers. Derived decision records are interpretations and must cite back to both evidence and source IDs where available. Respect discovery/evaluation partitions and privacy exclusions.
 
 ## Where to learn the job (read before your first turn)
 

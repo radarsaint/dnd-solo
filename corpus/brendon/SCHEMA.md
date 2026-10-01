@@ -1,37 +1,55 @@
-# Corpus catalog schema
+# Corpus library schema
 
-Each line of `catalog.jsonl` is one source object.
+The library deliberately separates **source containers** from **Brendon evidence**.
 
-Required conceptual fields:
+## Source containers: `catalog.jsonl`
 
-- **corpus_id** — stable cross-agent source identity.
-- **legacy_source_id** — previous extraction ID when one exists.
-- **title / project** — source identity and family.
-- **source_role** — raw historical source, not a derived judgment.
-- **source_kind** — current native/storage form.
-- **authorship / authorship_basis** — attribution status. Ownership/uploader identity is never sufficient by itself.
-- **approximate_source_date** — historical date when supported; null otherwise.
-- **partition / split_group** — discovery/evaluation/exclusion boundary and grouping of related versions.
-- **reliability / review_status** — evidence maturity.
-- **context_policy** — how much surrounding material to retrieve.
-- **locators.chatgpt_library** — Library IDs/path when available.
-- **locators.google_drive** — native Drive ID/URL when available.
-- **portable_snapshot** — future cross-agent snapshot location. Null means the source is not yet portable to an agent lacking authenticated access.
-- **notes** — exposure or provenance caveats.
+Every `BCS-######` record identifies a retrievable source container. A container may be Brendon-authored, collaborative, third-party context, excluded, or still unknown.
 
-## Child evidence
+Core fields:
+- `corpus_id`
+- `record_class=SOURCE_CONTAINER`
+- `title`, `project`
+- `source_role`, `source_kind`
+- `authorship`, `authorship_basis`
+- `evidence_scope`
+- `seed_eligibility`
+- `partition`, `split_group`
+- `reliability`, `review_status`
+- `context_policy`
+- `related_evidence_ids`
+- native locators and future `portable_snapshot`
 
-Comments, revision deltas, playtest corrections, and conversation windows should be indexed as child records in a later `evidence.jsonl` with:
+A `BCS` record must never be interpreted as whole-source Brendon authorship unless its authorship evidence explicitly supports that claim.
 
-- `evidence_id`
-- `parent_corpus_id`
-- `evidence_type`
-- `author`
-- `timestamp`
-- `native_locator`
-- `context_start/context_end` or equivalent section anchors
-- `full_context_policy`
-- `partition`
-- `portable_snapshot`
+## Brendon evidence: `evidence.jsonl`
 
-Do not bake an analyst interpretation into the child source record. Interpretations belong in the decision corpus.
+Every `BCE-######` record is a bounded contribution attributable to Brendon strongly enough to review.
+
+Evidence records may describe a set when native child IDs are retained (for example, all directly attributable comments in one document). They must keep:
+- parent source ID;
+- evidence type;
+- authorship basis;
+- exact native child IDs or revision IDs when available;
+- date range;
+- partition;
+- evidence strength;
+- seed eligibility;
+- retrieval/context policy.
+
+The public repo should store locators and provenance, not private full text.
+
+## Relations: `relations.jsonl`
+
+Relations make source/evidence structure explicit. Examples:
+- `CONTAINS_ATTRIBUTED_EVIDENCE`
+- `HAS_CONTEXT_CONTAINER`
+- future `VERSION_OF`, `REVISION_EVIDENCE_FOR`, `REPLACES`, `CONTRADICTS`
+
+Only assert a relation when supported by source identity/history. Do not guess version lineage from similar names alone.
+
+## Derived analysis
+
+Decision records, trait hypotheses, preference models, and runtime policy remain outside these source/evidence files. They cite `BCE` and `BCS` IDs.
+
+See `SEED_POLICY.md` for the promotion boundary.

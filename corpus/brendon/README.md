@@ -10,7 +10,7 @@ This library answers: **what is the underlying source, where is the full context
 
 The bootstrap catalog contains 67 source/context records across 6 named project families. It incorporates the 53 imported Roanoke/Empire City source files already present in ChatGPT Library and adds native Drive locators for major Earthfall, Bastion/Redoubt, and At War's End sources, plus a third-party Exploration Impossible context source linked to Brendon's editorial evidence discovered during this pass.
 
-The catalog is intentionally broader than the current decision extraction. A source can belong in the library before anybody has decided what it teaches Kit.
+The catalog is intentionally broader than the current decision extraction. **Catalog membership means searchable source context, not Brendon authorship and not seed eligibility.** Direct Brendon contributions are indexed separately in `evidence.jsonl`.
 
 ## Canonical identifiers
 
@@ -47,7 +47,13 @@ Empire City remains evaluation-quarantined where the decision-corpus split says 
 ## Files
 
 - `catalog.jsonl` — authoritative source registry.
-- `CATALOG.md` — human-readable registry.
+- `CATALOG.md` — human-readable source-container registry.
+- `evidence.jsonl` — bounded, attributable Brendon contributions found inside source containers.
+- `EVIDENCE.md` — human-readable evidence index.
+- `relations.jsonl` — explicit links between evidence, context containers, and later version/evidence relations.
+- `projects.json` — project-level provenance/partition status.
+- `SEED_POLICY.md` — what may and may not become Kit seed material.
+- `CURATION_QUEUE.md` — next provenance/evidence work.
 - `SCHEMA.md` — meaning of fields and evidence boundaries.
 - `RETRIEVAL.md` — agent retrieval rules and bundle format.
 - `ACCESS_GAP.md` — what is and is not yet truly portable across GPT/Grok surfaces.
