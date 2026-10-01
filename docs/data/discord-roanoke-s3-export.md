@@ -65,31 +65,58 @@ Kit corpus merely because the exporter can retrieve it.
 
 Do not work around this restriction with a user token, self-bot, or scraping.
 
+## Current setup stop point
+
+Until the Discord message-content AI/ML policy gate is resolved, stop before
+fetching message bodies. The supported setup test is:
+
+1. create the application/bot;
+2. install it with only View Channel + Read Message History;
+3. authenticate using the local token environment variable;
+4. verify the target guild;
+5. list the text channels and compute whether the bot has effective View
+   Channel + Read Message History after role/channel overwrites.
+
+The setup probe does all of that **without requesting any message endpoint**.
+
 ## 1. Create a Discord app/bot
 
 In the Discord Developer Portal:
 
-1. Create an application.
-2. Open **Bot** and create/reset the bot token.
-3. Enable **Message Content Intent** for the test app.
-4. Keep the token private. Never paste it into this repository or a chat.
+1. Create an application (suggested name: `Roanoke Archive`).
+2. Open **Bot**. Create the bot if Discord has not already created it.
+3. Keep **Administrator** off.
+4. Do not add write permissions.
+5. Copy the **Application ID** from **General Information**.
+6. Reset/copy the bot token only when ready to put it into a local shell.
+   Never paste it into this repository, an issue, a chat, or a committed file.
 
-For a small private test app, this is intended only to archive servers you
-control or have permission to archive.
+**Message Content Intent is not required for the current non-content setup
+probe.** Do not use message content for Kit/AI training unless the Discord
+policy gate is explicitly resolved.
 
-## 2. Install it in the Season 3 server
+## 2. Generate the least-privilege install URL
 
-Give the bot only the permissions it needs:
+The exact requested permission bitfield is `66560`:
 
-- **View Channel**
-- **Read Message History**
+- View Channel = 1024
+- Read Message History = 65536
 
-Do not give it Administrator, Manage Messages, Send Messages, or other write
+No Administrator, Send Messages, Manage Messages, attachment, reaction, or
+moderation permissions are requested.
+
+PowerShell:
+
+    $env:DISCORD_APPLICATION_ID='YOUR_APPLICATION_ID'
+    $env:DISCORD_GUILD_ID='YOUR_ROANOKE_SERVER_ID'
+    python scripts/discord_archive_setup.py --install-url
+
+If the server ID is not known yet, omit `DISCORD_GUILD_ID`; Discord will show
+the server picker.
+
+Open the generated URL while logged into the Discord account that can install
+apps in the Roanoke Season 3 server. Approve only the two requested
 permissions.
-
-For the first test, it is fine to expose only one Season 3 channel to the bot.
-Once the output is verified, grant its role access to the other channels you
-want included.
 
 ## 3. Get the server ID
 
@@ -101,6 +128,13 @@ From the repository:
 
     git fetch
     git checkout discord-archive-exporter
+
+The branch contains two separate tools:
+
+- `scripts/discord_archive_setup.py` — installation URL + non-content access
+  probe. Use this now.
+- `scripts/export_discord_history.py` — historical message exporter. Do not
+  run message export past the policy gate merely because the tool exists.
 
 No Python packages are required. It uses the Python 3 standard library.
 
