@@ -161,3 +161,35 @@ Once a one-channel export is verified, the next step is not to train on it
 directly. The next step is a preprocessing pass that identifies Brendon,
 separates players/other DMs/bots, groups messages into interactions, and aligns
 those interactions with the Season 3 prep and postmortem corpus.
+
+## Repository boundary
+
+The raw Discord archive is evidence, not repository content.
+
+Do **not** commit:
+
+- player names or account IDs
+- verbatim player messages
+- raw channel transcripts
+- private/OOC conversation
+- downloaded Discord attachments
+
+Use the raw archive locally to infer patterns, then write only privacy-safe,
+generalized lessons into `docs/voice/`. A useful Season 3 distillation should
+describe things such as:
+
+- what Brendon noticed in live play
+- when he intervened versus let play continue
+- how he responded when players ignored preparation
+- how NPCs changed in response to players
+- how clues and stakes were made legible
+- what kinds of player behavior earned escalation, reward, or consequence
+- where actual play diverged from the prep
+- what later notes or postmortems say about that divergence
+
+Examples should be paraphrased or synthetic unless the words are Brendon's own
+and are necessary to establish the lesson.
+
+When a distilled file lands in `docs/voice/`, append a dated handoff entry to
+`docs/collab/BOARD.md` naming the file and the lesson set it contains. That is
+the signal for the runtime workstream to wire the new material into Kit.
