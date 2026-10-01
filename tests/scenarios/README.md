@@ -18,3 +18,5 @@ Initial suite should cover at least:
 Each test should record: input state, player action, expected leading appetite, prohibited failure modes, observable success criteria, and resulting state changes.
 
 The first source-grounded room test is [Level 1, area 6c — Uktarl's room](level-01-area-06c-uktarl.md), with a runnable state seed in `tests/fixtures/level_01_area_06c.json`.
+
+[Modeled personality transfer](modeled-personality-transfer.md) adds review probes for the 2026-09-30 character development, with an exact before-change baseline. These are authored evaluation scenarios, not executed tests or additional runnable rooms.

@@ -1,6 +1,8 @@
 # Kit's Personality: Implementation Audit and Next Build
 
-**Status:** Audit and candidate build contract, 2026-09-28. Kit's identity is specified; a distinctive expressed personality has **not** been demonstrated. This file is development guidance, not an additional live prompt.
+**Status:** Updated 2026-09-30. The candidate identity is implemented in the canonical core and turn instructions. It now draws on Brendon's D&D craft and novel design decisions; a distinctive expressed personality has **not** been demonstrated. This file is development guidance, not an additional live prompt.
+
+The [character development note](kit-character-development.md) explains the source decisions, the resulting personality, and newly authored demonstrations. The [transfer probes](../../tests/scenarios/modeled-personality-transfer.md) define the next comparison. The demonstrations are not generated play or approved training targets.
 
 ## What exists, exactly
 
@@ -9,7 +11,7 @@
 | Stable identity and values | `dm-personality-core.md` defines Kit's drives, taste, boundaries, and selective table presence | We have an intended character, not evidence that she performs like one |
 | Richer workshop | `dm-personality-layer-v0.1.md` describes appetite pressure, inhibition, humor, relationships, and NPC embodiment | These are design notes; appetite and relationship dynamics were not ported into the turn loop |
 | Live context | `Runtime.context()` loads the core; `prepare_inputs()` gives it to the private decision; `public_performance_base()` gives it to the performer | The text is available to both model stages |
-| Turn reaction | `PLAN_SCHEMA` has a goal, appraisal, move, tone, and table-presence choice; state saves current appraisal and up to twelve episodes | A model can label a reaction and recall recent episodes; there is no tested behavioral or emotional dynamics model |
+| Turn reaction | `PLAN_SCHEMA` has a goal, appraisal, move, tone, and table-presence choice; state saves current appraisal and up to 24 episodes, with a selected subset in context | A model can label a reaction and recall recent episodes; there is no tested behavioral or emotional dynamics model |
 | Public handoff | At baseline the performer received a four-part brief, tone, and presence, plus the core. On `kit-focus-brief` the brief adds `reply_to`, `scope`, and a checked public-safe `kit_focus` derived from the goal and `kit_choice` | `improv_read.kit_choice` and appraisal cause remain private. `kit_focus` gives Kit's choice a channel to the performer; whether the spoken turn actually acts it out still has to be judged in play |
 | Expressed voice | The room has a dealer actor card; Kit's direct remarks can be labeled `Kit`. The `kit_expression_v1` performer instruction (Kit's table voice, distilled from the core) is the default for both chat-bridge paths on `kit-bridge-voice`, and each turn records which variant ran | One NPC has an authored cue. Kit's own repeatable vocal register and judgment have not been calibrated or evaluated; the voice is a hypothesis made default at Brendon's direction, not a proven improvement |
 
@@ -30,7 +32,7 @@ No numeric appetite meter or permanent relationship score should be added merely
 
 ## First candidate expression profile, for testing
 
-This is a **hypothesis**, derived from the canonical core and earlier user feedback. It is not promoted to the live core until a player recognizes and prefers it across several scenes.
+This is a **hypothesis** about what will be recognizable in play. At Brendon's direction to develop and wire Kit, the 2026-09-30 candidate is now in the live core: perceptive staging, delight in audacity and competence, earnest commitment, emotional counterpoint, and room for unresolved relationships. Its effectiveness remains unvalidated. Use the novel's design decisions as craft evidence; keep its voices, lore, and predetermined outcomes out of the campaign.
 
 | Situation | Kit's possible recognizable choice | Failure to watch for |
 | --- | --- | --- |
@@ -45,9 +47,9 @@ Her *candidate* direct register is candid, quick to recognize an interesting bid
 
 ## Implementation and proof order
 
-1. **Produce identity comparisons.** Use the same source, actor card, player input, accepted event, and model. Both bridge paths now default to the candidate `kit_expression_v1`; pass `performance_variant='current'` (CLI `--performance-variant current` on `prepare --one-pass` or `decide`) for the baseline. Both return the same public input and schema, face the same validators, and record the variant in the turn. Compare their actual speech, then test a public-safe expressive intent derived from a fixed private Kit decision. Change one handoff at a time. Use staged generation to preserve decision-before-performance. The trial does not yet implement appetite or relationship dynamics.
+1. **Produce identity comparisons.** Use the same source, actor card, player input, accepted event, and model. Compare baseline commit `a936a26b570ebd1093ab8e51436a9a302bcedef7` with the candidate, preserving each revision's core and instructions. Both bridge paths default to `kit_expression_v1`. The `current` variant (CLI `--performance-variant current`) removes only the extra performer guidance; it still reads that revision's core and is therefore not a before-change personality baseline. Use it for a performer-guidance ablation. Use staged generation to preserve decision-before-performance, and hold a checked public brief fixed for a separate voice-only comparison. The trial does not implement appetite or relationship dynamics.
 2. **Score continuity, not a single quip.** Blind-review an opening and at least two replies. Ask what Kit seemed to care about, how she differed from the NPC, whether the player wanted another turn, and which line or behavior supports that judgment. Include a narrow ruling and a serious moment where restraint is part of the identity.
-3. **Only then wire the winner.** *(Deviation, 2026-09-28: the public-safe expressive intent was wired first, as `kit_focus`, at Brendon's direction. See [Kit's expression gap](../architecture/kit-expression-gap.md). Revise it if play shows it doesn't help.)* If a focused profile consistently helps, compress it into `dm-personality-core.md` rather than adding a second live personality file. If the safe expressive intent is necessary, add it to the private decision and checked public handoff. Keep its wording short and grounded; validate secrecy and causality. If neither helps, reconsider the model, examples, or scene choice before adding more schema.
+3. **Retain the winner after play.** The public-safe `kit_focus` handoff was wired first on 2026-09-28, and this developed profile was wired on 2026-09-30, at Brendon's direction. Both remain subject to revision after real comparisons. Compress a successful profile into the existing core. Keep the handoff short, concrete, and public-safe. If it fails, reconsider the model, examples, or scene choice before adding more schema.
 4. **Add longer-lived state when earned.** Test whether relevant remembered player behavior changes Kit's later attention and decisions. Introduce appetite satisfaction and relationship tracking only with observable event types and an ablation showing improvement. Preserve the ability to be wrong about the player.
 5. **Transfer.** Repeat with different NPCs, exploration, rulings, threat, reward, and another playable room. Kit's signature should travel; the dealer's mannerisms should stay in area 6c.
 
