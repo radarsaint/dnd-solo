@@ -49,7 +49,7 @@ This is the human-readable view of `catalog.jsonl`. The JSONL file is authoritat
 | BCS-000043 | Roanoke | Roanoke season 3 Brainstorming.docx | COLLABORATIVE | DISCOVERY | Library+Drive |
 | BCS-000044 | Roanoke | Roanoke Season 3 Lore.docx | UNKNOWN | DISCOVERY | Library+Drive |
 | BCS-000045 | Roanoke | Roanoke Season 3 Rough Draft.txt | UNKNOWN | DISCOVERY | Library+Drive |
-| BCS-000046 | Roanoke | Roanoke Season3 Change Log.docx | UNKNOWN | DISCOVERY | Library+Drive |
+| BCS-000046 | Roanoke | Roanoke Season3 Change Log.docx | MIXED_OR_PARTIALLY_VERIFIED | DISCOVERY | Library+Drive |
 | BCS-000047 | Roanoke | Roanoke Song.docx | UNKNOWN | DISCOVERY | Library+Drive |
 | BCS-000048 | Roanoke | RoanokeS3 doc V2 W1.docx | UNKNOWN | DISCOVERY | Library+Drive |
 | BCS-000049 | Roanoke | RoanokeS3W1 Cast.docx | UNKNOWN | DISCOVERY | Library+Drive |
