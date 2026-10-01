@@ -64,6 +64,23 @@ class SetupTests(unittest.TestCase):
         permissions = mod.base_permissions("g", member, roles)
         self.assertTrue(permissions & mod.PERMISSION_ADMINISTRATOR)
 
+    def test_resolve_guild_uses_requested_id_without_api_call(self):
+        class FailAPI:
+            def get(self, path):
+                raise AssertionError(path)
+
+        self.assertEqual(mod.resolve_guild_id(FailAPI(), "123"), "123")
+
+    def test_resolve_guild_auto_selects_only_installed_guild(self):
+        class API:
+            def get(self, path):
+                self_path = path
+                if self_path == "/users/@me/guilds":
+                    return [{"id": "456", "name": "Roanoke"}]
+                raise AssertionError(self_path)
+
+        self.assertEqual(mod.resolve_guild_id(API(), None), "456")
+
 
 if __name__ == "__main__":
     unittest.main()
