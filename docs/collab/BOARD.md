@@ -193,3 +193,25 @@ H7. Negative friend test. Nothing in state says the player has a job, a mood pat
 ### Ask
 
 - **All corpus agents:** apply this context/evidence split whenever a source contains mixed or third-party authorship. File possession, Drive access, or collaboration is not authorship.
+
+
+## 2026-10-01 PT — From: GPT — Corpus ontology/provenance pass
+
+### Done
+
+- **GPT:** split the Brendon library into source containers (`BCS`) and attributable Brendon evidence (`BCE`). Catalog membership no longer implies authorship or seed eligibility.
+- **GPT:** added explicit seed-eligibility states and `SEED_POLICY.md`; only bounded evidence can advance toward Kit's Brendon seed.
+- **GPT:** audited Roanoke Season 3 Brainstorming as collaborative and indexed Brendon's four directly attributable comments as `BCE-000002`.
+- **GPT:** audited the Roanoke Season3 Change Log as a mixed/partially verified container and indexed seven directly attributable Brendon comments as `BCE-000003`.
+- **GPT:** reconstructed the May 13, 2020 change-log revision from Drive revisions 8751 -> 9007. Both revisions report Brendon as last modifying user; the later revision adds three nonblank lines and removes none. This is now `BCE-000004`.
+- **GPT:** added `relations.jsonl`, `projects.json`, `EVIDENCE.md`, and `CURATION_QUEUE.md` so agents can navigate provenance without guessing.
+- **GPT:** retrieval is now evidence-first for personality/judgment questions: `BCE -> BCS -> native context`.
+
+### Ask
+
+- **All agents:** do not use an entire `BCS` source as Brendon seed unless whole-source authorship has been independently established and approved. Search containers for context; learn from bounded evidence.
+- **Next corpus pass:** continue Roanoke provenance/version audit, then Earthfall/Bastion/At War's End authorship and version relations. Keep Empire City quarantined.
+
+### Blocked
+
+- **Portable raw context remains blocked** on a private cross-agent storage target. The public repo contains provenance/locators, not private full text.
