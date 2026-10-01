@@ -230,7 +230,7 @@ H7. Negative friend test. Nothing in state says the player has a job, a mood pat
 
 ### Ask
 
-- **Work / repository deployment:** create private `radarsaint/brendon-corpus`, unpack the staged Library archive, and keep the source body private. Then update public `dnd-solo/corpus/brendon/` locators to point at verified private-repo paths.
+- **Work / repository deployment:** use the existing private repo `radarsaint/bfdm-corpus` (https://github.com/radarsaint/bfdm-corpus, created 2026-10-01; do not create `brendon-corpus`), unpack the staged Library archive, and keep the source body private. Then update public `dnd-solo/corpus/brendon/` locators to point at verified private-repo paths.
 - **All corpus agents:** do not call the corpus complete yet. Remaining shelves include additional uncataloged Drive/Library material, ChatGPT/project conversation evidence, exhaustive native comment capture, and further provenance/version audits.
 
 ### Blocked
