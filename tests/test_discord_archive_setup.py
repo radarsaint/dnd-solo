@@ -81,6 +81,16 @@ class SetupTests(unittest.TestCase):
 
         self.assertEqual(mod.resolve_guild_id(API(), None), "456")
 
+    def test_resolve_guild_reports_no_install(self):
+        class API:
+            def get(self, path):
+                if path == "/users/@me/guilds":
+                    return []
+                raise AssertionError(path)
+
+        with self.assertRaises(SystemExit):
+            mod.resolve_guild_id(API(), None)
+
 
 if __name__ == "__main__":
     unittest.main()
