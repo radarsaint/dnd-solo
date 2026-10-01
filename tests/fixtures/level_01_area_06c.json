@@ -1,0 +1,147 @@
+{
+  "id": "dotmm-level-01-area-06c-testbed-v1",
+  "fixture_only": true,
+  "source_ref": "Mad_Mage_Source.txt / Level 1 / 6. Undertakers' Watch Post / 6c. Uktarl's Room",
+  "map_ref": "assets/maps/levels/map-01.01-dungeon-level-dm.png",
+  "test_precondition": "The four occupants have not been encountered elsewhere and have not relocated to the alert position in 6a. This is a conditional snapshot, not the default result of entering from the Yawning Portal.",
+  "level_context": {
+    "active_here": true,
+    "source_ref": "docs/campaign/levels/LEVEL_01_DUNGEON_LEVEL.md",
+    "story_question": "Who controls the upper dungeon's traffic and exploitation of new arrivals after the player disturbs the balance?",
+    "pressure_here": "The Undertakers extort newcomers in areas 6–8; Uktarl and Harria privately compete for control.",
+    "relevant_reaction": "If the Undertakers cannot extort or defeat a newcomer, they prefer to redirect that person toward Xanathar forces. Do not trigger this merely for drama."
+  },
+  "campaign_context": {
+    "active_here": false,
+    "source_ref": "docs/campaign/HALASTER_THROUGH_LINE_LAYER.md / Level 1",
+    "relevance_here": "No Halaster contact is keyed to area 6c. His Level 1 observation beats are source-conditional in areas 16 and 29; do not insert one here."
+  },
+  "public_performance": {
+    "status": "Authored performance choices inferred from the keyed room; not additional Mad Mage facts.",
+    "entry_frame": "Interrupt a card game in progress beside the south door. Lead with one human action and a tension at the table, then make the north wall and recessed tub available in the player's view. The dealer may address the newcomer; leave the response to the player.",
+    "story_invitation": "A stranger can join or question the game, negotiate a passage price when offered, watch the players, inspect the carving or tub, or leave. Nothing here dictates that the stranger must pay or play.",
+    "actor_cards": {
+      "Dealer": {
+        "vocal_signature": "A leisurely, theatrical drawl on invitations; abrupt, crisp words when stating terms. Convey it with cadence and diction, and describe the sound once when he first speaks. No named regional accent or phonetic spelling.",
+        "verbal_habit": "Treats a visitor's question as a bid at the table. He can turn a courteous invitation into a blunt price; do not repeat a catchphrase.",
+        "physical_touchstone": "A card held between two fingers punctuates what he says. Let his handling of the game reflect whether he feels in control.",
+        "public_objective": "Draw the newcomer into conversation, a game, or the passage bargain while keeping the encounter on his terms.",
+        "source_basis": "The visible card game and elaborate clothing. The vocal choices are authored interpretation."
+      },
+      "Card player": {
+        "vocal_signature": "No individual voice has been established. A brief reaction or visible movement can show that other people are listening; do not assign an invented backstory or reveal a hidden identity.",
+        "public_objective": "Remain in the game and watch how the visitor responds."
+      }
+    }
+  },
+  "room_rules": [
+    "The Undertakers' vampire disguises can be seen through with a DC 14 Wisdom (Insight) check; the appearance alone is not proof.",
+    "The gang demands 10 gp per character for safe passage. If they cannot extort or defeat adventurers, they try to turn them against the Xanathar goblinoids.",
+    "Uktarl is a bandit captain with Performance +4. He lies and cheats for fun and blames others for his failures.",
+    "A character inspecting the mountain carving can locate the stone key with a DC 13 Wisdom (Perception) check.",
+    "If Uktarl takes damage or sees an underling slaughtered, he retreats toward area 7; the others flee toward area 8 and join any bandits still there.",
+    "The bandits do not know about the stone key or its use.",
+    "The DM map shows area 6c as approximately 20 by 30 feet, with one door on its south wall opening to a short passage. The table is near that door; the fresco and recessed tub are at the north end."
+  ],
+  "starting_area": "area_06c",
+  "areas": {
+    "area_06c": {"name": "Card room"},
+    "south_passage": {"name": "Short passage south of area 6c"}
+  },
+  "exits": {
+    "south_door": {
+      "areas": ["area_06c", "south_passage"],
+      "secret": false,
+      "labels": {
+        "area_06c": "A door near the card table opens into the short passage to the south.",
+        "south_passage": "The door back into the card room."
+      }
+    }
+  },
+  "facts": {
+    "card_table": {
+      "area": "area_06c", "visible": true,
+      "text": "Four pale figures with pointed teeth and elaborate clothing sit at a worn table playing cards; each has coins in front of them."
+    },
+    "fresco": {
+      "area": "area_06c", "visible": true,
+      "text": "A carved mountain scene covers the north wall, with tiny dwarven figures in its caverns and rays of sunlight spreading outward."
+    },
+    "tub": {
+      "area": "area_06c", "visible": true,
+      "text": "A stone tub about 8 feet long, 4 feet wide, and 2 feet deep is recessed into the floor beneath the carving."
+    },
+    "treasure_on_table": {
+      "area": "area_06c", "visible": true,
+      "text": "Several stacks of coins and a silver ring rest on the table."
+    },
+    "marked_deck": {
+      "area": "area_06c", "visible": false,
+      "text": "The dealer's card deck carries subtle marks."
+    },
+    "false_vampires": {
+      "area": "area_06c", "visible": false,
+      "text": "Their pallor and fangs are theatrical; the group is pretending to be vampires."
+    },
+    "fresco_key": {
+      "area": "area_06c", "visible": false,
+      "text": "One of the tiny carved dwarves can be lifted out; it is a stone key."
+    },
+    "key_function": {
+      "area": "area_06c", "visible": false,
+      "text": "The stone key fits a box in area 14b; its purpose is not apparent from finding it here."
+    },
+    "tub_stash": {
+      "area": "area_06c", "visible": false,
+      "text": "A bedroll, thieves' tools, and enough stolen gear to assemble one explorer's pack are stored in the tub."
+    },
+    "table_treasure": {
+      "area": "area_06c", "visible": false,
+      "text": "A count of the table coins gives 220 copper, 91 silver, and 85 gold pieces; the silver ring bears dwarven fertility symbols and is worth 25 gold pieces."
+    }
+  },
+  "actors": {
+    "uktarl": {
+      "name": "Pale man dealing cards", "dm_identity": "Uktarl Krannoc",
+      "type": "human bandit captain", "performance_bonus": 4,
+      "location": "area_06c", "status": "alive", "visible": true,
+      "motive": "Profit from newcomers and displace Harria as leader of the Undertakers.",
+      "immediate_goal": "Control the encounter without risking himself.",
+      "knowledge": ["The Undertakers' vampire appearance is a disguise.", "His deck is marked.", "Harria is his rival."],
+      "secrets": ["He is not a vampire.", "He cheats at cards."],
+      "retreat_condition": "If damaged or if an underling is slaughtered, retreat toward area 7.",
+      "communication_profile": {
+        "rhythm": "Performer with a practiced front; blames others when pressed.",
+        "humor": "Unspecified by source; derive from his cheating and self-importance only when the moment earns it."
+      }
+    },
+    "bandit_a": {
+      "name": "Pale card player near the door", "type": "human bandit",
+      "location": "area_06c", "status": "alive", "visible": true,
+      "motive": "Share in the Undertakers' take and survive this encounter.",
+      "knowledge": ["The vampire appearance is a disguise."],
+      "secrets": ["Not a vampire."],
+      "retreat_condition": "When Uktarl retreats, flee toward area 8 and join any bandits still there.",
+      "communication_profile": {"rhythm": "Unestablished", "humor": "Unestablished"}
+    },
+    "bandit_b": {
+      "name": "Pale card player beside the fresco", "type": "human bandit",
+      "location": "area_06c", "status": "alive", "visible": true,
+      "motive": "Share in the Undertakers' take and survive this encounter.",
+      "knowledge": ["The vampire appearance is a disguise."],
+      "secrets": ["Not a vampire."],
+      "retreat_condition": "When Uktarl retreats, flee toward area 8 and join any bandits still there.",
+      "communication_profile": {"rhythm": "Unestablished", "humor": "Unestablished"}
+    },
+    "doppelganger": {
+      "name": "Fourth pale card player", "type": "doppelganger",
+      "location": "area_06c", "status": "alive", "visible": true,
+      "motive": "Support the current Undertaker arrangement while preserving its disguise and safety.",
+      "knowledge": ["The group's vampire identity is a performance.", "Its own true nature."],
+      "secrets": ["A doppelganger disguised as one of the apparent vampires."],
+      "retreat_condition": "When Uktarl retreats, flee toward area 8 and join any bandits still there.",
+      "communication_profile": {"rhythm": "Unestablished", "humor": "Unestablished"}
+    }
+  },
+  "resources": {}
+}

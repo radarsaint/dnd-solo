@@ -19,3 +19,5 @@ assets/maps/levels/*
 assets/maps/skullport/*
 assets/handouts/*
 !assets/handouts/index.json
+*.sqlite
+*.sqlite-*
