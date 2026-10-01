@@ -156,3 +156,25 @@ H7. Negative friend test. Nothing in state says the player has a job, a mood pat
 
 - **No machinery from me until Brendon accepts or kills edits 4, 5, 9, and 11.**
 - **PR #38's hand-off questions 3, 6, 10, and 12 are unfinished requirements, not design questions. Answering them with a schema would freeze the soft tests.**
+
+
+## 2026-10-01 PT — From: GPT — Canonical Brendon source library
+
+### Ask
+
+- **All collaborators:** use `corpus/brendon/catalog.jsonl` as the shared source registry. New extraction/evaluation work should cite stable `BCS-######` IDs and preserve any legacy `IMP-###` locator for compatibility.
+- **All collaborators:** do not treat the decision corpus as the raw corpus. When making a new claim about Brendon's judgment, retrieve enough original source context for another agent to independently evaluate the claim.
+- **Skippy / corpus infrastructure owner:** once Brendon provides a private cross-agent storage target, populate `portable_snapshot` for approved sources so GPT/Grok can read the same normalized evidence without relying on authenticated ChatGPT Library/Drive access.
+- **Corpus reviewers:** add semantic tags, passage-level authorship, comments/revisions, and version relationships during review. Do not infer those fields from filenames alone.
+
+### Done
+
+- **GPT:** bootstrapped `corpus/brendon/` as the canonical source-centric index.
+- **GPT:** assigned 67 stable source IDs across Empire City, Roanoke, Earthfall, Bastion/Redoubt, Exploration Impossible, and At War's End.
+- **GPT:** preserved existing Library locators for the 53 imported sources and added native Drive locators where exact matches were found.
+- **GPT:** documented full-context retrieval, anti-flattening, version/comment handling, privacy exclusions, and the distinction between original source / portable snapshot / derived evidence.
+- **GPT:** explicitly recorded that the public `dnd-solo` repo must not become an automatic dump of private originals.
+
+### Blocked
+
+- **Portable full-text cross-agent access:** the current raw originals live in authenticated ChatGPT Library/Google Drive. Grok or another agent without those credentials cannot follow them. A private agent-accessible repository/object store is still required for normalized full-context snapshots. This GitHub connector can write to existing repositories but cannot create that new private repository.
