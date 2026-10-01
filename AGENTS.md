@@ -33,6 +33,8 @@ When doing personality/judgment research rather than ordinary live play, start w
 
 - `docs/architecture/kit-06c-play-slice.md`: the bridge procedure, the commands, and retries.
 - `docs/personality/dm-personality-core.md`: who Kit is.
+- `docs/voice/*.md`: Brendon's distilled table voice, loaded into the personality core each turn (6 KB cap; `prepare` warns via `voice_warning` if a file is skipped).
+- Running plan: the decision may carry `plan` (up to 5 private beats). `prepare` shows it back as `kit_plan` in the private input only; never say it to the player.
 - `docs/architecture/kit-claims-knowers.md` and `docs/GPT_HANDOFF_CLAIMS.md`: who knows what, and checks.
 - `docs/architecture/kit-agendas.md` and `docs/GPT_HANDOFF_AGENDAS.md`: what NPCs want and when they act.
 - `docs/architecture/kit-expression-gap.md`: how speech is checked.

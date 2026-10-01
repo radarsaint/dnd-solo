@@ -13,13 +13,51 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 PERSONALITY_CORE = PROJECT_ROOT / 'docs/personality/dm-personality-core.md'
+# Distilled voice files (docs/voice/*.md, not README.md) join the personality core every
+# turn, in file-name order, so both stages read them (the performer most). Whole files load
+# until VOICE_MAX_BYTES; any that do not fit are skipped and voice_warning says so. They
+# count toward the context budgets like the rest of the core; both budgets grow by the cap.
+VOICE_DIR = PROJECT_ROOT / 'docs/voice'
+VOICE_MAX_BYTES = 6000
+VOICE_HEADING = '\n\n# Voice files (docs/voice)\n'
+
+
+def voice_files(folder=None):
+    folder = Path(folder or VOICE_DIR)
+    if not folder.is_dir():
+        return []
+    return sorted((p for p in folder.glob('*.md') if p.name.lower() != 'readme.md'), key=lambda p: p.name)
+
+
+def load_voice(folder=None, max_bytes=None):
+    """(text, warning): the voice files that fit the cap, and a warning naming any skipped."""
+    max_bytes = VOICE_MAX_BYTES if max_bytes is None else max_bytes
+    parts, skipped, used = [], [], 0
+    for path in voice_files(folder):
+        part = f'\n## {path.name}\n\n' + path.read_text(encoding='utf-8').strip() + '\n'
+        size = len(part.encode())
+        if skipped or used + size > max_bytes:
+            skipped.append(path.name)
+            continue
+        parts.append(part)
+        used += size
+    warning = (f'Voice files over the {max_bytes}-byte cap were not loaded: {", ".join(skipped)}. '
+               'Shorten or merge docs/voice files.') if skipped else None
+    return ''.join(parts), warning
+
+
+def personality_core_text(folder=None):
+    """The personality core plus the voice files that fit the cap."""
+    core = PERSONALITY_CORE.read_text(encoding='utf-8')
+    voice, _ = load_voice(folder)
+    return core + VOICE_HEADING + voice if voice else core
 RHYTHM_EVIDENCE_MAX_CHARS = 600  # per recent_rhythm entry; 12 entries stay inside context()
 # Byte budget for one model input. context() enforces it on the core + DM context; the
 # Kit bridge trims memory to keep each whole prepared input inside it (kit_agent.fit_to_budget).
 # Sized for the worst case (ContextBudgetTests.test_a_long_card_game_with_a_full_detail_ledger_fits):
 # 12 long turns, a Three-Dragon Ante gambit mid-play, and a full canon ledger (CANON_LIMIT
 # entries at maximum length, ~47 KB). The private floor after every memory trim is ~79 KB.
-CONTEXT_BUDGET_BYTES = 88000
+CONTEXT_BUDGET_BYTES = 88000 + VOICE_MAX_BYTES  # 94 KB: the measured worst case plus a full voice slot
 # A staged or one-pass body carries the post-event public view (with the whole ledger)
 # and the procedure state: ~49.4 KB in the same worst case.
 PENDING_TURN_MAX_BYTES = 64000
@@ -50,7 +88,7 @@ CANON_SLOT = re.compile(r'^[a-z0-9_:]+(/[a-z0-9_]+){1,3}$')
 # Events a Kit turn may add at commit, after the adjudicated batch it was prepared with:
 # the decision's canon entries, the oracle deal it consumed, and procedure state.
 COMMIT_APPENDED_EVENTS = ('canon_entry', 'oracle_draw', 'procedure_state', 'claim_said', 'agenda_turn',
-                          'pc_state')
+                          'pc_state', 'kit_plan')
 # A turn whose decision asks the player a question resolves nothing: its only event is a
 # rhythm beat tagged 'asked' whose evidence is the question.
 ASKED_EVENT_PREFIX = 'Kit asks before resolving: '
@@ -713,6 +751,9 @@ class Runtime:
         elif kind == 'agenda_turn':
             from . import kit_agenda
             kit_agenda.apply_event(state, source, event)
+        elif kind == 'kit_plan':
+            from . import kit_plan
+            kit_plan.apply_event(state, event)
         elif kind == 'pc_state':
             from . import pc_sheet
             sheet = state.get('player_sheet')
@@ -801,7 +842,7 @@ class Runtime:
 
     def context(self, personality_core=None, max_bytes=CONTEXT_BUDGET_BYTES):
         if personality_core is None:
-            personality_core = PERSONALITY_CORE.read_text(encoding='utf-8')
+            personality_core = personality_core_text()
         revision, state = self.load()
         source, area = self.source(), state['area']
         packet = {

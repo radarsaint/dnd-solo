@@ -18,7 +18,7 @@ from pathlib import Path
 
 from . import kit_cards
 from . import kit_claims
-from . import kit_agenda, pc_sheet
+from . import kit_agenda, kit_plan, pc_sheet
 from . import kit_detail
 from . import kit_prices
 from . import kit_texture
@@ -27,7 +27,7 @@ from . import kit_voice
 from .scene_discernment import IMPROV_READ_SCHEMA, check_improv_read, discernment_candidates
 from .state_context import (ASKED_EVENT_PREFIX, CONTEXT_BUDGET_BYTES, HostSequenceError, InvalidChange,
                             PERSONALITY_CORE, PLAYER_NOTE_MAX_EVIDENCE, PROJECT_ROOT, Runtime,
-                            StaleTurn,
+                            StaleTurn, VOICE_MAX_BYTES, load_voice, personality_core_text,
                             check_player_note_text, encode, require)
 
 
@@ -554,6 +554,9 @@ PLAN_SCHEMA = {
         # Rare: neither the situation nor the player settles something that changes an outcome.
         # Kit asks; the turn commits nothing mechanical. Never about what the situation sets.
         'ask_player': kit_agenda.ASK_PLAYER_SCHEMA,
+        # Kit's private running plan (runtime/kit_plan.py): the whole current plan when it
+        # changes; omitted, the stored plan carries unchanged. Never reaches the performer.
+        'plan': kit_plan.PLAN_SCHEMA,
     },
     'required': ['observed_event', 'goal', 'appraisal', 'memory_refs', 'improv_read', 'move', 'public_brief',
                  'focus_actor', 'table_presence', 'tone', 'player_note', 'player_mood', 'turn_mode',
@@ -562,10 +565,10 @@ PLAN_SCHEMA = {
 
 # The strict API schema needs every property required.
 API_PLAN_SCHEMA = json.loads(json.dumps(PLAN_SCHEMA))
-OPTIONAL_PLAN_KEYS = ('claims', 'agenda', 'salience', 'roll_call', 'pc_state', 'pc_oddity', 'ask_player')
+OPTIONAL_PLAN_KEYS = ('claims', 'agenda', 'salience', 'roll_call', 'pc_state', 'pc_oddity', 'ask_player', 'plan')
 # Strict mode cannot leave an object out, so the chat-only paths (a PC state change, an
 # oddity reaction, a question to the player) are not offered to the API model at all.
-CHAT_ONLY_PLAN_KEYS = ('pc_state', 'pc_oddity', 'ask_player')
+CHAT_ONLY_PLAN_KEYS = ('pc_state', 'pc_oddity', 'ask_player', 'plan')
 for _key in CHAT_ONLY_PLAN_KEYS:
     API_PLAN_SCHEMA['properties'].pop(_key)
 API_PLAN_SCHEMA['required'] = API_PLAN_SCHEMA['required'] + [
@@ -917,6 +920,12 @@ PRIVATE_INSTRUCTIONS = (
     'backgrounded, do not remind, prompt, or choose for the player. What stands out goes in '
     'salience (thing as the performance names it, reason: the concrete visible detail); the '
     'performance names each thing. '
+    'PLAN: think ahead, not only in reply. kit_plan is your private running plan: a few beats, '
+    'each who is building toward what, roughly when, and why from their wants, agenda, or claims. '
+    'Let it shape this turn\u2019s choice. When it should change, send plan with the whole current '
+    'plan (at most 5 beats; each new, keep, advance, or revise with a reason; drop the rest with a '
+    'reason); leave plan out to carry it unchanged. Roots cite actors, claims, facts, or agenda; '
+    'nobody builds toward a secret they are unaware of. Never say the plan; play it. '
     'PC STATE: the situation sets the default (claims_here.pc.situation): seated at a table '
     'game, hands on the game and a carried item set aside; talking or exploring, hands free; a '
     'fight or on guard, weapon, guard, or focus in hand. Anything the player says overrides it. When the fiction or '
@@ -1223,6 +1232,8 @@ def check_plan(plan, episodes, public_event, action_kind=None, candidates=None, 
         kit_agenda.check_pc_oddity(plan['pc_oddity'], plan, state or {})
     if plan.get('ask_player'):
         kit_agenda.check_ask_player(plan['ask_player'], plan, state or {})
+    if 'plan' in plan:
+        kit_plan.check_plan_block(plan['plan'], source or {}, state or {})
 
 
 def is_ooc(player_action):
@@ -1523,6 +1534,8 @@ def turn_events(runtime, body, plan, turn_id):
         return [{'type': 'beat', 'tags': ['asked'],
                  'evidence': f"{ASKED_EVENT_PREFIX}{plan['ask_player']['question']}"}]
     events = list(body['events'])
+    if 'plan' in plan:
+        events.append(kit_plan.plan_event(plan['plan'], turn_id))
     if plan.get('pc_state'):
         events.append(kit_agenda.pc_state_event(plan['pc_state'], turn_id))
     if plan.get('claims'):
@@ -1636,7 +1649,7 @@ def trim_order(chosen, stored, action, recent=MEMORY_RECENT, aliases=None):
 
 
 # Context budget. The private decision input (personality core, DM context, memory,
-# notes, public dialogue) stays within CONTEXT_BUDGET_BYTES (88 KB), the same budget
+# notes, public dialogue) stays within CONTEXT_BUDGET_BYTES (88 KB + the 6 KB voice slot), the same budget
 # context() always enforced, now including memory. A one-pass input also carries the
 # public half (the static actor cards, ~7 KB, plus the post-event player view when the
 # turn changes it, with the core and dialogue history deduplicated out), so the whole
@@ -1647,7 +1660,7 @@ def trim_order(chosen, stored, action, recent=MEMORY_RECENT, aliases=None):
 # card game plus 48 max-length canon entries, a card turn that changes the view) the
 # public half is ~27.4 KB and the combined floor after every memory trim is ~106.1 KB.
 # 118 KB is the private budget plus that public half, with ~2.6 KB to spare.
-ONE_PASS_BUDGET_BYTES = 118000
+ONE_PASS_BUDGET_BYTES = 118000 + VOICE_MAX_BYTES  # plus the docs/voice slot at its cap
 CONTEXT_KEEP_HISTORY = 1          # public dialogue turns always kept
 CONTEXT_KEEP_RHYTHM = 3           # recent_rhythm entries always kept
 EPISODE_SPOKEN_TRIM_CHARS = 300   # public excerpt per episode after trimming
@@ -1783,6 +1796,9 @@ def prepare_inputs(runtime, revision, state, action, resolution, use_memory, one
         # Private: who here wants what, their available moves, clocks, and pacing.
         body['agenda_here'] = agenda
         planning_input['agenda_here'] = agenda
+    if kit_plan.current(post_event_state):
+        # Private: Kit's running plan from earlier turns. Never sent to the performer.
+        planning_input['kit_plan'] = {'beats': kit_plan.current(post_event_state)}
     table = card_procedure(source, post_event_state)
     if table and not str(resolution.kind).startswith('card_') and resolution.kind != 'opening':
         planning_input['activities'] = {table[0]: BACKGROUNDED}
@@ -1936,7 +1952,7 @@ def public_performance_base(runtime, body, one_pass=False):
                 'as_changes_to_private_view': VIEW_UNCHANGED_NOTE,
                 **view_changes(body['public_view'], before)}
     else:
-        payload['personality_core'] = PERSONALITY_CORE.read_text(encoding='utf-8')
+        payload['personality_core'] = personality_core_text()
         payload['public_history'] = body.get('public_history', [])
     return payload
 
@@ -2214,15 +2230,17 @@ class KitChatBridge:
         self.runtime.record_kit_timing(turn_id, mode=body['host_mode'], prepared_at=time.time(),
                                        **({'performance_variant': performance_variant}
                                           if one_pass else {}))
+        warning = load_voice()[1]
+        notice = {'voice_warning': warning} if warning else {}
         if one_pass:
-            return {'turn_id': turn_id, 'stage': 'one_pass',
+            return {'turn_id': turn_id, 'stage': 'one_pass', **notice,
                     'performance_variant': performance_variant,
                     'instructions': one_pass_instructions(performance_variant),
                     'schema': ONE_PASS_SCHEMA,
                     'performance_limits': performance_limits(), 'host_retry': HOST_RETRY_NOTE,
                     'input': {'private': planning_input,
                               'public': public_performance_base(self.runtime, body, one_pass=True)}}
-        return {'turn_id': turn_id, 'stage': 'private_decision',
+        return {'turn_id': turn_id, 'stage': 'private_decision', **notice,
                 'instructions': PRIVATE_INSTRUCTIONS, 'schema': PLAN_SCHEMA,
                 'performance_limits': performance_limits(), 'host_retry': HOST_RETRY_NOTE,
                 'input': planning_input}
