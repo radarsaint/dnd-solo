@@ -106,9 +106,21 @@ class InsightRoutesByTargetTests(Case):
                          {'false_vampires'})
 
     def test_an_insight_read_with_no_target_asks_what_they_read(self):
+        # Rare: several people here and nobody has spoken to the PC, so nothing settles it.
         revision, state = self.start(NIK)
         with self.assertRaisesRegex(PendingRuling, 'What are you reading'):
             Room6CAdjudicator(source=self.source).resolve('I make an Insight check.', revision, state)
+
+    def test_a_bare_insight_reads_whoever_just_spoke_without_asking(self):
+        # The situation settles it: whoever last spoke to the PC is the one being read.
+        revision, state = self.start(NIK)
+        speaker = next(key for key, actor in state['actors'].items()
+                       if actor.get('location') == state['area'] and actor.get('status') not in ('fled', 'dead'))
+        state = {**state, 'claims': {'said': [{'by': speaker, 'stance': 'truth'}], 'learned': []}}
+        result = Room6CAdjudicator(source=self.source, roll=lambda: 20).resolve(
+            'I make an Insight check.', revision, state)
+        self.assertEqual(result.kind, 'lie_read')
+        self.assertIn(speaker, result.events[0]['evidence'])
 
 
 class PassiveAutoSucceedsTests(Case):

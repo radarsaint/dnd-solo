@@ -291,6 +291,9 @@ def claims_here(source, state, sheet):
     area = state['area']
     actors = state.get('actors') or {}
     level = current_floor_level(source, area)
+    # Passives use the PC as they stand now: the player's word, else the situation's default.
+    situation = pc_sheet.situation_of(state)
+    raw, sheet = sheet, pc_sheet.situated(sheet, situation)
     present = [key for key, actor in actors.items() if actor.get('location') == area and actor.get('status') != 'fled']
     out = {}
     for key, claim in claims.items():
@@ -310,7 +313,7 @@ def claims_here(source, state, sheet):
             entry['player_roll'] = f"{claim['pc_check']} DC {entry['dc']}, only when the player asks"
         out[key] = entry
     lies = {actor: lie_lands(npc_profile(actors[actor]), sheet) for actor in present}
-    packet = {'pc': pc_sheet.private_summary(sheet) if sheet else None, 'claims': out,
+    packet = {'pc': pc_sheet.private_summary(raw, situation) if raw else None, 'claims': out,
               'npc_lies_vs_passive_insight': lies,
               'said': (state.get('claims') or {}).get('said', [])[-8:]}
     established = established_claims(state)
@@ -398,7 +401,7 @@ def said_events(items, turn_id, packet, state):
     """Public history with a private stance, so a lie can be caught later."""
     events = []
     actors = state.get('actors') or {}
-    sheet = state.get('player_sheet')
+    sheet = pc_sheet.sheet_now(state)
     for item in items or ():
         if item['stance'] == 'silence' or (item['speaker'] in ('narrator', 'kit') and item['claim'] != 'new'):
             continue

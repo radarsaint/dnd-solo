@@ -234,6 +234,10 @@ class Room6CAdjudicator:
             return self._resolve_check(action, revision, state, *check)
         if not spoken and '?' not in narration and re.search(r'\binsight\b', narration, re.I) and \
                 kind not in ('combat', 'stealth', 'exit'):
+            # The situation settles a bare Insight: read whoever spoke to the PC last (or the
+            # only person here) for a lie. Ask only when nobody is there to read.
+            if self._lie_read_target(narration, state):
+                return self._resolve_lie_read(action, narration, revision, state)
             raise PendingRuling('What are you reading with Insight: whether someone is telling the truth, '
                                 'or something about how they look or act? No turn was committed.')
         if kind == 'combat':
@@ -299,7 +303,7 @@ class Room6CAdjudicator:
         knows better (advantage in force)."""
         supplied = kit_cards.supplied_roll(action)
         override = getattr(self, skill, None)
-        sheet = state.get('player_sheet')
+        sheet = pc_sheet.sheet_now(state)  # unset lists: the situation's default, never a block
         if override is not None:
             modifier, passive = override, 10 + override
         elif sheet:
@@ -461,7 +465,7 @@ class Room6CAdjudicator:
         key, config, body = table
         require('roll_seed' in state, 'This session predates stable checks; start a fresh test database.')
         skills = ('perception', 'insight', 'sleight_of_hand')
-        sheet = state.get('player_sheet')
+        sheet = pc_sheet.sheet_now(state)  # seated at cards: hands on the cards
         modifiers = {skill: self.skill_modifier(skill, state) for skill in skills}
         passives = {skill: (pc_sheet.passive(sheet, skill) if getattr(self, skill) is None and sheet else
                             (10 + modifiers[skill] if modifiers[skill] is not None else None))
@@ -547,7 +551,8 @@ PLAN_SCHEMA = {
         # The PC's state or habit is odd for the situation: who present notices, and how
         # they react from their wants. It stands; the reaction is the scene event.
         'pc_oddity': kit_agenda.PC_ODDITY_SCHEMA,
-        # The PC's state is genuinely unknown and it matters: Kit asks. Commits nothing mechanical.
+        # Rare: neither the situation nor the player settles something that changes an outcome.
+        # Kit asks; the turn commits nothing mechanical. Never about what the situation sets.
         'ask_player': kit_agenda.ASK_PLAYER_SCHEMA,
     },
     'required': ['observed_event', 'goal', 'appraisal', 'memory_refs', 'improv_read', 'move', 'public_brief',
@@ -843,8 +848,9 @@ PRIVATE_INSTRUCTIONS = (
     'kit_focus must name something concrete in this turn (a detail, which actor tactic gets '
     'room, how a ruling is framed, or a deliberate restraint); a generic aim such as making it '
     'engaging or interesting is rejected. Never script an NPC line in the brief. On a social turn, choose ruling or call only when the player asked a '
-    'rules or mechanics question, or ask_clarification when you genuinely cannot tell what they '
-    'mean; otherwise the actor answers in an exchange. refused_attempts, when present, are '
+    'rules or mechanics question, or ask_clarification only in the rare case that neither the '
+    'situation nor their words settle something that changes the outcome; otherwise play it: '
+    'the actor answers in an exchange. refused_attempts, when present, are '
     'recent attempts the table could not resolve (nothing happened); Kit may pick them up. '
     'DETAIL: a player asking for a detail (what someone drinks, plays, wears, what is carved, '
     'what a thing costs) is an invitation: the specific answer is the job, never the least you '
@@ -910,14 +916,17 @@ PRIVATE_INSTRUCTIONS = (
     'keeps them waiting this turn. Optional activities recede: when activities says '
     'backgrounded, do not remind, prompt, or choose for the player. When something catches the '
     'eye, say why in salience: the concrete visible detail. '
-    'PC STATE follows the situation, never a default (claims_here.pc): seated at a table or '
-    'talking, hands free and a carried item slung or stowed unless the player says it is in hand; '
-    'in a fight, a weapon or focus in hand. The player\u2019s word wins. When the fiction changes it, record the whole picture in pc_state. A declared state '
+    'PC STATE: the situation sets the default (claims_here.pc.situation): seated at a table '
+    'game, hands on the game and a carried item set aside; talking or exploring, hands free; a '
+    'fight or on guard, weapon, guard, or focus in hand. Anything the player says overrides it. When the fiction or '
+    'the player changes it, record the whole picture in pc_state. A declared state or habit '
     'that is odd for the situation stands (advantage too, if really met); never quietly undo it. '
     'Reacting to odd habits is a goal: pc_oddity names who present notices and how their wants '
     'make them react (suspicion, a joke, a higher price, refusing to deal), carried in npc_notice. '
-    'Only when the state is genuinely unknown and it matters, ask_player: one short plain '
-    'question (ask_clarification, call scope); that turn resolves and commits nothing. Advantage '
+    'Kit just plays: never ask what the PC holds or wears, and never hold a roll for it. Only in '
+    'the rare case where neither the situation nor the player settles something that would '
+    'change an outcome, ask_player: one short plain question (ask_clarification, call scope); '
+    'that turn resolves and commits nothing. Advantage '
     'or disadvantage needs a reason true now (held, equipped, active, or a position); owning is '
     'not holding. Record it in roll_call and name the cause aloud.'
 )
@@ -943,8 +952,8 @@ PUBLIC_INSTRUCTIONS = (
     'them, do not echo them back. In a social scene, let the NPC pursue a specific objective '
     'through a response, action, or question grounded in the room; a price or fact alone is '
     'rarely the whole exchange. Give the player something meaningful to answer or act on. '
-    'A mechanically consequential unsupported action should invite clarification, not resolve itself. '
-    'When ask_player is present, Kit asks that question in her own segment, in those words, and '
+    'Never resolve what the accepted event did not: play the scene around it. '
+    'When ask_player is present (rare), Kit asks that question in her own segment, in those words, and '
     'nothing is resolved or narrated as happening. '
     'turn_mode names the moment: meta and banter are table talk and social play; description '
     'sets the mood; combat is tense and fast, in short sentences. The brief’s mirror says how to '
@@ -1122,7 +1131,8 @@ def check_plan(plan, episodes, public_event, action_kind=None, candidates=None, 
     if plan.get('roll_call'):
         # A state the player declares this turn counts for this turn's roll.
         kit_agenda.check_roll_call(plan['roll_call'], source or {},
-                                   kit_agenda.with_pc_state(state or {}, plan.get('pc_state')))
+                                   kit_agenda.with_pc_state(state or {}, plan.get('pc_state'),
+                                                            fight=plan.get('turn_mode') == 'combat'))
     for key in ('observed_event', 'goal'):
         require(isinstance(plan[key], str) and plan[key].strip(), f'Missing {key}')
     require(plan['observed_event'] == public_event, 'Private decision changed the accepted event')

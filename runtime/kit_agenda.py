@@ -385,13 +385,15 @@ def check_roll_spoken(text, plan):
 # ---------------------------------------------------------------------------
 # PC state follows the situation; the player's word wins; odd is a scene event
 # ---------------------------------------------------------------------------
-# What the PC holds, wears, or has running is not a sheet default. It follows the fiction
-# (seated at cards: hands on cards; a fight: weapon, shield, or focus in hand) and the
-# player's own word always wins. A declared state that is odd for the situation (a shield at
-# the card table, a blade drawn at dinner) stands, advantage included when it is really met:
-# the people present notice and react from their wants (pc_oddity). Only when the state is
-# genuinely unknown and it matters does Kit ask (ask_player), and that turn commits nothing
-# mechanical.
+# What the PC holds, wears, or has running is not a sheet default. The situation sets it
+# (pc_sheet.situated: seated at cards, hands on the cards and a shield set aside; a fight or
+# on guard, weapon, shield, or focus in hand) and anything the player says overrides it.
+# A declared state or habit that is odd for the situation (a shield at the card table, a
+# blade drawn at dinner) stands, advantage included when it is really met: the people present
+# notice and react from their wants (pc_oddity). Kit just plays. She asks (ask_player) only
+# when neither the situation nor the player settles something that would change an outcome;
+# that is rare, never about a list the situation already settles, and that turn commits
+# nothing mechanical. No roll ever waits on an unset sheet list.
 PC_STATE_SCHEMA = {'type': 'object', 'additionalProperties': False, 'properties': {
     'held': {'type': 'array', 'items': _LINE}, 'equipped': {'type': 'array', 'items': _LINE},
     'active': {'type': 'array', 'items': _LINE}, 'why': _LINE},
@@ -418,13 +420,15 @@ def check_pc_state(block):
     require(len(block['why'].split()) >= 4, 'pc_state why names the situation or the player\'s words that set it')
 
 
-def with_pc_state(state, block):
-    """A copy of state with the decision's pc_state applied (for this turn's roll_call)."""
-    if not block or not state.get('player_sheet'):
-        return state
+def with_pc_state(state, block, fight=False):
+    """A copy of state whose sheet stands as it is now, for this turn's roll_call: the
+    decision's pc_state (the player's word this turn) over the committed lists, over the
+    situation's default (a fight when fight is true)."""
     from . import pc_sheet
-    sheet = dict(state['player_sheet'], **{k: list(block[k]) for k in pc_sheet.CONDITIONS})
-    return {**state, 'player_sheet': sheet}
+    if not state.get('player_sheet'):
+        return state
+    sheet = dict(state['player_sheet'], **({k: list(block[k]) for k in pc_sheet.CONDITIONS} if block else {}))
+    return {**state, 'player_sheet': pc_sheet.situated(sheet, pc_sheet.situation_of(state, fight))}
 
 
 def pc_state_event(block, turn_id):
@@ -434,18 +438,22 @@ def pc_state_event(block, turn_id):
 
 
 def check_ask_player(block, plan, state):
-    """A short plain question when the PC's state is genuinely unknown. Nothing else rides on it."""
+    """The rare short plain question: neither the situation nor the player settles something
+    that would change an outcome. Nothing else rides on it."""
     from . import pc_sheet
     require(isinstance(block, dict) and set(block) == {'about', 'question'}, 'ask_player needs about, question')
     _text(block['about'], 'ask_player about')
     question = block['question'].strip()
     require(question.endswith('?') and 0 < len(question.split()) <= ASK_MAX_WORDS,
             f'ask_player.question is one short plain question (at most {ASK_MAX_WORDS} words, ending "?")')
-    sheet = state.get('player_sheet') or {}
-    for key in pc_sheet.CONDITIONS:
-        require(not pc_sheet.condition_true(sheet, block['about'], key),
-                f'{block["about"]} is already {key}: its state is known, so do not ask. If it is odd for '
-                'the situation, let the people present notice it (pc_oddity)')
+    settled = pc_sheet.settled_by(state.get('player_sheet') or {}, block['about'])
+    require(settled != 'player',
+            f'{block["about"]}: the player already said, so do not ask. If it is odd for the situation, '
+            'let the people present notice it (pc_oddity)')
+    require(settled != 'situation',
+            f'{block["about"]}: the situation sets it (seated at cards: hands on the cards, shield set '
+            'aside; a fight: weapon, shield, or focus in hand). Do not ask; play it, and record a '
+            'change in pc_state')
     require(plan['move'] == 'ask_clarification' and plan['public_brief']['scope'] == 'call',
             'ask_player is an ask_clarification move with call scope')
     require(plan['table_presence'] != 'quiet', 'Kit asks the question herself: table_presence cannot be quiet')

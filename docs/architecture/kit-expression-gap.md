@@ -48,7 +48,7 @@ In practice:
 | An unsupplied detail | `detail` -> `new_details`, canon ledger | `runtime/kit_detail.py` |
 | Who says which claim, how | `claims` -> `claim_lines` | `runtime/kit_claims.py` |
 | Something wants and moves | `agenda` | `runtime/kit_agenda.py` |
-| What the PC holds now; asking when unknown | `pc_state`, `ask_player` | `runtime/kit_agenda.py` |
+| What the PC holds now: the situation's default, the player's word over it; a rare ask | `pc_state`, `ask_player` | `runtime/kit_agenda.py` |
 
 The style guards (padding, NPC voices, repetition, Kit tics, player agency, paraphrase leaks, numeric
 facts) are in `runtime/kit_guards.py`. Section (g) of the old guide described each; the tests named in

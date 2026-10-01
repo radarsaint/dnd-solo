@@ -279,14 +279,16 @@ class BridgeAgendaTests(unittest.TestCase):
 
 
 class PcStateBySituationTests(unittest.TestCase):
-    """Held state follows the situation; the player's word wins; odd is a scene event;
-    Kit asks only when the state is genuinely unknown, and that turn commits nothing."""
+    """The situation sets the default PC state; the player's word overrides it; odd is a scene
+    event; Kit just plays. She asks only in the rare case that neither the situation nor the
+    player settles something that changes an outcome, and that turn commits nothing."""
     SHIELD = {'held': ['Sentinel Shield'], 'equipped': [], 'active': [],
               'why': 'The player says the shield stays on their arm at the table.'}
     ODD = {'what': 'a shield kept on the arm at a card table', 'noticed_by': ['uktarl'],
            'reaction': 'He prices the stranger as nervous money and raises the ante.'}
     NOTICE = 'gear: the dealer sees a shield kept up at a card table and reads a nervous mark'
-    ASK = {'about': 'Sentinel Shield', 'question': 'Is your shield on your arm or slung on your back?'}
+    ASK = {'about': 'the stake', 'question': 'How much coin do you put down?'}
+    SHIELD_ASK = {'about': 'Sentinel Shield', 'question': 'Is your shield on your arm or slung on your back?'}
 
     def setUp(self):
         temp = tempfile.TemporaryDirectory()
@@ -302,12 +304,67 @@ class PcStateBySituationTests(unittest.TestCase):
         self.runtime.set_player_sheet(NIK)
         self.bridge = kit_agent.KitChatBridge(self.runtime)
 
-    def test_no_static_default_unknown_is_not_true(self):
+    def test_the_situation_sets_the_default(self):
         self.assertNotIn('held', NIK)
-        pc = pc_sheet.private_summary(NIK)
-        self.assertEqual((pc['in_force'], pc['not_established']), ({}, ['held', 'equipped', 'active']))
+        pc = pc_sheet.private_summary(NIK)  # talking or exploring: hands free
+        self.assertEqual(pc['situation'], 'at_ease')
+        self.assertEqual((pc['in_force'], pc['from_situation']),
+                         ({'held': [], 'equipped': [], 'active': []}, ['held', 'equipped', 'active']))
         self.assertEqual(pc['conditional_advantage'][0]['source'], 'Sentinel Shield')
         self.assertEqual(pc_sheet.passive(NIK, 'perception'), 14)
+        # Seated at cards: hands on the cards, the shield set aside.
+        self.assertEqual(pc_sheet.passive(pc_sheet.situated(NIK, 'seated'), 'perception'), 14)
+        # A fight or on guard: weapon, shield, or focus in hand.
+        ready = pc_sheet.situated(NIK, 'ready')
+        self.assertEqual(ready['held'], ['Sentinel Shield'])
+        self.assertEqual(pc_sheet.passive(ready, 'perception'), 19)
+        self.assertEqual(pc_sheet.private_summary(NIK, 'ready')['passives']['perception'], 19)
+        # Anything the player said overrides the situation.
+        said = {**NIK, 'held': []}
+        self.assertEqual(pc_sheet.passive(pc_sheet.situated(said, 'ready'), 'perception'), 14)
+        self.assertEqual(pc_sheet.passive(pc_sheet.situated({**NIK, 'held': ['Sentinel Shield']}, 'seated'),
+                                          'perception'), 19)
+        # A worn item stays worn, but a strapped shield is set aside at the table.
+        worn = {**NIK, 'advantage_on': [{'skill': 'stealth', 'source': 'Cloak of Elvenkind', 'while': 'equipped'},
+                                        {'skill': 'perception', 'source': 'Tower Shield', 'while': 'equipped'}]}
+        self.assertEqual(pc_sheet.situated(worn, 'seated')['equipped'], ['Cloak of Elvenkind'])
+        self.assertEqual(pc_sheet.situated(worn, 'ready')['equipped'], ['Cloak of Elvenkind', 'Tower Shield'])
+        self.assertEqual(pc_sheet.situation_of({'procedures': {'game': {}}}), 'seated')
+        self.assertEqual(pc_sheet.situation_of({'procedures': {'game': {}}}, fight=True), 'ready')
+        self.assertEqual(pc_sheet.situation_of({}), 'at_ease')
+
+    def test_a_fight_rolls_with_the_shield_in_hand_without_asking(self):
+        call = {'skill': 'perception', 'mode': 'advantage', 'cause': {'kind': 'item', 'ref': 'Sentinel Shield', 'roots': []}}
+        live = {'player_sheet': NIK}
+        kit_agenda.check_roll_call(call, SIXC, kit_agenda.with_pc_state(live, None, fight=True))
+        # The player's word overrides the fight default.
+        with self.assertRaisesRegex(InvalidChange, 'not held'):
+            kit_agenda.check_roll_call(call, SIXC, kit_agenda.with_pc_state(
+                live, {'held': [], 'equipped': [], 'active': [], 'why': 'The player slung the shield on their back.'},
+                fight=True))
+
+    def test_no_check_waits_on_an_unset_list(self):
+        self.assertNotIn('held', self.runtime.load()[1]['player_sheet'])
+        revision, state = self.runtime.load()
+        result = Room6CAdjudicator(source=self.runtime.source(), roll=lambda: 20).resolve(
+            'I inspect the fresco.', revision, state)
+        self.assertNotEqual(result.kind, 'ask_first')
+        self.assertTrue(result.events)
+        self.assertIn('passive Perception 14', result.public_event)
+
+    def test_instructions_say_kit_just_plays(self):
+        text = kit_agent.PRIVATE_INSTRUCTIONS
+        self.assertIn('Kit just plays', text)
+        self.assertIn('never hold a roll for it', text)
+        for gone in ('genuinely unknown', 'genuinely cannot tell', 'ask_first'):
+            self.assertNotIn(gone, text)
+        self.assertNotIn('invite clarification', kit_agent.PUBLIC_INSTRUCTIONS)
+        root = Path(__file__).parent.parent
+        for doc in ('AGENTS.md', 'docs/CUSTOM_GPT_SETUP.md', 'docs/architecture/kit-agendas.md'):
+            body = (root / doc).read_text()
+            self.assertIn('the situation', body, doc)
+            self.assertNotIn('ask the player what it says', body, doc)
+            self.assertNotIn('Ask only when unknown', body, doc)
 
     def test_declared_state_counts_for_this_turns_roll(self):
         call = {'skill': 'perception', 'mode': 'advantage', 'cause': {'kind': 'item', 'ref': 'Sentinel Shield', 'roots': []}}
@@ -348,20 +405,29 @@ class PcStateBySituationTests(unittest.TestCase):
         self.assertEqual(pc_sheet.passive(state['player_sheet'], 'perception'), 19)
         self.assertEqual(state['agenda']['last_acted'], {'uktarl': 1})
         # Known now, so no question: odd is for the table to notice, not for Kit to ask.
-        with self.assertRaisesRegex(InvalidChange, 'already held.*pc_oddity'):
-            kit_agenda.check_ask_player(self.ASK, plan, state)
+        with self.assertRaisesRegex(InvalidChange, 'already said.*pc_oddity'):
+            kit_agenda.check_ask_player(self.SHIELD_ASK, plan, state)
 
     def ask_plan(self, packet, **extra):
+        extra.setdefault('ask_player', self.ASK)
         plan = self.plan(packet, move='ask_clarification', focus_actor='none', table_presence='brief',
-                         turn_mode='description', ask_player=self.ASK, **extra)
+                         turn_mode='description', **extra)
         plan['improv_read'].update(actor_ref='none', actor_basis='none')
         plan['public_brief']['scope'] = 'call'
         return plan
 
-    def test_unknown_state_asks_and_commits_nothing_mechanical(self):
+    def test_kit_never_asks_what_the_situation_sets(self):
+        packet = self.bridge.prepare('I look around the room.', one_pass=True)
+        plan = self.ask_plan(packet, ask_player=self.SHIELD_ASK)
+        ask = {'segments': [{'speaker': 'Kit', 'text': 'Is your shield on your arm or slung on your back?',
+                             'reacts_to': 'I look around the room'}]}
+        with self.assertRaisesRegex(InvalidChange, 'the situation sets it.*Do not ask'):
+            self.bridge.complete(packet['turn_id'], {'decision': plan, 'performance': ask})
+
+    def test_the_rare_ask_still_works_and_commits_nothing_mechanical(self):
         revision, before = self.runtime.load()
         packet = self.bridge.prepare('I look around the room.', one_pass=True)
-        ask = {'segments': [{'speaker': 'Kit', 'text': 'Quick one first: is your shield on your arm or slung on your back?',
+        ask = {'segments': [{'speaker': 'Kit', 'text': 'Quick one first: how much coin do you put down?',
                              'reacts_to': 'I look around the room'}]}
         roll = {'skill': 'perception', 'mode': 'normal', 'cause': {'kind': 'item', 'ref': 'none', 'roots': []}}
         with self.assertRaisesRegex(InvalidChange, 'commits nothing mechanical; drop roll_call'):
@@ -369,7 +435,7 @@ class PcStateBySituationTests(unittest.TestCase):
         plan = self.ask_plan(packet)
         with self.assertRaisesRegex(InvalidChange, 'in those words'):
             self.bridge.complete(packet['turn_id'], {'decision': plan, 'performance': {'segments': [
-                {'speaker': 'Kit', 'text': 'Shield: arm or back?', 'reacts_to': 'I look around the room'}]}})
+                {'speaker': 'Kit', 'text': 'Coin?', 'reacts_to': 'I look around the room'}]}})
         result = self.bridge.complete(packet['turn_id'], {'decision': plan, 'performance': ask})
         self.assertTrue(result['asked'])
         self.assertIn('prepare their original action again', result['next_step'])
