@@ -2,6 +2,8 @@
 
 Canonical development repository for the D&D solo-DM project.
 
+Collaborators: read the [Kit collaboration protocol](docs/collab/README.md) and its append-only [board](docs/collab/BOARD.md) first.
+
 This repository separates the project into layers so campaign content, runtime behavior, player-facing presentation, assets, and test material can evolve independently without turning into one giant prompt or design document.
 
 ## In plain English
