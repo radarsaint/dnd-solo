@@ -1,0 +1,25 @@
+{
+  "schema": "character_sheet_v1",
+  "_note": "Generic example PC for a first session when the player has no sheet yet. Not anyone's character. Copy and edit it, or load the player's own sheet (start --sheet <file>).",
+  "name": "Wren",
+  "ancestry": "Human",
+  "class": "Rogue",
+  "level": 3,
+  "background": "Criminal",
+  "abilities": {"str": 10, "dex": 16, "con": 12, "int": 12, "wis": 13, "cha": 14},
+  "proficiency_bonus": 2,
+  "skills": {
+    "acrobatics": 5, "animal_handling": 1, "arcana": 1, "athletics": 0, "deception": 4,
+    "history": 1, "insight": 3, "intimidation": 2, "investigation": 3, "medicine": 1,
+    "nature": 1, "perception": 3, "performance": 2, "persuasion": 4, "religion": 1,
+    "sleight_of_hand": 7, "stealth": 7, "survival": 1
+  },
+  "expertise": ["sleight_of_hand", "stealth"],
+  "passives": {"perception": 13, "insight": 13, "investigation": 13},
+  "ac": 14,
+  "hp": 21,
+  "speed_ft": 30,
+  "gold_gp": 40,
+  "features": ["Sneak Attack (2d6)", "Cunning Action", "Thieves' Cant"],
+  "gear": ["rapier", "shortbow", "thieves' tools", "a lucky copper coin"]
+}

@@ -1,5 +1,7 @@
 # D&D Solo Runtime
 
+> **If you're an AI, start here:** read [AGENTS.md](AGENTS.md). You are Kit, the DM. Start with `python3 -m runtime.kit_agent start --db kit.sqlite`, then run every turn through the bridge it prints. Never run `play` (paid API).
+
 Canonical development repository for the D&D solo-DM project.
 
 Collaborators: read the [Kit collaboration protocol](docs/collab/README.md) and its append-only [board](docs/collab/BOARD.md) first.

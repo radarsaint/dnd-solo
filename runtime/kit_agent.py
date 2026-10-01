@@ -2402,9 +2402,48 @@ class KitChatBridge:
         return self._committed_result(turn_id, next_revision, body, record, variant)
 
 
+EXAMPLE_SHEET = PROJECT_ROOT / 'tests/fixtures/characters/example_pc.json'
+
+
+def start_session(db, sheet_path=None, runtime=None):
+    """The one bootstrap step for any AI hosting Kit (see AGENTS.md): create a fresh room
+    session, load the player's sheet (the generic example PC when none is given), and
+    stage the room's opening through the bridge. Returns the first prepare packet plus
+    the exact next command, so a new host cannot take a wrong first step."""
+    own = runtime is None
+    runtime = runtime or Runtime(db)
+    try:
+        source = json.loads(ROOM_FIXTURE.read_text(encoding='utf-8'))
+        try:
+            runtime.initialize(source, source['starting_area'])
+        except InvalidChange as exc:
+            raise InvalidChange(f'{exc} Resume it with view and '
+                                'prepare, or pass a new --db to start fresh.') from exc
+        path = Path(sheet_path) if sheet_path else EXAMPLE_SHEET
+        sheet = json.loads(path.read_text(encoding='utf-8'))
+        loaded = runtime.set_player_sheet(sheet)
+        prepared = KitChatBridge(runtime, Room6CAdjudicator()).prepare(
+            opening=True, one_pass=True)
+        turn = prepared['turn_id']
+        return {
+            'stage': 'started', 'db': str(db), 'character': loaded['character'],
+            'sheet': str(path), 'example_sheet': not sheet_path,
+            'next_step': ('You are Kit. Write one JSON object {"decision", "performance"} that follows '
+                          'prepared.instructions and prepared.schema, save it to a file, then run: '
+                          f'python3 -m runtime.kit_agent complete --db {db} --turn-id {turn} '
+                          '--input-file <file>. Show the player only the "spoken" field. Every later '
+                          f'turn: python3 -m runtime.kit_agent prepare --one-pass --db {db} '
+                          '--action "<the player\'s words>", then complete again.'),
+            'prepared': prepared,
+        }
+    finally:
+        if own:
+            runtime.close()
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('command', choices=['init', 'view', 'prepare', 'decide', 'finish', 'complete',
+    parser.add_argument('command', choices=['start', 'init', 'view', 'prepare', 'decide', 'finish', 'complete',
                                             'abandon', 'feedback', 'character', 'notes', 'play', 'trace',
                                             'timing'])
     parser.add_argument('--db', default='kit-06c.sqlite')
@@ -2431,7 +2470,8 @@ def main():
     parser.add_argument('--ancestry', help='character: the player character\'s ancestry (e.g. Harengon)')
     parser.add_argument('--class-name', dest='class_name', help='character: class (optional)')
     parser.add_argument('--level', type=int, help='character: level (optional)')
-    parser.add_argument('--sheet', help='character: a character_sheet_v1 JSON file (any PC; see runtime/pc_sheet.py)')
+    parser.add_argument('--sheet', help='start/character: a character_sheet_v1 JSON file (any PC; see '
+                                        'runtime/pc_sheet.py). start defaults to the example PC')
     parser.add_argument('--held', help='character: comma list of what the PC holds now ("" for nothing)')
     parser.add_argument('--active', help='character: comma list of spells/conditions active now')
     parser.add_argument('--replaces', default='none', help='feedback: note id this feedback supersedes')
@@ -2441,6 +2481,15 @@ def main():
     parser.add_argument('--pretty', action='store_true',
                         help='prepare/decide/finish/complete: indent the JSON for reading (default compact)')
     args = parser.parse_args()
+    if args.command == 'start':
+        try:
+            result = start_session(args.db, args.sheet)
+        except (InvalidChange, PendingRuling) as exc:
+            print(json.dumps({'stage': 'rejected', 'message': str(exc)}, ensure_ascii=False), file=sys.stderr)
+            return 2
+        print(json.dumps(result, ensure_ascii=False,
+                         **({'indent': 2} if args.pretty else {'separators': (',', ':')})))
+        return 0
     runtime = Runtime(args.db)
     try:
         if args.command == 'init':
