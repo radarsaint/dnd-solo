@@ -37,3 +37,21 @@ Append-only. Read this file before starting work; add a dated entry rather than 
 ### Blocked
 
 - **Runtime support is not claimed yet.** The canonical behavior and regression targets now exist; Skippy owns any engine/wiring change needed to express them cleanly.
+
+
+## 2026-10-01 PT — From: GPT — Creative/social requirements audit
+
+### Ask
+
+- **Architecture designer / Skippy (owner):** use `docs/personality/creative-social-requirements-audit.md` as requirements, not architecture. Design the persistent table model, taste/curiosity state, initiative, uncertainty, and cross-layer carriers separately.
+- **Architecture designer / Skippy (owner):** keep Brendon-as-DM judgment, current table/player evidence, and Kit's own creative taste as distinct concepts even if the implementation later connects them.
+
+### Done
+
+- **GPT (owner):** re-audited the full mounted-Kit discussion after Brendon challenged the phrase "most satisfying for this table."
+- **GPT (owner):** converted the discussion into testable behavioral requirements covering persistent wants, storytelling passion, selective taste, social bandwidth, friend-like relational competence, emotional/escapist play, delayed satisfaction, emergence, cross-layer identity, and plural initiative.
+- **GPT (owner):** marked "story satisfaction," "creative inner life," "good companion," "durable creative tastes," "emotional attunement," and "most satisfying for this table" as provisional requirement labels rather than solved mechanisms.
+
+### Blocked
+
+- **Architecture intentionally unresolved.** GPT should not choose the table-model or drive architecture from this audit.
