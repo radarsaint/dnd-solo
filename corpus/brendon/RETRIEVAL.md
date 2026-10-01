@@ -6,7 +6,9 @@ Return enough original context for another agent to independently judge the sour
 
 ## Retrieval order
 
-1. Search `catalog.jsonl` by project/title/tags or follow a cited `BCS` ID.
+For questions about **Brendon's judgment/personality**, search `evidence.jsonl` first. For historical/campaign context, search `catalog.jsonl`.
+
+1. Resolve any cited `BCE-######` evidence ID first, then follow its parent `BCS-######` container for context. If no evidence ID exists yet, search source containers to locate material for provenance review.
 2. Respect `partition` before reading. Evaluation-quarantined material stays withheld from discovery/model-building work.
 3. Prefer the native source locator when the agent has access.
 4. If native access is unavailable, use `portable_snapshot` once populated.
@@ -17,7 +19,7 @@ Return enough original context for another agent to independently judge the sour
    - the preceding and following section or equivalent local window;
    - relevant comment/revision child evidence;
    - version siblings when the claim depends on a change across drafts.
-7. Cite the corpus ID and the most specific native/snapshot locator in all derived records.
+7. Cite both the `BCE` evidence ID and parent `BCS` source ID in derived judgment records whenever attributable evidence exists. A `BCS` citation alone does not prove Brendon authored the cited passage.
 
 ## Query dimensions
 
@@ -51,3 +53,10 @@ A portable snapshot should preserve:
 - no hidden analyst summary inside the source body.
 
 Portable snapshots exist so GPT, Grok, and other collaborators can inspect the same evidence. They should live in a non-public shared store unless Brendon explicitly chooses to publish that source.
+
+
+## Seed-safety rule
+
+A source container with `seed_eligibility=PENDING_EVIDENCE_EXTRACTION` or `CONTAINER_NOT_DIRECT_SEED` may be searched for context, but its whole text must not be handed to Kit as Brendon personality seed.
+
+Only bounded `BCE` evidence can advance toward seed approval. See `SEED_POLICY.md`.
