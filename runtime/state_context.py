@@ -181,6 +181,8 @@ class Runtime:
 
     def initialize(self, source, area):
         """Create a fresh fixture session. Refuse to overwrite a running game."""
+        require(self.db.execute('SELECT 1 FROM source').fetchone() is None,
+                'This database already holds a game.')
         require(area in source['areas'], 'Unknown starting area')
         for exit_id, edge in source['exits'].items():
             require(len(edge['areas']) == 2 and len(set(edge['areas'])) == 2,
