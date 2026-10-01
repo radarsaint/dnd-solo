@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 
 from runtime import kit_detail, kit_prices, kit_texture
-from runtime.kit_detail import NO_DETAIL, check_detail, check_detail_answer, generic_answer
+from runtime.kit_detail import NO_DETAIL, check_detail, check_detail_answer
 from runtime.state_context import InvalidChange, Runtime, canon_in_scope
 
 
@@ -144,17 +144,11 @@ class TavernSceneTests(unittest.TestCase):
         with self.assertRaisesRegex(InvalidChange, 'asked for a detail'):
             self.check(dict(NO_DETAIL))
 
-    def test_a_dealt_card_is_accepted_and_the_stock_default_is_rejected(self):
+    def test_a_dealt_card_is_accepted_and_off_card_answers_fail_by_structure(self):
         self.check(self.pick())
-        with self.assertRaisesRegex(InvalidChange, 'generic default: answer the invitation'):
+        # No word veto: a plain answer fails only because it is not the card chosen.
+        with self.assertRaisesRegex(InvalidChange, 'dealt card you chose'):
             self.check(self.pick(fact='Ale.'))
-        with self.assertRaisesRegex(InvalidChange, 'generic default'):
-            self.check(self.pick(fact='Just water, same as always.'))
-
-    def test_stock_words_as_color_are_fine(self):
-        self.assertTrue(generic_answer('Ale.'))
-        self.assertTrue(generic_answer('a mug of ale'))
-        self.assertFalse(generic_answer('Ale cut with brine, which the fishers call Bilgewater'))
 
     def test_the_interpretation_must_be_the_card_chosen(self):
         with self.assertRaisesRegex(InvalidChange, 'dealt card you chose'):
@@ -181,12 +175,6 @@ class TavernSceneTests(unittest.TestCase):
                     'inventions': [invention(self.oracle['slot'], 'Brine-cut stout, which the fishers call Bilgewater')]})
         with self.assertRaisesRegex(InvalidChange, 'most typical candidate'):
             self.check({**detail, 'candidates': candidates, 'typical': 0, 'chosen': 0})
-
-    def test_the_private_plan_never_asks_for_small_or_safe(self):
-        with self.assertRaisesRegex(InvalidChange, 'Shrinking direction'):
-            self.check({**self.pick(), 'handle': 'offer the player a small, simple drink order'})
-        with self.assertRaisesRegex(InvalidChange, 'Shrinking direction'):
-            kit_detail.check_not_shrinking(['Let the dealer offer a small, playable wager.'])
 
     def test_answer_persists_in_the_canon_ledger_and_returns_on_the_next_ask(self):
         detail = self.pick()
@@ -248,8 +236,6 @@ class TavernSceneTests(unittest.TestCase):
         with self.assertRaisesRegex(InvalidChange, 'never showed the detail'):
             check_detail_answer([{'speaker': 'Narrator', 'text': 'He shrugs and keeps wiping the bar down.'}],
                                 detail, self.ASK)
-        with self.assertRaisesRegex(InvalidChange, 'generic default'):
-            check_detail_answer([{'speaker': 'Barkeep', 'text': 'Ale.'}], detail, self.ASK)
 
     def test_prices_come_from_the_srd_with_the_entry_recorded(self):
         ask = 'How much for a mug of that ale?'
@@ -396,14 +382,10 @@ class PaletteTests(unittest.TestCase):
         self.assertTrue(all(card['procedure'] is None for card in games if card['id'] != 'three_dragon_ante'))
         self.assertTrue({'real: Texas hold \'em', 'real: blackjack'} <= {card['basis'] for card in games})
 
-    def test_taste_vetoes_never_reach_a_prompt(self):
-        from runtime import kit_agent
+    def test_taste_has_no_word_vetoes(self):
         taste = kit_texture.load_taste()
-        prompts = kit_agent.PRIVATE_INSTRUCTIONS + kit_agent.PUBLIC_INSTRUCTIONS + kit_agent.KIT_EXPRESSION_V1
-        for word in ('high card', 'nothing special', 'gruel', 'porridge', 'a matching coin'):
-            self.assertIn(word, json.dumps(taste['avoids']))
-            self.assertNotIn(word, prompts.casefold())
-
+        self.assertFalse({'avoids', 'filler', 'generic_max_words'} & set(taste))
+        self.assertFalse(hasattr(kit_detail, 'generic_answer') or hasattr(kit_detail, 'SHRINKING'))
 
 if __name__ == '__main__':
     unittest.main()
