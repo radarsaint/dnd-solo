@@ -16,7 +16,7 @@ stay as they are.
 | --- | --- | --- | --- |
 | `never_invent` palette lists (`kit_texture.py`, fixture `texture_palette`) | Texture cards must never invent a secret (the key, the fraud). | Claims. A secret is a claim with `exposure: hidden`. An invention whose roots or fact touch a hidden claim the speaker is `unaware` of, or that the PC has not learned, is rejected by band, not by word. | The `never_invent` lists, their packet field, and the `check_palette` requirement. |
 | Stock vetoes: `avoids`/`filler` in `kit-taste.json`, `generic_answer` (`kit_detail.py`) | Stops the "smallest safe answer" (gruel, high card). | Structure the detail already has: an invention must cite a scene root, and its `creates` must name a player choice. The canon ledger makes it stick. A bland answer that is grounded and actionable is allowed. | `generic_answer`, `GENERIC_REASON`, the `avoids`/`filler` data, and the soft `check_detail_answer` stock branch. |
-| `SHRINKING` regex (`kit_detail.py`) | Stops the plan from asking for "small, simple, safe" answers. | Nothing. The DETAIL instruction already says it, and the candidates/typical/chosen structure does the real work. | `SHRINKING`, `check_not_shrinking`, and its two call sites. |
+| `SHRINKING` regex (`kit_detail.py`) | Stops the plan from asking for "small, simple, safe" answers. | Nothing. The DETAIL instruction already says it, and the candidates/typical/chosen structure does the real work (open decision: `GPT_HANDOFF_CLAIMS.md` proposes dropping `typical`/`chosen` too; decide once and align both docs). | `SHRINKING`, `check_not_shrinking`, and its two call sites. |
 | `owner` / `handle` / `because` detail fields (`kit_detail.py`) | Every invented detail is owned by someone, usable, and true because of known facts. | A claim. The owner is the claim's holder (`knows`), the handle is the agenda move or player choice it roots, and "because" is the claim's `roots`. `check_claims` already validates holders and roots. | The three schema fields, `_check_owner_handle_because`, and the `true because` prefix rule. Detail keeps `slot`, `choice`, `candidates`, and `inventions`. |
 | `kit_guards.py` section 1: padding (74 lines) | Repetition, echoing the player, recycled lines, filler. | Keep the one structural piece, the recycled-line run (now exempt when the text is the public table state). Drop the filler list and the "You ask..." opener regex; scope floors already stop flat turns, and the mirror stops long ones. | `FILLER_PHRASES`, `_RESTATE_OPENERS`. |
 | Section 2: NPC voices (227 lines) | NPCs sound like their card and never like Kit. | The voice contract stays as data. The checks become structural: `never_words` and `max_words_per_sentence` per speaker, which are hard limits from the card. Kit-likeness heuristics (her tics, her asides in NPC mouths) go. The performer is told once (the NPC VOICES paragraph). | Kit-phrase lists, similarity heuristics, and most of `check_npc_voices`. About 150 lines. |
@@ -28,7 +28,7 @@ stay as they are.
 | Section 9: scene fit (121 lines) | Right PC identity, no "clean deal" claim when he cheated, no staking the ring or toll. | Identity comes from `your_character` (keep, but make it structural: a name or class in text must match the sheet). A clean deal becomes a claim (`marked_deck`, `dealer_cheated` state), and the dealer's band decides what he may say. Stakes come from the card procedure's state. | `check_clean_deal` regexes, `check_stake_offers` regexes. About 70 lines. |
 | Salience `ATTENTION` regex and advantage `CALLED_MODE` regex (`kit_agenda.py`) | "Catches your eye" needs a reason; "roll with advantage" needs a present cause. | Make them decision-first. The performer receives `salience` and `roll_call` as carriers, and the check is that the carrier's thing and cause appear in the text, not that some phrase triggered a demand. | `ATTENTION`, `CALLED_MODE`, `check_attention_spoken`, `check_roll_spoken`, replaced by a 10-line carrier check. |
 
-## Order of steps (each one a small PR, tests green, one playtest note)
+## Order of steps (each one a small PR, tests green)
 
 1. **Salience and advantage become carriers.** This is the smallest step, and the new code is already
    structural. It removes two regexes and the "you said 'draws the eye'" retries.
@@ -81,7 +81,7 @@ They never change inside a session.
   2. Re-send the full text every N turns (start with 8) and after any rejection streak (two or more).
   3. The CLI gets `prepare --full-static` for the host to ask for it whenever it's unsure.
   4. The per-turn digest keeps the hard rules present even if the full text is gone.
-  5. Measure retries and rejection reasons before and after in one playtest. Roll back if retries rise.
+  5. Log retries and rejection reasons; Brendon plays when he chooses. Roll back if retries rise.
 
 ## Risks for the whole plan
 

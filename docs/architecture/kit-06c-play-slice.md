@@ -39,7 +39,7 @@ python3 -m runtime.kit_agent decide --db kit-06c.sqlite --turn-id TURN_ID --inpu
 python3 -m runtime.kit_agent finish --db kit-06c.sqlite --turn-id TURN_ID --input-file /tmp/kit-speech.json
 ```
 
-The assistant shows the player only the `spoken` field from `complete` or `finish`, never the private packet or `trace`. Pending stages survive a Python process restart. A stale revision leaves the world turn uncommitted. `init` refuses to overwrite an existing session; use `view` to resume. For a keyed check, supply the character's actual `--perception` or `--insight` modifier to `prepare`. Without it, that check pauses without consuming a turn. A player's own roll written in the action ("I rolled 14 + 3 = 17") is used for knowledge checks and card play; the keyed Perception and Insight checks still roll from the session seed with the supplied modifier. Never silently reroll a result. `--no-memory` on `prepare` hides previous Kit episodes and player notes for an ablation.
+The assistant shows the player only the `spoken` field from `complete` or `finish`, never the private packet or `trace`. Pending stages survive a Python process restart. A stale revision leaves the world turn uncommitted. `init` refuses to overwrite an existing session; use `view` to resume. Load the player's sheet once with `character --sheet <file>` (any `character_sheet_v1` JSON; see `runtime/pc_sheet.py`); every check reads its bonuses and passives from it. When the PC's passive meets the DC, the check succeeds without a roll. Otherwise a player's own roll written in the action ("I rolled 14 + 3 = 17") is used, else the session seed rolls. With no sheet and no stated roll, the check pauses without consuming a turn. `--perception`/`--insight`/`--sleight-of-hand` on `prepare` remain as host overrides only. Never silently reroll a result. `--no-memory` on `prepare` hides previous Kit episodes and player notes for an ablation.
 
 When the player says something out of character about how the game is going ("fewer menus, please", "more of the dealer"), record it between turns. Do not show the result to the player:
 
@@ -54,15 +54,9 @@ Both chat paths use Kit's table-voice performer instructions (`kit_expression_v1
 
 These chat-host paths need **no** `--model` choice and **no** `OPENAI_API_KEY`. The commands are a protocol for the assistant, not steps the player has to type. The Work interface may show tool/progress activity; a dedicated player surface is needed to hide it.
 
-## Optional standalone API CLI
+## The `play` command: not used, do not run
 
-For a separate terminal process to call a model on its own, provide a Responses API model ID and `OPENAI_API_KEY`:
-
-```sh
-python3 -m runtime.kit_agent play --db kit-06c.sqlite --model YOUR_MODEL_ID --perception 2 --insight 1
-```
-
-The modifiers are example test-character values. Enter an action at `You>`; `/quit` exits. This API mode resumes the same SQLite session when restarted.
+`python3 -m runtime.kit_agent play` calls the paid OpenAI Responses API. It is not how Kit is played and must not be run: play goes through the chat bridge above (`prepare`/`decide`/`finish`, or `prepare --one-pass`/`complete`), with no model choice and no API key. The command is kept only as legacy code.
 
 Examples: “I pull up a chair and ask the stakes”; “I study the tiny dwarves in the carving”; “I look inside the tub”; “I try to tip the tub”; “I question their fangs”; “I leave by the south door.” The text router is conservative and recognizes only a small set of room actions. Conversation is open ended; unsupported physical actions and combat pause with an explanation and make no state change.
 
@@ -76,7 +70,7 @@ Do not show `trace` or `runtime.state_context context` to a player during a blin
 
 ## What each turn does
 
-1. The fixture router resolves a bounded action. Area 6c's DC 13 Perception key check and DC 14 Insight disguise check use a d20 and the supplied modifier. A failed model call cannot reroll the same uncommitted check. The source does not set a DC for detecting the marked deck, so this slice pauses that attempt instead of inventing one.
+1. The fixture router resolves a bounded action. An active look or read targets one hidden claim by its `subject_words` (the carving's key at DC 13, the disguise at DC 14, the marked deck at 13: the dealer's flat 10 + Sleight of Hand) and can reveal only that claim. A passive that meets the DC succeeds without a roll; otherwise the PC rolls d20 + the sheet's bonus. Any check the source gives no DC uses 10 + floor(floor level / 3). A lie read is the lie rule (flat 10 + Deception), Stealth rolls against the best present passive Perception, and a failed model call cannot reroll the same uncommitted check.
 2. `Runtime.preview` validates provisional events and produces the resulting player projection. The accepted event is fixed before Kit plans.
 3. The private decision stage sees the canonical personality core, bounded DM room context, relevant Level 1 pressure, the campaign through-line boundary, relevance-selected Kit episodes (the last two, plus earlier ones sharing the actor, story thread, or words with the action), evidence-cited player notes, the last four public dialogue turns, and the accepted event. A [reusable scene-discernment read](scene-discernment.md) selects a player bid, an eligible story basis (or none), a live actor and established goal (or none), and Kit's reason for foregrounding the collision. It also records her event appraisal, move, tone, and table-presence choice. The staged chat and API modes fix this decision before a separate performance generation. The one-pass mode validates and saves the decision before checking speech, but both are generated together.
 4. The public performance packet contains the player projection, accepted event, prior **public** dialogue, personality core, a checked brief with objective, tactic, visible cue, player opening, `reply_to` (a verified quote of the player's words), `scope` (`call`/`exchange`/`feature`), `kit_focus` (Kit's public-safe visible choice, derived from her goal and `kit_choice`), and `callback` (a verified quote of an earlier public moment from a turn Kit cites in `memory_refs`, with its public source line, or `none`), plus a curated, public-safe actor card and entry frame. It omits hidden room facts, actor secrets, and the private appraisal text. Its structured segments distinguish Kit, narrator, dealer, and other card players. The API mode uses a separate model request. In a single assistant chat, the same model has already read the private stage, so the packet boundary is **not** a hard context isolation boundary.
@@ -107,9 +101,9 @@ The first live result named an `npc_embodiment` goal in private but gave the pla
 - Every Kit aside quotes what it reacts to.
 - Detail questions go through the detail oracle and the canon ledger.
 - Prices come from the source, the DMG, the SRD 5.1 tables, or Brendon's magic item formula, or they stay unpriced.
-- Once a card game is declared, it is a runtime procedure: Three-Dragon Ante, with the marked deck, player counters, and a persisted wager. Pass `--sleight-of-hand` with `--perception` and `--insight` for card play, or give your own roll in the action ("I rolled 14 + 3 = 17").
+- Once a card game is declared, it is a runtime procedure: Three-Dragon Ante, with the marked deck, player counters, and a persisted wager. Bonuses and passives come from the loaded sheet (`character --sheet`), or give your own roll in the action ("I rolled 14 + 3 = 17"). NPCs never roll: each contest is their flat 10 + skill.
 
-This slice supports conversation and a few explicit room interactions. It has no character-sheet store, complete 5e rules, initiative/combat, validated NPC promises or inventory transfer, pathing beyond the south door, or background faction simulation. Social dialogue is retained as transcript and Kit memory; material NPC bargains need a future state transition before they can be authoritative.
+This slice supports conversation and a few explicit room interactions. It stores any loaded character sheet (`character --sheet`), but has no complete 5e rules, initiative/combat, validated NPC promises or inventory transfer, pathing beyond the south door, or background faction simulation. Social dialogue is retained as transcript and Kit memory; material NPC bargains need a future state transition before they can be authoritative.
 
 The public packet lacks private facts and a small literal-leak check rejects known phrases, but this **does not guarantee** that free-form prose cannot imply a secret or invent a new fact. In chat-host mode, the assistant still has access to the private planning context. Human review and adversarial model tests are required before treating the output as source-safe. The model may also choose an unconvincing reaction or flat dialogue. The automated tests use a fake model and one mocked API response; they verify orchestration and rollback, not humor or personality quality. The chat tool transcript may expose private packets to a person inspecting tool calls, so a blind player playtest needs a separate player-facing surface.
 

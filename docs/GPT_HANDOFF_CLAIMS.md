@@ -33,9 +33,13 @@ plain English.
 4. **Kit claims in play.** When a player asks something the adventure leaves open, record a
    `new` claim. Give its roots (a scene fact), its holder, and the speaker's why. Draw from
    the palette deck when there is one.
-5. **Simplify the old guards** (design section 7), one at a time, with tests:
+5. **Simplify the old guards** (see `docs/architecture/guard-consolidation-plan.md`), one at a time, with tests:
    - Drop `owner`, `handle`, `because`, `typical`, and `chosen` from the detail decision,
-     since the claim's holder and why replace them.
+     since the claim's holder and why replace them. **Overlap to resolve in this refactor:**
+     today every detail turn asks for both DETAIL's owner/handle/"true because" and CLAIMS'
+     holder/roots/why, which is the same work twice (owner = claim holder, because = claim
+     roots). Until the refactor lands, treat them as one answer written in both places. The
+     guard plan still keeps `candidates/typical/chosen`; decide once and make both docs agree.
    - Delete the stock vetoes (`avoids`, `filler` in kit-taste.json) and SHRINKING.
    - Delete `never_invent` from the palette.
    - Retire the `forbidden` list in `check_public_content` once the claims narrator check
@@ -47,12 +51,13 @@ plain English.
    narrator never asserts the negation of a true claim.
 7. **Caught lies.** When a later turn catches a `said` lie, mark that record caught. Also give
    the narrator the lie's fingerprint when its contest did not land.
-8. **6c host-play walkthrough.** Play through the bridge's one-pass route with Nik's sheet
-   loaded (`character --sheet tests/fixtures/characters/nik.json`):
-   - The disguise fingerprint (Insight 14 against DC 14: fingerprint, and Kit may point).
-   - A Kit wink at that tier ("Watch the napkin").
-   - Uktarl's "Forty" lie on the ring, planned as a `lie` with his why (Deception 14 against
-     passive Insight 14: the lie lands).
-   - Nik's History roll for the ring (default DC 10 on floor 1; on a success the narrator may say 25 gp).
-   - The dealer's drink as a `new` Kit claim.
-   Write up what was rejected and why.
+8. **Build checklist for any loaded sheet** (a build aid, not a test task). With whatever
+   sheet is loaded (`character --sheet <file>`), check that the room's claims produce:
+   - A fingerprint only where the sheet's passive meets the claim's DC, and a wink tier from
+     passive Insight against that DC (for example, at the 6c disguise: "Watch his chin when
+     he drinks", pointing at where the tell is, never naming it).
+   - An NPC lie planned as `lie` with the speaker's why, contested as flat 10 + Deception
+     against the sheet's passive Insight.
+   - A player-initiated knowledge roll against the claim's DC (the default 10 + floor(level/3)
+     when the source gives none).
+   - One new Kit claim grown from a scene fact.
