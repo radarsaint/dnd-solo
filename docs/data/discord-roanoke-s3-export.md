@@ -49,6 +49,22 @@ August 22, 2020 00:00 Pacific.
 
 Explicit \`--since\` and \`--until\` values override the preset.
 
+
+## Policy gate before using message content for Kit
+
+Discord's Developer Policy currently prohibits using message content obtained
+through Discord APIs to train machine-learning or AI models unless Discord has
+given express permission. Because this project explicitly aims to teach Kit
+from the Season 3 record, do not use API-exported message content as Kit
+training material until that permission has been obtained or the intended use
+has been confirmed to fall outside that restriction.
+
+It is fine to create/install the bot and test non-content access such as guild
+and channel listing. Do not commit or feed exported message content into the
+Kit corpus merely because the exporter can retrieve it.
+
+Do not work around this restriction with a user token, self-bot, or scraping.
+
 ## 1. Create a Discord app/bot
 
 In the Discord Developer Portal:
