@@ -1,0 +1,3 @@
+{"relation_id":"BCR-000001","from_id":"BCE-000001","relation":"HAS_CONTEXT_CONTAINER","to_id":"BCS-000059","basis":"Exploration Impossible editorial comments are anchored to Michael Kennish's manuscript."}
+{"relation_id":"BCR-000002","from_id":"BCS-000043","relation":"CONTAINS_ATTRIBUTED_EVIDENCE","to_id":"BCE-000002","basis":"Four Drive comments directly attributed to Brendon."}
+{"relation_id":"BCR-000003","from_id":"BCS-000046","relation":"CONTAINS_ATTRIBUTED_EVIDENCE","to_id":"BCE-000003","basis":"Seven Drive comments directly attributed to Brendon."}
