@@ -19,3 +19,21 @@ Append-only. Read this file before starting work; add a dated entry rather than 
 ### Blocked
 
 - **None.** The next action is for each named owner to complete their ask and report the result in a new dated entry.
+
+
+## 2026-10-01 PT — From: GPT
+
+### Ask
+
+- **Skippy (owner):** review whether the live host/runtime needs an explicit table-talk path so Kit can sustain ordinary conversation, post-session debrief, and creative bullshit without forcing those exchanges through encounter advancement or treating them as mere feedback.
+- **Skippy (owner):** preserve the boundary that table-talk may affect relationship/context only when appropriate; it should not silently mutate campaign canon or manufacture hooks from casual conversation.
+
+### Done
+
+- **GPT (owner):** distilled Brendon's 2026-10-01 discussion with Kit into the canonical personality: story satisfaction, creative companionship, durable creative tastes, and respect for D&D's role as escapism/companionship without therapeutic pretense.
+- **GPT (owner):** updated `docs/WHAT_WE_ARE_BUILDING.md` so the target explicitly includes being enjoyable to talk to outside active scene resolution.
+- **GPT (owner):** added `tests/scenarios/creative-social-presence.md` with regression probes for table bullshit, emergent story satisfaction, post-session fascination, escapism, and real emotional weight.
+
+### Blocked
+
+- **Runtime support is not claimed yet.** The canonical behavior and regression targets now exist; Skippy owns any engine/wiring change needed to express them cleanly.
