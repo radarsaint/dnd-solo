@@ -79,84 +79,90 @@ fetching message bodies. The supported setup test is:
 
 The setup probe does all of that **without requesting any message endpoint**.
 
-## 1. Create a Discord app/bot
+## 1. Create the Discord application
 
 In the Discord Developer Portal:
 
-1. Create an application (suggested name: `Roanoke Archive`).
-2. Open **Bot**. Create the bot if Discord has not already created it.
-3. Keep **Administrator** off.
-4. Do not add write permissions.
-5. Copy the **Application ID** from **General Information**.
-6. Reset/copy the bot token only when ready to put it into a local shell.
-   Never paste it into this repository, an issue, a chat, or a committed file.
+1. Create an application named `Roanoke Archive`.
+2. Open **Bot** and create/reset the bot token when prompted.
+3. Keep Administrator off. Do not grant write/moderation permissions.
+4. Do not paste the token into chat, issues, commits, or files.
 
-**Message Content Intent is not required for the current non-content setup
-probe.** Do not use message content for Kit/AI training unless the Discord
-policy gate is explicitly resolved.
+The current setup probe does not need Message Content Intent because it does not
+request message bodies.
 
-## 2. Generate the least-privilege install URL
+## 2. Run the one-command Windows setup
 
-The exact requested permission bitfield is `66560`:
+From PowerShell in the repository:
+
+    git fetch origin
+    git checkout discord-archive-exporter
+    git pull --ff-only origin discord-archive-exporter
+    .\scripts\setup_roanoke_discord.ps1
+
+The wizard:
+
+1. securely prompts for the bot token if it is not already in the current shell;
+2. derives the application ID from the token without printing the token;
+3. generates an install URL requesting exactly View Channel + Read Message History;
+4. opens the install page in the default browser;
+5. waits for the user to approve installation in Discord;
+6. discovers the installed guild automatically when the bot is in only one server;
+7. verifies authentication, Administrator absence, and per-channel effective permissions;
+8. lists which text channels have readable history.
+
+The requested Discord permission bitfield is exactly `66560`:
 
 - View Channel = 1024
 - Read Message History = 65536
 
-No Administrator, Send Messages, Manage Messages, attachment, reaction, or
-moderation permissions are requested.
+No Administrator, Send Messages, Manage Messages, reactions, moderation, or
+other write permissions are requested.
 
-PowerShell:
+If the bot is installed in more than one server, the probe prints the server
+names/IDs and asks for an explicit `--guild` selection.
 
-    $env:DISCORD_APPLICATION_ID='YOUR_APPLICATION_ID'
-    $env:DISCORD_GUILD_ID='YOUR_ROANOKE_SERVER_ID'
-    python scripts/discord_archive_setup.py --install-url
+## 3. Manual setup/probe commands
 
-If the server ID is not known yet, omit `DISCORD_GUILD_ID`; Discord will show
-the server picker.
+The wizard is preferred, but the underlying steps remain available.
 
-Open the generated URL while logged into the Discord account that can install
-apps in the Roanoke Season 3 server. Approve only the two requested
-permissions.
+Securely set the token for the current PowerShell session:
 
-## 3. Get the server ID
+    . .\scripts\set_discord_bot_token.ps1
 
-In Discord, enable Developer Mode, then copy the Season 3 server ID.
+Generate the least-privilege install URL:
 
-## 4. Check out the exporter branch
+    python scripts\discord_archive_setup.py --install-url
 
-From the repository:
+After installing the bot in Roanoke Season 3, probe the server:
 
-    git fetch
-    git checkout discord-archive-exporter
+    python scripts\discord_archive_setup.py --probe
 
-The branch contains two separate tools:
+The probe prints `OK`, `NO_VIEW`, `NO_HISTORY`, or
+`NO_VIEW+NO_HISTORY` for each text channel. It does not fetch messages.
 
-- `scripts/discord_archive_setup.py` — installation URL + non-content access
-  probe. Use this now.
-- `scripts/export_discord_history.py` — historical message exporter. Do not
-  run message export past the policy gate merely because the tool exists.
+For machine-readable diagnostics:
 
-No Python packages are required. It uses the Python 3 standard library.
+    python scripts\discord_archive_setup.py --probe --json
 
-## 5. Put the token in the environment
+## 4. Exporter branch and raw-data boundary
 
-macOS/Linux:
+The branch contains:
 
-    export DISCORD_BOT_TOKEN='your-token-here'
+- `scripts/setup_roanoke_discord.ps1` — Windows setup wizard.
+- `scripts/set_discord_bot_token.ps1` — masked token prompt for the current shell.
+- `scripts/discord_archive_setup.py` — install URL and non-content access probe.
+- `scripts/export_discord_history.py` — historical message exporter.
 
-PowerShell:
+Raw Discord data belongs only under `.private/`, which is gitignored. Do not
+commit credentials, raw transcripts, identifying account information, OOC/private
+discussion, or attachments.
 
-    $env:DISCORD_BOT_TOKEN='your-token-here'
+## 5. Current stop point
 
-Do not save the token in a tracked file.
-
-## 6. List channels first
-
-    python3 scripts/export_discord_history.py \
-      --guild YOUR_SERVER_ID \
-      --list-channels
-
-This prints channel IDs and names. Use an ID when duplicate channel names exist.
+For the current infrastructure task, stop after the bot is installed,
+authenticated, and the Roanoke Season 3 channels are successfully listed with
+effective View Channel + Read Message History access.
 
 ## 7. Test one Season 3 channel
 
