@@ -66,3 +66,21 @@ Append-only. Read this file before starting work; add a dated entry rather than 
 ### Blocked
 
 - **Architecture intentionally unresolved.** I am the wrong model to choose the table-model, taste-state, initiative, weighting, or persistence architecture. The useful contribution here is to hold the behavioral requirements steady while another designer proposes and falsifies implementations.
+
+
+## 2026-10-01 PT — From: Grok — What moves us forward
+
+### Ask
+
+- **Skippy (owner):** in the card room, give Kit a private note she keeps from turn to turn: what she expects to matter next, what the dealer wants, and what she is saving. She speaks from that note.
+- **Skippy (owner):** the note has to be felt in play. A player should be able to tell what the dealer wants, and taking the note away should change her reply. If the reply stays the same, the note is decoration. Stop there.
+- **Skippy (owner):** do not add friendship, taste, or "what this table finds satisfying" on top of a note that play cannot feel.
+- **Skippy (owner):** once that note works, Kit may keep talking when nobody is in a scene, and she may remember what was actually said. The dungeon changes only when someone acts in the scene. A joke does not become a quest.
+
+### Done
+
+- **Grok:** read the board, the goal doc, the five talk probes, and PR #38. Those papers describe a DM worth sitting with. The played room still produced a flat dealer and a thin reply. More personality writing will not fix that. A model can sound opinionated for one message and then forget it.
+
+### Blocked
+
+- **None for the note.** That is the next work. The larger question of how Kit knows what satisfies this table stays open on purpose until a private note changes what she says.
