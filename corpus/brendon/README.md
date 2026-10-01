@@ -8,7 +8,7 @@ This library answers: **what is the underlying source, where is the full context
 
 ## Current state
 
-The bootstrap catalog contains 67 historical source records across 6 named project families. It incorporates the 53 imported Roanoke/Empire City source files already present in ChatGPT Library and adds native Drive locators for major Earthfall, Bastion/Redoubt, Exploration Impossible, and At War's End sources discovered during this pass.
+The bootstrap catalog contains 66 historical source records across 5 named project families. It incorporates the 53 imported Roanoke/Empire City source files already present in ChatGPT Library and adds native Drive locators for major Earthfall, Bastion/Redoubt, and At War's End sources discovered during this pass.
 
 The catalog is intentionally broader than the current decision extraction. A source can belong in the library before anybody has decided what it teaches Kit.
 
