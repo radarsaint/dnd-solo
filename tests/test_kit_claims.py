@@ -40,8 +40,10 @@ def claim(claim_id, speaker, stance, version, why='none given here', about='x/y'
 class SheetTests(unittest.TestCase):
     def test_nik_sheet_loads_and_passives_derive_from_it(self):
         pc_sheet.check_sheet(NIK)
+        # The Sentinel Shield gives advantage only while held; owning it is not holding it.
         self.assertEqual([pc_sheet.passive(NIK, s) for s in ('perception', 'insight', 'investigation')],
-                         [19, 14, 17])
+                         [14, 14, 17])
+        self.assertEqual(pc_sheet.passive({**NIK, 'held': ['Sentinel Shield']}, 'perception'), 19)
         self.assertEqual(pc_sheet.skill_bonus(NIK, 'history'), 7)
 
     def test_any_sheet_works_and_missing_skills_fall_back_to_the_ability(self):
@@ -64,8 +66,8 @@ class BandTests(unittest.TestCase):
         # Passive Insight 14 meets the adventure's DC 14: fingerprint, and Kit may point.
         self.assertEqual((vamp['dc'], vamp['pc_band'], vamp['wink']), (14, 'fingerprint', 'point'))
         self.assertIn('fingerprint', vamp)
-        # No adventure DC: floor 1 defaults to 10, so Nik is nine over.
-        self.assertEqual((deck['dc'], deck['pc_band'], deck['wink']), (10, 'fingerprint', 'name_kind'))
+        # No adventure DC: floor 1 defaults to 10. Shield not held: 14, four over, Kit may point.
+        self.assertEqual((deck['dc'], deck['pc_band'], deck['wink']), (10, 'fingerprint', 'point'))
         # Knowledge is never passive: the ring waits for a player's History roll.
         self.assertEqual((ring['pc_band'], ring['wink']), ('blind', 'none'))
         self.assertIn('only when the player asks', ring['player_roll'])

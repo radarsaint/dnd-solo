@@ -24,12 +24,12 @@ states a detail, Kit answers three questions:
 1. An NPC lie is a flat 10 + Deception against the PC's passive Insight. The runtime rolls nothing. If it meets or beats passive Insight, the lie lands.
 2. When the adventure gives no concealment DC, the default is 10 + floor(dungeon floor level / 3). The current area's optional `floor_level` supplies the floor; it defaults to 1.
 3. Read Thoughts (the doppelganger) grants its claims passively.
-4. The marked deck is found with passive **Perception**, not Insight, because the dealer's slip is a visible action. Nik's 19 against 10 puts him nine over, so Kit may name what kind of thing is happening.
+4. The marked deck is found with passive **Perception**, not Insight, because the dealer's slip is a visible action. Nik's passive is 14 when the Sentinel Shield is not held (it gives advantage only while held), four over DC 10, so Kit may point; holding it makes 19, and she may name the kind of thing.
 5. Under the design's numbers the bandits come out *knowing* on the marked deck (10 meets the default DC 10), not *anchored* as the design's example says. The band rule wins.
 
 ## What is built
 
-- **Any PC sheet.** `character --sheet <file>` loads a `character_sheet_v1` JSON file for any class, ancestry, or level. Passive scores are 10 + the skill bonus, plus 5 with advantage. Nik (`tests/fixtures/characters/nik.json`, stats only) is one example. Nothing is keyed to him.
+- **Any PC sheet.** `character --sheet <file>` loads a `character_sheet_v1` JSON file for any class, ancestry, or level. Passive scores are 10 + the skill bonus, plus 5 with advantage in force now (see `docs/architecture/kit-agendas.md`). Nik (`tests/fixtures/characters/nik.json`, stats only) is one example. Nothing is keyed to him.
 - **NPC profiles.** Each 6c actor has a `stats` block holding SRD 5.1 ability scores and skills (CC-BY-4.0) plus role domains and special senses.
 - **Claims** (`claims` in the room fixture): each has a source, roots, exposure, a DC, the concealer, the skill that finds it, `pc_access` (passive shield or player roll), the first holders, the anchored version, and the fingerprint.
 - **NPC bands.** Holders listed in the fixture, and holders granted by a special sense, *know*. Everyone else scores 10 + a modifier (Insight for people, Intelligence for things), plus proficiency when the claim is in their domain. At or above the DC they *know*. 1 to 4 short is *close*, and 5 or more short is *anchored*.

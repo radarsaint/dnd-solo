@@ -11,9 +11,17 @@ Schema ``character_sheet_v1``:
     abilities: {str, dex, con, int, wis, cha}    scores (1-30)
     proficiency_bonus                            +2 to +6
     skills: {skill: total bonus}                 as printed on the sheet (all 18)
-    advantage_on: [skill, ...]                   passive +5 (e.g. Sentinel Shield: perception)
+    advantage_on: [skill | {skill, source, while}] passive +5. A bare skill is always on (a
+                                                 feature). A conditional entry is on only while
+                                                 its condition is true now: while "held" or
+                                                 "equipped" (source in that list) or "active"
+                                                 (source in `active`: a spell or condition).
+                                                 Ownership alone is not holding.
+    held, equipped, active: [name, ...]          optional; what is true right now (play updates
+                                                 them with a pc_state event)
     passives: {skill: score}                     optional; printed passives, checked against
-                                                 10 + bonus (+5 with advantage)
+                                                 10 + bonus (+5 with advantage, conditional
+                                                 advantage counted either way)
     extra fields (hp, ac, spells, features, gear) are kept as written and never checked.
 """
 from .state_context import require
@@ -50,10 +58,17 @@ def check_sheet(sheet):
     require(isinstance(skills, dict) and set(skills) <= set(SKILLS) and
             all(type(v) is int and -5 <= v <= 20 for v in skills.values()),
             'Character skills map known skill names to whole bonuses')
-    require(set(sheet.get('advantage_on', [])) <= set(SKILLS), 'advantage_on names unknown skills')
+    for entry in sheet.get('advantage_on', []):
+        skill = entry.get('skill') if isinstance(entry, dict) else entry
+        require(skill in SKILLS, 'advantage_on names unknown skills')
+        if isinstance(entry, dict):
+            require(isinstance(entry.get('source'), str) and entry.get('while') in CONDITIONS,
+                    f'Conditional advantage needs a source and while: {"/".join(CONDITIONS)}')
+    for key in CONDITIONS:
+        require(all(isinstance(v, str) for v in sheet.get(key, [])), f'{key} lists names')
     for skill, score in (sheet.get('passives') or {}).items():
         require(skill in SKILLS and type(score) is int, f'Unknown passive {skill!r}')
-        require(score == derived_passive(sheet, skill),
+        require(score in (derived_passive(sheet, skill), derived_passive(sheet, skill, assume_on=True)),
                 f'Printed passive {skill} {score} does not match 10 + bonus'
                 f' ({derived_passive(sheet, skill)}); fix the sheet')
     return sheet
@@ -67,12 +82,36 @@ def skill_bonus(sheet, skill):
     return modifier(sheet['abilities'][SKILLS[skill]])
 
 
-def derived_passive(sheet, skill):
-    return 10 + skill_bonus(sheet, skill) + (5 if skill in sheet.get('advantage_on', []) else 0)
+CONDITIONS = ('held', 'equipped', 'active')
+
+
+def condition_true(sheet, name, condition=None):
+    """Is this item/spell/condition in force now? Without a named condition, any list counts."""
+    folded = (name or '').strip().casefold()
+    keys = (condition,) if condition else CONDITIONS
+    return bool(folded) and any(folded == v.strip().casefold() for k in keys for v in sheet.get(k, []))
+
+
+def advantage_sources(sheet, skill):
+    """What gives advantage on this skill right now: 'always', or the active sources."""
+    found = []
+    for entry in sheet.get('advantage_on', []):
+        if entry == skill:
+            found.append('always')
+        elif isinstance(entry, dict) and entry.get('skill') == skill and \
+                condition_true(sheet, entry['source'], entry['while']):
+            found.append(entry['source'])
+    return found
+
+
+def derived_passive(sheet, skill, assume_on=False):
+    on = advantage_sources(sheet, skill) or (assume_on and any(
+        isinstance(e, dict) and e.get('skill') == skill for e in sheet.get('advantage_on', [])))
+    return 10 + skill_bonus(sheet, skill) + (5 if on else 0)
 
 
 def passive(sheet, skill):
-    """Passive score (PHB: 10 + bonus, +5 with advantage). Works for any skill."""
+    """Passive score (PHB: 10 + bonus, +5 with advantage in force now). Any skill."""
     return derived_passive(sheet, skill)
 
 
@@ -87,4 +126,6 @@ def private_summary(sheet):
     return {'name': sheet['name'], 'ancestry': sheet['ancestry'], 'class': sheet['class'],
             'level': sheet['level'], 'abilities': sheet['abilities'],
             'passives': {skill: passive(sheet, skill) for skill in ('perception', 'insight', 'investigation')},
-            'skills': sheet.get('skills', {})}
+            'skills': sheet.get('skills', {}),
+            'in_force': {key: sheet.get(key, []) for key in CONDITIONS},
+            'advantage_now': {skill: src for skill in SKILLS if (src := advantage_sources(sheet, skill))}}

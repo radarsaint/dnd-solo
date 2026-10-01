@@ -18,7 +18,7 @@ from pathlib import Path
 
 from . import kit_cards
 from . import kit_claims
-from . import pc_sheet
+from . import kit_agenda, pc_sheet
 from . import kit_detail
 from . import kit_prices
 from . import kit_texture
@@ -83,6 +83,15 @@ def social_event(action):
 
 # Table talk addressed to Kit rather than the room: answered, never resolved as a check.
 OOC_MARKER = re.compile(r'^\s*[(\[]?\s*(ooc\b|out[- ]of[- ]character)|\brules question\b', re.I)
+# Natural table talk needs no prefix: a message addressed to Kit by name, or a question
+# about the rules themselves (their nouns, not in-world verbs like sneak or grab).
+KIT_ADDRESS = re.compile(r"^\W*(?:(?:hey|ok|okay|so|um|and)\W+)?kit\b|\bkit\s*[,?]|,\s*kit\W*$", re.I)
+RULES_NOUNS = re.compile(r"\b(rules?|dc|modifiers?|advantage|disadvantage|bonus action|reactions?|saving throws?|"
+                         r"proficien\w*|spell slots?|initiative|passive \w+|concentration|(?:short|long) rest|"
+                         r"hit points|armou?r class|cantrips?|how does \w+(?: \w+)? work|allowed to)\b", re.I)
+# Looking away from whatever is in front of you: the room, the rest of it, elsewhere.
+OBSERVE = re.compile(r"\b(look|looks|looking|glance|scan|survey|take in|gaze|peer|what else)\b[^.?!]{0,30}"
+                     r"\b(around|room|else|rest of|elsewhere|away|here|walls?)\b|\bwhat else\b")
 # Words inside quotation marks are speech; a threat or a noun spoken aloud is not a physical act.
 QUOTED_SPEECH = re.compile(r'"[^"]*"')
 # A stealthy approach needs a Stealth ruling; it must never pass as a free, unopposed exit.
@@ -128,7 +137,7 @@ def room_intent(action, addressed=False):
     stealth, exits, and the room's named checks still route as before.
     """
     text = action.translate(_TYPOGRAPHIC)
-    if OOC_MARKER.search(text):
+    if is_ooc(text):
         return 'social'
     quoted = bool(QUOTED_SPEECH.search(text))
     words = QUOTED_SPEECH.sub(' ', text).lower()
@@ -154,6 +163,8 @@ def room_intent(action, addressed=False):
         return 'insight'
     if re.search(r'\b(inspect|study|search|examine|check)\b', words) and re.search(r'\b(cards|deck|marks)\b', words):
         return 'inspect_deck'
+    if OBSERVE.search(words):
+        return 'observe'
     if re.search(r'\b(take a seat|pull up a chair)\b', words):
         return 'social'
     physical = (re.search(r'\b' + PHYSICAL_VERBS + r'\b', words) or
@@ -207,7 +218,10 @@ class Room6CAdjudicator:
         # Combat and stealth keep their rulings at the card table: "I raise my crossbow" is
         # not a raise, and sneaking out "while they check their hands" is not a check.
         # A sleight at the table ("unseen") stays a card swap.
-        overrides = kind == 'combat' or (kind == 'stealth' and card_kind != 'card_swap')
+        # Looking around the room is about something else: the table procedure recedes
+        # (state kept, no forced choice) unless the player is watching the table itself.
+        overrides = kind in ('combat', 'observe') and card_kind != 'card_watch' or \
+            (kind == 'stealth' and card_kind != 'card_swap')
         if card_kind and not overrides:
             return self._resolve_card(card_kind, action, revision, state, table)
         if kind == 'combat':
@@ -220,6 +234,10 @@ class Room6CAdjudicator:
             raise PendingRuling('The source gives no discovery DC for the deck. A DM ruling is needed; no turn was committed. You can still question or accuse the dealer.', attempt=True)
         if kind == 'unsupported_action':
             raise PendingRuling('This physical action needs a room/rules ruling beyond the test slice. No turn was committed.', attempt=True)
+        if kind == 'observe':
+            event = {'type': 'beat', 'tags': ['observe'],
+                     'evidence': f'Player declared: {action}. Resolution: they look around the room; nothing changes.'}
+            return Resolution(kind, 'You look around the room.', [event])
         if kind == 'exit':
             event = {'type': 'move', 'exit': 'south_door',
                      'evidence': 'The player explicitly left through the known south door.'}
@@ -379,6 +397,13 @@ PLAN_SCHEMA = {
         # Claims and knowers (runtime/kit_claims.py): who says which claim, how, and why.
         # Optional on the bridge; empty when nobody states a claim.
         'claims': kit_claims.CLAIMS_SCHEMA,
+        # Agendas (runtime/kit_agenda.py): who advanced what they want, or why nothing did.
+        # Required when prepare supplied agenda_here.
+        'agenda': kit_agenda.AGENDA_SCHEMA,
+        # When anything "catches the eye": the concrete observable reason and its roots.
+        'salience': kit_agenda.SALIENCE_SCHEMA,
+        # A roll called with advantage/disadvantage cites a condition true right now.
+        'roll_call': kit_agenda.ROLL_CALL_SCHEMA,
     },
     'required': ['observed_event', 'goal', 'appraisal', 'memory_refs', 'improv_read', 'move', 'public_brief',
                  'focus_actor', 'table_presence', 'tone', 'player_note', 'player_mood', 'turn_mode',
@@ -387,7 +412,8 @@ PLAN_SCHEMA = {
 
 # The strict API schema needs every property required.
 API_PLAN_SCHEMA = json.loads(json.dumps(PLAN_SCHEMA))
-API_PLAN_SCHEMA['required'] = API_PLAN_SCHEMA['required'] + ['claims']
+OPTIONAL_PLAN_KEYS = ('claims', 'agenda', 'salience', 'roll_call')
+API_PLAN_SCHEMA['required'] = API_PLAN_SCHEMA['required'] + list(OPTIONAL_PLAN_KEYS)
 
 SPEECH_SCHEMA = {
     'type': 'object', 'additionalProperties': False,
@@ -674,7 +700,18 @@ PRIVATE_INSTRUCTIONS = (
     'talk. Nobody answers like a helpful assistant, and nobody sounds like Kit. When the player '
     'asks, someone answers, even if it\u2019s a lie or a refusal. Record each stated claim in '
     'claims (claim id or new, speaker, stance, version, why); a lie, boast, or bargain\u2019s why '
-    'cites the speaker\u2019s want. Never roll a knowledge check for the player.'
+    'cites the speaker\u2019s want. Never roll a knowledge check for the player. '
+    'AGENDA. Every turn something in the scene wants something and moves: a person, a monster, a '
+    'faction, the room itself, a clock. agenda_here lists who is present, what they want from '
+    'this player character, their moves, and the clocks. When the player stalls, looks away, or '
+    'is busy elsewhere, advance one: an actor makes a declared move (or a new one rooted in scene '
+    'facts, and never on a secret they are unaware of), or a pressure ticks. If the player is '
+    'dealing with that agent right now, hold as engaged: that exchange is its advance. A quiet '
+    'room is fine; say why it is calm. Optional activities recede: when activities says '
+    'backgrounded, do not remind, prompt, or choose for the player. When something catches the '
+    'eye, say why in salience: the concrete visible detail. Advantage or disadvantage needs a '
+    'reason that is true now (held, equipped, active, or a position); owning a shield is not '
+    'holding it. Record it in roll_call and name the cause aloud.'
 )
 
 PUBLIC_INSTRUCTIONS = (
@@ -881,10 +918,14 @@ def supported_procedures(source):
 def check_plan(plan, episodes, public_event, action_kind=None, candidates=None, player_action=None,
                player_notes=(), committed_turn_ids=(), source=None, state=None, established='',
                oracle=None, claims_packet=None):
-    require(isinstance(plan, dict) and set(plan) - {'claims'} == set(PLAN_SCHEMA['required']),
+    require(isinstance(plan, dict) and set(plan) - set(OPTIONAL_PLAN_KEYS) == set(PLAN_SCHEMA['required']),
             'Incomplete private decision')
     if 'claims' in plan:
         kit_claims.check_claims(plan['claims'], claims_packet, source or {}, state or {})
+    if plan.get('salience'):
+        kit_agenda.check_salience(plan['salience'], source or {}, state or {})
+    if plan.get('roll_call'):
+        kit_agenda.check_roll_call(plan['roll_call'], source or {}, state or {})
     for key in ('observed_event', 'goal'):
         require(isinstance(plan[key], str) and plan[key].strip(), f'Missing {key}')
     require(plan['observed_event'] == public_event, 'Private decision changed the accepted event')
@@ -971,8 +1012,11 @@ def check_plan(plan, episodes, public_event, action_kind=None, candidates=None, 
 
 
 def is_ooc(player_action):
-    """Out-of-character table talk, by the same marker the router uses."""
-    return bool(player_action and OOC_MARKER.search(player_action.translate(_TYPOGRAPHIC)))
+    """Out-of-character table talk: an explicit marker, words addressed to Kit, or a
+    question about the rules themselves. Quoted speech is in character and never counts."""
+    text = QUOTED_SPEECH.sub(' ', (player_action or '').translate(_TYPOGRAPHIC))
+    return bool(OOC_MARKER.search(text) or KIT_ADDRESS.search(text) or
+                ('?' in text and RULES_NOUNS.search(text)))
 
 
 def keywords(text):
@@ -1269,6 +1313,10 @@ def turn_events(runtime, body, plan, turn_id):
     if plan.get('claims'):
         events += kit_claims.said_events(plan['claims'], turn_id, body.get('claims_here'),
                                          runtime.load()[1])
+    if body.get('agenda_here') is not None:
+        ticks = kit_agenda.check_agenda(plan.get('agenda'), body['agenda_here'], runtime.source(),
+                                        runtime.load()[1])
+        events.append(kit_agenda.agenda_event(plan['agenda'], body['agenda_here'], turn_id, ticks))
     detail = plan.get('detail')
     if not detail:
         return events
@@ -1459,6 +1507,7 @@ def check_decision(runtime, plan, memory, body):
                claims_packet=body.get('claims_here'))
     check_brief_public(plan['public_brief'], body['public_view'], body['action'],
                        kit_guards.leak_sets(source))
+    kit_agenda.check_agenda(plan.get('agenda'), body.get('agenda_here'), source, runtime.load()[1])
     # A public invention reaches the performer and the player: same leak checks as the brief.
     for item in kit_detail.public_inventions(plan['detail']):
         check_brief_public({'invention': item['fact']}, body['public_view'], body['action'],
@@ -1508,6 +1557,14 @@ def prepare_inputs(runtime, revision, state, action, resolution, use_memory, one
         packet = kit_claims.claims_here(source, post_event_state, post_event_state.get('player_sheet'))
         body['claims_here'] = packet
         planning_input['claims_here'] = packet
+    agenda = kit_agenda.agenda_here(source, post_event_state)
+    if agenda is not None:
+        # Private: who here wants what, their available moves, clocks, and pacing.
+        body['agenda_here'] = agenda
+        planning_input['agenda_here'] = agenda
+    table = card_procedure(source, post_event_state)
+    if table and not str(resolution.kind).startswith('card_') and resolution.kind != 'opening':
+        planning_input['activities'] = {table[0]: BACKGROUNDED}
     attempts = state.get('refused_attempts', [])[-REFUSED_ATTEMPTS_SHOWN:]
     if attempts:
         # Public: the player saw these pending rulings. Both stages may refer to them.
@@ -1518,6 +1575,10 @@ def prepare_inputs(runtime, revision, state, action, resolution, use_memory, one
     if 'memory_trimmed' in planning_input['kit_state']:
         body['memory_turn_ids'] = kept
     return revision, body, planning_input
+
+
+BACKGROUNDED = ('backgrounded: the player is doing something else. Its state is kept. Do not remind them '
+               'of it, prompt a choice in it, or make one for them; it resumes when they act in it again.')
 
 
 def scene_facts(state, events):
@@ -1692,6 +1753,8 @@ def checked_record(body, plan, speech, performance_variant, source=None, degrade
                           guards=guard_context(source, body), degraded=degraded,
                           public_event=body['public_event'])
     spoken, warnings = result if degraded else (result, [])
+    kit_agenda.check_attention_spoken(spoken, plan)
+    kit_agenda.check_roll_spoken(spoken, plan)
     if body['kind'] in EVENT_AFTER_PERFORMANCE_KINDS:
         # The room reacts while the player is still there; then they are gone.
         spoken = f"{spoken}\nNarrator: {body['public_event']}"
@@ -2073,6 +2136,8 @@ def main():
     parser.add_argument('--class-name', dest='class_name', help='character: class (optional)')
     parser.add_argument('--level', type=int, help='character: level (optional)')
     parser.add_argument('--sheet', help='character: a character_sheet_v1 JSON file (any PC; see runtime/pc_sheet.py)')
+    parser.add_argument('--held', help='character: comma list of what the PC holds now ("" for nothing)')
+    parser.add_argument('--active', help='character: comma list of spells/conditions active now')
     parser.add_argument('--replaces', default='none', help='feedback: note id this feedback supersedes')
     parser.add_argument('--degraded', action='store_true',
                         help=f'finish/complete: accept style misses as warnings (only after '
@@ -2095,6 +2160,10 @@ def main():
         elif args.command == 'character' and args.sheet:
             sheet = json.loads(Path(args.sheet).read_text(encoding='utf-8'))
             print(json.dumps(runtime.set_player_sheet(sheet), indent=2, ensure_ascii=False))
+        elif args.command == 'character' and (args.held is not None or args.active is not None):
+            lists = {key: [v.strip() for v in value.split(',') if v.strip()]
+                     for key, value in (('held', args.held), ('active', args.active)) if value is not None}
+            print(json.dumps(runtime.set_pc_state(**lists), indent=2, ensure_ascii=False))
         elif args.command == 'character':
             if not (args.name and args.ancestry):
                 parser.error('character requires --sheet, or --name and --ancestry')
