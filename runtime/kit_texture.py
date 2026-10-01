@@ -1,6 +1,6 @@
 """Texture palette, detail slots, and the seeded detail oracle. Room-agnostic.
 
-Why this exists (research/kit-aliveness/03-systems.md): when the source leaves a gap,
+Why this exists: when the source leaves a gap,
 a preference-tuned model fills it with the most typical answer available. The fix
 every tradition uses is to prepare specific, local options before anyone asks, let
 the DM pick and interpret one, and write down whatever gets used.

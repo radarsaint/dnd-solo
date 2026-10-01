@@ -126,9 +126,9 @@ class DecisionTests(unittest.TestCase):
                        sheet=dull_fighter())
 
     def test_kit_winks_only_as_far_as_the_tier(self):
-        self.check([claim('false_vampires', 'kit', 'wink', 'Watch the napkin.')])
+        self.check([claim('false_vampires', 'kit', 'wink', 'Watch his chin when he drinks.')])
         with self.assertRaisesRegex(InvalidChange, 'wink tier'):
-            self.check([claim('false_vampires', 'kit', 'wink', 'Watch the napkin.')], sheet=dull_fighter())
+            self.check([claim('false_vampires', 'kit', 'wink', 'Watch his chin when he drinks.')], sheet=dull_fighter())
 
     def test_bands_limit_what_a_speaker_can_do(self):
         # A source that did give a hard appraisal DC (15): an Int 10 bandit is anchored.

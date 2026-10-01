@@ -486,16 +486,16 @@
             },
             {
               "id": "holdem_graves",
-              "entry": "Texas hold 'em, which this table calls \"Graves\": two cards down, five laid out on the felt like headstones",
+              "entry": "Texas hold 'em, which this table calls \"Graves\"",
               "basis": "real: Texas hold 'em",
               "roots": ["card_table", "treasure_on_table"],
               "tags": ["familiar", "grave_humor"],
-              "handle": "ask to sit in; the dealer names what it takes",
+              "handle": "ask about the game",
               "procedure": null
             },
             {
               "id": "blackjack_coffins",
-              "entry": "Blackjack, called \"Twenty-One Coffins\" here: beat the dealer to twenty-one without going over",
+              "entry": "Blackjack, called \"Twenty-One Coffins\" here",
               "basis": "real: blackjack",
               "roots": ["card_table", "actor:uktarl"],
               "tags": ["familiar", "watchable_cheat", "grave_humor"],
@@ -504,11 +504,11 @@
             },
             {
               "id": "last_widow",
-              "entry": "A round of \"Last Widow\", the old-maid game, where whoever holds the widow card at the end pays the table",
+              "entry": "A round of \"Last Widow\", the old-maid game",
               "basis": "real: Old Maid",
               "roots": ["card_table", "treasure_on_table"],
               "tags": ["familiar", "grave_humor"],
-              "handle": "ask who is holding the widow",
+              "handle": "ask who is winning",
               "procedure": null
             }
           ],
@@ -567,15 +567,6 @@
               "roots": ["fresco"],
               "tags": ["specific_number", "tactile"],
               "handle": "count them, or hum along",
-              "procedure": null
-            },
-            {
-              "id": "charcoal_fangs",
-              "entry": "Someone has added charcoal fangs to three of the tiny dwarves, recently, by the look of the smudges",
-              "basis": "palette: the fresco and the table's costume",
-              "roots": ["fresco", "card_table"],
-              "tags": ["grave_humor", "owner_with_a_want", "specific_number"],
-              "handle": "ask who has been drawing on the wall",
               "procedure": null
             },
             {
