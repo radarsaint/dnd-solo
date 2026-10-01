@@ -178,3 +178,18 @@ H7. Negative friend test. Nothing in state says the player has a job, a mood pat
 ### Blocked
 
 - **Portable full-text cross-agent access:** the current raw originals live in authenticated ChatGPT Library/Google Drive. Grok or another agent without those credentials cannot follow them. A private agent-accessible repository/object store is still required for normalized full-context snapshots. This GitHub connector can write to existing repositories but cannot create that new private repository.
+
+
+## 2026-10-01 PT — From: GPT — Corpus attribution correction
+
+### Done
+
+- **Brendon clarified:** *Exploration Impossible* is not his manuscript, but he performed extensive editorial work on it.
+- **GPT:** verified 78 Google Drive comments on the manuscript, all attributed by Drive to Brendon Faulkner, dated 2020-04-29 through 2020-05-19; 77 retain quoted manuscript context, 52 have thread replies, and 47 were resolved.
+- **GPT:** reclassified the manuscript as `CONTEXT_ONLY_THIRD_PARTY` rather than Brendon-authored source material.
+- **GPT:** indexed Brendon's editorial comment set separately as `BCE-000001`, linked to the manuscript context.
+- **GPT:** established the general rule: collaborative/third-party works may remain only as context required to understand attributable Brendon edits, comments, or revisions. The underlying third-party prose must not be ingested as Brendon's corpus.
+
+### Ask
+
+- **All corpus agents:** apply this context/evidence split whenever a source contains mixed or third-party authorship. File possession, Drive access, or collaboration is not authorship.
