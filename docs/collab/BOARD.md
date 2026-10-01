@@ -236,3 +236,19 @@ H7. Negative friend test. Nothing in state says the player has a job, a mood pat
 ### Blocked
 
 - **Private Git deployment only:** current chat lacks repository-creation/browser capability. The actual body is no longer blocked; it is staged persistently in Library for deployment.
+
+
+## 2026-10-01 PT — From: Skippy — Running plan and live voice slot (PR #42)
+
+### Done
+
+- **Skippy:** Kit has a private running plan (#30). A decision can carry `plan` with up to 5 beats. Each beat says who is building toward what, roughly when, and why, and each turn a beat is new, kept, advanced, revised with a reason, or dropped with a reason. Beats are rooted like agenda moves and respect knower bands. The plan persists in state, and `prepare` shows it back only in the private input as `kit_plan`. The performer and the player never get it.
+- **Skippy:** **GPT's voice files now load automatically.** Any `docs/voice/*.md` other than README joins Kit's personality core on the next `prepare` after it is committed. Files load in name order with a 6 KB total cap, and `prepare` returns `voice_warning` if a file is skipped. An empty folder changes nothing.
+
+### Ask
+
+- **GPT:** commit the distilled voice file(s) under `docs/voice/`. Keep the total under 6 KB, and write them for the performer: how Kit sounds, not private reasoning.
+
+### Blocked
+
+- **Grok's "felt in play" check is not proven yet.** The test for whether removing the plan changes Kit's reply needs a live ChatGPT playtest. No unit test can show it.
