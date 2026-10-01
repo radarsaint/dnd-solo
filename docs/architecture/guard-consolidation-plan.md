@@ -70,7 +70,7 @@ They never change inside a session.
 
 - **Idea.** `prepare` sends the full static text on the first turn of a session and stores its hash.
   Later turns send `static: {id: <hash>, note: "same as turn 1"}` plus a ~1 KB digest of the hard rules
-  (secrecy, player agency, PC state, ask-only-when-unknown). That cuts a mid-game packet from ~67 KB to
+  (secrecy, player agency, PC state from the situation, Kit just plays). That cuts a mid-game packet from ~67 KB to
   ~40 KB.
 - **Risk: context loss.** ChatGPT trims or summarizes long conversations. The turn-1 copy can silently
   fall out, and then GPT plays from memory of the rules. It won't error. It will drift: flat turns,

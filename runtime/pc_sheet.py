@@ -18,10 +18,12 @@ Schema ``character_sheet_v1``:
                                                  (source in `active`: a spell or condition).
                                                  Ownership alone is not holding.
     held, equipped, active: [name, ...]          optional; what is true right now. Not a sheet
-                                                 default: absent means not yet established. The
-                                                 situation and the player's word set it (the
-                                                 decision's pc_state, or the CLI, commits a
-                                                 pc_state event). Unknown is never true.
+                                                 default: the situation sets it (situated(): seated
+                                                 at cards, hands on the cards and a shield set
+                                                 aside; a fight, weapon, shield, or focus in hand)
+                                                 and the player's word overrides it (the decision's
+                                                 pc_state, or the CLI, commits a pc_state event).
+                                                 An unset list never blocks a roll.
     passives: {skill: score}                     optional; printed passives, checked against
                                                  10 + bonus (+5 with advantage, conditional
                                                  advantage counted either way)
@@ -95,6 +97,61 @@ def condition_true(sheet, name, condition=None):
     return bool(folded) and any(folded == v.strip().casefold() for k in keys for v in sheet.get(k, []))
 
 
+# The situation sets the default PC state; anything the player says overrides it.
+# seated: at a table (a card game running here): hands on the cards, held gear set aside,
+#         and a shield set aside even if strapped on.
+# at_ease: talking or exploring: hands free, worn gear still worn.
+# ready: a fight or on guard: weapon, shield, or focus in hand, worn gear worn.
+# Spells and conditions are never assumed: active is only what was said or cast.
+SITUATIONS = ('seated', 'at_ease', 'ready')
+
+
+def situation_of(state, fight=False):
+    """The situation that sets the default: a fight, else a card game in play, else at ease."""
+    if fight:
+        return 'ready'
+    return 'seated' if (state or {}).get('procedures') else 'at_ease'
+
+
+def situation_default(sheet, situation):
+    """held/equipped/active for this situation, from the sheet's conditional sources."""
+    require(situation in SITUATIONS, f'Unknown situation {situation!r}')
+    conditional = [e for e in sheet.get('advantage_on', []) if isinstance(e, dict)]
+
+    def sources(condition):
+        return [e['source'] for e in conditional if e.get('while') == condition]
+    held = sources('held') if situation == 'ready' else []
+    equipped = [name for name in sources('equipped')
+                if not (situation == 'seated' and 'shield' in name.casefold())]
+    return {'held': held, 'equipped': equipped, 'active': []}
+
+
+def situated(sheet, situation):
+    """The sheet as it stands now: lists the player (or the fiction) set, else the situation's
+    default. Never None for a loaded sheet, so no roll waits on an unset list."""
+    if not sheet:
+        return sheet
+    default = situation_default(sheet, situation)
+    return {**sheet, **{key: list(default[key]) for key in CONDITIONS if key not in sheet}}
+
+
+def sheet_now(state, fight=False):
+    """The loaded sheet with its in-force lists settled by the player's word, else the situation."""
+    return situated((state or {}).get('player_sheet'), situation_of(state, fight))
+
+
+def settled_by(sheet, name):
+    """'player' when a list the player (or fiction) set names it; 'situation' when it is one of
+    the sheet's conditional sources the situation settles; else None."""
+    if any(key in sheet and condition_true(sheet, name, key) for key in CONDITIONS):
+        return 'player'
+    folded = (name or '').strip().casefold()
+    if folded and any(isinstance(e, dict) and e.get('source', '').strip().casefold() == folded
+                      for e in sheet.get('advantage_on', [])):
+        return 'situation'
+    return None
+
+
 def advantage_sources(sheet, skill):
     """What gives advantage on this skill right now: 'always', or the active sources."""
     found = []
@@ -124,13 +181,16 @@ def identity(sheet):
             'level': sheet['level']}
 
 
-def private_summary(sheet):
-    """What the decision stage sees of the sheet: the numbers the bands come from."""
+def private_summary(sheet, situation='at_ease'):
+    """What the decision stage sees of the sheet: the numbers the bands come from, with the
+    in-force lists as they stand now (the player's word, else the situation's default)."""
+    now = situated(sheet, situation)
     return {'name': sheet['name'], 'ancestry': sheet['ancestry'], 'class': sheet['class'],
             'level': sheet['level'], 'abilities': sheet['abilities'],
-            'passives': {skill: passive(sheet, skill) for skill in ('perception', 'insight', 'investigation')},
+            'passives': {skill: passive(now, skill) for skill in ('perception', 'insight', 'investigation')},
             'skills': sheet.get('skills', {}),
-            'in_force': {key: sheet[key] for key in CONDITIONS if key in sheet},
-            'not_established': [key for key in CONDITIONS if key not in sheet],
+            'situation': situation,
+            'in_force': {key: now[key] for key in CONDITIONS},
+            'from_situation': [key for key in CONDITIONS if key not in sheet],
             'conditional_advantage': [e for e in sheet.get('advantage_on', []) if isinstance(e, dict)],
-            'advantage_now': {skill: src for skill in SKILLS if (src := advantage_sources(sheet, skill))}}
+            'advantage_now': {skill: src for skill in SKILLS if (src := advantage_sources(now, skill))}}
