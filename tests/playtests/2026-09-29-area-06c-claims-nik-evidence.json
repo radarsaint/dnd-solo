@@ -1,0 +1,845 @@
+{
+  "schema": "kit_live_playtest_evidence_v1",
+  "status": "ended_by_player",
+  "date_local": "2026-09-29",
+  "timezone": "America/Los_Angeles",
+  "surface": "ChatGPT Work; chat host authors one-pass decision and performance; no separate API model",
+  "tested_remote_branch": "kit-claims-knowers",
+  "tested_remote_commit": "217fa765acb1e7423acf342408489ddb317fff0e",
+  "tested_local_commit": "9301a6f",
+  "tested_tree": "635a4c97f375170f95486596d9a7702748cbb8e8",
+  "fixture_sha256": "0c4e47eccea219998b95dacd2af77b63e74c54ff291e14f1791cef6a9828559f",
+  "character_sha256": "e09a0cc915307ef9c8ab803f2498954325a1a95ab47848741415cfb54b278275",
+  "committed_turns": [
+    {
+      "turn_id": "live-6c-20260929-opening",
+      "performance_variant": "kit_expression_v1",
+      "player_input": "[scene entry]",
+      "public_event": "A newcomer has reached the card room.",
+      "spoken": "Narrator: A card stops halfway to the table. The dealer looks toward the doorway, smiling wide enough to show pointed teeth. His three companions are equally pale, equally overdressed. One folds a hand over his coins. The dealer resumes; his eyes drop to the backs of the cards as he deals.\n\nBeyond them, carved mountains cover the north wall, tiny dwarves working in caverns beneath spreading rays of stone sunlight. A broad stone tub is sunk into the floor below it. A silver ring lies among the coins on the worn table.\n\nThe dealer's voice arrives in a leisurely, theatrical drawl.\nDealer: Come closer, long ears. I like to see who's watching my cards. Have you come down here looking for gold, or have you brought some for the rest of us?",
+      "trace": {
+        "appraisal": {
+          "cause": "The newcomer interrupts a card table whose dealer wants to size up and profit from visitors.",
+          "goal_effect": "advances",
+          "intensity": 1,
+          "label": "interest",
+          "target": "scene"
+        },
+        "claims": [
+          {
+            "about": "item:dealer_deck/marks",
+            "claim": "marked_deck",
+            "holder": "uktarl",
+            "roots": [],
+            "speaker": "narrator",
+            "stance": "fingerprint",
+            "truth": "The dealer's deck carries subtle marks and he deals seconds.",
+            "version": "His eyes drop to the backs of the cards as he deals.",
+            "why": "Nik's passive Perception earns deniable evidence in the dealer's visible card handling."
+          }
+        ],
+        "detail": {
+          "because": "none",
+          "candidates": [],
+          "choice": "none",
+          "chosen": -1,
+          "handle": "none",
+          "inventions": [],
+          "owner": "none",
+          "price_quote": [],
+          "request": "none",
+          "slot": "none",
+          "typical": -1
+        },
+        "focus_actor": "uktarl",
+        "goal": "roleplay",
+        "improv_read": {
+          "actor_basis": "immediate_goal",
+          "actor_ref": "uktarl",
+          "connection": "The newcomer interrupts the game; the dealer wants control, so his opening probes what brought this visitor below.",
+          "kit_choice": "Give the dealer a pointed question about gold while keeping the card handling and north-wall exploration in view.",
+          "player_bid": "Scene entry; Nik has not yet spoken or chosen an action.",
+          "story_anchor": "scene",
+          "story_basis": "scene_state"
+        },
+        "memory_refs": [],
+        "move": "world_description",
+        "observed_event": "A newcomer has reached the card room.",
+        "player_mood": {
+          "cue": "none",
+          "read": "neutral"
+        },
+        "player_note": {
+          "evidence_turns": [],
+          "note": "none",
+          "replaces": "none"
+        },
+        "public_brief": {
+          "callback": "none",
+          "kit_focus": "Let the interrupted deal and guarded coins frame the greeting; keep the north-wall carving and recessed tub visible.",
+          "mirror": "steady energy, tight, no humor: set the scene with a crisp invitation and leave room for an answer.",
+          "npc_notice": "none",
+          "objective": "Size up what the newcomer wants and whether he carries coin.",
+          "player_opening": "The newcomer can answer the dealer, watch the game, inspect the room, or leave.",
+          "reply_to": "none",
+          "scope": "feature",
+          "tactic": "Invite the newcomer closer, then probe his purpose through an offer of company at the table.",
+          "visible_cue": "The dealer pauses with a card between two fingers; a companion covers his coins."
+        },
+        "table_presence": "quiet",
+        "tone": "curious",
+        "turn_mode": "description"
+      }
+    },
+    {
+      "turn_id": "live-6c-20260929-02-knowledge",
+      "kit_reacts_to": [
+        {
+          "reacts_to": "Do I know who this is?",
+          "text": "You don't recognise the dealer, and he hasn't given you a name yet."
+        }
+      ],
+      "performance_variant": "kit_expression_v1",
+      "player_input": "Rules question: Hey kit. Do I know who this is?",
+      "public_event": "You declare: \"Rules question: Hey kit. Do I know who this is?\"",
+      "spoken": "Kit: You don't recognise the dealer, and he hasn't given you a name yet.",
+      "trace": {
+        "appraisal": {
+          "cause": "The player asks what Nik already knows about the dealer; the scene supplies no established acquaintance or public name.",
+          "goal_effect": "neutral",
+          "intensity": 0,
+          "label": "none",
+          "target": "player"
+        },
+        "claims": [],
+        "detail": {
+          "because": "none",
+          "candidates": [],
+          "choice": "none",
+          "chosen": -1,
+          "handle": "none",
+          "inventions": [],
+          "owner": "none",
+          "price_quote": [],
+          "request": "none",
+          "slot": "none",
+          "typical": -1
+        },
+        "focus_actor": "none",
+        "goal": "fair_challenge",
+        "improv_read": {
+          "actor_basis": "none",
+          "actor_ref": "none",
+          "connection": "This is a table question about established knowledge, rather than speech to the people at the card table.",
+          "kit_choice": "Answer the recognition question directly and keep the dealer's private identity outside Nik's knowledge.",
+          "player_bid": "The player asks Kit whether Nik recognises the dealer.",
+          "story_anchor": "scene",
+          "story_basis": "scene_state"
+        },
+        "memory_refs": [],
+        "move": "ruling",
+        "observed_event": "You declare: \"Rules question: Hey kit. Do I know who this is?\"",
+        "player_mood": {
+          "cue": "Do I know who this is?",
+          "read": "curious"
+        },
+        "player_note": {
+          "evidence_turns": [],
+          "note": "none",
+          "replaces": "none"
+        },
+        "public_brief": {
+          "callback": "none",
+          "kit_focus": "Settle the dealer recognition question plainly, with no new scene action or unearned name.",
+          "mirror": "steady energy, tight, no humor: answer the knowledge question directly.",
+          "npc_notice": "none",
+          "objective": "Clarify whether Nik recognises the dealer.",
+          "player_opening": "The player can return to the unfinished greeting.",
+          "reply_to": "Do I know who this is?",
+          "scope": "call",
+          "tactic": "Answer from established acquaintance and the greeting already heard.",
+          "visible_cue": "The dealer has not offered a name."
+        },
+        "table_presence": "brief",
+        "tone": "plain",
+        "turn_mode": "meta"
+      }
+    },
+    {
+      "turn_id": "live-6c-20260929-03",
+      "kit_reacts_to": [
+        {
+          "reacts_to": "Three-Dragon Ante",
+          "text": "If you join, you can watch his hands. That's a Perception check."
+        }
+      ],
+      "performance_variant": "kit_expression_v1",
+      "player_input": "As Nik \" Hey uhh. Just hanging out and gambling? Whats the game?",
+      "public_event": "You declare: \"As Nik \" Hey uhh. Just hanging out and gambling? Whats the game?\"",
+      "spoken": "Narrator: The dealer squares the deck beside his coins, then turns the card between his fingers to show its dragon.\nDealer: Three-Dragon Ante. The strongest ante dragon sets the gold; three rounds build your flight, and the highest total wins the pot. The dragons have their own tricks, so there's more to it than counting. Do you know your dragons, or shall I teach you?\nKit: If you join, you can watch his hands. That's a Perception check.",
+      "trace": {
+        "appraisal": {
+          "cause": "Nik asks about the game, giving the dealer a chance to turn casual curiosity into a profitable seat at his table.",
+          "goal_effect": "advances",
+          "intensity": 1,
+          "label": "interest",
+          "target": "player"
+        },
+        "claims": [
+          {
+            "about": "area_06c/card_table/game",
+            "claim": "new",
+            "holder": "uktarl",
+            "roots": [
+              "card_table",
+              "actor:uktarl"
+            ],
+            "speaker": "uktarl",
+            "stance": "truth",
+            "truth": "The table plays Three-Dragon Ante using its own dragon deck and table rules.",
+            "version": "Three-Dragon Ante.",
+            "why": "He names his game to draw the newcomer into gambling and profit from him."
+          }
+        ],
+        "detail": {
+          "because": "true because the dealer and three companions play cards with coins in front of them",
+          "candidates": [
+            {
+              "creates": "A choice about taking another card.",
+              "idea": "Blackjack adapted to a dungeon card table.",
+              "uses": "The dealer, cards and coins already on the table."
+            },
+            {
+              "creates": "Choices of ante, flight, color power and scrutiny of the dealer.",
+              "idea": "Three-Dragon Ante with card antes, flights and dragon color powers.",
+              "uses": "The dealer plays cards for coins; the runtime supports this dragon game."
+            },
+            {
+              "creates": "A choice about trusting or challenging another player.",
+              "idea": "Cheat, the bluffing card game.",
+              "uses": "Four card players with money in front of them."
+            }
+          ],
+          "choice": "self",
+          "chosen": 1,
+          "handle": "buy in, ante a dragon, play a flight, or watch the deal",
+          "inventions": [
+            {
+              "basis": "DM choice: the adventure names no card game; adapt the published Three-Dragon Ante through the supported table procedure.",
+              "change_reason": "none",
+              "fact": "Three-Dragon Ante: dragon cards set the gold ante, then three rounds build flights whose color powers change the contest.",
+              "kind": "procedure",
+              "procedure": "three_dragon_ante",
+              "public": true,
+              "scope": "location",
+              "slot": "area_06c/card_table/game"
+            }
+          ],
+          "owner": "uktarl: profit from a newcomer at the card table",
+          "price_quote": [],
+          "request": "Whats the game?",
+          "slot": "self: area_06c/card_table/game",
+          "typical": 0
+        },
+        "focus_actor": "uktarl",
+        "goal": "npc_embodiment",
+        "improv_read": {
+          "actor_basis": "motive",
+          "actor_ref": "uktarl",
+          "connection": "Nik's curiosity opens the dealer's preferred route to profit: a newcomer voluntarily buying into his game.",
+          "kit_choice": "Declare a playable dragon game with consequential antes and color powers; let the dealer tempt a new player and leave scrutiny available.",
+          "player_bid": "Nik asks whether they are hanging out gambling and what game they are playing.",
+          "story_anchor": "scene",
+          "story_basis": "scene_state"
+        },
+        "memory_refs": [],
+        "move": "npc_reply",
+        "observed_event": "You declare: \"As Nik \" Hey uhh. Just hanging out and gambling? Whats the game?\"",
+        "player_mood": {
+          "cue": "Whats the game?",
+          "read": "curious"
+        },
+        "player_note": {
+          "evidence_turns": [],
+          "note": "none",
+          "replaces": "none"
+        },
+        "public_brief": {
+          "callback": "none",
+          "kit_focus": "Name the dragon game promptly, let the dealer invite a hand, and surface the option to watch the deal.",
+          "mirror": "steady energy, tight, no humor: answer the question and bring the table into play.",
+          "npc_notice": "none",
+          "objective": "Turn the newcomer's interest in the game into a seat at the table.",
+          "player_opening": "The newcomer can say whether he plays, ask to learn, or keep watching.",
+          "reply_to": "Whats the game?",
+          "scope": "exchange",
+          "tactic": "Present the ante and dragon powers as a lure, then ask whether the newcomer knows how to play.",
+          "visible_cue": "The dealer squares the deck and shows the dragon on the card between his fingers."
+        },
+        "table_presence": "brief",
+        "tone": "curious",
+        "turn_mode": "banter"
+      }
+    },
+    {
+      "turn_id": "live-6c-20260929-04",
+      "kit_reacts_to": [
+        {
+          "reacts_to": "bluff my way through with a performance check?",
+          "text": "You can try. That's Deception (+1) for pretending you know the game. Roll it, and tell me your buy-in. We'll check his hands when he deals."
+        }
+      ],
+      "performance_variant": "kit_expression_v1",
+      "player_input": "I join and watch his hands. I dont know how to play. Can I try to bluff my way through with a performance check?",
+      "public_event": "You declare: \"I join and watch his hands. I dont know how to play. Can I try to bluff my way through with a performance check?\"",
+      "spoken": "Kit: You can try. That's Deception (+1) for pretending you know the game. Roll it, and tell me your buy-in. We'll check his hands when he deals.",
+      "trace": {
+        "appraisal": {
+          "cause": "Nik wants to join, scrutinise the deal and conceal his lack of experience; resolve the bluff and stake before any cards or discoveries.",
+          "goal_effect": "advances",
+          "intensity": 1,
+          "label": "interest",
+          "target": "player"
+        },
+        "claims": [],
+        "detail": {
+          "because": "none",
+          "candidates": [],
+          "choice": "none",
+          "chosen": -1,
+          "handle": "none",
+          "inventions": [],
+          "owner": "none",
+          "price_quote": [],
+          "request": "none",
+          "slot": "none",
+          "typical": -1
+        },
+        "focus_actor": "none",
+        "goal": "fair_challenge",
+        "improv_read": {
+          "actor_basis": "motive",
+          "actor_ref": "uktarl",
+          "connection": "Nik volunteers for the dealer's profitable game but proposes concealing his inexperience and scrutinising the deal.",
+          "kit_choice": "Accept the bluff as an attempt, call the skill that covers concealing the truth, and establish the declared purse before the deal.",
+          "player_bid": "Nik declares that he joins and watches the dealer, then asks to bluff his lack of game knowledge using Performance.",
+          "story_anchor": "scene",
+          "story_basis": "scene_state"
+        },
+        "memory_refs": [],
+        "move": "ruling",
+        "observed_event": "You declare: \"I join and watch his hands. I dont know how to play. Can I try to bluff my way through with a performance check?\"",
+        "player_mood": {
+          "cue": "Can I try to bluff my way through with a performance check?",
+          "read": "curious"
+        },
+        "player_note": {
+          "evidence_turns": [],
+          "note": "none",
+          "replaces": "none"
+        },
+        "public_brief": {
+          "callback": "none",
+          "kit_focus": "Resolve the skill for concealing inexperience; hold the cards until the player declares a table purse.",
+          "mirror": "steady energy, tight, no humor: answer the skill question and request the missing stake.",
+          "npc_notice": "none",
+          "objective": "Set the bluff check and obtain the table purse needed for the buy-in.",
+          "player_opening": "The player supplies a Deception roll and buy-in; watching the hands remains queued for the deal.",
+          "reply_to": "bluff my way through with a performance check?",
+          "scope": "call",
+          "tactic": "Call Deception for pretending game experience and ask how much gold comes to the table.",
+          "visible_cue": "The next deal waits for the newcomer's declared buy-in."
+        },
+        "table_presence": "brief",
+        "tone": "warm",
+        "turn_mode": "meta"
+      }
+    },
+    {
+      "turn_id": "live-6c-20260929-05",
+      "kit_reacts_to": [
+        {
+          "reacts_to": "Can I buy in for 50 gold?",
+          "text": "Roll Perception with advantage, +4, for his hands."
+        }
+      ],
+      "performance_variant": "kit_expression_v1",
+      "player_input": "16+1 17. Can I buy in for 50 gold?",
+      "public_event": "You buy in with 50 gp. The dealer does not question your experience.",
+      "spoken": "Narrator: You buy in with 50 gp. The dealer does not question your experience.\nDealer: Fifty gold. Take your place, then; I'm always glad to meet someone who brings enough coin to make the cards worth turning.\nKit: Roll Perception with advantage, +4, for his hands.",
+      "trace": {
+        "appraisal": {
+          "cause": "Nik's submitted bluff beats the dealer's passive Insight and he commits a 50-gold table purse; his scrutiny of the forthcoming deal remains unresolved.",
+          "goal_effect": "advances",
+          "intensity": 1,
+          "label": "interest",
+          "target": "player"
+        },
+        "claims": [],
+        "detail": {
+          "because": "none",
+          "candidates": [],
+          "choice": "none",
+          "chosen": -1,
+          "handle": "none",
+          "inventions": [],
+          "owner": "none",
+          "price_quote": [],
+          "request": "none",
+          "slot": "none",
+          "typical": -1
+        },
+        "focus_actor": "none",
+        "goal": "reward_creativity",
+        "improv_read": {
+          "actor_basis": "motive",
+          "actor_ref": "uktarl",
+          "connection": "A confident newcomer with 50 gold offers the dealer the profitable table participation he wants.",
+          "kit_choice": "Let the accepted bluff and purse land, then call the watched-deal Perception roll with Nik's loaded advantage.",
+          "player_bid": "Nik supplies a Deception total of 17 and asks to buy in for 50 gold.",
+          "story_anchor": "scene",
+          "story_basis": "scene_state"
+        },
+        "memory_refs": [],
+        "move": "ruling",
+        "observed_event": "You buy in with 50 gp. The dealer does not question your experience.",
+        "player_mood": {
+          "cue": "none",
+          "read": "neutral"
+        },
+        "player_note": {
+          "evidence_turns": [],
+          "note": "none",
+          "replaces": "none"
+        },
+        "public_brief": {
+          "callback": "none",
+          "kit_focus": "Let the fifty-gold purse draw the dealer's welcome, then call Perception for the scrutiny already declared.",
+          "mirror": "steady energy, tight, no humor: let the buy-in land and call the next roll.",
+          "npc_notice": "none",
+          "objective": "Accept the buy-in and obtain the roll for watching the next deal.",
+          "player_opening": "The player rolls Perception with advantage before the watched deal resolves.",
+          "reply_to": "Can I buy in for 50 gold?",
+          "scope": "call",
+          "tactic": "Let the dealer welcome the purse; Kit calls the watched-deal check.",
+          "visible_cue": "The dealer keeps his deck ready for the newcomer's first hand."
+        },
+        "table_presence": "brief",
+        "tone": "warm",
+        "turn_mode": "meta"
+      }
+    },
+    {
+      "turn_id": "live-6c-20260929-06",
+      "kit_reacts_to": [
+        {
+          "reacts_to": "roll result",
+          "text": "Your Sentinel Shield grants Perception advantage while you're holding it."
+        }
+      ],
+      "performance_variant": "kit_expression_v1",
+      "player_input": "roll result 14+4 18",
+      "public_event": "Gambit 1: the dealer deals everyone up to six cards. Your hand: black 3, green 1, brass 2, green 2, white 1, white 6. You catch it: his eyes read the backs of the cards as he deals, and he gives himself the second card instead of the top one. (Perception 18 vs 7) Choose a card to ante.",
+      "spoken": "Narrator: Gambit 1: the dealer deals everyone up to six cards. Your hand: black 3, green 1, brass 2, green 2, white 1, white 6. You catch it: his eyes read the backs of the cards as he deals, and he gives himself the second card instead of the top one. (Perception 18 vs 7) Choose a card to ante.\nKit: Your Sentinel Shield grants Perception advantage while you're holding it.\nNarrator: The fresco-side player hunches over his coins.\nFresco-side player: Keep your hands on your cards.\nDoor-side player: Don't start, please. Let him play.\nDealer: Keep your scowls for your cards. Our guest came to play. One dragon face down, sir; give the table something worth fearing. A fine purse ought to travel with a fine nerve.",
+      "trace": {
+        "appraisal": {
+          "cause": "Nik catches the second deal without confronting the dealer; a live crooked game now puts his choice against the dealer's appetite for his purse.",
+          "goal_effect": "advances",
+          "intensity": 2,
+          "label": "interest",
+          "target": "scene"
+        },
+        "claims": [],
+        "detail": {
+          "because": "none",
+          "candidates": [],
+          "choice": "none",
+          "chosen": -1,
+          "handle": "none",
+          "inventions": [],
+          "owner": "none",
+          "price_quote": [],
+          "request": "none",
+          "slot": "none",
+          "typical": -1
+        },
+        "focus_actor": "uktarl",
+        "goal": "npc_embodiment",
+        "improv_read": {
+          "actor_basis": "immediate_goal",
+          "actor_ref": "uktarl",
+          "connection": "Nik has privately caught the cheating. The dealer still wants an orderly, profitable game, while his companions protect their seats and coins.",
+          "kit_choice": "Return the discovery to the player without making an accusation for him; let territoriality, anxiety and salesmanship press the ante from different wants.",
+          "player_bid": "Nik supplies Perception 14 + 4 = 18 for watching the dealer's hands.",
+          "story_anchor": "scene",
+          "story_basis": "scene_state"
+        },
+        "memory_refs": [],
+        "move": "npc_reply",
+        "observed_event": "Gambit 1: the dealer deals everyone up to six cards. Your hand: black 3, green 1, brass 2, green 2, white 1, white 6. You catch it: his eyes read the backs of the cards as he deals, and he gives himself the second card instead of the top one. (Perception 18 vs 7) Choose a card to ante.",
+        "player_mood": {
+          "cue": "none",
+          "read": "neutral"
+        },
+        "player_note": {
+          "evidence_turns": [],
+          "note": "none",
+          "replaces": "none"
+        },
+        "public_brief": {
+          "callback": "none",
+          "kit_focus": "Name the Sentinel Shield as the Perception advantage source, then foreground the friction between guarded coins and the dealer's invitation.",
+          "mirror": "steady energy, tight, no humor: make the check source clear and bring the card players back into the scene.",
+          "npc_notice": "none",
+          "objective": "Keep the table moving toward the newcomer's ante.",
+          "player_opening": "The player can choose an ante card or respond to what he caught.",
+          "reply_to": "roll result 14+4 18",
+          "scope": "exchange",
+          "tactic": "The dealer reins in a companion's territorial warning and turns the moment into a dare to play.",
+          "visible_cue": "The fresco-side player hunches over his coins; the door-side player tries to calm him."
+        },
+        "table_presence": "brief",
+        "tone": "curious",
+        "turn_mode": "banter"
+      }
+    },
+    {
+      "turn_id": "live-6c-20260929-08",
+      "kit_reacts_to": [
+        {
+          "reacts_to": "Do I notice anything interesting?",
+          "text": "The mountain carving on the north wall draws the eye: dwarves tucked into caverns, with rays of sunlight spreading around the mountain. Beneath it is an eight-foot stone tub recessed into the floor. A closer look at the carving is a Perception check, +4."
+        }
+      ],
+      "performance_variant": "kit_expression_v1",
+      "player_input": "Rules question: Hey kit, whats going on in this room besides the gambling. Do I notice anything interesting?",
+      "public_event": "You declare: \"Rules question: Hey kit, whats going on in this room besides the gambling. Do I notice anything interesting?\"",
+      "spoken": "Kit: The mountain carving on the north wall draws the eye: dwarves tucked into caverns, with rays of sunlight spreading around the mountain. Beneath it is an eight-foot stone tub recessed into the floor. A closer look at the carving is a Perception check, +4.",
+      "trace": {
+        "appraisal": {
+          "cause": "The player turns attention beyond the card game toward other room features; the visible carving and recessed tub offer grounded exploration.",
+          "goal_effect": "advances",
+          "intensity": 1,
+          "label": "interest",
+          "target": "player"
+        },
+        "claims": [],
+        "detail": {
+          "because": "none",
+          "candidates": [],
+          "choice": "none",
+          "chosen": -1,
+          "handle": "none",
+          "inventions": [],
+          "owner": "none",
+          "price_quote": [],
+          "request": "none",
+          "slot": "none",
+          "typical": -1
+        },
+        "focus_actor": "none",
+        "goal": "story_enjoyment",
+        "improv_read": {
+          "actor_basis": "none",
+          "actor_ref": "none",
+          "connection": "The question opens exploration of the existing north-wall carving and tub while the game remains at its ante.",
+          "kit_choice": "Spotlight the carved dwarven scene and recessed bath, and offer the source-supported closer inspection without inventing a discovery.",
+          "player_bid": "The player asks Kit what Nik notices in the room besides the gambling.",
+          "story_anchor": "scene",
+          "story_basis": "scene_state"
+        },
+        "memory_refs": [],
+        "move": "ruling",
+        "observed_event": "You declare: \"Rules question: Hey kit, whats going on in this room besides the gambling. Do I notice anything interesting?\"",
+        "player_mood": {
+          "cue": "Do I notice anything interesting?",
+          "read": "curious"
+        },
+        "player_note": {
+          "evidence_turns": [],
+          "note": "none",
+          "replaces": "none"
+        },
+        "public_brief": {
+          "callback": "none",
+          "kit_focus": "Give the north-wall carving and recessed bath attention, keeping the closer look as the player's choice.",
+          "mirror": "steady energy, tight, no humor: answer the room question with a visible feature and its investigation handle.",
+          "npc_notice": "none",
+          "objective": "Show the visible exploration feature and a concrete way to investigate it.",
+          "player_opening": "The player may inspect the carving or declare another action.",
+          "reply_to": "Do I notice anything interesting?",
+          "scope": "call",
+          "tactic": "Describe the north-wall carving and tub, then identify the closer-inspection Perception check.",
+          "visible_cue": "Dwarven figures occupy the carved mountain's caverns, with carved sunlight spreading outward; the stone tub lies beneath."
+        },
+        "table_presence": "brief",
+        "tone": "curious",
+        "turn_mode": "meta"
+      }
+    }
+  ],
+  "timing": [
+    {
+      "turn_id": "live-6c-20260929-opening",
+      "committed_at": 1790715037.391889,
+      "mode": "one_pass",
+      "outcome": "committed",
+      "performance_variant": "kit_expression_v1",
+      "prepare_to_commit_s": 92.71,
+      "prepared_at": 1790714944.6817672
+    },
+    {
+      "turn_id": "live-6c-20260929-02",
+      "abandoned_at": 1790715150.230844,
+      "mode": "one_pass",
+      "outcome": "abandoned",
+      "performance_variant": "kit_expression_v1",
+      "prepared_at": 1790715083.6921074
+    },
+    {
+      "turn_id": "live-6c-20260929-02-meta",
+      "abandoned_at": 1790715203.8071065,
+      "mode": "one_pass",
+      "outcome": "abandoned",
+      "performance_variant": "kit_expression_v1",
+      "prepared_at": 1790715150.2359898
+    },
+    {
+      "turn_id": "live-6c-20260929-02-knowledge",
+      "committed_at": 1790715203.8262475,
+      "mode": "one_pass",
+      "outcome": "committed",
+      "performance_variant": "kit_expression_v1",
+      "prepare_to_commit_s": 0.013,
+      "prepared_at": 1790715203.8129628
+    },
+    {
+      "turn_id": "live-6c-20260929-03",
+      "committed_at": 1790715588.4289129,
+      "mode": "one_pass",
+      "outcome": "committed",
+      "performance_variant": "kit_expression_v1",
+      "prepare_to_commit_s": 212.723,
+      "prepared_at": 1790715375.7062335
+    },
+    {
+      "turn_id": "live-6c-20260929-04",
+      "committed_at": 1790715909.3602984,
+      "mode": "one_pass",
+      "outcome": "committed",
+      "performance_variant": "kit_expression_v1",
+      "prepare_to_commit_s": 186.992,
+      "prepared_at": 1790715722.3685436
+    },
+    {
+      "turn_id": "live-6c-20260929-05",
+      "committed_at": 1790716360.8271089,
+      "mode": "one_pass",
+      "outcome": "committed",
+      "performance_variant": "kit_expression_v1",
+      "prepare_to_commit_s": 0.026,
+      "prepared_at": 1790716360.801448
+    },
+    {
+      "turn_id": "live-6c-20260929-06",
+      "committed_at": 1790717035.80229,
+      "mode": "one_pass",
+      "outcome": "committed",
+      "performance_variant": "kit_expression_v1",
+      "prepare_to_commit_s": 211.535,
+      "prepared_at": 1790716824.2674253
+    },
+    {
+      "turn_id": "live-6c-20260929-07-clarification",
+      "abandoned_at": 1790717474.5639443,
+      "last_rejection": "Padding: the turn recycles an earlier line (\"1 brass 2 green 2 white 1 white\"). Characters do not repeat themselves across turns.",
+      "mode": "one_pass",
+      "outcome": "abandoned",
+      "performance_variant": "kit_expression_v1",
+      "prepared_at": 1790717343.151506,
+      "rejected_attempts": 1
+    },
+    {
+      "turn_id": "live-6c-20260929-08",
+      "committed_at": 1790717474.5926285,
+      "mode": "one_pass",
+      "outcome": "committed",
+      "performance_variant": "kit_expression_v1",
+      "prepare_to_commit_s": 0.019,
+      "prepared_at": 1790717474.5735352
+    }
+  ],
+  "feedback": [
+    {
+      "evidence_turns": [
+        "live-6c-20260929-02-knowledge"
+      ],
+      "id": "n4",
+      "note": "Answer was acceptable but could have resolved quickly with a simple no and then prompted a relevant check.",
+      "source": "feedback"
+    },
+    {
+      "evidence_turns": [
+        "live-6c-20260929-05"
+      ],
+      "id": "n8",
+      "note": "Keep NPCs talking, bantering and showing personality through play. After the initial third-person description their personality fell flat. State the source of any advantage or disadvantage in the game text.",
+      "source": "feedback"
+    },
+    {
+      "evidence_turns": [
+        "live-6c-20260929-06"
+      ],
+      "id": "n10",
+      "note": "Assuming Nik held his Sentinel Shield while seated at a card table was generous or naive. Ownership and a sheet bonus do not establish that gear is held or its use condition met. Consider the physical implications, ask only if necessary, and state an established advantage or disadvantage source.",
+      "source": "feedback"
+    },
+    {
+      "evidence_turns": [
+        "live-6c-20260929-06",
+        "live-6c-20260929-08"
+      ],
+      "id": "n13",
+      "note": "Card games must remain optional. Sustain the scene through NPC interests and story instead of requiring each card choice. Players may want to move on. Reply length compared with wait time is poor.",
+      "source": "feedback"
+    },
+    {
+      "evidence_turns": [
+        "live-6c-20260929-08"
+      ],
+      "id": "n14",
+      "note": "Saying the relief catches the eye needs a basic visual description that explains what draws attention. The emphasis was not supported well enough by the description.",
+      "source": "feedback"
+    },
+    {
+      "evidence_turns": [
+        "live-6c-20260929-08"
+      ],
+      "id": "n15",
+      "note": "Test ended at the player's request. The room has a point; that point was not evident in play. Write up and publish this failure, including the earlier story, NPC, description, equipment-condition and latency feedback.",
+      "source": "feedback"
+    }
+  ],
+  "final_state": {
+    "revision": 15,
+    "area": "area_06c",
+    "known_facts": [
+      "card_table",
+      "fresco",
+      "tub",
+      "treasure_on_table",
+      "marked_deck"
+    ],
+    "passive_perception": 14,
+    "advantage_on": [],
+    "game_public": {
+      "carried": 0,
+      "dm_choice": "DM choice, not the adventure's: the adventure names no game, rules, or stakes for this table. Kit chose Three-Dragon Ante, a Forgotten Realms card game many D&D players know, and runs it in the published game's shape (card antes set the stakes, three rounds of flights, color powers) with her own short deck and power list, written in her own words. Texas hold 'em or blackjack would have been just as valid.",
+      "gambit": {
+        "ante_amount": null,
+        "ante_cards": {},
+        "cheat_seen": true,
+        "flights": {
+          "bandit_a": [],
+          "bandit_b": [],
+          "doppelganger": [],
+          "player": [],
+          "uktarl": []
+        },
+        "last_round": null,
+        "leader": null,
+        "number": 1,
+        "out": [],
+        "phase": "ante",
+        "plays": [],
+        "read": null,
+        "round": 0,
+        "round_cards": [],
+        "seats": [
+          "player",
+          "bandit_a",
+          "bandit_b",
+          "doppelganger",
+          "uktarl"
+        ],
+        "stakes": 0,
+        "swapped": false,
+        "to_act": "player"
+      },
+      "gambits_played": 0,
+      "last_result": null,
+      "name": "Three-Dragon Ante (Kit's table rules)",
+      "player": {
+        "bought_in": 50,
+        "gp": 50,
+        "hand": [
+          "black 3",
+          "green 1",
+          "brass 2",
+          "green 2",
+          "white 1",
+          "white 6"
+        ],
+        "unwelcome": false,
+        "watch_next_deal": false
+      },
+      "stacks": {
+        "bandit_a": 15,
+        "bandit_b": 18,
+        "doppelganger": 22,
+        "uktarl": 30
+      },
+      "stacks_note": "The gold stacks are the table's gold split by seat (a DM choice). The silver and copper stay on the table as color, not stakes.",
+      "table_mood": "open",
+      "unit": "gp"
+    }
+  },
+  "host_interventions": [
+    {
+      "turn": "live-6c-20260929-02-knowledge",
+      "original_input": "Hey kit. Do I know who this is?",
+      "change": "Host added Rules question: after direct Kit address and OOC: failed to admit a short ruling. Exact player words preserved."
+    },
+    {
+      "turn": "live-6c-20260929-03",
+      "change": "Whats the game? did not trigger the detail oracle. Host selected the supported game through the self-detail path with three candidates."
+    },
+    {
+      "turn": "live-6c-20260929-05",
+      "change": "Host supplied a one-turn adjudicator: it resolves the authorised 50-gp join through the existing engine and compares the submitted Deception 17 with dealer passive Insight 10. No game card chosen or dealt for the player."
+    },
+    {
+      "turn": "live-6c-20260929-06",
+      "change": "Host supplied a one-turn adjudicator translating the requested watching and submitted 14 + 4 = 18 into the engine's card_watch input. No second player die invented."
+    },
+    {
+      "turn": "live-6c-20260929-07-clarification",
+      "change": "Host removed unestablished shield advantage from the session sheet and recomputed passive Perception to 14. A no-world-write clarification was staged after a missing ante card; its hand reminder was rejected as repetition. The player redirected before completion; the stage was abandoned."
+    },
+    {
+      "turn": "live-6c-20260929-08",
+      "original_input": "Hey kit, whats going on in this room besides the gambling. Do I notice anything interesting?",
+      "change": "Host added Rules question: for a direct DM perception question. No exploration check or reveal executed."
+    }
+  ],
+  "user_facing_differences": [
+    {
+      "turn": "live-6c-20260929-06",
+      "change": "The displayed chat shortened the automatic deal event, retained all six cards and the 18-versus-7 outcome, and omitted its Choose a card to ante sentence. The committed spoken record retains the raw automatic event."
+    }
+  ],
+  "pending_rulings_not_committed": [
+    {
+      "player_input": "I play the game.",
+      "message": "Name the card from your hand.",
+      "consequence": "No ante, payout or completed round. A subsequent staged clarification was rejected and then abandoned."
+    }
+  ],
+  "final_player_feedback": "End test. The room has a point. The point was not evident. Write it up. Push to git",
+  "limits": [
+    "Unblinded live test with the actual player; no paired or human-DM comparison.",
+    "Host interventions and session-only repairs mean this does not prove unchanged CLI support for all inputs.",
+    "Prepare-to-commit timestamps exclude host work before prepare or restaging; sub-second samples are not chat response times.",
+    "Private decision traces are developer evidence; do not expose them in a blind player evaluation."
+  ]
+}

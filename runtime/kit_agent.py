@@ -17,6 +17,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from . import kit_cards
+from . import kit_claims
+from . import pc_sheet
 from . import kit_detail
 from . import kit_prices
 from . import kit_texture
@@ -184,10 +186,21 @@ class Room6CAdjudicator:
         self.sleight_of_hand = sleight_of_hand
         self.source = source  # the room source, for its table procedures (set by the bridge)
 
+    def skill_modifier(self, skill, state):
+        """Host override, else the currently loaded sheet; never cache a PC's stats."""
+        override = getattr(self, skill)
+        if override is not None:
+            return override
+        sheet = state.get('player_sheet')
+        return pc_sheet.skill_bonus(sheet, skill) if sheet else None
+
     def resolve(self, action, revision, state, addressed=False):
         require(isinstance(action, str) and action.strip(), 'Player action required')
         if state['area'] != 'area_06c':
             raise PendingRuling('This play slice covers area 6c only. No turn was committed.')
+        target = kit_claims.roll_target(action, self.source)
+        if target and not QUOTED_SPEECH.search(action.translate(_TYPOGRAPHIC)):
+            return self._resolve_knowledge(action, revision, state, *target)
         table = card_procedure(self.source, state)
         card_kind = kit_cards.card_intent(action, table[2]) if table else None
         kind = room_intent(action, addressed)
@@ -226,7 +239,7 @@ class Room6CAdjudicator:
             event = {'type': 'reveal_fact', 'fact': 'tub_stash', 'evidence': evidence}
             return Resolution(kind, public, [event])
         elif kind in ('inspect_fresco', 'insight'):
-            modifier = self.perception if kind == 'inspect_fresco' else self.insight
+            modifier = self.skill_modifier('perception' if kind == 'inspect_fresco' else 'insight', state)
             if modifier is None:
                 skill = 'Perception' if kind == 'inspect_fresco' else 'Insight'
                 raise PendingRuling(f'Supply your {skill} modifier with --{skill.lower()} before this check. No turn was committed.')
@@ -263,12 +276,43 @@ class Room6CAdjudicator:
                  'evidence': f'Player declared: {action}. Resolution: {public}'}
         return Resolution(kind, public, [event])
 
+    def _resolve_knowledge(self, action, revision, state, claim_id, claim):
+        """A player-initiated knowledge roll (History, Arcana...) against a claim's DC.
+        Only the player starts one; the runtime never rolls knowledge unprompted."""
+        skill = claim['pc_check']
+        supplied = kit_cards.supplied_roll(action)
+        sheet = state.get('player_sheet')
+        if supplied and supplied[1] is not None:
+            die, modifier = supplied
+        else:
+            require(sheet is not None or supplied, f'Load a character sheet or state the {skill} roll '
+                    '(e.g. "I rolled 12 + 7 = 19"). No turn was committed.')
+            modifier = pc_sheet.skill_bonus(sheet, skill) if sheet else 0
+            if supplied:
+                die = supplied[0]
+            else:
+                require('roll_seed' in state, 'This session predates stable checks; start a fresh database.')
+                material = f"{state['roll_seed']}:{revision}:{claim_id}:{action.casefold()}".encode()
+                die = int.from_bytes(hashlib.sha256(material).digest()[:8], 'big') % 20 + 1
+        dc = kit_claims.claim_dc(claim, state.get('actors', {}),
+                                  kit_claims.current_floor_level(self.source, state.get('area')))
+        total = die + modifier
+        name = skill.replace('_', ' ').title()
+        evidence = f'Player rolled {name} for {claim_id}: d20 {die} + {modifier} = {total} vs DC {dc}.'
+        if total >= dc:
+            text = claim.get('learned_text') or claim['truth']
+            return Resolution('knowledge', f'{text} ({name} {total} vs DC {dc})',
+                              [{'type': 'claim_learned', 'claim': claim_id, 'evidence': evidence},
+                               {'type': 'beat', 'tags': ['knowledge'], 'evidence': evidence}])
+        return Resolution('knowledge', f'Nothing you know places it. ({name} {total} vs DC {dc})',
+                          [{'type': 'beat', 'tags': ['knowledge'], 'evidence': evidence}])
+
     def _resolve_card(self, kind, action, revision, state, table):
         """One card-table action through the declared procedure (runtime/kit_cards.py)."""
         key, config, body = table
         require('roll_seed' in state, 'This session predates stable checks; start a fresh test database.')
-        engine = kit_cards.CardTable(key, config, {'perception': self.perception, 'insight': self.insight,
-                                                   'sleight_of_hand': self.sleight_of_hand},
+        engine = kit_cards.CardTable(key, config, {skill: self.skill_modifier(skill, state)
+                                                   for skill in ('perception', 'insight', 'sleight_of_hand')},
                                      state['roll_seed'])
         try:
             public, new_state, reveals = engine.resolve(kind, action, revision, body)
@@ -332,11 +376,18 @@ PLAN_SCHEMA = {
         # and the brief's mirror and npc_notice are its public carriers.
         'player_mood': kit_voice.PLAYER_MOOD_SCHEMA,
         'turn_mode': {'type': 'string', 'enum': list(kit_voice.TURN_MODES)},
+        # Claims and knowers (runtime/kit_claims.py): who says which claim, how, and why.
+        # Optional on the bridge; empty when nobody states a claim.
+        'claims': kit_claims.CLAIMS_SCHEMA,
     },
     'required': ['observed_event', 'goal', 'appraisal', 'memory_refs', 'improv_read', 'move', 'public_brief',
                  'focus_actor', 'table_presence', 'tone', 'player_note', 'player_mood', 'turn_mode',
                  'detail'],
 }
+
+# The strict API schema needs every property required.
+API_PLAN_SCHEMA = json.loads(json.dumps(PLAN_SCHEMA))
+API_PLAN_SCHEMA['required'] = API_PLAN_SCHEMA['required'] + ['claims']
 
 SPEECH_SCHEMA = {
     'type': 'object', 'additionalProperties': False,
@@ -604,7 +655,26 @@ PRIVATE_INSTRUCTIONS = (
     'procedure from supported_procedures only when the thing is offered as playable; any other '
     'game is flavor (procedure none), and nobody states rules or stakes for it. A canon fact '
     'changes only with an in-story change_reason. Never ask for small, simple, or safe '
-    'stakes, answers, or details: the specific one is the job.'
+    'stakes, answers, or details: the specific one is the job. '
+    'CLAIMS. Every detail anyone states is a claim someone in the world holds. Before you say '
+    'one, answer three questions. Source: is it the adventure\u2019s, established canon, or your '
+    'choice? If yours, grow it from a fact already in the scene, write it once, and it stays '
+    'true. Knower: who holds it? claims_here gives each character\u2019s band: knows, close, '
+    'anchored (a wrong version grown from the obvious feature, held with certainty), or '
+    'unaware. Read the player character from claims_here.pc (their own loaded sheet); never '
+    'assume a particular character. The narrator knows only what that character plainly '
+    'perceives, what their passive Insight or Perception has earned (pc_band fingerprint: '
+    'deniable evidence, never the label), and what their own rolls found; Kit\u2019s asides hint '
+    'only as far as the wink tier allows (point: where to look; name_kind: the kind of thing; '
+    'never the secret). A missing adventure concealment DC defaults to 10 + floor(dungeon '
+    'floor level / 3); the current area may provide optional floor_level, otherwise use 1. '
+    'Motive: why would this person say it now? Choose truth, lie, boast, '
+    'bargain, hedge, or silence from their wants; Charisma decides how well they manage it. '
+    'Intelligence changes how far someone reasons and how they go wrong, never how well they '
+    'talk. Nobody answers like a helpful assistant, and nobody sounds like Kit. When the player '
+    'asks, someone answers, even if it\u2019s a lie or a refusal. Record each stated claim in '
+    'claims (claim id or new, speaker, stance, version, why); a lie, boast, or bargain\u2019s why '
+    'cites the speaker\u2019s want. Never roll a knowledge check for the player.'
 )
 
 PUBLIC_INSTRUCTIONS = (
@@ -675,7 +745,8 @@ PUBLIC_INSTRUCTIONS = (
     'other speakers use none. Her remark must fit that line: never claim something did not '
     'happen when it just did. new_details, when present, are the details the decision chose: '
     'let them land in the scene as stated, with their numbers exact, and never shrink them to '
-    'a stock answer. new_procedures, when present, are table games the runtime can run; only '
+    'a stock answer. claim_lines, when present, are what a speaker says about a claim: say it as '
+    'that speaker would, and never correct or explain it. new_procedures, when present, are table games the runtime can run; only '
     'those may be offered as playable with rules or stakes, and while one runs (table_procedures) '
     'only its own rules and stakes are stated. SCENE FIT: call the player only what '
     'your_character says they are; never narrate a deal as clean or honest (say only what the '
@@ -792,7 +863,7 @@ class OpenAIResponsesModel:
             raise InvalidChange('Model returned invalid JSON') from exc
 
     def plan(self, payload):
-        return self._complete(PRIVATE_INSTRUCTIONS, payload, 'kit_private_decision', PLAN_SCHEMA)
+        return self._complete(PRIVATE_INSTRUCTIONS, payload, 'kit_private_decision', API_PLAN_SCHEMA)
 
     def perform(self, payload, performance_variant='current'):
         speech = self._complete(PERFORMANCE_VARIANTS[check_variant(performance_variant)], payload,
@@ -809,9 +880,11 @@ def supported_procedures(source):
 
 def check_plan(plan, episodes, public_event, action_kind=None, candidates=None, player_action=None,
                player_notes=(), committed_turn_ids=(), source=None, state=None, established='',
-               oracle=None):
-    require(isinstance(plan, dict) and set(plan) == set(PLAN_SCHEMA['required']),
+               oracle=None, claims_packet=None):
+    require(isinstance(plan, dict) and set(plan) - {'claims'} == set(PLAN_SCHEMA['required']),
             'Incomplete private decision')
+    if 'claims' in plan:
+        kit_claims.check_claims(plan['claims'], claims_packet, source or {}, state or {})
     for key in ('observed_event', 'goal'):
         require(isinstance(plan[key], str) and plan[key].strip(), f'Missing {key}')
     require(plan['observed_event'] == public_event, 'Private decision changed the accepted event')
@@ -1136,8 +1209,7 @@ def check_speech(speech, plan, public_view, player_action, action_kind=None, gua
     kit_guards.check_npc_meta(segments)
     running = declared_procedures(guards.get('declared_procedures', ()), plan)
     game_terms = kit_cards.RULE_TERMS if running else ()
-    kit_guards.check_numeric_facts(segments, guards.get('numeric_facts'), player_action,
-                                   guards.get('stake_amounts', ()), game_terms)
+    check_claimed_numbers(segments, plan, guards, player_action, game_terms)
     kit_guards.check_clarification_shape(segments, plan)
     # HARD: scene fit. Who the player is, what the deal really was, what can be staked.
     kit_guards.check_player_identity(segments, (public_view or {}).get('your_character'))
@@ -1168,6 +1240,21 @@ def check_speech(speech, plan, public_view, player_action, action_kind=None, gua
     return (spoken, warnings) if degraded else spoken
 
 
+def check_claimed_numbers(segments, plan, guards, player_action, game_terms=()):
+    """HARD: numeric exceptions apply only to their speaker, fact, and currency."""
+    planned = kit_claims.planned_amounts(plan.get('claims'), ACTOR_SPEAKERS)
+    for segment in segments:
+        facts = {}
+        for name, fact in (guards.get('numeric_facts') or {}).items():
+            units = {kit_guards.COIN_UNITS.get(unit, unit) for unit in fact['unit_words']}
+            extra = {amount for claim_id, amounts in planned.get(segment['speaker'], {}).items()
+                     if (guards.get('numeric_claims') or {}).get(claim_id, claim_id) == name
+                     for amount, unit in amounts if unit in units}
+            facts[name] = {**fact, 'allowed_amounts': list(fact['allowed_amounts']) + sorted(extra)}
+        kit_guards.check_numeric_facts([segment], facts, player_action,
+                                       guards.get('stake_amounts', ()), game_terms)
+
+
 def declared_procedures(in_state, plan):
     """Procedures already running plus any this decision declares."""
     this_turn = [item['procedure'] for item in ((plan or {}).get('detail') or kit_detail.NO_DETAIL)['inventions']
@@ -1179,6 +1266,9 @@ def turn_events(runtime, body, plan, turn_id):
     """The adjudicated events plus what the decision establishes: its canon entries, the
     oracle deal it consumed, and the starting state of a table procedure it declares."""
     events = list(body['events'])
+    if plan.get('claims'):
+        events += kit_claims.said_events(plan['claims'], turn_id, body.get('claims_here'),
+                                         runtime.load()[1])
     detail = plan.get('detail')
     if not detail:
         return events
@@ -1365,7 +1455,8 @@ def check_decision(runtime, plan, memory, body):
                player_notes=memory['player_notes'],
                committed_turn_ids=runtime.committed_kit_turn_ids(),
                source=source, state=runtime.load()[1],
-               established=established_text(runtime, body), oracle=body.get('detail_oracle'))
+               established=established_text(runtime, body), oracle=body.get('detail_oracle'),
+               claims_packet=body.get('claims_here'))
     check_brief_public(plan['public_brief'], body['public_view'], body['action'],
                        kit_guards.leak_sets(source))
     # A public invention reaches the performer and the player: same leak checks as the brief.
@@ -1375,7 +1466,8 @@ def check_decision(runtime, plan, memory, body):
 
 
 def prepare_inputs(runtime, revision, state, action, resolution, use_memory, one_pass=False):
-    public_view = runtime.preview(revision, resolution.events)
+    post_event_state = runtime.preview_state(revision, resolution.events)
+    public_view = runtime._player_view(runtime.source(), post_event_state)
     context = runtime.context()
     if context['revision'] != revision:
         raise StaleTurn(f'Expected revision {revision}; current is {context["revision"]}')
@@ -1410,6 +1502,12 @@ def prepare_inputs(runtime, revision, state, action, resolution, use_memory, one
         # Private: the slot, canon, texture, and a seeded deal for the detail decision.
         body['detail_oracle'] = oracle
         planning_input['detail_oracle'] = kit_texture.model_view(oracle)
+    source = runtime.source()
+    if source.get('claims'):
+        # Private: each claim's knowers, the PC's band from the loaded sheet, the wink tier.
+        packet = kit_claims.claims_here(source, post_event_state, post_event_state.get('player_sheet'))
+        body['claims_here'] = packet
+        planning_input['claims_here'] = packet
     attempts = state.get('refused_attempts', [])[-REFUSED_ATTEMPTS_SHOWN:]
     if attempts:
         # Public: the player saw these pending rulings. Both stages may refer to them.
@@ -1511,6 +1609,13 @@ def performance_input(runtime, body, plan):
     if shown:
         # Public details this decision establishes; they persist when the turn commits.
         payload['new_details'] = [{'slot': item['slot'], 'fact': item['fact']} for item in shown]
+    cues = [{'speaker': 'Kit' if item['speaker'] == 'kit' else
+             'Narrator' if item['speaker'] == 'narrator' else ACTOR_SPEAKERS.get(item['speaker'], item['speaker']),
+             'says': item['version']}
+            for item in plan.get('claims') or () if item['stance'] != 'silence']
+    if cues:
+        # Who says what; never the stance or the truth behind it.
+        payload['claim_lines'] = cues
     source = runtime.source()
     for procedure in declared_procedures((), plan):
         config = source.get('procedures', {}).get(procedure)
@@ -1548,6 +1653,8 @@ def guard_context(source, body):
     procedures = (body.get('public_view') or {}).get('table_procedures') or {}
     return {'leak_sets': kit_guards.leak_sets(source),
             'numeric_facts': kit_guards.numeric_facts(source),
+            'numeric_claims': {key: claim.get('numeric_fact', key)
+                               for key, claim in kit_claims.compile_claims(source).items()},
             'stake_amounts': sorted(stake_amounts(procedures)),
             'dealer_cheated': bool((body.get('scene_facts') or {}).get('dealer_cheated')),
             'declared_procedures': tuple(procedures),
@@ -1965,6 +2072,7 @@ def main():
     parser.add_argument('--ancestry', help='character: the player character\'s ancestry (e.g. Harengon)')
     parser.add_argument('--class-name', dest='class_name', help='character: class (optional)')
     parser.add_argument('--level', type=int, help='character: level (optional)')
+    parser.add_argument('--sheet', help='character: a character_sheet_v1 JSON file (any PC; see runtime/pc_sheet.py)')
     parser.add_argument('--replaces', default='none', help='feedback: note id this feedback supersedes')
     parser.add_argument('--degraded', action='store_true',
                         help=f'finish/complete: accept style misses as warnings (only after '
@@ -1984,9 +2092,12 @@ def main():
             print(json.dumps(runtime.recent_kit_timings(), indent=2, ensure_ascii=False))
         elif args.command == 'notes':
             print(json.dumps(runtime.player_notes(), indent=2, ensure_ascii=False))
+        elif args.command == 'character' and args.sheet:
+            sheet = json.loads(Path(args.sheet).read_text(encoding='utf-8'))
+            print(json.dumps(runtime.set_player_sheet(sheet), indent=2, ensure_ascii=False))
         elif args.command == 'character':
             if not (args.name and args.ancestry):
-                parser.error('character requires --name and --ancestry')
+                parser.error('character requires --sheet, or --name and --ancestry')
             print(json.dumps(runtime.set_player_character(args.name, args.ancestry, args.class_name,
                                                           args.level), indent=2, ensure_ascii=False))
         elif args.command in ('prepare', 'decide', 'finish', 'complete', 'abandon', 'feedback'):

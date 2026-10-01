@@ -65,7 +65,7 @@ CANON_SCOPES = ('scene', 'location', 'actor', 'campaign')
 CANON_SLOT = re.compile(r'^[a-z0-9_:]+(/[a-z0-9_]+){1,3}$')
 # Events a Kit turn may add at commit, after the adjudicated batch it was prepared with:
 # the decision's canon entries, the oracle deal it consumed, and procedure state.
-COMMIT_APPENDED_EVENTS = ('canon_entry', 'oracle_draw', 'procedure_state')
+COMMIT_APPENDED_EVENTS = ('canon_entry', 'oracle_draw', 'procedure_state', 'claim_said')
 EPISODE_DEFAULTS = {'player_bid': None, 'kit_choice': None, 'actor_ref': None,
                     'story_anchor': None, 'story_basis': None}
 # Notes describe what the player did or said. They are not a relationship meter.
@@ -204,8 +204,9 @@ class Runtime:
             require(actor['location'] in source['areas'], 'Unknown actor area')
         # DM prep is checked once, before play: the texture palette (roots, no prices, no
         # leaks) and every table procedure's config. Local import: both import this module.
-        from . import kit_cards, kit_texture
+        from . import kit_cards, kit_claims, kit_texture
         kit_texture.check_palette(source)
+        kit_claims.compile_claims(source)
         for key, config in (source.get('procedures') or {}).items():
             if not key.startswith('_') and config.get('kind') == 'card_game':
                 kit_cards.check_config(config)
@@ -230,7 +231,20 @@ class Runtime:
     def load(self):
         row = self.db.execute('SELECT revision, body FROM snapshots ORDER BY revision DESC LIMIT 1').fetchone()
         require(row is not None, 'Initialize a session first')
-        return row[0], upgrade_state(json.loads(row[1]))
+        state = upgrade_state(json.loads(row[1]))
+        claims = state.get('claims')
+        if claims is not None and 'established' not in claims:
+            # Older saves retained only 32 said records. Recover first definitions
+            # from the append-only ledger, including those outside that window.
+            established = {}
+            for (body,) in self.db.execute(
+                    "SELECT body FROM ledger WHERE json_extract(body, '$.type') = 'claim_said' ORDER BY seq"):
+                said = json.loads(body)['said']
+                if said.get('claim') == 'new' and said.get('new'):
+                    definition = said['new']
+                    established.setdefault(definition['about'].strip().casefold(), definition)
+            claims['established'] = established
+        return row[0], state
 
     @staticmethod
     def _observe(state, source):
@@ -415,15 +429,19 @@ class Runtime:
             self.db.rollback()
             raise
 
-    def preview(self, expected_revision, events):
-        """Apply an adjudicated batch to a copy for pre-commit rendering."""
+    def preview_state(self, expected_revision, events):
+        """Apply an adjudicated batch to an unsaved copy, including earned knowledge."""
         revision, state = self.load()
         if revision != expected_revision:
             raise StaleTurn(f'Expected revision {expected_revision}; current is {revision}')
         source = self.source()
         for event in events:
             self._apply(state, source, event)
-        return self._player_view(source, state)
+        return state
+
+    def preview(self, expected_revision, events):
+        """Player-safe rendering of the adjudicated state before it is committed."""
+        return self._player_view(self.source(), self.preview_state(expected_revision, events))
 
     def record_kit_timing(self, turn_id, **fields):
         """Merge latency telemetry for a turn. Not part of the committed turn record."""
@@ -515,6 +533,18 @@ class Runtime:
         digest = hashlib.sha256(f'{revision}:{encode(event)}'.encode()).hexdigest()[:16]
         next_revision = self.commit(f'character-{digest}', revision, [event])
         return {'revision': next_revision, 'character': character}
+
+    def set_player_sheet(self, sheet):
+        """Load the player character's sheet (runtime/pc_sheet.py, any class or
+        ancestry). It also sets the public identity, like set_player_character."""
+        from . import pc_sheet
+        pc_sheet.check_sheet(sheet)
+        revision, _ = self.load()
+        event = {'type': 'player_sheet', 'sheet': sheet,
+                 'evidence': 'The host loaded the player character\'s sheet.'}
+        digest = hashlib.sha256(f'{revision}:{encode(event)}'.encode()).hexdigest()[:16]
+        next_revision = self.commit(f'sheet-{digest}', revision, [event])
+        return {'revision': next_revision, 'character': pc_sheet.identity(sheet)}
 
     def record_refused_attempt(self, action, ruling):
         """Commit a public note that the player tried something the table could not
@@ -659,6 +689,32 @@ class Runtime:
             character = event.get('character')
             check_player_character(character)
             state['player_character'] = dict(character)
+            state.pop('player_sheet', None)
+        elif kind == 'player_sheet':
+            from . import pc_sheet
+            sheet = pc_sheet.check_sheet(event.get('sheet'))
+            state['player_sheet'] = copy.deepcopy(sheet)
+            state['player_character'] = pc_sheet.identity(sheet)
+        elif kind == 'claim_said':
+            from . import kit_claims
+            said = event.get('said')
+            require(isinstance(said, dict) and {'claim', 'by', 'version', 'stance', 'why', 'turn'} <= set(said),
+                    'claim_said needs claim, by, version, stance, why, turn')
+            claims = state.setdefault('claims', {'said': [], 'learned': []})
+            if said['claim'] == 'new':
+                definition = said.get('new')
+                require(isinstance(definition, dict), 'A new claim_said needs its definition')
+                established = kit_claims.established_claims(state)
+                subject = kit_claims.check_new_definition(definition, established)
+                established.setdefault(subject, copy.deepcopy(definition))
+                claims['established'] = established
+            claims['said'] = (claims['said'] + [copy.deepcopy(said)])[-kit_claims.SAID_LIMIT:]
+        elif kind == 'claim_learned':
+            key = event.get('claim')
+            require(key in (source.get('claims') or {}), 'Unknown claim')
+            claims = state.setdefault('claims', {'said': [], 'learned': []})
+            if key not in claims['learned']:
+                claims['learned'].append(key)
         elif kind == 'oracle_draw':
             slot = event.get('slot')
             require(isinstance(slot, str) and CANON_SLOT.match(slot), 'oracle_draw needs a slot')
