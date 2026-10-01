@@ -62,7 +62,7 @@ This is the human-readable view of `catalog.jsonl`. The JSONL file is authoritat
 | BCS-000056 | Bastion/Redoubt | Bastion and Redoubt full script | UNKNOWN | DISCOVERY_PENDING_REVIEW | Drive |
 | BCS-000057 | Bastion/Redoubt | Bastion and Redoubt introduction | UNKNOWN | DISCOVERY_PENDING_REVIEW | Drive |
 | BCS-000058 | Bastion/Redoubt | BaR Character creation | UNKNOWN | DISCOVERY_PENDING_REVIEW | Drive |
-| BCS-000059 | Exploration Impossible | Exploration Impossible (Manuscript) | UNKNOWN | DISCOVERY_PENDING_REVIEW | Drive |
+| BCS-000059 | Exploration Impossible | Exploration Impossible (Manuscript) | OTHER_AUTHOR | CONTEXT_ONLY | Drive |
 | BCS-000060 | At War's End | first draft at wars end | UNKNOWN | DISCOVERY_PENDING_REVIEW | Drive |
 | BCS-000061 | At War's End | Second draft at wars end | UNKNOWN | DISCOVERY_PENDING_REVIEW | Drive |
 | BCS-000062 | At War's End | third draft | UNKNOWN | DISCOVERY_PENDING_REVIEW | Drive |
@@ -74,11 +74,11 @@ This is the human-readable view of `catalog.jsonl`. The JSONL file is authoritat
 
 ## Counts
 
+- Exploration Impossible context: 1 third-party manuscript + 78 Brendon editorial comments
 - At War's End: 8
 - Bastion/Redoubt: 3
 - Earthfall: 2
 - Empire City: 16
-- Exploration Impossible: 1
 - Roanoke: 37
 
 ## Important

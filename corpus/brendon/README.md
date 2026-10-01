@@ -8,7 +8,7 @@ This library answers: **what is the underlying source, where is the full context
 
 ## Current state
 
-The bootstrap catalog contains 67 historical source records across 6 named project families. It incorporates the 53 imported Roanoke/Empire City source files already present in ChatGPT Library and adds native Drive locators for major Earthfall, Bastion/Redoubt, Exploration Impossible, and At War's End sources discovered during this pass.
+The bootstrap catalog contains 67 source/context records across 6 named project families. It incorporates the 53 imported Roanoke/Empire City source files already present in ChatGPT Library and adds native Drive locators for major Earthfall, Bastion/Redoubt, and At War's End sources, plus a third-party Exploration Impossible context source linked to Brendon's editorial evidence discovered during this pass.
 
 The catalog is intentionally broader than the current decision extraction. A source can belong in the library before anybody has decided what it teaches Kit.
 
@@ -55,3 +55,10 @@ Empire City remains evaluation-quarantined where the decision-corpus split says 
 ## Relationship to the decision corpus
 
 The decision corpus should migrate from bare `IMP-###` references to `BCS-######` + passage/child-evidence locators. This library should remain source-centric even if later models disagree about what the source means.
+
+
+## Third-party context
+
+A third-party work can appear in the catalog only when it is necessary to interpret attributable Brendon evidence. In that case it must be marked `CONTEXT_ONLY_THIRD_PARTY`, excluded from Brendon prose/judgment ingestion, and linked to the actual Brendon-authored comments, revisions, or edits.
+
+Example: `BCS-000059` is Michael Kennish's *Exploration Impossible* manuscript. `BCE-000001` is the Brendon-authored editorial comment set attached to it.
