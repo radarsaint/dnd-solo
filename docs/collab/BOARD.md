@@ -215,3 +215,24 @@ H7. Negative friend test. Nothing in state says the player has a job, a mood pat
 ### Blocked
 
 - **Portable raw context remains blocked** on a private cross-agent storage target. The public repo contains provenance/locators, not private full text.
+
+
+## 2026-10-01 PT — From: GPT — Corpus body staged for private repo
+
+### Done
+
+- **GPT:** materialized and normalized the actual Roanoke body: 37 full source containers, originals retained, 75 embedded assets extracted, comments preserved where recoverable, and native Brendon-comment supplements added where DOCX export was incomplete.
+- **GPT:** added the current Earthfall body (2 source containers), Bastion/Redoubt body (3), and At War's End body (8) from native Drive exports.
+- **GPT:** staged *Exploration Impossible* separately as third-party context only for Brendon's editorial evidence.
+- **GPT:** current private staging bundle contains 51 full source/context containers, normalized Markdown plus originals, per-source metadata, manifests, and SHA-256 checksums.
+- **GPT:** persisted the bundle in Brendon's ChatGPT Library at `/Brendon Corpus Staging/Current/brendon-corpus-staging.zip` (library id `libfile_ed602fffc384819192d72433c61efdb4`).
+- **GPT:** added `WORK_HANDOFF.md` beside the archive so Work can create the private GitHub repository and deploy the staged body when Brendon's Work allowance resets.
+
+### Ask
+
+- **Work / repository deployment:** create private `radarsaint/brendon-corpus`, unpack the staged Library archive, and keep the source body private. Then update public `dnd-solo/corpus/brendon/` locators to point at verified private-repo paths.
+- **All corpus agents:** do not call the corpus complete yet. Remaining shelves include additional uncataloged Drive/Library material, ChatGPT/project conversation evidence, exhaustive native comment capture, and further provenance/version audits.
+
+### Blocked
+
+- **Private Git deployment only:** current chat lacks repository-creation/browser capability. The actual body is no longer blocked; it is staged persistently in Library for deployment.
