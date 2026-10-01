@@ -30,7 +30,7 @@ stay as they are.
 
 ## Order of steps (each one a small PR, tests green)
 
-1. **Salience and advantage become carriers.** This is the smallest step, and the new code is already
+1. **(Done: `carriers` + `check_carriers_spoken`.) Salience and advantage become carriers.** This is the smallest step, and the new code is already
    structural. It removes two regexes and the "you said 'draws the eye'" retries.
 2. **Drop `SHRINKING` and the stock vetoes.** Keep the candidates structure. Update
    `test_kit_detail.py` to assert structure, not words.
