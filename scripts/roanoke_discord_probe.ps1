@@ -46,16 +46,7 @@ function To-Int64($Value) {
     return [int64]::Parse([string]$Value)
 }
 
-function Get-BotRole($BotId, $Roles) {
-    foreach ($role in $Roles) {
-        if ($role.tags -and $role.tags.bot_id -and [string]$role.tags.bot_id -eq [string]$BotId) {
-            return $role
-        }
-    }
-    return $null
-}
-
-function Get-BasePermissions($GuildId, $BotRole, $Roles) {
+function Get-BasePermissions($GuildId, $Member, $Roles) {
     [int64]$permissions = 0
     foreach ($role in $Roles) {
         if ([string]$role.id -eq [string]$GuildId) {
@@ -63,8 +54,13 @@ function Get-BasePermissions($GuildId, $BotRole, $Roles) {
             break
         }
     }
-    if ($BotRole) {
-        $permissions = $permissions -bor (To-Int64 $BotRole.permissions)
+    foreach ($roleId in @($Member.roles)) {
+        foreach ($role in $Roles) {
+            if ([string]$role.id -eq [string]$roleId) {
+                $permissions = $permissions -bor (To-Int64 $role.permissions)
+                break
+            }
+        }
     }
     return $permissions
 }
@@ -77,8 +73,8 @@ function Apply-Overwrite([int64]$Permissions, $Overwrite) {
     return $Permissions
 }
 
-function Get-ChannelPermissions($GuildId, $BotId, $BotRole, $Roles, $Channel) {
-    [int64]$permissions = Get-BasePermissions $GuildId $BotRole $Roles
+function Get-ChannelPermissions($GuildId, $BotId, $Member, $Roles, $Channel) {
+    [int64]$permissions = Get-BasePermissions $GuildId $Member $Roles
 
     if (($permissions -band $Administrator) -ne 0) {
         return [int64]::MaxValue
@@ -93,18 +89,17 @@ function Get-ChannelPermissions($GuildId, $BotId, $BotRole, $Roles, $Channel) {
         }
     }
 
-    if ($BotRole) {
-        [int64]$roleAllow = 0
-        [int64]$roleDeny = 0
-        foreach ($ow in $overwrites) {
-            if ([int]$ow.type -eq 0 -and [string]$ow.id -eq [string]$BotRole.id) {
-                $roleAllow = $roleAllow -bor (To-Int64 $ow.allow)
-                $roleDeny = $roleDeny -bor (To-Int64 $ow.deny)
-            }
+    [int64]$roleAllow = 0
+    [int64]$roleDeny = 0
+    $memberRoleIds = @($Member.roles | ForEach-Object { [string]$_ })
+    foreach ($ow in $overwrites) {
+        if ([int]$ow.type -eq 0 -and $memberRoleIds -contains [string]$ow.id) {
+            $roleAllow = $roleAllow -bor (To-Int64 $ow.allow)
+            $roleDeny = $roleDeny -bor (To-Int64 $ow.deny)
         }
-        $permissions = $permissions -band (-bnot $roleDeny)
-        $permissions = $permissions -bor $roleAllow
     }
+    $permissions = $permissions -band (-bnot $roleDeny)
+    $permissions = $permissions -bor $roleAllow
 
     foreach ($ow in $overwrites) {
         if ([int]$ow.type -eq 1 -and [string]$ow.id -eq [string]$BotId) {
@@ -125,22 +120,20 @@ try {
     Write-Host "Checking Roanoke server access..."
     $guild = Invoke-DiscordGet "/guilds/$GuildId" $token "the Roanoke server"
 
+    Write-Host "Reading bot membership..."
+    $member = Invoke-DiscordGet "/guilds/$GuildId/members/$($bot.id)" $token "bot membership"
+
     Write-Host "Reading role permissions..."
     $roles = @(Invoke-DiscordGet "/guilds/$GuildId/roles" $token "server roles")
-    $botRole = Get-BotRole $bot.id $roles
-    if (-not $botRole) {
-        throw "Could not find the managed Roanoke Archive role for this bot."
-    }
 
     Write-Host "Reading channel metadata..."
     $channels = @(Invoke-DiscordGet "/guilds/$GuildId/channels" $token "server channels")
 
-    [int64]$base = Get-BasePermissions $GuildId $botRole $roles
+    [int64]$base = Get-BasePermissions $GuildId $member $roles
 
     Write-Host ""
     Write-Host ("Bot:    {0}" -f $bot.username)
     Write-Host ("Server: {0}" -f $guild.name)
-    Write-Host ("Role:   {0}" -f $botRole.name)
     Write-Host ""
 
     if (($base -band $Administrator) -ne 0) {
@@ -158,7 +151,7 @@ try {
     foreach ($channel in $channels) {
         if (@(0,5) -notcontains [int]$channel.type) { continue }
 
-        [int64]$perms = Get-ChannelPermissions $GuildId $bot.id $botRole $roles $channel
+        [int64]$perms = Get-ChannelPermissions $GuildId $bot.id $member $roles $channel
         $canView = ($perms -band $ViewChannel) -ne 0
         $canHistory = ($perms -band $ReadMessageHistory) -ne 0
 
