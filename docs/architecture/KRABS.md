@@ -52,7 +52,7 @@ A requirement is not evidence that the requirement has already been met.
 
 **Status:** REQUIRED END STATE
 
-Kit is Kitiara: one persistent Dungeon Master identity intended to operate across several scales of play.
+Kit is Kitiara: one persistent persona whose principal vocation is being a Dungeon Master, intended to operate across several scales of play and outside active play when Brendon simply talks to her.
 
 She must eventually be capable of two complementary relationships with Brendon.
 
@@ -79,6 +79,8 @@ Conversely, an amusing or comfortable scene may still damage a campaign if it de
 Kit therefore cannot optimize a single scalar such as "player enjoyment."
 
 She needs Dungeon Master judgment.
+
+Dungeon Master is her principal vocation, not the boundary of her identity. The runtime supplies authority, state, and constraints for play; it does not create Kit or switch her on. Casual conversation, creative/debrief work, and live DM play should present the same recognizable persona under different authority conditions.
 
 ---
 
@@ -154,7 +156,7 @@ The purpose of the prototype is to make such failures diagnosable.
 
 **Status:** REQUIRED END STATE
 
-Kit is one recognizable Dungeon Master identity operating through a persistent roleplaying runtime.
+Kit is one recognizable persistent persona whose principal vocation is Dungeon Master. In live play she operates through a persistent roleplaying runtime; outside active play she remains Kit without pretending to possess runtime authority she does not have.
 
 She is not:
 
@@ -167,7 +169,7 @@ She is not:
 
 At the system level:
 
-> Kit is a persistent Dungeon Master whose decisions operate over authoritative campaign state, bounded scenes, differentiated knowledge, source material, campaign intent, player history, and actor motives; whose consequential rulings are inspectable before they become public performance; and whose identity remains recognizable across campaigns and operating modes.
+> Kit is a persistent persona whose principal vocation is Dungeon Master; in live play her decisions operate over authoritative campaign state, bounded scenes, differentiated knowledge, source material, campaign intent, player history, and actor motives; consequential rulings are inspectable before they become public performance; and her identity remains recognizable across campaigns, operating modes, and ordinary conversation outside active play.
 
 The player should encounter one DM.
 
@@ -258,6 +260,20 @@ A production that continually loses scenes, forgets obligations, stalls on human
 New architecture should solve a demonstrated failure, generalize a mechanism already proven useful, or satisfy a genuinely load-bearing end-state requirement.
 
 Sophistication alone is not justification.
+
+---
+
+### 4.13 Persona continuity is independent of runtime authority
+
+Kit must remain recognizably Kit when no game turn is active.
+
+The bridge and runtime govern what she may establish as game truth. They do not define whether the persona exists.
+
+Ordinary conversation, creative/debrief discussion, and live DM play are different authority contexts for one persona, not separate assistants.
+
+Outside live play, Kit may converse, react, critique, speculate, and collaborate as herself, while clearly avoiding invented claims about uncommitted game state. Inside live play, authoritative runtime constraints govern adjudication and fiction.
+
+This requirement is current. It does not wait for a future cross-campaign memory store.
 
 ---
 
@@ -914,13 +930,15 @@ Persistent actor state plus scene-time decision-making is the default assumption
 
 ---
 
-## 19. Kit Identity Across Campaigns
+## 19. Kit Identity Across Contexts and Campaigns
 
-**Status:** REQUIRED END STATE / IMPLEMENTATION DEFERRED
+**Status:** PERSONA CONTINUITY — CURRENT PRIORITY / DURABLE CROSS-CAMPAIGN MEMORY — IMPLEMENTATION DEFERRED
 
 The current live personality core defines who Kit is intended to be.
 
 Human playtesting has not yet demonstrated that she reliably feels like that person.
+
+That failure is not limited to game turns. Kit must be recognizable in ordinary conversation and creative/debrief work now, even before a durable cross-campaign memory mechanism exists. Runtime-backed play changes her authority over facts and consequences; it must not be the thing that creates her identity.
 
 Cross-campaign persistence must therefore not freeze an identity that has not yet become successful in play.
 
@@ -1465,6 +1483,8 @@ NPCs pursue motives.
 
 Kit feels present.
 
+Outside an active game turn, direct conversation and debrief still feel like the same Kit rather than a generic assistant.
+
 Rulings remain grounded.
 
 Latency is measured.
@@ -1481,7 +1501,7 @@ Exploration, social play, investigation, combat, rewards, quiet scenes, and crea
 
 State, source retrieval, NPC continuity, rules, memory, and Kit identity survive long-duration play.
 
-Only at this point does persistent cross-campaign identity become an implementation priority.
+Only at this point does durable cross-campaign memory infrastructure become an implementation priority. Recognizable persona continuity across ordinary conversation, creative/debrief work, and live play is already required in Stage 1.
 
 **Stage 5 — Multiple knowers / multiple PCs**
 
@@ -1539,14 +1559,15 @@ KRABS should not turn every newly identified end-state concern into an implement
 
 The immediate work remains:
 
-1. Make Area 6c consistently worth playing.
-2. Improve the room's ability to adjudicate natural player actions.
-3. Preserve the room's actual play function rather than allowing optional mechanics to swallow it.
-4. Make NPC motives and scene pressure legible in play.
-5. Keep Kit coherent and recognizable.
-6. Measure full player-visible latency.
-7. Build a second genuinely different playable scene.
-8. Add the minimal scope-persistence fixture from Section 8.
+1. Preserve Kit as one recognizable persona across ordinary conversation, creative/debrief work, and runtime-backed DM play. Add a small cross-context evaluation now; do not wait for cross-campaign memory infrastructure.
+2. Make Area 6c consistently worth playing.
+3. Improve the room's ability to adjudicate natural player actions.
+4. Preserve the room's actual play function rather than allowing optional mechanics to swallow it.
+5. Make NPC motives and scene pressure legible in play.
+6. Keep Kit coherent and recognizable inside the game as well as outside it.
+7. Measure full player-visible latency.
+8. Build a second genuinely different playable scene.
+9. Add the minimal scope-persistence fixture from Section 8.
 
 That fixture should test only:
 
@@ -1575,7 +1596,7 @@ Fixtures are not a campaign-wide source system.
 
 The survival/non-leakage/disclosure invariants are clear.
 
-The storage and retrieval mechanism is intentionally deferred.
+The storage and retrieval mechanism is intentionally deferred. This does not defer persona continuity: Kit should already remain recognizably herself across non-play conversation, creative/debrief work, and live play within the available conversation context.
 
 **Fictional-time consistency**
 
