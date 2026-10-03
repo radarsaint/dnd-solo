@@ -590,6 +590,9 @@ class TwentyOneTable:
             player['net'] -= stake
         round_['phase'] = 'done'
         public['rounds_played'] = round_['number']
+        # Wins running: a win adds one, a loss ends the run, a push leaves it.
+        player['streak'] = player.get('streak', 0) + 1 if outcome == 'win' else \
+            0 if outcome == 'lose' else player.get('streak', 0)
         # Someone at the table reacts; the performer turns this into a short vignette.
         others = [seat for seat in self.config['seats'] if seat != self.dealer]
         reactor = others[round_['number'] % len(others)] if others else self.dealer

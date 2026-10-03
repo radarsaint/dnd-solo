@@ -715,7 +715,7 @@
         {
           "when": "The visitor is up about 30 gp, or wins two hands running.",
           "then": "The gang grumbles; the fresco-side player leans in and the dealer cheats harder.",
-          "trigger": {"net_at_least": {"procedure": "twenty_one", "gp": 30}},
+          "trigger": {"any": [{"net_at_least": {"procedure": "twenty_one", "gp": 30}}, {"wins_running": {"procedure": "twenty_one", "count": 2}}]},
           "shift": {"actors": ["uktarl", "bandit_b"], "by": -1},
           "roots": [
             "bandit_b",
@@ -725,7 +725,7 @@
         {
           "when": "The visitor exposes the cheat publicly, takes the pot by force, or wins big after being caught reading the backs.",
           "then": "The dealer and the fresco-side player turn violent; the room's retreat rules apply.",
-          "trigger": {"exposed": "twenty_one"},
+          "trigger": {"any": [{"exposed": "twenty_one"}, {"won_round": {"procedure": "twenty_one", "gp": 20, "after_noticed": "dealer_sees_reading"}}]},
           "shift": {"actors": ["uktarl", "bandit_a", "bandit_b", "doppelganger"], "to": "hostile"},
           "roots": [
             "uktarl",

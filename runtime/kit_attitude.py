@@ -142,6 +142,9 @@ def apply_event(state, source, event):
         done = state.setdefault('npc_checks', {}).setdefault(state.get('area') or '', [])
         if check['id'] not in done:
             done.append(check['id'])
+        if check.get('success'):
+            # When they noticed, by each table's settled rounds: a later win is "after being caught".
+            state.setdefault('npc_noticed', {})[check['id']] = dict(check.get('rounds') or {})
 
 
 def attitudes_here(source, state):
@@ -217,6 +220,13 @@ def triggered(trigger, action, state):
     return None
 
 
+def _rounds(state):
+    """Each table's settled rounds before this action: the round in play when an NPC notices,
+    and every later one, comes after being caught."""
+    return {key: (body.get('public') or {}).get('rounds_played', 0)
+            for key, body in ((state or {}).get('procedures') or {}).items() if isinstance(body, dict)}
+
+
 def npc_die(state, revision, label, action):
     material = f"{(state or {}).get('roll_seed', '')}:{revision}:npc:{label}:{(action or '').casefold()}".encode()
     return int.from_bytes(hashlib.sha256(material).digest()[:8], 'big') % 20 + 1
@@ -253,7 +263,7 @@ def check_events(source, state, action, revision, pc_score, roll=None):
         cause = check['note'] if success else f'missed: {check["note"]}'
         events.append(shift_event(source, state, changes, cause, evidence,
                                   check={'id': cid, 'by': roller, 'die': die, 'total': total, 'dc': dc,
-                                         'success': success}))
+                                         'success': success, 'rounds': _rounds(state)}))
     return events
 
 

@@ -36,7 +36,9 @@ crossed (``threshold_crossed``, latched once per scene), the shift moves those N
 attitudes (runtime/kit_attitude.py), and the brief marks it ``crossing_now`` the turn it
 holds so Kit plays its ``then``. State-only conditions for triggers:
 {net_at_least: {procedure, gp}} (the PC is up that much at that table), {broke: <procedure>},
-{toll_refused: <toll id>}, {exposed: <procedure>} (a cheat called out with proof, in front of
+{wins_running: {procedure, count}}, {won_round: {procedure, gp, after_noticed: <npc check id>}}
+(the last round settled was a win of at least gp, and after that hidden NPC check noticed
+the PC, when named), {toll_refused: <toll id>}, {exposed: <procedure>} (a cheat called out with proof, in front of
 the table), {actor_damaged: <actor id>}, {attitude_at_most: {actor, level}}.
 
 Conditions: {toll_raised: <toll id>}, {procedure_running: <procedure id>},
@@ -65,7 +67,8 @@ MAX_WITHIN = 12
 GONE = ('dead', 'fled', 'unconscious', 'defeated', 'gone')
 CONDITIONS = ('toll_raised', 'procedure_running', 'fact_known', 'claim_learned', 'said', 'any',
               # state-only conditions for thresholds (never speakable):
-              'net_at_least', 'broke', 'toll_refused', 'exposed', 'actor_damaged', 'attitude_at_most')
+              'net_at_least', 'broke', 'toll_refused', 'exposed', 'actor_damaged', 'attitude_at_most',
+              'wins_running', 'won_round')
 HOOK_ID = re.compile(r'^[a-z0-9_]{1,32}$')
 BRIEF_RULE = ('Private story brief for this scene, from the room source. Play toward it every '
               'turn: the NPCs pursue what they want rather than wait to be asked; an act or con '
@@ -106,6 +109,16 @@ def _check_condition(cond, source, label):
     elif kind == 'net_at_least':
         require(isinstance(value, dict) and value.get('procedure') in (source.get('procedures') or {}) and
                 type(value.get('gp')) is int and value['gp'] > 0, f'{label}: net_at_least needs procedure and gp')
+    elif kind == 'wins_running':
+        require(isinstance(value, dict) and value.get('procedure') in (source.get('procedures') or {}) and
+                type(value.get('count')) is int and value['count'] >= 2, f'{label}: wins_running needs procedure and count (2+)')
+    elif kind == 'won_round':
+        from .kit_attitude import compile_attitudes
+        require(isinstance(value, dict) and value.get('procedure') in (source.get('procedures') or {}) and
+                type(value.get('gp')) is int and value['gp'] > 0 and
+                ('after_noticed' not in value or
+                 value['after_noticed'] in (compile_attitudes(source).get('npc_checks') or {})),
+                f'{label}: won_round needs procedure and gp; after_noticed names an npc check')
     elif kind in ('broke', 'exposed'):
         require(value in (source.get('procedures') or {}), f'{label}: {kind} names a procedure')
     elif kind == 'toll_refused':
@@ -246,6 +259,17 @@ def holds(cond, source, state, spoken=''):
         return bool(spoken) and kit_toll.names_toll(source, value, spoken)
     if kind == 'procedure_running':
         return value in (state.get('procedures') or {})
+    if kind in ('wins_running', 'won_round'):
+        public = ((state.get('procedures') or {}).get(value['procedure']) or {}).get('public') or {}
+        if kind == 'wins_running':
+            return (public.get('player') or {}).get('streak', 0) >= value['count']
+        last = public.get('last_result') or {}
+        if last.get('outcome') != 'win' or (last.get('stake') or 0) < value['gp']:
+            return False
+        if 'after_noticed' not in value:
+            return True
+        noticed = (state.get('npc_noticed') or {}).get(value['after_noticed'])
+        return noticed is not None and last.get('round', 0) > noticed.get(value['procedure'], 0)
     if kind in ('net_at_least', 'broke', 'exposed'):
         key = value['procedure'] if kind == 'net_at_least' else value
         public = ((state.get('procedures') or {}).get(key) or {}).get('public') or {}

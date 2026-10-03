@@ -190,6 +190,68 @@ class StoryThresholds(Base):
         self.assertEqual({s['to'] for s in events[-1]['shifts']}, {'hostile'})
 
 
+class TwoMoreRealTriggers(Base):
+    """The prose halves of two 6c thresholds are triggers now: two wins running, and a big
+    win after the dealer caught the visitor reading the backs."""
+
+    def game(self):
+        return copy.deepcopy(self.runtime.load()[1]['procedures']['twenty_one'])
+
+    def set_game(self, game):
+        self.commit([{'type': 'procedure_state', 'procedure': 'twenty_one', 'state': game, 'evidence': 'Test.'}])
+
+    def test_two_wins_running_cross_the_first_threshold(self):
+        config = SOURCE['procedures']['twenty_one']
+        table = kit_twenty_one.TwentyOneTable('twenty_one', config, {'insight': 4, 'perception': 4}, SEED)
+        game = kit_cards.initial_state(config)
+        game['public']['player'] = {'net': 0, 'purse': None, 'unwelcome': False}
+        game['public']['round'] = {'number': 1, 'mode': 'play', 'stake': 10, 'toll': False, 'phase': 'play'}
+        table._settle(game['public'], game['private'], 'win')
+        self.assertEqual(game['public']['player']['streak'], 1)
+        self.set_game(game)
+        self.assertFalse(kit_brief.brief(SOURCE, self.runtime.load()[1])['thresholds'][0].get('crossing_now'))
+        game['public']['round'] = {'number': 2, 'mode': 'play', 'stake': 5, 'toll': False, 'phase': 'play'}
+        table._settle(game['public'], game['private'], 'push')
+        game['public']['round'] = {'number': 3, 'mode': 'play', 'stake': 5, 'toll': False, 'phase': 'play'}
+        table._settle(game['public'], game['private'], 'win')
+        self.assertEqual((game['public']['player']['streak'], game['public']['player']['net']), (2, 15))
+        self.set_game(game)
+        crossed = kit_brief.threshold_events(SOURCE, self.runtime.load()[1], 't')
+        self.assertEqual(crossed[0]['index'], 0)  # under 30 gp up, on the run alone
+        table._settle(game['public'], game['private'], 'lose')
+        self.assertEqual(game['public']['player']['streak'], 0)
+
+    def won(self, round_number, stake=20):
+        game = self.game()
+        game['public']['last_result'] = {'round': round_number, 'outcome': 'win', 'stake': stake}
+        game['public']['rounds_played'] = round_number
+        self.set_game(game)
+
+    def test_a_big_win_after_being_caught_reading_turns_the_table(self):
+        self.seat()
+        noticed = self.resolve(T10, npc=18)
+        self.commit([e for e in noticed.events if e['type'] == 'attitude_shift'])
+        self.assertEqual(self.runtime.load()[1]['npc_noticed']['dealer_sees_reading'], {'twenty_one': 0})
+        self.won(1, stake=10)  # a small win is not "big"
+        self.assertEqual(kit_brief.threshold_events(SOURCE, self.runtime.load()[1], 't'), [])
+        self.won(2)
+        events = kit_brief.threshold_events(SOURCE, self.runtime.load()[1], 't')
+        self.assertEqual(events[0]['index'], 1)
+        self.assertEqual({s['to'] for s in events[1]['shifts']}, {'hostile'})
+
+    def test_a_big_win_before_anyone_noticed_does_not(self):
+        self.seat()
+        self.won(1)
+        state = self.runtime.load()[1]
+        self.assertFalse(kit_brief.brief(SOURCE, state)['thresholds'][1].get('crossing_now'))
+        # Noticed only after that win: the old win is not "after being caught".
+        self.seat()
+        self.won(1)
+        noticed = self.resolve(T10, npc=18)
+        self.commit([e for e in noticed.events if e['type'] == 'attitude_shift'])
+        self.assertEqual(kit_brief.threshold_events(SOURCE, self.runtime.load()[1], 't'), [])
+
+
 class GeneralMechanism(unittest.TestCase):
     """Non-6c: the feasibility room with its own attitudes block and threshold."""
 
