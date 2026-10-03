@@ -725,10 +725,10 @@
           ]
         },
         {
-          "when": "The visitor exposes the cheat publicly, takes the pot by force, or wins big after being caught reading the backs.",
-          "then": "The dealer and the fresco-side player turn violent; the room's retreat rules apply.",
-          "trigger": {"any": [{"exposed": "twenty_one"}, {"won_round": {"procedure": "twenty_one", "gp": 20, "after_noticed": "dealer_sees_reading"}}]},
-          "shift": {"actors": ["uktarl", "bandit_a", "bandit_b", "doppelganger"], "to": "hostile"},
+          "when": "The visitor exposes the cheat publicly, takes the pot by force, or keeps winning after being caught reading the backs (two more wins, or 30 gp up since).",
+          "then": "Violence becomes likely: the dealer and the fresco-side player turn ugly and reach for leverage or blades; the room's retreat rules apply if it comes to blows.",
+          "trigger": {"any": [{"exposed": "twenty_one"}, {"since_noticed": {"procedure": "twenty_one", "check": "dealer_sees_reading", "wins": 2, "net_gp": 30}}]},
+          "shift": {"actors": ["uktarl", "bandit_b"], "to": "hostile"},
           "roots": [
             "uktarl",
             "bandit_b",

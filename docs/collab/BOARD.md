@@ -468,9 +468,9 @@ H7. Negative friend test. Nothing in state says the player has a job, a mood pat
     - the social-roll hook `social_roll` (when to call for a roll stays voice-side, #46).
   - **Private accusations:** a quiet card accusation with a stated social roll becomes a social check, not the table's public call.
   - **Watched deals:** the watch now covers the dealer's own draws, so a second dealt while the player reads the top card can be caught (T10).
-  - **Story thresholds:** they now carry real triggers and attitude shifts. New conditions: `net_at_least`, `wins_running`, `won_round` (with `after_noticed`), `broke`, `toll_refused`, `exposed`, `actor_damaged`, `attitude_at_most`.
+  - **Story thresholds:** they now carry real triggers and attitude shifts. New conditions: `net_at_least`, `wins_running`, `won_round`, `since_noticed` (two wins with a net gain, or 30 gp up, since a hidden check noticed), `broke` (falls back to the sheet's `gold_gp`), `toll_refused`, `exposed`, `actor_damaged`, `attitude_at_most`.
   - **Seating:** sit and stow-gear lines are no longer physical rulings.
-- **6c data:** the attitudes block and two hidden checks. Every threshold has a trigger now, including "wins two hands running" and "wins big after being caught reading the backs".
+- **6c data:** the attitudes block and two hidden checks. Every threshold has a trigger now, including "wins two hands running" and "keeps winning after being caught reading the backs". A threshold marked `crossing_now` steers toward its then; it does not force the outcome. Social rolls and hidden checks stop at unfriendly; only thresholds and combat reach hostile. A missed hidden check re-arms with +2 per earlier miss. Checks and story memory are keyed by scene.
 - **Nik fixture:** a quiet accusation with Intimidation `1d20 (3) + 1 = 4` fails privately and moves the dealer and the gang to unfriendly. It is not a public exposure.
 
 ### Ask

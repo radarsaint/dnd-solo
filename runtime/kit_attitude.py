@@ -25,12 +25,15 @@ does. The source may declare one top-level ``attitudes`` block (all optional):
       npc_checks:
         <id>: {trigger: card_read | held_edge, by: [actor ids], skill: <npc skill>,
                vs: <pc skill>, shift: -1, actors: [actor ids] (default: the roller),
-               note: "what they now believe (DM-only)"}
+               rearm: each_time | new_round, note: "what they now believe (DM-only)"}
 
 Triggers: card_read, the PC reads the marks, the backs, or the top card at a card game in
 play; held_edge, at a card game in play the PC holds an item that gives them advantage
 while held (the situation would have set it aside), so its edge has to be hidden. Each
-check runs once per scene (area). No model calls; deterministic Python (seeded dice).
+check that notices stays noticed for the scene; a miss re-arms (card_read on the next read,
+held_edge on the next round) with +2 on the NPC's roll per earlier miss: they keep watching.
+Social rolls and hidden checks stop at unfriendly; only thresholds and combat reach hostile.
+No model calls; deterministic Python (seeded dice).
 """
 import hashlib
 import re
@@ -39,6 +42,9 @@ from .state_context import require
 
 LEVELS = ('hostile', 'unfriendly', 'indifferent', 'friendly', 'helpful')
 DEFAULT = 'indifferent'
+SOFT_FLOOR = 'unfriendly'  # social rolls and hidden checks: only thresholds and combat reach hostile
+REARM = {'card_read': 'each_time', 'held_edge': 'new_round'}  # after a miss, when the check can run again
+RISING = 2  # each earlier miss adds this to the NPC's next roll (they keep watching: Call 10, "repeatedly")
 TRIGGERS = ('card_read', 'held_edge')
 TEXT_MAX = 200
 GONE = ('dead', 'fled', 'unconscious', 'defeated', 'gone')
@@ -81,6 +87,8 @@ def compile_attitudes(source):
                 f'{label}: by lists actor ids')
         require(check.get('skill') in pc_sheet.SKILLS and check.get('vs') in pc_sheet.SKILLS,
                 f'{label}: skill and vs are skills')
+        require(check.get('rearm', REARM[check['trigger']]) in ('each_time', 'new_round'),
+                f'{label}: rearm is each_time or new_round')
         require(type(check.get('shift', -1)) is int and -4 <= check.get('shift', -1) <= 4, f'{label}: shift -4..4')
         require(all(a in actors for a in check.get('actors', [])), f'{label}: actors are actor ids')
         _text(check.get('note'), f'{label} note')
@@ -106,13 +114,17 @@ def _present(state):
             if actor.get('location') == area and actor.get('status') not in GONE}
 
 
-def shift_event(source, state, changes, cause, evidence, check=None):
+def shift_event(source, state, changes, cause, evidence, check=None, floor=None):
     """One attitude_shift event for ``changes`` ({actor: by} or {actor: level name}), or None
-    when nothing would change and no hidden check needs recording."""
+    when nothing would change and no hidden check needs recording. ``floor`` caps how far a
+    drop goes (social rolls and hidden checks stop at unfriendly: only thresholds and
+    combat reach hostile); an NPC already below it stays where they are."""
     shifts = []
     for actor, by in changes.items():
         before = level(source, state, actor)
         after = moved(before, to=by) if isinstance(by, str) else moved(before, by)
+        if floor and LEVELS.index(after) < LEVELS.index(floor):
+            after = before if LEVELS.index(before) <= LEVELS.index(floor) else floor
         if after != before:
             shifts.append({'actor': actor, 'from': before, 'to': after})
     if not shifts and not check:
@@ -139,12 +151,15 @@ def apply_event(state, source, event):
     if check:
         require(isinstance(check, dict) and check.get('id') in (compile_attitudes(source).get('npc_checks') or {}),
                 'attitude_shift: check names a declared npc check')
-        done = state.setdefault('npc_checks', {}).setdefault(state.get('area') or '', [])
-        if check['id'] not in done:
-            done.append(check['id'])
+        record = state.setdefault('npc_checks', {}).setdefault(checks_key(state), {})
+        before = record.get(check['id']) or {'misses': 0}
+        record[check['id']] = {'noticed': bool(check.get('success')),
+                               'misses': before['misses'] + (0 if check.get('success') else 1),
+                               'rounds': dict(check.get('tables') and {k: v['rounds'] for k, v in check['tables'].items()} or {})}
         if check.get('success'):
-            # When they noticed, by each table's settled rounds: a later win is "after being caught".
-            state.setdefault('npc_noticed', {})[check['id']] = dict(check.get('rounds') or {})
+            # Where each table stood when they noticed: what the PC wins after it is "after being caught".
+            state.setdefault('npc_noticed', {})[check['id']] = {'scene': scene_of(state),
+                                                                 'tables': dict(check.get('tables') or {})}
 
 
 def attitudes_here(source, state):
@@ -187,7 +202,7 @@ def social_roll(source, state, actor, skill, success, evidence, cause=None):
     name = skill.replace('_', ' ')
     event = shift_event(source, state, changes,
                         cause or f'the visitor\'s {name} {"worked on" if success else "failed against"} {actor}',
-                        evidence)
+                        evidence, floor=SOFT_FLOOR)
     return [event] if event else []
 
 
@@ -220,11 +235,37 @@ def triggered(trigger, action, state):
     return None
 
 
-def _rounds(state):
-    """Each table's settled rounds before this action: the round in play when an NPC notices,
-    and every later one, comes after being caught."""
-    return {key: (body.get('public') or {}).get('rounds_played', 0)
-            for key, body in ((state or {}).get('procedures') or {}).items() if isinstance(body, dict)}
+def scene_of(state):
+    from .kit_brief import scene_key
+    return scene_key(state)
+
+
+def checks_key(state):
+    """Hidden checks belong to one scene in one area: a new scene re-arms them."""
+    return f'{scene_of(state)}/{(state or {}).get("area") or ""}'
+
+
+def _tables(state):
+    """Where each seated table stands before this action: settled rounds, the PC's net, and
+    their wins. The round in play when an NPC notices, and every later one, is "after"."""
+    out = {}
+    for key, body in ((state or {}).get('procedures') or {}).items():
+        public = (body or {}).get('public') or {} if isinstance(body, dict) else {}
+        player = public.get('player') or {}
+        out[key] = {'rounds': public.get('rounds_played', 0), 'net': player.get('net', 0),
+                    'wins': player.get('wins', 0)}
+    return out
+
+
+def since_noticed(state, check_id, procedure):
+    """(wins, net gp) the PC has taken at that table since the check noticed them this scene,
+    or None when it has not."""
+    noticed = ((state or {}).get('npc_noticed') or {}).get(check_id)
+    if not noticed or noticed.get('scene') != scene_of(state):
+        return None
+    then = (noticed.get('tables') or {}).get(procedure) or {'net': 0, 'wins': 0}
+    now = _tables(state).get(procedure) or {'net': 0, 'wins': 0}
+    return now['wins'] - then['wins'], now['net'] - then['net']
 
 
 def npc_die(state, revision, label, action):
@@ -238,12 +279,17 @@ def check_events(source, state, action, revision, pc_score, roll=None):
     else their passive); ``roll()`` overrides the NPC's d20 (tests)."""
     from . import kit_claims
     block = compile_attitudes(source)
-    done = ((state or {}).get('npc_checks') or {}).get((state or {}).get('area') or '', [])
+    record = ((state or {}).get('npc_checks') or {}).get(checks_key(state)) or {}
     present = _present(state)
+    tables = _tables(state)
     events = []
     for cid, check in (block.get('npc_checks') or {}).items():
-        if cid in done:
-            continue
+        past = record.get(cid) or {'misses': 0}
+        if past.get('noticed'):
+            continue  # noticed once this scene: it stays noticed
+        if past['misses'] and check.get('rearm', REARM[check['trigger']]) == 'new_round' and \
+                past.get('rounds') == {k: v['rounds'] for k, v in tables.items()}:
+            continue  # a missed gear check waits for the next round
         subject = triggered(check['trigger'], action, state)
         roller = next((who for who in check['by'] if who in present), None)
         if not subject or roller is None:
@@ -251,19 +297,22 @@ def check_events(source, state, action, revision, pc_score, roll=None):
         dc = pc_score(check['vs'], action)
         if dc is None:
             continue  # no PC number to beat (no sheet, no stated roll): no hidden check
-        bonus = kit_claims.npc_skill(state['actors'][roller], check['skill'])
-        die = roll() if roll else npc_die(state, revision, cid, action)
+        rising = RISING * past['misses']  # they keep watching: each earlier miss makes the next likelier
+        rising_note = f' (incl. +{rising} for {past["misses"]} earlier misses)' if rising else ''
+        bonus = kit_claims.npc_skill(state['actors'][roller], check['skill']) + rising
+        die = roll() if roll else npc_die(state, revision, f'{cid}:{past["misses"]}', action)
         total = die + bonus
         success = total >= dc
         skill, vs = check['skill'].replace('_', ' '), check['vs'].replace('_', ' ')
-        evidence = (f'Behind the screen ({cid}, {subject}): {roller} {skill} d20 {die} + {bonus} = {total} vs '
+        evidence = (f'Behind the screen ({cid}, {subject}): {roller} {skill} d20 {die} + {bonus}'
+                    f'{rising_note} = {total} vs '
                     f'the visitor\'s {vs} {dc}: {"noticed" if success else "missed it"}. Hidden; the NPC acts on it.')
         changes = {who: check.get('shift', -1) for who in (check.get('actors') or [roller]) if who in present} \
             if success else {}
         cause = check['note'] if success else f'missed: {check["note"]}'
-        events.append(shift_event(source, state, changes, cause, evidence,
+        events.append(shift_event(source, state, changes, cause, evidence, floor=SOFT_FLOOR,
                                   check={'id': cid, 'by': roller, 'die': die, 'total': total, 'dc': dc,
-                                         'success': success, 'rounds': _rounds(state)}))
+                                         'success': success, 'tables': tables}))
     return events
 
 

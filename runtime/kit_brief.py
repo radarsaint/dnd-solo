@@ -34,11 +34,14 @@ A threshold may also carry a machine ``trigger`` (a condition) and a ``shift`` (
 by: N} or {actors, to: <attitude>}): when the trigger holds after a turn the threshold is
 crossed (``threshold_crossed``, latched once per scene), the shift moves those NPCs'
 attitudes (runtime/kit_attitude.py), and the brief marks it ``crossing_now`` the turn it
-holds so Kit plays its ``then``. State-only conditions for triggers:
-{net_at_least: {procedure, gp}} (the PC is up that much at that table), {broke: <procedure>},
-{wins_running: {procedure, count}}, {won_round: {procedure, gp, after_noticed: <npc check id>}}
-(the last round settled was a win of at least gp, and after that hidden NPC check noticed
-the PC, when named), {toll_refused: <toll id>}, {exposed: <procedure>} (a cheat called out with proof, in front of
+holds so Kit plays toward its ``then`` from this turn on: an agenda transition, not an
+automatic outcome. State-only conditions for triggers:
+{net_at_least: {procedure, gp}} (the PC is up that much at that table),
+{wins_running: {procedure, count}}, {won_round: {procedure, gp}} (the last round settled
+was a win of at least gp), {since_noticed: {procedure, check, wins, net_gp}} (since that
+hidden NPC check noticed the PC this scene: at least ``wins`` wins with a net gain, or a net
+gain of ``net_gp``; one win does not do it), {broke: <procedure>} (the buy-in, else the
+sheet's gold_gp, is gone), {toll_refused: <toll id>}, {exposed: <procedure>} (a cheat called out with proof, in front of
 the table), {actor_damaged: <actor id>}, {attitude_at_most: {actor, level}}.
 
 Conditions: {toll_raised: <toll id>}, {procedure_running: <procedure id>},
@@ -70,7 +73,7 @@ GONE = ('dead', 'fled', 'unconscious', 'defeated', 'gone')
 CONDITIONS = ('toll_raised', 'procedure_running', 'fact_known', 'claim_learned', 'said', 'any',
               # state-only conditions for thresholds (never speakable):
               'net_at_least', 'broke', 'toll_refused', 'exposed', 'actor_damaged', 'attitude_at_most',
-              'wins_running', 'won_round')
+              'wins_running', 'won_round', 'since_noticed')
 HOOK_ID = re.compile(r'^[a-z0-9_]{1,32}$')
 BRIEF_RULE = ('Private story brief for this scene, from the room source. Play toward it every '
               'turn: the NPCs pursue what they want rather than wait to be asked; an act or con '
@@ -117,12 +120,16 @@ def _check_condition(cond, source, label):
         require(isinstance(value, dict) and value.get('procedure') in (source.get('procedures') or {}) and
                 type(value.get('count')) is int and value['count'] >= 2, f'{label}: wins_running needs procedure and count (2+)')
     elif kind == 'won_round':
+        require(isinstance(value, dict) and set(value) == {'procedure', 'gp'} and
+                value['procedure'] in (source.get('procedures') or {}) and
+                type(value['gp']) is int and value['gp'] > 0, f'{label}: won_round needs procedure and gp')
+    elif kind == 'since_noticed':
         from .kit_attitude import compile_attitudes
         require(isinstance(value, dict) and value.get('procedure') in (source.get('procedures') or {}) and
-                type(value.get('gp')) is int and value['gp'] > 0 and
-                ('after_noticed' not in value or
-                 value['after_noticed'] in (compile_attitudes(source).get('npc_checks') or {})),
-                f'{label}: won_round needs procedure and gp; after_noticed names an npc check')
+                value.get('check') in (compile_attitudes(source).get('npc_checks') or {}) and
+                type(value.get('wins')) is int and value['wins'] >= 2 and
+                type(value.get('net_gp')) is int and value['net_gp'] > 0,
+                f'{label}: since_noticed needs procedure, check (an npc check), wins (2+), and net_gp')
     elif kind in ('broke', 'exposed'):
         require(value in (source.get('procedures') or {}), f'{label}: {kind} names a procedure')
     elif kind == 'toll_refused':
@@ -282,12 +289,14 @@ def holds(cond, source, state, spoken=''):
         if kind == 'wins_running':
             return (public.get('player') or {}).get('streak', 0) >= value['count']
         last = public.get('last_result') or {}
-        if last.get('outcome') != 'win' or (last.get('stake') or 0) < value['gp']:
+        return last.get('outcome') == 'win' and (last.get('stake') or 0) >= value['gp']
+    if kind == 'since_noticed':
+        from . import kit_attitude
+        since = kit_attitude.since_noticed(state, value['check'], value['procedure'])
+        if since is None:
             return False
-        if 'after_noticed' not in value:
-            return True
-        noticed = (state.get('npc_noticed') or {}).get(value['after_noticed'])
-        return noticed is not None and last.get('round', 0) > noticed.get(value['procedure'], 0)
+        wins, net = since
+        return (wins >= value['wins'] and net > 0) or net >= value['net_gp']
     if kind in ('net_at_least', 'broke', 'exposed'):
         key = value['procedure'] if kind == 'net_at_least' else value
         public = ((state.get('procedures') or {}).get(key) or {}).get('public') or {}
@@ -295,7 +304,12 @@ def holds(cond, source, state, spoken=''):
         if kind == 'net_at_least':
             return player.get('net', 0) >= value['gp']
         if kind == 'broke':
-            return player.get('purse') is not None and player['purse'] + player.get('net', 0) <= 0
+            # The buy-in, else the gold on the PC's sheet when no buy-in was declared.
+            purse = player.get('purse')
+            if purse is None:
+                gold = (state.get('player_sheet') or {}).get('gold_gp')
+                purse = gold if type(gold) is int else None
+            return bool(player) and purse is not None and purse + player.get('net', 0) <= 0
         return any(item.get('backed') for item in public.get('accusations') or ())
     if kind == 'toll_refused':
         from . import kit_toll
@@ -388,7 +402,7 @@ def brief(source, state):
         if index in mem.get('crossed', ()):
             entry['crossed'] = True
         elif item.get('trigger') and holds(item['trigger'], source, state):
-            entry['crossing_now'] = True  # Kit plays its then this turn
+            entry['crossing_now'] = True  # Kit plays toward its then, starting this turn
         thresholds.append(entry)
     for key, clock in ((source.get('agenda') or {}).get('pressures') or {}).items():
         if isinstance(clock, dict) and clock.get('when_full'):
@@ -417,9 +431,11 @@ def _capped(made):
     traits and wants from the end. Hooks and raise_now are never trimmed."""
     while _size(made) > BRIEF_MAX_BYTES:
         for key in ('endings', 'thresholds', 'purposes'):
-            crossing = key == 'thresholds' and made[key] and made[key][-1].get('crossing_now')
-            if len(made[key]) > 1 and not crossing:  # a threshold crossing now is never trimmed
-                made[key].pop()
+            # A threshold crossing now is never trimmed: drop the last one that is not.
+            spare = [i for i, item in enumerate(made[key])
+                     if not (key == 'thresholds' and item.get('crossing_now'))]
+            if len(made[key]) > 1 and spare:
+                made[key].pop(spare[-1])
                 made['trimmed'] = True
                 break
         else:
@@ -531,5 +547,6 @@ def apply_threshold(state, source, event):
             0 <= event['index'] < len(story.get('thresholds') or ()) and
             (story['thresholds'][event['index']] or {}).get('trigger'),
             'threshold_crossed names a threshold with a trigger in its area')
-    mem = state.setdefault('story', {}).setdefault(area, {'beats': 0, 'delivered': []})
+    mem = story_state(state, area)
+    mem = state.setdefault('story', {})[area] = {**mem, 'scene': scene_key(state)}
     mem['crossed'] = sorted(set(mem.get('crossed', [])) | {event['index']})

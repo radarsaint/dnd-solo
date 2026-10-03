@@ -1419,7 +1419,7 @@ PRIVATE_INSTRUCTIONS = (
     'nobody builds toward a secret they are unaware of. Never say the plan; play it. '
     'ATTITUDES: dm_only.attitudes_here is how each NPC here regards the player and what last '
     'moved it; play it, never name it or a roll behind it. A story_brief threshold marked '
-    'crossing_now happens this turn: play its then. '
+    'crossing_now steers, it does not force: play toward its then, starting this turn. '
     'STORY: story_brief is what this scene is about, from the room data, every turn here: who '
     'wants what and their traits, what each act or con is for, the primary hooks, thresholds, '
     'and endings. The NPCs pursue it, not just react: an act serves its purpose, and an '

@@ -85,15 +85,34 @@ class HiddenNpcChecks(Base):
         self.seat()
         self.assertEqual(shifts(self.resolve(T10, npc=20).events), [])
 
-    def test_a_missed_hidden_check_moves_nobody_and_is_spent(self):
+    def test_a_missed_check_re_arms_with_a_rising_chance(self):
+        # Call 10 ("repeatedly"): a miss is not spent for the scene; the next read rolls again,
+        # +2 per earlier miss, until the dealer notices. Then it stays noticed.
         self.seat()
         result = self.resolve(T10, npc=1)  # T10's behind-screen roll: a natural 1
         [missed] = shifts(result.events)
         self.assertFalse(missed['check']['success'])
         self.assertEqual(missed['shifts'], [])
         self.commit(list(result.events))
-        self.assertEqual(kit_attitude.level(SOURCE, self.runtime.load()[1], 'uktarl'), 'indifferent')
-        self.assertIn('dealer_sees_reading', self.runtime.load()[1]['npc_checks']['area_06c'])
+        state = self.runtime.load()[1]
+        self.assertEqual(kit_attitude.level(SOURCE, state, 'uktarl'), 'indifferent')
+        self.assertEqual(state['npc_checks']['scene-1/area_06c']['dealer_sees_reading']['misses'], 1)
+        self.seat()
+        again = shifts(self.resolve(T10, npc=15).events)[0]  # 15 + 0 + 2 = 17 vs passive 17
+        self.assertTrue(again['check']['success'])
+        self.assertIn('+2 for 1 earlier misses', again['evidence'])
+        self.commit([again])
+        self.seat()
+        self.assertEqual(shifts(self.resolve(T10, npc=20).events), [])
+
+    def test_a_new_scene_re_arms_a_noticed_check(self):
+        self.seat()
+        self.commit(shifts(self.resolve(T10, npc=18).events))
+        state = copy.deepcopy(self.runtime.load()[1])
+        adjudicator = Room6CAdjudicator(source=SOURCE, roll=lambda: 10, npc_roll=lambda: 18)
+        self.assertEqual(shifts(adjudicator.resolve(T10, 99, state).events), [])
+        state['scene_id'] = 'scene-2'  # KRABS §8 scene ids (#59): a later scene in the same room
+        self.assertEqual(len(shifts(adjudicator.resolve(T10, 99, state).events)), 1)
 
     def test_holding_gear_with_a_hidden_edge_at_the_table_is_contested(self):
         self.seat()
@@ -105,6 +124,17 @@ class HiddenNpcChecks(Base):
         # Set aside (the seated default), there is no edge to hide and no check.
         self.runtime.set_pc_state(held=[])
         self.assertEqual(shifts(self.resolve('"Another round, then."', npc=19).events), [])
+
+    def test_a_missed_gear_check_waits_for_the_next_round(self):
+        self.seat()
+        self.runtime.set_pc_state(held=['Sentinel Shield'])
+        self.commit(shifts(self.resolve('"Another round, then."', npc=1).events))
+        self.assertEqual(shifts(self.resolve('"Still thinking."', npc=19).events), [])  # same round
+        game = copy.deepcopy(self.runtime.load()[1]['procedures']['twenty_one'])
+        game['public']['rounds_played'] += 1
+        self.commit([{'type': 'procedure_state', 'procedure': 'twenty_one', 'state': game, 'evidence': 'Test.'}])
+        [again] = shifts(self.resolve('"Deal me in."', npc=17).events)  # 17 + 0 + 2 = 19 vs 17
+        self.assertTrue(again['check']['success'])
 
     def test_the_watch_covers_the_dealers_own_draws(self):
         config = SOURCE['procedures']['twenty_one']
@@ -156,6 +186,15 @@ class NiksQuietAccusation(Base):
         made = kit_brief.brief(SOURCE, state)
         self.assertFalse(made['thresholds'][1].get('crossing_now'))  # "exposes the cheat publicly"
         self.assertEqual(kit_brief.threshold_events(SOURCE, state, 't'), [])
+
+    def test_social_failures_stop_at_unfriendly(self):
+        # Only thresholds and combat reach hostile: two failed Persuasions leave the gang unfriendly.
+        for turn in range(2):
+            result = self.resolve('"Come on, friend, you can trust me." Persuasion: 1d20 (2) + 1 = `3`')
+            self.assertEqual(result.kind, 'social_check')
+            self.commit(list(result.events))
+        state = self.runtime.load()[1]
+        self.assertEqual({a: kit_attitude.level(SOURCE, state, a) for a in GANG}, {a: 'unfriendly' for a in GANG})
 
     def test_said_out_loud_it_is_still_the_tables_accusation(self):
         self.seat()
@@ -221,35 +260,58 @@ class TwoMoreRealTriggers(Base):
         table._settle(game['public'], game['private'], 'lose')
         self.assertEqual(game['public']['player']['streak'], 0)
 
-    def won(self, round_number, stake=20):
+    def won(self, wins, net):
         game = self.game()
-        game['public']['last_result'] = {'round': round_number, 'outcome': 'win', 'stake': stake}
-        game['public']['rounds_played'] = round_number
+        game['public']['player'].update(wins=wins, net=net)
+        game['public']['last_result'] = {'round': wins, 'outcome': 'win', 'stake': 20}
         self.set_game(game)
 
-    def test_a_big_win_after_being_caught_reading_turns_the_table(self):
+    def notice(self):
         self.seat()
-        noticed = self.resolve(T10, npc=18)
-        self.commit([e for e in noticed.events if e['type'] == 'attitude_shift'])
-        self.assertEqual(self.runtime.load()[1]['npc_noticed']['dealer_sees_reading'], {'twenty_one': 0})
-        self.won(1, stake=10)  # a small win is not "big"
+        self.commit(shifts(self.resolve(T10, npc=18).events))
+
+    def crossing(self):
+        return kit_brief.brief(SOURCE, self.runtime.load()[1])['thresholds'][1].get('crossing_now')
+
+    def test_one_big_win_after_being_caught_does_not_turn_the_table(self):
+        self.notice()
+        self.won(1, 20)  # one 20 gp win: not "keeps winning"
+        self.assertFalse(self.crossing())
         self.assertEqual(kit_brief.threshold_events(SOURCE, self.runtime.load()[1], 't'), [])
-        self.won(2)
+
+    def test_two_wins_or_30_gp_since_being_caught_do(self):
+        self.notice()
+        self.won(2, 5)  # two wins since, up overall
+        self.assertTrue(self.crossing())
         events = kit_brief.threshold_events(SOURCE, self.runtime.load()[1], 't')
         self.assertEqual(events[0]['index'], 1)
-        self.assertEqual({s['to'] for s in events[1]['shifts']}, {'hostile'})
+        self.assertEqual({s['actor']: s['to'] for s in events[1]['shifts']}, {'uktarl': 'hostile', 'bandit_b': 'hostile'})
+        self.won(1, 30)  # or 30 gp up since, in one win and some luck
+        self.assertTrue(self.crossing())
 
-    def test_a_big_win_before_anyone_noticed_does_not(self):
+    def test_wins_from_before_anyone_noticed_do_not_count(self):
         self.seat()
-        self.won(1)
-        state = self.runtime.load()[1]
-        self.assertFalse(kit_brief.brief(SOURCE, state)['thresholds'][1].get('crossing_now'))
-        # Noticed only after that win: the old win is not "after being caught".
-        self.seat()
-        self.won(1)
-        noticed = self.resolve(T10, npc=18)
-        self.commit([e for e in noticed.events if e['type'] == 'attitude_shift'])
-        self.assertEqual(kit_brief.threshold_events(SOURCE, self.runtime.load()[1], 't'), [])
+        self.won(3, 45)
+        self.assertFalse(self.crossing())  # nobody noticed
+        self.commit(shifts(self.resolve(T10, npc=18).events))  # noticed now, at 3 wins / +45
+        self.assertFalse(self.crossing())
+        self.won(4, 55)
+        self.assertFalse(self.crossing())  # one more win, +10 since
+        self.won(5, 65)
+        self.assertTrue(self.crossing())
+
+    def test_broke_uses_the_sheets_gold_without_a_buy_in(self):
+        self.seat(net=-NIK['gold_gp'])
+        self.assertTrue(kit_brief.holds({'broke': 'twenty_one'}, SOURCE, self.runtime.load()[1]))
+        self.seat(net=-10)
+        self.assertFalse(kit_brief.holds({'broke': 'twenty_one'}, SOURCE, self.runtime.load()[1]))
+
+    def test_the_cap_keeps_every_crossing_threshold(self):
+        made = {'endings': ['e'], 'purposes': [{'what': 'p', 'for': 'q'}], 'present': [],
+                'thresholds': [{'when': 'a', 'then': 'b', 'crossing_now': True}, {'when': 'x' * 5200, 'then': 'y'},
+                               {'when': 'c', 'then': 'd', 'crossing_now': True}, {'when': 'z' * 5200, 'then': 'y'}]}
+        capped = kit_brief._capped(made)
+        self.assertEqual([t['when'] for t in capped['thresholds']], ['a', 'c'])
 
 
 class GeneralMechanism(unittest.TestCase):
