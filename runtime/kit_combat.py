@@ -415,14 +415,15 @@ class Fight:
         weapon = act.get('weapon') or 'attack'
         targets = self.hostiles() if act.get('area') else [act['target']] if act.get('target') else []
         targets = [key for key in targets if key and self.active(key)]
-        damage = sum(amount for amount, _ in kit_rolls.damage(self.action))
-        dtype = next((t for _, t in kit_rolls.damage(self.action) if t), 'fire' if spell else None)
+        damage, dtype = kit_rolls.damage_total(self.action)
+        dtype = dtype or ('fire' if spell else None)
+        posted = kit_rolls.avrae(self.action) or {}
         if not targets:
             self.lines.append('There is nobody there to hit.')
             return True
         self.fight['last_target'] = targets[0]
         if spell in SPELL_SAVE:
-            dc = self.sheet.get('spell_save_dc') or _derived_save_dc(self.sheet)
+            dc = posted.get('dc') or self.sheet.get('spell_save_dc') or _derived_save_dc(self.sheet)
             if dc is None:
                 self.fight['pending'] = {'kind': 'attack', 'target': targets[0], 'weapon': weapon, 'needs': 'save_dc'}
                 self.lines.append(f'Your {spell.title()} needs your spell save DC from your sheet; say it and it lands.')
@@ -434,7 +435,22 @@ class Fight:
                 return False
             ability, half, _ = SPELL_SAVE[spell]
             hits = []
+            # Avrae's own per-target results count when a target there is one of these NPCs.
+            posted_targets = {}
+            for name, result in (posted.get('targets') or {}).items():
+                key = name_target(name, self.source, self.state, targets)
+                if key:
+                    posted_targets[key] = result
             for key in targets:
+                result = posted_targets.get(key) or {}
+                if result.get('save') and result['save'][2] is not None:
+                    saved = result['save'][2]
+                    dealt = result['damage'][0] if result.get('damage') else \
+                        ((damage // 2 if half else 0) if saved else damage)
+                    self.trace.append(f'{key} {ability} save from Avrae: {result["save"][1]} '
+                                      f'{"saved" if saved else "failed"}, {dealt} damage')
+                    hits.append((key, dealt))
+                    continue
                 bonus = self.stats(key).get('saves', {}).get(ability)
                 if bonus is None:
                     bonus = _mod(((self.state['actors'][key].get('stats') or {}).get('abilities') or {}).get(ability, 10))

@@ -75,8 +75,57 @@ def _mods(text):
     return sum(int(part.replace(' ', '')) for part in re.findall(r'[+-]\s*\d+', text or ''))
 
 
+# Avrae's output (bold and backticks already stripped by ``_clean``). A roll's line field
+# names what it is ("To Hit: 1d20 (11) + 7 = 18", "Damage: 1d12 (5) + 6 [slashing] = 11",
+# "DEX Save: 1d20 (8) + 1 = 9; Failure!", "Initiative: 1d20 (12) + 2 = 14"); a title line
+# names the check the next roll belongs to ("Sela makes a Persuasion check!").
+_FIELD = re.compile(r'^\s*(?:[^:\n]{1,40}:\s*)?(to[- ]hit|damage(?:\s*\(crit!?\))?|'
+                    r'(strength|dexterity|constitution|intelligence|wisdom|charisma|str|dex|con|int|wis|cha)\s+save|'
+                    r'initiative|init)\s*:')
+_HEADER = re.compile(r'\bmakes? an?\s+(' + _SKILL + r'|strength|dexterity|constitution|intelligence|wisdom|charisma)'
+                     r'\s+(check|save|saving throw)\s*!?')
+
+
+def _field(text, start):
+    """'attack' | 'damage' | '<ability>_save' | 'initiative' | None: the Avrae field of the
+    line a roll sits on."""
+    line_start = text.rfind('\n', 0, start) + 1
+    found = _FIELD.match(text[line_start:start])
+    if not found:
+        return None
+    word = found.group(1)
+    if word.startswith('to'):
+        return 'attack'
+    if word.startswith('damage'):
+        return 'damage'
+    if word.startswith('init'):
+        return 'initiative'
+    return f'{ABILITIES[found.group(2)]}_save'
+
+
+def _header(text, start):
+    """The check an Avrae title names for the roll right after it (no other roll between)."""
+    before = text[max(0, start - 160):start]
+    found = None
+    for match in _HEADER.finditer(before):
+        found = match
+    if not found or re.search(r'=\s*-?\d', before[found.end():]):
+        return None
+    name, kind = found.group(1), found.group(2)
+    name = re.sub(r'\s+', ' ', name)
+    if kind == 'check':
+        return ABILITIES[name] if name in ABILITIES else name.replace(' ', '_')
+    return f'{ABILITIES.get(name, name)}_save'
+
+
 def _label(text, start, end):
     """The skill, save, initiative, or attack a roll belongs to, from the words around it."""
+    field = _field(text, start)
+    if field:
+        return field
+    header = _header(text, start)
+    if header:
+        return header
     before = text[max(0, start - 40):start]
     after = text[end:end + 24]
     if _ATTACK_AFTER.search(after):
@@ -159,7 +208,7 @@ def rolls(action):
                      ABILITIES[word] if word in ABILITIES else word.replace(' ', '_'))
         found.append(Roll(value, None, None, label, 'total', match.start()))
         taken.append(match.span())
-    return sorted(found, key=lambda roll: roll.start)
+    return sorted((roll for roll in found if roll.label != 'damage'), key=lambda roll: roll.start)
 
 
 def check_roll(action, skill=None):
@@ -195,15 +244,76 @@ def attack_total(action):
             return roll.total
     # "I rolled 18" in a line that is plainly an attack and names damage
     if damage(action):
-        plain = [roll for roll in rolls(action) if roll.label is None]
+        plain = [roll for roll in rolls(action) if roll.label is None and roll.form != 'avrae']
         if plain:
             return plain[0].total
     return None
 
 
-def damage(action):
-    """[(amount, damage type or None)] stated in the action."""
+_AVRAE_DAMAGE = re.compile(r'^\s*damage(?:\s*\((crit)!?\))?\s*:\s*(.*)$', re.M)
+_DC = re.compile(r'\bdc\s*:?\s*(\d{1,2})\b')
+
+
+def _avrae_damage_line(content):
+    """(total, type) from an Avrae damage field: "1d12 (5) + 6 [slashing] = 11", or a
+    per-target "28 [fire]"."""
+    kind = re.search(r'\[(' + _DTYPE + r')\]', content)
+    total = re.search(r'=\s*(\d{1,3})\s*$', content.strip())
+    if not total:
+        total = re.match(r'\s*(\d{1,3})\b(?!\s*d\d)', content)
+    return (int(total.group(1)), kind.group(1) if kind else None) if total else None
+
+
+def avrae(action):
+    """Avrae's attack and spell output, or None when there is none:
+    {'damage': [(total, type, target or None)], 'dc': int or None,
+     'targets': {name: {'save': (ability, total, success) or None, 'damage': (total, type) or None}}}.
+    A line that is not a field or a title starts a target section (Avrae puts each target's
+    save and damage under its name)."""
     text = _clean(action)
+    if not _AVRAE_DAMAGE.search(text) and not re.search(r'^\s*(?:\w+\s+)?save\s*:', text, re.M):
+        return None
+    out = {'damage': [], 'dc': None, 'targets': {}}
+    dc = _DC.search(text)
+    out['dc'] = int(dc.group(1)) if dc else None
+    target = None
+    for line in text.split('\n'):
+        stripped = line.strip()
+        if not stripped:
+            continue
+        damage_field = _AVRAE_DAMAGE.match(line)
+        save = re.match(r'\s*(strength|dexterity|constitution|intelligence|wisdom|charisma|str|dex|con|int|wis|cha)'
+                        r'\s+save\s*:\s*(.*)$', line)
+        if damage_field:
+            found = _avrae_damage_line(damage_field.group(2))
+            if found:
+                out['damage'].append((found[0], found[1], target))
+                if target:
+                    out['targets'].setdefault(target, {'save': None, 'damage': None})['damage'] = found
+        elif save:
+            total = re.search(r'=\s*(-?\d{1,3})', save.group(2))
+            success = re.search(r'\b(success|failure|fail)\b', save.group(2))
+            if target and total:
+                out['targets'].setdefault(target, {'save': None, 'damage': None})['save'] = (
+                    ABILITIES[save.group(1)], int(total.group(1)),
+                    None if not success else success.group(1) == 'success')
+        elif ':' in stripped or stripped.endswith('!') or re.match(r'^(meta|effect|dc\b)', stripped) or \
+                re.search(r'\d', stripped) or len(stripped) > 40:
+            continue
+        else:
+            target = stripped
+    return out
+
+
+def damage(action):
+    """[(amount, damage type or None)] stated in the action. Avrae's damage fields win;
+    numbers inside a roll expression or a to-hit line are never damage."""
+    found = avrae(action)
+    if found and found['damage']:
+        return [(amount, kind) for amount, kind, _ in found['damage']]
+    text = _clean(action)
+    text = _AVRAE.sub(' ', text)
+    text = '\n'.join(line for line in text.split('\n') if _field(line + ' ', len(line)) != 'attack')
     out = []
     for match in _DAMAGE.finditer(text):
         if match.group(1):
@@ -213,3 +323,16 @@ def damage(action):
         else:
             out.append((int(match.group(5)), None))
     return out
+
+
+def damage_total(action):
+    """(total, type) the blow or spell deals. Avrae: the untargeted (rolled) damage field,
+    else the largest per-target one (the full roll on a failed save). Plain words: the sum."""
+    found = avrae(action)
+    if found and found['damage']:
+        untargeted = [(a, k) for a, k, t in found['damage'] if t is None]
+        amount, kind = untargeted[0] if untargeted else max(((a, k) for a, k, _ in found['damage']),
+                                                            key=lambda item: item[0])
+        return amount, kind
+    items = damage(action)
+    return (sum(a for a, _ in items), next((k for _, k in items if k), None)) if items else (0, None)

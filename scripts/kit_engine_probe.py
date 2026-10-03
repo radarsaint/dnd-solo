@@ -26,14 +26,25 @@ from runtime.state_context import InvalidChange, Runtime  # noqa: E402
 
 
 def roll_text(line, sheet):
-    """The batch runner's Avrae-style report (PR #48): 'd20 + bonus = total'."""
-    roll = line.get('roll') if isinstance(line, dict) else None
-    if not roll:
+    """The batch runner's report, in Avrae's real output format: a check as
+    '<PC> makes a Deception check! 1d20 (12) + 10 = `22`', then any scripted 'avrae' block
+    (To Hit / Damage / Initiative / spell output), each on its own line after the player's."""
+    if not isinstance(line, dict):
         return ''
-    skill = roll['skill']
-    bonus = int(((sheet or {}).get('skills') or {}).get(skill, 0))
-    die = max(1, min(20, int(roll['total']) - bonus))
-    return f" [{skill.replace('_', ' ').title()}: I rolled {die} + {bonus} = {die + bonus}]"
+    text = ''
+    roll = line.get('roll')
+    if roll:
+        skill = roll['skill']
+        bonus = int(((sheet or {}).get('skills') or {}).get(skill, 0))
+        die = max(1, min(20, int(roll['total']) - bonus))
+        name = skill.replace('_', ' ').title().replace(' Of ', ' of ')
+        article = 'an' if name[0] in 'AEIOU' else 'a'
+        sign = '+' if bonus >= 0 else '-'
+        text += (f"\n{(sheet or {}).get('name', 'PC')} makes {article} {name} check! "
+                 f"1d20 ({die}) {sign} {abs(bonus)} = `{die + bonus}`")
+    if line.get('avrae'):
+        text += '\n' + line['avrae']
+    return text
 
 
 def sheet_for(scenario, sheets):
@@ -97,7 +108,8 @@ def main():
         report[sid] = probe(scenario, args.fixture, args.sheets, args.seed)
         print(f'== {sid} ({scenario.get("sheet") or scenario.get("character")})')
         for row in report[sid]:
-            print(f"  {row['line']}. [{row['kind']}] {row['action']}\n       -> {row['public']}")
+            action = row['action'].replace('\n', '\n       | ')
+            print(f"  {row['line']}. [{row['kind']}] {action}\n       -> {row['public']}")
     if args.json:
         Path(args.json).write_text(json.dumps(report, indent=1))
 
