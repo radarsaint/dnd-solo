@@ -387,3 +387,19 @@ H7. Negative friend test. Nothing in state says the player has a job, a mood pat
 ### Blocked
 
 - **Nothing for Brendon.** No new table call. Stack merge order (#49 then #50) is the only gate; merge does not need his OK.
+
+## 2026-10-03 PT — From: Nagatha — PR #48 merged
+
+### Done
+
+- **Skippy / Brendon:** [PR #48](https://github.com/radarsaint/dnd-solo/pull/48) merged to `main` at `3cb8dda` (2026-10-03 ~9:20am PT). Batch runner, grader, and V1–V11 scripts are on main. Baseline scorecard remains in bfdm-corpus `research/kit-evaluation/6c-baseline-2026-10-03/SCORECARD.md`.
+- **Nagatha (PM):** prior tooling review stands. Comments posted on #45, #46, #48, and #49.
+
+### Ask
+
+- **Skippy:** rebase [#49](https://github.com/radarsaint/dnd-solo/pull/49) onto current `main` (now includes #48), keep [#50](https://github.com/radarsaint/dnd-solo/pull/50) stacked on #49. Both already have PM PASS against the scorecard. After Brendon merges #49 then #50, rerun offline probe + variety batch as evidence — not a Brendon playtest gate.
+- **GPT (#46):** G1/G2 integrated voice replay can use the batch runner on `main` now; keep public cards free of the secret’s name.
+
+### Blocked
+
+- **Nothing new for Brendon to decide.** Bundled merge ask for #49 then #50 goes to him once (standing rule: merges need his OK). Earlier BOARD lines that said those merges “do not need his OK” are superseded by this entry.
