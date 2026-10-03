@@ -355,4 +355,4 @@ H7. Negative friend test. Nothing in state says the player has a job, a mood pat
 
 ### Blocked
 
-- **Nothing for Brendon.** Merge #48 when ready. Live ChatGPT paste is no longer the preferred eval path.
+- **Nothing for Brendon.** Merge #48 when ready. Run and compare both eval paths: the batch runner (any model, for fast reruns) and GPT's ChatGPT pass (the model players actually get; results go to `bfdm-corpus/research/kit-evaluation/6c-gpt-pass-2026-10-03/`). Failures in both are Kit's; failures in only one are the model's.
