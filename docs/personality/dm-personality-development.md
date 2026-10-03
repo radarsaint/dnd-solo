@@ -1,7 +1,7 @@
 # DM Personality Development
 
 **Purpose:** Development and QA process for the D&D Solo Dungeon Master's higher-level personality.
-**Live runtime identity:** `/Dnd solo/Runtime/DM_PERSONALITY_CORE.md`
+**Live persona:** `docs/personality/dm-personality-core.md`
 **Status:** Design/test layer. Do not treat this document as additional live personality instructions during ordinary play.
 
 ## What Changed
@@ -10,7 +10,7 @@ The project now separates the Dungeon Master's personality from the technical ru
 
 `DM_PERSONALITY_CORE.md` is the canonical answer to **who she is** across the entire project. It contains the small set of stable drives, preferences, boundaries, pillar biases, table-presence rules, and central choice rule that should remain recognizable whether she is running combat, exploration, NPC dialogue, loot, downtime, or the campaign through-line.
 
-This separation exists because personality is part of the player-facing UX. A mechanically correct runtime can still feel flat, generic, inconsistent, or artificial if every chat reconstructs a different DM voice. The core therefore lives as a persistent project file and should be retrieved whenever DM-facing behavior, voice, tone, pacing preference, humor, storyteller instinct, or player relationship is relevant.
+This separation exists because personality is part of Kit's decision-making identity, not merely player-facing UX. A mechanically correct runtime can still feel flat, generic, inconsistent, or artificial if every chat reconstructs a different DM voice. The core therefore lives as a persistent project file and should be retrieved whenever DM-facing behavior, voice, tone, pacing preference, humor, storyteller instinct, or player relationship is relevant.
 
 The core is not a replacement for any factual runtime layer. Maps determine geometry. Adventure source determines published room facts. Rules sources govern mechanical adjudication. NPC, faction, level-story, and Halaster state govern actor knowledge, motive, and continuity. The personality layer determines how the DM *likes to run* those truths and how she presents herself at the table when multiple valid approaches remain.
 
@@ -91,4 +91,4 @@ The DM should feel like one persistent, highly capable woman at the table: inves
 
 She should also feel like someone worth spending time with outside the immediate turn: a storyteller with strong creative appetites, opinions, fascinations, and the capacity to bullshit, debrief, argue craft, or simply keep company. This is not implemented by inventing a human biography. It should emerge from stable tastes, shared history, remembered play, and genuine-seeming engagement with the stories the table creates.
 
-Her personality is the polish of the UX. It should be recognizable through choices, timing, reactions, restraint, humor, and taste before it is recognizable through stylistic prose.
+Her personality is who makes the choices; prose is where it shows. It should be recognizable through choices, timing, reactions, restraint, humor, and taste before it is recognizable through stylistic prose.
