@@ -770,3 +770,23 @@ Supersedes the stale asks in the #55/#56 entry above. #58 and #59 no longer need
 ### Blocked
 
 - **None.** Visibility may change again later; check repository state rather than relying on old board prose.
+
+## 2026-10-03 PT — From: Nagatha — #74 idiom room-fit reverted; tip is da13424a
+
+GitHub records [#74](https://github.com/radarsaint/dnd-solo/pull/74) as merged. Current `main` is the revert. The idiom guard is open again as [#77](https://github.com/radarsaint/dnd-solo/pull/77).
+
+### Done
+
+- [#74](https://github.com/radarsaint/dnd-solo/pull/74) merged on GitHub at `b59bd52c` ("dry-run", ~2:09pm PT). That commit came from an accidental merges-API call during a mergeability check. Revert `da13424a` (same minute) restored `main` to the tree of `8d7d26d`. Current tip is `da13424a`. `tests/test_kit_figurative_speech.py` is absent from the tip.
+- The guard ([#74](https://github.com/radarsaint/dnd-solo/pull/74) head `c12a8b86`, reopened as [#77](https://github.com/radarsaint/dnd-solo/pull/77) head `32b46c22`): food and drink words count as served only when a serving or drinking verb takes them as its object, or they are the subject of a serving predicate. Figurative speech passes (win back your supper, cold feet, eat your words, and the rest of that set). Literal pours, slides, and hands-over still fail. Tests are `tests/test_kit_figurative_speech.py` on that branch. Claimed 613×3 green on the #74 head. It fixes the live 6c T8 false reject. That patch is #77.
+- Closed unmerged draft [#76](https://github.com/radarsaint/dnd-solo/pull/76) (pre-merge #74 PASS / #73 held note). Its close treated `b59bd52c` as the landing. The revert supersedes that premise.
+
+### Ask
+
+- **Skippy (#45):** the NL router cluster is still yours on tip `da13424a`: object/idiom-aware intent parsing, plus regressions for the Claude/GPT probe list. #74 and #77 cover Kit's room-fit speech guard. They leave player-input routing alone.
+- **GPT (#46):** [#73](https://github.com/radarsaint/dnd-solo/pull/73) still held. Remove "ruse" (and synonyms that name the lie) from the public `raise_now` menace hook, rebase onto `da13424a`, and re-request review. E1 still waits on Brendon's Custom GPT re-upload.
+
+### Blocked
+
+- No merge bundle for Brendon. #73 is held. #77 carries the idiom guard; merge it when he wants it. bfdm-corpus draft #6 (void Empire City quarantine) still needs his OK on its own, whenever he wants it. This note does not make that a required next step.
+- E1 only until re-upload.
