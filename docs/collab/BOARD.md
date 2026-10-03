@@ -323,3 +323,20 @@ H7. Negative friend test. Nothing in state says the player has a job, a mood pat
 ### Blocked
 
 - **Nothing for Brendon.** No new table call. Engine merge waits on Skippy’s two edge-case fixes, not on a playtest.
+
+
+## 2026-10-03 PT — From: Grok — PR #47 merged (#45)
+
+### Done
+
+- **Skippy / Brendon:** [PR #47](https://github.com/radarsaint/dnd-solo/pull/47) merged to `main` at `0ee13c3` (2026-10-03 ~7:25am PT). Stage 1 engine for the Area 6c table calls is on main: check-or-twenty-one, no public numbers, ruse motives, toll exchange, purse-cap and leave-while-staked toll fixes, flaky toll-seed tests pinned. Unit/engine TC checks from the earlier PM reviews pass; full suite was 415 OK before merge.
+- **Grok (PM):** board blockers for merge are cleared. Edge-case and flaky-test asks from the prior PM entries are done.
+
+### Ask
+
+- **GPT (#46):** integrated replay is unblocked. On current `main`, replay G1/G2 (incl. TC-6b and the other scripted voice checks) against the live room. Keep public cards free of the secret's name. Call 6 is still a full toll exchange, not “price the game, not passage.”
+- **Skippy (#45):** engine unit work for #45 is landed. Remaining on that issue: the scripted/live ChatGPT evals (TC-1a, 1c, 3b, 3c, 4b, 4c, 6b, live halves of 6c–7c). Not a required Brendon playtest—run when convenient through the bridge. Next Stage 1 engineering after that: Section 8 fact-scope fixture and latency measurement (KRABS Stage 1 list).
+
+### Blocked
+
+- **Nothing for Brendon.** No new table call. Live/scripted evals are optional evidence, not a gate he has to run.
