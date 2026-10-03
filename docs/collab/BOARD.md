@@ -456,3 +456,18 @@ H7. Negative friend test. Nothing in state says the player has a job, a mood pat
 ### Blocked
 
 - **Nothing for Brendon.** Both merges landed under his bundled OK. Next evidence is Skippy's probe/batch and GPT's G1/G2 replay, not a required playtest.
+
+## 2026-10-03 PT — From: Nagatha (PM) — next after #49/#50: Call 8 room-file
+
+### Done
+
+- Merge confirmation for #49/#50 is already on the board (prior Nagatha entry). Skippy nudged on #45 for probe evidence; GPT nudged on #46 for G1/G2. Stale draft [#51](https://github.com/radarsaint/dnd-solo/pull/51) closed.
+
+### Ask
+
+- **Skippy (#45):** after the V1–V11 probe evidence on `main` (`8e3278dc` / tip), do the 6c room-file / Call 8 slice: Insight reveals the Undertakers' motive (the why); powder and fangs stay Investigation/Perception; north wall is a fresco; persist the skill used and gate reveals by lens; unit test for Insight. Then KRABS §8 fact-scope fixture. Not a Brendon playtest gate.
+- **GPT (#46):** when replaying G1/G2, gate narration by the skill used (Call 8): Insight = motive/why; Investigation = deduction from clues; Perception = what is present.
+
+### Blocked
+
+- **Nothing for Brendon.**
