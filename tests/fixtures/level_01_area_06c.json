@@ -187,7 +187,7 @@
     "_note": "DM-only. Claims and knowers (runtime/kit_claims.py). Keyed by the thing itself. holders are granted by the source (knowledge lists, role); everyone else's band is computed from stats. dc: the adventure's, else 10 + floor(dungeon floor level / 3). pc_access passive: the PC's passive skill is a shield (fingerprint); roll: only a player-initiated roll finds it.",
     "false_vampires": {
       "about": "group:undertakers/true_nature",
-      "truth": "Not undead: the Undertakers are thugs in costume. The act scares newcomers into paying 10 gp for safe passage and keeps them losing coin at the marked game.",
+      "truth": "Not undead: the Undertakers are thugs in costume. The act scares newcomers into paying 10 gp for safe passage and keeps them losing coin at the card table.",
       "source": "adventure",
       "fact": "false_vampires",
       "roots": [
@@ -363,7 +363,7 @@
     },
     "false_vampires": {
       "area": "area_06c", "visible": false,
-      "text": "Not undead: the Undertakers are thugs in costume. The act scares newcomers into paying 10 gp for safe passage and keeps them losing coin at the marked game."
+      "text": "Not undead: the Undertakers are thugs in costume. The act scares newcomers into paying 10 gp for safe passage and keeps them losing coin at the card table."
     },
     "vampire_tells": {
       "area": "area_06c", "visible": false,
@@ -408,6 +408,7 @@
       "type": "human bandit captain", "performance_bonus": 4,
       "location": "area_06c", "status": "alive", "visible": true,
       "motive": "Keep the Undertakers' vampire act intact (it scares newcomers into paying the toll) and the visitor seated at his table, where he can profit from them; displace Harria as leader of the Undertakers.",
+      "traits": ["Lies and cheats for the fun of it (source).", "Blames others for his own failures (source).", "A showman: Performance +4, and he enjoys the act (source).", "Values his own safety; retreats rather than bleed (source).", "Wants Harria out of his way (source)."],
       "immediate_goal": "Control the encounter without risking himself.",
       "knowledge": ["The Undertakers' vampire appearance is a disguise.", "His deck is marked.", "Harria is his rival."],
       "secrets": ["He is not a vampire.", "He cheats at cards."],
@@ -422,6 +423,7 @@
       "name": "Pale card player near the door", "type": "human bandit",
       "location": "area_06c", "status": "alive", "visible": true,
       "motive": "Keep the vampire act intact (it scares newcomers into paying the toll) and the visitor at the table; share in the Undertakers' take and survive this encounter.",
+      "traits": ["Follows Uktarl's lead; in it for a share of the take.", "Knife-ready, but wants to survive the night."],
       "knowledge": ["The vampire appearance is a disguise."],
       "secrets": ["Not a vampire."],
       "retreat_condition": "When Uktarl retreats, flee toward area 8 and join any bandits still there.",
@@ -432,6 +434,7 @@
       "name": "Pale card player beside the fresco", "type": "human bandit",
       "location": "area_06c", "status": "alive", "visible": true,
       "motive": "Keep the vampire act intact (it scares newcomers into paying the toll) and the visitor at the table; share in the Undertakers' take and survive this encounter.",
+      "traits": ["Follows Uktarl's lead; in it for a share of the take.", "The muscle at the table: leans in when money moves."],
       "knowledge": ["The vampire appearance is a disguise."],
       "secrets": ["Not a vampire."],
       "retreat_condition": "When Uktarl retreats, flee toward area 8 and join any bandits still there.",
@@ -442,6 +445,7 @@
       "name": "Fourth pale card player", "type": "doppelganger",
       "location": "area_06c", "status": "alive", "visible": true,
       "motive": "Keep the vampire act intact (it scares newcomers into paying the toll) and the visitor at the table; support the current Undertaker arrangement while preserving its own disguise and safety.",
+      "traits": ["Quiet and watchful; keeps its own disguise above everything.", "Backs the current arrangement while it suits it."],
       "knowledge": ["The group's vampire identity is a performance.", "Its own true nature."],
       "secrets": ["A doppelganger disguised as one of the apparent vampires."],
       "retreat_condition": "When Uktarl retreats, flee toward area 8 and join any bandits still there.",
@@ -528,6 +532,186 @@
       ],
       "violence": "If it turns violent, the room's retreat rules apply: Uktarl retreats toward area 7 when damaged or when an underling is slaughtered; the others flee toward area 8.",
       "stakeable_in": ["twenty_one"]
+    }
+  },
+  "story": {
+    "_note": "DM-only story brief data (runtime/kit_brief.py). Built from the keyed room and Brendon's table calls; thresholds are DM-discretion defaults he can override. Hook text is said to the performer when overdue, so it stays public-safe.",
+    "area_06c": {
+      "about": "A shakedown dressed as a haunting. Four thugs pose as vampires so newcomers pay 10 gp a head for safe passage, and they keep visitors at a marked card game to bleed them further. Uktarl runs the table for profit without risk and wants Harria's place.",
+      "purposes": [
+        {
+          "what": "The vampire act",
+          "for": "Scares newcomers into paying the 10 gp toll for safe passage, and keeps them nervous while they lose coin at the table.",
+          "roots": [
+            "false_vampires",
+            "passage_toll"
+          ]
+        },
+        {
+          "what": "The card game",
+          "for": "Keeps a visitor seated where the gang can size them up, press the toll, and fleece them.",
+          "roots": [
+            "card_table",
+            "twenty_one"
+          ]
+        },
+        {
+          "what": "The marked deck",
+          "for": "Uktarl wins at his own table; a seated visitor bleeds coin hand by hand.",
+          "roots": [
+            "marked_deck"
+          ]
+        }
+      ],
+      "hooks": [
+        {
+          "id": "toll_demand",
+          "primary": true,
+          "by": "uktarl",
+          "within_beats": 3,
+          "text": "The dealer names the price of safe passage, 10 gp a head, with a reason in character and a question the visitor must answer.",
+          "delivered_when": {
+            "toll_raised": "passage_toll"
+          },
+          "roots": [
+            "passage_toll"
+          ]
+        },
+        {
+          "id": "act_menace",
+          "primary": true,
+          "by": "uktarl",
+          "within_beats": 3,
+          "text": "The hosts make the dark sound dangerous for the living, and their protection the only safe passage.",
+          "delivered_when": {
+            "any": [
+              {
+                "toll_raised": "passage_toll"
+              },
+              {
+                "said": {
+                  "by": [
+                    "uktarl",
+                    "bandit_a",
+                    "bandit_b",
+                    "doppelganger"
+                  ],
+                  "any": [
+                    "safe passage",
+                    "protection",
+                    "not safe for",
+                    "dangerous for",
+                    "the dark down here",
+                    "protect you",
+                    "the living"
+                  ]
+                }
+              }
+            ]
+          },
+          "roots": [
+            "false_vampires",
+            "passage_toll"
+          ]
+        },
+        {
+          "id": "rigged_game",
+          "primary": true,
+          "by": "uktarl",
+          "within_beats": 2,
+          "text": "The dealer draws the visitor to his table and keeps them playing.",
+          "delivered_when": {
+            "any": [
+              {
+                "procedure_running": "twenty_one"
+              },
+              {
+                "said": {
+                  "by": [
+                    "uktarl"
+                  ],
+                  "any": [
+                    "the game",
+                    "a game",
+                    "the cards",
+                    "stake",
+                    "wager",
+                    "ante",
+                    "deal you in",
+                    "take a seat",
+                    "a seat at",
+                    "my table",
+                    "this table",
+                    "while i deal",
+                    "on the felt",
+                    "play a round",
+                    "care to play",
+                    "cards + sit",
+                    "cards + join",
+                    "cards + deal you"
+                  ],
+                  "paired": [
+                    "a hand",
+                    "want in",
+                    "join us"
+                  ],
+                  "game": "twenty_one"
+                }
+              }
+            ]
+          },
+          "roots": [
+            "card_table",
+            "twenty_one"
+          ]
+        }
+      ],
+      "thresholds": [
+        {
+          "when": "The visitor is up about 30 gp, or wins two hands running.",
+          "then": "The gang grumbles; the fresco-side player leans in and the dealer cheats harder.",
+          "roots": [
+            "bandit_b",
+            "uktarl"
+          ]
+        },
+        {
+          "when": "The visitor exposes the cheat publicly, takes the pot by force, or wins big after being caught reading the backs.",
+          "then": "The dealer and the fresco-side player turn violent; the room's retreat rules apply.",
+          "roots": [
+            "uktarl",
+            "bandit_b",
+            "marked_deck"
+          ]
+        },
+        {
+          "when": "The visitor goes broke at the table.",
+          "then": "They show the visitor the passage; the toll still stands.",
+          "roots": [
+            "passage_toll"
+          ]
+        },
+        {
+          "when": "The visitor refuses the toll.",
+          "then": "The table closes ranks; if they cannot extort or beat the visitor, they try to turn them against the Xanathar goblinoids.",
+          "roots": [
+            "passage_toll"
+          ]
+        },
+        {
+          "when": "Uktarl takes damage or sees an underling slaughtered.",
+          "then": "He retreats toward area 7; the others flee toward area 8.",
+          "roots": [
+            "uktarl"
+          ]
+        }
+      ],
+      "endings": [
+        "The visitor leaves, through the south door or on through the passage (toll paid, haggled, won, or refused).",
+        "A fight resolves: the gang retreats per the source, or the visitor falls back.",
+        "The gang is exposed (the act or the cheat) and the scene turns on it.",
+        "The gang is won over, or turns the visitor toward the Xanathar goblinoids."
+      ]
     }
   },
   "texture_palette": {
