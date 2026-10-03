@@ -33,8 +33,11 @@ SETTLED = ('paid', 'waived')
 
 TOLL_WORDS = re.compile(r"\b(toll|tolls|passage|fee|to pass|pass through|way through|safe passage|"
                         r"a head|per head|your price|the price|protection)\b")
-# An NPC's demand in natural words also counts ("ten gold and you walk out safe").
-TOLL_LINE_WORDS = re.compile(TOLL_WORDS.pattern[:-3] + r"|walk (?:out|on|through)|go (?:on|through)|"
+# THE pattern for an NPC line naming the toll, shared by the detector (raised_events,
+# names_toll) and the call-6 guard (kit_guards.check_toll_exchange), so a line that delivers
+# the toll is always held to the exchange rule. Natural words count ("ten gold and you walk
+# out safe"). The player-side TOLL_WORDS above stays narrower on purpose.
+NPC_TOLL_WORDS = re.compile(TOLL_WORDS.pattern[:-3] + r"|walk (?:out|on|through)|go (?:on|through)|"
                              r"safe(?:ly)?|get (?:out|through))\b")
 _WORDS = {'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5, 'six': 6, 'seven': 7, 'eight': 8,
           'nine': 9, 'ten': 10, 'eleven': 11, 'twelve': 12, 'fifteen': 15, 'twenty': 20, 'half': None}
@@ -377,7 +380,7 @@ def raised_events(source, state, spoken, turn_id):
                 continue
             for sentence in kit_guards.sentences(text):
                 said = {amount for amount, _ in kit_guards.spoken_amounts(sentence)}
-                if toll['amount'] in said and TOLL_LINE_WORDS.search(sentence.casefold()):
+                if toll['amount'] in said and NPC_TOLL_WORDS.search(sentence.casefold()):
                     body.update(status='demanded', demanded_by=labels[speaker.strip()])
                     events.append(event(key, body, f'{speaker.strip()} raised the toll in turn {turn_id}.'))
                     break
@@ -401,6 +404,6 @@ def names_toll(source, key, spoken):
             continue
         for sentence in kit_guards.sentences(text):
             said = {amount for amount, _ in kit_guards.spoken_amounts(sentence)}
-            if toll['amount'] in said and TOLL_LINE_WORDS.search(sentence.casefold()):
+            if toll['amount'] in said and NPC_TOLL_WORDS.search(sentence.casefold()):
                 return True
     return False

@@ -32,7 +32,9 @@ The source may declare, per area, a ``story`` block (all fields optional):
 
 Conditions: {toll_raised: <toll id>}, {procedure_running: <procedure id>},
 {fact_known: <fact id>}, {claim_learned: <claim id>},
-{said: {by: [actor ids], any: [phrases]}} (an NPC line this turn), {any: [conditions]}.
+{said: {by: [actor ids], any: [phrases], game: <procedure id>}} (an NPC line this turn; a
+phrase "a + b" needs both in the same line; game adds that procedure's own names: its
+``called`` list, else its name up to "(" or ","), {any: [conditions]}.
 A hook's ``text`` is said to the performer when it is overdue, so it must be public-safe:
 it is checked against the room's leak phrases and keyword sets.
 
@@ -84,8 +86,12 @@ def _check_condition(cond, source, label):
         require(isinstance(value, dict) and isinstance(value.get('any'), list) and value['any'] and
                 all(isinstance(p, str) and p.strip() for p in value['any']) and
                 isinstance(value.get('by'), list) and value['by'] and
-                all(b in source.get('actors', {}) for b in value['by']),
-                f'{label}: said needs by (actor ids) and any (phrases)')
+                all(b in source.get('actors', {}) for b in value['by']) and
+                all(part.strip() for p in value['any'] for part in p.split('+')) and
+                set(value) <= {'by', 'any', 'game'} and
+                ('game' not in value or value['game'] in (source.get('procedures') or {})),
+                f'{label}: said needs by (actor ids) and any (phrases; "a + b" both in one line), '
+                'and game names a procedure')
     else:
         pools = {'toll_raised': source.get('tolls') or {}, 'procedure_running': source.get('procedures') or {},
                  'fact_known': source.get('facts') or {}, 'claim_learned': source.get('claims') or {}}
@@ -196,8 +202,8 @@ def holds(cond, source, state, spoken=''):
         return any(holds(item, source, state, spoken) for item in value)
     if kind == 'said':
         lines = _spoken_by(spoken, source)
-        text = ' '.join(' '.join(lines.get(who, ())) for who in value['by']).casefold()
-        return any(re.search(r'\b' + re.escape(p.casefold()) + r'\b', text) for p in value['any'])
+        said = [line.casefold().replace('\u2019', "'") for who in value['by'] for line in lines.get(who, ())]
+        return any(_says(line, phrase) for line in said for phrase in said_phrases(value, source))
     if kind == 'toll_raised':
         from . import kit_toll
         body = (kit_toll.here(source, state).get(value) or (None, {}))[1] if state.get('area') else {}
@@ -209,6 +215,27 @@ def holds(cond, source, state, spoken=''):
     if kind == 'fact_known':
         return value in (state.get('known_facts') or ())
     return value in ((state.get('claims') or {}).get('learned') or ())
+
+
+def game_names(config):
+    """A procedure's own names, as an NPC would say them: its ``called`` list, else its name
+    up to "(" or "," ("Twenty-one (blackjack), ..." is "twenty-one")."""
+    called = (config or {}).get('called')
+    if isinstance(called, list) and all(isinstance(n, str) and n.strip() for n in called):
+        return [n.strip().casefold() for n in called]
+    name = re.split(r'[(,]', str((config or {}).get('name') or ''))[0].strip().casefold()
+    return [name] if name else []
+
+
+def said_phrases(value, source):
+    """The phrases a said condition accepts: its own plus the named game's names."""
+    game = value.get('game')
+    return list(value['any']) + (game_names((source.get('procedures') or {}).get(game)) if game else [])
+
+
+def _says(line, phrase):
+    """One line says the phrase; "a + b" needs each part in that same line."""
+    return all(re.search(r'\b' + re.escape(part.strip().casefold()) + r'\b', line) for part in phrase.split('+'))
 
 
 def _fighting(state):
@@ -306,7 +333,8 @@ def _needs(cond, source):
     if kind == 'any':
         return ' or '.join(_needs(item, source) for item in value if speakable(item))
     if kind == 'said':
-        return 'says one of: ' + ', '.join(f'"{p}"' for p in value['any'])
+        return 'says one of: ' + ', '.join(
+            '"' + '" with "'.join(part.strip() for part in p.split('+')) + '"' for p in said_phrases(value, source))
     if kind == 'toll_raised':
         toll = (source.get('tolls') or {}).get(value) or {}
         return (f'names the amount ({toll.get("amount")} {toll.get("unit", "")}) together with a toll word '

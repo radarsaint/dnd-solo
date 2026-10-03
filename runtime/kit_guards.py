@@ -18,6 +18,7 @@ Checks come in two strengths:
 """
 import re
 
+from .kit_toll import NPC_TOLL_WORDS  # one NPC-line toll pattern: the detector and the call-6 guard
 from .state_context import InvalidChange, require
 
 # Every speaker label except these is an NPC voiced from the room source's actor cards.
@@ -954,7 +955,6 @@ def check_no_refreshment(segments):
 # ---------------------------------------------------------------------------
 # 12. The toll is an exchange, not a price tag (Brendon's table call 6)
 # ---------------------------------------------------------------------------
-TOLL_WORDS = re.compile(r"\b(toll|passage|fee|to pass|way through|safe passage|a head|per head)\b")
 TOLL_GAME_WORDS = re.compile(r"\b(game|games|cards?|ante|deal|dealt|gambling|gamble|blind|bet|wager|play)\b")
 
 
@@ -968,7 +968,7 @@ def check_toll_exchange(segments, amount, raised):
         parts = sentences(segment['text'])
         for index, sentence in enumerate(parts):
             said = {value for value, _ in spoken_amounts(sentence)}
-            if amount not in said or not TOLL_WORDS.search(normalize(sentence)):
+            if amount not in said or not NPC_TOLL_WORDS.search(normalize(sentence)):
                 continue
             require(is_npc(segment['speaker']),
                     f'The toll is an NPC\'s demand: the {segment["speaker"]} names it ("{sentence[:60]}"). Let the '

@@ -598,10 +598,11 @@
                   "any": [
                     "safe passage",
                     "protection",
-                    "for the living",
                     "not safe for",
                     "dangerous for",
-                    "the dark down here"
+                    "the dark down here",
+                    "protect you",
+                    "the living"
                   ]
                 }
               }
@@ -631,7 +632,7 @@
                   "any": [
                     "the game",
                     "a game",
-                    "a hand of cards",
+                    "a hand",
                     "the cards",
                     "stake",
                     "wager",
@@ -642,8 +643,16 @@
                     "my table",
                     "this table",
                     "while i deal",
-                    "on the felt"
-                  ]
+                    "on the felt",
+                    "play a round",
+                    "care to play",
+                    "want in",
+                    "join us",
+                    "cards + sit",
+                    "cards + join",
+                    "cards + deal you"
+                  ],
+                  "game": "twenty_one"
                 }
               }
             ]

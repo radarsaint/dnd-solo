@@ -11,7 +11,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from runtime import kit_agent, kit_brief, kit_toll
+from runtime import kit_agent, kit_brief, kit_guards, kit_toll
 from runtime.kit_agent import KitAgent, Resolution, Room6CAdjudicator
 from runtime.state_context import InvalidChange, Runtime
 from test_kit_agent import FIXTURE, MIRROR, RecordingModel, exchange_speech, with_raised_hooks
@@ -273,11 +273,52 @@ class ReviewFixes(Base):
         self.assertTrue(kit_toll.names_toll(source, 'passage_toll', 'Dealer: Ten gold and you walk out safe.'))
         hooks = {h['id']: h for h in source['story']['area_06c']['hooks']}
         state = self.runtime.load()[1]
-        for line in ('Dealer: The night is young; play a hand and deal with it.',
+        for line in ('Dealer: The night is young; keep your hand still and deal with it.',
                      'Dealer: It is dangerous to bet against the house, safely or not.'):
             with self.subTest(line=line):
                 self.assertFalse(kit_brief.holds(hooks['act_menace']['delivered_when'], source, state, line))
                 self.assertFalse(kit_brief.holds(hooks['rigged_game']['delivered_when'], source, state, line))
+
+    def test_the_guard_and_the_detector_share_one_toll_pattern(self):
+        # #55 review: a natural demand delivers the hook, so the call-6 guard must see it too:
+        # mixed into game talk with no question, it is rejected.
+        self.start()
+        line = 'Ten gold and you walk out safe, so ante up and play.'
+        self.assertTrue(kit_toll.names_toll(self.runtime.source(), 'passage_toll', f'Dealer: {line}'))
+        with self.assertRaises(InvalidChange):
+            kit_guards.check_toll_exchange([{'speaker': 'Dealer', 'text': line}], 10, False)
+        self.assertIs(kit_guards.NPC_TOLL_WORDS, kit_toll.NPC_TOLL_WORDS)
+        # A real exchange in the same words passes.
+        kit_guards.check_toll_exchange([{'speaker': 'Dealer', 'text': 'Down here the dark is not kind. '
+                                         'Ten gold and you walk out safe. Do we have an understanding?'}], 10, False)
+
+    def test_natural_invitations_and_the_games_own_names_count(self):
+        self.start()
+        source = self.runtime.source()
+        hooks = {h['id']: h for h in source['story']['area_06c']['hooks']}
+        state = self.runtime.load()[1]
+        for line in ('Care to play?', 'Join us for a hand?', 'Twenty-one, friend. Want in?',
+                     'Cards are friendlier than the corridor. Sit.', 'Play a round, stranger.',
+                     'Twenty-one is all we play here.'):
+            with self.subTest(line=line):
+                self.assertTrue(kit_brief.holds(hooks['rigged_game']['delivered_when'], source, state,
+                                                f'Dealer: {line}'))
+        for line in ('Cards are old down here.', 'Sit wherever you like; the corridor is cold.'):
+            with self.subTest(line=line):  # "cards + sit" needs both words in one line
+                self.assertFalse(kit_brief.holds(hooks['rigged_game']['delivered_when'], source, state,
+                                                 f'Dealer: {line}'))
+        for line in ('We protect you from what walks the halls.', 'This is no place for the living.'):
+            with self.subTest(line=line):
+                self.assertTrue(kit_brief.holds(hooks['act_menace']['delivered_when'], source, state,
+                                                f'Dealer: {line}'))
+
+    def test_game_names_from_a_called_list_or_the_name(self):
+        # Non-6c: any card procedure names itself; a said condition with game picks them up.
+        self.assertEqual(kit_brief.game_names({'name': 'Three-Dragon Ante (house rules)'}), ['three-dragon ante'])
+        self.assertEqual(kit_brief.game_names({'name': 'Dragonchess', 'called': ['Dragonchess', 'the board']}),
+                         ['dragonchess', 'the board'])
+        self.assertTrue(kit_brief._says('the board is set; sit', 'the board + sit'))
+        self.assertFalse(kit_brief._says('the board is set', 'the board + sit'))
 
     def test_the_brief_is_capped_and_fight_rounds_are_not_beats(self):
         self.start()
