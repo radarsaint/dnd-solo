@@ -410,13 +410,21 @@ def brief(source, state):
         if isinstance(clock, dict) and clock.get('when_full'):
             thresholds.append({'when': f'{key} fills: {clock.get("ticks_on", "")}'.strip(), 'then': clock['when_full']})
     endings = list(story.get('endings') or ())
+    if (source.get('areas') or {}).get(area, {}).get('outside') and not story:
+        # Outside the room (stage approach or resolution): going in and going past are both
+        # ways this ends (ROOM_LOADER.md: a bypass is a resolution).
+        endings = ['The player goes in.', 'The player goes past without going in.']
     if not endings:
         endings = ['The player leaves the scene.'] + [
             f'{labels.get(key) or actor.get("name") or key}: {actor["retreat_condition"]}'
             for key, actor in present.items() if actor.get('retreat_condition')]
     about = story.get('about') or (source.get('level_context') or {}).get('pressure_here') or \
         ((source.get('areas') or {}).get(area) or {}).get('name')
-    made = {'rule': BRIEF_RULE, 'area': area, 'about': about, 'beats_in_scene': mem['beats'],
+    from .kit_rooms import resolution, stage
+    where = stage(source, state)
+    made = {'rule': BRIEF_RULE, 'area': area, 'stage': where, 'about': about,
+            **({'resolved': resolution(source, state)} if where == 'resolution' else {}),
+            'beats_in_scene': mem['beats'],
             'present': people,
             'purposes': [{'what': p['what'], 'for': p['for']} for p in story.get('purposes') or ()],
             'hooks': hooks, 'raise_now': raise_now, 'thresholds': thresholds, 'endings': endings}

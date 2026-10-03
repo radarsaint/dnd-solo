@@ -120,7 +120,7 @@ class PlayerIdentityTests(unittest.TestCase):
         with self.assertRaises(InvalidChange):
             runtime.set_player_character('Nik', 'Harengon', 'Rogue', 40)
         # Recording the character first does not use up the room entry.
-        prepared = kit_agent.KitChatBridge(runtime, kit_agent.Room6CAdjudicator()).prepare(
+        prepared = kit_agent.KitChatBridge(runtime, kit_agent.RoomAdjudicator()).prepare(
             None, 'entry', one_pass=True, opening=True)
         self.assertEqual(prepared['input']['private']['action_kind'], 'opening')
         self.assertEqual(prepared['input']['private']['dm_context']['player_perceivable']['your_character'],

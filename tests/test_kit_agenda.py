@@ -10,7 +10,7 @@ import unittest
 from pathlib import Path
 
 from runtime import kit_agenda, kit_agent, kit_cards, kit_detail, pc_sheet
-from runtime.kit_agent import Room6CAdjudicator, room_intent
+from runtime.kit_agent import RoomAdjudicator, room_intent
 from runtime.state_context import InvalidChange, Runtime
 from test_kit_agent import FIXTURE, RecordingModel
 
@@ -248,7 +248,7 @@ class RoutingTests(unittest.TestCase):
         key = next(k for k, v in SIXC['procedures'].items() if isinstance(v, dict) and v.get('kind') == 'card_game')
         live = {'area': 'area_06c', 'roll_seed': 'x', 'known_facts': [], 'actors': SIXC['actors'],
                 'procedures': {key: body}}
-        result = Room6CAdjudicator(source=SIXC).resolve('I look around the rest of the room.', 1, live)
+        result = RoomAdjudicator(source=SIXC).resolve('I look around the rest of the room.', 1, live)
         self.assertEqual(result.kind, 'observe')
         self.assertFalse(any(e['type'] == 'procedure_state' for e in result.events))
 
@@ -355,7 +355,7 @@ class PcStateBySituationTests(unittest.TestCase):
     def test_no_check_waits_on_an_unset_list(self):
         self.assertNotIn('held', self.runtime.load()[1]['player_sheet'])
         revision, state = self.runtime.load()
-        result = Room6CAdjudicator(source=self.runtime.source(), roll=lambda: 20).resolve(
+        result = RoomAdjudicator(source=self.runtime.source(), roll=lambda: 20).resolve(
             'I inspect the fresco.', revision, state)
         self.assertNotEqual(result.kind, 'ask_first')
         self.assertTrue(result.events)

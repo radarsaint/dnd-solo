@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Offline engine probe for the 6c variety scenarios: no model, no network, no API key.
 
-Each scenario line goes through Room6CAdjudicator (the engine read of the player's act) and,
+Each scenario line goes through RoomAdjudicator (the engine read of the player's act) and,
 when it resolves, its events are committed so later lines see the changed room. The output is
 the engine's read per line: the resolution kind and its public event, or the pending ruling.
 This checks the engine half of the batch runner (PR #48); the DM model's voice is not run.
@@ -21,7 +21,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 os.environ.pop('OPENAI_API_KEY', None)
 
-from runtime.kit_agent import PendingRuling, Room6CAdjudicator  # noqa: E402
+from runtime.kit_agent import PendingRuling, RoomAdjudicator  # noqa: E402
 from runtime.state_context import InvalidChange, Runtime  # noqa: E402
 
 
@@ -81,7 +81,7 @@ def probe(scenario, fixture, sheets, seed, raise_toll=True):
                 events.append(kit_toll.event(key, body, 'Probe: the dealer demands the toll on arrival.'))
             if events:
                 runtime.commit('probe-toll', revision, events)
-        adjudicator = Room6CAdjudicator(source=runtime.source())
+        adjudicator = RoomAdjudicator(source=runtime.source())
         out = []
         for index, line in enumerate(scenario.get('lines') or scenario.get('turns') or []):
             text = (line.get('line') or line.get('text')) if isinstance(line, dict) else line

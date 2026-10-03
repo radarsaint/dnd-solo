@@ -149,4 +149,4 @@ cracks it (a wound, burned paint, a wiped face, fitted fangs seen up close, a ma
   has said on any committed turn stays usable. **The tub rule:** a question about what is in the tub went to
   Kit's invention oracle (which must show an answer) while the room forbids inventing the contents and the leak
   guard forbids naming them. The source keys the contents (`tub_stash`) and a plain look at a visible feature is
-  free (call 2), so any look or question into the tub resolves from the source (`inspect_tub`), with no invention.
+  free (call 2), so any look or question into the tub resolves from the source (`inspect_feature`, from the fact's `handling` in the room file; see ROOM_LOADER.md), with no invention.

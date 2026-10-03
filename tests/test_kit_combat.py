@@ -9,7 +9,7 @@ from pathlib import Path
 from unittest import mock
 
 from runtime import kit_combat, kit_voice
-from runtime.kit_agent import PendingRuling, Room6CAdjudicator
+from runtime.kit_agent import PendingRuling, RoomAdjudicator
 from runtime.state_context import Runtime
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -27,7 +27,7 @@ class Room:
         with mock.patch('runtime.state_context.secrets.token_hex', return_value=f'{seed:032x}'):
             self.runtime.initialize(json.loads(FIXTURE.read_text()), 'area_06c')
         self.runtime.set_player_sheet(json.loads(NIK.read_text()))
-        self.adjudicator = Room6CAdjudicator(roll=roll, source=self.runtime.source())
+        self.adjudicator = RoomAdjudicator(roll=roll, source=self.runtime.source())
 
     def act(self, action):
         revision, state = self.runtime.load()

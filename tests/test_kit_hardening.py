@@ -13,7 +13,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from runtime import kit_agent, kit_guards
-from runtime.kit_agent import (KitAgent, KitChatBridge, PendingRuling, Room6CAdjudicator,
+from runtime.kit_agent import (KitAgent, KitChatBridge, PendingRuling, RoomAdjudicator,
                                fit_to_budget)
 from runtime.state_context import (CONTEXT_BUDGET_BYTES, HostSequenceError, InvalidChange,
                                    PERSONALITY_CORE, Runtime, StaleTurn, encode)
@@ -43,7 +43,7 @@ class BridgeCase(unittest.TestCase):
         self.addCleanup(lambda: self.runtime.close())
         self.runtime.initialize(json.loads(FIXTURE.read_text()), 'area_06c')
         self.model = RecordingModel()
-        self.adjudicator = Room6CAdjudicator(perception=0, insight=0, roll=lambda: 20)
+        self.adjudicator = RoomAdjudicator(perception=0, insight=0, roll=lambda: 20)
         self.bridge = KitChatBridge(self.runtime, self.adjudicator)
 
     def quiet_plan(self, private_input, **brief):
@@ -88,7 +88,7 @@ class PaddingTests(unittest.TestCase):
             self.check([seg('Narrator', 'You ask the table what game they are playing.'),
                         seg('Dealer', 'Three-card draw, house rules.')])
         # A physical turn may narrate the player's visible act; only social retelling is padding.
-        self.check([seg('Narrator', 'You ask nothing; the ring glints.')], kind='inspect_tub')
+        self.check([seg('Narrator', 'You ask nothing; the ring glints.')], kind='inspect_feature')
 
     def test_recycled_line_from_an_earlier_turn_is_padding(self):
         past = history([('Dealer', 'Every chair at this table costs something before the night is out.')])
@@ -492,7 +492,7 @@ class ContextBudgetTests(BridgeCase):
                 plan['public_brief']['reply_to'] = action[:200]
                 return plan
 
-        adjudicator = Room6CAdjudicator(perception=0, insight=0, roll=lambda: 20, sleight_of_hand=0)
+        adjudicator = RoomAdjudicator(perception=0, insight=0, roll=lambda: 20, sleight_of_hand=0)
         agent = KitAgent(self.runtime, LongTalk(), adjudicator)
         self.runtime.set_player_character('Nik', 'Harengon', 'Rogue', 3)
         for turn in range(12):
@@ -778,7 +778,7 @@ class RefusedAttemptTests(BridgeCase):
         self.assertEqual(staged['input']['refused_attempts'], attempts)
 
     def test_host_input_problems_are_not_recorded(self):
-        bridge = KitChatBridge(self.runtime, Room6CAdjudicator())
+        bridge = KitChatBridge(self.runtime, RoomAdjudicator())
         with self.assertRaisesRegex(PendingRuling, 'Load a character sheet or state the Perception roll'):
             bridge.prepare('I inspect the fresco.', 'nomod')
         self.assertEqual(self.runtime.load()[0], 0)
@@ -823,7 +823,7 @@ class PacketSlimTests(BridgeCase):
     def test_a_card_turn_sends_the_view_delta_without_the_static_rules(self):
         from test_kit_06c_play import GAME_ASK, GameModel
         model = GameModel()
-        adjudicator = Room6CAdjudicator(perception=2, insight=1, sleight_of_hand=3, roll=lambda: 20)
+        adjudicator = RoomAdjudicator(perception=2, insight=1, sleight_of_hand=3, roll=lambda: 20)
         agent = KitAgent(self.runtime, model, adjudicator)
         agent.turn(GAME_ASK, 'game')
         agent.turn('Deal me in.', 'join')

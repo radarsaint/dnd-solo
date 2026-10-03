@@ -18,7 +18,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from runtime import kit_cards, kit_combat, kit_rolls, kit_twenty_one
-from runtime.kit_agent import Room6CAdjudicator, card_procedure
+from runtime.kit_agent import RoomAdjudicator, card_procedure
 from runtime.state_context import Runtime
 from test_kit_agent import FIXTURE
 
@@ -65,7 +65,7 @@ class Base(unittest.TestCase):
 
     def resolve(self, action, commit=False):
         revision, state = self.runtime.load()
-        result = Room6CAdjudicator(source=self.runtime.source(), roll=lambda: 15).resolve(action, revision, state)
+        result = RoomAdjudicator(source=self.runtime.source(), roll=lambda: 15).resolve(action, revision, state)
         if commit:
             self.runtime.commit(f'c{revision}', revision, result.events)
         return result

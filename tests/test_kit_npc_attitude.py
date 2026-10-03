@@ -14,7 +14,7 @@ import unittest
 from pathlib import Path
 
 from runtime import kit_agent, kit_attitude, kit_brief, kit_cards, kit_twenty_one
-from runtime.kit_agent import Room6CAdjudicator
+from runtime.kit_agent import RoomAdjudicator
 from runtime.state_context import InvalidChange, Runtime
 from test_kit_agent import FIXTURE
 
@@ -60,7 +60,7 @@ class Base(unittest.TestCase):
 
     def resolve(self, action, npc=10):
         revision, state = self.runtime.load()
-        adjudicator = Room6CAdjudicator(source=self.runtime.source(), roll=lambda: 10, npc_roll=lambda: npc)
+        adjudicator = RoomAdjudicator(source=self.runtime.source(), roll=lambda: 10, npc_roll=lambda: npc)
         return adjudicator.resolve(action, revision, state)
 
 
@@ -109,7 +109,7 @@ class HiddenNpcChecks(Base):
         self.seat()
         self.commit(shifts(self.resolve(T10, npc=18).events))
         state = copy.deepcopy(self.runtime.load()[1])
-        adjudicator = Room6CAdjudicator(source=SOURCE, roll=lambda: 10, npc_roll=lambda: 18)
+        adjudicator = RoomAdjudicator(source=SOURCE, roll=lambda: 10, npc_roll=lambda: 18)
         self.assertEqual(shifts(adjudicator.resolve(T10, 99, state).events), [])
         state['scene_id'] = 'scene-2'  # KRABS §8 scene ids (#59): a later scene in the same room
         self.assertEqual(len(shifts(adjudicator.resolve(T10, 99, state).events)), 1)

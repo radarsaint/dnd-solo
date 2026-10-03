@@ -27,6 +27,7 @@ from . import kit_claims
 from . import kit_agenda, kit_plan, pc_sheet
 from . import kit_detail
 from . import kit_prices
+from . import kit_rooms
 from . import kit_texture
 from . import kit_toll
 from . import kit_twenty_one
@@ -39,7 +40,10 @@ from .state_context import (ASKED_EVENT_PREFIX, CONTEXT_BUDGET_BYTES, HostSequen
                             check_player_note_text, encode, require)
 
 
-ROOM_FIXTURE = PROJECT_ROOT / 'tests/fixtures/level_01_area_06c.json'
+# The room `start` mounts when the host names none: area 6c, the one room with full
+# content today. Any room file mounts with --room (runtime/kit_rooms.py).
+DEFAULT_ROOM = PROJECT_ROOT / 'tests/fixtures/level_01_area_06c.json'
+ROOM_FIXTURE = DEFAULT_ROOM  # older name, kept for callers
 
 
 class PendingRuling(Exception):
@@ -174,9 +178,11 @@ QUOTED_SPEECH = re.compile(r'"[^"]*"|' + r"(?:(?<=^)|(?<=[\s(\[:;,.!?\u2014-]))'
 # A stealthy approach needs a Stealth ruling; it must never pass as a free, unopposed exit.
 STEALTH_INTENT = re.compile(r'\b(sneak|sneaks|sneaking|creep|creeps|creeping|tiptoe|tiptoes|tiptoeing|'
                             r'stealth|stealthily|unnoticed|unseen)\b|\bslip(s|ping)? (past|by)\b')
-# Getting into the tub means landing on whatever is stored in it.
-TUB_ENTRY = re.compile(r'\b(climb|get|sit|lie|lay|jump|hop|step|lower|slide|settle|bathe|soak|lounge)'
-                       r'\w*\b[^.]*?\b(in|into)\b[^.]*?\btub\b')
+# A room feature the file declares (a fact's ``handling``: a tub, a chest, a well) is acted
+# on by its own nouns. Getting into it means landing on whatever is stored in it.
+def _feature_entry(nouns):
+    return re.compile(r'\b(climb|get|sit|lie|lay|jump|hop|step|lower|slide|settle|bathe|soak|lounge)'
+                      r'\w*\b[^.]*?\b(in|into)\b[^.]*?\b(?:' + nouns + r')\b')
 SOCIAL_WORDS = re.compile(
     r'\b(ask|say|tell|talk|speak|offer|bargain|propose|accuse|call out|sit|greet|hello|wait|listen|'
     r'wager|help|deal|promise|refuse|decline|pay|flirt|wink|smile|laugh|bow|introduce|threaten|'
@@ -192,11 +198,47 @@ GESTURE = re.compile(
     r"raise(?:s|d)? a toast|cross(?:es)? (?:my|his|her) (?:arms|legs))\b"
     r"|\b\w+\s+(?:my|his|her|their)\s+(?:\w+\s+)?(?:nails|fingernails|knuckles|fingers|ears|whiskers|nose|"
     r"chin|neck|feet|legs|arms|hair|beard|eyebrows?|brow|shoulders|teeth|lips)\b")
-# The tub is acted on only as the verb's own object ("tip the heavy tub over"), not as a place
+# A feature is moved only as the verb's own object ("tip the heavy tub over"), not as a place
 # something moves toward ("move my chair closer to the tub").
-TUB_MOVED = re.compile(r"\b(?:tip|tips|overturn|overturns|flip|flips|lift|lifts|move|moves|push|pushes|shove|"
-                       r"shoves|tilt|tilts|drag|drags|roll|rolls)\s+(?:(?!(?:to|toward|towards|near|by|beside|"
-                       r"next|closer|over|up|against|from|into|onto)\b)[\w'-]+\s+){0,3}tub\b")
+def _feature_moved(nouns):
+    return re.compile(r"\b(?:tip|tips|overturn|overturns|flip|flips|lift|lifts|move|moves|push|pushes|shove|"
+                      r"shoves|tilt|tilts|drag|drags|roll|rolls)\s+(?:(?!(?:to|toward|towards|near|by|beside|"
+                      r"next|closer|over|up|against|from|into|onto)\b)[\w'-]+\s+){0,3}(?:" + nouns + r")\b")
+
+
+@dataclass(frozen=True)
+class RoomWords:
+    """What the router needs from the room file: the nouns of its handled features (fact id
+    by noun) and the words naming the exits the PC can take from here (exit id by word)."""
+    features: tuple = ()
+    exits: tuple = ()
+
+    def feature_in(self, words):
+        for noun, fact in self.features:
+            if re.search(r'\b' + re.escape(noun) + r's?\b', words):
+                return noun, fact
+        return None
+
+
+EXIT_STOPWORDS = {'the', 'a', 'an', 'to', 'of', 'into', 'and', 'way', 'back', 'out'}
+
+
+def room_words(source, state):
+    """RoomWords for the PC's area, from the room file alone."""
+    source, state = source or {}, state or {}
+    area = state.get('area')
+    features = tuple((noun.casefold(), key) for key, fact in (source.get('facts') or {}).items()
+                     if isinstance(fact, dict) and fact.get('area') == area and fact.get('handling')
+                     for noun in fact['handling'].get('nouns') or ())
+    exits = []
+    for key in state.get('known_exits') or ():
+        edge = (source.get('exits') or {}).get(key) or {}
+        if area not in edge.get('areas', ()):
+            continue
+        for word in re.findall(r"[a-z]+", str(edge.get('name') or '').casefold()):
+            if word not in EXIT_STOPWORDS:
+                exits.append((word, key))
+    return RoomWords(features, tuple(exits))
 ADDRESS_WORDS = re.compile(r"\b(you|you're|your|yours|yourself|y'all)\b")
 SEATING = re.compile(r"\b(?:take|takes|taking|took)\s+(?:a|the|that|an empty|the empty|my|his|her|their)\s+"
                      r"(?:seat|chair|stool|place)\b|"
@@ -223,7 +265,7 @@ def npc_addressed_player(spoken):
     return False
 
 
-def room_intent(action, addressed=False):
+def room_intent(action, addressed=False, room=None):
     """Conservative routing; unrecognized text remains conversation or clarification.
 
     Only the narration outside quotation marks decides whether an action is
@@ -235,8 +277,12 @@ def room_intent(action, addressed=False):
     act is the player answering, i.e. social speech (playtest 03: Nik's plain answer
     to the dealer's question was refused as an unsupported physical action). Combat,
     stealth, exits, and the room's named checks still route as before.
+
+    `room` (RoomWords) carries the room file's own words: its handled features and its
+    exits' names. Without it only general words route (a door, "out").
     """
     text = action.translate(_TYPOGRAPHIC)
+    room = room or RoomWords()
     if is_ooc(text):
         return 'social'
     quoted = bool(QUOTED_SPEECH.search(text))
@@ -256,22 +302,27 @@ def room_intent(action, addressed=False):
             re.search(r'\b(walk|move|step|go|leave|head|edge|slip)\w*\b', words) and
             re.search(r'\b(door|past|out)\b', words)):
         return 'stealth'
-    if re.search(r'\b(leave|go|walk|move|step)\b', words) and (
-            re.search(r'\b(south|door)\b', words) or (re.search(r'\bout\b', words) and 'tub' not in words)):
+    feature = room.feature_in(words)
+    exit_words = '|'.join(re.escape(word) for word, _ in room.exits)
+    named_exit = re.search(r'\bdoors?\b', words) or (exit_words and re.search(r'\b(?:' + exit_words + r')s?\b', words))
+    if re.search(r'\b(leave|go|walk|move|step)\b', words) and (named_exit or (re.search(r'\bout\b', words) and not feature)) \
+            or re.search(r'\b(head|heads|charge|charges|barge|barges|burst|bursts|continue|continues)\b', words) and named_exit:
         return 'exit'
-    if TUB_MOVED.search(words):
-        return 'tip_tub'
-    if TUB_ENTRY.search(words):
-        return 'enter_tub'
-    if 'tub' in words and re.search(r"\b(look|looks|search|inspect|examine|check|peer|peers|crouch|crouches|kneel|"
-                                    r"kneels|lean over|bend over|squat|rummage)\b|\bwhat'?s (?:in|inside)\b|"
-                                    r"\bwhat is (?:in|inside)\b|\banything (?:in|inside)\b", words):
-        # The 6c baseline's contradictory tub rule: a question about what is in the tub was
-        # sent to Kit's invention oracle, which must show an answer, while the room forbids
-        # inventing the contents and the leak guard forbids naming them. The source keys the
-        # contents (fact tub_stash) and a plain look at a visible feature is free (call 2), so
-        # any look or question into the tub resolves here, from the source, with no invention.
-        return 'inspect_tub'
+    if feature:
+        nouns = re.escape(feature[0]) + 's?'
+        if _feature_moved(nouns).search(words):
+            return 'move_feature'
+        if _feature_entry(nouns).search(words):
+            return 'enter_feature'
+        if re.search(r"\b(look|looks|search|inspect|examine|check|peer|peers|crouch|crouches|kneel|open|opens|"
+                     r"kneels|lean over|bend over|squat|rummage)\b|\bwhat'?s (?:in|inside)\b|"
+                     r"\bwhat is (?:in|inside)\b|\banything (?:in|inside)\b", words):
+            # The 6c baseline's contradictory tub rule: a question about what is in a feature
+            # went to Kit's invention oracle while the room forbade inventing the contents. The
+            # file keys the contents (the feature's ``holds`` fact) and a plain look at a
+            # visible feature is free (call 2), so a look or question into it resolves here,
+            # from the file, with no invention.
+            return 'inspect_feature'
     if OBSERVE.search(words):
         return 'observe'
     if SEATING.search(words) or GEAR_SET.search(words):
@@ -325,7 +376,7 @@ def combine(first, second):
     return Resolution(kind, public, list(first.events) + list(second.events))
 
 
-class Room6CAdjudicator:
+class RoomAdjudicator:
     def __init__(self, perception=None, insight=None, roll=None, sleight_of_hand=None, source=None,
                  npc_roll=None):
         self.perception = perception
@@ -365,8 +416,6 @@ class Room6CAdjudicator:
 
     def _resolve(self, action, revision, state, addressed=False):
         require(isinstance(action, str) and action.strip(), 'Player action required')
-        if state['area'] != 'area_06c':
-            raise PendingRuling('This play slice covers area 6c only. No turn was committed.')
         narration = QUOTED_SPEECH.sub(' ', action.translate(_TYPOGRAPHIC))
         # Speech and table talk to Kit are never resolved as checks.
         spoken = bool(QUOTED_SPEECH.search(action.translate(_TYPOGRAPHIC))) or is_ooc(action)
@@ -400,7 +449,7 @@ class Room6CAdjudicator:
             # accused, not the table's public call (live 6c: a quiet word and a failed Intimidation).
             return self._resolve_social_check(kit_rolls.stated_skill(action), action, narration, revision,
                                               state, private=True)
-        kind = room_intent(action, addressed)
+        kind = room_intent(action, addressed, room_words(self.source, state))
         # Combat and stealth keep their rulings at the card table: "I raise my crossbow" is
         # not a raise, and sneaking out "while they check their hands" is not a check.
         # A sleight at the table ("unseen") stays a card swap.
@@ -475,29 +524,31 @@ class Room6CAdjudicator:
                                  'no roll; nothing hidden is learned; nothing changes.'}
             return Resolution(kind, 'You look around the room.' if around else 'You take a look.', [event])
         if kind == 'exit':
-            event = {'type': 'move', 'exit': 'south_door',
-                     'evidence': 'The player explicitly left through the known south door.'}
-            return Resolution(kind, 'You go through the south door into the short passage.', [event])
-        if kind == 'tip_tub':
-            public = 'The stone tub is recessed into the floor and cannot be tipped over.'
-        elif kind in ('inspect_tub', 'enter_tub'):
-            if kind == 'inspect_tub':
-                public = ('You look into the recessed tub and see a bedroll, thieves’ tools, and a bundle of '
-                          'stolen travel gear.')
-                evidence = 'The player explicitly looked inside the recessed tub.'
+            key = self._exit_taken(action, state)
+            event = {'type': 'move', 'exit': key, 'evidence': f'The player explicitly left by the known exit {key}.'}
+            return Resolution(kind, self._exit_text(key, state, 'go'), [event])
+        if kind in ('move_feature', 'inspect_feature', 'enter_feature'):
+            noun, key = room_words(self.source, state).feature_in(narration.lower()) or \
+                room_words(self.source, state).feature_in(action.lower())
+            handling = self.source['facts'][key]['handling']
+            text = handling.get({'move_feature': 'move', 'inspect_feature': 'look',
+                                 'enter_feature': 'enter'}[kind])
+            if not text:
+                raise PendingRuling(f'The room file gives no ruling for that with the {noun}. No turn was committed.',
+                                    attempt=True)
+            if kind == 'move_feature' or not handling.get('holds'):
+                public = text
             else:
-                # Nobody climbs into a two-foot-deep tub without finding what is stored in it.
-                public = ('You climb down into the recessed tub and find it already occupied: a bedroll, '
-                          'thieves’ tools, and a bundle of stolen travel gear are stored in it.')
-                evidence = 'The player explicitly climbed into the recessed tub, which reveals what is stored in it.'
-            event = {'type': 'reveal_fact', 'fact': 'tub_stash', 'evidence': evidence}
-            return Resolution(kind, public, [event])
+                event = {'type': 'reveal_fact', 'fact': handling['holds'],
+                         'evidence': f'The player explicitly {"looked inside" if kind == "inspect_feature" else "got into"} '
+                                     f'the {noun} ({key}), which shows what it holds.'}
+                return Resolution(kind, text, [event])
         else:
             # Social bid: restate the player's actual words. No outcome, NPC
             # commitment, or hidden fact is added; the full text stays in evidence.
             event = {'type': 'beat', 'tags': [kind],
-                     'evidence': f'Player declared: {action}. Resolution: social bid at the card '
-                                 'table, restated as the accepted event; no world state changed.'}
+                     'evidence': f'Player declared: {action}. Resolution: social bid, '
+                                 'restated as the accepted event; no world state changed.'}
             return Resolution(kind, social_event(action), [event])
         event = {'type': 'beat', 'tags': [kind],
                  'evidence': f'Player declared: {action}. Resolution: {public}'}
@@ -642,7 +693,7 @@ class Room6CAdjudicator:
         if self.roll:
             return self.roll()
         if 'roll_seed' not in state:
-            raise PendingRuling('This session predates stable checks; start a fresh area 6c test database.')
+            raise PendingRuling('This session predates stable checks; start a fresh database.')
         material = f"{state['roll_seed']}:{revision}:{label}:{action.casefold()}".encode()
         return int.from_bytes(hashlib.sha256(material).digest()[:8], 'big') % 20 + 1
 
@@ -782,11 +833,13 @@ class Room6CAdjudicator:
         to notice: no roll."""
         present = self._present_actors(state)
         watchers = {key: kit_claims.npc_passive(actor, 'perception') for key, actor in present.items()}
-        leaving = bool(re.search(r'\b(door|out|leave|south|past)\b', narration, re.I))
-        exit_event = {'type': 'move', 'exit': 'south_door',
-                      'evidence': 'The player left through the known south door, unnoticed.'}
+        words = room_words(self.source, state)
+        leaving = bool(re.search(r'\b(door|out|leave|past)\b', narration, re.I) or any(
+            re.search(r'\b' + re.escape(word) + r'\b', narration, re.I) for word, _ in words.exits))
+        key = self._exit_taken(action, state) if leaving and not watchers else None
+        exit_event = {'type': 'move', 'exit': key, 'evidence': f'The player left by the known exit {key}, unnoticed.'}
         if not watchers:
-            public = 'You slip out through the south door.' if leaving else 'You move without a sound.'
+            public = self._exit_text(key, state, 'slip') if leaving else 'You move without a sound.'
             return Resolution('stealth', public, [exit_event] if leaving else
                               [{'type': 'beat', 'tags': ['stealth'], 'evidence': f'Player declared: {action}. Nobody present.'}])
         dc = max(watchers.values())
@@ -796,13 +849,68 @@ class Room6CAdjudicator:
         evidence = (f'Player tried Stealth: d20 {die} + {modifier} = {total} vs best passive Perception {dc} '
                     f'({", ".join(f"{k} {v}" for k, v in watchers.items())}).')
         if total >= dc:
-            public = 'You slip out through the south door unnoticed.' if leaving else 'You move without drawing an eye.'
+            if leaving:
+                key = self._exit_taken(action, state)
+                exit_event = dict(exit_event, exit=key)
+            public = self._exit_text(key, state, 'unseen') if leaving else 'You move without drawing an eye.'
             beat = {'type': 'beat', 'tags': ['stealth'], 'evidence': evidence}
             return Resolution('stealth', public, ([dict(exit_event, evidence=evidence)] if leaving else
                                                   self._hidden_events(state, True, evidence)) + [beat])
         return Resolution('stealth', 'Eyes at the table turn your way before you get far.',
                           self._hidden_events(state, False, evidence) +
                           [{'type': 'beat', 'tags': ['stealth', 'noticed'], 'evidence': evidence}])
+
+    def _exit_taken(self, action, state):
+        """The known exit from here the player's words name, else the only one. Several and
+        none named: ask which (pending, nothing committed)."""
+        source, area = self.source or {}, state.get('area')
+        here = [key for key in state.get('known_exits') or ()
+                if area in ((source.get('exits') or {}).get(key) or {}).get('areas', ())]
+        if not here:
+            raise PendingRuling('There is no way out from here that you know of yet. No turn was committed.')
+        text = action.casefold()
+        named = []
+        for word, key in room_words(source, state).exits:
+            if key not in named and re.search(r'\b' + re.escape(word) + r's?\b', text):
+                named.append(key)
+        chosen = named[0] if len(named) == 1 else (here[0] if len(here) == 1 and not named else None)
+        if chosen:
+            self._check_onward(chosen, state)
+            return chosen
+        names = [str(((source.get('exits') or {}).get(key) or {}).get('name') or key)
+                 for key in (named or here)]
+        raise PendingRuling('Which way: ' + ' or '.join(names) + '? No turn was committed.')
+
+    def _check_onward(self, key, state):
+        """An exit into an area linked to another room file: that room must mount before
+        the move is accepted. If it cannot, Kit says the plain table line and nothing is
+        committed; the host gets the error naming what is missing (ROOM_LOADER.md)."""
+        source = self.source or {}
+        edge = (source.get('exits') or {}).get(key) or {}
+        there = next((a for a in edge.get('areas', ()) if a != state.get('area')), None)
+        link = ((source.get('areas') or {}).get(there) or {}).get('room_link')
+        if link:
+            try:
+                kit_rooms.load_room(link['room'])
+            except kit_rooms.RoomMountError as exc:
+                pending = PendingRuling(f'{exc.table_line} No turn was committed.')
+                pending.host_error = exc.host_view()
+                raise pending from None
+
+    def _exit_text(self, key, state, how):
+        """The line for going through an exit, from the room file (exit ``go_text`` per area,
+        else its name and where it leads)."""
+        source, area = self.source or {}, state.get('area')
+        edge = (source.get('exits') or {}).get(key) or {}
+        told = (edge.get('go_text') or {}).get(area)
+        if told and how == 'go':
+            return told
+        name = edge.get('name') or 'the way out'
+        there = next((a for a in edge.get('areas', ()) if a != area), None)
+        place = ((source.get('areas') or {}).get(there) or {}).get('called')
+        if how in ('slip', 'unseen'):
+            return f'You slip out through {name}' + (' unnoticed.' if how == 'unseen' else '.')
+        return f'You go through {name}' + (f' into {place}.' if place else '.')
 
     def _hidden_events(self, state, hidden, evidence):
         """A PC hidden from everyone present surprises them if a fight starts (kit_combat)."""
@@ -1034,7 +1142,7 @@ class Room6CAdjudicator:
                 continue
             stake = (new_state['public'].get('last_result') or {}).get('stake') or body['asked']
             new_body = dict(body, status='waived' if outcome == 'won' else 'paid',
-                            paid=0 if outcome == 'won' else stake)
+                            paid=0 if outcome == 'won' else stake, rode_on=procedure)
             new_body.pop('restore', None)
             events.append(kit_toll.event(key, new_body, f'The toll rode on a round of {procedure}: {outcome}.'))
         return events
@@ -2550,7 +2658,7 @@ def prepare_turn(runtime, adjudicator, action, use_memory=True, one_pass=False, 
         # The host decided this is not a game turn: nothing is adjudicated.
         return prepare_inputs(runtime, revision, state, action, table_talk_resolution(action),
                               use_memory, one_pass, table_talk=True)
-    if isinstance(adjudicator, Room6CAdjudicator):
+    if isinstance(adjudicator, RoomAdjudicator):
         if adjudicator.source is None:
             adjudicator.source = runtime.source()
         last = runtime.recent_kit_turns(limit=1)
@@ -2565,11 +2673,14 @@ def prepare_opening(runtime, one_pass=False):
     revision, state = runtime.load()
     # The entry is the first Kit turn. Host bookkeeping committed before it (the player
     # character, feedback) is its own revision and does not use it up.
-    require(runtime.latest_kit_turn_id() is None and state['area'] == 'area_06c',
-            'The room entry is available only before the first turn')
-    resolution = Resolution('opening', 'A newcomer has reached the card room.', [
+    require(runtime.latest_kit_turn_id() is None or kit_rooms.stage(runtime.source(), state) in
+            ('approach', 'first_look') and not (state.get('room') or {}).get('turns_in', {}).get(state['area']),
+            'The room entry is available only before the first turn in a room')
+    area = runtime.source()['areas'][state['area']]
+    arrival = area.get('arrival') or f"The newcomer arrives: {area.get('name') or state['area']}."
+    resolution = Resolution('opening', arrival, [
         {'type': 'beat', 'tags': ['scene_entry'],
-         'evidence': 'Initial framing of area 6c before the player acts.'}])
+         'evidence': f"Initial framing of {state['area']} before the player acts."}])
     return prepare_inputs(runtime, revision, state, '[scene entry]', resolution, use_memory=True,
                           one_pass=one_pass)
 
@@ -2828,7 +2939,7 @@ class KitAgent:
     def __init__(self, runtime, model, adjudicator=None, performance_variant='current'):
         self.runtime = runtime
         self.model = model
-        self.adjudicator = adjudicator or Room6CAdjudicator()
+        self.adjudicator = adjudicator or RoomAdjudicator()
         self.performance_variant = check_variant(performance_variant)
 
     def turn(self, action, turn_id=None, use_memory=True):
@@ -2935,7 +3046,7 @@ class KitChatBridge:
     """Host this model loop in an assistant chat, with no API credential in Python."""
     def __init__(self, runtime, adjudicator=None):
         self.runtime = runtime
-        self.adjudicator = adjudicator or Room6CAdjudicator()
+        self.adjudicator = adjudicator or RoomAdjudicator()
 
     @_stale_guided
     def prepare(self, action=None, turn_id=None, use_memory=True, one_pass=False, opening=False,
@@ -3178,24 +3289,29 @@ class KitChatBridge:
 EXAMPLE_SHEET = PROJECT_ROOT / 'tests/fixtures/characters/example_pc.json'
 
 
-def start_session(db, sheet_path=None, runtime=None):
+def start_session(db, sheet_path=None, runtime=None, room=None, area=None):
     """The one bootstrap step for any AI hosting Kit (see AGENTS.md): create a fresh room
     session, load the player's sheet (the generic example PC when none is given), and
     stage the room's opening through the bridge. Returns the first prepare packet plus
     the exact next command, so a new host cannot take a wrong first step."""
+    # Mount first: a room that cannot mount fails here, before any database is touched,
+    # with the host's error and Kit's plain table line (kit_rooms.RoomMountError).
+    source = kit_rooms.load_room(room or DEFAULT_ROOM)
+    if area is not None and area not in source['areas']:
+        raise kit_rooms.RoomMountError(room or DEFAULT_ROOM, [f'no area {area!r} in this room'])
     own = runtime is None
     runtime = runtime or Runtime(db)
     try:
-        source = json.loads(ROOM_FIXTURE.read_text(encoding='utf-8'))
         try:
-            runtime.initialize(source, source['starting_area'])
+            runtime.initialize(source, area or source['starting_area'])
+            runtime.set_room_path(room or DEFAULT_ROOM)
         except InvalidChange as exc:
             raise InvalidChange(f'{exc} Resume it with view and '
                                 'prepare, or pass a new --db to start fresh.') from exc
         path = Path(sheet_path) if sheet_path else EXAMPLE_SHEET
         sheet = json.loads(path.read_text(encoding='utf-8'))
         loaded = runtime.set_player_sheet(sheet)
-        prepared = KitChatBridge(runtime, Room6CAdjudicator()).prepare(
+        prepared = KitChatBridge(runtime, RoomAdjudicator()).prepare(
             opening=True, one_pass=True)
         turn = prepared['turn_id']
         return {
@@ -3238,7 +3354,10 @@ def main():
     parser.add_argument('command', choices=['start', 'init', 'view', 'prepare', 'decide', 'finish', 'complete',
                                             'abandon', 'feedback', 'character', 'notes', 'play', 'trace',
                                             'timing', 'persona'])
-    parser.add_argument('--db', default='kit-06c.sqlite')
+    parser.add_argument('--db', default='kit.sqlite')
+    parser.add_argument('--room', help='start/init: a room file to mount (default: area 6c; see '
+                                       'docs/architecture/ROOM_LOADER.md)')
+    parser.add_argument('--area', help='start: begin in this area of the room (default: its starting_area)')
     parser.add_argument('--model', help='Optional standalone Responses API model for play')
     parser.add_argument('--perception', type=int, help='Test character Wisdom (Perception) modifier')
     parser.add_argument('--insight', type=int, help='Test character Wisdom (Insight) modifier')
@@ -3282,7 +3401,10 @@ def main():
         return 0
     if args.command == 'start':
         try:
-            result = start_session(args.db, args.sheet)
+            result = start_session(args.db, args.sheet, room=args.room, area=args.area)
+        except kit_rooms.RoomMountError as exc:
+            print(json.dumps(exc.host_view(), ensure_ascii=False), file=sys.stderr)
+            return 2
         except (InvalidChange, PendingRuling) as exc:
             print(json.dumps({'stage': 'rejected', 'message': str(exc)}, ensure_ascii=False), file=sys.stderr)
             return 2
@@ -3292,7 +3414,7 @@ def main():
     runtime = Runtime(args.db)
     try:
         if args.command == 'init':
-            source = json.loads(ROOM_FIXTURE.read_text(encoding='utf-8'))
+            source = kit_rooms.load_room(args.room or DEFAULT_ROOM)
             runtime.initialize(source, source['starting_area'])
             print(json.dumps(runtime.player_view(), indent=2, ensure_ascii=False))
         elif args.command == 'view':
@@ -3316,7 +3438,7 @@ def main():
             print(json.dumps(runtime.set_player_character(args.name, args.ancestry, args.class_name,
                                                           args.level), indent=2, ensure_ascii=False))
         elif args.command in ('prepare', 'decide', 'finish', 'complete', 'abandon', 'feedback'):
-            bridge = KitChatBridge(runtime, Room6CAdjudicator(args.perception, args.insight,
+            bridge = KitChatBridge(runtime, RoomAdjudicator(args.perception, args.insight,
                                                              sleight_of_hand=args.sleight_of_hand))
             try:
                 if args.command == 'abandon':
@@ -3356,6 +3478,8 @@ def main():
                               bridge.complete(args.turn_id, submitted, degraded=args.degraded))
             except PendingRuling as exc:
                 result = {'stage': 'pending_ruling', 'message': str(exc), 'committed': False}
+                if getattr(exc, 'host_error', None):
+                    result['host_error'] = exc.host_error
                 if getattr(exc, 'recorded_revision', None) is not None:
                     result.update(attempt_recorded=True, revision=exc.recorded_revision)
             except InvalidChange as exc:
@@ -3387,10 +3511,10 @@ def main():
             if not os.environ.get('OPENAI_API_KEY'):
                 parser.error('standalone play requires OPENAI_API_KEY; for ChatGPT use prepare/decide/finish')
             model = OpenAIResponsesModel(args.model)
-            agent = KitAgent(runtime, model, Room6CAdjudicator(args.perception, args.insight,
+            agent = KitAgent(runtime, model, RoomAdjudicator(args.perception, args.insight,
                                                                sleight_of_hand=args.sleight_of_hand),
                              performance_variant=args.performance_variant or 'current')
-            print('Kit’s area 6c test. Enter an action, or /quit. Private traces: separate trace command.')
+            print(f"Kit's table: {runtime.source().get('id')}. Enter an action, or /quit. Private traces: separate trace command.")
             if runtime.load()[0] == 0:
                 try:
                     print(agent.opening()['spoken'])

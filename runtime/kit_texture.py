@@ -58,8 +58,19 @@ def _norm(text):
     return ' '.join((text or '').replace('\u2019', "'").casefold().split())
 
 
+_CHECKED = set()
+
+
 def area_palette(source, area):
-    return ((source or {}).get('texture_palette') or {}).get('areas', {}).get(area)
+    """The area's palette, checked the first time play reaches the area (the loader checks
+    only the starting area's at mount: docs/architecture/ROOM_LOADER.md, stage 3)."""
+    palette = ((source or {}).get('texture_palette') or {}).get('areas', {}).get(area)
+    if palette is not None:
+        key = ((source or {}).get('id'), area, json.dumps(palette, sort_keys=True))
+        if key not in _CHECKED:
+            check_palette(source, areas=[area])
+            _CHECKED.add(key)
+    return palette
 
 
 def _roots_ok(root, source):
@@ -84,7 +95,7 @@ def palette_strings(palette):
     return [text for text in texts if text]
 
 
-def check_palette(source, public_check=None):
+def check_palette(source, public_check=None, areas=None):
     """Validate every area palette: roots resolve to real source ids, no deck deals
     prices, and no string leaks a secret (the room's DM-only leak sets, and the caller's
     literal public-content check). Raises InvalidChange."""
@@ -97,6 +108,8 @@ def check_palette(source, public_check=None):
     sets = kit_guards.leak_sets(source)
     for area, palette in root.get('areas', {}).items():
         require(area in source['areas'], f'Palette for unknown area {area!r}')
+        if areas is not None and area not in areas:
+            continue
         require(isinstance(palette.get('never_invent'), list) and palette['never_invent'],
                 f'Palette {area} needs a never_invent list protecting its secrets')
         for item in palette.get('items', []):

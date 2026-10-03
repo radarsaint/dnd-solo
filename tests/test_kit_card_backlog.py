@@ -17,7 +17,7 @@ import unittest
 from pathlib import Path
 
 from runtime import kit_cards, kit_twenty_one
-from runtime.kit_agent import Room6CAdjudicator
+from runtime.kit_agent import RoomAdjudicator
 from runtime.state_context import Runtime
 from test_kit_agent import FIXTURE
 
@@ -41,7 +41,7 @@ class Base(unittest.TestCase):
         result = None
         for line in lines:
             revision, state = self.runtime.load()
-            adjudicator = Room6CAdjudicator(source=self.runtime.source(), roll=lambda: 10, npc_roll=lambda: 10)
+            adjudicator = RoomAdjudicator(source=self.runtime.source(), roll=lambda: 10, npc_roll=lambda: 10)
             state['roll_seed'] = self.SEED  # pin the deck (the runtime draws a fresh seed)
             result = adjudicator.resolve(line, revision, state)
             self.turns += 1

@@ -12,7 +12,7 @@ from pathlib import Path
 from unittest import mock
 
 from runtime import kit_agent, kit_guards
-from runtime.kit_agent import KitChatBridge, Room6CAdjudicator, table_talk_event
+from runtime.kit_agent import KitChatBridge, RoomAdjudicator, table_talk_event
 from runtime.state_context import InvalidChange, Runtime
 from test_kit_agent import FIXTURE, RecordingModel
 
@@ -44,7 +44,7 @@ class TableTalkCase(unittest.TestCase):
         self.runtime = Runtime(self.path)
         self.addCleanup(lambda: self.runtime.close())
         self.runtime.initialize(json.loads(FIXTURE.read_text()), 'area_06c')
-        self.bridge = KitChatBridge(self.runtime, Room6CAdjudicator(perception=0, insight=0, roll=lambda: 20))
+        self.bridge = KitChatBridge(self.runtime, RoomAdjudicator(perception=0, insight=0, roll=lambda: 20))
         self.model = RecordingModel()
 
     def meta_plan(self, prepared_input):

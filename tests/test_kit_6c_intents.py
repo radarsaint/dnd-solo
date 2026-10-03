@@ -8,7 +8,7 @@ from pathlib import Path
 from unittest import mock
 
 from runtime import kit_agent, kit_guards, kit_toll, kit_twenty_one
-from runtime.kit_agent import Room6CAdjudicator
+from runtime.kit_agent import RoomAdjudicator
 from runtime.state_context import InvalidChange, Runtime
 from test_kit_voice import HardeningGuardTests, SHOWTIME_SPEECH, VoiceTestCase
 
@@ -33,7 +33,7 @@ class Room:
                 body.update(status='demanded', demanded_by=config['demanded_by'])
                 events.append(kit_toll.event(key, body, 'The dealer demanded the toll.'))
             self.runtime.commit('toll', revision, events)
-        self.adjudicator = Room6CAdjudicator(roll=roll, source=self.runtime.source())
+        self.adjudicator = RoomAdjudicator(roll=roll, source=self.runtime.source())
 
     def act(self, action):
         revision, state = self.runtime.load()
@@ -344,7 +344,7 @@ class GuardFalseAlarmTests(unittest.TestCase):
     def test_asking_what_is_in_the_tub_reads_the_source_not_an_invention(self):
         room = Room(self, toll=False)
         result = room.act("I crouch by the stone tub. What's in it?")
-        self.assertEqual(result.kind, 'inspect_tub')
+        self.assertEqual(result.kind, 'inspect_feature')
         self.assertIn('tub_stash', room.state['known_facts'])
 
 

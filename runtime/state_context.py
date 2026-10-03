@@ -92,6 +92,8 @@ CANON_SCOPES = ('scene', 'location', 'actor', 'campaign')
 CANON_SLOT = re.compile(r'^[a-z0-9_:]+(/[a-z0-9_]+){1,3}$')
 # Events a Kit turn may add at commit, after the adjudicated batch it was prepared with:
 # the decision's canon entries, the oracle deal it consumed, and procedure state.
+# Host bookkeeping, not a turn taken in the room (kit_rooms.stage counts the others).
+BOOKKEEPING_EVENTS = ('player_sheet', 'player_character', 'player_note', 'pc_state', 'kit_plan')
 COMMIT_APPENDED_EVENTS = ('canon_entry', 'oracle_draw', 'procedure_state', 'claim_said', 'agenda_turn',
                           'pc_state', 'kit_plan', 'toll_state', 'story_beat', 'threshold_crossed',
                           'attitude_shift')
@@ -250,8 +252,9 @@ class Runtime:
             require(actor['location'] in source['areas'], 'Unknown actor area')
         # DM prep is checked once, before play: the texture palette (roots, no prices, no
         # leaks) and every table procedure's config. Local import: both import this module.
-        from . import kit_agenda, kit_attitude, kit_cards, kit_claims, kit_texture, kit_toll
-        kit_texture.check_palette(source)
+        from . import kit_agenda, kit_attitude, kit_cards, kit_claims, kit_toll
+        # The texture palette is checked lazily, per area, the first time play draws on it
+        # (kit_texture.area_palette): it never delays the first framing (ROOM_LOADER.md).
         kit_attitude.compile_attitudes(source)
         kit_claims.compile_claims(source)
         kit_agenda.compile_agenda(source)
@@ -266,11 +269,19 @@ class Runtime:
             'resources': copy.deepcopy(source['resources']), 'rhythm': [],
             'kit': {'episodes': [], 'current_appraisal': None, 'player_notes': []},
             'roll_seed': secrets.token_hex(16),
+            'room': {'id': source.get('id'), 'path': None, 'turns_in': {}},
         }
         self._observe(state, source)
         with self.db:
             self.db.execute('INSERT INTO source VALUES (1, ?)', (encode(source),))
             self.db.execute('INSERT INTO snapshots VALUES (0, ?)', (encode(state),))
+
+    def set_room_path(self, ref):
+        """Record which room file this session mounted (kit_rooms; no turn, no revision)."""
+        revision, state = self.load()
+        state.setdefault('room', {})['path'] = str(ref)
+        with self.db:
+            self.db.execute('UPDATE snapshots SET body=? WHERE revision=?', (encode(state), revision))
 
     def source(self):
         row = self.db.execute('SELECT body FROM source WHERE id=1').fetchone()
@@ -439,8 +450,22 @@ class Runtime:
                          all(event.get('type') in COMMIT_APPENDED_EVENTS
                              for event in events[len(prepared):])), 'Pending Kit event changed')
             source = self.source()
+            acted_in = state['area']
             for event in events:
                 self._apply(state, source, event)
+            if any(event.get('type') not in BOOKKEEPING_EVENTS for event in events):
+                room = state.setdefault('room', {'id': source.get('id'), 'path': None, 'turns_in': {}})
+                room.setdefault('turns_in', {})[acted_in] = room.get('turns_in', {}).get(acted_in, 0) + 1
+            # Arriving in an area linked to another room file mounts that room in this same
+            # commit (docs/architecture/ROOM_LOADER.md): no host step, and a room that cannot
+            # mount rejects the whole turn, so the session stays where it was.
+            link = (source['areas'].get(state['area']) or {}).get('room_link')
+            if link:
+                from . import kit_rooms
+                new_source = kit_rooms.load_room(link['room'])
+                state = kit_rooms.mounted_state(source, state, new_source, link['area'], link['room'])
+                self._observe(state, new_source)
+                self.db.execute('UPDATE source SET body=? WHERE id=1', (encode(new_source),))
             next_revision = revision + 1
             if kit_record is not None:
                 kit = state['kit']
@@ -956,7 +981,7 @@ class Runtime:
             'dm_context': {
                 'scene': {'current_area': area, 'elapsed_seconds': state['elapsed_seconds'],
                           'scene_id': current_scene(state)},
-                'source_id': source['id'], 'fixture_only': source['fixture_only'],
+                'source_id': source['id'], 'fixture_only': bool(source.get('fixture_only')),
                 'source_ref': source.get('source_ref'), 'map_ref': source.get('map_ref'),
                 'level_context': source.get('level_context'),
                 'campaign_context': source.get('campaign_context'),

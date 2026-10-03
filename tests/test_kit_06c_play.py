@@ -10,7 +10,18 @@ from unittest import mock
 from pathlib import Path
 
 from runtime import kit_agent, kit_cards, kit_voice
-from runtime.kit_agent import KitAgent, Room6CAdjudicator, npc_addressed_player, room_intent
+from runtime.kit_agent import KitAgent, RoomAdjudicator, npc_addressed_player, room_intent
+
+# The 6c room's own words (its tub, its south door) come from its file (ROOM_LOADER.md).
+from runtime import kit_agent as _kit_agent
+from runtime.kit_rooms import read_room as _read_room
+_SIXC_WORDS = _kit_agent.room_words(_read_room('tests/fixtures/level_01_area_06c.json'),
+                                    {'area': 'area_06c', 'known_exits': ['south_door']})
+
+
+def room_intent(action, addressed=False):
+    return _kit_agent.room_intent(action, addressed, _SIXC_WORDS)
+
 from runtime.state_context import InvalidChange, Runtime
 from test_kit_agent import DEALER_EXCHANGES, FIXTURE, RecordingModel
 
@@ -69,7 +80,7 @@ class RouterTests(unittest.TestCase):
 
     def test_physical_actions_and_stealth_still_route_as_before(self):
         self.assertEqual(room_intent('I sneak past the table toward the far door.', addressed=True), 'stealth')
-        self.assertEqual(room_intent('I tip the stone tub over and use it as cover.', addressed=True), 'tip_tub')
+        self.assertEqual(room_intent('I tip the stone tub over and use it as cover.', addressed=True), 'move_feature')
         self.assertEqual(room_intent('I attack Uktarl in the middle of the game.', addressed=True), 'combat')
 
     def test_the_whole_turn_commits_through_the_agent(self):
@@ -78,7 +89,7 @@ class RouterTests(unittest.TestCase):
         runtime = Runtime(Path(temp.name) / 'kit.sqlite')
         self.addCleanup(runtime.close)
         runtime.initialize(json.loads(FIXTURE.read_text()), 'area_06c')
-        agent = KitAgent(runtime, RecordingModel(), Room6CAdjudicator(perception=0, insight=0, roll=lambda: 20))
+        agent = KitAgent(runtime, RecordingModel(), RoomAdjudicator(perception=0, insight=0, roll=lambda: 20))
         agent.turn('I nod to the dealer.', 'nod')  # the dealer's reply asks the player a question
         self.assertTrue(npc_addressed_player(runtime.recent_kit_turns()[-1]['spoken']))
         result = agent.turn(NIK_WISH, 'wish')
@@ -151,7 +162,7 @@ class GameDetailTests(unittest.TestCase):
         self.addCleanup(self.runtime.close)
         self.runtime.initialize(json.loads(FIXTURE.read_text()), 'area_06c')
         self.model = GameModel()
-        self.agent = KitAgent(self.runtime, self.model, Room6CAdjudicator(
+        self.agent = KitAgent(self.runtime, self.model, RoomAdjudicator(
             perception=2, insight=1, sleight_of_hand=3, roll=lambda: 20))
 
     def test_the_decision_sees_the_deal_and_the_performer_never_does(self):
@@ -183,7 +194,7 @@ class GameDetailTests(unittest.TestCase):
         self.assertEqual(again['status'], 'canon_supplied')
 
     def test_card_actions_route_to_the_procedure_once_it_is_declared(self):
-        adjudicator = Room6CAdjudicator(perception=2, insight=1, sleight_of_hand=3, roll=lambda: 20)
+        adjudicator = RoomAdjudicator(perception=2, insight=1, sleight_of_hand=3, roll=lambda: 20)
         revision, state = self.runtime.load()
         adjudicator.source = self.runtime.source()
         before = adjudicator.resolve('I bet 10 gold. Deal me in.', revision, state)
@@ -209,7 +220,7 @@ class GameDetailTests(unittest.TestCase):
             self.runtime.initialize(tda_source(), 'area_06c')
         model = GameModel()
         model.pick = 'three_dragon_ante'
-        self.agent = KitAgent(self.runtime, model, Room6CAdjudicator(
+        self.agent = KitAgent(self.runtime, model, RoomAdjudicator(
             perception=2, insight=1, sleight_of_hand=3, roll=lambda: 20))
         actions = [GAME_ASK, 'I buy in with 20 gold. Deal me in.', 'I ante my strongest card.',
                    'I play my strongest card.', 'I play my strongest card.', 'I play my strongest card.']
@@ -488,7 +499,7 @@ class CardTableTests(unittest.TestCase):
         state = runtime.load()[1]
         _, table, _ = self.seated()
         state['procedures'] = {'three_dragon_ante': table}
-        adjudicator = Room6CAdjudicator(perception=0, insight=0, sleight_of_hand=0, source=source)
+        adjudicator = RoomAdjudicator(perception=0, insight=0, sleight_of_hand=0, source=source)
         self.assertEqual(adjudicator.resolve('Tell me about the ring', 1, state).kind, 'social')
         self.assertEqual(adjudicator.resolve('I watch the dealer for cheating.', 1, state).kind, 'card_watch')
         self.assertEqual(adjudicator.resolve('You dealt yourself the second card.', 1, state).kind,
@@ -533,7 +544,7 @@ class CardTableTests(unittest.TestCase):
         state = runtime.load()[1]
         _, table, _ = self.seated()
         state['procedures'] = {'three_dragon_ante': table}
-        adjudicator = Room6CAdjudicator(perception=0, insight=0, sleight_of_hand=0, source=source)
+        adjudicator = RoomAdjudicator(perception=0, insight=0, sleight_of_hand=0, source=source)
         # A shot with no Avrae roll waits on the roll (no turn), and is never a card raise.
         with self.assertRaisesRegex(kit_agent.PendingRuling, 'Roll the attack for your crossbow in Avrae'):
             adjudicator.resolve('I raise my crossbow and shoot the dealer.', 1, state)
