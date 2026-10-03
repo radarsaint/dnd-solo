@@ -875,7 +875,7 @@ class SocialEventTests(unittest.TestCase):
 
     def test_typography_and_whitespace_are_normalized_but_words_kept(self):
         action = 'I wasn’t  expecting\n this. “Deal me in?”'
-        self.assertEqual(social_event(action), 'You declare: "I wasn\'t expecting this. "Deal me in?""')
+        self.assertEqual(social_event(action), 'You declare: "I wasn\'t expecting this. \'Deal me in?\'"')
         prepared = self.bridge.prepare(action, 'typed')
         plan = self.model.plan(prepared['input'])
         plan['public_brief']['reply_to'] = 'I wasn’t expecting this.'
