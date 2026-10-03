@@ -191,8 +191,9 @@ _ACCUSE = re.compile(
     r"|\bturn the deck over\b|\bshow (?:me|us|everyone) (?:the|that) deck\b|\b(?:these|the) cards are marked\b")
 _CHEAT_WORD = re.compile(r"\b(cheat\w*|crooked|rigged|marked)\b")
 _WATCH = re.compile(
-    r"\b(?:i|i'll|i will|i'm going to|let me)\s+(?:\w+\s+){0,2}?(?:watch\w*|eye\w*|study\w*|"
-    r"keep (?:an|my|both) eyes? on|look(?:s|ing)? (?:for|at|closely at)|track\w*|scrutini[sz]e\w*)\b"
+    r"\b(?:i|i'll|i will|i'm going to|let me|he|she|they|he's|she's|they're|he is|she is|they are)\s+"
+    r"(?:\w+\s+){0,2}?(?:watch\w*|eye\w*|study\w*|"
+    r"keeps? (?:an|my|his|her|their|both) eyes? on|look(?:s|ing)? (?:for|at|closely at)|track\w*|scrutini[sz]e\w*)\b"
     r"[^.?!]*\b(deal|dealing|dealt|hands?|fingers|dealer|cards?|deck|cheat\w*|seconds|shuffle)\b"
     r"|^\s*(?:watch|eye|study)\w*\b[^.?!]*\b(deal|dealing|hands?|fingers|dealer|cards?|deck|cheat\w*)\b")
 _SWAP = re.compile(r"\b(palm|swap|switch|slip|sleight of hand|hold out|hide a card|"
@@ -884,6 +885,29 @@ def initial_state(config):
 
 def check_config(config):
     return _twenty_one().check_config(config) if game_of(config) == 'twenty_one' else _tda_check_config(config)
+
+
+def game_names(config):
+    """What players call this game: the config's ``called`` list, else its name up to the
+    first parenthesis or comma ("Twenty-one (blackjack), or ..." -> "twenty-one")."""
+    called = (config or {}).get('called')
+    if called:
+        return tuple(name.casefold() for name in called)
+    name = re.split(r'[(,]', (config or {}).get('name') or '')[0].strip().casefold()
+    return (name,) if name else ()
+
+
+def game_called(config, text):
+    """True when ``text`` names this game as a choice: in a sentence that is not a question,
+    and not as an amount ("twenty-one gold")."""
+    for sentence in re.split(r'(?<=[.!?])\s+|\n', (text or '').casefold().replace('\u2019', "'")):
+        if sentence.rstrip(' "\'').endswith('?'):
+            continue
+        for name in game_names(config):
+            words = r'[- ]'.join(re.escape(part) for part in re.split(r'[- ]', name))
+            if re.search(r'\b' + words + r'\b(?!\s*(?:gp|gold|silver|copper|coins?|pieces)\b)', sentence):
+                return True
+    return False
 
 
 def card_intent(action, procedure_state):
