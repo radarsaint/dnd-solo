@@ -2378,7 +2378,10 @@ def prepare_inputs(runtime, revision, state, action, resolution, use_memory, one
         planning_input['kit_plan'] = {'beats': kit_plan.current(post_event_state)}
     # Private: what this scene is about, from the room data, every turn in the scene (the
     # opening included, so the first line is written with it). Never sent to the performer.
-    planning_input['story_brief'] = kit_brief.brief(source, post_event_state)
+    # Table talk leaves it out: Kit answers the player, not the scene, and a direct question
+    # ("Is the dealer cheating me?") must not be answered from the brief's secrets.
+    if not table_talk:
+        planning_input['story_brief'] = kit_brief.brief(source, post_event_state)
     due = kit_brief.due_hooks(source, post_event_state)
     if due and not table_talk:
         body['story_due'] = due

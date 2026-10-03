@@ -110,6 +110,23 @@ class BrendonsLinesAreTableTalk(TableTalkCase):
                  'reacts_to': 'is this guy cheating'}]})
         self.assertEqual(self.runtime.load()[0], 0)
 
+    def test_table_talk_carries_no_story_brief(self):
+        # A direct question to Kit is answered without the scene's private story brief, so its
+        # secrets (the marked deck, the act) cannot be paraphrased into the answer.
+        line = 'Is the dealer cheating me?'
+        played = self.bridge.prepare(line, 'in-fiction', one_pass=True)
+        self.assertIn('story_brief', played['input']['private'])
+        self.bridge.abandon('in-fiction')
+        for one_pass in (True, False):
+            with self.subTest(one_pass=one_pass):
+                prepared = self.bridge.prepare(line, f'talk-{one_pass}', one_pass=one_pass, table_talk=True)
+                private = prepared['input']['private'] if one_pass else prepared['input']
+                self.assertNotIn('story_brief', private)
+                text = json.dumps(prepared['input'], ensure_ascii=False)
+                self.assertNotIn('marked deck', text.casefold())
+                self.assertNotIn('shakedown', text.casefold())
+                self.bridge.abandon(f'talk-{one_pass}')
+
     def test_the_cli_flag_reaches_the_bridge(self):
         out = io.StringIO()
         argv = ['kit_agent', 'prepare', '--db', str(self.path), '--one-pass', '--table-talk',

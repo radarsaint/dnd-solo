@@ -249,10 +249,12 @@ def run_scenario(scen, out_root, dm, sheet_dirs):
         t0 = time.perf_counter()
         af = out / f'action-{i:02d}.txt'
         af.write_text(line)
-        prepared, code, prep_ms = kit('prepare', '--one-pass', '--db', str(db), '--action-file', str(af))
+        # "table_talk": true is the host marking the line as talk to Kit, not the PC (prepare --table-talk).
+        flags = ['--table-talk'] if turn.get('table_talk') else []
+        prepared, code, prep_ms = kit('prepare', '--one-pass', *flags, '--db', str(db), '--action-file', str(af))
         stage = prepared.get('stage')
         rec = {'step': i, 'kind': 'action', 'player_line': line, 'when': turn.get('when'), 'roll_note': note,
-               'prepare_ms': prep_ms}
+               'prepare_ms': prep_ms, **({'table_talk': True} if flags else {})}
         if stage != 'one_pass':
             rec.update(outcome=stage, message=prepared.get('message') or prepared.get('raw'),
                        spoken=prepared.get('message', ''), dm_ms=0, complete_ms=0,
@@ -288,7 +290,8 @@ def write_transcript(scen, sheet, records, path, backend):
         if r['kind'] == 'opening':
             lines += [f"## Opening ({r['outcome']}, {r['total_ms'] / 1000:.1f}s)", '']
         else:
-            lines += [f"## Turn {r['step']} ({r['outcome']}, {r['total_ms'] / 1000:.1f}s)", '',
+            talk = ', table talk' if r.get('table_talk') else ''
+            lines += [f"## Turn {r['step']} ({r['outcome']}{talk}, {r['total_ms'] / 1000:.1f}s)", '',
                       f"**Player:** {r['player_line']}", '']
         if r.get('rejections'):
             lines += [f"_Rejected {len(r['rejections'])}x before commit: "
