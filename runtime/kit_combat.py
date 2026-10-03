@@ -309,6 +309,7 @@ class Fight:
                       'pc_damage': 0, 'pending': None, 'opener_spent': False, 'started_by': started_by,
                       'last_target': None}
         self.trace.append(f'fight starts ({started_by}); surprised: {self.fight["surprised"] or "nobody"}')
+        self.scene['pc_hidden'] = False  # the first blow gives the PC away
         return True
 
     def surprised(self):

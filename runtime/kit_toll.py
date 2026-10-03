@@ -53,6 +53,41 @@ PAY = re.compile(r"\b(i(?:'ll| will)? pay|pay (?:it|the|him|them|up|you)|here'?s
                  r"i accept|accepted|agreed|you have a deal|it'?s a deal)\b")
 
 
+# A threat dressed as payment ("I pay with this" over a slammed axe) is never a payment.
+WEAPON_WORDS = (r"axe|greataxe|blade|sword|rapier|dagger|knife|steel|fist|fists|knuckles|crossbow|bow|hammer|"
+                r"maul|mace|club|spear|scimitar")
+THREAT = re.compile(r"\b(pay (?:you |him |them )?with (?:this|that|these|steel|iron|blood|my \w+)|"
+                    r"(?:slam|slams|slammed|bury|buries|drive|drives|plant|plants|draw|draws|drew|brandish\w*|"
+                    r"level|levels|unsheathe\w*|crack|cracks|thump|thumps)\s+(?:my|the|a|his|her)\s+(?:" +
+                    WEAPON_WORDS + r")|or (?:i|we)'?ll (?:kill|gut|break|cut|hurt|bury)|over my dead body|"
+                    r"make me|who wants change|try (?:and|to) take it)\b")
+# An appeal or a bluff about the toll: an exemption, a friend who vouches, kinship, a favour.
+# An appeal or a bluff about the toll. Strong: about passage itself (counts while the toll is
+# open). Soft: kinship, a friend's word, a favour (counts when the toll is named or rolled on;
+# "cousins, others of the blood" on arrival is a greeting, not a bid on the toll).
+APPEAL_STRONG = re.compile(r"\b(waive\w*|let (?:me|us) (?:through|pass|by)|already (?:paid|settled)|"
+                           r"settled (?:it|up|the toll)|pass free|free of charge|on the house|no toll)\b")
+APPEAL = re.compile(r"\b(between (?:family|friends|kin|cousins|brothers|sisters)|among (?:family|friends|kin)|"
+                    r"surely|for (?:a|an old) friend|vouch\w*|know my face|(?:her|his|your) guest|"
+                    r"take my word|my word|as a favou?r|professional courtesy|our kind|of the blood|"
+                    r"look after our own|turn(?:ed)? away)\b")
+SOCIAL_SKILLS = ('deception', 'persuasion', 'intimidation')
+STEER = re.compile(r"\b(play|playing|deal me|deal us|deal|bet|bets|betting|wager|ante|stake|join|sit in|buy in|"
+                   r"buy-in|blackjack|twenty[- ]one|another (?:round|hand)|next (?:round|hand)|hit|stand)\b")
+LOOKING = re.compile(r"\b(search\w*|look\w*|inspect\w*|examin\w*|study\w*|check\w*|admir\w*|peer\w*)\b")
+_ROLL_BRACKETS = re.compile(r'\[[^\]]*\]')
+
+
+def _plain(action):
+    """Casefolded text without stated-roll brackets ("[Deception: 22]")."""
+    return _ROLL_BRACKETS.sub(' ', action.casefold().replace('\u2019', "'").replace('\u2018', "'")).strip()
+
+
+def is_question(text):
+    """The bid ends on a question, even inside closing quotes ("...surely?'")."""
+    return text.rstrip(' .\'"\u201d)').endswith('?')
+
+
 def compile_tolls(source):
     tolls = {k: v for k, v in ((source or {}).get('tolls') or {}).items() if not k.startswith('_')}
     for key, toll in tolls.items():
@@ -104,7 +139,8 @@ def event(key, body, evidence):
 
 
 def offered_amount(action):
-    text = action.casefold()
+    from .kit_rolls import without_rolls
+    text = without_rolls(action)  # a die face or a roll total is never an offer
     if re.search(r'\bhalf\b', text):
         return 'half'
     for found in re.finditer(r"\b(\d{1,3})\s*(gp|gold|coins?|gold pieces)\b", text):
@@ -121,11 +157,17 @@ def offered_amount(action):
 
 
 def intent(action, body, game_running=False):
-    """'toll_pay' | 'toll_haggle' | 'toll_refuse' | 'toll_play_for' | 'toll_defer' | None.
+    """'toll_pay' | 'toll_haggle' | 'toll_appeal' | 'toll_threaten' | 'toll_refuse' |
+    'toll_play_for' | 'toll_defer' | None.
 
     Only a toll that is on the table (or a player who names it) is answered here; game
-    talk while it is open defers it (it stays pending and comes back)."""
-    text = action.casefold().replace('\u2019', "'").strip()
+    talk while it is open defers it (it stays pending and comes back). The reading is by
+    what the bid does, not by single words: a payment made "with this" over a slammed axe is
+    a threat; "no toll between family, surely?" is an appeal, not a refusal; a stated
+    Deception or Persuasion roll on the toll is an appeal or bluff, a stated Intimidation a
+    threat; a question is never a refusal or a payment."""
+    from . import kit_rolls
+    text = _plain(action)
     named = bool(TOLL_WORDS.search(text))
     open_ = body['status'] in OPEN
     if body['status'] in SETTLED or body['status'] == 'staked':
@@ -134,17 +176,29 @@ def intent(action, body, game_running=False):
         return None
     if PLAY_FOR.search(text):
         return 'toll_play_for'
-    question = text.endswith('?')
+    skill = kit_rolls.stated_skill(action)
+    skill = skill if skill in SOCIAL_SKILLS else None
+    question = is_question(text)
+    if THREAT.search(text) or skill == 'intimidation':
+        return 'toll_threaten'
+    amount = offered_amount(text)
+    appeal = APPEAL_STRONG.search(text) or (APPEAL.search(text) and named) or skill
+    if appeal and type(amount) is not int and amount != 'half' and not (REFUSE.search(text) and not question
+                                                                         and not skill and not named):
+        return 'toll_appeal'
     if REFUSE.search(text) and not question:
         return 'toll_refuse'
-    amount = offered_amount(text)
     ask = body['agreed'] or body['asked']
     if HAGGLE.search(text) or (amount not in (None,) and amount != 'half' and amount < ask) or amount == 'half':
         if not (question and amount is None and not HAGGLE.search(text)):
             return 'toll_haggle'
     if PAY.search(text) and not question:
         return 'toll_pay'
-    if open_ and GAME_TALK.search(text) and not named:
+    if open_ and not named and GAME_TALK.search(text) and STEER.search(text) and '?' not in text and \
+            not skill and not kit_rolls.stated_skill(action) and not LOOKING.search(text):
+        # Steering the talk to the game ("Deal me in", "I'll bet fifty") defers the toll. A
+        # question about the game, a search near the card players, or "go on with your
+        # game" is not steering (6c baseline V4, V8).
         return 'toll_defer'
     return None
 
@@ -215,6 +269,46 @@ class TollTable:
         counter = max(floor, math.ceil((offer + ask) / 2))
         body.update(status='countered', asked=counter)
         return f'The {self.label.lower()} turns down {offer} {unit} and comes back at {counter} {unit}.'
+
+    def _contest(self, action, default_skill):
+        """The PC's stated (or sheet) roll in the skill the bid uses, against the demander's
+        flat 10 + Insight (NPCs never roll). Returns (success, name)."""
+        from . import kit_rolls
+        skill = kit_rolls.stated_skill(action)
+        skill = skill if skill in SOCIAL_SKILLS else default_skill
+        modifier, _ = self.pc_numbers(skill)
+        die = self.roll(skill)
+        total = die + modifier
+        name = skill.replace('_', ' ').title()
+        self.trace.append(f'{name} d20 {die} + {modifier} = {total} vs {self.npc_flat} '
+                          f'(10 + {self.toll["haggle"]["npc_skill"]})')
+        return total >= self.npc_flat, name
+
+    def _appeal(self, action, body):
+        """An appeal or a bluff (an exemption, kinship, a friend's word): Persuasion, or the
+        Deception the player rolls for a lie. Success waives the toll; failure leaves it."""
+        success, name = self._contest(action, self.toll['haggle']['skill'])
+        ask, unit = self._ask(body), self.toll['unit']
+        if success:
+            body.update(status='waived', agreed=None)
+            self.trace.append(f'appeal ({name}) succeeds: toll waived')
+            return f'The {self.label.lower()} lets it go. No toll for you this time.'
+        body['status'] = 'countered'
+        self.trace.append(f'appeal ({name}) fails: the ask stands')
+        return f'The {self.label.lower()} is not buying it. The ask stays at {ask} {unit}.'
+
+    def _threaten(self, action, body):
+        """A threat (steel on the table, "pay with this"): Intimidation against the flat 10 +
+        Insight. Success waives the toll; failure is a refusal, with its consequence."""
+        success, name = self._contest(action, 'intimidation')
+        if success:
+            body.update(status='waived', agreed=None)
+            self.trace.append('threat succeeds: toll waived')
+            return (f'The {self.label.lower()} weighs the threat and decides your passage is not worth the '
+                    'trouble. No toll.')
+        self.trace.append('threat fails: read as a refusal')
+        text = self._refuse(action, body)
+        return 'The threat does not land. ' + text[len('You refuse the toll. '):]
 
     def _refuse(self, action, body):
         body['refusals'] += 1

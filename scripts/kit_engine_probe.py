@@ -58,7 +58,7 @@ def sheet_for(scenario, sheets):
     return None
 
 
-def probe(scenario, fixture, sheets, seed):
+def probe(scenario, fixture, sheets, seed, raise_toll=True):
     source = json.loads(Path(fixture).read_text())
     with tempfile.TemporaryDirectory() as temp:
         runtime = Runtime(Path(temp) / 'probe.sqlite')
@@ -70,6 +70,17 @@ def probe(scenario, fixture, sheets, seed):
                 runtime.set_player_sheet(sheet)
             except InvalidChange as error:
                 print(f'  (sheet not loaded: {error})', file=sys.stderr)
+        if raise_toll:
+            # The scenarios' "if they ask for money" lines assume the dealer has demanded the
+            # toll, which the DM model does in a real run. Record that demand up front.
+            from runtime import kit_toll
+            revision, state = runtime.load()
+            events = []
+            for key, (toll, body) in kit_toll.here(runtime.source(), state).items():
+                body.update(status='demanded', demanded_by=toll['demanded_by'])
+                events.append(kit_toll.event(key, body, 'Probe: the dealer demands the toll on arrival.'))
+            if events:
+                runtime.commit('probe-toll', revision, events)
         adjudicator = Room6CAdjudicator(source=runtime.source())
         out = []
         for index, line in enumerate(scenario.get('lines') or scenario.get('turns') or []):
@@ -97,6 +108,7 @@ def main():
     parser.add_argument('--seed', type=int, default=0)
     parser.add_argument('--only', nargs='*')
     parser.add_argument('--json')
+    parser.add_argument('--no-toll', action='store_true', help='do not record the dealer\'s toll demand first')
     args = parser.parse_args()
     data = json.loads(Path(args.scenarios).read_text())
     scenarios = data.get('scenarios', data) if isinstance(data, dict) else data
@@ -105,7 +117,7 @@ def main():
         sid = scenario.get('id')
         if args.only and sid not in args.only:
             continue
-        report[sid] = probe(scenario, args.fixture, args.sheets, args.seed)
+        report[sid] = probe(scenario, args.fixture, args.sheets, args.seed, not args.no_toll)
         print(f'== {sid} ({scenario.get("sheet") or scenario.get("character")})')
         for row in report[sid]:
             action = row['action'].replace('\n', '\n       | ')

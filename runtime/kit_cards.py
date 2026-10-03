@@ -184,7 +184,11 @@ _ACCUSE = re.compile(
     r"(cheat\w*|dealt (?:yourself|himself|herself)|deal(?:s|ing)? (?:yourself|himself|herself|"
     r"seconds|from the bottom|off the bottom)|palm\w*|stack\w* the deck|mark\w* (?:the|these|this))\b"
     r"|\b(?:this|the|your|his) deck(?:'s| is) (?:marked|rigged|stacked)\b"
-    r"|^\s*(?:\w+,\s*)?cheat(?:er|ing)?\s*[!.]*$|\bcheat(?:er|ing)!")
+    r"|^\s*(?:\w+,\s*)?cheat(?:er|ing)?\s*[!.]*$|\bcheat(?:er|ing)!"
+    # Calling out the move itself: where a card came from, or showing the deck to the table.
+    r"|\b(?:that|this|the) (?:one|card|last one|last card) came (?:from|off) the bottom\b"
+    r"|\b(?:came|dealt|slid|pulled) (?:from|off) the bottom\b|\bbottom of the deck\b|\bdealing seconds\b"
+    r"|\bturn the deck over\b|\bshow (?:me|us|everyone) (?:the|that) deck\b|\b(?:these|the) cards are marked\b")
 _CHEAT_WORD = re.compile(r"\b(cheat\w*|crooked|rigged|marked)\b")
 _WATCH = re.compile(
     r"\b(?:i|i'll|i will|i'm going to|let me)\s+(?:\w+\s+){0,2}?(?:watch\w*|eye\w*|study\w*|"
@@ -377,7 +381,7 @@ class CardTable:
     # -- seating and dealing ------------------------------------------------
     def _join(self, action, revision, public, private):
         if public['player'] is None:
-            found = _AMOUNT.search(action.casefold())
+            found = _AMOUNT.search(kit_rolls.without_rolls(action))
             if not found:
                 raise NeedsRuling('How much gold do you bring to the table? Say it in your action, for '
                                   'example "I buy in with 20 gold." The strongest ante card sets each '

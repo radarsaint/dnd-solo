@@ -103,7 +103,13 @@ OBSERVE = re.compile(r"\b(look|looks|looking|glance|scan|survey|take in|gaze|pee
                      r"\b(around|room|else|rest of|elsewhere|away|here|walls?)\b|\bwhat else\b"
                      # A plain look at a visible feature is free description, no roll (table call 2).
                      r"|\b(?:look|looks|looking|glance|glances|gaze|gazes)\s+(?:up |over |closer )?at\b"
-                     r"|\bwhat'?s (?:interesting|here|notable)\b")
+                     r"|\bwhat'?s (?:interesting|here|notable)\b"
+                     # Going over what is plainly there (6c baseline V9: "I check the table"), and
+                     # walking into the room the PC is already in (V6): free description, no roll.
+                     r"|\b(?:check|checks|search|searches|go through|goes through|look over|rummage)\b[^.?!]{0,20}"
+                     r"\b(?:table|room|floor|bodies|body|spill|wreckage|mess)\b"
+                     r"|\b(?:head|heads|walk|walks|go|goes|step|steps|come|comes)\s+(?:on\s+)?(?:in|into|toward|towards)\b"
+                     r"[^.?!]{0,15}\b(?:6c|room|chamber)\b")
 # A read of the whole group, not one speaker's words (call 3's clue invites it).
 GROUP_READ = re.compile(r"\bsomething(?:'s| is)? (?:off|wrong|strange|weird|not right)\b|\bwhat'?s off\b"
                         r"|\b(?:study|studying|size up|sizing up|read|reading|scrutini[sz]e)\s+(?:them|the (?:four|table|"
@@ -111,9 +117,24 @@ GROUP_READ = re.compile(r"\bsomething(?:'s| is)? (?:off|wrong|strange|weird|not 
 # Asking to play the room's game (call 7: "I play the game." is a complete declaration).
 PLAY_REQUEST = re.compile(r"\b(?:i(?:'ll| will)? play|let'?s play|join (?:the|your|you|in)|sit in|deal me in|"
                           r"count me in|buy in|buy-in|i'?m in|play (?:a|the|one|your) (?:game|hand|round)|"
-                          r"play cards|play blackjack|play twenty[- ]one|just roll for it)\b")
+                          r"play cards|play blackjack|play twenty[- ]one|just roll for it|dealt in|be dealt|"
+                          r"deal (?:me|us|her|him) in|take (?:the|a|an) (?:empty |open |free )?(?:chair|seat) at the table)\b")
+# Rolls a player makes in conversation, and what each outcome means for the NPC addressed.
+SOCIAL_CHECK_SKILLS = ('deception', 'persuasion', 'intimidation', 'performance', 'athletics')
+SOCIAL_OUTCOMES = {
+    'deception': ('{who} believes you.', '{who} does not believe you.'),
+    'persuasion': ('{who} comes around to it.', '{who} is not moved.'),
+    'intimidation': ('{who} backs down.', '{who} does not scare.'),
+    'performance': ('{who} is taken in by the act.', '{who} is not taken in.'),
+    'athletics': ('You overpower {who}.', '{who} holds firm against you.'),
+}
+# A bet named in speech or narration ("'I'll bet fifty gold.'") is asking to play.
+SPOKEN_BET = re.compile(r"\b(?:bet|bets|betting|wager|stake)\b[^.?!]{0,20}\b(?:\d{1,4}|[a-z]+(?:-[a-z]+)?)\s+(?:gp|gold)\b")
 # Words inside quotation marks are speech; a threat or a noun spoken aloud is not a physical act.
-QUOTED_SPEECH = re.compile(r'"[^"]*"')
+# Double or single quotes (the 6c baseline's V7: 'Ten gold just to walk through a room?'
+# inside single quotes was read as walking out the door). Apostrophes in words never open one.
+QUOTED_SPEECH = re.compile(r'"[^"]*"|' + r"(?:(?<=^)|(?<=[\s(\[:;,.!?\u2014-]))'(?=\S)[^\n]*?(?<=\S)'"
+                           r"(?=$|[\s)\].,!?;:\u2014-])")
 # A stealthy approach needs a Stealth ruling; it must never pass as a free, unopposed exit.
 STEALTH_INTENT = re.compile(r'\b(sneak|sneaks|sneaking|creep|creeps|creeping|tiptoe|tiptoes|tiptoeing|'
                             r'stealth|stealthily|unnoticed|unseen)\b|\bslip(s|ping)? (past|by)\b')
@@ -178,7 +199,14 @@ def room_intent(action, addressed=False):
         return 'tip_tub'
     if TUB_ENTRY.search(words):
         return 'enter_tub'
-    if re.search(r'\b(look|search|inspect|examine|check|peer)\b', words) and 'tub' in words:
+    if 'tub' in words and re.search(r"\b(look|looks|search|inspect|examine|check|peer|peers|crouch|crouches|kneel|"
+                                    r"kneels|lean over|bend over|squat|rummage)\b|\bwhat'?s (?:in|inside)\b|"
+                                    r"\bwhat is (?:in|inside)\b|\banything (?:in|inside)\b", words):
+        # The 6c baseline's contradictory tub rule: a question about what is in the tub was
+        # sent to Kit's invention oracle, which must show an answer, while the room forbids
+        # inventing the contents and the leak guard forbids naming them. The source keys the
+        # contents (fact tub_stash) and a plain look at a visible feature is free (call 2), so
+        # any look or question into the tub resolves here, from the source, with no invention.
         return 'inspect_tub'
     if OBSERVE.search(words):
         return 'observe'
@@ -249,8 +277,9 @@ class Room6CAdjudicator:
         if not spoken and kit_claims.is_lie_read(narration):
             return self._resolve_lie_read(action, narration, revision, state)
         table = card_procedure(self.source, state)
-        if table is None and not is_ooc(action) and PLAY_REQUEST.search(narration.casefold()) and \
-                '?' not in narration:
+        if table is None and not is_ooc(action) and ((PLAY_REQUEST.search(narration.casefold()) and
+                                                      '?' not in narration) or
+                                                     SPOKEN_BET.search(kit_rolls.without_rolls(action))):
             # "I play the game." is a complete declaration (call 7): the room's game starts
             # with the check-or-play choice. A game in the room never starts on its own.
             table = self._declared_table(state)
@@ -265,6 +294,21 @@ class Room6CAdjudicator:
             (kind == 'stealth' and card_kind != 'card_swap')
         if card_kind and not overrides:
             return self._resolve_card(card_kind, action, revision, state, table)
+        # A roll the player makes in conversation counts (6c baseline item 3): Deception,
+        # Persuasion, Intimidation, Performance, or Athletics against the NPC's flat number;
+        # Insight reads whoever spoke (the lie rule) or the group's hidden claim.
+        stated = kit_rolls.stated_skill(action)
+        if stated in SOCIAL_CHECK_SKILLS and kind not in ('combat', 'stealth', 'exit', 'spell'):
+            return self._resolve_social_check(stated, action, narration, revision, state)
+        if stated == 'insight' and spoken and kind not in ('combat', 'stealth', 'exit', 'spell'):
+            who = self._lie_read_target(narration, state)
+            if who and any(r.get('by') == who for r in (state.get('claims') or {}).get('said') or []):
+                return self._resolve_lie_read(action, narration, revision, state)
+            claim = self._group_claim(state)
+            if claim:
+                return self._resolve_check(action, revision, state, *claim)
+            if who:
+                return self._resolve_lie_read(action, narration, revision, state)
         # "I study them; something's off": a read of the group goes to the hidden Insight
         # claim about who they are (call 3: the clue invites a check that works).
         if not spoken and kind not in ('combat', 'stealth', 'exit', 'spell') and GROUP_READ.search(narration):
@@ -337,6 +381,35 @@ class Room6CAdjudicator:
                  'evidence': f'Player declared: {action}. Resolution: {public}'}
         return Resolution(kind, public, [event])
 
+    # -- social checks rolled in conversation -----------------------------------------
+    def _resolve_social_check(self, skill, action, narration, revision, state):
+        """The player's stated roll in a social skill against the NPC they address: that
+        NPC's flat 10 + Insight (10 + Athletics for a contest of strength). NPCs never roll.
+        A bare number is the Avrae total (runtime/kit_rolls.py). Numbers stay in evidence."""
+        present = self._present_actors(state)
+        who = self._lie_read_target(narration, state)
+        if who is None:
+            leader = ((self.source or {}).get('combat') or {}).get('leader')
+            who = leader if leader in present else next(iter(present), None)
+        if who is None:
+            raise PendingRuling('Who are you trying that on? Nobody here is listening. No turn was committed.')
+        actor = state['actors'][who]
+        against = 'athletics' if skill == 'athletics' else 'insight'
+        flat = kit_claims.npc_passive(actor, against)
+        modifier, _ = self._pc_numbers(skill, state, action)
+        die = self._die(state, revision, f'social:{skill}:{who}', action, modifier, skill)
+        total = die + modifier
+        success = total >= flat
+        label = (actor_speakers(self.source).get(who) or actor.get('name') or who).lower()
+        public = SOCIAL_OUTCOMES[skill][0 if success else 1].format(who=f'the {label}')
+        public = public[0].upper() + public[1:]
+        name = skill.replace('_', ' ').title()
+        evidence = (f'Player declared: {action[:300]}. {name} d20 {die} + {modifier} = {total} vs {who} '
+                    f'flat 10 + {against.title()} = {flat}: {"success" if success else "failure"}. '
+                    'The NPC acts on this outcome.')
+        return Resolution('social_check', public, [{'type': 'beat', 'tags': ['social_check', skill],
+                                                     'evidence': evidence}])
+
     # -- physical acts and fights (runtime/kit_combat.py) -----------------------------
     def _resolve_physical(self, action, revision, state):
         act = kit_combat.parse(action, self.source, state)
@@ -344,7 +417,7 @@ class Room6CAdjudicator:
         fighting = current.get('status') in ('awaiting_initiative', 'running')
         if not act and not (fighting and kit_rolls.initiative(action) is not None):
             return None
-        if act and act['kind'] == 'grab' and act.get('part') == 'wrist':
+        if act and act['kind'] == 'grab' and act.get('wrist'):
             table = card_procedure(self.source, state)
             if table and kit_cards.card_intent(action, table[2]) == 'card_accuse':
                 return None  # catching the dealer's wrist mid-deal is the accusation itself
@@ -498,9 +571,21 @@ class Room6CAdjudicator:
         if total >= dc:
             public = 'You slip out through the south door unnoticed.' if leaving else 'You move without drawing an eye.'
             beat = {'type': 'beat', 'tags': ['stealth'], 'evidence': evidence}
-            return Resolution('stealth', public, ([dict(exit_event, evidence=evidence)] if leaving else []) + [beat])
+            return Resolution('stealth', public, ([dict(exit_event, evidence=evidence)] if leaving else
+                                                  self._hidden_events(state, True, evidence)) + [beat])
         return Resolution('stealth', 'Eyes at the table turn your way before you get far.',
+                          self._hidden_events(state, False, evidence) +
                           [{'type': 'beat', 'tags': ['stealth', 'noticed'], 'evidence': evidence}])
+
+    def _hidden_events(self, state, hidden, evidence):
+        """A PC hidden from everyone present surprises them if a fight starts (kit_combat)."""
+        if not (self.source or {}).get('combat'):
+            return []
+        scene = kit_combat.scene(state)
+        if bool(scene.get('pc_hidden')) == hidden:
+            return []
+        scene['pc_hidden'] = hidden
+        return [{'type': 'scene_state', 'state': scene, 'evidence': evidence}]
 
     def _resolve_knowledge(self, action, revision, state, claim_id, claim):
         """A player-initiated knowledge roll (History, Arcana...) against a claim's DC.
@@ -562,7 +647,7 @@ class Room6CAdjudicator:
         return None
 
     def _card_engine(self, key, config, state):
-        skills = {'perception', 'insight', 'sleight_of_hand'} | {(config.get('check') or {}).get('skill') or 'insight'}
+        skills = {'perception', 'insight', 'sleight_of_hand', 'deception'} | {(config.get('check') or {}).get('skill') or 'insight'}
         sheet = pc_sheet.sheet_now(state)  # seated at cards: hands on the cards
         modifiers = {skill: self.skill_modifier(skill, state) for skill in skills}
         passives = {skill: (pc_sheet.passive(sheet, skill) if getattr(self, skill, None) is None and sheet else
@@ -1647,7 +1732,8 @@ def check_public_content(text, public_view, player_action, leak_sets=(), phrases
     phrases = phrases or {}
     for phrase in phrases.get('phrases', ()):
         phrase = phrase.lower()
-        player_named = phrase in phrases.get('player_may_name', ()) and phrase in declared
+        player_named = phrase in phrases.get('player_may_name', ()) and (
+            phrase in declared or phrase in phrases.get('player_said', ()))
         if phrase in text and phrase not in public and not player_named:
             raise InvalidChange('Public performance mentioned a private fact')
     kit_guards.check_paraphrased_leaks(text, public_view, player_action, leak_sets)
@@ -1662,6 +1748,15 @@ def check_brief_public(brief, public_view, player_action, leak_sets=(), phrases=
     # Paraphrase sets are checked per field so one field's words cannot pair with another's.
     for value in direction.values():
         kit_guards.check_paraphrased_leaks(value, public_view, player_action, leak_sets)
+
+
+def all_problems(problems):
+    """One message for every failed check: the first as is when it is the only one, else a
+    numbered list, so a retry can fix all of them at once."""
+    unique = list(dict.fromkeys(problems))
+    if len(unique) == 1:
+        return unique[0]
+    return f'{len(unique)} problems; fix all of them: ' + ' '.join(f'({n}) {p}' for n, p in enumerate(unique, 1))
 
 
 def check_speech(speech, plan, public_view, player_action, action_kind=None, guards=None,
@@ -1704,34 +1799,43 @@ def check_speech(speech, plan, public_view, player_action, action_kind=None, gua
              (focus is None or speakers is None or any(segment['speaker'] == focus for segment in segments))),
             'Room entry needs narration and the focus actor\'s first line')
     spoken = '\n'.join(f"{segment['speaker']}: {segment['text'].strip()}" for segment in segments)
+    # Every check runs and every failure is reported at once (6c baseline item 5: one error
+    # per retry cost the model a retry per problem).
+    hard_problems = []
+
+    def hard(check, *args, **kwargs):
+        try:
+            check(*args, **kwargs)
+        except InvalidChange as exc:
+            hard_problems.append(str(exc))
     # HARD: secrets (literal and paraphrased), the player's agency, NPC table talk, and
     # a clarification that really asks something.
-    check_public_content(spoken, public_view, player_action, phrases=guards.get('leak_phrases'))
+    hard(check_public_content, spoken, public_view, player_action, phrases=guards.get('leak_phrases'))
     for segment in segments:
-        kit_guards.check_paraphrased_leaks(segment['text'], public_view, player_action,
-                                           guards.get('leak_sets', ()))
-    kit_guards.check_player_agency(segments)
-    kit_guards.check_npc_meta(segments)
+        hard(kit_guards.check_paraphrased_leaks, segment['text'], public_view, player_action,
+             guards.get('leak_sets', ()), labels=guards.get('labels', ()))
+    hard(kit_guards.check_player_agency, segments)
+    hard(kit_guards.check_npc_meta, segments)
     running = declared_procedures(guards.get('declared_procedures', ()), plan)
     configs = guards.get('procedure_configs') or {}
     game_terms = kit_cards.rule_terms([configs.get(key, {}) for key in running]) if running else ()
-    check_claimed_numbers(segments, plan, guards, player_action, game_terms)
+    hard(check_claimed_numbers, segments, plan, guards, player_action, game_terms)
     # HARD: numbers stay in the ledger; no bonus reminders unless asked (call 4).
-    kit_guards.check_public_numbers(segments, rules_question=bool(is_ooc(player_action or '') or
-                                                                  RULES_NOUNS.search(player_action or '')))
+    hard(kit_guards.check_public_numbers, segments, rules_question=bool(is_ooc(player_action or '') or
+                                                                        RULES_NOUNS.search(player_action or '')))
     # HARD: the toll is an NPC's demand and a real exchange (call 6); no refreshment here (call 3).
-    kit_guards.check_toll_exchange(segments, guards.get('toll_amount'), guards.get('toll_raised', True))
+    hard(kit_guards.check_toll_exchange, segments, guards.get('toll_amount'), guards.get('toll_raised', True))
     if guards.get('no_refreshment'):
-        kit_guards.check_no_refreshment(segments)
-    kit_guards.check_clarification_shape(segments, plan)
+        hard(kit_guards.check_no_refreshment, segments)
+    hard(kit_guards.check_clarification_shape, segments, plan)
     # HARD: scene fit. Who the player is, what the deal really was, what can be staked.
-    kit_guards.check_player_identity(segments, (public_view or {}).get('your_character'))
-    kit_guards.check_clean_deal(segments, guards.get('dealer_cheated', False))
-    kit_guards.check_stake_offers(segments, carriable=guards.get('carriable_stakes', ()))
+    hard(kit_guards.check_player_identity, segments, (public_view or {}).get('your_character'))
+    hard(kit_guards.check_clean_deal, segments, guards.get('dealer_cheated', False))
+    hard(kit_guards.check_stake_offers, segments, carriable=guards.get('carriable_stakes', ()))
     # HARD: Kit reacts to what actually happened this turn; no procedure the runtime
     # cannot carry is stated as settled.
-    kit_voice.check_kit_asides(segments, player_action, public_event, action_kind)
-    kit_detail.check_detail_performance(segments, running, game_terms)
+    hard(kit_voice.check_kit_asides, segments, player_action, public_event, action_kind)
+    hard(kit_detail.check_detail_performance, segments, running, game_terms)
     # SOFT: style floors. Recorded as warnings, not rejections, in degraded mode.
     history = guards.get('public_history', ())
     soft = (lambda: check_scope(segments, plan, guards),
@@ -1750,9 +1854,10 @@ def check_speech(speech, plan, public_view, player_action, action_kind=None, gua
         try:
             check()
         except InvalidChange as exc:
-            if not degraded:
-                raise
             warnings.append(str(exc))
+    problems = hard_problems + ([] if degraded else warnings)
+    if problems:
+        raise InvalidChange(all_problems(problems))
     return (spoken, warnings) if degraded else spoken
 
 
@@ -1827,7 +1932,7 @@ def turn_events(runtime, body, plan, turn_id, record=None):
 # The player's words are about the game (asking to play, or about it): only then may a
 # decision start a table procedure (call 1: a game in the room is never a reason by itself).
 ASKS_ABOUT_GAME = re.compile(r"\b(game|games|play|playing|cards?|deal|dealing|bet|bets|wager|ante|stakes?|gambl\w*|"
-                             r"join|rules|blackjack|twenty[- ]one|poker|hand|round|buy[- ]in)\b", re.I)
+                             r"join|rules|blackjack|twenty[- ]one|poker|hand|round|buy[- ]in|dealt)\b", re.I)
 PUT_OFF = re.compile(r"\b(steer\w*|stall\w*|put (?:\w+ )?off|putting (?:\w+ )?off|distract\w*|divert\w*|"
                      r"keep (?:\w+ ){0,2}(?:busy|seated|at the table|from)|draw (?:\w+ )?in)\b", re.I)
 
@@ -2038,6 +2143,18 @@ def check_decision(runtime, plan, memory, body):
                            kit_guards.leak_sets(source), kit_guards.leak_phrases(source))
 
 
+def player_named(runtime, action):
+    """The room's player_may_name names the player has said in this session (this turn or
+    any committed turn). A name the player said stays theirs to hear back (6c baseline item 5:
+    Harria, named by the player, was rejected a turn later)."""
+    allowed = kit_guards.leak_phrases(runtime.source()).get('player_may_name', ())
+    if not allowed:
+        return []
+    said = ' '.join([action] + runtime.player_inputs())
+    said = said.casefold()
+    return sorted(name for name in allowed if re.search(rf'\b{re.escape(name)}\b', said))
+
+
 def prepare_inputs(runtime, revision, state, action, resolution, use_memory, one_pass=False):
     post_event_state = runtime.preview_state(revision, resolution.events)
     public_view = runtime._player_view(runtime.source(), post_event_state)
@@ -2053,6 +2170,7 @@ def prepare_inputs(runtime, revision, state, action, resolution, use_memory, one
             'use_memory': use_memory,
             'public_history': public_history,
             'scene_facts': scene_facts(state, resolution.events),
+            'player_named': player_named(runtime, action),
             'discernment_candidates': discernment_candidates(context['dm_context'])}
     # Only needed to dedupe the one-pass public view; not kept in the staged body.
     body['view_before_event'] = context['dm_context']['player_perceivable'] if one_pass else None
@@ -2325,7 +2443,8 @@ def guard_context(source, body):
     here = [toll for key, toll in tolls.items() if toll['area'] == _area_id(source, view)]
     carriable = ('toll', 'tolls', 'passage') if any(kit_cards.can_carry(configs.get(key), 'toll')
                                                     for key in procedures) else ()
-    return {'leak_sets': kit_guards.leak_sets(source), 'leak_phrases': kit_guards.leak_phrases(source),
+    return {'leak_sets': kit_guards.leak_sets(source),
+            'leak_phrases': {**kit_guards.leak_phrases(source), 'player_said': list(body.get('player_named') or ())},
             'numeric_facts': facts,
             'procedure_configs': configs, 'carriable_stakes': carriable,
             'toll_amount': here[0]['amount'] if here else None,

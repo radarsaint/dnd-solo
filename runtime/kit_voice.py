@@ -104,6 +104,8 @@ def mode_hint(action_kind, is_ooc):
         return None  # a card-table action can be banter or description; Kit reads it
     if action_kind == 'combat_round':
         return 'combat'  # a fight waiting on initiative or running: tense and fast
+    if action_kind == 'social_check':
+        return None  # a roll made in conversation: the talk goes on; Kit reads the mode
     if action_kind != 'social':
         return 'description'  # a room action and its public result
     return None
@@ -191,7 +193,7 @@ def check_turn_mode(plan, action_kind, is_ooc):
         require(mode == hint, f'turn_mode must be {hint} for this turn')
     elif action_kind == 'combat_round':
         require(mode == 'combat', 'A fight round is a combat turn')
-    elif action_kind != 'social' and not is_table_procedure(action_kind):
+    elif action_kind not in ('social', 'social_check') and not is_table_procedure(action_kind):
         require(mode in ('description', 'combat'), 'A room action is a description (or combat) turn')
     if mode == 'meta':
         require(plan['table_presence'] != 'quiet', 'Meta talk is answered by Kit; table presence cannot be quiet')

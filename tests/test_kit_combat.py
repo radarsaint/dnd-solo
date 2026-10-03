@@ -153,6 +153,20 @@ class FightTests(unittest.TestCase):
         self.assertIn('false_vampires', room.state['known_facts'])
         self.assertNotIn('15', result.public_event, 'the save DC is never shown')
 
+    def test_a_pc_hidden_from_everyone_surprises_them(self):
+        room = Room(self, roll=lambda: 2)
+        room.act('I sneak along the wall toward the table. [Stealth: 1d20 (20) + 2 = 22]')
+        self.assertTrue(room.state['scene']['pc_hidden'])
+        room.act('I stab the dealer with my dagger. 18 to hit, 4 piercing damage.')
+        fight = room.state['combat']
+        self.assertEqual(set(fight['surprised']), {'uktarl', 'bandit_a', 'bandit_b', 'doppelganger'})
+        self.assertFalse(room.state['scene']['pc_hidden'], 'the first blow gives the PC away')
+
+    def test_walking_in_openly_surprises_nobody(self):
+        room = Room(self, roll=lambda: 2)
+        room.act('I stab the dealer with my dagger. 18 to hit, 4 piercing damage.')
+        self.assertEqual(room.state['combat']['surprised'], [])
+
     # Avrae's real output (6c rerun 2026-10-03, V2 / V9 / V11): to-hit and damage are separate fields.
     def test_an_avrae_weapon_hit_deals_the_damage_field_not_the_to_hit_roll(self):
         room = Room(self, roll=lambda: 2)

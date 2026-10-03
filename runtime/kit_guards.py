@@ -509,11 +509,18 @@ def leak_phrases(source):
 _NEGATION = re.compile(r"\b(not|never|no|nothing|n't)\b|n't\b")
 
 
-def check_paraphrased_leaks(text, public_view, player_action, sets):
+def check_paraphrased_leaks(text, public_view, player_action, sets, labels=()):
     """Applies to every speaker, Kit included: her exact-ruling voice is a leak path too.
     When the player raised the subject themselves, only a question or a denial about it
-    is allowed; a statement that confirms it is still a leak."""
+    is allowed; a statement that confirms it is still a leak. The room's speaker labels
+    are names, not keywords: "the Fresco-side player lifted his cup" says nothing about the
+    fresco (6c baseline item 5)."""
     public = normalize(str(public_view))
+    names = sorted({label for label in labels or () if label and label not in ('Narrator', 'Kit')},
+                   key=len, reverse=True)
+    if names:
+        strip = re.compile(r'\b(?:' + '|'.join(re.escape(name) for name in names) + r')\b', re.I)
+        text = strip.sub('someone', text)
     declared = sentences(player_action or '')
     for entry in sets or ():
         if entry['revealed_text'] and normalize(entry['revealed_text']) in public:
@@ -782,7 +789,15 @@ def check_player_identity(segments, character):
     ancestry = normalize((character or {}).get('ancestry'))
     if not ancestry:
         return
-    allowed = set(ANCESTRY_ALIASES.get(ancestry, (ancestry,))) | {ancestry}
+    # Every ancestry word in the recorded string counts ("Dwarf (Mountain)" is a dwarf and a
+    # mountain dwarf; "Half-Elf" is also an elf), with each word's aliases (6c baseline item 5).
+    allowed = {ancestry}
+    for word in re.findall(r"[a-z]+(?:-[a-z]+)?", ancestry):
+        allowed.add(word)
+        allowed |= set(ANCESTRY_ALIASES.get(word, ()))
+        for part in word.split('-'):
+            allowed.add(part)
+            allowed |= set(ANCESTRY_ALIASES.get(part, ()))
     wrong = [word for word in ANCESTRY_WORDS if word not in allowed]
     patterns = _identity_patterns(wrong)
     epithet = re.compile(_EPITHET.format(words='|'.join(re.escape(w) for w in sorted(wrong, key=len, reverse=True))))

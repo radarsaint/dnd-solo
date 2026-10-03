@@ -325,6 +325,70 @@ def damage(action):
     return out
 
 
+# -- number words ("twenty" is 20, "twenty-five" is 25, "a hundred" is 100) ----------------
+_UNITS = {'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5, 'six': 6, 'seven': 7, 'eight': 8, 'nine': 9,
+          'ten': 10, 'eleven': 11, 'twelve': 12, 'thirteen': 13, 'fourteen': 14, 'fifteen': 15, 'sixteen': 16,
+          'seventeen': 17, 'eighteen': 18, 'nineteen': 19}
+_TENS = {'twenty': 20, 'thirty': 30, 'forty': 40, 'fifty': 50, 'sixty': 60, 'seventy': 70, 'eighty': 80,
+         'ninety': 90}
+_NUMBER_WORD = re.compile(
+    r"\b(?:(a|one|two|three|four|five|six|seven|eight|nine)\s+hundred(?:\s+(?:and\s+)?)?)?"
+    r"(?:(" + '|'.join(_TENS) + r")(?:[- ](" + '|'.join(k for k in _UNITS if _UNITS[k] < 10) + r"))?|"
+    r"(" + '|'.join(sorted(_UNITS, key=len, reverse=True)) + r"))?\b")
+
+
+def number_words(text):
+    """[(value, start, end)] for every number written in words or digits in ``text``.
+    "twenty-one" is 21 (callers that mean the game check for it themselves)."""
+    found = []
+    for match in re.finditer(r'\b\d{1,4}\b', text):
+        found.append((int(match.group(0)), match.start(), match.end()))
+    for match in _NUMBER_WORD.finditer(text.casefold()):
+        if not match.group(0).strip():
+            continue
+        hundreds, tens, unit_after, unit = match.groups()
+        value = 0
+        if hundreds:
+            value += 100 * (1 if hundreds == 'a' else _UNITS[hundreds])
+        if tens:
+            value += _TENS[tens] + (_UNITS[unit_after] if unit_after else 0)
+        elif unit:
+            value += _UNITS[unit]
+        if value:
+            found.append((value, match.start(), match.end()))
+    return sorted(found, key=lambda item: item[1])
+
+
+_DICE_TERM = r'\d*d\d+(?:[a-z]{1,3}\d+)*(?:\s*\([^)]*\))?'
+_DICE_EXPR = re.compile(r'\b' + _DICE_TERM + r'(?:\s*\[[^\]]*\])?'
+                        r'(?:\s*[+-]\s*(?:' + _DICE_TERM + r'|\d+)(?:\s*\[[^\]]*\])?)*'
+                        r'(?:\s*/\s*\d+)?(?:\s*=\s*-?\d{1,3}\b)?')
+
+
+# Avrae's title lines: "Wren makes an Investigation check!", "Brakka attacks with a Greataxe!",
+# "Nik casts Fireball!".
+AVRAE_TITLE = re.compile(r"^[^\n!?.]{1,40}?\b(?:makes? an?\s+[a-z' ]{3,30}\s+(?:check|save|saving throw)|"
+                         r"attacks? with an?\s+[^\n!]{1,40}|casts?\s+[^\n!]{1,40})!\s*$", re.M | re.I)
+
+
+def without_rolls(text):
+    """``text`` with every stated roll removed (Avrae output, dice notation, sums, naturals,
+    totals, initiative, bracketed reports), so a die face, a modifier, or a total is never
+    read as a bet, an offer, or an amount. Avrae's output goes as one pattern: its field
+    lines (To Hit / Damage / <ABIL> Save / Initiative / DC) whole, and any dice expression
+    ("1d20 (12) + 3 = 15", "2d20kh1 (13, 4) + 7 = 20", "8d6 (4, 3, ...) [fire] = 28", "1d20")."""
+    text = _clean(text)
+    text = re.sub(r'\[[^\]]*\]', ' ', text)
+    text = '\n'.join(' ' if _FIELD.match(line) or re.match(r'\s*dc\s*:', line) else line
+                     for line in text.split('\n'))
+    text = _DICE_EXPR.sub(' ', text)
+    for pattern in (_AVRAE, _SUM, _NATURAL, _INIT, _TOTAL):
+        # "I've got 20 gold" is money, not a roll: a number followed by a coin word stays.
+        text = pattern.sub(lambda m: m.group(0) if re.match(r'\s*(?:gp|gold|coins?|sp|cp|pp)\b',
+                                                             text[m.end():]) else ' ', text)
+    return text
+
+
 def damage_total(action):
     """(total, type) the blow or spell deals. Avrae: the untargeted (rolled) damage field,
     else the largest per-target one (the full roll on a failed save). Plain words: the sum."""

@@ -48,11 +48,6 @@ GAME_TERMS = ('twenty-one', 'twenty', 'blackjack', 'hit', 'stand', 'bust', 'bet'
               'hand', 'hands', 'dealer', 'ante', 'blind', 'round', 'house', 'push', 'card', 'cards', 'deal',
               'pot', 'check', 'roll')
 
-_AMOUNT = re.compile(r'\b(\d{1,4})\s*(?:gp|gold)\b')
-_NUMBER_WORDS = {'five': 5, 'ten': 10, 'fifteen': 15, 'twenty': 20, 'twenty-five': 25, 'thirty': 30,
-                 'forty': 40, 'fifty': 50}
-_WORD_AMOUNT = re.compile(r'\b(' + '|'.join(sorted(_NUMBER_WORDS, key=len, reverse=True)) +
-                          r')\s+(?:gp|gold)\b')
 # The player picks the weight of the round.
 CHECK_MODE = re.compile(
     r"\broll (?:for it|it|for the (?:round|hand|pot))\b|\b(?:one|a|single|quick|just a) (?:check|roll)\b"
@@ -63,7 +58,9 @@ PLAY_MODE = re.compile(
     r"|\bplay (?:a|the) (?:hand|mini ?game)\b|\bmini ?game\b|\bdeal me (?:a hand|cards)\b|\bplay for real\b")
 PLAY_REQUEST = re.compile(
     r"\b(?:play|plays|playing|join|sit in|sit down|deal me in|deal me|i'?m in|count me in|buy in|buy-in|"
-    r"another (?:round|hand|game)|(?:play|go|deal) again|next (?:round|hand)|let'?s go|deal)\b")
+    r"another (?:round|hand|game)|(?:play|go|deal) again|next (?:round|hand)|let'?s go|"
+    r"dealt in|deal (?:me|us|her|him) in|be dealt|get dealt|a seat at the table|take (?:the|a|an) (?:empty |open |free )?(?:chair|seat))\b"
+    r"|(?:^|[.!;]\s*)deal\b(?!-)")
 _BET = re.compile(r"\b(?:bet|bets|betting|wager|stake|ante|put (?:up|down|in))\b")
 _HIT = re.compile(r"\b(?:hit|hit me|another card|card me|one more card|draw)\b")
 _STAND = re.compile(r"\b(?:stand|stay|hold|i'?m good|i'?ll keep|stick|no more)\b")
@@ -99,13 +96,14 @@ def _better(old, new):
 _BUY_IN = re.compile(r"\bbuy(?:ing)?[- ]in\b")
 
 
-def bet_amount(action):
+def bet_amount(action, loose=False):
     """The player's bet in this action. A buy-in amount ("I buy in with 20 gold") is the
-    purse they bring to the table, not a bet, unless they also use betting words."""
+    purse they bring to the table, not a bet, unless they also use betting words. With
+    ``loose`` (the table is waiting on a bet), a bare number counts ("Fine, twenty.")."""
     text = action.casefold()
     if _BUY_IN.search(text) and not _BET.search(text):
         return None
-    return player_amount(action)
+    return player_amount(action, loose=loose)
 
 
 def can_cover(public, amount):
@@ -119,13 +117,44 @@ def can_cover(public, amount):
     return purse is None or amount <= purse + player['net']
 
 
-def player_amount(action):
-    text = action.casefold()
-    found = _AMOUNT.search(text)
-    if found:
-        return int(found.group(1))
-    found = _WORD_AMOUNT.search(text)
-    return _NUMBER_WORDS[found.group(1)] if found else None
+def player_amount(action, loose=False):
+    """A gold amount the player names, in digits or words ("twenty" is 20): a number with a
+    coin word after it, or right after a betting word ("bet fifteen"). With ``loose`` (the
+    table is waiting on the player's bet), a bare number counts too ("Fine, twenty."),
+    except the game's name ("twenty-one") and counts of hands, rounds, or cards."""
+    from .kit_rolls import number_words, without_rolls
+    text = without_rolls(action.casefold().replace('\u2019', "'"))
+    numbers = number_words(text)
+    for value, start, end in numbers:
+        if re.match(r'\s*(?:gp|gold|coins?|gold pieces)\b', text[end:]):
+            return value
+    for value, start, end in numbers:
+        if re.search(r"\b(?:bet|bets|betting|wager|stake|put (?:up|down|in)|raise|make it|i'?ll do|go)\s+(?:\w+\s+)?$",
+                     text[max(0, start - 24):start]) and not _NOT_A_BET.match(text[end:]) and \
+                not _GAME_NAME.match(text[start:]):
+            return value
+    if loose:
+        for value, start, end in numbers:
+            if _GAME_NAME.match(text[start:]) or _NOT_A_BET.match(text[end:]):
+                continue
+            if value == 1 and not text[start:end].isdigit():
+                continue  # "one hand", "one more"
+            return value
+    return None
+
+
+_GAME_NAME = re.compile(r'twenty[- ]one\b|21\b(?!\s*(?:gp|gold))')
+_NOT_A_BET = re.compile(r'[- ]?\s*(?:hands?|rounds?|cards?|checks?|rolls?|more|of (?:spades|hearts|clubs|diamonds)|'
+                        r'times|minutes|feet|ft|percent|%)\b')
+
+
+# Skills a player may choose to settle a one-check round (the table's own skill always counts).
+ROUND_SKILLS = {
+    'sleight_of_hand': re.compile(r"\b(?:cheat\w*|palm\w*|sleight of hand|swap\w* (?:a|the|my) card|"
+                                  r"slip\w* (?:a|an|the) (?:card|ace)|stack\w* the deck|card up my sleeve)\b"),
+    'insight': re.compile(r"\bread(?:ing|s)? (?:the dealer|him|his (?:face|eyes|hands|tells?)|the table)\b|\btells?\b"),
+    'deception': re.compile(r"\bbluff\w*\b"),
+}
 
 
 def initial_state(config):
@@ -156,13 +185,23 @@ def check_config(config):
     require(config['cheat']['actor'] in config['seats'], 'The dealer must hold a seat')
 
 
+def _asked(text, match):
+    """True when the words matched sit in a question ("Do you lot play blackjack? I don't
+    know your games."): a '?' closes their sentence."""
+    rest = re.split(r'[.!]', text[match.end():], maxsplit=1)[0]
+    return '?' in rest
+
+
 def card_intent(action, procedure_state):
     """A table action for this game, or None (ordinary speech)."""
     text = action.casefold().replace('\u2019', "'").strip()
     public = procedure_state['public']
     seated = public['player'] is not None
     live = bool(public['round'] and public['round']['phase'] == 'play')
-    question = text.rstrip().endswith('?')
+    # A stated roll is not table talk: Avrae's output (titles, fields, dice) goes whole.
+    from .kit_rolls import AVRAE_TITLE, without_rolls
+    text = AVRAE_TITLE.sub(' ', without_rolls(text)).strip()
+    question = text.rstrip(' .\'"\u201d').endswith('?')
     if _LEAVE.search(text):
         return 'card_leave' if seated else None
     if _ACCUSE.search(text) and not question:
@@ -170,20 +209,25 @@ def card_intent(action, procedure_state):
     if _WATCH.search(text):
         return 'card_watch'
     if live:
+        if CHECK_MODE.search(text):
+            return 'card_mode_check'  # "just roll for this one": the live hand settles on a check
         if _STAND.search(text) and not question:
             return 'card_stand'
         if _HIT.search(text) and not question:
             return 'card_hit'
-        return None
+        return None  # anything else mid-hand is talk; the menu never comes back mid-hand
     if question:
         return None
-    if CHECK_MODE.search(text):
+    if CHECK_MODE.search(text) and not _asked(text, CHECK_MODE.search(text)):
         return 'card_mode_check'
-    if PLAY_MODE.search(text):
+    if PLAY_MODE.search(text) and not _asked(text, PLAY_MODE.search(text)):
         return 'card_mode_play'
     if _CHEAT_WORD.search(text) and seated:
         return 'card_accuse'
-    if PLAY_REQUEST.search(text) or (_BET.search(text) and player_amount(text)):
+    request = PLAY_REQUEST.search(text)
+    if (request and not _asked(text, request)) or (_BET.search(text) and player_amount(text)) or \
+            (public['offered'] and not public['mode'] and bet_amount(text, loose=True) and
+             not re.search(r'\b(no|not|never)\b', text)):
         return 'card_round' if public['mode'] else 'card_offer'
     return None
 
@@ -226,7 +270,7 @@ class TwentyOneTable:
 
     def _roll(self, skill, dc, action, revision, label, passive_counts=True):
         passive = self.passives.get(skill) if passive_counts else None
-        name = skill.replace('_', ' ').title()
+        name = skill.replace('_', ' ').title().replace(' Of ', ' of ')
         if passive is not None and passive >= dc:
             self.trace.append(f'{label}: passive {name} {passive} meets {dc}; no roll')
             return {'auto': True, 'total': passive, 'dc': dc, 'success': True, 'die': None, 'modifier': None}
@@ -243,7 +287,8 @@ class TwentyOneTable:
 
     # -- seating, the offer, and the mode ---------------------------------------
     def _seat(self, action, public):
-        found = re.search(r'\bbuy(?:ing)?[- ]in (?:with|for) (\d{1,4})\s*(?:gp|gold)\b', action.casefold())
+        from .kit_rolls import without_rolls
+        found = re.search(r'\bbuy(?:ing)?[- ]in (?:with|for) (\d{1,4})\s*(?:gp|gold)\b', without_rolls(action))
         purse = int(found.group(1)) if found else None
         if public['player'] is None:
             public['player'] = {'net': 0, 'purse': purse, 'unwelcome': False}
@@ -254,20 +299,50 @@ class TwentyOneTable:
     def _offer(self, action, revision, public, private):
         self._seat(action, public)
         public['offered'] = True
-        bet = bet_amount(action)
+        bet = bet_amount(action, loose=bool(public['offered']))
+        note = ''
         if bet:
+            bet, note = self._capped(bet, public)
             public['pending_bet'] = bet
         stake = f'your {bet} gp' if bet else f'whatever you bet; the house plays {public["default_stake"]} gp a round'
-        return (f'You want in. Two ways to play a round: settle it with one check, or play it out as '
+        return (f'{note}You want in. Two ways to play a round: settle it with one check, or play it out as '
                 f'twenty-one (blackjack), closest to 21 without going over. The stake is {stake}. Which way?'), []
+
+    def _capped(self, bet, public):
+        """A bet over the table's most a round, or over the purse the player brought, comes
+        down to the cap, and the player is told why (same cap as ``can_cover``)."""
+        cap, why = public['max_stake'], f'The most this table plays is {public["max_stake"]} gp a round'
+        player = public.get('player') or {}
+        if player.get('purse') is not None and player['purse'] + player['net'] < cap:
+            cap, why = player['purse'] + player['net'], 'That is all you brought to the table'
+        if bet > cap:
+            self.trace.append(f'bet {bet} gp capped at {cap} gp')
+            return cap, f'{why}, so the bet is {cap} gp. '
+        return bet, ''
 
     def _mode_check(self, action, revision, public, private):
         public['mode'] = 'check'
+        round_ = public.get('round')
+        if round_ and round_.get('phase') == 'play':
+            # Mid-hand "just roll for this one": the live hand settles on one check instead.
+            round_['mode'] = 'check'
+            lines = ['You set the hand aside and settle it the quick way.']
+            stake_text = (f'the toll, {round_["stake"]} gp, rides on it' if round_.get('toll')
+                          else f'{round_["stake"]} gp a side')
+            return self._check_round(action, revision, public, private, lines, stake_text,
+                                     round_.get('cheat_seen')), []
         return self._round(action, revision, public, private)
 
     def _mode_play(self, action, revision, public, private):
         public['mode'] = 'play'
-        return self._round(action, revision, public, private)
+        text, reveals = self._round(action, revision, public, private)
+        spoken = action.casefold().replace('\u2019', "'")
+        if public['round'] and public['round']['phase'] == 'play' and _HIT.search(spoken) and \
+                not re.search(r'\bhit or stand\b', spoken):
+            # "Twenty, and I'll play it out. Hit." The hit in the same breath is played.
+            more, _ = self._hit(action, revision, public, private)
+            text = f'{text.removesuffix("Hit or stand?").strip()} {more}'
+        return text, reveals
 
     def _stake(self, action, public):
         dealer_gp = public['stacks'][self.dealer]
@@ -282,7 +357,12 @@ class TwentyOneTable:
             self.trace.append(f'toll stake {toll} gp exceeds what the player can cover; unstaked')
             self.toll_note = ('You cannot cover the toll from what you brought to the table, so it '
                               'stays owed; this round is for gold.')
-        asked = bet_amount(action) or public.pop('pending_bet', None) or \
+        named = bet_amount(action, loose=bool(public['offered']))
+        if named:
+            named, note = self._capped(named, public)
+            self.toll_note = (self.toll_note + ' ' + note).strip() if note else self.toll_note
+            public.pop('pending_bet', None)
+        asked = named or public.pop('pending_bet', None) or \
             ((public['last_result'] or {}).get('stake')) or public['default_stake']
         stake = min(asked, public['max_stake'], dealer_gp)
         purse = public['player']['purse']
@@ -327,9 +407,27 @@ class TwentyOneTable:
             return self._check_round(action, revision, public, private, lines, stake_text, caught), reveals
         return self._deal(action, revision, public, private, lines, stake_text), reveals
 
+    def _round_skill(self, action):
+        """The skill that settles a one-check round: the player's own relevant choice, else
+        the table's. A stated roll in a skill that can win a hand counts as the choice
+        (Avrae's "makes a Sleight of Hand check!"); otherwise the words do (palming or
+        cheating is Sleight of Hand, reading the dealer is Insight, a bluff is Deception)."""
+        from .kit_rolls import stated_skill
+        default = self.config['check']['skill']
+        stated = stated_skill(action)
+        if stated in ROUND_SKILLS or stated == default:
+            return stated
+        spoken = action.casefold().replace('\u2019', "'")
+        for skill, words in ROUND_SKILLS.items():
+            if words.search(spoken):
+                return skill
+        return default
+
     def _check_round(self, action, revision, public, private, lines, stake_text, caught):
         check = self.config['check']
-        skill = check['skill']
+        skill = self._round_skill(action)
+        if skill != check['skill']:
+            self.trace.append(f'round skill: player chose {skill} (table default {check["skill"]})')
         # The marks tell him what you hold: an edge on his number unless you caught it.
         edge = 0 if caught else self.config['cheat']['check_edge']
         private['cheated'] = not caught
@@ -338,7 +436,7 @@ class TwentyOneTable:
                             passive_counts=False)
         if edge:
             self.trace.append(f'marked deck: dealer number includes +{edge}')
-        name = skill.replace('_', ' ').title()
+        name = skill.replace('_', ' ').title().replace(' Of ', ' of ')
         lines.append(f'One round, {stake_text}, settled on {name}.')
         lines.append(self._settle(public, private, 'win' if result['success'] else 'lose'))
         return ' '.join(lines)
@@ -457,6 +555,12 @@ class TwentyOneTable:
     # -- watching, accusing, leaving -----------------------------------------------
     def _watch(self, action, revision, public, private):
         public['watch_next_deal'] = True
+        text = action.casefold().replace('\u2019', "'")
+        if public['player'] is None and (PLAY_REQUEST.search(text) or (_BET.search(text) and player_amount(text))):
+            # "I sit, put down ten gold, and say I'll play. I watch the dealer's hands": joining
+            # and watching in one breath. The seat and the offer happen; the watch waits for the deal.
+            offer, _ = self._offer(action, revision, public, private)
+            return f'{offer} Your eyes will be on the dealer\'s hands when he deals.', []
         if public['player'] is None:
             return 'You settle your eyes on the dealer\'s hands for the next deal.', []
         if public['round'] and public['round']['phase'] == 'play':
