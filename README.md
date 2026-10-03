@@ -40,6 +40,8 @@ The [claims-and-knowers live test](tests/playtests/2026-09-29-area-06c-claims-ni
 
 The [expressed-performance pipeline](docs/architecture/expressed-performance-pipeline.md) describes the turn boundaries. The next step is building: carry Kit's choices into what the player hears, make NPCs pursue their wants, and grow from area 6c to more rooms. Brendon plays when he chooses; comparison packets such as the [area 6c packet](tests/scenarios/expressed-performance-v1.md) are optional tools, not the next step.
 
+[KRABS](docs/architecture/KRABS.md) is the canonical reference architecture above any single implementation: what Kit is meant to become across solo play, directed play, and a continuous multi-party production. It marks what this repository already implements, what is designed but not built, and what remains an open research problem. Version 0.2 makes the adjudication ordering, the shared-world concurrency model, and the director-escalation floor normative.
+
 The [personality implementation audit](docs/personality/kit-personality-implementation.md) corrects a key gap: the core is written and loaded, but Kit's distinctive expressive behavior and longer-lived appetites/relationship dynamics are not yet built or validated. [Kit's expression gap](docs/architecture/kit-expression-gap.md) is the build guide for GPT: what the design assumed versus what the code did, and the rule that every private decision needs a public carrier the performer receives and the validator can check.
 
 ## Repository map
