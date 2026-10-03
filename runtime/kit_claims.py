@@ -182,6 +182,14 @@ def compile_claims(source):
                     f'Claim {key}: holder {holder} needs a live actor and a band')
         require(claim.get('pc_check') in pc_sheet.SKILLS,
                 f'Claim {key}: pc_check names the skill that finds it')
+        if 'pc_checks' in claim:
+            require(isinstance(claim['pc_checks'], list) and claim['pc_check'] in claim['pc_checks'] and
+                    all(skill in pc_sheet.SKILLS for skill in claim['pc_checks']),
+                    f'Claim {key}: pc_checks lists every skill that finds it, pc_check among them')
+        for tier in claim.get('perception_details') or ():
+            require(isinstance(tier, dict) and tier.get('fact') in source['facts'] and
+                    type(tier.get('min_margin', 0)) is int,
+                    f'Claim {key}: each perception detail names a source fact and an integer min_margin')
         require(claim.get('pc_access') in ('passive', 'roll'),
                 f'Claim {key}: pc_access is passive (a shield: Insight/Perception) or roll (player-initiated)')
         claims[key] = claim
@@ -464,21 +472,110 @@ _LOOK = re.compile(r"\b(look(?:s|ed|ing)? (?:for|closely|closer|carefully|hard|o
                    r"see (?:if|whether|through)|tell (?:if|whether)|are they|is he|is she)\b")
 
 
+def claim_skills(claim):
+    """Every skill that can find this claim: ``pc_checks`` when listed, else ``pc_check``."""
+    return tuple(claim.get('pc_checks') or (claim['pc_check'],))
+
+
+# Brendon's skill rule (2026-10-03): a player may use any skill, but each skill gates what it
+# reveals. Perception notices what is there; Investigation deduces from physical clues;
+# Insight (Wisdom) reads motive and the why. A named skill wins; else the verb implies one.
+_SKILL_NAMED = (('insight', re.compile(r'\binsight\b')),
+                ('investigation', re.compile(r'\binvestigation\b')),
+                ('perception', re.compile(r'\bperception\b')))
+_SKILL_IMPLIED = (
+    ('insight', re.compile(r"\b(?:motives?|why (?:they|he|she|would)|what (?:they|he|she)(?:'re| are|'s| is) "
+                           r"(?:after|really after|up to)|what (?:they|he|she) wants?|read(?:s|ing)? (?:him|her|them|"
+                           r"the (?:dealer|players?|table|room|group))|sense (?:his|her|their))\b")),
+    ('investigation', re.compile(r"\b(?:investigat\w*|examin\w*|inspect\w*|search\w*|deduc\w*|clues?|"
+                                 r"work out|figure out|piece together)\b")),
+    ('perception', re.compile(r"\b(?:notic\w*|spot\w*|peer\w*|look(?:s|ed|ing)? (?:closely|closer|carefully|hard|"
+                              r"for|over)|(?:close|careful|closer|hard) look)\b")),
+)
+
+
+def chosen_skill(action, implied=True):
+    """The observation skill the player chose for a look or a read, or None: a stated roll
+    in Perception, Insight, or Investigation (Avrae's "makes an Insight check!"), else the
+    skill they name, else (with ``implied``) the one their verb implies. Only a stated or
+    named skill gates a reveal; an implied one only picks which claim a look is aimed at."""
+    from . import kit_rolls
+    stated = kit_rolls.stated_skill(action or '')
+    if stated in OBSERVATION_SKILLS:
+        return stated
+    text = kit_rolls.without_rolls(action or '')
+    # The skill named first, skipping the one being swapped out ("Investigation instead of
+    # Perception", "rather than Insight").
+    named = sorted((match.start(), skill) for skill, pattern in _SKILL_NAMED for match in pattern.finditer(text)
+                   if not re.search(r'\b(?:instead of|rather than|not)\s+(?:my\s+|a\s+|an\s+)?$',
+                                    text[max(0, match.start() - 16):match.start()]))
+    if named:
+        return named[0][1]
+    for skill, pattern in _SKILL_IMPLIED if implied else ():
+        if pattern.search(text):
+            return skill
+    return None
+
+
+def perception_details(claim, margin):
+    """The observed details an active Perception check sees on this claim at ``margin`` over
+    its DC, as fact ids, or None when the claim lists none. Brendon's rule: Perception is a
+    snapshot (details without context, more and sharper with the result, each a hook for
+    an Investigation or Insight follow-up); it never yields the claim's conclusion."""
+    tiers = claim.get('perception_details')
+    if not tiers:
+        return None
+    return [tier['fact'] for tier in sorted(tiers, key=lambda t: t.get('min_margin', 0))
+            if margin >= tier.get('min_margin', 0)]
+
+
+def gated_claim(source, state, claim_id, claim, skill):
+    """(id, claim) this skill can reveal about the same thing as ``claim``: the claim itself
+    when the skill finds it, else a hidden sibling here that the skill finds and that is
+    linked to it (one cites the other's fact in its roots). None when this skill reveals
+    nothing about it."""
+    if skill is None or skill in claim_skills(claim):
+        return claim_id, claim
+    area = (state or {}).get('area')
+    learned = set((state or {}).get('known_facts') or []) | set(((state or {}).get('claims') or {}).get('learned') or [])
+    for key, other in compile_claims(source).items():
+        if key == claim_id or other.get('exposure') != 'hidden' or skill not in claim_skills(other):
+            continue
+        fact = (source.get('facts') or {}).get(other.get('fact') or '', {})
+        if area and fact and fact.get('area') != area:
+            continue
+        linked = (claim.get('fact') and claim['fact'] in (other.get('roots') or ())) or \
+            (other.get('fact') and other['fact'] in (claim.get('roots') or ()))
+        if linked and key not in learned and other.get('fact') not in learned:
+            return key, other
+    return None
+
+
 def check_target(action, source, state=None):
     """(claim id, claim) an active look or read is aimed at, by the claim's own subject
     words, or None. Only hidden claims found by observation (Perception, Insight,
-    Investigation) qualify; what the check can reveal is exactly that claim, never another."""
+    Investigation) qualify; what the check can reveal is exactly that claim, never another.
+    When the player chose a skill, a claim that skill finds comes first (each skill gates
+    what it reveals; ``gated_claim`` settles a skill that finds none of them)."""
     text = (action or '').casefold()
     if not _LOOK.search(text):
         return None
     area = (state or {}).get('area')
+    found = []
     for key, claim in compile_claims(source).items():
         fact = (source.get('facts') or {}).get(claim.get('fact') or '', {})
         if area and fact and fact.get('area') != area:
             continue
-        if claim.get('exposure') == 'hidden' and claim['pc_check'] in OBSERVATION_SKILLS and _mentions(text, claim):
+        if claim.get('exposure') == 'hidden' and set(claim_skills(claim)) & set(OBSERVATION_SKILLS) and \
+                _mentions(text, claim):
+            found.append((key, claim))
+    if not found:
+        return None
+    skill = chosen_skill(action)
+    for key, claim in found:
+        if skill in claim_skills(claim):
             return key, claim
-    return None
+    return found[0]
 
 
 _LIE_WORDS = re.compile(r"\b(lying|lie|lies|lied|liar|truth\w*|honest\w*|sincere\w*|straight with|"

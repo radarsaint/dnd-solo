@@ -54,7 +54,7 @@ class PhysicalActTests(unittest.TestCase):
         self.assertEqual(scene['ring'], 'uktarl', 'the dealer grabs the ring')
         self.assertEqual(scene['grovelling'], 'bandit_a')
         self.assertEqual(scene['act'], 'cracked')
-        self.assertIn('false_vampires', room.state['known_facts'])
+        self.assertIn('vampire_tells', room.state['known_facts'])
         view = room.runtime.player_view()
         self.assertEqual(view['room_now']['table'], 'overturned')
         self.assertNotIn('uktarl', json.dumps(view['room_now']))
@@ -65,7 +65,7 @@ class PhysicalActTests(unittest.TestCase):
         result = room.act("I lick my thumb and wipe a streak of paint off the dealer's cheek.")
         self.assertEqual(result.kind, 'physical_act')
         self.assertNotIn('take a look', result.public_event)
-        self.assertIn('false_vampires', room.state['known_facts'])
+        self.assertIn('vampire_tells', room.state['known_facts'])
         self.assertEqual(room.state['scene']['cracked_by'], 'face')
 
     def test_taking_the_pot_in_plain_sight_starts_a_fight_they_start(self):
@@ -150,7 +150,7 @@ class FightTests(unittest.TestCase):
         result = room.act('I cast Fireball at the middle of the card table. 28 fire damage.')
         actors = room.state['actors']
         self.assertEqual((actors['bandit_a']['status'], actors['bandit_b']['status']), ('dead', 'dead'))
-        self.assertIn('false_vampires', room.state['known_facts'])
+        self.assertIn('vampire_tells', room.state['known_facts'])
         self.assertNotIn('15', result.public_event, 'the save DC is never shown')
 
     def test_a_pc_hidden_from_everyone_surprises_them(self):

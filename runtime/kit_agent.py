@@ -91,13 +91,21 @@ def social_event(action):
 
 
 # Table talk addressed to Kit rather than the room: answered, never resolved as a check.
+_SKILL_NAMES = '(?:' + '|'.join(sorted((s.replace('_', ' ') for s in pc_sheet.SKILLS), key=len, reverse=True)) + ')'
 OOC_MARKER = re.compile(r'^\s*[(\[]?\s*(ooc\b|out[- ]of[- ]character)|\brules question\b', re.I)
 # Natural table talk needs no prefix: a message addressed to Kit by name, or a question
 # about the rules themselves (their nouns, not in-world verbs like sneak or grab).
 KIT_ADDRESS = re.compile(r"^\W*(?:(?:hey|ok|okay|so|um|and)\W+)?kit\b|\bkit\s*[,?]|,\s*kit\W*$", re.I)
 RULES_NOUNS = re.compile(r"\b(rules?|dc|modifiers?|advantage|disadvantage|bonus action|reactions?|saving throws?|"
                          r"proficien\w*|spell slots?|initiative|passive \w+|concentration|(?:short|long) rest|"
-                         r"hit points|armou?r class|cantrips?|how does \w+(?: \w+)? work|allowed to)\b", re.I)
+                         r"hit points|armou?r class|cantrips?|how does \w+(?: \w+)? work|allowed to|"
+                         # skill questions (Kit's working model of skills, docs/voice): "what's the
+                         # difference between Insight and Investigation?", "why didn't Perception
+                         # tell me?", "why can't I use Investigation instead of Perception?"
+                         r"difference between \w+ and \w+|skill (?:swaps?|substitut\w*|checks? work)|"
+                         r"(?:use|roll) \w+(?: \w+)? (?:instead of|for this)|"
+                         r"why (?:didn't|did not|doesn't|does not|can't|cannot|won't|wouldn't) (?:my )?"
+                         + _SKILL_NAMES + r")\b", re.I)
 # Looking away from whatever is in front of you: the room, the rest of it, elsewhere.
 OBSERVE = re.compile(r"\b(look|looks|looking|glance|scan|survey|take in|gaze|peer|what else)\b[^.?!]{0,30}"
                      r"\b(around|room|else|rest of|elsewhere|away|here|walls?)\b|\bwhat else\b"
@@ -488,12 +496,48 @@ class Room6CAdjudicator:
 
     def _resolve_check(self, action, revision, state, claim_id, claim):
         """An active look or read at one hidden claim, against that claim's single DC.
-        Success shows that claim and nothing else; failure shows only the roll."""
-        skill = claim['pc_check']
+        Success shows that claim and nothing else; failure shows only the roll. The skill
+        the player chose gates what it can show (Brendon's skill rule): Insight the motive,
+        Perception and Investigation the physical tells; a skill that finds nothing about
+        it rolls and shows nothing."""
+        chosen = kit_claims.chosen_skill(action, implied=False)
+        gated = kit_claims.gated_claim(self.source, state, claim_id, claim, chosen)
+        if gated is None:
+            modifier, passive = self._pc_numbers(chosen, state, action)
+            die = self._die(state, revision, f'check:{claim_id}:{chosen}', action, modifier, chosen)
+            evidence = (f'Player checked {claim_id} with {chosen}: d20 {die} + {modifier} = {die + modifier}; '
+                        f'{chosen} does not reveal it (it takes {"/".join(kit_claims.claim_skills(claim))}).')
+            return Resolution('check', 'You find nothing you can be sure of.',
+                              [{'type': 'beat', 'tags': ['check'], 'evidence': evidence}])
+        claim_id, claim = gated
+        # The named skill when it finds this claim; for a claim several skills find, the one
+        # the player's verb implies ("I examine the fangs" is Investigation); else its own.
+        implied = kit_claims.chosen_skill(action) if claim.get('pc_checks') else None
+        skill = next((s for s in (chosen, implied) if s in kit_claims.claim_skills(claim)), claim['pc_check'])
         dc = kit_claims.claim_dc(claim, state.get('actors', {}),
                                  kit_claims.current_floor_level(self.source, state.get('area')))
         result = self._check(skill, dc, state, revision, f'check:{claim_id}', action)
         evidence = f'Player actively checked {claim_id}: {kit_claims.check_evidence(skill, result)}.'
+        details = None
+        if skill == 'perception' and claim.get('perception_details'):
+            # Details scale with the result: a stated roll above an automatic passive counts.
+            best = result['total']
+            if result.get('auto'):
+                modifier, _ = self._pc_numbers(skill, state, action)
+                supplied = kit_cards.supplied_roll(action, modifier, skill)
+                if supplied:
+                    best = max(best, supplied[0] + (supplied[1] if supplied[1] is not None else modifier))
+            details = kit_claims.perception_details(claim, best - dc)
+        if details is not None and result['success']:
+            # A snapshot: what is seen, never what it means (the claim stays unlearned).
+            known = set(state.get('known_facts', []))
+            facts = self.source['facts']
+            events = [{'type': 'reveal_fact', 'fact': fact, 'evidence': evidence} for fact in details
+                      if fact not in known]
+            events.append({'type': 'beat', 'tags': ['check', 'noticed'],
+                           'evidence': f'{evidence} Perception details only ({len(details)} of '
+                                       f'{len(claim["perception_details"])}); no conclusion.'})
+            return Resolution('check', ' '.join(facts[fact]['text'] for fact in details), events)
         if result['success']:
             text = claim.get('learned_text') or claim['truth']
             events = [{'type': 'claim_learned', 'claim': claim_id, 'evidence': evidence}]
@@ -1832,6 +1876,8 @@ def check_speech(speech, plan, public_view, player_action, action_kind=None, gua
     hard(kit_guards.check_player_identity, segments, (public_view or {}).get('your_character'))
     hard(kit_guards.check_clean_deal, segments, guards.get('dealer_cheated', False))
     hard(kit_guards.check_stake_offers, segments, carriable=guards.get('carriable_stakes', ()))
+    # HARD: card names, held cards, and mark counts match the running table (item 8).
+    hard(check_table_narration, segments, public_view, guards.get('procedure_configs') or {})
     # HARD: Kit reacts to what actually happened this turn; no procedure the runtime
     # cannot carry is stated as settled.
     hard(kit_voice.check_kit_asides, segments, player_action, public_event, action_kind)
@@ -2043,7 +2089,7 @@ def trim_order(chosen, stored, action, recent=MEMORY_RECENT, aliases=None):
 
 
 # Context budget. The private decision input (personality core, DM context, memory,
-# notes, public dialogue) stays within CONTEXT_BUDGET_BYTES (88 KB + the 6 KB voice slot), the same budget
+# notes, public dialogue) stays within CONTEXT_BUDGET_BYTES (89 KB + the 6 KB voice slot), the same budget
 # context() always enforced, now including memory. A one-pass input also carries the
 # public half (the static actor cards, ~7 KB, plus the post-event player view when the
 # turn changes it, with the core and dialogue history deduplicated out), so the whole
@@ -2421,6 +2467,17 @@ REFUSED_ATTEMPTS_SHOWN = 3
 # Kinds whose accepted event is printed after the performance: on an exit the NPCs'
 # reaction happens as the player leaves, so it must read before the departure line.
 EVENT_AFTER_PERFORMANCE_KINDS = ('exit',)
+
+
+def check_table_narration(segments, public_view, configs):
+    """Every running twenty-one table: the narration's cards and mark counts match its state."""
+    problems = []
+    text = ' '.join(segment['text'] for segment in segments)
+    for key, public in ((public_view or {}).get('table_procedures') or {}).items():
+        config = configs.get(key) or {}
+        if kit_cards.game_of(config) == 'twenty_one':
+            problems += kit_twenty_one.check_narration(text, public, config)
+    require(not problems, ' '.join(problems))
 
 
 def guard_context(source, body):

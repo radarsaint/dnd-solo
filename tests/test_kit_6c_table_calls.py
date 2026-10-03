@@ -138,7 +138,7 @@ class Call3Ruse(Base):
             with self.subTest(action=action):
                 result = self.resolve(action, roll=20)
                 self.assertIn('DC 14', ledger(result))
-                self.assertIn('posing as vampires', result.public_event)
+                self.assertIn('meant to frighten you', result.public_event)
                 self.assertNotRegex(result.public_event, NUMBERS)
 
     def test_room_has_no_food_or_drink(self):  # TC-3e

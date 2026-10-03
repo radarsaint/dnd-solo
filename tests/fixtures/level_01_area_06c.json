@@ -167,25 +167,27 @@
   },
   "leak_keywords": {
     "_note": "DM-only. A set leaks when one public sentence contains a word from every group. Skipped once revealed_by is public, or when the player raised it.",
-    "marked_deck": {"revealed_by": "marked_deck", "groups": [["card", "cards", "deck", "decks", "hand", "deal", "dealing"], ["marked", "marks", "marking", "markings", "nicked", "nicks", "crimped", "crimp", "shaved", "rigged", "cheat", "cheats", "cheating", "cheated", "notched", "scuffed", "pinpricks", "pricked", "doctored", "shine on the back"]]},
-    "false_vampires": {"revealed_by": "false_vampires", "groups": [["vampire", "vampires", "fang", "fangs", "pallor", "pale", "teeth", "undead", "bloodsucker", "bloodsuckers"], ["fake", "false", "theatrical", "theatrically", "paint", "painted", "greasepaint", "makeup", "make-up", "powder", "powdered", "chalk", "chalked", "disguise", "disguised", "pretend", "pretending", "pretenders", "wax", "glued", "sham", "mummer", "mummers", "playacting", "masquerade", "flour"]]},
+    "marked_deck": {"revealed_by": "marked_deck", "groups": [["card", "cards", "deck", "decks", "hand", "deal", "dealing"], ["marked", "marks", "marking", "markings", "rigged", "cheat", "cheats", "cheating", "cheated", "doctored", "shine on the back"]]},
+    "deck_holes": {"revealed_by": ["marked_deck", "deck_backs_glance"], "groups": [["card", "cards", "deck", "decks", "back", "backs", "border"], ["nicked", "nicks", "crimped", "crimp", "shaved", "notched", "scuffed", "pinpricks", "pricked", "pricks", "holes", "pinholes"]]},
+    "false_vampires": {"revealed_by": ["false_vampires", "vampire_tells"], "groups": [["vampire", "vampires", "fang", "fangs", "pallor", "pale", "teeth", "undead", "bloodsucker", "bloodsuckers"], ["fake", "false", "theatrical", "theatrically", "disguise", "disguised", "pretend", "pretending", "pretenders", "glued", "sham", "mummer", "mummers", "playacting", "masquerade"]]},
+    "vampire_paint": {"revealed_by": ["false_vampires", "vampire_tells", "vampire_tells_glance"], "groups": [["vampire", "vampires", "fang", "fangs", "pallor", "pale", "teeth", "neck", "collar", "skin"], ["paint", "painted", "greasepaint", "makeup", "make-up", "powder", "powdered", "chalk", "chalked", "wax", "flour"]]},
     "doppelganger": {"revealed_by": null, "groups": [["shapeshifter", "shapeshifters", "shape-shifter", "shapechanger", "changeling", "changelings", "mimic", "skinchanger", "face-stealer"]]},
     "doppelganger_tell": {"revealed_by": null, "groups": [["face", "features", "skin", "flesh"], ["ripple", "ripples", "rippled", "rippling", "melt", "melts", "melted", "melting", "blur", "blurs", "blurred", "borrowed", "stolen", "runs like wax"]]},
     "fresco_key": {"revealed_by": "fresco_key", "groups": [["key", "keys"], ["carving", "carved", "fresco", "dwarf", "dwarves", "dwarven", "figure", "figures", "figurine", "mountain", "wall"]]},
     "tub_stash": {"revealed_by": "tub_stash", "groups": [["tub", "basin", "trough"], ["tools", "lockpicks", "picks", "bedroll", "gear", "pack", "stash", "stashed", "stolen", "loot", "bundle"]]},
     "cheating": {"revealed_by": "marked_deck", "groups": [["cheat", "cheats", "cheating", "cheated", "cheater", "swindle", "swindled", "swindling", "crooked"]]},
-    "hidden_truth_hint": {"revealed_by": "false_vampires", "groups": [["not the truth", "the truth is", "what they really are", "what he really is", "what they seem", "what he seems", "what it seems", "more than meets the eye", "more to them than", "more to him than", "not what they appear", "isn't real", "aren't real", "is not real", "are not real", "not really vampires", "only an act", "just an act", "all an act"]]},
+    "hidden_truth_hint": {"revealed_by": ["false_vampires", "vampire_tells"], "groups": [["not the truth", "the truth is", "what they really are", "what he really is", "what they seem", "what he seems", "what it seems", "more than meets the eye", "more to them than", "more to him than", "not what they appear", "isn't real", "aren't real", "is not real", "are not real", "not really vampires", "only an act", "just an act", "all an act"]]},
     "concealment_hint": {"revealed_by": null, "groups": [["to cover something", "cover something", "covering something", "cover up something", "something else underneath", "hiding something", "hide something", "something to hide", "what's under", "what is under", "what's beneath", "what they're hiding", "what he's hiding", "what they are hiding", "what he is hiding", "masking something", "to mask the", "cover the smell", "cover the stink", "covering the smell", "covering for", "not all it seems", "keeping something", "are covering", "is covering", "what's covering"]]},
     "fresco_key_loose": {"revealed_by": "fresco_key", "groups": [["dwarf", "dwarves", "dwarven", "figure", "figures", "carving", "carvings", "carved", "niche", "relief", "fresco"], ["loose", "looser", "lift", "lifts", "lifted", "lifting", "proud of the stone", "wobble", "wobbles", "wobbly", "pry", "pried", "prised", "removable", "comes out", "come out", "socket", "out of place", "rattles", "shifts", "gap around", "seam around", "sits wrong", "newer than", "fits badly", "not set", "unmortared"]]},
-    "performance_hint": {"revealed_by": "false_vampires", "groups": [["four", "they", "them", "table", "gamblers", "players", "teeth", "fangs", "pale", "pallor", "vampire", "vampires", "undertakers"], ["in character", "rehearsed", "rehearsal", "costume", "costumes", "costumed", "posing", "posed", "playing a part", "playing parts", "stagecraft", "staged", "on stage", "audience", "an act", "props", "prop", "playacted"]]},
-    "blood_prop": {"revealed_by": "false_vampires", "groups": [["pass for", "passes for", "could pass for", "looks like", "look like", "stand in for", "stands in for", "mistaken for", "fake"], ["blood", "gore", "something worse"]]},
+    "performance_hint": {"revealed_by": ["false_vampires", "vampire_tells"], "groups": [["four", "they", "them", "table", "gamblers", "players", "teeth", "fangs", "pale", "pallor", "vampire", "vampires", "undertakers"], ["in character", "rehearsed", "rehearsal", "costume", "costumes", "costumed", "posing", "posed", "playing a part", "playing parts", "stagecraft", "staged", "on stage", "audience", "an act", "props", "prop", "playacted"]]},
+    "blood_prop": {"revealed_by": ["false_vampires", "vampire_tells"], "groups": [["pass for", "passes for", "could pass for", "looks like", "look like", "stand in for", "stands in for", "mistaken for", "fake"], ["blood", "gore", "something worse"]]},
     "rivalry": {"revealed_by": null, "groups": [["rival", "rivals", "rivalry", "usurp", "usurper", "displace", "unseat", "depose", "overthrow", "mutiny", "coup"]]}
   },
   "claims": {
     "_note": "DM-only. Claims and knowers (runtime/kit_claims.py). Keyed by the thing itself. holders are granted by the source (knowledge lists, role); everyone else's band is computed from stats. dc: the adventure's, else 10 + floor(dungeon floor level / 3). pc_access passive: the PC's passive skill is a shield (fingerprint); roll: only a player-initiated roll finds it.",
     "false_vampires": {
       "about": "group:undertakers/true_nature",
-      "truth": "Their pallor and fangs are theatrical; they are pretending to be vampires.",
+      "truth": "Not undead: the Undertakers are thugs in costume. The act scares newcomers into paying 10 gp for safe passage and keeps them losing coin at the marked game.",
       "source": "adventure",
       "fact": "false_vampires",
       "roots": [
@@ -206,7 +208,28 @@
       },
       "fingerprint": "Not a cup, crumb, or bottle anywhere on the table; the dealer's fangs sit a little proud of his lip.",
       "subject_words": ["vampire", "vampires", "fang", "fangs", "pallor", "pale skin", "disguise", "disguises", "makeup", "make-up", "undead", "costume", "costumes"],
-      "learned_text": "Their pallor and fangs are theatrical. They are posing as vampires."
+      "learned_text": "They are no vampires. The act is meant to frighten you into paying 10 gp for safe passage, then keep you at the table losing coin. Underneath, they are thugs.",
+      "_skills": "Table call 8: Insight reads the why (this claim); the physical tells are vampire_tells."
+    },
+    "vampire_tells": {
+      "about": "group:undertakers/physical_tells",
+      "truth": "The pallor is powder that stops at the collar, and the fangs are fitted pieces over their own teeth: a costume, not undead flesh.",
+      "source": "adventure",
+      "fact": "vampire_tells",
+      "roots": ["vampire_tells", "false_vampires"],
+      "exposure": "hidden",
+      "dc": 14,
+      "_dc_basis": "The adventure's DC 14 for the act: the same disguise.",
+      "concealer": "uktarl",
+      "conceal_skill": "deception",
+      "pc_check": "investigation",
+      "pc_checks": ["investigation", "perception"],
+      "pc_access": "roll",
+      "perception_details": [{"min_margin": 0, "fact": "vampire_tells_glance"}, {"min_margin": 5, "fact": "vampire_tells_close"}],
+      "_skills": "Brendon's rule: Investigation deduces the what (a costume); Perception sees only details, sharper with the result; Insight reads the why (false_vampires).",
+      "holders": {"uktarl": "knows", "bandit_a": "knows", "bandit_b": "knows", "doppelganger": "knows"},
+      "subject_words": ["fang", "fangs", "teeth", "collar", "collars", "powder", "pallor", "pale skin", "makeup", "paint", "disguise", "costume", "vampire", "vampires"],
+      "learned_text": "The pallor is powder that stops at the collar, and the fangs are fitted pieces over their own teeth. It is a costume, not undead flesh."
     },
     "marked_deck": {
       "about": "item:dealer_deck/marks",
@@ -221,7 +244,10 @@
       "concealer": "uktarl",
       "conceal_skill": "sleight_of_hand",
       "pc_check": "perception",
+      "pc_checks": ["perception", "investigation"],
       "pc_access": "passive",
+      "perception_details": [{"min_margin": 0, "fact": "deck_backs_glance"}, {"min_margin": 5, "fact": "deck_backs_close"}],
+      "_skills": "Brendon's rule: an active Perception look sees only details (the holes), sharper with the result; Investigation works out the what (the marks).",
       "npc_check": "insight",
       "holders": {
         "uktarl": "knows"
@@ -321,7 +347,7 @@
     },
     "fresco": {
       "area": "area_06c", "visible": true,
-      "text": "A carved mountain scene covers the north wall, with tiny dwarven figures in its caverns and rays of sunlight spreading outward."
+      "text": "A fresco covers the north wall: a carved mountain, with tiny dwarven figures in its caverns and rays of sunlight spreading outward."
     },
     "tub": {
       "area": "area_06c", "visible": true,
@@ -337,7 +363,27 @@
     },
     "false_vampires": {
       "area": "area_06c", "visible": false,
-      "text": "Their pallor and fangs are theatrical; the group is pretending to be vampires."
+      "text": "Not undead: the Undertakers are thugs in costume. The act scares newcomers into paying 10 gp for safe passage and keeps them losing coin at the marked game."
+    },
+    "vampire_tells": {
+      "area": "area_06c", "visible": false,
+      "text": "The pallor is powder that stops at the collar, and the fangs are fitted pieces over their own teeth: a costume, not undead flesh."
+    },
+    "vampire_tells_glance": {
+      "area": "area_06c", "visible": false,
+      "text": "Where the dealer's collar shifts, the white on his neck stops in a hard line above ordinary pink skin."
+    },
+    "vampire_tells_close": {
+      "area": "area_06c", "visible": false,
+      "text": "His fangs sit a little proud of his lip and click faintly when he talks."
+    },
+    "deck_backs_glance": {
+      "area": "area_06c", "visible": false,
+      "text": "Near one corner of each card back, the faded vine border has tiny holes in it."
+    },
+    "deck_backs_close": {
+      "area": "area_06c", "visible": false,
+      "text": "The holes are not the same from card to card, and the dealer's eyes drop to the backs before each deal."
     },
     "fresco_key": {
       "area": "area_06c", "visible": false,
@@ -361,7 +407,7 @@
       "name": "Pale man dealing cards", "dm_identity": "Uktarl Krannoc",
       "type": "human bandit captain", "performance_bonus": 4,
       "location": "area_06c", "status": "alive", "visible": true,
-      "motive": "Keep the Undertakers' vampire act intact and the visitor seated at his table, where he can profit from them; displace Harria as leader of the Undertakers.",
+      "motive": "Keep the Undertakers' vampire act intact (it scares newcomers into paying the toll) and the visitor seated at his table, where he can profit from them; displace Harria as leader of the Undertakers.",
       "immediate_goal": "Control the encounter without risking himself.",
       "knowledge": ["The Undertakers' vampire appearance is a disguise.", "His deck is marked.", "Harria is his rival."],
       "secrets": ["He is not a vampire.", "He cheats at cards."],
@@ -375,7 +421,7 @@
     "bandit_a": {
       "name": "Pale card player near the door", "type": "human bandit",
       "location": "area_06c", "status": "alive", "visible": true,
-      "motive": "Keep the vampire act intact and the visitor at the table; share in the Undertakers' take and survive this encounter.",
+      "motive": "Keep the vampire act intact (it scares newcomers into paying the toll) and the visitor at the table; share in the Undertakers' take and survive this encounter.",
       "knowledge": ["The vampire appearance is a disguise."],
       "secrets": ["Not a vampire."],
       "retreat_condition": "When Uktarl retreats, flee toward area 8 and join any bandits still there.",
@@ -385,7 +431,7 @@
     "bandit_b": {
       "name": "Pale card player beside the fresco", "type": "human bandit",
       "location": "area_06c", "status": "alive", "visible": true,
-      "motive": "Keep the vampire act intact and the visitor at the table; share in the Undertakers' take and survive this encounter.",
+      "motive": "Keep the vampire act intact (it scares newcomers into paying the toll) and the visitor at the table; share in the Undertakers' take and survive this encounter.",
       "knowledge": ["The vampire appearance is a disguise."],
       "secrets": ["Not a vampire."],
       "retreat_condition": "When Uktarl retreats, flee toward area 8 and join any bandits still there.",
@@ -395,7 +441,7 @@
     "doppelganger": {
       "name": "Fourth pale card player", "type": "doppelganger",
       "location": "area_06c", "status": "alive", "visible": true,
-      "motive": "Keep the vampire act intact and the visitor at the table; support the current Undertaker arrangement while preserving its own disguise and safety.",
+      "motive": "Keep the vampire act intact (it scares newcomers into paying the toll) and the visitor at the table; support the current Undertaker arrangement while preserving its own disguise and safety.",
       "knowledge": ["The group's vampire identity is a performance.", "Its own true nature."],
       "secrets": ["A doppelganger disguised as one of the apparent vampires."],
       "retreat_condition": "When Uktarl retreats, flee toward area 8 and join any bandits still there.",
@@ -429,6 +475,7 @@
         "check_edge_basis": "DM choice: in one-check mode the marks are a +2 edge on the dealer's number until the player catches the cheat.",
         "passive_perception": 10,
         "reveals_fact": "marked_deck",
+        "marks": {"units": ["prick", "pricks", "pinprick", "pinpricks", "hole", "holes"], "count": "value_minus_one", "_basis": "DM choice, fixed after the live 6c table (2026-10-03): Kit invented pinpricks at one for a two, so each card carries its twenty-one value (ace 11, faces 10) less one. Narration must count them the same way."},
         "caught_text": "You keep your eyes on the deck. He deals everyone else off the top, but whenever the card beneath is better for him, he slides it out for himself, neat as a conjurer. You catch it."
       }
     },
@@ -775,8 +822,8 @@
     ],
     "_reach_order": "Who is nearest a visitor at the south door: the door-side player, then the dealer, then the fresco side (room source: the table is near the south door).",
     "act": {
-      "fact": "false_vampires",
-      "claim": "false_vampires",
+      "fact": "vampire_tells",
+      "claim": "vampire_tells",
       "_basis": "6c variety scenarios (2026-10-03), shared combat expectations: the act holds until ordinary physical fact cracks it; once broken it stays broken. Kit shows the crack and never announces a verdict.",
       "cracks": {
         "fire": "Greasepaint runs and blisters on the burned faces, and the skin under it is ordinary, reddening skin.",

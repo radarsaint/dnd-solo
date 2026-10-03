@@ -57,7 +57,8 @@ RHYTHM_EVIDENCE_MAX_CHARS = 600  # per recent_rhythm entry; 12 entries stay insi
 # Sized for the worst case (ContextBudgetTests.test_a_long_card_game_with_a_full_detail_ledger_fits):
 # 12 long turns, a Three-Dragon Ante gambit mid-play, and a full canon ledger (CANON_LIMIT
 # entries at maximum length, ~47 KB). The private floor after every memory trim is ~79 KB.
-CONTEXT_BUDGET_BYTES = 88000 + VOICE_MAX_BYTES  # 94 KB: the measured worst case plus a full voice slot
+CONTEXT_BUDGET_BYTES = 89000 + VOICE_MAX_BYTES  # 95 KB: the measured worst case plus a full voice slot
+# (88 KB -> 89 KB, 2026-10-03: area 6c gained the vampire_tells fact and claim, table call 8).
 # A staged or one-pass body carries the post-event public view (with the whole ledger)
 # and the procedure state: ~49.4 KB in the same worst case.
 PENDING_TURN_MAX_BYTES = 64000
