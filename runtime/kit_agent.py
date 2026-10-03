@@ -3166,11 +3166,29 @@ def start_session(db, sheet_path=None, runtime=None):
             runtime.close()
 
 
+# Two lines of host framing printed after the persona (persona-continuity R2). They state the
+# authority split only; who Kit is lives in the personality core itself.
+PERSONA_AUTHORITY_NOTE = (
+    'Authority: outside a running scene, talk as Kit with no command; nothing said there is game state.\n'
+    'In play, the bridge (start, prepare, complete) owns rules, hidden state, and what happened; prep talk is not canon.')
+
+
+def persona_text(folder=None):
+    """The exact persona text the bridge sends (personality_core_text), any voice-cap
+    warning, and the authority note. No database, no scene, no state."""
+    warning = load_voice(folder)[1]
+    parts = [personality_core_text(folder).rstrip('\n')]
+    if warning:
+        parts.append(f'Voice warning: {warning}')
+    parts.append(PERSONA_AUTHORITY_NOTE)
+    return '\n\n'.join(parts) + '\n'
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('command', choices=['start', 'init', 'view', 'prepare', 'decide', 'finish', 'complete',
                                             'abandon', 'feedback', 'character', 'notes', 'play', 'trace',
-                                            'timing'])
+                                            'timing', 'persona'])
     parser.add_argument('--db', default='kit-06c.sqlite')
     parser.add_argument('--model', help='Optional standalone Responses API model for play')
     parser.add_argument('--perception', type=int, help='Test character Wisdom (Perception) modifier')
@@ -3209,6 +3227,10 @@ def main():
     parser.add_argument('--pretty', action='store_true',
                         help='prepare/decide/finish/complete: indent the JSON for reading (default compact)')
     args = parser.parse_args()
+    if args.command == 'persona':
+        # Kit before any game: the persona text the bridge uses, with no database or scene.
+        sys.stdout.write(persona_text())
+        return 0
     if args.command == 'start':
         try:
             result = start_session(args.db, args.sheet)
