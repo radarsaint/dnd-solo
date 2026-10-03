@@ -392,9 +392,9 @@ Player-facing map output must be derived from discovered topology. The presence 
 
 ### 5.7 DM personality retrieval
 
-Load `/Dnd solo/Runtime/DM_PERSONALITY_CORE.md` at play-session activation and keep it active as a stable behavioral layer across room and level changes. When another project chat is performing DM-facing design or evaluation, it should retrieve the same core rather than infer identity from that chat's local history.
+Load [`docs/personality/dm-personality-core.md`](../../personality/dm-personality-core.md) at the start of every Kit conversation, whether it is ordinary talk, design, debrief, or play, and keep it active as a stable behavioral layer across room and level changes. Play does not activate Kit; it adds the bridge's authority over game state. The bridge sends the same core with every game turn (`runtime.state_context.personality_core_text()`). When another project chat is performing DM-facing design or evaluation, it should retrieve the same core rather than infer identity from that chat's local history.
 
-Do not load `DM_PERSONALITY_DEVELOPMENT.md` during ordinary play unless the task is explicitly personality design, testing, regression analysis, or promotion of a personality change.
+Do not load [`docs/personality/dm-personality-development.md`](../../personality/dm-personality-development.md) during ordinary play unless the task is explicitly personality design, testing, regression analysis, or promotion of a personality change.
 
 Local conversation and persistent player-model state may add table history or situational nuance, but they must not silently replace the canonical identity.
 

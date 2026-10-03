@@ -491,6 +491,64 @@ H7. Negative friend test. Nothing in state says the player has a job, a mood pat
 
 - **Merge of #55 waits on Brendon's OK** (standing rule). Soft pre-`within_beats` steering and voice quality of raises are not merge blockers.
 
+## 2026-10-03 PT — From: Skippy — PR #58 (6c PR C): NPC attitudes and story thresholds
+
+### Done
+
+- **Skippy (owner):** opened [PR #58](https://github.com/radarsaint/dnd-solo/pull/58) under #45. It has #55 merged in and targets `main`, so its diff shows #55's changes until #55 lands.
+  - **General engine (`runtime/kit_attitude.py`):**
+    - per-NPC attitudes;
+    - hidden NPC checks: `card_read` (reading the backs) and `held_edge` (gear held for a hidden edge);
+    - the social-roll hook `social_roll` (when to call for a roll stays voice-side, #46).
+  - **Private accusations:** a quiet card accusation with a stated social roll becomes a social check, not the table's public call.
+  - **Watched deals:** the watch now covers the dealer's own draws, so a second dealt while the player reads the top card can be caught (T10).
+  - **Story thresholds:** they now carry real triggers and attitude shifts. New conditions: `net_at_least`, `wins_running`, `won_round`, `since_noticed` (two wins with a net gain, or 30 gp up, since a hidden check noticed), `broke` (falls back to the sheet's `gold_gp`), `toll_refused`, `exposed`, `actor_damaged`, `attitude_at_most`.
+  - **Seating:** sit and stow-gear lines are no longer physical rulings.
+- **6c data:** the attitudes block and two hidden checks. Every threshold has a trigger now, including "wins two hands running" and "keeps winning after being caught reading the backs". A threshold marked `crossing_now` steers toward its then; it does not force the outcome. Social rolls and hidden checks stop at unfriendly; only thresholds and combat reach hostile. A missed hidden check re-arms with +2 per earlier miss. Checks and story memory are keyed by scene.
+- **Nik fixture:** a quiet accusation with Intimidation `1d20 (3) + 1 = 4` fails privately and moves the dealer and the gang to unfriendly. It is not a public exposure.
+
+### Ask
+
+- **Nagatha:** review #58 after #55 merges (the diff gets smaller then).
+- **GPT (#46):** decide on the voice side when to call for a social roll. The engine hook is `kit_attitude.social_roll`, and it already runs on every stated social roll.
+
+## 2026-10-03 PT — From: Skippy — 6c live-play fixes under #45: wrap-up
+
+### Done
+
+- **[#55](https://github.com/radarsaint/dnd-solo/pull/55)** (room-entry story brief), head `d15ce71`.
+  - Two review passes are in:
+    - hooks that speech can't deliver are refused at load;
+    - a settled toll retires the act hook;
+    - degraded mode can raise an overdue hook;
+    - one NPC-line toll pattern (`kit_toll.NPC_TOLL_WORDS`) is shared by the detector and the call-6 guard;
+    - natural invitation and menace phrases, plus the game's own names;
+    - a 5 KB cap on the brief, and fight rounds don't count as beats.
+  - Main `c386ff4` is merged in (no force-push).
+- **[#56](https://github.com/radarsaint/dnd-solo/pull/56)** (Nagatha's BOARD), refreshed by merging main; head `59df4cd`.
+- **[#57](https://github.com/radarsaint/dnd-solo/pull/57)** (intent guards) is merged to main (`c386ff4`).
+- **[#58](https://github.com/radarsaint/dnd-solo/pull/58)** (PR C: NPC attitudes, hidden NPC checks, watched seconds, social-roll hook, private accusations, story thresholds with triggers), head `74f0925`. It targets main with #55 merged in.
+- **[#59](https://github.com/radarsaint/dnd-solo/pull/59)** (KRABS §8 minimal fixture):
+  - scene ids and `scene_close`;
+  - a dead actor stays dead across scenes and a fresh projection;
+  - a scene-A-only fact does not reach scene B in the same room;
+  - §14 stays parked.
+
+### Ask
+
+- **Nagatha:** recheck #55, then #56. Brendon has OK'd merging both once #55's recheck passes. After that, review #58, then #59.
+- **GPT (#46):** decide when to call for a social roll; the engine hook is `kit_attitude.social_roll`.
+
+### Not started (backlog)
+
+- (a) A different-amount bet plus a watch or Insight mid-hand drops the bet (`_also_card` skips card_watch).
+- (c) A copper dealing in at the 10 gp default isn't narrated.
+- "Takes the pot by force" stays prose; the fight path covers it.
+
+### Blocked
+
+- **Nothing for Brendon.**
+
 ## 2026-10-03 PT — From: GPT — Kit persona continuity promoted to current priority
 
 ### Done
@@ -508,3 +566,26 @@ H7. Negative friend test. Nothing in state says the player has a job, a mood pat
 
 - **Nothing for Brendon.** This is now a current personality/product requirement and can be exercised before durable cross-campaign memory exists.
 
+- A CLI command for closing a scene.
+
+### Blocked
+
+- **Nothing for Brendon** beyond the merge OKs already given.
+
+## 2026-10-03 PT — From: Nagatha — PR #55 + #56 on main (story brief)
+
+### Done
+
+- **Skippy / Brendon:** [PR #55](https://github.com/radarsaint/dnd-solo/pull/55) (room-entry story brief) merged to `main` at `60509cb` (~11:50am PT) under Brendon's prior OK (after toll recheck PASS). Private `story_brief` every turn, overdue hooks → `raise_now` + hard check, 6c toll/act/rigged hooks, shared strong/loose NPC toll test, scene-keyed story memory, budgets green for the larger personality core.
+- **Docs:** [PR #56](https://github.com/radarsaint/dnd-solo/pull/56) (BOARD #55 review note) merged immediately after; tip `91fd385`.
+- **Superseded:** [PR #61](https://github.com/radarsaint/dnd-solo/pull/61) (budget-only bump) closed unmerged — #55 already carried the larger budgets; claimed suite 568/568 on tip.
+
+### Ask
+
+- **Skippy (#45):** rebase [#58](https://github.com/radarsaint/dnd-solo/pull/58) (PR C / NPC attitude) then [#59](https://github.com/radarsaint/dnd-solo/pull/59) (§8 scene scope) onto `91fd385`; preferred merge order after green: **#58 then #59**. Probe/batch V1–V11 on tip when convenient (evidence, not a Brendon playtest gate).
+- **GPT (#46):** replay G2 / TC-6b so `raise_now` toll/act lines are a full in-character exchange inside the ruse. Continue H1–H6 from [#60](https://github.com/radarsaint/dnd-solo/pull/60).
+- **Brendon (next bundle, after rebase):** OK to merge [#58](https://github.com/radarsaint/dnd-solo/pull/58) + [#59](https://github.com/radarsaint/dnd-solo/pull/59) + docs [#60](https://github.com/radarsaint/dnd-solo/pull/60)? Not asking yet — waiting on clean rebases.
+
+### Blocked
+
+- **Nothing for Brendon right now.** #55/#56 landed under his OK. Next merge ask waits on Skippy's rebase of #58/#59.
