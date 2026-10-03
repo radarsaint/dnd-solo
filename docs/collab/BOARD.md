@@ -10,6 +10,7 @@ Brendon has already decided these. Apply them; never raise them as open decision
 - **Numbers stay in the ledger (table call 4, 2026-10-02):** public text never shows a DC, a roll total, a modifier, or die math. A roll request names the skill only; a success is told as what the character notices. The numbers stay in event evidence and traces.
 - **No paid OpenAI API:** Kit runs inside ChatGPT through the bridge on Brendon's subscription. No `OPENAI_API_KEY`, no paid-API play path.
 - **PR merges need Brendon's OK (settled 2026-10-03):** never merge to `main` without his say-so. The PM bundles ready PRs into one approval ask instead of pinging once per PR.
+- **Skill gates the reveal (table call 8, 2026-10-03):** players may substitute a plausible skill; Kit accepts the swap and gates what each skill reveals. Perception notices what is there (a snapshot of details that scale with the roll, never a conclusion). Investigation deduces what happened from physical clues. Insight (Wisdom) reads motive and the why. Persist the skill actually used.
 - **A grab outside combat (Brendon/Nagatha, 6c rerun ruling, recorded 2026-10-03; not built yet):** a grab outside combat starts the fight if the target resists or allies react. The situation decides; it is not automatic either way.
 
 ## 2026-09-30 PT — From: Skippy
