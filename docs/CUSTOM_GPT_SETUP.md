@@ -72,13 +72,24 @@ How do I make a character sheet for Kit?
 - **Knowledge:** upload one file, `dnd-solo.zip` (see step 1 below). Optionally also upload `AGENTS.md` and `tests/fixtures/characters/example_pc.json` on their own, so the GPT can read them even when the sandbox misbehaves.
 - **Actions:** none.
 
+## Versioned build rule
+
+A ZIP uploaded to GPT Knowledge or a ChatGPT Project is a pinned build. It does not track GitHub after upload.
+
+- **GitHub `radarsaint/dnd-solo` `main` is the development source of truth.**
+- A commit-stamped Project ZIP such as `dnd-solo-main-c386ff45.zip` is a reproducible baseline for that commit, not "current Kit."
+- Use the pinned ZIP when reproducing or playing that build. Check GitHub `main` when discussing current development, recent fixes, open work, or when deciding whether a newer build should be pinned.
+- Prefer commit-stamped filenames for Project/Knowledge snapshots so two builds cannot be mistaken for one another.
+- Do not silently overwrite the meaning of an old snapshot. When intentionally updating a Project or custom GPT to a newer runtime, build and upload a new commit-stamped ZIP, verify it, then remove the old one only if Brendon wants it removed.
+- If the pinned build and `main` differ, say which one is being executed and which one is being discussed.
+
 ## Brendon's steps
 
 1. **Build the zip** from the branch you want friends to play, in the repository root:
    ```sh
-   git archive --format=zip -o dnd-solo.zip HEAD
+   git archive --format=zip -o dnd-solo-$(git rev-parse --short HEAD).zip HEAD
    ```
-   This includes only committed files, so no local `.sqlite` games or secrets go in. Rebuild and re-upload it whenever you want friends on a newer version.
+   This includes only committed files, so no local `.sqlite` games or secrets go in. Record the full commit SHA beside the uploaded build. Rebuild and upload a new commit-stamped ZIP whenever you want friends on a newer version.
 2. Open ChatGPT → **Explore GPTs** → **Create** → the **Configure** tab.
 3. Paste in the Name, Description, Instructions and Conversation starters from sections 1–4 above.
 4. Under **Knowledge**, upload `dnd-solo.zip`. Under **Capabilities**, set the options in section 5.
@@ -92,7 +103,7 @@ How do I make a character sheet for Kit?
 
 ## Using a ChatGPT Project instead (just you)
 
-A Project works for your own sessions. Create a Project and add `dnd-solo.zip` as a project file. Paste section 3 into the Project's **Instructions**. The 8,000-character limit doesn't bind here, but the same text works. Start a chat with a conversation starter. Projects aren't a simple way to hand Kit to friends outside your workspace, so use the GPT link for that.
+A Project works for your own sessions. Create a Project and add a **commit-stamped** runtime ZIP (for example `dnd-solo-main-c386ff45.zip`) as a project file. That ZIP is the Project's pinned executable baseline; it does **not** become the development source of truth. GitHub `radarsaint/dnd-solo` `main` remains authoritative for current development. Paste section 3 into the Project's **Instructions**. The 8,000-character limit doesn't bind here, but the same text works. Start a chat with a conversation starter. Projects aren't a simple way to hand Kit to friends outside your workspace, so use the GPT link for that.
 
 ## Hosts with a real shell (Codex, Claude Code, Cursor, etc.)
 
