@@ -95,6 +95,84 @@ NONLETHAL = re.compile(r'\b(knock (?:him|her|them|it) out|non-?lethal|pull (?:my
 ACTIVE_STATUSES = ('alive',)
 
 
+# -- what a verb acts on (general guards; no room names) ---------------------------------
+# A physical act needs its noun as the verb's own object: "takes the chair and sets a copper
+# on the table" takes a chair; "flicks his ears ... eyes on the dealer's face" touches no face.
+CLAUSE_BREAK = re.compile(r"[,.;:!?]|\b(?:and|then|while|but|as|before|after|so)\b")
+# "into his pocket": a TAKE word after a possessive or article is a noun, not the verb.
+NOUN_USE = re.compile(r"\b(?:my|our|his|her|their|its|your|a|an|the)\s+(?:\w+\s+)?$")
+POSSESSIVE = re.compile(r"\b(my|our|his|her|their)\s+(?:own\s+)?(?:\w+\s+)?$")
+CARRIED_OR_BODY = re.compile(r"(?:pocket|pouch|purse|belt|pack|bag|sheath|sleeve|coat|cloak|lap|ears?|face|"
+                             r"cheeks?|brow|forehead|hands?|lips?|teeth|skin|chin|jaw)\b")
+ACTOR_WORDS = re.compile(r"\b(dealer|player|players|man|woman|men|women|vampire|vampires|bandit|bandits|thug|"
+                         r"thugs|guard|guards|stranger|captain|he|she|they|him|them)\b")
+
+
+def pc_names(state):
+    """Lowercase name words of the player character (from the loaded sheet), for third-person
+    narration: "Mira slides the copper back into her pocket"."""
+    name = ((state or {}).get('player_sheet') or {}).get('name') or ''
+    return tuple(word for word in re.findall(r"[a-z][a-z'-]+", name.casefold()) if len(word) > 1)
+
+
+def object_of(text, verb, pattern, words=5):
+    """The first match of ``pattern`` in the verb's own object: after the verb, within
+    ``words`` words, and before the clause ends. Offsets are in ``text``."""
+    rest = text[verb.end():]
+    cut = CLAUSE_BREAK.search(rest)
+    rest = rest[:cut.start()] if cut else rest
+    span = re.match(r"\s*(?:\S+\s*){0,%d}" % words, rest).group(0)
+    found = pattern.search(span)
+    if not found:
+        return None
+    return re.compile(re.escape(found.group(0))).search(text, verb.end() + found.start())
+
+
+def is_own(text, noun_start, pcs=()):
+    """True when the noun at ``noun_start`` is the PC's own: "my coin", "Mira's ring", or
+    "his pocket" in third-person narration where the nearest actor before it is the PC."""
+    before = text[:noun_start]
+    if OWN.search(text[max(0, noun_start - 25):noun_start + 20]):
+        return True
+    if any(re.search(r"\b%s's\s+(?:own\s+)?(?:\w+\s+)?$" % re.escape(name), before) for name in pcs):
+        return True
+    owner = POSSESSIVE.search(before)
+    if not owner or owner.group(1) in ('my', 'our') or not pcs:
+        return bool(owner and owner.group(1) in ('my', 'our'))
+    # "his gold" may be anyone's; "his pocket", "his face" in the PC's own sentence are the PC's.
+    if not CARRIED_OR_BODY.match(text[noun_start:]):
+        return False
+    head = before[:owner.start()]
+    pc_at = max((m.end() for name in pcs for m in re.finditer(r"\b%s\b" % re.escape(name), head)), default=-1)
+    actor_at = max((m.end() for m in ACTOR_WORDS.finditer(head) if m.group(1) not in ('he', 'she', 'they')),
+                   default=-1)
+    return pc_at > actor_at
+
+
+def taken_valuables(text, pcs=()):
+    """(verb match, loot match) when the PC takes valuables that are not their own, else
+    (None, None). Each TAKE verb is tried; a noun use ("into his pocket") is skipped."""
+    for verb in TAKE.finditer(text):
+        if NOUN_USE.search(text[:verb.start()]):
+            continue
+        loot = object_of(text, verb, VALUABLES)
+        if loot and POSSESSIVE.search(text[:loot.start()]) and re.match(r"\s*back\b", text[loot.end():]):
+            continue  # "takes her gold back": reclaiming their own stake
+        if loot and not is_own(text, loot.start(), pcs) and \
+                not OWN.search(text[max(0, loot.start() - 25):loot.end() + 16]):
+            return verb, loot
+    return None, None
+
+
+def touched_face(text, pcs=()):
+    """True when a hand-contact verb has someone else's face (or its paint) as its object."""
+    for verb in FACE.finditer(text):
+        part = object_of(text, verb, FACE_PARTS, words=7)
+        if part and not is_own(text, part.start(), pcs):
+            return True
+    return False
+
+
 def narration(action):
     """The action without its quoted speech (double or single quotes): only what the PC
     does with their body decides a physical act."""
@@ -204,15 +282,12 @@ def parse(action, source, state):
                 'unarmed': not weapon, 'nonlethal': bool(NONLETHAL.search(text))}
     if FLIP.search(text) and TABLE.search(text):
         return {'kind': 'flip', 'object': 'table', 'target': None}
-    face = FACE.search(text)
-    part = FACE_PARTS.search(text)
-    if face and part and not OWN.search(text[max(0, part.start() - 20):part.end()]) and \
-            (named or _creature_words(text) or here):
+    if touched_face(text, pc_names(state)) and (named or _creature_words(text) or here):
         return {'kind': 'face', 'target': named or _default_target(text, source, state, here),
                 'teeth': bool(TEETH.search(text))}
-    take = TAKE.search(text)
-    loot = VALUABLES.search(text)
-    if take and loot and not OWN.search(text[max(0, loot.start() - 25):loot.end() + 16]):
+    pcs = pc_names(state)
+    take, loot = taken_valuables(text, pcs)
+    if take and loot:
         what = 'ring' if re.search(r'\bring\b', text) and not re.search(r'\bcoins?|gold|pot|money|stacks?\b', text) \
             else 'coins'
         return {'kind': 'take', 'what': what, 'target': None, 'covert': bool(COVERT.search(text)),

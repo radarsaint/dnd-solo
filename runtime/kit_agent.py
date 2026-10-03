@@ -235,12 +235,33 @@ def room_intent(action, addressed=False):
 
 
 def card_procedure(source, state):
-    """(id, config, state) of the declared card-game procedure in this room, or None."""
+    """(id, config, state) of the declared card-game procedure in this room, or None. A canon
+    entry Kit recorded with a runnable card-game procedure (a named house game,
+    procedure twenty_one) declares that table too: it starts from its initial state."""
     for key, body in (state.get('procedures') or {}).items():
         config = (source or {}).get('procedures', {}).get(key) or {}
         if config.get('kind') == 'card_game':
             return key, config, body
+    for entry in (state.get('canon') or {}).values():
+        key = entry.get('procedure')
+        config = (source or {}).get('procedures', {}).get(key) or {} if key else {}
+        if config.get('kind') == 'card_game' and entry.get('area', state.get('area')) == state.get('area'):
+            return key, config, kit_cards.initial_state(config)
     return None
+
+
+def combine(first, second):
+    """One resolution for a message with two intents, in order: a card kind names it (the
+    table's checks and longer event bound), else the first's; both public results; both
+    event lists."""
+    if second is None:
+        return first
+    kinds = [first.kind, second.kind]
+    kind = next((k for k in kinds if str(k).startswith('card_')), None) or \
+        next((k for k in kinds if str(k).startswith(LONG_EVENT_KINDS)), first.kind)
+    public = f'{first.public_event} {second.public_event}'.strip()
+    require(len(public) <= CARD_EVENT_MAX_CHARS, 'Combined result exceeds the event bound')
+    return Resolution(kind, public, list(first.events) + list(second.events))
 
 
 class Room6CAdjudicator:
@@ -272,7 +293,9 @@ class Room6CAdjudicator:
         if not is_ooc(action) and (self.source or {}).get('combat'):
             physical = self._resolve_physical(action, revision, state)
             if physical:
-                return physical
+                # One message, several intents: an act that starts no fight still carries the
+                # card call made with it ("I wipe his cheek. Hit me.").
+                return self._also_card(physical, action, narration, revision, state)
         # A toll on the table is a real exchange (call 6): paying, haggling, refusing, and
         # steering back to the game each commit, spoken or not.
         if not is_ooc(action):
@@ -281,18 +304,13 @@ class Room6CAdjudicator:
                 return toll
         target = kit_claims.roll_target(action, self.source)
         if target and not spoken:
-            return self._resolve_knowledge(action, revision, state, *target)
+            return self._also_card(self._resolve_knowledge(action, revision, state, *target),
+                                   action, narration, revision, state)
         # An Insight read on whether someone is lying is the lie rule, whatever it is about.
         if not spoken and kit_claims.is_lie_read(narration):
-            return self._resolve_lie_read(action, narration, revision, state)
-        table = card_procedure(self.source, state)
-        if table is None and not is_ooc(action) and ((PLAY_REQUEST.search(narration.casefold()) and
-                                                      '?' not in narration) or
-                                                     SPOKEN_BET.search(kit_rolls.without_rolls(action))):
-            # "I play the game." is a complete declaration (call 7): the room's game starts
-            # with the check-or-play choice. A game in the room never starts on its own.
-            table = self._declared_table(state)
-        card_kind = kit_cards.card_intent(action, table[2]) if table else None
+            return self._also_card(self._resolve_lie_read(action, narration, revision, state),
+                                   action, narration, revision, state)
+        table, card_kind = self._card_call(action, narration, state)
         kind = room_intent(action, addressed)
         # Combat and stealth keep their rulings at the card table: "I raise my crossbow" is
         # not a raise, and sneaking out "while they check their hands" is not a check.
@@ -302,13 +320,17 @@ class Room6CAdjudicator:
         overrides = kind in ('combat', 'observe', 'spell') and card_kind != 'card_watch' or \
             (kind == 'stealth' and card_kind != 'card_swap')
         if card_kind and not overrides:
-            return self._resolve_card(card_kind, action, revision, state, table)
+            card = self._resolve_card(card_kind, action, revision, state, table)
+            # A bet and a stated read in one message: both resolve (the read of the cards or
+            # the people the roll names), the card call first.
+            return combine(card, self._stated_read(action, narration, revision, state, kind, card_kind))
         # A roll the player makes in conversation counts (6c baseline item 3): Deception,
         # Persuasion, Intimidation, Performance, or Athletics against the NPC's flat number;
         # Insight reads whoever spoke (the lie rule) or the group's hidden claim.
         stated = kit_rolls.stated_skill(action)
         if stated in SOCIAL_CHECK_SKILLS and kind not in ('combat', 'stealth', 'exit', 'spell'):
-            return self._resolve_social_check(stated, action, narration, revision, state)
+            return self._also_card(self._resolve_social_check(stated, action, narration, revision, state),
+                                   action, narration, revision, state)
         if stated == 'insight' and spoken and kind not in ('combat', 'stealth', 'exit', 'spell'):
             who = self._lie_read_target(narration, state)
             if who and any(r.get('by') == who for r in (state.get('claims') or {}).get('said') or []):
@@ -325,7 +347,9 @@ class Room6CAdjudicator:
             if claim:
                 return self._resolve_check(action, revision, state, *claim)
         # An active look or read at something hidden: the claim it names, and only that claim.
-        check = None if spoken or kind in ('combat', 'stealth', 'exit', 'spell') else \
+        # Speech in the same message does not cancel a stated roll at something hidden.
+        reading = not is_ooc(action) and kit_rolls.stated_skill(action) is not None
+        check = None if (spoken and not reading) or kind in ('combat', 'stealth', 'exit', 'spell') else \
             kit_claims.check_target(narration, self.source, state)
         if check:
             return self._resolve_check(action, revision, state, *check)
@@ -420,6 +444,56 @@ class Room6CAdjudicator:
                                                      'evidence': evidence}])
 
     # -- physical acts and fights (runtime/kit_combat.py) -----------------------------
+    # -- one message, several intents ----------------------------------------------
+    def _card_call(self, action, narration, state):
+        """(table, card kind) for this message: the running table, or the room's offered game
+        when the words declare it (call 7: "I play", a bet, the game's name, a spoken "Deal.").
+        A game in the room never starts on its own."""
+        table = card_procedure(self.source, state)
+        if table is None and not is_ooc(action) and ((PLAY_REQUEST.search(narration.casefold()) and
+                                                      '?' not in narration) or
+                                                     SPOKEN_BET.search(kit_rolls.without_rolls(action)) or
+                                                     kit_twenty_one.SPOKEN_DEAL.search(action.translate(_TYPOGRAPHIC)) or
+                                                     self._game_called(action)):
+            table = self._declared_table(state)
+        return table, (kit_cards.card_intent(action, table[2]) if table else None)
+
+    def _game_called(self, action):
+        declared = self._declared_table({})
+        return bool(declared and kit_cards.game_called(declared[1], kit_rolls.without_rolls(action)))
+
+    def _also_card(self, result, action, narration, revision, state):
+        """``result`` plus the card call made in the same message, when there is one and the
+        first ruling started no fight. The card call resolves on the same pre-turn state."""
+        if result is None or result.kind == 'combat_round' or str(result.kind).startswith('card_') \
+                or is_ooc(action):
+            return result
+        table, card_kind = self._card_call(action, narration, state)
+        if not card_kind or card_kind in ('card_watch', 'card_leave', 'card_accuse'):
+            return result
+        try:
+            card = self._resolve_card(card_kind, action, revision, state, table)
+        except PendingRuling:
+            return result
+        return combine(result, card)
+
+    def _stated_read(self, action, narration, revision, state, kind, card_kind):
+        """A stated observation or Insight roll at a hidden claim, made in the same message as
+        a card call, or None. Watching the deal is the card call's own read."""
+        stated = kit_rolls.stated_skill(action)
+        if kind in ('combat', 'stealth', 'exit', 'spell') or stated is None or \
+                (card_kind == 'card_watch' and stated == 'perception'):
+            return None
+        check = kit_claims.check_target(narration, self.source, state)
+        if check is None and kit_rolls.stated_skill(action) == 'insight':
+            check = self._group_claim(state)
+        if check is None:
+            return None
+        try:
+            return self._resolve_check(action, revision, state, *check)
+        except PendingRuling:
+            return None
+
     def _resolve_physical(self, action, revision, state):
         act = kit_combat.parse(action, self.source, state)
         current = state.get('combat') or {}

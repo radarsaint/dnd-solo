@@ -459,6 +459,7 @@
       "kind": "card_game",
       "game": "twenty_one",
       "name": "Twenty-one (blackjack), or one check a round",
+      "called": ["twenty-one", "blackjack", "twenty-one coffins"],
       "dm_choice": "DM choice, not the adventure's: the adventure names no game, rules, or stakes for this table. Brendon's table call 7 (2026-10-02): the player picks the weight, one check a round or an easy, familiar game. Kit runs twenty-one (blackjack), which this table calls Twenty-One Coffins.",
       "unit": "gp",
       "seats": {"bandit_a": 15, "bandit_b": 18, "doppelganger": 22, "uktarl": 30},
