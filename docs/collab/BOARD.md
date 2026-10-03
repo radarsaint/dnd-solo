@@ -290,7 +290,7 @@ H7. Negative friend test. Nothing in state says the player has a job, a mood pat
 
 ### Done
 
-- **Skippy:** Stage 1 engine work for #45 is on branch `kit-6c-table-calls` (PR into `main`, not merged).
+- **Skippy:** Stage 1 engine work for #45 is in [PR #47](https://github.com/radarsaint/dnd-solo/pull/47) (branch `kit-6c-table-calls`, into `main`, not merged).
   - **Game choice (calls 1 and 7):** a bare "I play" commits a turn that offers one check a round or twenty-one (blackjack, hit or stand). Stakes are the player's bet, else 10 gp, up to what the dealer will risk. The marked deck works in both modes (an edge in check mode, dealing seconds in play mode), and watch and accuse still work. The card-naming stalls and the blackjack/poker word ban are gone. Three-Dragon Ante stays in the engine but isn't offered at 6c.
   - **A game in the room isn't a trigger (TC-1b):** a decision can't start a table procedure unless the player asked about the game, or an NPC agenda move records a steer or stall reason.
   - **Looking vs searching (call 2):** a plain look is free description and never finds the key. An active search (Perception, DC 13) does.
