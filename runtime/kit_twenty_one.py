@@ -61,6 +61,8 @@ PLAY_REQUEST = re.compile(
     r"another (?:round|hand|game)|(?:play|go|deal) again|next (?:round|hand)|let'?s go|"
     r"dealt in|deal (?:me|us|her|him) in|be dealt|get dealt|a seat at the table|take (?:the|a|an) (?:empty |open |free )?(?:chair|seat))\b"
     r"|(?:^|[.!;]\s*)deal\b(?!-)")
+# A bare spoken "Deal." (or "Deal me in.") at a table that offered a game: the player is in.
+SPOKEN_DEAL = re.compile(r'"\s*deal(?: me in| us in| me| us| them| the cards)?\s*[.!]?\s*"', re.I)
 _BET = re.compile(r"\b(?:bet|bets|betting|wager|stake|ante|put (?:up|down|in))\b")
 _HIT = re.compile(r"\b(?:hit|hit me|another card|card me|one more card|draw)\b")
 _STAND = re.compile(r"\b(?:stand|stay|hold|i'?m good|i'?ll keep|stick|no more)\b")
@@ -183,6 +185,9 @@ def check_config(config):
     if not all(actor in config['labels'] for actor in config['seats']):
         raise InvalidChange('Every seat needs a public label')
     require(config['cheat']['actor'] in config['seats'], 'The dealer must hold a seat')
+    require(config.get('called') is None or (isinstance(config['called'], list) and
+                                             all(isinstance(n, str) and n.strip() for n in config['called'])),
+            'Twenty-one called: the names players use for the game')
 
 
 def _asked(text, match):
@@ -206,6 +211,10 @@ def card_intent(action, procedure_state):
         return 'card_leave' if seated else None
     if _ACCUSE.search(text) and not question:
         return 'card_accuse' if seated or public['round'] else None
+    if live and not question and (_STAND.search(text) or _HIT.search(text)) and not CHECK_MODE.search(text):
+        # A call mid-hand is the table action even when the player also watches ("He keeps his
+        # eyes on the dealer's face. 'Hit me.'"); the watch rides along (resolve).
+        return 'card_stand' if _STAND.search(text) else 'card_hit'
     if _WATCH.search(text):
         return 'card_watch'
     if live:
@@ -225,7 +234,7 @@ def card_intent(action, procedure_state):
     if _CHEAT_WORD.search(text) and seated:
         return 'card_accuse'
     request = PLAY_REQUEST.search(text)
-    if (request and not _asked(text, request)) or (_BET.search(text) and player_amount(text)) or \
+    if (request and not _asked(text, request)) or SPOKEN_DEAL.search(text) or (_BET.search(text) and player_amount(text)) or \
             (public['offered'] and not public['mode'] and bet_amount(text, loose=True) and
              not re.search(r'\b(no|not|never)\b', text)):
         return 'card_round' if public['mode'] else 'card_offer'
@@ -260,6 +269,8 @@ class TwentyOneTable:
         self._supplied_spent = False
         self._eyes, self._eyes_lines, self._eyes_reveals = None, [], []
         game = copy.deepcopy(state)
+        if kind in ('card_hit', 'card_stand') and _WATCH.search(action.casefold().replace('\u2019', "'")):
+            game['public']['watch_next_deal'] = True  # watching while calling the hand
         handler = getattr(self, '_' + kind[len('card_'):])
         text, reveals = handler(action, revision, game['public'], game['private'])
         return text, game, reveals
@@ -599,7 +610,8 @@ class TwentyOneTable:
     def _watch(self, action, revision, public, private):
         public['watch_next_deal'] = True
         text = action.casefold().replace('\u2019', "'")
-        if public['player'] is None and (PLAY_REQUEST.search(text) or (_BET.search(text) and player_amount(text))):
+        if public['player'] is None and (PLAY_REQUEST.search(text) or SPOKEN_DEAL.search(text) or
+                                         (_BET.search(text) and player_amount(text))):
             # "I sit, put down ten gold, and say I'll play. I watch the dealer's hands": joining
             # and watching in one breath. The seat and the offer happen; the watch waits for the deal.
             offer, _ = self._offer(action, revision, public, private)

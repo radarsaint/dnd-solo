@@ -274,13 +274,10 @@ def holds(cond, source, state, spoken=''):
 
 
 def game_names(config):
-    """A procedure's own names, as an NPC would say them: its ``called`` list, else its name
-    up to "(" or "," ("Twenty-one (blackjack), ..." is "twenty-one")."""
-    called = (config or {}).get('called')
-    if isinstance(called, list) and all(isinstance(n, str) and n.strip() for n in called):
-        return [n.strip().casefold() for n in called]
-    name = re.split(r'[(,]', str((config or {}).get('name') or ''))[0].strip().casefold()
-    return [name] if name else []
+    """A procedure's own names, as an NPC would say them (kit_cards.game_names: its ``called``
+    list, else its name up to "(" or ",")."""
+    from . import kit_cards
+    return list(kit_cards.game_names(config))
 
 
 def said_phrases(value, source):
