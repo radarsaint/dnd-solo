@@ -1,0 +1,62 @@
+{
+  "schema": "bfdm_legacy_reconciliation_state/v1",
+  "as_of": "2026-10-02",
+  "point": 4,
+  "status": "IN_PROGRESS_BINARY_TRANSFER_PENDING",
+  "archive": {
+    "library_path": "/Brendon Corpus Staging/Current/brendon-corpus-staging.zip",
+    "library_file_id": "libfile_ed602fffc384819192d72433c61efdb4",
+    "size_bytes": 86948434,
+    "sha256": "cebe18692ba3b8a2fe220d164cb722e18d81766edcc03f39ae0f18174350ea7a",
+    "legacy_records": 51
+  },
+  "canonical_branch_audit": {
+    "cataloged_legacy_ids": 51,
+    "expected_legacy_ids": 51,
+    "canonical_source_bodies_present": 0,
+    "source_container_files_pending": 284,
+    "conflicts_observed": 0
+  },
+  "archive_components": {
+    "originals": 51,
+    "normalized_source_md": 51,
+    "metadata_json": 51,
+    "comments_json": 51,
+    "native_brendon_comment_files": 5,
+    "assets": 75,
+    "binary_files": 125,
+    "text_files_within_source_containers": 159
+  },
+  "projects": {
+    "Roanoke": 37,
+    "Earthfall": 2,
+    "Bastion/Redoubt": 3,
+    "At War's End": 8,
+    "Exploration Impossible context": 1
+  },
+  "reconciler": {
+    "path": "ingest/reconcile_legacy_staging.py",
+    "real_archive_tests": {
+      "dry_run": {
+        "records_ready": 51,
+        "files_missing": 284,
+        "errors": 0
+      },
+      "apply_test": {
+        "files_copied": 284,
+        "checksum_errors": 0
+      },
+      "idempotence_test": {
+        "records_already_reconciled": 51,
+        "files_already_present": 284
+      },
+      "conflict_test": {
+        "conflicts_detected": 1,
+        "apply_refused": true,
+        "files_copied": 0
+      }
+    }
+  },
+  "current_blocker": "Active GitHub connector cannot accept Library/local binary file references for blob upload; actual DOCX/XLSX/image bytes require an executor with filesystem access plus authenticated git/GitHub write access.",
+  "done_when": "A final dry-run against the canonical checkout reports all 51 records ALREADY_RECONCILED with zero conflicts."
+}

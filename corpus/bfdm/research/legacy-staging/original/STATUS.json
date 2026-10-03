@@ -1,0 +1,19 @@
+{
+  "bundle_version": "2026-10-01-staging-v2",
+  "containers_total": 51,
+  "brendon_or_mixed_source_containers": 50,
+  "third_party_context_containers": 1,
+  "projects": {
+    "Roanoke": 37,
+    "Earthfall": 2,
+    "Bastion/Redoubt": 3,
+    "At War's End": 8,
+    "Exploration Impossible (context)": 1
+  },
+  "assets_total": 75,
+  "normalized_bytes_total": 2431246,
+  "export_comments_total": 62,
+  "native_brendon_comment_supplements": 17,
+  "ready_for_private_repo": true,
+  "known_gap": "Native Google Drive comments are not yet exhaustively mirrored for every source. Original/native locators remain authoritative; no source summaries substitute for full body."
+}
