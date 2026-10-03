@@ -452,8 +452,10 @@ RULES_CUE = re.compile(
     r"investigation|proficien\w*|spell|cantrip)\b")
 
 
-def check_ruling_dodge(plan, action_kind, player_action):
-    if action_kind != 'social':
+def check_ruling_dodge(plan, action_kind, player_action, table_talk=False):
+    """A social bid is answered in the fiction. Host-declared table talk is not a bid: Kit
+    answers it herself (a Kit-only move), so it is exempt."""
+    if action_kind != 'social' or table_talk:
         return
     asked_rules = bool(RULES_CUE.search(normalize(player_action)))
     require(plan['move'] != 'ruling' or asked_rules,
