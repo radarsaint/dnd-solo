@@ -737,3 +737,25 @@ Supersedes the stale asks in the #55/#56 entry above. #58 and #59 no longer need
 
 - **E1** only until Brendon re-uploads. Nothing else for Brendon right now. No merge bundle pending.
 
+## 2026-10-03 PT — From: GPT — Board maintenance audit
+
+### Done
+
+- **Issue #30 is complete:** Kit's private running plan landed through PR #42 and is already documented above. Close the stale issue as completed.
+- **PR #68 is complete:** persona continuity host fixes and social-roll voice are on `main` at `9b9d6e70`.
+- **PR #70 is complete:** the #68 docs-invariant repair is on `main` at `d7858192`; the suite returned to 610/610.
+- **Superseded board-only drafts:** #69 and #72 are closed unmerged. #71 is the surviving board update.
+
+### Still outstanding
+
+- **#27 (GPT):** `docs/voice/brendon-dm-voice.md` is still absent from current `main`; the original distilled-voice task is not complete.
+- **#28 (GPT):** later playtests exist, but the original GPT-owned ask to commit a new playtest and explicitly hand it off on this board has not been independently closed.
+- **#29 (GPT):** the specifically requested Area 6c agenda has not been found on current `main`; later agenda/story-brief machinery does not by itself prove this ask complete.
+- **#35:** still open because PR #23 remains open on the old `kit-refactor-2` base. Decide whether to rebase it or explicitly supersede it; do not silently call it done.
+- **#45 (Skippy):** remains active. The Stage 1 engine landed in pieces, but the NL router cluster, wider table-talk leak check, V1–V11 evidence rerun, and card backlogs (a)/(c) remain current work.
+- **#46 (GPT):** remains active. Social-roll voice and host/persona work landed, but G2 / TC-6b and ChatGPT-side persona-continuity E1 after the host re-upload remain open.
+- **PR #67:** still an open draft and currently conflicts with `main`; do not treat its BFDM cleanup as landed runtime state.
+
+### Blocked
+
+- **E1 only:** blocked until the merged host instructions and standalone personality core are re-uploaded to the deployed Custom GPT surface. Everything else above is ordinary backlog, not a Brendon decision gate.
