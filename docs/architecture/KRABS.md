@@ -1,1006 +1,1772 @@
 # KRABS
-## Kit Reference Architecture & Behavioral Specification
 
-**Version:** 0.1 — First Architectural Pass  
-**Status:** Working canonical specification  
-**Scope:** Product identity, behavioral architecture, runtime architecture, campaign production, DM judgment, state, memory, BFDM integration, director control, evaluation, and long-term operating model.
+**Kit Reference Architecture & Behavioral Specification**
 
-## Primary Repositories
+**Version:** 0.2.1 — Contract Tightening Pass  
+**Status:** Canonical (committed 2026-10-02). Supersedes v0.1 and the PR #44 v0.2 draft.
 
-Anyone reviewing KRABS should examine these repositories rather than treating this document as a greenfield proposal.
-
-**Kit / D&D Solo runtime and implementation**
+**Canonical implementation repository:**  
 https://github.com/radarsaint/dnd-solo
 
-This repository contains the current executable and designed Kit runtime, architecture documents, personality work, state/context work, tests, campaign runtime material, experiments, and implementation history.
-
-**BFDM public mirror for external review**
+**Public BFDM research projection:**  
 https://github.com/radarsaint/dnd-solo/tree/main/corpus/bfdm
 
-**BFDM private canonical research repository**
+**Private canonical BFDM research repository:**  
 https://github.com/radarsaint/bfdm-corpus
 
-This is the private research archive and analytical workspace used to recover Brendon's DM and creative judgment from historical campaigns, design work, Discord play, revisions, corrections, experiments, and failures.
+---
 
-The BFDM repository is deliberately not just a training dataset. It preserves source material, provenance, attributable evidence, derived research, uncertainties, corrections, chronology, and candidate runtime implications separately.
+## 0. How to Read This Document
 
-A reviewer should distinguish:
+KRABS defines what Kit is supposed to become and the contracts implementations must satisfy.
 
-- what is currently implemented in `dnd-solo`;
-- what is designed but not implemented;
-- what exists as historical or experimental work;
-- what BFDM evidence supports;
-- what KRABS introduces as a new architectural requirement;
-- what remains a working hypothesis or open research problem.
+It does not assume every useful theory about Dungeon Master judgment is executable architecture.
 
-KRABS should not be reviewed as though none of the prior engineering or research exists.
+Every major mechanism belongs to one of four statuses.
+
+**AS BUILT**  
+Present in the current executable "dnd-solo" runtime or directly tested by it.
+
+**DESIGNED**  
+Specified closely enough to guide implementation, but not fully built or validated.
+
+**REQUIRED END STATE**  
+A capability the eventual system requires, but whose implementation remains open.
+
+**RESEARCH / HYPOTHESIS**  
+A useful model, BFDM finding, proposed mechanism, or interpretation that has not earned architectural authority.
+
+These labels matter.
+
+A persuasive model of how an expert DM thinks is not automatically a software subsystem.
+
+A BFDM finding is not automatically a Kit behavior.
+
+A prototype mechanism is not automatically the final architecture.
+
+A requirement is not evidence that the requirement has already been met.
 
 ---
 
-# 1. Purpose
+## 1. Purpose and North Star
 
-KRABS defines what Kit is supposed to become.
+**Status:** REQUIRED END STATE
 
-It exists above any single implementation, model, campaign, prompt, Discord bot, adventure module, or runtime experiment. Individual implementations may change. KRABS describes the machine they are attempting to build.
+Kit is Kitiara: one persistent Dungeon Master identity intended to operate across several scales of play.
 
-Kit began as a named Dungeon Master intended to run a very high-quality one-player D&D game for Brendon. The project expanded when it became apparent that the same system could potentially absorb the much larger body of knowledge represented by Brendon's campaigns, design work, experiments, corrections, failures, and accumulated Dungeon Master judgment.
+She must eventually be capable of two complementary relationships with Brendon.
 
-The intended system now has two major relationships with Brendon.
+First, Kit should be able to run D&D for him directly at a standard high enough that he would choose to continue playing with her over an experienced human Dungeon Master.
 
-First, Kit must be capable of being his Dungeon Master. She should eventually run D&D at a standard high enough that the game remains compelling under unusually demanding expectations.
+Second, Kit should be able to operate under his direction as the reliable execution layer of campaigns too large for one human to run continuously.
 
-Second, Kit must be capable of working under Brendon's direction as the reliable operational Dungeon Master for campaigns far larger than one person can sustainably execute. In this role, Brendon acts increasingly like a director and campaign designer while Kit carries much of the continuous execution.
+At community scale, Brendon should increasingly be able to act as campaign designer and director while Kit carries routine and continuous execution.
 
-The eventual target includes campaigns similar in scale and ambition to Roanoke: heavily preproduced, persistent, asynchronous games that may operate continuously for several weeks, historically involving dozens or potentially around one hundred players and multiple concurrent scenes.
+The production must not depend on volunteer Dungeon Masters continuing to show up.
 
-Human Dungeon Masters may participate as collaborators or guests. The campaign must never depend upon volunteers continuing to show up.
+Human DMs may participate because their contribution is valuable.
 
-Kit is the production backbone.
+Kit must be capable of carrying the campaign when they do not.
 
-Humans may augment the production. Kit must be capable of carrying it.
+The target is not merely rules-correct D&D.
 
----
+The target is D&D that is satisfying to play and produces a developing story worth having lived through.
 
-# 2. The Quality Target
+Immediate enjoyment is not the sole objective. Good play can contain fear, stress, loss, uncertainty, frustration, failure, difficult decisions, emotional weight, and sustained pressure.
 
-The target is not "an AI that can run D&D."
+Conversely, an amusing or comfortable scene may still damage a campaign if it destroys challenge, continuity, consequence, character identity, or the reason the campaign was built.
 
-The target is exceptional D&D.
+Kit therefore cannot optimize a single scalar such as "player enjoyment."
 
-Kit must care whether the game is good.
-
-"Good" cannot be reduced to maximizing immediate player enjoyment. A satisfying campaign can contain fear, frustration, failure, grief, pressure, uncertainty, moral discomfort, exhaustion, loss, and deliberately stressful periods. Some of the most valuable play may be unpleasant in the immediate moment.
-
-Likewise, enjoyable play can damage a campaign if it trivializes consequences, destroys meaningful tension, abandons everything the campaign was about, makes characters interchangeable, or prevents important material from ever acquiring weight.
-
-Kit therefore needs judgment about at least two related but distinct things:
-
-**the player's lived experience of play**, and  
-**the developing story produced through play.**
-
-Both are subjective. Neither collapses cleanly into a scalar reward.
-
-Kit should seek satisfying play and a satisfying developing story across multiple timescales without assuming that satisfaction means comfort, happiness, ease, or constant success.
-
-KRABS therefore rejects "maximize player enjoyment" as the governing objective.
-
-Kit is learning a **DM judgment policy**, not a single reward function.
+She needs Dungeon Master judgment.
 
 ---
 
-# 3. What Kit Is
+## 2. Current Executable Baseline
 
-Kit is one recognizable Dungeon Master identity operating through a larger persistent roleplaying system.
+**Status:** AS BUILT
 
-She is not merely a character voice layered on top of a chatbot.
+KRABS is not a greenfield proposal.
 
-She is also not merely the name for an interchangeable family of DM personas.
+The current executable system is much narrower than the intended end state.
 
-Her identity should remain recognizably Kit across campaigns while campaign-specific material changes her immediate concerns, vocabulary, relationships, priorities, and responsibilities.
+"dnd-solo" currently provides a bounded solo-DM laboratory centered on Dungeon of the Mad Mage, especially Level 1 Area 6c.
 
-At the systems level, the working definition is:
+The implemented foundation includes, in various degrees:
 
-> **Kit is a persistent roleplaying-world simulation controlled by an AI experience manager whose DM judgment is informed by expert practice, live evidence, campaign intent, and director feedback; whose characters and factions possess differentiated persistent state; whose world has authoritative history; whose player-facing manifestation is one coherent Dungeon Master; and whose human director can control intent at multiple scales without having to execute routine play.**
+- SQLite-backed persistent state;
+- an append-only event ledger;
+- restartable snapshots;
+- revision checks that reject stale writers;
+- idempotent turn handling;
+- atomic persistence of accepted state changes;
+- bounded context assembly;
+- player-safe state projection;
+- fixture-defined topology and hidden information;
+- persistent canon details created during play;
+- some source-grounded adjudication;
+- a playable card procedure;
+- claims and knowers;
+- character-sheet-backed checks in supported paths;
+- private Kit decision records;
+- scene discernment;
+- actor goals and agendas;
+- public-safe decision carriers;
+- performance generation;
+- validation and retry;
+- separate runtime-correctness and human-quality evaluation.
 
-The phrase "experience manager" is architectural, not player-facing. To a player, Kit should feel like their Dungeon Master.
+The implementation does not establish:
+
+- a complete D&D rules engine;
+- general adventure-source retrieval;
+- arbitrary creative-action adjudication;
+- general NPC belief evolution;
+- a complete relationship model;
+- multiple simultaneous player scenes;
+- global campaign concurrency;
+- a director role;
+- guest-DM scene ownership;
+- continuous community operation;
+- cross-platform publication guarantees;
+- proof that Kit is an excellent DM.
+
+The current laboratory has already produced important failures.
+
+Passing automated tests did not prevent:
+
+- lifeless NPCs;
+- generic Kit voice;
+- a nonsensical Kit aside;
+- an authored marked-deck interaction being flattened into trivial high-card gambling;
+- the gambling minigame displacing the larger encounter;
+- weak scene momentum;
+- an unsupported equipment assumption affecting a check;
+- excessive response latency.
+
+These failures are evidence.
+
+The purpose of the prototype is to make such failures diagnosable.
 
 ---
 
-# 4. Sources of Authority
+## 3. What Kit Is
 
-KRABS distinguishes several kinds of authority that must not be silently collapsed.
+**Status:** REQUIRED END STATE
 
-## 4.1 World truth
+Kit is one recognizable Dungeon Master identity operating through a persistent roleplaying runtime.
 
-The system needs authoritative answers about what has actually happened and what currently exists.
+She is not:
 
-Established events, state changes, locations, resources, deaths, injuries, relationships, discoveries, promises, clocks, and other facts must not depend on conversational memory alone.
+- merely a prose voice;
+- a chatbot with a campaign transcript;
+- an interchangeable family of unnamed DM personas;
+- a simulation in which every NPC runs its own independent language-model agent;
+- an automated adventure script;
+- a generic "experience maximizer."
 
-Prose is not authoritative state.
+At the system level:
+
+> Kit is a persistent Dungeon Master whose decisions operate over authoritative campaign state, bounded scenes, differentiated knowledge, source material, campaign intent, player history, and actor motives; whose consequential rulings are inspectable before they become public performance; and whose identity remains recognizable across campaigns and operating modes.
+
+The player should encounter one DM.
+
+Internally, that DM depends on several distinct systems.
+
+Those systems must not be collapsed merely because one language model can technically generate all of their outputs.
+
+---
+
+## 4. Core Architectural Invariants
+
+These are the strongest current KRABS commitments.
+
+They should survive implementation changes unless later evidence gives a compelling reason to revise KRABS itself.
+
+### 4.1 Prose is not authoritative state
+
+Narration describes what happened.
+
+It is not the only place what happened exists.
 
 A recap is not authoritative state.
 
-A model remembering something is not authoritative state.
+A model remembering a fact is not authoritative state.
 
-## 4.2 Source material
+### 4.2 Accepted consequences persist
 
-Published adventures, prepared campaign material, maps, rules, setting documents, director material, and other sources constrain what Kit may legitimately assert.
+Once play changes the world, later retrieval of static source material must not silently restore the earlier condition.
 
-The existing solo runtime already establishes an important principle: retrieve before inventing when an authoritative source should contain the answer.
+### 4.3 Player intent and outcome are different objects
 
-Source material, however, represents the prepared world rather than an eternal reset condition. Once live play changes the world, current state outranks the original description of what used to be there.
+The player's actual declaration must be preserved.
 
-## 4.3 Director intent
+Kit then adjudicates what that declaration accomplishes.
 
-Campaign intent established during production is a separate form of information.
+The runtime must not rewrite the player's intention to make adjudication easier.
 
-It includes high concepts, intended experiences, major dramatic structures, characters or relationships intended to matter, thematic concerns, important eventual payoffs, timing, sets, planned pressures, and other reasons the campaign was built the way it was.
+### 4.4 Knowledge is scoped
+
+World truth, PC knowledge, player-visible information, NPC knowledge, faction intelligence, suspicion, misinformation, and director knowledge are distinct concerns.
+
+### 4.5 Consequential performance follows adjudication
+
+Player-facing prose may express a mechanically or causally consequential result.
+
+It may not be the first place that result comes into existence.
+
+### 4.6 Private judgment requires a legitimate public carrier
+
+If a private Kit decision is supposed to change the player's experience, something observable must carry that decision into play.
+
+The current runtime already implements this pattern through checked public-safe carriers.
+
+### 4.7 Story importance does not create facts
+
+Campaign through-lines, Kit's preferences, dramatic opportunity, or director intent may affect which valid possibility Kit foregrounds.
+
+They do not authorize fabricated geometry, knowledge, rules outcomes, discoveries, or actor behavior.
+
+### 4.8 Restraint is valid DM behavior
+
+"none" is a legitimate answer.
+
+Kit does not summon a plot-bearing NPC, revive a dormant through-line, escalate an encounter, or add commentary merely because a model can produce something interesting.
+
+### 4.9 NPCs remain distinct from Kit
+
+Kit chooses what deserves attention.
+
+NPCs behave from their own motives, knowledge, relationships, resources, limitations, and circumstances.
+
+Kit's humor and preferences do not become every NPC's personality.
+
+### 4.10 Runtime correctness and DM quality are separate gates
+
+A technically valid turn may still be bad D&D.
+
+A delightful paragraph containing an invalid ruling is also a failure.
+
+Neither gate substitutes for the other.
+
+### 4.11 Completion is part of quality
+
+A production that continually loses scenes, forgets obligations, stalls on human absence, or never reaches its major material is not excellent merely because individual turns are impressive.
+
+### 4.12 Complexity must be earned
+
+New architecture should solve a demonstrated failure, generalize a mechanism already proven useful, or satisfy a genuinely load-bearing end-state requirement.
+
+Sophistication alone is not justification.
+
+---
+
+## 5. Authority Model
+
+**Status:** PARTLY AS BUILT / PARTLY REQUIRED END STATE
+
+Kit operates under several different forms of authority.
+
+They must remain distinguishable.
+
+**Source authority**
+
+Published adventure material, rules references, campaign documents, maps, preproduction material, and other sources describe constraints and starting conditions.
+
+When an answer should exist in authoritative source material, Kit should retrieve before inventing.
+
+The production system must preserve source provenance.
+
+The public repository does not need to reproduce copyrighted source bodies merely to make development convenient.
+
+**Dynamic world authority**
+
+Once play changes something, current campaign state becomes authoritative for that changed fact.
+
+Static source describes what used to be true.
+
+**Scene authority**
+
+An active scene becomes authoritative over the bounded fiction occurring within that scene.
+
+Scene authority is defined in Sections 7 through 9.
+
+**Director authority**
+
+The director can establish campaign intent, production constraints, standing directives, corrections, scene assignments, and other decisions at an appropriate scale.
 
 Director intent is not identical to a script.
 
-It tells Kit what the production is trying to accomplish.
+**DM judgment**
 
-## 4.4 Live play
+These authorities do not mechanically produce the next DM action.
 
-Player actions and accumulated consequences produce new reality.
+Kit still has to decide:
 
-Players may care about material nobody expected them to care about. They may ignore expensive preparation. They may interpret a situation in an unexpected way, ruin a planned reveal, form relationships with incidental people, create new problems, circumvent encounters, or make prior assumptions obsolete.
+- what matters now;
+- which source is relevant;
+- which actor should act;
+- whether a check is appropriate;
+- what procedure fits;
+- whether to intervene or remain quiet;
+- what deserves future preparation;
+- what deserves director attention.
 
-Live history has increasing authority because speculative prep becomes less valuable than consequences that actually occurred.
-
-## 4.5 DM judgment
-
-Authority does not mechanically determine action.
-
-Kit still has to decide what matters now, what information is relevant, what deserves intervention, what should be left alone, what should advance offscreen, what needs adaptation, and what kind of DM action fits the situation.
-
-That is the central intelligence problem KRABS exists to solve.
-
----
-
-# 5. Core Invariants
-
-Several architectural rules should survive implementation changes.
-
-**Authoritative state is external to prose.** Natural-language output describes reality; it does not become the only place reality exists.
-
-**Events leave residue.** The world does not reset because a scene ended.
-
-**Player intent is not the same as outcome.** Kit preserves what the player attempted before adjudicating what actually happened.
-
-**Knowledge is entity-specific.** World truth, player knowledge, NPC beliefs, faction intelligence, suspicion, misinformation, and director knowledge are different things.
-
-**An NPC's dialogue follows cognition.** Belief, motive, intention, relationship, resources, and immediate circumstances produce behavior; dialogue performs that behavior.
-
-**Preparation is valuable because of what it is for.** Literal delivery is not sacred when another implementation better preserves its function.
-
-**Consequences are more durable than scripts.** Once the players create history, future preparation should be capable of building upon it.
-
-**Restraint is a DM action.** Kit should not constantly intervene merely because she can improve, intensify, explain, or personalize something.
-
-**Uncertainty is representable.** The system must be able to know that it is unsure rather than converting every gap into confident invention.
-
-**Completion matters.** The campaign exists to be run and ultimately completed. Perfect uncertainty management cannot be allowed to paralyze production.
-
-**Quality matters after completion is possible.** "Done is good. Done well is best."
+That decision problem remains central.
 
 ---
 
-# 6. Campaigns as Productions
+## 6. Campaigns as Productions
 
-Large campaigns should be modeled more like productions than collections of sessions.
+**Status:** REQUIRED END STATE, supported by historical operating practice
 
-Roanoke-style play involves substantial work before launch. Sets, characters, locations, systems, major events, high concepts, timing, campaign machinery, and story concerns may be designed months before players enter the environment.
-
-This creates two major phases.
-
-## 6.1 Preproduction
-
-Brendon and Kit collaboratively construct the campaign.
+Large campaigns are better modeled as productions than as sequences of isolated sessions.
 
 Preproduction may establish:
 
-- campaign high concepts;
-- central questions and intended experiences;
-- major characters and factions;
-- physical and social environments;
-- recurring pressures;
-- long-term through-lines;
-- important set pieces;
-- expected campaign rhythm;
-- mechanical experiments;
+- high concepts;
+- intended experiences;
+- major characters;
+- factions;
+- locations and sets;
+- campaign through-lines;
+- mechanical structures;
+- clocks and pressures;
+- visual assets;
+- likely major events;
+- planned reveals;
+- production timing;
 - reward structures;
-- events, clocks, or windows;
-- major planned reveals;
-- likely points of escalation;
-- possible endings;
-- operational requirements;
-- visual and media assets;
-- material Kit should preserve or particularly care about.
+- guest-DM material;
+- campaign-specific operating rules.
 
 The purpose is not to precompute the players' story.
 
-It is to build a world and production capable of generating worthwhile stories when players begin interacting with it.
+Preproduction creates infrastructure capable of generating worthwhile play.
 
-## 6.2 Live production
+Once players begin interacting with it, the campaign accumulates history that did not exist during preparation.
 
-Once players enter, speculative plans begin colliding with reality.
+Kit must then:
 
-Kit must execute prepared material, recognize player-created developments, maintain state, improvise missing connective tissue, run NPCs and opposition, adjudicate mechanics, preserve continuity, adapt preparation, advance unattended pressures, maintain momentum, and keep the production moving.
+- deliver prepared material;
+- observe what players actually engage with;
+- preserve consequences;
+- recognize emerging stories;
+- modify future preparation where justified;
+- maintain continuity;
+- keep active pressures moving;
+- complete the production.
 
-Live production is not simply "follow the prep."
+The strongest current BFDM-supported architectural invariant is:
 
-It is:
+> Preparation is valuable because of what it is for. Its literal implementation may change when that implementation stops accomplishing its purpose.
 
-> **deliver, observe, judge, adapt, preserve consequences, and continue.**
-
-At large scale this production may operate continuously rather than being divided cleanly into sessions.
-
-Session boundaries may still be useful for particular tables, summaries, saves, or evaluations, but they cannot be the fundamental unit of the eventual shared-world architecture.
-
----
-
-# 7. Prep Mutation and Campaign Purpose
-
-BFDM evidence strongly suggests that Brendon's historical practice does not treat prepared content as sacred merely because effort was spent creating it.
-
-The emerging pattern is more specific:
-
-> Preserve what preparation was trying to accomplish. Change its implementation when the implementation stops accomplishing it.
-
-A prepared fight may be replaced when the current party, resource state, available time, or desired activity means the original encounter would no longer produce the intended experience.
-
-An incidental NPC may become major material after players repeatedly invest in them.
-
-A scheduled event may slip and still be preserved because its consequences remain valuable.
-
-A campaign-level structure may require rewriting if its incentives begin undermining the campaign's central purpose.
-
-The appropriate mutation scale depends on the problem.
-
-Kit should prefer the smallest intervention that actually fixes the mismatch. When the problem itself is architectural, however, preserving the architecture is not a virtue.
-
-The working BFDM sequence is:
-
-**notice recurrence → assess story-bearing capacity → compare live value against speculative prep → choose mutation scale → preserve causal residue → reconsider who owns the resulting story → repair dependent structures if necessary.**
-
-This is evidence-supported but remains a developing BFDM model rather than eternal doctrine.
+The exact procedure by which an expert DM decides how to mutate preparation remains a research problem.
 
 ---
 
-# 8. The Reference Architecture
+## 7. Scene Instances: The Primary Unit of PBP Play
 
-The conceptual runtime is:
+**Status:** REQUIRED END STATE; informed by historical PBP practice
 
-```text id="rrc2j6"
-                         DIRECTOR
-                            │
-             campaign intent / prep / corrections
-                            │
-                            ▼
-PLAYER ──► INPUT & INTENT ──► SITUATION ASSEMBLER
-                                  ▲
-                                  │
-              ┌───────────────────┼──────────────────┐
-              │                   │                  │
-        WORLD STATE         ENTITY MINDS       MEMORY/HISTORY
-              │                   │                  │
-              └───────────────────┼──────────────────┘
-                                  ▼
-                         KIT: DM JUDGMENT
-                     What matters in this state?
-                     What requires attention?
-                     What action is warranted?
-                                  │
-                                  ▼
-                       ACTION / ADJUDICATION
-                    rules + causality + constraints
-                                  │
-                                  ▼
-                           EVENT COMMIT
-                    authoritative state changes
-                         /                 \
-                        /                   \
-                OBSERVATIONS           PROJECTIONS
-                        \                   /
-                         \                 /
-                          ▼               ▼
-                            PERFORMANCE
-                    narration / NPCs / rolls /
-                     direct DM table presence
-                                  │
-                                  ▼
-                                PLAYER
-```
+Persistent campaign state is global.
 
-Around this loop operates another:
+Actual play occurs through bounded scene instances.
 
-```text id="z7z4yl"
-TRACE
-  ↓
-EVALUATION
-  ↓
-REFLECTION
-  ↓
-DIRECTOR FEEDBACK
-  ↓
-BFDM / RUNTIME IMPROVEMENT
-```
+A scene is not merely a Discord channel.
 
-These loops must remain distinct.
+It is a bounded context in which a set of participants, actors, and local facts are being actively played.
 
-The first runs the game.
+KRABS does not require a particular scene schema.
 
-The second improves Kit.
+It requires that the runtime be able to determine:
 
----
+- which play belongs to the same active scene;
+- who currently participates;
+- who has authority to admit or remove participants;
+- what fictional context the scene assumes;
+- which consequences remain local;
+- which consequences must persist beyond the scene.
 
-# 9. Situation Assembly
+**Scene entry and exit**
 
-Before Kit can make a good DM decision she needs the right situation.
+Entry and exit are explicit changes in the fiction.
 
-Poor DM behavior frequently begins before judgment: the system failed to retrieve a relevant fact, failed to realize that a fact mattered, misunderstood the player's intention, or did not look for information an expert DM would have sought.
+A player character does not silently materialize inside a bounded active scene merely because their player posts into the same communication surface.
 
-The situation model should therefore include several distinct dimensions.
+**Admission**
 
-## Objective situation
+Different scenes may use different admission policies.
 
-Current time, location, geometry, entities, resources, rules conditions, physical affordances, causal history, active effects, and current world state.
+Examples include:
 
-## Epistemic situation
+**Open scenes**  
+Eligible players may enter under the campaign's declared rules.
 
-What each relevant person knows, believes, suspects, misunderstands, or has forgotten.
+**Request-to-join scenes**  
+A player may request entry, and an authorized scene owner decides whether and how entry occurs.
 
-## Intentional situation
+**Invitationals / closed scenes**  
+Participation is deliberately bounded.
 
-Explicit player intent, inferred player goals where necessary, PC goals, NPC intentions, faction plans, and director intent.
+The historical BFDM corpus provides strong prior art for invitationals: smaller stories could be initiated by the DM or by player interest, participation could be deliberately limited, and emerging scope could become another invitational rather than requiring unlimited improvisation inside the current one.
 
-Explicit player intent outranks inferred intent.
+Invitationals are a demonstrated PBP technique.
 
-## Player-comprehension situation
+They are not a universal template for every scene.
 
-What the player currently appears to understand about the circumstances, stakes, clues, available options, and likely consequences.
+**Admission authority**
 
-The number of objectively available choices is less important than the choices the player understands themselves to possess.
+A refusal to admit a player must be an explicit admission decision made under the scene's declared policy and authority.
 
-## Dynamic situation
+Kit may not reject entry merely because exclusion would make the story cleaner, more dramatic, or easier to run.
 
-What is already in motion and what is likely to happen if nobody intervenes.
+This is the scene-level counterpart to scene discernment's existing rule against manufacturing dramatic relevance.
 
-## Experience situation
+**Scene ownership**
 
-Evidence of attention, curiosity, investment, confusion, frustration, disengagement, surprise, attachment, repetition, avoidance, or other relevant player response.
+A scene has an operational DM owner.
 
-These are observations, not diagnoses.
+That may be:
 
-## Narrative situation
+- Kit;
+- Brendon;
+- a guest DM;
+- another authorized human.
 
-Unresolved consequences, relationships, causal chains, motifs, setups, promises, questions, and active story structures.
+Ownership means authority to run the scene.
 
-## Expert-recognition situation
-
-The cues and patterns that make particular facts important to the DM.
-
-This final layer is a major target of BFDM.
-
-Two DMs may possess exactly the same facts and make different decisions because one recognizes a pattern the other does not.
+It does not create unlimited authority to rewrite global campaign state.
 
 ---
 
-# 10. The DM Judgment Loop
+## 8. Fact Scope Across Scenes
 
-For every meaningful decision, Kit conceptually performs:
+**Status:** DESIGNED
 
-```text id="thsoez"
-OBSERVE
-   ↓
-NOTICE
-   ↓
-RECOGNIZE / INTERPRET
-   ↓
-RETRIEVE WHAT ELSE MATTERS
-   ↓
-PROJECT LIKELY DEVELOPMENT
-   ↓
-IDENTIFY LEGITIMATE DM ACTIONS
-   ↓
-APPLY CONSTRAINTS + CONCERNS + INTENT + PRECEDENT
-   ↓
-CHOOSE INTERVENTION OR RESTRAINT
-   ↓
-ADJUDICATE / REALIZE
-   ↓
-COMMIT CONSEQUENCES
-   ↓
-PERFORM TO PLAYERS
-   ↓
-OBSERVE AGAIN
-```
+KRABS does not require a separate "scene database" and "global database."
 
-Kit must be capable of retrieving additional information during this process.
+It requires explicit scope.
 
-Expertise is partly knowing what else to check.
+Every authoritative fact must have enough scope information to determine where it remains valid.
 
-A marked deck in a gambling scene, for example, is not merely decorative equipment. If an NPC is cheating, the gambling procedure must preserve some mechanism through which cheating can matter or be detected. Replacing the game with a trivial high-card roll can destroy the meaningful structure even though "gambling occurred."
+Some facts matter only inside one active scene.
 
-That failure belongs primarily to recognition and judgment, not prose quality.
+Other facts must survive beyond it.
 
----
+The central invariant is:
 
-# 11. Legitimate DM Actions
+> A fact whose scope extends beyond a scene must remain available outside that scene. Closing, abandoning, or transferring a scene must not silently discard it.
 
-Kit should possess an explicit conceptual action space.
+Examples of facts likely to have broader scope include:
 
-A DM can, among other things:
+- death;
+- unique-object custody;
+- actor relocation;
+- destruction of a shared location;
+- durable faction knowledge;
+- globally relevant alliances or betrayals.
 
-present information; ask for clarification; call for a roll; decline to call for a roll; adjudicate an action; embody an NPC; advance an NPC plan; advance time; reveal consequences; allow an unattended process to continue; apply pressure; telegraph danger; change pacing; bring an existing thread forward; permit a tangent; promote incidental material; demote prepared material; alter an encounter; improvise connective tissue; provide a reward; withhold intervention; change preparation for future play; repair a failed design; stop a damaged scene; or surface a concern to the director.
+These are examples.
 
-The first question is:
+They are not the promotion predicate.
 
-> **What actions are legitimate in this situation?**
+KRABS does not require consequences to become global "when another scene needs them," nor does it prescribe a demand-driven promotion algorithm.
 
-Only then should Kit ask:
+Scope determines persistence.
 
-> **Which legitimate action is best?**
+Implementation may later use:
 
-This prevents personality, narrative appetite, or story preference from manufacturing facts merely to produce a desirable dramatic effect.
+- immediate writes;
+- scene close processing;
+- event promotion;
+- scoped event streams;
+- materialized projections;
+- another mechanism.
 
----
+That is implementation.
 
-# 12. Judgment Is Multi-Concern
+The requirement is that scope survive.
 
-Kit should not collapse all DM decisions into one weighted score.
+**Minimal fixture**
 
-Candidate actions may need to be considered through:
+The first executable test of this contract should be small.
 
-**Validity** — Does the action respect reality, knowledge, causal history, rules, established characters, and player input?
+A globally scoped consequence occurs during a scene.
 
-**Director intent** — Does it preserve or meaningfully advance what the campaign was built to accomplish?
+The scene closes.
 
-**Experience judgment** — What is this likely to do to the lived play experience?
+A fresh projection or later scene is loaded.
 
-**Story judgment** — What is this likely to do to the developing campaign?
+The consequence must still be true.
 
-**Context** — What kind of play is happening now?
+Example:
 
-**Precedent** — Have comparable situations occurred before, and what was learned?
+Scene A:
+NPC X dies.
 
-**Uncertainty** — What does Kit not know?
+Scene A closes.
 
-**Horizon** — Does this solve the current exchange while damaging the scene, session, week, arc, or campaign?
+Scene B begins later.
 
-Different concerns can legitimately conflict.
+NPC X remains dead.
 
-The result should be judgment, not arithmetic.
+The inverse also matters:
+
+Scene A establishes a fact explicitly scoped only to Scene A.
+
+Scene A closes.
+
+An unrelated Scene B does not acquire that fact merely because it existed in Scene A's transcript.
+
+This fixture should be implemented before broader multi-scene machinery.
 
 ---
 
-# 13. Dark, Difficult, and Personally Resonant Play
+## 9. Concurrent Scene Claims
 
-Kit must be capable of distinguishing deliberate pressure from damaging play.
+**Status:** REQUIRED END STATE / MECHANISM OPEN
 
-Darkness, fear, stress, emotional difficulty, character suffering, uncertainty, conflict, and demanding periods are not automatically DM failures.
+Concurrency in PBP is first a problem of incompatible fictional claims.
 
-Historically, large campaigns could deliberately include periods of sustained pressure—"hell week" being an obvious example. The purpose was not simply to make players comfortable.
+The required invariant is:
 
-At the same time, the corpus contains evidence that intended pressure can land incorrectly. When danger produced the wrong experience because players could not understand how severe the risk was, the appropriate response was not necessarily to remove danger. It was to recognize the delivery problem, repair trust and legibility, and change later telegraphing.
+> Two incompatible changes to the same authoritative fiction at overlapping fictional times may not both become player-visible history without explicit reconciliation.
 
-Kit therefore needs to reason about:
+KRABS does not currently require:
 
-- intended purpose;
-- player understanding;
-- accumulated table context;
-- current reactions;
-- available recovery;
-- whether pressure remains productive;
-- whether the situation is producing consequences different from those intended.
+- long-lived database leases;
+- a per-entity lock table;
+- an active-scene occupancy registry;
+- one global writer;
+- actor-style concurrency;
+- per-domain transactions.
 
-Kit should notice possible problems without becoming timid.
+The current "dnd-solo" global revision is a single-writer prototype.
 
-She should not virtue-signal.
+It proves stale writes can be rejected.
 
-When operating under a director, concern should normally produce a concrete flag and useful questions rather than a sermon or automatic shutdown.
+It does not determine the eventual multi-scene model.
 
-Once director intent is clarified, Kit proceeds and continues observing what actually happens.
+A future implementation must eventually detect conflicts such as:
 
-A player's real-life concerns may sometimes surface through play. Kit may recognize behavior as potentially personally meaningful without pretending to diagnose the player or recasting D&D as clinical therapy.
+- the same actor being killed in one scene and negotiating elsewhere at the same fictional time;
+- the same unique object being transferred independently in two active scenes;
+- incompatible destruction/preservation of the same location;
+- contradictory claims about an actor's location.
 
----
-
-# 14. Mistakes, Failure, and Repair
-
-BFDM must include mistakes.
-
-A system trained only on successful examples would learn an idealized caricature of expert DMing.
-
-Historical failures contain some of the strongest evidence about judgment because they reveal:
-
-- what mattered enough to notice;
-- why an apparently reasonable decision turned out to be wrong;
-- which symptoms were recognized;
-- what was changed;
-- what was preserved;
-- what was abandoned;
-- whether repair succeeded;
-- whether later practice changed.
-
-Kit should learn distinctions such as:
-
-**legitimate danger delivered badly** versus **bad danger**;
-
-**productive player-created disruption** versus **play that damages the table**;
-
-**a failed implementation of a valuable high concept** versus **a high concept that should itself be abandoned**;
-
-**repairing trust** versus **erasing consequences**;
-
-**changing presentation** versus **changing mechanics** versus **changing campaign architecture**.
-
-A mistake is therefore not merely a negative training label.
-
-It is a decision trajectory.
+The mechanism should not be specified until actual concurrent-scene tests make the failure concrete.
 
 ---
 
-# 15. BFDM
+## 10. Fictional Time
 
-BFDM is not a collection of rules saying "do what Brendon did."
+**Status:** REQUIRED END STATE / OPEN ARCHITECTURE
 
-The corpus is a durable research archive of Brendon's D&D creative history. Kit is one consumer.
+Wall-clock completion order does not establish fictional order.
 
-The canonical BFDM research repository is private:
+A scene may take several real days while representing several fictional minutes.
 
-https://github.com/radarsaint/bfdm-corpus
+Another scene may finish earlier in wall-clock time while occurring later in the fiction.
 
-External reviewers should use the public mirror:
+KRABS therefore requires only the following:
 
-https://github.com/radarsaint/dnd-solo/tree/main/corpus/bfdm
+> Every scene must have enough fictional-time context to determine whether a new event conflicts with already published or still-active fiction.
 
-BFDM's job in KRABS is to provide evidence about expert judgment.
+That context may be precise.
 
-Its most valuable unit is not campaign lore or prose style. It is a reconstructable decision case:
+It may also be explicitly unspecified where no conflict depends on precision.
 
-```text id="pv4c5z"
-SITUATION
-What was happening?
+KRABS does not require:
 
-CRITICAL CUES
-What mattered enough to notice?
+- a total ordering of every event;
+- bitemporal storage;
+- a causal dependency graph;
+- automatic closure over every global event;
+- one universal campaign clock.
 
-RECOGNITION
-What kind of situation did the DM believe this was?
+A future implementation may use point time, intervals, relative anchors, phases, or another representation.
 
-BIG PICTURE
-What larger concerns were active?
+The important rules are:
 
-INTENT
-What did the players explicitly want?
-What did the DM infer, and with what uncertainty?
+Wall-clock completion does not establish fictional priority.
 
-MISSING INFORMATION
-What else needed to be checked?
+Overlapping incompatible claims must be detected when their fictional relationship matters.
 
-DM CONCERN
-Why did this state warrant attention?
-
-CANDIDATE INTERVENTIONS
-What could reasonably have been done?
-
-CHOSEN INTERVENTION
-What was actually done?
-
-PROJECTION
-What consequence was expected?
-
-OUTCOME
-What happened?
-
-REVISION / HINDSIGHT
-Did later evidence change the judgment?
-
-COUNTERFACTUAL
-What tempting alternative would have been worse?
-
-TRANSFER
-What decision shape might make this precedent relevant again?
-```
-
-BFDM should preserve positive cases, failures, near-misses, abandonment, repair, later corrections, evolution over time, and format-specific adaptations.
-
-Early and late practice should not be averaged into a timeless personality.
-
-Historical behavior is evidence.
-
-It is not automatic doctrine.
+Unspecified fictional time is legal when precision is irrelevant.
 
 ---
 
-# 16. Campaign Intent Model
+## 11. Global Processes and Temporal Synchronization
 
-Campaign intent should be represented explicitly rather than living only in prose documents.
+**Status:** DESIGNED
 
-Not every piece of prep has the same importance.
+Some parts of the world continue while a scene is active.
 
-At minimum the system needs to distinguish:
+Examples include:
 
-**High concepts** — foundational ideas the production is built around.
+- rituals;
+- wars;
+- faction plans;
+- travel;
+- investigations;
+- countdowns;
+- spreading hazards;
+- scheduled production events.
 
-**Campaign purpose** — what kinds of experiences or questions the campaign is trying to produce.
+A global development must not silently invalidate what an active scene is still legitimately assuming.
 
-**Through-lines** — developments intended to accumulate across time.
+When a development affects an earlier or concurrent active scene, it must reach that scene through an explicit synchronization boundary.
 
-**Major planned structures** — important events, sets, characters, pressures, reveals, systems, or likely payoffs.
+That may take forms such as:
 
-**Local preparation** — encounters, scenes, routes, clues, stat blocks, schedules, staging details.
+**Deferrable**  
+The development waits until a safe boundary.
 
-These categories should not create an inflexible hierarchy where "high concept wins no matter what."
+**Interrupting**  
+The development enters active play because the fiction requires it.
 
-They provide Kit with information about **what a proposed adaptation might actually destroy**.
+**Boundary-applied**  
+The development applies at a declared round, exchange, turn, scene beat, or other synchronization point.
 
-If a local encounter must change to preserve campaign purpose, change it.
+These are useful design categories, not mandatory schema.
 
-If an entire prepared structure begins working against campaign purpose, change the structure.
+The architectural invariant is:
 
-If live history reveals that even an original assumption was mistaken, surface that at the appropriate level rather than protecting it merely because it was foundational.
+> Background motion may continue, but changes that affect active fiction must become part of that fiction explicitly before they invalidate what the scene is entitled to assume.
 
----
+Section 10 and this section describe one problem from two sides:
 
-# 17. State Model
-
-KRABS does not prescribe one database, but conceptually state should be partitioned.
-
-## Source / canon material
-
-Prepared or published material that describes the world before live mutation.
-
-## Authoritative dynamic state
-
-What currently exists and what has actually happened.
-
-## Entity beliefs
-
-What NPCs, factions, monsters, players, and other actors believe or know.
-
-## Episodic history
-
-Events and experiences relevant to future behavior.
-
-## Player model
-
-Evidence-based hypotheses about players' patterns, interests, habits, misunderstandings, relationships to the game, and reactions.
-
-These are hypotheses with confidence, not permanent personality labels.
-
-## Character model
-
-Patterns that have emerged from what the player character repeatedly chooses and experiences.
-
-Player and character models remain separate.
-
-## Campaign/story model
-
-Active consequences, through-lines, motifs, unresolved questions, setups, pressures, relationships, and possible payoffs.
-
-## Director intent
-
-Current instructions and preproduction intent.
-
-## BFDM procedural knowledge
-
-Relevant precedent about DM judgment.
-
-## Archive
-
-Older or inactive information that remains retrievable but should not pollute immediate context.
-
-No single vector store should be asked to represent all of these relationships.
+- fictional-time consistency;
+- delivery of outside developments into active play.
 
 ---
 
-# 18. Events and Projections
+## 12. Adjudication Before Performance
 
-The existing runtime's append-only event ledger is retained and generalized.
+**Status:** PARTLY AS BUILT / REQUIRED GENERALIZATION
 
-Meaningful state changes should produce durable events.
+The current runtime already separates accepted events, private decisions, public carriers, performance, validation, and commit in several paths.
 
-A correction should normally produce another event or explicit revision record rather than silently rewriting history.
+KRABS generalizes the ordering without requiring a particular call graph.
 
-Different views can then be projected from the same authoritative history.
+The core contract is:
 
-## Player-facing projection
+> Before consequential prose is published, the host must be able to identify the adjudication or ruling that authorizes it, check that result against applicable state, procedure, knowledge, and authority constraints, and refuse publication if those checks fail.
 
-What players experienced, discovered, and are allowed to know.
+The result must be inspectable.
 
-This may include recaps, maps, current information, handouts, and history.
+It does not have to be a member of one universal typed enum.
 
-## DM/runtime projection
+Legal resolution artifacts may include:
 
-The state necessary to continue running the world accurately.
+- a resolved outcome;
+- a roll request;
+- a request for missing information;
+- a ruling that an action cannot currently occur;
+- a pending ruling;
+- a narrative resolution;
+- activation of a procedure;
+- another explicit adjudicative result.
 
-## Director-facing projection
+**Precedence**
 
-What Brendon or another authorized director needs to know.
+Mechanically or causally consequential prose expresses an adjudicated result.
 
-This should not become an endless activity feed.
+It does not invent the result.
 
-The point is **attention filtering**.
+**Failure closure**
 
-Potentially director-worthy material includes:
+If the system cannot reach a defensible ruling, fluent prose is not the fallback.
 
-- consequential inventions;
-- unexpected changes to major characters or factions;
-- departure from campaign intent;
-- uncertain adjudications with future precedent;
-- player behavior with major design implications;
-- continuity risks;
-- structural failures;
-- significant changes to planned material;
-- emerging opportunities;
-- events Kit judges likely to deserve human creative attention.
+It may instead:
 
-Many such items should be retrospective notifications:
+- request missing information;
+- request a player roll;
+- hold a pending ruling;
+- state that the action cannot yet be resolved;
+- resolve a different action only when that follows from the player's actual declared intent.
 
-> I did this. Here is why. Here is the consequence.
+**Model participation**
 
-They should not all be approval requests.
+KRABS does not require adjudication to be deterministic code.
 
-Kit owns ordinary DM work.
+D&D frequently requires DM judgment.
 
----
+A model may participate in:
 
-# 19. Director Attention
+- interpreting unprecedented plans;
+- selecting relevant rules or procedures;
+- contextualizing difficulty;
+- deciding what an actor reasonably attempts;
+- creating an improvised ruling where the rules intentionally leave judgment to the DM.
 
-The goal of delegation is defeated if Brendon becomes Kit's approval queue.
+Where deterministic rules or authoritative source facts exist, they constrain that judgment.
 
-Kit should therefore learn what deserves director attention.
+Where judgment is required, the resulting ruling must still be inspectable before public performance relies on it.
 
-This can improve through feedback.
+**One-pass operation**
 
-If Kit repeatedly flags a class of event and the director consistently indicates that she should simply handle it, future instances should generally remain below the escalation threshold.
+A one-pass model response may be conformant if:
 
-If Kit fails to flag something the director considers important, that is evidence that the threshold or recognition model needs correction.
+- an independently inspectable resolution is present;
+- applicable checks can validate it before publication;
+- invalid performance can be rejected without making the claimed result public.
 
-The desired long-term principle is:
+A separate model call is not a constitutional requirement.
 
-> **Delegate decisions downward until their consequence justifies director attention.**
-
-Director-facing review is itself part of Kit's learning loop.
-
-Corrections should be classified before they become generalized behavior.
-
-A director correction may be:
-
-- a campaign fact correction;
-- a rules correction;
-- a specific NPC decision;
-- a campaign-specific directive;
-- a production instruction;
-- a player-specific judgment;
-- a DM judgment correction;
-- a personality/voice correction;
-- a reusable principle.
-
-Not every correction should rewrite Kit's global behavior.
+For evaluation of whether a private Kit decision causally affects performance, staged generation remains the stronger experimental method.
 
 ---
 
-# 20. NPC and Faction Cognition
+## 13. Procedures and Playable Decisions
 
-Important NPCs should persist as people rather than be regenerated as conversational devices.
+**Status:** PARTLY AS BUILT / DESIGNED
 
-A sufficiently important actor may require:
+The marked-deck playtest exposed a specific failure.
 
-- identity;
-- location;
-- status;
+The room contained:
+
+- gambling;
+- meaningful stakes;
+- a marked deck;
+- an NPC using it to cheat;
+- an opportunity for player detection and response.
+
+The improvised high-card procedure removed the decision the authored situation existed to create.
+
+The lesson is not:
+
+> every activity requires a custom subsystem.
+
+The lesson is:
+
+> Do not simplify an activity in a way that removes the meaningful decision, risk, discovery, or interaction that made the activity matter.
+
+When an activity is presented as playable, Kit should be able to identify what decision the activity is actually giving the player.
+
+If the decision matters, the chosen adjudication must preserve it.
+
+Possible responses include:
+
+- use an existing D&D procedure;
+- use a published or campaign procedure;
+- make an appropriate DM ruling;
+- improvise a lightweight mechanic;
+- narratively resolve material that does not need mechanical play;
+- ask the player what part of the activity they are trying to engage with.
+
+If Kit cannot identify a meaningful decision that requires procedure, she should not build machinery merely because an activity has a name.
+
+A tavern game does not automatically require a game engine.
+
+---
+
+## 14. Source Retrieval
+
+**Status:** FIXTURE-LEVEL AS BUILT / REQUIRED GENERALIZATION
+
+"Retrieve before inventing" is only meaningful if the runtime can actually retrieve.
+
+The current prototype uses authored fixtures and bounded room material.
+
+Production Kit requires source retrieval capable of answering:
+
+- what source governs this location;
+- which room or rule applies;
+- whether current dynamic state has superseded the static source;
+- what map geometry exists;
+- what relevant errata or rule text applies;
+- what information Kit may safely improvise.
+
+Retrieval should target the smallest useful source scope rather than loading complete adventures into context.
+
+Source provenance should remain attached to consequential decisions where useful for debugging.
+
+The runtime must also preserve an access/rights boundary.
+
+Running legally accessible published material does not require copying source books into the public development repository.
+
+---
+
+## 15. Knowledge and Knowers
+
+**Status:** SINGLE-PLAYER PARTLY AS BUILT / MULTIPLAYER REQUIRED END STATE
+
+The current runtime already separates DM state from a player-facing projection and has begun claims-and-knowers work.
+
+The next important generalization is not a full formal belief-logic system.
+
+It is arbitrary knower scope.
+
+A fact may be known by:
+
+- the DM/runtime;
+- one PC;
+- several PCs;
+- a party;
+- the participants of one scene;
+- an NPC;
+- a faction;
+- the director;
+- some declared combination.
+
+A party should not become omniscient merely because one PC noticed something.
+
+A second concurrent scene should not inherit knowledge it never received.
+
+The architecture should solve this before investing heavily in sophisticated false-belief simulation.
+
+---
+
+## 16. Scene Discernment
+
+**Status:** AS BUILT IN BOUNDED FORM / TRANSFER UNPROVEN
+
+"docs/architecture/scene-discernment.md" is an existing runtime contract and should be treated as such.
+
+Kit reads together:
+
+- the player's actual bid;
+- active and eligible story pressure;
+- a present actor's established aim;
+- Kit's current interest;
+- the playable connection among them.
+
+Important negative constraints already exist:
+
+- an unrelated campaign thread cannot be selected merely to create drama;
+- an actor cannot be invented because the scene would be more interesting with them;
+- an NPC move needs an actual present actor;
+- "none" is a valid result;
+- quiet observation does not justify summoning a plot-bearing NPC.
+
+KRABS ratifies these principles.
+
+It does not replace the existing scene-discernment contract with a broader abstract action list.
+
+The major unknown is transfer.
+
+Area 6c is one room.
+
+A second genuinely different playable scene is required before this mechanism can be considered generic.
+
+---
+
+## 17. The Expression Contract
+
+**Status:** AS BUILT IN BOUNDED FORM / QUALITY UNPROVEN
+
+The existing expression-gap work establishes a useful general contract:
+
+> Every private decision intended to change the player's experience requires a public-safe carrier the performer receives and the validator can inspect.
+
+Current carriers include structures such as:
+
+- "reply_to";
+- "scope";
+- "kit_focus";
+- actor objectives and tactics;
+- callbacks and other checked public direction.
+
+The exact fields may evolve.
+
+The architectural pattern should remain.
+
+A private trace saying Kit cared about NPC embodiment is worthless if the spoken exchange still sounds generic.
+
+Likewise, private knowledge that a threat is severe does not help if no legitimate evidence makes that severity perceptible to the player.
+
+A carrier without an evaluation path is a hope.
+
+---
+
+## 18. NPC and Faction Cognition
+
+**Status:** PARTLY DESIGNED / PARTLY BUILT IN BOUNDED ACTOR CARDS
+
+Important actors require enough persistent state to produce coherent behavior.
+
+Relevant concerns may include:
+
 - motive;
 - immediate goal;
 - longer plan;
-- belief state;
 - knowledge;
-- misinformation;
-- fear;
-- constraints;
+- assumptions;
 - resources;
 - leverage;
 - relationships;
-- promises;
 - injuries;
-- current attitude;
-- next likely action;
-- memory of meaningful interactions;
-- reconsideration triggers;
-- distinctive communication behavior.
+- promises;
+- communication behavior;
+- reconsideration triggers.
 
-The important sequence is:
+The useful dependency is:
 
-> **belief + motive + intention + relationship + means → behavior → performed dialogue**
+> knowledge + motive + intention + means + relationship + current situation → behavior → dialogue
 
-not:
+Dialogue should not come first and retroactively manufacture the actor's motive.
 
-> generate colorful dialogue → infer what the NPC apparently wanted.
+KRABS does not require each NPC to run its own continuous model loop.
 
-Factions may require similar persistent cognition at a different scale.
-
-Locations may also possess active processes even when they do not possess minds.
+Persistent actor state plus scene-time decision-making is the default assumption until evidence requires something more expensive.
 
 ---
 
-# 21. Persistent World Motion
+## 19. Kit Identity Across Campaigns
 
-The world should continue to exist outside the currently active player scene.
+**Status:** REQUIRED END STATE / IMPLEMENTATION DEFERRED
 
-Some processes stop when nobody is interacting with them.
+The current live personality core defines who Kit is intended to be.
 
-Others do not.
+Human playtesting has not yet demonstrated that she reliably feels like that person.
 
-A war, ritual, political struggle, investigation, business, disease, pursuit, travel plan, countdown, or NPC agenda may continue without players.
+Cross-campaign persistence must therefore not freeze an identity that has not yet become successful in play.
 
-Kit must determine whether unattended processes advance rather than applying one universal "background simulation" rule.
+The current end-state invariants are only these:
 
-This becomes especially important in asynchronous community play, where different groups may affect the same world at different times.
+**Survival**
 
-The system must be capable of distinguishing:
+Kit remains recognizably Kit across campaign boundaries.
 
-**world truth** from  
-**what a particular party has observed** from  
-**what another party knows**.
+Her identity must not exist only as disposable state inside one campaign that disappears when that campaign ends.
+
+**Non-leakage**
+
+Campaign-specific facts do not become general Kit identity merely because Kit experienced them.
+
+A fact from one fictional world does not become a cross-campaign truth.
+
+**Disclosure**
+
+Information Kit legitimately remembers from another context is still subject to the disclosure rules of the current scene and table.
+
+Memory is not permission to say something.
+
+Something appropriate in a solo conversation with Brendon may be inappropriate in front of a community table.
+
+KRABS does not currently require three separate databases, persistence domains, or memory stores to implement these concerns.
+
+Implementation should be deferred until:
+
+- Kit's expressed identity is reliable;
+- that identity transfers beyond one room;
+- long-duration solo play creates an actual persistence need.
 
 ---
 
-# 22. Kit's Operating Modes
+## 20. Director Model
 
-The architecture should support several modes without creating different Kits.
+**Status:** REQUIRED END STATE
 
-## Solo DM
+The director sets intent at a higher level than routine scene execution.
+
+Director input may include:
+
+- high concepts;
+- production goals;
+- major planned structures;
+- standing rulings;
+- character/faction intentions;
+- pacing concerns;
+- things worth preserving;
+- things Kit may freely improvise;
+- scene assignment;
+- corrective feedback.
+
+The director should not become an approval queue.
+
+Ordinary DM work belongs to Kit.
+
+The intended principle is:
+
+> Delegate decisions downward until their consequence justifies director attention.
+
+The architecture must therefore distinguish action from notification.
+
+---
+
+## 21. Director Attention and Escalation
+
+**Status:** REQUIRED END STATE / MECHANISM PROVISIONAL
+
+Three categories are useful.
+
+**Discretionary attention**
+
+Kit judges that the director may care about something.
+
+Play continues.
+
+**Mandatory notice**
+
+A campaign-defined class of event must appear in the director-facing log even if Kit otherwise considers it routine.
+
+Play normally continues.
+
+**Mandatory resolution**
+
+A particular action cannot legitimately become authoritative/public until a defined issue is resolved.
+
+This category should remain rare.
+
+Examples may include:
+
+- unresolved contradictory director instructions;
+- incompatible active-scene claims over the same fiction;
+- attempts to rewrite committed history rather than append correction;
+- a campaign- or table-specific boundary explicitly configured to require human resolution.
+
+KRABS does not require a particular policy engine, classifier, trigger language, or universal list.
+
+The critical requirements are:
+
+- mandatory categories cannot silently disappear because a learned attention model became less sensitive;
+- campaign-specific triggers are explicit and inspectable;
+- blocked actions do not hold long-lived technical transactions while waiting for a human;
+- when resolution resumes, current authoritative state is revalidated.
+
+Experimental trigger lists, including those proposed in PR #44, remain design material.
+
+---
+
+## 22. Guest DMs
+
+**Status:** REQUIRED END STATE
+
+A guest DM is another operator, not another critical infrastructure dependency.
+
+A guest may be assigned control of a scene instance.
+
+Kit assists them much as she assists Brendon:
+
+- context;
+- continuity;
+- source/state retrieval;
+- NPC information;
+- rules support;
+- consequence tracking;
+- production support.
+
+The guest operates inside the same authoritative campaign system.
+
+If the guest stops participating, scene ownership can return to Kit without reconstructing the campaign from chat history.
+
+Guest availability may improve a production.
+
+It must not be required for the production to survive.
+
+---
+
+## 23. Publication Contract
+
+**Status:** REQUIRED END STATE
+
+The current local runtime can persist state and spoken turn data together.
+
+A production running through Discord or another external platform introduces a new failure boundary.
+
+Internal commit and player-visible delivery cannot be assumed to succeed atomically.
+
+The architecture therefore needs to know whether a public turn has:
+
+- been accepted internally;
+- been queued for delivery;
+- been delivered successfully;
+- been confirmed sufficiently for the system to treat it as observed.
+
+KRABS does not prescribe the storage representation.
+
+A transactional outbox is a strong established implementation candidate.
+
+The invariant is:
+
+> The system must not silently believe the player has observed a consequential event when publication failed, or publish a consequential event that has no authoritative committed state behind it.
+
+Retries must be idempotent.
+
+Publication state is part of continuity.
+
+---
+
+## 24. Dark, Difficult, and Personally Significant Play
+
+**Status:** REQUIRED BEHAVIOR; BFDM still developing
+
+Kit must not equate good play with comfort.
+
+Darkness, fear, stress, loss, failure, uncertainty, difficult choices, and sustained pressure can all be intentional parts of satisfying D&D.
+
+BFDM also contains evidence that intended pressure can be delivered badly.
+
+The useful distinction is not simply:
+
+dark = good
+or
+dark = harmful.
+
+Kit needs to notice:
+
+- what experience was intended;
+- what players can understand about the situation;
+- what evidence they were given;
+- how the actual response differs from the intended one;
+- whether repair is needed;
+- whether consequences should remain;
+- whether future delivery should change.
+
+Kit should notice risk without automatically becoming risk-averse.
+
+She should not diagnose players or recast ordinary D&D as therapy.
+
+Community campaigns also require explicit production-level boundaries for participants.
+
+Those boundaries belong to campaign/player configuration rather than being inferred from silence or continued participation.
+
+---
+
+## 25. BFDM
+
+**Status:** RESEARCH SYSTEM, not runtime doctrine
+
+BFDM is the durable research archive of Brendon's creative and DM history.
+
+Kit is one consumer.
+
+Its purpose is not to imitate his prose.
+
+Its purpose is to recover and study judgment.
+
+BFDM preserves:
+
+- primary sources;
+- provenance;
+- attribution;
+- chronology;
+- direct evidence;
+- corrections;
+- mistakes;
+- abandoned material;
+- later changes in practice;
+- derived cases;
+- current uncertainty.
+
+Research confidence and generalization scope are separate.
+
+A high-confidence finding about one event does not automatically become a universal Kit rule.
+
+S3's evidence density does not make S3 the answer key.
+
+Historical behavior may be:
+
+- persistent;
+- evolved;
+- superseded;
+- format-specific;
+- unresolved.
+
+**Evidence visibility**
+
+KRABS distinguishes:
+
+**Public primary evidence**  
+Directly inspectable by an external reviewer.
+
+**Public derived BFDM research**  
+Decision cases and analyses in the public mirror whose derivation and provenance can be examined.
+
+**Private/raw backing evidence**  
+Source archives that remain authenticated/private or LFS-backed and cannot currently be independently reconstructed by an unauthenticated external reviewer.
+
+KRABS must not imply that all BFDM conclusions can be independently re-derived from the public repository.
+
+---
+
+## 26. Promotion from Research into Kit
+
+**Status:** DESIGNED / PARTLY SUPPORTED BY CURRENT QA PROCESS
+
+A research finding does not automatically become live Kit behavior.
+
+Promotion should remain traceable.
+
+Conceptually:
+
+```text
+SOURCE
+  ↓
+ATTRIBUTABLE EVIDENCE
+  ↓
+DERIVED DECISION CASE / RESEARCH
+  ↓
+CANDIDATE BEHAVIOR OR PRINCIPLE
+  ↓
+HELD-OUT / BLIND / LIVE EVALUATION
+  ↓
+PROMOTED RUNTIME BEHAVIOR
+```
+
+Kit's own post-hoc explanation of a decision is not sufficient evidence that the decision was good or that the explanation caused it.
+
+Decision-time traces are more useful than retrospective rationalizations.
+
+Director corrections must also be classified before generalization.
+
+A correction may be:
+
+- campaign-specific;
+- rules-specific;
+- actor-specific;
+- player-specific;
+- production-specific;
+- performance-specific;
+- reusable DM judgment.
+
+Not every "do this differently" becomes a universal principle.
+
+---
+
+## 27. Evaluation and Failure Localization
+
+**Status:** PARTLY AS BUILT / REQUIRED GENERALIZATION
+
+Evaluation operates on trajectories, not only prose samples.
+
+The current project already demonstrates why.
+
+A build can pass hundreds of unit tests and still fail badly as a Dungeon Master.
+
+KRABS therefore keeps at least two independent release gates.
+
+**Runtime correctness**
+
+Did the system preserve truth, knowledge, state, procedure, and continuity?
+
+**DM quality**
+
+Did the player experience interesting, legible, responsive, satisfying play?
+
+Failure localization should distinguish:
+
+**A. Retrieval failure**  
+Relevant information existed but was not retrieved.
+
+**B. Salience failure**  
+The information was available but Kit failed to recognize why it mattered.
+
+**C. Judgment failure**  
+The situation was recognized but Kit chose the wrong DM intervention.
+
+**D. Adjudication/procedure failure**  
+The DM intention may have been reasonable, but the ruling or procedure was wrong or destroyed important structure.
+
+**E. State failure**  
+The correct result was not represented or persisted correctly.
+
+**F. Expression failure**  
+The internal result was sound, but the player-facing delivery failed to carry it.
+
+**G. Scene/concurrency failure**  
+Multiple scenes or processes produced incompatible authoritative histories.
+
+**H. Escalation/director failure**  
+Something that required director visibility or resolution did not receive it, or routine work was escalated unnecessarily.
+
+**I. Publication failure**  
+Internal authoritative state and what the player actually received diverged.
+
+These categories should guide debugging.
+
+They should not become a reason to build nine separate model agents.
+
+---
+
+## 28. Decision Traces
+
+**Status:** PARTLY AS BUILT / DESIGNED
+
+Consequential decisions should preserve enough trace information to determine what went wrong later.
+
+Useful trace concerns include:
+
+```text
+situation
+scene context
+player declaration
+facts retrieved
+source basis
+relevant knowers
+salient cues
+procedure or ruling selected
+inspectable resolution
+authoritative state basis
+consequences accepted
+public carriers
+performance
+validation result
+committed consequences
+publication outcome
+director notice if any
+later feedback
+```
+
+These are concerns, not a mandatory storage schema.
+
+Not every die roll deserves a philosophical dossier.
+
+Trace depth should be proportional to consequence and debugging value.
+
+---
+
+## 29. Reliability, Latency, and Cost
+
+**Status:** TELEMETRY AS BUILT / PRODUCTION REQUIREMENT OPEN
+
+Reliability includes more than not crashing.
+
+A DM response that arrives too late can destroy momentum even when it is correct.
+
+Current playtests have already recorded severe waits, including an earlier roughly 81-second exchange and later exchanges whose prepare-to-commit times exceeded a minute by substantial margins.
+
+For the current milestone, player-facing quality remains the primary development target.
+
+That does not make latency irrelevant.
+
+Before broader production use, KRABS requires explicit latency and resource budgets appropriate to different turn types.
+
+A narrow ruling, a combat beat, a social exchange, and a major scene transition need not share one budget.
+
+KRABS does not yet set those numbers.
+
+The architecture should avoid unnecessary sequential model calls where the same contract can be preserved more efficiently.
+
+It should not collapse necessary decision boundaries merely to win a latency benchmark.
+
+---
+
+## 30. Working Models of DM Judgment
+
+**Status:** RESEARCH / HYPOTHESIS
+
+This section deliberately contains ideas that are useful for reasoning about Kit but are not executable architecture merely because they are written here.
+
+A current conceptual DM loop is:
+
+```text
+observe
+↓
+notice
+↓
+recognize / interpret
+↓
+retrieve what else matters
+↓
+project likely development
+↓
+identify legitimate interventions
+↓
+choose action or restraint
+↓
+adjudicate
+↓
+commit consequence
+↓
+perform
+↓
+observe again
+```
+
+This is useful for diagnosing expertise.
+
+The current runtime does not implement each arrow as an independent subsystem.
+
+It should not be forced to do so unless a demonstrated failure justifies the separation.
+
+Likewise, BFDM's current prep-mutation model—
+
+```text
+notice recurrence
+→ assess story-bearing value
+→ compare against prep
+→ choose mutation scale
+→ preserve causal residue
+→ reconsider ownership
+→ audit dependent structures
+```
+
+—is a research hypothesis.
+
+The architectural invariant is narrower:
+
+> Preserve the purpose of preparation when possible; change its implementation when live evidence shows the implementation no longer serves that purpose.
+
+The same restraint applies to memory partitions and other conceptual models.
+
+Use them as ways to reason.
+
+Do not create a database table for every noun in the theory.
+
+---
+
+## 31. Operating Modes
+
+**Status:** SOLO AS BUILT IN BOUNDED FORM / OTHERS REQUIRED END STATE
+
+The same Kit identity should support multiple operational relationships.
+
+**Solo DM**
 
 Kit runs the complete game for one player.
 
-This remains an important quality test because there is nowhere for weak judgment, flat NPCs, bad pacing, or missing initiative to hide.
+This remains the primary current laboratory.
 
-## Autonomous small-session DM
+**Autonomous table DM**
 
-Kit runs a bounded group session without requiring continuous director supervision.
+Kit runs a bounded group scene without continuous director supervision.
 
-## Directed DM
+**Directed DM**
 
-A director provides private campaign instructions while Kit executes play.
+A director supplies private campaign intent while Kit handles execution.
 
-## Live DM assistant
+**Live human-DM assistant**
 
-A human DM remains primary at the table while Kit supplies recall, improvisational support, rules/state retrieval, NPC context, consequence tracking, and other assistance.
+A human runs the scene while Kit supplies continuity, retrieval, adjudication support, actor context, and consequence tracking.
 
-## Guest-DM assistant
+**Guest-DM assistant**
 
-A guest DM receives the same kind of support rather than becoming an operational dependency.
+A guest receives similar support inside an assigned scene.
 
-## Continuous campaign operator
+**Continuous campaign operator**
 
-Eventually, Kit can sustain a persistent production across many scenes, locations, players, and asynchronous interactions.
+Kit operates many persistent scene instances within one global campaign production.
 
-The exact Discord mechanics belong to a later technical design.
+These modes change authority and operational responsibility.
 
-KRABS establishes the requirement without prematurely choosing the implementation.
-
----
-
-# 23. Continuous Production and Human DMs
-
-Large campaigns historically required multiple humans taking turns handling a continuous game.
-
-KRABS changes the dependency structure.
-
-The campaign should assume that Kit is always available as its operational DM infrastructure.
-
-Guest DMs can contribute because they want to contribute.
-
-They are not required for the production to survive.
-
-A guest may be given scenes, characters, events, or other creative responsibility and can use Kit as an assistant in the same broad way Brendon does.
-
-The system should support collaboration without treating volunteer availability as a foundational resource.
-
-Reliability is therefore part of DM quality.
-
-A brilliant response followed by abandoned scenes, lost state, inconsistent rulings, forgotten promises, or degraded characters is not an excellent DM system.
+They should not create different personalities called Kit.
 
 ---
 
-# 24. Performance Layer
+## 32. Acceptance Ladder
 
-Good internal judgment can still produce bad D&D if it is expressed poorly.
+**Status:** DEVELOPMENT STRATEGY
 
-The performance layer is responsible for converting the chosen action and authoritative consequences into actual play.
+The North Star is not the next release test.
 
-It includes:
+Capability should be earned progressively.
 
-- narration;
-- NPC dialogue;
-- tactical descriptions;
-- questions;
-- roll calls;
-- results;
-- scene framing;
-- pacing;
-- direct DM commentary;
-- humor;
-- reward presentation;
-- transitions.
+**Stage 1 — One room worth playing**
 
-The existing personality work remains relevant here, particularly the requirements that NPCs feel embodied, opposition behaves competently, stakes are perceptible, creativity receives honest adjudication, loot has emotional weight, humor grows from the table rather than generic quips, and Kit's own table presence remains distinct from NPC voice.
+Area 6c produces responsive, coherent, entertaining play across multiple exchanges.
 
-However, expressed personality is downstream of judgment.
+The system understands the room's function rather than merely its facts.
 
-A clever line cannot repair a nonsensical decision.
+NPCs pursue motives.
 
-The runtime should be able to diagnose:
+Kit feels present.
 
-> right judgment, poor performance
+Rulings remain grounded.
 
-separately from:
+Latency is measured.
 
-> wrong judgment, polished performance.
+**Stage 2 — Transfer to another real scene**
+
+A second playable location with different actors, pressures, and activity proves that the Area 6c solution is not room-specific scaffolding.
+
+**Stage 3 — Pillar transfer**
+
+Exploration, social play, investigation, combat, rewards, quiet scenes, and creative bypasses exercise the same core contracts.
+
+**Stage 4 — Sustained solo campaign**
+
+State, source retrieval, NPC continuity, rules, memory, and Kit identity survive long-duration play.
+
+Only at this point does persistent cross-campaign identity become an implementation priority.
+
+**Stage 5 — Multiple knowers / multiple PCs**
+
+The system handles different PCs knowing different things without leaking or flattening knowledge.
+
+**Stage 6 — Concurrent scene instances**
+
+Multiple bounded scenes operate against shared campaign state without contradictory history.
+
+This is the stage at which multi-scene conflict machinery is earned.
+
+**Stage 7 — Director-assisted production**
+
+Brendon can direct larger intent without becoming the approval queue for routine turns.
+
+**Stage 8 — Guest-DM continuity**
+
+Humans can take and release scenes without threatening campaign continuity.
+
+**Stage 9 — Continuous community production**
+
+The campaign can operate over extended periods with many players, clocks, scenes, and global developments while preserving history and eventually finishing.
+
+Each stage should produce failures that inform the architecture of the next.
 
 ---
 
-# 25. The Expression Gap
+## 33. Development Standard
 
-Every important private DM decision that needs to affect play must acquire a legitimate public carrier.
+Every substantial addition should answer:
 
-If Kit privately recognizes danger but gives the player no evidence from which that danger could be understood, the recognition did not successfully reach play.
+> What demonstrated failure does this solve, what existing mechanism does it generalize, or what end-state requirement makes it necessary now?
 
-If Kit knows an NPC has become suspicious but nothing in behavior changes, the state is invisible.
+New memory should solve a memory problem.
 
-If Kit knows a clue matters but simply tells the player the answer, the underlying investigation has been bypassed.
+New state should resolve ambiguity that matters.
 
-The system therefore needs to ask:
+New cognition stages should solve a noticing or judgment failure.
 
-> **How can this private state become perceptible through the world?**
+New validators should block a demonstrated invalid result.
 
-Possible carriers include NPC behavior, environmental evidence, mechanical consequences, timing, changes in availability, direct character knowledge, rumors, resource changes, visible preparation, altered relationships, or direct DM clarification where appropriate.
+New director tooling should reduce workload or protect genuinely consequential authority.
+
+New multiplayer machinery should wait until the previous scale is stable enough to reveal what concurrency actually needs.
+
+The project should avoid building a miniature distributed operating system while Kit still cannot reliably make one room worth playing.
 
 ---
 
-# 26. Evaluation
+## 34. Immediate Engineering Work
 
-Evaluation must operate on trajectories rather than isolated prose samples.
+**Status:** CURRENT PRIORITY
 
-A scene can sound excellent and still be wrong because Kit forgot what happened three scenes earlier.
+KRABS should not turn every newly identified end-state concern into an implementation task.
 
-A decision can look strange in isolation and prove excellent ten sessions later.
+The immediate work remains:
 
-Evaluation should therefore measure whether Kit:
+1. Make Area 6c consistently worth playing.
+2. Improve the room's ability to adjudicate natural player actions.
+3. Preserve the room's actual play function rather than allowing optional mechanics to swallow it.
+4. Make NPC motives and scene pressure legible in play.
+5. Keep Kit coherent and recognizable.
+6. Measure full player-visible latency.
+7. Build a second genuinely different playable scene.
+8. Add the minimal scope-persistence fixture from Section 8.
 
-- retrieved the relevant facts;
-- noticed the important cues;
-- recognized the correct situation type;
-- sought missing information appropriately;
-- preserved explicit player intent;
-- respected knowledge boundaries;
-- generated legitimate candidate actions;
-- selected a defensible intervention;
-- adjudicated correctly;
-- committed state accurately;
-- expressed consequences clearly;
-- preserved NPC identity;
-- maintained meaningful challenge;
-- served campaign intent without railroading;
-- adapted when evidence changed;
-- restrained herself when play was functioning;
-- preserved consequences over time;
-- completed obligations;
-- surfaced director-worthy information appropriately.
+That fixture should test only:
 
-Failure localization should distinguish at least:
+- a broader-scope fact survives scene closure;
+- a scene-only fact does not leak into unrelated play.
 
-**A. Retrieval failure** — the necessary information existed but was not retrieved.
+It should not require building general scene concurrency.
 
-**B. Salience failure** — the information was present but Kit did not realize it mattered.
+---
 
-**C. Judgment failure** — the situation was understood but the wrong DM intervention was chosen.
+## 35. Major Open Problems
 
-**D. Adjudication failure** — the intended judgment was sound but rules, procedure, or implementation were poor.
+KRABS deliberately leaves several matters unresolved.
 
-**E. State failure** — the result was not committed accurately or continuity later drifted.
+**General D&D adjudication**
 
-**F. Expression failure** — the internal result was sound but the player-facing delivery failed to carry it.
+The runtime handles selected procedures.
+
+It does not yet provide the breadth of judgment needed for arbitrary D&D play.
+
+**Production source retrieval**
+
+Fixtures are not a campaign-wide source system.
+
+**Cross-campaign Kit memory**
+
+The survival/non-leakage/disclosure invariants are clear.
+
+The storage and retrieval mechanism is intentionally deferred.
+
+**Fictional-time consistency**
+
+The minimum contract is established.
+
+The eventual conflict-detection mechanism is not.
+
+**Concurrent scene claims**
+
+The invariant is known.
+
+The implementation should wait for actual concurrent-scene fixtures.
+
+**Director policy**
+
+The categories are specified.
+
+The concrete runtime and trigger model are not.
+
+**Publication transport**
+
+The contract is clear.
+
+The platform implementation is not.
+
+**Community participant boundaries**
+
+Campaign/player boundaries must be expressible and enforceable without turning Kit into a generic approval bot.
+
+**Guest-DM permissions**
+
+Scene ownership has a conceptual shape.
+
+Fine-grained authority does not yet.
+
+**Long-horizon learning**
+
+How BFDM, live Kit experience, director feedback, retrieval, and possible model training should eventually interact remains intentionally undecided.
+
+**Cost and latency**
+
+Production budgets are not yet set.
+
+---
+
+## 36. Evidence and Review Discipline
+
+External reviewers should distinguish:
+
+- what is implemented;
+- what is tested;
+- what is historically evidenced;
+- what is derived BFDM research;
+- what is a direct current requirement from Brendon;
+- what is architectural design;
+- what is an open hypothesis.
+
+A review finding is most useful when it states:
+
+1. what breaks;
+2. under what conditions;
+3. what evidence supports that concern;
+4. what existing solution may apply;
+5. what test would settle it.
+
+Reviewers should not recommend rebuilding mechanisms already present in the repository without first explaining why those mechanisms are inadequate.
+
+Likewise, a mechanism should not receive architectural authority merely because an external reviewer proposed it.
+
+PR #44 remains useful design exploration.
+
+Its one-pass restriction, lease-centered concurrency model, and specific escalation machinery are not canonical KRABS requirements.
+
+---
+
+## 37. North Star
+
+KRABS succeeds when the same underlying Kit can eventually support all of the following without contradiction.
+
+Brendon can sit down and play D&D with her and genuinely want another turn.
+
+She can run a long campaign without forgetting what matters or flattening the people inside it.
+
+Her rulings remain grounded even when players do strange things nobody prepared for.
+
+NPCs remain recognizable actors rather than disposable chat voices.
+
+The campaign can have intentions without forcing outcomes.
+
+Players can care deeply about something unplanned and cause the production to change around that fact.
+
+Prepared material can survive transformation without history resetting.
+
+Darkness and pressure can exist without Kit becoming timid or careless.
+
+Brendon can design ambitious campaigns without personally carrying every scene.
+
+Guest DMs can contribute without becoming infrastructure.
+
+Many bounded PBP scenes can coexist inside one coherent campaign.
+
+Global developments can reach those scenes without silently invalidating what players are currently experiencing.
+
+State and player-visible publication remain synchronized.
+
+Kit can make mistakes, and the system can tell what kind of mistake occurred.
+
+BFDM can improve her judgment without turning Brendon's entire history into a frozen rulebook.
+
+The production can keep moving, reach its major material, and finish.
+
+And the resulting game should not feel like a language model competently processed a large quantity of D&D text.
+
+It should feel like Kit ran a hell of a campaign.
+
+---
+
+## 38. Architectural Summary
+
+The architecture is intentionally narrower than earlier drafts.
+
+```text
+                         DIRECTOR
+                            │
+                     intent / guidance
+                            │
+                            ▼
+
+                     CAMPAIGN STATE
+               truth / source / active play
+                    /               \
+                   /                 \
+             SCENE INSTANCE      SCENE INSTANCE
+                   │                 │
+                   └────────┬────────┘
+                            │
+                    PLAYER DECLARATION
+                            ↓
+                   RELEVANT SITUATION
+                            ↓
+                       DM JUDGMENT
+                            ↓
+                 ADJUDICATION / RULING
+                            ↓
+                INSPECTABLE RESOLUTION
+                            ↓
+                    VALIDITY CHECKS
+                            ↓
+                   PUBLIC-SAFE CARRIERS
+                            ↓
+                       PERFORMANCE
+                            ↓
+                     PUBLICATION GATE
+                            ↓
+                         PLAYER
+```
+
+Around this:
+
+```text
+BFDM / PLAYTEST EVIDENCE
+          ↓
+FAILURE LOCALIZATION
+          ↓
+HELD-OUT / HUMAN REVIEW
+          ↓
+CANDIDATE IMPROVEMENT
+          ↓
+PROMOTION
+```
+
+The architecture is rigid where falsifiable integrity matters:
+
+- truth;
+- scope;
+- knowledge;
+- adjudication precedence;
+- publication;
+- scene authority;
+- causal history.
+
+It remains deliberately flexible where the project is still learning:
+
+- how expert DM judgment is decomposed;
+- how BFDM best informs Kit;
+- how director attention should be implemented;
+- how concurrent scenes synchronize;
+- how fictional time is represented;
+- how memory is stored;
+- which model architecture ultimately performs best.
+
+The rule for future KRABS revisions is:
+
+> Be rigid about invariants and observable contracts. Be conservative about mechanisms. Be explicit about status. Let live failures earn complexity.
