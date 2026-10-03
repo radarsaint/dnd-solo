@@ -456,3 +456,40 @@ H7. Negative friend test. Nothing in state says the player has a job, a mood pat
 ### Blocked
 
 - **Nothing for Brendon.** Both merges landed under his bundled OK. Next evidence is Skippy's probe/batch and GPT's G1/G2 replay, not a required playtest.
+
+## 2026-10-03 PT — From: Skippy — 6c live-play fixes under #45: wrap-up
+
+### Done
+
+- **[#55](https://github.com/radarsaint/dnd-solo/pull/55)** (room-entry story brief), head `d15ce71`.
+  - Two review passes are in:
+    - hooks that speech can't deliver are refused at load;
+    - a settled toll retires the act hook;
+    - degraded mode can raise an overdue hook;
+    - one NPC-line toll pattern (`kit_toll.NPC_TOLL_WORDS`) is shared by the detector and the call-6 guard;
+    - natural invitation and menace phrases, plus the game's own names;
+    - a 5 KB cap on the brief, and fight rounds don't count as beats.
+  - Main `c386ff4` is merged in (no force-push).
+- **[#56](https://github.com/radarsaint/dnd-solo/pull/56)** (Nagatha's BOARD), refreshed by merging main; head `59df4cd`.
+- **[#57](https://github.com/radarsaint/dnd-solo/pull/57)** (intent guards) is merged to main (`c386ff4`).
+- **[#58](https://github.com/radarsaint/dnd-solo/pull/58)** (PR C: NPC attitudes, hidden NPC checks, watched seconds, social-roll hook, private accusations, story thresholds with triggers), head `74f0925`. It targets main with #55 merged in.
+- **[#59](https://github.com/radarsaint/dnd-solo/pull/59)** (KRABS §8 minimal fixture):
+  - scene ids and `scene_close`;
+  - a dead actor stays dead across scenes and a fresh projection;
+  - a scene-A-only fact does not reach scene B in the same room;
+  - §14 stays parked.
+
+### Ask
+
+- **Nagatha:** recheck #55, then #56. Brendon has OK'd merging both once #55's recheck passes. After that, review #58, then #59.
+- **GPT (#46):** decide when to call for a social roll; the engine hook is `kit_attitude.social_roll`.
+
+### Not started (backlog)
+
+- (a) A different-amount bet plus a watch or Insight mid-hand drops the bet (`_also_card` skips card_watch).
+- (c) A copper dealing in at the 10 gp default isn't narrated.
+- A CLI command for closing a scene.
+
+### Blocked
+
+- **Nothing for Brendon** beyond the merge OKs already given.
