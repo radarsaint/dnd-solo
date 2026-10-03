@@ -39,7 +39,7 @@ python3 -m runtime.kit_agent decide --db kit-06c.sqlite --turn-id TURN_ID --inpu
 python3 -m runtime.kit_agent finish --db kit-06c.sqlite --turn-id TURN_ID --input-file /tmp/kit-speech.json
 ```
 
-The assistant shows the player only the `spoken` field from `complete` or `finish`, never the private packet or `trace`. Pending stages survive a Python process restart. A stale revision leaves the world turn uncommitted. `init` refuses to overwrite an existing session; use `view` to resume. Load the player's sheet once with `character --sheet <file>` (any `character_sheet_v1` JSON; see `runtime/pc_sheet.py`); every check reads its bonuses and passives from it. When the PC's passive meets the DC, the check succeeds without a roll. Otherwise a player's own roll written in the action ("I rolled 14 + 3 = 17") is used, else the session seed rolls. With no sheet and no stated roll, the check pauses without consuming a turn. `--perception`/`--insight`/`--sleight-of-hand` on `prepare` remain as host overrides only. Never silently reroll a result. `--no-memory` on `prepare` hides previous Kit episodes and player notes for an ablation.
+The assistant shows the player only the `spoken` field from `complete` or `finish`, never the private packet or `trace`. Pending stages survive a Python process restart. A stale revision leaves the world turn uncommitted. `init` refuses to overwrite an existing session; use `view` to resume. Load the player's sheet once with `character --sheet <file>` (any `character_sheet_v1` JSON; see `runtime/pc_sheet.py`); every check reads its bonuses and passives from it. When the PC's passive meets the DC, the check succeeds without a roll. Otherwise a player's own roll written in the action is used, else the session seed rolls. Players roll in Avrae (it is at every game; Kit has no player dice roller), so `runtime/kit_rolls.py` reads Avrae's own format (`1d20 (12) + 10 = 22`), the sum form (`I rolled 14 + 3 = 17`), and a bare number. **A bare number is the Avrae total** ("I rolled 17", "Deception 22"): the bonus is already in it and is never added again. Only "natural 17", "nat 17", or "the die shows 17" is the die alone, which then takes the sheet bonus. With no sheet and no stated roll, the check pauses without consuming a turn. `--perception`/`--insight`/`--sleight-of-hand` on `prepare` remain as host overrides only. Never silently reroll a result. `--no-memory` on `prepare` hides previous Kit episodes and player notes for an ablation.
 
 When the player says something out of character about how the game is going ("fewer menus, please", "more of the dealer"), record it between turns. Do not show the result to the player:
 
@@ -108,3 +108,21 @@ This slice supports conversation and a few explicit room interactions. It stores
 The public packet lacks private facts and a small literal-leak check rejects known phrases, but this **does not guarantee** that free-form prose cannot imply a secret or invent a new fact. In chat-host mode, the assistant still has access to the private planning context. Human review and adversarial model tests are required before treating the output as source-safe. The model may also choose an unconvincing reaction or flat dialogue. The automated tests use a fake model and one mocked API response; they verify orchestration and rollback, not humor or personality quality. The chat tool transcript may expose private packets to a person inspecting tool calls, so a blind player playtest needs a separate player-facing surface.
 
 Use [the area 6c personality protocol](../../tests/scenarios/level-01-area-06c-uktarl.md) for multi-turn play, private-trace audit, memory ablations, blind player preference, and eventual human-DM comparison. The `--no-memory` flag hides previous episodes from Kit's planning call for an ablation without erasing the saved session.
+
+## Physical acts and the minimal fight (6c baseline, 2026-10-03)
+
+`runtime/kit_combat.py` reads what the player's body does, outside quoted speech, before any toll, card, or talk
+reading: an attack (weapon, unarmed, stomp, or spell), a grab, a hand on someone's face, a flipped table, or loose
+money taken. Each one changes persisted state (`scene_state`, `combat_state`, `actor_status` with `toward`), never
+"You take a look." The pattern is general: verb families plus a target resolved from names, labels, "the nearest"
+(the room's reach order), or who the PC is already holding, fighting, or talking to.
+
+A fight: nobody is surprised unless the PC was hidden from everyone. The PC's initiative is the total the player
+reports from Avrae; NPCs use a flat 10 + Dexterity, and the PC wins ties. A blow struck before initiative resolves
+as the PC's first action. An attack with no Avrae roll waits for it and commits nothing. NPC turns run in order
+between the PC's turns with Kit's own seeded d20 against the sheet's AC; the player is told the damage to apply in
+Avrae and never an AC, DC, hit points, or a total. The fixture's `combat` block holds the SRD numbers (bandit
+captain, bandits, doppelganger) and the source's retreat rules: Uktarl flees toward area 7 when hurt or when an
+underling falls, and the rest flee toward area 8 once he is gone. The vampire act holds until a physical fact
+cracks it (a wound, burned paint, a wiped face, fitted fangs seen up close, a man grovelling for copper).
+`scripts/kit_engine_probe.py` runs the 6c variety scenarios through this engine offline (no model, no network).

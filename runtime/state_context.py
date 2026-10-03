@@ -659,6 +659,11 @@ class Runtime:
             require(status in {'alive', 'unconscious', 'dead', 'fled'}, 'Unknown status')
             require(actor['status'] != 'dead' or status == 'dead', 'Resurrection needs a future explicit rules operation')
             actor['status'] = status
+            toward = event.get('toward')
+            if toward is not None:
+                require(status == 'fled' and isinstance(toward, str) and re.match(r'^area_[0-9a-z_]+$', toward),
+                        'Only a fleeing actor heads toward an area (e.g. area_07)')
+                actor['fled_toward'] = toward
         elif kind == 'spend_resource':
             key, amount = event.get('resource'), event.get('amount')
             require(key in state['resources'], 'Unknown resource')
@@ -758,6 +763,14 @@ class Runtime:
         elif kind == 'kit_plan':
             from . import kit_plan
             kit_plan.apply_event(state, event)
+        elif kind == 'scene_state':
+            from . import kit_combat
+            kit_combat.check_scene(event.get('state'))
+            state['scene'] = copy.deepcopy(event['state'])
+        elif kind == 'combat_state':
+            from . import kit_combat
+            kit_combat.check_fight(event.get('state'))
+            state['combat'] = copy.deepcopy(event['state'])
         elif kind == 'pc_state':
             from . import pc_sheet
             sheet = state.get('player_sheet')
@@ -836,6 +849,9 @@ class Runtime:
         tolls = kit_toll.public_view(source, state) if source.get('tolls') else {}
         if tolls:
             view['tolls'] = tolls
+        if source.get('combat') and (state.get('combat') or state.get('scene')):
+            from . import kit_combat
+            view.update(kit_combat.public_view(source, state))
         return view
 
     @staticmethod

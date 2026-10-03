@@ -297,7 +297,11 @@ class CardTableTests(unittest.TestCase):
 
     def test_supplied_rolls_are_parsed(self):
         self.assertEqual(kit_cards.supplied_roll('I watch his hands. I rolled 14 + 3 = 17.'), (14, 3))
-        self.assertEqual(kit_cards.supplied_roll('I watch his hands. Rolled a 15.'), (15, None))
+        # A bare stated number is Avrae's total (kit_rolls): worked back with the bonus, never
+        # added to it again. Only an explicit natural is the die alone.
+        self.assertEqual(kit_cards.supplied_roll('I watch his hands. Rolled a 15.'), (15, 0))
+        self.assertEqual(kit_cards.supplied_roll('I watch his hands. Rolled a 15.', 4), (11, 4))
+        self.assertEqual(kit_cards.supplied_roll('I watch his hands. Natural 15.'), (15, None))
 
     def test_the_strongest_ante_card_sets_the_stakes_and_the_lead(self):
         """QA PR #15 item 7: real Three-Dragon Ante structure, not a three-card poker hand."""
@@ -530,7 +534,8 @@ class CardTableTests(unittest.TestCase):
         _, table, _ = self.seated()
         state['procedures'] = {'three_dragon_ante': table}
         adjudicator = Room6CAdjudicator(perception=0, insight=0, sleight_of_hand=0, source=source)
-        with self.assertRaisesRegex(kit_agent.PendingRuling, 'Fights are not run'):
+        # A shot with no Avrae roll waits on the roll (no turn), and is never a card raise.
+        with self.assertRaisesRegex(kit_agent.PendingRuling, 'Roll the attack for your crossbow in Avrae'):
             adjudicator.resolve('I raise my crossbow and shoot the dealer.', 1, state)
         with self.assertRaisesRegex(kit_agent.PendingRuling, 'Stealth'):
             adjudicator.resolve('I sneak out while they check their hands.', 1, state)

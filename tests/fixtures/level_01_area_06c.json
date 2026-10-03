@@ -630,5 +630,177 @@
       }
     }
   },
+  "combat": {
+    "_note": "DM-only. Minimal combat for this room (runtime/kit_combat.py). Stat lines are the SRD 5.1 stat blocks the actors already cite (CC-BY-4.0, Wizards of the Coast): AC, hit points, Dexterity for initiative, attacks with average damage. They fight as what they are: no vampire abilities. Players roll in Avrae and report totals; NPC initiative is the flat 10 + Dexterity (NPCs never roll a contest); NPC attack rolls and saving throws are Kit's own private, seeded d20s. Public text never shows AC, hit points, or roll totals (call 4); only the damage a PC takes is told as a number, because the player applies it in Avrae.",
+    "area": "area_06c",
+    "actors": {
+      "uktarl": {
+        "ac": 15,
+        "hp": 65,
+        "initiative": 3,
+        "grapple": 4,
+        "saves": {
+          "str": 4,
+          "dex": 5,
+          "wis": 2
+        },
+        "attacks": [
+          {
+            "name": "scimitar",
+            "verb": "cuts",
+            "to_hit": 5,
+            "damage": 6,
+            "type": "slashing"
+          },
+          {
+            "name": "scimitar",
+            "verb": "cuts",
+            "to_hit": 5,
+            "damage": 6,
+            "type": "slashing"
+          },
+          {
+            "name": "dagger",
+            "verb": "stabs",
+            "to_hit": 5,
+            "damage": 5,
+            "type": "piercing"
+          }
+        ],
+        "retreat": {
+          "when": [
+            "damaged",
+            "underling_down"
+          ],
+          "toward": "area_07",
+          "exit": "south_door",
+          "text": "The dealer breaks off, snatches up what he can reach, and runs out through the south door, shouting blame at the others over his shoulder."
+        },
+        "_basis": "Bandit Captain, SRD 5.1 (CC-BY-4.0, Wizards of the Coast): AC 15, 65 hp, Dex 16, Multiattack (two scimitar, one dagger). Room source: if Uktarl takes damage or sees an underling slaughtered, he retreats toward area 7. Parry is not modelled yet."
+      },
+      "bandit_a": {
+        "ac": 12,
+        "hp": 11,
+        "initiative": 1,
+        "grapple": 1,
+        "saves": {},
+        "attacks": [
+          {
+            "name": "scimitar",
+            "verb": "cuts",
+            "to_hit": 3,
+            "damage": 4,
+            "type": "slashing"
+          }
+        ],
+        "retreat": {
+          "when": [
+            "leader_gone"
+          ],
+          "toward": "area_08",
+          "exit": "south_door",
+          "text": "The door-side player bolts through the south door after the dealer."
+        },
+        "_basis": "Bandit, SRD 5.1 (CC-BY-4.0, Wizards of the Coast): AC 12, 11 hp, Dex 12, scimitar. Room source: when Uktarl retreats, the others flee toward area 8."
+      },
+      "bandit_b": {
+        "ac": 12,
+        "hp": 11,
+        "initiative": 1,
+        "grapple": 1,
+        "saves": {},
+        "attacks": [
+          {
+            "name": "scimitar",
+            "verb": "cuts",
+            "to_hit": 3,
+            "damage": 4,
+            "type": "slashing"
+          }
+        ],
+        "retreat": {
+          "when": [
+            "leader_gone"
+          ],
+          "toward": "area_08",
+          "exit": "south_door",
+          "text": "The fresco-side player shoves past the table and runs out through the south door."
+        },
+        "_basis": "Bandit, SRD 5.1 (CC-BY-4.0, Wizards of the Coast): AC 12, 11 hp, Dex 12, scimitar. Room source: the others flee toward area 8."
+      },
+      "doppelganger": {
+        "ac": 14,
+        "hp": 52,
+        "initiative": 4,
+        "grapple": 4,
+        "saves": {},
+        "attacks": [
+          {
+            "name": "fist",
+            "verb": "slams into",
+            "to_hit": 6,
+            "damage": 7,
+            "type": "bludgeoning"
+          },
+          {
+            "name": "fist",
+            "verb": "slams into",
+            "to_hit": 6,
+            "damage": 7,
+            "type": "bludgeoning"
+          }
+        ],
+        "retreat": {
+          "when": [
+            "leader_gone"
+          ],
+          "toward": "area_08",
+          "exit": "south_door",
+          "text": "The fourth player is suddenly at the south door, and then gone through it."
+        },
+        "_basis": "Doppelganger, SRD 5.1 (CC-BY-4.0, Wizards of the Coast): AC 14, 52 hp, Dex 18, Multiattack (two slams). Ambusher and Surprise Attack apply only to a surprised PC and are not modelled yet."
+      }
+    },
+    "underlings": [
+      "bandit_a",
+      "bandit_b",
+      "doppelganger"
+    ],
+    "leader": "uktarl",
+    "reach_order": [
+      "bandit_a",
+      "uktarl",
+      "bandit_b",
+      "doppelganger"
+    ],
+    "_reach_order": "Who is nearest a visitor at the south door: the door-side player, then the dealer, then the fresco side (room source: the table is near the south door).",
+    "act": {
+      "fact": "false_vampires",
+      "claim": "false_vampires",
+      "_basis": "6c variety scenarios (2026-10-03), shared combat expectations: the act holds until ordinary physical fact cracks it; once broken it stays broken. Kit shows the crack and never announces a verdict.",
+      "cracks": {
+        "fire": "Greasepaint runs and blisters on the burned faces, and the skin under it is ordinary, reddening skin.",
+        "blood": "The wound bleeds bright and red, and the white paint smears with it.",
+        "face": "The paint comes away in a pale streak, and the skin under it is ordinary and flushed.",
+        "teeth": "Up close, the fangs are a fitted piece sitting proud of his own teeth, with paint caked at the gumline.",
+        "grovel": "His cape trails in the spill as he scrabbles for copper like any man after money; nothing undead about it."
+      }
+    },
+    "loose_money": {
+      "_basis": "6c variety scenarios V11 (2026-10-03): each NPC's own instinct in the half-second after the pot spills. DM choice.",
+      "bandit_a": {
+        "does": "grovel",
+        "text": "The door-side player drops to his knees after the coins."
+      },
+      "uktarl": {
+        "does": "take_ring",
+        "text": "The dealer's hand closes on the silver ring before anyone else's."
+      },
+      "doppelganger": {
+        "does": "watch",
+        "text": "The fourth player does not look at the coins at all; it watches you."
+      }
+    }
+  },
   "resources": {}
 }

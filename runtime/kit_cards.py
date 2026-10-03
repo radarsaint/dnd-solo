@@ -32,6 +32,7 @@ import random
 import re
 
 from .state_context import InvalidChange, require
+from . import kit_rolls
 
 # Kit's deck: ten dragon colors, six cards each. Chromatic dragons' powers move gold;
 # metallic dragons' powers move cards (the published game's broad theme, simplified).
@@ -121,26 +122,23 @@ def _d20(seed, *parts):
     return _rng(seed, 'd20', *parts).randint(1, 20)
 
 
-# Player-supplied rolls: "rolled 14", "roll: 14", "d20 14", "natural 14", or Nik's
-# "7 + 4 = 11" (die, modifier, total).
-_ROLL_SUM = re.compile(r'\b(\d{1,2})\s*\+\s*(-?\d{1,2})\s*=\s*(-?\d{1,3})\b')
-_ROLL = re.compile(r'\b(?:rolled|roll(?:ed)?:?|d20:?|natural|nat)\s*(?:a\s+)?(\d{1,2})\b')
+# Player-supplied rolls (runtime/kit_rolls.py): Avrae's "1d20 (12) + 4 = 16", a
+# "12 + 4 = 16" sum, a bare total ("I rolled 16"), or an explicit natural ("natural 12").
 
 
-def supplied_roll(action):
-    """(die, modifier or None) from the player's own words, or None."""
-    text = action.casefold()
-    found = _ROLL_SUM.search(text)
-    if found:
-        die, modifier, total = (int(group) for group in found.groups())
-        require(1 <= die <= 20 and die + modifier == total, 'Supplied roll does not add up')
-        return die, modifier
-    found = _ROLL.search(text)
-    if found:
-        die = int(found.group(1))
-        require(1 <= die <= 20, 'A supplied d20 roll must be 1-20')
-        return die, None
-    return None
+def supplied_roll(action, modifier=None, skill=None):
+    """(die, modifier) for the check roll the player stated, or None.
+
+    A stated split (Avrae's line or "d + m = t") is used as given. An explicit natural is
+    (die, None): the caller adds the sheet's bonus once. A bare number is Avrae's total,
+    worked back with ``modifier`` (the sheet's bonus, 0 when unknown) so the bonus is never
+    added twice."""
+    roll = kit_rolls.check_roll(action, skill)
+    if roll is None:
+        return None
+    if roll.die is not None and roll.modifier is None:
+        return roll.die, None
+    return roll.parts(modifier)
 
 
 _AMOUNT = re.compile(r'\b(\d{1,4})\s*(?:gp|gold)\b')
@@ -284,7 +282,7 @@ class CardTable:
         self.toll_outcome = None
 
     def _modifier(self, skill, action):
-        supplied = supplied_roll(action)
+        supplied = supplied_roll(action, self.modifiers.get(skill))
         if supplied and supplied[1] is not None:
             return supplied[1]
         value = self.modifiers.get(skill)
@@ -294,8 +292,8 @@ class CardTable:
                               f'(or give your roll as "d20 + modifier = total"). No turn was committed.')
         return value
 
-    def _player_roll(self, action, revision, label):
-        supplied = supplied_roll(action)
+    def _player_roll(self, action, revision, label, modifier=None):
+        supplied = supplied_roll(action, modifier)
         return supplied[0] if supplied else _d20(self.seed, revision, label, action.casefold())
 
     def _contest(self, skill, key, action, revision, label, passive_counts=True):
@@ -307,7 +305,7 @@ class CardTable:
         if passive is not None and passive >= dc:
             return {'auto': True, 'total': passive, 'dc': dc, 'success': True, 'die': None, 'modifier': None}
         modifier = self._modifier(skill, action)
-        die = self._player_roll(action, revision, label)
+        die = self._player_roll(action, revision, label, modifier)
         return {'auto': False, 'die': die, 'modifier': modifier, 'total': die + modifier, 'dc': dc,
                 'success': die + modifier >= dc}
 
