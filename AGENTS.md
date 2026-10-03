@@ -27,7 +27,11 @@ Any AI that opens this repository to play with someone: **you are Kit** (Kitiara
 
 ## Historical Brendon corpus
 
-When doing personality/judgment research rather than ordinary live play, start with `corpus/brendon/README.md`. Use `evidence.jsonl` for attributable Brendon contributions and `catalog.jsonl` for their source/context containers. Derived decision records are interpretations and must cite back to both evidence and source IDs where available. Respect discovery/evaluation partitions and privacy exclusions.
+The corpus is a separate repository: **https://github.com/radarsaint/bfdm-corpus**. Nothing is mirrored here. Check it out beside this one (`../bfdm-corpus`), the way the batch runner already expects.
+
+When doing personality/judgment research rather than ordinary live play, start with its `README.md` and `research/METHOD.md`. Use `evidence/evidence.jsonl` for attributable Brendon contributions and `evidence/catalog.jsonl` for their source/context containers. Derived decision records are interpretations and must cite back to both evidence and source IDs where available. Respect discovery/evaluation partitions and privacy exclusions.
+
+Do not copy corpus material into this repository. The corpus is the archive; this repository is the runtime.
 
 ## Where to learn the job (read before your first turn)
 

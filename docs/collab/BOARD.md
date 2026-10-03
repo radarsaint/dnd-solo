@@ -479,7 +479,7 @@ H7. Negative friend test. Nothing in state says the player has a job, a mood pat
 
 ### Done
 
-- **Review of the BFDM corpus as built**: [`bfdm-corpus-review-2026-10-03.md`](bfdm-corpus-review-2026-10-03.md). Run against canonical `radarsaint/bfdm-corpus` `main` `6337f81` (5,540 files), cross-checked against the readable copy in `corpus/bfdm/`. I pulled the S3 harvest LFS object (197,013 messages) so citations could be resolved against the actual source instead of only checked for form. Reproduction commands are in the review.
+- **Review of the BFDM corpus as built**: [`bfdm-corpus-review-2026-10-03.md`](bfdm-corpus-review-2026-10-03.md). Run against canonical `radarsaint/bfdm-corpus` `main` `6337f81` (5,540 files). I pulled the S3 harvest LFS object (197,013 messages) so citations could be resolved against the actual source instead of only checked for form. Reproduction commands are in the review.
 - **Verified by resolving against the harvest, not by reading the status docs.** Of 105 message IDs cited across the S3 research, 101 resolve to real messages; the other four are user and role IDs inside verbatim-quoted Discord mention syntax, so there are **no false citations**. 88 of the resolved messages are authored by the confirmed Brendon user ID. All 20 `representative_line` quotes trace to real Brendon messages — 18 exact, 2 ellipsis-marked elisions that also check out. Nothing fabricated or reattributed. Referential integrity is clean across 68 BCS / 14 BCE / 13 BCR with every BCS, BCE and case-ID citation resolving; both validators pass; S3 prose and JSONL have exact record parity.
 - **The 6c evaluation program is the strongest work in the corpus.** The rerun2 scorecard names both heads under test, reports suite counts on each, tracks every check as FIXED/STILL/NEW against the prior run, probes both heads so claims are independently checkable, keeps every DM reply attempt including rejections, names its own auto-grader's false positives, and volunteers the fact that undercuts its headline ("Rejection counts and DM latency are therefore not comparable"). `table-calls-6c` even specifies a real ablation (TC-3c). That is a higher evidentiary standard than the historical research applies to itself.
 - **Twelve findings, all in the seams rather than the method.** Full detail in the review; the four that matter most are in the asks below.
@@ -497,3 +497,21 @@ H7. Negative friend test. Nothing in state says the player has a job, a mood pat
 ### Blocked
 
 - **Nothing.** The review is a docs-only record in `dnd-solo`; no corpus content was edited, per the canonical-repo rule. Findings 1, 2, 7 and 8 change what the corpus claims and were left to Brendon and GPT rather than patched by a reviewer.
+
+## 2026-10-03 PT — From: Kit — in-repo corpora retired; corpus fixes need write access
+
+### Done
+
+- **Removed `corpus/` from this repository** (142 files): both `corpus/bfdm/` (the readable mirror of `radarsaint/bfdm-corpus`) and `corpus/brendon/` (the older bootstrap index). Brendon's call: a half-finished corpus should not sit beside the Kit runtime. The canonical corpus is **https://github.com/radarsaint/bfdm-corpus**, which is now reachable, so neither copy has a reason to exist. `corpus/brendon/ACCESS_GAP.md` had said so itself — it existed only because there was no agent-accessible corpus repository, and prescribed "a private, agent-accessible corpus repository or object store… separate from public `radarsaint/dnd-solo`." Git history keeps both directories if anything needs recovering.
+- **Repointed the docs at the canonical repository.** `AGENTS.md` now sends research work to `../bfdm-corpus` and says plainly that nothing is mirrored here and that corpus material must not be copied in: the corpus is the archive, this repository is the runtime. `docs/architecture/KRABS.md` drops the "public BFDM research projection" URL and names one canonical corpus repository. This matches the convention `scripts/README-kit-batch-runner.md` already used (`--sheets-dir ../bfdm-corpus/research/kit-evaluation/6c-variety-sheets`).
+- **No code or test touched the removed directories.** Nothing under `runtime/`, `tests/` or `scripts/` read `corpus/`; every reference was documentation. Suite unchanged at 549 tests with the one pre-existing `test_kit_plan` voice-slot budget failure that is already red on `main`.
+- Earlier BOARD entries that cite `corpus/brendon/` are left as written. The board is append-only and those entries were accurate when made.
+
+### Ask
+
+- **Brendon — this one blocks the rest.** Making the corpus work as intended means committing to `radarsaint/bfdm-corpus`, and I have no write access there: `Permission to radarsaint/bfdm-corpus.git denied to cursor[bot]` (the API reports `push: false`). Either add `cursor[bot]` as a collaborator on that repository, or put a token with write scope in the Cloud Agent secrets. Read access works, so review and verification need nothing; only landing fixes does.
+- **Once access exists**, the order from the review is: register the table calls as BCS/BCE/BCR (the corpus's best judgment evidence, currently invisible to its own registry); resolve the Empire City quarantine contradiction once Brendon rules on it; propagate the manifest checksums into the catalog; open containers for the 33 cited Drive sources with no BCS ID; emit S4 JSONL; regenerate `ARTIFACT_REGISTER.md` over the real tree; add `scope`/`era`/enumerated `confidence` to the case schemas and backfill; and restore the S3 live-window qualifier. The reconciler that would land the 51 missing source bodies additionally needs the staging ZIP on disk, which is a separate blocker from write access.
+
+### Blocked
+
+- **Brendon:** corpus write access, as above. Everything else in the review is either ready to execute or waiting on his ruling about the quarantine.

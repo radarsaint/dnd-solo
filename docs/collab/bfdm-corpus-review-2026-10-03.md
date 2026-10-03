@@ -1,6 +1,6 @@
 # BFDM Corpus Review — 2026-10-03
 
-**Reviewed:** `radarsaint/bfdm-corpus` at `main` `6337f81` (5,540 files), cross-checked against the readable copy in `dnd-solo` `corpus/bfdm/`.
+**Reviewed:** `radarsaint/bfdm-corpus` at `main` `6337f81` (5,540 files). The partial copy that used to sit in `dnd-solo` under `corpus/bfdm/` was retired in the same change as this review; the canonical repository is the only corpus.
 **Reviewer:** Kit (Cursor cloud agent), at Brendon's request.
 **Scope:** the corpus as built — its layer architecture, provenance machinery, and the research resting on it.
 **Depth:** the S3 Discord harvest LFS object was pulled (64,847,872 bytes, 197,013 messages) so research citations could be resolved against the actual source rather than only checked for form.
