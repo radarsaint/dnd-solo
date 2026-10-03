@@ -381,7 +381,7 @@ class CardTable:
     # -- seating and dealing ------------------------------------------------
     def _join(self, action, revision, public, private):
         if public['player'] is None:
-            found = _AMOUNT.search(action.casefold())
+            found = _AMOUNT.search(kit_rolls.without_rolls(action))
             if not found:
                 raise NeedsRuling('How much gold do you bring to the table? Say it in your action, for '
                                   'example "I buy in with 20 gold." The strongest ante card sets each '

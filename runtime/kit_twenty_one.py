@@ -148,6 +148,15 @@ _NOT_A_BET = re.compile(r'[- ]?\s*(?:hands?|rounds?|cards?|checks?|rolls?|more|o
                         r'times|minutes|feet|ft|percent|%)\b')
 
 
+# Skills a player may choose to settle a one-check round (the table's own skill always counts).
+ROUND_SKILLS = {
+    'sleight_of_hand': re.compile(r"\b(?:cheat\w*|palm\w*|sleight of hand|swap\w* (?:a|the|my) card|"
+                                  r"slip\w* (?:a|an|the) (?:card|ace)|stack\w* the deck|card up my sleeve)\b"),
+    'insight': re.compile(r"\bread(?:ing|s)? (?:the dealer|him|his (?:face|eyes|hands|tells?)|the table)\b|\btells?\b"),
+    'deception': re.compile(r"\bbluff\w*\b"),
+}
+
+
 def initial_state(config):
     return {
         'public': {
@@ -189,7 +198,9 @@ def card_intent(action, procedure_state):
     public = procedure_state['public']
     seated = public['player'] is not None
     live = bool(public['round'] and public['round']['phase'] == 'play')
-    text = re.sub(r'\[[^\]]*\]', ' ', text).strip()  # a stated roll is not table talk
+    # A stated roll is not table talk: Avrae's output (titles, fields, dice) goes whole.
+    from .kit_rolls import AVRAE_TITLE, without_rolls
+    text = AVRAE_TITLE.sub(' ', without_rolls(text)).strip()
     question = text.rstrip(' .\'"\u201d').endswith('?')
     if _LEAVE.search(text):
         return 'card_leave' if seated else None
@@ -259,7 +270,7 @@ class TwentyOneTable:
 
     def _roll(self, skill, dc, action, revision, label, passive_counts=True):
         passive = self.passives.get(skill) if passive_counts else None
-        name = skill.replace('_', ' ').title()
+        name = skill.replace('_', ' ').title().replace(' Of ', ' of ')
         if passive is not None and passive >= dc:
             self.trace.append(f'{label}: passive {name} {passive} meets {dc}; no roll')
             return {'auto': True, 'total': passive, 'dc': dc, 'success': True, 'die': None, 'modifier': None}
@@ -276,7 +287,8 @@ class TwentyOneTable:
 
     # -- seating, the offer, and the mode ---------------------------------------
     def _seat(self, action, public):
-        found = re.search(r'\bbuy(?:ing)?[- ]in (?:with|for) (\d{1,4})\s*(?:gp|gold)\b', action.casefold())
+        from .kit_rolls import without_rolls
+        found = re.search(r'\bbuy(?:ing)?[- ]in (?:with|for) (\d{1,4})\s*(?:gp|gold)\b', without_rolls(action))
         purse = int(found.group(1)) if found else None
         if public['player'] is None:
             public['player'] = {'net': 0, 'purse': purse, 'unwelcome': False}
@@ -395,9 +407,27 @@ class TwentyOneTable:
             return self._check_round(action, revision, public, private, lines, stake_text, caught), reveals
         return self._deal(action, revision, public, private, lines, stake_text), reveals
 
+    def _round_skill(self, action):
+        """The skill that settles a one-check round: the player's own relevant choice, else
+        the table's. A stated roll in a skill that can win a hand counts as the choice
+        (Avrae's "makes a Sleight of Hand check!"); otherwise the words do (palming or
+        cheating is Sleight of Hand, reading the dealer is Insight, a bluff is Deception)."""
+        from .kit_rolls import stated_skill
+        default = self.config['check']['skill']
+        stated = stated_skill(action)
+        if stated in ROUND_SKILLS or stated == default:
+            return stated
+        spoken = action.casefold().replace('\u2019', "'")
+        for skill, words in ROUND_SKILLS.items():
+            if words.search(spoken):
+                return skill
+        return default
+
     def _check_round(self, action, revision, public, private, lines, stake_text, caught):
         check = self.config['check']
-        skill = check['skill']
+        skill = self._round_skill(action)
+        if skill != check['skill']:
+            self.trace.append(f'round skill: player chose {skill} (table default {check["skill"]})')
         # The marks tell him what you hold: an edge on his number unless you caught it.
         edge = 0 if caught else self.config['cheat']['check_edge']
         private['cheated'] = not caught
@@ -406,7 +436,7 @@ class TwentyOneTable:
                             passive_counts=False)
         if edge:
             self.trace.append(f'marked deck: dealer number includes +{edge}')
-        name = skill.replace('_', ' ').title()
+        name = skill.replace('_', ' ').title().replace(' Of ', ' of ')
         lines.append(f'One round, {stake_text}, settled on {name}.')
         lines.append(self._settle(public, private, 'win' if result['success'] else 'lose'))
         return ' '.join(lines)

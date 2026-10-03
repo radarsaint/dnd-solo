@@ -279,7 +279,7 @@ class Room6CAdjudicator:
         table = card_procedure(self.source, state)
         if table is None and not is_ooc(action) and ((PLAY_REQUEST.search(narration.casefold()) and
                                                       '?' not in narration) or
-                                                     SPOKEN_BET.search(action.casefold().replace('\u2019', "'"))):
+                                                     SPOKEN_BET.search(kit_rolls.without_rolls(action))):
             # "I play the game." is a complete declaration (call 7): the room's game starts
             # with the check-or-play choice. A game in the room never starts on its own.
             table = self._declared_table(state)
@@ -647,7 +647,7 @@ class Room6CAdjudicator:
         return None
 
     def _card_engine(self, key, config, state):
-        skills = {'perception', 'insight', 'sleight_of_hand'} | {(config.get('check') or {}).get('skill') or 'insight'}
+        skills = {'perception', 'insight', 'sleight_of_hand', 'deception'} | {(config.get('check') or {}).get('skill') or 'insight'}
         sheet = pc_sheet.sheet_now(state)  # seated at cards: hands on the cards
         modifiers = {skill: self.skill_modifier(skill, state) for skill in skills}
         passives = {skill: (pc_sheet.passive(sheet, skill) if getattr(self, skill, None) is None and sheet else

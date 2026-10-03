@@ -359,10 +359,29 @@ def number_words(text):
     return sorted(found, key=lambda item: item[1])
 
 
+_DICE_TERM = r'\d*d\d+(?:[a-z]{1,3}\d+)*(?:\s*\([^)]*\))?'
+_DICE_EXPR = re.compile(r'\b' + _DICE_TERM + r'(?:\s*\[[^\]]*\])?'
+                        r'(?:\s*[+-]\s*(?:' + _DICE_TERM + r'|\d+)(?:\s*\[[^\]]*\])?)*'
+                        r'(?:\s*/\s*\d+)?(?:\s*=\s*-?\d{1,3}\b)?')
+
+
+# Avrae's title lines: "Wren makes an Investigation check!", "Brakka attacks with a Greataxe!",
+# "Nik casts Fireball!".
+AVRAE_TITLE = re.compile(r"^[^\n!?.]{1,40}?\b(?:makes? an?\s+[a-z' ]{3,30}\s+(?:check|save|saving throw)|"
+                         r"attacks? with an?\s+[^\n!]{1,40}|casts?\s+[^\n!]{1,40})!\s*$", re.M | re.I)
+
+
 def without_rolls(text):
-    """``text`` with every stated roll removed (Avrae form, sums, naturals, totals, initiative,
-    bracketed reports), so a die or a total is never read as a bet or an offer."""
+    """``text`` with every stated roll removed (Avrae output, dice notation, sums, naturals,
+    totals, initiative, bracketed reports), so a die face, a modifier, or a total is never
+    read as a bet, an offer, or an amount. Avrae's output goes as one pattern: its field
+    lines (To Hit / Damage / <ABIL> Save / Initiative / DC) whole, and any dice expression
+    ("1d20 (12) + 3 = 15", "2d20kh1 (13, 4) + 7 = 20", "8d6 (4, 3, ...) [fire] = 28", "1d20")."""
+    text = _clean(text)
     text = re.sub(r'\[[^\]]*\]', ' ', text)
+    text = '\n'.join(' ' if _FIELD.match(line) or re.match(r'\s*dc\s*:', line) else line
+                     for line in text.split('\n'))
+    text = _DICE_EXPR.sub(' ', text)
     for pattern in (_AVRAE, _SUM, _NATURAL, _INIT, _TOTAL):
         # "I've got 20 gold" is money, not a roll: a number followed by a coin word stays.
         text = pattern.sub(lambda m: m.group(0) if re.match(r'\s*(?:gp|gold|coins?|sp|cp|pp)\b',

@@ -139,7 +139,8 @@ def event(key, body, evidence):
 
 
 def offered_amount(action):
-    text = action.casefold()
+    from .kit_rolls import without_rolls
+    text = without_rolls(action)  # a die face or a roll total is never an offer
     if re.search(r'\bhalf\b', text):
         return 'half'
     for found in re.finditer(r"\b(\d{1,3})\s*(gp|gold|coins?|gold pieces)\b", text):

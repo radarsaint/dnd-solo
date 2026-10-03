@@ -220,6 +220,81 @@ class CardRobustnessTests(unittest.TestCase):
         self.assertEqual(room.game()['pending_bet'], 10)
 
 
+class AvraeAtTheTableTests(unittest.TestCase):
+    """6c rerun blockers (2026-10-03, Avrae's real output): a die face, modifier, or total is
+    never a bet or an amount; a check title names the skill; "just roll" honors the skill
+    the player chose."""
+    INVESTIGATION = 'Wren makes an Investigation check! 1d20 (12) + 3 = `15`'
+    SLEIGHT = 'Wren makes a Sleight of Hand check! 1d20 (6) + 7 = `13`'
+
+    def test_no_number_in_avrae_output_is_a_bet_or_an_amount(self):
+        shapes = (self.INVESTIGATION, self.SLEIGHT,
+                  'Wren makes a Sleight of Hand check! 2d20kh1 (13, ~~4~~) + 7 = `20`',
+                  'Wren attacks with a Rapier!\n**To Hit**: 1d20 (12) + 5 = `17`\n'
+                  '**Damage**: 1d8 (5) + 3 [piercing] = `8`',
+                  'Nik casts Fireball!\n**DC**: 15\n**Damage**: 8d6 (4, 3, 5, 2, 6, 1, 4, 3) [fire] = `28`',
+                  '**Initiative**: 1d20 (12) + 2 = `14`', 'I roll 1d20+3.')
+        for shape in shapes:
+            with self.subTest(shape=shape):
+                line = 'I flip the deck over.\n' + shape
+                self.assertIsNone(kit_twenty_one.player_amount(line, loose=True))
+                self.assertIsNone(kit_twenty_one.bet_amount(line, loose=True))
+                self.assertIsNone(kit_toll.offered_amount(line))
+        self.assertEqual(kit_twenty_one.player_amount('I bet 15 gold.\n' + self.SLEIGHT), 15)
+        self.assertEqual(kit_toll.offered_amount("'Five gold, no more.'\n" + self.SLEIGHT), 5)
+
+    def test_v5_marks_with_avrae_investigation_is_the_marks_not_a_bet(self):
+        room = Room(self, toll=False)
+        room.act("I sit, put down ten gold, and say I'll play. I watch the dealer's hands the whole time.\n"
+                 'Wren makes a Perception check! 1d20 (15) + 3 = `18`')
+        self.assertEqual(room.game()['pending_bet'], 10)
+        room.act("I grab his wrist mid-deal. 'That one came from the bottom. Turn the deck over.'")
+        result = room.act('I flip the deck face-down and show everyone the marks on the backs.\n'
+                          + self.INVESTIGATION)
+        self.assertEqual(result.kind, 'check')
+        self.assertIn('marks', result.public_event)
+        self.assertEqual(room.game()['pending_bet'], 10, 'the d20 face (12) is not a bet')
+
+    def test_v8_just_roll_uses_the_stated_sleight_of_hand_and_keeps_the_stake(self):
+        room = Room(self, toll=False)
+        room.act("'I'll bet fifty gold.'")
+        room.act("'Fine, twenty, and I'll play it out. Hit.'")
+        result = room.act("'Just roll for this one, I'm tired of counting.'\n" + self.SLEIGHT)
+        self.assertEqual(result.kind, 'card_mode_check')
+        self.assertIn('20 gp a side, settled on Sleight of Hand', result.public_event)
+        self.assertNotIn('6 gp', result.public_event)
+        self.assertIn('Sleight of Hand d20 6 + 7 = 13', json.dumps(result.events))
+
+    def test_a_fresh_check_round_stake_is_not_the_die_face(self):
+        room = Room(self, toll=False)
+        room.act('I bet 10 gold.')
+        result = room.act('Settle it with one check.\n' + self.SLEIGHT)
+        self.assertIn('10 gp a side', result.public_event)
+
+    def test_the_players_chosen_skill_in_words_settles_the_round(self):
+        for line, name in (("I palm an ace and we settle it with one check.", 'Sleight of Hand'),
+                           ("One check: I read the dealer's face.", 'Insight'),
+                           ("I bluff hard; settle it with one check.", 'Deception'),
+                           ("Settle it with one check.", 'Insight')):
+            with self.subTest(line=line):
+                room = Room(self, toll=False)
+                room.act('I bet 5 gold.')
+                result = room.act(line)
+                self.assertIn(f'settled on {name}.', result.public_event)
+
+    def test_an_irrelevant_stated_skill_does_not_change_the_table_skill(self):
+        room = Room(self, toll=False)
+        room.act('I bet 5 gold.')
+        result = room.act('Settle it with one check.\nWren makes an Athletics check! 1d20 (12) + 3 = `15`')
+        self.assertIn('settled on Insight.', result.public_event)
+
+    def test_avrae_check_title_counts_as_the_social_skill(self):
+        room = Room(self, toll=False)
+        result = room.act("'Sit down.'\nWren makes a Persuasion check! 1d20 (20) + 0 = `20`")
+        self.assertEqual(result.kind, 'social_check')
+        self.assertIn('Persuasion', json.dumps(result.events))
+
+
 class ValidatorNoiseTests(VoiceTestCase):
     ACTION = HardeningGuardTests.ACTION
     guarded = HardeningGuardTests.guarded
