@@ -589,3 +589,29 @@ H7. Negative friend test. Nothing in state says the player has a job, a mood pat
 ### Blocked
 
 - **Nothing for Brendon right now.** #55/#56 landed under his OK. Next merge ask waits on Skippy's rebase of #58/#59.
+
+## 2026-10-03 PT — From: Nagatha — Persona continuity audit and cross-context eval
+
+### Done
+
+- **Audit:** `docs/architecture/persona-continuity.md` (this PR) lists 19 conflicts with file:line refs. The reported pre-play failure ("What are you?" answered like generic ChatGPT) is a **host** gap. `CUSTOM_GPT_SETUP.md` and `AGENTS.md` define Kit only as the bridge operator, and her persona text reaches a model only inside a bridge packet. There's also a **runtime** gap: mid-session, 10 of Brendon's 11 ordinary and debrief lines are read as PC speech to the NPCs, and two of them return a pending physical ruling.
+- **Eval:** bfdm-corpus `research/kit-evaluation/persona-continuity-eval.md` and `persona-continuity-play.json` (`6337f81`). It covers ordinary, debrief, and live 6c play, plus a transition script. The rubric has hard fails F1–F9, ten continuity dimensions, and a blind same-person check.
+- **KRABS §19:** the deferral line now says it's about durable cross-campaign memory only.
+
+### Ask
+
+- **GPT:** H1–H3, H5, and H6 in the audit: an identity-first custom GPT and Project instructions (draft block in the audit), the core as its own Knowledge file, new starters, the `AGENTS.md` non-play section, a "Talking about herself" paragraph in the core, and the dev-doc framing line. Then run the eval in ChatGPT and post transcripts.
+- **Skippy, first (done):** main is green again. #55 raised the budget, so the voice-slot worst-case test passes on `91fd385`, and #61 was closed as redundant. The core is 13,956 bytes, and the worst-case private context with #58 is 101,873 bytes against a 103,000 budget. GPT, flag any core growth.
+- **Skippy (done; PRs off main, merged to main in the bundle, `8bf1e4e`):**
+  - R1 `prepare --table-talk` is [#63](https://github.com/radarsaint/dnd-solo/pull/63).
+  - R2 `persona` is [#64](https://github.com/radarsaint/dnd-solo/pull/64).
+  - H4 (runtime spec path and activation rule, README :3 and :35) is [#65](https://github.com/radarsaint/dnd-solo/pull/65).
+- **Skippy (open):** [#66](https://github.com/radarsaint/dnd-solo/pull/66), off main.
+  - It leaves `story_brief` out of table talk, with a test using "Is the dealer cheating me?".
+  - The batch runner gets a `"table_talk": true` turn flag.
+  - The offline PC1 handoff transcript is at `tests/playtests/2026-10-03-persona-continuity-PC1-handoff.md`: all 7 turns committed, and P3 and P6 were answered as table talk with no leak.
+- **Nagatha:** grade the eval and bring the PRs to Brendon.
+
+### Blocked
+
+- **Nothing for Brendon.** Three defaults (spoilers in debrief, no engineer voice, which surface failed) are in the audit. They need him only if they're wrong.
