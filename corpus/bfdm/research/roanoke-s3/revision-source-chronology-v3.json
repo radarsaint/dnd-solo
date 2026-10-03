@@ -1,0 +1,54 @@
+{
+  "schema": "brendon_dm_revision_source_map/v1",
+  "source_family": "Roanoke Season 3",
+  "rough": {
+    "bcs": "BCS-000045",
+    "drive_id": "1XUIWqGkairN7_U5u8Kr0Alsd-onPteZSAcZVBWH5Im8",
+    "available_current_revision": "77813",
+    "available_current_revision_time": "2020-04-18T06:45:22.492Z"
+  },
+  "w1": {
+    "bcs": "BCS-000048",
+    "drive_id": "1fHjX43qP6zvnGHHnu2G82EISPkn3Dr8PTCVF6KcyhVk",
+    "preplay_revision": "23476",
+    "preplay_time": "2020-06-25T20:51:35.433Z"
+  },
+  "w2": {
+    "bcs": "BCS-000029",
+    "drive_id": "1mOf7n_EdlJjumVKjmx3Rf7Szt5irSklrD5Yhm6D9-t0",
+    "preplay_revision": "13208",
+    "preplay_time": "2020-06-25T21:12:06.702Z",
+    "corpus_gap": false,
+    "repository_status": "legacy_staging_reconciliation_pending"
+  },
+  "w3": {
+    "bcs": "BCS-000052",
+    "drive_id": "1n3zktVsIeTPlXix-gBJf-_4Bg28nag9MbCIZdaLsIAY",
+    "preplay_revision": "16605",
+    "preplay_time": "2020-06-16T03:08:09.725Z"
+  },
+  "w4": {
+    "bcs": "BCS-000037",
+    "drive_id": "1hGA7_6N3PJZ5RTu-Kvmqy5hJ2PoS55OMVfdD4kFPw7U",
+    "preplay_revision": "5631",
+    "preplay_time": "2020-07-13T19:28:29.198Z",
+    "corpus_gap": false,
+    "repository_status": "legacy_staging_reconciliation_pending"
+  },
+  "w5": {
+    "bcs": "BCS-000053",
+    "drive_id": "1V-fKWiQbVGazYP4xkSVHtDm9GkHhJsxxQeJeGFiZauw",
+    "preplay_revision": "1572",
+    "preplay_time": "2020-05-18T06:15:22.851Z"
+  },
+  "change_log": {
+    "bcs": "BCS-000046",
+    "drive_id": "1rX3drh0uGXMASZSYqistWxEaX1wzeS55rv3YmXaL594"
+  },
+  "discord": {
+    "repo": "radarsaint/bfdm-corpus",
+    "path": "discord/roanoke-season-3/roanoke-season-3.sqlite",
+    "messages": 197013,
+    "brendon_user_id": "313689699627696139"
+  }
+}
