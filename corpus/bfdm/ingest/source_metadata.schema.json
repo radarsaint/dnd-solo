@@ -1,0 +1,274 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/radarsaint/bfdm-corpus/ingest/source_metadata.schema.json",
+  "title": "BFDM source container metadata",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "corpus_id",
+    "project",
+    "project_slug",
+    "title",
+    "source_role",
+    "source_kind",
+    "authorship",
+    "locators",
+    "representations",
+    "normalization",
+    "capture_status",
+    "ingested_at"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "bfdm_source_metadata/v1"
+    },
+    "corpus_id": {
+      "type": "string",
+      "pattern": "^BCS-[0-9]{6}$"
+    },
+    "project": {
+      "type": "string",
+      "minLength": 1
+    },
+    "project_slug": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source_role": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source_kind": {
+      "type": "string",
+      "minLength": 1
+    },
+    "document_family_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "original_filename": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "mime_type": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "created_at": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "modified_at": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "ingested_at": {
+      "type": "string",
+      "minLength": 1
+    },
+    "authorship": {
+      "type": "object",
+      "required": [
+        "status",
+        "basis"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "BRENDON",
+            "COLLABORATIVE",
+            "OTHER_AUTHOR",
+            "UNKNOWN"
+          ]
+        },
+        "basis": {
+          "type": "string"
+        },
+        "project_ownership_context": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": true
+    },
+    "locators": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "provider",
+          "locator_type"
+        ],
+        "properties": {
+          "provider": {
+            "type": "string",
+            "minLength": 1
+          },
+          "locator_type": {
+            "type": "string",
+            "minLength": 1
+          },
+          "native_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "library_file_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "project_file_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "project_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source_path": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "version_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "representations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "kind",
+          "path",
+          "sha256"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "minLength": 1
+          },
+          "path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[a-fA-F0-9]{64}$"
+          },
+          "mime_type": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "size_bytes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "provider_revision_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "normalization": {
+      "type": "object",
+      "required": [
+        "method",
+        "warnings"
+      ],
+      "properties": {
+        "method": {
+          "type": "string"
+        },
+        "tool": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "capture_status": {
+      "type": "object",
+      "required": [
+        "current_body",
+        "comments",
+        "revision_metadata",
+        "revision_bodies",
+        "assets"
+      ],
+      "properties": {
+        "current_body": {
+          "type": "string"
+        },
+        "comments": {
+          "type": "string"
+        },
+        "revision_metadata": {
+          "type": "string"
+        },
+        "revision_bodies": {
+          "type": "string"
+        },
+        "assets": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

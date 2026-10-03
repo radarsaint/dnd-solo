@@ -1,0 +1,203 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/radarsaint/bfdm-corpus/ingest/ingest_report.schema.json",
+  "title": "BFDM ingestion run report",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "ingest_run_id",
+    "scope",
+    "branch",
+    "base_sha",
+    "started_at",
+    "completed_at",
+    "surfaces_searched",
+    "counts",
+    "validation",
+    "known_gaps"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "bfdm_ingest_report/v1"
+    },
+    "ingest_run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "scope": {
+      "type": "string",
+      "minLength": 1
+    },
+    "branch": {
+      "type": "string",
+      "minLength": 1
+    },
+    "base_sha": {
+      "type": "string",
+      "minLength": 7
+    },
+    "result_sha": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "started_at": {
+      "type": "string",
+      "minLength": 1
+    },
+    "completed_at": {
+      "type": "string",
+      "minLength": 1
+    },
+    "surfaces_searched": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "counts": {
+      "type": "object",
+      "required": [
+        "candidates",
+        "new_bcs",
+        "reused_bcs",
+        "possible_duplicates",
+        "excluded_unrelated",
+        "unavailable",
+        "comments",
+        "revision_metadata",
+        "revision_bodies",
+        "assets"
+      ],
+      "properties": {
+        "candidates": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "new_bcs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "reused_bcs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "possible_duplicates": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "excluded_unrelated": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unavailable": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "comments": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "revision_metadata": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "revision_bodies": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "assets": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": true
+    },
+    "highest_bcs_allocated": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^BCS-[0-9]{6}$"
+    },
+    "sqlite_counts": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 0
+      }
+    },
+    "validation": {
+      "type": "object",
+      "required": [
+        "json_jsonl_valid",
+        "bcs_unique",
+        "native_ids_unique",
+        "sha256_verified",
+        "sqlite_integrity_check",
+        "foreign_key_check",
+        "fts_smoke_test",
+        "repo_hygiene_check"
+      ],
+      "properties": {
+        "json_jsonl_valid": {
+          "type": "boolean"
+        },
+        "bcs_unique": {
+          "type": "boolean"
+        },
+        "native_ids_unique": {
+          "type": "boolean"
+        },
+        "sha256_verified": {
+          "type": "boolean"
+        },
+        "sqlite_integrity_check": {
+          "type": "string"
+        },
+        "foreign_key_check": {
+          "type": "string"
+        },
+        "fts_smoke_test": {
+          "type": "boolean"
+        },
+        "repo_hygiene_check": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": true
+    },
+    "possible_duplicate_records": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "unavailable_records": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "excluded_records": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "known_gaps": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "additionalProperties": true
+}

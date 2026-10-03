@@ -1,0 +1,13 @@
+{"relation_id":"BCR-000001","from_id":"BCE-000001","relation":"HAS_CONTEXT_CONTAINER","to_id":"BCS-000059","basis":"Exploration Impossible editorial comments are anchored to Michael Kennish's manuscript."}
+{"relation_id":"BCR-000002","from_id":"BCS-000043","relation":"CONTAINS_ATTRIBUTED_EVIDENCE","to_id":"BCE-000002","basis":"Four Drive comments directly attributed to Brendon."}
+{"relation_id":"BCR-000003","from_id":"BCS-000046","relation":"CONTAINS_ATTRIBUTED_EVIDENCE","to_id":"BCE-000003","basis":"Seven Drive comments directly attributed to Brendon."}
+{"relation_id":"BCR-000004","from_id":"BCS-000046","relation":"CONTAINS_ATTRIBUTED_EVIDENCE","to_id":"BCE-000004","basis":"Verified before/after Drive revision delta; both revisions report Brendon as last modifying user."}
+{"relation_id":"BCR-000005","from_id":"BCS-000068","relation":"CONTAINS_ATTRIBUTED_EVIDENCE","to_id":"BCE-000005","basis":"Verbatim user-authored statement preserved in BCS-000068 with UTC timestamp and quote ID."}
+{"relation_id":"BCR-000006","from_id":"BCS-000068","relation":"CONTAINS_ATTRIBUTED_EVIDENCE","to_id":"BCE-000006","basis":"Verbatim user-authored statement preserved in BCS-000068 with UTC timestamp and quote ID."}
+{"relation_id":"BCR-000007","from_id":"BCS-000068","relation":"CONTAINS_ATTRIBUTED_EVIDENCE","to_id":"BCE-000007","basis":"Verbatim user-authored statement preserved in BCS-000068 with UTC timestamp and quote ID."}
+{"relation_id":"BCR-000008","from_id":"BCS-000068","relation":"CONTAINS_ATTRIBUTED_EVIDENCE","to_id":"BCE-000008","basis":"Verbatim user-authored statement preserved in BCS-000068 with UTC timestamp and quote ID."}
+{"relation_id":"BCR-000009","from_id":"BCS-000068","relation":"CONTAINS_ATTRIBUTED_EVIDENCE","to_id":"BCE-000009","basis":"Verbatim user-authored statement preserved in BCS-000068 with UTC timestamp and quote ID."}
+{"relation_id":"BCR-000010","from_id":"BCS-000068","relation":"CONTAINS_ATTRIBUTED_EVIDENCE","to_id":"BCE-000010","basis":"Verbatim user-authored statement preserved in BCS-000068 with UTC timestamp and quote ID."}
+{"relation_id":"BCR-000011","from_id":"BCS-000068","relation":"CONTAINS_ATTRIBUTED_EVIDENCE","to_id":"BCE-000011","basis":"Verbatim user-authored statement preserved in BCS-000068 with UTC timestamp and quote ID."}
+{"relation_id":"BCR-000012","from_id":"BCS-000068","relation":"CONTAINS_ATTRIBUTED_EVIDENCE","to_id":"BCE-000012","basis":"Verbatim user-authored statement preserved in BCS-000068 with UTC timestamp and quote ID."}
+{"relation_id":"BCR-000013","from_id":"BCS-000068","relation":"CONTAINS_ATTRIBUTED_EVIDENCE","to_id":"BCE-000013","basis":"Verbatim user-authored archive-first corpus directive preserved in BCS-000068."}
