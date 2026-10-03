@@ -1,0 +1,204 @@
+{
+  "schema": "kit-evidence-excerpts-v1",
+  "purpose": "Raw short source quotations with attribution and locators; analyst interpretation is in decisions.jsonl.",
+  "excerpts": [
+    {
+      "source_id": "SRC-ROA-COM",
+      "comment_id": "AAAADnx3DvU",
+      "created_at": "2019-08-28T18:10:16.693Z",
+      "modified_at": "2019-08-28T18:10:16.693Z",
+      "author": "Brendon Faulkner",
+      "authorship": "BRENDON",
+      "resolved": false,
+      "anchor_id": "kix.abiann0cxmv",
+      "document_url": "https://docs.google.com/document/d/1-8bOpRzSB08qxESL7Y9tboWYe5eb90eMso3RKyZgjBE",
+      "exact_fragments": [
+        "design arcanian spell schools to be discoverable.",
+        "can help the players identify which arcane effects are not circumventable"
+      ],
+      "fidelity": "Verbatim substrings of directly fetched comment. Full source remains at the document/comment locator.",
+      "interpretation_note": "Comment authorship does not establish authorship of the anchored manuscript text. Resolution is not proof of implementation."
+    },
+    {
+      "source_id": "SRC-ROA-COM",
+      "comment_id": "AAAADnx3DvQ",
+      "created_at": "2019-08-28T18:06:37.312Z",
+      "modified_at": "2019-08-28T18:06:37.312Z",
+      "author": "Brendon Faulkner",
+      "authorship": "BRENDON",
+      "resolved": false,
+      "anchor_id": "kix.ds71s3i1mspt",
+      "document_url": "https://docs.google.com/document/d/1-8bOpRzSB08qxESL7Y9tboWYe5eb90eMso3RKyZgjBE",
+      "exact_fragments": [
+        "Tying cp to rest is a good idea",
+        "some one could stack short rests infinitely"
+      ],
+      "fidelity": "Verbatim substrings of directly fetched comment. Full source remains at the document/comment locator.",
+      "interpretation_note": "Comment authorship does not establish authorship of the anchored manuscript text. Resolution is not proof of implementation."
+    },
+    {
+      "source_id": "SRC-ROA-COM",
+      "comment_id": "AAAADnx3DvM",
+      "created_at": "2019-08-28T18:05:13.682Z",
+      "modified_at": "2019-08-28T18:05:13.682Z",
+      "author": "Brendon Faulkner",
+      "authorship": "BRENDON",
+      "resolved": false,
+      "anchor_id": "kix.3ags34rmph",
+      "document_url": "https://docs.google.com/document/d/1-8bOpRzSB08qxESL7Y9tboWYe5eb90eMso3RKyZgjBE",
+      "exact_fragments": [
+        "In regards to \"can trade\" does this mean \"can give\" \"can recieve\" or both?"
+      ],
+      "fidelity": "Verbatim substrings of directly fetched comment. Full source remains at the document/comment locator.",
+      "interpretation_note": "Comment authorship does not establish authorship of the anchored manuscript text. Resolution is not proof of implementation."
+    },
+    {
+      "source_id": "SRC-ROA-COM",
+      "comment_id": "AAAADoLbwx4",
+      "created_at": "2019-08-30T18:36:52.072Z",
+      "modified_at": "2019-09-03T02:21:56.567Z",
+      "author": "Noah Carr",
+      "authorship": "COLLABORATIVE",
+      "resolved": true,
+      "anchor_id": "kix.hcbj4ratrfek",
+      "document_url": "https://docs.google.com/document/d/1-8bOpRzSB08qxESL7Y9tboWYe5eb90eMso3RKyZgjBE",
+      "exact_fragments": [
+        "I personally do not like having an exercise or park our routine from cp."
+      ],
+      "fidelity": "Verbatim substrings of directly fetched comment. Full source remains at the document/comment locator.",
+      "interpretation_note": "Comment authorship does not establish authorship of the anchored manuscript text. Resolution is not proof of implementation. This is a known non-Brendon contribution; the author’s exact DM role is not established here."
+    },
+    {
+      "source_id": "SRC-NOV-COM",
+      "comment_id": "AAAAJVVgHME",
+      "created_at": "2020-04-29T20:17:13.504Z",
+      "modified_at": "2020-05-16T19:30:20.920Z",
+      "author": "Brendon Faulkner",
+      "authorship": "BRENDON",
+      "resolved": true,
+      "anchor_id": "kix.hf64ctjb7rf5",
+      "document_url": "https://docs.google.com/document/d/1t4xOCSj7E6WlEDNyHuBrsBkqwui0IRgMIzTaUCqOy_g",
+      "exact_fragments": [
+        "establish their friendship before this line of dialogue through actions",
+        "if you want their friendship to have weight in the story."
+      ],
+      "fidelity": "Verbatim substrings of directly fetched comment. Full source remains at the document/comment locator.",
+      "interpretation_note": "Comment authorship does not establish authorship of the anchored manuscript text. Resolution is not proof of implementation."
+    },
+    {
+      "source_id": "SRC-NOV-COM",
+      "comment_id": "AAAAJhd0Hl0",
+      "created_at": "2020-05-08T05:28:46.770Z",
+      "modified_at": "2020-05-16T19:48:36.407Z",
+      "author": "Brendon Faulkner",
+      "authorship": "BRENDON",
+      "resolved": true,
+      "anchor_id": "kix.k8ywv7jya3kp",
+      "document_url": "https://docs.google.com/document/d/1t4xOCSj7E6WlEDNyHuBrsBkqwui0IRgMIzTaUCqOy_g",
+      "exact_fragments": [
+        "Also, make him earn the knowledge.",
+        "Maybe he has to watch a pod launch and sees a flicker in the shields or something."
+      ],
+      "fidelity": "Verbatim substrings of directly fetched comment. Full source remains at the document/comment locator.",
+      "interpretation_note": "Comment authorship does not establish authorship of the anchored manuscript text. Resolution is not proof of implementation."
+    },
+    {
+      "source_id": "SRC-NOV-COM",
+      "comment_id": "AAAAJhh7UuA",
+      "created_at": "2020-05-08T08:48:09.392Z",
+      "modified_at": "2020-05-08T08:48:09.392Z",
+      "author": "Brendon Faulkner",
+      "authorship": "BRENDON",
+      "resolved": false,
+      "anchor_id": "kix.3516ljbzqq26",
+      "document_url": "https://docs.google.com/document/d/1t4xOCSj7E6WlEDNyHuBrsBkqwui0IRgMIzTaUCqOy_g",
+      "exact_fragments": [
+        "make your main character seem cooler than maybe he needs to be?",
+        "maybe suggest that her method is working on him instead"
+      ],
+      "fidelity": "Verbatim substrings of directly fetched comment. Full source remains at the document/comment locator.",
+      "interpretation_note": "Comment authorship does not establish authorship of the anchored manuscript text. Resolution is not proof of implementation."
+    },
+    {
+      "source_id": "SRC-NOV-COM",
+      "comment_id": "AAAAJhdywqw",
+      "created_at": "2020-05-08T04:41:33.217Z",
+      "modified_at": "2020-05-08T04:41:33.217Z",
+      "author": "Brendon Faulkner",
+      "authorship": "BRENDON",
+      "resolved": false,
+      "anchor_id": "kix.tcy80vz5gam1",
+      "document_url": "https://docs.google.com/document/d/1t4xOCSj7E6WlEDNyHuBrsBkqwui0IRgMIzTaUCqOy_g",
+      "exact_fragments": [
+        "Your missing a huge character development beat by not grandstanding more."
+      ],
+      "fidelity": "Verbatim substrings of directly fetched comment. Full source remains at the document/comment locator.",
+      "interpretation_note": "Comment authorship does not establish authorship of the anchored manuscript text. Resolution is not proof of implementation."
+    },
+    {
+      "source_id": "SRC-NOV-COM",
+      "comment_id": "AAAAJehE1SI",
+      "created_at": "2020-05-01T20:06:37.176Z",
+      "modified_at": "2020-05-08T04:24:50.462Z",
+      "author": "Brendon Faulkner",
+      "authorship": "BRENDON",
+      "resolved": true,
+      "anchor_id": "kix.rp2lh5ygmmfs",
+      "document_url": "https://docs.google.com/document/d/1t4xOCSj7E6WlEDNyHuBrsBkqwui0IRgMIzTaUCqOy_g",
+      "exact_fragments": [
+        "less specific time frames let the reader brush by unimportant details, (i removed the number 56)"
+      ],
+      "fidelity": "Verbatim substrings of directly fetched comment. Full source remains at the document/comment locator.",
+      "interpretation_note": "Comment authorship does not establish authorship of the anchored manuscript text. Resolution is not proof of implementation."
+    },
+    {
+      "source_id": "SRC-NOV-COM",
+      "comment_id": "AAAAJhh7Uts",
+      "created_at": "2020-05-08T08:41:13.895Z",
+      "modified_at": "2020-05-08T08:41:13.895Z",
+      "author": "Brendon Faulkner",
+      "authorship": "BRENDON",
+      "resolved": false,
+      "anchor_id": "kix.8wlaryuix2ww",
+      "document_url": "https://docs.google.com/document/d/1t4xOCSj7E6WlEDNyHuBrsBkqwui0IRgMIzTaUCqOy_g",
+      "exact_fragments": [
+        "does she notice him waiting all creepy like? why doesn't she interact back on this note?"
+      ],
+      "fidelity": "Verbatim substrings of directly fetched comment. Full source remains at the document/comment locator.",
+      "interpretation_note": "Comment authorship does not establish authorship of the anchored manuscript text. Resolution is not proof of implementation."
+    },
+    {
+      "source_id": "SRC-NOV-COM",
+      "comment_id": "AAAAJVVgHNc",
+      "created_at": "2020-04-29T20:22:29.536Z",
+      "modified_at": "2020-05-08T04:59:15.048Z",
+      "author": "Brendon Faulkner",
+      "authorship": "BRENDON",
+      "resolved": true,
+      "anchor_id": "kix.f5bkxogu4qy",
+      "document_url": "https://docs.google.com/document/d/1t4xOCSj7E6WlEDNyHuBrsBkqwui0IRgMIzTaUCqOy_g",
+      "exact_fragments": [
+        "draw out the wait longer with anxieties that it might not work",
+        "raise the tension so that the success has more of a pay off."
+      ],
+      "fidelity": "Verbatim substrings of directly fetched comment. Full source remains at the document/comment locator.",
+      "interpretation_note": "Comment authorship does not establish authorship of the anchored manuscript text. Resolution is not proof of implementation."
+    },
+    {
+      "source_id": "SRC-ROA-REV",
+      "file_id": "1rX3drh0uGXMASZSYqistWxEaX1wzeS55rv3YmXaL594",
+      "revision_before": "8751",
+      "revision_after": "9007",
+      "entry_date": "2020-05-12",
+      "revision_modified_at": "2020-05-13T09:13:18.979Z",
+      "revision_last_modifying_user": "Brendon Faulkner",
+      "authorship": "BRENDON",
+      "authorship_confidence": "MEDIUM",
+      "exact_fragments": [
+        "I realize why some of this is feeling sparse. We aren’t designing combat encounters in the fluff."
+      ],
+      "fidelity": "Verbatim text newly present in revision 9007 compared with adjacent listed revision 8751.",
+      "interpretation_note": "Revision-level attribution is not a per-character edit log; no complete successful redesign is claimed."
+    }
+  ]
+}

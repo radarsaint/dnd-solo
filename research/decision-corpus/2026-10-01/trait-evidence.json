@@ -1,0 +1,236 @@
+{
+  "schema": "kit-trait-evidence-v0.1",
+  "limits": [
+    "Earliest/latest mean earliest/latest in this batch, not the complete archive.",
+    "Projects group aliases and revisions; sources are not votes. Repeated 6c turns count as one Kit family.",
+    "A stronger-source project may still contain secondary playtest reports or revision-level attribution; see source-index.json."
+  ],
+  "traits": [
+    {
+      "id": "T01",
+      "candidate": "Make relevant significance and causal evidence perceptible",
+      "kind": "GENERAL_DM_INSTINCT_CANDIDATE",
+      "support": [
+        "BDR-K04",
+        "BDR-N02",
+        "BDR-B01"
+      ],
+      "projects": [
+        "Kit",
+        "Exploration Impossible",
+        "Bastion & Redoubt"
+      ],
+      "stronger_source_projects": [
+        "Kit",
+        "Exploration Impossible"
+      ],
+      "earliest_evidence": "2020-05-08",
+      "latest_evidence": "2026-09-29",
+      "contradictions": [],
+      "limits": [
+        "K04 does not prescribe revealing the room's secrets.",
+        "Providing a clue and supplying its solution are different actions."
+      ],
+      "confidence": "MEDIUM",
+      "predictive_rule": "When a scene matters but the player has no usable basis for engagement, surface a grounded observation, pressure or relationship that permits a choice.",
+      "distinct_project_count": 3,
+      "stronger_source_project_count": 2,
+      "inference_status": "INFERENCE",
+      "counterexample_search_status": "Initial targeted pass only; an empty contradictions array does not establish absence."
+    },
+    {
+      "id": "T02",
+      "candidate": "Spend depth and attention where they produce playable interest",
+      "kind": "GENERAL_DM_INSTINCT_CANDIDATE",
+      "support": [
+        "BDR-K02",
+        "BDR-K03",
+        "BDR-K07",
+        "BDR-R04",
+        "BDR-N05",
+        "BDR-N07"
+      ],
+      "projects": [
+        "Kit",
+        "Roanoke",
+        "Exploration Impossible"
+      ],
+      "stronger_source_projects": [
+        "Kit",
+        "Roanoke",
+        "Exploration Impossible"
+      ],
+      "earliest_evidence": "2020-04-29",
+      "latest_evidence": "2026-09-29",
+      "contradictions": [
+        {
+          "records": [
+            "BDR-K02",
+            "BDR-K03"
+          ],
+          "relation": "CONDITIONAL_TENSION",
+          "finding": "The same activity deserves richer mechanics while chosen and less procedural demand when the player moves on."
+        }
+      ],
+      "limits": [
+        "Do not generalize one sparse-content diagnosis into mandatory combat.",
+        "Narrative suspense does not justify interface delay."
+      ],
+      "confidence": "MEDIUM",
+      "predictive_rule": "Ask what the added or removed detail changes for the player before expanding or compressing.",
+      "distinct_project_count": 3,
+      "stronger_source_project_count": 3,
+      "inference_status": "INFERENCE",
+      "counterexample_search_status": "Initial targeted pass only; an empty contradictions array does not establish absence."
+    },
+    {
+      "id": "T03",
+      "candidate": "Embodiment is sustained reciprocal behavior",
+      "kind": "GENERAL_DM_INSTINCT_CANDIDATE",
+      "support": [
+        "BDR-K05",
+        "BDR-N06",
+        "BDR-A01",
+        "BDR-W01"
+      ],
+      "projects": [
+        "Kit",
+        "Exploration Impossible",
+        "At War's End",
+        "Neverwinter"
+      ],
+      "stronger_source_projects": [
+        "Kit",
+        "Exploration Impossible"
+      ],
+      "earliest_evidence": "2020-05-08",
+      "latest_evidence": "2026-09-29",
+      "contradictions": [],
+      "limits": [
+        "A character can react only to what they perceive or know.",
+        "A vivid introduction alone is insufficient; every NPC need not speak every turn.",
+        "Criminal diction and occupations do not become universal."
+      ],
+      "confidence": "MEDIUM",
+      "predictive_rule": "After a visible player move, consider whether it changes an NPC's attitude, tactic or behavior.",
+      "distinct_project_count": 4,
+      "stronger_source_project_count": 2,
+      "inference_status": "INFERENCE",
+      "counterexample_search_status": "Initial targeted pass only; an empty contradictions array does not establish absence."
+    },
+    {
+      "id": "T04",
+      "candidate": "Adaptation and protection of an intended structure coexist",
+      "kind": "UNRESOLVED_VALUE_CONFLICT",
+      "support": [
+        "BDR-R01",
+        "BDR-A02",
+        "BDR-E01"
+      ],
+      "projects": [
+        "Roanoke",
+        "At War's End",
+        "Earthfall"
+      ],
+      "stronger_source_projects": [
+        "Roanoke"
+      ],
+      "earliest_evidence": "2019-08-28",
+      "latest_evidence": "2026-08-18",
+      "contradictions": [
+        {
+          "records": [
+            "BDR-R01",
+            "BDR-E01"
+          ],
+          "relation": "UNRESOLVED_CONTEXT_OR_TIME_DIFFERENCE",
+          "finding": "An early design protects specific magical boundaries; a later DM report accepts a bypass. Neither proves an absolute policy."
+        }
+      ],
+      "limits": [
+        "Six-plus years, different games and unequal source fidelity separate these examples.",
+        "No established priority order can yet predict every conflict."
+      ],
+      "confidence": "LOW",
+      "predictive_rule": null,
+      "distinct_project_count": 3,
+      "stronger_source_project_count": 1,
+      "inference_status": "INFERENCE",
+      "counterexample_search_status": "Initial targeted pass only; an empty contradictions array does not establish absence."
+    },
+    {
+      "id": "T05",
+      "candidate": "Dramatic intensity should serve the scene's particular purpose",
+      "kind": "GENERAL_STORYTELLING_HABIT_CANDIDATE",
+      "support": [
+        "BDR-N03",
+        "BDR-N04",
+        "BDR-N07",
+        "BDR-K01",
+        "BDR-K07"
+      ],
+      "projects": [
+        "Exploration Impossible",
+        "Kit"
+      ],
+      "stronger_source_projects": [
+        "Exploration Impossible",
+        "Kit"
+      ],
+      "earliest_evidence": "2020-04-29",
+      "latest_evidence": "2026-09-29",
+      "contradictions": [
+        {
+          "records": [
+            "BDR-N03",
+            "BDR-N04"
+          ],
+          "relation": "CONDITIONAL_TENSION",
+          "finding": "Grandstanding can reveal a character; effortless superiority can weaken one."
+        }
+      ],
+      "limits": [
+        "Novel interiority must not be transferred into narrating a player's feelings.",
+        "One does not infer a fixed verbosity or universal comic register."
+      ],
+      "confidence": "MEDIUM",
+      "predictive_rule": "Expand the moment that earns tension or character; inhibit spectacle that contradicts events or removes useful vulnerability.",
+      "distinct_project_count": 2,
+      "stronger_source_project_count": 2,
+      "inference_status": "INFERENCE",
+      "counterexample_search_status": "Initial targeted pass only; an empty contradictions array does not establish absence."
+    },
+    {
+      "id": "T06",
+      "candidate": "Inspect the conditions and interpretations that change an outcome",
+      "kind": "GENERAL_DM_AND_SYSTEM_JUDGMENT_CANDIDATE",
+      "support": [
+        "BDR-R02",
+        "BDR-R03",
+        "BDR-K06"
+      ],
+      "projects": [
+        "Roanoke",
+        "Kit"
+      ],
+      "stronger_source_projects": [
+        "Roanoke",
+        "Kit"
+      ],
+      "earliest_evidence": "2019-08-28",
+      "latest_evidence": "2026-09-29",
+      "contradictions": [],
+      "limits": [
+        "The CP comments do not supply final rulings.",
+        "Kit's later situation-default implementation is not extra evidence of Brendon's historical decision.",
+        "Do not turn careful adjudication into constant clarification."
+      ],
+      "confidence": "MEDIUM",
+      "predictive_rule": "Before granting a benefit or applying a cap, establish its relevant preconditions and direction.",
+      "distinct_project_count": 2,
+      "stronger_source_project_count": 2,
+      "inference_status": "INFERENCE",
+      "counterexample_search_status": "Initial targeted pass only; an empty contradictions array does not establish absence."
+    }
+  ]
+}

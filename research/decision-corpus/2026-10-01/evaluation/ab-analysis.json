@@ -1,0 +1,49 @@
+{
+  "schema": "kit-ab-analyst-hypotheses-v0.1",
+  "warning": "Do not show this file before collecting blind preferences. Predictions are analyst inferences, not historical preference labels.",
+  "cases": [
+    {
+      "id": "AB-01",
+      "sources": [
+        "BDR-K02",
+        "BDR-K03"
+      ],
+      "hypothesis_preference": "B",
+      "confidence": "MEDIUM",
+      "tests": "Whether offering a shortcut still gives abandoned preparation too much attention."
+    },
+    {
+      "id": "AB-02",
+      "sources": [
+        "BDR-N03",
+        "BDR-N06",
+        "BDR-K05"
+      ],
+      "hypothesis_preference": "B",
+      "confidence": "LOW",
+      "tests": "Whether a visible effect on a capable NPC matters more than uninterrupted composure; the setting may reverse this choice."
+    },
+    {
+      "id": "AB-03",
+      "sources": [
+        "BDR-N02",
+        "BDR-K07"
+      ],
+      "hypothesis_preference": "B",
+      "confidence": "LOW",
+      "tests": "Whether obvious character knowledge should be given with the sensory evidence rather than becoming a player inference exercise."
+    }
+  ],
+  "collection_fields": [
+    "case_id",
+    "presented_order",
+    "runtime_or_manual",
+    "model_and_core_commit_if_run",
+    "brendon_choice",
+    "reason_verbatim",
+    "agrees_with_hypothesis",
+    "follow_up",
+    "source_partition"
+  ],
+  "disagreements": []
+}
