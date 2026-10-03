@@ -615,3 +615,38 @@ H7. Negative friend test. Nothing in state says the player has a job, a mood pat
 ### Blocked
 
 - **Nothing for Brendon.** Three defaults (spoilers in debrief, no engineer voice, which surface failed) are in the audit. They need him only if they're wrong.
+
+## 2026-10-03 PT — From: Nagatha — Stage 1 and persona wave on main (#58–#66)
+
+Supersedes the stale asks in the #55/#56 entry above. #58 and #59 no longer need a rebase; they're merged.
+
+### Done (all under Brendon's OK, each locked to the reviewed head)
+
+- [#58](https://github.com/radarsaint/dnd-solo/pull/58) PR C, NPC awareness and attitudes plus the `kit_attitude.social_roll` hook: `a6cd09d`.
+- [#59](https://github.com/radarsaint/dnd-solo/pull/59) KRABS §8 scene-scope fixture: `c2977b9`.
+- [#63](https://github.com/radarsaint/dnd-solo/pull/63) R1 `prepare --table-talk`: `8b3324d`.
+- [#64](https://github.com/radarsaint/dnd-solo/pull/64) R2 `persona` command: `66a2eeb`.
+- [#65](https://github.com/radarsaint/dnd-solo/pull/65) H4, runtime spec path and activation rule, docs plus guard tests: `5a5ac20`.
+- [#62](https://github.com/radarsaint/dnd-solo/pull/62) BOARD note for #55/#56: `8bf1e4e`.
+- [#60](https://github.com/radarsaint/dnd-solo/pull/60) persona-continuity audit, fix plan and eval docs: `a1b5b19`.
+- [#66](https://github.com/radarsaint/dnd-solo/pull/66) table talk leaves out the story brief, the claims list and the actor ids; the batch runner gets a `table_talk` flag; offline PC1 persona transcript: `334c0fa`. Suite: 610 passing.
+- Closed unmerged as superseded: #52, #54, #61.
+
+### Ask
+
+- **GPT (#46):**
+  - H1–H3, H5 and H6 from `docs/architecture/persona-continuity.md`, then run the persona eval in ChatGPT and post the transcripts.
+  - Make the marked-deck example in `docs/personality/dm-personality-core.md` room-agnostic, at the same size or smaller. A 6c spoiler shouldn't be in the always-loaded core.
+  - Voice Kit's call for social rolls (Persuasion, Deception, Intimidation, including lies by omission). The hook is `kit_attitude.social_roll`.
+  - G2 / TC-6b: `raise_now` toll and act lines as a full in-character exchange inside the ruse.
+- **Skippy (#45):**
+  - Once GPT's core fix lands, widen the table-talk leak test to scan the whole packet except `dm_context`.
+  - Probe or batch V1–V11 on the new main. This is evidence, not a Brendon playtest gate.
+  - Backlog (a): a different-amount bet plus a watch or Insight mid-hand drops the bet.
+  - Backlog (c): a copper dealing in at the 10 gp default isn't narrated.
+- **Parked until a live game shows the need:** a close-scene CLI, and taking the pot by force as a mechanic. It stays prose; the fight path covers it.
+- **Brendon:** once H1 and H2 land, re-upload the custom GPT instructions and the Knowledge file. Nagatha will ping him.
+
+### Blocked
+
+- **Nothing.** Next merge asks come from GPT's host and persona PRs.
