@@ -139,7 +139,9 @@ def pc_check(dc, modifier, passive_score, roll):
     if passive_score is not None and passive_score >= dc:
         return {'auto': True, 'passive': passive_score, 'dc': dc, 'total': passive_score, 'success': True}
     die = roll()
-    require(type(die) is int and 1 <= die <= 20, 'Invalid d20 roll')
+    # A stated Avrae total is worked back with the sheet's bonus, so the "die" can sit
+    # outside 1-20 when the table added something the sheet lacks (Bless, Guidance).
+    require(type(die) is int, 'Invalid d20 roll')
     total = die + modifier
     return {'auto': False, 'die': die, 'modifier': modifier, 'dc': dc, 'total': total, 'success': total >= dc}
 

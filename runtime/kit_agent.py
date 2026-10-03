@@ -19,6 +19,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from . import kit_cards
+from . import kit_combat
+from . import kit_rolls
 from . import kit_claims
 from . import kit_agenda, kit_plan, pc_sheet
 from . import kit_detail
@@ -64,6 +66,9 @@ EVENT_MAX_CHARS = 500
 # A card turn reports every card played until the player acts again (up to a round and
 # a half at a five-seat table, plus the showdown), so it gets a longer bound.
 CARD_EVENT_MAX_CHARS = 1200
+# Kinds whose accepted event may run to CARD_EVENT_MAX_CHARS: a card round, a combat round
+# (the PC's act and every NPC turn after it), and a physical act with its consequences.
+LONG_EVENT_KINDS = ('card_', 'combat_', 'physical_')
 SOCIAL_EVENT_PREFIX = 'You declare: '
 _TYPOGRAPHIC = str.maketrans({'‘': "'", '’': "'", '“': '"', '”': '"'})
 
@@ -224,6 +229,13 @@ class Room6CAdjudicator:
         narration = QUOTED_SPEECH.sub(' ', action.translate(_TYPOGRAPHIC))
         # Speech and table talk to Kit are never resolved as checks.
         spoken = bool(QUOTED_SPEECH.search(action.translate(_TYPOGRAPHIC))) or is_ooc(action)
+        # A physical act changes the world (attacks, grabs, a flipped table, coins taken, paint
+        # wiped off): it is resolved before any talk, toll, or card reading of the same words.
+        # While a fight waits on initiative or runs, a reported initiative total routes here too.
+        if not is_ooc(action) and (self.source or {}).get('combat'):
+            physical = self._resolve_physical(action, revision, state)
+            if physical:
+                return physical
         # A toll on the table is a real exchange (call 6): paying, haggling, refusing, and
         # steering back to the game each commit, spoken or not.
         if not is_ooc(action):
@@ -275,9 +287,13 @@ class Room6CAdjudicator:
                 return self._resolve_check(action, revision, state, *claim)
             raise PendingRuling('What are you reading with Insight: whether someone is telling the truth, '
                                 'or something about how they look or act? No turn was committed.')
+        if kind == 'combat' and kit_rolls.initiative(action) is not None and not kit_combat.parse(
+                action, self.source, state):
+            raise PendingRuling('Nobody here is fighting you, so there is no initiative to roll yet. '
+                                'No turn was committed.')
         if kind == 'combat':
-            raise PendingRuling('Fights are not run in this slice yet: it has no initiative or tactical '
-                                'resolver. No turn was committed.', attempt=True)
+            raise PendingRuling('Who are you attacking, and with what? Name the target and the weapon or '
+                                'spell (with the Avrae roll if you have it). No turn was committed.')
         if kind == 'spell':
             raise PendingRuling('Spell effects outside combat are not resolved in this slice yet, so the '
                                 'spell is not cast. No turn was committed.', attempt=True)
@@ -321,11 +337,42 @@ class Room6CAdjudicator:
                  'evidence': f'Player declared: {action}. Resolution: {public}'}
         return Resolution(kind, public, [event])
 
+    # -- physical acts and fights (runtime/kit_combat.py) -----------------------------
+    def _resolve_physical(self, action, revision, state):
+        act = kit_combat.parse(action, self.source, state)
+        current = state.get('combat') or {}
+        fighting = current.get('status') in ('awaiting_initiative', 'running')
+        if not act and not (fighting and kit_rolls.initiative(action) is not None):
+            return None
+        if act and act['kind'] == 'grab' and act.get('part') == 'wrist':
+            table = card_procedure(self.source, state)
+            if table and kit_cards.card_intent(action, table[2]) == 'card_accuse':
+                return None  # catching the dealer's wrist mid-deal is the accusation itself
+        fight = kit_combat.Fight(self.source, state, revision, action,
+                                 check=lambda skill, dc, label: self._check(skill, dc, state, revision,
+                                                                            f'physical:{label}', action),
+                                 roll=self.roll)
+        before = copy.deepcopy(state.get('combat'))
+        public, events = fight.resolve(act)
+        if fight.needs_roll and not fight.reveals:
+            # Nothing happened yet: the blow waits on its Avrae roll. The fight's start
+            # (initiative) waits with it, so no turn is committed.
+            fight.fight = before
+            raise PendingRuling(f'{public.replace(" Roll initiative.", "")} No turn was committed.')
+        if not public:
+            return None
+        events = list(events) + [{'type': 'reveal_fact', 'fact': fact,
+                                  'evidence': f'Player declared: {action[:300]}. The act shows it.'}
+                                 for fact in fight.reveals if fact not in state.get('known_facts', [])]
+        kind = 'combat_round' if fight.fight else 'physical_act'
+        return Resolution(kind, public, events)
+
     # -- general checks: any room, any PC -------------------------------------------
-    def _die(self, state, revision, label, action):
-        """The player's own stated d20, else a stable seeded roll (an uncommitted model
+    def _die(self, state, revision, label, action, modifier=None, skill=None):
+        """The player's own stated d20 (an Avrae total is worked back with ``modifier``, so
+        the bonus is never added twice), else a stable seeded roll (an uncommitted model
         failure must not reroll the same attempted check)."""
-        supplied = kit_cards.supplied_roll(action)
+        supplied = kit_cards.supplied_roll(action, modifier, skill)
         if supplied:
             return supplied[0]
         if self.roll:
@@ -339,7 +386,6 @@ class Room6CAdjudicator:
         """(modifier, passive) for the PC: a stated "d20 + modifier = total" wins, then a
         host override, then the loaded sheet. Passive is 10 + modifier unless the sheet
         knows better (advantage in force)."""
-        supplied = kit_cards.supplied_roll(action)
         override = getattr(self, skill, None)
         sheet = pc_sheet.sheet_now(state)  # unset lists: the situation's default, never a block
         if override is not None:
@@ -348,18 +394,20 @@ class Room6CAdjudicator:
             modifier, passive = pc_sheet.skill_bonus(sheet, skill), pc_sheet.passive(sheet, skill)
         else:
             modifier = passive = None
+        supplied = kit_cards.supplied_roll(action, modifier, skill)
         if supplied and supplied[1] is not None:
             modifier = supplied[1]
             passive = passive if passive is not None else 10 + modifier
         if modifier is None:
             name = skill.replace('_', ' ').title()
-            raise PendingRuling(f'Load a character sheet or state the {name} roll (e.g. "I rolled 12 + 4 = 16") '
-                                'before this check. No turn was committed.')
+            raise PendingRuling(f'Load a character sheet or state the {name} roll from Avrae '
+                                f'(e.g. "{name} 16") before this check. No turn was committed.')
         return modifier, passive
 
     def _check(self, skill, dc, state, revision, label, action):
         modifier, passive = self._pc_numbers(skill, state, action)
-        return kit_claims.pc_check(dc, modifier, passive, lambda: self._die(state, revision, label, action))
+        return kit_claims.pc_check(dc, modifier, passive,
+                                   lambda: self._die(state, revision, label, action, modifier, skill))
 
     def _present_actors(self, state):
         return {key: actor for key, actor in (state.get('actors') or {}).items()
@@ -443,7 +491,7 @@ class Room6CAdjudicator:
                               [{'type': 'beat', 'tags': ['stealth'], 'evidence': f'Player declared: {action}. Nobody present.'}])
         dc = max(watchers.values())
         modifier, _ = self._pc_numbers('stealth', state, action)
-        die = self._die(state, revision, 'stealth', action)
+        die = self._die(state, revision, 'stealth', action, modifier, 'stealth')
         total = die + modifier
         evidence = (f'Player tried Stealth: d20 {die} + {modifier} = {total} vs best passive Perception {dc} '
                     f'({", ".join(f"{k} {v}" for k, v in watchers.items())}).')
@@ -458,20 +506,18 @@ class Room6CAdjudicator:
         """A player-initiated knowledge roll (History, Arcana...) against a claim's DC.
         Only the player starts one; the runtime never rolls knowledge unprompted."""
         skill = claim['pc_check']
-        supplied = kit_cards.supplied_roll(action)
         sheet = state.get('player_sheet')
-        if supplied and supplied[1] is not None:
-            die, modifier = supplied
+        modifier = pc_sheet.skill_bonus(sheet, skill) if sheet else None
+        supplied = kit_cards.supplied_roll(action, modifier, skill)
+        require(sheet is not None or supplied, f'Load a character sheet or state the {skill} roll '
+                'from Avrae (e.g. "History 19"). No turn was committed.')
+        if supplied:
+            die = supplied[0]
+            modifier = supplied[1] if supplied[1] is not None else (modifier or 0)
         else:
-            require(sheet is not None or supplied, f'Load a character sheet or state the {skill} roll '
-                    '(e.g. "I rolled 12 + 7 = 19"). No turn was committed.')
-            modifier = pc_sheet.skill_bonus(sheet, skill) if sheet else 0
-            if supplied:
-                die = supplied[0]
-            else:
-                require('roll_seed' in state, 'This session predates stable checks; start a fresh database.')
-                material = f"{state['roll_seed']}:{revision}:{claim_id}:{action.casefold()}".encode()
-                die = int.from_bytes(hashlib.sha256(material).digest()[:8], 'big') % 20 + 1
+            require('roll_seed' in state, 'This session predates stable checks; start a fresh database.')
+            material = f"{state['roll_seed']}:{revision}:{claim_id}:{action.casefold()}".encode()
+            die = int.from_bytes(hashlib.sha256(material).digest()[:8], 'big') % 20 + 1
         dc = kit_claims.claim_dc(claim, state.get('actors', {}),
                                   kit_claims.current_floor_level(self.source, state.get('area')))
         total = die + modifier
@@ -578,7 +624,8 @@ class Room6CAdjudicator:
             engine = kit_toll.TollTable(
                 key, toll, label, lambda skill: self._pc_numbers(skill, state, action),
                 kit_claims.npc_passive(actor, toll['haggle']['npc_skill']),
-                lambda: self._die(state, revision, f'toll:{key}', action))
+                lambda skill=None: self._die(state, revision, f'toll:{key}', action,
+                                             self._pc_numbers(skill, state, action)[0] if skill else None, skill))
             text, new_body = engine.resolve(kind, action, body)
             numbers = '; '.join(engine.trace)
             evidence = f'Player declared: {action[:300]}. Toll {key}: {kind}.' + (f' Numbers: {numbers}.' if numbers else '')
@@ -1355,7 +1402,7 @@ def check_plan(plan, episodes, public_event, action_kind=None, candidates=None, 
     require(isinstance(appraisal['cause'], str) and appraisal['cause'].strip()
             and len(appraisal['cause']) <= 500,
             'Appraisal must have a cause')
-    bound = CARD_EVENT_MAX_CHARS if str(action_kind or '').startswith('card_') else EVENT_MAX_CHARS
+    bound = CARD_EVENT_MAX_CHARS if str(action_kind or '').startswith(LONG_EVENT_KINDS) else EVENT_MAX_CHARS
     require(len(plan['observed_event']) <= bound, 'Decision exceeds event bound')
     require(appraisal['goal_effect'] in ('advances', 'threatens', 'neutral') and
             appraisal['target'] in ('player', 'npc', 'scene', 'kit'),

@@ -231,7 +231,8 @@ class TwentyOneTable:
             self.trace.append(f'{label}: passive {name} {passive} meets {dc}; no roll')
             return {'auto': True, 'total': passive, 'dc': dc, 'success': True, 'die': None, 'modifier': None}
         # A roll the player states counts once: for the first check this action makes.
-        supplied = None if getattr(self, '_supplied_spent', False) else supplied_roll(action)
+        supplied = None if getattr(self, '_supplied_spent', False) else \
+            supplied_roll(action, self.modifiers.get(skill), skill)
         self._supplied_spent = bool(supplied) or getattr(self, '_supplied_spent', False)
         modifier = self._modifier(skill, action, supplied)
         die = supplied[0] if supplied else _d20(self.seed, revision, label, action.casefold())

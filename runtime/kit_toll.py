@@ -196,7 +196,7 @@ class TollTable:
             return f'{offer} {unit} gets no traction. The ask stays at {ask} {unit}.'
         skill = self.toll['haggle']['skill']
         modifier, _ = self.pc_numbers(skill)
-        die = self.roll()
+        die = self.roll(skill)
         total = die + modifier
         name = skill.replace('_', ' ').title()
         self.trace.append(f'haggle: {name} d20 {die} + {modifier} = {total} vs {self.npc_flat} '
