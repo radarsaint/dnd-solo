@@ -609,3 +609,83 @@ def public_view(config, public):
     view['rules'] = list(RULES)
     view['stacks'] = {labels.get(seat, seat): gp for seat, gp in view.get('stacks', {}).items()}
     return view
+
+
+# -- narration must match the table (live 6c, 2026-10-03: "one prick on your four" when the
+# marks give a four three) -------------------------------------------------------------
+_RANK_WORDS = {'ace': 'ace', 'aces': 'ace', 'two': '2', 'three': '3', 'four': '4', 'five': '5', 'six': '6',
+               'seven': '7', 'eight': '8', 'nine': '9', 'ten': '10', 'jack': 'jack', 'queen': 'queen',
+               'king': 'king', 'deuce': '2', 'trey': '3'}
+_RANK_WORDS.update({str(n): str(n) for n in range(2, 11)})
+_COUNT_WORDS = {'no': 0, 'zero': 0, 'a single': 1, 'one': 1, 'a lone': 1, 'one lonely': 1, 'a lonely': 1,
+                'single': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5, 'six': 6, 'seven': 7, 'eight': 8,
+                'nine': 9, 'ten': 10, 'eleven': 11}
+_RANK_RE = r'(ace|two|three|four|five|six|seven|eight|nine|ten|jack|queen|king|deuce|trey|10|[2-9])'
+_SUIT_RE = r'(spades|hearts|clubs|diamonds)'
+
+
+def card_value(rank):
+    return 11 if rank == 'ace' else 10 if rank in ('jack', 'queen', 'king') else int(rank)
+
+
+def mark_count(config, rank):
+    """How many marks the fixed scheme puts on a card of ``rank``, or None (no scheme)."""
+    marks = ((config or {}).get('cheat') or {}).get('marks') or {}
+    if marks.get('count') == 'value_minus_one':
+        return card_value(rank) - 1
+    return None
+
+
+def _visible_cards(public):
+    round_ = (public or {}).get('round') or {}
+    names = list(round_.get('cards') or []) + list(round_.get('dealer_cards') or [])
+    if round_.get('dealer_shows'):
+        names.append(round_['dealer_shows'])
+    return names
+
+
+def check_narration(text, public, config):
+    """Problems (strings) where the narration contradicts the table: a mark count on a named
+    card that is not the scheme's count, a named card ("the four of clubs") that is not on
+    the table, or "your <rank>" when the player holds none. Cards the state does not show
+    (the deck's next card, the dealer's hidden one) are never checked against it."""
+    problems = []
+    lowered = (text or '').casefold().replace('\u2019', "'")
+    visible = [name.casefold() for name in _visible_cards(public)]
+    mine = [name.split(' of ')[0] for name in ((public or {}).get('round') or {}).get('cards') or []]
+    units = (((config or {}).get('cheat') or {}).get('marks') or {}).get('units') or ()
+    if units:
+        unit_re = '|'.join(sorted((re.escape(u) for u in units), key=len, reverse=True))
+        count_re = r'(\d{1,2}|' + '|'.join(sorted((re.escape(w) for w in _COUNT_WORDS), key=len, reverse=True)) + r')'
+        pattern = re.compile(count_re + r'\s+(?:[a-z]+\s+){0,2}?(?:' + unit_re + r')\b[^.;:!?]{0,40}?\bon (?:your|the|his|my) '
+                             + _RANK_RE + r'\b(?:\s+of\s+' + _SUIT_RE + r')?')
+        # "...tiny pinpricks near one corner, one on your four": the unit named earlier in the sentence.
+        elliptic = re.compile(r'(?<![a-z])' + count_re + r'\s+on (?:your|the|his|my) ' + _RANK_RE +
+                              r'\b(?:\s+of\s+' + _SUIT_RE + r')?')
+        found = list(pattern.finditer(lowered))
+        for sentence in re.split(r'(?<=[.!?])\s+', lowered):
+            if re.search(r'\b(?:' + unit_re + r')\b', sentence):
+                found += list(elliptic.finditer(sentence))
+        seen = set()
+        for match in found:
+            if (match.group(1), match.group(2)) in seen:
+                continue
+            seen.add((match.group(1), match.group(2)))
+            said = match.group(1)
+            count = int(said) if said.isdigit() else _COUNT_WORDS[said]
+            rank = _RANK_WORDS[match.group(2)]
+            expected = mark_count(config, rank)
+            if expected is not None and count != expected:
+                problems.append(f'Narration counts {count} mark(s) on a {rank}; the marks give a {rank} {expected}.')
+    for match in re.finditer(r'\b' + _RANK_RE + r' of ' + _SUIT_RE + r'\b', lowered):
+        name = f'{_RANK_WORDS[match.group(1)]} of {match.group(2)}'
+        if visible and name not in visible:
+            problems.append(f'Narration names the {name}, which is not on the table.')
+    if mine:
+        for match in re.finditer(r'\byour ' + _RANK_RE + r'\b(?!\s+(?:gold|gp|coins?|pieces|of (?:them|those)))', lowered):
+            rank = _RANK_WORDS[match.group(1)]
+            if rank not in mine and not re.match(r'\s*(?:hand|cards?)', lowered[match.end():]):
+                # "your fourteen" is a total, not a card: totals are spelled past ten.
+                problems.append(f'Narration gives the player a {rank}; the player holds {", ".join(mine)}.')
+    return problems
+

@@ -488,8 +488,24 @@ class Room6CAdjudicator:
 
     def _resolve_check(self, action, revision, state, claim_id, claim):
         """An active look or read at one hidden claim, against that claim's single DC.
-        Success shows that claim and nothing else; failure shows only the roll."""
-        skill = claim['pc_check']
+        Success shows that claim and nothing else; failure shows only the roll. The skill
+        the player chose gates what it can show (Brendon's skill rule): Insight the motive,
+        Perception and Investigation the physical tells; a skill that finds nothing about
+        it rolls and shows nothing."""
+        chosen = kit_claims.chosen_skill(action, implied=False)
+        gated = kit_claims.gated_claim(self.source, state, claim_id, claim, chosen)
+        if gated is None:
+            modifier, passive = self._pc_numbers(chosen, state, action)
+            die = self._die(state, revision, f'check:{claim_id}:{chosen}', action, modifier, chosen)
+            evidence = (f'Player checked {claim_id} with {chosen}: d20 {die} + {modifier} = {die + modifier}; '
+                        f'{chosen} does not reveal it (it takes {"/".join(kit_claims.claim_skills(claim))}).')
+            return Resolution('check', 'You find nothing you can be sure of.',
+                              [{'type': 'beat', 'tags': ['check'], 'evidence': evidence}])
+        claim_id, claim = gated
+        # The named skill when it finds this claim; for a claim several skills find, the one
+        # the player's verb implies ("I examine the fangs" is Investigation); else its own.
+        implied = kit_claims.chosen_skill(action) if claim.get('pc_checks') else None
+        skill = next((s for s in (chosen, implied) if s in kit_claims.claim_skills(claim)), claim['pc_check'])
         dc = kit_claims.claim_dc(claim, state.get('actors', {}),
                                  kit_claims.current_floor_level(self.source, state.get('area')))
         result = self._check(skill, dc, state, revision, f'check:{claim_id}', action)
@@ -1832,6 +1848,8 @@ def check_speech(speech, plan, public_view, player_action, action_kind=None, gua
     hard(kit_guards.check_player_identity, segments, (public_view or {}).get('your_character'))
     hard(kit_guards.check_clean_deal, segments, guards.get('dealer_cheated', False))
     hard(kit_guards.check_stake_offers, segments, carriable=guards.get('carriable_stakes', ()))
+    # HARD: card names, held cards, and mark counts match the running table (item 8).
+    hard(check_table_narration, segments, public_view, guards.get('procedure_configs') or {})
     # HARD: Kit reacts to what actually happened this turn; no procedure the runtime
     # cannot carry is stated as settled.
     hard(kit_voice.check_kit_asides, segments, player_action, public_event, action_kind)
@@ -2043,7 +2061,7 @@ def trim_order(chosen, stored, action, recent=MEMORY_RECENT, aliases=None):
 
 
 # Context budget. The private decision input (personality core, DM context, memory,
-# notes, public dialogue) stays within CONTEXT_BUDGET_BYTES (88 KB + the 6 KB voice slot), the same budget
+# notes, public dialogue) stays within CONTEXT_BUDGET_BYTES (89 KB + the 6 KB voice slot), the same budget
 # context() always enforced, now including memory. A one-pass input also carries the
 # public half (the static actor cards, ~7 KB, plus the post-event player view when the
 # turn changes it, with the core and dialogue history deduplicated out), so the whole
@@ -2421,6 +2439,17 @@ REFUSED_ATTEMPTS_SHOWN = 3
 # Kinds whose accepted event is printed after the performance: on an exit the NPCs'
 # reaction happens as the player leaves, so it must read before the departure line.
 EVENT_AFTER_PERFORMANCE_KINDS = ('exit',)
+
+
+def check_table_narration(segments, public_view, configs):
+    """Every running twenty-one table: the narration's cards and mark counts match its state."""
+    problems = []
+    text = ' '.join(segment['text'] for segment in segments)
+    for key, public in ((public_view or {}).get('table_procedures') or {}).items():
+        config = configs.get(key) or {}
+        if kit_cards.game_of(config) == 'twenty_one':
+            problems += kit_twenty_one.check_narration(text, public, config)
+    require(not problems, ' '.join(problems))
 
 
 def guard_context(source, body):

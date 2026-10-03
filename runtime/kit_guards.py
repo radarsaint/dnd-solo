@@ -493,9 +493,13 @@ def leak_sets(source):
     for name, entry in (source or {}).get('leak_keywords', {}).items():
         if not isinstance(entry, dict):
             continue  # e.g. the fixture's _note
-        fact = entry.get('revealed_by')
+        # revealed_by names one fact, or a list of facts any one of which makes the set public
+        # (e.g. the act's motive or its physical tells).
+        facts = entry.get('revealed_by')
+        facts = [facts] if isinstance(facts, str) else list(facts or ())
+        texts = [source['facts'][fact]['text'] for fact in facts]
         sets.append({'name': name, 'groups': entry['groups'],
-                     'revealed_text': source['facts'][fact]['text'] if fact else None})
+                     'revealed_text': texts[0] if texts else None, 'revealed_texts': texts})
     return sets
 
 
@@ -523,7 +527,8 @@ def check_paraphrased_leaks(text, public_view, player_action, sets, labels=()):
         text = strip.sub('someone', text)
     declared = sentences(player_action or '')
     for entry in sets or ():
-        if entry['revealed_text'] and normalize(entry['revealed_text']) in public:
+        if any(normalize(t) in public for t in entry.get('revealed_texts') or
+               ([entry['revealed_text']] if entry.get('revealed_text') else [])):
             continue
         raised = any(_sentence_hits(sentence, entry['groups']) for sentence in declared)
         for sentence in sentences(text):

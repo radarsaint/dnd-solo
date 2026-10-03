@@ -112,7 +112,7 @@ class InsightRoutesByTargetTests(Case):
         result = Room6CAdjudicator(source=self.source, roll=lambda: 20).resolve(
             'I use Insight on their fangs: are they really vampires?', revision, state)
         self.assertEqual(result.kind, 'check')
-        self.assertIn('posing as vampires', result.public_event)
+        self.assertIn('meant to frighten you', result.public_event)
         self.assertEqual({e.get('claim') or e.get('fact') for e in result.events if e['type'] != 'beat'},
                          {'false_vampires'})
 
