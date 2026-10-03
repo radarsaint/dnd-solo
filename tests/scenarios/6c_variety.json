@@ -1,0 +1,284 @@
+{
+ "schema": "kit_batch_scenarios_v1",
+ "source": "bfdm-corpus research/kit-evaluation/6c-variety-scenarios.md (2026-10-03)",
+ "note": "Player lines are sent one per turn, in order, whatever Kit said (the scenario's 'If ...' conditions are kept in 'when' for the grader). A roll is reported Avrae-style as die + bonus = total, with the die worked back from the sheet's bonus so the total matches the scenario. Rolls (2026-10-03 rerun): skill checks are reported in Avrae's own output format ('<PC> makes a Deception check! 1d20 (12) + 10 = `22`'); attacks, damage, and initiative are the Avrae lines in 'avrae', sent after the player's words on a new line.",
+ "scenarios": [
+  {
+   "id": "V1",
+   "title": "The silver tongue: a bard talks her way past the toll",
+   "sheet": "sela-bard.json",
+   "turns": [
+    {
+     "line": "I sweep in with a bow. 'Gentlemen of the night! I'd heard the finest company in Undermountain kept a table down here.'"
+    },
+    {
+     "when": "If they ask for money",
+     "line": "'Oh, the toll? Harria settled it for me at the well. She said you'd know my face.'",
+     "roll": {
+      "skill": "deception",
+      "total": 22
+     }
+    },
+    {
+     "when": "When they press",
+     "line": "'You don't have to take my word. But I'd hate to tell her you turned away her guest.'",
+     "roll": {
+      "skill": "persuasion",
+      "total": 9
+     }
+    },
+    {
+     "line": "I take the empty chair and ask the dealer what a lady has to do to be dealt in."
+    }
+   ]
+  },
+  {
+   "id": "V2",
+   "title": "The wall of muscle: a barbarian intimidates and refuses",
+   "sheet": "brakka-barbarian.json",
+   "turns": [
+    {
+     "line": "I kick the door wide and fill the doorway. 'Who's in charge here?'"
+    },
+    {
+     "line": "Toll? I slam my axe into the table. 'I pay with this. Who wants change?'",
+     "roll": {
+      "skill": "intimidation",
+      "total": 19
+     }
+    },
+    {
+     "line": "I grab the nearest pale one by the collar and haul him up to look at his teeth.",
+     "roll": {
+      "skill": "athletics",
+      "total": 16
+     }
+    },
+    {
+     "when": "If anyone draws",
+     "line": "I rage and swing my greataxe at the dealer.",
+     "avrae": "Brakka attacks with a Greataxe!\n**To Hit**: 1d20 (11) + 7 = `18`\n**Damage**: 1d12 (5) + 6 [slashing] = `11`"
+    }
+   ]
+  },
+  {
+   "id": "V3",
+   "title": "The real thing: a dhampir at a table of fake vampires",
+   "sheet": "vesna-dhampir.json",
+   "turns": [
+    {
+     "line": "I step in and let my eyes catch the light. 'Cousins. I didn't know there were others of the blood this close to the surface.'"
+    },
+    {
+     "line": "I lean over the dealer and breathe in. 'You smell of tallow and sweat. Which nest turned you?'",
+     "roll": {
+      "skill": "insight",
+      "total": 18
+     }
+    },
+    {
+     "line": "Fine, I'll play along. 'Our kind look after our own. No toll between family, surely?'",
+     "roll": {
+      "skill": "deception",
+      "total": 12
+     }
+    },
+    {
+     "line": "I bare my fangs at the fourth player and ask, very quietly, how long since it last fed."
+    }
+   ]
+  },
+  {
+   "id": "V4",
+   "title": "The scholar ignores the game: Nik goes for the fresco and the tub",
+   "sheet": "nik.json",
+   "turns": [
+    {
+     "line": "I nod to the table and walk straight past to the north wall. What's this carving?"
+    },
+    {
+     "line": "Dwarves? I look back at the card players, then I search the little dwarf figures closely.",
+     "roll": {
+      "skill": "perception",
+      "total": 17
+     }
+    },
+    {
+     "line": "I crouch by the stone tub. What's in it?"
+    },
+    {
+     "when": "If someone at the table objects",
+     "line": "'Please, go on with your game. I'm only admiring the stonework.'"
+    }
+   ]
+  },
+  {
+   "id": "V5",
+   "title": "Caught you: the cheat is called out",
+   "sheet": "example_pc.json",
+   "turns": [
+    {
+     "line": "I sit, put down ten gold, and say I'll play. I watch the dealer's hands the whole time.",
+     "roll": {
+      "skill": "perception",
+      "total": 18
+     }
+    },
+    {
+     "line": "I grab his wrist mid-deal. 'That one came from the bottom. Turn the deck over.'"
+    },
+    {
+     "when": "When he denies it",
+     "line": "I flip the deck face-down and show everyone the marks on the backs.",
+     "roll": {
+      "skill": "investigation",
+      "total": 15
+     }
+    },
+    {
+     "when": "If he reaches for a weapon",
+     "line": "I put my rapier through his hand.",
+     "avrae": "Wren attacks with a Rapier!\n**To Hit**: 1d20 (12) + 5 = `17`\n**Damage**: 1d8 (5) + 3 [piercing] = `8`"
+    }
+   ]
+  },
+  {
+   "id": "V6",
+   "title": "Drawn out by noise: arriving after 6a or 6b goes off",
+   "sheet": "brakka-barbarian.json",
+   "turns": [
+    {
+     "line": "Kit, before this: I set off the wailing staff in 6a, then went around through 6b and kicked that rigged door."
+    },
+    {
+     "line": "I head on toward 6c, axe out, ready for whatever came running."
+    },
+    {
+     "line": "What's in the room now?"
+    }
+   ]
+  },
+  {
+   "id": "V7",
+   "title": "Not paying that: haggle, then refuse, then play for it",
+   "sheet": "nik.json",
+   "turns": [
+    {
+     "line": "I stop at the door. 'Ten gold just to walk through a room? For what, exactly?'"
+    },
+    {
+     "line": "'I'll give you three. That's more than this room is worth.'",
+     "roll": {
+      "skill": "persuasion",
+      "total": 11
+     }
+    },
+    {
+     "when": "When they won't take three",
+     "line": "'Then I'm not paying. I'll walk through anyway.'"
+    },
+    {
+     "line": "Actually, wait. 'Tell you what: I'll play you for it. One hand. I win, I pass free.'"
+    }
+   ]
+  },
+  {
+   "id": "V8",
+   "title": "Deal me in, blackjack, and I'm betting fifty",
+   "sheet": "example_pc.json",
+   "turns": [
+    {
+     "line": "I pull up a chair. 'Do you lot play blackjack? I don't know your fancy games.'"
+    },
+    {
+     "line": "'I'll bet fifty gold.'"
+    },
+    {
+     "when": "If told that's more than I have",
+     "line": "'Fine, twenty, and I'll play it out. Hit.'"
+    },
+    {
+     "when": "Next round",
+     "line": "'Just roll for this one, I'm tired of counting.'",
+     "roll": {
+      "skill": "sleight_of_hand",
+      "total": 13
+     }
+    }
+   ]
+  },
+  {
+   "id": "V9",
+   "title": "First blood: Nik attacks before anyone speaks",
+   "sheet": "nik.json",
+   "turns": [
+    {
+     "line": "From the doorway, before anyone says a word, I cast Fireball at the middle of the card table.",
+     "avrae": "Nik casts Fireball!\n**Damage**: 8d6 (4, 3, 5, 2, 6, 1, 4, 3) [fire] = `28`"
+    },
+    {
+     "line": "Rolling initiative.",
+     "avrae": "**Initiative**: 1d20 (12) + 2 = `14`"
+    },
+    {
+     "line": "Whoever's still standing, I hit with Fire Bolt.",
+     "avrae": "Nik casts Fire Bolt!\n**To Hit**: 1d20 (12) + 7 = `19`\n**Damage**: 2d10 (4, 5) [fire] = `9`"
+    },
+    {
+     "when": "If they run",
+     "line": "I let them go and check the table."
+    }
+   ]
+  },
+  {
+   "id": "V10",
+   "title": "Make them swing first: Wren provokes the 'vampires'",
+   "sheet": "example_pc.json",
+   "turns": [
+    {
+     "line": "I lean on the table. 'Vampires? I've seen scarier things at a puppet show. Is that flour on your face?'"
+    },
+    {
+     "line": "I lick my thumb and wipe a streak of paint off the dealer's cheek, in front of everyone."
+    },
+    {
+     "line": "While they're gaping, I scoop a handful of coins from the pot and pocket them. 'Toll paid.'",
+     "roll": {
+      "skill": "sleight_of_hand",
+      "total": 21
+     }
+    },
+    {
+     "when": "If they come at me",
+     "line": "I've got my rapier out and wait for them to make the first move.",
+     "avrae": "**Initiative**: 1d20 (13) + 4 = `17`"
+    }
+   ]
+  },
+  {
+   "id": "V11",
+   "title": "Flip the table: Brakka scatters the pot",
+   "sheet": "brakka-barbarian.json",
+   "turns": [
+    {
+     "line": "I walk up to the card table, grab the edge, and heave it over, coins and all.",
+     "roll": {
+      "skill": "athletics",
+      "total": 18
+     }
+    },
+    {
+     "line": "I stand in the spill of gold and grin. 'Well, go on. Pick it up.'"
+    },
+    {
+     "when": "When anyone bends for a coin",
+     "line": "I stomp on their hand."
+    },
+    {
+     "line": "Rolling initiative if it comes to that. I rage and swing my greataxe.",
+     "avrae": "**Initiative**: 1d20 (7) + 1 = `8`\nBrakka attacks with a Greataxe!\n**To Hit**: 1d20 (13) + 7 = `20`\n**Damage**: 1d12 (8) + 6 [slashing] = `14`"
+    }
+   ]
+  }
+ ]
+}

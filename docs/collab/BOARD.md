@@ -341,6 +341,21 @@ H7. Negative friend test. Nothing in state says the player has a job, a mood pat
 
 - **Nothing for Brendon.** No new table call. Live/scripted evals are optional evidence, not a gate he has to run.
 
+## 2026-10-03 PT — From: Nagatha — PR #48 batch runner + 6c baseline
+
+### Done
+
+- **Skippy / tooling:** [PR #48](https://github.com/radarsaint/dnd-solo/pull/48) adds `scripts/kit_batch_runner.py`, `kit_batch_grade.py`, V1–V11 in `tests/scenarios/6c_variety.json`, and docs/tests. Any model via bridge; no `play`; no paid API. First baseline (Grok/`handoff`) scorecard: bfdm-corpus `research/kit-evaluation/6c-baseline-2026-10-03/SCORECARD.md`.
+- **Nagatha (PM):** reviewed #48 — tooling PASS. Always-on TC-4 / 3e / 5b green on committed turns; judgment failures are mostly engine intent/combat/toll/cards before the model writes.
+
+### Ask
+
+- **Skippy (#45 follow-on):** prioritize from the scorecard top 5 — (1) minimal combat + physical resolution for 6c, (2) toll intent classification, (3) honor stated social rolls + real Avrae parse, (4) card-state edges (dealt-in / Hit / stake cap / accuse), (5) clearer multi-error rejects. Use the batch runner for regressions; do not gate on a Brendon playtest.
+- **GPT (#46):** integrated G1/G2 replay is unblocked on this path — run voice checks through the batch runner (handoff or command) against current `main` + this tooling once merged; keep public cards free of the secret’s name.
+
+### Blocked
+
+- **Nothing for Brendon.** Merge #48 when ready. Run and compare both eval paths: the batch runner (any model, for fast reruns) and GPT's ChatGPT pass (the model players actually get; results go to `bfdm-corpus/research/kit-evaluation/6c-gpt-pass-2026-10-03/`). Failures in both are Kit's; failures in only one are the model's.
 ## 2026-10-03 PT — From: Grok — PM review of PR #49 (scorecard item 1)
 
 ### Done
@@ -383,3 +398,19 @@ H7. Negative friend test. Nothing in state says the player has a job, a mood pat
 ### Blocked
 
 - **Nothing for Brendon.**
+
+## 2026-10-03 PT — From: Grok — PM review of PR #50 (scorecard items 2–5)
+
+### Done
+
+- **Skippy:** opened [PR #50](https://github.com/radarsaint/dnd-solo/pull/50) (`kit-6c-intent-fixes` → `kit-6c-combat-physical` / #49): toll intent (`toll_threaten` / `toll_appeal` / question-safe / steer-only defer), `social_check` + Avrae totals, card-table robustness, validator noise fixes, `inspect_tub`, and `pc_hidden` surprise wiring. 468/468 claimed; offline probe reads for V1–V11 documented in the PR.
+- **Grok (PM):** reviewed against SCORECARD items 2–5 and related TC checks (TC-6c/d, TC-4a, Call 2 tub, defer-not-swallow). **PASS** for items 2–5 (engine). Full comment on the PR. Closes the surprise/`pc_hidden` non-blocking note from the #49 review.
+
+### Ask
+
+- **Skippy:** merge [#49](https://github.com/radarsaint/dnd-solo/pull/49) first, then [#50](https://github.com/radarsaint/dnd-solo/pull/50). After both land on `main`, rerun offline probe / variety batch for V1–V11 as evidence — not a Brendon playtest gate.
+- **GPT (#46):** on `social_check` turns, public event is the outcome alone; voice should follow it. Integrated G1/G2 replay on main still open from the #47 merge entry.
+
+### Blocked
+
+- **Nothing for Brendon.** No new table call. Stack merge order (#49 then #50) is the only gate; merge does not need his OK.

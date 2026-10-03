@@ -167,6 +167,65 @@ class FightTests(unittest.TestCase):
         room.act('I stab the dealer with my dagger. 18 to hit, 4 piercing damage.')
         self.assertEqual(room.state['combat']['surprised'], [])
 
+    # Avrae's real output (6c rerun 2026-10-03, V2 / V9 / V11): to-hit and damage are separate fields.
+    def test_an_avrae_weapon_hit_deals_the_damage_field_not_the_to_hit_roll(self):
+        room = Room(self, roll=lambda: 2)
+        room.act('I rage and swing my greataxe at the dealer.\n'
+                 'Brakka attacks with a Greataxe!\n'
+                 '**To Hit**: 1d20 (11) + 7 = `18`\n'
+                 '**Damage**: 1d12 (5) + 6 [slashing] = `11`')
+        fight = room.state['combat']
+        self.assertEqual(fight['max_hp']['uktarl'] - fight['hp']['uktarl'], 11)
+
+    def test_an_avrae_crit_deals_the_crit_damage_field(self):
+        room = Room(self, roll=lambda: 2)
+        room.act('I stab the dealer with my dagger.\n'
+                 'Nik attacks with a Dagger!\n'
+                 '**To Hit**: 1d20 (20) + 5 = `25`\n'
+                 '**Damage (CRIT!)**: 2d4 (3, 4) + 3 [piercing] = `10`')
+        fight = room.state['combat']
+        self.assertEqual(fight['max_hp']['uktarl'] - fight['hp']['uktarl'], 10)
+
+    def test_an_avrae_fireball_resolves_and_initiative_follows(self):
+        room = Room(self, roll=lambda: 1)  # every save Kit rolls fails
+        result = room.act('From the doorway, I cast Fireball at the middle of the card table.\n'
+                          'Nik casts Fireball!\n'
+                          '**Damage**: 8d6 (4, 3, 5, 2, 6, 1, 4, 3) [fire] = `28`')
+        self.assertEqual(result.kind, 'combat_round')
+        actors = room.state['actors']
+        self.assertEqual((actors['bandit_a']['status'], actors['bandit_b']['status']), ('dead', 'dead'))
+        fight = room.state['combat']
+        self.assertEqual(fight['max_hp']['uktarl'] - fight['hp']['uktarl'], 28)
+        order = room.act('Rolling initiative.\n**Initiative**: 1d20 (12) + 2 = `14`')
+        self.assertEqual(room.state['combat']['pc_initiative'], 14)
+        self.assertEqual(room.state['combat']['status'], 'running', order.public_event)
+
+    def test_avrae_dc_line_and_per_target_saves_are_used(self):
+        room = Room(self, roll=lambda: 20)  # Kit's own saves would all succeed
+        room.act('I cast Fireball at the card table.\n'
+                 'Nik casts Fireball!\n'
+                 '**DC**: 25\n'
+                 'Dealer\n'
+                 '**DEX Save**: 1d20 (3) + 2 = `5`; Failure!\n'
+                 '**Damage**: 8d6 (4, 3, 5, 2, 6, 1, 4, 3) [fire] = `28`\n'
+                 'Door-side player\n'
+                 '**DEX Save**: 1d20 (18) + 1 = `19`; Failure!\n'
+                 '**Damage**: 8d6 (4, 3, 5, 2, 6, 1, 4, 3) [fire] = `28`')
+        fight = room.state['combat']
+        self.assertEqual(fight['max_hp']['uktarl'] - fight['hp']['uktarl'], 28, "Avrae's failed save")
+        self.assertEqual(room.state['actors']['bandit_a']['status'], 'dead')
+        # Not in Avrae's output: Kit rolls the save (20) against Avrae's DC 25, so it fails.
+        self.assertEqual(room.state['actors']['bandit_b']['status'], 'dead')
+
+    def test_avrae_fire_bolt_uses_its_damage_field(self):
+        room = Room(self, roll=lambda: 2)
+        room.act('I hit the dealer with Fire Bolt.\n'
+                 'Nik casts Fire Bolt!\n'
+                 '**To Hit**: 1d20 (12) + 7 = `19`\n'
+                 '**Damage**: 2d10 (4, 5) [fire] = `9`')
+        fight = room.state['combat']
+        self.assertEqual(fight['max_hp']['uktarl'] - fight['hp']['uktarl'], 9)
+
     def test_the_same_seed_gives_the_same_fight(self):
         def run():
             room = Room(self, roll=None, seed=11)
