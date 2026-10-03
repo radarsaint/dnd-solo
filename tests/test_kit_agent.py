@@ -27,9 +27,8 @@ MIRROR = 'steady energy, standard, dry humor: meet the visitor’s even pace and
 # as padding, so multi-turn tests rotate through them.
 DEALER_EXCHANGES = [
     ('The dealer lets a card hang between two fingers while the others go still.',
-     'Sit, then, and let us see what kind of guest you are. Ten gold buys safe passage, but a player '
-     'who sits at this table usually wants more than a door. So tell me plainly, friend: what would '
-     'you wager tonight?'),
+     'Sit, then, and let us see what kind of guest you are. A player who sits at this table usually '
+     'wants more than a door. So tell me plainly, friend: what would you wager tonight?'),
     ('He squares the deck with one slow tap and leans back to study the doorway.',
      'A newcomer who asks questions before placing a bet is either careful or broke, and I have no use '
      'for broke. Which are you? Name the reason you walked in here, and I will tell you what it costs.'),
@@ -63,6 +62,13 @@ NIK_GREETING = "Hi, I'm Nik. I wasn't expecting to find people gambling. Whats g
 NIK_REPLY = {'segments': [
     {'speaker': 'Narrator', 'text': 'The dealer keeps a hand on the deck and gives you his attention.'},
     {'speaker': 'Dealer', 'text': ('“Gambling? Cards, Nik. Passage is ten gold a head. If you came for '
+                                   'something besides a game or a way through, I’m listening.”')},
+]}
+# The same flat reply without the bare toll line (table call 6 rejects that line on its own,
+# as a hard check), for the tests whose subject is exchange scope and retries.
+NIK_FLAT_REPLY = {'segments': [
+    NIK_REPLY['segments'][0],
+    {'speaker': 'Dealer', 'text': ('“Gambling? Cards, Nik. Coin talks louder than names here. If you came for '
                                    'something besides a game or a way through, I’m listening.”')},
 ]}
 
@@ -259,12 +265,12 @@ class KitAgentTests(unittest.TestCase):
         agent = KitAgent(self.runtime, self.model, Room6CAdjudicator(
             perception=0, insight=0, roll=lambda: 1))
         result = agent.turn('I inspect the fresco.', 'failed-check')
-        # A failure shows only the PC's total: no DC, nothing that says a secret is there.
-        self.assertIn('(Perception 1)', result['spoken'])
+        # A failure shows no numbers at all (table call 2) and nothing that says a secret is there.
+        self.assertNotIn('(Perception 1)', result['spoken'])
         self.assertNotIn('DC', result['spoken'].split('\n')[0])
         self.assertNotIn('stone key', json.dumps(self.runtime.player_view()))
         self.assertEqual(self.runtime.recent_kit_turns()[0]['public_event'],
-                         'You find nothing you can be sure of. (Perception 1)')
+                         'You find nothing you can be sure of.')
 
     def test_model_failure_does_not_reroll_same_uncommitted_check(self):
         bad = KitAgent(self.runtime, RecordingModel(leak=True),
@@ -522,12 +528,22 @@ class KitFocusAndScopeTests(unittest.TestCase):
         plan.update(move='npc_reply', table_presence='quiet')
         self.bridge.decide('nik', plan)
         with self.assertRaisesRegex(InvalidChange, rf'Dealer spoke 23 words \(floor {EXCHANGE_MIN_ACTOR_WORDS}\)'):
-            self.bridge.finish('nik', NIK_REPLY)
+            self.bridge.finish('nik', NIK_FLAT_REPLY)
         self.assertEqual(self.runtime.load()[0], 0)
         self.assertEqual(self.runtime.kit_timing('nik')['rejected_attempts'], 1)
         self.assertIn('Exchange scope', self.runtime.kit_timing('nik')['last_rejection'])
         # The fixed decision still accepts a performance that actually plays the exchange.
         self.assertEqual(self.bridge.finish('nik', QUIET_EXCHANGE_SPEECH)['revision'], 1)
+
+    def test_the_t1_bare_toll_line_is_the_reference_fail(self):
+        # Table call 6, TC-6a: "Passage is ten gold a head" tossed in beside the game talk,
+        # with no opening, is rejected as a hard check (degraded mode cannot pass it).
+        prepared, plan = self._prepared_plan(NIK_GREETING, 'toll', reply_to='Whats going on here?')
+        plan.update(move='npc_reply', table_presence='quiet')
+        self.bridge.decide('toll', plan)
+        with self.assertRaisesRegex(InvalidChange, 'real exchange, not a line beside the game'):
+            self.bridge.finish('toll', NIK_REPLY)
+        self.assertEqual(self.runtime.load()[0], 0)
 
     def test_one_line_roll_prompt_is_accepted_as_a_call(self):
         prepared, plan = self._prepared_plan(
@@ -618,7 +634,7 @@ class KitFocusAndScopeTests(unittest.TestCase):
                 {'speaker': 'Dealer', 'text': 'Ten gold.'}]})
 
     def test_retry_carries_the_specific_rejection_reason(self):
-        flat = iter([NIK_REPLY, QUIET_EXCHANGE_SPEECH])
+        flat = iter([NIK_FLAT_REPLY, QUIET_EXCHANGE_SPEECH])
         seen = []
 
         class FlatThenFixed(RecordingModel):
@@ -702,7 +718,7 @@ class ChatBridgeCarrierTests(unittest.TestCase):
         trial_perf = self.bridge.decide('staged-trial', self.model.plan(trial['input']), 'kit_expression_v1')
         self.assertIn('kit_focus', trial_perf['instructions'])
         with self.assertRaisesRegex(InvalidChange, 'Exchange scope'):
-            self.bridge.finish('staged', NIK_REPLY)
+            self.bridge.finish('staged', NIK_FLAT_REPLY)
         self.assertEqual(self.bridge.finish('staged', QUIET_EXCHANGE_SPEECH)['revision'], 1)
 
     def test_one_pass_bridge_carries_and_checks_focus_fields(self):
@@ -718,7 +734,7 @@ class ChatBridgeCarrierTests(unittest.TestCase):
         with self.assertRaisesRegex(InvalidChange, 'reply_to must quote'):
             self.bridge.complete('fast', {'decision': misquoted, 'performance': QUIET_EXCHANGE_SPEECH})
         with self.assertRaisesRegex(InvalidChange, 'Exchange scope'):
-            self.bridge.complete('fast', {'decision': plan, 'performance': NIK_REPLY})
+            self.bridge.complete('fast', {'decision': plan, 'performance': NIK_FLAT_REPLY})
         result = self.bridge.complete('fast', {'decision': plan, 'performance': QUIET_EXCHANGE_SPEECH})
         self.assertEqual(result['revision'], 1)
         self.assertEqual(self.runtime.recent_kit_turns()[0]['trace']['public_brief']['kit_focus'], KIT_FOCUS)
@@ -739,7 +755,7 @@ class ChatBridgeCarrierTests(unittest.TestCase):
         plan.update(move='npc_reply', table_presence='quiet')
         temp = Path(self.path).parent
         (temp / 'plan.json').write_text(json.dumps(plan))
-        (temp / 'flat.json').write_text(json.dumps(NIK_REPLY))
+        (temp / 'flat.json').write_text(json.dumps(NIK_FLAT_REPLY))
         (temp / 'good.json').write_text(json.dumps(QUIET_EXCHANGE_SPEECH))
         self.assertEqual(self._cli('decide', '--turn-id', 'cli', '--input-file', str(temp / 'plan.json'))[0], 0)
         code, _, err = self._cli('finish', '--turn-id', 'cli', '--input-file', str(temp / 'flat.json'))
@@ -907,8 +923,10 @@ class DealerCardTests(unittest.TestCase):
                          {'area': 'area_06c', 'visible': False,
                           'text': "The dealer's card deck carries subtle marks."})
         uktarl = source['actors']['uktarl']
-        self.assertEqual(uktarl['motive'],
-                         'Profit from newcomers and displace Harria as leader of the Undertakers.')
+        # Table call 3: the ruse (keep the vampire act, keep the visitor seated) leads the motive;
+        # the source's profit and leadership aims stay.
+        self.assertIn('vampire act', uktarl['motive'])
+        self.assertIn('displace Harria as leader of the Undertakers', uktarl['motive'])
         self.assertEqual(uktarl['immediate_goal'], 'Control the encounter without risking himself.')
         self.assertEqual(uktarl['knowledge'], ["The Undertakers' vampire appearance is a disguise.",
                                                'His deck is marked.', 'Harria is his rival.'])
@@ -1015,7 +1033,7 @@ class BridgeVoiceVariantTests(unittest.TestCase):
             prepared = bridge.prepare(NIK_GREETING, 'same', one_pass=True, performance_variant=variant)
             plan = self._quiet_plan(prepared['input']['private'])
             rejections = []
-            for bad in (NIK_REPLY, RecordingModel(leak=True).perform({}),
+            for bad in (NIK_FLAT_REPLY, RecordingModel(leak=True).perform({}),
                         {'segments': [{'speaker': 'Kit', 'text': 'Nice.'}, *QUIET_EXCHANGE_SPEECH['segments']]}):
                 with self.assertRaises(InvalidChange) as caught:
                     bridge.complete('same', {'decision': plan, 'performance': bad})

@@ -4,6 +4,7 @@ Only a few explicitly bounded room actions are adjudicated here. The model can
 choose and perform a DM move, but it cannot submit world changes to storage.
 """
 import argparse
+import copy
 import hashlib
 import json
 import os
@@ -22,6 +23,7 @@ from . import kit_agenda, kit_plan, pc_sheet
 from . import kit_detail
 from . import kit_prices
 from . import kit_texture
+from . import kit_toll
 from . import kit_guards
 from . import kit_voice
 from .scene_discernment import IMPROV_READ_SCHEMA, check_improv_read, discernment_candidates
@@ -91,7 +93,18 @@ RULES_NOUNS = re.compile(r"\b(rules?|dc|modifiers?|advantage|disadvantage|bonus 
                          r"hit points|armou?r class|cantrips?|how does \w+(?: \w+)? work|allowed to)\b", re.I)
 # Looking away from whatever is in front of you: the room, the rest of it, elsewhere.
 OBSERVE = re.compile(r"\b(look|looks|looking|glance|scan|survey|take in|gaze|peer|what else)\b[^.?!]{0,30}"
-                     r"\b(around|room|else|rest of|elsewhere|away|here|walls?)\b|\bwhat else\b")
+                     r"\b(around|room|else|rest of|elsewhere|away|here|walls?)\b|\bwhat else\b"
+                     # A plain look at a visible feature is free description, no roll (table call 2).
+                     r"|\b(?:look|looks|looking|glance|glances|gaze|gazes)\s+(?:up |over |closer )?at\b"
+                     r"|\bwhat'?s (?:interesting|here|notable)\b")
+# A read of the whole group, not one speaker's words (call 3's clue invites it).
+GROUP_READ = re.compile(r"\bsomething(?:'s| is)? (?:off|wrong|strange|weird|not right)\b|\bwhat'?s off\b"
+                        r"|\b(?:study|studying|size up|sizing up|read|reading|scrutini[sz]e)\s+(?:them|the (?:four|table|"
+                        r"players|group|gamblers|lot of them))\b|\bsize them up\b", re.I)
+# Asking to play the room's game (call 7: "I play the game." is a complete declaration).
+PLAY_REQUEST = re.compile(r"\b(?:i(?:'ll| will)? play|let'?s play|join (?:the|your|you|in)|sit in|deal me in|"
+                          r"count me in|buy in|buy-in|i'?m in|play (?:a|the|one|your) (?:game|hand|round)|"
+                          r"play cards|play blackjack|play twenty[- ]one|just roll for it)\b")
 # Words inside quotation marks are speech; a threat or a noun spoken aloud is not a physical act.
 QUOTED_SPEECH = re.compile(r'"[^"]*"')
 # A stealthy approach needs a Stealth ruling; it must never pass as a free, unopposed exit.
@@ -194,14 +207,6 @@ class Room6CAdjudicator:
         self.sleight_of_hand = sleight_of_hand
         self.source = source  # the room source, for its table procedures (set by the bridge)
 
-    def skill_modifier(self, skill, state):
-        """Host override, else the currently loaded sheet; never cache a PC's stats."""
-        override = getattr(self, skill)
-        if override is not None:
-            return override
-        sheet = state.get('player_sheet')
-        return pc_sheet.skill_bonus(sheet, skill) if sheet else None
-
     def resolve(self, action, revision, state, addressed=False):
         require(isinstance(action, str) and action.strip(), 'Player action required')
         if state['area'] != 'area_06c':
@@ -209,6 +214,12 @@ class Room6CAdjudicator:
         narration = QUOTED_SPEECH.sub(' ', action.translate(_TYPOGRAPHIC))
         # Speech and table talk to Kit are never resolved as checks.
         spoken = bool(QUOTED_SPEECH.search(action.translate(_TYPOGRAPHIC))) or is_ooc(action)
+        # A toll on the table is a real exchange (call 6): paying, haggling, refusing, and
+        # steering back to the game each commit, spoken or not.
+        if not is_ooc(action):
+            toll = self._resolve_toll(action, revision, state)
+            if toll:
+                return toll
         target = kit_claims.roll_target(action, self.source)
         if target and not spoken:
             return self._resolve_knowledge(action, revision, state, *target)
@@ -216,6 +227,11 @@ class Room6CAdjudicator:
         if not spoken and kit_claims.is_lie_read(narration):
             return self._resolve_lie_read(action, narration, revision, state)
         table = card_procedure(self.source, state)
+        if table is None and not is_ooc(action) and PLAY_REQUEST.search(narration.casefold()) and \
+                '?' not in narration:
+            # "I play the game." is a complete declaration (call 7): the room's game starts
+            # with the check-or-play choice. A game in the room never starts on its own.
+            table = self._declared_table(state)
         card_kind = kit_cards.card_intent(action, table[2]) if table else None
         kind = room_intent(action, addressed)
         # Combat and stealth keep their rulings at the card table: "I raise my crossbow" is
@@ -227,6 +243,12 @@ class Room6CAdjudicator:
             (kind == 'stealth' and card_kind != 'card_swap')
         if card_kind and not overrides:
             return self._resolve_card(card_kind, action, revision, state, table)
+        # "I study them; something's off": a read of the group goes to the hidden Insight
+        # claim about who they are (call 3: the clue invites a check that works).
+        if not spoken and kind not in ('combat', 'stealth', 'exit', 'spell') and GROUP_READ.search(narration):
+            claim = self._group_claim(state)
+            if claim:
+                return self._resolve_check(action, revision, state, *claim)
         # An active look or read at something hidden: the claim it names, and only that claim.
         check = None if spoken or kind in ('combat', 'stealth', 'exit', 'spell') else \
             kit_claims.check_target(narration, self.source, state)
@@ -238,6 +260,9 @@ class Room6CAdjudicator:
             # only person here) for a lie. Ask only when nobody is there to read.
             if self._lie_read_target(narration, state):
                 return self._resolve_lie_read(action, narration, revision, state)
+            claim = self._group_claim(state)
+            if claim:
+                return self._resolve_check(action, revision, state, *claim)
             raise PendingRuling('What are you reading with Insight: whether someone is telling the truth, '
                                 'or something about how they look or act? No turn was committed.')
         if kind == 'combat':
@@ -251,9 +276,12 @@ class Room6CAdjudicator:
         if kind == 'unsupported_action':
             raise PendingRuling('This physical action needs a room/rules ruling beyond the test slice. No turn was committed.', attempt=True)
         if kind == 'observe':
+            around = not re.search(r"\b(?:at|interesting|notable)\b", action.lower())
             event = {'type': 'beat', 'tags': ['observe'],
-                     'evidence': f'Player declared: {action}. Resolution: they look around the room; nothing changes.'}
-            return Resolution(kind, 'You look around the room.', [event])
+                     'evidence': f'Player declared: {action}. Resolution: they look '
+                                 f'{"around the room" if around else "at what is plainly visible"}; free description, '
+                                 'no roll; nothing hidden is learned; nothing changes.'}
+            return Resolution(kind, 'You look around the room.' if around else 'You take a look.', [event])
         if kind == 'exit':
             event = {'type': 'move', 'exit': 'south_door',
                      'evidence': 'The player explicitly left through the known south door.'}
@@ -335,15 +363,14 @@ class Room6CAdjudicator:
                                  kit_claims.current_floor_level(self.source, state.get('area')))
         result = self._check(skill, dc, state, revision, f'check:{claim_id}', action)
         evidence = f'Player actively checked {claim_id}: {kit_claims.check_evidence(skill, result)}.'
-        note = kit_claims.check_note(skill, result)
         if result['success']:
             text = claim.get('learned_text') or claim['truth']
             events = [{'type': 'claim_learned', 'claim': claim_id, 'evidence': evidence}]
             if claim.get('fact') and claim['fact'] not in state.get('known_facts', []):
                 events.append({'type': 'reveal_fact', 'fact': claim['fact'], 'evidence': evidence})
             events.append({'type': 'beat', 'tags': ['check'], 'evidence': evidence})
-            return Resolution('check', f'{text} {note}', events)
-        return Resolution('check', f'You find nothing you can be sure of. {note}',
+            return Resolution('check', text, events)
+        return Resolution('check', 'You find nothing you can be sure of.',
                           [{'type': 'beat', 'tags': ['check'], 'evidence': evidence}])
 
     def _lie_read_target(self, narration, state):
@@ -379,17 +406,16 @@ class Room6CAdjudicator:
         stance = said[-1]['stance'] if said else None
         evidence = (f'Player read {who} for a lie: {kit_claims.check_evidence("insight", result)} '
                     f'(10 + Deception); last recorded stance {stance or "none"}.')
-        note = kit_claims.check_note('insight', result)
         if not result['success']:
-            public = f'The {label.lower()} gives you nothing to read. {note}'
+            public = f'The {label.lower()} gives you nothing to read.'
         elif stance == 'lie':
-            public = f'The {label.lower()} is lying to you about that. {note}'
+            public = f'The {label.lower()} is lying to you about that.'
         elif stance in ('boast', 'bargain'):
-            public = f'The {label.lower()} is selling it harder than it deserves. {note}'
+            public = f'The {label.lower()} is selling it harder than it deserves.'
         elif stance == 'hedge':
-            public = f'The {label.lower()} is choosing every word carefully. {note}'
+            public = f'The {label.lower()} is choosing every word carefully.'
         else:
-            public = f'As far as you can tell, the {label.lower()} means it. {note}'
+            public = f'As far as you can tell, the {label.lower()} means it.'
         return Resolution('lie_read', public, [{'type': 'beat', 'tags': ['lie_read'], 'evidence': evidence}])
 
     def _resolve_stealth(self, action, narration, revision, state):
@@ -412,11 +438,10 @@ class Room6CAdjudicator:
         evidence = (f'Player tried Stealth: d20 {die} + {modifier} = {total} vs best passive Perception {dc} '
                     f'({", ".join(f"{k} {v}" for k, v in watchers.items())}).')
         if total >= dc:
-            public = (f'You slip out through the south door unnoticed. (Stealth {total} vs passive Perception {dc})'
-                      if leaving else f'You move without drawing an eye. (Stealth {total} vs passive Perception {dc})')
+            public = 'You slip out through the south door unnoticed.' if leaving else 'You move without drawing an eye.'
             beat = {'type': 'beat', 'tags': ['stealth'], 'evidence': evidence}
             return Resolution('stealth', public, ([dict(exit_event, evidence=evidence)] if leaving else []) + [beat])
-        return Resolution('stealth', f'Eyes at the table turn your way before you get far. (Stealth {total})',
+        return Resolution('stealth', 'Eyes at the table turn your way before you get far.',
                           [{'type': 'beat', 'tags': ['stealth', 'noticed'], 'evidence': evidence}])
 
     def _resolve_knowledge(self, action, revision, state, claim_id, claim):
@@ -444,10 +469,10 @@ class Room6CAdjudicator:
         evidence = f'Player rolled {name} for {claim_id}: d20 {die} + {modifier} = {total} vs DC {dc}.'
         if total >= dc:
             text = claim.get('learned_text') or claim['truth']
-            return Resolution('knowledge', f'{text} ({name} {total} vs DC {dc})',
+            return Resolution('knowledge', text,
                               [{'type': 'claim_learned', 'claim': claim_id, 'evidence': evidence},
                                {'type': 'beat', 'tags': ['knowledge'], 'evidence': evidence}])
-        return Resolution('knowledge', f'Nothing you know places it. ({name} {total} vs DC {dc})',
+        return Resolution('knowledge', 'Nothing you know places it.',
                           [{'type': 'beat', 'tags': ['knowledge'], 'evidence': evidence}])
 
     def _card_dcs(self, config, state):
@@ -460,31 +485,135 @@ class Room6CAdjudicator:
                 return {'watch': kit_claims.claim_dc(claim, state.get('actors', {}), level)}
         return {}
 
-    def _resolve_card(self, kind, action, revision, state, table):
-        """One card-table action through the declared procedure (runtime/kit_cards.py)."""
-        key, config, body = table
-        require('roll_seed' in state, 'This session predates stable checks; start a fresh test database.')
-        skills = ('perception', 'insight', 'sleight_of_hand')
+    def _group_claim(self, state):
+        """The unlearned hidden Insight claim about the people here, when exactly one exists."""
+        learned = set((state.get('claims') or {}).get('learned') or ())
+        present = self._present_actors(state)
+        found = []
+        for key, claim in kit_claims.compile_claims(self.source or {}).items():
+            fact = (self.source.get('facts') or {}).get(claim.get('fact') or '', {})
+            if claim.get('exposure') == 'hidden' and claim['pc_check'] == 'insight' and key not in learned and \
+                    fact.get('area') == state['area'] and (claim.get('concealer') in present or not present):
+                found.append((key, claim))
+        return found[0] if len(found) == 1 else None
+
+    def _declared_table(self, state):
+        """(id, config, initial state) of the room's offered table game, or None."""
+        for key in kit_cards.offered(self.source):
+            config = self.source['procedures'][key]
+            if config.get('kind') == 'card_game':
+                return key, config, kit_cards.initial_state(config)
+        return None
+
+    def _card_engine(self, key, config, state):
+        skills = {'perception', 'insight', 'sleight_of_hand'} | {(config.get('check') or {}).get('skill') or 'insight'}
         sheet = pc_sheet.sheet_now(state)  # seated at cards: hands on the cards
         modifiers = {skill: self.skill_modifier(skill, state) for skill in skills}
-        passives = {skill: (pc_sheet.passive(sheet, skill) if getattr(self, skill) is None and sheet else
+        passives = {skill: (pc_sheet.passive(sheet, skill) if getattr(self, skill, None) is None and sheet else
                             (10 + modifiers[skill] if modifiers[skill] is not None else None))
                     for skill in skills}
-        engine = kit_cards.CardTable(key, config, modifiers, state['roll_seed'], passives=passives,
-                                     dcs=self._card_dcs(config, state))
+        return kit_cards.engine_for(key, config, modifiers, state['roll_seed'], passives=passives,
+                                    dcs=self._card_dcs(config, state))
+
+    def skill_modifier(self, skill, state):
+        """Host override, else the currently loaded sheet; never cache a PC's stats."""
+        override = getattr(self, skill, None)
+        if override is not None:
+            return override
+        sheet = state.get('player_sheet')
+        return pc_sheet.skill_bonus(sheet, skill) if sheet else None
+
+    def _resolve_card(self, kind, action, revision, state, table, lead='', extra_events=()):
+        """One card-table action through the declared procedure (runtime/kit_cards.py,
+        runtime/kit_twenty_one.py). Numbers stay in the ledger evidence, never the event."""
+        key, config, body = table
+        require('roll_seed' in state, 'This session predates stable checks; start a fresh test database.')
+        engine = self._card_engine(key, config, state)
         try:
             public, new_state, reveals = engine.resolve(kind, action, revision, body)
         except kit_cards.NeedsRuling as exc:
             raise PendingRuling(str(exc), attempt=exc.attempt) from exc
+        public = f'{lead} {public}'.strip()
         require(len(public) <= CARD_EVENT_MAX_CHARS, 'Card result exceeds the event bound')
+        numbers = '; '.join(engine.trace)
         events = [{'type': 'procedure_state', 'procedure': key, 'state': new_state,
-                   'evidence': f'Player declared: {action[:300]}. {config["name"]}: {kind}.'}]
+                   'evidence': f'Player declared: {action[:300]}. {config["name"]}: {kind}.'
+                               + (f' Numbers: {numbers}.' if numbers else '')}]
         events += [{'type': 'reveal_fact', 'fact': fact,
-                    'evidence': f'Seen during play of {config["name"]}: {public[:200]}'}
+                    'evidence': f'Seen during play of {config["name"]}: {public[:200]}'
+                                + (f' Numbers: {numbers}.' if numbers else '')}
                    for fact in reveals if fact not in state['known_facts']]
+        events += list(extra_events)
+        if getattr(engine, 'toll_outcome', None):
+            events += self._toll_settled(key, engine.toll_outcome, new_state, state)
         events.append({'type': 'beat', 'tags': [kind],
-                       'evidence': f'Player declared: {action}. Resolution: {public}'})
+                       'evidence': f'Player declared: {action}. Resolution: {public}'
+                                   + (f' Numbers: {numbers}.' if numbers else '')})
         return Resolution(kind, public, events)
+
+    # -- the toll: a real exchange (call 6) ------------------------------------------
+    def _resolve_toll(self, action, revision, state):
+        if not (self.source or {}).get('tolls'):
+            return None
+        for key, (toll, body) in kit_toll.here(self.source, state).items():
+            kind = kit_toll.intent(action, body)
+            if not kind:
+                continue
+            label = actor_speakers(self.source).get(toll['demanded_by'], toll['demanded_by'])
+            if kind in ('toll_play_for', 'toll_defer'):
+                return self._toll_to_game(kind, key, toll, body, action, revision, state)
+            actor = state['actors'][toll['demanded_by']]
+            engine = kit_toll.TollTable(
+                key, toll, label, lambda skill: self._pc_numbers(skill, state, action),
+                kit_claims.npc_passive(actor, toll['haggle']['npc_skill']),
+                lambda: self._die(state, revision, f'toll:{key}', action))
+            text, new_body = engine.resolve(kind, action, body)
+            numbers = '; '.join(engine.trace)
+            evidence = f'Player declared: {action[:300]}. Toll {key}: {kind}.' + (f' Numbers: {numbers}.' if numbers else '')
+            return Resolution(kind, text, [kit_toll.event(key, new_body, evidence),
+                                           {'type': 'beat', 'tags': [kind], 'evidence': evidence}])
+        return None
+
+    def _toll_to_game(self, kind, key, toll, body, action, revision, state):
+        """Steering a toll back to the game: it rides on the next round only if the running
+        (or offered) game can pay it out; otherwise it stays pending and comes back."""
+        table = card_procedure(self.source, state) or self._declared_table(state)
+        new_body = dict(body, status=body['status'] if body['status'] != 'not_raised' else 'demanded')
+        carry = bool(table and kit_cards.can_carry(table[1], 'toll') and
+                     table[0] in toll.get('stakeable_in', [table[0]]) and
+                     not kit_cards.is_live(table[2]['public']))
+        amount = body.get('agreed') or body['asked']
+        if kind == 'toll_play_for' and carry:
+            new_body['status'] = 'staked'
+            game = copy.deepcopy(table[2])
+            game['public']['toll_stake'] = amount
+            event = kit_toll.event(key, new_body, f'Player declared: {action[:300]}. The toll rides on the next round.')
+            lead = (f'The toll rides on the next round: win and it is waived, lose and the {amount} '
+                    f'{toll["unit"]} is paid from the stake.')
+            card_kind = 'card_round' if game['public'].get('mode') else 'card_offer'
+            return self._resolve_card(card_kind, action, revision, state, (table[0], table[1], game),
+                                      lead=lead, extra_events=[event])
+        new_body['status'] = 'deferred'
+        why = ('the game cannot carry it' if kind == 'toll_play_for' else 'the talk turned to the game')
+        event = kit_toll.event(key, new_body, f'Player declared: {action[:300]}. Toll deferred: {why}; it stays '
+                                              'pending and comes back.')
+        card_kind = kit_cards.card_intent(action, table[2]) if table else None
+        if card_kind:
+            return self._resolve_card(card_kind, action, revision, state, table, extra_events=[event])
+        text = 'The toll stays on the table, unpaid, while the talk turns to the game.'
+        return Resolution('toll_defer', text, [event, {'type': 'beat', 'tags': ['toll_defer'],
+                                                       'evidence': event['evidence']}])
+
+    def _toll_settled(self, procedure, outcome, new_state, state):
+        events = []
+        for key, (toll, body) in kit_toll.here(self.source, state).items():
+            if body['status'] != 'staked' or procedure not in toll.get('stakeable_in', [procedure]):
+                continue
+            stake = (new_state['public'].get('last_result') or {}).get('stake') or body['asked']
+            new_body = dict(body, status='waived' if outcome == 'won' else 'paid',
+                            paid=0 if outcome == 'won' else stake)
+            events.append(kit_toll.event(key, new_body, f'The toll rode on a round of {procedure}: {outcome}.'))
+        return events
 
 
 PLAN_SCHEMA = {
@@ -900,7 +1029,10 @@ PRIVATE_INSTRUCTIONS = (
     'flat 10 + Deception against the PC\u2019s passive Insight; if the player actively reads '
     'whether someone is lying, they roll Insight against that same number, and it answers '
     'only whether that person is being straight, never another secret. Never tell the player '
-    'that the source gives no DC; apply the default. '
+    'that the source gives no DC; apply the default (a settled DM-discretion rule, never an open '
+    'question). Numbers stay in the ledger: public text never shows a DC, a roll total, a modifier, '
+    'or die math; a roll request names the skill only, and a result is told as what the character '
+    'notices. '
     'Motive: why would this person say it now? Choose truth, lie, boast, '
     'bargain, hedge, or silence from their wants; Charisma decides how well they manage it. '
     'Intelligence changes how far someone reasons and how they go wrong, never how well they '
@@ -1124,7 +1256,7 @@ class OpenAIResponsesModel:
 
 
 def supported_procedures(source):
-    return tuple(key for key in (source or {}).get('procedures', {}) if not key.startswith('_'))
+    return kit_cards.offered(source)
 
 
 def check_plan(plan, episodes, public_event, action_kind=None, candidates=None, player_action=None,
@@ -1469,13 +1601,21 @@ def check_speech(speech, plan, public_view, player_action, action_kind=None, gua
     kit_guards.check_player_agency(segments)
     kit_guards.check_npc_meta(segments)
     running = declared_procedures(guards.get('declared_procedures', ()), plan)
-    game_terms = kit_cards.RULE_TERMS if running else ()
+    configs = guards.get('procedure_configs') or {}
+    game_terms = kit_cards.rule_terms([configs.get(key, {}) for key in running]) if running else ()
     check_claimed_numbers(segments, plan, guards, player_action, game_terms)
+    # HARD: numbers stay in the ledger; no bonus reminders unless asked (call 4).
+    kit_guards.check_public_numbers(segments, rules_question=bool(is_ooc(player_action or '') or
+                                                                  RULES_NOUNS.search(player_action or '')))
+    # HARD: the toll is an NPC's demand and a real exchange (call 6); no refreshment here (call 3).
+    kit_guards.check_toll_exchange(segments, guards.get('toll_amount'), guards.get('toll_raised', True))
+    if guards.get('no_refreshment'):
+        kit_guards.check_no_refreshment(segments)
     kit_guards.check_clarification_shape(segments, plan)
     # HARD: scene fit. Who the player is, what the deal really was, what can be staked.
     kit_guards.check_player_identity(segments, (public_view or {}).get('your_character'))
     kit_guards.check_clean_deal(segments, guards.get('dealer_cheated', False))
-    kit_guards.check_stake_offers(segments)
+    kit_guards.check_stake_offers(segments, carriable=guards.get('carriable_stakes', ()))
     # HARD: Kit reacts to what actually happened this turn; no procedure the runtime
     # cannot carry is stated as settled.
     kit_voice.check_kit_asides(segments, player_action, public_event, action_kind)
@@ -1485,7 +1625,8 @@ def check_speech(speech, plan, public_view, player_action, action_kind=None, gua
     soft = (lambda: check_scope(segments, plan, guards),
             lambda: kit_guards.check_padding(segments, player_action, action_kind, history,
                                              json.dumps((public_view or {}).get('table_procedures') or {},
-                                                        ensure_ascii=False)),
+                                                        ensure_ascii=False),
+                                             kit_cards.card_words() if running else ()),
             lambda: kit_guards.check_npc_voices(segments, guards.get('voice_contracts'), history),
             lambda: kit_guards.check_npc_repetition(segments, history),
             lambda: kit_guards.check_kit_tics(segments, history),
@@ -1525,7 +1666,7 @@ def declared_procedures(in_state, plan):
     return tuple(in_state) + tuple(this_turn)
 
 
-def turn_events(runtime, body, plan, turn_id):
+def turn_events(runtime, body, plan, turn_id, record=None):
     """The adjudicated events plus what the decision establishes: its canon entries, the
     oracle deal it consumed, and the starting state of a table procedure it declares."""
     if plan.get('ask_player'):
@@ -1534,6 +1675,9 @@ def turn_events(runtime, body, plan, turn_id):
         return [{'type': 'beat', 'tags': ['asked'],
                  'evidence': f"{ASKED_EVENT_PREFIX}{plan['ask_player']['question']}"}]
     events = list(body['events'])
+    if record and runtime.source().get('tolls') and not any(e.get('type') == 'toll_state' for e in events):
+        # An NPC line that names the toll and its amount puts the demand on the table.
+        events += kit_toll.raised_events(runtime.source(), runtime.load()[1], record.get('spoken'), turn_id)
     if 'plan' in plan:
         events.append(kit_plan.plan_event(plan['plan'], turn_id))
     if plan.get('pc_state'):
@@ -1552,16 +1696,49 @@ def turn_events(runtime, body, plan, turn_id):
     events += kit_detail.canon_events(detail, turn_id, body.get('detail_oracle'))
     _, state = runtime.load()
     source = runtime.source()
-    running = set(state.get('procedures') or {})
+    running = set(state.get('procedures') or {}) | {event['procedure'] for event in body['events']
+                                                    if event.get('type') == 'procedure_state'}
+    putoff = put_off_reason(plan)
     for procedure in declared_procedures((), plan):
         config = source.get('procedures', {}).get(procedure)
         if config and procedure not in running and config.get('kind') == 'card_game':
             kit_cards.check_config(config)
             events.append({'type': 'procedure_state', 'procedure': procedure,
                            'state': kit_cards.initial_state(config),
-                           'evidence': f'Declared as a table procedure with turn {turn_id}.'})
+                           'evidence': f'Declared as a table procedure with turn {turn_id}.'
+                                       + (f' NPC put-off move: {putoff}' if putoff and
+                                          not ASKS_ABOUT_GAME.search(body['action']) else '')})
             running.add(procedure)
     return events
+
+
+# The player's words are about the game (asking to play, or about it): only then may a
+# decision start a table procedure (call 1: a game in the room is never a reason by itself).
+ASKS_ABOUT_GAME = re.compile(r"\b(game|games|play|playing|cards?|deal|dealing|bet|bets|wager|ante|stakes?|gambl\w*|"
+                             r"join|rules|blackjack|twenty[- ]one|poker|hand|round|buy[- ]in)\b", re.I)
+PUT_OFF = re.compile(r"\b(steer\w*|stall\w*|put (?:\w+ )?off|putting (?:\w+ )?off|distract\w*|divert\w*|"
+                     r"keep (?:\w+ ){0,2}(?:busy|seated|at the table|from)|draw (?:\w+ )?in)\b", re.I)
+
+
+def put_off_reason(plan):
+    """The recorded reason when an NPC agenda move uses the game to steer or stall the PCs."""
+    for item in ((plan or {}).get('agenda') or {}).get('advances') or ():
+        why = f"{item.get('does', '')} {item.get('why', '')}"
+        if PUT_OFF.search(why):
+            return f"{item.get('agent')}: {item.get('why') or item.get('does')}"
+    return None
+
+
+def check_procedure_start(plan, body, state):
+    """HARD (TC-1b): a decision starts a table procedure only when the player's words are
+    about the game, or an NPC agenda move records a reason of steering or stalling them."""
+    running = set((state or {}).get('procedures') or {}) | {event['procedure'] for event in body['events']
+                                                            if event.get('type') == 'procedure_state'}
+    new = [p for p in declared_procedures((), plan) if p not in running]
+    if new and not ASKS_ABOUT_GAME.search(body['action'] or ''):
+        require(put_off_reason(plan), 'A card game in the room is not a reason to start one: start a table '
+                'procedure only when the player asks to play or about the game, or record an NPC agenda '
+                'move whose why is steering or stalling the PCs.')
 
 
 def _named_actors(action, aliases=None):
@@ -1739,6 +1916,7 @@ def check_decision(runtime, plan, memory, body):
                claims_packet=body.get('claims_here'))
     check_brief_public(plan['public_brief'], body['public_view'], body['action'],
                        kit_guards.leak_sets(source), kit_guards.leak_phrases(source))
+    check_procedure_start(plan, body, runtime.load()[1])
     if not plan.get('ask_player'):  # a question to the player moves no agenda
         kit_agenda.check_agenda(plan.get('agenda'), body.get('agenda_here'), source, runtime.load()[1],
                                 kit_agenda.oddity_reactors(plan.get('pc_oddity'), source))
@@ -1845,7 +2023,8 @@ def scene_facts(state, events):
     for event in events or ():
         if event.get('type') == 'procedure_state':
             procedures[event['procedure']] = event['state']
-    cheated = any(bool((body.get('private') or {}).get('cheated')) and (body.get('public') or {}).get('gambit')
+    cheated = any(bool((body.get('private') or {}).get('cheated')) and
+                  ((body.get('public') or {}).get('gambit') or (body.get('public') or {}).get('round'))
                   for body in procedures.values())
     return {'dealer_cheated': cheated}
 
@@ -2018,9 +2197,29 @@ def guard_context(source, body):
     """What the style and leak guards need beyond the performance: DM-only paraphrase
     sets and public voice contracts from the room source, and recent public turns."""
     cards = (source or {}).get('public_performance', {}).get('actor_cards', {})
-    procedures = (body.get('public_view') or {}).get('table_procedures') or {}
+    view = body.get('public_view') or {}
+    procedures = view.get('table_procedures') or {}
+    configs = {key: config for key, config in ((source or {}).get('procedures') or {}).items()
+               if not key.startswith('_') and isinstance(config, dict)}
+    # Negotiated toll amounts are backed by toll state, so characters may name them (call 6).
+    facts = kit_guards.numeric_facts(source)
+    tolls = kit_toll.compile_tolls(source) if (source or {}).get('tolls') else {}
+    toll_view = view.get('tolls') or {}
+    for key, toll in tolls.items():
+        name = toll.get('numeric_fact')
+        if name in facts and key in toll_view:
+            backed = kit_toll.amounts({key: toll_view[key]})
+            facts[name] = {**facts[name], 'allowed_amounts': sorted(set(facts[name]['allowed_amounts']) | backed)}
+    here = [toll for key, toll in tolls.items() if toll['area'] == _area_id(source, view)]
+    carriable = ('toll', 'tolls', 'passage') if any(kit_cards.can_carry(configs.get(key), 'toll')
+                                                    for key in procedures) else ()
     return {'leak_sets': kit_guards.leak_sets(source), 'leak_phrases': kit_guards.leak_phrases(source),
-            'numeric_facts': kit_guards.numeric_facts(source),
+            'numeric_facts': facts,
+            'procedure_configs': configs, 'carriable_stakes': carriable,
+            'toll_amount': here[0]['amount'] if here else None,
+            'toll_raised': not here or any(key in toll_view for key in tolls),
+            'no_refreshment': bool(((source or {}).get('areas') or {}).get(_area_id(source, view) or '', {})
+                                   .get('no_refreshment')),
             'numeric_claims': {key: claim.get('numeric_fact', key)
                                for key, claim in kit_claims.compile_claims(source).items()},
             'stake_amounts': sorted(stake_amounts(procedures)),
@@ -2030,6 +2229,12 @@ def guard_context(source, body):
             'speakers': actor_speakers(source), 'labels': speech_speakers(source),
             'brief_speakers': tuple(name for name, card in cards.items() if card.get('speech_floor') is False),
             'public_history': body.get('public_history', [])}
+
+
+def _area_id(source, view):
+    """The area id behind the public view's area name."""
+    name = (view or {}).get('area')
+    return next((key for key, area in ((source or {}).get('areas') or {}).items() if area.get('name') == name), None)
 
 
 def stake_amounts(procedures):
@@ -2049,7 +2254,8 @@ def stake_amounts(procedures):
             for item in value:
                 walk(item)
     for body in procedures.values():
-        walk({key: body.get(key) for key in ('stacks', 'player', 'gambit', 'carried', 'last_result')})
+        walk({key: body.get(key) for key in ('stacks', 'player', 'gambit', 'round', 'carried', 'last_result',
+                                             'default_stake', 'max_stake', 'toll_stake', 'pending_bet')})
     return found
 
 
@@ -2139,7 +2345,7 @@ class KitAgent:
             if record.get('degraded'):
                 timing['degraded'] = True
             next_revision = self.runtime.commit_kit_turn(
-                turn_id, revision, turn_events(self.runtime, body, plan, turn_id), record)
+                turn_id, revision, turn_events(self.runtime, body, plan, turn_id, record), record)
             outcome = 'committed'
         except StaleTurn:
             outcome = 'stale'
@@ -2283,7 +2489,7 @@ class KitChatBridge:
         variant = (self.runtime.kit_timing(turn_id) or {}).get('performance_variant', 'current')
         record = self._checked_or_log(turn_id, body, pending['plan'], speech, variant, degraded)
         revision = self.runtime.commit_kit_turn(
-            turn_id, pending['revision'], turn_events(self.runtime, body, pending['plan'], turn_id),
+            turn_id, pending['revision'], turn_events(self.runtime, body, pending['plan'], turn_id, record),
             record, consume_pending=True)
         return self._committed_result(turn_id, revision, body, record, variant)
 
@@ -2425,7 +2631,7 @@ class KitChatBridge:
         variant = body.get('performance_variant', 'current')
         record = self._checked_or_log(turn_id, body, plan, output['performance'], variant, degraded)
         next_revision = self.runtime.commit_kit_turn(
-            turn_id, revision, turn_events(self.runtime, body, plan, turn_id), record,
+            turn_id, revision, turn_events(self.runtime, body, plan, turn_id, record), record,
             consume_pending=True)
         return self._committed_result(turn_id, next_revision, body, record, variant)
 

@@ -359,7 +359,8 @@ class PcStateBySituationTests(unittest.TestCase):
             'I inspect the fresco.', revision, state)
         self.assertNotEqual(result.kind, 'ask_first')
         self.assertTrue(result.events)
-        self.assertIn('passive Perception 14', result.public_event)
+        self.assertNotIn('passive Perception 14', result.public_event)  # table call 2
+        self.assertIn('passive Perception 14', ' '.join(e.get('evidence', '') for e in result.events))
 
     def test_instructions_say_kit_just_plays(self):
         text = kit_agent.PRIVATE_INSTRUCTIONS

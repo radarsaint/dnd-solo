@@ -88,13 +88,18 @@ _RESTATE_OPENERS = re.compile(
     r"explain|explained|mention|mentioned|inquire|inquired|reply|replied|announce|announced)\b")
 
 
-def check_padding(segments, player_action, action_kind, public_history=(), public_state=''):
+def check_padding(segments, player_action, action_kind, public_history=(), public_state='', card_words=()):
     """Reject crude padding: repetition, restating the player, recycled lines, filler.
     public_state is the current public table state (e.g. the player's hand): naming what
     is on the table again is reporting the state, not padding."""
     state_words = tokens(public_state or '')
+    card_vocab = {normalize(word) for word in card_words or ()}
 
     def stated(run):
+        # A hand or table reminder (cards, ranks, suits, colors, numbers) is reporting the
+        # game state, never padding (Brendon's table call 7).
+        if card_vocab and all(word.isdigit() or word in card_vocab for word in content_words(run)):
+            return True
         size = len(run)
         return any(tuple(state_words[i:i + size]) == run for i in range(len(state_words) - size + 1))
     seen = {}
@@ -833,7 +838,7 @@ UNCARRIED_STAKES = re.compile(
     r"horse|boots|pack|cloak|bow)|favou?r|secret|secrets)\b")
 
 
-def check_stake_offers(segments, stake_unit='gp'):
+def check_stake_offers(segments, stake_unit='gp', carriable=()):
     """HARD: the card game carries gold only. An NPC who offers to stake the ring, the
     toll, passage, or anything else ("I'll stake the ring against your purse", "Win a
     gambit and the toll's waived") offers a wager the runtime cannot pay out. A pronoun
@@ -849,7 +854,107 @@ def check_stake_offers(segments, stake_unit='gp'):
             item = UNCARRIED_STAKES.search(text)
             if not item and index and re.search(r"\b(it|that|them)\b", text):
                 item = UNCARRIED_STAKES.search(normalize(parts[index - 1]))
-            if item:
+            if item and item.group(1) not in carriable:
                 raise InvalidChange(
                     f'Scene fit: the {segment["speaker"]} offers to stake "{item.group(1)}", but the table '
                     f'game stakes only {stake_unit}. Offer only what the game can carry.')
+
+
+# ---------------------------------------------------------------------------
+# 10. Numbers stay in the ledger (Brendon's table call 4, 2026-10-02)
+# ---------------------------------------------------------------------------
+# HARD: public text never shows a DC, an opposed number, a roll total, a modifier, or die
+# math. Roll requests name the skill only; a success is told as what the character notices.
+_SKILL_NAMES = (r"(?:acrobatics|animal handling|arcana|athletics|deception|history|insight|intimidation|"
+                r"investigation|medicine|nature|perception|performance|persuasion|religion|sleight of hand|"
+                r"stealth|survival|strength|dexterity|constitution|intelligence|wisdom|charisma|initiative)")
+PUBLIC_NUMBER_PATTERNS = (
+    ('a DC', re.compile(r"\bdc ?\d+|\bdifficulty (?:class )?(?:of )?\d+", re.I)),
+    ('an opposed number', re.compile(r"\bvs\.? ?(?:dc ?|passive \w+ ?)?\d+|\bversus \d+|\bmeets (?:dc ?)?\d+", re.I)),
+    ('a roll total', re.compile(r"\(\s*(?:passive\s+)?" + _SKILL_NAMES + r"\s+\d+", re.I)),
+    ('a die expression', re.compile(r"\bd(?:4|6|8|10|12|20|100)\s*[+-]\s*\d+|\b\d+d\d+\b|\bd20\b|\bnat(?:ural)? ?(?:1|20)\b", re.I)),
+)
+SIGNED_MODIFIER = re.compile(
+    _SKILL_NAMES + r"(?:\s+(?:check|roll|save|saving throw|bonus|modifier))?[,:]?\s*(?:at |of |is )?[+\u2212-]\s?\d+"
+    + r"|[+\u2212-]\s?\d+\s+(?:to|on|in)\s+(?:your\s+)?" + _SKILL_NAMES
+    + r"|\b(?:your|a|the) (?:bonus|modifier) (?:is|of) [+\u2212-]?\s?\d+", re.I)
+# Reminders of the PC's own bonuses, advantage sources, or item benefits (call 4).
+FEATURE_REMINDER = re.compile(
+    r"\b(?:grants?|gives?|giving|grant(?:ing|s)?) (?:you )?(?:advantage|disadvantage|a bonus|a \+\d|\+\d)"
+    r"|\byou(?:'ve| have)? (?:got )?(?:advantage|a \+\d+|\+\d+) (?:on|to|for)\b"
+    r"|\byour (?:\w+ )?(?:bonus|modifier)\b", re.I)
+
+
+def check_public_numbers(segments, rules_question=False, public_event=''):
+    """HARD: no DCs, opposed totals, roll totals, modifiers, or die math in public text,
+    and no reminder of the PC's bonuses or item benefits unless the player asked a rules
+    question about them. The ledger keeps the numbers (KRABS section 12)."""
+    texts = [('accepted event', public_event or '')] + [(segment['speaker'], segment['text']) for segment in segments]
+    for speaker, text in texts:
+        for name, pattern in PUBLIC_NUMBER_PATTERNS:
+            found = pattern.search(text or '')
+            require(not found, f'Numbers stay in the ledger: the {speaker} shows {name} ("{found and found.group(0)}"). '
+                    'Name the skill only, and tell the result as what the character notices.')
+        if rules_question:
+            continue
+        found = SIGNED_MODIFIER.search(text or '')
+        require(not found, f'Numbers stay in the ledger: the {speaker} states a modifier ("{found and found.group(0)}"). '
+                'A roll request names the skill only.')
+        if speaker in ('Kit', 'Narrator'):
+            found = FEATURE_REMINDER.search(text or '')
+            require(not found, f'No bonus or feature reminders: the {speaker} restates the character\'s own '
+                    f'bonuses ("{found and found.group(0)}"). Say it only when the player asks a rules question.')
+
+
+# ---------------------------------------------------------------------------
+# 11. A room with no refreshment (Brendon's table call 3)
+# ---------------------------------------------------------------------------
+REFRESHMENT = re.compile(r"\b(wine|ale|beer|mead|cordial|liquor|spirits|brandy|whisk(?:e)?y|drinks?|cups?|glass(?:es)?|"
+                         r"goblets?|mugs?|flasks?|tankards?|bottles?|food|bread|meat|cheese|snacks?|refreshments?|"
+                         r"water|tea|stew|meal|supper|dinner)\b")
+SERVING = re.compile(r"\b(pour\w*|serv\w*|offer\w*|hand(?:s|ed|ing)?|pass(?:es|ed|ing)?|slid\w*|slide\w*|fill\w*|"
+                     r"refill\w*|top(?:s|ped)? up|sip\w*|drink\w*|drank|eat\w*|ate|nibbl\w*|toast\w*|raise\w* (?:a|his|her|their)|"
+                     r"have (?:a|some)|help yourself|try (?:a|some|the))\b")
+REFRESHMENT_NEGATED = re.compile(r"\b(no|not|none|nothing|never|without|empty|dry|run out|ran out|gone|"
+                                 r"don'?t|do not|haven'?t|have not|can'?t|cannot|no longer|nor|neither|lack\w*)\b")
+
+
+def check_no_refreshment(segments):
+    """HARD where the area says so: no public line serves, offers, or shows food or drink.
+    Saying there is none ("our wine has run out") is the clue, and passes."""
+    for segment in segments:
+        for sentence in sentences(segment['text']):
+            text = normalize(sentence)
+            if REFRESHMENT.search(text) and SERVING.search(text) and not REFRESHMENT_NEGATED.search(text):
+                raise InvalidChange(
+                    f'Room fit: the {segment["speaker"]} serves or shows food or drink ("{sentence[:60]}"), but '
+                    'nobody here eats or drinks. Say there is none, or leave it out.')
+
+
+# ---------------------------------------------------------------------------
+# 12. The toll is an exchange, not a price tag (Brendon's table call 6)
+# ---------------------------------------------------------------------------
+TOLL_WORDS = re.compile(r"\b(toll|passage|fee|to pass|way through|safe passage|a head|per head)\b")
+TOLL_GAME_WORDS = re.compile(r"\b(game|games|cards?|ante|deal|dealt|gambling|gamble|blind|bet|wager|play)\b")
+
+
+def check_toll_exchange(segments, amount, raised):
+    """HARD: the first time the toll is named with its amount, an NPC makes the demand
+    (never the Narrator or Kit), the line is not tossed in beside game talk, and it leaves
+    the player an opening (a question). Once raised, the exchange goes on in any words."""
+    if raised or not amount:
+        return
+    for segment in segments:
+        parts = sentences(segment['text'])
+        for index, sentence in enumerate(parts):
+            said = {value for value, _ in spoken_amounts(sentence)}
+            if amount not in said or not TOLL_WORDS.search(normalize(sentence)):
+                continue
+            require(is_npc(segment['speaker']),
+                    f'The toll is an NPC\'s demand: the {segment["speaker"]} names it ("{sentence[:60]}"). Let the '
+                    'NPC who wants it make the demand, with their reason.')
+            around = ' '.join(normalize(part) for part in parts[max(0, index - 1):index + 1])
+            require('?' in segment['text'] and not TOLL_GAME_WORDS.search(around),
+                    f'The toll is a real exchange, not a line beside the game: the {segment["speaker"]} names it '
+                    'in passing. Make the demand its own beat, with a reason in character and an opening '
+                    'for the player to answer.')
