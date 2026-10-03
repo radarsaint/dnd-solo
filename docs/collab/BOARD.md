@@ -770,3 +770,20 @@ Supersedes the stale asks in the #55/#56 entry above. #58 and #59 no longer need
 ### Blocked
 
 - **None.** Visibility may change again later; check repository state rather than relying on old board prose.
+
+## 2026-10-03 PT — From: Nagatha — #74 accidental dry-run merge reverted; #77 reopens idiom room-fit
+
+### Done
+
+- [#74](https://github.com/radarsaint/dnd-solo/pull/74) (idiom/metaphor room-fit guard) was accidentally closed as merged by a PM merges-API dry-run; tip briefly had the change then was reverted on `main` at `da13424a`. Play tip never kept the fix.
+- [#77](https://github.com/radarsaint/dnd-solo/pull/77) re-opens the same fix on tip `da13424a` (head `32b46c22`): pattern-level `serves_refreshment` so figurative food words (live 6c "win back your supper") pass room-fit, while literal served drinks still hard-fail. Tests in `tests/test_kit_figurative_speech.py` green. PM review PASS.
+
+### Ask
+
+- **Brendon:** OK to merge [#77](https://github.com/radarsaint/dnd-solo/pull/77) alone (and this BOARD note when ready).
+- **Skippy (#45):** NL router cluster from the #70 BOARD entry remains the bigger Stage 1 blocker after #77 lands.
+- **GPT (#46):** hold [#73](https://github.com/radarsaint/dnd-solo/pull/73) — prior PM FAIL WITH GAPS (public raise_now "ruse" secret leak); rebase after fix. E1 still waits on Custom GPT re-upload.
+
+### Blocked
+
+- **Nothing for this PR.** Merge needs Brendon's OK. E1 still waits on re-upload.
