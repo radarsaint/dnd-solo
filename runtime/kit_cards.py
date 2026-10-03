@@ -918,6 +918,13 @@ def card_intent(action, procedure_state):
     return _tda_intent(action, procedure_state)
 
 
+def next_bet(action, procedure_state):
+    """A stake named for the next hand in passing, for games that take a bet per hand."""
+    if procedure_state is None or game_of(procedure_state.get('public')) != 'twenty_one':
+        return None
+    return _twenty_one().next_bet(action, procedure_state)
+
+
 def public_view(config, public):
     if game_of(public) == 'twenty_one' or game_of(config) == 'twenty_one':
         return _twenty_one().public_view(config, public)

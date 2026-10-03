@@ -152,7 +152,7 @@ GROUP_READ = re.compile(r"\bsomething(?:'s| is)? (?:off|wrong|strange|weird|not 
 PLAY_REQUEST = re.compile(r"\b(?:i(?:'ll| will)? play|let'?s play|join (?:the|your|you|in)|sit in|deal me in|"
                           r"count me in|buy in|buy-in|i'?m in|play (?:a|the|one|your) (?:game|hand|round)|"
                           r"play cards|play blackjack|play twenty[- ]one|just roll for it|dealt in|be dealt|"
-                          r"deal (?:me|us|her|him) in|take (?:the|a|an) (?:empty |open |free )?(?:chair|seat) at the table)\b")
+                          r"deal (?:me|us|her|him|myself) in|deal(?:s|ing)? in|take (?:the|a|an) (?:empty |open |free )?(?:chair|seat) at the table)\b")
 # Rolls a player makes in conversation, and what each outcome means for the NPC addressed.
 SOCIAL_CHECK_SKILLS = ('deception', 'persuasion', 'intimidation', 'performance', 'athletics')
 SOCIAL_OUTCOMES = {
@@ -309,7 +309,7 @@ class Room6CAdjudicator:
         self.source = source  # the room source, for its table procedures (set by the bridge)
 
     def resolve(self, action, revision, state, addressed=False):
-        result = self._resolve(action, revision, state, addressed)
+        result = self._also_bet(self._resolve(action, revision, state, addressed), action, revision, state)
         if (self.source or {}).get('tolls'):
             extra = self._toll_unstuck(result, state)
             if extra:
@@ -527,6 +527,21 @@ class Room6CAdjudicator:
     def _game_called(self, action):
         declared = self._declared_table({})
         return bool(declared and kit_cards.game_called(declared[1], kit_rolls.without_rolls(action)))
+
+    def _also_bet(self, result, action, revision, state):
+        """``result`` plus a new stake for the next hand named in the same message, when the
+        ruling was not a card call itself (a read, a check, talk) and started no fight. Seated
+        at a table, "Twenty gold on the next hand. Insight 14 on the dealer." keeps the bet
+        (6c backlog a: it was dropped) and says so."""
+        if str(result.kind).startswith(('card_', 'combat_')) or is_ooc(action):
+            return result
+        table = card_procedure(self.source, state)
+        if not table or not kit_cards.next_bet(action, table[2]):
+            return result
+        try:
+            return combine(result, self._resolve_card('card_bet', action, revision, state, table))
+        except PendingRuling:
+            return result
 
     def _also_card(self, result, action, narration, revision, state):
         """``result`` plus the card call made in the same message, when there is one and the
