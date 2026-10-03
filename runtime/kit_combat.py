@@ -75,8 +75,12 @@ TAKE = re.compile(r'\b(scoop|scoops|scooping|grab|grabs|snatch|snatches|pocket|p
                   r'swipe|swipes|pick up|picks up|gather|gathers|sweep|sweeps|lift|lifts|palm|palms|steal|steals|'
                   r'help myself to)\b')
 VALUABLES = re.compile(r'\b(coins?|gold|silver|copper|pot|money|stacks?|the stakes|winnings|ring|silver ring|purse)\b')
-COVERT = re.compile(r'\b(quietly|unnoticed|unseen|without (?:anyone|them) (?:seeing|noticing)|slip|slips|palm|palms|'
-                    r'secretly|on the sly|while (?:no one|nobody) is looking)\b')
+COVERT = re.compile(r"\b(quietly|unnoticed|unseen|without (?:anyone|them) (?:seeing|noticing)|slip|slips|palm|palms|"
+                    r"secretly|covertly|furtively|stealthily|on the sly|discreetly|"
+                    # a covert clause: while or when nobody watches, or the others look away
+                    r"(?:while|when|as)\s+(?:no ?one|no-one|nobody|they|the others|everyone(?: else)?|he|she|their "
+                    r"(?:backs?|eyes?))(?:'s|'re|\s+(?:is|are|was|were))?\s+(?:not\s+)?(?:looking|watching|distracted|busy|"
+                    r"turned|elsewhere|looking away|looks away|look away))\b")
 WAIT = re.compile(r'\b(wait|waits|ready|readied|hold my action|hold (?:my )?ground|let them come|'
                   r'make the first move|stand my ground|on guard)\b')
 EVERYONE = re.compile(r'\b(middle of the (?:card )?table|the (?:card )?table|all of them|them all|everyone|'
@@ -106,6 +110,65 @@ CARRIED_OR_BODY = re.compile(r"(?:pocket|pouch|purse|belt|pack|bag|sheath|sleeve
                              r"cheeks?|brow|forehead|hands?|lips?|teeth|skin|chin|jaw)\b")
 ACTOR_WORDS = re.compile(r"\b(dealer|player|players|man|woman|men|women|vampire|vampires|bandit|bandits|thug|"
                          r"thugs|guard|guards|stranger|captain|he|she|they|him|them)\b")
+
+
+# -- what an attack verb is aimed at (general; no room names) ---------------------------
+# A violent verb is an attack only when it is aimed at someone: its own object is a creature,
+# a person, or a named actor ("shoot the dealer", "kick him"), it is aimed through a
+# preposition ("fire at the man"), or it uses a weapon ("thrust my dagger at him"). Its object
+# being anything else is an idiom or a gesture, never a strike: "shoot the breeze", "kill
+# time", "thrust my chin at the dealer", "kick back", "kick my feet up".
+_SKIP = re.compile(r"(?:the|a|an|this|that|these|those|some|\w+ly|right|straight|all)$")
+_OWNERS = ('my', 'our', 'his', 'her', 'their', 'its', 'your')
+_AIM_PREPOSITIONS = ('at', 'on', 'into', 'through', 'against', 'toward', 'towards', 'upon')
+CREATURE_WORDS = re.compile(r"(?:dealer|player|players|man|woman|men|women|vampires?|bandits?|thugs?|guards?|"
+                            r"stranger|captain|creature|monster|doppelganger|guy|bastard|one|someone|anyone|"
+                            r"everyone|whoever|him|her|them|it|me|you)s?$")
+# Someone else's body part is a target ("his throat"); a bare one is not ("kick back").
+BODY_WORDS = re.compile(r"(?:throat|neck|chest|gut|head|face|arm|wrist|hand|leg|back|shoulder|heart|eye|side|"
+                        r"ribs?|kneecap|jaw|nose|belly|knee)s?$")
+
+
+def aimed_attack(text, verb, actor_names=()):
+    """True when the attack verb match ``verb`` in ``text`` is aimed at someone (see above)."""
+    rest = text[verb.end():]
+    cut = CLAUSE_BREAK.search(rest)
+    clause = rest[:cut.start()] if cut else rest
+    words = re.findall(r"[a-z][a-z'-]*", clause)
+    if not words:
+        return True  # "I attack!", "I shoot." : the fight path asks who
+    owner = None
+    for index, word in enumerate(words):
+        if word in _AIM_PREPOSITIONS or word == 'with':
+            return True  # aimed through a preposition, or a weapon named for the blow
+        if word in _OWNERS:
+            owner = word
+            continue
+        if _SKIP.match(word):
+            continue
+        if word.endswith("'s") and (CREATURE_WORDS.match(word[:-2]) or word[:-2] in actor_names):
+            return True  # "the dealer's hand"
+        noun = ' '.join(words[index:index + 2])
+        if re.match(r'(?:' + WEAPONS + r')s?$', word):
+            return True  # "thrust my dagger", "kick my boot into him"
+        if owner in ('my', 'our'):
+            return False  # the PC's own body or things: a gesture ("thrust my chin")
+        if CREATURE_WORDS.match(word) or any(noun.startswith(name) or word == name for name in actor_names):
+            return True
+        if BODY_WORDS.match(word):
+            return owner is not None  # "his throat", "the dealer's hand" (owner word before it)
+        return False  # an object or a figure of speech: "shoot the breeze", "kill time"
+    return owner not in ('my', 'our')
+
+
+def first_aimed_attack(text, actor_names=()):
+    """The first ATTACK verb in ``text`` that is aimed at someone, or None."""
+    for verb in ATTACK.finditer(text):
+        if NOUN_USE.search(text[:verb.start()]):
+            continue  # "a kick", "the cut": a noun, not the act
+        if aimed_attack(text, verb, actor_names):
+            return verb
+    return None
 
 
 def pc_names(state):
@@ -267,7 +330,8 @@ def parse(action, source, state):
         area = name in SPELL_SAVE and SPELL_SAVE[name][2]
         return {'kind': 'attack', 'spell': name, 'weapon': name, 'area': bool(area),
                 'target': None if area else (named or _default_target(text, source, state, here))}
-    attack = ATTACK.search(text)
+    actor_names = tuple(name for key in (state.get('actors') or {}) for name in _names(source, key))
+    attack = first_aimed_attack(text, actor_names)
     weapon = re.search(r'\b(' + WEAPONS + r')\b', text)
     if attack and attack.group(1) in ('stomp', 'stomps'):
         target = named or sc.get('grovelling') or _default_target(text, source, state, here)

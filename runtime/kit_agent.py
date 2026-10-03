@@ -83,7 +83,9 @@ def social_event(action):
     past the event bound is cut at a word boundary and marked with '...'. It says
     nothing about how anyone responds; the full declaration stays in the evidence.
     """
-    words = ' '.join(action.translate(_TYPOGRAPHIC).split())
+    # Speech the player already quoted stays speech: its double quotes become single quotes
+    # inside the one outer pair ('You declare: "\'Deal me in,\' I say."'), never doubled.
+    words = ' '.join(action.translate(_TYPOGRAPHIC).split()).replace('"', "'")
     room = EVENT_MAX_CHARS - len(SOCIAL_EVENT_PREFIX) - 2
     if len(words) > room:
         cut = words[:room - 3]
@@ -179,10 +181,27 @@ SOCIAL_WORDS = re.compile(
     r'\b(ask|say|tell|talk|speak|offer|bargain|propose|accuse|call out|sit|greet|hello|wait|listen|'
     r'wager|help|deal|promise|refuse|decline|pay|flirt|wink|smile|laugh|bow|introduce|threaten|'
     r'intimidate|join|bet|watch|observe|nod|shrug|thank|insist|warn|demand|charm|compliment|stare|'
-    r'glare)(s|es|d|ed|ing)?\b')
+    r'glare|question|doubt|mock|tease|chat|banter|gossip|joke|toast|cheer|praise|admire|comment|remark|'
+    r'apologi[sz]e|haggle|challenge|chuckle|grin|sigh|whistle|hum)(s|es|d|ed|ing)?\b')
+# Harmless table gestures and postures: the PC's own body at rest or at play, never an act on
+# the room or on someone. A posture verb ("lean back", "kick back", "stretch"), or any verb
+# whose own object is the PC's own body part ("clean my nails", "crack my knuckles").
+GESTURE = re.compile(
+    r"\b(?:lean|leans|leaning|relax|relaxes|stretch|stretches|yawn|yawns|settle|settles|slouch|slouches|lounge|"
+    r"lounges|sprawl|sprawls|fidget|fidgets|kick(?:s|ing)? back|put(?:s|ting)? (?:my|his|her) feet up|"
+    r"raise(?:s|d)? a toast|cross(?:es)? (?:my|his|her) (?:arms|legs))\b"
+    r"|\b\w+\s+(?:my|his|her|their)\s+(?:\w+\s+)?(?:nails|fingernails|knuckles|fingers|ears|whiskers|nose|"
+    r"chin|neck|feet|legs|arms|hair|beard|eyebrows?|brow|shoulders|teeth|lips)\b")
+# The tub is acted on only as the verb's own object ("tip the heavy tub over"), not as a place
+# something moves toward ("move my chair closer to the tub").
+TUB_MOVED = re.compile(r"\b(?:tip|tips|overturn|overturns|flip|flips|lift|lifts|move|moves|push|pushes|shove|"
+                       r"shoves|tilt|tilts|drag|drags|roll|rolls)\s+(?:(?!(?:to|toward|towards|near|by|beside|"
+                       r"next|closer|over|up|against|from|into|onto)\b)[\w'-]+\s+){0,3}tub\b")
 ADDRESS_WORDS = re.compile(r"\b(you|you're|your|yours|yourself|y'all)\b")
 SEATING = re.compile(r"\b(?:take|takes|taking|took)\s+(?:a|the|that|an empty|the empty|my|his|her|their)\s+"
-                     r"(?:seat|chair|stool|place)\b|\bpull(?:s)? up a chair\b|\b(?:sit|sits|sat|sitting) down\b")
+                     r"(?:seat|chair|stool|place)\b|"
+                     r"\b(?:move|moves|scoot|scoots|pull|pulls|drag|drags|shift|shifts|edge|edges|slide|slides|"
+                     r"turn|turns)\s+(?:my|his|her|their|the|a)\s+(?:chair|stool|seat)\b|\bpull(?:s)? up a chair\b|\b(?:sit|sits|sat|sitting) down\b")
 GEAR_SET = re.compile(r"\b(?:sling|slings|slung|stow|stows|strap|straps|set|sets|lay|lays|put|puts|rest|rests|hang|"
                       r"hangs)\b[^.?!]{0,30}\b(?:shield|weapon|sword|axe|bow|crossbow|staff|pack|rapier|mace)\b"
                       r"[^.?!]{0,30}\b(?:on(?:to)? (?:my|his|her|their) back|aside|down|away|against|by (?:my|his|her|their)"
@@ -222,7 +241,12 @@ def room_intent(action, addressed=False):
         return 'social'
     quoted = bool(QUOTED_SPEECH.search(text))
     words = QUOTED_SPEECH.sub(' ', text).lower()
-    if re.search(r'\b(attack|stab|shoot|kill|initiative|fireball)\b', words) or (
+    violent = re.compile(r'\b(attack|attacks|stab|stabs|shoot|shoots|kill|kills)\b')
+    # A capitalized name mid-sentence is someone ("I attack Uktarl"), in any room.
+    names = tuple(word.casefold() for word in re.findall(r"(?<![.!?]\s)(?<!^)\b([A-Z][a-z'-]+)",
+                                                          QUOTED_SPEECH.sub(' ', text)) if word != 'I')
+    if any(kit_combat.aimed_attack(words, verb, names) for verb in violent.finditer(words)) or \
+            re.search(r'\b(initiative|fireball)\b', words) or (
             re.search(r'\bcast\b', words) and re.search(r'\b(at|on|against|into)\s+(him|her|them|the|it|his)\b', words)):
         return 'combat'
     if re.search(r'\b(cast|casts|casting)\b', words):
@@ -235,7 +259,7 @@ def room_intent(action, addressed=False):
     if re.search(r'\b(leave|go|walk|move|step)\b', words) and (
             re.search(r'\b(south|door)\b', words) or (re.search(r'\bout\b', words) and 'tub' not in words)):
         return 'exit'
-    if re.search(r'\b(tip|overturn|flip|lift|move)\b', words) and 'tub' in words:
+    if TUB_MOVED.search(words):
         return 'tip_tub'
     if TUB_ENTRY.search(words):
         return 'enter_tub'
@@ -261,7 +285,10 @@ def room_intent(action, addressed=False):
     if physical and (not addressed or DECLARED_PHYSICAL.search(words.strip()) or
                      re.search(r'(^|[.!;]\s*)i\s+take\b', words.strip())):
         return 'unsupported_action'
-    if quoted or '?' in words or SOCIAL_WORDS.search(words) or ADDRESS_WORDS.search(words):
+    if quoted or '?' in words or SOCIAL_WORDS.search(words) or ADDRESS_WORDS.search(words) or \
+            GESTURE.search(words) or violent.search(words):
+        # A violent verb that reached here is aimed at nobody: an idiom or a gesture
+        # ("shoot the breeze", "kill time"), which is table talk, not a strike.
         return 'social'
     if addressed:
         return 'social'  # an answer to the question the NPC just asked
