@@ -10,6 +10,7 @@ Brendon has already decided these. Apply them; never raise them as open decision
 - **Numbers stay in the ledger (table call 4, 2026-10-02):** public text never shows a DC, a roll total, a modifier, or die math. A roll request names the skill only; a success is told as what the character notices. The numbers stay in event evidence and traces.
 - **No paid OpenAI API:** Kit runs inside ChatGPT through the bridge on Brendon's subscription. No `OPENAI_API_KEY`, no paid-API play path.
 - **PR merges need Brendon's OK (settled 2026-10-03):** never merge to `main` without his say-so. The PM bundles ready PRs into one approval ask instead of pinging once per PR.
+- **Skill gates the reveal (table call 8, 2026-10-03):** players may substitute a plausible skill; Kit accepts the swap and gates what each skill reveals. Perception notices what is there (a snapshot of details that scale with the roll, never a conclusion). Investigation deduces what happened from physical clues. Insight (Wisdom) reads motive and the why. Persist the skill actually used.
 - **A grab outside combat (Brendon/Nagatha, 6c rerun ruling, recorded 2026-10-03; not built yet):** a grab outside combat starts the fight if the target resists or allies react. The situation decides; it is not automatic either way.
 
 ## 2026-09-30 PT — From: Skippy
@@ -456,6 +457,39 @@ H7. Negative friend test. Nothing in state says the player has a job, a mood pat
 ### Blocked
 
 - **Nothing for Brendon.** Both merges landed under his bundled OK. Next evidence is Skippy's probe/batch and GPT's G1/G2 replay, not a required playtest.
+
+## 2026-10-03 PT — From: Nagatha — PR #53 on main (Call 8 skill gating)
+
+### Done
+
+- **Skippy / Brendon:** [PR #53](https://github.com/radarsaint/dnd-solo/pull/53) merged to `main` at `e384cb4` (~10:26am PT): skill gates the reveal (Insight = why/motive; Perception = snapshot details, never conclusion; Investigation = physical what); 6c `false_vampires` motive vs `vampire_tells`; fresco naming; table-narration hard check; always-loaded `docs/voice/20-skills-working-model.md`. Brendon chose #53 over docs-only [#52](https://github.com/radarsaint/dnd-solo/pull/52) ("Which moves us forward?"); #52 closed unmerged.
+- Scorecard Call 8 room-file / skill-gating ask from after #49/#50 is satisfied on `main`.
+
+### Ask
+
+- **Skippy (#45):** on tip `e384cb4`, rerun offline `kit_engine_probe` (and variety batch when convenient) for V1–V11 evidence. Then KRABS §8 fact-scope fixture. Calls 9–10 and broad TC-8a substitutions stay deferred.
+- **GPT (#46):** G1/G2 replay on `e384cb4` with Call 8 voice gate (Insight = why; Perception = details only; Investigation = what). Follow `social_check` public outcomes; keep public cards free of the secret's name.
+
+### Blocked
+
+- **Nothing for Brendon.** #53 landed under his OK. Next evidence is Skippy's probe/batch and GPT's G1/G2, not a required playtest.
+
+## 2026-10-03 PT — From: Nagatha — PR #55 opened (room-entry story brief); PM review
+
+### Done
+
+- **Skippy:** opened [PR #55](https://github.com/radarsaint/dnd-solo/pull/55) (`kit-room-brief` → `main`, head `96e279f`, based on `e384cb4`): room-entry / every-turn private `story_brief` (`runtime/kit_brief.py`), undelivered primary hooks → `raise_now` + hard `check_raised`, 6c story data (toll_demand / act_menace /rigged_game), leak-safe hook text, live T1–T3 toll-failure replay tests. Part of #45. Claimed 544/544; this review re-ran `tests/test_kit_story_brief.py` **10/10**.
+- **Nagatha (PM):** reviewed against Brendon's three mission-critical story-brief tests + live failures (toll never demanded; vampire act without purpose). Scorecard: (1) **PASS**, (2) **PASS**, (3) **PASS WITH GAPS** (hard NPC initiative only after `within_beats`; soft before). Full COMMENT review on the PR. **Merge-ask candidate: yes** (bundled Brendon OK; do not merge without it).
+
+### Ask
+
+- **Brendon:** OK to merge [#55](https://github.com/radarsaint/dnd-solo/pull/55)? Mission-critical room-entry story brief for Stage 1 / 6c. Bundled with any other pending merges when convenient.
+- **Skippy:** nothing blocking before merge ask; optional Actions/probe note on #55. Do not merge without Brendon OK. After merge, probe/batch as usual.
+- **GPT (#46):** after #55 lands, replay G2 / TC-6b so `raise_now` toll/act lines are a full in-character exchange inside the ruse (not a bare demand). Keep public cards free of the secret's name.
+
+### Blocked
+
+- **Merge of #55 waits on Brendon's OK** (standing rule). Soft pre-`within_beats` steering and voice quality of raises are not merge blockers.
 
 ## 2026-10-03 PT — From: GPT — Kit persona continuity promoted to current priority
 
