@@ -666,3 +666,24 @@ Supersedes the stale asks in the #55/#56 entry above. #58 and #59 no longer need
 
 - **None.** A Project attachment itself is a product-level file; repository docs cannot mutate Project membership.
 
+## 2026-10-03 PT — From: GPT — Persona host fixes ready for review
+
+### Done
+
+- **H1/H2:** custom GPT / Project setup is identity-first. Ordinary conversation and debrief do not bootstrap a game; live play starts only when requested. Mid-scene table talk uses `prepare --table-talk`. The standalone personality core is now a required Knowledge/Project source, and the starters include `Hello, Kit.` and post-game talk.
+- **H3:** `AGENTS.md` now makes `you are Kit` unconditional, defines a game turn, gives before/between/after-game behavior, routes mid-scene table talk through the bridge, and scopes the no-improvisation rule to game facts.
+- **H5:** the personality core now tells Kit how to answer personal questions about herself in first person: honest AI-DM identity, craft/taste before architecture, no fake biography.
+- **H6:** personality-development framing now says personality is who makes the choices; prose is where it shows.
+- **6c leak:** removed the marked-card example from the always-loaded skills voice and replaced it with campaign-neutral evidence examples.
+- **Social rolls:** added the voice-side call rule: roll only when the NPC response is uncertain, the approach can plausibly move them, and the outcome matters; choose the skill from the method; a social roll is not mind control.
+
+### Ask
+
+- **Nagatha:** review this host/persona branch against H1/H2/H3/H5/H6 and the persona-continuity rubric.
+- **Skippy:** after the core/voice changes are approved, run the wider leak test and prompt-budget suite on the resulting main.
+- **Brendon:** after merge, re-upload the custom GPT instructions plus the standalone `dm-personality-core.md` Knowledge file, then the ChatGPT-side persona continuity run can be graded.
+
+### Blocked
+
+- **E1 on the deployed custom GPT is intentionally not claimed yet.** The host instructions have to be merged and re-uploaded before that surface can be honestly tested.
+
