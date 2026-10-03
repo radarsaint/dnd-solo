@@ -381,3 +381,23 @@ def raised_events(source, state, spoken, turn_id):
             if body['status'] == 'demanded':
                 break
     return events
+
+
+def names_toll(source, key, spoken):
+    """True when an NPC line in ``spoken`` names this toll's amount with a toll word (the
+    same test that puts the demand on the table)."""
+    from . import kit_guards
+    from .kit_agent import actor_speakers
+    toll = ((source or {}).get('tolls') or {}).get(key)
+    if not toll or not spoken:
+        return False
+    labels = set(actor_speakers(source).values())
+    for line in spoken.splitlines():
+        speaker, _, text = line.partition(':')
+        if speaker.strip() not in labels:
+            continue
+        for sentence in kit_guards.sentences(text):
+            said = {amount for amount, _ in kit_guards.spoken_amounts(sentence)}
+            if toll['amount'] in said and TOLL_WORDS.search(sentence.casefold()):
+                return True
+    return False

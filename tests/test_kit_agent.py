@@ -54,6 +54,42 @@ def exchange_speech(index=0, kit=True):
     return {'segments': ([aside] if kit else []) + segments}
 
 
+# What a model that follows raise_now says (runtime/kit_brief.py): each overdue story hook
+# raised by its NPC as its own beat. The toll line stands alone with a question (call 6).
+HOOK_LINES = {
+    'Dealer': {
+        'toll': 'Ten gold a head buys safe passage through these rooms, little traveler. Will you pay it?',
+        'game': 'Or sit, and let a hand of cards decide how kind the night is to you.',
+    },
+}
+
+
+def with_raised_hooks(speech, payload):
+    """``speech`` with a line for each hook in the payload's raise_now, in its speaker's voice."""
+    due = (payload or {}).get('raise_now') or []
+    if not due:
+        return speech
+    segments = [dict(segment) for segment in speech['segments']]
+    lines = []
+    for item in due:
+        raises = item['raises'].casefold()
+        line = HOOK_LINES['Dealer']['toll'] if ('passage' in raises or 'dangerous' in raises) else \
+            HOOK_LINES['Dealer']['game']
+        if line not in lines:
+            lines.append(line)
+    for segment in segments:
+        if segment['speaker'] == due[0]['speaker']:
+            segment['text'] = ' '.join(lines)
+            return {'segments': segments}
+    return {'segments': segments + [{'speaker': due[0]['speaker'], 'text': ' '.join(lines)}]}
+
+
+def replayed_story_beat(runtime, record, turn_id):
+    """The story_beat a committed 6c turn carried (delivery latches), for idempotent replays."""
+    from runtime import kit_brief
+    return kit_brief.beat_event(runtime.source(), runtime.load()[1], record['spoken'], turn_id)
+
+
 EXCHANGE_SPEECH = exchange_speech(0)
 QUIET_EXCHANGE_SPEECH = exchange_speech(0, kit=False)
 
@@ -140,7 +176,7 @@ class RecordingModel:
                 {'speaker': 'Narrator', 'text': 'The doppelganger smiles.'},
             ]}
         self.performed += 1
-        return exchange_speech(self.performed - 1)
+        return with_raised_hooks(exchange_speech(self.performed - 1), payload)
 
 
 class KitAgentTests(unittest.TestCase):
@@ -300,9 +336,10 @@ class KitAgentTests(unittest.TestCase):
         result = self.agent.turn('I take a seat.', 'fixed-id')
         record = self.runtime.recent_kit_turns()[0]
         event = {'type': 'beat', 'tags': ['social'], 'evidence': SEAT_EVIDENCE}
-        self.assertEqual(self.runtime.commit_kit_turn('fixed-id', 0, [event], record), result['revision'])
+        events = [event, replayed_story_beat(self.runtime, record, 'fixed-id')]
+        self.assertEqual(self.runtime.commit_kit_turn('fixed-id', 0, events, record), result['revision'])
         with self.assertRaises(InvalidChange):
-            self.runtime.commit_kit_turn('fixed-id', 0, [event], {**record, 'spoken': 'changed'})
+            self.runtime.commit_kit_turn('fixed-id', 0, events, {**record, 'spoken': 'changed'})
         self.assertEqual(len(self.runtime.load()[1]['kit']['episodes']), 1)
 
     def test_responses_adapter_uses_structured_calls_without_storage(self):
@@ -665,7 +702,8 @@ class KitFocusAndScopeTests(unittest.TestCase):
         # Telemetry changes never alter the idempotent commit.
         self.runtime.record_kit_timing('timed', note='later edit')
         event = {'type': 'beat', 'tags': ['social'], 'evidence': SEAT_EVIDENCE}
-        self.assertEqual(self.runtime.commit_kit_turn('timed', 0, [event], record), result['revision'])
+        self.assertEqual(self.runtime.commit_kit_turn('timed', 0, [event, replayed_story_beat(self.runtime, record, 'timed')],
+                                                      record), result['revision'])
 
     def test_staged_bridge_records_prepare_to_commit_time(self):
         prepared, plan = self._prepared_plan('I take a seat.', 'staged')
@@ -1023,9 +1061,10 @@ class BridgeVoiceVariantTests(unittest.TestCase):
         event = {'type': 'beat', 'tags': ['social'], 'evidence':
                  'Player declared: Hi. What is going on here?. Resolution: social bid at the card table, '
                  'restated as the accepted event; no world state changed.'}
-        self.assertEqual(self.runtime.commit_kit_turn('v1', 0, [event], record), 1)
+        events = [event, replayed_story_beat(self.runtime, record, 'v1')]
+        self.assertEqual(self.runtime.commit_kit_turn('v1', 0, events, record), 1)
         with self.assertRaises(InvalidChange):
-            self.runtime.commit_kit_turn('v1', 0, [event], {**record, 'performance_variant': 'current'})
+            self.runtime.commit_kit_turn('v1', 0, events, {**record, 'performance_variant': 'current'})
 
     def test_kit_voice_faces_exactly_the_same_validators(self):
         outcomes = {}
