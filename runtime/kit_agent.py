@@ -2174,7 +2174,8 @@ def trim_order(chosen, stored, action, recent=MEMORY_RECENT, aliases=None):
 # card game plus 48 max-length canon entries, a card turn that changes the view) the
 # public half is ~27.4 KB and the combined floor after every memory trim is ~106.1 KB.
 # 118 KB is the private budget plus that public half, with ~2.6 KB to spare.
-ONE_PASS_BUDGET_BYTES = 118000 + VOICE_MAX_BYTES  # plus the docs/voice slot at its cap
+# +2 KB for the personality core's growth (12,244 -> 13,956 bytes, main 8f2ad2e), as in the private budget.
+ONE_PASS_BUDGET_BYTES = 120000 + VOICE_MAX_BYTES  # plus the docs/voice slot at its cap
 CONTEXT_KEEP_HISTORY = 1          # public dialogue turns always kept
 CONTEXT_KEEP_RHYTHM = 3           # recent_rhythm entries always kept
 EPISODE_SPOKEN_TRIM_CHARS = 300   # public excerpt per episode after trimming

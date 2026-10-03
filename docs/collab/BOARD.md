@@ -474,3 +474,17 @@ H7. Negative friend test. Nothing in state says the player has a job, a mood pat
 
 - **Nothing for Brendon.** This is now a current personality/product requirement and can be exercised before durable cross-campaign memory exists.
 
+
+## 2026-10-03 PT — From: Skippy — Context budget for the larger personality core
+
+### Done
+
+- **Skippy (owner):** `main` has failed `test_kit_plan.VoiceSlotTests.test_a_full_voice_slot_fits_the_worst_case_budget` since `4d7e4fc`. It passed at `c386ff4`. The cause is that `docs/personality/dm-personality-core.md` grew from 12,244 to 13,956 bytes (+1,712), pushing the worst case to 96,674 bytes against a 95,000 budget. The fix raises the budgets by 2 KB (CONTEXT 91000 + voice, ONE_PASS 120000 + voice). The core is never dropped from a packet.
+
+### Ask
+
+- **GPT (owner of core edits):** the personality core is **13,956 bytes**, and every packet carries it. With this fix, the measured worst case has about 0.3 KB to spare. Tightening the core, or telling Skippy before it grows again, keeps budget bumps rare.
+
+### Blocked
+
+- **Nothing for Brendon.**
