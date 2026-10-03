@@ -252,3 +252,27 @@ H7. Negative friend test. Nothing in state says the player has a job, a mood pat
 ### Blocked
 
 - **Grok's "felt in play" check is not proven yet.** The test for whether removing the plan changes Kit's reply needs a live ChatGPT playtest. No unit test can show it.
+
+
+## 2026-10-03 PT — From: Skippy — KRABS v0.2: adjudication order, concurrency, escalation floor
+
+### Done
+
+- **Skippy:** took the three external-review recommendations into [`docs/architecture/KRABS.md`](../architecture/KRABS.md) as v0.2. Each is a new normative section plus a core invariant, so they are obligations rather than appendices. The version-history block at the top says what changed and why.
+- **Skippy: §12 The Adjudication Pipeline.** A nine-stage contract with the symbolic stages marked as off-limits to the model. Three required properties: the verdict is an input to performance and never an output of it; every mechanically consequential claim traces to a staged event or established fact; an absent verdict costs the turn instead of becoming prose. Procedure selection belongs to the gate, which is the rule the 2026-09-29 high-card failure needed. The gate binds Kit as hard as it binds the player: a dramatically perfect sentence may not create a DC, a price, or an NPC's promise.
+- **Skippy: §21 Hard Escalation Rules.** The argument for a floor is that §20's learned loop is asymmetric — "just handle it" is always observed, a missed flag is only sometimes observed, so the threshold drifts toward silence and the symptom is an absence of messages. The floor is explicit, short, director-owned, unreachable by learning, and logged when it fires. Hard stop versus mandatory notice; most of the floor should be notice. Every hard trigger declares timeout behavior, because a weeks-long asynchronous production cannot block on a sleeping human.
+- **Skippy: §24 Concurrency and Write Authority.** Write domains, bounded leases, per-domain revisions, ordered acquisition, live play outranking background motion, and cross-domain writes downgraded to proposals the holding scene adjudicates. The framing argument is that the performance layer is the only part of the system with no undo, so a write conflict must be caught before publication. Deferred clock ticks keep their original due time so clocks do not stall in exactly the busy regions where their pressure matters.
+- **Skippy:** mapped §24 onto what is already here. The current global `revision` plus `kit_pending` plus `expected_revision` is the **one-domain case** of the lease model, so the migration is additive: name domains, record written domains on events, split the revision counter, give the pending row an expiry. §32 now carries a table saying which of the three additions is mostly implemented (§12), a generalization of implemented work (§24), and an entirely new subsystem (§21).
+- **Skippy:** completed sections 30 through 38, which were truncated out of the committed v0.1 file after §26's failure list. Added failure classes G (concurrency) and H (escalation) to §29 with the note that neither is visible in a transcript, and added the five v0.2 trace fields in §31 — `gate_verdict` and `procedure_selected` must be written before the performance text or §12's precedence property is unfalsifiable, which is Grok's H6 precommitment applied to the pipeline.
+- **Skippy:** held v0.2 to the repo's own development standard in §35 and recorded that two of the three additions are anticipatory. §12 answers a recorded live failure. §24 and §21 answer a structural argument, because there is no multi-party production and no director role yet to fail. §34 keeps every narrowed problem visible and adds three new ones, including the one-pass tension: §12 makes the staged order normative for consequential turns and the staged order costs a round trip, against a latency failure that is already recorded at 81 seconds.
+- **Skippy:** 381 tests pass. The change is documentation only; no runtime behavior moved.
+
+### Ask
+
+- **Brendon:** accept or kill the claim in §12 that the one-pass path is non-conformant. It is the only place v0.2 declares existing shipped behavior out of contract, and the cost is a round trip on every consequential turn.
+- **Brendon / director:** §21 is unimplementable until someone holds director authority and has a channel to be escalated to. The floor's trigger list is a preproduction authoring job, not an engineering one, and §34 flags that a floor needing fifty predicates would falsify the section.
+- **GPT / Grok:** attack §24's domain partition and §21's floor size. Both sections rest on a single load-bearing claim — that a campaign author can declare a partition which neither serializes everything nor makes multi-domain turns constant, and that a floor stays short enough to stay distinguishable from an approval queue. §38 names the weakest claim in v0.2 as the rate triggers, which are the only machinery for noticing accumulated harm.
+
+### Blocked
+
+- **Nothing in v0.2 is implemented.** It is a specification pass. §24 needs a second concurrent writer to be worth building, and §21 needs a director. Neither exists yet, so the useful next engineering step remains the one already on the board: make Kit's expressed performance worth playing in the room that does exist.
