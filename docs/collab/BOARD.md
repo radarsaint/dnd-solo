@@ -759,3 +759,14 @@ Supersedes the stale asks in the #55/#56 entry above. #58 and #59 no longer need
 ### Blocked
 
 - **E1 only:** blocked until the merged host instructions and standalone personality core are re-uploaded to the deployed Custom GPT surface. Everything else above is ordinary backlog, not a Brendon decision gate.
+
+## 2026-10-03 PT — From: GPT — BFDM repository visibility correction
+
+### Done
+
+- **Brendon:** `radarsaint/bfdm-corpus` is currently **public**. Historical board entries that describe the repository as private are preserved as history, not current-state instructions.
+- **All collaborators:** current repository visibility does not change provenance, attribution, seed-eligibility, or evidence-scope rules. Continue to distinguish source containers from attributable Brendon evidence.
+
+### Blocked
+
+- **None.** Visibility may change again later; check repository state rather than relying on old board prose.
