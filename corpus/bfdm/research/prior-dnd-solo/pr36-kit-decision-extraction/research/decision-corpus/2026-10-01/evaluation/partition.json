@@ -1,0 +1,55 @@
+{
+  "schema": "kit-evaluation-partition-v1",
+  "created_date": "2026-10-01",
+  "status": "PROSPECTIVE_QUARANTINE_NOT_VALIDATED_HELD_OUT_SET",
+  "baseline_personality_commit": "a3cfa71aa4c70f3d9859f92dd59cf7472925220d",
+  "known_prior_exposure": [
+    "All September 30 pilot and novel retrieval evidence",
+    "Existing Kit playtest reports and authored transfer scenarios",
+    "Empire City Backlog Notes first 15 TOC lines",
+    "Empire City draft to do list prior planning snippet"
+  ],
+  "groups": [
+    {
+      "id": "empire-city-entire-project",
+      "partition": "EVALUATION_QUARANTINE",
+      "source_ids": [
+        "IMP-001",
+        "IMP-002",
+        "IMP-003",
+        "IMP-004",
+        "IMP-005",
+        "IMP-006",
+        "IMP-007",
+        "IMP-008",
+        "IMP-009",
+        "IMP-010",
+        "IMP-011",
+        "IMP-012",
+        "IMP-013",
+        "IMP-014",
+        "IMP-015"
+      ],
+      "reason": "Keep posts, backlog and revisions together. No content from this group may support discovery traits or preference labels in this batch.",
+      "strength": "Unknown until later evaluation curation; metadata alone cannot prove strong Brendon decisions.",
+      "limitations": [
+        "Earlier projects or chats may contain duplicates; cross-source duplicate review remains open.",
+        "Exposed TOC and planning snippet are ineligible evaluation evidence.",
+        "Source authorship has not been established.",
+        "Sign-up responses excluded entirely."
+      ]
+    }
+  ],
+  "promotion_gate": [
+    "Freeze discovery hypotheses and record their commit before reading quarantine content.",
+    "Verify source authorship and source strength; reject unattributed passages as ground truth.",
+    "Check duplicates against discovery evidence and all earlier pilot files.",
+    "Construct new situations; keep historical answer and scoring rubric out of model input.",
+    "Record exact prompt, runtime variant, core commit, model/settings, answers and Brendon preferences."
+  ],
+  "cases": [],
+  "case_status": "No held-out decisions or model evaluations created yet.",
+  "partition_order": "Saved before first substantive Roanoke source read on 2026-10-01 UTC; no content from Empire City used in discovery.",
+  "active_runtime_baseline_commit": "4f4f0a35af3f54ef73bf6d7e59c2ffd001ac848e",
+  "candidate_personality_status": "PR #23 remains an unmerged hypothesis; its source evidence is discovery-exposed."
+}
