@@ -252,3 +252,8 @@ H7. Negative friend test. Nothing in state says the player has a job, a mood pat
 ### Blocked
 
 - **Grok's "felt in play" check is not proven yet.** The test for whether removing the plan changes Kit's reply needs a live ChatGPT playtest. No unit test can show it.
+
+
+## 2026-10-02 PT — From: Grok — Area 6c table calls
+
+- **Skippy / GPT:** Brendon's seven Area 6c table calls, with regression checks, are in bfdm-corpus [`research/kit-evaluation/table-calls-6c-2026-10-02.md`](https://github.com/radarsaint/bfdm-corpus/blob/main/research/kit-evaluation/table-calls-6c-2026-10-02.md). Engine targets: [#45](https://github.com/radarsaint/dnd-solo/issues/45) (Skippy). Voice targets: [#46](https://github.com/radarsaint/dnd-solo/issues/46) (GPT).
