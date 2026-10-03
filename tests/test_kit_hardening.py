@@ -569,7 +569,7 @@ class ContextBudgetTests(BridgeCase):
         self.assertLessEqual(private, CONTEXT_BUDGET_BYTES)
         self.assertLessEqual(private + public, kit_agent.ONE_PASS_BUDGET_BYTES)
         kit_state = prepared['input']['private']['kit_state']
-        # With the 89 KB budget, 12 long turns need no trim; fit_to_budget's trim order is
+        # With the 94 KB budget, 12 long turns need no trim; fit_to_budget's trim order is
         # covered by test_fit_to_budget_drops_least_relevant_then_oldest_and_says_so.
         self.assertEqual(kit_state['episodes'][-1]['turn_id'], 'long-11')
         # The model may only cite episodes it was shown.

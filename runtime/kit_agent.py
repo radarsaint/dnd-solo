@@ -18,6 +18,8 @@ import uuid
 from dataclasses import dataclass
 from pathlib import Path
 
+from . import kit_attitude
+from . import kit_brief
 from . import kit_cards
 from . import kit_combat
 from . import kit_rolls
@@ -155,6 +157,12 @@ SOCIAL_WORDS = re.compile(
     r'intimidate|join|bet|watch|observe|nod|shrug|thank|insist|warn|demand|charm|compliment|stare|'
     r'glare)(s|es|d|ed|ing)?\b')
 ADDRESS_WORDS = re.compile(r"\b(you|you're|your|yours|yourself|y'all)\b")
+SEATING = re.compile(r"\b(?:take|takes|taking|took)\s+(?:a|the|that|an empty|the empty|my|his|her|their)\s+"
+                     r"(?:seat|chair|stool|place)\b|\bpull(?:s)? up a chair\b|\b(?:sit|sits|sat|sitting) down\b")
+GEAR_SET = re.compile(r"\b(?:sling|slings|slung|stow|stows|strap|straps|set|sets|lay|lays|put|puts|rest|rests|hang|"
+                      r"hangs)\b[^.?!]{0,30}\b(?:shield|weapon|sword|axe|bow|crossbow|staff|pack|rapier|mace)\b"
+                      r"[^.?!]{0,30}\b(?:on(?:to)? (?:my|his|her|their) back|aside|down|away|against|by (?:my|his|her|their)"
+                      r" (?:chair|feet|side)|at (?:my|his|her|their) feet|under the (?:table|chair))\b")
 PHYSICAL_VERBS = r'(steal|pocket|grab|pick up|smash|break|hide|climb|force|open|disarm)'
 # A declared physical act: "I grab the ring", "I quickly open the door". When an NPC has
 # just asked the player something, only this shape still counts as physical; a verb
@@ -218,7 +226,10 @@ def room_intent(action, addressed=False):
         return 'inspect_tub'
     if OBSERVE.search(words):
         return 'observe'
-    if re.search(r'\b(take a seat|pull up a chair)\b', words):
+    if SEATING.search(words) or GEAR_SET.search(words):
+        # Sitting down, or slinging, stowing, or setting gear aside, is table business, not a
+        # physical ruling ("I sling my shield onto my back and take the seat."): the decision's
+        # pc_state records the gear.
         return 'social'
     physical = (re.search(r'\b' + PHYSICAL_VERBS + r'\b', words) or
                 (re.search(r'\btake\b', words) and
@@ -264,10 +275,12 @@ def combine(first, second):
 
 
 class Room6CAdjudicator:
-    def __init__(self, perception=None, insight=None, roll=None, sleight_of_hand=None, source=None):
+    def __init__(self, perception=None, insight=None, roll=None, sleight_of_hand=None, source=None,
+                 npc_roll=None):
         self.perception = perception
         self.insight = insight
         self.roll = roll
+        self.npc_roll = npc_roll  # the NPC's behind-the-screen d20 (tests); else seeded
         self.sleight_of_hand = sleight_of_hand
         self.source = source  # the room source, for its table procedures (set by the bridge)
 
@@ -277,7 +290,27 @@ class Room6CAdjudicator:
             extra = self._toll_unstuck(result, state)
             if extra:
                 result = dataclasses.replace(result, events=list(result.events) + extra)
+        if (self.source or {}).get('attitudes') and not is_ooc(action):
+            # Behind the screen: an NPC may notice what the PC is doing (runtime/kit_attitude.py).
+            hidden = kit_attitude.check_events(self.source, state, action, revision,
+                                               lambda skill, words: self._pc_score(skill, words, state),
+                                               self.npc_roll)
+            if hidden:
+                result = dataclasses.replace(result, events=list(result.events) + hidden)
         return result
+
+    def _pc_score(self, skill, action, state):
+        """The PC's number against an NPC's hidden check: their stated roll in that skill, else
+        their passive; None (no check) when no sheet or roll gives one."""
+        try:
+            modifier, passive = self._pc_numbers(skill, state, action)
+        except PendingRuling:
+            return None
+        supplied = kit_cards.supplied_roll(action, modifier, skill) \
+            if kit_rolls.stated_skill(action) == skill else None
+        if not supplied:
+            return passive
+        return supplied[0] + (supplied[1] if supplied[1] is not None else modifier)
 
     def _resolve(self, action, revision, state, addressed=False):
         require(isinstance(action, str) and action.strip(), 'Player action required')
@@ -310,6 +343,12 @@ class Room6CAdjudicator:
             return self._also_card(self._resolve_lie_read(action, narration, revision, state),
                                    action, narration, revision, state)
         table, card_kind = self._card_call(action, narration, state)
+        if card_kind == 'card_accuse' and kit_attitude.quiet(narration) and \
+                kit_rolls.stated_skill(action) in SOCIAL_CHECK_SKILLS:
+            # A quiet word with a stated roll is a private accusation: a social check on the
+            # accused, not the table's public call (live 6c: a quiet word and a failed Intimidation).
+            return self._resolve_social_check(kit_rolls.stated_skill(action), action, narration, revision,
+                                              state, private=True)
         kind = room_intent(action, addressed)
         # Combat and stealth keep their rulings at the card table: "I raise my crossbow" is
         # not a raise, and sneaking out "while they check their hands" is not a check.
@@ -414,7 +453,7 @@ class Room6CAdjudicator:
         return Resolution(kind, public, [event])
 
     # -- social checks rolled in conversation -----------------------------------------
-    def _resolve_social_check(self, skill, action, narration, revision, state):
+    def _resolve_social_check(self, skill, action, narration, revision, state, private=False):
         """The player's stated roll in a social skill against the NPC they address: that
         NPC's flat 10 + Insight (10 + Athletics for a contest of strength). NPCs never roll.
         A bare number is the Avrae total (runtime/kit_rolls.py). Numbers stay in evidence."""
@@ -439,8 +478,12 @@ class Room6CAdjudicator:
         evidence = (f'Player declared: {action[:300]}. {name} d20 {die} + {modifier} = {total} vs {who} '
                     f'flat 10 + {against.title()} = {flat}: {"success" if success else "failure"}. '
                     'The NPC acts on this outcome.')
-        return Resolution('social_check', public, [{'type': 'beat', 'tags': ['social_check', skill],
-                                                     'evidence': evidence}])
+        tags = ['social_check', skill] + (['private_accusation'] if private else [])
+        if private:
+            evidence += ' A quiet word to them, not a public accusation: the table is not called out.'
+        # The social-roll hook: the outcome moves the NPC's attitude (runtime/kit_attitude.py).
+        moved = kit_attitude.social_roll(self.source, state, who, skill, success, evidence)
+        return Resolution('social_check', public, [{'type': 'beat', 'tags': tags, 'evidence': evidence}] + moved)
 
     # -- physical acts and fights (runtime/kit_combat.py) -----------------------------
     # -- one message, several intents ----------------------------------------------
@@ -1215,7 +1258,8 @@ DEGRADED_INSTRUCTION = (
     'Degraded mode is available for this turn. Resubmit the same decision with a plain, short '
     'performance and degraded=true (CLI --degraded): one Narrator sentence of visible action, then '
     'the focus actor answering reply_to in two or three sentences in their own card voice, ending '
-    'on a real choice for the player. Style floors become warnings saved with the turn; secrecy, '
+    'on a real choice for the player, and any raise_now speaker raises it. Style floors become '
+    'warnings saved with the turn; secrecy, '
     'player agency, NPC table talk, presence, and the chosen move are still checked.')
 ABANDON_INSTRUCTION = (
     'This turn keeps failing. Run abandon for this turn_id (nothing is committed), then prepare '
@@ -1373,6 +1417,15 @@ PRIVATE_INSTRUCTIONS = (
     'plan (at most 5 beats; each new, keep, advance, or revise with a reason; drop the rest with a '
     'reason); leave plan out to carry it unchanged. Roots cite actors, claims, facts, or agenda; '
     'nobody builds toward a secret they are unaware of. Never say the plan; play it. '
+    'ATTITUDES: dm_only.attitudes_here is how each NPC here regards the player and what last '
+    'moved it; play it, never name it or a roll behind it. A story_brief threshold marked '
+    'crossing_now steers, it does not force: play toward its then, starting this turn. '
+    'STORY: story_brief is what this scene is about, from the room data, every turn here: who '
+    'wants what and their traits, what each act or con is for, the primary hooks, thresholds, '
+    'and endings. The NPCs pursue it, not just react: an act serves its purpose, and an '
+    'undelivered hook reaches the player. A hook in raise_now is overdue: its NPC raises it this '
+    'turn, in character, as their own move. Plan beats may cite hooks as hook:<id>. Never say '
+    'the brief or any secret in it. '
     'PC STATE: the situation sets the default (claims_here.pc.situation): seated at a table '
     'game, hands on the game and a carried item set aside; talking or exploring, hands free; a '
     'fight or on guard, weapon, guard, or focus in hand. Anything the player says overrides it. When the fiction or '
@@ -1445,7 +1498,9 @@ PUBLIC_INSTRUCTIONS = (
     'recent turns. Fixed source numbers such as a price never change. '
     'refused_attempts, when present, lists recent attempts the table could not resolve; they '
     'changed nothing in the world, Kit may refer to them, and NPCs react only to what they '
-    'could visibly have seen. PLAYER AGENCY: never state what the player does, '
+    'could visibly have seen. raise_now, when present, is overdue story business: that speaker '
+    'raises it this turn in their own voice, as their own move, leaving the player an opening. '
+    'PLAYER AGENCY: never state what the player does, '
     'decides, agrees to, thinks, or feels; narrate what others do and what the player can perceive, and '
     'leave the player’s response to the player. '
     'Every Kit segment carries reacts_to: a short verbatim quote (a few words) of the public '
@@ -2017,6 +2072,14 @@ def turn_events(runtime, body, plan, turn_id, record=None):
         events += kit_toll.raised_events(runtime.source(), runtime.load()[1], record.get('spoken'), turn_id)
     if 'plan' in plan:
         events.append(kit_plan.plan_event(plan['plan'], turn_id))
+    if runtime.source().get('story'):
+        revision, _ = runtime.load()
+        after = runtime.preview_state(revision, events)
+        beat = kit_brief.beat_event(runtime.source(), after, (record or {}).get('spoken'), turn_id)
+        if beat:
+            events.append(beat)
+        # A threshold whose trigger now holds crosses (once per scene) and moves attitudes.
+        events += kit_brief.threshold_events(runtime.source(), after, turn_id)
     if plan.get('pc_state'):
         events.append(kit_agenda.pc_state_event(plan['pc_state'], turn_id))
     if plan.get('claims'):
@@ -2163,7 +2226,7 @@ def trim_order(chosen, stored, action, recent=MEMORY_RECENT, aliases=None):
 
 
 # Context budget. The private decision input (personality core, DM context, memory,
-# notes, public dialogue) stays within CONTEXT_BUDGET_BYTES (89 KB + the 6 KB voice slot), the same budget
+# notes, public dialogue) stays within CONTEXT_BUDGET_BYTES (94 KB + the 6 KB voice slot), the same budget
 # context() always enforced, now including memory. A one-pass input also carries the
 # public half (the static actor cards, ~7 KB, plus the post-event player view when the
 # turn changes it, with the core and dialogue history deduplicated out), so the whole
@@ -2173,8 +2236,11 @@ def trim_order(chosen, stored, action, recent=MEMORY_RECENT, aliases=None):
 # 118 KB, up from 33 KB (PR #15 fix pass, QA item 9): in the measured worst case (a long
 # card game plus 48 max-length canon entries, a card turn that changes the view) the
 # public half is ~27.4 KB and the combined floor after every memory trim is ~106.1 KB.
-# 118 KB is the private budget plus that public half, with ~2.6 KB to spare.
-ONE_PASS_BUDGET_BYTES = 118000 + VOICE_MAX_BYTES  # plus the docs/voice slot at its cap
+# 118 KB was the private budget plus that public half, with ~2.6 KB to spare; 123 KB adds the story brief.
+# +5 KB for the room's story brief in the private half (runtime/kit_brief.py).
+# +2 KB for the personality core's growth on main 8f2ad2e (the same ~1.7 KB as the private budget);
+# +1 KB for NPC attitudes (dm_only.attitudes_here and the ATTITUDES rule, runtime/kit_attitude.py).
+ONE_PASS_BUDGET_BYTES = 126000 + VOICE_MAX_BYTES  # plus the docs/voice slot at its cap
 CONTEXT_KEEP_HISTORY = 1          # public dialogue turns always kept
 CONTEXT_KEEP_RHYTHM = 3           # recent_rhythm entries always kept
 EPISODE_SPOKEN_TRIM_CHARS = 300   # public excerpt per episode after trimming
@@ -2327,6 +2393,13 @@ def prepare_inputs(runtime, revision, state, action, resolution, use_memory, one
     if kit_plan.current(post_event_state):
         # Private: Kit's running plan from earlier turns. Never sent to the performer.
         planning_input['kit_plan'] = {'beats': kit_plan.current(post_event_state)}
+    # Private: what this scene is about, from the room data, every turn in the scene (the
+    # opening included, so the first line is written with it). Never sent to the performer.
+    planning_input['story_brief'] = kit_brief.brief(source, post_event_state)
+    due = kit_brief.due_hooks(source, post_event_state)
+    if due:
+        body['story_due'] = due
+        body['story_area'] = post_event_state['area']
     table = card_procedure(source, post_event_state)
     if table and not str(resolution.kind).startswith('card_') and resolution.kind != 'opening':
         planning_input['activities'] = {table[0]: BACKGROUNDED}
@@ -2452,6 +2525,14 @@ def view_changes(after, before, depth=VIEW_DIFF_DEPTH, prefix=''):
 _MISSING = object()
 
 
+def raise_now_view(due):
+    """The performer's view of overdue story hooks: who raises what, in character (hook
+    text is public-safe by construction, runtime/kit_brief.py)."""
+    return [{'speaker': item['by'], 'raises': item['text'],
+             'how': 'their own move this turn, in their voice, with an opening for the player'}
+            for item in due]
+
+
 def public_performance_base(runtime, body, one_pass=False):
     """The performer's public input. In one-pass mode the same model already reads the
     personality core and dialogue history in the private half, so they are sent once."""
@@ -2467,6 +2548,9 @@ def public_performance_base(runtime, body, one_pass=False):
     }
     if body.get('refused_attempts'):
         payload['refused_attempts'] = body['refused_attempts']
+    if body.get('story_due'):
+        # Public-safe: an overdue story hook its NPC raises this turn (runtime/kit_brief.py).
+        payload['raise_now'] = raise_now_view(body['story_due'])
     if one_pass:
         payload['shared_with_private'] = ('personality_core and public dialogue history are in '
                                           'input.private (personality_core, dialogue_history)')
@@ -2634,6 +2718,9 @@ def checked_record(body, plan, speech, performance_variant, source=None, degrade
                           public_event=public_event)
     spoken, warnings = result if degraded else (result, [])
     kit_agenda.check_carriers_spoken(spoken, plan)
+    if body.get('story_due') and not ask:
+        # An undelivered primary hook is overdue: its NPC raises it now (runtime/kit_brief.py).
+        kit_brief.check_raised(body['story_due'], source, {'area': body['story_area']}, spoken)
     if ask:
         kit_agenda.check_ask_spoken(speech['segments'], ask)
     elif body['kind'] in EVENT_AFTER_PERFORMANCE_KINDS:

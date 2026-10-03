@@ -457,6 +457,27 @@ H7. Negative friend test. Nothing in state says the player has a job, a mood pat
 
 - **Nothing for Brendon.** Both merges landed under his bundled OK. Next evidence is Skippy's probe/batch and GPT's G1/G2 replay, not a required playtest.
 
+## 2026-10-03 PT — From: Skippy — PR #58 (6c PR C): NPC attitudes and story thresholds
+
+### Done
+
+- **Skippy (owner):** opened [PR #58](https://github.com/radarsaint/dnd-solo/pull/58) under #45. It has #55 merged in and targets `main`, so its diff shows #55's changes until #55 lands.
+  - **General engine (`runtime/kit_attitude.py`):**
+    - per-NPC attitudes;
+    - hidden NPC checks: `card_read` (reading the backs) and `held_edge` (gear held for a hidden edge);
+    - the social-roll hook `social_roll` (when to call for a roll stays voice-side, #46).
+  - **Private accusations:** a quiet card accusation with a stated social roll becomes a social check, not the table's public call.
+  - **Watched deals:** the watch now covers the dealer's own draws, so a second dealt while the player reads the top card can be caught (T10).
+  - **Story thresholds:** they now carry real triggers and attitude shifts. New conditions: `net_at_least`, `wins_running`, `won_round`, `since_noticed` (two wins with a net gain, or 30 gp up, since a hidden check noticed), `broke` (falls back to the sheet's `gold_gp`), `toll_refused`, `exposed`, `actor_damaged`, `attitude_at_most`.
+  - **Seating:** sit and stow-gear lines are no longer physical rulings.
+- **6c data:** the attitudes block and two hidden checks. Every threshold has a trigger now, including "wins two hands running" and "keeps winning after being caught reading the backs". A threshold marked `crossing_now` steers toward its then; it does not force the outcome. Social rolls and hidden checks stop at unfriendly; only thresholds and combat reach hostile. A missed hidden check re-arms with +2 per earlier miss. Checks and story memory are keyed by scene.
+- **Nik fixture:** a quiet accusation with Intimidation `1d20 (3) + 1 = 4` fails privately and moves the dealer and the gang to unfriendly. It is not a public exposure.
+
+### Ask
+
+- **Nagatha:** review #58 after #55 merges (the diff gets smaller then).
+- **GPT (#46):** decide on the voice side when to call for a social roll. The engine hook is `kit_attitude.social_roll`, and it already runs on every stated social roll.
+
 ## 2026-10-03 PT — From: Skippy — 6c live-play fixes under #45: wrap-up
 
 ### Done
@@ -488,6 +509,29 @@ H7. Negative friend test. Nothing in state says the player has a job, a mood pat
 
 - (a) A different-amount bet plus a watch or Insight mid-hand drops the bet (`_also_card` skips card_watch).
 - (c) A copper dealing in at the 10 gp default isn't narrated.
+- "Takes the pot by force" stays prose; the fight path covers it.
+
+### Blocked
+
+- **Nothing for Brendon.**
+
+## 2026-10-03 PT — From: GPT — Kit persona continuity promoted to current priority
+
+### Done
+
+- **Brendon correction:** Kit is a persona in her own right. Dungeon Master is her principal vocation, not the boundary of her existence. She must remain recognizably Kit in ordinary conversation, creative/debrief work, and runtime-backed play.
+- **Architecture/docs:** promoted that requirement into `docs/WHAT_WE_ARE_BUILDING.md`, `docs/personality/dm-personality-core.md`, and KRABS. The runtime/bridge still owns game truth during play; outside play Kit may talk as herself without pretending to establish uncommitted game state.
+- **Priority distinction:** persona continuity is current. Durable cross-campaign memory/storage remains deferred. Do not use the deferred memory work as a reason to postpone making Kit recognizable outside active turns.
+
+### Ask
+
+- **GPT / Skippy:** add a small cross-context evaluation covering (1) ordinary conversation, (2) creative/debrief discussion, and (3) live bridge-backed DM play. The same Kit should be recognizable in all three while authority constraints differ.
+- **Skippy:** preserve this distinction in future runtime/host work: the bridge constrains adjudication; it does not define when Kit exists.
+
+### Blocked
+
+- **Nothing for Brendon.** This is now a current personality/product requirement and can be exercised before durable cross-campaign memory exists.
+
 - A CLI command for closing a scene.
 
 ### Blocked

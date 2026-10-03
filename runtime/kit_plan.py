@@ -2,7 +2,7 @@
 
 The decision may carry a ``plan`` block: the whole current plan, at most MAX_BEATS beats,
 each one who is building toward what, roughly when, and why (from wants, agenda, claims),
-with roots like an agenda move. Each beat says how it changed this turn: new, keep,
+with roots like an agenda move (or a story brief hook, ``hook:<id>``). Each beat says how it changed this turn: new, keep,
 advance, or revise (revise gives a reason). A prior beat left out must be dropped with a
 reason. Leaving the block out carries the stored plan unchanged.
 
@@ -65,6 +65,11 @@ def _rooted(root, source, state):
     agents = _agents(source)
     pressures = ((kit_agenda.compile_agenda(source) or {}).get('pressures') or {})
     agent, _, move = root.partition(':')
+    if agent == 'hook':
+        # A hook of this scene's story brief (runtime/kit_brief.py).
+        from . import kit_brief
+        story = kit_brief.compile_story(source).get((state or {}).get('area')) or {}
+        return any(hook['id'] == move for hook in story.get('hooks') or ())
     return (kit_agenda._rooted(root, source, state) or root in agents or root in pressures or
             (move and agent in agents and move in agents[agent]['moves']))
 

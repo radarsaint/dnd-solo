@@ -241,6 +241,11 @@ def card_intent(action, procedure_state):
     return None
 
 
+# Eyes on the deck while hitting or standing: reading the top card or its marks.
+_READ_DECK = re.compile(r"\b(read|reads|reading|count\w*|eyes?|watch\w*|glance\w*|drift\w*|study\w*)\b"
+                        r"[^.?!\"]{0,60}\b(top card|the deck|pricks?|pinpricks?|marks|markings)\b")
+
+
 class TwentyOneTable:
     """Resolve one table action into (public_event, new_state, reveals). ``trace`` holds the
     numbers behind it for the ledger; ``toll_outcome`` is 'won' or 'lost' when a round
@@ -262,6 +267,7 @@ class TwentyOneTable:
 
     def resolve(self, kind, action, revision, state):
         self._supplied_spent = False
+        self._eyes, self._eyes_lines, self._eyes_reveals = None, [], []
         game = copy.deepcopy(state)
         if kind in ('card_hit', 'card_stand') and _WATCH.search(action.casefold().replace('\u2019', "'")):
             game['public']['watch_next_deal'] = True  # watching while calling the hand
@@ -466,6 +472,7 @@ class TwentyOneTable:
             hand = private['dealer_cards']
             if _better(hand + [deck[0]], hand + [deck[1]]):
                 private['cheated'] = True
+                self._seconds_seen(private)
                 return deck.pop(1)
         return deck.pop(0)
 
@@ -492,7 +499,40 @@ class TwentyOneTable:
             lines.append('Hit or stand?')
         return ' '.join(lines)
 
+    def _eyes_on_deck(self, action, revision, public):
+        """A hit or stand made with eyes on the deck (watching it, reading the top card's
+        marks): the watch covers the dealer's own draws this action (live 6c T10: he dealt
+        himself a second while the player read the top card; cheat_log said watched=false)."""
+        text = action.casefold().replace('\u2019', "'")
+        if _WATCH.search(text) or _READ_DECK.search(text):
+            self._eyes = (action, revision, public)
+
+    def _seconds_seen(self, private):
+        """The dealer deals himself a second while the player watches the deck: one Perception
+        check per action against the watch DC; caught, the round is marked cheat_seen."""
+        if not getattr(self, '_eyes', None):
+            return
+        action, revision, public = self._eyes
+        self._eyes = None
+        round_ = public['round']
+        if round_.get('cheat_seen'):
+            return
+        result = self._roll('perception', self.dcs['watch'], action, revision, f'watch seconds round {round_["number"]}')
+        caught = result['success']
+        private['cheat_log'].append({'round': round_['number'], 'mode': public['mode'], 'draw': 'dealer',
+                                     'watched': True, 'caught': caught, 'detection': self.trace[-1]})
+        private['cheat_log'] = private['cheat_log'][-8:]
+        if caught:
+            round_['cheat_seen'] = True
+            self._eyes_reveals.append(self.config['cheat']['reveals_fact'])
+            self._eyes_lines.append(self.config['cheat']['caught_text'])
+
+    def _after_dealer(self, text):
+        seen = ' '.join(self._eyes_lines)
+        return (f'{seen} {text}' if seen else text), list(self._eyes_reveals)
+
     def _hit(self, action, revision, public, private):
+        self._eyes_on_deck(action, revision, public)
         round_ = public['round']
         cards = private['player_cards']
         cards.append(self._draw(private, round_['number']))
@@ -502,12 +542,15 @@ class TwentyOneTable:
         if total > 21:
             return f'{text} Bust. {self._settle(public, private, "lose")}', []
         if total == 21:
-            return f'{text} {self._dealer_plays(public, private)}', []
+            line, reveals = self._after_dealer(self._dealer_plays(public, private))
+            return f'{text} {line}', reveals
         return f'{text} Hit or stand?', []
 
     def _stand(self, action, revision, public, private):
+        self._eyes_on_deck(action, revision, public)
         total = hand_value(private['player_cards'])
-        return f'You stand on {total}. {self._dealer_plays(public, private)}', []
+        line, reveals = self._after_dealer(self._dealer_plays(public, private))
+        return f'You stand on {total}. {line}', reveals
 
     def _dealer_plays(self, public, private):
         number = public['round']['number']
@@ -547,6 +590,10 @@ class TwentyOneTable:
             player['net'] -= stake
         round_['phase'] = 'done'
         public['rounds_played'] = round_['number']
+        # Wins running: a win adds one, a loss ends the run, a push leaves it.
+        player['streak'] = player.get('streak', 0) + 1 if outcome == 'win' else \
+            0 if outcome == 'lose' else player.get('streak', 0)
+        player['wins'] = player.get('wins', 0) + (outcome == 'win')
         # Someone at the table reacts; the performer turns this into a short vignette.
         others = [seat for seat in self.config['seats'] if seat != self.dealer]
         reactor = others[round_['number'] % len(others)] if others else self.dealer
@@ -585,6 +632,13 @@ class TwentyOneTable:
         round_ = public['round']
         record = public.setdefault('accusations', [])
         seen = bool(round_ and round_.get('cheat_seen'))
+        if seen and round_['phase'] == 'done':
+            # Caught dealing seconds on the hand just settled: the call is backed, in front of
+            # the table. Coins stay where they fell; what the table does next is the scene.
+            public['table_mood'] = 'tense: accused with proof'
+            record.append({'round': round_['number'], 'backed': True})
+            return ('You saw the second deal on that hand, and the whole table knows you saw it. '
+                    'The dealer does not confess.'), []
         if seen and round_['phase'] == 'play':
             round_['phase'] = 'void'
             public['table_mood'] = 'tense: accused with proof'
