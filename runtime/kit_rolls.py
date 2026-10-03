@@ -213,3 +213,48 @@ def damage(action):
         else:
             out.append((int(match.group(5)), None))
     return out
+
+
+# -- number words ("twenty" is 20, "twenty-five" is 25, "a hundred" is 100) ----------------
+_UNITS = {'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5, 'six': 6, 'seven': 7, 'eight': 8, 'nine': 9,
+          'ten': 10, 'eleven': 11, 'twelve': 12, 'thirteen': 13, 'fourteen': 14, 'fifteen': 15, 'sixteen': 16,
+          'seventeen': 17, 'eighteen': 18, 'nineteen': 19}
+_TENS = {'twenty': 20, 'thirty': 30, 'forty': 40, 'fifty': 50, 'sixty': 60, 'seventy': 70, 'eighty': 80,
+         'ninety': 90}
+_NUMBER_WORD = re.compile(
+    r"\b(?:(a|one|two|three|four|five|six|seven|eight|nine)\s+hundred(?:\s+(?:and\s+)?)?)?"
+    r"(?:(" + '|'.join(_TENS) + r")(?:[- ](" + '|'.join(k for k in _UNITS if _UNITS[k] < 10) + r"))?|"
+    r"(" + '|'.join(sorted(_UNITS, key=len, reverse=True)) + r"))?\b")
+
+
+def number_words(text):
+    """[(value, start, end)] for every number written in words or digits in ``text``.
+    "twenty-one" is 21 (callers that mean the game check for it themselves)."""
+    found = []
+    for match in re.finditer(r'\b\d{1,4}\b', text):
+        found.append((int(match.group(0)), match.start(), match.end()))
+    for match in _NUMBER_WORD.finditer(text.casefold()):
+        if not match.group(0).strip():
+            continue
+        hundreds, tens, unit_after, unit = match.groups()
+        value = 0
+        if hundreds:
+            value += 100 * (1 if hundreds == 'a' else _UNITS[hundreds])
+        if tens:
+            value += _TENS[tens] + (_UNITS[unit_after] if unit_after else 0)
+        elif unit:
+            value += _UNITS[unit]
+        if value:
+            found.append((value, match.start(), match.end()))
+    return sorted(found, key=lambda item: item[1])
+
+
+def without_rolls(text):
+    """``text`` with every stated roll removed (Avrae form, sums, naturals, totals, initiative,
+    bracketed reports), so a die or a total is never read as a bet or an offer."""
+    text = re.sub(r'\[[^\]]*\]', ' ', text)
+    for pattern in (_AVRAE, _SUM, _NATURAL, _INIT, _TOTAL):
+        # "I've got 20 gold" is money, not a roll: a number followed by a coin word stays.
+        text = pattern.sub(lambda m: m.group(0) if re.match(r'\s*(?:gp|gold|coins?|sp|cp|pp)\b',
+                                                             text[m.end():]) else ' ', text)
+    return text

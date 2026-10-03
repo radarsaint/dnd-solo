@@ -507,6 +507,12 @@ class Runtime:
             ORDER BY turns.revision DESC LIMIT ?''', (limit,)).fetchall()
         return list(reversed([json.loads(row[0]) for row in rows]))
 
+    def player_inputs(self):
+        """Every committed Kit turn's player input, oldest first (for names the player said)."""
+        rows = self.db.execute('''SELECT kit_turns.body FROM kit_turns
+            JOIN turns ON turns.id = kit_turns.turn_id ORDER BY turns.revision''').fetchall()
+        return [json.loads(row[0]).get('player_input') or '' for row in rows]
+
     def committed_kit_turn_ids(self):
         return {row[0] for row in self.db.execute('SELECT turn_id FROM kit_turns')}
 

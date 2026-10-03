@@ -126,3 +126,27 @@ captain, bandits, doppelganger) and the source's retreat rules: Uktarl flees tow
 underling falls, and the rest flee toward area 8 once he is gone. The vampire act holds until a physical fact
 cracks it (a wound, burned paint, a wiped face, fitted fangs seen up close, a man grovelling for copper).
 `scripts/kit_engine_probe.py` runs the 6c variety scenarios through this engine offline (no model, no network).
+
+## Intent, social rolls, cards, and validator noise (6c baseline items 2–5)
+
+- **Toll intent is read by what the bid does.** A payment "with this" over a slammed axe is a threat
+  (`toll_threaten`: Intimidation against the demander's flat 10 + Insight; success waives the toll, failure is a
+  refusal with its consequence). "No toll between family, surely?" is an appeal (`toll_appeal`: the Deception or
+  Persuasion the player rolled, same flat number; success waives, failure leaves the ask). A question, even one
+  ending inside a closing quote, is never a refusal or a payment. A stated Deception or Persuasion roll on an open
+  toll is an appeal; a stated Intimidation roll is a threat. Words in single quotes are speech, so
+  "'Ten gold just to walk through a room?'" never walks anyone out of the door.
+- **Rolls made in conversation count** (`social_check`): Deception, Persuasion, Intimidation, Performance, or
+  Athletics against the addressed NPC's flat 10 + Insight (10 + Athletics for strength). An Insight roll made
+  while talking reads whoever spoke (the lie rule) or the group's hidden claim. Public text says only the outcome.
+- **Card table:** "dealt in", "take the empty chair" join. A bet is capped at the table's most a round and at
+  the purse the player brought, and the player is told so. Number words are numbers ("twenty" is 20; "twenty-one"
+  is the game). "Hit" in the same breath as choosing to play it out is played. Mid-hand, only hit, stand,
+  "just roll" (the hand settles on one check), an accusation, or leaving act on the table; nothing brings the
+  menu back. "That one came from the bottom" is an accusation.
+- **Validator:** every hard check runs and all failures come back in one message. "Dwarf (Mountain)" allows
+  dwarf. A speaker label ("Fresco-side player") is a name, not a leak keyword. A `player_may_name` name the player
+  has said on any committed turn stays usable. **The tub rule:** a question about what is in the tub went to
+  Kit's invention oracle (which must show an answer) while the room forbids inventing the contents and the leak
+  guard forbids naming them. The source keys the contents (`tub_stash`) and a plain look at a visible feature is
+  free (call 2), so any look or question into the tub resolves from the source (`inspect_tub`), with no invention.
