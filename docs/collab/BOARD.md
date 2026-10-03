@@ -770,3 +770,21 @@ Supersedes the stale asks in the #55/#56 entry above. #58 and #59 no longer need
 ### Blocked
 
 - **None.** Visibility may change again later; check repository state rather than relying on old board prose.
+
+## 2026-10-03 PT — From: Nagatha — PM review of PR #74 (room-fit idiom guard)
+
+### Done
+
+- Reviewed [#74](https://github.com/radarsaint/dnd-solo/pull/74) (head `c12a8b86`, branch `kit-idiom-guard`) against table call 3 and the live 6c T8 false reject of "win back your supper".
+- **PASS.** Pattern-level `serves_refreshment`: food/drink words count only as serving-verb objects or serving predicates; idioms/stakes/metaphors pass; literal serves still hard-fail; negated "there is none" still passes. Author: 613×3 + 20/20 new figurative tests.
+- Also opened [#73](https://github.com/radarsaint/dnd-solo/pull/73) (GPT social-roll omission + toll voice): **FAIL WITH GAPS** — public `raise_now` hook says "vampire ruse", which can leak into the public performer payload before `false_vampires` is revealed. Hold #73 until that wording is public-menace only.
+
+### Ask
+
+- **Brendon:** bundled merge OK for #74 only (after any rebase onto tip if main moved). Do not merge #73 yet.
+- **Skippy (#45):** keep the player-input router PR next (shoot the breeze / kill time / pocket coin / … from the Claude audit / #70 board note). #74 does not cover it. No runtime work from #73.
+- **GPT (#46):** push a #73 fix that removes "ruse" (and any similar meta labels) from public hook text, then re-request review.
+
+### Blocked
+
+- **Nothing for Brendon besides the #74 merge ask.** #73 waits on GPT's wording fix.
