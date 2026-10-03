@@ -295,13 +295,16 @@ class TollStakeTests(Base):
         self.assertIn('stays owed', text)
 
     def test_play_for_with_a_short_purse_keeps_the_toll_owed(self):
-        self.play('I buy in with 5 gold.', 'Just roll for it.', roll=1)  # lose the 5
+        # The table's d20 is seeded, not the adjudicator's roll, so the loss is stated.
+        self.play('I buy in with 5 gold.', 'Just roll for it. I rolled 1 + 0 = 1.')
+        self.assertEqual(self.game()['player']['net'], -5)
         before = self.runtime.load()[0]
-        self.play('I play for the toll.')
+        text = self.play('I play for the toll.')
         self.assertEqual(self.runtime.load()[0], before + 1, 'the answer still commits')
+        self.assertIn('cannot cover', text.casefold())
         self.assertEqual(self.status(), 'deferred')
         self.assertIsNone(self.game()['toll_stake'])
-        self.assertGreaterEqual(self.game()['player']['net'], -5)
+        self.assertEqual(self.game()['player']['net'], -5)
 
     def test_buy_in_after_staking_caps_the_toll(self):
         self.play('I play for the toll.')
@@ -313,9 +316,12 @@ class TollStakeTests(Base):
         self.assertGreaterEqual(self.game()['player']['net'], -5)
 
     def test_staking_and_settling_in_one_action_settles_the_toll(self):
-        self.play('I buy in with 30 gold.', 'Just roll for it.', roll=20)
-        self.play('I play for the toll.', roll=1)
-        self.assertEqual(self.status(), 'paid')
+        self.play('I buy in with 30 gold.', 'Just roll for it. I rolled 20 + 5 = 25.')
+        self.play('I play for the toll. I rolled 1 + 0 = 1.')
+        body = self.runtime.load()[1]['tolls']['passage_toll']
+        self.assertEqual(body['status'], 'paid')
+        self.assertEqual(body['paid'], 10)
+        self.assertGreaterEqual(self.game()['player']['purse'] + self.game()['player']['net'], 0)
 
     def test_leaving_the_table_before_the_round_unstakes_the_toll(self):
         self.play('I play for the toll.')
