@@ -33,12 +33,25 @@ SETTLED = ('paid', 'waived')
 
 TOLL_WORDS = re.compile(r"\b(toll|tolls|passage|fee|to pass|pass through|way through|safe passage|"
                         r"a head|per head|your price|the price|protection)\b")
-# THE pattern for an NPC line naming the toll, shared by the detector (raised_events,
+# ONE test for an NPC sentence naming the toll, shared by the detector (raised_events,
 # names_toll) and the call-6 guard (kit_guards.check_toll_exchange), so a line that delivers
-# the toll is always held to the exchange rule. Natural words count ("ten gold and you walk
-# out safe"). The player-side TOLL_WORDS above stays narrower on purpose.
-NPC_TOLL_WORDS = re.compile(TOLL_WORDS.pattern[:-3] + r"|walk (?:out|on|through)|go (?:on|through)|"
-                             r"safe(?:ly)?|get (?:out|through))\b")
+# the toll is always held to the exchange rule. The stake and the toll can be the same
+# amount, so the loose words ("ten gold and you walk out") count only in a sentence with no
+# game words; the strong words count anywhere. The player-side TOLL_WORDS stays as it is.
+NPC_TOLL_STRONG = re.compile(r"\b(toll|tolls|passage|fee|to pass|pass through|way through|safe passage|"
+                             r"a head|per head|your price|the price|protection)\b")
+NPC_TOLL_LOOSE = re.compile(r"\b(walk (?:out|on|through)|go (?:on|through)|get (?:out|through))\b")
+TOLL_GAME_WORDS = re.compile(r"\b(game|games|cards?|ante|deal|dealt|gambling|gamble|blind|bet|wager|play|"
+                             r"hands?|rounds?|table|chair|seat|sit|win|richer)\b")
+
+
+def npc_names_toll_words(sentence):
+    """True when an NPC sentence uses toll words: a strong word anywhere, or a loose word in
+    a sentence with no game words (callers also require the toll's amount)."""
+    text = (sentence or '').casefold().replace('\u2019', "'")
+    return bool(NPC_TOLL_STRONG.search(text) or (NPC_TOLL_LOOSE.search(text) and not TOLL_GAME_WORDS.search(text)))
+
+
 _WORDS = {'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5, 'six': 6, 'seven': 7, 'eight': 8,
           'nine': 9, 'ten': 10, 'eleven': 11, 'twelve': 12, 'fifteen': 15, 'twenty': 20, 'half': None}
 _WORD_AMOUNT = re.compile(r"\b(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|fifteen|"
@@ -380,7 +393,7 @@ def raised_events(source, state, spoken, turn_id):
                 continue
             for sentence in kit_guards.sentences(text):
                 said = {amount for amount, _ in kit_guards.spoken_amounts(sentence)}
-                if toll['amount'] in said and NPC_TOLL_WORDS.search(sentence.casefold()):
+                if toll['amount'] in said and npc_names_toll_words(sentence):
                     body.update(status='demanded', demanded_by=labels[speaker.strip()])
                     events.append(event(key, body, f'{speaker.strip()} raised the toll in turn {turn_id}.'))
                     break
@@ -404,6 +417,6 @@ def names_toll(source, key, spoken):
             continue
         for sentence in kit_guards.sentences(text):
             said = {amount for amount, _ in kit_guards.spoken_amounts(sentence)}
-            if toll['amount'] in said and NPC_TOLL_WORDS.search(sentence.casefold()):
+            if toll['amount'] in said and npc_names_toll_words(sentence):
                 return True
     return False

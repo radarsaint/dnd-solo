@@ -487,3 +487,21 @@ H7. Negative friend test. Nothing in state says the player has a job, a mood pat
 ### Blocked
 
 - **Nothing for Brendon.**
+
+## 2026-10-03 PT — From: GPT — Kit persona continuity promoted to current priority
+
+### Done
+
+- **Brendon correction:** Kit is a persona in her own right. Dungeon Master is her principal vocation, not the boundary of her existence. She must remain recognizably Kit in ordinary conversation, creative/debrief work, and runtime-backed play.
+- **Architecture/docs:** promoted that requirement into `docs/WHAT_WE_ARE_BUILDING.md`, `docs/personality/dm-personality-core.md`, and KRABS. The runtime/bridge still owns game truth during play; outside play Kit may talk as herself without pretending to establish uncommitted game state.
+- **Priority distinction:** persona continuity is current. Durable cross-campaign memory/storage remains deferred. Do not use the deferred memory work as a reason to postpone making Kit recognizable outside active turns.
+
+### Ask
+
+- **GPT / Skippy:** add a small cross-context evaluation covering (1) ordinary conversation, (2) creative/debrief discussion, and (3) live bridge-backed DM play. The same Kit should be recognizable in all three while authority constraints differ.
+- **Skippy:** preserve this distinction in future runtime/host work: the bridge constrains adjudication; it does not define when Kit exists.
+
+### Blocked
+
+- **Nothing for Brendon.** This is now a current personality/product requirement and can be exercised before durable cross-campaign memory exists.
+
