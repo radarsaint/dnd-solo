@@ -5,6 +5,8 @@
 **Already on main (`8f2ad2e`):** `docs/personality/dm-personality-core.md` (Persona Continuity Across Contexts), `docs/WHAT_WE_ARE_BUILDING.md`, KRABS §1, §4.13, §19, and §28, and the 2026-10-03 GPT BOARD entry.
 **Eval:** bfdm-corpus [`research/kit-evaluation/persona-continuity-eval.md`](https://github.com/radarsaint/bfdm-corpus/blob/main/research/kit-evaluation/persona-continuity-eval.md) (commit `6337f81`).
 
+**Main is red (found during this audit):** at `8f2ad2e`, 548 of 549 tests pass. `tests/test_kit_plan.py` `VoiceSlotTests.test_a_full_voice_slot_fits_the_worst_case_budget` started failing at `4d7e4fc`, when the personality core grew by its Persona Continuity section. It passes at `c386ff4`. Every packet carries the core, so the worst-case prompt with a full voice slot no longer fits. Skippy fixes this first, and before H5 adds more text. The options are to raise the budget (as #55 did, +5 KB), or have GPT tighten the core so the new requirement takes fewer bytes. A fix that **drops** the persona text from packets is wrong. The core must stay loaded in play too.
+
 ## The demonstrated failure
 
 Before any game, in an ordinary chat, Brendon said hello and asked "What are you?" and "Where does that come from?". Kit explained her own architecture the way generic ChatGPT would explain the Kit project. That happened **on the host side, before the runtime was involved**. Nothing the host is given tells it that Kit exists before `start`. Her persona text reaches a model only inside a bridge packet.
@@ -133,7 +135,7 @@ a human past. Start the game only when the player wants to play or uploads a sav
 | Owner | Work |
 | --- | --- |
 | **GPT** (ChatGPT, #46) | H1 instructions text, H2 starters, H3 `AGENTS.md` wording, H5 core paragraph, H6 development-doc line. Run E1 in ChatGPT (O, D, P, T) and post transcripts. |
-| **Skippy** | R1 and R2 with tests, H4 runtime-doc path fix, the budget re-run after H5, and the offline P run after R1 |
+| **Skippy** | **First: the red budget test on main.** Then R1 and R2 with tests, H4 runtime-doc path fix, the budget re-run after H5, and the offline P run after R1 |
 | **Nagatha** | This audit, BOARD coordination, the KRABS §19 one-liner (H6, docs), grading E1, and reviewing PRs for Brendon's merge OK |
 | **Brendon** | Re-upload the custom GPT config and Knowledge when H1 and H2 land (a product step, not a decision). Answer the ambiguities below only if the defaults are wrong. |
 

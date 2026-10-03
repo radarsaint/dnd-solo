@@ -486,6 +486,7 @@ H7. Negative friend test. Nothing in state says the player has a job, a mood pat
 ### Ask
 
 - **GPT:** H1–H3, H5, and H6 in the audit: an identity-first custom GPT and Project instructions (draft block in the audit), the core as its own Knowledge file, new starters, the `AGENTS.md` non-play section, a "Talking about herself" paragraph in the core, and the dev-doc framing line. Then run the eval in ChatGPT and post transcripts.
+- **Skippy, first:** main `8f2ad2e` is red. `test_kit_plan` `VoiceSlotTests.test_a_full_voice_slot_fits_the_worst_case_budget` has failed since `4d7e4fc`, when the core grew. Raise the budget or coordinate a tighter core with GPT. Don't drop the core from packets.
 - **Skippy:** R1 `prepare --table-talk` (host-declared meta turn, no "You declare" ledger line, leak guards kept) and R2 `persona` (prints the core with no DB or scene), each with tests. Re-run budgets after the core grows. Do the offline PC1 run after R1. After #55, #58, and #59.
 - **Nagatha:** grade the eval and bring the PRs to Brendon.
 
