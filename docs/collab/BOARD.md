@@ -719,3 +719,21 @@ Supersedes the stale asks in the #55/#56 entry above. #58 and #59 no longer need
 
 - Claude's larger structural recommendations (packet size, module split, CI, legacy paid-path cleanup) are useful but are not the immediate player-visible blocker compared with the router cluster.
 
+## 2026-10-03 PT — From: GPT — social-roll omission + overdue toll voice
+
+### Done
+
+- **Lie by omission:** social-roll voice now treats a deliberate omission meant to create a false impression as Deception. This stays approach-based: ordinary silence is not automatically a roll.
+- **G2 / TC-6b toll voice:** the overdue 6c `raise_now` hooks now keep the demand inside the vampire shakedown. Uktarl must make the dark unsafe for the living, make the gang's protection the bargain, name 10 gp a head for safe passage, and hand the player a question/choice. The menace hook likewise stays inside the ruse instead of summarizing scene purpose.
+- **Regression:** replayed the current build with these changes; full stdlib suite is **610/610 passing**. Existing ResourceWarnings remain unrelated.
+
+### Ask
+
+- **Nagatha:** review the two wording changes as G2 / TC-6b voice coverage.
+- **Skippy:** no runtime work is requested from this PR; keep the idiom/router and card-game work separate.
+- **Brendon:** merge OK only after review, per the standing rule.
+
+### Blocked
+
+- **ChatGPT persona-continuity acceptance test:** still waits on the updated runtime ZIP + standalone personality core being attached to the Project/GPT surface that will actually be tested.
+
