@@ -99,6 +99,37 @@ class Scenes(unittest.TestCase):
         self.assertIn(f'{self.room}/old/detail', canon_in_scope(state))
 
 
+class SceneLocalStoryAndChecks(unittest.TestCase):
+    """Scene-local play state is keyed by scene id: story beats, delivered hooks, crossed
+    thresholds (runtime/kit_brief.py) and hidden NPC checks (runtime/kit_attitude.py). After
+    scene_close, a new scene in the same room re-arms them; global consequences stay."""
+
+    def test_a_new_scene_re_arms_hooks_and_checks(self):
+        from runtime import kit_attitude, kit_brief
+        with tempfile.TemporaryDirectory() as temp:
+            runtime = Runtime(Path(temp) / 'kit.sqlite')
+            self.addCleanup(runtime.close)
+            runtime.initialize(copy.deepcopy(SOURCE), 'area_06c')
+            revision, _ = runtime.load()
+            runtime.commit('a1', revision, [
+                {'type': 'story_beat', 'area': 'area_06c', 'delivered': ['act_menace'], 'evidence': 'Test.'},
+                {'type': 'attitude_shift', 'cause': 'noticed', 'evidence': 'Test.',
+                 'shifts': [{'actor': 'uktarl', 'from': 'indifferent', 'to': 'unfriendly'}],
+                 'check': {'id': 'dealer_sees_reading', 'success': True, 'tables': {}}}])
+            state = runtime.load()[1]
+            self.assertEqual(kit_brief.story_state(state, 'area_06c')['delivered'], ['act_menace'])
+            self.assertTrue(state['npc_checks']['scene-1/area_06c']['dealer_sees_reading']['noticed'])
+            runtime.close_scene('Scene A ends.')
+            state = runtime.load()[1]
+            self.assertEqual(kit_brief.story_state(state, 'area_06c'), {'beats': 0, 'delivered': []})
+            made = kit_brief.brief(SOURCE, state)
+            self.assertFalse(next(h for h in made['hooks'] if h['id'] == 'act_menace')['delivered'])
+            self.assertNotIn('scene-2/area_06c', state.get('npc_checks') or {})  # the check is armed again
+            self.assertIsNone(kit_attitude.since_noticed(state, 'dealer_sees_reading', 'twenty_one'))
+            # A global consequence stays: how the dealer regards the visitor.
+            self.assertEqual(kit_attitude.level(SOURCE, state, 'uktarl'), 'unfriendly')
+
+
 class ScenesInAnyRoom(Scenes):
     """Non-6c: the same contract in the feasibility room."""
     source, area, actor, room = FEASIBILITY, 'entry', 'sentry', 'entry'
