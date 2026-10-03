@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/radarsaint/bfdm-corpus/registry/identity.schema.json",
+  "title": "BFDM identity assertion",
+  "type": "object",
+  "required": [
+    "identity_id",
+    "person_id",
+    "platform",
+    "basis",
+    "confidence",
+    "attribution_use",
+    "notes",
+    "canonical_name",
+    "server_id",
+    "project_id",
+    "mapping_basis"
+  ],
+  "properties": {
+    "identity_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "person_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "platform": {
+      "type": "string",
+      "minLength": 1
+    },
+    "account_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "server_or_project_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "username": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "display_name": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "valid_from": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "valid_to": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "basis": {
+      "type": "array",
+      "minItems": 1
+    },
+    "confidence": {
+      "enum": [
+        "CONFIRMED",
+        "STRONG",
+        "TENTATIVE"
+      ]
+    },
+    "attribution_use": {
+      "type": "string",
+      "minLength": 1
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "canonical_name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "server_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "project_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "mapping_basis": {
+      "type": "array",
+      "minItems": 1
+    }
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/radarsaint/bfdm-corpus/registry/discord_server.schema.json",
+  "title": "BFDM Discord server registry record",
+  "type": "object",
+  "required": [
+    "server_id",
+    "platform",
+    "server_name",
+    "project_ids",
+    "harvest_status",
+    "limitations",
+    "server_slug",
+    "thread_count",
+    "brendon_identity_resolution"
+  ],
+  "properties": {
+    "server_id": {
+      "type": "string",
+      "pattern": "^[0-9]+$"
+    },
+    "platform": {
+      "const": "DISCORD"
+    },
+    "server_name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "project_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "harvest_status": {
+      "type": "string",
+      "minLength": 1
+    },
+    "requested_window": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "observed_message_window": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "database_path": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "readme_path": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "message_count": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0
+    },
+    "text_channel_count": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0
+    },
+    "attachments_stored": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0
+    },
+    "attachments_expected": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0
+    },
+    "limitations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "server_slug": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "thread_count": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0
+    },
+    "brendon_identity_resolution": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": true
+}

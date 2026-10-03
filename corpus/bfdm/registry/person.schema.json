@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/radarsaint/bfdm-corpus/registry/person.schema.json",
+  "title": "BFDM canonical person record",
+  "type": "object",
+  "required": [
+    "person_id",
+    "canonical_name",
+    "person_kind",
+    "research_role",
+    "notes",
+    "aliases"
+  ],
+  "properties": {
+    "person_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "canonical_name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "person_kind": {
+      "type": "string",
+      "minLength": 1
+    },
+    "research_role": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "aliases": {
+      "type": "array"
+    }
+  },
+  "additionalProperties": true
+}

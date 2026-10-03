@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/radarsaint/bfdm-corpus/registry/project_relation.schema.json",
+  "title": "BFDM project relation",
+  "type": "object",
+  "required": [
+    "relation_id",
+    "from_project_id",
+    "relation",
+    "to_project_id",
+    "confidence",
+    "basis",
+    "support_refs"
+  ],
+  "properties": {
+    "relation_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "from_project_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "relation": {
+      "type": "string",
+      "minLength": 1
+    },
+    "to_project_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "confidence": {
+      "type": "string",
+      "minLength": 1
+    },
+    "basis": {
+      "type": "string",
+      "minLength": 1
+    },
+    "support_refs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "additionalProperties": true
+}

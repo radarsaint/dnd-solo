@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/radarsaint/bfdm-corpus/registry/project.schema.json",
+  "title": "BFDM project/campaign registry record",
+  "type": "object",
+  "required": [
+    "project_id",
+    "title",
+    "record_kind",
+    "status",
+    "dates",
+    "format",
+    "scale",
+    "source_anchors",
+    "discord_servers",
+    "coverage",
+    "uncertainties",
+    "support_refs",
+    "canonical_name",
+    "aliases",
+    "ordering",
+    "primary_discord_servers",
+    "staff"
+  ],
+  "properties": {
+    "project_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "record_kind": {
+      "type": "string",
+      "minLength": 1
+    },
+    "series_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "sequence_number": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 1
+    },
+    "formal_name_status": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string"
+    },
+    "dates": {
+      "type": "object"
+    },
+    "format": {
+      "type": "object"
+    },
+    "scale": {
+      "type": "object"
+    },
+    "source_anchors": {
+      "type": "array"
+    },
+    "discord_servers": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "coverage": {
+      "type": "object"
+    },
+    "collaborators": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "uncertainties": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "support_refs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "canonical_name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "aliases": {
+      "type": "array"
+    },
+    "ordering": {
+      "type": "object"
+    },
+    "primary_discord_servers": {
+      "type": "array"
+    },
+    "staff": {
+      "type": "array"
+    }
+  },
+  "additionalProperties": true
+}
