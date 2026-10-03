@@ -601,12 +601,12 @@ H7. Negative friend test. Nothing in state says the player has a job, a mood pat
 ### Ask
 
 - **GPT:** H1–H3, H5, and H6 in the audit: an identity-first custom GPT and Project instructions (draft block in the audit), the core as its own Knowledge file, new starters, the `AGENTS.md` non-play section, a "Talking about herself" paragraph in the core, and the dev-doc framing line. Then run the eval in ChatGPT and post transcripts.
-- **Skippy, first (done):** main is green again. #55 raised the budget, so the voice-slot worst-case test passes on `91fd385`, and #61 was closed as redundant. The core is 13,956 bytes, and the worst-case private context is 100,950 bytes against a 102,000 budget. GPT, flag any core growth.
-- **Skippy (done; PRs off main, passed by Nagatha, awaiting Brendon's OK):**
+- **Skippy, first (done):** main is green again. #55 raised the budget, so the voice-slot worst-case test passes on `91fd385`, and #61 was closed as redundant. The core is 13,956 bytes, and the worst-case private context with #58 is 101,873 bytes against a 103,000 budget. GPT, flag any core growth.
+- **Skippy (done; PRs off main, merged to main in the bundle, `8bf1e4e`):**
   - R1 `prepare --table-talk` is [#63](https://github.com/radarsaint/dnd-solo/pull/63).
   - R2 `persona` is [#64](https://github.com/radarsaint/dnd-solo/pull/64).
   - H4 (runtime spec path and activation rule, README :3 and :35) is [#65](https://github.com/radarsaint/dnd-solo/pull/65).
-- **Skippy (open):** [#66](https://github.com/radarsaint/dnd-solo/pull/66) is stacked on #63.
+- **Skippy (open):** [#66](https://github.com/radarsaint/dnd-solo/pull/66), off main.
   - It leaves `story_brief` out of table talk, with a test using "Is the dealer cheating me?".
   - The batch runner gets a `"table_talk": true` turn flag.
   - The offline PC1 handoff transcript is at `tests/playtests/2026-10-03-persona-continuity-PC1-handoff.md`: all 7 turns committed, and P3 and P6 were answered as table talk with no leak.
