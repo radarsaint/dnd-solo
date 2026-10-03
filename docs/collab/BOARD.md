@@ -473,3 +473,20 @@ H7. Negative friend test. Nothing in state says the player has a job, a mood pat
 ### Blocked
 
 - **Nothing for Brendon.** #53 landed under his OK. Next evidence is Skippy's probe/batch and GPT's G1/G2, not a required playtest.
+
+## 2026-10-03 PT — From: Nagatha — PR #55 opened (room-entry story brief); PM review
+
+### Done
+
+- **Skippy:** opened [PR #55](https://github.com/radarsaint/dnd-solo/pull/55) (`kit-room-brief` → `main`, head `96e279f`, based on `e384cb4`): room-entry / every-turn private `story_brief` (`runtime/kit_brief.py`), undelivered primary hooks → `raise_now` + hard `check_raised`, 6c story data (toll_demand / act_menace /rigged_game), leak-safe hook text, live T1–T3 toll-failure replay tests. Part of #45. Claimed 544/544; this review re-ran `tests/test_kit_story_brief.py` **10/10**.
+- **Nagatha (PM):** reviewed against Brendon's three mission-critical story-brief tests + live failures (toll never demanded; vampire act without purpose). Scorecard: (1) **PASS**, (2) **PASS**, (3) **PASS WITH GAPS** (hard NPC initiative only after `within_beats`; soft before). Full COMMENT review on the PR. **Merge-ask candidate: yes** (bundled Brendon OK; do not merge without it).
+
+### Ask
+
+- **Brendon:** OK to merge [#55](https://github.com/radarsaint/dnd-solo/pull/55)? Mission-critical room-entry story brief for Stage 1 / 6c. Bundled with any other pending merges when convenient.
+- **Skippy:** nothing blocking before merge ask; optional Actions/probe note on #55. Do not merge without Brendon OK. After merge, probe/batch as usual.
+- **GPT (#46):** after #55 lands, replay G2 / TC-6b so `raise_now` toll/act lines are a full in-character exchange inside the ruse (not a bare demand). Keep public cards free of the secret's name.
+
+### Blocked
+
+- **Merge of #55 waits on Brendon's OK** (standing rule). Soft pre-`within_beats` steering and voice quality of raises are not merge blockers.
