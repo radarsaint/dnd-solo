@@ -110,6 +110,49 @@ class BrendonsLinesAreTableTalk(TableTalkCase):
                  'reacts_to': 'is this guy cheating'}]})
         self.assertEqual(self.runtime.load()[0], 0)
 
+    def test_table_talk_carries_no_story_brief(self):
+        # A direct question to Kit is answered without the scene's private story brief, so its
+        # secrets (the marked deck, the act) cannot be paraphrased into the answer.
+        line = 'Is the dealer cheating me?'
+        played = self.bridge.prepare(line, 'in-fiction', one_pass=True)
+        self.assertIn('story_brief', played['input']['private'])
+        self.bridge.abandon('in-fiction')
+        for one_pass in (True, False):
+            with self.subTest(one_pass=one_pass):
+                prepared = self.bridge.prepare(line, f'talk-{one_pass}', one_pass=one_pass, table_talk=True)
+                private = prepared['input']['private'] if one_pass else prepared['input']
+                self.assertNotIn('story_brief', private)
+                text = json.dumps(prepared['input'], ensure_ascii=False)
+                self.assertNotIn('marked deck', text.casefold())
+                self.assertNotIn('shakedown', text.casefold())
+                self.bridge.abandon(f'talk-{one_pass}')
+
+    def test_table_talk_carries_no_claims_list(self):
+        # The claims list (each secret's truth and which NPCs know it) stays out of table talk.
+        # personality_core (the same text in every packet) and dm_context (Kit's DM view, which
+        # the leak guards police) are still sent, so they are excluded from the word check.
+        line = 'Is the dealer cheating me?'
+
+        def outside_core_and_context(packet):
+            private = packet.get('private', packet)
+            rest = {key: value for key, value in private.items()
+                    if key not in ('personality_core', 'dm_context')}
+            return json.dumps([rest, packet.get('public')], ensure_ascii=False).casefold()
+
+        played = self.bridge.prepare(line, 'in-game', one_pass=True)['input']
+        self.assertIn('claims_here', played['private'])
+        for word in ('marked', 'doppelganger'):
+            self.assertIn(word, outside_core_and_context(played))
+        self.bridge.abandon('in-game')
+        for one_pass in (True, False):
+            with self.subTest(one_pass=one_pass):
+                prepared = self.bridge.prepare(line, f'talk-{one_pass}', one_pass=one_pass, table_talk=True)
+                packet = prepared['input']
+                self.assertNotIn('claims_here', packet.get('private', packet))
+                for word in ('marked', 'doppelganger'):
+                    self.assertNotIn(word, outside_core_and_context(packet))
+                self.bridge.abandon(f'talk-{one_pass}')
+
     def test_the_cli_flag_reaches_the_bridge(self):
         out = io.StringIO()
         argv = ['kit_agent', 'prepare', '--db', str(self.path), '--one-pass', '--table-talk',

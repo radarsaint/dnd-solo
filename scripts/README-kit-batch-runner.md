@@ -32,6 +32,8 @@ python3 scripts/kit_batch_runner.py --backend handoff --only V1,V3 \
 
 The first full baseline (2026-10-03) used `handoff` with Grok as Kit. Its results are in bfdm-corpus `research/kit-evaluation/6c-baseline-2026-10-03/`.
 
+A turn may carry `"table_talk": true`: the host marks the line as the player talking to Kit, and the runner passes `prepare --table-talk`.
+
 ## Output
 
 ```
