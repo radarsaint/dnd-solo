@@ -16,7 +16,7 @@ plan beats may cite its hooks as roots (``hook:<id>``). It is never sent to the 
 An undelivered primary hook does not wait for the player to find it: after
 ``within_beats`` turns in the scene its NPC raises it in character (``raise_now``), and a
 performance that lets it slide is rejected (``check_raised``) unless that NPC is gone or
-a fight is running. Delivery latches in state['story'][area] via the ``story_beat`` event
+a fight is running. Delivery latches in state['story'][area] for the open scene (scene_key) via the ``story_beat`` event
 each committed turn carries.
 
 The source may declare, per area, a ``story`` block (all fields optional):
@@ -34,7 +34,9 @@ Conditions: {toll_raised: <toll id>}, {procedure_running: <procedure id>},
 {fact_known: <fact id>}, {claim_learned: <claim id>},
 {said: {by: [actor ids], any: [phrases], game: <procedure id>}} (an NPC line this turn; a
 phrase "a + b" needs both in the same line; game adds that procedure's own names: its
-``called`` list, else its name up to "(" or ","), {any: [conditions]}.
+``called`` list, else its name up to "(" or ","; a ``paired`` phrase ("a hand", "want in")
+counts only when the rest of the line has a game word or the game's name: "join us for a
+hand" counts, "give me a hand with this lantern" does not), {any: [conditions]}.
 A hook's ``text`` is said to the performer when it is overdue, so it must be public-safe:
 it is checked against the room's leak phrases and keyword sets.
 
@@ -88,7 +90,9 @@ def _check_condition(cond, source, label):
                 isinstance(value.get('by'), list) and value['by'] and
                 all(b in source.get('actors', {}) for b in value['by']) and
                 all(part.strip() for p in value['any'] for part in p.split('+')) and
-                set(value) <= {'by', 'any', 'game'} and
+                isinstance(value.get('paired', []), list) and
+                all(isinstance(p, str) and p.strip() for p in value.get('paired', [])) and
+                set(value) <= {'by', 'any', 'game', 'paired'} and
                 ('game' not in value or value['game'] in (source.get('procedures') or {})),
                 f'{label}: said needs by (actor ids) and any (phrases; "a + b" both in one line), '
                 'and game names a procedure')
@@ -173,8 +177,20 @@ def compile_story(source):
     return stories
 
 
+FIRST_SCENE = 'scene-1'  # the scene a state without scene ids is in (KRABS §8 scene ids)
+
+
+def scene_key(state):
+    """The open scene. Story memory (beats, delivered hooks) belongs to one scene: a later
+    scene in the same area starts fresh, so its hooks re-arm."""
+    return (state or {}).get('scene_id') or FIRST_SCENE
+
+
 def story_state(state, area):
-    return ((state or {}).get('story') or {}).get(area) or {'beats': 0, 'delivered': []}
+    mem = ((state or {}).get('story') or {}).get(area)
+    if not mem or mem.get('scene', FIRST_SCENE) != scene_key(state):
+        return {'beats': 0, 'delivered': []}
+    return mem
 
 
 def _present(source, state):
@@ -203,7 +219,9 @@ def holds(cond, source, state, spoken=''):
     if kind == 'said':
         lines = _spoken_by(spoken, source)
         said = [line.casefold().replace('\u2019', "'") for who in value['by'] for line in lines.get(who, ())]
-        return any(_says(line, phrase) for line in said for phrase in said_phrases(value, source))
+        names = game_names((source.get('procedures') or {}).get(value['game'])) if value.get('game') else []
+        return any(_says(line, phrase) for line in said for phrase in said_phrases(value, source)) or \
+            any(_paired(line, phrase, names) for line in said for phrase in value.get('paired', ()))
     if kind == 'toll_raised':
         from . import kit_toll
         body = (kit_toll.here(source, state).get(value) or (None, {}))[1] if state.get('area') else {}
@@ -228,6 +246,16 @@ def said_phrases(value, source):
     """The phrases a said condition accepts: its own plus the named game's names."""
     game = value.get('game')
     return list(value['any']) + (game_names((source.get('procedures') or {}).get(game)) if game else [])
+
+
+def _paired(line, phrase, names=()):
+    """The phrase is in the line and the rest of the line has a game word or the game's name."""
+    from .kit_toll import TOLL_GAME_WORDS  # the shared game-word list
+    pattern = r'\b' + re.escape(phrase.strip().casefold()) + r'\b'
+    if not re.search(pattern, line):
+        return False
+    rest = re.sub(pattern, ' ', line)
+    return bool(TOLL_GAME_WORDS.search(rest)) or any(re.search(r'\b' + re.escape(n) + r'\b', rest) for n in names)
 
 
 def _says(line, phrase):
@@ -330,8 +358,10 @@ def _needs(cond, source):
     if kind == 'any':
         return ' or '.join(_needs(item, source) for item in value if speakable(item))
     if kind == 'said':
-        return 'says one of: ' + ', '.join(
-            '"' + '" with "'.join(part.strip() for part in p.split('+')) + '"' for p in said_phrases(value, source))
+        said = ', '.join('"' + '" with "'.join(part.strip() for part in p.split('+')) + '"'
+                         for p in said_phrases(value, source))
+        paired = ', '.join(f'"{p}"' for p in value.get('paired', ()))
+        return 'says one of: ' + said + (f', or {paired} together with a game word' if paired else '')
     if kind == 'toll_raised':
         toll = (source.get('tolls') or {}).get(value) or {}
         return (f'names the amount ({toll.get("amount")} {toll.get("unit", "")}) together with a toll word '
@@ -374,6 +404,7 @@ def apply_event(state, source, event):
     hooks = {hook['id'] for hook in story.get('hooks') or ()}
     delivered = event.get('delivered')
     require(isinstance(delivered, list) and set(delivered) <= hooks, 'story_beat delivered names hook ids')
-    mem = state.setdefault('story', {}).setdefault(area, {'beats': 0, 'delivered': []})
+    mem = story_state(state, area)
+    mem = state.setdefault('story', {})[area] = {**mem, 'scene': scene_key(state)}
     mem['beats'] += 1
     mem['delivered'] = sorted(set(mem['delivered']) | set(delivered))

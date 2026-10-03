@@ -279,18 +279,37 @@ class ReviewFixes(Base):
                 self.assertFalse(kit_brief.holds(hooks['act_menace']['delivered_when'], source, state, line))
                 self.assertFalse(kit_brief.holds(hooks['rigged_game']['delivered_when'], source, state, line))
 
-    def test_the_guard_and_the_detector_share_one_toll_pattern(self):
-        # #55 review: a natural demand delivers the hook, so the call-6 guard must see it too:
-        # mixed into game talk with no question, it is rejected.
+    def test_the_guard_and_the_detector_share_one_toll_test(self):
+        # #55 review: one test for "this NPC sentence names the toll", used by the detector
+        # and the call-6 guard. The stake and the toll are both 10 gp here, so loose words
+        # (walk out, go on, get through) count only in a sentence with no game words.
         self.start()
-        line = 'Ten gold and you walk out safe, so ante up and play.'
-        self.assertTrue(kit_toll.names_toll(self.runtime.source(), 'passage_toll', f'Dealer: {line}'))
-        with self.assertRaises(InvalidChange):
-            kit_guards.check_toll_exchange([{'speaker': 'Dealer', 'text': line}], 10, False)
-        self.assertIs(kit_guards.NPC_TOLL_WORDS, kit_toll.NPC_TOLL_WORDS)
-        # A real exchange in the same words passes.
+        source = self.runtime.source()
+
+        def named(line):
+            return kit_toll.names_toll(source, 'passage_toll', f'Dealer: {line}')
+
+        demand = 'Ten gold and you walk out safe.'
+        self.assertTrue(named(demand))
+        with self.assertRaises(InvalidChange):  # named in passing, no opening for the player
+            kit_guards.check_toll_exchange([{'speaker': 'Dealer', 'text': demand}], 10, False)
         kit_guards.check_toll_exchange([{'speaker': 'Dealer', 'text': 'Down here the dark is not kind. '
                                          'Ten gold and you walk out safe. Do we have an understanding?'}], 10, False)
+        # Strong words count anywhere, game talk or not.
+        self.assertTrue(named('Ten gold a head to pass, cards or no cards.'))
+        for line in ("Ten gold says you won't get through three hands. Brave enough?",
+                     'Bring ten gold and walk out richer, maybe. Interested?',
+                     'Ten gold is safe with me, friend. Shall we?',
+                     'Ten gold and you walk out safe, so ante up and play.'):
+            with self.subTest(line=line):
+                self.assertFalse(named(line))
+                kit_guards.check_toll_exchange([{'speaker': 'Dealer', 'text': line}], 10, False)
+        for line in ('Ten gold a round, go on and sit.', "The house plays ten gold, and you're safe at my table.",
+                     "I'll put up ten gold if you get through this hand."):
+            with self.subTest(line=line):  # stake talk before the toll is raised: not the guard's business
+                self.assertFalse(named(line))
+                kit_guards.check_toll_exchange([{'speaker': 'Dealer', 'text': line}], 10, False)
+        self.assertIs(kit_guards.npc_names_toll_words, kit_toll.npc_names_toll_words)
 
     def test_natural_invitations_and_the_games_own_names_count(self):
         self.start()
@@ -303,7 +322,9 @@ class ReviewFixes(Base):
             with self.subTest(line=line):
                 self.assertTrue(kit_brief.holds(hooks['rigged_game']['delivered_when'], source, state,
                                                 f'Dealer: {line}'))
-        for line in ('Cards are old down here.', 'Sit wherever you like; the corridor is cold.'):
+        for line in ('Cards are old down here.', 'Sit wherever you like; the corridor is cold.',
+                     'Give me a hand with this lantern.', 'I want in on the gossip.',
+                     'The others will join us later.'):
             with self.subTest(line=line):  # "cards + sit" needs both words in one line
                 self.assertFalse(kit_brief.holds(hooks['rigged_game']['delivered_when'], source, state,
                                                  f'Dealer: {line}'))
@@ -311,6 +332,23 @@ class ReviewFixes(Base):
             with self.subTest(line=line):
                 self.assertTrue(kit_brief.holds(hooks['act_menace']['delivered_when'], source, state,
                                                 f'Dealer: {line}'))
+
+    def test_a_new_scene_in_the_same_area_re_arms_the_hooks(self):
+        # Story memory belongs to the open scene (scene_id; scene-1 before scene ids exist).
+        self.start()
+        state = copy.deepcopy(self.runtime.load()[1])
+        source = self.runtime.source()
+        kit_brief.apply_event(state, source, {'type': 'story_beat', 'area': 'area_06c',
+                                              'delivered': ['toll_demand'], 'evidence': 'x'})
+        self.assertEqual(kit_brief.story_state(state, 'area_06c')['delivered'], ['toll_demand'])
+        self.assertEqual(state['story']['area_06c']['scene'], kit_brief.FIRST_SCENE)
+        state['scene_id'] = 'scene-2'
+        self.assertEqual(kit_brief.story_state(state, 'area_06c'), {'beats': 0, 'delivered': []})
+        made = kit_brief.brief(source, state)
+        self.assertFalse(next(h for h in made['hooks'] if h['id'] == 'toll_demand')['delivered'])
+        kit_brief.apply_event(state, source, {'type': 'story_beat', 'area': 'area_06c', 'delivered': [],
+                                              'evidence': 'x'})
+        self.assertEqual(state['story']['area_06c'], {'beats': 1, 'delivered': [], 'scene': 'scene-2'})
 
     def test_game_names_from_a_called_list_or_the_name(self):
         # Non-6c: any card procedure names itself; a said condition with game picks them up.

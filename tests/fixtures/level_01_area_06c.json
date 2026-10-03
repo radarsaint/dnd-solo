@@ -633,7 +633,6 @@
                   "any": [
                     "the game",
                     "a game",
-                    "a hand",
                     "the cards",
                     "stake",
                     "wager",
@@ -647,11 +646,14 @@
                     "on the felt",
                     "play a round",
                     "care to play",
-                    "want in",
-                    "join us",
                     "cards + sit",
                     "cards + join",
                     "cards + deal you"
+                  ],
+                  "paired": [
+                    "a hand",
+                    "want in",
+                    "join us"
                   ],
                   "game": "twenty_one"
                 }

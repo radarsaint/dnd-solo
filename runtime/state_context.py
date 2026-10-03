@@ -58,7 +58,9 @@ RHYTHM_EVIDENCE_MAX_CHARS = 600  # per recent_rhythm entry; 12 entries stay insi
 # 12 long turns, a Three-Dragon Ante gambit mid-play, and a full canon ledger (CANON_LIMIT
 # entries at maximum length, ~47 KB). The private floor after every memory trim is ~79 KB.
 # +5 KB for the room's story brief (runtime/kit_brief.py; the 6c brief measures ~4.6 KB).
-CONTEXT_BUDGET_BYTES = 94000 + VOICE_MAX_BYTES  # 100 KB: the measured worst case, story brief, full voice slot
+# +2 KB (2026-10-03, main 8f2ad2e): Brendon's dm-personality-core grew by 14 lines (~1.7 KB);
+# the worst case with a full voice slot measured 1.7 KB over on main itself.
+CONTEXT_BUDGET_BYTES = 96000 + VOICE_MAX_BYTES  # 102 KB: the measured worst case, story brief, core growth, full voice slot
 # (88 KB -> 89 KB, 2026-10-03: area 6c gained the vampire_tells fact and claim, table call 8).
 # A staged or one-pass body carries the post-event public view (with the whole ledger)
 # and the procedure state: ~49.4 KB in the same worst case.

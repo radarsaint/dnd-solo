@@ -2191,7 +2191,8 @@ def trim_order(chosen, stored, action, recent=MEMORY_RECENT, aliases=None):
 # public half is ~27.4 KB and the combined floor after every memory trim is ~106.1 KB.
 # 118 KB was the private budget plus that public half, with ~2.6 KB to spare; 123 KB adds the story brief.
 # +5 KB for the room's story brief in the private half (runtime/kit_brief.py).
-ONE_PASS_BUDGET_BYTES = 123000 + VOICE_MAX_BYTES  # plus the docs/voice slot at its cap
+# +2 KB for the personality core's growth on main 8f2ad2e (the same ~1.7 KB as the private budget).
+ONE_PASS_BUDGET_BYTES = 125000 + VOICE_MAX_BYTES  # plus the docs/voice slot at its cap
 CONTEXT_KEEP_HISTORY = 1          # public dialogue turns always kept
 CONTEXT_KEEP_RHYTHM = 3           # recent_rhythm entries always kept
 EPISODE_SPOKEN_TRIM_CHARS = 300   # public excerpt per episode after trimming
