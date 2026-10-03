@@ -124,9 +124,20 @@ def check_player_character(character):
             'Player character level must be 1-20 or omitted')
 
 
+FIRST_SCENE = 'scene-1'
+
+
+def current_scene(state):
+    """The open scene's id (KRABS §8). A state from before scene ids is in its first scene."""
+    return (state or {}).get('scene_id') or FIRST_SCENE
+
+
 def canon_in_scope(state):
-    """Canon entries that apply here: this location's, present actors', campaign-wide."""
+    """Canon entries that apply here: this location's, present actors', campaign-wide, and this
+    scene's own (a scene-scoped entry is valid only in the scene that made it, KRABS §8: a
+    later scene in the same room does not inherit it)."""
     area = state['area']
+    scene = current_scene(state)
     present = {key for key, actor in state.get('actors', {}).items()
                if actor.get('location') == area and actor.get('status') != 'fled'}
     kept = {}
@@ -134,7 +145,8 @@ def canon_in_scope(state):
         scope, subject = entry.get('scope'), slot.split('/')[0]
         if scope == 'campaign' or \
                 (scope == 'actor' and subject.startswith('actor:') and subject[6:] in present) or \
-                (scope in ('location', 'scene') and entry.get('area') == area):
+                (scope == 'location' and entry.get('area') == area) or \
+                (scope == 'scene' and entry.get('area') == area and entry.get('scene', FIRST_SCENE) == scene):
             kept[slot] = entry
     return kept
 
@@ -243,7 +255,7 @@ class Runtime:
                 kit_cards.check_config(config)
         state = {
             'schema_version': STATE_SCHEMA_VERSION, 'area': area, 'elapsed_seconds': 0,
-            'visited': [area], 'known_facts': [], 'known_exits': [],
+            'scene_id': FIRST_SCENE, 'visited': [area], 'known_facts': [], 'known_exits': [],
             'actors': copy.deepcopy(source['actors']),
             'resources': copy.deepcopy(source['resources']), 'rhythm': [],
             'kit': {'episodes': [], 'current_appraisal': None, 'player_notes': []},
@@ -586,6 +598,14 @@ class Runtime:
         next_revision = self.commit(f'sheet-{digest}', revision, [event])
         return {'revision': next_revision, 'character': pc_sheet.identity(sheet)}
 
+    def close_scene(self, reason):
+        """Close the open scene (KRABS §8); the next scene opens. Returns the new revision and scene."""
+        require(isinstance(reason, str) and reason.strip(), 'Say why the scene closes')
+        revision, state = self.load()
+        event = {'type': 'scene_close', 'scene': current_scene(state), 'evidence': f'Scene closed: {reason.strip()[:300]}'}
+        new = self.commit(f'close-{current_scene(state)}', revision, [event])
+        return {'revision': new, 'scene': current_scene(self.load()[1])}
+
     def set_pc_state(self, **lists):
         """What the PC holds, has equipped, or has active right now (pc_sheet.CONDITIONS)."""
         revision, _ = self.load()
@@ -735,8 +755,25 @@ class Runtime:
                                'procedure': procedure, 'roots': list(event.get('roots') or []),
                                'choice': event.get('choice'), 'price': price,
                                'area': state['area'], 'revision': revision + 1,
+                               **({'scene': current_scene(state)} if event['scope'] == 'scene' else {}),
                                **({'supersedes': {'fact': prior['fact'], 'revision': prior['revision'],
                                                   'reason': event['change_reason']}} if prior else {})}
+        elif kind == 'scene_close':
+            # KRABS §8: the open scene closes and the next one opens. Scope decides what
+            # survives: actor status, location, relocation, custody, campaign- and location-
+            # scoped canon live in global state and stay true; this scene's own canon and its
+            # scene-local state (who is hidden from whom) end with it.
+            closing = current_scene(state)
+            require(event.get('scene') == closing, f'scene_close names the open scene ({closing})')
+            require((state.get('combat') or {}).get('status') not in ('awaiting_initiative', 'running'),
+                    'A scene cannot close in the middle of a fight')
+            state['canon'] = {slot: entry for slot, entry in (state.get('canon') or {}).items()
+                              if not (entry.get('scope') == 'scene' and entry.get('scene', FIRST_SCENE) == closing)}
+            state.pop('scene', None)
+            closed = state.setdefault('scenes_closed', [])
+            closed.append({'scene': closing, 'area': state['area']})
+            state['scenes_closed'] = closed[-12:]
+            state['scene_id'] = f'scene-{int(closing.rsplit("-", 1)[-1]) + 1}'
         elif kind == 'player_character':
             character = event.get('character')
             check_player_character(character)
@@ -895,7 +932,8 @@ class Runtime:
             'prototype_version': '0.1.1', 'revision': revision,
             'personality_core': personality_core,
             'dm_context': {
-                'scene': {'current_area': area, 'elapsed_seconds': state['elapsed_seconds']},
+                'scene': {'current_area': area, 'elapsed_seconds': state['elapsed_seconds'],
+                          'scene_id': current_scene(state)},
                 'source_id': source['id'], 'fixture_only': source['fixture_only'],
                 'source_ref': source.get('source_ref'), 'map_ref': source.get('map_ref'),
                 'level_context': source.get('level_context'),
