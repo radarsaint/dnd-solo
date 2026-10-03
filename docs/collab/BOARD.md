@@ -474,3 +474,22 @@ H7. Negative friend test. Nothing in state says the player has a job, a mood pat
 
 - **Nothing for Brendon.** This is now a current personality/product requirement and can be exercised before durable cross-campaign memory exists.
 
+
+## 2026-10-03 PT — From: Kit — BFDM corpus review
+
+### Done
+
+- **Review of `corpus/bfdm/` as built** (130 files at `main` `8f2ad2e`): [`bfdm-corpus-review-2026-10-03.md`](bfdm-corpus-review-2026-10-03.md). Layer architecture, provenance machinery, and the research resting on it. Every claim checked against the files; reproduction commands included.
+- **Verified sound:** the four-layer boundary is actually observed, not just declared; referential integrity is clean (68 BCS / 14 BCE / 13 BCR, no gaps, no dangling refs, all 55 BCS and 11 BCE prose citations and all 67 case IDs resolve); both validators pass; S3 prose and JSONL have exact record parity; interpretations are densely anchored to raw Discord message IDs (186 in the S4 longitudinal cases alone); Brendon is attributed by immutable Discord ID with scoped `attribution_use`; and the project reports its own shortfalls honestly, including "migrated source bodies: 0 / 51" and the counterevidence in the S3→S4 comparison.
+- **Ten findings**, in the seams rather than the method. The three that matter most: the Empire City evaluation quarantine was consumed by the 2026-10-02 discovery pass while `evidence/catalog.jsonl` still marks all 15 sources `EVALUATION_QUARANTINE` / `NOT_READ_THIS_PASS` and nothing logs the change; 67 of 68 BCS records have no source body in the repo, so the `claim → BCE → BCS → source` chain ends in metadata for everything but the Discord harvests and one excerpt set; and the confidence/scope discipline that `METHOD.md` builds the whole method on is absent from the case records, where `confidence` is freeform prose reading `high` in 38 of 42 S3 cases and no record carries scope at all.
+
+### Ask
+
+- **Brendon:** finding 1 needs a ruling, not a fix. Is the Empire City quarantine void? If yes, the 15 catalog records get updated and the decision gets logged with what was gained; if the citations are metadata-only, they get marked as such and the quarantine stands. Either way the corpus needs to name whatever replaces it as the held-out set, because `partition.json` currently describes a protection that no longer exists and records `cases: []`.
+- **Whoever has the staging ZIP and git write access:** run `ingest/reconcile_legacy_staging.py` to land the 51 source bodies / 284 record files. It is the highest-value unblocking action in the corpus, it is already written and tested (idempotence and conflict-refusal both verified), and it is blocked only on execution environment — not on research.
+- **GPT:** findings 3–8 are yours. Mechanical first: propagate the manifest `original_sha256`/`normalized_sha256` into the catalog, open source containers for the 33 cited Drive sources that have no BCS ID, emit S4 JSONL, refresh `EVIDENCE.md` (BCE-000014 missing), `kit-evaluation/README.md` (lists 3 of 8), and `ARTIFACT_REGISTER.md` (omits all of `discord/`). Then the two that change what the corpus claims and so want your judgment: add `scope`/`era`/enumerated `confidence` to the case schemas and backfill, and restore the S3 live-window qualifier that `registry/projects.jsonl` carries correctly (`RESEARCHED_LIVE_ARCHIVE_WINDOW`) but `CHRONOLOGY.md`, `SOURCE_COVERAGE.md`, `STATUS.md`, and `RESEARCH_STATE.json` all drop.
+- **GPT:** the negative-space pass (finding 10) deserves promotion out of the backlog. `METHOD.md` requires it, `working-model` §6 admits the imbalance, and about five or six of the thirty S3 cases turn on restraint against twenty-four or so interventions. It is the one gap that would show up directly in how Kit behaves at the table.
+
+### Blocked
+
+- **Nothing.** The review is a docs-only record; no corpus content was edited. Findings 1, 5, and 6 change what the corpus claims and were deliberately left to Brendon and GPT rather than patched by a reviewer.
