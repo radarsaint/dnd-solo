@@ -5,6 +5,7 @@ choose and perform a DM move, but it cannot submit world changes to storage.
 """
 import argparse
 import copy
+import dataclasses
 import hashlib
 import json
 import os
@@ -24,6 +25,7 @@ from . import kit_detail
 from . import kit_prices
 from . import kit_texture
 from . import kit_toll
+from . import kit_twenty_one
 from . import kit_guards
 from . import kit_voice
 from .scene_discernment import IMPROV_READ_SCHEMA, check_improv_read, discernment_candidates
@@ -208,6 +210,14 @@ class Room6CAdjudicator:
         self.source = source  # the room source, for its table procedures (set by the bridge)
 
     def resolve(self, action, revision, state, addressed=False):
+        result = self._resolve(action, revision, state, addressed)
+        if (self.source or {}).get('tolls'):
+            extra = self._toll_unstuck(result, state)
+            if extra:
+                result = dataclasses.replace(result, events=list(result.events) + extra)
+        return result
+
+    def _resolve(self, action, revision, state, addressed=False):
         require(isinstance(action, str) and action.strip(), 'Player action required')
         if state['area'] != 'area_06c':
             raise PendingRuling('This play slice covers area 6c only. No turn was committed.')
@@ -545,7 +555,9 @@ class Room6CAdjudicator:
                    for fact in reveals if fact not in state['known_facts']]
         events += list(extra_events)
         if getattr(engine, 'toll_outcome', None):
-            events += self._toll_settled(key, engine.toll_outcome, new_state, state)
+            # A toll staked this same action (extra_events) is the one that rode on the round.
+            staked = {event['toll']: event['state'] for event in extra_events if event.get('type') == 'toll_state'}
+            events += self._toll_settled(key, engine.toll_outcome, new_state, state, staked)
         events.append({'type': 'beat', 'tags': [kind],
                        'evidence': f'Player declared: {action}. Resolution: {public}'
                                    + (f' Numbers: {numbers}.' if numbers else '')})
@@ -583,8 +595,16 @@ class Room6CAdjudicator:
                      table[0] in toll.get('stakeable_in', [table[0]]) and
                      not kit_cards.is_live(table[2]['public']))
         amount = body.get('agreed') or body['asked']
+        if carry and table[0] in (state.get('procedures') or {}) and \
+                kit_cards.game_of(table[1]) == 'twenty_one' and \
+                not kit_twenty_one.can_cover(table[2]['public'], amount):
+            carry = False  # the same cap as any bet: the purse they brought, the table's most
+            short = True
+        else:
+            short = False
         if kind == 'toll_play_for' and carry:
             new_body['status'] = 'staked'
+            new_body['restore'] = body['status'] if body['status'] in kit_toll.OPEN else 'demanded'
             game = copy.deepcopy(table[2])
             game['public']['toll_stake'] = amount
             event = kit_toll.event(key, new_body, f'Player declared: {action[:300]}. The toll rides on the next round.')
@@ -594,24 +614,69 @@ class Room6CAdjudicator:
             return self._resolve_card(card_kind, action, revision, state, (table[0], table[1], game),
                                       lead=lead, extra_events=[event])
         new_body['status'] = 'deferred'
-        why = ('the game cannot carry it' if kind == 'toll_play_for' else 'the talk turned to the game')
+        why = ('you cannot cover it from what you brought to the table' if short and kind == 'toll_play_for'
+               else 'the game cannot carry it' if kind == 'toll_play_for' else 'the talk turned to the game')
         event = kit_toll.event(key, new_body, f'Player declared: {action[:300]}. Toll deferred: {why}; it stays '
                                               'pending and comes back.')
-        card_kind = kit_cards.card_intent(action, table[2]) if table else None
+        card_kind = kit_cards.card_intent(action, table[2]) if table and not short else None
         if card_kind:
             return self._resolve_card(card_kind, action, revision, state, table, extra_events=[event])
-        text = 'The toll stays on the table, unpaid, while the talk turns to the game.'
+        text = ('You cannot cover the toll from what you brought to the table; it stays owed.' if short and
+                kind == 'toll_play_for' else 'The toll stays on the table, unpaid, while the talk turns to the game.')
         return Resolution('toll_defer', text, [event, {'type': 'beat', 'tags': ['toll_defer'],
                                                        'evidence': event['evidence']}])
 
-    def _toll_settled(self, procedure, outcome, new_state, state):
+    def _toll_unstuck(self, result, state):
+        """A staked toll must ride on a round the player can still play. When nothing will
+        carry it any more (they left the table or the room, the table will not deal to them,
+        or the game dropped the stake because they cannot cover it), it goes back to the
+        status it had before it was staked: owed again, never stranded."""
         events = []
+        moved = any(event.get('type') == 'move' for event in result.events)
+        games = dict(state.get('procedures') or {})
+        tolls = {}
+        for event in result.events:
+            if event.get('type') == 'procedure_state':
+                games[event['procedure']] = event['state']
+            elif event.get('type') == 'toll_state':
+                tolls[event['toll']] = event['state']
+        for key, toll in kit_toll.compile_tolls(self.source).items():
+            body = tolls.get(key) or ((state.get('tolls') or {}).get(key))
+            if not body or body.get('status') != 'staked':
+                continue
+            riding = False
+            for procedure in toll.get('stakeable_in') or list(games):
+                public = (games.get(procedure) or {}).get('public') or {}
+                player = public.get('player')
+                if public.get('toll_stake') and player is not None and not player.get('unwelcome'):
+                    riding = True
+            if riding and not moved:
+                continue
+            restored = dict(body, status=body.get('restore') or 'demanded')
+            restored.pop('restore', None)
+            events.append(kit_toll.event(key, restored, 'The staked toll no longer rides on a round the player '
+                                         f'can play; it is {restored["status"]} again.'))
+            for procedure in toll.get('stakeable_in') or list(games):
+                game = games.get(procedure)
+                if game and (game.get('public') or {}).get('toll_stake'):
+                    cleared = copy.deepcopy(game)
+                    cleared['public']['toll_stake'] = None
+                    events.append({'type': 'procedure_state', 'procedure': procedure, 'state': cleared,
+                                   'evidence': f'The toll stake on {procedure} is cleared; the toll is owed again.'})
+        return events
+
+    def _toll_settled(self, procedure, outcome, new_state, state, staked=None):
+        events = []
+        if outcome not in ('won', 'lost'):
+            return events  # 'unstaked': _toll_unstuck puts it back to owed
         for key, (toll, body) in kit_toll.here(self.source, state).items():
+            body = (staked or {}).get(key) or body
             if body['status'] != 'staked' or procedure not in toll.get('stakeable_in', [procedure]):
                 continue
             stake = (new_state['public'].get('last_result') or {}).get('stake') or body['asked']
             new_body = dict(body, status='waived' if outcome == 'won' else 'paid',
                             paid=0 if outcome == 'won' else stake)
+            new_body.pop('restore', None)
             events.append(kit_toll.event(key, new_body, f'The toll rode on a round of {procedure}: {outcome}.'))
         return events
 

@@ -96,6 +96,29 @@ def _better(old, new):
     return b <= 21 and b > a
 
 
+_BUY_IN = re.compile(r"\bbuy(?:ing)?[- ]in\b")
+
+
+def bet_amount(action):
+    """The player's bet in this action. A buy-in amount ("I buy in with 20 gold") is the
+    purse they bring to the table, not a bet, unless they also use betting words."""
+    text = action.casefold()
+    if _BUY_IN.search(text) and not _BET.search(text):
+        return None
+    return player_amount(action)
+
+
+def can_cover(public, amount):
+    """True when the player can risk ``amount`` on one round: within the table's most per
+    round, and within the gold they brought to the table when they declared a purse (the
+    purse plus what they have won or lost since). The same cap every bet obeys."""
+    if amount > public['max_stake']:
+        return False
+    player = public.get('player')
+    purse = (player or {}).get('purse')
+    return purse is None or amount <= purse + player['net']
+
+
 def player_amount(action):
     text = action.casefold()
     found = _AMOUNT.search(text)
@@ -182,6 +205,7 @@ class TwentyOneTable:
         self.dealer = cheat['actor']
         self.trace = []
         self.toll_outcome = None
+        self.toll_note = ''
 
     def resolve(self, kind, action, revision, state):
         self._supplied_spent = False
@@ -218,17 +242,18 @@ class TwentyOneTable:
 
     # -- seating, the offer, and the mode ---------------------------------------
     def _seat(self, action, public):
+        found = re.search(r'\bbuy(?:ing)?[- ]in (?:with|for) (\d{1,4})\s*(?:gp|gold)\b', action.casefold())
+        purse = int(found.group(1)) if found else None
         if public['player'] is None:
-            purse = None
-            found = re.search(r'\bbuy(?:ing)?[- ]in (?:with|for) (\d{1,4})\s*(?:gp|gold)\b', action.casefold())
-            if found:
-                purse = int(found.group(1))
             public['player'] = {'net': 0, 'purse': purse, 'unwelcome': False}
+        elif public['player']['purse'] is None and purse is not None:
+            # Seated before naming a purse (e.g. offered the game first): the buy-in sets it now.
+            public['player']['purse'] = purse
 
     def _offer(self, action, revision, public, private):
         self._seat(action, public)
         public['offered'] = True
-        bet = player_amount(action)
+        bet = bet_amount(action)
         if bet:
             public['pending_bet'] = bet
         stake = f'your {bet} gp' if bet else f'whatever you bet; the house plays {public["default_stake"]} gp a round'
@@ -245,9 +270,18 @@ class TwentyOneTable:
 
     def _stake(self, action, public):
         dealer_gp = public['stacks'][self.dealer]
-        if public.get('toll_stake'):
-            return min(public['toll_stake'], public['max_stake']), True
-        asked = player_amount(action) or public.pop('pending_bet', None) or \
+        toll = public.get('toll_stake')
+        if toll:
+            if can_cover(public, toll):
+                return toll, True
+            # The toll can ride on a round only if the player can lose all of it, under
+            # the same cap as any bet. It goes back to being owed; this round is for gold.
+            public['toll_stake'] = None
+            self.toll_outcome = 'unstaked'
+            self.trace.append(f'toll stake {toll} gp exceeds what the player can cover; unstaked')
+            self.toll_note = ('You cannot cover the toll from what you brought to the table, so it '
+                              'stays owed; this round is for gold.')
+        asked = bet_amount(action) or public.pop('pending_bet', None) or \
             ((public['last_result'] or {}).get('stake')) or public['default_stake']
         stake = min(asked, public['max_stake'], dealer_gp)
         purse = public['player']['purse']
@@ -286,6 +320,8 @@ class TwentyOneTable:
                                      'caught': caught, 'detection': self.trace[-1] if watched else None})
         private['cheat_log'] = private['cheat_log'][-8:]
         stake_text = (f'the toll, {stake} gp, rides on it' if toll else f'{stake} gp a side')
+        if self.toll_note:
+            lines.insert(0, self.toll_note)
         if public['mode'] == 'check':
             return self._check_round(action, revision, public, private, lines, stake_text, caught), reveals
         return self._deal(action, revision, public, private, lines, stake_text), reveals
@@ -447,6 +483,11 @@ class TwentyOneTable:
         lead = ''
         if public['round'] and public['round']['phase'] == 'play':
             lead = self._settle(public, private, 'lose') + ' '
+        if public.get('toll_stake'):
+            # Leaving before the round it rode on: the toll is owed again, never stranded.
+            public['toll_stake'] = None
+            self.toll_outcome = 'unstaked'
+            lead += 'The toll you meant to play for is still owed. '
         net = player['net']
         public['last_result'] = {**(public['last_result'] or {}), 'left_table': True, 'your_net': net}
         public['player'] = None
@@ -454,7 +495,7 @@ class TwentyOneTable:
 
 
 def table_gold(public):
-    return sum(public['stacks'].values()) - (public['player']['net'] if public['player'] else 0)
+    return sum(public["stacks"].values()) + (public["player"]["net"] if public["player"] else 0)
 
 
 def public_view(config, public):

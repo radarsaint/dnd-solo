@@ -260,6 +260,92 @@ class Call6Toll(Base):
         self.assertIn(self.tolls()['passage_toll']['status'], ('waived', 'paid'))
 
 
+class TollStakeTests(Base):
+    """PR #47 review: a staked toll obeys the same purse cap as any bet, and never strands."""
+
+    def status(self):
+        return (self.runtime.load()[1].get('tolls') or {})['passage_toll']['status']
+
+    def game(self):
+        return self.runtime.load()[1]['procedures']['twenty_one']['public']
+
+    def test_cover_uses_the_same_cap_as_any_bet(self):
+        config = SOURCE['procedures']['twenty_one']
+        public = kit_cards.initial_state(config)['public']
+        self.assertTrue(kit_twenty_one.can_cover(public, 10), 'no purse declared: no cap but the table max')
+        self.assertFalse(kit_twenty_one.can_cover(public, config['max_stake'] + 1))
+        public['player'] = {'net': 0, 'purse': 5, 'unwelcome': False}
+        self.assertFalse(kit_twenty_one.can_cover(public, 10))
+        public['player']['net'] = 5
+        self.assertTrue(kit_twenty_one.can_cover(public, 10), 'winnings count toward what they can risk')
+
+    def test_engine_unstakes_a_toll_the_purse_cannot_cover(self):
+        config = SOURCE['procedures']['twenty_one']
+        table = kit_twenty_one.TwentyOneTable('twenty_one', config, {'insight': 1, 'perception': 2}, 's')
+        state = kit_cards.initial_state(config)
+        state['public']['player'] = {'net': 0, 'purse': 5, 'unwelcome': False}
+        state['public']['mode'] = 'check'
+        state['public']['toll_stake'] = 10
+        text, state, _ = table.resolve('card_round', 'Deal.', 1, state)
+        self.assertEqual(table.toll_outcome, 'unstaked')
+        self.assertIsNone(state['public']['toll_stake'])
+        self.assertFalse(state['public']['round']['toll'])
+        self.assertLessEqual(state['public']['round']['stake'], 5)
+        self.assertGreaterEqual(state['public']['player']['net'], -5, 'never past the declared purse')
+        self.assertIn('stays owed', text)
+
+    def test_play_for_with_a_short_purse_keeps_the_toll_owed(self):
+        self.play('I buy in with 5 gold.', 'Just roll for it.', roll=1)  # lose the 5
+        before = self.runtime.load()[0]
+        self.play('I play for the toll.')
+        self.assertEqual(self.runtime.load()[0], before + 1, 'the answer still commits')
+        self.assertEqual(self.status(), 'deferred')
+        self.assertIsNone(self.game()['toll_stake'])
+        self.assertGreaterEqual(self.game()['player']['net'], -5)
+
+    def test_buy_in_after_staking_caps_the_toll(self):
+        self.play('I play for the toll.')
+        self.assertEqual(self.status(), 'staked')
+        text = self.play('I buy in with 5 gold. Just roll for it.', roll=1)
+        self.assertIn('stays owed', text)
+        self.assertEqual(self.status(), 'demanded')
+        self.assertIsNone(self.game()['toll_stake'])
+        self.assertGreaterEqual(self.game()['player']['net'], -5)
+
+    def test_staking_and_settling_in_one_action_settles_the_toll(self):
+        self.play('I buy in with 30 gold.', 'Just roll for it.', roll=20)
+        self.play('I play for the toll.', roll=1)
+        self.assertEqual(self.status(), 'paid')
+
+    def test_leaving_the_table_before_the_round_unstakes_the_toll(self):
+        self.play('I play for the toll.')
+        self.assertEqual(self.status(), 'staked')
+        text = self.play('I leave the table.')
+        self.assertIn('still owed', text)
+        self.assertEqual(self.status(), 'demanded')
+        self.assertIsNone(self.game()['toll_stake'])
+        self.play('I pay the toll.')
+        self.assertEqual(self.status(), 'paid', 'the toll is answerable again')
+
+    def test_leaving_keeps_the_status_it_had_before_staking(self):
+        self.play('I refuse to pay the toll.')
+        self.play('I play for the toll.')
+        self.assertEqual(self.status(), 'staked')
+        self.play('I leave the table.')
+        self.assertEqual(self.status(), 'refused')
+
+    def test_leaving_the_room_unstakes_it_too(self):
+        self.play('I play for the toll.')
+        self.play('I go through the south door.')
+        self.assertEqual(self.status(), 'demanded')
+        self.assertIsNone(self.game()['toll_stake'])
+
+    def test_buy_in_is_a_purse_not_a_bet(self):
+        self.play('I buy in with 20 gold.', 'I play it out.')
+        self.assertEqual(self.game()['round']['stake'], SOURCE['procedures']['twenty_one']['default_stake'])
+        self.assertEqual(self.game()['player']['purse'], 20)
+
+
 class Call7ChoiceAndModes(Base):
     """TC-7a, TC-7b, TC-7c and the padding hand exemption."""
 
