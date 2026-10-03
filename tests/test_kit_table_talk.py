@@ -11,7 +11,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from runtime import kit_agent
+from runtime import kit_agent, kit_guards
 from runtime.kit_agent import KitChatBridge, Room6CAdjudicator, table_talk_event
 from runtime.state_context import InvalidChange, Runtime
 from test_kit_agent import FIXTURE, RecordingModel
@@ -129,28 +129,35 @@ class BrendonsLinesAreTableTalk(TableTalkCase):
 
     def test_table_talk_carries_no_claims_list(self):
         # The claims list (each secret's truth and which NPCs know it) stays out of table talk.
-        # personality_core (the same text in every packet) and dm_context (Kit's DM view, which
-        # the leak guards police) are still sent, so they are excluded from the word check.
+        # The whole packet is scanned except dm_context (Kit's DM view, which the leak guards
+        # police): the personality core and voice files are included since GPT's #68 removed
+        # the 6c marked-card example from them.
         line = 'Is the dealer cheating me?'
+        secrets = [phrase for phrase in kit_guards.leak_phrases(self.runtime.source())['phrases']
+                   if phrase not in kit_guards.leak_phrases(self.runtime.source())['player_may_name']]
+        self.assertIn('marked deck', secrets)
+        self.assertIn('doppelganger', secrets)
 
-        def outside_core_and_context(packet):
+        def outside_dm_context(packet):
             private = packet.get('private', packet)
-            rest = {key: value for key, value in private.items()
-                    if key not in ('personality_core', 'dm_context')}
-            return json.dumps([rest, packet.get('public')], ensure_ascii=False).casefold()
+            rest = {key: value for key, value in private.items() if key != 'dm_context'}
+            return json.dumps([rest, packet.get('public'), packet.get('instructions'),
+                               packet.get('table_talk')], ensure_ascii=False).casefold()
 
         played = self.bridge.prepare(line, 'in-game', one_pass=True)['input']
         self.assertIn('claims_here', played['private'])
         for word in ('marked', 'doppelganger'):
-            self.assertIn(word, outside_core_and_context(played))
+            self.assertIn(word, outside_dm_context(played))
         self.bridge.abandon('in-game')
         for one_pass in (True, False):
             with self.subTest(one_pass=one_pass):
                 prepared = self.bridge.prepare(line, f'talk-{one_pass}', one_pass=one_pass, table_talk=True)
-                packet = prepared['input']
-                self.assertNotIn('claims_here', packet.get('private', packet))
-                for word in ('marked', 'doppelganger'):
-                    self.assertNotIn(word, outside_core_and_context(packet))
+                packet = {**prepared['input'], 'instructions': prepared['instructions'],
+                          'table_talk': prepared.get('table_talk')}
+                self.assertNotIn('claims_here', prepared['input'].get('private', prepared['input']))
+                text = outside_dm_context(packet)
+                for phrase in secrets:
+                    self.assertNotIn(phrase.casefold(), text)
                 self.bridge.abandon(f'talk-{one_pass}')
 
     def test_the_cli_flag_reaches_the_bridge(self):
