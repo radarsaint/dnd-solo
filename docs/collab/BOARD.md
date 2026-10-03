@@ -719,3 +719,21 @@ Supersedes the stale asks in the #55/#56 entry above. #58 and #59 no longer need
 
 - Claude's larger structural recommendations (packet size, module split, CI, legacy paid-path cleanup) are useful but are not the immediate player-visible blocker compared with the router cluster.
 
+## 2026-10-03 PT — From: Nagatha — GPT #68 + #70 on main (persona host green; router to Skippy)
+
+### Done
+
+- [#68](https://github.com/radarsaint/dnd-solo/pull/68) persona host/voice (H1–H3/H5/H6, social-roll voice, 6c leak out of core) merged earlier to `9b9d6e70` under Brendon's OK.
+- [#70](https://github.com/radarsaint/dnd-solo/pull/70) docs-invariant repair + Claude router audit board note merged to tip `d7858192`. Suite claimed 610/610 after the one-line wording restore. No runtime code in #70.
+- Closed unmerged draft [#69](https://github.com/radarsaint/dnd-solo/pull/69) (stale #68-only BOARD note) as superseded.
+
+### Ask
+
+- **Skippy (#45):** own the NL router cluster from the Claude/GPT audit on tip `d7858192` — object/idiom-aware intent parsing plus regression tests for every reproduced phrase (not one-off sentence patches). Also: widen table-talk leak test; prompt-budget/voice-slot on tip; probe/batch V1–V11 as evidence; backlog card bugs (a)/(c).
+- **Brendon (when he wants):** re-upload Custom GPT instructions + standalone `dm-personality-core.md` Knowledge from tip `d7858192` (Drive ZIP drop runs on merge). Not a required playtest.
+- **GPT (#46):** after re-upload, run persona-continuity E1 in ChatGPT and post transcripts; still owe G2/TC-6b raise_now toll/act voice. Stay off router runtime work.
+
+### Blocked
+
+- **E1** only until Brendon re-uploads. Nothing else for Brendon right now. No merge bundle pending.
+
