@@ -365,8 +365,6 @@ class Room6CAdjudicator:
 
     def _resolve(self, action, revision, state, addressed=False):
         require(isinstance(action, str) and action.strip(), 'Player action required')
-        if state['area'] != 'area_06c':
-            raise PendingRuling('This play slice covers area 6c only. No turn was committed.')
         narration = QUOTED_SPEECH.sub(' ', action.translate(_TYPOGRAPHIC))
         # Speech and table talk to Kit are never resolved as checks.
         spoken = bool(QUOTED_SPEECH.search(action.translate(_TYPOGRAPHIC))) or is_ooc(action)
@@ -2565,7 +2563,7 @@ def prepare_opening(runtime, one_pass=False):
     revision, state = runtime.load()
     # The entry is the first Kit turn. Host bookkeeping committed before it (the player
     # character, feedback) is its own revision and does not use it up.
-    require(runtime.latest_kit_turn_id() is None and state['area'] == 'area_06c',
+    require(runtime.latest_kit_turn_id() is None,
             'The room entry is available only before the first turn')
     resolution = Resolution('opening', 'A newcomer has reached the card room.', [
         {'type': 'beat', 'tags': ['scene_entry'],
@@ -3178,7 +3176,7 @@ class KitChatBridge:
 EXAMPLE_SHEET = PROJECT_ROOT / 'tests/fixtures/characters/example_pc.json'
 
 
-def start_session(db, sheet_path=None, runtime=None):
+def start_session(db, sheet_path=None, runtime=None, room=None):
     """The one bootstrap step for any AI hosting Kit (see AGENTS.md): create a fresh room
     session, load the player's sheet (the generic example PC when none is given), and
     stage the room's opening through the bridge. Returns the first prepare packet plus
@@ -3186,7 +3184,7 @@ def start_session(db, sheet_path=None, runtime=None):
     own = runtime is None
     runtime = runtime or Runtime(db)
     try:
-        source = json.loads(ROOM_FIXTURE.read_text(encoding='utf-8'))
+        source = json.loads(Path(room or ROOM_FIXTURE).read_text(encoding='utf-8'))
         try:
             runtime.initialize(source, source['starting_area'])
         except InvalidChange as exc:
