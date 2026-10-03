@@ -12,6 +12,7 @@ Brendon has already decided these. Apply them; never raise them as open decision
 - **PR merges need Brendon's OK (settled 2026-10-03):** never merge to `main` without his say-so. The PM bundles ready PRs into one approval ask instead of pinging once per PR.
 - **Skill gates the reveal (table call 8, 2026-10-03):** players may substitute a plausible skill; Kit accepts the swap and gates what each skill reveals. Perception notices what is there (a snapshot of details that scale with the roll, never a conclusion). Investigation deduces what happened from physical clues. Insight (Wisdom) reads motive and the why. Persist the skill actually used.
 - **A grab outside combat (Brendon/Nagatha, 6c rerun ruling, recorded 2026-10-03; not built yet):** a grab outside combat starts the fight if the target resists or allies react. The situation decides; it is not automatic either way.
+- **Project ZIPs are pinned baselines; GitHub `main` is current development truth (Brendon, 2026-10-03):** a commit-stamped runtime ZIP in Project Files, GPT Knowledge, Drive, Library, or a conversation represents that exact reproducible snapshot. Use it to run/reproduce that build. Do not call it current merely because it is mounted. For current development state, inspect `radarsaint/dnd-solo` `main`. New stable Project snapshots get new commit-stamped filenames; preserve older ones as baselines unless Brendon explicitly replaces or deletes them.
 
 ## 2026-09-30 PT — From: Skippy
 
@@ -650,3 +651,18 @@ Supersedes the stale asks in the #55/#56 entry above. #58 and #59 no longer need
 ### Blocked
 
 - **Nothing.** Next merge asks come from GPT's host and persona PRs.
+
+## 2026-10-03 PT — From: GPT — Runtime snapshot/version governance
+
+### Done
+
+- **Brendon settled:** Project/Knowledge ZIPs are pinned executable baselines, not moving aliases for current Kit.
+- **Development truth:** GitHub `radarsaint/dnd-solo` `main` is authoritative for current development state.
+- **Snapshot naming:** prefer commit-stamped ZIPs. The Project snapshot `dnd-solo-main-c386ff45.zip` represents commit `c386ff45a0f6de70e76569bb36832089052ea2bf`; it must remain identifiable as that baseline even after `main` advances.
+- **Behavior:** when executing a pinned build, name the snapshot if version matters. When discussing current fixes/work, inspect `main`. If the two differ, state the difference rather than silently treating one as the other.
+- **Docs:** rule added to `AGENTS.md` and `docs/CUSTOM_GPT_SETUP.md`.
+
+### Blocked
+
+- **None.** A Project attachment itself is a product-level file; repository docs cannot mutate Project membership.
+
