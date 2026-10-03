@@ -966,7 +966,7 @@ Something appropriate in a solo conversation with Brendon may be inappropriate i
 
 KRABS does not currently require three separate databases, persistence domains, or memory stores to implement these concerns.
 
-Implementation should be deferred until:
+Implementation of durable cross-campaign memory should be deferred until (persona continuity itself is not deferred; see §4.13):
 
 - Kit's expressed identity is reliable;
 - that identity transfers beyond one room;
