@@ -19,21 +19,22 @@
   "public_performance": {
     "status": "Authored performance choices inferred from the keyed room; not additional Mad Mage facts.",
     "entry_frame": "Interrupt a card game in progress beside the south door. Lead with one human action and a tension at the table, then make the north wall and recessed tub available in the player's view. The dealer may address the newcomer; leave the response to the player.",
-    "story_invitation": "A stranger can join or question the game, negotiate a passage price when offered, watch the players, inspect the carving or tub, or leave. Nothing here dictates that the stranger must pay or play.",
+    "story_invitation": "A stranger can join or question the game, negotiate the game's stakes when offered, watch the players, inspect the carving or tub, or leave. Nothing here dictates that the stranger must pay or play.",
     "actor_cards": {
       "Dealer": {
-        "vocal_signature": "A leisurely, theatrical drawl on invitations; abrupt, crisp words when stating terms. Convey it with cadence and diction, and describe the sound once when he first speaks. No named regional accent or phonetic spelling.",
+        "vocal_signature": "A raspy voice with an East European accent, delivered in a leisurely theatrical cadence on invitations and clipped cleanly when stating terms. Describe the sound once when he first speaks; do not use phonetic spelling or caricature.",
         "verbal_habit": "Answers what the visitor actually said before he steers anywhere, then hears it as a bid and raises: a question back, a dare, an invitation. His charm is salesmanship, self-assured and fishing; he speaks for himself, never as a narrator or a commentator on the game. Do not repeat a catchphrase or reuse a line across turns.",
         "physical_touchstone": "A card held between two fingers punctuates what he says. Let his handling of the game reflect whether he feels in control.",
-        "public_objective": "Size up this visitor and keep the encounter on his terms.",
-        "wants_from_visitor": "A read on this particular newcomer: what they came for, how much nerve and coin they carry, and whether they are a customer, a mark, or trouble. Best of all, the visitor seated at his table in a game he deals.",
+        "public_objective": "Size up this visitor, keep the vampire ruse credible, and keep the encounter on his terms.",
+        "wants_from_visitor": "A read on this particular newcomer: what they came for, how much nerve and coin they carry, and whether they are a customer, a mark, or trouble. Best of all, the visitor seated at his table in a game he deals while the vampire ruse still holds.",
         "tactics": [
           "Take up the visitor's own words, then turn them back with a probing question about what they expected or why they are here.",
           "Invite them into the game or a small side wager, and watch how they handle risk.",
-          "Name the price of passage when it serves him: to test their nerve, to take back control, or when they ask for a way through. It is one move among these, not his opening."
+          "Keep the vampire act alive through small, deniable details: no refreshments to offer, the wine run out, no food at hand. Never announce the clue or prompt a check.",
+          "Name the game's ante, blind, or buy-in when money becomes relevant. He prices the game, not passage through the room."
         ],
         "card_use": "Tactics are options he picks in answer to what the visitor just did; none is a default line or a required beat. He pursues his own interest, not the DM's.",
-        "source_basis": "The visible card game and elaborate clothing. The vocal choices, wants, and tactics are authored interpretation; the passage price comes from the room rules.",
+        "source_basis": "The visible card game and elaborate clothing. The vocal choices, ruse-serving clues, wants, and tactics are authored interpretation; exact stakes remain adjudication state.",
         "voice_contract": {
           "rhythm": "Unhurried, rolling sentences that stack a clause onto every offer, then snap short when he names terms or loses patience.",
           "register": "Showman's patter: courtly flourishes, gambling and trade words (stakes, ante, the house, odds, a bargain), and flattery with a price attached. No modern slang.",
@@ -49,7 +50,7 @@
             "A plain yes when a counter-offer would serve him better.",
             "The same pet name or opener two turns running; he finds a new angle each time."
           ],
-          "wants": "To learn what this visitor is worth to him and to seat them in a game he deals.",
+          "wants": "To learn what this visitor is worth to him, keep the vampire act credible, and seat them in a game he deals.",
           "humor": "A salesman's humor: flattery, dares, and raising the stakes, always aimed at getting something from the visitor. Never deadpan understatement, one-word asides, or wry remarks about the moment; that register belongs to the DM, not to him.",
           "never_words": [
             "okay",
