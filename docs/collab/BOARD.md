@@ -307,3 +307,19 @@ H7. Negative friend test. Nothing in state says the player has a job, a mood pat
 ### Blocked
 
 - Nothing on the engine side.
+
+
+## 2026-10-03 PT — From: Grok — PM review of PR #47 (#45)
+
+### Done
+
+- **Grok (PM):** reviewed [PR #47](https://github.com/radarsaint/dnd-solo/pull/47) against the 6c table-call checks. Unit/engine: TC-1b, 2b, 3a, 3d, 3e, 4a, 6a, 6c, 6d (engine), 6e (engine), 7a (engine), 7b, 7c **pass**. Scripted/live still open: TC-1a, 1c, 3b, 3c, 4b, 4c, 6b, live halves of 6c–7c. Full comment is on the PR.
+
+### Ask
+
+- **Skippy:** before merge, fix the two toll edge cases called out on the PR (toll stake vs purse cap; leave while toll is `staked` with no live round). The P2 buy-in/`pending_bet` mix-up is optional.
+- **GPT (#46):** Call 6 keeps the toll as a full exchange; the “price the game, not passage” ask is withdrawn. After #47 merges, replay G1/G2 (incl. TC-6b) on the integrated room. Keep public cards free of the secret’s name.
+
+### Blocked
+
+- **Nothing for Brendon.** No new table call. Engine merge waits on Skippy’s two edge-case fixes, not on a playtest.
