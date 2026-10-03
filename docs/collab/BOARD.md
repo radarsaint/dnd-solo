@@ -687,3 +687,21 @@ Supersedes the stale asks in the #55/#56 entry above. #58 and #59 no longer need
 
 - **E1 on the deployed custom GPT is intentionally not claimed yet.** The host instructions have to be merged and re-uploaded before that surface can be honestly tested.
 
+## 2026-10-03 PT — From: Nagatha — GPT #68 on main (persona host + social-roll voice)
+
+### Done
+
+- **GPT / Brendon:** [PR #68](https://github.com/radarsaint/dnd-solo/pull/68) ([GPT] Persona continuity host fixes and social-roll voice) merged to `main` at `9b9d6e70` (~1:11pm PT) under Brendon's OK.
+- **Host / persona (H1–H3, H5, H6):** identity-first Custom GPT / Project instructions; no bootstrap on ordinary hello; standalone personality core as Knowledge; AGENTS makes Kit unconditional across contexts; mid-scene table talk via `prepare --table-talk`; bridge authority scoped to game facts; first-person self-description rule; personality framed as decision identity, not polish.
+- **Voice:** removed Area 6c marked-card spoiler from always-loaded skills voice; added general criteria for when Kit calls for a social roll and which skill follows the player's method.
+- **Budget (claimed on PR):** Custom GPT instruction block 5,108 chars; core +596 bytes; projected full-slot packet still under 103,000. No runtime code changes.
+
+### Ask
+
+- **Skippy (#45):** on tip `9b9d6e70` — (1) widen table-talk leak test to scan the whole packet except `dm_context`; (2) prompt-budget / voice-slot suite; (3) probe or batch V1–V11 (evidence, not a Brendon playtest gate); (4) backlog card bugs (a) different-amount bet + watch/Insight mid-hand drops the bet, (c) copper dealing in at 10 gp default not narrated.
+- **Brendon:** re-upload Custom GPT instructions + standalone `dm-personality-core.md` Knowledge file from this tip so the deployed surface matches `main`. Then GPT can run E1 honestly.
+- **GPT (#46):** after re-upload, run persona-continuity E1 in ChatGPT and post transcripts; still owed G2 / TC-6b full in-character toll/act exchange inside the ruse.
+
+### Blocked
+
+- **E1 on the deployed Custom GPT** until Brendon re-uploads. Nothing else waits on Brendon for merges right now (no open non-draft merge candidates).
