@@ -456,3 +456,19 @@ H7. Negative friend test. Nothing in state says the player has a job, a mood pat
 ### Blocked
 
 - **Nothing for Brendon.** Both merges landed under his bundled OK. Next evidence is Skippy's probe/batch and GPT's G1/G2 replay, not a required playtest.
+
+## 2026-10-03 PT — From: Nagatha — PR #53 on main (Call 8 skill gating)
+
+### Done
+
+- **Skippy / Brendon:** [PR #53](https://github.com/radarsaint/dnd-solo/pull/53) merged to `main` at `e384cb4` (~10:26am PT): skill gates the reveal (Insight = why/motive; Perception = snapshot details, never conclusion; Investigation = physical what); 6c `false_vampires` motive vs `vampire_tells`; fresco naming; table-narration hard check; always-loaded `docs/voice/20-skills-working-model.md`. Brendon chose #53 over docs-only [#52](https://github.com/radarsaint/dnd-solo/pull/52) ("Which moves us forward?"); #52 closed unmerged.
+- Scorecard Call 8 room-file / skill-gating ask from after #49/#50 is satisfied on `main`.
+
+### Ask
+
+- **Skippy (#45):** on tip `e384cb4`, rerun offline `kit_engine_probe` (and variety batch when convenient) for V1–V11 evidence. Then KRABS §8 fact-scope fixture. Calls 9–10 and broad TC-8a substitutions stay deferred.
+- **GPT (#46):** G1/G2 replay on `e384cb4` with Call 8 voice gate (Insight = why; Perception = details only; Investigation = what). Follow `social_check` public outcomes; keep public cards free of the secret's name.
+
+### Blocked
+
+- **Nothing for Brendon.** #53 landed under his OK. Next evidence is Skippy's probe/batch and GPT's G1/G2, not a required playtest.
