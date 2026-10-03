@@ -18,6 +18,7 @@ import uuid
 from dataclasses import dataclass
 from pathlib import Path
 
+from . import kit_attitude
 from . import kit_brief
 from . import kit_cards
 from . import kit_combat
@@ -156,6 +157,12 @@ SOCIAL_WORDS = re.compile(
     r'intimidate|join|bet|watch|observe|nod|shrug|thank|insist|warn|demand|charm|compliment|stare|'
     r'glare)(s|es|d|ed|ing)?\b')
 ADDRESS_WORDS = re.compile(r"\b(you|you're|your|yours|yourself|y'all)\b")
+SEATING = re.compile(r"\b(?:take|takes|taking|took)\s+(?:a|the|that|an empty|the empty|my|his|her|their)\s+"
+                     r"(?:seat|chair|stool|place)\b|\bpull(?:s)? up a chair\b|\b(?:sit|sits|sat|sitting) down\b")
+GEAR_SET = re.compile(r"\b(?:sling|slings|slung|stow|stows|strap|straps|set|sets|lay|lays|put|puts|rest|rests|hang|"
+                      r"hangs)\b[^.?!]{0,30}\b(?:shield|weapon|sword|axe|bow|crossbow|staff|pack|rapier|mace)\b"
+                      r"[^.?!]{0,30}\b(?:on(?:to)? (?:my|his|her|their) back|aside|down|away|against|by (?:my|his|her|their)"
+                      r" (?:chair|feet|side)|at (?:my|his|her|their) feet|under the (?:table|chair))\b")
 PHYSICAL_VERBS = r'(steal|pocket|grab|pick up|smash|break|hide|climb|force|open|disarm)'
 # A declared physical act: "I grab the ring", "I quickly open the door". When an NPC has
 # just asked the player something, only this shape still counts as physical; a verb
@@ -219,7 +226,10 @@ def room_intent(action, addressed=False):
         return 'inspect_tub'
     if OBSERVE.search(words):
         return 'observe'
-    if re.search(r'\b(take a seat|pull up a chair)\b', words):
+    if SEATING.search(words) or GEAR_SET.search(words):
+        # Sitting down, or slinging, stowing, or setting gear aside, is table business, not a
+        # physical ruling ("I sling my shield onto my back and take the seat."): the decision's
+        # pc_state records the gear.
         return 'social'
     physical = (re.search(r'\b' + PHYSICAL_VERBS + r'\b', words) or
                 (re.search(r'\btake\b', words) and
@@ -265,10 +275,12 @@ def combine(first, second):
 
 
 class Room6CAdjudicator:
-    def __init__(self, perception=None, insight=None, roll=None, sleight_of_hand=None, source=None):
+    def __init__(self, perception=None, insight=None, roll=None, sleight_of_hand=None, source=None,
+                 npc_roll=None):
         self.perception = perception
         self.insight = insight
         self.roll = roll
+        self.npc_roll = npc_roll  # the NPC's behind-the-screen d20 (tests); else seeded
         self.sleight_of_hand = sleight_of_hand
         self.source = source  # the room source, for its table procedures (set by the bridge)
 
@@ -278,7 +290,27 @@ class Room6CAdjudicator:
             extra = self._toll_unstuck(result, state)
             if extra:
                 result = dataclasses.replace(result, events=list(result.events) + extra)
+        if (self.source or {}).get('attitudes') and not is_ooc(action):
+            # Behind the screen: an NPC may notice what the PC is doing (runtime/kit_attitude.py).
+            hidden = kit_attitude.check_events(self.source, state, action, revision,
+                                               lambda skill, words: self._pc_score(skill, words, state),
+                                               self.npc_roll)
+            if hidden:
+                result = dataclasses.replace(result, events=list(result.events) + hidden)
         return result
+
+    def _pc_score(self, skill, action, state):
+        """The PC's number against an NPC's hidden check: their stated roll in that skill, else
+        their passive; None (no check) when no sheet or roll gives one."""
+        try:
+            modifier, passive = self._pc_numbers(skill, state, action)
+        except PendingRuling:
+            return None
+        supplied = kit_cards.supplied_roll(action, modifier, skill) \
+            if kit_rolls.stated_skill(action) == skill else None
+        if not supplied:
+            return passive
+        return supplied[0] + (supplied[1] if supplied[1] is not None else modifier)
 
     def _resolve(self, action, revision, state, addressed=False):
         require(isinstance(action, str) and action.strip(), 'Player action required')
@@ -311,6 +343,12 @@ class Room6CAdjudicator:
             return self._also_card(self._resolve_lie_read(action, narration, revision, state),
                                    action, narration, revision, state)
         table, card_kind = self._card_call(action, narration, state)
+        if card_kind == 'card_accuse' and kit_attitude.quiet(narration) and \
+                kit_rolls.stated_skill(action) in SOCIAL_CHECK_SKILLS:
+            # A quiet word with a stated roll is a private accusation: a social check on the
+            # accused, not the table's public call (live 6c: a quiet word and a failed Intimidation).
+            return self._resolve_social_check(kit_rolls.stated_skill(action), action, narration, revision,
+                                              state, private=True)
         kind = room_intent(action, addressed)
         # Combat and stealth keep their rulings at the card table: "I raise my crossbow" is
         # not a raise, and sneaking out "while they check their hands" is not a check.
@@ -415,7 +453,7 @@ class Room6CAdjudicator:
         return Resolution(kind, public, [event])
 
     # -- social checks rolled in conversation -----------------------------------------
-    def _resolve_social_check(self, skill, action, narration, revision, state):
+    def _resolve_social_check(self, skill, action, narration, revision, state, private=False):
         """The player's stated roll in a social skill against the NPC they address: that
         NPC's flat 10 + Insight (10 + Athletics for a contest of strength). NPCs never roll.
         A bare number is the Avrae total (runtime/kit_rolls.py). Numbers stay in evidence."""
@@ -440,8 +478,12 @@ class Room6CAdjudicator:
         evidence = (f'Player declared: {action[:300]}. {name} d20 {die} + {modifier} = {total} vs {who} '
                     f'flat 10 + {against.title()} = {flat}: {"success" if success else "failure"}. '
                     'The NPC acts on this outcome.')
-        return Resolution('social_check', public, [{'type': 'beat', 'tags': ['social_check', skill],
-                                                     'evidence': evidence}])
+        tags = ['social_check', skill] + (['private_accusation'] if private else [])
+        if private:
+            evidence += ' A quiet word to them, not a public accusation: the table is not called out.'
+        # The social-roll hook: the outcome moves the NPC's attitude (runtime/kit_attitude.py).
+        moved = kit_attitude.social_roll(self.source, state, who, skill, success, evidence)
+        return Resolution('social_check', public, [{'type': 'beat', 'tags': tags, 'evidence': evidence}] + moved)
 
     # -- physical acts and fights (runtime/kit_combat.py) -----------------------------
     # -- one message, several intents ----------------------------------------------
@@ -1375,6 +1417,9 @@ PRIVATE_INSTRUCTIONS = (
     'plan (at most 5 beats; each new, keep, advance, or revise with a reason; drop the rest with a '
     'reason); leave plan out to carry it unchanged. Roots cite actors, claims, facts, or agenda; '
     'nobody builds toward a secret they are unaware of. Never say the plan; play it. '
+    'ATTITUDES: dm_only.attitudes_here is how each NPC here regards the player and what last '
+    'moved it; play it, never name it or a roll behind it. A story_brief threshold marked '
+    'crossing_now steers, it does not force: play toward its then, starting this turn. '
     'STORY: story_brief is what this scene is about, from the room data, every turn here: who '
     'wants what and their traits, what each act or con is for, the primary hooks, thresholds, '
     'and endings. The NPCs pursue it, not just react: an act serves its purpose, and an '
@@ -2029,10 +2074,12 @@ def turn_events(runtime, body, plan, turn_id, record=None):
         events.append(kit_plan.plan_event(plan['plan'], turn_id))
     if runtime.source().get('story'):
         revision, _ = runtime.load()
-        beat = kit_brief.beat_event(runtime.source(), runtime.preview_state(revision, events),
-                                    (record or {}).get('spoken'), turn_id)
+        after = runtime.preview_state(revision, events)
+        beat = kit_brief.beat_event(runtime.source(), after, (record or {}).get('spoken'), turn_id)
         if beat:
             events.append(beat)
+        # A threshold whose trigger now holds crosses (once per scene) and moves attitudes.
+        events += kit_brief.threshold_events(runtime.source(), after, turn_id)
     if plan.get('pc_state'):
         events.append(kit_agenda.pc_state_event(plan['pc_state'], turn_id))
     if plan.get('claims'):
@@ -2191,8 +2238,9 @@ def trim_order(chosen, stored, action, recent=MEMORY_RECENT, aliases=None):
 # public half is ~27.4 KB and the combined floor after every memory trim is ~106.1 KB.
 # 118 KB was the private budget plus that public half, with ~2.6 KB to spare; 123 KB adds the story brief.
 # +5 KB for the room's story brief in the private half (runtime/kit_brief.py).
-# +2 KB for the personality core's growth on main 8f2ad2e (the same ~1.7 KB as the private budget).
-ONE_PASS_BUDGET_BYTES = 125000 + VOICE_MAX_BYTES  # plus the docs/voice slot at its cap
+# +2 KB for the personality core's growth on main 8f2ad2e (the same ~1.7 KB as the private budget);
+# +1 KB for NPC attitudes (dm_only.attitudes_here and the ATTITUDES rule, runtime/kit_attitude.py).
+ONE_PASS_BUDGET_BYTES = 126000 + VOICE_MAX_BYTES  # plus the docs/voice slot at its cap
 CONTEXT_KEEP_HISTORY = 1          # public dialogue turns always kept
 CONTEXT_KEEP_RHYTHM = 3           # recent_rhythm entries always kept
 EPISODE_SPOKEN_TRIM_CHARS = 300   # public excerpt per episode after trimming

@@ -60,7 +60,8 @@ RHYTHM_EVIDENCE_MAX_CHARS = 600  # per recent_rhythm entry; 12 entries stay insi
 # +5 KB for the room's story brief (runtime/kit_brief.py; the 6c brief measures ~4.6 KB).
 # +2 KB (2026-10-03, main 8f2ad2e): Brendon's dm-personality-core grew by 14 lines (~1.7 KB);
 # the worst case with a full voice slot measured 1.7 KB over on main itself.
-CONTEXT_BUDGET_BYTES = 96000 + VOICE_MAX_BYTES  # 102 KB: the measured worst case, story brief, core growth, full voice slot
+# +1 KB for NPC attitudes (dm_only.attitudes_here and the ATTITUDES rule, runtime/kit_attitude.py).
+CONTEXT_BUDGET_BYTES = 97000 + VOICE_MAX_BYTES  # 103 KB: worst case, story brief, core growth, attitudes, full voice slot
 # (88 KB -> 89 KB, 2026-10-03: area 6c gained the vampire_tells fact and claim, table call 8).
 # A staged or one-pass body carries the post-event public view (with the whole ledger)
 # and the procedure state: ~49.4 KB in the same worst case.
@@ -92,7 +93,8 @@ CANON_SLOT = re.compile(r'^[a-z0-9_:]+(/[a-z0-9_]+){1,3}$')
 # Events a Kit turn may add at commit, after the adjudicated batch it was prepared with:
 # the decision's canon entries, the oracle deal it consumed, and procedure state.
 COMMIT_APPENDED_EVENTS = ('canon_entry', 'oracle_draw', 'procedure_state', 'claim_said', 'agenda_turn',
-                          'pc_state', 'kit_plan', 'toll_state', 'story_beat')
+                          'pc_state', 'kit_plan', 'toll_state', 'story_beat', 'threshold_crossed',
+                          'attitude_shift')
 # A turn whose decision asks the player a question resolves nothing: its only event is a
 # rhythm beat tagged 'asked' whose evidence is the question.
 ASKED_EVENT_PREFIX = 'Kit asks before resolving: '
@@ -236,8 +238,9 @@ class Runtime:
             require(actor['location'] in source['areas'], 'Unknown actor area')
         # DM prep is checked once, before play: the texture palette (roots, no prices, no
         # leaks) and every table procedure's config. Local import: both import this module.
-        from . import kit_agenda, kit_cards, kit_claims, kit_texture, kit_toll
+        from . import kit_agenda, kit_attitude, kit_cards, kit_claims, kit_texture, kit_toll
         kit_texture.check_palette(source)
+        kit_attitude.compile_attitudes(source)
         kit_claims.compile_claims(source)
         kit_agenda.compile_agenda(source)
         kit_toll.compile_tolls(source)
@@ -776,6 +779,12 @@ class Runtime:
         elif kind == 'story_beat':
             from . import kit_brief
             kit_brief.apply_event(state, source, event)
+        elif kind == 'threshold_crossed':
+            from . import kit_brief
+            kit_brief.apply_threshold(state, source, event)
+        elif kind == 'attitude_shift':
+            from . import kit_attitude
+            kit_attitude.apply_event(state, source, event)
         elif kind == 'scene_state':
             from . import kit_combat
             kit_combat.check_scene(event.get('state'))
@@ -830,6 +839,13 @@ class Runtime:
             state['rhythm'] = state['rhythm'][-12:]
         else:
             raise InvalidChange(f'Unsupported event: {kind}')
+
+    @staticmethod
+    def _attitudes_here(source, state):
+        """DM-only: present NPCs' attitudes and what last moved them (runtime/kit_attitude.py)."""
+        from . import kit_attitude
+        here = kit_attitude.attitudes_here(source, state)
+        return {'attitudes_here': here} if here else {}
 
     @staticmethod
     def _tolls_here(source, state):
@@ -924,6 +940,7 @@ class Runtime:
                         if not k.startswith('_') and p.get('offered', True)}}
                        if source.get('procedures') else {}),
                     **({'tolls_here': self._tolls_here(source, state)} if self._tolls_here(source, state) else {}),
+                    **self._attitudes_here(source, state),
                 },
                 'recent_rhythm': state['rhythm'],
                 'constraints': [
