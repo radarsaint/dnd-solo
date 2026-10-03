@@ -1,8 +1,8 @@
-"""A source-backed demand as a scene beat, not a price tag (Brendon's table call 6).
+"""The passage toll as a conversation with stakes, not a price list (Brendon's table call 6).
 
 The room source can declare ``tolls``: a demand an NPC makes (area 6c: the gang wants
 10 gp a head for safe passage). Brendon's call: the toll stands, but when it comes up it
-is a real exchange. A named NPC demands it with a reason in character; the player can
+is a full exchange. One NPC asks for it, in character and with a motive; the player can
 pay, haggle, refuse, or steer the talk back to the game; refusing has consequences; and
 the toll can be played for only if the running table procedure can pay it out.
 

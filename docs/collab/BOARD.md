@@ -2,6 +2,14 @@
 
 Append-only. Read this file before starting work; add a dated entry rather than rewriting history.
 
+## Settled rules — don't re-ask
+
+Brendon has already decided these. Apply them; never raise them as open decisions. Add to this list (dated) when he settles another one.
+
+- **Unnamed DCs (settled more than once, recorded 2026-10-02):** when the source names no DC, Kit sets it at DM discretion. The baseline the runtime uses is 10 + floor(dungeon floor level / 3) (`kit_claims.default_dc`; the area's `floor_level`, else 1). An NPC who actively hides something brings a flat 10 + their skill instead. Example: the ring appraisal is not an open question.
+- **Numbers stay in the ledger (table call 4, 2026-10-02):** public text never shows a DC, a roll total, a modifier, or die math. A roll request names the skill only; a success is told as what the character notices. The numbers stay in event evidence and traces.
+- **No paid OpenAI API:** Kit runs inside ChatGPT through the bridge on Brendon's subscription. No `OPENAI_API_KEY`, no paid-API play path.
+
 ## 2026-09-30 PT — From: Skippy
 
 ### Ask
@@ -276,3 +284,26 @@ H7. Negative friend test. Nothing in state says the player has a job, a mood pat
 ### Blocked
 
 - **Integrated replay waits on issue #45's engine corrections.** GPT should not compensate in prose for procedure, number, motive-state, drink-fixture, or adjudication behavior owned by Skippy.
+
+
+## 2026-10-03 PT — From: Skippy — Area 6c table calls, engine side (#45)
+
+### Done
+
+- **Skippy:** Stage 1 engine work for #45 is on branch `kit-6c-table-calls` (PR into `main`, not merged).
+  - **Game choice (calls 1 and 7):** a bare "I play" commits a turn that offers one check a round or twenty-one (blackjack, hit or stand). Stakes are the player's bet, else 10 gp, up to what the dealer will risk. The marked deck works in both modes (an edge in check mode, dealing seconds in play mode), and watch and accuse still work. The card-naming stalls and the blackjack/poker word ban are gone. Three-Dragon Ante stays in the engine but isn't offered at 6c.
+  - **A game in the room isn't a trigger (TC-1b):** a decision can't start a table procedure unless the player asked about the game, or an NPC agenda move records a steer or stall reason.
+  - **Looking vs searching (call 2):** a plain look is free description and never finds the key. An active search (Perception, DC 13) does.
+  - **Ruse (call 3):** every actor's motive and a public-safe `scene_objective` on each card carry "keep the act, keep the visitor seated". "Something's off" and bare Insight route to the DC 14 disguise claim. Drinks are out of the fixture, and a guard rejects serving food or drink at 6c.
+  - **No public numbers (call 4):** checks, lie reads, stealth, knowledge, and card rounds keep their numbers in the ledger only. A hard guard rejects DCs, totals, modifiers, or bonus reminders in performances.
+  - **Toll exchange (call 6):** `runtime/kit_toll.py` persists the toll status (not raised, demanded, countered, negotiated, paid, refused, deferred, staked, or waived). Pay, haggle (Persuasion against Uktarl's flat number), refuse (pressure, then the source fallback toward the Xanathar goblinoids), put off, and play for it each commit a turn. Agreed amounts pass the numeric guard. A bare toll line beside game talk is rejected.
+  - **Settled rules:** added the "Settled rules — don't re-ask" section at the top of this board. The unnamed-DC rule is also recorded in `kit_claims.default_dc` and the claims docs.
+
+### Ask
+
+- **GPT (#46):** I reconciled your 6c Dealer card with Brendon's revised call 6, which keeps the toll and says to play it as a full exchange. The card has a toll tactic again, written in that form, and `story_invitation` mentions answering the toll. I also reworded "vampire ruse/act" on the public card to "the act" or "pale, old-world act". The performer must not see the secret, and two public-safe tests failed on `main` because of it. `main` also had 3 tests asserting the old "drawl" voice and the old price tactic, and I updated those. Please keep public cards free of the secret's name.
+- **Live playtest:** the scripted evals (TC-1a, 1c, 3b, 3c, 4b, 4c, 6b, and the live halves of 6c, 6d, 6e, 7a, and 7c) need a ChatGPT run on this branch.
+
+### Blocked
+
+- Nothing on the engine side.

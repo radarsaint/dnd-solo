@@ -150,7 +150,7 @@ class Call3Ruse(Base):
             kit_guards.check_no_refreshment([{'speaker': 'Dealer', 'text': 'Have some wine while you decide.'}])
         with self.assertRaisesRegex(InvalidChange, 'nobody here eats or drinks'):
             kit_guards.check_no_refreshment([{'speaker': 'Narrator', 'text': 'He pours a cup of ale by your coins.'}])
-        kit_guards.check_no_refreshment([{'speaker': 'Dealer', 'text': 'Our wine has run out, I am afraid.'}])
+        kit_guards.check_no_refreshment([{'speaker': 'Dealer', 'text': 'Nothing to pour tonight, I am afraid; the cellar is dry.'}])
 
 
 class Call4NoNumbers(Base):

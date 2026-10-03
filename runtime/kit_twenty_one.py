@@ -2,9 +2,9 @@
 
 Brendon's table call 7 (2026-10-02): a player who says "I play the game" gets a choice
 between resolving the round with one check and an easy, familiar game (blackjack- or
-poker-class). Call 1: stakes are the player's bet or an amount the NPC is willing to lose
-(a 10 gp ante or blind is fine; never "high card for 1 gp"), and the mechanics are only
-as heavy as the time is worth.
+poker-class). Call 1: the stake is what the player bets, or what the dealer will risk
+(a 10 gp default round is fine; a 1 gp high-card flip is not), and the rules stay light
+enough to be worth the table time.
 
 So this procedure has two modes, chosen by the player and persisted:
 

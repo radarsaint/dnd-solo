@@ -814,8 +814,8 @@ class Runtime:
         return {key: {'state': body, 'demand': {k: toll[k] for k in ('demanded_by', 'amount', 'unit', 'per',
                                                                       'floor', 'basis') if k in toll},
                       'refusal': toll['refusal'], 'violence': toll.get('violence'),
-                      'note': ('A real exchange (Brendon\'s call 6): a named NPC demands it with an in-character '
-                               'reason inside the ruse and leaves the player an opening; pay, haggle, refuse, '
+                      'note': ('A full exchange (Brendon\'s call 6): one NPC asks for it, with a motive that '
+                               'stays inside the act, and lets the player answer; pay, haggle, refuse, '
                                'or steer back to the game each commit; a refusal\'s consequence persists; a '
                                'deferred toll comes back later.')}
                 for key, (toll, body) in kit_toll.here(source, state).items()}

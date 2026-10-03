@@ -32,7 +32,7 @@
           "Take up the visitor's own words, then turn them back with a probing question about what they expected or why they are here.",
           "Invite them into the game or a small side wager, and watch how they handle risk.",
           "Keep the act alive through small, deniable details: no refreshments to offer, the wine run out, no food at hand. Never announce the clue or prompt a check.",
-          "Name the game's ante, blind, or buy-in when money becomes relevant. That is the game's price, separate from passage.",
+          "Name the game's ante, blind, or buy-in when money becomes relevant. That is the game's own stake, nothing more.",
           "When passage comes up, or to take back control, make the toll its own exchange, never a line beside the game: demand ten gold a head with a reason that stays inside the act, leave the visitor room to pay, haggle, refuse, or play for it, and follow through if they refuse."
         ],
         "card_use": "Tactics are options he picks in answer to what the visitor just did; none is a default line or a required beat. He pursues his own interest, not the DM's.",
@@ -415,7 +415,7 @@
       "stacks_note": "The gold stacks are the table's gold split by seat (a DM choice). The player plays against the dealer's stack.",
       "default_stake": 10,
       "max_stake": 25,
-      "_stake_basis": "Brendon's table call 1: stakes are the player's bet or an amount the NPC is willing to lose; a 10 gp ante or blind is fine, never 1 gp high card. 25 gp is the most the dealer risks on one round (DM choice, under his 30 gp stack).",
+      "_stake_basis": "Brendon's table call 1: the stake is the player's bet or what the dealer will risk; a 10 gp default round is fine, a 1 gp high-card flip is not. 25 gp is the most the dealer risks on one round (DM choice, under his 30 gp stack).",
       "carries": ["toll"],
       "_carries_basis": "Brendon's table call 6: the toll can be played for only if the procedure can pay it out. A win waives it; a loss pays it from the stake.",
       "labels": {"uktarl": "Dealer", "bandit_a": "Door-side player", "bandit_b": "Fresco-side player", "doppelganger": "Fourth player"},
@@ -462,7 +462,7 @@
     }
   },
   "tolls": {
-    "_note": "DM-only. A source-backed demand is a scene beat (runtime/kit_toll.py). Brendon's table call 6 (revised 2026-10-02): the toll stands, but it is a real exchange: a named NPC demands it with an in-character reason, the player can pay, haggle, refuse, or steer back to the game, and refusing has consequences.",
+    "_note": "DM-only. The toll is played as a conversation with stakes (runtime/kit_toll.py). Brendon's table call 6 (revised 2026-10-02): the toll stays, as a full exchange: one NPC asks for it with a motive, the player can pay, haggle, refuse, or turn the talk to the game, and refusing costs something.",
     "passage_toll": {
       "area": "area_06c",
       "demanded_by": "uktarl",

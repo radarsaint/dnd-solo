@@ -921,7 +921,7 @@ REFRESHMENT_NEGATED = re.compile(r"\b(no|not|none|nothing|never|without|empty|dr
 
 def check_no_refreshment(segments):
     """HARD where the area says so: no public line serves, offers, or shows food or drink.
-    Saying there is none ("our wine has run out") is the clue, and passes."""
+    Saying there is none (the cellar is dry, nothing to offer) is the clue, and passes."""
     for segment in segments:
         for sentence in sentences(segment['text']):
             text = normalize(sentence)

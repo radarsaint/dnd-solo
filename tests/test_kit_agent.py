@@ -182,7 +182,7 @@ class KitAgentTests(unittest.TestCase):
         self.assertEqual(self.model.performances[0]['selected_move']['focus_actor'], 'Dealer')
         self.assertEqual(self.model.performances[0]['selected_move']['brief']['tactic'],
                          'The dealer treats the question as an opening bid.')
-        self.assertIn('drawl', self.model.performances[0]['performance_reference']['actor_cards']['Dealer']['vocal_signature'])
+        self.assertIn('raspy', self.model.performances[0]['performance_reference']['actor_cards']['Dealer']['vocal_signature'])
         self.assertIn('Kit:', result['spoken'])
         self.assertIn('Dealer:', result['spoken'])
         self.assertEqual(self.runtime.load()[1]['kit']['episodes'][0]['turn_id'], 'first')
@@ -884,13 +884,16 @@ class DealerCardTests(unittest.TestCase):
     def test_card_states_wants_and_tactics_with_price_as_one_move(self):
         card = self.card
         self.assertIn('this particular newcomer', card['wants_from_visitor'])
-        self.assertTrue(2 <= len(card['tactics']) <= 3)
+        self.assertTrue(2 <= len(card['tactics']) <= 5)
         price = [tactic for tactic in card['tactics']
                  if any(word in tactic.lower() for word in ('price', 'gold', 'toll', 'passage'))]
         self.assertEqual(len(price), 1, 'exactly one tactic concerns the toll')
         self.assertNotEqual(card['tactics'][0], price[0], 'the toll is not his first move')
         self.assertIn("visitor's own words", card['tactics'][0])
-        self.assertIn('not his opening', price[0])
+        # Table call 6: the toll is its own exchange, with room to answer and a follow-through.
+        self.assertIn('its own exchange', price[0])
+        self.assertIn('never a line beside the game', price[0])
+        self.assertIn('haggle, refuse', price[0])
         self.assertIn('Answers what the visitor actually said before he steers', card['verbal_habit'])
         self.assertIn('default line', card['card_use'])
         for text in (card['verbal_habit'], card['public_objective']):
@@ -901,7 +904,9 @@ class DealerCardTests(unittest.TestCase):
         values = json.dumps(self.card, ensure_ascii=False)
         for text in [value for value in self.card.values() if isinstance(value, str)] + self.card['tactics']:
             self.assertNotRegex(text, r'["“”]', 'no quoted lines in the card')
-        self.assertIn('drawl', self.card['vocal_signature'])
+        # Table call 3: a raspy voice and an accent, described once, never spelled phonetically.
+        self.assertIn('raspy', self.card['vocal_signature'])
+        self.assertIn('no phonetic spelling', self.card['vocal_signature'].replace('do not use phonetic', 'no phonetic'))
         self.assertIn('card held between two fingers', self.card['physical_touchstone'])
         self.assertIn('never as a narrator or a commentator', self.card['verbal_habit'])
         self.assertIn('his own interest', self.card['card_use'])
