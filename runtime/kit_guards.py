@@ -932,33 +932,14 @@ def check_public_numbers(segments, rules_question=False, public_event=''):
 # ---------------------------------------------------------------------------
 # 11. A room with no refreshment (Brendon's table call 3)
 # ---------------------------------------------------------------------------
-_FOOD = (r"(?:wine|ale|beer|mead|cordial|liquor|spirits|brandy|whisk(?:e)?y|drinks?|cups?|glass(?:es)?|"
-         r"goblets?|mugs?|flasks?|tankards?|bottles?|food|bread|meat|cheese|snacks?|refreshments?|"
-         r"water|tea|stew|meal|supper|dinner)")
-REFRESHMENT = re.compile(rf"\b{_FOOD}\b")
-# Figurative speech is not a served drink: food words only count when a serving or drinking
-# verb takes them as its object in the same clause ("pours you a cup of wine"), or they are
-# the subject of a serving predicate ("drinks are on the house"). A food word that is only a
-# stake or a figure ("win back your supper", "eat your words", "bread and butter") and a card
-# "hand" ("another hand") are not served. Up to five words may sit between verb and object.
-_CLAUSE_GAP = r"(?:\s+(?!(?:and|but|or|so|then|while|if|when)\b)[\w'-]+){0,5}?\s+"
-_SERVE_VERB = (r"(?:pour\w*|serv(?:e|es|ed|ing)|offer\w*|hand(?:s|ed|ing)|hands?(?=\s+(?:you|him|her|them|over|across)\b)|"
-               r"pass(?:es|ed|ing)?|slid\w*|slides?|fill\w*|refill\w*|top(?:s|ped)? up|raise\w*|"
-               r"have|help yourself to|try)")
-_DRINK_VERB = r"(?:sip\w*|drink\w*|drank|eat\w*|ate|nibbl\w*|toast\w*)"
-SERVED = re.compile(
-    rf"\b{_SERVE_VERB}{_CLAUSE_GAP}{_FOOD}\b"                  # pours you a cup of wine
-    rf"|\b{_DRINK_VERB}(?:\s+(?:to|up|deep)\b|\s*$|{_CLAUSE_GAP}{_FOOD}\b)"  # drink to luck; sips wine
-    rf"|\b{_FOOD}\s+(?:is|are|was|were)(?:\s+\w+){{0,2}}?\s+(?:poured|served|offered|on the house|free)\b")
+REFRESHMENT = re.compile(r"\b(wine|ale|beer|mead|cordial|liquor|spirits|brandy|whisk(?:e)?y|drinks?|cups?|glass(?:es)?|"
+                         r"goblets?|mugs?|flasks?|tankards?|bottles?|food|bread|meat|cheese|snacks?|refreshments?|"
+                         r"water|tea|stew|meal|supper|dinner)\b")
+SERVING = re.compile(r"\b(pour\w*|serv\w*|offer\w*|hand(?:s|ed|ing)?|pass(?:es|ed|ing)?|slid\w*|slide\w*|fill\w*|"
+                     r"refill\w*|top(?:s|ped)? up|sip\w*|drink\w*|drank|eat\w*|ate|nibbl\w*|toast\w*|raise\w* (?:a|his|her|their)|"
+                     r"have (?:a|some)|help yourself|try (?:a|some|the))\b")
 REFRESHMENT_NEGATED = re.compile(r"\b(no|not|none|nothing|never|without|empty|dry|run out|ran out|gone|"
                                  r"don'?t|do not|haven'?t|have not|can'?t|cannot|no longer|nor|neither|lack\w*)\b")
-
-
-def serves_refreshment(sentence):
-    """True when the sentence presents food or drink as a physical thing served, offered, or
-    drunk here; figurative uses (idioms, stakes, metaphors) are not."""
-    text = normalize(sentence).rstrip(' .!?')
-    return bool(SERVED.search(text)) and not REFRESHMENT_NEGATED.search(text)
 
 
 def check_no_refreshment(segments):
@@ -966,7 +947,8 @@ def check_no_refreshment(segments):
     Saying there is none (the cellar is dry, nothing to offer) is the clue, and passes."""
     for segment in segments:
         for sentence in sentences(segment['text']):
-            if serves_refreshment(sentence):
+            text = normalize(sentence)
+            if REFRESHMENT.search(text) and SERVING.search(text) and not REFRESHMENT_NEGATED.search(text):
                 raise InvalidChange(
                     f'Room fit: the {segment["speaker"]} serves or shows food or drink ("{sentence[:60]}"), but '
                     'nobody here eats or drinks. Say there is none, or leave it out.')
