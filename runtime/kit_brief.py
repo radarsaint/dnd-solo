@@ -30,6 +30,15 @@ The source may declare, per area, a ``story`` block (all fields optional):
         thresholds: [{when, then, roots}]
         endings: ["..."]
 
+A threshold may also carry a machine ``trigger`` (a condition) and a ``shift`` ({actors,
+by: N} or {actors, to: <attitude>}): when the trigger holds after a turn the threshold is
+crossed (``threshold_crossed``, latched once per scene), the shift moves those NPCs'
+attitudes (runtime/kit_attitude.py), and the brief marks it ``crossing_now`` the turn it
+holds so Kit plays its ``then``. State-only conditions for triggers:
+{net_at_least: {procedure, gp}} (the PC is up that much at that table), {broke: <procedure>},
+{toll_refused: <toll id>}, {exposed: <procedure>} (a cheat called out with proof, in front of
+the table), {actor_damaged: <actor id>}, {attitude_at_most: {actor, level}}.
+
 Conditions: {toll_raised: <toll id>}, {procedure_running: <procedure id>},
 {fact_known: <fact id>}, {claim_learned: <claim id>},
 {said: {by: [actor ids], any: [phrases], game: <procedure id>}} (an NPC line this turn; a
@@ -54,7 +63,9 @@ MAX_ITEMS = 6  # per list (purposes, hooks, thresholds, endings, an actor's trai
 DEFAULT_WITHIN = 3
 MAX_WITHIN = 12
 GONE = ('dead', 'fled', 'unconscious', 'defeated', 'gone')
-CONDITIONS = ('toll_raised', 'procedure_running', 'fact_known', 'claim_learned', 'said', 'any')
+CONDITIONS = ('toll_raised', 'procedure_running', 'fact_known', 'claim_learned', 'said', 'any',
+              # state-only conditions for thresholds (never speakable):
+              'net_at_least', 'broke', 'toll_refused', 'exposed', 'actor_damaged', 'attitude_at_most')
 HOOK_ID = re.compile(r'^[a-z0-9_]{1,32}$')
 BRIEF_RULE = ('Private story brief for this scene, from the room source. Play toward it every '
               'turn: the NPCs pursue what they want rather than wait to be asked; an act or con '
@@ -92,6 +103,19 @@ def _check_condition(cond, source, label):
                 ('game' not in value or value['game'] in (source.get('procedures') or {})),
                 f'{label}: said needs by (actor ids) and any (phrases; "a + b" both in one line), '
                 'and game names a procedure')
+    elif kind == 'net_at_least':
+        require(isinstance(value, dict) and value.get('procedure') in (source.get('procedures') or {}) and
+                type(value.get('gp')) is int and value['gp'] > 0, f'{label}: net_at_least needs procedure and gp')
+    elif kind in ('broke', 'exposed'):
+        require(value in (source.get('procedures') or {}), f'{label}: {kind} names a procedure')
+    elif kind == 'toll_refused':
+        require(value in (source.get('tolls') or {}), f'{label}: toll_refused names a toll')
+    elif kind == 'actor_damaged':
+        require(value in source.get('actors', {}), f'{label}: actor_damaged names an actor')
+    elif kind == 'attitude_at_most':
+        from .kit_attitude import LEVELS
+        require(isinstance(value, dict) and value.get('actor') in source.get('actors', {}) and
+                value.get('level') in LEVELS, f'{label}: attitude_at_most needs actor and level')
     else:
         pools = {'toll_raised': source.get('tolls') or {}, 'procedure_running': source.get('procedures') or {},
                  'fact_known': source.get('facts') or {}, 'claim_learned': source.get('claims') or {}}
@@ -162,6 +186,16 @@ def compile_story(source):
             _text(item.get('when'), f'{label} threshold {index} when')
             _text(item.get('then'), f'{label} threshold {index} then')
             _roots(item.get('roots', []), source, f'{label} threshold {index}')
+            if 'trigger' in item:
+                _check_condition(item['trigger'], source, f'{label} threshold {index} trigger')
+            if 'shift' in item:
+                from .kit_attitude import LEVELS
+                shift = item['shift']
+                require(isinstance(shift, dict) and isinstance(shift.get('actors'), list) and shift['actors'] and
+                        all(a in source.get('actors', {}) for a in shift['actors']) and
+                        ((type(shift.get('by')) is int and -4 <= shift['by'] <= 4) != (shift.get('to') in LEVELS)),
+                        f'{label} threshold {index} shift: actors and one of by (-4..4) or to (an attitude)')
+                require('trigger' in item, f'{label} threshold {index}: a shift needs a trigger')
         for index, ending in enumerate(story.get('endings') or ()):
             _text(ending, f'{label} ending {index}')
         stories[area] = story
@@ -212,6 +246,28 @@ def holds(cond, source, state, spoken=''):
         return bool(spoken) and kit_toll.names_toll(source, value, spoken)
     if kind == 'procedure_running':
         return value in (state.get('procedures') or {})
+    if kind in ('net_at_least', 'broke', 'exposed'):
+        key = value['procedure'] if kind == 'net_at_least' else value
+        public = ((state.get('procedures') or {}).get(key) or {}).get('public') or {}
+        player = public.get('player') or {}
+        if kind == 'net_at_least':
+            return player.get('net', 0) >= value['gp']
+        if kind == 'broke':
+            return player.get('purse') is not None and player['purse'] + player.get('net', 0) <= 0
+        return any(item.get('backed') for item in public.get('accusations') or ())
+    if kind == 'toll_refused':
+        from . import kit_toll
+        body = (kit_toll.here(source, state).get(value) or (None, {}))[1] if state.get('area') else {}
+        return (body or {}).get('status') == 'refused'
+    if kind == 'actor_damaged':
+        fight = state.get('combat') or {}
+        hp, full = fight.get('hp') or {}, fight.get('max_hp') or {}
+        return value in hp and hp[value] < full.get(value, hp[value]) or \
+            ((state.get('actors') or {}).get(value) or {}).get('status') in ('dead', 'unconscious')
+    if kind == 'attitude_at_most':
+        from . import kit_attitude
+        from .kit_attitude import LEVELS
+        return LEVELS.index(kit_attitude.level(source, state, value['actor'])) <= LEVELS.index(value['level'])
     if kind == 'fact_known':
         return value in (state.get('known_facts') or ())
     return value in ((state.get('claims') or {}).get('learned') or ())
@@ -277,7 +333,14 @@ def brief(source, state):
             if hook.get('primary') and mem['beats'] >= within and hook['by'] in present and not _fighting(state):
                 raise_now.append(hook['id'])
         hooks.append(entry)
-    thresholds = [{'when': t['when'], 'then': t['then']} for t in story.get('thresholds') or ()]
+    thresholds = []
+    for index, item in enumerate(story.get('thresholds') or ()):
+        entry = {'when': item['when'], 'then': item['then']}
+        if index in mem.get('crossed', ()):
+            entry['crossed'] = True
+        elif item.get('trigger') and holds(item['trigger'], source, state):
+            entry['crossing_now'] = True  # Kit plays its then this turn
+        thresholds.append(entry)
     for key, clock in ((source.get('agenda') or {}).get('pressures') or {}).items():
         if isinstance(clock, dict) and clock.get('when_full'):
             thresholds.append({'when': f'{key} fills: {clock.get("ticks_on", "")}'.strip(), 'then': clock['when_full']})
@@ -305,7 +368,8 @@ def _capped(made):
     traits and wants from the end. Hooks and raise_now are never trimmed."""
     while _size(made) > BRIEF_MAX_BYTES:
         for key in ('endings', 'thresholds', 'purposes'):
-            if len(made[key]) > 1:
+            crossing = key == 'thresholds' and made[key] and made[key][-1].get('crossing_now')
+            if len(made[key]) > 1 and not crossing:  # a threshold crossing now is never trimmed
                 made[key].pop()
                 made['trimmed'] = True
                 break
@@ -380,3 +444,40 @@ def apply_event(state, source, event):
     mem = state.setdefault('story', {}).setdefault(area, {'beats': 0, 'delivered': []})
     mem['beats'] += 1
     mem['delivered'] = sorted(set(mem['delivered']) | set(delivered))
+
+
+def threshold_events(source, state, turn_id):
+    """Thresholds whose trigger holds after this turn and that have not crossed yet in this
+    scene: a threshold_crossed event each, plus the attitude_shift its shift names."""
+    from . import kit_attitude
+    area = (state or {}).get('area')
+    story = compile_story(source).get(area)
+    if not story:
+        return []
+    crossed = story_state(state, area).get('crossed', [])
+    events = []
+    for index, item in enumerate(story.get('thresholds') or ()):
+        if index in crossed or not item.get('trigger') or not holds(item['trigger'], source, state):
+            continue
+        events.append({'type': 'threshold_crossed', 'area': area, 'index': index,
+                       'evidence': f'Threshold {index} in {area} crossed with turn {turn_id}: {item["when"]}'})
+        shift = item.get('shift')
+        if shift:
+            present = kit_attitude._present(state)
+            by = shift.get('to') or shift.get('by')
+            changed = kit_attitude.shift_event(source, state, {a: by for a in shift['actors'] if a in present},
+                                               f'threshold: {item["when"]}', events[-1]['evidence'])
+            if changed:
+                events.append(changed)
+    return events
+
+
+def apply_threshold(state, source, event):
+    area = event.get('area')
+    story = compile_story(source).get(area)
+    require(story is not None and type(event.get('index')) is int and
+            0 <= event['index'] < len(story.get('thresholds') or ()) and
+            (story['thresholds'][event['index']] or {}).get('trigger'),
+            'threshold_crossed names a threshold with a trigger in its area')
+    mem = state.setdefault('story', {}).setdefault(area, {'beats': 0, 'delivered': []})
+    mem['crossed'] = sorted(set(mem.get('crossed', [])) | {event['index']})
