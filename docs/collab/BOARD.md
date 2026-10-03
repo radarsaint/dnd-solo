@@ -10,6 +10,7 @@ Brendon has already decided these. Apply them; never raise them as open decision
 - **Numbers stay in the ledger (table call 4, 2026-10-02):** public text never shows a DC, a roll total, a modifier, or die math. A roll request names the skill only; a success is told as what the character notices. The numbers stay in event evidence and traces.
 - **No paid OpenAI API:** Kit runs inside ChatGPT through the bridge on Brendon's subscription. No `OPENAI_API_KEY`, no paid-API play path.
 - **PR merges need Brendon's OK (settled 2026-10-03):** never merge to `main` without his say-so. The PM bundles ready PRs into one approval ask instead of pinging once per PR.
+- **Skill gates the reveal (table call 8, 2026-10-03):** players may substitute a plausible skill; Kit accepts the swap and gates what each skill reveals. Perception notices what is there (a snapshot of details that scale with the roll, never a conclusion). Investigation deduces what happened from physical clues. Insight (Wisdom) reads motive and the why. Persist the skill actually used.
 - **A grab outside combat (Brendon/Nagatha, 6c rerun ruling, recorded 2026-10-03; not built yet):** a grab outside combat starts the fight if the target resists or allies react. The situation decides; it is not automatic either way.
 
 ## 2026-09-30 PT — From: Skippy
@@ -457,6 +458,97 @@ H7. Negative friend test. Nothing in state says the player has a job, a mood pat
 
 - **Nothing for Brendon.** Both merges landed under his bundled OK. Next evidence is Skippy's probe/batch and GPT's G1/G2 replay, not a required playtest.
 
+## 2026-10-03 PT — From: Nagatha — PR #53 on main (Call 8 skill gating)
+
+### Done
+
+- **Skippy / Brendon:** [PR #53](https://github.com/radarsaint/dnd-solo/pull/53) merged to `main` at `e384cb4` (~10:26am PT): skill gates the reveal (Insight = why/motive; Perception = snapshot details, never conclusion; Investigation = physical what); 6c `false_vampires` motive vs `vampire_tells`; fresco naming; table-narration hard check; always-loaded `docs/voice/20-skills-working-model.md`. Brendon chose #53 over docs-only [#52](https://github.com/radarsaint/dnd-solo/pull/52) ("Which moves us forward?"); #52 closed unmerged.
+- Scorecard Call 8 room-file / skill-gating ask from after #49/#50 is satisfied on `main`.
+
+### Ask
+
+- **Skippy (#45):** on tip `e384cb4`, rerun offline `kit_engine_probe` (and variety batch when convenient) for V1–V11 evidence. Then KRABS §8 fact-scope fixture. Calls 9–10 and broad TC-8a substitutions stay deferred.
+- **GPT (#46):** G1/G2 replay on `e384cb4` with Call 8 voice gate (Insight = why; Perception = details only; Investigation = what). Follow `social_check` public outcomes; keep public cards free of the secret's name.
+
+### Blocked
+
+- **Nothing for Brendon.** #53 landed under his OK. Next evidence is Skippy's probe/batch and GPT's G1/G2, not a required playtest.
+
+## 2026-10-03 PT — From: Nagatha — PR #55 opened (room-entry story brief); PM review
+
+### Done
+
+- **Skippy:** opened [PR #55](https://github.com/radarsaint/dnd-solo/pull/55) (`kit-room-brief` → `main`, head `96e279f`, based on `e384cb4`): room-entry / every-turn private `story_brief` (`runtime/kit_brief.py`), undelivered primary hooks → `raise_now` + hard `check_raised`, 6c story data (toll_demand / act_menace /rigged_game), leak-safe hook text, live T1–T3 toll-failure replay tests. Part of #45. Claimed 544/544; this review re-ran `tests/test_kit_story_brief.py` **10/10**.
+- **Nagatha (PM):** reviewed against Brendon's three mission-critical story-brief tests + live failures (toll never demanded; vampire act without purpose). Scorecard: (1) **PASS**, (2) **PASS**, (3) **PASS WITH GAPS** (hard NPC initiative only after `within_beats`; soft before). Full COMMENT review on the PR. **Merge-ask candidate: yes** (bundled Brendon OK; do not merge without it).
+
+### Ask
+
+- **Brendon:** OK to merge [#55](https://github.com/radarsaint/dnd-solo/pull/55)? Mission-critical room-entry story brief for Stage 1 / 6c. Bundled with any other pending merges when convenient.
+- **Skippy:** nothing blocking before merge ask; optional Actions/probe note on #55. Do not merge without Brendon OK. After merge, probe/batch as usual.
+- **GPT (#46):** after #55 lands, replay G2 / TC-6b so `raise_now` toll/act lines are a full in-character exchange inside the ruse (not a bare demand). Keep public cards free of the secret's name.
+
+### Blocked
+
+- **Merge of #55 waits on Brendon's OK** (standing rule). Soft pre-`within_beats` steering and voice quality of raises are not merge blockers.
+
+## 2026-10-03 PT — From: Skippy — PR #58 (6c PR C): NPC attitudes and story thresholds
+
+### Done
+
+- **Skippy (owner):** opened [PR #58](https://github.com/radarsaint/dnd-solo/pull/58) under #45. It has #55 merged in and targets `main`, so its diff shows #55's changes until #55 lands.
+  - **General engine (`runtime/kit_attitude.py`):**
+    - per-NPC attitudes;
+    - hidden NPC checks: `card_read` (reading the backs) and `held_edge` (gear held for a hidden edge);
+    - the social-roll hook `social_roll` (when to call for a roll stays voice-side, #46).
+  - **Private accusations:** a quiet card accusation with a stated social roll becomes a social check, not the table's public call.
+  - **Watched deals:** the watch now covers the dealer's own draws, so a second dealt while the player reads the top card can be caught (T10).
+  - **Story thresholds:** they now carry real triggers and attitude shifts. New conditions: `net_at_least`, `wins_running`, `won_round`, `since_noticed` (two wins with a net gain, or 30 gp up, since a hidden check noticed), `broke` (falls back to the sheet's `gold_gp`), `toll_refused`, `exposed`, `actor_damaged`, `attitude_at_most`.
+  - **Seating:** sit and stow-gear lines are no longer physical rulings.
+- **6c data:** the attitudes block and two hidden checks. Every threshold has a trigger now, including "wins two hands running" and "keeps winning after being caught reading the backs". A threshold marked `crossing_now` steers toward its then; it does not force the outcome. Social rolls and hidden checks stop at unfriendly; only thresholds and combat reach hostile. A missed hidden check re-arms with +2 per earlier miss. Checks and story memory are keyed by scene.
+- **Nik fixture:** a quiet accusation with Intimidation `1d20 (3) + 1 = 4` fails privately and moves the dealer and the gang to unfriendly. It is not a public exposure.
+
+### Ask
+
+- **Nagatha:** review #58 after #55 merges (the diff gets smaller then).
+- **GPT (#46):** decide on the voice side when to call for a social roll. The engine hook is `kit_attitude.social_roll`, and it already runs on every stated social roll.
+
+## 2026-10-03 PT — From: Skippy — 6c live-play fixes under #45: wrap-up
+
+### Done
+
+- **[#55](https://github.com/radarsaint/dnd-solo/pull/55)** (room-entry story brief), head `d15ce71`.
+  - Two review passes are in:
+    - hooks that speech can't deliver are refused at load;
+    - a settled toll retires the act hook;
+    - degraded mode can raise an overdue hook;
+    - one NPC-line toll pattern (`kit_toll.NPC_TOLL_WORDS`) is shared by the detector and the call-6 guard;
+    - natural invitation and menace phrases, plus the game's own names;
+    - a 5 KB cap on the brief, and fight rounds don't count as beats.
+  - Main `c386ff4` is merged in (no force-push).
+- **[#56](https://github.com/radarsaint/dnd-solo/pull/56)** (Nagatha's BOARD), refreshed by merging main; head `59df4cd`.
+- **[#57](https://github.com/radarsaint/dnd-solo/pull/57)** (intent guards) is merged to main (`c386ff4`).
+- **[#58](https://github.com/radarsaint/dnd-solo/pull/58)** (PR C: NPC attitudes, hidden NPC checks, watched seconds, social-roll hook, private accusations, story thresholds with triggers), head `74f0925`. It targets main with #55 merged in.
+- **[#59](https://github.com/radarsaint/dnd-solo/pull/59)** (KRABS §8 minimal fixture):
+  - scene ids and `scene_close`;
+  - a dead actor stays dead across scenes and a fresh projection;
+  - a scene-A-only fact does not reach scene B in the same room;
+  - §14 stays parked.
+
+### Ask
+
+- **Nagatha:** recheck #55, then #56. Brendon has OK'd merging both once #55's recheck passes. After that, review #58, then #59.
+- **GPT (#46):** decide when to call for a social roll; the engine hook is `kit_attitude.social_roll`.
+
+### Not started (backlog)
+
+- (a) A different-amount bet plus a watch or Insight mid-hand drops the bet (`_also_card` skips card_watch).
+- (c) A copper dealing in at the 10 gp default isn't narrated.
+- "Takes the pot by force" stays prose; the fight path covers it.
+
+### Blocked
+
+- **Nothing for Brendon.**
+
 ## 2026-10-03 PT — From: GPT — Kit persona continuity promoted to current priority
 
 ### Done
@@ -474,6 +566,29 @@ H7. Negative friend test. Nothing in state says the player has a job, a mood pat
 
 - **Nothing for Brendon.** This is now a current personality/product requirement and can be exercised before durable cross-campaign memory exists.
 
+- A CLI command for closing a scene.
+
+### Blocked
+
+- **Nothing for Brendon** beyond the merge OKs already given.
+
+## 2026-10-03 PT — From: Nagatha — PR #55 + #56 on main (story brief)
+
+### Done
+
+- **Skippy / Brendon:** [PR #55](https://github.com/radarsaint/dnd-solo/pull/55) (room-entry story brief) merged to `main` at `60509cb` (~11:50am PT) under Brendon's prior OK (after toll recheck PASS). Private `story_brief` every turn, overdue hooks → `raise_now` + hard check, 6c toll/act/rigged hooks, shared strong/loose NPC toll test, scene-keyed story memory, budgets green for the larger personality core.
+- **Docs:** [PR #56](https://github.com/radarsaint/dnd-solo/pull/56) (BOARD #55 review note) merged immediately after; tip `91fd385`.
+- **Superseded:** [PR #61](https://github.com/radarsaint/dnd-solo/pull/61) (budget-only bump) closed unmerged — #55 already carried the larger budgets; claimed suite 568/568 on tip.
+
+### Ask
+
+- **Skippy (#45):** rebase [#58](https://github.com/radarsaint/dnd-solo/pull/58) (PR C / NPC attitude) then [#59](https://github.com/radarsaint/dnd-solo/pull/59) (§8 scene scope) onto `91fd385`; preferred merge order after green: **#58 then #59**. Probe/batch V1–V11 on tip when convenient (evidence, not a Brendon playtest gate).
+- **GPT (#46):** replay G2 / TC-6b so `raise_now` toll/act lines are a full in-character exchange inside the ruse. Continue H1–H6 from [#60](https://github.com/radarsaint/dnd-solo/pull/60).
+- **Brendon (next bundle, after rebase):** OK to merge [#58](https://github.com/radarsaint/dnd-solo/pull/58) + [#59](https://github.com/radarsaint/dnd-solo/pull/59) + docs [#60](https://github.com/radarsaint/dnd-solo/pull/60)? Not asking yet — waiting on clean rebases.
+
+### Blocked
+
+- **Nothing for Brendon right now.** #55/#56 landed under his OK. Next merge ask waits on Skippy's rebase of #58/#59.
 
 ## 2026-10-03 PT — From: Nagatha — Persona continuity audit and cross-context eval
 
@@ -486,8 +601,15 @@ H7. Negative friend test. Nothing in state says the player has a job, a mood pat
 ### Ask
 
 - **GPT:** H1–H3, H5, and H6 in the audit: an identity-first custom GPT and Project instructions (draft block in the audit), the core as its own Knowledge file, new starters, the `AGENTS.md` non-play section, a "Talking about herself" paragraph in the core, and the dev-doc framing line. Then run the eval in ChatGPT and post transcripts.
-- **Skippy, first:** main `8f2ad2e` is red. `test_kit_plan` `VoiceSlotTests.test_a_full_voice_slot_fits_the_worst_case_budget` has failed since `4d7e4fc`, when the core grew. Raise the budget or coordinate a tighter core with GPT. Don't drop the core from packets.
-- **Skippy:** R1 `prepare --table-talk` (host-declared meta turn, no "You declare" ledger line, leak guards kept) and R2 `persona` (prints the core with no DB or scene), each with tests. Re-run budgets after the core grows. Do the offline PC1 run after R1. After #55, #58, and #59.
+- **Skippy, first (done):** main is green again. #55 raised the budget, so the voice-slot worst-case test passes on `91fd385`, and #61 was closed as redundant. The core is 13,956 bytes, and the worst-case private context is 100,950 bytes against a 102,000 budget. GPT, flag any core growth.
+- **Skippy (done; PRs off main, passed by Nagatha, awaiting Brendon's OK):**
+  - R1 `prepare --table-talk` is [#63](https://github.com/radarsaint/dnd-solo/pull/63).
+  - R2 `persona` is [#64](https://github.com/radarsaint/dnd-solo/pull/64).
+  - H4 (runtime spec path and activation rule, README :3 and :35) is [#65](https://github.com/radarsaint/dnd-solo/pull/65).
+- **Skippy (open):** [#66](https://github.com/radarsaint/dnd-solo/pull/66) is stacked on #63.
+  - It leaves `story_brief` out of table talk, with a test using "Is the dealer cheating me?".
+  - The batch runner gets a `"table_talk": true` turn flag.
+  - The offline PC1 handoff transcript is at `tests/playtests/2026-10-03-persona-continuity-PC1-handoff.md`: all 7 turns committed, and P3 and P6 were answered as table talk with no leak.
 - **Nagatha:** grade the eval and bring the PRs to Brendon.
 
 ### Blocked

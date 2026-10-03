@@ -18,6 +18,7 @@ Checks come in two strengths:
 """
 import re
 
+from .kit_toll import TOLL_GAME_WORDS, npc_names_toll_words  # one NPC-line toll test: detector and guard
 from .state_context import InvalidChange, require
 
 # Every speaker label except these is an NPC voiced from the room source's actor cards.
@@ -451,8 +452,10 @@ RULES_CUE = re.compile(
     r"investigation|proficien\w*|spell|cantrip)\b")
 
 
-def check_ruling_dodge(plan, action_kind, player_action):
-    if action_kind != 'social':
+def check_ruling_dodge(plan, action_kind, player_action, table_talk=False):
+    """A social bid is answered in the fiction. Host-declared table talk is not a bid: Kit
+    answers it herself (a Kit-only move), so it is exempt."""
+    if action_kind != 'social' or table_talk:
         return
     asked_rules = bool(RULES_CUE.search(normalize(player_action)))
     require(plan['move'] != 'ruling' or asked_rules,
@@ -954,8 +957,6 @@ def check_no_refreshment(segments):
 # ---------------------------------------------------------------------------
 # 12. The toll is an exchange, not a price tag (Brendon's table call 6)
 # ---------------------------------------------------------------------------
-TOLL_WORDS = re.compile(r"\b(toll|passage|fee|to pass|way through|safe passage|a head|per head)\b")
-TOLL_GAME_WORDS = re.compile(r"\b(game|games|cards?|ante|deal|dealt|gambling|gamble|blind|bet|wager|play)\b")
 
 
 def check_toll_exchange(segments, amount, raised):
@@ -968,7 +969,7 @@ def check_toll_exchange(segments, amount, raised):
         parts = sentences(segment['text'])
         for index, sentence in enumerate(parts):
             said = {value for value, _ in spoken_amounts(sentence)}
-            if amount not in said or not TOLL_WORDS.search(normalize(sentence)):
+            if amount not in said or not npc_names_toll_words(normalize(sentence)):
                 continue
             require(is_npc(segment['speaker']),
                     f'The toll is an NPC\'s demand: the {segment["speaker"]} names it ("{sentence[:60]}"). Let the '
