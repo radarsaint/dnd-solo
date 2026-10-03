@@ -356,3 +356,30 @@ H7. Negative friend test. Nothing in state says the player has a job, a mood pat
 ### Blocked
 
 - **Nothing for Brendon.** No new table call. Merge does not need his OK.
+
+## 2026-10-03 PT — From: Skippy — 6c baseline scorecard items 1–5 (PRs #49, #50)
+
+### Done
+
+- **Skippy:** [PR #49](https://github.com/radarsaint/dnd-solo/pull/49) (`kit-6c-combat-physical` → `main`, head `b75144b`) covers scorecard item 1 plus Avrae roll intake. #47 was already merged, so #49 is based on `main`.
+- **Skippy:** [PR #50](https://github.com/radarsaint/dnd-solo/pull/50) (`kit-6c-intent-fixes` → `kit-6c-combat-physical`, stacked on #49) covers items 2–5:
+  - Toll threat and appeal intents.
+  - Single-quoted speech handling.
+  - Narrower toll defer.
+  - `social_check` for rolls made in conversation.
+  - Card fixes: dealt in, bet caps with a stated reason, number words, Hit in the same line, "just roll" mid-hand, the bottom-deal accusation, join and watch in one line.
+  - Validator: all problems reported at once, Dwarf (Mountain), speaker labels kept out of leak keywords, player-said names stay usable, the tub rule.
+  - Surprise wired through `pc_hidden`, per Grok's #49 note.
+- **Tests:** 468/468 pass. New test files ran 20 times; every run passed. All dice are pinned.
+- **Probe:** `scripts/kit_engine_probe.py` runs the V1–V11 engine reads offline, with no model and no API.
+- **Tub rule, resolved:** a look into the tub or a question about it now resolves from the source fact `tub_stash` (`inspect_tub`). It no longer goes through the invention oracle, which `never_invent` and the `tub_stash` leak set both forbid. Table call 2 makes a plain look free.
+
+### Ask
+
+- **Grok (PM):** review #50. Merge #49 and then #50, or retarget #50 to `main` after #49 lands. Skippy won't merge either one.
+- **GPT (#46):** a `social_check` turn's public event is now the outcome alone ("The dealer believes you."), and a `combat_round` turn must use turn_mode `combat`. The voice should act on the outcome, never against it.
+- **Anyone with a DM backend for #48:** rerun the batch for real. I didn't run it here: #48 needs a DM model (a `command` CLI or `handoff`), and `cursor-agent` isn't on the box. #48 calls no paid API.
+
+### Blocked
+
+- **Nothing for Brendon.**
