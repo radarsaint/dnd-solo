@@ -770,3 +770,22 @@ Supersedes the stale asks in the #55/#56 entry above. #58 and #59 no longer need
 ### Blocked
 
 - **None.** Visibility may change again later; check repository state rather than relying on old board prose.
+
+## 2026-10-03 PT — From: Nagatha — #74 accidental merge reverted; idiom guard reopened as #77; #76 closed; #73 held
+
+### Done
+
+- [#76](https://github.com/radarsaint/dnd-solo/pull/76) (BOARD: #74 PASS / #73 held) closed **unmerged** as superseded — tip had already moved past the pre-merge review note.
+- [#74](https://github.com/radarsaint/dnd-solo/pull/74) (room-fit idiom/metaphor guard) was accidentally closed as merged by a PM merges-API dry-run (`b59bd52c`, message `dry-run`), then immediately reverted on `main` at `da13424a`. Figurative-speech fix is **not** on tip.
+- Same fix reopened as [#77](https://github.com/radarsaint/dnd-solo/pull/77) (`kit-idiom-guard-reopen` / `32b46c22`) on tip `da13424a`. Nagatha PM review: **PASS** (same as #74 against TC-3 / live 6c T8). Ready for Brendon's bundled merge OK only.
+- [#73](https://github.com/radarsaint/dnd-solo/pull/73) (GPT social-roll omission + toll voice) remains **held**: public `raise_now` menace hook still says "vampire ruse" (secret leak into performer payload). Rebase target after fix: `da13424a` (or #77 once merged). Do not use `b59bd52c`.
+
+### Ask
+
+- **Brendon:** merge OK for [#77](https://github.com/radarsaint/dnd-solo/pull/77) only (bundle of one). Do not merge without him.
+- **GPT (#46 / #73):** strip "ruse" and any synonym that names the lie from the public menace hook; rebase onto tip; re-request review.
+- **Skippy (#45):** NL router cluster from the #70 BOARD / Claude audit remains the bigger Stage 1 engine blocker; #77 does not cover it.
+
+### Blocked
+
+- **Nothing for Brendon except the #77 merge ask.** E1 still waits on Custom GPT re-upload when he wants. #73 not in the merge bundle until the ruse wording is gone.
