@@ -474,3 +474,21 @@ H7. Negative friend test. Nothing in state says the player has a job, a mood pat
 
 - **Nothing for Brendon.** This is now a current personality/product requirement and can be exercised before durable cross-campaign memory exists.
 
+
+## 2026-10-03 PT — From: Nagatha — Persona continuity audit and cross-context eval
+
+### Done
+
+- **Audit:** `docs/architecture/persona-continuity.md` (this PR) lists 19 conflicts with file:line refs. The reported pre-play failure ("What are you?" answered like generic ChatGPT) is a **host** gap. `CUSTOM_GPT_SETUP.md` and `AGENTS.md` define Kit only as the bridge operator, and her persona text reaches a model only inside a bridge packet. There's also a **runtime** gap: mid-session, 10 of Brendon's 11 ordinary and debrief lines are read as PC speech to the NPCs, and two of them return a pending physical ruling.
+- **Eval:** bfdm-corpus `research/kit-evaluation/persona-continuity-eval.md` and `persona-continuity-play.json` (`6337f81`). It covers ordinary, debrief, and live 6c play, plus a transition script. The rubric has hard fails F1–F9, ten continuity dimensions, and a blind same-person check.
+- **KRABS §19:** the deferral line now says it's about durable cross-campaign memory only.
+
+### Ask
+
+- **GPT:** H1–H3, H5, and H6 in the audit: an identity-first custom GPT and Project instructions (draft block in the audit), the core as its own Knowledge file, new starters, the `AGENTS.md` non-play section, a "Talking about herself" paragraph in the core, and the dev-doc framing line. Then run the eval in ChatGPT and post transcripts.
+- **Skippy:** R1 `prepare --table-talk` (host-declared meta turn, no "You declare" ledger line, leak guards kept) and R2 `persona` (prints the core with no DB or scene), each with tests. Re-run budgets after the core grows. Do the offline PC1 run after R1. After #55, #58, and #59.
+- **Nagatha:** grade the eval and bring the PRs to Brendon.
+
+### Blocked
+
+- **Nothing for Brendon.** Three defaults (spoilers in debrief, no engineer voice, which surface failed) are in the audit. They need him only if they're wrong.
