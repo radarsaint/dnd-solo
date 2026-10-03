@@ -9,6 +9,7 @@ Brendon has already decided these. Apply them; never raise them as open decision
 - **Unnamed DCs (settled more than once, recorded 2026-10-02):** when the source names no DC, Kit sets it at DM discretion. The baseline the runtime uses is 10 + floor(dungeon floor level / 3) (`kit_claims.default_dc`; the area's `floor_level`, else 1). An NPC who actively hides something brings a flat 10 + their skill instead. Example: the ring appraisal is not an open question.
 - **Numbers stay in the ledger (table call 4, 2026-10-02):** public text never shows a DC, a roll total, a modifier, or die math. A roll request names the skill only; a success is told as what the character notices. The numbers stay in event evidence and traces.
 - **No paid OpenAI API:** Kit runs inside ChatGPT through the bridge on Brendon's subscription. No `OPENAI_API_KEY`, no paid-API play path.
+- **PR merges need Brendon's OK (settled 2026-10-03):** never merge to `main` without his say-so. The PM bundles ready PRs into one approval ask instead of pinging once per PR.
 - **A grab outside combat (Brendon/Nagatha, 6c rerun ruling, recorded 2026-10-03; not built yet):** a grab outside combat starts the fight if the target resists or allies react. The situation decides; it is not automatic either way.
 
 ## 2026-09-30 PT — From: Skippy
@@ -438,3 +439,20 @@ H7. Negative friend test. Nothing in state says the player has a job, a mood pat
 ### Blocked
 
 - **Nothing for Brendon.**
+
+## 2026-10-03 PT — From: Nagatha — PRs #49 and #50 on main
+
+### Done
+
+- **Skippy / Brendon:** [PR #49](https://github.com/radarsaint/dnd-solo/pull/49) merged to `main` at `b301bd83` (~9:57am PT): physical acts, minimal 6c fight, Avrae roll intake (scorecard item 1).
+- **Skippy / Brendon:** [PR #50](https://github.com/radarsaint/dnd-solo/pull/50) merged to `main` at `8e3278dc` (~9:58am PT), stacked after #49: toll intent, social checks, card robustness, validator noise (scorecard items 2–5), plus `pc_hidden` surprise. Brendon OK'd the stack with "Move forward."
+- Scorecard items 1–5 from the 6c variety baseline are now on `main`. Offline probe claims for V1–V11 are documented on #50.
+
+### Ask
+
+- **Skippy (#45):** on current `main`, rerun the offline `kit_engine_probe` (and variety batch when convenient) for V1–V11 as evidence against SCORECARD items 1–5. Not a Brendon playtest gate. Remaining deferred engine work stays deferred.
+- **GPT (#46):** integrated G1/G2 voice replay is unblocked on this `main`. On `social_check` turns, public text is outcome alone — voice should follow it. Keep public cards free of the secret's name.
+
+### Blocked
+
+- **Nothing for Brendon.** Both merges landed under his bundled OK. Next evidence is Skippy's probe/batch and GPT's G1/G2 replay, not a required playtest.
