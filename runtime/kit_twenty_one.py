@@ -59,7 +59,7 @@ PLAY_MODE = re.compile(
 PLAY_REQUEST = re.compile(
     r"\b(?:play|plays|playing|join|sit in|sit down|deal me in|deal me|i'?m in|count me in|buy in|buy-in|"
     r"another (?:round|hand|game)|(?:play|go|deal) again|next (?:round|hand)|let'?s go|"
-    r"dealt in|deal (?:me|us|her|him) in|be dealt|get dealt|a seat at the table|take (?:the|a|an) (?:empty |open |free )?(?:chair|seat))\b"
+    r"dealt in|deal (?:me|us|her|him|myself) in|deal(?:s|ing)? in\b|be dealt|get dealt|a seat at the table|take (?:the|a|an) (?:empty |open |free )?(?:chair|seat))\b"
     r"|(?:^|[.!;]\s*)deal\b(?!-)")
 # A bare spoken "Deal." (or "Deal me in.") at a table that offered a game: the player is in.
 SPOKEN_DEAL = re.compile(r'"\s*deal(?: me in| us in| me| us| them| the cards)?\s*[.!]?\s*"', re.I)
@@ -241,6 +241,25 @@ def card_intent(action, procedure_state):
     return None
 
 
+# Coins below gold named as the stake: "a copper", "two silver", "5 cp".
+SMALL_COIN = re.compile(r"\b(?:a|one|single|a single|\d{1,4}|two|three|four|five|ten)\s+(?:single\s+)?"
+                        r"(copper|silver|cp|sp)(?:\s+(?:piece|pieces|coin|coins|penny|pennies))?\b")
+
+
+def next_bet(action, procedure_state):
+    """The stake a seated player names for the next hand in a message that is about something
+    else (a watch, a read, a check), or None. Needs a coin word or a betting word."""
+    public = (procedure_state or {}).get('public') or {}
+    if public.get('player') is None or not _STAKE_CUE.search(action.casefold().replace('\u2019', "'")):
+        return None
+    return bet_amount(action)
+
+
+# A stake named for a hand: a betting word, or "make it", "raise", "this time", "next hand".
+_STAKE_CUE = re.compile(r"\b(?:bet|bets|betting|wager|stake|ante|raise|make it|this time|"
+                        r"(?:on|for) (?:the|my) next (?:hand|one|round|deal)|next (?:hand|round|deal))\b")
+
+
 # Eyes on the deck while hitting or standing: reading the top card or its marks.
 _READ_DECK = re.compile(r"\b(read|reads|reading|count\w*|eyes?|watch\w*|glance\w*|drift\w*|study\w*)\b"
                         r"[^.?!\"]{0,60}\b(top card|the deck|pricks?|pinpricks?|marks|markings)\b")
@@ -321,6 +340,10 @@ class TwentyOneTable:
         if bet:
             bet, note = self._capped(bet, public)
             public['pending_bet'] = bet
+        small = SMALL_COIN.search(action.casefold().replace('\u2019', "'"))
+        if small and not bet:
+            coin = 'silver' if small.group(1).startswith('s') else 'copper'
+            note = f'The table plays for gold, not {coin}. '
         stake = f'your {bet} gp' if bet else f'whatever you bet; the house plays {public["default_stake"]} gp a round'
         return (f'{note}You want in. Two ways to play a round: settle it with one check, or play it out as '
                 f'twenty-one (blackjack), closest to 21 without going over. The stake is {stake}. Which way?'), []
@@ -385,6 +408,14 @@ class TwentyOneTable:
         purse = public['player']['purse']
         if purse is not None:
             stake = min(stake, purse + public['player']['net'])
+        small = SMALL_COIN.search(action.casefold().replace('\u2019', "'"))
+        if small and not named:
+            # A copper or silver offered at a gold table (6c backlog c): the round is played at
+            # the table's gold stake, and the player is told so, never silently.
+            coin = 'silver' if small.group(1).startswith('s') else 'copper'
+            self.trace.append(f'{coin} offered; staked {stake} gp')
+            self.toll_note = (self.toll_note + f' The table plays for gold, not {coin}: '
+                              f'the stake is {stake} gp.').strip()
         return stake, False
 
     # -- a round ---------------------------------------------------------------------
@@ -611,8 +642,26 @@ class TwentyOneTable:
                 'push': 'Nobody wins; the bets go back.'}[outcome]
 
     # -- watching, accusing, leaving -----------------------------------------------
+    def _bet(self, action, revision, public, private):
+        """The stake for the next hand, named in passing ("Make it twenty gold next hand. I
+        watch his hands."). A live hand keeps its stake; the next deal uses this one."""
+        bet, note = self._capped(bet_amount(action), public)
+        public['pending_bet'] = bet
+        self.trace.append(f'next hand stake {bet} gp')
+        return f'{note}Your next hand is for {bet} gp.', []
+
     def _watch(self, action, revision, public, private):
         public['watch_next_deal'] = True
+        if public['player'] is not None and next_bet(action, {'public': public}) and \
+                not (public['mode'] and not (public['round'] and public['round']['phase'] == 'play')):
+            # A new stake named with the watch, mid-hand or before the mode is chosen: kept for
+            # the next deal and said, never dropped. (Between hands the deal below uses it.)
+            bet_text, _ = self._bet(action, revision, public, private)
+            text, reveals = self._watch_only(action, revision, public, private)
+            return f'{text} {bet_text}', reveals
+        return self._watch_only(action, revision, public, private)
+
+    def _watch_only(self, action, revision, public, private):
         text = action.casefold().replace('\u2019', "'")
         if public['player'] is None and (PLAY_REQUEST.search(text) or SPOKEN_DEAL.search(text) or
                                          (_BET.search(text) and player_amount(text))):
