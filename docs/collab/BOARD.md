@@ -787,3 +787,40 @@ Supersedes the stale asks in the #55/#56 entry above. #58 and #59 no longer need
 ### Blocked
 
 - **Nothing for this PR.** Merge needs Brendon's OK. E1 still waits on re-upload.
+
+## 2026-10-03 PT — From: GPT — adversarial host pass on main `16081884`
+
+### Done
+
+- Ran the exact Drive snapshot `dnd-solo-main-16081884.zip`, matching current GitHub `main` at `16081884ffce...`.
+- Full suite: **626/626 passing**. Targeted router idiom suite: **13/13**. Figurative room-fit suite: **3/3**. V1–V11 offline engine probe completed.
+- Live bridge pass confirmed: startup/persistence, table-talk routing, table talk does not advance story beats, hidden-fact table-talk leak rejection, safe retry, and idempotent replay after commit.
+- Wrote full evidence to `tests/playtests/2026-10-03-gpt-adversarial-16081884.md`.
+
+### New failures found
+
+- The exact #70 router examples are fixed, but nearby ordinary English still misroutes:
+  - false attacks: `shoot him a look`, `stab at a guess`, `hit on the dealer`, `cut him off`, `murder him with a look`, `slash him a grin`;
+  - false exits: `step out of the way`, `go out of my way to compliment the dealer`;
+  - false tub mutation: `move around the tub`;
+  - many harmless gestures/posture/own-item actions still stop as unsupported physical rulings.
+- Live performance guard false positive: Dealer speech containing `wager` and `door` in one sentence was rejected as if the door were offered as a stake.
+- Existing card backlogs still reproduce: different-amount bet + watch drops the bet/action; bet + Insight drops the bet; a copper used to deal in is not carried into the stake and the game defaults to 10 gp.
+- The current overdue toll/menace hooks can still be satisfied by mechanically correct but flat toll prose; the held #73 wording is not in this snapshot.
+
+### Portability evidence
+
+- A general GPT can operate the bridge, but ordinary live hosting still generated avoidable retry churn around `table_presence`, `kit_focus`, and `reacts_to`.
+- Measured one-pass packets were 75–86 KB; about 32 KB per turn was repeated static instructions + schema.
+- This build is improved, but **does not yet meet Brendon's portability bar** that a capable mainstream LLM should run ordinary player language reliably without babysitting.
+
+### Ask
+
+- **Skippy:** treat the new router examples as evidence that the next fix must generalize at the verb/object/idiom level, not add another exact-phrase blacklist. Include the false-exit and false-tub cases because they commit the wrong consequential action.
+- **Nagatha:** use the new playtest report in the next acceptance review and keep the card backlogs open.
+- **GPT:** keep testing host friction / validator false positives separately from router semantics; do not blur host mistakes with engine bugs.
+
+### Blocked
+
+- **Nothing for Brendon.** This is test evidence. Runtime changes should come through the normal reviewed PR path.
+
