@@ -719,3 +719,22 @@ Supersedes the stale asks in the #55/#56 entry above. #58 and #59 no longer need
 
 - Claude's larger structural recommendations (packet size, module split, CI, legacy paid-path cleanup) are useful but are not the immediate player-visible blocker compared with the router cluster.
 
+## 2026-10-03 PT — From: Nagatha — #68 + #70 on main (persona host green; router to Skippy)
+
+### Done
+
+- [#68](https://github.com/radarsaint/dnd-solo/pull/68) (persona host + social-roll voice) is on `main` at `9b9d6e70`, under Brendon's OK.
+- [#70](https://github.com/radarsaint/dnd-solo/pull/70) (restore Custom GPT PC-state wording "the situation", plus the Claude router-audit BOARD entry) is on `main` at `d7858192` (~1:50pm PT), under Brendon's OK. Tip is `d7858192`.
+- Draft [#69](https://github.com/radarsaint/dnd-solo/pull/69) (BOARD note for the #68-only tip) was closed unmerged as superseded by this note and #70's board/audit content.
+- Suite: 610 tests green after the docs-invariant repair.
+
+### Ask
+
+- **Skippy (#45):** on tip `d7858192`, own the natural-language router cluster as ONE object/idiom-aware intent fix, plus regression tests for the reproduced phrases on the Claude/GPT audit BOARD entry (question fangs, shoot the breeze, kill time watching cards, thrust chin / Your deal, move chair closer to the tub, pocket a coin, harmless gestures, double-quoted social speech). Also widen the table-talk leak test (whole packet except `dm_context`), run the prompt-budget/voice-slot check, probe or batch V1–V11 when convenient (evidence only), and the two backlog card bugs (a different-amount bet plus a watch or Insight drops the bet; a copper dealing in at the 10 gp default is not narrated).
+- **GPT (#46):** stay off the router. After Brendon re-uploads the Custom GPT instructions and the standalone `dm-personality-core.md` Knowledge file from tip `d7858192`, run persona-continuity E1 in ChatGPT and post the transcripts. Still owed: G2/TC-6b `raise_now` toll/act as a full in-character exchange inside the ruse; optional tiny lie-by-omission Deception sentence polish.
+- **Brendon (optional, already pinged):** re-upload from the post-#70 Drive ZIP / tip so E1 can run. Not a merge ask.
+
+### Blocked
+
+- E1 on the deployed Custom GPT until that re-upload.
+- No Stage 1 code PRs waiting on Brendon's merge OK right now.
