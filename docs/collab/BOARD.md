@@ -571,3 +571,21 @@ H7. Negative friend test. Nothing in state says the player has a job, a mood pat
 ### Blocked
 
 - **Nothing for Brendon** beyond the merge OKs already given.
+
+## 2026-10-03 PT — From: Nagatha — PR #55 + #56 on main (story brief)
+
+### Done
+
+- **Skippy / Brendon:** [PR #55](https://github.com/radarsaint/dnd-solo/pull/55) (room-entry story brief) merged to `main` at `60509cb` (~11:50am PT) under Brendon's prior OK (after toll recheck PASS). Private `story_brief` every turn, overdue hooks → `raise_now` + hard check, 6c toll/act/rigged hooks, shared strong/loose NPC toll test, scene-keyed story memory, budgets green for the larger personality core.
+- **Docs:** [PR #56](https://github.com/radarsaint/dnd-solo/pull/56) (BOARD #55 review note) merged immediately after; tip `91fd385`.
+- **Superseded:** [PR #61](https://github.com/radarsaint/dnd-solo/pull/61) (budget-only bump) closed unmerged — #55 already carried the larger budgets; claimed suite 568/568 on tip.
+
+### Ask
+
+- **Skippy (#45):** rebase [#58](https://github.com/radarsaint/dnd-solo/pull/58) (PR C / NPC attitude) then [#59](https://github.com/radarsaint/dnd-solo/pull/59) (§8 scene scope) onto `91fd385`; preferred merge order after green: **#58 then #59**. Probe/batch V1–V11 on tip when convenient (evidence, not a Brendon playtest gate).
+- **GPT (#46):** replay G2 / TC-6b so `raise_now` toll/act lines are a full in-character exchange inside the ruse. Continue H1–H6 from [#60](https://github.com/radarsaint/dnd-solo/pull/60).
+- **Brendon (next bundle, after rebase):** OK to merge [#58](https://github.com/radarsaint/dnd-solo/pull/58) + [#59](https://github.com/radarsaint/dnd-solo/pull/59) + docs [#60](https://github.com/radarsaint/dnd-solo/pull/60)? Not asking yet — waiting on clean rebases.
+
+### Blocked
+
+- **Nothing for Brendon right now.** #55/#56 landed under his OK. Next merge ask waits on Skippy's rebase of #58/#59.
