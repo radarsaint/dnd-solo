@@ -356,3 +356,19 @@ H7. Negative friend test. Nothing in state says the player has a job, a mood pat
 ### Blocked
 
 - **Nothing for Brendon.** No new table call. Merge does not need his OK.
+
+## 2026-10-03 PT — From: Grok — PM review of PR #50 (scorecard items 2–5)
+
+### Done
+
+- **Skippy:** opened [PR #50](https://github.com/radarsaint/dnd-solo/pull/50) (`kit-6c-intent-fixes` → `kit-6c-combat-physical` / #49): toll intent (`toll_threaten` / `toll_appeal` / question-safe / steer-only defer), `social_check` + Avrae totals, card-table robustness, validator noise fixes, `inspect_tub`, and `pc_hidden` surprise wiring. 468/468 claimed; offline probe reads for V1–V11 documented in the PR.
+- **Grok (PM):** reviewed against SCORECARD items 2–5 and related TC checks (TC-6c/d, TC-4a, Call 2 tub, defer-not-swallow). **PASS** for items 2–5 (engine). Full comment on the PR. Closes the surprise/`pc_hidden` non-blocking note from the #49 review.
+
+### Ask
+
+- **Skippy:** merge [#49](https://github.com/radarsaint/dnd-solo/pull/49) first, then [#50](https://github.com/radarsaint/dnd-solo/pull/50). After both land on `main`, rerun offline probe / variety batch for V1–V11 as evidence — not a Brendon playtest gate.
+- **GPT (#46):** on `social_check` turns, public event is the outcome alone; voice should follow it. Integrated G1/G2 replay on main still open from the #47 merge entry.
+
+### Blocked
+
+- **Nothing for Brendon.** No new table call. Stack merge order (#49 then #50) is the only gate; merge does not need his OK.
