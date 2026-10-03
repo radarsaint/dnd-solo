@@ -2387,6 +2387,9 @@ def prepare_inputs(runtime, revision, state, action, resolution, use_memory, one
             'scene_facts': scene_facts(state, resolution.events),
             'player_named': player_named(runtime, action),
             'discernment_candidates': discernment_candidates(context['dm_context'])}
+    if table_talk:
+        # Kit answers the player herself; no NPC is the focus, so no actor ids are offered.
+        body['discernment_candidates'] = {**body['discernment_candidates'], 'actor_bases': {'none': ['none']}}
     # Only needed to dedupe the one-pass public view; not kept in the staged body.
     body['view_before_event'] = context['dm_context']['player_perceivable'] if one_pass else None
     planning_input = {
@@ -2409,7 +2412,8 @@ def prepare_inputs(runtime, revision, state, action, resolution, use_memory, one
         body['detail_oracle'] = oracle
         planning_input['detail_oracle'] = kit_texture.model_view(oracle)
     source = runtime.source()
-    if source.get('claims'):
+    if source.get('claims') and not table_talk:
+        # Not for table talk: a direct question to Kit is not answered from who knows what.
         # Private: each claim's knowers, the PC's band from the loaded sheet, the wink tier.
         packet = kit_claims.claims_here(source, post_event_state, post_event_state.get('player_sheet'))
         body['claims_here'] = packet
@@ -2426,7 +2430,10 @@ def prepare_inputs(runtime, revision, state, action, resolution, use_memory, one
         planning_input['kit_plan'] = {'beats': kit_plan.current(post_event_state)}
     # Private: what this scene is about, from the room data, every turn in the scene (the
     # opening included, so the first line is written with it). Never sent to the performer.
-    planning_input['story_brief'] = kit_brief.brief(source, post_event_state)
+    # Table talk leaves it out: Kit answers the player, not the scene, and a direct question
+    # ("Is the dealer cheating me?") must not be answered from the brief's secrets.
+    if not table_talk:
+        planning_input['story_brief'] = kit_brief.brief(source, post_event_state)
     due = kit_brief.due_hooks(source, post_event_state)
     if due and not table_talk:
         body['story_due'] = due
