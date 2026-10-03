@@ -26,7 +26,8 @@ plain English.
    and a `pc_access` (passive or roll). Give a `dc` only when the adventure gives one. Without
    it, an NPC who actively hides the thing (`concealer` + `conceal_skill`) sets the DC at their
    flat 10 + skill; otherwise any check gets 10 + floor(dungeon floor level / 3) (the area's
-   optional `floor_level` defaults to 1). Add `subject_words` so an active look or a knowledge
+   optional `floor_level` defaults to 1). This is Brendon's settled rule (DM discretion, with
+   that baseline): don't raise an unnamed DC as an open decision. Add `subject_words` so an active look or a knowledge
    roll can target it, and `learned_text` for what a success shows. Also give the known `holders`, an
    `anchored_version` (the wrong answer someone gets from the most obvious feature), and a
    `fingerprint` (deniable evidence, never the label).

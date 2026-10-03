@@ -19,22 +19,24 @@
   "public_performance": {
     "status": "Authored performance choices inferred from the keyed room; not additional Mad Mage facts.",
     "entry_frame": "Interrupt a card game in progress beside the south door. Lead with one human action and a tension at the table, then make the north wall and recessed tub available in the player's view. The dealer may address the newcomer; leave the response to the player.",
-    "story_invitation": "A stranger can join or question the game, negotiate the game's stakes when offered, watch the players, inspect the carving or tub, or leave. Nothing here dictates that the stranger must pay or play.",
+    "story_invitation": "A stranger can join or question the game, negotiate the game's stakes, answer the passage toll when it is demanded (pay, haggle, refuse, or play for it), watch the players, inspect the carving or tub, or leave. Nothing here dictates that the stranger must pay or play.",
     "actor_cards": {
       "Dealer": {
         "vocal_signature": "A raspy voice with an East European accent, delivered in a leisurely theatrical cadence on invitations and clipped cleanly when stating terms. Describe the sound once when he first speaks; do not use phonetic spelling or caricature.",
         "verbal_habit": "Answers what the visitor actually said before he steers anywhere, then hears it as a bid and raises: a question back, a dare, an invitation. His charm is salesmanship, self-assured and fishing; he speaks for himself, never as a narrator or a commentator on the game. Do not repeat a catchphrase or reuse a line across turns.",
         "physical_touchstone": "A card held between two fingers punctuates what he says. Let his handling of the game reflect whether he feels in control.",
-        "public_objective": "Size up this visitor, keep the vampire ruse credible, and keep the encounter on his terms.",
-        "wants_from_visitor": "A read on this particular newcomer: what they came for, how much nerve and coin they carry, and whether they are a customer, a mark, or trouble. Best of all, the visitor seated at his table in a game he deals while the vampire ruse still holds.",
+        "public_objective": "Size up this visitor, keep the table's pale, old-world act convincing, and keep the encounter on his terms.",
+        "scene_objective": "Stay every inch the pale, old-world hosts of this table: eat nothing, drink nothing, offer neither, and keep the visitor seated and playing.",
+        "wants_from_visitor": "A read on this particular newcomer: what they came for, how much nerve and coin they carry, and whether they are a customer, a mark, or trouble. Best of all, the visitor seated at his table in a game he deals while the act still holds.",
         "tactics": [
           "Take up the visitor's own words, then turn them back with a probing question about what they expected or why they are here.",
           "Invite them into the game or a small side wager, and watch how they handle risk.",
-          "Keep the vampire act alive through small, deniable details: no refreshments to offer, the wine run out, no food at hand. Never announce the clue or prompt a check.",
-          "Name the game's ante, blind, or buy-in when money becomes relevant. He prices the game, not passage through the room."
+          "Keep the act alive through small, deniable details: no refreshments to offer, the wine run out, no food at hand. Never announce the clue or prompt a check.",
+          "Name the game's ante, blind, or buy-in when money becomes relevant. That is the game's own stake, nothing more.",
+          "When passage comes up, or to take back control, make the toll its own exchange, never a line beside the game: demand ten gold a head with a reason that stays inside the act, leave the visitor room to pay, haggle, refuse, or play for it, and follow through if they refuse."
         ],
         "card_use": "Tactics are options he picks in answer to what the visitor just did; none is a default line or a required beat. He pursues his own interest, not the DM's.",
-        "source_basis": "The visible card game and elaborate clothing. The vocal choices, ruse-serving clues, wants, and tactics are authored interpretation; exact stakes remain adjudication state.",
+        "source_basis": "The visible card game and elaborate clothing. The vocal choices, ruse-serving clues, wants, and tactics are authored interpretation; the passage toll comes from the room rules; exact stakes and toll amounts remain adjudication state.",
         "voice_contract": {
           "rhythm": "Unhurried, rolling sentences that stack a clause onto every offer, then snap short when he names terms or loses patience.",
           "register": "Showman's patter: courtly flourishes, gambling and trade words (stakes, ante, the house, odds, a bargain), and flattery with a price attached. No modern slang.",
@@ -50,7 +52,7 @@
             "A plain yes when a counter-offer would serve him better.",
             "The same pet name or opener two turns running; he finds a new angle each time."
           ],
-          "wants": "To learn what this visitor is worth to him, keep the vampire act credible, and seat them in a game he deals.",
+          "wants": "To learn what this visitor is worth to him, keep the act credible, and seat them in a game he deals.",
           "humor": "A salesman's humor: flattery, dares, and raising the stakes, always aimed at getting something from the visitor. Never deadpan understatement, one-word asides, or wry remarks about the moment; that register belongs to the DM, not to him.",
           "never_words": [
             "okay",
@@ -66,6 +68,7 @@
         "speech_floor": false,
         "vocal_signature": "Authored voice, not from the source: quick and anxious, half-sentences that trail off. Do not assign an invented backstory or reveal a hidden identity.",
         "public_objective": "Keep the peace at the table so nobody, least of all him, gets hurt.",
+        "scene_objective": "Stay every inch the pale, old-world hosts of this table: eat nothing, drink nothing, offer neither, and keep the visitor seated and playing.",
         "voice_contract": {
           "rhythm": "Hurried fragments that trail off or get cut short; he rarely finishes a thought before glancing away.",
           "register": "Nervous everyday words, hedges, and pleas; no threats, no bargaining terms.",
@@ -94,6 +97,7 @@
         "speech_floor": false,
         "vocal_signature": "Authored voice, not from the source: low, blunt, and territorial. Do not assign an invented backstory or reveal a hidden identity.",
         "public_objective": "Protect his seat and his coins from newcomers.",
+        "scene_objective": "Stay every inch the pale, old-world hosts of this table: eat nothing, drink nothing, offer neither, and keep the visitor seated and playing.",
         "voice_contract": {
           "rhythm": "Flat, heavy commands of two to six words, then silence.",
           "register": "Blunt street words and short orders; no questions, no flattery, no titles.",
@@ -122,6 +126,7 @@
         "speech_floor": false,
         "vocal_signature": "Authored voice, not from the source: flat and practical, interested only in the game in front of them. Do not assign an invented backstory or reveal a hidden identity.",
         "public_objective": "Get the game moving again.",
+        "scene_objective": "Stay every inch the pale, old-world hosts of this table: eat nothing, drink nothing, offer neither, and keep the visitor seated and playing.",
         "voice_contract": {
           "rhythm": "Short, even statements about the game, spoken without looking up.",
           "register": "Gambler's shorthand about the game itself: whose deal, what is bid, what is owed.",
@@ -199,7 +204,7 @@
         "bandit_b": "knows",
         "doppelganger": "knows"
       },
-      "fingerprint": "The dealer wipes his chin a beat too fast after he drinks; the fangs sit a little proud of his lip.",
+      "fingerprint": "Not a cup, crumb, or bottle anywhere on the table; the dealer's fangs sit a little proud of his lip.",
       "subject_words": ["vampire", "vampires", "fang", "fangs", "pallor", "pale skin", "disguise", "disguises", "makeup", "make-up", "undead", "costume", "costumes"],
       "learned_text": "Their pallor and fangs are theatrical. They are posing as vampires."
     },
@@ -250,7 +255,7 @@
         "bandit_b": "unaware",
         "doppelganger": "unaware"
       },
-      "subject_words": ["fresco", "carving", "carvings", "carved dwarves", "dwarven figures", "tiny dwarves", "tiny figures", "carved figures", "mountain"],
+      "subject_words": ["fresco", "carving", "carvings", "carved dwarves", "dwarven figures", "tiny dwarves", "tiny figures", "carved figures", "dwarf figures", "dwarf figure", "dwarves", "mountain"],
       "learned_text": "One carved dwarf lifts out of the fresco. It is a small stone key."
     },
     "ring_value": {
@@ -296,7 +301,7 @@
   ],
   "starting_area": "area_06c",
   "areas": {
-    "area_06c": {"name": "Card room", "floor_level": 1},
+    "area_06c": {"name": "Card room", "floor_level": 1, "no_refreshment": true, "_no_refreshment": "Brendon's table call 3 (2026-10-02): the four take no food or drink and serve none; the wine having run out is the clue. No public text serves or offers food or drink here."},
     "south_passage": {"name": "Short passage south of area 6c"}
   },
   "exits": {
@@ -356,7 +361,7 @@
       "name": "Pale man dealing cards", "dm_identity": "Uktarl Krannoc",
       "type": "human bandit captain", "performance_bonus": 4,
       "location": "area_06c", "status": "alive", "visible": true,
-      "motive": "Profit from newcomers and displace Harria as leader of the Undertakers.",
+      "motive": "Keep the Undertakers' vampire act intact and the visitor seated at his table, where he can profit from them; displace Harria as leader of the Undertakers.",
       "immediate_goal": "Control the encounter without risking himself.",
       "knowledge": ["The Undertakers' vampire appearance is a disguise.", "His deck is marked.", "Harria is his rival."],
       "secrets": ["He is not a vampire.", "He cheats at cards."],
@@ -370,7 +375,7 @@
     "bandit_a": {
       "name": "Pale card player near the door", "type": "human bandit",
       "location": "area_06c", "status": "alive", "visible": true,
-      "motive": "Share in the Undertakers' take and survive this encounter.",
+      "motive": "Keep the vampire act intact and the visitor at the table; share in the Undertakers' take and survive this encounter.",
       "knowledge": ["The vampire appearance is a disguise."],
       "secrets": ["Not a vampire."],
       "retreat_condition": "When Uktarl retreats, flee toward area 8 and join any bandits still there.",
@@ -380,7 +385,7 @@
     "bandit_b": {
       "name": "Pale card player beside the fresco", "type": "human bandit",
       "location": "area_06c", "status": "alive", "visible": true,
-      "motive": "Share in the Undertakers' take and survive this encounter.",
+      "motive": "Keep the vampire act intact and the visitor at the table; share in the Undertakers' take and survive this encounter.",
       "knowledge": ["The vampire appearance is a disguise."],
       "secrets": ["Not a vampire."],
       "retreat_condition": "When Uktarl retreats, flee toward area 8 and join any bandits still there.",
@@ -390,7 +395,7 @@
     "doppelganger": {
       "name": "Fourth pale card player", "type": "doppelganger",
       "location": "area_06c", "status": "alive", "visible": true,
-      "motive": "Support the current Undertaker arrangement while preserving its disguise and safety.",
+      "motive": "Keep the vampire act intact and the visitor at the table; support the current Undertaker arrangement while preserving its own disguise and safety.",
       "knowledge": ["The group's vampire identity is a performance.", "Its own true nature."],
       "secrets": ["A doppelganger disguised as one of the apparent vampires."],
       "retreat_condition": "When Uktarl retreats, flee toward area 8 and join any bandits still there.",
@@ -400,7 +405,36 @@
   },
   "procedures": {
     "_note": "DM-only adapter. Table procedures the runtime can run in this room. The source names no game, rules, or stakes for area 6c; everything here is a declared DM choice, persisted as a canon entry (with its procedure) when first chosen.",
+    "twenty_one": {
+      "kind": "card_game",
+      "game": "twenty_one",
+      "name": "Twenty-one (blackjack), or one check a round",
+      "dm_choice": "DM choice, not the adventure's: the adventure names no game, rules, or stakes for this table. Brendon's table call 7 (2026-10-02): the player picks the weight, one check a round or an easy, familiar game. Kit runs twenty-one (blackjack), which this table calls Twenty-One Coffins.",
+      "unit": "gp",
+      "seats": {"bandit_a": 15, "bandit_b": 18, "doppelganger": 22, "uktarl": 30},
+      "stacks_note": "The gold stacks are the table's gold split by seat (a DM choice). The player plays against the dealer's stack.",
+      "default_stake": 10,
+      "max_stake": 25,
+      "_stake_basis": "Brendon's table call 1: the stake is the player's bet or what the dealer will risk; a 10 gp default round is fine, a 1 gp high-card flip is not. 25 gp is the most the dealer risks on one round (DM choice, under his 30 gp stack).",
+      "carries": ["toll"],
+      "_carries_basis": "Brendon's table call 6: the toll can be played for only if the procedure can pay it out. A win waives it; a loss pays it from the stake.",
+      "labels": {"uktarl": "Dealer", "bandit_a": "Door-side player", "bandit_b": "Fresco-side player", "doppelganger": "Fourth player"},
+      "check": {"skill": "insight", "npc_bonus": 4, "basis": "DM choice: one check settles a round. The PC reads the table with Insight against the dealer's flat 10 + Performance 4 (room source); NPCs never roll."},
+      "cheat": {
+        "actor": "uktarl",
+        "method": "He reads the marks on the backs as he deals and deals himself the second card when it is better (dealing seconds).",
+        "sleight_bonus": 3,
+        "sleight_basis": "DM choice: bandit captain Dexterity +3 opposes a player watching the deal; the adventure gives no DC.",
+        "check_edge": 2,
+        "check_edge_basis": "DM choice: in one-check mode the marks are a +2 edge on the dealer's number until the player catches the cheat.",
+        "passive_perception": 10,
+        "reveals_fact": "marked_deck",
+        "caught_text": "You keep your eyes on the deck. He deals everyone else off the top, but whenever the card beneath is better for him, he slides it out for himself, neat as a conjurer. You catch it."
+      }
+    },
     "three_dragon_ante": {
+      "offered": false,
+      "_offered": "Brendon's table call 7: the 6c game must be easy to understand. Three-Dragon Ante's engine stays available but is not offered at this table.",
       "kind": "card_game",
       "name": "Three-Dragon Ante (Kit's table rules)",
       "dm_choice": "DM choice, not the adventure's: the adventure names no game, rules, or stakes for this table. Kit chose Three-Dragon Ante, a Forgotten Realms card game many D&D players know, and runs it in the published game's shape (card antes set the stakes, three rounds of flights, color powers) with her own short deck and power list, written in her own words. Texas hold 'em or blackjack would have been just as valid.",
@@ -425,6 +459,27 @@
         "reveals_fact": "marked_deck",
         "caught_text": "You catch it: his eyes read the backs of the cards as he deals, and he gives himself the second card instead of the top one."
       }
+    }
+  },
+  "tolls": {
+    "_note": "DM-only. The toll is played as a conversation with stakes (runtime/kit_toll.py). Brendon's table call 6 (revised 2026-10-02): the toll stays, as a full exchange: one NPC asks for it with a motive, the player can pay, haggle, refuse, or turn the talk to the game, and refusing costs something.",
+    "passage_toll": {
+      "area": "area_06c",
+      "demanded_by": "uktarl",
+      "amount": 10,
+      "unit": "gp",
+      "per": "head",
+      "numeric_fact": "passage_toll",
+      "basis": "Room source: the gang demands 10 gp per character for safe passage.",
+      "floor": 5,
+      "floor_basis": "DM choice: half the source toll is the least Uktarl takes; below it he will not bargain.",
+      "haggle": {"skill": "persuasion", "npc_skill": "insight", "basis": "The PC's Persuasion against Uktarl's flat 10 + Insight (NPCs never roll)."},
+      "refusal": [
+        {"kind": "pressure", "text": "The table closes ranks: the dealer's courtesy goes cold, the others shift their chairs between you and the south door, and the demand is made again as a warning."},
+        {"kind": "source_fallback", "text": "Unable to extort you, they change tack: they try to turn you against the Xanathar goblinoids, the gang's real rivals down here."}
+      ],
+      "violence": "If it turns violent, the room's retreat rules apply: Uktarl retreats toward area 7 when damaged or when an underling is slaughtered; the others flee toward area 8.",
+      "stakeable_in": ["twenty_one"]
     }
   },
   "texture_palette": {
@@ -482,8 +537,8 @@
               "basis": "published: Three-Dragon Ante, a Forgotten Realms card game",
               "roots": ["card_table", "treasure_on_table"],
               "tags": ["familiar", "watchable_cheat", "gives_player_a_handle"],
-              "handle": "buy in, ante a card, or watch the deal",
-              "procedure": "three_dragon_ante"
+              "handle": "ask about the game",
+              "procedure": null
             },
             {
               "id": "holdem_graves",
@@ -500,8 +555,8 @@
               "basis": "real: blackjack",
               "roots": ["card_table", "actor:uktarl"],
               "tags": ["familiar", "watchable_cheat", "grave_humor"],
-              "handle": "watch how the dealer plays his own cards",
-              "procedure": null
+              "handle": "sit in for a hand, settle a round with one check, or watch how the dealer plays his own cards",
+              "procedure": "twenty_one"
             },
             {
               "id": "last_widow",
@@ -510,44 +565,6 @@
               "roots": ["card_table", "treasure_on_table"],
               "tags": ["familiar", "grave_humor"],
               "handle": "ask who is winning",
-              "procedure": null
-            }
-          ],
-          "drink": [
-            {
-              "id": "cherry_cordial",
-              "entry": "Black-cherry cordial, dark as a bruise, poured from a stoppered clay bottle by the dealer's elbow",
-              "basis": "real: cherry cordial",
-              "roots": ["card_table", "actor:uktarl"],
-              "tags": ["familiar", "grave_humor", "tactile"],
-              "handle": "ask for a pour, or watch who refills whom",
-              "procedure": null
-            },
-            {
-              "id": "mulled_red",
-              "entry": "Mulled red with cloves, kept warm on a brazier under the table, where it scents the whole room",
-              "basis": "real: mulled wine",
-              "roots": ["card_table"],
-              "tags": ["familiar", "tactile"],
-              "handle": "warm your hands at the brazier and listen",
-              "procedure": null
-            },
-            {
-              "id": "beet_shrub",
-              "entry": "A beet-and-vinegar shrub, sour enough to make a newcomer's eyes water, poured by the dealer with a flourish",
-              "basis": "real: drinking vinegar (shrub)",
-              "roots": ["card_table", "actor:uktarl"],
-              "tags": ["grave_humor", "gives_player_a_handle"],
-              "handle": "accept a sip, or ask for something sweeter",
-              "procedure": null
-            },
-            {
-              "id": "firewater_flask",
-              "entry": "Clear firewater from a dented tin flask stamped with a pickaxe, passed left each hand",
-              "basis": "palette: dwarven-made flask, an Undermountain commonplace",
-              "roots": ["card_table"],
-              "tags": ["tactile", "owner_with_a_want"],
-              "handle": "wait for the flask to pass your way",
               "procedure": null
             }
           ],

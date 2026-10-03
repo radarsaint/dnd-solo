@@ -99,7 +99,7 @@ def flight_total(cards):
     return sum(strength(card) for card in cards)
 
 
-def initial_state(config):
+def _tda_initial_state(config):
     return {
         'public': {
             'name': config['name'], 'dm_choice': config['dm_choice'], 'unit': config['unit'],
@@ -209,7 +209,7 @@ def in_gambit(procedure_state):
     return bool(gambit and gambit['phase'] in ('ante', 'play'))
 
 
-def card_intent(action, procedure_state):
+def _tda_intent(action, procedure_state):
     """A card-table action, when a card procedure is declared; otherwise None (speech).
 
     Order matters: an accusation names what the dealer did; watching the deal is a
@@ -280,6 +280,8 @@ class CardTable:
                     'swap': cheat['passive_perception'], **(dcs or {})}
         self.seed = seed
         self.labels = {**config['labels'], 'player': 'You'}
+        self.trace = []  # the numbers behind this action, for the ledger only
+        self.toll_outcome = None
 
     def _modifier(self, skill, action):
         supplied = supplied_roll(action)
@@ -309,13 +311,16 @@ class CardTable:
         return {'auto': False, 'die': die, 'modifier': modifier, 'total': die + modifier, 'dc': dc,
                 'success': die + modifier >= dc}
 
-    @staticmethod
-    def _note(name, result, against='DC'):
+    def _note(self, name, result, against='DC'):
+        """Record the numbers behind a contest in the turn's trace (ledger evidence).
+        Numbers never reach public text (Brendon's table call 4)."""
         if result['auto']:
-            return f'(passive {name} {result["total"]} meets {against} {result["dc"]})'
-        if result['success']:
-            return f'({name} {result["total"]} vs {against} {result["dc"]})'
-        return f'({name} {result["total"]})'
+            line = f'passive {name} {result["total"]} meets {against} {result["dc"]}; no roll'
+        else:
+            line = (f'{name} d20 {result["die"]} + {result["modifier"]} = {result["total"]} vs '
+                    f'{against} {result["dc"]}: {"success" if result["success"] else "failure"}')
+        self.trace.append(line)
+        return ''
 
     def resolve(self, kind, action, revision, state):
         game = copy.deepcopy(state)
@@ -461,8 +466,9 @@ class CardTable:
         if detection:
             outcome = (self.config['cheat']['caught_text'] if detection['caught'] else
                        'Nothing about the deal looks wrong to you.')
-            lines.append(f'{outcome} {self._note("Perception", detection)}')
-        lines.append('Choose a card to ante.')
+            self._note('Perception', detection)
+            # The catch is told as prose, first, not buried in the dealing log (call 4).
+            lines.insert(0, outcome)
         return ' '.join(lines), reveals
 
     # -- the ante -------------------------------------------------------------
@@ -480,7 +486,7 @@ class CardTable:
     def _ante(self, action, revision, public, private):
         gambit = public['gambit']
         require(gambit['phase'] == 'ante', 'The ante is already made')
-        card = self._named_card(action, private)
+        card = self._named_card(action, private, phase='ante')
         lines = []
         antes = {}
         for seat in gambit['seats']:
@@ -507,13 +513,14 @@ class CardTable:
         return ' '.join(line for line in lines if line), []
 
     # -- playing into the flight ----------------------------------------------
-    def _named_card(self, action, private):
+    def _named_card(self, action, private, phase='play'):
+        """The card the player named, else a sensible default (table call 7: a bare "I play"
+        never stalls on a sub-choice the player was not asked for): the weakest card to
+        ante, the strongest to play into the flight."""
         hand = [tuple(card) for card in private['hands']['player']]
         card = parse_card(action, hand)
         if card is None:
-            raise NeedsRuling('Name the card from your hand, for example "I play the '
-                              f'{card_name(max(hand, key=strength))}." Your hand: '
-                              f'{", ".join(card_name(c) for c in hand)}. No turn was committed.')
+            card = min(hand, key=strength) if phase == 'ante' else max(hand, key=strength)
         return card
 
     def _play(self, action, revision, public, private):
@@ -715,13 +722,13 @@ class CardTable:
         else:
             seen = 'He gives you nothing to read.'
         gambit['read'] = seen
-        return f'{seen} {self._note("Insight", result)}', []
+        self._note('Insight', result)
+        return seen, []
 
     def _swap(self, action, revision, public, private):
         gambit = public['gambit']
         require(not gambit['swapped'], 'You already worked a card this gambit')
         result = self._contest('sleight_of_hand', 'swap', action, revision, 'swap', passive_counts=False)
-        passive, total = result['dc'], result['total']
         gambit['swapped'] = True
         hand = private['hands']['player']
         if result['success']:
@@ -729,15 +736,16 @@ class CardTable:
             lowest = min(hand, key=strength)
             hand[hand.index(lowest)] = fresh
             private['discard'].append(lowest)
+            self._note('Sleight of Hand', result, 'passive Perception')
             return (f'Your {card_name(lowest)} goes up your sleeve and the {card_name(fresh)} comes off '
-                    f'the deck unseen. (Sleight of Hand {total} vs passive Perception {passive})'), []
+                    'the deck unseen.'), []
         public['player']['unwelcome'] = True
         public['table_mood'] = 'hostile: caught you cheating'
         gambit['out'].append('player')
         private['discard'].extend(private['hands'].pop('player', []))
+        self._note('Sleight of Hand', result, 'passive Perception')
         lead = ('The dealer\'s hand closes over your wrist before the card clears your cuff. You are out '
-                f'of the gambit, your gold stays in the stakes, and nobody will deal to you now. (Sleight '
-                f'of Hand {total} vs passive Perception {passive})')
+                'of the gambit, your gold stays in the stakes, and nobody will deal to you now.')
         rest = self._advance(public, private) if gambit['phase'] == 'play' else self._finish_ante_out(public, private)
         return f'{lead} {rest}'.strip(), []
 
@@ -815,7 +823,7 @@ def table_gold(public):
             gambit.get('stakes', 0) + public.get('carried', 0))
 
 
-def public_view(config, public):
+def _tda_public_view(config, public):
     """The player-visible half with every seat under its public label. Seat keys are DM
     actor ids (one of them names a hidden identity), so they never leave the DM side."""
     labels = {**config.get('labels', {}), 'player': 'you'}
@@ -844,7 +852,7 @@ def declared_procedures(state):
     return sorted((state or {}).get('procedures', {}))
 
 
-def check_config(config):
+def _tda_check_config(config):
     for key in ('name', 'dm_choice', 'unit', 'seats', 'cheat', 'labels'):
         require(key in config, f'Card procedure config needs {key}')
     for key in ('actor', 'sleight_bonus', 'deception_bonus', 'passive_perception', 'reveals_fact',
@@ -853,3 +861,78 @@ def check_config(config):
     if not all(actor in config['labels'] for actor in config['seats']):
         raise InvalidChange('Every seat needs a public label')
     require(config['cheat']['actor'] in config['seats'], 'The dealer must hold a seat')
+
+
+# ---------------------------------------------------------------------------
+# One entry point per table game. A card procedure's config names its ``game``
+# (default Three-Dragon Ante); twenty-one lives in runtime/kit_twenty_one.py.
+# ---------------------------------------------------------------------------
+def _twenty_one():
+    from . import kit_twenty_one  # local import: kit_twenty_one imports this module
+    return kit_twenty_one
+
+
+def game_of(config_or_public):
+    return (config_or_public or {}).get('game') or 'three_dragon_ante'
+
+
+def initial_state(config):
+    return _twenty_one().initial_state(config) if game_of(config) == 'twenty_one' else _tda_initial_state(config)
+
+
+def check_config(config):
+    return _twenty_one().check_config(config) if game_of(config) == 'twenty_one' else _tda_check_config(config)
+
+
+def card_intent(action, procedure_state):
+    if procedure_state is None:
+        return None
+    if game_of(procedure_state.get('public')) == 'twenty_one':
+        return _twenty_one().card_intent(action, procedure_state)
+    return _tda_intent(action, procedure_state)
+
+
+def public_view(config, public):
+    if game_of(public) == 'twenty_one' or game_of(config) == 'twenty_one':
+        return _twenty_one().public_view(config, public)
+    return _tda_public_view(config, public)
+
+
+def engine_for(procedure_id, config, modifiers, seed, passives=None, dcs=None):
+    if game_of(config) == 'twenty_one':
+        return _twenty_one().TwentyOneTable(procedure_id, config, modifiers, seed, passives=passives, dcs=dcs)
+    return CardTable(procedure_id, config, modifiers, seed, passives=passives, dcs=dcs)
+
+
+def rule_terms(configs):
+    """The running games' own words, for the rules-statement guard."""
+    terms = set()
+    for config in configs:
+        terms |= set(_twenty_one().GAME_TERMS if game_of(config) == 'twenty_one' else RULE_TERMS)
+    return tuple(sorted(terms))
+
+
+def offered(source):
+    """Card procedures this room offers as playable (``offered`` false keeps a game's
+    engine available without offering it here)."""
+    return tuple(key for key, config in ((source or {}).get('procedures') or {}).items()
+                 if not key.startswith('_') and isinstance(config, dict) and config.get('offered', True))
+
+
+def can_carry(config, item):
+    """True when the procedure can pay out a stake of this kind (gold always)."""
+    return item == 'gold' or item in ((config or {}).get('carries') or ())
+
+
+def is_live(public):
+    """A round or gambit is in progress."""
+    gambit = (public or {}).get('gambit') or (public or {}).get('round')
+    return bool(gambit and gambit.get('phase') in ('ante', 'play'))
+
+
+def card_words():
+    """Words a hand or table reminder is made of (exempt from the padding guard)."""
+    tw = _twenty_one()
+    return tuple(COLORS) + tuple(tw.RANKS) + tuple(tw.SUITS) + (
+        'dragon', 'dragons', 'card', 'cards', 'hand', 'your', 'ace', 'aces', 'jack', 'queen', 'king', 'shows',
+        'showing', 'holds', 'hold', 'stakes', 'flight', 'round', 'dealer')

@@ -86,25 +86,45 @@ class RouterTests(unittest.TestCase):
         self.assertIn('Dealer:', result['spoken'])
 
 
+def tda_source():
+    """The 6c source with Three-Dragon Ante offered again, for the tests of that engine.
+    Table call 1 retired it at 6c (offered: false); the engine itself is still general."""
+    source = json.loads(FIXTURE.read_text())
+    source['procedures']['three_dragon_ante'].pop('offered', None)
+    def walk(node):
+        if isinstance(node, dict):
+            if node.get('id') == 'three_dragon_ante' and 'procedure' in node:
+                node['procedure'] = 'three_dragon_ante'
+            for value in node.values():
+                walk(value)
+        elif isinstance(node, list):
+            for value in node:
+                walk(value)
+    walk(source)
+    return source
+
+
 class GameModel(RecordingModel):
-    """Answers "What game is it?" by the oracle: picks the Three-Dragon Ante card and
-    declares its procedure, and performs that answer."""
+    """Answers "What game is it?" by the oracle: picks the twenty-one card (table call 1:
+    a simple real game) and declares its procedure, and performs that answer."""
+
+    pick = 'blackjack_coffins'
 
     def plan(self, payload):
         plan = super().plan(payload)
         oracle = payload.get('detail_oracle')
         if oracle and oracle['status'] == 'open' and oracle['slot'] == GAME_SLOT:
             # The decision's lean view: draw_id, entry, handle, procedure (no roots or basis).
-            dealt = next(card for card in oracle['deal'] if card['draw_id'].endswith('.three_dragon_ante'))
+            dealt = next(card for card in oracle['deal'] if card['draw_id'].endswith('.' + self.pick))
             plan['detail'] = {
                 'request': payload['player_action'], 'slot': oracle['slot'], 'choice': dealt['draw_id'],
                 'candidates': [], 'typical': -1, 'chosen': -1,
                 'owner': 'uktarl: a game where knowing the cards pays',
-                'handle': 'buy in, ante a card, or watch the deal',
+                'handle': 'sit in for a hand, settle a round with one check, or watch the deal',
                 'because': 'true because the four play cards at this table with coins in front of them',
                 'price_quote': [],
                 'inventions': [{'slot': oracle['slot'], 'kind': 'procedure', 'fact': dealt['entry'],
-                                'basis': 'published: Three-Dragon Ante, a DM choice', 'public': True, 'scope': 'location',
+                                'basis': 'real: blackjack, a DM choice', 'public': True, 'scope': 'location',
                                 'procedure': dealt['procedure'], 'change_reason': 'none'}]}
         return plan
 
@@ -112,10 +132,10 @@ class GameModel(RecordingModel):
         if 'new_procedures' not in payload:
             return super().perform(payload, performance_variant)
         self.performances.append(payload.copy())
-        narration = ('The dealer fans dragon cards in ten colors across the worn felt: Three-Dragon Ante, '
-                     'where each player antes a card and the strongest ante sets the stakes.')
+        narration = ('The dealer squares a worn deck on the felt: Twenty-One Coffins, plain blackjack, '
+                     'closest to twenty-one without going over takes the pot.')
         return {'segments': [
-            {'speaker': 'Kit', 'text': 'A real game, then. Good.', 'reacts_to': 'Three-Dragon Ante'},
+            {'speaker': 'Kit', 'text': 'A real game, then. Good.', 'reacts_to': 'Twenty-One Coffins'},
             {'speaker': 'Narrator', 'text': narration},
             {'speaker': 'Dealer', 'text': DEALER_EXCHANGES[2][1]}]}
 
@@ -151,13 +171,13 @@ class GameDetailTests(unittest.TestCase):
         state = self.runtime.load()[1]
         entry = state['canon'][GAME_SLOT]
         self.assertEqual((entry['procedure'], entry['public'], entry['scope']),
-                         ('three_dragon_ante', True, 'location'))
+                         ('twenty_one', True, 'location'))
         self.assertTrue(entry['roots'])
-        self.assertIn('three_dragon_ante', state['procedures'])
-        self.assertIn('three_dragon_ante', state['oracle']['used']['area_06c'])
+        self.assertIn('twenty_one', state['procedures'])
+        self.assertIn('blackjack_coffins', state['oracle']['used']['area_06c'])
         view = self.runtime.player_view()
         self.assertEqual(view['established_details'][0]['slot'], GAME_SLOT)
-        self.assertIn('three_dragon_ante', view['table_procedures'])
+        self.assertIn('twenty_one', view['table_procedures'])
         # Asking again reuses canon: no new deal.
         again = kit_agent.detail_oracle(self.runtime, state, 'So what game is this, again?', 'social')
         self.assertEqual(again['status'], 'canon_supplied')
@@ -166,13 +186,15 @@ class GameDetailTests(unittest.TestCase):
         adjudicator = Room6CAdjudicator(perception=2, insight=1, sleight_of_hand=3, roll=lambda: 20)
         revision, state = self.runtime.load()
         adjudicator.source = self.runtime.source()
-        before = adjudicator.resolve('I buy in with 20 gold. Deal me in.', revision, state)
-        self.assertNotEqual(before.kind, 'card_join', 'no game is running until one is declared')
+        before = adjudicator.resolve('I bet 10 gold. Deal me in.', revision, state)
+        # Table call 1: asking to play declares the area's offered game and puts the choice
+        # (one check or play it out) to the player, rather than stalling until it is named.
+        self.assertEqual(before.kind, 'card_offer')
         self.agent.turn(GAME_ASK, 'game')
         revision, state = self.runtime.load()
         adjudicator.source = self.runtime.source()
-        resolution = adjudicator.resolve('I buy in with 20 gold. Deal me in.', revision, state)
-        self.assertEqual(resolution.kind, 'card_join')
+        resolution = adjudicator.resolve('I bet 10 gold. Deal me in.', revision, state)
+        self.assertEqual(resolution.kind, 'card_offer')
         self.assertIn('procedure_state', [event['type'] for event in resolution.events])
 
     def test_a_long_card_event_commits_through_the_decision(self):
@@ -184,8 +206,10 @@ class GameDetailTests(unittest.TestCase):
         self.runtime = Runtime(Path(temp.name) / 'seeded.sqlite')
         self.addCleanup(self.runtime.close)
         with mock.patch('runtime.state_context.secrets.token_hex', return_value=f'{6:032x}'):
-            self.runtime.initialize(json.loads(FIXTURE.read_text()), 'area_06c')
-        self.agent = KitAgent(self.runtime, GameModel(), Room6CAdjudicator(
+            self.runtime.initialize(tda_source(), 'area_06c')
+        model = GameModel()
+        model.pick = 'three_dragon_ante'
+        self.agent = KitAgent(self.runtime, model, Room6CAdjudicator(
             perception=2, insight=1, sleight_of_hand=3, roll=lambda: 20))
         actions = [GAME_ASK, 'I buy in with 20 gold. Deal me in.', 'I ante my strongest card.',
                    'I play my strongest card.', 'I play my strongest card.', 'I play my strongest card.']
@@ -207,7 +231,7 @@ class GameDetailTests(unittest.TestCase):
         performance = bridge.decide('bridge-game', plan)
         self.assertNotIn('detail_oracle', json.dumps(performance['input']))
         bridge.finish('bridge-game', self.model.perform(performance['input']))
-        self.assertEqual(self.runtime.load()[1]['canon'][GAME_SLOT]['procedure'], 'three_dragon_ante')
+        self.assertEqual(self.runtime.load()[1]['canon'][GAME_SLOT]['procedure'], 'twenty_one')
 
     def test_a_price_question_gets_the_source_toll(self):
         state = self.runtime.load()[1]
@@ -353,7 +377,9 @@ class CardTableTests(unittest.TestCase):
                                              'deals. I rolled 20 + 5 = 25.', 2, state)
         self.assertEqual(reveals, ['marked_deck'])
         self.assertTrue(state['public']['gambit']['cheat_seen'])
-        self.assertIn('Perception 25', text)
+        # Table call 2: the numbers go to the ledger, never the table.
+        self.assertNotIn('Perception 25', text)
+        self.assertIn('Perception d20 20 + 5 = 25', ' '.join(table.trace))
         state = table.resolve('card_ante', 'I ante my strongest card.', 3, state)[1]
         self.assertNotEqual(state['public']['stacks'], before, 'the antes are in the stakes')
         text, state, _ = table.resolve('card_accuse', 'You dealt yourself the second card.', 4, state)
@@ -422,9 +448,13 @@ class CardTableTests(unittest.TestCase):
         self.assertEqual(kit_cards.parse_card('the gold dragon, please', hand), ('gold', 13))
         self.assertEqual(kit_cards.parse_card('I lay down my weakest card', hand), ('red', 2))
         self.assertIsNone(kit_cards.parse_card('I play a red one', hand), 'two reds and no red 1')
+        # Table call 1: no "Name the card" stall. A bare ante antes the weakest card.
         table, state, _ = self.seated()
-        with self.assertRaisesRegex(kit_cards.NeedsRuling, 'Name the card'):
-            table.resolve('card_ante', 'I ante.', 2, state)
+        hand = state['private']['hands']['player']
+        weakest = min(hand, key=lambda card: card[1])
+        text, state, _ = table.resolve('card_ante', 'I ante.', 2, state)
+        self.assertNotIn('Name the card', text)
+        self.assertNotIn(weakest, state['private']['hands']['player'])
 
     def test_card_move_matching(self):
         """QA PR #15 item 3: watching is a watch, a claim is an accusation, a question

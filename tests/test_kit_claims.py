@@ -321,19 +321,26 @@ class PlayTests(unittest.TestCase):
         revision, state = self.runtime.load()
         first = adjudicator.resolve('I study their faces for a disguise.', revision, state)
         # Passive Insight 14 meets DC 14: automatic, nothing rolled (the roll lambda is unused).
-        self.assertIn('passive Insight 14 meets DC 14', first.public_event)
+        # The numbers live in the ledger only (table call 2).
+        def ledger(result):
+            return ' '.join(event.get('evidence', '') for event in result.events)
+        self.assertIn('passive Insight 14 meets DC 14', ledger(first))
+        self.assertNotIn('DC', first.public_event)
         self.runtime.set_player_sheet(dull_fighter())
         revision, state = self.runtime.load()
         second = adjudicator.resolve('I study their faces for a disguise.', revision, state)
-        self.assertIn('(Insight 9)', second.public_event)
+        self.assertIn('Insight', ledger(second))
+        self.assertIn('= 9', ledger(second))
+        self.assertNotIn('(Insight 9)', second.public_event)
         self.assertNotIn('vampire', second.public_event)
         self.runtime.set_player_character('Another', 'Human')
         revision, state = self.runtime.load()
         with self.assertRaisesRegex(PendingRuling, 'Load a character sheet or state the Insight roll'):
             adjudicator.resolve('I study their faces for a disguise.', revision, state)
         explicit = Room6CAdjudicator(source=SOURCE, insight=2, roll=lambda: 10)
-        self.assertIn('(Insight 12)', explicit.resolve('I study their faces for a disguise.',
-                                                     revision, state).public_event)
+        third = explicit.resolve('I study their faces for a disguise.', revision, state)
+        self.assertIn('= 12', ledger(third))
+        self.assertNotIn('(Insight 12)', third.public_event)
 
     def test_one_pass_knowledge_uses_the_roll_result_before_commit_and_retries_safely(self):
         self.runtime.set_player_sheet(NIK)
@@ -391,24 +398,25 @@ class PlayTests(unittest.TestCase):
         bridge = kit_agent.KitChatBridge(self.runtime)
         packet = bridge.prepare('I listen to the dealer.', one_pass=True)
         plan = RecordingModel().plan(packet['input']['private'])
-        item = claim('new', 'uktarl', 'truth', 'Cherry cordial.', about='actor:uktarl/drink',
-                     truth='cherry cordial', roots=['card_table'], holder='uktarl')
+        # 6c has no food or drink (table call 3), so the invented detail is his lucky coin.
+        item = claim('new', 'uktarl', 'truth', 'A Waterdeep copper.', about='actor:uktarl/token',
+                     truth='waterdeep copper', roots=['card_table'], holder='uktarl')
         plan['claims'] = [item]
         speech = {'segments': [
-            {'speaker': 'Narrator', 'text': 'He leaves his cup beside the coins and squares the '
+            {'speaker': 'Narrator', 'text': 'He walks one worn coin across his knuckles and squares the '
              'deck with one slow tap.'},
-            {'speaker': 'Dealer', 'text': 'Cherry cordial. I save the strong drink for the walk '
+            {'speaker': 'Dealer', 'text': 'A Waterdeep copper. I keep the lucky one for the walk '
              'home, when nobody can reach my purse. You look like someone who asks questions '
              'before sitting down. Do you want a chair, or an answer first?'},
-            {'speaker': 'Kit', 'text': 'At last, a drinking policy I can follow.',
-             'reacts_to': 'save the strong drink'},
+            {'speaker': 'Kit', 'text': 'At last, a superstition I can follow.',
+             'reacts_to': 'keep the lucky one'},
         ]}
         bridge.complete(packet['turn_id'], {'decision': plan, 'performance': speech})
         packet = bridge.prepare('I nod to the dealer.', one_pass=True)
         self.assertEqual(packet['input']['private']['claims_here']['established']
-                         ['actor:uktarl/drink']['truth'], 'cherry cordial')
+                         ['actor:uktarl/token']['truth'], 'waterdeep copper')
         changed_plan = RecordingModel().plan(packet['input']['private'])
-        changed_plan['claims'] = [{**item, 'truth': 'ale', 'version': 'Ale.'}]
+        changed_plan['claims'] = [{**item, 'truth': 'silver piece', 'version': 'A silver piece.'}]
         before = self.runtime.load()
         with self.assertRaisesRegex(InvalidChange, 'already established'):
             bridge.complete(packet['turn_id'], {'decision': changed_plan, 'performance': speech})

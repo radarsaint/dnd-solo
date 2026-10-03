@@ -26,11 +26,19 @@ def sheet(name='Testa', wis=10, skills=None, **extra):
             'skills': skills or {}, **extra}
 
 
+def ledger(result):
+    """Every event's evidence: where the numbers live (KRABS section 12)."""
+    return ' '.join(event.get('evidence', '') for event in result.events)
+
+
 def no_roll():
     raise AssertionError('rolled although the passive already met the number')
 
 
 class Case(unittest.TestCase):
+    def assertNoNumbers(self, text):
+        self.assertNotRegex(text, r'\bDC\b|\bvs\b|\(\w+ \d+|\bpassive \w+ \d+')
+
     def setUp(self):
         temp = tempfile.TemporaryDirectory()
         self.addCleanup(temp.cleanup)
@@ -70,14 +78,17 @@ class InsightRoutesByTargetTests(Case):
         state['claims'] = {'said': [{'claim': 'passage_toll', 'by': 'uktarl', 'stance': 'lie', 'version': 'Twenty.'}]}
         result = Room6CAdjudicator(source=self.source, roll=no_roll).resolve(self.ACTION, revision, state)
         self.assertIn('lying', result.public_event)
-        self.assertIn('passive Insight 14 meets DC 14', result.public_event)
+        # Numbers stay in the ledger (call 4), never in the public event.
+        self.assertIn('passive Insight 14 meets DC 14', ledger(result))
+        self.assertNoNumbers(result.public_event)
 
     def test_an_active_read_rolls_against_the_same_flat_number(self):
         revision, state = self.start(sheet(wis=10, skills={'insight': 2}))   # passive 12 < 14
         state['claims'] = {'said': [{'claim': 'x', 'by': 'uktarl', 'stance': 'truth', 'version': 'Ten.'}]}
         hit = Room6CAdjudicator(source=self.source, roll=lambda: 12).resolve(self.ACTION, revision, state)
         self.assertIn('means it', hit.public_event)
-        self.assertIn('(Insight 14 vs DC 14)', hit.public_event)   # 12 + 2 meets 14: a tie succeeds
+        self.assertIn('Insight d20 12 + 2 = 14 vs DC 14', ledger(hit))   # 12 + 2 meets 14: a tie succeeds
+        self.assertNoNumbers(hit.public_event)
         miss = Room6CAdjudicator(source=self.source, roll=lambda: 3).resolve(self.ACTION, revision, state)
         self.assertIn('nothing to read', miss.public_event)
         self.assertNotIn('DC', miss.public_event)
@@ -105,9 +116,19 @@ class InsightRoutesByTargetTests(Case):
         self.assertEqual({e.get('claim') or e.get('fact') for e in result.events if e['type'] != 'beat'},
                          {'false_vampires'})
 
-    def test_an_insight_read_with_no_target_asks_what_they_read(self):
-        # Rare: several people here and nobody has spoken to the PC, so nothing settles it.
+    def test_an_insight_read_with_no_speaker_reads_the_group_disguise(self):
+        # Table call 3 (TC-3d): with nobody's words to weigh, an Insight declaration at this
+        # table reads the people themselves: the hidden disguise claim.
         revision, state = self.start(NIK)
+        result = Room6CAdjudicator(source=self.source, roll=lambda: 20).resolve('I make an Insight check.',
+                                                                               revision, state)
+        self.assertEqual(result.kind, 'check')
+        self.assertIn('false_vampires', [e.get('claim') for e in result.events])
+
+    def test_an_insight_read_with_no_target_left_asks_what_they_read(self):
+        # Rare: several people here, nobody has spoken to the PC, and the disguise is known.
+        revision, state = self.start(NIK)
+        state = {**state, 'claims': {'said': [], 'learned': ['false_vampires']}}
         with self.assertRaisesRegex(PendingRuling, 'What are you reading'):
             Room6CAdjudicator(source=self.source).resolve('I make an Insight check.', revision, state)
 
@@ -130,16 +151,19 @@ class PassiveAutoSucceedsTests(Case):
         revision, state = self.start(NIK)   # passive Perception 14 vs DC 13
         result = Room6CAdjudicator(source=self.source, roll=no_roll).resolve('I inspect the fresco.', revision, state)
         self.assertIn('stone key', result.public_event)
-        self.assertIn('passive Perception 14 meets DC 13', result.public_event)
+        self.assertIn('passive Perception 14 meets DC 13', ledger(result))
+        self.assertNoNumbers(result.public_event)
         self.assertIn('fresco_key', [e.get('fact') for e in result.events])
 
     def test_a_lower_passive_rolls_and_a_tie_succeeds(self):
         pc = sheet(wis=10, skills={'perception': 1})   # passive 11 < 13
         revision, state = self.start(pc)
         tie = Room6CAdjudicator(source=self.source, roll=lambda: 12).resolve('I inspect the fresco.', revision, state)
-        self.assertIn('(Perception 13 vs DC 13)', tie.public_event)
+        self.assertIn('Perception d20 12 + 1 = 13 vs DC 13', ledger(tie))
+        self.assertNoNumbers(tie.public_event)
         miss = Room6CAdjudicator(source=self.source, roll=lambda: 11).resolve('I inspect the fresco.', revision, state)
-        self.assertEqual(miss.public_event, 'You find nothing you can be sure of. (Perception 12)')
+        self.assertEqual(miss.public_event, 'You find nothing you can be sure of.')
+        self.assertIn('= 12 vs DC 13', ledger(miss))
 
     def test_pc_check_helper_is_the_one_rule(self):
         self.assertTrue(kit_claims.pc_check(13, 0, 13, no_roll)['auto'])
@@ -169,13 +193,15 @@ class CardEngineFlatNumbersTests(unittest.TestCase):
         self.assertEqual(table.dcs['watch'], 13)
         text, _, reveals = table.resolve('card_watch', 'I watch the deal. I rolled 13 + 0 = 13.', 2, state)
         self.assertEqual(reveals, ['marked_deck'])           # 13 meets 13
-        self.assertIn('(Perception 13 vs DC 13)', text)
+        self.assertIn('Perception d20 13 + 0 = 13 vs DC 13', ' '.join(table.trace))
+        self.assertNotRegex(text, r'\bDC\b|\bvs\b|\(Perception')
 
     def test_a_passive_that_meets_the_watch_dc_catches_it_without_a_roll(self):
         table, state = self.seated_cheat(passives={'perception': 13})
         text, _, reveals = table.resolve('card_watch', 'I watch the deal.', 2, state)
         self.assertEqual(reveals, ['marked_deck'])
-        self.assertIn('passive Perception 13', text)
+        self.assertIn('passive Perception 13', ' '.join(table.trace))
+        self.assertNotIn('passive', text)
 
     def test_reading_him_is_flat_ten_plus_deception_and_a_miss_is_neutral(self):
         table, state = self.seated_cheat()
@@ -219,7 +245,8 @@ class NoLeakyRefusalsTests(Case):
         adjudicator = Room6CAdjudicator(source=self.source, roll=lambda: best - 4)
         result = adjudicator.resolve('I sneak out the south door.', revision, state)
         self.assertEqual(result.kind, 'stealth')
-        self.assertIn(f'passive Perception {best}', result.public_event)
+        self.assertIn(f'vs best passive Perception {best}', ledger(result))
+        self.assertNotIn('passive', result.public_event)
         self.assertEqual(result.events[0]['type'], 'move')
         caught = Room6CAdjudicator(source=self.source, roll=lambda: 1).resolve('I sneak out the south door.',
                                                                               revision, state)

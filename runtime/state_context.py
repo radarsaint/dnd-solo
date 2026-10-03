@@ -88,7 +88,7 @@ CANON_SLOT = re.compile(r'^[a-z0-9_:]+(/[a-z0-9_]+){1,3}$')
 # Events a Kit turn may add at commit, after the adjudicated batch it was prepared with:
 # the decision's canon entries, the oracle deal it consumed, and procedure state.
 COMMIT_APPENDED_EVENTS = ('canon_entry', 'oracle_draw', 'procedure_state', 'claim_said', 'agenda_turn',
-                          'pc_state', 'kit_plan')
+                          'pc_state', 'kit_plan', 'toll_state')
 # A turn whose decision asks the player a question resolves nothing: its only event is a
 # rhythm beat tagged 'asked' whose evidence is the question.
 ASKED_EVENT_PREFIX = 'Kit asks before resolving: '
@@ -232,10 +232,11 @@ class Runtime:
             require(actor['location'] in source['areas'], 'Unknown actor area')
         # DM prep is checked once, before play: the texture palette (roots, no prices, no
         # leaks) and every table procedure's config. Local import: both import this module.
-        from . import kit_agenda, kit_cards, kit_claims, kit_texture
+        from . import kit_agenda, kit_cards, kit_claims, kit_texture, kit_toll
         kit_texture.check_palette(source)
         kit_claims.compile_claims(source)
         kit_agenda.compile_agenda(source)
+        kit_toll.compile_tolls(source)
         for key, config in (source.get('procedures') or {}).items():
             if not key.startswith('_') and config.get('kind') == 'card_game':
                 kit_cards.check_config(config)
@@ -748,6 +749,9 @@ class Runtime:
                 established.setdefault(subject, copy.deepcopy(definition))
                 claims['established'] = established
             claims['said'] = (claims['said'] + [copy.deepcopy(said)])[-kit_claims.SAID_LIMIT:]
+        elif kind == 'toll_state':
+            from . import kit_toll
+            kit_toll.apply_event(state, source, event)
         elif kind == 'agenda_turn':
             from . import kit_agenda
             kit_agenda.apply_event(state, source, event)
@@ -802,6 +806,21 @@ class Runtime:
             raise InvalidChange(f'Unsupported event: {kind}')
 
     @staticmethod
+    def _tolls_here(source, state):
+        """DM-only: each toll in this area, its config and where the exchange stands."""
+        if not source.get('tolls'):
+            return {}
+        from . import kit_toll
+        return {key: {'state': body, 'demand': {k: toll[k] for k in ('demanded_by', 'amount', 'unit', 'per',
+                                                                      'floor', 'basis') if k in toll},
+                      'refusal': toll['refusal'], 'violence': toll.get('violence'),
+                      'note': ('A full exchange (Brendon\'s call 6): one NPC asks for it, with a motive that '
+                               'stays inside the act, and lets the player answer; pay, haggle, refuse, '
+                               'or steer back to the game each commit; a refusal\'s consequence persists; a '
+                               'deferred toll comes back later.')}
+                for key, (toll, body) in kit_toll.here(source, state).items()}
+
+    @staticmethod
     def _player_view(source, state):
         view = Runtime._base_player_view(source, state)
         established = [{'slot': key, 'fact': item['fact']}
@@ -813,6 +832,10 @@ class Runtime:
                       for key, body in (state.get('procedures') or {}).items()}
         if procedures:
             view['table_procedures'] = procedures
+        from . import kit_toll
+        tolls = kit_toll.public_view(source, state) if source.get('tolls') else {}
+        if tolls:
+            view['tolls'] = tolls
         return view
 
     @staticmethod
@@ -868,8 +891,10 @@ class Runtime:
                        if state.get('procedures') else {}),
                     **({'supported_procedures': {
                         k: {'kind': p.get('kind'), 'name': p.get('name')}
-                        for k, p in source['procedures'].items() if not k.startswith('_')}}
+                        for k, p in source['procedures'].items()
+                        if not k.startswith('_') and p.get('offered', True)}}
                        if source.get('procedures') else {}),
+                    **({'tolls_here': self._tolls_here(source, state)} if self._tolls_here(source, state) else {}),
                 },
                 'recent_rhythm': state['rhythm'],
                 'constraints': [

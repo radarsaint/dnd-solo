@@ -435,10 +435,9 @@ def public_inventions(detail):
 
 # Rules from some other game, stated while a table game runs. Kit's game is the one the
 # runtime runs; "high card takes it" or "one card apiece" is a game nobody is playing.
-FOREIGN_RULES = re.compile(
-    r"\bhigh(?:est)? card\b|\bone card (?:apiece|each)\b|\btwenty[- ]one\b|\bhole cards?\b"
-    r"|\bthe (?:flop|turn|river)\b[^.]{0,30}\bcards?\b|\bfull house\b|\bstraight flush\b|\bpoker hand\b"
-    r"|\b(?:fold|call|raise), or\b|\bcheck or raise\b")
+# Brendon's table call 1 (2026-10-02): never "high card for 1 gp" or "one card apiece".
+# Blackjack and poker words are fine now: call 7 asks for an easy game of that class.
+FOREIGN_RULES = re.compile(r"\bhigh(?:est)? card\b|\bone card (?:apiece|each)\b")
 
 
 def check_detail_performance(segments, declared_procedures=(), game_terms=()):

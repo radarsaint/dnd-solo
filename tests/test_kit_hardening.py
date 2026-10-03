@@ -17,7 +17,7 @@ from runtime.kit_agent import (KitAgent, KitChatBridge, PendingRuling, Room6CAdj
                                fit_to_budget)
 from runtime.state_context import (CONTEXT_BUDGET_BYTES, HostSequenceError, InvalidChange,
                                    PERSONALITY_CORE, Runtime, StaleTurn, encode)
-from test_kit_agent import FIXTURE, NIK_GREETING, NIK_REPLY, RecordingModel, exchange_speech
+from test_kit_agent import FIXTURE, NIK_GREETING, NIK_FLAT_REPLY as NIK_REPLY, RecordingModel, exchange_speech
 
 SOURCE = json.loads(FIXTURE.read_text())
 CARDS = SOURCE['public_performance']['actor_cards']
@@ -826,12 +826,12 @@ class PacketSlimTests(BridgeCase):
         adjudicator = Room6CAdjudicator(perception=2, insight=1, sleight_of_hand=3, roll=lambda: 20)
         agent = KitAgent(self.runtime, model, adjudicator)
         agent.turn(GAME_ASK, 'game')
-        agent.turn('I buy in with 20 gold. Deal me in.', 'join')
+        agent.turn('Deal me in.', 'join')
         bridge = KitChatBridge(self.runtime, adjudicator)
-        prepared = bridge.prepare('I ante my strongest card.', 'ante', one_pass=True)
+        prepared = bridge.prepare('I play the hand out for 10 gold.', 'play', one_pass=True)
         delta = prepared['input']['public']['player_view_after_event']
         self.assertIn('as_changes_to_private_view', delta)
-        self.assertIn('table_procedures.three_dragon_ante.gambit', delta['set'])
+        self.assertTrue(any(key.startswith('table_procedures.twenty_one.') for key in delta['set']), delta['set'])
         self.assertNotIn('rules', json.dumps(list(delta['set'])))
         self.assertNotIn('Kit\'s table version', json.dumps(delta))
         # Applying the changes to the private view gives exactly the full post-event view.
@@ -852,7 +852,7 @@ class PacketSlimTests(BridgeCase):
         for path in delta.get('removed', []):
             node, leaf = at(path)
             del node[leaf]
-        self.assertEqual(view, self.runtime.pending_kit_turn('ante')['body']['public_view'])
+        self.assertEqual(view, self.runtime.pending_kit_turn('play')['body']['public_view'])
 
     def test_cli_prints_compact_json_unless_pretty(self):
         self.runtime.close()

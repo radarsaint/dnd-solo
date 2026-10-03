@@ -378,8 +378,9 @@ class PaletteTests(unittest.TestCase):
         games = source['texture_palette']['areas']['area_06c']['decks']['game']
         # Familiar games first: hold 'em and blackjack are dealt as equals of Three-Dragon Ante;
         # only the one the runtime can run carries a procedure.
-        self.assertEqual({card['id']: card['procedure'] for card in games}['three_dragon_ante'], 'three_dragon_ante')
-        self.assertTrue(all(card['procedure'] is None for card in games if card['id'] != 'three_dragon_ante'))
+        # Table call 1: the runnable game at 6c is plain twenty-one (blackjack).
+        self.assertEqual({card['id']: card['procedure'] for card in games}['blackjack_coffins'], 'twenty_one')
+        self.assertTrue(all(card['procedure'] is None for card in games if card['id'] != 'blackjack_coffins'))
         self.assertTrue({'real: Texas hold \'em', 'real: blackjack'} <= {card['basis'] for card in games})
 
     def test_taste_has_no_word_vetoes(self):

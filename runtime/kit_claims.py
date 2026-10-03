@@ -95,7 +95,11 @@ def current_floor_level(source, area=None):
 
 
 def default_dc(floor_level=1):
-    """Brendon's rule for any check the source gives no DC: 10 + floor(floor level / 3)."""
+    """Brendon's rule for any check the source gives no DC: 10 + floor(floor level / 3).
+
+    Settled (decided more than once; see docs/collab/BOARD.md, "Settled rules"): when the
+    source names no DC, Kit sets it at DM discretion and this is the baseline. It is not
+    an open decision; never raise an unnamed DC to Brendon as a question."""
     return 10 + floor_level // 3
 
 
@@ -140,18 +144,10 @@ def pc_check(dc, modifier, passive_score, roll):
     return {'auto': False, 'die': die, 'modifier': modifier, 'dc': dc, 'total': total, 'success': total >= dc}
 
 
-def check_note(skill, result):
-    """The public parenthetical. A failure shows only the PC's total, so it never tells the
-    player how close they came to something that may not be there."""
-    name = skill.replace('_', ' ').title()
-    if result['auto']:
-        return f'(passive {name} {result["passive"]} meets DC {result["dc"]})'
-    if result['success']:
-        return f'({name} {result["total"]} vs DC {result["dc"]})'
-    return f'({name} {result["total"]})'
-
-
 def check_evidence(skill, result):
+    """The numbers behind a check, for the ledger only. Public text never carries a DC, a
+    total, or a modifier (Brendon's table call 4, 2026-10-02): a success is told as what
+    the character notices, a failure as what they don't."""
     name = skill.replace('_', ' ').title()
     if result['auto']:
         return f'passive {name} {result["passive"]} meets DC {result["dc"]}; no roll'
@@ -458,7 +454,10 @@ def roll_target(action, source):
     return None
 
 
-_LOOK = re.compile(r"\b(look\w*|search\w*|inspect\w*|examin\w*|stud(?:y|ies|ying)|check\w*|peer\w*|"
+# A plain look ("I look at the fresco", "I look around") is free description, never a check
+# (Brendon's table call 2): only a searching look qualifies.
+_LOOK = re.compile(r"\b(look(?:s|ed|ing)? (?:for|closely|closer|carefully|hard|over|under|behind|into|through|"
+                   r"for anything|again)|(?:close|careful|closer|hard) look|search\w*|inspect\w*|examin\w*|stud(?:y|ies|ying)|check\w*|peer\w*|"
                    r"scrutini[sz]\w*|insight|perception|investigat\w*|notice|watch\w*|"
                    r"see (?:if|whether|through)|tell (?:if|whether)|are they|is he|is she)\b")
 
