@@ -679,7 +679,7 @@ class CardPlayerIdentityTests(BridgeCase):
         self.assertEqual(set(SOURCE['actors']), {'uktarl', 'bandit_a', 'bandit_b', 'doppelganger'})
         self.assertEqual(SOURCE['actors']['doppelganger']['secrets'],
                          ['A doppelganger disguised as one of the apparent vampires.'])
-        self.assertEqual(len(SOURCE['facts']), 11)  # + vampire_tells (table call 8)
+        self.assertEqual(len(SOURCE['facts']), 15)  # + vampire_tells and four Perception details (table call 8)
         self.assertIn('The gang demands 10 gp per character for safe passage. If they cannot extort or '
                       'defeat adventurers, they try to turn them against the Xanathar goblinoids.',
                       SOURCE['room_rules'])

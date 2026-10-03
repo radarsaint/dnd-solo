@@ -91,13 +91,21 @@ def social_event(action):
 
 
 # Table talk addressed to Kit rather than the room: answered, never resolved as a check.
+_SKILL_NAMES = '(?:' + '|'.join(sorted((s.replace('_', ' ') for s in pc_sheet.SKILLS), key=len, reverse=True)) + ')'
 OOC_MARKER = re.compile(r'^\s*[(\[]?\s*(ooc\b|out[- ]of[- ]character)|\brules question\b', re.I)
 # Natural table talk needs no prefix: a message addressed to Kit by name, or a question
 # about the rules themselves (their nouns, not in-world verbs like sneak or grab).
 KIT_ADDRESS = re.compile(r"^\W*(?:(?:hey|ok|okay|so|um|and)\W+)?kit\b|\bkit\s*[,?]|,\s*kit\W*$", re.I)
 RULES_NOUNS = re.compile(r"\b(rules?|dc|modifiers?|advantage|disadvantage|bonus action|reactions?|saving throws?|"
                          r"proficien\w*|spell slots?|initiative|passive \w+|concentration|(?:short|long) rest|"
-                         r"hit points|armou?r class|cantrips?|how does \w+(?: \w+)? work|allowed to)\b", re.I)
+                         r"hit points|armou?r class|cantrips?|how does \w+(?: \w+)? work|allowed to|"
+                         # skill questions (Kit's working model of skills, docs/voice): "what's the
+                         # difference between Insight and Investigation?", "why didn't Perception
+                         # tell me?", "why can't I use Investigation instead of Perception?"
+                         r"difference between \w+ and \w+|skill (?:swaps?|substitut\w*|checks? work)|"
+                         r"(?:use|roll) \w+(?: \w+)? (?:instead of|for this)|"
+                         r"why (?:didn't|did not|doesn't|does not|can't|cannot|won't|wouldn't) (?:my )?"
+                         + _SKILL_NAMES + r")\b", re.I)
 # Looking away from whatever is in front of you: the room, the rest of it, elsewhere.
 OBSERVE = re.compile(r"\b(look|looks|looking|glance|scan|survey|take in|gaze|peer|what else)\b[^.?!]{0,30}"
                      r"\b(around|room|else|rest of|elsewhere|away|here|walls?)\b|\bwhat else\b"
@@ -510,6 +518,26 @@ class Room6CAdjudicator:
                                  kit_claims.current_floor_level(self.source, state.get('area')))
         result = self._check(skill, dc, state, revision, f'check:{claim_id}', action)
         evidence = f'Player actively checked {claim_id}: {kit_claims.check_evidence(skill, result)}.'
+        details = None
+        if skill == 'perception' and claim.get('perception_details'):
+            # Details scale with the result: a stated roll above an automatic passive counts.
+            best = result['total']
+            if result.get('auto'):
+                modifier, _ = self._pc_numbers(skill, state, action)
+                supplied = kit_cards.supplied_roll(action, modifier, skill)
+                if supplied:
+                    best = max(best, supplied[0] + (supplied[1] if supplied[1] is not None else modifier))
+            details = kit_claims.perception_details(claim, best - dc)
+        if details is not None and result['success']:
+            # A snapshot: what is seen, never what it means (the claim stays unlearned).
+            known = set(state.get('known_facts', []))
+            facts = self.source['facts']
+            events = [{'type': 'reveal_fact', 'fact': fact, 'evidence': evidence} for fact in details
+                      if fact not in known]
+            events.append({'type': 'beat', 'tags': ['check', 'noticed'],
+                           'evidence': f'{evidence} Perception details only ({len(details)} of '
+                                       f'{len(claim["perception_details"])}); no conclusion.'})
+            return Resolution('check', ' '.join(facts[fact]['text'] for fact in details), events)
         if result['success']:
             text = claim.get('learned_text') or claim['truth']
             events = [{'type': 'claim_learned', 'claim': claim_id, 'evidence': evidence}]

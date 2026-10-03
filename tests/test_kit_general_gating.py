@@ -60,6 +60,14 @@ class GeneralSkillGatingTests(unittest.TestCase):
         self.assertIsNone(kit_claims.chosen_skill('I examine the ink.', implied=False))
         self.assertEqual(kit_claims.chosen_skill("I read the clerk's motive."), 'insight')
 
+    def test_a_swap_names_the_skill_rolled_not_the_one_replaced(self):
+        self.assertEqual(kit_claims.chosen_skill('I use Perception instead of Investigation on the ink.'), 'perception')
+        self.assertEqual(kit_claims.chosen_skill('Investigation rather than Perception, on the ledger.'), 'investigation')
+        self.assertEqual(self.target('I use Investigation instead of Perception on the ledger entries.'),
+                         'forgery_tells')
+        self.assertEqual(self.target('I use Insight instead of Investigation on the ledger entries.'),
+                         'forgery_motive')
+
     def test_a_skill_routes_to_the_linked_claim_or_to_nothing(self):
         motive = SCENE['claims']['forgery_motive']
         self.assertEqual(kit_claims.gated_claim(SCENE, STATE, 'forgery_motive', motive, 'perception')[0],
@@ -89,6 +97,34 @@ class GeneralSkillGatingTests(unittest.TestCase):
             kit_guards.check_paraphrased_leaks(line, {}, '', sets)
         for fact in ('forgery_motive', 'forgery_tells'):
             kit_guards.check_paraphrased_leaks(line, {'known_facts_here': [SCENE['facts'][fact]['text']]}, '', sets)
+
+
+class GeneralPerceptionSnapshotTests(unittest.TestCase):
+    """Perception on any claim with perception_details: observed details only, more with
+    the margin, never the claim's conclusion."""
+    SOURCE = {**SCENE, 'facts': {**SCENE['facts'],
+                                 'ink_glance': {'area': 'counting_house', 'visible': False,
+                                                'text': 'Some entries are a shade blacker than the rest.'},
+                                 'ink_close': {'area': 'counting_house', 'visible': False,
+                                               'text': 'The paper under the blacker entries is thin and rough.'}},
+              'claims': {**SCENE['claims'], 'forgery_tells': {
+                  **SCENE['claims']['forgery_tells'],
+                  'perception_details': [{'min_margin': 0, 'fact': 'ink_glance'},
+                                         {'min_margin': 5, 'fact': 'ink_close'}]}}}
+
+    def test_details_scale_with_the_margin(self):
+        claim = kit_claims.compile_claims(self.SOURCE)['forgery_tells']
+        self.assertEqual(kit_claims.perception_details(claim, 0), ['ink_glance'])
+        self.assertEqual(kit_claims.perception_details(claim, 4), ['ink_glance'])
+        self.assertEqual(kit_claims.perception_details(claim, 7), ['ink_glance', 'ink_close'])
+        self.assertNotIn('forgery_tells', kit_claims.perception_details(claim, 20), 'never the conclusion')
+        self.assertIsNone(kit_claims.perception_details(SCENE['claims']['well_note'], 9))
+
+    def test_details_must_be_source_facts(self):
+        bad = {**self.SOURCE, 'claims': {**self.SOURCE['claims'], 'forgery_tells': {
+            **self.SOURCE['claims']['forgery_tells'], 'perception_details': [{'min_margin': 0, 'fact': 'nope'}]}}}
+        with self.assertRaises(InvalidChange):
+            kit_claims.compile_claims(bad)
 
 
 class GeneralTableNarrationTests(unittest.TestCase):

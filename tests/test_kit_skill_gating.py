@@ -9,14 +9,15 @@ import json
 import unittest
 from pathlib import Path
 
-from runtime import kit_claims, kit_guards
+from runtime import kit_agent, kit_claims, kit_guards
 from runtime.state_context import InvalidChange
 from test_kit_6c_intents import Room
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = json.loads((ROOT / 'tests' / 'fixtures' / 'level_01_area_06c.json').read_text())
 MOTIVE_WORDS = ('frighten', 'safe passage', '10 gp', 'losing coin')
-TELL_WORDS = ('powder', 'collar', 'fitted')
+TELL_WORDS = ('powder', 'fitted', 'costume')
+CONCLUSIONS = ('costume', 'fitted', 'not undead', 'marks', 'marked', 'reads them', 'frighten', 'safe passage')
 
 
 def roll(skill, die=18, bonus=3):
@@ -60,12 +61,42 @@ class SkillGatesTheRevealTests(unittest.TestCase):
         self.assertNotIn('false_vampires', self.learned(room))
         self.assertIn('Investigation', json.dumps(result.events), 'the check records the skill used')
 
-    def test_perception_on_the_fangs_returns_the_tells_not_the_motive(self):
+    def assertSnapshot(self, result, room, details):
+        """Perception: observed details only, never a conclusion (Brendon: a snapshot)."""
+        self.assertEqual(result.kind, 'check')
+        for word in CONCLUSIONS:
+            self.assertNotIn(word, result.public_event.casefold())
+        learned = self.learned(room)
+        self.assertFalse({'vampire_tells', 'false_vampires', 'marked_deck'} & learned, learned)
+        for fact in details:
+            self.assertIn(fact, learned)
+            self.assertIn(SOURCE['facts'][fact]['text'], result.public_event)
+
+    def test_perception_on_the_fangs_sees_details_not_the_conclusion(self):
         room = self.room()
-        result = room.act('I look closely at their pale skin and fangs.' + roll('perception'))
-        self.assertTells(result.public_event)
-        self.assertIn('vampire_tells', self.learned(room))
-        self.assertNotIn('false_vampires', self.learned(room))
+        result = room.act('I look closely at their pale skin and fangs.' + roll('perception', die=12, bonus=3))
+        self.assertSnapshot(result, room, ['vampire_tells_glance'])
+        self.assertNotIn('vampire_tells_close', self.learned(room), 'a bare success sees one detail')
+
+    def test_a_higher_perception_result_sees_more(self):
+        room = self.room()
+        result = room.act('I look closely at their pale skin and fangs.' + roll('perception', die=18, bonus=3))
+        self.assertSnapshot(result, room, ['vampire_tells_glance', 'vampire_tells_close'])
+
+    def test_perception_on_the_card_backs_sees_holes_never_marks(self):
+        room = self.room()
+        result = room.act('I look closely at the card backs on the table.' + roll('perception', die=20, bonus=3))
+        self.assertSnapshot(result, room, ['deck_backs_glance', 'deck_backs_close'])
+        follow = room.act('I study the card backs and work out the pattern.' + roll('investigation'))
+        self.assertIn('marked_deck', self.learned(room), follow.public_event)
+
+    def test_details_then_investigation_then_insight(self):
+        room = self.room()
+        room.act('I look closely at the dealer\'s fangs.' + roll('perception', die=12, bonus=3))
+        what = room.act('I study the dealer\'s fangs closely.' + roll('investigation'))
+        self.assertTells(what.public_event)
+        why = room.act("I study them; something's off." + roll('insight'))
+        self.assertMotive(why.public_event)
 
     def test_a_named_skill_gates_without_a_stated_roll(self):
         room = self.room()
@@ -90,7 +121,7 @@ class SkillGatesTheRevealTests(unittest.TestCase):
     def test_an_unnamed_close_look_at_the_fangs_is_perception(self):
         room = self.room()
         result = room.act('I look closely at the dealer\'s fangs.')
-        self.assertTells(result.public_event)
+        self.assertSnapshot(result, room, ['vampire_tells_glance'])
         self.assertIn('Perception', json.dumps(result.events))
 
     def test_a_skill_that_finds_nothing_about_it_reveals_nothing(self):
@@ -113,6 +144,50 @@ class SkillGatesTheRevealTests(unittest.TestCase):
         self.assertNotIn('false_vampires', self.learned(room))
         result = room.act("I study them; something's off." + roll('insight'))
         self.assertMotive(result.public_event)
+
+
+class SkillSwapTests(unittest.TestCase):
+    def test_a_swap_is_accepted_and_gated_to_the_rolled_skill(self):
+        room = Room(self, toll=False, roll=lambda: 20)
+        result = room.act('I use Investigation instead of Perception on the card backs on the table.'
+                          + roll('investigation'))
+        learned = set(room.state['known_facts'])
+        self.assertIn('marked_deck', learned, 'Investigation gets the deduced what')
+        self.assertFalse({'deck_backs_glance', 'deck_backs_close'} & learned, "not Perception's snapshot")
+        self.assertIn('Investigation', json.dumps(result.events), 'the check records the skill used')
+
+    def test_an_implausible_swap_reveals_nothing(self):
+        room = Room(self, toll=False, roll=lambda: 20)
+        result = room.act('I use Insight on the fresco carving to find anything loose.' + roll('insight'))
+        self.assertEqual(result.public_event, 'You find nothing you can be sure of.')
+
+
+class SkillMetaQuestionTests(unittest.TestCase):
+    QUESTIONS = ("Kit, why didn't Perception tell me the deck is marked?",
+                 "What's the difference between Insight and Investigation?",
+                 "Why can't I use Investigation instead of Perception for this?")
+
+    def test_a_meta_skill_question_is_table_talk_and_carries_the_model(self):
+        for question in self.QUESTIONS:
+            with self.subTest(question=question):
+                self.assertTrue(kit_agent.is_ooc(question))
+                room = Room(self, toll=False)
+                bridge = kit_agent.KitChatBridge(room.runtime)
+                packet = bridge.prepare(question, 'meta', one_pass=True)
+                body = room.runtime.pending_kit_turn(packet['turn_id'])['body']
+                self.assertNotIn(body['kind'], ('check', 'knowledge'), 'a question is not a roll')
+                core = packet['input']['private']['personality_core']
+                for words in ('tomato', 'fruit salad', 'Perception is a snapshot',
+                              'Investigation understands what happened', 'Insight understands why',
+                              'Athletics instead of Acrobatics'):
+                    self.assertIn(words, core)
+                room.runtime.discard_pending_kit_turn(packet['turn_id'])
+
+    def test_the_model_fits_the_voice_slot(self):
+        from runtime import state_context
+        text, warning = state_context.load_voice()
+        self.assertIsNone(warning)
+        self.assertIn('Working model of skills', text)
 
 
 class RoomFileTests(unittest.TestCase):
@@ -146,7 +221,7 @@ class RoomFileTests(unittest.TestCase):
 
     def test_pc_checks_must_include_pc_check(self):
         source = copy.deepcopy(SOURCE)
-        source['claims']['vampire_tells']['pc_checks'] = ['investigation']
+        source['claims']['vampire_tells']['pc_checks'] = ['perception']
         with self.assertRaises(InvalidChange):
             kit_claims.compile_claims(source)
 

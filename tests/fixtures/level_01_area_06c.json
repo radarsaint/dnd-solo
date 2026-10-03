@@ -167,8 +167,10 @@
   },
   "leak_keywords": {
     "_note": "DM-only. A set leaks when one public sentence contains a word from every group. Skipped once revealed_by is public, or when the player raised it.",
-    "marked_deck": {"revealed_by": "marked_deck", "groups": [["card", "cards", "deck", "decks", "hand", "deal", "dealing"], ["marked", "marks", "marking", "markings", "nicked", "nicks", "crimped", "crimp", "shaved", "rigged", "cheat", "cheats", "cheating", "cheated", "notched", "scuffed", "pinpricks", "pricked", "doctored", "shine on the back"]]},
-    "false_vampires": {"revealed_by": ["false_vampires", "vampire_tells"], "groups": [["vampire", "vampires", "fang", "fangs", "pallor", "pale", "teeth", "undead", "bloodsucker", "bloodsuckers"], ["fake", "false", "theatrical", "theatrically", "paint", "painted", "greasepaint", "makeup", "make-up", "powder", "powdered", "chalk", "chalked", "disguise", "disguised", "pretend", "pretending", "pretenders", "wax", "glued", "sham", "mummer", "mummers", "playacting", "masquerade", "flour"]]},
+    "marked_deck": {"revealed_by": "marked_deck", "groups": [["card", "cards", "deck", "decks", "hand", "deal", "dealing"], ["marked", "marks", "marking", "markings", "rigged", "cheat", "cheats", "cheating", "cheated", "doctored", "shine on the back"]]},
+    "deck_holes": {"revealed_by": ["marked_deck", "deck_backs_glance"], "groups": [["card", "cards", "deck", "decks", "back", "backs", "border"], ["nicked", "nicks", "crimped", "crimp", "shaved", "notched", "scuffed", "pinpricks", "pricked", "pricks", "holes", "pinholes"]]},
+    "false_vampires": {"revealed_by": ["false_vampires", "vampire_tells"], "groups": [["vampire", "vampires", "fang", "fangs", "pallor", "pale", "teeth", "undead", "bloodsucker", "bloodsuckers"], ["fake", "false", "theatrical", "theatrically", "disguise", "disguised", "pretend", "pretending", "pretenders", "glued", "sham", "mummer", "mummers", "playacting", "masquerade"]]},
+    "vampire_paint": {"revealed_by": ["false_vampires", "vampire_tells", "vampire_tells_glance"], "groups": [["vampire", "vampires", "fang", "fangs", "pallor", "pale", "teeth", "neck", "collar", "skin"], ["paint", "painted", "greasepaint", "makeup", "make-up", "powder", "powdered", "chalk", "chalked", "wax", "flour"]]},
     "doppelganger": {"revealed_by": null, "groups": [["shapeshifter", "shapeshifters", "shape-shifter", "shapechanger", "changeling", "changelings", "mimic", "skinchanger", "face-stealer"]]},
     "doppelganger_tell": {"revealed_by": null, "groups": [["face", "features", "skin", "flesh"], ["ripple", "ripples", "rippled", "rippling", "melt", "melts", "melted", "melting", "blur", "blurs", "blurred", "borrowed", "stolen", "runs like wax"]]},
     "fresco_key": {"revealed_by": "fresco_key", "groups": [["key", "keys"], ["carving", "carved", "fresco", "dwarf", "dwarves", "dwarven", "figure", "figures", "figurine", "mountain", "wall"]]},
@@ -206,12 +208,12 @@
       },
       "fingerprint": "Not a cup, crumb, or bottle anywhere on the table; the dealer's fangs sit a little proud of his lip.",
       "subject_words": ["vampire", "vampires", "fang", "fangs", "pallor", "pale skin", "disguise", "disguises", "makeup", "make-up", "undead", "costume", "costumes"],
-      "learned_text": "They are no vampires. The act is meant to frighten you into paying 10 gp for safe passage, then keep you at the table losing coin. Under the costume they are thugs.",
+      "learned_text": "They are no vampires. The act is meant to frighten you into paying 10 gp for safe passage, then keep you at the table losing coin. Underneath, they are thugs.",
       "_skills": "Table call 8: Insight reads the why (this claim); the physical tells are vampire_tells."
     },
     "vampire_tells": {
       "about": "group:undertakers/physical_tells",
-      "truth": "A powder line stops at each collar; the fangs are fitted pieces over their own teeth.",
+      "truth": "The pallor is powder that stops at the collar, and the fangs are fitted pieces over their own teeth: a costume, not undead flesh.",
       "source": "adventure",
       "fact": "vampire_tells",
       "roots": ["vampire_tells", "false_vampires"],
@@ -220,13 +222,14 @@
       "_dc_basis": "The adventure's DC 14 for the act: the same disguise.",
       "concealer": "uktarl",
       "conceal_skill": "deception",
-      "pc_check": "perception",
-      "pc_checks": ["perception", "investigation"],
+      "pc_check": "investigation",
+      "pc_checks": ["investigation", "perception"],
       "pc_access": "roll",
-      "_skills": "Table call 8: Perception and Investigation find these; neither reads the why.",
+      "perception_details": [{"min_margin": 0, "fact": "vampire_tells_glance"}, {"min_margin": 5, "fact": "vampire_tells_close"}],
+      "_skills": "Brendon's rule: Investigation deduces the what (a costume); Perception sees only details, sharper with the result; Insight reads the why (false_vampires).",
       "holders": {"uktarl": "knows", "bandit_a": "knows", "bandit_b": "knows", "doppelganger": "knows"},
       "subject_words": ["fang", "fangs", "teeth", "collar", "collars", "powder", "pallor", "pale skin", "makeup", "paint", "disguise", "costume", "vampire", "vampires"],
-      "learned_text": "A powder line stops at each collar; the fangs are fitted pieces over their own teeth."
+      "learned_text": "The pallor is powder that stops at the collar, and the fangs are fitted pieces over their own teeth. It is a costume, not undead flesh."
     },
     "marked_deck": {
       "about": "item:dealer_deck/marks",
@@ -243,6 +246,8 @@
       "pc_check": "perception",
       "pc_checks": ["perception", "investigation"],
       "pc_access": "passive",
+      "perception_details": [{"min_margin": 0, "fact": "deck_backs_glance"}, {"min_margin": 5, "fact": "deck_backs_close"}],
+      "_skills": "Brendon's rule: an active Perception look sees only details (the holes), sharper with the result; Investigation works out the what (the marks).",
       "npc_check": "insight",
       "holders": {
         "uktarl": "knows"
@@ -362,7 +367,23 @@
     },
     "vampire_tells": {
       "area": "area_06c", "visible": false,
-      "text": "A powder line stops at each collar; the fangs are fitted pieces over their own teeth."
+      "text": "The pallor is powder that stops at the collar, and the fangs are fitted pieces over their own teeth: a costume, not undead flesh."
+    },
+    "vampire_tells_glance": {
+      "area": "area_06c", "visible": false,
+      "text": "Where the dealer's collar shifts, the white on his neck stops in a hard line above ordinary pink skin."
+    },
+    "vampire_tells_close": {
+      "area": "area_06c", "visible": false,
+      "text": "His fangs sit a little proud of his lip and click faintly when he talks."
+    },
+    "deck_backs_glance": {
+      "area": "area_06c", "visible": false,
+      "text": "Near one corner of each card back, the faded vine border has tiny holes in it."
+    },
+    "deck_backs_close": {
+      "area": "area_06c", "visible": false,
+      "text": "The holes are not the same from card to card, and the dealer's eyes drop to the backs before each deal."
     },
     "fresco_key": {
       "area": "area_06c", "visible": false,

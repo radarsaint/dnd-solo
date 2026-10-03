@@ -186,6 +186,10 @@ def compile_claims(source):
             require(isinstance(claim['pc_checks'], list) and claim['pc_check'] in claim['pc_checks'] and
                     all(skill in pc_sheet.SKILLS for skill in claim['pc_checks']),
                     f'Claim {key}: pc_checks lists every skill that finds it, pc_check among them')
+        for tier in claim.get('perception_details') or ():
+            require(isinstance(tier, dict) and tier.get('fact') in source['facts'] and
+                    type(tier.get('min_margin', 0)) is int,
+                    f'Claim {key}: each perception detail names a source fact and an integer min_margin')
         require(claim.get('pc_access') in ('passive', 'roll'),
                 f'Claim {key}: pc_access is passive (a shield: Insight/Perception) or roll (player-initiated)')
         claims[key] = claim
@@ -500,13 +504,29 @@ def chosen_skill(action, implied=True):
     if stated in OBSERVATION_SKILLS:
         return stated
     text = kit_rolls.without_rolls(action or '')
-    for skill, pattern in _SKILL_NAMED:
-        if pattern.search(text):
-            return skill
+    # The skill named first, skipping the one being swapped out ("Investigation instead of
+    # Perception", "rather than Insight").
+    named = sorted((match.start(), skill) for skill, pattern in _SKILL_NAMED for match in pattern.finditer(text)
+                   if not re.search(r'\b(?:instead of|rather than|not)\s+(?:my\s+|a\s+|an\s+)?$',
+                                    text[max(0, match.start() - 16):match.start()]))
+    if named:
+        return named[0][1]
     for skill, pattern in _SKILL_IMPLIED if implied else ():
         if pattern.search(text):
             return skill
     return None
+
+
+def perception_details(claim, margin):
+    """The observed details an active Perception check sees on this claim at ``margin`` over
+    its DC, as fact ids, or None when the claim lists none. Brendon's rule: Perception is a
+    snapshot (details without context, more and sharper with the result, each a hook for
+    an Investigation or Insight follow-up); it never yields the claim's conclusion."""
+    tiers = claim.get('perception_details')
+    if not tiers:
+        return None
+    return [tier['fact'] for tier in sorted(tiers, key=lambda t: t.get('min_margin', 0))
+            if margin >= tier.get('min_margin', 0)]
 
 
 def gated_claim(source, state, claim_id, claim, skill):

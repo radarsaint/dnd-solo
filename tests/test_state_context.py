@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from runtime.state_context import InvalidChange, PERSONALITY_CORE, Runtime, StaleTurn
+from runtime.state_context import InvalidChange, PERSONALITY_CORE, Runtime, StaleTurn, personality_core_text
 
 
 FIXTURES = Path(__file__).parent / 'fixtures'
@@ -48,7 +48,7 @@ class StateContextTests(unittest.TestCase):
         packet = self.runtime.context()
         self.assertIn('latch', packet['dm_context']['dm_only']['unrevealed_facts'])
         self.assertIn('hidden_watcher', packet['dm_context']['dm_only']['actors'])
-        self.assertEqual(packet['personality_core'], PERSONALITY_CORE.read_text())
+        self.assertEqual(packet['personality_core'], personality_core_text())  # core + docs/voice
 
     def test_discovery_and_travel_respect_graph_and_reveal_boundaries(self):
         with self.assertRaises(InvalidChange):
