@@ -1630,6 +1630,8 @@ The useful questions are:
 
 The goal of external review should be to attack KRABS, identify blind spots, and locate mature solutions we should steal rather than to validate the document politely.
 
+A ready-to-hand prompt for a reviewing model, carrying the implementation-status table and the weak claims already identified, is in [`KRABS_V0_2_REVIEW_BRIEF.md`](KRABS_V0_2_REVIEW_BRIEF.md).
+
 ## Where v0.2 stands against these questions
 
 Three of the questions above produced v0.2 and should now be re-asked against the answers rather than the gap.
