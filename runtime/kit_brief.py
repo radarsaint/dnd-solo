@@ -231,13 +231,15 @@ def compile_story(source):
     return stories
 
 
-FIRST_SCENE = 'scene-1'  # the scene a state without scene ids is in (KRABS §8 scene ids)
+from .state_context import FIRST_SCENE  # noqa: E402  (the first scene, KRABS §8)
 
 
 def scene_key(state):
-    """The open scene. Story memory (beats, delivered hooks) belongs to one scene: a later
-    scene in the same area starts fresh, so its hooks re-arm."""
-    return (state or {}).get('scene_id') or FIRST_SCENE
+    """The open scene (state_context.current_scene, KRABS §8). Story memory (beats, delivered
+    hooks, crossed thresholds) and hidden NPC checks belong to one scene: after scene_close a
+    later scene in the same area starts fresh, so its hooks and checks re-arm."""
+    from .state_context import current_scene
+    return current_scene(state)
 
 
 def story_state(state, area):
