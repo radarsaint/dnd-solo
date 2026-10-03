@@ -583,24 +583,29 @@
           "within_beats": 3,
           "text": "The hosts make the dark sound dangerous for the living, and their protection the only safe passage.",
           "delivered_when": {
-            "said": {
-              "by": [
-                "uktarl",
-                "bandit_a",
-                "bandit_b",
-                "doppelganger"
-              ],
-              "any": [
-                "safe passage",
-                "safely",
-                "protection",
-                "protect you",
-                "the living",
-                "dangerous",
-                "not safe",
-                "the night"
-              ]
-            }
+            "any": [
+              {
+                "toll_raised": "passage_toll"
+              },
+              {
+                "said": {
+                  "by": [
+                    "uktarl",
+                    "bandit_a",
+                    "bandit_b",
+                    "doppelganger"
+                  ],
+                  "any": [
+                    "safe passage",
+                    "protection",
+                    "for the living",
+                    "not safe for",
+                    "dangerous for",
+                    "the dark down here"
+                  ]
+                }
+              }
+            ]
           },
           "roots": [
             "false_vampires",
@@ -624,13 +629,20 @@
                     "uktarl"
                   ],
                   "any": [
-                    "game",
-                    "cards",
-                    "play",
-                    "deal",
+                    "the game",
+                    "a game",
+                    "a hand of cards",
+                    "the cards",
                     "stake",
                     "wager",
-                    "hand"
+                    "ante",
+                    "deal you in",
+                    "take a seat",
+                    "a seat at",
+                    "my table",
+                    "this table",
+                    "while i deal",
+                    "on the felt"
                   ]
                 }
               }

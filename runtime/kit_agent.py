@@ -1142,7 +1142,8 @@ DEGRADED_INSTRUCTION = (
     'Degraded mode is available for this turn. Resubmit the same decision with a plain, short '
     'performance and degraded=true (CLI --degraded): one Narrator sentence of visible action, then '
     'the focus actor answering reply_to in two or three sentences in their own card voice, ending '
-    'on a real choice for the player. Style floors become warnings saved with the turn; secrecy, '
+    'on a real choice for the player, and any raise_now speaker raises it. Style floors become '
+    'warnings saved with the turn; secrecy, '
     'player agency, NPC table talk, presence, and the chosen move are still checked.')
 ABANDON_INSTRUCTION = (
     'This turn keeps failing. Run abandon for this turn_id (nothing is committed), then prepare '

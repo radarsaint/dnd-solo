@@ -47,6 +47,7 @@ import re
 from .state_context import InvalidChange, require
 
 TEXT_MAX = 300
+BRIEF_MAX_BYTES = 5000  # the compiled brief; longer lists are trimmed from the end
 MAX_ITEMS = 6  # per list (purposes, hooks, thresholds, endings, an actor's traits): the brief stays ~5 KB
 DEFAULT_WITHIN = 3
 MAX_WITHIN = 12
@@ -91,6 +92,18 @@ def _check_condition(cond, source, label):
         require(value in pools[kind] and not str(value).startswith('_'), f'{label}: unknown {kind} {value!r}')
 
 
+SPOKEN_CONDITIONS = ('said', 'toll_raised')
+
+
+def speakable(cond):
+    """True when an NPC line alone can meet the condition (said or toll_raised, directly or
+    inside any): the only kind a hook forced through raise_now can be held to."""
+    kind, value = next(iter(cond.items()))
+    if kind == 'any':
+        return any(speakable(item) for item in value)
+    return kind in SPOKEN_CONDITIONS
+
+
 def _public_safe(text, source, label):
     from . import kit_guards
     folded = text.casefold()
@@ -132,6 +145,11 @@ def compile_story(source):
             within = hook.get('within_beats', DEFAULT_WITHIN)
             require(type(within) is int and 1 <= within <= MAX_WITHIN, f'{label} hook {hid}: within_beats 1-{MAX_WITHIN}')
             _check_condition(hook.get('delivered_when'), source, f'{label} hook {hid}')
+            # An NPC raises an overdue primary hook by speaking; a condition speech cannot meet
+            # (only fact_known, claim_learned, procedure_running) would reject every turn.
+            require(not hook.get('primary') or speakable(hook['delivered_when']),
+                    f'{label} hook {hid}: a primary hook is delivered by what an NPC says '
+                    '(said or toll_raised, directly or inside any)')
             _roots(hook.get('roots', []), source, f'{label} hook {hid}')
             _public_safe(hook['text'], source, f'{label} hook {hid}')
         for index, item in enumerate(story.get('thresholds') or ()):
@@ -243,16 +261,57 @@ def brief(source, state):
             for key, actor in present.items() if actor.get('retreat_condition')]
     about = story.get('about') or (source.get('level_context') or {}).get('pressure_here') or \
         ((source.get('areas') or {}).get(area) or {}).get('name')
-    return {'rule': BRIEF_RULE, 'area': area, 'about': about, 'beats_in_scene': mem['beats'],
+    made = {'rule': BRIEF_RULE, 'area': area, 'about': about, 'beats_in_scene': mem['beats'],
             'present': people,
             'purposes': [{'what': p['what'], 'for': p['for']} for p in story.get('purposes') or ()],
             'hooks': hooks, 'raise_now': raise_now, 'thresholds': thresholds, 'endings': endings}
+    return _capped(made)
+
+
+def _size(made):
+    import json
+    return len(json.dumps(made, ensure_ascii=False).encode())
+
+
+def _capped(made):
+    """The brief within BRIEF_MAX_BYTES: trim endings, thresholds, purposes, then each person's
+    traits and wants from the end. Hooks and raise_now are never trimmed."""
+    while _size(made) > BRIEF_MAX_BYTES:
+        for key in ('endings', 'thresholds', 'purposes'):
+            if len(made[key]) > 1:
+                made[key].pop()
+                made['trimmed'] = True
+                break
+        else:
+            longest = max(made['present'], key=lambda p: len(p['traits']) + len(p['wants']), default=None)
+            if longest and len(longest['traits']) > 1:
+                longest['traits'].pop()
+            elif longest and len(longest['wants']) > 1:
+                longest['wants'].pop()
+            else:
+                break
+            made['trimmed'] = True
+    return made
 
 
 def due_hooks(source, state):
     """The hooks an NPC must raise this turn: [{id, text, by (label)}]."""
     made = brief(source, state)
     return [{'id': h['id'], 'text': h['text'], 'by': h['by']} for h in made['hooks'] if h['id'] in made['raise_now']]
+
+
+def _needs(cond, source):
+    """Plain words for what a spoken line must contain to meet ``cond``."""
+    kind, value = next(iter(cond.items()))
+    if kind == 'any':
+        return ' or '.join(_needs(item, source) for item in value if speakable(item))
+    if kind == 'said':
+        return 'says one of: ' + ', '.join(f'"{p}"' for p in value['any'])
+    if kind == 'toll_raised':
+        toll = (source.get('tolls') or {}).get(value) or {}
+        return (f'names the amount ({toll.get("amount")} {toll.get("unit", "")}) together with a toll word '
+                '(toll, passage, fee, a head, the price, protection, to pass, way through)')
+    return 'meets it'
 
 
 def check_raised(due, source, state, spoken):
@@ -264,7 +323,8 @@ def check_raised(due, source, state, spoken):
         if hook and not holds(hook['delivered_when'], source, state, spoken):
             raise InvalidChange(
                 f'Story hook overdue: the {item["by"]} raises it this turn, in character, as their own '
-                f'move (not the Narrator): {item["text"]}')
+                f'move (not the Narrator): {item["text"]} It counts when their line '
+                f'{_needs(hook["delivered_when"], source)}.')
 
 
 def beat_event(source, state, spoken, turn_id):
@@ -272,8 +332,8 @@ def beat_event(source, state, spoken, turn_id):
     delivered by now (latched). None when the area has no story block."""
     area = (state or {}).get('area')
     story = compile_story(source).get(area)
-    if not story:
-        return None
+    if not story or _fighting(state):
+        return None  # a fight's rounds are not story beats
     mem = story_state(state, area)
     delivered = [hook['id'] for hook in story.get('hooks') or ()
                  if hook['id'] in mem['delivered'] or holds(hook['delivered_when'], source, state, spoken)]

@@ -14,7 +14,7 @@ from pathlib import Path
 from runtime import kit_agent, kit_brief, kit_toll
 from runtime.kit_agent import KitAgent, Resolution, Room6CAdjudicator
 from runtime.state_context import InvalidChange, Runtime
-from test_kit_agent import FIXTURE, MIRROR, RecordingModel, exchange_speech
+from test_kit_agent import FIXTURE, MIRROR, RecordingModel, exchange_speech, with_raised_hooks
 
 SOURCE = json.loads(FIXTURE.read_text())
 FEASIBILITY = json.loads((Path(__file__).parent / 'fixtures/feasibility_room.json').read_text())
@@ -204,6 +204,93 @@ class UndeliveredHookStaysFlagged(Base):
         fighting = copy.deepcopy(state)
         fighting['combat'] = {'status': 'running'}
         self.assertEqual(kit_brief.brief(self.runtime.source(), fighting)['raise_now'], [])
+
+
+class ReviewFixes(Base):
+    """Nagatha's review of #55 at 96e279f: no stall, no stale hook, degraded mode clears it."""
+
+    def test_a_primary_hook_speech_cannot_deliver_is_refused_at_load(self):
+        source = copy.deepcopy(FEASIBILITY)
+        hook = {'id': 'see_cache', 'primary': True, 'by': 'sentry', 'within_beats': 1,
+                'text': 'The sentry points the stranger at the cache.', 'delivered_when': {'fact_known': 'cache_door'}}
+        source['facts'].setdefault('cache_door', {'area': 'entry', 'text': 'A door.', 'visible': False})
+        source['story'] = {'entry': {'hooks': [hook]}}
+        # Before the fix this stalled every turn: no line could ever meet fact_known.
+        with self.assertRaisesRegex(InvalidChange, 'delivered by what an NPC says'):
+            kit_brief.compile_story(source)
+        hook['delivered_when'] = {'any': [{'fact_known': 'cache_door'},
+                                          {'said': {'by': ['sentry'], 'any': ['the cache']}}]}
+        kit_brief.compile_story(source)  # speech can deliver it now
+        hook.update(primary=False, delivered_when={'fact_known': 'cache_door'})
+        kit_brief.compile_story(source)  # a secondary hook is only tracked, never forced
+
+    def test_a_waived_toll_retires_the_act_hook_too(self):
+        """V1/V3-style: the toll is settled by social play before its NPC names it; nobody is
+        then forced to sell the deadly dark."""
+        self.start()
+        model = IgnoresHooks()
+        agent = self.agent(model)
+        agent.opening('entry')
+        revision, state = self.runtime.load()
+        body = dict(kit_toll.here(self.runtime.source(), state)['passage_toll'][1], status='waived')
+        self.runtime.commit('waived', revision, [kit_toll.event('passage_toll', body, 'Waived through Harria.')])
+        for index, action in enumerate(LIVE):
+            agent.turn(action, f't{index + 1}')  # never rejected for an overdue hook
+        brief = kit_brief.brief(self.runtime.source(), self.runtime.load()[1])
+        delivered = {h['id'] for h in brief['hooks'] if h['delivered']}
+        self.assertTrue({'toll_demand', 'act_menace'} <= delivered)
+        self.assertEqual(brief['raise_now'], [] if 'rigged_game' in delivered else ['rigged_game'])
+        self.assertTrue(all('raise_now' not in p or not p['raise_now'] or
+                            all('passage' not in r['raises'] and 'dangerous' not in r['raises'] for r in p['raise_now'])
+                            for p in model.performances))
+
+    def test_a_degraded_performance_carrying_the_hook_commits(self):
+        self.start()
+        for _ in range(3):
+            self.beat()
+        bridge = kit_agent.KitChatBridge(self.runtime, Room6CAdjudicator(perception=0, insight=0, roll=lambda: 15))
+        prepared = bridge.prepare('I nod to the dealer.', 'stuck')
+        self.assertTrue(prepared['input'].get('raise_now') or
+                        self.runtime.pending_kit_turn('stuck')['body'].get('story_due'))
+        payload = bridge.decide('stuck', RecordingModel().plan(prepared['input']))
+        self.assertIn('raise_now', kit_agent.DEGRADED_INSTRUCTION)
+        plain = exchange_speech(1)
+        for _ in range(kit_agent.DEGRADED_AFTER_REJECTIONS):
+            with self.assertRaisesRegex(InvalidChange, 'Story hook overdue') as caught:
+                bridge.finish('stuck', plain)
+        self.assertIn('names the amount (10 gp)', str(caught.exception))
+        due = self.runtime.pending_kit_turn('stuck')['body']['story_due']
+        speech = with_raised_hooks(plain, {'raise_now': kit_agent.raise_now_view(due)})
+        result = bridge.finish('stuck', speech, degraded=True)
+        self.assertEqual(result['revision'], self.runtime.load()[0])
+        state = self.runtime.load()[1]
+        self.assertIn('toll_demand', state['story']['area_06c']['delivered'])
+        self.assertEqual(kit_toll.here(self.runtime.source(), state)['passage_toll'][1]['status'], 'demanded')
+
+    def test_natural_toll_words_and_tight_phrases(self):
+        self.start()
+        source = self.runtime.source()
+        self.assertTrue(kit_toll.names_toll(source, 'passage_toll', 'Dealer: Ten gold and you walk out safe.'))
+        hooks = {h['id']: h for h in source['story']['area_06c']['hooks']}
+        state = self.runtime.load()[1]
+        for line in ('Dealer: The night is young; play a hand and deal with it.',
+                     'Dealer: It is dangerous to bet against the house, safely or not.'):
+            with self.subTest(line=line):
+                self.assertFalse(kit_brief.holds(hooks['act_menace']['delivered_when'], source, state, line))
+                self.assertFalse(kit_brief.holds(hooks['rigged_game']['delivered_when'], source, state, line))
+
+    def test_the_brief_is_capped_and_fight_rounds_are_not_beats(self):
+        self.start()
+        source = self.runtime.source()
+        state = copy.deepcopy(self.runtime.load()[1])
+        for actor in state['actors'].values():
+            actor['traits'] = ['x' * 290] * 6
+        made = kit_brief.brief(source, state)
+        self.assertLessEqual(len(json.dumps(made, ensure_ascii=False).encode()), kit_brief.BRIEF_MAX_BYTES)
+        self.assertTrue(made.get('trimmed'))
+        self.assertEqual(len(made['hooks']), 3)
+        fighting = dict(state, combat={'status': 'running'})
+        self.assertIsNone(kit_brief.beat_event(self.runtime.source(), fighting, '', 'round'))
 
 
 class BriefNeverLeaks(Base):
