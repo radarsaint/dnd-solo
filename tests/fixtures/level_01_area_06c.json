@@ -616,7 +616,7 @@
           "primary": true,
           "by": "uktarl",
           "within_beats": 3,
-          "text": "The dealer names the price of safe passage, 10 gp a head, with a reason in character and a question the visitor must answer.",
+          "text": "The dealer turns the toll into the vampire shakedown itself: in his established voice, make the dark unsafe for the living and their protection the bargain, name 10 gp a head for safe passage, then ask what the visitor will do. Never present it as a system fee or scene summary.",
           "delivered_when": {
             "toll_raised": "passage_toll"
           },
@@ -629,7 +629,7 @@
           "primary": true,
           "by": "uktarl",
           "within_beats": 3,
-          "text": "The hosts make the dark sound dangerous for the living, and their protection the only safe passage.",
+          "text": "The hosts menace from inside the vampire ruse: make the dark dangerous for the living and their protection the implied answer. Stay in character; never explain the ruse or summarize the scene's purpose.",
           "delivered_when": {
             "any": [
               {

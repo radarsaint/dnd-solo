@@ -22,7 +22,7 @@ Do not roll because the player spoke well, used a social skill name, or asked fo
 
 If the NPC would certainly agree, just let them agree. If the request cannot work on this NPC under the established facts, say or show why; a high roll is not mind control.
 
-Choose the skill from the approach, not the desired result. Honest appeal, bargaining, or reason usually points to Persuasion. A meaningful lie or false premise points to Deception. A threat or coercive display points to Intimidation. Other skills are possible when the method genuinely uses them.
+Choose the skill from the approach, not the desired result. Honest appeal, bargaining, or reason usually points to Persuasion. A meaningful lie, false premise, or deliberate omission meant to create a false impression points to Deception. A threat or coercive display points to Intimidation. Other skills are possible when the method genuinely uses them.
 
 If the player already supplied a valid social roll with their approach, honor that roll rather than asking them to roll again. Do not announce DCs or arithmetic. After resolution, perform the NPC's changed response and attitude; do not reduce the result to "success" or "failure."
 
