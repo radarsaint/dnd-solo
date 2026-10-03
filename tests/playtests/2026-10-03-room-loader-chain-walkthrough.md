@@ -8,7 +8,7 @@ Chain: 6c -> watchroom (synthetic, barged into) -> 17a stub (broken arch refused
 
 - room `dotmm-level-01-area-06c-testbed-v1`, area `area_06c`, stage **first_look**; HP 32, gold 805
 - `start`: Opening packet staged.
-- start to first packet: 26.0 ms
+- start to first packet: 25.4 ms
 
 ## 1. `I'll play a hand. Ten gold.`
 
@@ -50,7 +50,7 @@ Chain: 6c -> watchroom (synthetic, barged into) -> 17a stub (broken arch refused
 
 - room `synthetic-watchroom-v1`, area `landing`, stage **approach**; HP 18, gold 795, carrying 1 taken item(s)
 - `exit`: You go through the south door into the short passage.
-- **mounted `synthetic-watchroom-v1`** on arrival: commit+mount 2.1 ms, first packet 3.7 ms (transition 5.8 ms). Rooms behind: {'dotmm-level-01-area-06c-testbed-v1': 'left'}
+- **mounted `synthetic-watchroom-v1`** on arrival: commit+mount 2.3 ms, first packet 4.1 ms (transition 6.4 ms). Rooms behind: {'dotmm-level-01-area-06c-testbed-v1': 'left'}
 
 ## 9. `I shove the iron door open and charge in.`
 
@@ -67,7 +67,7 @@ Chain: 6c -> watchroom (synthetic, barged into) -> 17a stub (broken arch refused
 
 - room `dotmm-level-01-area-17a-stub-v0`, area `area_17a_doors`, stage **approach**; HP 18, gold 795, carrying 1 taken item(s)
 - `exit`: You take the back stair down.
-- **mounted `dotmm-level-01-area-17a-stub-v0`** on arrival: commit+mount 2.3 ms, first packet 4.0 ms (transition 6.3 ms). Rooms behind: {'dotmm-level-01-area-06c-testbed-v1': 'left', 'synthetic-watchroom-v1': 'left'}
+- **mounted `dotmm-level-01-area-17a-stub-v0`** on arrival: commit+mount 1.7 ms, first packet 3.2 ms (transition 4.9 ms). Rooms behind: {'dotmm-level-01-area-06c-testbed-v1': 'left', 'synthetic-watchroom-v1': 'left'}
 
 ## 12. `I go through the collapsed arch.`
 
@@ -79,5 +79,5 @@ Chain: 6c -> watchroom (synthetic, barged into) -> 17a stub (broken arch refused
 
 - room `synthetic-watchroom-v1`, area `stair_down`, stage **resolution**; HP 18, gold 795, carrying 1 taken item(s)
 - `exit`: You walk on down the side passage, past the foyer doors.
-- **mounted `synthetic-watchroom-v1`** on arrival: commit+mount 2.2 ms, first packet 4.2 ms (transition 6.4 ms). Rooms behind: {'dotmm-level-01-area-06c-testbed-v1': 'left', 'dotmm-level-01-area-17a-stub-v0': 'bypassed'}
+- **mounted `synthetic-watchroom-v1`** on arrival: commit+mount 1.9 ms, first packet 3.4 ms (transition 5.3 ms). Rooms behind: {'dotmm-level-01-area-06c-testbed-v1': 'left', 'dotmm-level-01-area-17a-stub-v0': 'bypassed'}
 

@@ -11,19 +11,19 @@ Line numbers below are for this branch unless marked *main*.
 
 ## 1. A room is four stages, fleshed out just in time
 
-The stages are read from state (`kit_rooms.stage`, kit_rooms.py:184), never a rail. The PC
+The stages are read from state (`kit_rooms.stage`, kit_rooms.py:196), never a rail. The PC
 can start in any stage (`start --area`), barge in, or go past; each stage prepares only what
 it needs at that moment.
 
 | Stage | What it is | Needs from the room file | Prepared, and when | Story brief's part |
 |---|---|---|---|---|
 | **1. approach** | Outside, not yet in: doors, what can be seen or heard | an area marked `"outside": true`; its visible `facts` (what shows or sounds through the door); its `exits` with `name` and per-area `labels` | at mount: the area, its visible facts and known exits (`Runtime._observe`). Nothing else. | `stage: approach`; endings "goes in" / "goes past" when the area has no story block (kit_brief.py:416) |
-| **2. first look** | Inside, no turn taken here yet: the framing that carries the hook | the room area (`name`, optional `arrival` line for the opening event); its visible facts and actors; `story.<area>.hooks` | on arrival: the opening packet (`prepare_opening`, kit_agent.py:2672) and the brief for that area (`kit_brief.brief`, kit_brief.py:366, called from `prepare_inputs`, kit_agent.py:2586) | `hooks` with `raise_by_beat`; `stage: first_look` |
-| **3. full exploration** | The back-and-forth of choices and checks | whatever mechanics the file declares: `claims` (checks), handled features (`facts.<id>.handling`), `procedures` (card games), `tolls`, `combat`, `attitudes`, `agenda`, `texture_palette` | each when play first reaches it: a card engine only on a card call (`card_procedure`, kit_agent.py:349); a fight only when one starts; a texture palette checked the first time play draws on it (`kit_texture.area_palette`, kit_texture.py:64) | the beat counter (`story_beat` via `kit_brief.beat_event`, kit_brief.py:499, from `turn_events`, kit_agent.py:2238) makes an undelivered primary hook `raise_now` after `within_beats`, whatever stage the PC jumped to; thresholds cross (`threshold_events`, kit_brief.py:527) and shift attitudes (`kit_attitude`) |
+| **2. first look** | Inside, no turn taken here yet: the framing that carries the hook | the room area (`name`, optional `arrival` line for the opening event); its visible facts and actors; `story.<area>.hooks` | on arrival: the opening packet (`prepare_opening`, kit_agent.py:2714) and the brief for that area (`kit_brief.brief`, kit_brief.py:366, called from `prepare_inputs`, kit_agent.py:2627) | `hooks` with `raise_by_beat`; `stage: first_look` |
+| **3. full exploration** | The back-and-forth of choices and checks | whatever mechanics the file declares: `claims` (checks), handled features (`facts.<id>.handling`), `procedures` (card games), `tolls`, `combat`, `attitudes`, `agenda`, `texture_palette` | each when play first reaches it: a card engine only on a card call (`card_procedure`, kit_agent.py:357); a fight only when one starts; a texture palette checked the first time play draws on it (`kit_texture.area_palette`, kit_texture.py:64) | the beat counter (`story_beat` via `kit_brief.beat_event`, kit_brief.py:499, from `turn_events`, kit_agent.py:2279) makes an undelivered primary hook `raise_now` after `within_beats`, whatever stage the PC jumped to; thresholds cross (`threshold_events`, kit_brief.py:527) and shift attitudes (`kit_attitude`) |
 | **4. resolution** | Out again, or past without going in | an outside area (or a `room_link` area) beyond the room | on arrival there: if the area has `room_link`, the next room mounts in the same commit (state_context.py:462) | `stage: resolution`, `resolved: left | bypassed`; story `endings` |
 
 A **bypass** is a resolution: leaving by an outside route without ever entering an inside area
-gives `resolution(...) == 'bypassed'` (kit_rooms.py:178). **Barge-in** is the PC's first turn in
+gives `resolution(...) == 'bypassed'` (kit_rooms.py:190). **Barge-in** is the PC's first turn in
 the room being an act, not a look: the stage goes `first_look` -> `explore` on that turn and the
 hook still fires from the beat counter (`raise_now`), so skipping the doorway never skips the
 hook. `scene_close` (state_context.py:632) still closes a scene inside a room; it does not end
@@ -52,18 +52,19 @@ Optional mechanic blocks, each off unless declared: `claims`, `procedures` (`kin
 `game: twenty_one | three_dragon_ante`), `tolls`, `combat`, `attitudes`, `agenda`,
 `texture_palette`, `leak_phrases`/`leak_keywords`, `public_performance`. Any other top-level
 block is refused as unsupported (`KNOWN_BLOCKS`, kit_rooms.py:36), as is any other procedure
-kind or card game (kit_rooms.py:120). Room files hold only data.
+kind or card game (kit_rooms.py:124). Room files hold only data.
 
 ## 3. Mount and fail-fast contract
 
-`kit_rooms.load_room(path)` (kit_rooms.py:166):
+`kit_rooms.load_room(path)` (kit_rooms.py:170):
 
 1. **Up front, blocking (stages 1-2):** the file exists, parses, is an object; the required
-   blocks; referential integrity of areas, exits, facts, actors, `room_link`, feature
+   blocks; `exits`, `facts`, `actors` are objects; referential integrity of areas, exits,
+   facts, actors, `room_link`, feature
    `holds` (kit_rooms.py:79). Every problem is named, not just the first.
 2. **At mount, validated but not built (stages 3-4):** unsupported blocks and kinds, then the
    existing compilers run as checks only: claims, attitudes, agenda, tolls, story, each card
-   procedure's config (kit_rooms.py:132). No engine, brief, or fight is created.
+   procedure's config (kit_rooms.py:136). No engine, brief, or fight is created.
 3. **Lazily:** the texture palette, per area, the first time play draws on it
    (kit_texture.py:64). It was the largest mount cost (~7-19 ms for 6c) and is never needed for
    the first framing.
@@ -75,21 +76,43 @@ A room that fails raises `RoomMountError` (kit_rooms.py:49):
   isn't set up for play. We can stop here or go another way."* Plain, brief, no improvised room.
   (GPT owns Kit's voice; this is the floor and GPT may reword it.)
 - **Mid-chain:** the adjudicator checks a linked room before accepting the move
-  (`_check_onward`, kit_agent.py:884). If it cannot mount, the move is refused as a pending
+  (`_check_onward`, kit_agent.py:925). If it cannot mount, the move is refused as a pending
   ruling whose message is the table line, with `host_error` attached; nothing commits and the
   session plays on. `Runtime._commit` checks again inside the transaction (state_context.py:462).
 
 ## 4. Rooms in a row
 
 Arriving in a `room_link` area mounts the linked room in the same commit, no host step
-(state_context.py:462, `kit_rooms.mounted_state`, kit_rooms.py:234):
+(state_context.py:462, `kit_rooms.mounted_state`, kit_rooms.py:246):
 - the room left is archived in `state['rooms'][id]` with its resolution (`left`/`bypassed`) and
   all of its room-scoped state; coming back restores it as it was left;
 - the character carries over (`SESSION_KEYS`, kit_rooms.py:45): sheet, `pc_state`, Kit's memory,
-  roll seed, time; `fold_pc` (kit_rooms.py:210) writes current HP (after any fight) and gold
+  roll seed, time; `fold_pc` (kit_rooms.py:222) writes current HP (after any fight) and gold
   (table net, tolls paid outside a stake) into the sheet, and what was taken into `carried`;
   each change is folded once, even across revisits;
 - nothing room-scoped crosses: actors, facts, exits, procedures, tolls, combat, claims, canon.
+
+**Long-lived hosts.** A chat host or `KitAgent` keeps one adjudicator for the whole session.
+`prepare_turn` calls `RoomAdjudicator.mount(runtime.source())` every turn, because a commit may
+have mounted another room since the last one. The adjudicator's only room-derived state is
+`source`. Everything else is read from it on each call: the router's feature nouns and exit
+words (`room_words`), exits, handled features, procedures, tolls, attitudes, and the fight
+config. The one module cache, the texture palette check (`kit_texture._CHECKED`), is keyed by
+room id, area, and palette. `LongLivedHost` tests A -> B -> A through one bridge.
+
+**Which exit.** `_exit_taken` picks the exit the player means:
+1. The most specific match wins: the whole exit name first, then words that no other exit here
+   shares ("the oak door" over "the iron door").
+2. A word several exits share ("the door") narrows to one of two exits, but only if exactly
+   one is left:
+   - the exit in view, named in Kit's last line;
+   - when the player says they're going back, the exit they came in by (`room.came_by`, which
+     is cleared on a mount).
+3. Otherwise Kit asks one short question, "The iron door or the oak door?", and nothing is
+   committed. `WhichExit` tests this on a non-6c room with two doors.
+
+A `room_link` whose `area` is not in the linked room is refused before the move, with the
+table line and `host_error` (`kit_rooms.load_link`).
 
 ## 5. 6c hardcodes
 

@@ -85,9 +85,13 @@ def first_framing_problems(source):
     areas = source['areas']
     if not isinstance(areas, dict) or not areas:
         return ['areas must name at least one area']
+    problems = [f'{key} must be an object' for key in ('exits', 'facts', 'actors')
+                if not isinstance(source[key], dict)]
+    if problems:
+        return problems
     if source['starting_area'] not in areas:
         problems.append(f"starting_area {source['starting_area']!r} is not one of the areas")
-    for key, edge in (source['exits'] or {}).items():
+    for key, edge in source['exits'].items():
         ends = edge.get('areas') if isinstance(edge, dict) else None
         if not (isinstance(ends, list) and len(ends) == 2 and len(set(ends)) == 2 and all(a in areas for a in ends)):
             problems.append(f'exit {key} must join two of the areas')
@@ -95,7 +99,7 @@ def first_framing_problems(source):
             problems.append(f'exit {key} needs secret true or false')
         elif not all(isinstance((edge.get('labels') or {}).get(a), str) for a in ends):
             problems.append(f'exit {key} needs a label as seen from each of its two areas')
-    for key, fact in (source['facts'] or {}).items():
+    for key, fact in source['facts'].items():
         if key.startswith('_'):
             continue
         if not (isinstance(fact, dict) and fact.get('area') in areas and isinstance(fact.get('text'), str)
@@ -106,7 +110,7 @@ def first_framing_problems(source):
         if handling is not None and not (isinstance(handling, dict) and handling.get('nouns') and
                                          (handling.get('holds') is None or handling['holds'] in source['facts'])):
             problems.append(f'fact {key} handling needs nouns, and holds must name a fact')
-    for key, actor in (source['actors'] or {}).items():
+    for key, actor in source['actors'].items():
         if not (isinstance(actor, dict) and actor.get('location') in areas and actor.get('status')):
             problems.append(f'actor {key} needs a location among the areas and a status')
     for key, area in areas.items():
@@ -165,6 +169,14 @@ def check_room(source, ref='room'):
 
 def load_room(ref):
     return check_room(read_room(ref), ref)
+
+
+def load_link(link):
+    """The room an area's ``room_link`` leads to, checked down to its arrival area."""
+    source = load_room(link['room'])
+    if link['area'] not in source['areas']:
+        raise RoomMountError(link['room'], [f"room_link area {link['area']!r} is not one of its areas"])
+    return source
 
 
 def outside(source, area):
@@ -254,6 +266,7 @@ def mounted_state(old_source, state, new_source, area, ref):
                    resources=copy.deepcopy(new_source.get('resources') or {}), rhythm=[],
                    room=initial_room(new_source, ref))
     new['area'] = area
+    new['room'] = {k: v for k, v in (new.get('room') or {}).items() if k != 'came_by'}  # came from another room
     if area not in new['visited']:
         new['visited'].append(area)
     new['rooms'] = rooms

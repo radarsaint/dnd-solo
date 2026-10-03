@@ -462,7 +462,7 @@ class Runtime:
             link = (source['areas'].get(state['area']) or {}).get('room_link')
             if link:
                 from . import kit_rooms
-                new_source = kit_rooms.load_room(link['room'])
+                new_source = kit_rooms.load_link(link)
                 state = kit_rooms.mounted_state(source, state, new_source, link['area'], link['room'])
                 self._observe(state, new_source)
                 self.db.execute('UPDATE source SET body=? WHERE id=1', (encode(new_source),))
@@ -705,6 +705,7 @@ class Runtime:
             edge = source['exits'][key]
             require(state['area'] in edge['areas'], 'Exit not adjacent')
             state['area'] = next(a for a in edge['areas'] if a != state['area'])
+            state.setdefault('room', {'id': source.get('id'), 'path': None, 'turns_in': {}})['came_by'] = key
             if state['area'] not in state['visited']:
                 state['visited'].append(state['area'])
             self._observe(state, source)

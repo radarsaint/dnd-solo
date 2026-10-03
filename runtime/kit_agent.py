@@ -239,6 +239,14 @@ def room_words(source, state):
             if word not in EXIT_STOPWORDS:
                 exits.append((word, key))
     return RoomWords(features, tuple(exits))
+GOING_BACK = re.compile(r"\b(?:back|return|returns|retrace|the way (?:i|we) came|came in)\b")
+
+
+def _bare_name(edge):
+    """An exit's name without its article: 'the iron door' -> 'iron door'."""
+    return re.sub(r'^(?:the|a|an)\s+', '', str((edge or {}).get('name') or '').casefold().strip())
+
+
 ADDRESS_WORDS = re.compile(r"\b(you|you're|your|yours|yourself|y'all)\b")
 SEATING = re.compile(r"\b(?:take|takes|taking|took)\s+(?:a|the|that|an empty|the empty|my|his|her|their)\s+"
                      r"(?:seat|chair|stool|place)\b|"
@@ -384,9 +392,18 @@ class RoomAdjudicator:
         self.roll = roll
         self.npc_roll = npc_roll  # the NPC's behind-the-screen d20 (tests); else seeded
         self.sleight_of_hand = sleight_of_hand
-        self.source = source  # the room source, for its table procedures (set by the bridge)
+        self.source = source  # the mounted room's source; prepare_turn refreshes it every turn
+        self.last_said = ''   # Kit's last public line, for the exit in view (one resolve)
 
-    def resolve(self, action, revision, state, addressed=False):
+    def mount(self, source):
+        """Point this adjudicator at the room mounted now. This is the only room-derived
+        state it holds: router words, features, exits, procedures, tolls, attitudes and the
+        fight config are all read from ``self.source`` on each call, and the texture palette
+        cache is keyed by room id (docs/architecture/ROOM_LOADER.md, "Long-lived hosts")."""
+        self.source = source
+
+    def resolve(self, action, revision, state, addressed=False, last_said=''):
+        self.last_said = last_said or ''
         result = self._also_bet(self._resolve(action, revision, state, addressed), action, revision, state)
         if (self.source or {}).get('tolls'):
             extra = self._toll_unstuck(result, state)
@@ -861,25 +878,49 @@ class RoomAdjudicator:
                           [{'type': 'beat', 'tags': ['stealth', 'noticed'], 'evidence': evidence}])
 
     def _exit_taken(self, action, state):
-        """The known exit from here the player's words name, else the only one. Several and
-        none named: ask which (pending, nothing committed)."""
+        """The known exit from here that the player means (docs/architecture/ROOM_LOADER.md,
+        "Which exit"). The most specific match wins: the whole name, then words no other exit
+        here shares. A tie on shared words ("the door") narrows to the exit in view (named in
+        Kit's last line) or, when the player says they go back, the one they came in by, but
+        only when that leaves exactly one. Otherwise Kit asks which in one short line, and
+        nothing is committed."""
         source, area = self.source or {}, state.get('area')
+        exits = source.get('exits') or {}
         here = [key for key in state.get('known_exits') or ()
-                if area in ((source.get('exits') or {}).get(key) or {}).get('areas', ())]
+                if area in (exits.get(key) or {}).get('areas', ())]
         if not here:
             raise PendingRuling('There is no way out from here that you know of yet. No turn was committed.')
         text = action.casefold()
-        named = []
+        words = {}
         for word, key in room_words(source, state).exits:
-            if key not in named and re.search(r'\b' + re.escape(word) + r's?\b', text):
-                named.append(key)
-        chosen = named[0] if len(named) == 1 else (here[0] if len(here) == 1 and not named else None)
-        if chosen:
-            self._check_onward(chosen, state)
-            return chosen
-        names = [str(((source.get('exits') or {}).get(key) or {}).get('name') or key)
-                 for key in (named or here)]
-        raise PendingRuling('Which way: ' + ' or '.join(names) + '? No turn was committed.')
+            words.setdefault(key, set()).add(word)
+        shared = {}
+        for key_words in words.values():
+            for word in key_words:
+                shared[word] = shared.get(word, 0) + 1
+        said = lambda phrase, where=text: bool(phrase) and re.search(
+            r'\b' + re.escape(phrase) + r's?\b', where) is not None
+        score = {}
+        for key in here:
+            hit = {word for word in words.get(key, ()) if said(word)}
+            if hit:
+                score[key] = (said(_bare_name(exits[key])), sum(shared[w] == 1 for w in hit), len(hit))
+        best = max(score.values(), default=None)
+        tied = [key for key in here if score.get(key) == best] if score else here
+        if len(tied) > 1:
+            heard = self.last_said.casefold()
+            preferred = {key for key in tied if said(_bare_name(exits[key]), heard)}
+            came_by = (state.get('room') or {}).get('came_by')
+            if came_by in tied and GOING_BACK.search(text):
+                preferred.add(came_by)
+            if len(preferred) == 1:
+                tied = list(preferred)
+        if len(tied) == 1:
+            self._check_onward(tied[0], state)
+            return tied[0]
+        names = ['the ' + _bare_name(exits[key]) if _bare_name(exits[key]) else key for key in tied]
+        ask = (' or '.join(names) if len(names) == 2 else ', '.join(names[:-1]) + ', or ' + names[-1]) + '?'
+        raise PendingRuling(ask[0].upper() + ask[1:] + ' No turn was committed.')
 
     def _check_onward(self, key, state):
         """An exit into an area linked to another room file: that room must mount before
@@ -891,7 +932,7 @@ class RoomAdjudicator:
         link = ((source.get('areas') or {}).get(there) or {}).get('room_link')
         if link:
             try:
-                kit_rooms.load_room(link['room'])
+                kit_rooms.load_link(link)
             except kit_rooms.RoomMountError as exc:
                 pending = PendingRuling(f'{exc.table_line} No turn was committed.')
                 pending.host_error = exc.host_view()
@@ -2659,11 +2700,12 @@ def prepare_turn(runtime, adjudicator, action, use_memory=True, one_pass=False, 
         return prepare_inputs(runtime, revision, state, action, table_talk_resolution(action),
                               use_memory, one_pass, table_talk=True)
     if isinstance(adjudicator, RoomAdjudicator):
-        if adjudicator.source is None:
-            adjudicator.source = runtime.source()
+        # Every turn, not once: a commit may have mounted another room since the last one.
+        adjudicator.mount(runtime.source())
         last = runtime.recent_kit_turns(limit=1)
         addressed = bool(last) and npc_addressed_player(last[-1].get('spoken'))
-        resolution = adjudicator.resolve(action, revision, state, addressed=addressed)
+        said = ' '.join(str(last[-1].get(k) or '') for k in ('public_event', 'spoken')) if last else ''
+        resolution = adjudicator.resolve(action, revision, state, addressed=addressed, last_said=said)
     else:
         resolution = adjudicator.resolve(action, revision, state)
     return prepare_inputs(runtime, revision, state, action, resolution, use_memory, one_pass)

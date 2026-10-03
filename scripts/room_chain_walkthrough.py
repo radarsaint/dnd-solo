@@ -72,10 +72,9 @@ def build_chain(folder):
     return folder / '6c.json'
 
 
-def first_packet(runtime):
+def first_packet(bridge):
     """Kit's first framing in the room now mounted: time to the prepared packet."""
     started = time.perf_counter()
-    bridge = KitChatBridge(runtime, RoomAdjudicator(source=runtime.source()))
     packet = bridge.prepare(opening=True, one_pass=True)
     elapsed = (time.perf_counter() - started) * 1000
     bridge.abandon(packet['turn_id'])
@@ -101,12 +100,15 @@ def run(folder):
                 'Opening packet staged.', 'ms_to_first_packet': round((time.perf_counter() - started) * 1000, 1),
                 **snapshot(Runtime(db))}]
     runtime = Runtime(db)
-    KitChatBridge(runtime, RoomAdjudicator()).abandon(started_packet['prepared']['turn_id'])
+    # One adjudicator and one bridge for the whole session, as a long-lived host runs.
+    adjudicator = RoomAdjudicator(roll=lambda: 10, npc_roll=lambda: 10)
+    bridge = KitChatBridge(runtime, adjudicator)
+    bridge.abandon(started_packet['prepared']['turn_id'])
     for number, (_, line) in enumerate(LINES, 1):
         revision, state = runtime.load()
         state['roll_seed'] = SEED
         source = runtime.source()
-        adjudicator = RoomAdjudicator(roll=lambda: 10, npc_roll=lambda: 10, source=source)
+        adjudicator.mount(source)  # what prepare_turn does every turn
         record = {'line': line}
         try:
             resolution = adjudicator.resolve(line, revision, state)
@@ -125,7 +127,7 @@ def run(folder):
         record.update(kind=resolution.kind, public=resolution.public_event,
                       ms_commit=round((time.perf_counter() - began) * 1000, 1))
         if runtime.source()['id'] != source['id']:
-            packet, elapsed = first_packet(runtime)
+            packet, elapsed = first_packet(bridge)
             record.update(mounted=runtime.source()['id'], ms_first_packet=round(elapsed, 1),
                           ms_transition=round(record['ms_commit'] + elapsed, 1))
         now = runtime.source(), runtime.load()[1]

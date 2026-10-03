@@ -237,8 +237,12 @@ class Mounting(unittest.TestCase):
             (self.broken({'id': 'x', 'starting_area': 'a', 'areas': {'a': {}}, 'exits': {}, 'facts': {}, 'actors': {},
                           'procedures': {'p': {'kind': 'card_game', 'game': 'poker'}}}), "unsupported card game 'poker'"),
         ]
+        for block in ('exits', 'facts', 'actors'):  # a list where an object belongs
+            for value in ([], [{'areas': ['a', 'a']}]):
+                body = {'id': 'x', 'starting_area': 'a', 'areas': {'a': {}}, 'exits': {}, 'facts': {}, 'actors': {}}
+                cases.append((self.broken(dict(body, **{block: value})), f'{block} must be an object'))
         for path, problem in cases:
-            with self.subTest(problem=problem):
+            with self.subTest(problem=problem, path=path.name):
                 started = time.perf_counter()
                 with self.assertRaises(kit_rooms.RoomMountError) as caught:
                     start_session(self.folder / 'never.sqlite', NIK, room=path)
@@ -246,6 +250,19 @@ class Mounting(unittest.TestCase):
                 self.assertTrue(any(problem in p for p in caught.exception.problems), caught.exception.problems)
                 self.assertEqual(caught.exception.table_line, kit_rooms.TABLE_LINE)
                 self.assertFalse((self.folder / 'never.sqlite').exists())  # nothing was created
+
+    def test_a_link_to_a_missing_area_fails_before_the_move_is_accepted(self):
+        watch = kit_rooms.read_room(WATCH)
+        watch['areas']['stair_down']['room_link'] = {'room': STUB, 'area': 'area_17a_doorz'}
+        path = self.folder / 'watch-badlink.json'
+        path.write_text(json.dumps(watch), encoding='utf-8')
+        runtime, _ = self.start(path)
+        revision, state = runtime.load()
+        with self.assertRaises(PendingRuling) as caught:
+            RoomAdjudicator(roll=lambda: 10, source=runtime.source()).resolve('I head down the stair.', revision, state)
+        self.assertTrue(str(caught.exception).startswith(kit_rooms.TABLE_LINE))
+        self.assertIn("room_link area 'area_17a_doorz' is not one of its areas", caught.exception.host_error['problems'])
+        self.assertEqual(runtime.load()[0], revision)  # nothing committed
 
     def test_the_cli_prints_the_host_error_and_table_line(self):
         path = self.broken({'id': 'x', 'areas': {}})
@@ -260,6 +277,99 @@ class Mounting(unittest.TestCase):
     def test_kit_line_is_plain_and_brief(self):
         self.assertLessEqual(len(kit_rooms.TABLE_LINE.split()), 25)
         self.assertNotRegex(kit_rooms.TABLE_LINE.casefold(), r'json|file|loader|mount|error|runtime')
+
+
+class LongLivedHost(unittest.TestCase):
+    """One bridge and one adjudicator for the whole session, A -> B -> A, the way a chat
+    host or KitAgent runs (Codex P1 on #87): each mount must refresh what the adjudicator and
+    router read from the room (source, feature nouns, exits)."""
+
+    def setUp(self):
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        folder = Path(temp.name)
+        chain.build_chain(folder)
+        started = start_session(folder / 'host.sqlite', NIK, room=folder / 'watchroom.json')
+        self.runtime = Runtime(folder / 'host.sqlite')
+        self.addCleanup(self.runtime.close)
+        self.adjudicator = RoomAdjudicator(roll=lambda: 10, npc_roll=lambda: 10)
+        self.bridge = KitChatBridge(self.runtime, self.adjudicator)
+        self.bridge.abandon(started['prepared']['turn_id'])
+
+    def step(self, line):
+        """Prepare through the long-lived bridge, then commit the adjudicated events."""
+        revision, _ = self.runtime.load()
+        packet = self.bridge.prepare(line, one_pass=True)
+        body = self.runtime.pending_kit_turn(packet['turn_id'])['body']
+        self.assertEqual(self.adjudicator.source['id'], self.runtime.source()['id'])
+        self.bridge.abandon(packet['turn_id'])
+        self.runtime.commit(packet['turn_id'], revision, body['events'])
+        return body, self.runtime.source()['id'], self.runtime.load()[1]
+
+    def test_a_to_b_to_a_in_one_host(self):
+        watch, stub = 'synthetic-watchroom-v1', 'dotmm-level-01-area-17a-stub-v0'
+        body, room, state = self.step('I go through the iron door.')
+        self.assertEqual((room, state['area']), (watch, 'watchroom'))
+        body, room, state = self.step('I open the chest and look inside.')
+        self.assertEqual(body['kind'], 'inspect_feature')
+        body, room, state = self.step('I head down the back stair.')
+        self.assertEqual((room, state['area']), (stub, 'area_17a_doors'))  # B mounted by the commit
+        self.assertNotIn('chest', [noun for noun, _ in kit_agent.room_words(self.adjudicator.source, state).features])
+        body, room, state = self.step('I walk on down the side passage.')  # refused on 9f0c07c: still A's words
+        self.assertEqual((room, state['area'], body['kind']), (watch, 'stair_down', 'exit'))
+        body, room, state = self.step('I go up the back stair.')
+        self.assertEqual((room, state['area']), (watch, 'watchroom'))
+        body, room, state = self.step('I open the chest and look inside.')  # A's feature again
+        self.assertEqual(body['kind'], 'inspect_feature')
+
+
+class WhichExit(unittest.TestCase):
+    """Two doors in one non-6c room (Codex P1 on #87): the most specific name wins; a shared
+    word narrows to the exit in view or, going back, the one the PC came in by, only when
+    that leaves one; otherwise Kit asks one short question and nothing is committed."""
+
+    def setUp(self):
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        watch = kit_rooms.read_room(WATCH)
+        watch['exits']['oak_door'] = {'name': 'the oak door', 'areas': ['watchroom', 'stair_down'], 'secret': False,
+                                      'labels': {'watchroom': 'An oak door in the far wall.',
+                                                 'stair_down': 'The oak door up to the watchroom.'}}
+        path = Path(temp.name) / 'two-doors.json'
+        path.write_text(json.dumps(watch), encoding='utf-8')
+        start_session(Path(temp.name) / 'doors.sqlite', NIK, room=path)
+        self.runtime = Runtime(Path(temp.name) / 'doors.sqlite')
+        self.addCleanup(self.runtime.close)
+        revision, state = self.runtime.load()
+        self.runtime.commit('in', revision, [{'type': 'move', 'exit': 'iron_door', 'evidence': 'In by the iron door.'}])
+        self.adjudicator = RoomAdjudicator(roll=lambda: 10, source=self.runtime.source())
+
+    def exit(self, line, last_said=''):
+        revision, state = self.runtime.load()
+        result = self.adjudicator.resolve(line, revision, state, last_said=last_said)
+        return [e['exit'] for e in result.events if e.get('type') == 'move']
+
+    def asks(self, line, last_said=''):
+        revision, state = self.runtime.load()
+        with self.assertRaises(PendingRuling) as caught:
+            self.adjudicator.resolve(line, revision, state, last_said=last_said)
+        self.assertEqual(self.runtime.load()[0], revision)
+        return str(caught.exception)
+
+    def test_the_named_door_wins_over_the_shared_word(self):
+        self.assertEqual(self.exit('I walk through the oak door.'), ['oak_door'])
+        self.assertEqual(self.exit('I leave by the iron door.'), ['iron_door'])
+        self.assertEqual(self.exit('I go out the oak one, the door.'), ['oak_door'])
+
+    def test_a_bare_door_is_asked_about_in_one_short_line(self):
+        self.assertEqual(self.asks('I walk through the door.'), 'The iron door or the oak door? No turn was committed.')
+
+    def test_the_door_in_view_or_the_way_back_settles_it_only_when_unambiguous(self):
+        self.assertEqual(self.exit('I walk through the door.', last_said='The oak door creaks in a draught.'),
+                         ['oak_door'])
+        self.assertEqual(self.exit('I go back out the door.'), ['iron_door'])  # came in by it
+        self.asks('I walk through the door.', last_said='The iron door and the oak door both stand shut.')
+        self.asks('I go back out the door.', last_said='The oak door creaks in a draught.')  # two pulls: ask
 
 
 class NoSixCInRuntimeCode(unittest.TestCase):
