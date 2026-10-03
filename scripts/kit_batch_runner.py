@@ -85,14 +85,18 @@ def find_sheet(name, extra_dirs):
 
 
 def roll_text(roll, sheet):
-    """Avrae-style report in the sum form the engine parses: 'd20 + bonus = total'."""
+    """The roll as Avrae posts it: '<PC> makes a Deception check! 1d20 (12) + 10 = `22`'.
+    The die is worked back from the sheet's bonus so the total matches the script."""
     skill = roll['skill']
     bonus = int((sheet.get('skills') or {}).get(skill, 0))
     total = int(roll['total'])
     die = max(1, min(20, total - bonus))
     note = '' if die + bonus == total else f' (scripted total {total} impossible with +{bonus}; die clamped)'
-    name = skill.replace('_', ' ').title()
-    return f' [{name}: I rolled {die} + {bonus} = {die + bonus}]', note
+    name = skill.replace('_', ' ').title().replace(' Of ', ' of ')
+    article = 'an' if name[0] in 'AEIOU' else 'a'
+    sign = '+' if bonus >= 0 else '-'
+    return (f"\n{sheet.get('name', 'PC')} makes {article} {name} check! "
+            f"1d20 ({die}) {sign} {abs(bonus)} = `{die + bonus}`"), note
 
 
 # ---------------------------------------------------------------- DM backends
@@ -240,6 +244,8 @@ def run_scenario(scen, out_root, dm, sheet_dirs):
         if turn.get('roll'):
             text, note = roll_text(turn['roll'], sheet)
             line += text
+        if turn.get('avrae'):
+            line += '\n' + turn['avrae']
         t0 = time.perf_counter()
         af = out / f'action-{i:02d}.txt'
         af.write_text(line)
