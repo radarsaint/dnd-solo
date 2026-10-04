@@ -9,14 +9,19 @@ A room's ``triggers`` list says what wakes something up. Each entry is data:
      "surprise": {"stealth": <bonus>} | {"stealth": null} | {"dc": <n>},   # optional
      "reveal": "<public line when they show themselves>"}
 
-``disturb`` fires when the PC moves, searches, or gets into the feature (the room's handled
-fact); ``enter`` fires when the PC arrives in the area. A trigger fires once. Firing commits a
-``trigger_fired`` event (the actors go from hidden to alive and visible) and, with
-``starts_combat``, the fight starts awaiting initiative with the reveal line read first.
+``disturb`` fires only when Kit's decision declares ``handles: {target, act}`` on that feature (a
+part, or what it holds, names it too) and the declaration checks against the turn's offer
+(runtime/kit_acts.py). The words alone never fire it: a regex only puts a ``hint`` in the
+offer. ``enter`` fires when the PC arrives in the area, or on his first resolved turn there
+(he started there, or a room_link mounted the room with him in it). A trigger fires once; one
+whose actors are all dead, gone or already fighting is spent quietly (no fight restarted).
+Firing commits a ``trigger_fired`` event (the actors go from hidden to alive and visible) and,
+with ``starts_combat``, the fight starts awaiting initiative with the reveal line read first.
 
 Surprise follows the SRD: each ambusher's Dexterity (Stealth) check (a seeded d20 plus the
 bonus given, else the stat block's ``stealth``, else Dex 0) against the PC's passive
-Perception; the PC is surprised only if he notices none of them (passive below every total).
+Perception; the PC is surprised only if he notices none of them. Ties go to the actor
+(kit_rolls.meets_or_beats): a Stealth total equal to the passive is not noticed.
 A flat ``dc`` stands in for the group's check. The ambushers are never surprised. A PC already
 in a fight is never surprised.
 
@@ -25,7 +30,9 @@ until their trigger fires (state_context, kit_brief, kit_agenda, kit_attitude, k
 scene_discernment and the bridge's speakers all skip them).
 """
 import hashlib
+import re
 
+from . import kit_rolls
 from .state_context import InvalidChange, require
 
 KINDS = ('disturb', 'enter')
@@ -94,14 +101,66 @@ def apply_event(state, source, event):
     fired.append(key)
 
 
-def disturbed(source, state, result, action):
-    """The fact this resolution handled (moved, searched, entered), or None."""
-    if result.kind not in FEATURE_KINDS:
+def _known(fact_key, source, state):
+    fact = (source.get('facts') or {}).get(fact_key) or {}
+    return bool(fact.get('visible')) or fact_key in (state.get('known_facts') or ())
+
+
+def disturb_targets(source, state, area=None):
+    """{feature id: {'words': [nouns], 'parts': [parts and the held id, if known]}} for each
+    feature in the area whose ``disturb`` trigger has not fired."""
+    area = area or state.get('area')
+    facts = source.get('facts') or {}
+    out = {}
+    for trigger in pending(source, state):
+        kind, key = next(iter(trigger['on'].items()))
+        fact = facts.get(key) or {}
+        if kind != 'disturb' or fact.get('area') != area or key in out:
+            continue
+        handling = fact.get('handling') or {}
+        words = [str(n).casefold() for n in handling.get('nouns') or ()]
+        parts = [str(p).casefold() for p in handling.get('parts') or ()]
+        held = handling.get('holds')
+        if held and _known(held, source, state):
+            # Only an item the PC has seen names it: an unseen orb is not a handle.
+            parts.append(held)
+            words += [str(n).casefold() for n in ((facts.get(held) or {}).get('handling') or {}).get('nouns') or ()]
+        out[key] = {'words': words + parts, 'parts': parts, 'held': held if held in parts else None,
+                    'held_words': [str(n).casefold() for n in ((facts.get(held) or {}).get('handling') or {}).get('nouns') or ()]
+                    if held in parts else []}
+    return out
+
+
+def handles_offer(source, state, action, area=None):
+    """The ``handles`` act offer (runtime/kit_acts.py) when the action names a feature that a
+    pending disturb trigger watches, else None: {targets: {feature: [parts]}, hint?}. The
+    hint is the regex's guess at a hands-on act; it never fires anything."""
+    from . import kit_acts
+    from .kit_agent import QUOTED_SPEECH, asked_away  # local: kit_agent imports this module
+    targets = disturb_targets(source, state, area)
+    if not targets:
         return None
-    from .kit_agent import QUOTED_SPEECH, room_words  # local: kit_agent imports this module
-    words = room_words(source, state)
-    found = words.feature_in(QUOTED_SPEECH.sub(' ', action).lower()) or words.feature_in(action.lower())
-    return found[1] if found else None
+    text = QUOTED_SPEECH.sub(' ', action or '').casefold()
+    named = {}
+    for feature, info in targets.items():
+        for word in info['words']:
+            if re.search(r'\b' + re.escape(word) + r's?\b', text):
+                named.setdefault(feature, word)
+    if not named:
+        return None
+    offer = {'targets': {feature: info['parts'] for feature, info in targets.items()}}
+    nouns = {}
+    for feature, info in targets.items():
+        for word in info['words']:
+            nouns[word] = feature
+    guess = kit_acts.hint(asked_away(text), list(nouns))
+    if guess:
+        feature = nouns[guess['word']]
+        info = targets[feature]
+        part = guess['word'] if guess['word'] in info['parts'] else (
+            info['held'] if guess['word'] in info['held_words'] else None)
+        offer['hint'] = {'target': part or feature, 'act': guess['act']}
+    return offer
 
 
 def arrived(source, state, result):
@@ -115,19 +174,37 @@ def arrived(source, state, result):
     return None
 
 
-def matching(source, state, result, action):
-    """(trigger, area it fires in) for the first pending trigger this resolution sets off."""
-    triggers = pending(source, state)
-    if not triggers:
-        return None
-    fact = disturbed(source, state, result, action)
+def wakes(trigger, state):
+    """The trigger's actors it would still change: hidden ones, and live ones not already in
+    a running fight. Empty: firing it is a no-op (they are dead, gone, or already fighting)."""
+    fight = state.get('combat') or {}
+    in_fight = set(fight.get('hp') or {}) if fight.get('status') in ('awaiting_initiative', 'running') else set()
+    out = []
+    for key in trigger['actors']:
+        status = (state.get('actors', {}).get(key) or {}).get('status')
+        if status == 'hidden' or (status == 'alive' and key not in in_fight):
+            out.append(key)
+    return out
+
+
+def entered(source, state, result):
+    """(trigger, area) for a pending ``enter`` trigger this resolution sets off: the PC moves
+    into its area, or is already there (he started there, or a room_link mounted the room
+    with him in it) when the engine resolves his first turn there."""
     landed = arrived(source, state, result)
-    for trigger in triggers:
+    here = landed or state.get('area')
+    for trigger in pending(source, state):
         kind, target = next(iter(trigger['on'].items()))
-        if kind == 'disturb' and fact == target:
-            return trigger, state.get('area')
-        if kind == 'enter' and landed == target:
-            return trigger, landed
+        if kind == 'enter' and target == here:
+            return trigger, here
+    return None
+
+
+def disturb_trigger(source, state, feature):
+    """The pending disturb trigger on ``feature``, or None."""
+    for trigger in pending(source, state):
+        if trigger['on'] == {'disturb': feature}:
+            return trigger
     return None
 
 
@@ -145,7 +222,8 @@ def pc_surprised(source, state, revision, trigger, passive, npc_roll=None):
     if not rule or (state.get('combat') or {}).get('status') in ('awaiting_initiative', 'running'):
         return False, 'no surprise'
     if 'dc' in rule:
-        return passive < rule['dc'], f"surprise: stealth DC {rule['dc']} vs passive Perception {passive}"
+        return kit_rolls.meets_or_beats(rule['dc'], passive), \
+            f"surprise: stealth DC {rule['dc']} vs passive Perception {passive}"
     from . import kit_combat
     stats = kit_combat.config(source).get('actors') or {}
     totals = []
@@ -155,7 +233,8 @@ def pc_surprised(source, state, revision, trigger, passive, npc_roll=None):
             bonus = (stats.get(key) or {}).get('stealth', 0)
         die = surprise_roll(source, state, revision, trigger, key, npc_roll)
         totals.append((key, die, bonus, die + bonus))
-    surprised = all(total > passive for *_, total in totals)
+    # Each hider unnoticed when his Stealth meets or beats the passive (the actor wins ties).
+    surprised = all(kit_rolls.meets_or_beats(total, passive) for *_, total in totals)
     trace = 'surprise: ' + ', '.join(f'{k} stealth d20 {d} + {b} = {t}' for k, d, b, t in totals) + \
         f' vs passive Perception {passive}: {"surprised" if surprised else "noticed"}'
     return surprised, trace

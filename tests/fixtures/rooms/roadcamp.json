@@ -92,7 +92,7 @@
     }
   },
   "combat": {
-    "_note": "DM-only. Inline stat lines for the checkpoint tests. in_reach: who starts within the PC's melee reach (an opportunity attack needs it, or melee between them since).",
+    "_note": "DM-only. Inline stat lines for the checkpoint tests. in_reach: optional starting positions (who starts within the PC's melee reach); engagement is otherwise tracked by the engine from melee attacks and approaches.",
     "area": "camp",
     "leader": "harl",
     "underlings": [
