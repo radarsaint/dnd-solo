@@ -15,7 +15,7 @@ from runtime import kit_handoff, kit_reveal, kit_rooms
 from runtime.kit_agent import KitChatBridge, PendingRuling, WindowAnswer
 from runtime.state_context import InvalidChange
 from test_kit_combat_checkpoints import CAST, Camp, DECLINE, KILL_CAPTAIN, OPEN, SHIELD, shield_only
-from test_kit_monster_initiative import Room, carcass
+from test_kit_monster_initiative import ROLL, Room, carcass
 from test_kit_short_beats import PERCEPTION, ShortBeat
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -130,13 +130,29 @@ class RevealFixes(unittest.TestCase):
     are never matched as words, and the exits are always in the obvious layer."""
 
     def test_a_directed_entry_is_resolved_not_refused(self):
+        """'I go in and roll the carcass over': the entry and the act are one turn. The act on a
+        watched feature is Kit's declared handles (#97); declaring it fires the ambush, and the
+        directed entry needs no handoff question."""
+        from test_kit_agent import RecordingModel
         room = Room(self, start='stair')
         bridge = KitChatBridge(room.runtime, room.adjudicator)
-        packet = bridge.prepare('I go in and grab the orb.', 'in', one_pass=True)
-        body = room.runtime.pending_kit_turn('in')['body']
-        self.assertEqual(body['kind'], 'combat_round', 'the grab disturbs the carcass: the ambush fires')
-        self.assertIn('trigger_fired', [e['type'] for e in body['events']])
-        self.assertNotIn('reveal', packet['input']['private'], 'a fight, not a first look')
+        packet = bridge.prepare('I go in and roll the carcass over.', 'in', one_pass=True)
+        self.assertIn('carcass', packet['input']['private']['acts']['handles']['targets'],
+                      'the act in the new area is offered, not dropped')
+        self.assertIn('reveal', packet['input']['private'])
+        plan = RecordingModel().plan(packet['input']['private'])
+        plan['improv_read'].update(actor_ref='none', actor_basis='none')
+        plan.update(move='world_description', focus_actor='none', handles=ROLL,
+                    reveal_entry={'mode': 'directed', 'relevant': []})
+        for key in ('objective', 'visible_cue', 'player_opening'):
+            plan['public_brief'].pop(key, None)
+        plan['public_brief']['scope'] = 'call'
+        speech = {'segments': [{'speaker': 'Narrator', 'text': 'You step into the hall, set your shoulder to '
+                                                               'the grey carcass and heave it over.'}]}
+        result = bridge.complete('in', {'decision': plan, 'performance': speech})
+        self.assertEqual(room.state['triggers_fired'], ['carcass_disturbed'])
+        self.assertEqual(room.state['area'], 'hall')
+        self.assertTrue(result['spoken'].rstrip().endswith('Roll initiative.'))
 
     def test_kit_marks_a_directed_entry_and_no_handoff_is_needed(self):
         source = carcass()
@@ -185,7 +201,10 @@ def voice(bridge, turn, text='The blow comes in hard at your ribs. Shield, or Ch
         {'speaker': 'Kit', 'text': text}]}})
 
 
-def answer(bridge, turn, action, decision, segments=()):
+def answer(bridge, turn, action, choice, segments=()):
+    """Kit's window_answer: ``choice`` (the engine's flat form, e.g. SHIELD) declared as the react
+    act field (runtime/kit_acts.py)."""
+    decision = {'react': {'choice': choice['react'], **{k: v for k, v in choice.items() if k != 'react'}}}
     bridge.prepare(action, turn, one_pass=True)
     return bridge.complete(turn, {'decision': decision, 'performance': {'segments': list(segments)}})
 
@@ -289,7 +308,8 @@ class SplitActions(unittest.TestCase):
 
     def test_disturbing_the_carcass_and_attacking_in_one_breath_waits_for_initiative(self):
         room = Room(self)
-        result = room.act('I roll the carcass over and stab whatever comes out with my dagger, 18 to hit, 4 piercing.')
+        result = room.act('I roll the carcass over and stab whatever comes out with my dagger, 18 to hit, 4 piercing.',
+                          ROLL)
         self.assertTrue(result.public_event.endswith('Roll initiative.'))
         self.assertEqual(room.state['combat']['status'], 'awaiting_initiative')
         self.assertEqual(room.state['combat']['hp'], room.state['combat']['max_hp'], 'nothing was there to stab')
@@ -360,7 +380,7 @@ class AmbushSaveMeetsShield(unittest.TestCase):
     def ambushed(self):
         # Stealth 1 + 2 = 3: Nik is not surprised. Bites d20 12 + 4 = 16: hit AC 14, miss AC 19.
         room = Room(self, npc_roll=lambda: 1, roll=lambda: 12, sheet=shield_only())
-        room.act('I roll the carcass over.')
+        room.act('I roll the carcass over.', ROLL)
         result = room.act('Initiative 1')
         return room, result
 
@@ -409,7 +429,7 @@ class AmbushTrace(unittest.TestCase):
     def test_the_save_is_traced_as_an_engine_roll_call(self):
         room = Room(self, npc_roll=lambda: 1, roll=lambda: 12, sheet=shield_only())
         bridge = KitChatBridge(room.runtime, room.adjudicator)
-        room.act('I roll the carcass over.')
+        room.act('I roll the carcass over.', ROLL)
         bridge.prepare('Initiative 1', 'i', one_pass=True)
         voice(bridge, 'i', 'The bite lands on your shin. Shield?')
         packet = answer(bridge, 'n', 'No.', DECLINE)

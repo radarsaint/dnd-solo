@@ -12,7 +12,7 @@ from unittest import mock
 from runtime import kit_manifest, kit_reactions
 from runtime.kit_agent import KitChatBridge
 from test_kit_combat_checkpoints import CAMP, CAST, Camp, NIK, OPEN, SHIELD, rolls, shield_only
-from test_kit_monster_initiative import Room
+from test_kit_monster_initiative import ROLL, Room
 
 ROOT = Path(__file__).resolve().parents[1]
 BASE = {k: v for k, v in json.loads((ROOT / 'tests/fixtures/characters/example_pc.json').read_text()).items()
@@ -173,7 +173,7 @@ class Windows(unittest.TestCase):
     def test_a_97_era_save_prompt_resumes(self):
         # Nagatha's probe: a paused #97 roll call says "from", not "attacker", and has no attack_index.
         room = Room(self, npc_roll=lambda: 1, roll=lambda: 12, sheet=shield_only())
-        room.act('I roll the carcass over.')
+        room.act('I roll the carcass over.', ROLL)
         room.act('Initiative 1')
         room.act('No.', react='decline')
         revision, state = room.runtime.load()

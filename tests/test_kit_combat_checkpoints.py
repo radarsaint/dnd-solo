@@ -445,13 +445,13 @@ class EngineInterstitials(unittest.TestCase):
         packet = bridge.prepare('Nah, Shield', 'h2', one_pass=True)
         self.assertEqual(packet['stage'], 'window_answer')
         self.assertEqual(packet['input']['player_reply'], 'Nah, Shield')
-        asked = bridge.complete('h2', {'decision': {'react': 'shield', 'cast_in_avrae': False},
+        asked = bridge.complete('h2', {'decision': {'react': {'choice': 'shield', 'cast_in_avrae': False}},
                                        'performance': {'segments': [{'speaker': 'Kit',
                                                                      'text': 'Cast it in Avrae: !cast shield?'}]}})
         self.assertTrue(asked['asked'])
         self.assertEqual(camp.fight['awaiting']['kind'], 'reaction_window', 'the window stays open')
         packet = bridge.prepare(CAST, 'h3', one_pass=True)
-        packet = bridge.complete('h3', {'decision': SHIELD, 'performance': {'segments': []}})
+        packet = bridge.complete('h3', {'decision': {'react': {'choice': 'shield', 'cast_in_avrae': True}}, 'performance': {'segments': []}})
         self.assertEqual(packet['stage'], 'one_pass')
         self.assertEqual(packet['window_answered']['react'], 'shield')
         self.assertEqual(camp.runtime.pending_kit_turn('h3')['body']['kind'], 'combat_round')
@@ -464,10 +464,10 @@ class EngineInterstitials(unittest.TestCase):
         self.voice(bridge, 'h1')
         bridge.prepare('Shield!', 'h2', one_pass=True)
         with self.assertRaisesRegex(InvalidChange, r'!cast shield'):
-            bridge.complete('h2', {'decision': {'react': 'shield', 'cast_in_avrae': False},
+            bridge.complete('h2', {'decision': {'react': {'choice': 'shield', 'cast_in_avrae': False}},
                                    'performance': {'segments': []}})
-        with self.assertRaisesRegex(InvalidChange, 'decision.react must be one of'):
-            bridge.complete('h2', {'decision': {'react': 'yes'}, 'performance': {'segments': []}})
+        with self.assertRaisesRegex(InvalidChange, 'react.choice must be one of'):
+            bridge.complete('h2', {'decision': {'react': {'choice': 'yes'}}, 'performance': {'segments': []}})
 
     def test_the_flourish_answer_carries_the_rule_to_kit(self):
         _, bridge = self.bridge()

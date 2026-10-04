@@ -287,10 +287,10 @@ WINDOW_LEG = [  # (player line, Kit's output for the window packet it gets)
      {'decision': {'window': 'voiced'}, 'performance': {'segments': [
          {'speaker': 'Narrator', 'text': 'Your dagger finds the cutthroat and he folds against the wagon wheel.'},
          {'speaker': 'Kit', 'text': 'The captain\'s scimitar comes in at your ribs and it will land. Shield?'}]}}),
-    ('Nah, Shield', {'decision': {'react': 'shield', 'cast_in_avrae': False}, 'performance': {'segments': [
+    ('Nah, Shield', {'decision': {'react': {'choice': 'shield', 'cast_in_avrae': False}}, 'performance': {'segments': [
         {'speaker': 'Kit', 'text': 'Then cast it for me in Avrae: !cast shield?'}]}}),
     ('Nik casts Shield! (Avrae: !cast shield)',
-     {'decision': {'react': 'shield', 'cast_in_avrae': True}, 'performance': {'segments': []}}),
+     {'decision': {'react': {'choice': 'shield', 'cast_in_avrae': True}}, 'performance': {'segments': []}}),
 ]
 
 

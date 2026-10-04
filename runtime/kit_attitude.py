@@ -38,6 +38,7 @@ No model calls; deterministic Python (seeded dice).
 import hashlib
 import re
 
+from . import kit_rolls
 from .state_context import require
 
 LEVELS = ('hostile', 'unfriendly', 'indifferent', 'friendly', 'helpful')
@@ -302,7 +303,7 @@ def check_events(source, state, action, revision, pc_score, roll=None):
         bonus = kit_claims.npc_skill(state['actors'][roller], check['skill']) + rising
         die = roll() if roll else npc_die(state, revision, f'{cid}:{past["misses"]}', action)
         total = die + bonus
-        success = total >= dc
+        success = kit_rolls.meets_or_beats(total, dc)  # the NPC acts on the PC: its tie
         skill, vs = check['skill'].replace('_', ' '), check['vs'].replace('_', ' ')
         evidence = (f'Behind the screen ({cid}, {subject}): {roller} {skill} d20 {die} + {bonus}'
                     f'{rising_note} = {total} vs '
