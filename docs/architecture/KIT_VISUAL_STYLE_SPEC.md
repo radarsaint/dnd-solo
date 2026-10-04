@@ -205,7 +205,7 @@ When Kit is asked for art during a live campaign:
 
 1. Treat an explicit human request to draw/show/create/generate an image as a **media request**, not as PC speech.
 2. Run `python3 -m runtime.kit_agent visual --db kit.sqlite --request "<exact request>"` (or `--request-file`).
-3. Use the returned `player_safe` block as the factual ceiling for the image.
+3. Use the returned `player_safe` block as the factual ceiling for the image. The user's request controls what they want pictured; it does not make a named hidden or unsupported detail true.
 4. If the brief offers an available exact canonical asset and it answers the request, prefer it unless the user explicitly wants a new interpretation.
 5. Otherwise use the returned art mode, campaign branch, BFDM style instructions, and retrieved style-reference metadata with ChatGPT's built-in image generation capability.
 6. Never call a paid model/image API from the Python runtime.
