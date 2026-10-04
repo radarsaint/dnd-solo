@@ -4326,6 +4326,8 @@ def main():
     parser.add_argument('--request', help='visual: the user\'s exact art request')
     parser.add_argument('--visual-mode', dest='visual_mode', choices=kit_visual.VISUAL_MODES,
                         help='visual: requested asset mode (default scene_vignette)')
+    parser.add_argument('--visual-branch', dest='visual_branch', choices=('core', 'roanoke', 'arcania', 'earthfall'),
+                        default='core', help='visual: BFDM campaign/product branch (default core)')
     parser.add_argument('--turn-id', help='Turn ID returned by prepare')
     parser.add_argument('--input-file', help='JSON plan, speech, or combined output; - reads stdin')
     parser.add_argument('--text', help='feedback: the player’s out-of-character comment')
@@ -4381,7 +4383,7 @@ def main():
             if not args.request:
                 parser.error('visual requires --request')
             try:
-                result = kit_visual.build_visual_brief(runtime, args.request, args.visual_mode)
+                result = kit_visual.build_visual_brief(runtime, args.request, args.visual_mode, args.visual_branch)
                 kit_visual.validate_visual_brief(result)
             except InvalidChange as exc:
                 print(json.dumps({'stage': 'rejected', 'message': str(exc)}, ensure_ascii=False), file=sys.stderr)
