@@ -124,9 +124,28 @@ def _ensure_visual_table(runtime):
             request TEXT NOT NULL,
             mode TEXT NOT NULL,
             branch TEXT NOT NULL,
-            reference_ids TEXT NOT NULL
+            reference_ids TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'prepared',
+            completed_at REAL,
+            result_id TEXT,
+            reference_mode TEXT,
+            qa TEXT,
+            notes TEXT
         )
     """)
+    # Additive migration for visual-bridge test saves created before provenance fields existed.
+    columns = {row[1] for row in runtime.db.execute("PRAGMA table_info(kit_visual_runs)")}
+    additions = {
+        "status": "TEXT NOT NULL DEFAULT 'prepared'",
+        "completed_at": "REAL",
+        "result_id": "TEXT",
+        "reference_mode": "TEXT",
+        "qa": "TEXT",
+        "notes": "TEXT",
+    }
+    for name, sql_type in additions.items():
+        if name not in columns:
+            runtime.db.execute(f"ALTER TABLE kit_visual_runs ADD COLUMN {name} {sql_type}")
     runtime.db.commit()
 
 
@@ -283,6 +302,64 @@ def _safe_scene(runtime, request):
     return revision, source, player_safe, actors
 
 
+VISUAL_STATUSES = ("generated", "canonical", "failed", "abandoned")
+REFERENCE_MODES = ("image", "text_only", "canonical")
+
+
+def record_visual(runtime, visual_id, status, result_id=None, reference_mode=None, qa=None, notes=None):
+    """Record presentation provenance without changing world state or the event ledger."""
+    _ensure_visual_table(runtime)
+    require(status in VISUAL_STATUSES, "Unknown visual status: " + str(status))
+    if reference_mode is not None:
+        require(reference_mode in REFERENCE_MODES, "Unknown reference mode: " + str(reference_mode))
+    require(result_id is None or isinstance(result_id, str), "Visual result id must be text")
+    require(notes is None or isinstance(notes, str), "Visual notes must be text")
+    require(qa is None or isinstance(qa, (dict, list)), "Visual QA must be an object or list")
+    row = runtime.db.execute(
+        "SELECT revision,request,mode,branch,reference_ids,status FROM kit_visual_runs WHERE visual_id=?",
+        (visual_id,),
+    ).fetchone()
+    require(row is not None, "Unknown visual id: " + str(visual_id))
+    require(row[5] == "prepared" or row[5] == status,
+            f"Visual {visual_id} was already recorded as {row[5]}")
+    with runtime.db:
+        runtime.db.execute(
+            "UPDATE kit_visual_runs SET status=?,completed_at=?,result_id=?,reference_mode=?,qa=?,notes=? "
+            "WHERE visual_id=?",
+            (status, time.time(), result_id, reference_mode,
+             json.dumps(qa, ensure_ascii=False, separators=(",", ":")) if qa is not None else None,
+             notes, visual_id),
+        )
+    return {
+        "stage": "visual_recorded",
+        "visual_id": visual_id,
+        "status": status,
+        "world_revision": runtime.load()[0],
+        "result_id": result_id,
+        "reference_mode": reference_mode,
+    }
+
+
+def visual_history(runtime, limit=20):
+    _ensure_visual_table(runtime)
+    rows = runtime.db.execute(
+        "SELECT visual_id,created_at,revision,request,mode,branch,reference_ids,status,"
+        "completed_at,result_id,reference_mode,qa,notes "
+        "FROM kit_visual_runs ORDER BY seq DESC LIMIT ?",
+        (max(1, min(int(limit), 100)),),
+    ).fetchall()
+    keys = ("visual_id","created_at","revision","request","mode","branch","reference_ids","status",
+            "completed_at","result_id","reference_mode","qa","notes")
+    out = []
+    for row in rows:
+        item = dict(zip(keys, row))
+        item["reference_ids"] = json.loads(item["reference_ids"])
+        if item["qa"]:
+            item["qa"] = json.loads(item["qa"])
+        out.append(item)
+    return out
+
+
 def prepare_visual(runtime, request, mode="auto", branch="auto", record=True):
     require(isinstance(request, str) and 0 < len(request.strip()) <= 1000,
             "Visual request must be 1–1000 characters")
@@ -328,10 +405,16 @@ def prepare_visual(runtime, request, mode="auto", branch="auto", record=True):
             "api_rule": "Use ChatGPT's built-in image generation capability. Do not call a paid model API from Python.",
             "qa": QA,
         },
+        "reference_handoff": {
+            "preferred": "For each selected reference with available=true, inspect/surface that exact local image to the multimodal host immediately before image generation so it can function as a visual reference. Treat it as style evidence only, never scene content.",
+            "fallback": "If the host cannot pass selected images into built-in generation, use teaches/lanes plus the BFDM art bible as text-only direction and record reference_mode=text_only.",
+            "warning": "Local file availability does not prove the image-generation tool actually received the bytes; the mounted acceptance test must verify this end to end."
+        },
         "next_step": (
             "Kit: decide whether an available exact canonical asset already answers the request. "
             "Otherwise generate from player_safe plus the style block. Inspect the returned image "
-            "against generation_contract.qa; repair/regenerate factual, anatomy, secrecy, or style failures before showing it."
+            "against generation_contract.qa; repair/regenerate factual, anatomy, secrecy, or style failures before showing it. "
+            "Then run visual-record for this visual_id so provenance states canonical/generated/failed and whether references were image or text-only."
         ),
     }
     if record:
