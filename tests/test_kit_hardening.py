@@ -859,7 +859,7 @@ class PacketSlimTests(BridgeCase):
         outputs = []
         for extra, turn in (([], 'compact'), (['--pretty'], 'pretty')):
             out = io.StringIO()
-            with patch('sys.argv', ['kit_agent', 'prepare', '--one-pass', '--db', str(self.path),
+            with patch('sys.argv', ['kit_agent', 'prepare', '--one-pass', '--full', '--db', str(self.path),
                                     '--turn-id', turn, '--action', NIK_GREETING] + extra), \
                     contextlib.redirect_stdout(out):
                 self.assertEqual(kit_agent.main(), 0)
