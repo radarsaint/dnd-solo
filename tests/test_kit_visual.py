@@ -171,6 +171,23 @@ class KitVisualTests(unittest.TestCase):
         self.assertEqual(brief["branch"], "earthfall")
 
 
+class KitVisualManifestTests(unittest.TestCase):
+    def test_style_manifest_is_varied_and_deduplicated_by_exact_bytes(self):
+        manifest = json.loads((ROOT / "assets/style/index.json").read_text(encoding="utf-8"))
+        refs = manifest["references"]
+        self.assertGreaterEqual(len(refs), 24)
+        ids = [ref["id"] for ref in refs]
+        hashes = [ref["sha256"] for ref in refs]
+        paths = [ref["private_path"] for ref in refs]
+        self.assertEqual(len(ids), len(set(ids)))
+        self.assertEqual(len(hashes), len(set(hashes)))
+        self.assertEqual(len(paths), len(set(paths)))
+        self.assertTrue(all(ref["strength"] in {"CORE", "GOOD", "EDGE", "NO"} for ref in refs))
+        self.assertTrue(all(len(ref["sha256"]) == 64 for ref in refs))
+        modes = {mode for ref in refs for mode in ref.get("asset_modes", [])}
+        self.assertTrue({"character_spotlight", "creature_concept", "story_vignette",
+                         "prop_study", "exterior", "handout", "rulebook_page", "splash"} <= modes)
+
 class KitVisualCliTests(unittest.TestCase):
     def test_cli_visual_record_and_history_round_trip(self):
         with tempfile.TemporaryDirectory() as tmp:
