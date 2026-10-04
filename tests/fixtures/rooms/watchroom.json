@@ -4,9 +4,16 @@
   "_note": "Synthetic, non-6c room for the room loader tests (docs/architecture/ROOM_LOADER.md): an approach, a room with a handled feature, an NPC and a primary hook, and a way past. Not adventure content.",
   "starting_area": "landing",
   "areas": {
-    "landing": {"name": "Landing outside the watchroom", "called": "the landing", "outside": true},
+    "landing": {
+      "name": "Landing outside the watchroom", "called": "the landing", "outside": true,
+      "tease": {
+        "text": "Lamplight through the gap in the iron door, and someone inside humming the same four notes: a post that is awake and watching the stair.",
+        "points_to": "challenge",
+        "heard": [{"actor": "warden", "sound": "a man humming four notes over and over; a chair creaks when he shifts"}]
+      }
+    },
     "watchroom": {"name": "Watchroom", "called": "the watchroom", "arrival": "A stranger reaches the watchroom."},
-    "stair_down": {"name": "Stair down", "called": "the foot of the stair", "outside": true}
+    "stair_down": {"name": "Stair down", "called": "the foot of the stair", "outside": true, "beyond": true}
   },
   "exits": {
     "iron_door": {
@@ -35,13 +42,20 @@
         "move": "The chest is bolted to the floor and will not shift."
       }
     },
-    "chest_contents": {"area": "watchroom", "visible": false, "text": "A coil of rope and a sealed letter are in the chest."}
+    "chest_contents": {"area": "watchroom", "visible": false, "text": "A coil of rope and a sealed letter are in the chest."},
+    "bell": {
+      "area": "watchroom", "visible": true, "text": "A brass bell hangs by the arrow slit, its cord within the warden's reach.",
+      "alarm": {"responders": [{"who": "guards from the gatehouse below", "count": 2, "stat_block": {"srd": "Guard"}}],
+                "arrives_in_rounds": 2}
+    }
   },
   "actors": {
     "warden": {
       "name": "Watch warden", "location": "watchroom", "status": "alive", "visible": true,
       "motive": "Keep strangers off the stair.", "knowledge": ["Who is expected tonight."], "secrets": [],
-      "communication_profile": {"rhythm": "Short questions.", "humor": "None on duty."}
+      "communication_profile": {"rhythm": "Short questions.", "humor": "None on duty."},
+      "guards": ["back_stair"], "armed": true,
+      "stat_block": {"srd": "Guard"}
     }
   },
   "story": {
@@ -50,7 +64,7 @@
       "hooks": [
         {"id": "challenge", "primary": true, "by": "warden", "within_beats": 2,
          "text": "The warden challenges the stranger: who sent you, and where are you going?",
-         "delivered_when": {"said": {"by": ["warden"], "any": ["who sent you", "where are you going"]}},
+         "delivered_when": {"said": {"by": ["warden"], "any": ["who sent you", "where are you going"], "challenge": true}},
          "roots": ["warden"]}
       ],
       "endings": ["The stranger answers and is let through.", "The stranger goes on by the back stair."]

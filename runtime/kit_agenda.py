@@ -34,6 +34,8 @@ respects that claim's knower bands: an actor unaware of a secret cannot act on i
 No model calls; deterministic Python.
 """
 
+import re
+
 from . import kit_claims
 from .state_context import require
 
@@ -332,13 +334,21 @@ ROLL_CALL_SCHEMA = {'type': 'object', 'additionalProperties': False, 'properties
     'cause': {'type': 'object', 'additionalProperties': False,
               'properties': {'kind': {'type': 'string', 'enum': list(CAUSE_KINDS)}, 'ref': _LINE,
                              'roots': {'type': 'array', 'items': _LINE}},
-              'required': ['kind', 'ref', 'roots']}},
-    'required': ['skill', 'mode', 'cause']}
+              'required': ['kind', 'ref', 'roots']},
+    # What the check is aimed at: a present actor id, a fact id here, or 'none'. The call is
+    # kept until the player's next turn, so a bare roll ("Perception 22") answers it.
+    'target': _LINE},
+    'required': ['skill', 'mode', 'cause', 'target']}
 def check_roll_call(call, source, state):
-    """Advantage or disadvantage cites a condition that is true in state right now."""
+    """Advantage or disadvantage cites a condition that is true in state right now; the
+    target, when given, is someone present or something here."""
     from . import pc_sheet
-    require(isinstance(call, dict) and set(call) == {'skill', 'mode', 'cause'} and call['mode'] in ROLL_MODES,
-            'roll_call needs skill, mode, cause')
+    require(isinstance(call, dict) and set(call) - {'target'} == {'skill', 'mode', 'cause'} and
+            call['mode'] in ROLL_MODES, 'roll_call needs skill, mode, cause, target')
+    if 'target' in call:
+        require(call['target'] in roll_targets(source, state),
+                f"roll_call target {call['target']!r} is not someone present or something here; "
+                f"use an actor id, a fact id here, or none")
     if call['mode'] == 'normal':
         return
     cause = call['cause']
@@ -357,6 +367,34 @@ def check_roll_call(call, source, state):
                 f'{ref} is not a feature on the loaded sheet')
     else:
         _roots(cause.get('roots'), source, f'{call["mode"].title()} from position', state)
+
+
+def roll_targets(source, state):
+    """What a called check can be aimed at: 'none', an actor present here, a fact here."""
+    area = (state or {}).get('area')
+    actors = {k for k, a in ((state or {}).get('actors') or {}).items()
+              if a.get('location') == area and a.get('status') not in GONE}
+    facts = {k for k, f in ((source or {}).get('facts') or {}).items() if isinstance(f, dict) and f.get('area') == area}
+    return {'none'} | actors | facts
+
+
+def called_skill(skill):
+    """The sheet's skill key for a called skill ('Sleight of Hand' -> 'sleight_of_hand'), or None."""
+    from . import pc_sheet
+    key = re.sub(r'[\s-]+', '_', str(skill or '').strip().casefold())
+    return key if key in pc_sheet.SKILLS else None
+
+
+def pending_check_event(call, turn_id):
+    """The check Kit called this turn, kept for the player's roll on the next one, or None
+    when the skill is not a sheet skill (a save or a raw ability check is not kept)."""
+    from . import pc_sheet
+    skill = called_skill((call or {}).get('skill'))
+    if skill is None:
+        return None
+    check = {'skill': skill, 'ability': pc_sheet.SKILLS[skill], 'target': call.get('target') or 'none',
+             'called_turn': turn_id}
+    return {'type': 'pending_check', 'check': check, 'evidence': f'Kit called for {skill} on turn {turn_id}.'}
 
 
 def carriers(plan):

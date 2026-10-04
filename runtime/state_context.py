@@ -94,9 +94,13 @@ CANON_SLOT = re.compile(r'^[a-z0-9_:]+(/[a-z0-9_]+){1,3}$')
 # the decision's canon entries, the oracle deal it consumed, and procedure state.
 # Host bookkeeping, not a turn taken in the room (kit_rooms.stage counts the others).
 BOOKKEEPING_EVENTS = ('player_sheet', 'player_character', 'player_note', 'pc_state', 'kit_plan')
+# A pending check's optional fields: a held exit, and room for the check-calling follow-up's
+# quiet DC adjustment for creative use of the scene (Brendon: about -2) with its reason. Not
+# applied anywhere yet.
+PENDING_CHECK_OPTIONAL = {'exit', 'dc_adjust', 'reason'}
 COMMIT_APPENDED_EVENTS = ('canon_entry', 'oracle_draw', 'procedure_state', 'claim_said', 'agenda_turn',
                           'pc_state', 'kit_plan', 'toll_state', 'story_beat', 'threshold_crossed',
-                          'attitude_shift')
+                          'attitude_shift', 'pending_check')
 # A turn whose decision asks the player a question resolves nothing: its only event is a
 # rhythm beat tagged 'asked' whose evidence is the question.
 ASKED_EVENT_PREFIX = 'Kit asks before resolving: '
@@ -237,8 +241,9 @@ class Runtime:
     def close(self):
         self.db.close()
 
-    def initialize(self, source, area):
-        """Create a fresh fixture session. Refuse to overwrite a running game."""
+    def initialize(self, source, area, room_path=None):
+        """Create a fresh fixture session. Refuse to overwrite a running game. ``room_path``:
+        the room file it was mounted from (kit_rooms), kept in the first snapshot."""
         require(self.db.execute('SELECT 1 FROM source').fetchone() is None,
                 'This database already holds a game.')
         require(area in source['areas'], 'Unknown starting area')
@@ -269,19 +274,12 @@ class Runtime:
             'resources': copy.deepcopy(source['resources']), 'rhythm': [],
             'kit': {'episodes': [], 'current_appraisal': None, 'player_notes': []},
             'roll_seed': secrets.token_hex(16),
-            'room': {'id': source.get('id'), 'path': None, 'turns_in': {}},
+            'room': {'id': source.get('id'), 'path': str(room_path) if room_path else None, 'turns_in': {}},
         }
         self._observe(state, source)
         with self.db:
             self.db.execute('INSERT INTO source VALUES (1, ?)', (encode(source),))
             self.db.execute('INSERT INTO snapshots VALUES (0, ?)', (encode(state),))
-
-    def set_room_path(self, ref):
-        """Record which room file this session mounted (kit_rooms; no turn, no revision)."""
-        revision, state = self.load()
-        state.setdefault('room', {})['path'] = str(ref)
-        with self.db:
-            self.db.execute('UPDATE snapshots SET body=? WHERE revision=?', (encode(state), revision))
 
     def source(self):
         row = self.db.execute('SELECT body FROM source WHERE id=1').fetchone()
@@ -453,19 +451,16 @@ class Runtime:
             acted_in = state['area']
             for event in events:
                 self._apply(state, source, event)
-            if any(event.get('type') not in BOOKKEEPING_EVENTS for event in events):
-                room = state.setdefault('room', {'id': source.get('id'), 'path': None, 'turns_in': {}})
+            opening = any(event.get('type') == 'beat' and 'scene_entry' in (event.get('tags') or ())
+                          for event in events)  # Kit's framing of the room is not the player's turn
+            room = state.setdefault('room', {'id': source.get('id'), 'path': None, 'turns_in': {}})
+            if opening:
+                room['opened'] = sorted(set(room.get('opened') or ()) | {acted_in})
+            elif any(event.get('type') not in BOOKKEEPING_EVENTS for event in events):
                 room.setdefault('turns_in', {})[acted_in] = room.get('turns_in', {}).get(acted_in, 0) + 1
-            # Arriving in an area linked to another room file mounts that room in this same
-            # commit (docs/architecture/ROOM_LOADER.md): no host step, and a room that cannot
-            # mount rejects the whole turn, so the session stays where it was.
-            link = (source['areas'].get(state['area']) or {}).get('room_link')
-            if link:
-                from . import kit_rooms
-                new_source = kit_rooms.load_link(link)
-                state = kit_rooms.mounted_state(source, state, new_source, link['area'], link['room'])
-                self._observe(state, new_source)
-                self.db.execute('UPDATE source SET body=? WHERE id=1', (encode(new_source),))
+            if not any(event.get('type') == 'pending_check' for event in events) and \
+                    any(event.get('type') not in BOOKKEEPING_EVENTS for event in events):
+                state.pop('pending_check', None)  # a called check lasts one player turn
             next_revision = revision + 1
             if kit_record is not None:
                 kit = state['kit']
@@ -492,6 +487,15 @@ class Runtime:
                     self._add_player_note(state, f'n{next_revision}', 'observed', note['note'],
                                           evidence, note.get('replaces', 'none'),
                                           current_turn=turn_id)
+            # Arriving in an area linked to another room file mounts that room in this same
+            # commit (docs/architecture/ROOM_LOADER.md): no host step, and a room that cannot
+            # mount rejects the whole turn, so the session stays where it was. After Kit's episode:
+            # the turn that leaves was decided in this room, so its memory stays with this room.
+            link = (source['areas'].get(state['area']) or {}).get('room_link')
+            if link:
+                from . import kit_rooms
+                new_source, state = kit_rooms.arrive(source, state, link)
+                self.db.execute('UPDATE source SET body=? WHERE id=1', (encode(new_source),))
             self.db.execute('INSERT INTO turns VALUES (?, ?, ?)', (turn_id, digest, next_revision))
             self.db.executemany('INSERT INTO ledger(turn_id, body) VALUES (?, ?)',
                                 [(turn_id, encode(event)) for event in events])
@@ -836,6 +840,24 @@ class Runtime:
         elif kind == 'agenda_turn':
             from . import kit_agenda
             kit_agenda.apply_event(state, source, event)
+        elif kind == 'pending_check':
+            # The check Kit called, kept for the player's roll next turn; None clears it.
+            from . import pc_sheet
+            check = event.get('check')
+            require(check is None or (isinstance(check, dict) and
+                                      set(check) - PENDING_CHECK_OPTIONAL == {'skill', 'ability', 'target', 'called_turn'} and
+                                      ('exit' not in check or check['exit'] in (source.get('exits') or {})) and
+                                      ('dc_adjust' not in check or (type(check['dc_adjust']) is int and
+                                                                    -5 <= check['dc_adjust'] <= 5)) and
+                                      ('reason' not in check or (isinstance(check['reason'], str) and
+                                                                 len(check['reason']) <= 200)) and
+                                      pc_sheet.SKILLS.get(check['skill']) == check['ability'] and
+                                      isinstance(check['target'], str) and isinstance(check['called_turn'], str)),
+                    'pending_check is {skill, ability, target, called_turn[, exit, dc_adjust, reason]} or None')
+            if check is None:
+                state.pop('pending_check', None)
+            else:
+                state['pending_check'] = copy.deepcopy(check)
         elif kind == 'kit_plan':
             from . import kit_plan
             kit_plan.apply_event(state, event)
@@ -971,6 +993,30 @@ class Runtime:
         _, state = self.load()
         return self._player_view(self.source(), state)
 
+    @staticmethod
+    def dm_only(source, state):
+        """The DM-only half of the context for the PC's area (also measured at mount)."""
+        area = state['area']
+        return {
+            'room_rules': source.get('room_rules', []),
+            'unrevealed_facts': {k: f for k, f in source['facts'].items()
+                                 if f['area'] == area and k not in state['known_facts']},
+            'geometry': {k: e for k, e in source['exits'].items() if area in e['areas']},
+            'actors': {k: a for k, a in state['actors'].items()
+                       if a['location'] == area and a['status'] != 'fled'},
+            **({'canon_here': canon_in_scope(state)} if canon_in_scope(state) else {}),
+            **({'procedures_private': {k: body['private'] for k, body in
+                                       state['procedures'].items()}}
+               if state.get('procedures') else {}),
+            **({'supported_procedures': {
+                k: {'kind': p.get('kind'), 'name': p.get('name')}
+                for k, p in source['procedures'].items()
+                if not k.startswith('_') and p.get('offered', True)}}
+               if source.get('procedures') else {}),
+            **({'tolls_here': Runtime._tolls_here(source, state)} if Runtime._tolls_here(source, state) else {}),
+            **Runtime._attitudes_here(source, state),
+        }
+
     def context(self, personality_core=None, max_bytes=CONTEXT_BUDGET_BYTES):
         if personality_core is None:
             personality_core = personality_core_text()
@@ -987,25 +1033,7 @@ class Runtime:
                 'level_context': source.get('level_context'),
                 'campaign_context': source.get('campaign_context'),
                 'player_perceivable': self._player_view(source, state),
-                'dm_only': {
-                    'room_rules': source.get('room_rules', []),
-                    'unrevealed_facts': {k: f for k, f in source['facts'].items()
-                                         if f['area'] == area and k not in state['known_facts']},
-                    'geometry': {k: e for k, e in source['exits'].items() if area in e['areas']},
-                    'actors': {k: a for k, a in state['actors'].items()
-                               if a['location'] == area and a['status'] != 'fled'},
-                    **({'canon_here': canon_in_scope(state)} if canon_in_scope(state) else {}),
-                    **({'procedures_private': {k: body['private'] for k, body in
-                                               state['procedures'].items()}}
-                       if state.get('procedures') else {}),
-                    **({'supported_procedures': {
-                        k: {'kind': p.get('kind'), 'name': p.get('name')}
-                        for k, p in source['procedures'].items()
-                        if not k.startswith('_') and p.get('offered', True)}}
-                       if source.get('procedures') else {}),
-                    **({'tolls_here': self._tolls_here(source, state)} if self._tolls_here(source, state) else {}),
-                    **self._attitudes_here(source, state),
-                },
+                'dm_only': Runtime.dm_only(source, state),
                 'recent_rhythm': state['rhythm'],
                 'constraints': [
                     'Player output must respect player_perceivable and accepted reveals.',

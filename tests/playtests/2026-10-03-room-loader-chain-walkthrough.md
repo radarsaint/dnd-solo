@@ -8,7 +8,7 @@ Chain: 6c -> watchroom (synthetic, barged into) -> 17a stub (broken arch refused
 
 - room `dotmm-level-01-area-06c-testbed-v1`, area `area_06c`, stage **first_look**; HP 32, gold 805
 - `start`: Opening packet staged.
-- start to first packet: 25.4 ms
+- start to first packet: 26.3 ms
 
 ## 1. `I'll play a hand. Ten gold.`
 
@@ -50,7 +50,8 @@ Chain: 6c -> watchroom (synthetic, barged into) -> 17a stub (broken arch refused
 
 - room `synthetic-watchroom-v1`, area `landing`, stage **approach**; HP 18, gold 795, carrying 1 taken item(s)
 - `exit`: You go through the south door into the short passage.
-- **mounted `synthetic-watchroom-v1`** on arrival: commit+mount 2.3 ms, first packet 4.1 ms (transition 6.4 ms). Rooms behind: {'dotmm-level-01-area-06c-testbed-v1': 'left'}
+- **mounted `synthetic-watchroom-v1`** on arrival: commit+mount 2.4 ms, first packet 4.1 ms (transition 6.5 ms). Rooms behind: {'dotmm-level-01-area-06c-testbed-v1': 'left'}
+- doorway brief: "Lamplight through the gap in the iron door, and someone inside humming the same four notes: a post that is awake and watching the stair." -> hook `challenge`; heard: Watch warden (a man humming four notes over and over; a chair creaks when he shifts)
 
 ## 9. `I shove the iron door open and charge in.`
 
@@ -65,19 +66,26 @@ Chain: 6c -> watchroom (synthetic, barged into) -> 17a stub (broken arch refused
 
 ## 11. `I head down the back stair.`
 
-- room `dotmm-level-01-area-17a-stub-v0`, area `area_17a_doors`, stage **approach**; HP 18, gold 795, carrying 1 taken item(s)
-- `exit`: You take the back stair down.
-- **mounted `dotmm-level-01-area-17a-stub-v0`** on arrival: commit+mount 1.7 ms, first packet 3.2 ms (transition 4.9 ms). Rooms behind: {'dotmm-level-01-area-06c-testbed-v1': 'left', 'synthetic-watchroom-v1': 'left'}
+- room `synthetic-watchroom-v1`, area `watchroom`, stage **explore**; HP 18, gold 795, carrying 1 taken item(s)
+- `exit_contested`: The watch warden is between you and the back stair. Getting past is a contest: roll Athletics or Acrobatics.
+- brief raise_now: ['challenge']
 
-## 12. `I go through the collapsed arch.`
+## 12. `Acrobatics 25`
+
+- room `dotmm-level-01-area-17a-stub-v0`, area `area_17a_doors`, stage **approach**; HP 18, gold 795, carrying 1 taken item(s)
+- `exit`: You get past the watch warden. You take the back stair down.
+- **mounted `dotmm-level-01-area-17a-stub-v0`** on arrival: commit+mount 1.9 ms, first packet 4.2 ms (transition 6.1 ms). Rooms behind: {'dotmm-level-01-area-06c-testbed-v1': 'left', 'synthetic-watchroom-v1': 'left'}
+- doorway brief: "Behind the foyer doors: a heavy quiet, and the smell of something large and long dead."
+
+## 13. `I go through the collapsed arch.`
 
 - room `dotmm-level-01-area-17a-stub-v0`, area `area_17a_doors`, stage **approach**; HP 18, gold 795, carrying 1 taken item(s)
 - `pending`: I can't run that room yet; it isn't set up for play. We can stop here or go another way. No turn was committed.
 - host error: ['missing starting_area', 'missing exits', 'missing facts', 'missing actors']
 
-## 13. `I walk on down the side passage.`
+## 14. `I walk on down the side passage.`
 
 - room `synthetic-watchroom-v1`, area `stair_down`, stage **resolution**; HP 18, gold 795, carrying 1 taken item(s)
 - `exit`: You walk on down the side passage, past the foyer doors.
-- **mounted `synthetic-watchroom-v1`** on arrival: commit+mount 1.9 ms, first packet 3.4 ms (transition 5.3 ms). Rooms behind: {'dotmm-level-01-area-06c-testbed-v1': 'left', 'dotmm-level-01-area-17a-stub-v0': 'bypassed'}
+- **mounted `synthetic-watchroom-v1`** on arrival: commit+mount 2.2 ms, first packet 3.9 ms (transition 6.1 ms). Rooms behind: {'dotmm-level-01-area-06c-testbed-v1': 'left', 'dotmm-level-01-area-17a-stub-v0': 'bypassed'}
 

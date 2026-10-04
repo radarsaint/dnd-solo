@@ -22,6 +22,7 @@
     "story_invitation": "A stranger can join or question the game, negotiate the game's stakes, answer the passage toll when it is demanded (pay, haggle, refuse, or play for it), watch the players, inspect the carving or tub, or leave. Nothing here dictates that the stranger must pay or play.",
     "actor_cards": {
       "Dealer": {
+        "speech_floor": true,
         "vocal_signature": "A raspy voice with an East European accent, delivered in a leisurely theatrical cadence on invitations and clipped cleanly when stating terms. Describe the sound once when he first speaks; do not use phonetic spelling or caricature.",
         "verbal_habit": "Answers what the visitor actually said before he steers anywhere, then hears it as a bid and raises: a question back, a dare, an invitation. His charm is salesmanship, self-assured and fishing; he speaks for himself, never as a narrator or a commentator on the game. Do not repeat a catchphrase or reuse a line across turns.",
         "physical_touchstone": "A card held between two fingers punctuates what he says. Let his handling of the game reflect whether he feels in control.",
@@ -328,7 +329,7 @@
   "starting_area": "area_06c",
   "areas": {
     "area_06c": {"name": "Card room", "arrival": "A newcomer has reached the card room.", "floor_level": 1, "no_refreshment": true, "_no_refreshment": "Brendon's table call 3 (2026-10-02): the four take no food or drink and serve none; the wine having run out is the clue. No public text serves or offers food or drink here."},
-    "south_passage": {"name": "Short passage south of area 6c", "called": "the short passage", "outside": true}
+    "south_passage": {"name": "Short passage south of area 6c", "called": "the short passage", "outside": true, "beyond": true}
   },
   "exits": {
     "south_door": {

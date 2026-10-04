@@ -11,35 +11,99 @@ Line numbers below are for this branch unless marked *main*.
 
 ## 1. A room is four stages, fleshed out just in time
 
-The stages are read from state (`kit_rooms.stage`, kit_rooms.py:196), never a rail. The PC
+The stages are read from state (`kit_rooms.stage`, kit_rooms.py:361), never a rail. The PC
 can start in any stage (`start --area`), barge in, or go past; each stage prepares only what
 it needs at that moment.
 
 | Stage | What it is | Needs from the room file | Prepared, and when | Story brief's part |
 |---|---|---|---|---|
-| **1. approach** | Outside, not yet in: doors, what can be seen or heard | an area marked `"outside": true`; its visible `facts` (what shows or sounds through the door); its `exits` with `name` and per-area `labels` | at mount: the area, its visible facts and known exits (`Runtime._observe`). Nothing else. | `stage: approach`; endings "goes in" / "goes past" when the area has no story block (kit_brief.py:416) |
-| **2. first look** | Inside, no turn taken here yet: the framing that carries the hook | the room area (`name`, optional `arrival` line for the opening event); its visible facts and actors; `story.<area>.hooks` | on arrival: the opening packet (`prepare_opening`, kit_agent.py:2714) and the brief for that area (`kit_brief.brief`, kit_brief.py:366, called from `prepare_inputs`, kit_agent.py:2627) | `hooks` with `raise_by_beat`; `stage: first_look` |
-| **3. full exploration** | The back-and-forth of choices and checks | whatever mechanics the file declares: `claims` (checks), handled features (`facts.<id>.handling`), `procedures` (card games), `tolls`, `combat`, `attitudes`, `agenda`, `texture_palette` | each when play first reaches it: a card engine only on a card call (`card_procedure`, kit_agent.py:357); a fight only when one starts; a texture palette checked the first time play draws on it (`kit_texture.area_palette`, kit_texture.py:64) | the beat counter (`story_beat` via `kit_brief.beat_event`, kit_brief.py:499, from `turn_events`, kit_agent.py:2279) makes an undelivered primary hook `raise_now` after `within_beats`, whatever stage the PC jumped to; thresholds cross (`threshold_events`, kit_brief.py:527) and shift attitudes (`kit_attitude`) |
-| **4. resolution** | Out again, or past without going in | an outside area (or a `room_link` area) beyond the room | on arrival there: if the area has `room_link`, the next room mounts in the same commit (state_context.py:462) | `stage: resolution`, `resolved: left | bypassed`; story `endings` |
+| **1. approach** | Outside, not yet in: doors, what can be seen or heard | an area marked `"outside": true` and joined to an inside area; its **`tease`** (required: what is seen or heard from outside that points toward the hook, which hook, and who is audible); its visible `facts`; its `exits` with `name` and per-area `labels` | at mount: the area, its visible facts and known exits (`Runtime._observe`), and the tease checked (`kit_rooms.tease_problems`). Nothing else. | `stage: approach`; `about` is the tease; `tease` carries `points_to` and the hook's text; `present` lists the actors heard from outside, each with `heard`; endings "goes in" / "goes past" when the area has no story block (`kit_brief.brief`) |
+| **2. first look** | Inside, no turn taken here yet: the framing that carries the hook | the room area (`name`, optional `arrival` line for the opening event); its visible facts and actors; `story.<area>.hooks` | on arrival: the opening packet (`prepare_opening`, kit_agent.py:2748) and the brief for that area (`kit_brief.brief`, kit_brief.py:366, called from `prepare_inputs`, kit_agent.py:2657) | `hooks` with `raise_by_beat`; `stage: first_look` |
+| **3. full exploration** | The back-and-forth of choices and checks | whatever mechanics the file declares: `claims` (checks), handled features (`facts.<id>.handling`), `procedures` (card games), `tolls`, `combat`, `attitudes`, `agenda`, `texture_palette` | each when play first reaches it: a card engine only on a card call (`card_procedure`, kit_agent.py:375); a fight only when one starts; a texture palette checked the first time play draws on it (`kit_texture.area_palette`, kit_texture.py:64) | the beat counter (`story_beat` via `kit_brief.beat_event`, kit_brief.py:512, from `turn_events`, kit_agent.py:2303) makes an undelivered primary hook `raise_now` after `within_beats`, whatever stage the PC jumped to; thresholds cross (`threshold_events`, kit_brief.py:540) and shift attitudes (`kit_attitude`) |
+| **4. resolution** | Out again, or past without going in | an outside area marked `"beyond": true` (past the room), or any outside area once the PC has been inside or elsewhere outside; a `room_link` area | on arrival there: if the area has `room_link`, the next room mounts in the same commit (state_context.py:487) | `stage: resolution`, `resolved: left | bypassed`; story `endings` |
 
 A **bypass** is a resolution: leaving by an outside route without ever entering an inside area
-gives `resolution(...) == 'bypassed'` (kit_rooms.py:190). **Barge-in** is the PC's first turn in
+gives `resolution(...) == 'bypassed'` (kit_rooms.py:355). **Barge-in** is the PC's first turn in
 the room being an act, not a look: the stage goes `first_look` -> `explore` on that turn and the
 hook still fires from the beat counter (`raise_now`), so skipping the doorway never skips the
-hook. `scene_close` (state_context.py:632) still closes a scene inside a room; it does not end
-the room (see gaps).
+hook. **Pivoting straight to resolution** is starting in (or arriving at) a `beyond` area:
+`start --area stair_down` on the watchroom is `resolution`, `resolved: bypassed`. Kit's
+**opening framing** is not the player's turn: its `scene_entry` beat does not count toward
+`turns_in`, so the first look lasts until the player acts, and an area is opened at most once
+(`room.opened`). `scene_close` still closes a scene inside a room; it does not end the room
+(see gaps).
 
 ## 2. What a room file contains
 
-Required (checked at mount, kit_rooms.py:79): `id`, `starting_area`, `areas`, `exits` (two
+Required (checked at mount, kit_rooms.py:85): `id`, `starting_area`, `areas`, `exits` (two
 areas each, `secret`, a `label` from each side), `facts` (`area`, `text`, `visible`), `actors`
 (`location`, `status`). `resources` defaults to `{}`; `fixture_only` is optional.
 
-Area fields: `name`; `called` (how a line names it: "the short passage"); `outside`
-(approach/beyond); `arrival` (the opening event line); `room_link` (`{room, area}`: arriving
-here mounts that room). Exit fields: `name` ("the south door"; its words are what the player
+Every block has a JSON type (`kit_rooms.BLOCK_TYPES`): `id` and `starting_area` are non-empty
+strings; `source_ref`, `map_ref`, `test_precondition` strings; `fixture_only`, `stub` booleans;
+`room_rules` a list; everything else an object, and every area an object.
+
+Area fields: `name`; `called` (how a line names it: "the short passage"); `outside` (not in
+the room); `beyond` (an outside area past the room: arriving there is resolution); `arrival`
+(the opening event line); `room_link` (`{room, area}`: arriving here mounts that room);
+**`tease`** (required on every approach, i.e. an outside area that is not `beyond` and is joined
+to an inside area):
+
+```json
+"tease": {
+  "text": "Lamplight through the gap in the iron door, and someone inside humming the same four notes...",
+  "points_to": "challenge",
+  "heard": [{"actor": "warden", "sound": "a man humming four notes over and over"}]
+}
+```
+
+`text` is what reaches the PC from outside and points toward the hook; `points_to` names a
+story hook id (required when the room has hooks); `heard` lists actors who are audible from
+outside, with what is heard. The tease is perceivable from the doorway, so it must not name a
+secret. Exit fields: `name` ("the south door"; its words are what the player
 may say), optional `go_text` per area. Fact field `handling` (`nouns`, `holds`, `look`,
 `enter`, `move`): a feature the router acts on by its own nouns (6c's tub).
+
+**Actor fields that change play** (all data; watchroom live game, 2026-10-04):
+
+- `stat_block`: required on every actor who can fight, meaning `armed: true`, non-empty
+  `guards`, starting `hostile` in `attitudes.start`, or already listed in `combat.actors`
+  (`kit_rooms.fighter_problems`; a missing or unknown block is a `RoomMountError`). Give it
+  inline (`{"ac": 16, "hp": 11, "attacks": [{"name": "spear", "to_hit": 3, "damage": 4}]}`)
+  or cite an SRD 5.1 creature (`{"srd": "Guard"}`; the list is in `runtime/srd_creatures.py`).
+  The combat engine reads these directly (`kit_combat.config`), so a room needs no `combat`
+  block to fight on-engine. A `combat.actors` entry still counts (6c).
+- `guards`: the exit ids this actor keeps. Leaving by one while that actor is here, awake, and
+  not friendly or helpful (or by any exit past a hostile actor here) is a contest, not a
+  move: the turn records a pending check (Athletics or Acrobatics against 10 + the actor's
+  Athletics), and only a success moves the PC (`RoomAdjudicator._exit_blocked`). An exit
+  nobody blocks stays instant.
+- `public_performance.actor_cards.<label>.speech_floor`: `true` asks for the 30-word actor
+  floor (6c's dealer). Default is no actor floor, so a terse voice (a guard of short questions)
+  passes; the exchange still needs its 40 words across narration and speech.
+
+**Hook delivery.** A `said` condition may set `"challenge": true`: any question the hook's
+actor puts to the PC delivers it, however it is worded ("Who goes there?"). A hook is
+delivered when its actor says it from another area too: the warden calling through the door
+to a PC on the landing (a heard actor in the tease) latches the hook without adding a beat
+(`kit_brief.heard_events`). Actors heard from an approach, and the people in the area the PC
+walks into, may speak on that turn.
+
+**Room-file checklist (for GPT).** A room mounts only when:
+
+1. every block has its JSON type and every area is an object;
+2. every approach has a `tease` (`text`, `points_to` a hook id, `heard` actors);
+3. secrecy blocks follow the schema below;
+4. every actor who can fight has a `stat_block` (inline or `{"srd": ...}`), and `guards` lists
+   exit ids;
+5. a primary hook is delivered by what its NPC says (`said`; add `"challenge": true` for a
+   challenge however it is worded);
+6. every alarm or escalation (a bell, a horn, a shout for help) says who answers it, on its
+   fact: `"alarm": {"responders": [{"who": "guards from the gatehouse below", "count": 2,
+   "stat_block": {"srd": "Guard"}}], "arrives_in_rounds": 2}` (`kit_rooms.alarm_problems`; a
+   malformed block fails the mount, and a fact that reads as an alarm with no `alarm` block
+   mounts with a loud `RoomWarning`, because Kit would otherwise invent the responders);
+7. the room's dm_only part stays under 9,700 B and claims_here under 3,150 B.
 
 **The story brief** (`story.<area>`, all optional, kit_brief.py header): `about` (what the
 scene is for), `purposes` (what each setup is for), `hooks` (`by` an actor, `primary`,
@@ -51,46 +115,110 @@ root on it. A room with no story block still gets a sparse brief from its actors
 Optional mechanic blocks, each off unless declared: `claims`, `procedures` (`kind: card_game`,
 `game: twenty_one | three_dragon_ante`), `tolls`, `combat`, `attitudes`, `agenda`,
 `texture_palette`, `leak_phrases`/`leak_keywords`, `public_performance`. Any other top-level
-block is refused as unsupported (`KNOWN_BLOCKS`, kit_rooms.py:36), as is any other procedure
-kind or card game (kit_rooms.py:124). Room files hold only data.
+block is refused as unsupported (`KNOWN_BLOCKS`, kit_rooms.py:37), as is any other procedure
+kind or card game (kit_rooms.py:232). Room files hold only data.
+
+**Secrecy blocks** (checked at mount, `kit_rooms.secrecy_problems`; read by `kit_guards`):
+- `leak_keywords.<set>`: `groups`, one or more lists of non-empty words; a set leaks when one
+  public sentence has a word from every group. Optional `revealed_by`: a fact id or a list of
+  fact ids, each in `facts`; once one is public the set is no longer a leak.
+- `leak_phrases`: `phrases`, a list of non-empty strings the public text may not contain until
+  they are public; optional `player_may_name`, a list drawn from `phrases`, allowed once the
+  player says them.
+
+**Claims** (`claims.<thing>`, checked by `kit_claims.compile_claims`; this is what a puzzle or
+any check on a hidden truth needs):
+
+| Field | Required | What it is |
+|---|---|---|
+| `about` | yes | `"<kind>:<thing>/<facet>"`, e.g. `"feature:notched_door/order"` |
+| `truth` | yes | the hidden truth, DM-only |
+| `source` | yes | `adventure`, `canon`, `procedure`, or `kit` |
+| `exposure` | yes | `hidden`, `perceivable`, or `public` |
+| `roots` | yes | fact ids or actor ids it is grounded in (non-empty) |
+| `pc_check` | yes | the skill that finds it (`pc_sheet.SKILLS`, e.g. `investigation`) |
+| `pc_access` | yes | `passive` (the PC's passive is a shield: Insight/Perception) or `roll` (only a player-initiated roll finds it) |
+| `pc_checks` | no | every skill that finds it, `pc_check` among them |
+| `fact` | no | the fact made known when it is learned |
+| `dc` | no | the adventure's DC; else a concealer's 10 + skill, else 10 + floor(level / 3) |
+| `concealer`, `conceal_skill` | no | the actor hiding it and their skill |
+| `holders` | no | `{actor: knows | close | anchored | unaware}`; others are computed from stats |
+| `perception_details` | no | `[{fact, min_margin}]`: what a Perception result shows, by margin |
+| `numeric_fact` | no | a `numeric_facts` key it carries |
+| `fingerprint`, `learned_text`, `subject_words` | no | the wink line, the line once learned, the words that name it |
+
+A puzzle: a `hidden` claim rooted on the feature's fact, `pc_access: roll`, `pc_check:
+investigation` (or `perception`), with `fact` naming what the PC learns. Every refusal names
+the field (`Claim notch_order: unknown source`); 6c's `claims` block is the worked example.
 
 ## 3. Mount and fail-fast contract
 
-`kit_rooms.load_room(path)` (kit_rooms.py:170):
+`kit_rooms.load_room(path)` (kit_rooms.py:278):
 
 1. **Up front, blocking (stages 1-2):** the file exists, parses, is an object; the required
-   blocks; `exits`, `facts`, `actors` are objects; referential integrity of areas, exits,
-   facts, actors, `room_link`, feature
-   `holds` (kit_rooms.py:79). Every problem is named, not just the first.
+   blocks; every block's JSON type and every area an object; referential integrity of areas,
+   exits, facts, actors, `room_link`, feature `holds`; the secrecy blocks' shape and references;
+   every approach's tease (`first_framing_problems`). Every problem is named, not just the first.
+   Any shape no check names yet is still a `RoomMountError` (`load_room`), never a traceback;
+   `MalformedRoomsFailFast` fuzzes every top-level field of three rooms missing, mistyped, and
+   empty, and every area, exit, fact, and actor entry mistyped.
 2. **At mount, validated but not built (stages 3-4):** unsupported blocks and kinds, then the
    existing compilers run as checks only: claims, attitudes, agenda, tolls, story, each card
-   procedure's config (kit_rooms.py:136). No engine, brief, or fight is created.
+   procedure's config (kit_rooms.py:244). No engine, brief, or fight is created.
 3. **Lazily:** the texture palette, per area, the first time play draws on it
    (kit_texture.py:64). It was the largest mount cost (~7-19 ms for 6c) and is never needed for
    the first framing.
 
-A room that fails raises `RoomMountError` (kit_rooms.py:49):
+A room that fails raises `RoomMountError` (kit_rooms.py:55):
 - **Host sees** (`start` exits 2, stderr JSON): `{"stage": "rejected", "error": "room_unmountable",
   "room": <path>, "problems": [...], "table_line": ..., "committed": false}`; nothing is created.
-- **Kit says, at the table:** `TABLE_LINE` (kit_rooms.py:31): *"I can't run that room yet; it
+- **Kit says, at the table:** `TABLE_LINE` (kit_rooms.py:32): *"I can't run that room yet; it
   isn't set up for play. We can stop here or go another way."* Plain, brief, no improvised room.
   (GPT owns Kit's voice; this is the floor and GPT may reword it.)
 - **Mid-chain:** the adjudicator checks a linked room before accepting the move
-  (`_check_onward`, kit_agent.py:925). If it cannot mount, the move is refused as a pending
+  (`_check_onward`, kit_agent.py:943). If it cannot mount, the move is refused as a pending
   ruling whose message is the table line, with `host_error` attached; nothing commits and the
-  session plays on. `Runtime._commit` checks again inside the transaction (state_context.py:462).
+  session plays on. `Runtime._commit` mounts again inside the transaction with the same
+  function (`kit_rooms.arrive`), so the two cannot disagree; the prepare-time read exists only to
+  turn a failure into Kit's line (a failure at commit is just a host rejection).
+- **Room context over its caps** (below) is refused the same way: at `start`, before a move into
+  the room, and at prepare.
 
 ## 4. Rooms in a row
 
 Arriving in a `room_link` area mounts the linked room in the same commit, no host step
-(state_context.py:462, `kit_rooms.mounted_state`, kit_rooms.py:246):
+(state_context.py:487, `kit_rooms.mounted_state`, kit_rooms.py:432):
 - the room left is archived in `state['rooms'][id]` with its resolution (`left`/`bypassed`) and
   all of its room-scoped state; coming back restores it as it was left;
-- the character carries over (`SESSION_KEYS`, kit_rooms.py:45): sheet, `pc_state`, Kit's memory,
-  roll seed, time; `fold_pc` (kit_rooms.py:222) writes current HP (after any fight) and gold
+- the character carries over (`SESSION_KEYS`, kit_rooms.py:51): sheet, `pc_state`, roll seed,
+  time, the player notes; `fold_pc` (kit_rooms.py:389) writes current HP (after any fight) and gold
   (table net, tolls paid outside a stake) into the sheet, and what was taken into `carried`;
   each change is folded once, even across revisits;
-- nothing room-scoped crosses: actors, facts, exits, procedures, tolls, combat, claims, canon.
+- nothing room-scoped crosses: actors, facts, exits, procedures, tolls, combat, claims, canon,
+  Kit's running plan (`kit_plan`);
+- **Kit's private memory stays with its room** (`kit_rooms.room_private_kit`): her episodes
+  (including the one for the turn that left, which was decided in the room), her current
+  appraisal, and any player note that names one of the room's secrets (a leak phrase, a leak
+  keyword set, or a hidden fact's text) are archived with the room and restored on return. A
+  room's secrets are guarded only by its own leak blocks, so they must not reach the next room's
+  decision input at all. What she said in public stays in the dialogue history: it was public;
+- room ids key the archive, so a linked file whose id is already used by another room file is
+  refused.
+
+**Context headroom.** The room file's own share of Kit's private input is capped
+(`kit_rooms.check_context`): `dm_only` without play-grown canon and procedure state at 9,700 B,
+`claims_here` at 3,150 B. 6c, the richest room, peaks at 9,554 B and 3,057 B in the suite, so
+it plays; a room materially richer than 6c is refused at `start`, before a move into it, or at
+prepare, naming the block, its size, and the cap, instead of the budget quietly trimming Kit's
+memory to make room for it. Memory trimming for a long session still happens, and is now loud:
+`prepare` returns `context_warning`.
+
+The caps bound the room's share; they do not create headroom. The suite's worst case (a long
+card game, a full detail ledger, every memory trim taken) is 101,904 B against 103,000, with
+6c's room share at 9,126 B and 2,153 B in that packet. A room at both caps in that same
+situation would come to about 103,475 B: 475 B over. So richer rooms need more headroom, and the
+only large room-independent block is the personality core (about 18 KB, 46% of a fresh 6c
+packet). That is Brendon's call; the PR #87 body has a proposal.
 
 **Long-lived hosts.** A chat host or `KitAgent` keeps one adjudicator for the whole session.
 `prepare_turn` calls `RoomAdjudicator.mount(runtime.source())` every turn, because a commit may
@@ -110,6 +238,12 @@ room id, area, and palette. `LongLivedHost` tests A -> B -> A through one bridge
      is cleared on a mount).
 3. Otherwise Kit asks one short question, "The iron door or the oak door?", and nothing is
    committed. `WhichExit` tests this on a non-6c room with two doors.
+
+The router counts as leaving: leave/go/walk/move/step with a door, an exit's name, or "out";
+head/charge/barge/burst/continue with an exit named; take/use/climb/duck/crawl/slip/descend/...
+with an exit named within three words ("I take the stair down", "I slip out the back door",
+not "I take the key from the door"); and retracing ("I head back the way I came", "I retrace
+my steps"), which goes by the exit the PC came in by.
 
 A `room_link` whose `area` is not in the linked room is refused before the move, with the
 table line and `host_error` (`kit_rooms.load_link`).
@@ -151,7 +285,7 @@ Left in, and why:
 - Comments and docstrings that cite 6c history.
 
 **Router touch the loader needed (the only one):** `room_intent` takes the room's words
-(`RoomWords`, kit_agent.py:210; `room_words`, kit_agent.py:226): feature nouns and exit-name
+(`RoomWords`, kit_agent.py:209; `room_words`, kit_agent.py:225): feature nouns and exit-name
 words from the file, because the tub and the south door were hardcoded in the router. Also
 `head`, `charge`, `barge`, `burst`, `continue` count as leaving, but only with a named exit
 (barge-in and bypass lines). Nothing else in the router changed. The V1-V11 engine probe output
@@ -205,7 +339,8 @@ reason for that prep: a room either mounts in milliseconds or says plainly that 
    from outside needs content.
 3. **Opening after a mount is the host's call.** The move turn's packet was built before the
    mount, so the first packet in the new room is the next `prepare` (or `prepare --opening`,
-   which is allowed while no turn has been taken there). There is no automatic second packet.
+   which is allowed once per area while no turn has been taken there). There is no automatic
+   second packet.
 4. **`first_look` is approximated** as "no turn taken in this area yet" (`room.turns_in`).
 5. **Resolution only by leaving.** Story `endings`, a closed scene, or everyone gone while the
    PC stays do not set `resolution`. The close-scene CLI stays parked.
@@ -213,12 +348,17 @@ reason for that prep: a room either mounts in milliseconds or says plainly that 
    Kit's table line.
 7. **Carry-over is thin:** the sheet's `hp` becomes current HP (no max, no rest); gold counts
    table net and tolls; taken things carry as text; room `resources` do not carry.
-8. **Kit's memory carries across rooms** by design, under the same leak guards. The chain test
-   commits engine turns directly, so it does not exercise carried episodes.
+8. **Kit's private memory is per room** (see section 4). The cost: in room B she does not
+   remember her private reads of room A, only what was said in public and the player notes.
+   Room A's leak guards do not travel either: carried, 6c's `bandit` and `cards` would block
+   those words in every later room.
 9. **Room files live in two places:** 6c stays in `tests/fixtures/` (14 test modules and the
    scripts load it from there) and the stub is in `rooms/`.
-10. **Budget:** `stage` in the brief adds 42 B. The worst-case private context is 101,904 B
-    against 103,000 (1,096 B left).
+10. **Budget:** the worst-case private context is 101,904 B against 103,000 (1,096 B left). A
+    room much richer than 6c (Claude measured one more speaking NPC at 942 B, one more hidden
+    claim at 535 B) is refused by the caps until headroom is found (see "Context headroom").
+11. **No agenda fixture.** No room file in the repo declares an `agenda` block; Claude's probe
+    showed the path works, but no test room carries one.
 
 Spike: branch `kit-room-loader-spike` (`c5713b2`, no PR) answered one question: is dropping
 the `area_06c` gate enough to run a non-6c room? No. The tub and `south_door` rulings were

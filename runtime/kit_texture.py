@@ -62,8 +62,9 @@ _CHECKED = set()
 
 
 def area_palette(source, area):
-    """The area's palette, checked the first time play reaches the area (the loader checks
-    only the starting area's at mount: docs/architecture/ROOM_LOADER.md, stage 3)."""
+    """The area's palette, checked the first time play draws on it (the loader checks no
+    palette at mount: docs/architecture/ROOM_LOADER.md, stage 3). _CHECKED holds one key per
+    room, area, and palette seen this process: small and bounded by the rooms played."""
     palette = ((source or {}).get('texture_palette') or {}).get('areas', {}).get(area)
     if palette is not None:
         key = ((source or {}).get('id'), area, json.dumps(palette, sort_keys=True))

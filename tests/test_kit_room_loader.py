@@ -106,6 +106,12 @@ class ChainOfRooms(unittest.TestCase):
         self.assertEqual(after['kind'], 'exit')  # the next line plays on
         self.assertEqual(refused['room'], 'dotmm-level-01-area-17a-stub-v0')
 
+    def test_every_doorway_brief_carries_the_room_s_tease(self):
+        doorways = [r for r in self.records if r.get('stage') == 'approach' and r.get('brief')]
+        self.assertGreaterEqual(len(doorways), 2)  # the watchroom landing and the 17a doors
+        for record in doorways:
+            self.assertTrue(record['brief']['tease']['text'], record['line'])
+
     def test_first_framing_in_each_new_room_is_fast(self):
         for record in self.mounts():
             self.assertLess(record['ms_transition'], FIRST_FRAMING_MS, record['mounted'])
@@ -313,6 +319,8 @@ class LongLivedHost(unittest.TestCase):
         body, room, state = self.step('I open the chest and look inside.')
         self.assertEqual(body['kind'], 'inspect_feature')
         body, room, state = self.step('I head down the back stair.')
+        self.assertEqual((room, state['area'], body['kind']), (watch, 'watchroom', 'exit_contested'))  # the warden
+        body, room, state = self.step('Acrobatics 25')
         self.assertEqual((room, state['area']), (stub, 'area_17a_doors'))  # B mounted by the commit
         self.assertNotIn('chest', [noun for noun, _ in kit_agent.room_words(self.adjudicator.source, state).features])
         body, room, state = self.step('I walk on down the side passage.')  # refused on 9f0c07c: still A's words

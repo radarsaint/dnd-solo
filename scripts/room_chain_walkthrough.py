@@ -41,7 +41,8 @@ LINES = [
     ('6c', 'I walk out the south door.'),
     ('watchroom', 'I shove the iron door open and charge in.'),           # barge in: no look first
     ('watchroom', 'I open the chest and look inside.'),                   # full exploration at once
-    ('watchroom', 'I head down the back stair.'),
+    ('watchroom', 'I head down the back stair.'),                         # the warden guards it: a contest
+    ('watchroom', 'Acrobatics 25'),                                       # past him; only now the PC moves
     ('17a', 'I go through the collapsed arch.'),                          # a room that cannot mount
     ('17a', 'I walk on down the side passage.'),                          # bypass 17a
 ]
@@ -131,7 +132,9 @@ def run(folder):
             record.update(mounted=runtime.source()['id'], ms_first_packet=round(elapsed, 1),
                           ms_transition=round(record['ms_commit'] + elapsed, 1))
         now = runtime.source(), runtime.load()[1]
-        record['brief'] = {k: v for k, v in kit_brief.brief(*now).items() if k in ('stage', 'resolved', 'raise_now')}
+        made = kit_brief.brief(*now)
+        record['brief'] = {k: v for k, v in made.items() if k in ('stage', 'resolved', 'raise_now', 'tease')}
+        record['brief']['heard'] = [f"{p['label']} ({p['heard']})" for p in made['present'] if p.get('heard')]
         record.update(snapshot(runtime))
         records.append(record)
     return records, runtime
@@ -159,6 +162,10 @@ def markdown(records):
             out.append(f"- host error: {r['host_error']['problems']}")
         if r.get('brief', {}).get('raise_now'):
             out.append(f"- brief raise_now: {r['brief']['raise_now']}")
+        if r.get('brief', {}).get('tease'):
+            tease = r['brief']['tease']
+            out.append(f"- doorway brief: \"{tease['text']}\"" + (f" -> hook `{tease['points_to']}`" if tease.get('points_to') else '')
+                       + (f"; heard: {', '.join(r['brief']['heard'])}" if r['brief']['heard'] else ''))
         out.append('')
     return '\n'.join(out)
 
