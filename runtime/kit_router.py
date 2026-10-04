@@ -27,7 +27,7 @@ import copy
 
 TIERS = ('routine', 'normal', 'consequential')
 # A social declaration with nobody here to answer it is routine; with someone here it is not.
-NEVER_ROUTINE_KINDS = ('opening', 'exit', 'combat_round', 'social_check', 'lie_read',
+NEVER_ROUTINE_KINDS = ('opening', 'exit', 'combat_round', 'combat_flourish', 'social_check', 'lie_read',
                        'exit_contested', 'toll_defer')
 QUIET_EVENT_TYPES = ('beat', 'pending_check')
 ROUTINE_DEFAULTS = {

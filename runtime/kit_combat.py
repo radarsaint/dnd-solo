@@ -99,6 +99,81 @@ NONLETHAL = re.compile(r'\b(knock (?:him|her|them|it) out|non-?lethal|pull (?:my
 ACTIVE_STATUSES = ('alive',)
 
 
+# -- checkpoints (PR-H): the engine stops where the player owns the next input -----------
+# Brendon's 691e834 harness: Nik (AC 14, Shield, slots) took 38 and dropped without being
+# offered Shield; a kill went straight on into enemy turns and flight. A checkpoint is
+# deterministic: the fight state records what waits (``awaiting``), the turn commits, and
+# the player's answer resumes it exactly where it stopped. It only stops when the player
+# owns something there; otherwise the round runs on as before.
+class Checkpoint(Exception):
+    """The fight stops here; ``fight['awaiting']`` says for what."""
+
+
+class Unclear(Exception):
+    """The answer to a checkpoint does not answer it; nothing is committed."""
+
+
+# Reactions a sheet can hold that change an attack that already hit: Shield turns a hit
+# that beats AC by less than 5 (never a natural 20); Absorb Elements halves elemental damage.
+REACTION_SPELLS = ('shield', 'absorb elements')
+ELEMENTS = ('acid', 'cold', 'fire', 'lightning', 'thunder')
+RANGED = re.compile(r'\b(bow|crossbow|longbow|shortbow|sling|dart|javelin|ray|bolt)\b')
+DECLINE = re.compile(r"^\W*(?:no|nope|nah|don'?t|do not|skip|pass|not now)\b|\b(?:let (?:it|him|her|them)|take it|"
+                     r"i'?ll take it)\b", re.I)
+ACCEPT = re.compile(r"^\W*(?:yes|yeah|yep|yup|sure|do it|cast it|go|absolutely|ok(?:ay)?)\b", re.I)
+
+
+def sheet_spells(sheet):
+    """Lowercase spell names the sheet knows above cantrip level."""
+    spells = (sheet or {}).get('spells') or {}
+    return {str(name).strip().casefold() for level, names in spells.items() if level != 'cantrips'
+            for name in names or ()}
+
+
+def free_slot(sheet, spent, level=1):
+    """The lowest spell slot level >= ``level`` still unspent this fight, or None."""
+    slots = (sheet or {}).get('slots') or {}
+    for key in sorted(slots, key=lambda k: int(k)):
+        if int(key) >= level and int(slots[key]) - int((spent or {}).get(key, 0)) > 0:
+            return key
+    return None
+
+
+def reaction_options(sheet, fight, die, total, ac, dtype):
+    """The PC's reactions that could change this hit, from the sheet. Empty when the reaction
+    is spent, no slot is left, or nothing on the sheet would change the result."""
+    if (fight or {}).get('reaction_used'):
+        return []
+    known = sheet_spells(sheet)
+    if free_slot(sheet, (fight or {}).get('slots_spent')) is None:
+        return []
+    options = []
+    if 'shield' in known and not (fight or {}).get('shield_up') and die != 20 and total < ac + 5:
+        options.append('shield')
+    if 'absorb elements' in known and dtype in ELEMENTS:
+        options.append('absorb elements')
+    return options
+
+
+def answer_choice(text, options):
+    """'decline', one of ``options``, or None when the words do not answer."""
+    words = narration(text).casefold().strip()
+    if DECLINE.search(words):
+        return 'decline'
+    for option in options:
+        if option in words:
+            return option
+    if ACCEPT.search(words) or ('opportunity attack' in options and kit_rolls.attack_total(text) is not None):
+        return options[0]  # a stated attack roll answers an opportunity attack, never a Shield offer
+    return None
+
+
+def _pronoun_line(actor, label):
+    pronoun = (actor or {}).get('pronoun')
+    lead = {'he': "He's", 'she': "She's", 'they': "They're", 'it': "It's"}.get(pronoun)
+    return f"{lead} yours. Describe it." if lead else f"The {label} is yours. Describe it."
+
+
 # -- what a verb acts on (general guards; no room names) ---------------------------------
 # A physical act needs its noun as the verb's own object: "takes the chair and sets a copper
 # on the table" takes a chair; "flicks his ears ... eyes on the dealer's face" touches no face.
@@ -439,6 +514,8 @@ class Fight:
         self.labels = labels(source)
         self.needs_roll = False  # the act is an attack still waiting on its Avrae roll
         self.sheet = state.get('player_sheet') or {}
+        self.kills = []          # who the PC's blows killed this turn (a flourish may follow)
+        self.flourish_of = None  # resumed from a flourish: whose death the player described
 
     # -- helpers ---------------------------------------------------------------------
     def label(self, key):
@@ -496,25 +573,172 @@ class Fight:
         return started
 
     def pc_surprised_now(self):
-        return 'pc' in (self.fight.get('surprised') or ()) and self.fight.get('round') == 1
+        """Surprised and his first turn not yet over (SRD: no move, action, or reaction)."""
+        return 'pc' in (self.fight.get('surprised') or ()) and self.fight.get('round') == 1 and \
+            not self.fight.get('surprise_spent')
 
     def surprised(self):
         """Nobody is surprised unless the PC is hidden from everyone when it starts."""
         return [key for key in self.hostiles()] if self.scene.get('pc_hidden') else []
 
     def pc_ac(self):
-        return int(self.sheet.get('ac') or 10)
+        return int(self.sheet.get('ac') or 10) + (5 if (self.fight or {}).get('shield_up') else 0)
+
+    # -- checkpoints -------------------------------------------------------------------
+    def wait_for(self, kind, awaits, **detail):
+        """Record what the fight waits on and stop. The id names the deferred action."""
+        material = f"{self.revision}:{kind}:{self.fight.get('round')}:{sorted(detail.items())}".encode()
+        self.fight['awaiting'] = {'kind': kind, 'awaits': awaits,
+                                  'deferred_action_id': hashlib.sha256(material).hexdigest()[:12], **detail}
+        self.trace.append(f'checkpoint: {kind} ({awaits})')
+        raise Checkpoint()
+
+    def start_pc_turn(self):
+        """Shield ends and the reaction comes back at the start of the PC's turn."""
+        for key in ('shield_up', 'reaction_used'):
+            self.fight.pop(key, None)
+
+    def spend_reaction(self, spell=None):
+        self.fight['reaction_used'] = True
+        if spell:
+            slot = free_slot(self.sheet, self.fight.get('slots_spent'))
+            spent = self.fight.setdefault('slots_spent', {})
+            spent[slot] = spent.get(slot, 0) + 1
+            self.trace.append(f'PC casts {spell} with a level {slot} slot')
+
+    def engage(self, key):
+        engaged = self.fight.setdefault('engaged', [])
+        if key not in engaged:
+            engaged.append(key)
+
+    def in_reach(self, key):
+        return key in (self.config.get('in_reach') or ()) or key in (self.fight.get('engaged') or ())
+
+    def important(self, key):
+        """A kill worth a flourish: the leader, a foe the room marks important, or anyone who
+        raises a story hook (room data). Not every mook."""
+        if key == self.config.get('leader') or key in (self.config.get('important') or ()):
+            return True
+        for story in ((self.source or {}).get('story') or {}).values():
+            hooks = story.get('hooks') if isinstance(story, dict) else None
+            if any(isinstance(hook, dict) and hook.get('by') == key for hook in hooks or ()):
+                return True
+        return False
+
+    def resume(self):
+        """The player's answer to the checkpoint in ``fight['awaiting']``: finish what it
+        deferred, then run on until the PC's turn or the next checkpoint."""
+        waiting = self.fight['awaiting']
+        kind = waiting['kind']
+        try:
+            if kind == 'reaction_window' and waiting['trigger'] == 'hit':
+                choice = answer_choice(self.action, waiting['options'])
+                if choice is None:
+                    raise Unclear(f"That hits {waiting['total']}. {self.offer(waiting['options'])} Yes or no? "
+                                  'No turn was committed.')
+                self.fight['awaiting'] = None
+                self.resume_hit(waiting, choice)
+                self.npc_turn(waiting['attacker'], start=waiting['attack_index'] + 1)
+                self.step()
+                self.check_over()
+                self.run_npcs()
+            elif kind == 'reaction_window':  # trigger leaves_reach: an opportunity attack
+                key = waiting['actor']
+                choice = answer_choice(self.action, ['opportunity attack'])
+                if choice is None:
+                    raise Unclear(f'The {self.label(key)} is leaving your reach. Opportunity attack, yes or no? '
+                                  'No turn was committed.')
+                if choice != 'decline' and kit_rolls.attack_total(self.action) is None:
+                    raise Unclear('Roll the opportunity attack in Avrae, with its damage. No turn was committed.')
+                self.fight['awaiting'] = None
+                if choice != 'decline':
+                    self.spend_reaction()
+                    weapon = re.search(r'\b(' + WEAPONS + r')\b', narration(self.action).casefold())
+                    self.pc_attack({'kind': 'attack', 'target': key, 'area': False,
+                                    'weapon': weapon.group(1) if weapon else 'attack', 'unarmed': not weapon})
+                if self.active(key):
+                    self.flee(key)
+                self.step()
+                self.check_over()
+                self.run_npcs()
+            elif kind == 'roll_call':
+                self.resume_save(waiting)
+                if not self.fight.get('pc_down'):
+                    self.npc_turn(waiting['attacker'], start=waiting['attack_index'] + 1)
+                self.step()
+                self.check_over()
+                self.run_npcs()
+            else:  # flourish_window: the player's description; outcomes stand as committed
+                self.fight['awaiting'] = None
+                self.flourish_of = waiting.get('target')
+                self.trace.append(f"flourish: the player's description stands as how {waiting.get('target')} died; "
+                                  'it changes no outcome')
+                if self.fight['status'] == 'running':
+                    self.advance_past_pc()
+                    self.run_npcs()
+        except Checkpoint:
+            pass
+        self.check_over()
+        self.finish()
+        if self.flourish_of and not self.public():
+            self.lines.append('It is over.')
+        return self.public(), self.events()
+
+    def offer(self, options):
+        return ' or '.join(option.title() if option != 'opportunity attack' else 'Opportunity attack'
+                           for option in options) + '?'
+
+    def resume_hit(self, waiting, choice):
+        name = waiting['name']
+        dealt = waiting['damage']
+        hit = True
+        if choice in REACTION_SPELLS:
+            self.spend_reaction(choice)
+        if choice == 'shield':
+            self.fight['shield_up'] = True
+            hit = waiting['die'] == 20 or waiting['total'] >= self.pc_ac()
+            self.lines.append(f'Shield flares; the {name} ' + ('still gets through.' if hit else 'glances off it.'))
+        elif choice == 'absorb elements':
+            dealt //= 2
+            self.lines.append('You draw the worst of it into your hands.')
+        self.trace.append(f"reaction {choice}: {waiting['total']} vs AC {self.pc_ac()}: {'hit' if hit else 'miss'}")
+        if not hit:
+            return
+        self.fight['pc_damage'] += dealt
+        self.lines.append(f"The {name} hits you: {dealt} {waiting['type']} damage.")
+        if self.pc_hp() is not None and self.fight['pc_damage'] >= int(self.pc_hp()):
+            self.fight['pc_down'] = True
+            self.lines.append('You go down.')
+        elif waiting.get('rider'):
+            # Reaction before damage, then the save the hit carries.
+            self.owe_save(waiting['attacker'], waiting['attack_index'], waiting['rider'])
 
     def pc_hp(self):
         return self.sheet.get('hp')
 
     # -- the PC's act ----------------------------------------------------------------
     def resolve(self, act):
-        awaiting = (self.fight or {}).get('awaiting')
-        if awaiting and awaiting.get('kind') == 'roll_call':
-            return self.resume_save(awaiting)
+        try:
+            self._resolve(act)
+        except Checkpoint:
+            pass
+        self.finish()
+        return self.public(), self.events()
+
+    def _resolve(self, act):
         init = kit_rolls.initiative(self.action)
         kind = (act or {}).get('kind')
+        waiting = (self.fight or {}).get('awaiting')
+        if waiting and waiting['kind'] == 'flourish_window':
+            # A new act instead of a description: the flourish is passed, the round runs on.
+            self.fight['awaiting'] = None
+            if self.fight['status'] == 'running':
+                self.advance_past_pc()
+        if kind == 'attack' and not self.hostiles() and not (self.fight and self.fight.get('status') != 'over'):
+            # Nobody here to fight (a lurker not yet shown is not a target): no fight starts, and
+            # the rest of the message (a feature disturbed) resolves on its own.
+            self.trace.append('attack at nobody: no fight')
+            return
         if kind == 'attack':
             self.ensure_fight('pc')
         if self.fight and self.fight['status'] == 'awaiting_initiative' and init is not None:
@@ -535,13 +759,19 @@ class Fight:
             {'grab': self.pc_grab, 'face': self.pc_face, 'flip': self.pc_flip, 'take': self.pc_take,
              'wait': self.pc_wait}[kind](act)
         self.check_over()
+        if self.fight and acted and self.fight['status'] in ('running', 'over'):
+            worthy = [key for key in self.kills if self.important(key) or self.fight['status'] == 'over']
+            if worthy:
+                # The kill is committed first; the player owns how it looks (never what happened).
+                key = worthy[-1]
+                self.lines.append(_pronoun_line(self.state['actors'].get(key), self.label(key)))
+                self.wait_for('flourish_window', 'player_description', target=key,
+                              deferred='continue_round' if self.fight['status'] == 'running' else 'none')
         if self.fight and self.fight['status'] == 'running' and acted:
             self.advance_past_pc()
             self.run_npcs()
         elif self.fight and self.fight['status'] == 'awaiting_initiative':
             self.lines.append('Roll initiative.')
-        self.finish()
-        return self.public(), self.events()
 
     def pc_wait(self, act):
         self.lines.append('You hold your ground and wait for them to come to you.')
@@ -594,43 +824,50 @@ class Fight:
             if key == 'pc':
                 self.lines.append('You are surprised and lose your first turn.')
                 self.trace.append('PC surprised: round 1 turn lost')
+                self.fight['surprise_spent'] = True
             elif self.active(key):
-                self.npc_turn(key)
+                self.npc_turn(key)  # may stop at a checkpoint (the order stays on this NPC)
             self.step()
             self.check_over()
+        if self.fight['status'] == 'running' and self.pc_turn_now():
+            self.start_pc_turn()
 
     # -- a save the player rolls (a monster attack's rider) ---------------------------
-    def resume_save(self, awaiting):
-        total = save_total(self.action, awaiting['save'])
+    def owe_save(self, key, index, rider):
+        """Stop at a roll call: the player rolls his own save in Avrae (never shown the DC).
+        Order with a reaction window: the reaction first (before damage), then the save."""
+        self.lines.append(save_prompt({'save': rider['ability']}))
+        self.wait_for('roll_call', 'player_roll', trigger='save_rider', save=rider['ability'], dc=rider['dc'],
+                      damage=rider['damage'], type=rider['type'], half=bool(rider.get('half')),
+                      at_zero=list(rider.get('at_zero') or ()), attacker=key, attack_index=index)
+
+    def resume_save(self, waiting):
+        """The player's save total answers the roll call; the rider's damage lands or not."""
+        total = save_total(self.action, waiting['save'])
         if total is None:
-            self.lines.append(save_prompt(awaiting))
-            return self.public(), self.events()
-        saved = total >= int(awaiting['dc'])
-        damage = int(awaiting['damage'])
-        dealt = (damage // 2 if awaiting.get('half') else 0) if saved else damage
-        self.trace.append(f"PC {awaiting['save']} save {total} vs DC {awaiting['dc']} "
-                          f"({awaiting.get('from')}): {'saved' if saved else 'failed'}, {dealt} {awaiting['type']}")
+            raise Unclear(f"{save_prompt(waiting)[:-1]} in Avrae first (!save {waiting['save']}). "
+                          'No turn was committed.')
         self.fight['awaiting'] = None
+        saved = total >= int(waiting['dc'])
+        damage = int(waiting['damage'])
+        dealt = (damage // 2 if waiting.get('half') else 0) if saved else damage
+        self.trace.append(f"PC {waiting['save']} save {total} vs DC {waiting['dc']} "
+                          f"({waiting.get('attacker')}): {'saved' if saved else 'failed'}, {dealt} {waiting['type']}")
         if not dealt:
-            self.lines.append(f"You shake off the {awaiting['type']}.")
-        else:
-            self.lines.append(f"You {'resist some of' if saved else 'fail to resist'} the {awaiting['type']}: "
-                              f"{dealt} {awaiting['type']} damage.")
-            self.fight['pc_damage'] += dealt
-            hp = self.pc_hp()
-            if hp is not None and self.fight['pc_damage'] >= int(hp):
-                self.fight['pc_down'] = True
-                self.fight['pc_damage'] = int(hp)
-                if awaiting.get('at_zero'):
-                    self.fight['pc_conditions'] = list(awaiting['at_zero'])
-                    self.lines.append(f"You drop, stable but {' and '.join(awaiting['at_zero'])}.")
-                else:
-                    self.lines.append('You go down.')
-        if self.fight['status'] == 'running' and not self.fight.get('pc_down'):
-            self.run_npcs()
-        self.check_over()
-        self.finish()
-        return self.public(), self.events()
+            self.lines.append(f"You shake off the {waiting['type']}.")
+            return
+        self.lines.append(f"You {'resist some of' if saved else 'fail to resist'} the {waiting['type']}: "
+                          f"{dealt} {waiting['type']} damage.")
+        self.fight['pc_damage'] += dealt
+        hp = self.pc_hp()
+        if hp is not None and self.fight['pc_damage'] >= int(hp):
+            self.fight['pc_down'] = True
+            self.fight['pc_damage'] = int(hp)
+            if waiting.get('at_zero'):
+                self.fight['pc_conditions'] = list(waiting['at_zero'])
+                self.lines.append(f"You drop, stable but {' and '.join(waiting['at_zero'])}.")
+            else:
+                self.lines.append('You go down.')
 
     def check_over(self):
         if self.fight and self.fight['status'] != 'over' and not self.hostiles():
@@ -708,6 +945,8 @@ class Fight:
             self.lines.append(f'Roll the attack for your {what} in Avrae, with its damage.')
             return False
         key = targets[0]
+        if self.fight.get('engaged') is not None or self.config.get('in_reach'):
+            self.melee(key, weapon)
         ac = self.stats(key)['ac']
         hit = spell in SPELL_AUTO or natural == 20 or (natural != 1 and total >= ac)
         self.trace.append(f'PC {weapon} vs {key}: {total} vs AC {ac}: {"hit" if hit else "miss"}')
@@ -725,6 +964,10 @@ class Fight:
         self.fight['pending'] = None
         return True
 
+    def melee(self, key, weapon):
+        if weapon and not RANGED.search(str(weapon)) and weapon not in SPELLS:
+            self.engage(key)
+
     def apply_damage(self, key, amount, dtype=None, nonlethal=False):
         if amount <= 0:
             self.lines.append(f'The {self.label(key)} comes through it unhurt.')
@@ -735,6 +978,7 @@ class Fight:
         if hp[key] == 0:
             status = 'unconscious' if nonlethal else 'dead'
             self.statuses[key] = status
+            self.kills.append(key)
             self.lines.append(f'The {self.label(key)} goes down and does not get up.' if status == 'dead' else
                               f'The {self.label(key)} drops, out cold.')
         elif hp[key] <= self.fight['max_hp'][key] // 2:
@@ -743,55 +987,85 @@ class Fight:
             self.lines.append(f'The {self.label(key)} is hurt.')
         self.crack('fire' if dtype == 'fire' else 'blood', key)
 
-    def npc_turn(self, key):
+    def npc_turn(self, key, start=0):
+        """The NPC's attacks from ``start`` (a resumed turn after a reaction window)."""
         stats = self.stats(key)
-        if key in self.fight.get('surprised', []) and self.fight['round'] == 1:
-            self.lines.append(f'The {self.label(key)} is still reeling.')
-            return
-        if self.should_retreat(key):
-            self.flee(key)
-            return
+        if start == 0:
+            if key in self.fight.get('surprised', []) and self.fight['round'] == 1:
+                self.lines.append(f'The {self.label(key)} is still reeling.')
+                return
+            if self.should_retreat(key):
+                if self.can_opportunity(key):
+                    self.lines.append(f'The {self.label(key)} breaks away, out of your reach. Opportunity attack?')
+                    self.wait_for('reaction_window', 'player_answer', trigger='leaves_reach', actor=key,
+                                  options=['opportunity attack'])
+                self.flee(key)
+                return
         if self.fight.get('pc_down'):
             return
+        attacks = stats.get('attacks') or []
+        if start >= len(attacks):
+            return
         hits, misses = [], 0
-        for index, attack in enumerate(stats.get('attacks') or []):
+        who = f'The {self.label(key)}'
+        for index in range(start, len(attacks)):
+            attack = attacks[index]
             die = self.die(f'npc:{key}:r{self.fight["round"]}:{index}')
             total = die + attack['to_hit']
-            hit = die == 20 or (die != 1 and total >= self.pc_ac())
+            ac = self.pc_ac()
+            hit = die == 20 or (die != 1 and total >= ac)
             dealt = attack['damage'] * (2 if die == 20 else 1)
-            self.trace.append(f'{key} {attack["name"]}: d20 {die} + {attack["to_hit"]} = {total} vs AC {self.pc_ac()}: '
+            self.trace.append(f'{key} {attack["name"]}: d20 {die} + {attack["to_hit"]} = {total} vs AC {ac}: '
                               f'{"hit " + str(dealt) if hit else "miss"}')
+            if not RANGED.search(attack['name']) and (self.fight.get('engaged') is not None or
+                                                      self.config.get('in_reach')):
+                self.engage(key)
             if not hit:
                 misses += 1
                 continue
+            options = [] if self.pc_surprised_now() else \
+                reaction_options(self.sheet, self.fight, die, total, ac, attack.get('type'))
+            if options and not self.fight.get('pc_down'):
+                if hits:
+                    self.say_hits(who, hits, 2)
+                self.lines.append(f"{who}'s {attack['name']} comes at you. That hits {total}. {self.offer(options)}")
+                self.wait_for('reaction_window', 'player_answer', trigger='hit', options=options, attacker=key,
+                              attack_index=index, die=die, total=total, damage=dealt,
+                              type=attack.get('type'), name=attack['name'],
+                              **({'rider': attack['save']} if attack.get('save') else {}))
             self.fight['pc_damage'] += dealt
             hits.append((dealt, attack['type']))
             if self.pc_hp() is not None and self.fight['pc_damage'] >= int(self.pc_hp()):
                 self.fight['pc_down'] = True
                 break
-            rider = attack.get('save')
-            if rider and not self.fight.get('awaiting'):
-                # The player rolls his own save (Avrae); the round waits on it.
-                self.fight['awaiting'] = {'kind': 'roll_call', 'awaits': 'player_roll', 'save': rider['ability'],
-                                          'dc': rider['dc'], 'damage': rider['damage'], 'type': rider['type'],
-                                          'half': bool(rider.get('half')), 'at_zero': list(rider.get('at_zero') or ()),
-                                          'from': key}
-        who = f'The {self.label(key)}'
-        swings = len(stats.get('attacks') or [])
-        if not hits:
-            self.lines.append(f'{who} {"attacks and misses" if swings == 1 else "swings at you and misses every time"}.')
+            if attack.get('save'):
+                self.say_hits(who, hits, 1 if len(attacks) == 1 else 2)
+                self.owe_save(key, index, attack['save'])
+        swings = len(attacks) - start
+        if start and not hits:
+            self.lines.append(f"{who}'s other {'attack misses' if swings == 1 else 'attacks miss'}.")
         else:
-            count = {1: 'once', 2: 'twice'}.get(len(hits), f'{len(hits)} times')
-            by_type = {}
-            for dealt, dtype in hits:
-                by_type[dtype] = by_type.get(dtype, 0) + dealt
-            amounts = ' and '.join(f'{amount} {dtype}' for dtype, amount in by_type.items())
-            self.lines.append(f'{who} hits you {count}: {amounts} damage.' if swings > 1 else
-                              f'{who} hits you: {amounts} damage.')
+            self.say_hits(who, hits, swings if not start else 2)
         if self.fight.get('pc_down'):
             self.lines.append('You go down.')
-        elif (self.fight.get('awaiting') or {}).get('from') == key:
-            self.lines.append(save_prompt(self.fight['awaiting']))
+
+    def say_hits(self, who, hits, swings):
+        if not hits:
+            self.lines.append(f'{who} {"attacks and misses" if swings == 1 else "swings at you and misses every time"}.')
+            return
+        count = {1: 'once', 2: 'twice'}.get(len(hits), f'{len(hits)} times')
+        by_type = {}
+        for dealt, dtype in hits:
+            by_type[dtype] = by_type.get(dtype, 0) + dealt
+        amounts = ' and '.join(f'{amount} {dtype}' for dtype, amount in by_type.items())
+        self.lines.append(f'{who} hits you {count}: {amounts} damage.' if swings > 1 else
+                          f'{who} hits you: {amounts} damage.')
+
+    def can_opportunity(self, key):
+        """A foe leaving the PC's reach: the PC's reaction is unused and they are up."""
+        return (not self.fight.get('reaction_used') and not self.fight.get('pc_down') and
+                not self.pc_surprised_now() and
+                self.in_reach(key) and self.pc_hp() is not None)
 
     def should_retreat(self, key):
         rule = self.stats(key).get('retreat') or {}

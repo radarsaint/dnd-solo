@@ -1,0 +1,194 @@
+{
+  "id": "synthetic-roadcamp-v1",
+  "fixture_only": true,
+  "_note": "Synthetic, non-6c room for the combat checkpoint tests (PR-H): a named leader and two cutthroats around a fire, a road to flee by. Stat lines are inline. With NPC d20s pinned at 10, the leader's attacks total 15 and the cutthroats' total 16: they hit AC 14 and miss AC 19 (Shield). Not adventure content.",
+  "starting_area": "camp",
+  "areas": {
+    "camp": {
+      "name": "Roadside camp",
+      "called": "the camp",
+      "arrival": "A stranger walks into the firelight."
+    },
+    "road": {
+      "name": "The road",
+      "called": "the road",
+      "outside": true,
+      "beyond": true
+    }
+  },
+  "exits": {
+    "road": {
+      "name": "the road",
+      "areas": [
+        "camp",
+        "road"
+      ],
+      "secret": false,
+      "labels": {
+        "camp": "The road runs on past the wagon.",
+        "road": "The camp's firelight back up the road."
+      }
+    }
+  },
+  "facts": {
+    "fire": {
+      "area": "camp",
+      "visible": true,
+      "text": "A cookfire burns low beside a broken-wheeled wagon."
+    },
+    "wagon": {
+      "area": "camp",
+      "visible": true,
+      "text": "The wagon's canvas is slashed and its crates are pried open."
+    }
+  },
+  "actors": {
+    "harl": {
+      "name": "Bandit captain",
+      "location": "camp",
+      "status": "alive",
+      "visible": true,
+      "pronoun": "he",
+      "motive": "Keep the haul and the road.",
+      "knowledge": [
+        "Where the wagon's owner went."
+      ],
+      "secrets": [],
+      "communication_profile": {
+        "rhythm": "Slow, sure.",
+        "humor": "Cruel."
+      },
+      "armed": true
+    },
+    "cutthroat_a": {
+      "name": "Wagon-side cutthroat",
+      "location": "camp",
+      "status": "alive",
+      "visible": true,
+      "pronoun": "he",
+      "motive": "Get paid.",
+      "knowledge": [],
+      "secrets": [],
+      "communication_profile": {
+        "rhythm": "Grunts.",
+        "humor": "None."
+      },
+      "armed": true
+    },
+    "cutthroat_b": {
+      "name": "Fire-side cutthroat",
+      "location": "camp",
+      "status": "alive",
+      "visible": true,
+      "pronoun": "she",
+      "motive": "Get paid.",
+      "knowledge": [],
+      "secrets": [],
+      "communication_profile": {
+        "rhythm": "Grunts.",
+        "humor": "None."
+      },
+      "armed": true
+    }
+  },
+  "combat": {
+    "_note": "DM-only. Inline stat lines for the checkpoint tests. in_reach: who starts within the PC's melee reach (an opportunity attack needs it, or melee between them since).",
+    "area": "camp",
+    "leader": "harl",
+    "underlings": [
+      "cutthroat_a",
+      "cutthroat_b"
+    ],
+    "reach_order": [
+      "cutthroat_a",
+      "harl",
+      "cutthroat_b"
+    ],
+    "actors": {
+      "harl": {
+        "ac": 15,
+        "hp": 30,
+        "initiative": 3,
+        "grapple": 3,
+        "saves": {},
+        "attacks": [
+          {
+            "name": "scimitar",
+            "verb": "cuts",
+            "to_hit": 5,
+            "damage": 6,
+            "type": "slashing"
+          },
+          {
+            "name": "scimitar",
+            "verb": "cuts",
+            "to_hit": 5,
+            "damage": 6,
+            "type": "slashing"
+          },
+          {
+            "name": "dagger",
+            "verb": "stabs",
+            "to_hit": 5,
+            "damage": 5,
+            "type": "piercing"
+          }
+        ]
+      },
+      "cutthroat_a": {
+        "ac": 12,
+        "hp": 11,
+        "initiative": 1,
+        "grapple": 1,
+        "saves": {},
+        "attacks": [
+          {
+            "name": "mace",
+            "verb": "clubs",
+            "to_hit": 6,
+            "damage": 11,
+            "type": "bludgeoning"
+          }
+        ],
+        "retreat": {
+          "when": [
+            "leader_gone"
+          ],
+          "toward": "area_road",
+          "exit": "road",
+          "text": "The wagon-side cutthroat breaks for the road."
+        }
+      },
+      "cutthroat_b": {
+        "ac": 12,
+        "hp": 11,
+        "initiative": 1,
+        "grapple": 1,
+        "saves": {},
+        "attacks": [
+          {
+            "name": "mace",
+            "verb": "clubs",
+            "to_hit": 6,
+            "damage": 11,
+            "type": "bludgeoning"
+          }
+        ],
+        "retreat": {
+          "when": [
+            "leader_gone"
+          ],
+          "toward": "area_road",
+          "exit": "road",
+          "text": "The fire-side cutthroat bolts for the road."
+        }
+      }
+    },
+    "in_reach": [
+      "cutthroat_a",
+      "harl"
+    ]
+  },
+  "story": {},
+  "resources": {}
+}

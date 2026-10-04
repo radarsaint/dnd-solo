@@ -249,7 +249,7 @@ class SaveRiderTests(unittest.TestCase):
         result = room.act('Con save 14')
         combat = room.state['combat']
         self.assertEqual(combat['pc_damage'], 8, 'no half damage on a success (SRD); the second bite lands')
-        self.assertEqual(combat['awaiting']['from'], 'centipede_b', 'the second centipede bites: a second save')
+        self.assertEqual(combat['awaiting']['attacker'], 'centipede_b', 'the second centipede bites: a second save')
         self.assertNotIn('Your turn.', result.public_event)
         result = room.act('Con save 15')
         combat = room.state['combat']

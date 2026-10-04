@@ -25,6 +25,8 @@ from . import kit_cards
 from . import kit_combat
 from . import kit_rolls
 from . import kit_triggers
+from . import kit_reveal
+from . import kit_handoff
 from . import kit_claims
 from . import kit_manifest
 from . import kit_router
@@ -36,6 +38,7 @@ from . import kit_texture
 from . import kit_toll
 from . import kit_twenty_one
 from . import kit_guards
+from . import kit_interstitial
 from . import kit_voice
 from .scene_discernment import IMPROV_READ_SCHEMA, check_improv_read, discernment_candidates
 from .state_context import (ASKED_EVENT_PREFIX, CONTEXT_BUDGET_BYTES, HostSequenceError, InvalidChange,
@@ -50,6 +53,15 @@ from .state_context import HELD_KINDS as _HELD_KINDS
 DEFAULT_ROOM = PROJECT_ROOT / 'tests/fixtures/level_01_area_06c.json'
 
 
+class EngineInterstitial(Exception):
+    """The adjudicated turn stops at an engine checkpoint (INTERSTITIAL_KIND): it commits as
+    is, with no model packet (bridge.prepare, KitAgent.turn)."""
+    def __init__(self, revision, resolution):
+        super().__init__(resolution.public_event)
+        self.revision = revision
+        self.resolution = resolution
+
+
 class PendingRuling(Exception):
     """The room slice cannot establish this outcome without more game machinery.
 
@@ -59,6 +71,16 @@ class PendingRuling(Exception):
     def __init__(self, message, attempt=False):
         super().__init__(message)
         self.attempt = attempt
+
+
+# A fight stopped at a checkpoint (kit_combat): the turn commits without Kit (bridge.prepare).
+INTERSTITIAL_KIND = 'combat_interstitial'
+# The turn after a flourish handoff: the player described their kill.
+FLOURISH_KIND = 'combat_flourish'
+FLOURISH_RULE = ('The player described their kill (player_description). It is canon only for how their '
+                 'character looks doing it, never for outcomes: {target} is dead and stays dead, and nothing '
+                 'they wrote changes what happened. Yes-and it into consequences: how it looked, and how the '
+                 'room reacts. The accepted event (what the others then do) follows your narration.')
 
 
 @dataclass(frozen=True)
@@ -713,12 +735,11 @@ class RoomAdjudicator:
         # A physical act changes the world (attacks, grabs, a flipped table, coins taken, paint
         # wiped off): it is resolved before any talk, toll, or card reading of the same words.
         # While a fight waits on initiative or runs, a reported initiative total routes here too.
-        awaiting = (state.get('combat') or {}).get('awaiting') or {}
-        if awaiting.get('kind') == 'roll_call' and not is_ooc(action) and \
-                kit_combat.save_total(action, awaiting['save']) is None:
-            # A monster's save rider waits on the player's own roll (Avrae) before anything else.
-            raise PendingRuling(f"{kit_combat.save_prompt(awaiting)[:-1]} in Avrae first "
-                                f"(!save {awaiting['save']}). No turn was committed.")
+        # A fight stopped at a checkpoint (PR-H) takes this message as its answer first.
+        if not is_ooc(action) and kit_combat.config(self.source):
+            resumed = self._resume_checkpoint(action, revision, state)
+            if resumed:
+                return resumed
         if not is_ooc(action) and kit_combat.config(self.source) and asked_away(narration).strip():
             physical = self._resolve_physical(action if asked_away(narration) == narration else
                                               asked_away(narration), revision, state)
@@ -992,7 +1013,7 @@ class RoomAdjudicator:
     def _also_card(self, result, action, narration, revision, state):
         """``result`` plus the card call made in the same message, when there is one and the
         first ruling started no fight. The card call resolves on the same pre-turn state."""
-        if result is None or result.kind == 'combat_round' or str(result.kind).startswith('card_') \
+        if result is None or str(result.kind).startswith(('combat_', 'card_')) \
                 or is_ooc(action):
             return result
         table, card_kind = self._card_call(action, narration, state)
@@ -1021,6 +1042,40 @@ class RoomAdjudicator:
         except PendingRuling:
             return None
 
+    def _fight(self, action, revision, state):
+        return kit_combat.Fight(self.source, state, revision, action,
+                                check=lambda skill, dc, label: self._check(skill, dc, state, revision,
+                                                                           f'physical:{label}', action),
+                                roll=self.roll)
+
+    def _resume_checkpoint(self, action, revision, state):
+        """The player's answer to a fight stopped at a checkpoint (kit_combat.Fight.resume),
+        or None. A flourish passed over for a new act (a stated attack) resolves as that act."""
+        waiting = (state.get('combat') or {}).get('awaiting')
+        if not waiting:
+            return None
+        if waiting['kind'] == 'flourish_window' and kit_rolls.attack_total(action) is not None and \
+                kit_combat.parse(action, self.source, state):
+            return None
+        fight = self._fight(action, revision, state)
+        try:
+            public, events = fight.resume()
+        except kit_combat.Unclear as exc:
+            raise PendingRuling(str(exc)) from exc  # clarify: nothing is committed
+        return self._fight_resolution(fight, public, events, action, state)
+
+    def _fight_resolution(self, fight, public, events, action, state):
+        events = list(events) + [{'type': 'reveal_fact', 'fact': fact,
+                                  'evidence': f'Player declared: {action[:300]}. The act shows it.'}
+                                 for fact in fight.reveals if fact not in state.get('known_facts', [])]
+        if fight.flourish_of:
+            # The player's description is Kit's to yes-and (presentation only): a Kit turn, even
+            # when the round it released stops at the next checkpoint.
+            return Resolution(FLOURISH_KIND, public, events)
+        if (fight.fight or {}).get('awaiting'):
+            return Resolution(INTERSTITIAL_KIND, public, events)
+        return Resolution('combat_round' if fight.fight else 'physical_act', public, events)
+
     def _resolve_physical(self, action, revision, state):
         act = kit_combat.parse(action, self.source, state)
         current = state.get('combat') or {}
@@ -1032,10 +1087,7 @@ class RoomAdjudicator:
             table = card_procedure(self.source, state)
             if table and kit_cards.card_intent(action, table[2]) == 'card_accuse':
                 return None  # catching the dealer's wrist mid-deal is the accusation itself
-        fight = kit_combat.Fight(self.source, state, revision, action,
-                                 check=lambda skill, dc, label: self._check(skill, dc, state, revision,
-                                                                            f'physical:{label}', action),
-                                 roll=self.roll)
+        fight = self._fight(action, revision, state)
         before = copy.deepcopy(state.get('combat'))
         public, events = fight.resolve(act)
         if fight.needs_roll and not fight.reveals:
@@ -1045,11 +1097,7 @@ class RoomAdjudicator:
             raise PendingRuling(f'{public.replace(" Roll initiative.", "")} No turn was committed.')
         if not public:
             return None
-        events = list(events) + [{'type': 'reveal_fact', 'fact': fact,
-                                  'evidence': f'Player declared: {action[:300]}. The act shows it.'}
-                                 for fact in fight.reveals if fact not in state.get('known_facts', [])]
-        kind = 'combat_round' if fight.fight else 'physical_act'
-        return Resolution(kind, public, events)
+        return self._fight_resolution(fight, public, events, action, state)
 
     # -- general checks: any room, any PC -------------------------------------------
     def _die(self, state, revision, label, action, modifier=None, skill=None):
@@ -1747,6 +1795,8 @@ PLAN_SCHEMA = {
         # Rare: neither the situation nor the player settles something that changes an outcome.
         # Kit asks; the turn commits nothing mechanical. Never about what the situation sets.
         'ask_player': kit_agenda.ASK_PLAYER_SCHEMA,
+        # Before a risky act: the perceptible fact, and the act it makes risky (kit_interstitial).
+        'risk_confirm': kit_interstitial.RISK_CONFIRM_SCHEMA,
         # Kit's private running plan (runtime/kit_plan.py): the whole current plan when it
         # changes; omitted, the stored plan carries unchanged. Never reaches the performer.
         'plan': kit_plan.PLAN_SCHEMA,
@@ -1759,11 +1809,11 @@ PLAN_SCHEMA = {
 
 # The strict API schema needs every property required.
 API_PLAN_SCHEMA = json.loads(json.dumps(PLAN_SCHEMA))
-OPTIONAL_PLAN_KEYS = ('claims', 'agenda', 'salience', 'roll_call', 'pc_state', 'pc_oddity', 'ask_player', 'plan',
+OPTIONAL_PLAN_KEYS = ('claims', 'agenda', 'salience', 'roll_call', 'pc_state', 'pc_oddity', 'ask_player', 'risk_confirm', 'plan',
                       'open_threads', 'observed_event', 'detail')  # the engine fills these when left out (PR3 a, c)
 # Strict mode cannot leave an object out, so the chat-only paths (a PC state change, an
 # oddity reaction, a question to the player) are not offered to the API model at all.
-CHAT_ONLY_PLAN_KEYS = ('pc_state', 'pc_oddity', 'ask_player', 'plan', 'open_threads')
+CHAT_ONLY_PLAN_KEYS = ('pc_state', 'pc_oddity', 'ask_player', 'risk_confirm', 'plan', 'open_threads')
 for _key in CHAT_ONLY_PLAN_KEYS:
     API_PLAN_SCHEMA['properties'].pop(_key)
 API_PLAN_SCHEMA['required'] = API_PLAN_SCHEMA['required'] + [
@@ -2471,6 +2521,7 @@ def check_plan(plan, episodes, public_event, action_kind=None, candidates=None, 
         kit_agenda.check_pc_oddity(plan['pc_oddity'], plan, state or {})
     if plan.get('ask_player'):
         kit_agenda.check_ask_player(plan['ask_player'], plan, state or {})
+    kit_interstitial.check_plan(plan, state or {})
     if 'plan' in plan:
         kit_plan.check_plan_block(plan['plan'], source or {}, state or {})
 
@@ -2838,6 +2889,11 @@ def check_speech(speech, plan, public_view, player_action, action_kind=None, gua
             lambda: check_callback_used(segments, plan),
             lambda: kit_voice.check_voice_style(segments, plan),
             lambda: kit_detail.check_detail_answer(segments, plan.get('detail'), player_action))
+    if kit_interstitial.kit_kind(plan):
+        # An interstitial (roll_call, clarify, risk_confirm) gets structural checks only: the
+        # call cap and a question for the player; no style check rejects it (PR-H).
+        hard(kit_interstitial.check_spoken, segments, plan)
+        soft = soft[:1]
     warnings = []
     for check in soft:
         try:
@@ -2908,6 +2964,8 @@ def turn_events(runtime, body, plan, turn_id, record=None):
         events += kit_brief.threshold_events(runtime.source(), after, turn_id)
     if plan.get('pc_state'):
         events.append(kit_agenda.pc_state_event(plan['pc_state'], turn_id))
+    if plan.get('risk_confirm'):
+        events.append(kit_interstitial.risk_event(plan['risk_confirm'], turn_id))
     if plan.get('open_threads'):
         events.append(kit_threads.event(plan['open_threads'], turn_id, runtime.load()[1].get('area')))
     pending = kit_agenda.pending_check_event(plan.get('roll_call'), turn_id) if plan.get('roll_call') else None
@@ -3308,6 +3366,10 @@ def prepare_inputs(runtime, revision, state, action, resolution, use_memory, one
     # ("Is the dealer cheating me?") must not be answered from the brief's secrets.
     if not table_talk:
         planning_input['story_brief'] = kit_brief.brief(source, post_event_state)
+    if resolution.kind == FLOURISH_KIND:
+        dead = ((state.get('combat') or {}).get('awaiting') or {}).get('target')
+        label = actor_speakers(source).get(dead, dead or 'the target')
+        planning_input['flourish'] = {'rule': FLOURISH_RULE.format(target=label), 'player_description': action}
     if resolution.kind == 'check_request':
         # Private: the player asked for a check; the call is Kit's (watchroom T1, Brendon's rule).
         named = re.search(r'\b(' + _SKILL_NAMES + r')\b', action, re.I)
@@ -3339,6 +3401,13 @@ def prepare_inputs(runtime, revision, state, action, resolution, use_memory, one
     if due and not table_talk:
         body['story_due'] = due
         body['story_area'] = post_event_state['area']
+    reveal = kit_reveal.view(source, post_event_state, resolution.kind, table_talk,
+                             held=bool(body.get('held_description')) or bool(due))
+    if reveal:
+        # Private: room entry gives the obvious layer first, then hands the floor back (PR-H).
+        # A due hook takes the entry instead: its NPC holds the floor (the challenge is the decision).
+        body['progressive_reveal'] = reveal
+        planning_input['reveal'] = {key: reveal[key] for key in ('rule', 'obvious', 'hold')}
     table = card_procedure(source, post_event_state)
     if table and not str(resolution.kind).startswith('card_') and resolution.kind != 'opening':
         planning_input['activities'] = {table[0]: BACKGROUNDED}
@@ -3423,7 +3492,61 @@ def prepare_turn(runtime, adjudicator, action, use_memory=True, one_pass=False, 
         resolution = adjudicator.resolve(action, revision, state, addressed=addressed, last_said=said)
     else:
         resolution = adjudicator.resolve(action, revision, state)
+    if resolution.kind == INTERSTITIAL_KIND:
+        raise EngineInterstitial(revision, resolution)
     return prepare_inputs(runtime, revision, state, action, resolution, use_memory, one_pass)
+
+
+def interstitial_of(events):
+    """The checkpoint a resolution stopped at: {kind, awaits, deferred_action_id[, trigger]}."""
+    for event in events or ():
+        waiting = (event.get('state') or {}).get('awaiting') if event.get('type') == 'combat_state' else None
+        if waiting:
+            return {key: waiting[key] for key in ('kind', 'awaits', 'deferred_action_id', 'trigger')
+                    if key in waiting}
+    return None
+
+
+def commit_interstitial(runtime, turn_id, action, raised):
+    """Commit an engine checkpoint with no model turn. Returns (revision, record)."""
+    resolution = raised.resolution
+    record = {'player_input': action, 'public_event': resolution.public_event,
+              'spoken': f'Kit: {resolution.public_event}', 'turn_role': 'interstitial', 'engine_checkpoint': True,
+              'interstitial': interstitial_of(resolution.events),
+              'trace': {'turn_role': 'interstitial', 'move': 'engine_checkpoint'}}
+    revision = runtime.commit_engine_interstitial(turn_id, raised.revision, list(resolution.events), record)
+    return revision, record
+
+
+def speculative_branches(runtime, adjudicator, interstitial):
+    """While the fight waits on the player, each answer's outcome computed on a copy of the
+    committed state. Telemetry only: never committed, never shown, never canon. Uses the
+    session's seeded dice (a host roll override is not consumed), so it is an estimate."""
+    revision, state = runtime.load()
+    waiting = (state.get('combat') or {}).get('awaiting') or {}
+    if waiting.get('kind') != 'reaction_window':
+        return None
+    source = runtime.source()
+    out = {}
+    if waiting.get('trigger') == 'hit':
+        answers = {option: f'{option.title()}.' for option in waiting['options']}
+        answers['decline'] = 'No.'
+        for name, text in answers.items():
+            fight = kit_combat.Fight(source, copy.deepcopy(state), revision, text, check=None)
+            try:
+                fight.resume()
+            except kit_combat.Unclear:
+                continue
+            out[name] = {'pc_damage': fight.fight.get('pc_damage', 0), 'pc_down': bool(fight.fight.get('pc_down')),
+                         'next_checkpoint': (fight.fight.get('awaiting') or {}).get('kind')}
+    else:
+        key = waiting['actor']
+        ac = kit_combat.config(source)['actors'][key]['ac']
+        hp = (state['combat'].get('hp') or {}).get(key)
+        out = {'fail': {'attack_total_below': ac, 'then': 'they leave'},
+               'success': {'attack_total_at_least': ac, 'then': 'damage lands, they leave if still up'},
+               'high': {'attack_total_at_least': ac + 5, 'damage_at_least': hp, 'then': 'they drop before leaving'}}
+    return out
 
 
 def prepare_opening(runtime, one_pass=False):
@@ -3606,7 +3729,7 @@ REFUSED_ATTEMPTS_SHOWN = 3
 
 # Kinds whose accepted event is printed after the performance: on an exit the NPCs'
 # reaction happens as the player leaves, so it must read before the departure line.
-EVENT_AFTER_PERFORMANCE_KINDS = ('exit',)
+EVENT_AFTER_PERFORMANCE_KINDS = ('exit', FLOURISH_KIND)
 
 
 def check_table_narration(segments, public_view, configs):
@@ -3719,6 +3842,8 @@ def checked_record(body, plan, speech, performance_variant, source=None, degrade
     spoken, warnings = result if degraded else (result, [])
     kit_agenda.check_carriers_spoken(spoken, plan)
     check_held_delivered(body.get('held_description'), spoken)
+    if not ask and not stall_check(plan, body['kind']):
+        kit_reveal.check_spoken(body.get('progressive_reveal'), speech['segments'], source)
     if body.get('story_due') and not ask:
         # An undelivered primary hook is overdue: its NPC raises it now (runtime/kit_brief.py).
         kit_brief.check_raised(body['story_due'], source, {'area': body['story_area']}, spoken)
@@ -3758,8 +3883,15 @@ class KitAgent:
 
     def turn(self, action, turn_id=None, use_memory=True):
         started = time.monotonic()
-        revision, body, planning_input = prepare_turn(
-            self.runtime, self.adjudicator, action, use_memory)
+        try:
+            revision, body, planning_input = prepare_turn(
+                self.runtime, self.adjudicator, action, use_memory)
+        except EngineInterstitial as raised:
+            turn_id = turn_id or str(uuid.uuid4())
+            revision, record = commit_interstitial(self.runtime, turn_id, action, raised)
+            return {'revision': revision, 'turn_id': turn_id, 'public_event': record['public_event'],
+                    'spoken': record['spoken'], 'turn_role': 'interstitial',
+                    'interstitial': record['interstitial']}
         return self._run(revision, body, planning_input, turn_id, started)
 
     def opening(self, turn_id=None):
@@ -3803,6 +3935,7 @@ class KitAgent:
                     performance_payload['retry_instruction'] = retry_instruction(exc)
             if record.get('degraded'):
                 timing['degraded'] = True
+            record.update(kit_interstitial.describe(record['trace'], turn_id))
             next_revision = self.runtime.commit_kit_turn(
                 turn_id, revision, turn_events(self.runtime, body, plan, turn_id, record), record)
             outcome = 'committed'
@@ -3825,6 +3958,9 @@ class PerformanceRejected(InvalidChange):
         super().__init__(message)
         self.guidance = guidance
 
+
+INTERSTITIAL_NEXT_STEP = ('Committed by the engine with no model turn: show the player "spoken" as is. '
+                          'Their answer is the next prepare.')
 
 ASKED_NEXT_STEP = ('Kit asked the player a question; the action was not resolved and nothing '
                    'mechanical was committed. Show the question. When the player answers, prepare '
@@ -3930,6 +4066,9 @@ def first_try_lines(runtime, body, planning_input):
     elif body['kind'] in STALL_KINDS and not body.get('story_due') and \
             not (runtime.load()[1].get('pending_check') or {}).get('held'):
         lines.append(STALL_LINE)
+    if planning_input.get('reveal'):
+        lines.append('Room entry: give the obvious layer (reveal.obvious) and hold the rest (reveal.hold); '
+                     'end with Kit asking where they look.')
     if not opening and not held:
         lines.append(SHORT_BEAT_LINE)
     compute = planning_input.get('compute') or {}
@@ -4015,7 +4154,10 @@ class KitChatBridge:
                 revision, body, planning_input = prepare_turn(
                     self.runtime, self.adjudicator, action, use_memory, one_pass=one_pass,
                     table_talk=table_talk)
+            except EngineInterstitial as raised:
+                return self._interstitial(turn_id, action, raised, started, clock, stamps)
             except PendingRuling as exc:
+                kit_handoff.log_held(self.runtime, action, exc)  # telemetry: the input was held
                 if not exc.attempt:
                     raise
                 # Record the refused attempt publicly so the next turn can refer to it.
@@ -4071,6 +4213,22 @@ class KitChatBridge:
         # Runtime time and packet size, from the bridge's own clock (docs/architecture/HOST_TIMING.md).
         self.runtime.record_kit_timing(turn_id, runtime_prepare_ms=round((time.perf_counter() - clock) * 1000, 2),
                                        packet_bytes=_bytes(packet), **manifest)
+        return packet
+
+    def _interstitial(self, turn_id, action, raised, started, clock, stamps):
+        """An engine checkpoint: committed now, shown as is; no model packet (PR-H)."""
+        revision, record = commit_interstitial(self.runtime, turn_id, action, raised)
+        packet = {'stage': 'interstitial', 'committed': True, 'turn_id': turn_id, 'revision': revision,
+                  'turn_role': 'interstitial', 'interstitial': record['interstitial'],
+                  'spoken': record['spoken'], 'next_step': INTERSTITIAL_NEXT_STEP}
+        speculative = speculative_branches(self.runtime, self.adjudicator, record['interstitial'])
+        self.runtime.record_kit_timing(
+            turn_id, mode='engine_interstitial', prepare_started_at=started, prepared_at=time.time(),
+            committed_at=time.time(), runtime_prepare_ms=round((time.perf_counter() - clock) * 1000, 2),
+            packet_bytes=_bytes(packet), **({'speculative': speculative} if speculative else {}))
+        if stamps:
+            self.stamp(turn_id, **stamps)
+        kit_handoff.log_turn(self.runtime, turn_id, action, INTERSTITIAL_KIND, record=record)
         return packet
 
     def _layer(self, turn_id, packet):
@@ -4140,6 +4298,7 @@ class KitChatBridge:
         self._check_degraded_allowed(turn_id, degraded)
         variant = (self.runtime.kit_timing(turn_id) or {}).get('performance_variant', 'current')
         record = self._checked_or_log(turn_id, body, pending['plan'], speech, variant, degraded)
+        record.update(kit_interstitial.describe(record['trace'], turn_id))
         revision = self.runtime.commit_kit_turn(
             turn_id, pending['revision'], turn_events(self.runtime, body, pending['plan'], turn_id, record),
             record, consume_pending=True)
@@ -4151,8 +4310,11 @@ class KitChatBridge:
                   'performance_variant': variant, 'timing': self._finish_timing(turn_id, record)}
         if record['trace'].get('ask_player'):
             result.update(asked=True, next_step=ASKED_NEXT_STEP)
+        result.update({key: record[key] for key in ('turn_role', 'interstitial') if key in record})
         if record.get('degraded'):
             result.update(degraded=True, soft_warnings=record['soft_warnings'])
+        kit_handoff.log_turn(self.runtime, turn_id, body['action'], body['kind'], body, record.get('trace'), record,
+                             by_player=body['kind'] != 'opening' and not body.get('table_talk'))
         return result
 
     def _pending_or_replay(self, turn_id, speech=None, decision=None):
@@ -4316,6 +4478,7 @@ class KitChatBridge:
         # Turns staged before variants reached one-pass ran the `current` instructions.
         variant = body.get('performance_variant', 'current')
         record = self._checked_or_log(turn_id, body, plan, output['performance'], variant, degraded)
+        record.update(kit_interstitial.describe(record['trace'], turn_id))
         next_revision = self.runtime.commit_kit_turn(
             turn_id, revision, turn_events(self.runtime, body, plan, turn_id, record), record,
             consume_pending=True)
