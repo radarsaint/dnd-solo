@@ -24,6 +24,13 @@ class KitVisualTests(unittest.TestCase):
         self.runtime.close()
         self.tmp.cleanup()
 
+    def replace_runtime(self, source, area):
+        self.runtime.close()
+        if self.db.exists():
+            self.db.unlink()
+        self.runtime = Runtime(self.db)
+        self.runtime.initialize(source, area)
+
     def test_visual_brief_is_player_safe_and_does_not_change_world_revision(self):
         before = self.runtime.load()[0]
         brief = kit_visual.prepare_visual(self.runtime, "Draw what I see from here.")
@@ -41,14 +48,12 @@ class KitVisualTests(unittest.TestCase):
         self.assertNotIn("guards from the gatehouse below", blob)
 
     def test_only_explicit_public_visual_descriptors_cross_boundary(self):
-        self.runtime.close()
         source = copy.deepcopy(self.source)
         source["actors"]["warden"]["visual"] = {
             "public": ["Weathered human watchman.", "Brass-trimmed leather coat."],
             "dm_only": ["A black sun tattoo under his collar."],
         }
-        self.runtime = Runtime(self.db)
-        self.runtime.initialize(source, "watchroom")
+        self.replace_runtime(source, "watchroom")
         brief = kit_visual.prepare_visual(self.runtime, "Draw the watch warden as I see him.")
         blob = json.dumps(brief, ensure_ascii=False)
         self.assertIn("Weathered human watchman.", blob)
@@ -70,11 +75,9 @@ class KitVisualTests(unittest.TestCase):
         self.assertNotIn("BFDM-CORE-08", ids)
 
     def test_visible_exact_entity_can_resolve_existing_canonical_art(self):
-        self.runtime.close()
         source = copy.deepcopy(self.source)
         source["actors"]["warden"]["name"] = "Halaster Blackcloak"
-        self.runtime = Runtime(self.db)
-        self.runtime.initialize(source, "watchroom")
+        self.replace_runtime(source, "watchroom")
         brief = kit_visual.prepare_visual(self.runtime, "Draw Halaster Blackcloak.")
         candidates = brief["canonical_asset_candidates"]
         self.assertEqual([c["id"] for c in candidates], ["halaster-blackcloak"])
