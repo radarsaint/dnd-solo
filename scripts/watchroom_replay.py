@@ -32,6 +32,26 @@ LONG = ('Nik is on the landing outside the watchroom, careful and quiet, and the
         'humming, and watching the stair; the scene is about whether he gets past the post unchallenged.')
 
 
+# Model-time estimate (no model is called): each model trip reads the packet and writes the
+# output. These rates are assumptions for comparing builds, not measurements; pass your own.
+MODEL = {'overhead_s': 1.0, 'prefill_tps': 2500.0, 'decode_tps': 50.0, 'bytes_per_token': 4.0}
+
+
+def model_trip_s(packet_bytes, output_bytes):
+    tokens_in = packet_bytes / MODEL['bytes_per_token']
+    tokens_out = output_bytes / MODEL['bytes_per_token']
+    return MODEL['overhead_s'] + tokens_in / MODEL['prefill_tps'] + tokens_out / MODEL['decode_tps']
+
+
+def pct(values, q):
+    values = sorted(values)
+    if not values:
+        return None
+    k = (len(values) - 1) * q
+    lo, hi = int(k), min(int(k) + 1, len(values) - 1)
+    return round(values[lo] + (values[hi] - values[lo]) * (k - lo), 3)
+
+
 def nbytes(value):
     return len(json.dumps(value, ensure_ascii=False).encode('utf-8'))
 
@@ -305,12 +325,27 @@ def run(out=None):
                     break
         rows.append(row)
     runtime.close()
+    for r in rows:
+        trips = []
+        packet, written = r.get('packet_bytes', 60000), r.get('decision_bytes', 0) + r.get('speech_bytes', 0)
+        # A stall or misread costs Kit a trip to read the ruling and reword (about 200 bytes out);
+        # every reject repeats the whole trip with the full output.
+        trips += [model_trip_s(packet, 200)] * (r['stalls'] + r['misreads'])
+        trips += [model_trip_s(packet, written)] * (r['rejects'] + (1 if 'packet_bytes' in r else 0))
+        r['model_est_s'] = round(sum(trips), 3)
+        r['end_to_end_est_s'] = round(r['model_est_s'] + (sum(r['prepare_ms']) + sum(r['complete_ms'])) / 1000, 3)
     total = {key: sum(r[key] for r in rows) for key in ('stalls', 'misreads', 'rejects')}
+    e2e = [r['end_to_end_est_s'] for r in rows]
+    total.update(end_to_end_est_median_s=pct(e2e, 0.5), end_to_end_est_p95_s=pct(e2e, 0.95),
+                 engine_ms_median=pct([sum(r['prepare_ms']) + sum(r['complete_ms']) for r in rows], 0.5),
+                 engine_ms_p95=pct([sum(r['prepare_ms']) + sum(r['complete_ms']) for r in rows], 0.95),
+                 model_assumptions=MODEL)
     total['unresolved'] = sum(1 for r in rows if r.get('unresolved'))
     total['engine_ms'] = round(sum(sum(r['prepare_ms']) + sum(r['complete_ms']) for r in rows), 1)
     sized = [r for r in rows if 'packet_bytes' in r]
     for key in ('packet_bytes', 'decision_bytes', 'speech_bytes'):
         total[f'mean_{key}'] = round(sum(r[key] for r in sized) / len(sized)) if sized else 0
+        total[f'median_{key}'] = pct([r[key] for r in sized], 0.5)
     report = {'turns': rows, 'total': total}
     for r in rows:
         print(f"{r['turn']:>4} {r.get('kinds')} stall {r['stalls']} misread {r['misreads']} reject {r['rejects']} "
@@ -327,4 +362,8 @@ def run(out=None):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--json')
-    run(parser.parse_args().json)
+    for key, value in MODEL.items():
+        parser.add_argument('--' + key.replace('_', '-'), type=float, default=value)
+    args = parser.parse_args()
+    MODEL.update({key: getattr(args, key) for key in MODEL})
+    run(args.json)
