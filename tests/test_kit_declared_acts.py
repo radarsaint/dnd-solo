@@ -42,7 +42,9 @@ def altar():
     facts['idol'] = {'area': 'hall', 'visible': True, 'text': 'A jade idol squats on the altar.',
                      'handling': {'nouns': ['idol', 'statuette'], 'look': 'Jade, cold and greasy.'}}
     source['actors'].pop('centipede_b')
-    source['actors']['centipede_a'].update(name='Skeleton', stat_block={'srd': 'Giant Centipede'})
+    source['actors']['centipede_a'].update(name='Skeleton', stat_block={  # SRD 5.1 Skeleton
+        'ac': 13, 'hp': 13, 'initiative': 2, 'stealth': 2,
+        'attacks': [{'name': 'shortsword', 'verb': 'stabs', 'to_hit': 4, 'damage': 5, 'type': 'piercing'}]})
     source['triggers'] = [{'id': 'altar_disturbed', 'on': {'disturb': 'altar'}, 'actors': ['centipede_a'],
                            'reveal': 'Bones knit together behind the altar.'}]
     return source
@@ -207,7 +209,9 @@ class DeclaredHandlesTests(unittest.TestCase):
         self.assertNotIn('orb', result.offers['handles']['targets']['carcass'])
         with self.assertRaises(InvalidChange):
             kit_acts.check({'handles': {'target': 'orb', 'act': 'take'}}, {'acts': result.offers})
-        self.assertIsNone(resolve(Room(self), 'I take the orb.'), 'naming the unseen orb is no act on it')
+        result = resolve(Room(self), 'I take the orb.')  # Kit's call; the orb is not among the handles
+        self.assertNotIn('orb', result.offers['handles']['targets']['carcass'])
+        self.assertNotIn('reveal_fact', [e['type'] for e in result.events])
 
     def test_a_declaration_must_name_what_was_offered(self):
         offer = {'handles': {'targets': {'carcass': ['claw']}}}
@@ -275,14 +279,14 @@ class BridgeTests(unittest.TestCase):
 
     def test_kit_saying_no_handling_leaves_the_room_asleep(self):
         room = Room(self)
-        _, _, result = self.turn(room, 'I take a step toward the claw.')
+        _, _, result = self.turn(room, 'I take a step toward the claw.', {'target': 'none', 'act': 'none'})
         self.assertNotIn('Roll initiative', result['spoken'])
         self.assertEqual(room.state.get('triggers_fired') or [], [])
 
     def test_a_declaration_on_a_turn_that_offered_nothing_is_rejected(self):
         room = Room(self)
         with self.assertRaisesRegex(InvalidChange, 'Nothing here can be handled'):
-            self.turn(room, 'I look around the hall.', {'target': 'carcass', 'act': 'roll'})
+            self.turn(room, 'What is in the claw?', {'target': 'carcass', 'act': 'roll'})
         self.assertEqual(room.state.get('triggers_fired') or [], [])
 
     def test_a_turn_with_no_trigger_room_carries_no_acts_block(self):
@@ -416,12 +420,12 @@ class IncapacitatedTests(unittest.TestCase):
         room.act('I roll the carcass over.', ROLL)
         room.act('Initiative 1')
         room.runtime.set_player_sheet(dict(room.state['player_sheet'], hp=12))
-        room.act('Con save 3')
+        room.act('Con save 3', downed='turn_away')  # Kit: the centipedes leave him be
         return room
 
     def test_he_cannot_crawl_out_or_act(self):
         room = self.dropped()
-        self.assertEqual(room.state['pc_conditions'], ['poisoned', 'paralyzed'])
+        self.assertEqual(room.state['pc_conditions'], ['unconscious', 'poisoned', 'paralyzed'])
         for line in ('I crawl toward the stair.', 'I walk up the stair.', 'I hit the banded centipede.',
                      '"Help!"'):
             with self.subTest(line=line):
@@ -432,14 +436,11 @@ class IncapacitatedTests(unittest.TestCase):
 
     def test_conditions_persist_after_the_fight_until_they_end(self):
         room = self.dropped()
-        state = copy.deepcopy(room.state)
-        revision, _ = room.runtime.load()
-        over = dict(state['combat'], status='over', pc_down=False)
-        room.runtime.commit('over', revision, [{'type': 'combat_state', 'state': over, 'evidence': 'test'}])
-        self.assertEqual(room.state['pc_conditions'], ['poisoned', 'paralyzed'])
-        self.assertEqual(room.runtime.player_view().get('your_conditions'), ['poisoned', 'paralyzed'])
+        self.assertEqual(room.state['combat']['status'], 'over')
+        self.assertEqual(room.state['pc_conditions'], ['unconscious', 'poisoned', 'paralyzed'])
+        self.assertEqual(room.runtime.player_view().get('your_conditions'), ['unconscious', 'poisoned', 'paralyzed'])
         revision, state = room.runtime.load()
-        with self.assertRaisesRegex(PendingRuling, 'paralyzed'):
+        with self.assertRaisesRegex(PendingRuling, 'down at 0 hit points'):
             room.adjudicator.resolve('I walk up the stair.', revision, state)
         room.runtime.commit('ends', revision, [{'type': 'pc_conditions', 'conditions': [], 'evidence': 'an hour'}])
         self.assertEqual(room.state['pc_conditions'], [])
@@ -554,14 +555,8 @@ class TieRuleTests(unittest.TestCase):
                 result = room.act(f'I hit the banded centipede with my quarterstaff: {total} to hit, 1 bludgeoning damage.')
                 self.assertEqual('misses' not in result.public_event.split('.')[0], hit, result.public_event)
 
-    def test_the_pcs_stealth_against_the_best_passive_perception(self):
-        # 6c: the best passive Perception present is 11.
-        for total, unnoticed in ((11, True), (12, True), (10, False)):
-            with self.subTest(total=total):
-                runtime, adjudicator = SixCRegressionTests.room(self)
-                revision, state = runtime.load()
-                result = adjudicator.resolve(f'I sneak toward the door, Stealth {total}', revision, state)
-                self.assertEqual('unnoticed' in result.public_event, unnoticed, result.public_event)
+    # The PC's Stealth against a passive Perception (tie, +1, -1) is tested off 6c, in the
+    # from-scratch crypt: test_kit_review97b.FromScratchRoomTests.
 
     def test_an_npc_lie_against_passive_insight(self):
         sheet = json.loads(NIK.read_text())

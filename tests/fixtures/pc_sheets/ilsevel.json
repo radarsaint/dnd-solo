@@ -1,0 +1,66 @@
+{
+  "schema": "character_sheet_v1",
+  "_note": "Test sheet: an elf fighter (a ghoul's claws cannot paralyze an elf, SRD). Not anyone's character.",
+  "name": "Ilsevel",
+  "ancestry": "Elf (Wood)",
+  "class": "Fighter",
+  "level": 5,
+  "background": "Soldier",
+  "abilities": {
+    "str": 16,
+    "dex": 14,
+    "con": 14,
+    "int": 10,
+    "wis": 12,
+    "cha": 8
+  },
+  "proficiency_bonus": 3,
+  "saving_throws": {
+    "str": 6,
+    "dex": 2,
+    "con": 5,
+    "int": 0,
+    "wis": 1,
+    "cha": -1
+  },
+  "skills": {
+    "acrobatics": 2,
+    "animal_handling": 1,
+    "arcana": 0,
+    "athletics": 6,
+    "deception": -1,
+    "history": 0,
+    "insight": 1,
+    "intimidation": 2,
+    "investigation": 0,
+    "medicine": 1,
+    "nature": 0,
+    "perception": 4,
+    "performance": -1,
+    "persuasion": -1,
+    "religion": 0,
+    "sleight_of_hand": 2,
+    "stealth": 2,
+    "survival": 4
+  },
+  "passives": {
+    "perception": 14,
+    "insight": 11,
+    "investigation": 10
+  },
+  "ac": 18,
+  "hp": 44,
+  "speed_ft": 35,
+  "gold_gp": 60,
+  "features": [
+    "Second Wind",
+    "Action Surge",
+    "Extra Attack"
+  ],
+  "gear": [
+    "longsword",
+    "shield",
+    "chain mail",
+    "potion of healing"
+  ]
+}

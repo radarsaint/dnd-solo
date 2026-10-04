@@ -1,0 +1,261 @@
+{
+ "id": "synthetic-crypt-v1",
+ "fixture_only": true,
+ "_note": "Synthetic, non-6c room written from scratch for #97's review (not copied from carcass.json, no book text): a crypt nave with a sealed sarcophagus (a ghoul inside), a vestment chest, and an unfound trapdoor (a skeleton below), plus a sexton in the vestibule. SRD 5.1 Ghoul, Skeleton and Commoner stat lines (runtime/srd_creatures.py). Data only. Stat lines are written out inline with the SRD numbers (runtime/srd_creatures.py lists the same creatures for rooms that cite them by name).",
+ "starting_area": "nave",
+ "areas": {
+  "nave": {
+   "name": "Crypt nave",
+   "called": "the nave",
+   "arrival": "Someone comes in under the arch."
+  },
+  "vestibule": {
+   "name": "Vestibule",
+   "called": "the vestibule",
+   "arrival": "Someone steps into the vestibule."
+  }
+ },
+ "exits": {
+  "arch": {
+   "name": "the low arch",
+   "areas": [
+    "nave",
+    "vestibule"
+   ],
+   "secret": false,
+   "labels": {
+    "nave": "A low arch opens on the vestibule.",
+    "vestibule": "The low arch leads back into the nave."
+   }
+  }
+ },
+ "facts": {
+  "sarcophagus": {
+   "area": "nave",
+   "visible": true,
+   "text": "A stone sarcophagus stands in the middle of the nave, its lid sealed with old wax.",
+   "handling": {
+    "nouns": [
+     "sarcophagus",
+     "coffin",
+     "tomb"
+    ],
+    "parts": [
+     "lid",
+     "seal"
+    ],
+    "holds": "amulet",
+    "look": "The wax seal is cracked along one edge.",
+    "move": "The lid grinds a hand-width aside.",
+    "handle": "Cold stone and brittle wax under your fingers."
+   }
+  },
+  "amulet": {
+   "area": "nave",
+   "visible": false,
+   "text": "A tarnished amulet rests on the bones inside.",
+   "handling": {
+    "nouns": [
+     "amulet",
+     "pendant"
+    ],
+    "look": "Silver gone black."
+   }
+  },
+  "chest": {
+   "area": "nave",
+   "visible": true,
+   "text": "A vestment chest sits against the wall beside the sarcophagus.",
+   "handling": {
+    "nouns": [
+     "chest",
+     "vestments"
+    ],
+    "look": "Moth-eaten vestments, folded long ago.",
+    "move": "The chest scrapes a foot along the flagstones."
+   }
+  },
+  "flagstones": {
+   "area": "nave",
+   "visible": true,
+   "text": "Worn flagstones pave the nave; one near the wall sits a finger lower than the rest."
+  },
+  "trapdoor": {
+   "area": "nave",
+   "visible": false,
+   "text": "A trapdoor of fitted stone is set in the floor by the wall.",
+   "handling": {
+    "nouns": [
+     "trapdoor",
+     "hatch"
+    ],
+    "look": "An iron ring is sunk in the stone.",
+    "move": "The trapdoor groans up on a black shaft."
+   }
+  },
+  "bench": {
+   "area": "vestibule",
+   "visible": true,
+   "text": "A sexton's bench, with a lantern on it."
+  }
+ },
+ "actors": {
+  "ghoul": {
+   "name": "Hollow-eyed ghoul",
+   "location": "nave",
+   "status": "hidden",
+   "visible": false,
+   "motive": "Feed.",
+   "knowledge": [],
+   "secrets": [],
+   "communication_profile": {
+    "rhythm": "Wet breathing.",
+    "humor": "None."
+   },
+   "stat_block": {
+    "_srd": "SRD 5.1 Ghoul (the claws: one attack a turn)",
+    "ac": 12,
+    "hp": 22,
+    "initiative": 2,
+    "grapple": 1,
+    "stealth": 2,
+    "attacks": [
+     {
+      "name": "claws",
+      "verb": "rakes",
+      "to_hit": 4,
+      "damage": 7,
+      "type": "slashing",
+      "save": {
+       "ability": "con",
+       "dc": 10,
+       "damage": 0,
+       "type": "paralysis",
+       "condition": {
+        "name": "paralyzed",
+        "rounds": 10,
+        "repeat": "end_of_turn",
+        "immune": [
+         "elf"
+        ]
+       }
+      }
+     }
+    ]
+   }
+  },
+  "skeleton": {
+   "name": "Mail-clad skeleton",
+   "location": "nave",
+   "status": "hidden",
+   "visible": false,
+   "motive": "Guard the shaft.",
+   "knowledge": [],
+   "secrets": [],
+   "communication_profile": {
+    "rhythm": "Silent.",
+    "humor": "None."
+   },
+   "stat_block": {
+    "_srd": "SRD 5.1 Skeleton",
+    "ac": 13,
+    "hp": 13,
+    "initiative": 2,
+    "stealth": 2,
+    "attacks": [
+     {
+      "name": "shortsword",
+      "verb": "stabs",
+      "to_hit": 4,
+      "damage": 5,
+      "type": "piercing"
+     }
+    ]
+   }
+  },
+  "sexton": {
+   "name": "Old sexton",
+   "location": "vestibule",
+   "status": "alive",
+   "visible": true,
+   "motive": "Keep strangers out of the crypt.",
+   "knowledge": [],
+   "secrets": [],
+   "communication_profile": {
+    "rhythm": "Slow, suspicious.",
+    "humor": "Dry."
+   },
+   "stat_block": {
+    "_srd": "SRD 5.1 Commoner",
+    "ac": 10,
+    "hp": 4,
+    "initiative": 0,
+    "attacks": [
+     {
+      "name": "club",
+      "verb": "strikes",
+      "to_hit": 2,
+      "damage": 2,
+      "type": "bludgeoning"
+     }
+    ]
+   }
+  }
+ },
+ "claims": {
+  "trapdoor": {
+   "about": "item:floor/trapdoor",
+   "truth": "A stone trapdoor is set in the floor by the wall.",
+   "source": "kit",
+   "fact": "trapdoor",
+   "roots": [
+    "trapdoor",
+    "flagstones"
+   ],
+   "exposure": "hidden",
+   "dc": 12,
+   "pc_check": "investigation",
+   "pc_checks": [
+    "investigation",
+    "perception"
+   ],
+   "pc_access": "roll",
+   "subject_words": [
+    "floor",
+    "flagstones",
+    "flagstone",
+    "trapdoor",
+    "hatch"
+   ]
+  }
+ },
+ "triggers": [
+  {
+   "id": "tomb_opened",
+   "on": {
+    "disturb": "sarcophagus"
+   },
+   "starts_combat": true,
+   "actors": [
+    "ghoul"
+   ],
+   "surprise": {
+    "stealth": 2
+   },
+   "reveal": "Grey fingers curl over the rim of the sarcophagus and a ghoul hauls itself out."
+  },
+  {
+   "id": "shaft_opened",
+   "on": {
+    "disturb": "trapdoor"
+   },
+   "starts_combat": true,
+   "actors": [
+    "skeleton"
+   ],
+   "reveal": "A skeleton in rotted mail climbs out of the shaft, sword first."
+  }
+ ],
+ "story": {},
+ "resources": {}
+}
