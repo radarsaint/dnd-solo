@@ -324,6 +324,26 @@ class PartsAndHeldItems(unittest.TestCase):
         errors = kit_author.validate(room, self.inputs())['errors']
         self.assertFalse(any('handling.holds' in e for e in errors), errors)
 
+    def test_a_fact_that_only_mentions_the_feature_near_a_preposition_is_not_held(self):
+        # "on the planks north of the lantern": the preposition governs the planks, not the lantern.
+        room = lair_room()
+        room['facts']['rat'] = {'area': 'loft', 'visible': True,
+                                'text': 'A dead rat lies on the planks north of the lantern.'}
+        errors = kit_author.validate(room, self.inputs())['errors']
+        self.assertFalse(any('fact rat is in or on' in e for e in errors), errors)
+
+    def test_holds_is_one_fact_so_a_second_item_in_a_holding_feature_is_not_an_error(self):
+        # holds names one fact: a feature that already holds one cannot list a second, so the
+        # rule cannot be met and is not enforced (the held fact or the look line carries the rest).
+        room = lair_room()
+        room['facts']['wick_key'] = {'area': 'loft', 'visible': False,
+                                     'text': 'A tiny key is wedged inside the lantern.'}
+        room['facts']['wick_coin'] = {'area': 'loft', 'visible': False,
+                                      'text': 'A copper coin is stuck inside the lantern too.'}
+        room['facts']['lantern']['handling']['holds'] = 'wick_key'
+        errors = kit_author.validate(room, self.inputs())['errors']
+        self.assertFalse(any('fact wick_coin is in or on' in e for e in errors), errors)
+
     def test_a_graspable_part_must_be_listed(self):
         self.assertEqual(kit_author.validate(lair_room(), self.inputs())['errors'], [])
         room = lair_room()
