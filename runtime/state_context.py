@@ -220,6 +220,7 @@ def check_player_note_text(text):
 
 class Runtime:
     def __init__(self, path):
+        self.path = path  # the session dir is its parent (kit_handoff's trace lives there)
         self.db = sqlite3.connect(path)
         self.db.execute("PRAGMA foreign_keys = ON")
         self.db.executescript("""

@@ -24,6 +24,8 @@ from . import kit_cards
 from . import kit_combat
 from . import kit_rolls
 from . import kit_triggers
+from . import kit_reveal
+from . import kit_handoff
 from . import kit_claims
 from . import kit_manifest
 from . import kit_router
@@ -3353,6 +3355,13 @@ def prepare_inputs(runtime, revision, state, action, resolution, use_memory, one
     if due and not table_talk:
         body['story_due'] = due
         body['story_area'] = post_event_state['area']
+    reveal = kit_reveal.view(source, post_event_state, resolution.kind, table_talk,
+                             held=bool(body.get('held_description')) or bool(due))
+    if reveal:
+        # Private: room entry gives the obvious layer first, then hands the floor back (PR-H).
+        # A due hook takes the entry instead: its NPC holds the floor (the challenge is the decision).
+        body['progressive_reveal'] = reveal
+        planning_input['reveal'] = {key: reveal[key] for key in ('rule', 'obvious', 'hold')}
     table = card_procedure(source, post_event_state)
     if table and not str(resolution.kind).startswith('card_') and resolution.kind != 'opening':
         planning_input['activities'] = {table[0]: BACKGROUNDED}
@@ -3786,6 +3795,8 @@ def checked_record(body, plan, speech, performance_variant, source=None, degrade
     spoken, warnings = result if degraded else (result, [])
     kit_agenda.check_carriers_spoken(spoken, plan)
     check_held_delivered(body.get('held_description'), spoken)
+    if not ask and not stall_check(plan, body['kind']):
+        kit_reveal.check_spoken(body.get('progressive_reveal'), speech['segments'], source)
     if body.get('story_due') and not ask:
         # An undelivered primary hook is overdue: its NPC raises it now (runtime/kit_brief.py).
         kit_brief.check_raised(body['story_due'], source, {'area': body['story_area']}, spoken)
@@ -4008,6 +4019,9 @@ def first_try_lines(runtime, body, planning_input):
     elif body['kind'] in STALL_KINDS and not body.get('story_due') and \
             not (runtime.load()[1].get('pending_check') or {}).get('held'):
         lines.append(STALL_LINE)
+    if planning_input.get('reveal'):
+        lines.append('Room entry: give the obvious layer (reveal.obvious) and hold the rest (reveal.hold); '
+                     'end with Kit asking where they look.')
     if not opening and not held:
         lines.append(SHORT_BEAT_LINE)
     compute = planning_input.get('compute') or {}
@@ -4096,6 +4110,7 @@ class KitChatBridge:
             except EngineInterstitial as raised:
                 return self._interstitial(turn_id, action, raised, started, clock, stamps)
             except PendingRuling as exc:
+                kit_handoff.log_held(self.runtime, action, exc)  # telemetry: the input was held
                 if not exc.attempt:
                     raise
                 # Record the refused attempt publicly so the next turn can refer to it.
@@ -4160,6 +4175,7 @@ class KitChatBridge:
             packet_bytes=_bytes(packet), **({'speculative': speculative} if speculative else {}))
         if stamps:
             self.stamp(turn_id, **stamps)
+        kit_handoff.log_turn(self.runtime, turn_id, action, INTERSTITIAL_KIND, record=record)
         return packet
 
     def _layer(self, turn_id, packet):
@@ -4244,6 +4260,8 @@ class KitChatBridge:
         result.update({key: record[key] for key in ('turn_role', 'interstitial') if key in record})
         if record.get('degraded'):
             result.update(degraded=True, soft_warnings=record['soft_warnings'])
+        kit_handoff.log_turn(self.runtime, turn_id, body['action'], body['kind'], body, record.get('trace'), record,
+                             by_player=body['kind'] != 'opening' and not body.get('table_talk'))
         return result
 
     def _pending_or_replay(self, turn_id, speech=None, decision=None):

@@ -726,6 +726,11 @@ class Fight:
             self.fight['awaiting'] = None
             if self.fight['status'] == 'running':
                 self.advance_past_pc()
+        if kind == 'attack' and not self.hostiles() and not (self.fight and self.fight.get('status') != 'over'):
+            # Nobody here to fight (a lurker not yet shown is not a target): no fight starts, and
+            # the rest of the message (a feature disturbed) resolves on its own.
+            self.trace.append('attack at nobody: no fight')
+            return
         if kind == 'attack':
             self.ensure_fight('pc')
         if self.fight and self.fight['status'] == 'awaiting_initiative' and init is not None:
