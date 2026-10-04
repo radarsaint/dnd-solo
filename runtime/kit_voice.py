@@ -57,6 +57,9 @@ TIGHT_MAX_WORDS = {'exchange': 110, 'feature': 150}  # a call keeps its own 60-w
 COMBAT_MAX_AVG_SENTENCE_WORDS = 14                   # Narrator and Kit sentences in combat
 COMBAT_MAX_SENTENCE_WORDS = 24
 SHOWTIME_MAX_KIT_SEGMENTS = 3
+# Showtime is one Kit remark by default; up to three only for a playful player (PR3 d).
+SHOWTIME_DEFAULT_KIT_SEGMENTS = 1
+SHOWTIME_PLAYFUL_MOODS = ('playful', 'gleeful')
 
 
 
@@ -256,9 +259,12 @@ def check_voice_presence(segments, plan, focus_speakers=()):
     if plan.get('turn_mode') == 'meta':
         require(kit_count >= 1, 'Meta turn: Kit answers the table talk herself in a Kit segment')
     if plan.get('table_presence') == 'showtime':
-        require(1 <= kit_count <= SHOWTIME_MAX_KIT_SEGMENTS,
-                f'Showtime: Kit takes the stage in 1-{SHOWTIME_MAX_KIT_SEGMENTS} Kit segments, '
-                f'not {kit_count}; the actors still get their turn')
+        playful = (plan.get('player_mood') or {}).get('read') in SHOWTIME_PLAYFUL_MOODS
+        most = SHOWTIME_MAX_KIT_SEGMENTS if playful else SHOWTIME_DEFAULT_KIT_SEGMENTS
+        require(1 <= kit_count <= most,
+                f'Showtime: Kit takes the stage in 1-{most} Kit segments, not {kit_count} '
+                f'({"a playful player" if playful else "one remark unless the player is playful"}); '
+                'the actors still get their turn')
     if not is_none(brief.get('npc_notice', 'none')):
         require(focus_speakers and any(segment['speaker'] in focus_speakers for segment in segments),
                 f'npc_notice: the {" or ".join(focus_speakers) or "focus actor"} never reacted. They '

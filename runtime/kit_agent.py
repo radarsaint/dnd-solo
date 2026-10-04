@@ -1550,7 +1550,6 @@ def appraisal_label(label):
 PLAN_SCHEMA = {
     'type': 'object', 'additionalProperties': False,
     'properties': {
-        'observed_event': {'type': 'string'},
         'goal': {'type': 'string', 'enum': [
             'story_enjoyment', 'roleplay', 'npc_embodiment', 'competent_opposition',
             'fair_challenge', 'reward_creativity', 'campaign_through_line',
@@ -1574,11 +1573,9 @@ PLAN_SCHEMA = {
         'public_brief': {'type': 'object', 'additionalProperties': False,
                          'properties': {
                              **{key: {'type': 'string'} for key in
-                                ('objective', 'tactic', 'visible_cue', 'player_opening',
-                                 'reply_to', 'kit_focus', 'callback', 'mirror', 'npc_notice')},
+                                ('tactic', 'reply_to', 'kit_focus', 'callback', 'mirror', 'npc_notice')},
                              'scope': {'type': 'string', 'enum': ['call', 'exchange', 'feature']}},
-                         'required': ['objective', 'tactic', 'visible_cue', 'player_opening',
-                                      'reply_to', 'scope', 'kit_focus', 'callback', 'mirror',
+                         'required': ['tactic', 'reply_to', 'scope', 'kit_focus', 'callback', 'mirror',
                                       'npc_notice']},
         # Any actor id present in the scene (agenda_here / claims_here list them), or none.
         'focus_actor': {'type': 'string'},
@@ -1619,15 +1616,14 @@ PLAN_SCHEMA = {
         # Hints and hooks Kit plants, pays off, or drops this turn (runtime/kit_threads.py).
         'open_threads': kit_threads.OPEN_THREADS_SCHEMA,
     },
-    'required': ['observed_event', 'goal', 'appraisal', 'memory_refs', 'improv_read', 'move', 'public_brief',
-                 'focus_actor', 'table_presence', 'tone', 'player_note', 'player_mood', 'turn_mode',
-                 'detail'],
+    'required': ['goal', 'appraisal', 'memory_refs', 'improv_read', 'move', 'public_brief',
+                 'focus_actor', 'table_presence', 'tone', 'player_note', 'player_mood', 'turn_mode'],
 }
 
 # The strict API schema needs every property required.
 API_PLAN_SCHEMA = json.loads(json.dumps(PLAN_SCHEMA))
 OPTIONAL_PLAN_KEYS = ('claims', 'agenda', 'salience', 'roll_call', 'pc_state', 'pc_oddity', 'ask_player', 'plan',
-                      'open_threads')
+                      'open_threads', 'observed_event', 'detail')  # the engine fills these when left out (PR3 a, c)
 # Strict mode cannot leave an object out, so the chat-only paths (a PC state change, an
 # oddity reaction, a question to the player) are not offered to the API model at all.
 CHAT_ONLY_PLAN_KEYS = ('pc_state', 'pc_oddity', 'ask_player', 'plan', 'open_threads')
@@ -1661,8 +1657,10 @@ ONE_PASS_SCHEMA = {
     'required': ['decision', 'performance'],
 }
 
-BRIEF_TEXT_FIELDS = ('objective', 'tactic', 'visible_cue', 'player_opening')
+BRIEF_TEXT_FIELDS = ('tactic',)
 BRIEF_FIELDS = BRIEF_TEXT_FIELDS + ('reply_to', 'scope', 'kit_focus', 'callback', 'mirror', 'npc_notice')
+# Accepted from older hosts and checked like the rest when sent; no longer asked for (PR3 b).
+LEGACY_BRIEF_FIELDS = ('objective', 'visible_cue', 'player_opening')
 # Brief fields that quote public words verbatim (the player's, or an earlier
 # public turn's). They are checked as quotes, not as Kit's own direction.
 BRIEF_QUOTE_FIELDS = ('reply_to', 'callback')
@@ -1768,6 +1766,11 @@ EXCHANGE_MIN_ACTOR_WORDS = 30  # the selected actor's own speech (voiced actors 
 EXCHANGE_MIN_SEGMENTS = 2    # an embodied beat or second reactor, not one speech alone
 FEATURE_MIN_WORDS = 80       # scene entry or scene-turning moment
 FEATURE_MIN_SEGMENTS = 2
+# Speech ceilings (plan update #3, PR3 d). "Roomy" means the ceiling, not unlimited. They count
+# only what can be cut: narration and any second NPC. Never counted, so never shortened: the
+# focus actor's move, a due hook's raiser, the chosen detail's fact, and Kit's single reaction.
+EXCHANGE_MAX_WORDS = 90
+FEATURE_MAX_WORDS = 150
 
 
 def performance_limits(scope=None):
@@ -1784,6 +1787,11 @@ def performance_limits(scope=None):
                      f'{EXCHANGE_MIN_SEGMENTS} segments (e.g. a visible beat plus the actor).'),
         'feature': (f'At least {FEATURE_MIN_WORDS} words across non-Kit segments in at least '
                     f'{FEATURE_MIN_SEGMENTS} segments.'),
+        'ceiling': (f'Narration and any second NPC stay within {EXCHANGE_MAX_WORDS} words in an exchange and '
+                    f'{FEATURE_MAX_WORDS} in a feature (a call stays within {CALL_MAX_WORDS} words in all). '
+                    'The focus actor\'s move, a due hook, the chosen detail and Kit\'s one reaction are never '
+                    'counted, so never cut them. One NPC speaks unless a second changes the outcome; '
+                    'one Kit remark unless the player is playful.'),
         'mirror': (f'When the brief mirror says tight: at most {kit_voice.TIGHT_MAX_WORDS["exchange"]} '
                    f'words in an exchange, {kit_voice.TIGHT_MAX_WORDS["feature"]} in a feature (a call '
                    'keeps its own cap). Combat narration: short sentences (average at most '
@@ -1844,21 +1852,19 @@ ABANDON_INSTRUCTION = (
 PRIVATE_INSTRUCTIONS = (
     'You are Kit’s private decision stage, using the supplied canonical personality. '
     'Read DM-only information to keep the scene grounded. The event has already been adjudicated; '
-    'do not change its result or request world writes. Copy accepted_public_event exactly into '
-    'observed_event. On a social turn that event restates the player’s declared words; appraise '
+    'do not change its result or request world writes (the engine records accepted_public_event as '
+    'the observed event; do not copy it). On a social turn that event restates the player’s declared words; appraise '
     'what they actually said or did, not the scene in general. Appraise its relation to one of Kit’s actual '
     'goals, or choose none. Reference only supplied episode IDs. Choose a high-level move and '
     'regulate her table presence. focus_actor is the id of any actor present in the scene who '
     'carries the turn (the ids claims_here and agenda_here use), or none; an NPC move needs one '
-    'and improv_read.actor_ref names the same actor. First make an improv_read: describe the player’s declared '
-    'bid without inventing their thoughts; choose a story anchor and its established basis '
+    'and improv_read.actor_ref names the same actor. First make an improv_read: choose a story anchor and its established basis '
     'only if the move touches an active scene, level, or campaign pressure; choose a live actor and one established '
-    'goal basis, or none. State the specific connection among the bid, that pressure, the '
-    'actor’s aim, and Kit’s selected goal. In kit_choice say why she foregrounds this '
+    'goal basis, or none. In kit_choice, one line of about 160 characters: the player’s declared bid '
+    '(never their thoughts), the pressure or actor aim it meets, and why Kit foregrounds this '
     'reaction or lets it stay quiet. If no larger thread is relevant, do not insert one. '
-    'Then in public_brief choose an immediate objective, a tactic '
-    'that pursues it, one observable action grounded in the room, and a real opening for '
-    'the player. Use the actor’s private motives to decide what they try, but phrase the '
+    'Then in public_brief choose a tactic: what the actor tries now, grounded in the room, '
+    'leaving the player a real opening. Use the actor’s private motives to decide what they try, but phrase the '
     'brief as safe direction for a performer who sees only the public scene. If action_kind '
     'is opening, choose world_description and frame the people and pressure before the '
     'player acts; set focus_actor to the person who speaks first, and the performance needs '
@@ -1936,9 +1942,11 @@ PRIVATE_INSTRUCTIONS = (
     '<subject>/<facet>". For self or override write 3-5 one-line candidates (idea, the '
     'established fact it uses, the player choice it creates), mark the most typical one and '
     'choose another. Prefer familiar real-world or published material adapted to the setting '
-    'before building from scratch. owner is "<actor id|room|kit>: <what they want from it>"; '
-    'handle is what the player can do with it; because reads "true because <established '
-    'facts or known motives>". Record every fact this turn adds '
+    'before building from scratch. Only for self or override: owner is "<actor id|room|kit>: <what '
+    'they want from it>"; handle is what the player can do with it; because reads "true because '
+    '<established facts or known motives>". A dealt card needs only its draw_id and the one fact '
+    '(the card carries its handle and basis); leave every other detail field out. With no detail, '
+    'leave detail out. Record every fact this turn adds '
     'that the source does not supply as an invention (slot, kind, fact, basis, public, scope, '
     'procedure, change_reason). procedure names a runtime '
     'procedure from supported_procedures only when the thing is offered as playable; any other '
@@ -2212,6 +2220,7 @@ def check_plan(plan, episodes, public_event, action_kind=None, candidates=None, 
                oracle=None, claims_packet=None, table_talk=False):
     require(isinstance(plan, dict) and set(plan) - set(OPTIONAL_PLAN_KEYS) == set(PLAN_SCHEMA['required']),
             'Incomplete private decision')
+    plan.setdefault('detail', copy.deepcopy(kit_detail.NO_DETAIL))  # no detail this turn
     if 'claims' in plan:
         kit_claims.check_claims(plan['claims'], claims_packet, source or {}, state or {})
     if plan.get('salience'):
@@ -2223,6 +2232,7 @@ def check_plan(plan, episodes, public_event, action_kind=None, candidates=None, 
         kit_agenda.check_roll_call(plan['roll_call'], source or {},
                                    kit_agenda.with_pc_state(state or {}, plan.get('pc_state'),
                                                             fight=plan.get('turn_mode') == 'combat'))
+    plan.setdefault('observed_event', public_event)  # the engine's event, unless Kit copied it
     for key in ('observed_event', 'goal'):
         require(isinstance(plan[key], str) and plan[key].strip(), f'Missing {key}')
     require(plan['observed_event'] == public_event, 'Private decision changed the accepted event')
@@ -2277,9 +2287,9 @@ def check_plan(plan, episodes, public_event, action_kind=None, candidates=None, 
         require(plan['improv_read']['actor_ref'] == focus_actor_id(plan),
                 'NPC move disagrees with selected actor')
     brief = plan['public_brief']
-    require(isinstance(brief, dict) and set(brief) == set(BRIEF_FIELDS) and
+    require(isinstance(brief, dict) and set(brief) - set(LEGACY_BRIEF_FIELDS) == set(BRIEF_FIELDS) and
             all(isinstance(brief[key], str) and 0 < len(brief[key].strip()) <= 240
-                for key in BRIEF_FIELDS), 'Invalid public performance brief')
+                for key in brief), 'Invalid public performance brief')
     if action_kind == 'opening':
         # Room entry has no player words: reply_to is none by default (watchroom T0 rejected it).
         brief['reply_to'] = 'none'
@@ -2302,7 +2312,7 @@ def check_plan(plan, episodes, public_event, action_kind=None, candidates=None, 
     kit_guards.check_focus_specific(focus)
     kit_guards.check_direction_not_diction(brief)
     kit_guards.check_ruling_dodge(plan, action_kind, player_action, table_talk)
-    for field in BRIEF_FIELDS:
+    for field in brief:
         if field in BRIEF_QUOTE_FIELDS:
             continue
         require(all(_normalized(note['note']) not in _normalized(brief[field])
@@ -2503,11 +2513,40 @@ def check_scope(segments, plan, guards=None):
                 f'Exchange scope was flat ({performed_words} performed words in {len(segments)} '
                 f'segments; floor {EXCHANGE_MIN_WORDS} words in {EXCHANGE_MIN_SEGMENTS}). Add the '
                 'visible beat or reaction the brief calls for; a price or fact alone is not an exchange.')
+        check_ceiling(segments, plan, guards, EXCHANGE_MAX_WORDS)
         return
     require(performed_words >= FEATURE_MIN_WORDS and len(segments) >= FEATURE_MIN_SEGMENTS,
             f'Feature scope was flat ({performed_words} performed words in {len(segments)} '
             f'segments; floor {FEATURE_MIN_WORDS} words in {FEATURE_MIN_SEGMENTS}). Put people '
             'and pressure in motion, then stop at a player decision.')
+    check_ceiling(segments, plan, guards or {}, FEATURE_MAX_WORDS)
+
+
+def check_ceiling(segments, plan, guards, ceiling):
+    """SOFT: what can be cut stays under the scope's ceiling. The protected parts are never
+    counted: the focus actor, a due hook's raiser, the chosen detail's fact, and Kit (one
+    reaction; under showtime her first segment)."""
+    focus = focus_speaker(plan, guards['speakers']) if 'speakers' in guards else None
+    protected = {focus} | set(guards.get('raisers') or ())
+    facts = [_normalized(item['fact']) for item in kit_detail.public_inventions(plan.get('detail') or {})]
+    showtime = plan.get('table_presence') == 'showtime'
+    kit_seen = 0
+    words = 0
+    for segment in segments:
+        if segment['speaker'] == 'Kit':
+            kit_seen += 1
+            if not showtime or kit_seen == 1:
+                continue
+        elif segment['speaker'] in protected:
+            continue
+        count = _words(segment['text'])
+        text = _normalized(segment['text'])
+        count -= sum(_words(fact) for fact in facts if fact and fact in text)
+        words += max(count, 0)
+    require(words <= ceiling,
+            f'Over the ceiling: {words} words of narration and side voices (ceiling {ceiling}). Cut '
+            'the narration or the second voice; keep the focus actor\'s move, any due hook, the chosen '
+            'detail and Kit\'s one reaction whole.')
 
 
 def check_public_content(text, public_view, player_action, leak_sets=(), phrases=None):
@@ -3448,6 +3487,7 @@ def guard_context(source, body):
             'brief_speakers': tuple(name for name in dict.fromkeys(list(actor_speakers(source).values()) + list(cards))
                                     if (cards.get(name) or {}).get('speech_floor') is not True),
             'public_history': body.get('public_history', []),
+            'raisers': tuple(item['by'] for item in body.get('story_due') or ()),
             'table_talk': bool(body.get('table_talk'))}
 
 
