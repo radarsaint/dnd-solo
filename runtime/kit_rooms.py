@@ -39,11 +39,12 @@ KNOWN_BLOCKS = set(REQUIRED) | {
     'resources', 'fixture_only', 'stub', 'source_ref', 'map_ref', 'test_precondition', 'level_context',
     'campaign_context', 'public_performance', 'numeric_facts', 'leak_phrases', 'leak_keywords', 'claims',
     'room_rules', 'procedures', 'tolls', 'attitudes', 'story', 'texture_palette', 'combat', 'agenda',
-    'triggers'}
+    'triggers', 'traps', 'source_claims', 'authoring'}
 # The JSON type of each block (anything not listed is an object). A wrong type is refused at
 # mount, before any engine reads it.
 BLOCK_TYPES = {'id': str, 'starting_area': str, 'source_ref': str, 'map_ref': str, 'test_precondition': str,
-               'fixture_only': bool, 'stub': bool, 'room_rules': list, 'triggers': list}
+               'fixture_only': bool, 'stub': bool, 'room_rules': list, 'triggers': list, 'traps': list,
+               'source_claims': list}
 CARD_GAMES = ('twenty_one', 'three_dragon_ante')
 CARRIED_LIMIT = 24  # things taken out of rooms, kept as text; the oldest go first
 STAGES = ('approach', 'first_look', 'explore', 'resolution')
@@ -353,10 +354,9 @@ def later_stage_problems(source):
               ('story', kit_brief.compile_story), ('triggers', kit_triggers.compile_triggers)]
     for block, check in checks:
         if source.get(block):
-            try:
-                check(source)
-            except (InvalidChange, KeyError, TypeError, AttributeError) as exc:
-                problems.append(f'{block}: {exc}')
+            problems += [f'{block}: {p}' for p in every_problem(source, block, check)]
+    from . import kit_traps
+    problems += [f'traps: {p}' for p in kit_traps.trap_problems(source)]
     for key, config in (source.get('procedures') or {}).items():
         if not key.startswith('_') and isinstance(config, dict) and config.get('kind') == 'card_game':
             try:
@@ -364,6 +364,84 @@ def later_stage_problems(source):
             except (InvalidChange, KeyError, TypeError) as exc:
                 problems.append(f'procedure {key}: {exc}')
     return problems
+
+
+COMPILE_ERRORS = (InvalidChange, KeyError, TypeError, AttributeError, ValueError, IndexError)
+MAX_PROBLEMS_PER_BLOCK = 12
+
+
+def _first(source, check):
+    try:
+        check(source)
+    except COMPILE_ERRORS as exc:
+        return str(exc) or type(exc).__name__
+    return None
+
+
+def _items(value, path=()):
+    """Removable pieces of a block, deepest first: (path, ...) into dicts and lists."""
+    out = []
+    if isinstance(value, dict):
+        for key, item in value.items():
+            out += _items(item, path + (key,)) + [path + (key,)]
+    elif isinstance(value, list):
+        for index, item in enumerate(value):
+            out += _items(item, path + (index,)) + [path + (index,)]
+    return out
+
+
+def _without(block, path):
+    import copy as _copy
+    block = _copy.deepcopy(block)
+    parent = block
+    for step in path[:-1]:
+        parent = parent[step]
+    del parent[path[-1]]
+    return block
+
+
+def every_problem(source, block, check):
+    """Every problem a block's compiler finds, not just its first: the compilers stop at the
+    first error, so the piece that raised it is set aside and the compiler runs again (up to
+    MAX_PROBLEMS_PER_BLOCK). A repair gets one try, so it sees them all."""
+    import copy as _copy
+    import sys as _sys
+    found = []
+    # A soft pass first: the compiler's own require() records instead of raising, so one
+    # entry with two problems (a hook missing its text and its condition) names both.
+    module = _sys.modules.get(getattr(check, '__module__', ''))
+    original = getattr(module, 'require', None)
+    if original is not None:
+        def record(condition, message):
+            if not condition and message not in found:
+                found.append(message)
+        module.require = record
+        try:
+            check(_copy.deepcopy(source))
+        except Exception:  # noqa: BLE001 - soft pass: bad data may fail anywhere after a recorded miss
+            pass
+        finally:
+            module.require = original
+        found = found[:MAX_PROBLEMS_PER_BLOCK]
+    trial = _copy.deepcopy(source)
+    while len(found) < MAX_PROBLEMS_PER_BLOCK:
+        error = _first(trial, check)
+        if error is None:
+            break
+        if error not in found:
+            found.append(error)
+        culprit = None
+        # Whole entries only (a list element, or a block's top-level entry), never one field of
+        # an entry: setting aside a field would only raise a new, made-up problem.
+        for path in [p for p in _items(trial[block]) if isinstance(p[-1], int) or len(p) == 1]:
+            candidate = {**trial, block: _without(trial[block], path)}
+            if _first(candidate, check) != error:
+                culprit = candidate
+                break
+        if culprit is None:
+            break
+        trial = culprit
+    return found
 
 
 def check_room(source, ref='room'):

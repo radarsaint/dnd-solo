@@ -9,6 +9,7 @@ import json
 import re
 import secrets
 import sqlite3
+import uuid
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -235,6 +236,7 @@ class Runtime:
             );
             -- Timing telemetry is deliberately outside turns/ledger/kit_turns: it never
             -- enters a turn digest, so an identical retry stays idempotent.
+            CREATE TABLE IF NOT EXISTS session_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS kit_telemetry (
                 seq INTEGER PRIMARY KEY, turn_id TEXT NOT NULL UNIQUE, body TEXT NOT NULL
             );
@@ -247,11 +249,19 @@ class Runtime:
     def close(self):
         self.db.close()
 
+    def session_id(self):
+        row = self.db.execute("SELECT value FROM session_meta WHERE key='session_id'").fetchone()
+        return row[0] if row else None
+
     def initialize(self, source, area, room_path=None):
         """Create a fresh fixture session. Refuse to overwrite a running game. ``room_path``:
         the room file it was mounted from (kit_rooms), kept in the first snapshot."""
         require(self.db.execute('SELECT 1 FROM source').fetchone() is None,
                 'This database already holds a game.')
+        # The session's id: what scopes an authoring fallback to this session (kit_author).
+        with self.db:
+            self.db.execute("INSERT OR IGNORE INTO session_meta(key, value) VALUES ('session_id', ?)",
+                            (uuid.uuid4().hex,))
         require(area in source['areas'], 'Unknown starting area')
         for exit_id, edge in source['exits'].items():
             require(len(edge['areas']) == 2 and len(set(edge['areas'])) == 2,
@@ -453,6 +463,7 @@ class Runtime:
                 self.db.rollback()
                 return prior[1]
             revision, state = self.load()
+            area_before = state.get('area')
             if revision != expected_revision:
                 raise StaleTurn(f'Expected revision {expected_revision}; current is {revision}')
             if consume_pending:
@@ -519,8 +530,10 @@ class Runtime:
             # commit (docs/architecture/ROOM_LOADER.md): no host step, and a room that cannot
             # mount rejects the whole turn, so the session stays where it was. After Kit's episode:
             # the turn that leaves was decided in this room, so its memory stays with this room.
+            # Only on arrival: standing in a room's own approach that links back (the way the PC
+            # came) does not bounce the PC out again on every later commit.
             link = (source['areas'].get(state['area']) or {}).get('room_link')
-            if link:
+            if link and state['area'] != area_before:
                 from . import kit_rooms
                 new_source, state = kit_rooms.arrive(source, state, link, authored=self.authored_dir())
                 self.db.execute('UPDATE source SET body=? WHERE id=1', (encode(new_source),))
@@ -758,6 +771,9 @@ class Runtime:
         elif kind == 'trigger_fired':
             from . import kit_triggers
             kit_triggers.apply_event(state, source, event)
+        elif kind == 'trap_state':
+            from . import kit_traps
+            kit_traps.apply_event(state, source, event)
         elif kind == 'spend_resource':
             key, amount = event.get('resource'), event.get('amount')
             require(key in state['resources'], 'Unknown resource')
@@ -1057,7 +1073,19 @@ class Runtime:
                if source.get('procedures') else {}),
             **({'tolls_here': Runtime._tolls_here(source, state)} if Runtime._tolls_here(source, state) else {}),
             **Runtime._attitudes_here(source, state),
+            **({'traps_here': Runtime._traps_here(source, state)} if Runtime._traps_here(source, state) else {}),
         }
+
+    @staticmethod
+    def _traps_here(source, state):
+        """The room's traps in the PC's area, with their state (runtime/kit_traps.py)."""
+        area, out = state['area'], {}
+        for trap in source.get('traps') or ():
+            kind, target = next(iter(trap['on'].items()))
+            where = target if kind in ('step', 'enter') else (source['facts'].get(target) or {}).get('area')
+            if where == area:
+                out[trap['id']] = {**trap, 'status': ((state.get('traps') or {}).get(trap['id']) or {}).get('status', 'armed')}
+        return out
 
     def context(self, personality_core=None, max_bytes=CONTEXT_BUDGET_BYTES):
         if personality_core is None:

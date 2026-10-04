@@ -27,6 +27,7 @@ from . import kit_rolls
 from . import kit_triggers
 from . import kit_reveal
 from . import kit_handoff
+from . import kit_traps
 from . import kit_claims
 from . import kit_manifest
 from . import kit_router
@@ -664,6 +665,10 @@ class RoomAdjudicator:
 
     def resolve(self, action, revision, state, addressed=False, last_said=''):
         self.last_said = last_said or ''
+        if (self.source or {}).get('traps'):
+            settled = self._trap_turn(action, state)
+            if settled:
+                return settled
         result = self._also_bet(self._resolve(action, revision, state, addressed), action, revision, state)
         if (self.source or {}).get('tolls'):
             extra = self._toll_unstuck(result, state)
@@ -680,7 +685,46 @@ class RoomAdjudicator:
             fired = kit_triggers.matching(self.source, state, result, action)
             if fired:
                 result = self._spring(result, *fired, action, revision, state)
+        if (self.source or {}).get('traps') and result.kind != INTERSTITIAL_KIND:
+            trap = kit_traps.matching(self.source, state, result, action)
+            if trap:
+                result = self._spring_trap(result, trap, state)
         return result
+
+    def _trap_turn(self, action, state):
+        """A trap's roll call answered, or work on a known trap (runtime/kit_traps.py); None
+        when neither applies."""
+        if state.get('trap_save'):
+            settled = kit_traps.resume(self.source, state, action)
+            if settled is None:
+                waiting = state['trap_save']
+                trap = next(t for t in self.source['traps'] if t['id'] == waiting['trap'])
+                raise PendingRuling(f"{kit_traps.prompt(trap['effect'])[:-1]} in Avrae first. No turn was committed.")
+            public, events = settled
+            return Resolution('physical_act', public, events)
+        attempt = kit_traps.disarm_attempt(self.source, state, action)
+        if attempt:
+            try:
+                public, events = kit_traps.disarm(*attempt, action)
+            except ValueError as exc:
+                raise PendingRuling(str(exc)) from None
+            return Resolution('physical_act', public, events)
+        return None
+
+    def _spring_trap(self, result, trap, state):
+        """A trap goes off on this resolution (or is spotted first): a save or check stops at a
+        roll_call interstitial for the player's Avrae roll."""
+        try:
+            _, passive = self._pc_numbers('perception', state, '')
+        except PendingRuling:
+            passive = None
+        try:
+            public, events, waits = kit_traps.spring(trap, passive)
+        except InvalidChange as exc:
+            raise PendingRuling(f'{exc} No turn was committed.') from None
+        return dataclasses.replace(result, kind=INTERSTITIAL_KIND if waits else result.kind,
+                                   public_event=f'{result.public_event} {public}'.strip(),
+                                   events=list(result.events) + events, handoff=kit_traps.handoff_trace(trap))
 
     def _spring(self, result, trigger, area, action, revision, state):
         """A room trigger fires on this resolution (runtime/kit_triggers.py): its hidden actors
@@ -841,7 +885,7 @@ class RoomAdjudicator:
         if kind == 'stealth':
             return self._resolve_stealth(action, narration, revision, state)
         if kind == 'unsupported_action':
-            raise PendingRuling('This physical action needs a room/rules ruling beyond the test slice. No turn was committed.', attempt=True)
+            raise PendingRuling("I need you to be more specific: what exactly do you do, and with what? No turn was committed.", attempt=True)
         if kind == 'observe':
             around = not re.search(r"\b(?:at|interesting|notable)\b", action.lower())
             event = {'type': 'beat', 'tags': ['observe'],
@@ -3497,10 +3541,19 @@ def prepare_turn(runtime, adjudicator, action, use_memory=True, one_pass=False, 
     return prepare_inputs(runtime, revision, state, action, resolution, use_memory, one_pass)
 
 
+def _flag_fallback(runtime, record):
+    """A turn played in a fallback stand-in carries authoring_fallback in its committed record."""
+    flag = kit_author.fallback_flag(runtime.source())
+    if flag:
+        record['authoring_fallback'] = flag
+
+
 def interstitial_of(events):
     """The checkpoint a resolution stopped at: {kind, awaits, deferred_action_id[, trigger]}."""
     for event in events or ():
         waiting = (event.get('state') or {}).get('awaiting') if event.get('type') == 'combat_state' else None
+        if event.get('type') == 'trap_state':
+            waiting = event.get('awaiting')  # a trap's save or check: the player's roll (kit_traps)
         if waiting:
             return {key: waiting[key] for key in ('kind', 'awaits', 'deferred_action_id', 'trigger')
                     if key in waiting}
@@ -3514,6 +3567,7 @@ def commit_interstitial(runtime, turn_id, action, raised):
               'spoken': f'Kit: {resolution.public_event}', 'turn_role': 'interstitial', 'engine_checkpoint': True,
               'interstitial': interstitial_of(resolution.events),
               'trace': {'turn_role': 'interstitial', 'move': 'engine_checkpoint'}}
+    _flag_fallback(runtime, record)
     revision = runtime.commit_engine_interstitial(turn_id, raised.revision, list(resolution.events), record)
     return revision, record
 
@@ -3936,9 +3990,12 @@ class KitAgent:
             if record.get('degraded'):
                 timing['degraded'] = True
             record.update(kit_interstitial.describe(record['trace'], turn_id))
+            _flag_fallback(self.runtime, record)
             next_revision = self.runtime.commit_kit_turn(
                 turn_id, revision, turn_events(self.runtime, body, plan, turn_id, record), record)
             outcome = 'committed'
+            if kit_author.fallback_flag(self.runtime.source()):
+                timing['authoring_fallback'] = kit_author.fallback_flag(self.runtime.source())
         except StaleTurn:
             outcome = 'stale'
             raise
@@ -4207,9 +4264,14 @@ class KitChatBridge:
         ahead = kit_author.author_ahead(self.runtime.source(), self.runtime.load()[1],
                                         getattr(self.runtime, 'path', None))
         if ahead:
-            # Rooms one step away that Kit writes from the book: author them now, while the
+            # Rooms around this one that Kit writes from the book: author them now, while the
             # player reads this turn, so the next room is ready by entry (SOURCE_TO_ROOM.md).
             packet['author_ahead'] = ahead
+        fallback = kit_author.fallback_flag(self.runtime.source())
+        if fallback:
+            # Kit improvises this area from its keyed text (dm_only), in persona; flagged.
+            packet['authoring_fallback'] = {**fallback, 'note': kit_author.FALLBACK_NOTE}
+            self.runtime.record_kit_timing(turn_id, authoring_fallback=fallback)
         # Runtime time and packet size, from the bridge's own clock (docs/architecture/HOST_TIMING.md).
         self.runtime.record_kit_timing(turn_id, runtime_prepare_ms=round((time.perf_counter() - clock) * 1000, 2),
                                        packet_bytes=_bytes(packet), **manifest)
@@ -4299,6 +4361,7 @@ class KitChatBridge:
         variant = (self.runtime.kit_timing(turn_id) or {}).get('performance_variant', 'current')
         record = self._checked_or_log(turn_id, body, pending['plan'], speech, variant, degraded)
         record.update(kit_interstitial.describe(record['trace'], turn_id))
+        _flag_fallback(self.runtime, record)
         revision = self.runtime.commit_kit_turn(
             turn_id, pending['revision'], turn_events(self.runtime, body, pending['plan'], turn_id, record),
             record, consume_pending=True)
@@ -4313,6 +4376,9 @@ class KitChatBridge:
         result.update({key: record[key] for key in ('turn_role', 'interstitial') if key in record})
         if record.get('degraded'):
             result.update(degraded=True, soft_warnings=record['soft_warnings'])
+        flag = kit_author.fallback_flag(self.runtime.source())
+        if flag:  # the turn that walked into a fallback stand-in is flagged too (its source is the new room)
+            self.runtime.record_kit_timing(turn_id, authoring_fallback=flag)
         kit_handoff.log_turn(self.runtime, turn_id, body['action'], body['kind'], body, record.get('trace'), record,
                              by_player=body['kind'] != 'opening' and not body.get('table_talk'))
         return result
@@ -4479,6 +4545,7 @@ class KitChatBridge:
         variant = body.get('performance_variant', 'current')
         record = self._checked_or_log(turn_id, body, plan, output['performance'], variant, degraded)
         record.update(kit_interstitial.describe(record['trace'], turn_id))
+        _flag_fallback(self.runtime, record)
         next_revision = self.runtime.commit_kit_turn(
             turn_id, revision, turn_events(self.runtime, body, plan, turn_id, record), record,
             consume_pending=True)
@@ -4488,7 +4555,7 @@ class KitChatBridge:
 EXAMPLE_SHEET = PROJECT_ROOT / 'tests/fixtures/characters/example_pc.json'
 
 
-def start_session(db, sheet_path=None, runtime=None, room=None, area=None, manifests=False):
+def start_session(db, sheet_path=None, runtime=None, room=None, area=None, manifests=False, _verified=False):
     """The one bootstrap step for any AI hosting Kit (see AGENTS.md): create a fresh room
     session, load the player's sheet (the generic example PC when none is given), and
     stage the room's opening through the bridge. Returns the first prepare packet plus
@@ -4496,6 +4563,9 @@ def start_session(db, sheet_path=None, runtime=None, room=None, area=None, manif
     # Mount first: a room that cannot mount fails here, before any database is touched,
     # with the host's error and Kit's plain table line (kit_rooms.RoomMountError).
     source = kit_rooms.load_room(room or DEFAULT_ROOM)
+    if not _verified:
+        # A room authored from a source is checked against it again (a cache file is not trusted).
+        kit_author.verify_room(source, directory=Path(room).resolve().parent if room else None)
     if area is not None and area not in source['areas']:
         raise kit_rooms.RoomMountError(room or DEFAULT_ROOM, [f'no area {area!r} in this room'])
     own = runtime is None

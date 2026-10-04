@@ -34,7 +34,7 @@ ENV_TEXT = 'KIT_SOURCE_TEXT'
 ENV_GEOMETRY = 'KIT_LEVEL_GEOMETRY'
 
 HEADING = re.compile(r'^(\d{1,3})([a-z])?\.\s+(\S.{0,90})$')
-AREA_REF = re.compile(r'\bareas?\s+(\d{1,3}[a-z]?)((?:\s*(?:,|and|or|–|-)\s*\d{1,3}[a-z]?)*)', re.I)
+AREA_REF = re.compile(r'\bareas?\s+(\d{1,3}[a-z]?)((?:\s*(?:,\s*(?:and|or)\s+|,|and|or|–|-)\s*\d{1,3}[a-z]?)*)', re.I)
 CHAPTER = re.compile(r'^(?:(?:Chapter|Appendix|Level \d+:)\s|Aftermath$)')
 SLICE_MAX_LINES = 80  # the last area of a level has no next heading to stop it
 
@@ -198,7 +198,13 @@ def level_notes(level_doc_text, area, keyed_text):
 
 def geometry(level, area_key, ledger=None):
     """The area's mapped geometry from a ledger, or an unbound record that says why."""
-    path = Path(ledger) if ledger else Path(os.environ.get(ENV_GEOMETRY) or GEOMETRY_DIR / f'LEVEL_{level_key(level)}.json')
+    if ledger or os.environ.get(ENV_GEOMETRY):
+        path = Path(ledger or os.environ[ENV_GEOMETRY])
+    else:
+        # GPT's level geometry (docs/campaign/levels/LEVEL_NN_GEOMETRY.json) when it lands, else the ledger dir.
+        path = next((p for p in (GEOMETRY_DIR.parent / f'LEVEL_{level_key(level)}_GEOMETRY.json',
+                                 GEOMETRY_DIR / f'LEVEL_{level_key(level)}.json') if p.is_file()),
+                    GEOMETRY_DIR / f'LEVEL_{level_key(level)}.json')
     if path.is_file():
         data = json.loads(path.read_text(encoding='utf-8'))
         entry = (data.get('areas') or {}).get(area_key)

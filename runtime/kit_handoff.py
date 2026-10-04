@@ -61,6 +61,10 @@ def classify(kind, body, plan, record, state_after):
     from . import kit_interstitial
     body, plan, record = body or {}, plan or {}, record or {}
     awaiting = (state_after.get('combat') or {}).get('awaiting')
+    if not awaiting and state_after.get('trap_save'):
+        # A trap's save or check (runtime/kit_traps.py): the player's roll, raised by the engine.
+        return {'type': 'roll_call', 'trigger': f"trap:{state_after['trap_save']['trap']}", 'awaits': 'player_roll',
+                'deferred_action_id': None, 'raised_by': 'engine'}
     if awaiting:
         found = {'flourish_window': 'flourish'}.get(awaiting['kind'], awaiting['kind'])
         trigger = awaiting.get('trigger') or (f"kill:{awaiting.get('target')}" if found == 'flourish' else None)
@@ -150,6 +154,10 @@ def log_turn(runtime, turn_id, action, kind, body=None, plan=None, record=None, 
             'handoff': classify(kind, body, plan, record, state_after),
             'latency_s': seconds, 'latency_from': source,
             'answers': _answer(open_line, True, action, kind, by_player, state_after) if open_line else None}
+    from .kit_author import fallback_flag
+    flag = fallback_flag(runtime.source())
+    if flag:
+        line['authoring_fallback'] = flag  # Kit improvised this area from its keyed text (kit_author)
     fired = [e.get('trigger') for e in events if e.get('type') == 'trigger_fired']
     if fired:
         line['engine'] = {'monster_initiative': fired}
