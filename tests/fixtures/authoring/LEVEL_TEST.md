@@ -9,15 +9,15 @@
 
 ### Pressure Points
 
-- Area 1 — Gatehouse: the toll is the level's first squeeze on newcomers.
+- Area 1 — Gatehouse: the warden is the level's first liar.
 - Areas 2–3 — the back halls: nobody patrols them, so nobody hears a scream.
 
 ## NPC Accountability
 
-### Brannoc Vell
+### Ysolde Marr
 
-**Motive:** Skim the toll without the guild noticing.
-**Plan if unopposed:** Charge newcomers double and blame the guild.
+**Motive:** Keep travelers moving and her boat secret.
+**Plan if unopposed:** Wave everyone through and watch the water.
 
 ### Room-scoped NPC audit
 
