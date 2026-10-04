@@ -158,6 +158,17 @@ Future runtime work should assume these decisions are already made unless a sour
 The next visual-system problem is presentation: masking/cropping player maps to known topology and extracting individual cards/runes from composite sheets without leaking unrevealed information.
 
 
+## Generated campaign art
+
+Newly generated art is governed by [`KIT_VISUAL_STYLE_SPEC.md`](KIT_VISUAL_STYLE_SPEC.md).
+
+The two systems have different jobs:
+
+- this document governs visual asset identity, authority, lookup, and reveal safety;
+- the visual-style specification governs how newly generated art should look and how Brendon's house style is applied.
+
+When Kit is asked for art during play, existing canonical art should be resolved first when appropriate. If new art is generated, it must use only player-safe facts, inherit Brendon's house visual language by default, and remain subordinate to source and current state. A generated image does not create canon by itself.
+
 ## Private binary asset pack
 
 The indexed visual bytes are now packaged privately rather than committed to the public repository.
