@@ -71,6 +71,21 @@ python3 -m runtime.kit_agent visual \
 
 The command does **not** advance the game revision. It writes only visual-reference usage telemetry so repeated requests can rotate away from recently overused exemplars.
 
+
+After the image attempt, record what actually happened:
+
+```sh
+python3 -m runtime.kit_agent visual-record \
+  --db kit.sqlite \
+  --visual-id <visual-id> \
+  --visual-status generated \
+  --reference-mode image
+```
+
+Other statuses are `canonical`, `failed`, and `abandoned`. `--result-id`, `--qa-file`, and `--visual-notes` are optional. This provenance is presentation telemetry only; it does not move world revision.
+
+Use `python3 -m runtime.kit_agent visual-history --db kit.sqlite` to inspect recent visual attempts.
+
 ## What the brief may contain
 
 The `player_safe` section is built from `Runtime.player_view()`, plus explicitly public visual descriptors.
@@ -218,6 +233,22 @@ The bridge puts these checks in every brief:
 Pre-generation factual QA is enforceable by construction because private state never enters the brief.
 
 Post-generation image QA depends on the host's multimodal/image capabilities. During the first mounted test, record failures manually rather than pretending the runtime inspected pixels it never saw.
+
+
+## Reference handoff experiment
+
+OpenAI's current ChatGPT documentation confirms that custom GPTs can use Image Generation and that images can be added to conversations as image inputs. It does **not** establish that a local JPEG extracted by Code Interpreter is automatically forwarded as a generation reference. Treat that as an acceptance-test question, not a shipped fact.
+
+For the first mounted test:
+
+1. hydrate the private style pack;
+2. run `visual`;
+3. for selected references with `available: true`, inspect/surface those exact images in the host immediately before generation;
+4. generate the requested image;
+5. record `reference_mode=image` only if the host actually used the images as visual inputs/references;
+6. otherwise use the manifest's `teaches` metadata + art bible and record `reference_mode=text_only`.
+
+The system must still work in text-only mode. Reference-image conditioning is an enhancement, not a reason for the visual bridge to fail.
 
 ## First mounted acceptance test
 
