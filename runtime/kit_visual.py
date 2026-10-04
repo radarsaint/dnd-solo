@@ -211,7 +211,12 @@ def _visible_actor_visuals(source, state, public):
         descriptors = _public_descriptors(actor.get("visual"))
         if descriptors:
             entry["visual"] = descriptors
-        art_id = (actor.get("visual") or {}).get("public_art_id") if isinstance(actor.get("visual"), dict) else None
+        visual = actor.get("visual") if isinstance(actor.get("visual"), dict) else {}
+        counts = visual.get("public_counts")
+        if isinstance(counts, dict):
+            entry["counts"] = {str(name): int(value) for name, value in counts.items()
+                               if isinstance(name, str) and type(value) is int and value >= 0}
+        art_id = visual.get("public_art_id")
         if isinstance(art_id, str) and art_id.strip():
             entry["public_art_id"] = art_id.strip()
         result.append(entry)
@@ -308,6 +313,10 @@ def prepare_visual(runtime, request, mode="auto", branch="auto", record=True):
         },
         "generation_contract": {
             "fact_rule": "Depict factual content only from player_safe plus the user's explicit request when it does not contradict established state.",
+            "expected_counts": {
+                f"actor:{actor['id']}.{name}": value
+                for actor in actors for name, value in (actor.get("counts") or {}).items()
+            },
             "style_freedom": "Kit may choose composition, framing, lighting, brush treatment, and nonfactual atmosphere.",
             "must_not_invent": [
                 "unrevealed creatures or NPCs",
