@@ -92,7 +92,7 @@ KRABS is not a greenfield proposal.
 
 The current executable system is much narrower than the intended end state.
 
-"dnd-solo" currently provides a bounded solo-DM laboratory centered on Dungeon of the Mad Mage, especially Level 1 Area 6c.
+"dnd-solo" currently provides a bounded solo-DM laboratory centered on Dungeon of the Mad Mage, Level 1. Area 6c was the first room built; it is one regression room among several and has no primacy. Kit must run any keyed area of the book.
 
 The implemented foundation includes, in various degrees:
 
@@ -1557,9 +1557,9 @@ The North Star is not the next release test.
 
 Capability should be earned progressively.
 
-**Stage 1 — One room worth playing**
+**Stage 1 — Any keyed room worth playing**
 
-Area 6c produces responsive, coherent, entertaining play across multiple exchanges.
+Any keyed area of the book, built from the source text when play reaches it, produces responsive, coherent, entertaining play across multiple exchanges. Tests use varied, unplayed rooms; no room has primacy.
 
 The system understands the room's function rather than merely its facts.
 
@@ -1575,7 +1575,7 @@ Latency is measured.
 
 **Stage 2 — Transfer to another real scene**
 
-A second playable location with different actors, pressures, and activity proves that the Area 6c solution is not room-specific scaffolding.
+Multi-room runs across locations with different actors, pressures, and activity prove the solution is not room-specific scaffolding.
 
 **Stage 3 — Pillar transfer**
 
@@ -1644,9 +1644,9 @@ KRABS should not turn every newly identified end-state concern into an implement
 The immediate work remains:
 
 1. Preserve Kit as one recognizable persona across ordinary conversation, creative/debrief work, and runtime-backed DM play. Add a small cross-context evaluation now; do not wait for cross-campaign memory infrastructure.
-2. Make Area 6c consistently worth playing.
-3. Improve the room's ability to adjudicate natural player actions.
-4. Preserve the room's actual play function rather than allowing optional mechanics to swallow it.
+2. Make any keyed area of the book playable on demand from the source text, proven across varied, unplayed rooms.
+3. Improve each room's ability to adjudicate natural player actions.
+4. Preserve each room's actual play function rather than allowing optional mechanics to swallow it.
 5. Make NPC motives and scene pressure legible in play.
 6. Keep Kit coherent and recognizable inside the game as well as outside it.
 7. Measure full player-visible latency.
