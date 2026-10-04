@@ -142,20 +142,22 @@ The labels below are intentionally descriptive rather than chronological. They i
 
 ---
 
-## CORE-08 — Minimal character spotlight
+## CORE-08 — Anthropomorphic traveler portrait
 
-**SHA-256:** `6557e753380fd981b420de1bba425bacf219f9688bd76b959226680d5a859186`
+**SHA-256:** `2d23cf7236d06304711b03c5f6cb5e6697f03b44b321d093c0db78890b2ca558`
 
 **Teaches:**
-- a single hook dominating the character read;
-- antlers and long ears as silhouette;
-- red cape against teal torso;
-- very light environment;
-- selective finish;
-- visible hand;
-- small figure allowed to breathe in negative space.
+- anthropomorphic character treated with the same seriousness as any other portrait;
+- oversized hat as the primary silhouette hook;
+- readable face and large expressive eyes;
+- restrained earth tones interrupted by concentrated blue and red accents;
+- visible contour and sketch structure;
+- selective finish around the face, hands, hat, and straps;
+- simple pale field allowing the character design to carry the image.
 
-**Use for:** character concepts, class art, whimsical figures, spotlight vignettes.
+**Use for:** NPC portraits, anthropomorphic characters, grounded character concepts, costume studies.
+
+**Do not overgeneralize:** animal-headed or anthropomorphic subjects are part of the corpus, not a default subject choice.
 
 ---
 
@@ -263,7 +265,7 @@ Do not attach all twelve references to every generation.
 
 A useful starting pattern is:
 
-- **general character:** CORE-02 + CORE-03 + CORE-08;
+- **general character:** CORE-02 + CORE-03, adding CORE-08 only when its grounded portrait or anthropomorphic treatment is relevant;
 - **horror character:** CORE-01 + CORE-04;
 - **creature:** CORE-04 + CORE-06;
 - **prop:** CORE-07 plus one subject-relevant character/creature reference;
