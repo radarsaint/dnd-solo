@@ -174,6 +174,32 @@ def drop_what_the_source_sets_off(room, inputs):
         return 'the source sets something off'
 
 
+def the_wrong_trigger_kind(room, inputs):
+    if any(item.get('on') == 'disturb' for item in inputs['manifest']['scripted']) and room.get('triggers'):
+        room['triggers'][0]['on'] = {'enter': 'inside'}
+        room.pop('traps', None)
+        return 'the source sets it off when handled'
+
+
+def name_another_area_s_creature(room, inputs):
+    if 'gelatinous' not in json.dumps(inputs['manifest']).lower():
+        room['facts']['here']['text'] = 'A gelatinous cube quivers in the corner.'
+        return 'names a gelatinous cube, which is not in the source for this area'
+
+
+def hint_at_the_hidden(room, inputs):
+    if hidden_actors(room) and not [a for a in room['actors'].values() if a['status'] != 'hidden']:
+        room['areas']['approach']['tease']['text'] = 'Somewhere ahead, something skitters and goes still.'
+        return 'tease hints at a hidden creature'
+
+
+def unsecret_a_secret_way(room, inputs):
+    for e in inputs['manifest']['exits']:
+        if e.get('secret') and e.get('way'):
+            room['exits'][f'way_{slug(e["area"])}']['secret'] = False
+            return 'the source makes this way secret'
+
+
 def invent_a_secret_door(room, inputs):
     m = inputs['manifest']
     if m['secret_ways'] or any(e.get('secret') for e in m['exits']):
@@ -262,7 +288,8 @@ MUTATIONS = [
     drop_one_creature, add_one_creature, reveal_a_hidden_creature, invent_a_creature, invent_stats,
     an_srd_name_that_is_not_listed, an_srd_hp_the_source_does_not_state, drop_a_named_npc, drop_a_secret,
     a_deception_only_in_public, drop_the_treasure, invent_a_dc, show_a_dc_in_public, invent_treasure, invent_gp,
-    drop_the_trap, change_the_trap_dice, drop_what_the_source_sets_off, invent_a_secret_door, invent_a_place_name,
+    drop_the_trap, change_the_trap_dice, drop_what_the_source_sets_off, the_wrong_trigger_kind,
+    name_another_area_s_creature, hint_at_the_hidden, unsecret_a_secret_way, invent_a_secret_door, invent_a_place_name,
     an_exit_that_is_not_uncertain, drop_a_way, link_a_neighbour_that_is_no_way, leak_a_secret_word,
     *[leak_in(f) for f in ('tease', 'heard', 'handling', 'go_text', 'label', 'arrival', 'hook')],
 ]
@@ -317,7 +344,7 @@ class Harness:
 
 class SyntheticAreas(Harness, unittest.TestCase):
     areas = ('1', '2', '2a', '2b', '3', '4')
-    minimum_classes = 24
+    minimum_classes = 28
 
     def book(self):
         return synthetic()

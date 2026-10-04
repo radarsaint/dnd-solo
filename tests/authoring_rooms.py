@@ -71,8 +71,11 @@ def faithful_room(inputs):
     fighters = [k for k, a in room['actors'].items() if k in hidden or (manifest['scripted'] and 'srd' in str(a))]
     if hidden or manifest['scripted']:
         stats = all(room['actors'][k].get('stat_block') for k in fighters) and fighters
-        room['triggers'].append({'id': 'stirred', 'on': {'enter': 'inside'}, 'starts_combat': bool(stats),
-                                 'actors': fighters, 'reveal': 'Something stirs.'})
+        handled = any(item.get('on') == 'disturb' for item in manifest['scripted'])
+        if handled:  # the source sets it off when something is handled: a disturb trigger
+            room['facts']['here']['handling'] = {'nouns': ['space'], 'move': 'You move things about.'}
+        room['triggers'].append({'id': 'stirred', 'on': {'disturb': 'here'} if handled else {'enter': 'inside'},
+                                 'starts_combat': bool(stats), 'actors': fighters, 'reveal': 'Something stirs.'})
     for i, hazard in enumerate(manifest['hazards']):
         effect = {'damage': hazard['damage']}
         if hazard.get('dc'):
