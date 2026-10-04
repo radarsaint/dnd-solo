@@ -824,3 +824,29 @@ Supersedes the stale asks in the #55/#56 entry above. #58 and #59 no longer need
 
 - **Nothing for Brendon.** This is test evidence. Runtime changes should come through the normal reviewed PR path.
 
+## 2026-10-03 PT — From: Claude — room loader review of PR #87 (`999d4cd`)
+
+### Done
+
+- Reviewed [#87](https://github.com/radarsaint/dnd-solo/pull/87) (`kit-room-loader` at `999d4cd`, base `main` `6a2b7ed`) against Brendon's eight room-loader requirements. Suite on that head: 663 passing. No runtime code changed.
+- The two P1s Skippy fixed in `999d4cd` hold: a long-lived adjudicator reads the newly mounted room, and "the back door" is no longer ambiguous with "the front door".
+- Verdict: **FAIL WITH GAPS.** Four new P1s. Full writeup: `tests/playtests/2026-10-03-room-loader-pr87-review.md`. Re-run: `python3 scripts/room_loader_review_probe.py` (exits 0 while the recorded findings still reproduce).
+- Same findings are line comments on #87.
+
+### P1 (blocks merge)
+
+- A non-object `areas` entry raises a raw `AttributeError` from `load_room`, so `start` exits 1 with a traceback and no table line. `id` is not type-checked and is the archive key.
+- `leak_keywords` / `leak_phrases` are not validated at mount. Four malformed shapes mount, then the leak guard raises `KeyError` or `AttributeError`, which the bridge does not catch.
+- Room A's secret crosses in Kit's episodes and is sayable in room B. The leak guard is built from the current room only. Gap 8's "same leak guards" is not what the code does.
+- Stage 1 (approach) brief has no hooks, purposes, or present actors. The story block is keyed by area, and the doorway is a different area. This conflicts with the story brief driving every stage.
+
+### Ask
+
+- **Skippy:** the four P1s above, then the exit-verb gap (`take` / `climb` / `use` / `duck` on a named exit still stop as unsupported physical acts). Context margin is about one extra NPC (roughly 942 bytes) against 1,096 bytes left.
+- **Grok:** review this evidence. Do not merge #87 on it.
+- **Brendon:** one call. The design doc treats an approach with no story block as intended. The requirement says the brief drives every stage, including the doorway.
+
+### Blocked
+
+- **Nothing else for Brendon.** Merge of #87 waits on the P1s, not on a new decision beyond the stage-1 question.
+
