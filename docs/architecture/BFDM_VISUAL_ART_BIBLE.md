@@ -1011,6 +1011,8 @@ If the final answer is no, the image is not done.
 
 # XXIV. Using the visual reference corpus
 
+The curated exemplar registry lives in [`BFDM_VISUAL_REFERENCE_GUIDE.md`](BFDM_VISUAL_REFERENCE_GUIDE.md). Use it to select a small number of relevant original works rather than treating the whole corpus as one averaged style.
+
 The original BFDM artwork is the authority.
 
 Generated composites and written summaries are aids.
