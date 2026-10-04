@@ -59,6 +59,9 @@ herself** ("if the corpse is disturbed, the centipedes emerge and attack" is a `
 hidden actors; "attack all who enter" is an `enter` trigger); hidden actors named nowhere public;
 alarms list responders; the approach is tease-only; checks on hidden truths are claims with the
 book's DC; onward areas carry `room_link: {"author": {"level", "area"}}`.
+A feature with graspable parts or a held item lists them: `handling.parts` (the claw, the lid, the
+hand) and `handling.holds` (the held item, its own fact, hidden allowed), so "I pry the claw open" or
+"I take the orb from the claw" disturbs the feature and fires its trigger (#97, ROOM_TRIGGERS.md).
 
 ## 4. Validate, repair once, fall back
 
@@ -69,7 +72,9 @@ book's DC; onward areas carry `room_link: {"author": {"level", "area"}}`.
    named neighbours only, ledger exits; the keyed text sets creatures off but no `triggers`; a hidden
    actor no trigger wakes, or one not `visible: false`; a trigger's actor with no stat block; a
    hidden actor's name or kind in a visible fact, area name/called/arrival, tease, heard sound or exit
-   label (singular and plural); a story hook `by` a hidden actor (who cannot raise it); a claim DC the
+   label (singular and plural); a story hook `by` a hidden actor (who cannot raise it); a fact in, under
+   or in the grip of a handled feature that the feature does not `holds`; a graspable part word (claw,
+   lid, hand...) on a handled feature or its held item that is not in `parts`; a claim DC the
    book does not give (a warning);
 2. the room loader's own checks (`kit_rooms.check_room`), plus the later-stage compilers even when the
    first framing fails, and alarm-looking facts with no responders as errors;
@@ -125,3 +130,12 @@ Options: `--cache DIR`, `--source PATH`, `--map-index`, `--ledger`, `--pretty`.
    (`by`), and a hidden actor cannot raise one. Such rooms use `purposes` and the tease without
    `points_to`.
 5. No same-pass authoring (above); no per-stage partial authoring (the whole area is one room file).
+
+### Layers (progressive reveal)
+
+A visible fact may carry `"layer": "obvious"` or `"layer": "detail"` (the authoring packet's `LAYER_RULE`).
+The first look into an area gives the obvious layer and holds the detail layer until the player looks there
+(#101, `kit_reveal`). The validator refuses `detail` on a fact a trigger fires on or that holds an item, and
+on a fact that describes the way on (it shares two or more content words, area names aside, with that area's
+exit names and labels). Ids are never matched as words, so a fact called `fire` is not "named" by a fire
+damage type. Leaving `layer` out is fine: the engine works it out from the room data.
