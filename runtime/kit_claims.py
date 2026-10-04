@@ -29,7 +29,7 @@ blocks plus role fields). No model calls; deterministic Python.
 """
 import re
 
-from . import pc_sheet
+from . import kit_rolls, pc_sheet
 from .state_context import normalize_fact, require
 
 SOURCES = ('adventure', 'canon', 'procedure', 'kit')
@@ -284,7 +284,7 @@ def lie_lands(speaker_profile, sheet):
     Meets or beats it: the lie lands. Short: the narrator gets a fingerprint of the lie."""
     attack = lie_dc(speaker_profile)
     defence = pc_sheet.passive(sheet, 'insight') if sheet else 10
-    return {'deception': attack, 'passive_insight': defence, 'lands': attack >= defence}
+    return {'deception': attack, 'passive_insight': defence, 'lands': kit_rolls.meets_or_beats(attack, defence)}
 
 
 # ---------------------------------------------------------------------------

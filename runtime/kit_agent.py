@@ -24,6 +24,7 @@ from . import kit_cards
 from . import kit_combat
 from . import kit_rolls
 from . import kit_triggers
+from . import kit_acts
 from . import kit_claims
 from . import kit_manifest
 from . import kit_router
@@ -66,6 +67,7 @@ class Resolution:
     public_event: str
     events: list
     handoff: dict = None  # telemetry seam (kit_triggers.handoff_trace): what took the floor and why
+    offers: dict = None   # act fields Kit may declare this turn (runtime/kit_acts.py), e.g. handles
 
 
 # The accepted event is bounded at 500 characters (check_plan; card turns use
@@ -347,20 +349,6 @@ GESTURE = re.compile(
     r"(?:my|his|her|their|both|empty|open)\s+(?:\w+\s+)?(?:hands|palms)\b"
     r"|\b\w+\s+(?:my|his|her|their)\s+(?:\w+\s+)?(?:nails|fingernails|knuckles|fingers|ears|whiskers|nose|"
     r"chin|neck|feet|legs|arms|hair|beard|eyebrows?|brow|shoulders|teeth|lips)\b")
-# A feature is moved only as the verb's own object ("tip the heavy tub over"), not as a place
-# something moves toward ("move my chair closer to the tub").
-# Hands on part of a feature, or on what it holds: prying, wrenching, taking, pulling out
-# ('I pry the claw open', 'I take the orb from the claw'). It disturbs the feature.
-MANIPULATE_VERBS = (r'pry|pries|prise|prises|prize|lever|levers|yank|yanks|wrench|wrenches|twist|twists|pull|pulls|'
-                    r'tug|tugs|grab|grabs|take|takes|lift|lifts|pick|picks|pluck|plucks|snap|snaps|break|breaks|'
-                    r'cut|cuts|saw|saws|loosen|loosens|remove|removes|extract|extracts|peel|peels|unclench|'
-                    r'unclenches|force|forces|slide|slides|touch|touches|tap|taps|lever')
-
-
-def _feature_manipulated(nouns):
-    return re.compile(r"\b(?:" + MANIPULATE_VERBS + r")\b(?:\s+[\w'-]+){0,5}?\s+(?:" + nouns + r")\b")
-
-
 def feature_owner(source, key):
     """The feature that holds fact ``key`` (the claw's orb belongs to the carcass), else ``key``."""
     for owner, fact in ((source or {}).get('facts') or {}).items():
@@ -369,10 +357,11 @@ def feature_owner(source, key):
     return key
 
 
+# A feature is moved only as the verb's own object ("tip the heavy tub over"), not as a place
+# something moves toward ("move my chair closer to the tub").
 def _feature_moved(nouns):
     return re.compile(r"\b(?:tip|tips|overturn|overturns|flip|flips|lift|lifts|move|moves|push|pushes|shove|"
-                      r"shoves|tilt|tilts|drag|drags|roll|rolls|prod|prods|poke|pokes|nudge|nudges|kick|kicks|"
-                      r"heave|heaves|tug|tugs)\s+(?:(?!(?:to|toward|towards|near|by|beside|"
+                      r"shoves|tilt|tilts|drag|drags|roll|rolls)\s+(?:(?!(?:to|toward|towards|near|by|beside|"
                       r"next|closer|over|up|against|from|into|onto)\b)[\w'-]+\s+){0,3}(?:" + nouns + r")\b")
 
 
@@ -545,8 +534,6 @@ def room_intent(action, addressed=False, room=None):
             return 'move_feature'
         if _feature_entry(nouns).search(words):
             return 'enter_feature'
-        if _feature_manipulated(nouns).search(words):
-            return 'handle_feature'
         if _feature_handled(nouns).search(words):
             # The 6c baseline's contradictory tub rule: a question about what is in a feature
             # went to Kit's invention oracle while the room forbade inventing the contents. The
@@ -640,7 +627,15 @@ class RoomAdjudicator:
 
     def resolve(self, action, revision, state, addressed=False, last_said=''):
         self.last_said = last_said or ''
-        result = self._also_bet(self._resolve(action, revision, state, addressed), action, revision, state)
+        try:
+            result = self._also_bet(self._resolve(action, revision, state, addressed), action, revision, state)
+        except PendingRuling as exc:
+            # Hands on a feature a room trigger watches ('I climb onto the carcass', 'I snatch
+            # the orb') is Kit's ruling, not a refusal: she declares it (handles) or not.
+            offer = exc.attempt and self._handles_offer(action, state, None)
+            if not offer:
+                raise
+            result = self._feature_act(action, offer)
         if (self.source or {}).get('tolls'):
             extra = self._toll_unstuck(result, state)
             if extra:
@@ -653,14 +648,66 @@ class RoomAdjudicator:
             if hidden:
                 result = dataclasses.replace(result, events=list(result.events) + hidden)
         if (self.source or {}).get('triggers'):
-            fired = kit_triggers.matching(self.source, state, result, action)
+            result = self._offer_handles(result, action, state)
+            # Only arrival fires on the engine's own read; a disturbance needs Kit's declared
+            # handles (runtime/kit_acts.py), resolved at commit by declared_handling.
+            fired = kit_triggers.entered(self.source, state, result)
             if fired:
                 result = self._spring(result, *fired, action, revision, state)
         return result
 
+    def _offer_handles(self, result, action, state):
+        """Attach the handles offer when the action names a watched feature. A feature
+        resolution the engine read from the words alone (move, look into, get into) on such a
+        feature commits nothing itself: it becomes Kit's call (feature_act)."""
+        if is_ooc(action):
+            return result
+        area = kit_triggers.arrived(self.source, state, result) or state.get('area')
+        offer = self._handles_offer(action, state, area)
+        if not offer:
+            return result
+        if result.kind in kit_triggers.FEATURE_KINDS:
+            return self._feature_act(action, offer)
+        return dataclasses.replace(result, offers={**(result.offers or {}), 'handles': offer})
+
+    def _handles_offer(self, action, state, area):
+        if is_ooc(action) or not (self.source or {}).get('triggers'):
+            return None
+        return kit_triggers.handles_offer(self.source, state, action, area)
+
+    def _feature_act(self, action, offer):
+        """A turn about a watched feature: nothing is resolved from the words; Kit's decision
+        says whether the PC's hands go on it (handles) and the engine resolves that."""
+        event = {'type': 'beat', 'tags': ['feature_act'],
+                 'evidence': f'Player declared: {action}. Resolution: Kit rules whether this handles a '
+                             'watched feature (handles); nothing changed from the words alone.'}
+        return Resolution('feature_act', social_event(action), [event], offers={'handles': offer})
+
+    def declared_handling(self, decl, action, revision, state):
+        """Kit declared handles (runtime/kit_acts.py, validated): the feature's own line, what it
+        holds comes into view, and its disturb trigger fires. ``state`` is the state after this
+        turn's adjudicated events."""
+        feature = decl['feature']
+        handling = (self.source['facts'][feature].get('handling') or {})
+        text = kit_acts.handle_line(handling, decl) or ''
+        noun = decl.get('part') or feature
+        events = [{'type': 'beat', 'tags': ['handle_feature'],
+                   'evidence': f'Player declared: {action}. Kit declared handles {decl["act"]} on {noun} '
+                               f'({feature}). Resolution: {text or "no line in the room file"}'}]
+        held = handling.get('holds')
+        if held and held not in state.get('known_facts', []):
+            events.append({'type': 'reveal_fact', 'fact': held,
+                           'evidence': f'The PC handled the {noun} ({feature}), which shows what it holds.'})
+        result = Resolution('handle_feature', text, events)
+        trigger = kit_triggers.disturb_trigger(self.source, state, feature)
+        if trigger:
+            result = self._spring(result, trigger, state.get('area'), action, revision, state)
+        return result
+
     def _spring(self, result, trigger, area, action, revision, state):
         """A room trigger fires on this resolution (runtime/kit_triggers.py): its hidden actors
-        show themselves and, with ``starts_combat``, the fight starts without the PC attacking."""
+        show themselves and, with ``starts_combat``, the fight starts without the PC attacking.
+        A trigger whose actors are all dead, gone or already fighting is spent quietly."""
         after = copy.deepcopy(state)
         after['area'] = area
         for event in result.events:
@@ -670,18 +717,22 @@ class RoomAdjudicator:
         event = {'type': 'trigger_fired', 'trigger': trigger['id'],
                  'evidence': f'Player declared: {action[:300]}. Room trigger {trigger["id"]}: the PC '
                              f'{"disturbed " + target if kind == "disturb" else "entered " + target}.'}
+        waking = kit_triggers.wakes(trigger, after)
+        if not waking:
+            event['evidence'] += ' Nobody left to wake: spent, no fight restarted.'
+            return dataclasses.replace(result, events=list(result.events) + [event])
         kit_triggers.apply_event(after, self.source, event)
         try:
             _, passive = self._pc_numbers('perception', after, '')
         except PendingRuling:
             passive = None
-        surprised, trace = kit_triggers.pc_surprised(self.source, state, revision, trigger,
-                                                     10 if passive is None else passive, self.npc_roll)
+        surprised, trace = kit_triggers.pc_surprised(self.source, state, revision,
+                                                     trigger, 10 if passive is None else passive, self.npc_roll)
         event['evidence'] += f' {trace}.'
         events, public, kind_now = list(result.events) + [event], result.public_event, result.kind
         if trigger.get('starts_combat', True) and kit_combat.config(self.source):
             fight = kit_combat.Fight(self.source, after, revision, action, check=None, roll=self.roll)
-            fight.start_by_trigger(trigger, surprised, trace)
+            fight.start_by_trigger(trigger, surprised, trace, waking)
             events = [e for e in events if e.get('type') not in ('combat_state', 'scene_state')] + fight.events()
             public = f'{public} {fight.public()}'.strip()
             kind_now = 'combat_round'
@@ -717,6 +768,12 @@ class RoomAdjudicator:
             # A monster's save rider waits on the player's own roll (Avrae) before anything else.
             raise PendingRuling(f"{kit_combat.save_prompt(awaiting)[:-1]} in Avrae first "
                                 f"(!save {awaiting['save']}). No turn was committed.")
+        down = kit_combat.pc_incapacitated(state)
+        if down and not is_ooc(action) and not awaiting:
+            # 0 HP, paralyzed, stunned...: no move, no act, no speech until it ends by rule.
+            why = 'down at 0 hit points' if down == 'down' else down
+            raise PendingRuling(f'You are {why}: you cannot move, act or speak until that ends '
+                                '(healing, or the condition running its course). No turn was committed.')
         if not is_ooc(action) and kit_combat.config(self.source) and asked_away(narration).strip():
             physical = self._resolve_physical(action if asked_away(narration) == narration else
                                               asked_away(narration), revision, state)
@@ -833,8 +890,6 @@ class RoomAdjudicator:
                 return blocked
             event = {'type': 'move', 'exit': key, 'evidence': f'The player explicitly left by the known exit {key}.'}
             return Resolution(kind, self._exit_text(key, state, 'go'), [event])
-        if kind == 'handle_feature':
-            return self._handle_feature(action, narration, state)
         if kind in ('move_feature', 'inspect_feature', 'enter_feature'):
             noun, key = room_words(self.source, state).feature_in(narration.lower()) or \
                 room_words(self.source, state).feature_in(action.lower())
@@ -862,26 +917,6 @@ class RoomAdjudicator:
                  'evidence': f'Player declared: {action}. Resolution: {public}'}
         return Resolution(kind, public, [event])
 
-    def _handle_feature(self, action, narration, state):
-        """Hands on part of a feature or on what it holds: the feature is disturbed (its
-        trigger fires, runtime/kit_triggers.py), and what it holds comes into view."""
-        words = room_words(self.source, state)
-        noun, key = words.feature_in(narration.lower()) or words.feature_in(action.lower())
-        owner = feature_owner(self.source, key)
-        handling = self.source['facts'][owner]['handling']
-        text = handling.get('handle') or handling.get('move') or handling.get('look')
-        if not text:
-            raise PendingRuling(f'The room file gives no ruling for that with the {noun}. No turn was committed.',
-                                attempt=True)
-        events = [{'type': 'beat', 'tags': ['handle_feature'],
-                   'evidence': f'Player declared: {action}. Resolution: hands on the {noun} ({owner}): {text}'}]
-        held = handling.get('holds')
-        if held and held not in state.get('known_facts', []):
-            events.append({'type': 'reveal_fact', 'fact': held,
-                           'evidence': f'The player handled the {noun} ({owner}), which shows what it holds.'})
-        return Resolution('handle_feature', text, events)
-
-    # -- perception at a threshold, and asking for a check (watchroom T1-T3) ---------
     def _threshold_exit(self, action, state):
         """The exit the PC is looking or listening through: the one named, else the one way
         in from here, else None."""
@@ -938,7 +973,7 @@ class RoomAdjudicator:
         modifier, _ = self._pc_numbers(skill, state, action)
         die = self._die(state, revision, f'social:{skill}:{who}', action, modifier, skill)
         total = die + modifier
-        success = total >= flat
+        success = kit_rolls.meets_or_beats(total, flat)
         label = (actor_speakers(self.source).get(who) or actor.get('name') or who).lower()
         public = SOCIAL_OUTCOMES[skill][0 if success else 1].format(who=f'the {label}')
         public = public[0].upper() + public[1:]
@@ -1144,9 +1179,9 @@ class RoomAdjudicator:
         total = die + modifier
         clear = {'type': 'pending_check', 'check': None, 'evidence': f'The contest for {key} is rolled.'}
         evidence = (f'Contest to leave by {key} past {who}: {skill} d20 {die} + {modifier} = {total} vs flat 10 + '
-                    f'Athletics = {flat}: {"success" if total >= flat else "failure"}.')
+                    f'Athletics = {flat}: {"success" if kit_rolls.meets_or_beats(total, flat) else "failure"}.')
         label = (actor_speakers(self.source).get(who) or actor.get('name') or who).lower()
-        if total >= flat:
+        if kit_rolls.meets_or_beats(total, flat):
             return Resolution('exit', f'You get past the {label}. ' + self._exit_text(key, state, 'go'),
                               [{'type': 'beat', 'tags': ['exit_contested'], 'evidence': evidence},
                                {'type': 'move', 'exit': key, 'evidence': evidence}, clear])
@@ -1323,7 +1358,7 @@ class RoomAdjudicator:
         total = die + modifier
         evidence = (f'Player tried Stealth: d20 {die} + {modifier} = {total} vs best passive Perception {dc} '
                     f'({", ".join(f"{k} {v}" for k, v in watchers.items())}).')
-        if total >= dc:
+        if kit_rolls.meets_or_beats(total, dc):  # the PC's Stealth vs their passive: his tie
             if leaving:
                 key = self._exit_taken(action, state)
                 exit_event = dict(exit_event, exit=key)
@@ -1750,6 +1785,8 @@ PLAN_SCHEMA = {
         'plan': kit_plan.PLAN_SCHEMA,
         # Hints and hooks Kit plants, pays off, or drops this turn (runtime/kit_threads.py).
         'open_threads': kit_threads.OPEN_THREADS_SCHEMA,
+        # Structured player acts (runtime/kit_acts.py): only when the packet's acts offers one.
+        **kit_acts.SCHEMAS,
     },
     'required': ['goal', 'appraisal', 'memory_refs', 'improv_read', 'move', 'public_brief',
                  'focus_actor', 'table_presence', 'tone', 'player_note', 'player_mood', 'turn_mode'],
@@ -1758,7 +1795,7 @@ PLAN_SCHEMA = {
 # The strict API schema needs every property required.
 API_PLAN_SCHEMA = json.loads(json.dumps(PLAN_SCHEMA))
 OPTIONAL_PLAN_KEYS = ('claims', 'agenda', 'salience', 'roll_call', 'pc_state', 'pc_oddity', 'ask_player', 'plan',
-                      'open_threads', 'observed_event', 'detail')  # the engine fills these when left out (PR3 a, c)
+                      'open_threads', 'observed_event', 'detail') + tuple(kit_acts.SCHEMAS)  # the engine fills these when left out (PR3 a, c)
 # Strict mode cannot leave an object out, so the chat-only paths (a PC state change, an
 # oddity reaction, a question to the player) are not offered to the API model at all.
 CHAT_ONLY_PLAN_KEYS = ('pc_state', 'pc_oddity', 'ask_player', 'plan', 'open_threads')
@@ -2888,7 +2925,7 @@ def turn_events(runtime, body, plan, turn_id, record=None):
         # commits; one rhythm beat keeps the pacing record honest.
         return [{'type': 'beat', 'tags': ['asked'],
                  'evidence': f"{ASKED_EVENT_PREFIX}{plan['ask_player']['question']}"}]
-    events = list(body['events'])
+    events = list(body['events']) + list((body.get('declared') or {}).get('events') or ())
     table_talk = bool(body.get('table_talk'))  # no NPC spoke and no scene time passed
     if record and not table_talk and runtime.source().get('tolls') and not any(e.get('type') == 'toll_state' for e in events):
         # An NPC line that names the toll and its amount puts the demand on the table.
@@ -3193,6 +3230,7 @@ def check_decision(runtime, plan, memory, body):
                        kit_guards.leak_sets(source), kit_guards.leak_phrases(source))
     check_procedure_start(plan, body, runtime.load()[1])
     check_short_beat(plan, body, runtime.load()[1])
+    kit_acts.check(plan, body)  # a declared act names only what this turn offered
     if plan.get('open_threads') is not None:
         kit_threads.check(plan['open_threads'], runtime.load()[1])
     if not plan.get('ask_player'):  # a question to the player moves no agenda
@@ -3340,6 +3378,10 @@ def prepare_inputs(runtime, revision, state, action, resolution, use_memory, one
     table = card_procedure(source, post_event_state)
     if table and not str(resolution.kind).startswith('card_') and resolution.kind != 'opening':
         planning_input['activities'] = {table[0]: BACKGROUNDED}
+    if resolution.offers and not table_talk:
+        # Private: what Kit may declare this turn (handles...), validated against this offer.
+        body['acts'] = resolution.offers
+        planning_input['acts'] = kit_acts.model_view(resolution.offers)
     attempts = state.get('refused_attempts', [])[-REFUSED_ATTEMPTS_SHOWN:]
     if attempts:
         # Public: the player saw these pending rulings. Both stages may refer to them.
@@ -3730,8 +3772,14 @@ def checked_record(body, plan, speech, performance_variant, source=None, degrade
             handoff += 1
         lines.insert(len(lines) - handoff, f"Narrator: {body['public_event']}")
         spoken = '\n'.join(lines)
-    elif body['kind'] not in ('social', 'opening'):
+    elif body['kind'] not in ('social', 'opening', 'feature_act'):
         spoken = f"Narrator: {body['public_event']}\n{spoken}"
+    declared = body.get('declared')
+    if declared and declared.get('public'):
+        # Kit performed the attempt; the engine's outcome of her declared act follows it, and
+        # a fight it starts ends the turn on the roll call ("Roll initiative.").
+        spoken = f"{spoken}\nNarrator: {declared['public']}"
+        public_event = f"{public_event} {declared['public']}".strip()
     record = {'player_input': body['action'], 'public_event': public_event,
               'trace': plan, 'spoken': spoken, 'performance_variant': performance_variant}
     asides = [{'text': segment['text'], 'reacts_to': segment['reacts_to']}
@@ -3740,6 +3788,9 @@ def checked_record(body, plan, speech, performance_variant, source=None, degrade
         record['kit_reacts_to'] = asides
     if warnings:
         record.update(degraded=True, soft_warnings=warnings)
+    if declared:
+        record['declared'] = {'acts': declared['acts'], 'kind': declared['kind'],
+                              **({'handoff': declared['handoff']} if declared.get('handoff') else {})}
     note = ceiling_note(speech['segments'], plan, guard_context(source, body))
     if note:
         record['over_ceiling'] = note  # advisory: the turn commits; reviews count it
@@ -3880,7 +3931,8 @@ def compute_tier(runtime, body, planning_input):
     return kit_router.route(body['kind'], body.get('events') or (), runtime.load()[1], speakers,
                             important_speakers(runtime.source()), body.get('story_due') or (),
                             threads_due=bool(threads.get('due')) if isinstance(threads, dict) else False,
-                            held=bool(body.get('held_description')))
+                            held=bool(body.get('held_description')),
+                            offered=tuple(key for key, offer in (body.get('acts') or {}).items() if offer))
 
 
 def first_try_lines(runtime, body, planning_input):
@@ -3920,6 +3972,8 @@ def first_try_lines(runtime, body, planning_input):
         lines.append('A look or listen through a threshold: describe only threshold_view (tease-only); the PC has not moved.')
     if planning_input.get('open_threads'):
         lines.append('Open threads are listed in open_threads: pay off or drop them before the scene ends.')
+    if (planning_input.get('acts') or {}).get('handles'):
+        lines.append('acts.handles: ' + kit_acts.HANDLES_RULE)
     held = planning_input.get('held_description')
     if held:
         lines.append(f"The roll is in ({held['roll']}): deliver the held {held['kind']} description now, "
@@ -4127,7 +4181,7 @@ class KitChatBridge:
         if pending['plan'] is None:
             raise HostSequenceError('Complete private decision before performance: call decide '
                                     'with the private decision first, then finish.', 'decide')
-        body = pending['body']
+        body = self._declared(pending['body'], pending['plan'])
         self._check_degraded_allowed(turn_id, degraded)
         variant = (self.runtime.kit_timing(turn_id) or {}).get('performance_variant', 'current')
         record = self._checked_or_log(turn_id, body, pending['plan'], speech, variant, degraded)
@@ -4136,7 +4190,27 @@ class KitChatBridge:
             record, consume_pending=True)
         return self._committed_result(turn_id, revision, body, record, variant)
 
+    def _declared(self, body, plan):
+        """``body`` plus the engine's outcome of the acts Kit declared (runtime/kit_acts.py):
+        the handled feature's line, what it holds, and the trigger it sets off. Resolved on the
+        state after this turn's adjudicated events, with this adjudicator's dice."""
+        acts = kit_acts.check(plan, body)
+        if not acts.get('handles'):
+            return body
+        revision, _ = self.runtime.load()
+        after = self.runtime.preview_state(revision, body['events'])
+        if isinstance(self.adjudicator, RoomAdjudicator):
+            self.adjudicator.mount(self.runtime.source())
+        result = self.adjudicator.declared_handling(acts['handles'], body['action'], revision, after)
+        return {**body, 'declared': {'acts': {'handles': {k: v for k, v in acts['handles'].items() if v}},
+                                     'events': list(result.events), 'public': result.public_event,
+                                     'kind': result.kind, 'handoff': result.handoff}}
+
     def _committed_result(self, turn_id, revision, body, record, variant):
+        handoff = (body.get('declared') or {}).get('handoff')
+        if handoff:
+            # The per-turn handoff log's seam (PR-H): what took the floor and why.
+            self.runtime.record_kit_timing(turn_id, handoff=handoff)
         result = {'revision': revision, 'turn_id': turn_id,
                   'public_event': record['public_event'], 'spoken': record['spoken'],
                   'performance_variant': variant, 'timing': self._finish_timing(turn_id, record)}
@@ -4304,6 +4378,7 @@ class KitChatBridge:
             except InvalidChange as exc:
                 raise self._log_rejection(turn_id, exc) from exc
         self.runtime.save_kit_plan(turn_id, revision, plan)
+        body = self._declared(body, plan)
         # Turns staged before variants reached one-pass ran the `current` instructions.
         variant = body.get('performance_variant', 'current')
         record = self._checked_or_log(turn_id, body, plan, output['performance'], variant, degraded)
