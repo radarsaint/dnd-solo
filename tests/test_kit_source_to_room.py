@@ -53,7 +53,7 @@ def lair_room(**changes):
         'facts': {
             'rubble': {'area': 'loft', 'visible': True, 'text': 'Rubble fills the west half of the loft.',
                        'handling': {'nouns': ['rubble'], 'look': 'You shift a few stones.',
-                                    'move': 'You drag a slab aside.'}},
+                                    'move': 'You drag a slab aside.', 'holds': 'pouch'}},
             'webbing': {'area': 'loft', 'visible': True, 'text': 'Torn webbing sags from the beams.'},
             'pouch': {'area': 'loft', 'visible': False, 'text': 'A dead prospector under the rubble wears a '
                                                                 'pouch holding 12 gp.'},
@@ -230,6 +230,41 @@ def gate_room():
              'delivered_when': {'said': {'by': ['brannoc'], 'any': ['silver', 'toll'], 'challenge': True}}}]}},
         'resources': {},
     }
+
+
+class PartsAndHeldItems(unittest.TestCase):
+    """A feature with graspable parts or a held item must list parts/holds, so 'I pry the claw open'
+    and 'I take the orb from the claw' disturb it (#97). Synthetic keyed text, area 3."""
+
+    def inputs(self):
+        return kit_author.area_inputs(book(), '3')
+
+    def test_the_packet_carries_the_rule_and_the_schema_fields(self):
+        packet = kit_author.packet(book(), '3')
+        self.assertIn(kit_author.PARTS_RULE, packet['hard_rules'])
+        self.assertIn('parts?', packet['schema']['required']['facts'])
+        self.assertIn('holds?', packet['schema']['required']['facts'])
+
+    def test_an_item_under_a_feature_that_does_not_hold_it_is_refused(self):
+        room = lair_room()
+        del room['facts']['rubble']['handling']['holds']        # the pouch under the rubble, unowned
+        errors = kit_author.validate(room, self.inputs())['errors']
+        self.assertTrue(any('fact pouch is in or on rubble' in e and 'handling.holds' in e for e in errors), errors)
+        self.assertEqual(kit_author.validate(lair_room(), self.inputs())['errors'], [])
+
+    def test_a_graspable_part_must_be_listed(self):
+        room = lair_room()
+        room['facts']['prospector'] = {
+            'area': 'loft', 'visible': False, 'text': 'A dead prospector lies under the rubble.',
+            'handling': {'nouns': ['prospector', 'corpse'], 'look': 'His fist is clenched.', 'holds': 'purse'}}
+        room['facts']['purse'] = {'area': 'loft', 'visible': False,
+                                  'text': "A pouch of 12 gp is clutched in the prospector's hand."}
+        room['facts']['rubble']['handling']['holds'] = 'pouch'
+        errors = kit_author.validate(room, self.inputs())['errors']
+        self.assertTrue(any('fact prospector has graspable parts (hand)' in e for e in errors), errors)
+        room['facts']['prospector']['handling']['parts'] = ['hand', 'fist']
+        errors = kit_author.validate(room, self.inputs())['errors']
+        self.assertFalse(any('graspable' in e or 'handling.holds' in e for e in errors), errors)
 
 
 class CacheAndLinks(Session):

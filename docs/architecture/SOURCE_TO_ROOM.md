@@ -59,6 +59,9 @@ herself** ("if the corpse is disturbed, the centipedes emerge and attack" is a `
 hidden actors; "attack all who enter" is an `enter` trigger); hidden actors named nowhere public;
 alarms list responders; the approach is tease-only; checks on hidden truths are claims with the
 book's DC; onward areas carry `room_link: {"author": {"level", "area"}}`.
+A feature with graspable parts or a held item lists them: `handling.parts` (the claw, the lid, the
+hand) and `handling.holds` (the held item, its own fact, hidden allowed), so "I pry the claw open" or
+"I take the orb from the claw" disturbs the feature and fires its trigger (#97, ROOM_TRIGGERS.md).
 
 ## 4. Validate, repair once, fall back
 
@@ -69,7 +72,9 @@ book's DC; onward areas carry `room_link: {"author": {"level", "area"}}`.
    named neighbours only, ledger exits; the keyed text sets creatures off but no `triggers`; a hidden
    actor no trigger wakes, or one not `visible: false`; a trigger's actor with no stat block; a
    hidden actor's name or kind in a visible fact, area name/called/arrival, tease, heard sound or exit
-   label (singular and plural); a story hook `by` a hidden actor (who cannot raise it); a claim DC the
+   label (singular and plural); a story hook `by` a hidden actor (who cannot raise it); a fact in, under
+   or in the grip of a handled feature that the feature does not `holds`; a graspable part word (claw,
+   lid, hand...) on a handled feature or its held item that is not in `parts`; a claim DC the
    book does not give (a warning);
 2. the room loader's own checks (`kit_rooms.check_room`), plus the later-stage compilers even when the
    first framing fails, and alarm-looking facts with no responders as errors;

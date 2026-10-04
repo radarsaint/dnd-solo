@@ -47,6 +47,16 @@ TRIGGER_RULE = (
     '"reveal": <one public line>} whose actors are "status": "hidden", "visible": false until it fires; "attack all '
     'who enter" is {"on": {"enter": <area>}}. A creature lurking out of sight gets "surprise": {"stealth": null} '
     '(its stat block\'s Stealth). Never narrate an ambush the room file does not declare.')
+PARTS_RULE = (
+    'A feature with graspable parts or a held item must list them: "handling": {"nouns", "parts": [the claw, the '
+    'lid, the hand...], "holds": "<fact id>"}, and the held item is its own fact (hidden allowed: "visible": '
+    'false). Then "I pry the claw open" or "I take the orb from the claw" disturbs that feature and fires its '
+    'trigger; the item comes into view when it is handled.')
+# Words that name a graspable part of a feature ("the basilisk's claw", "the coffin's lid").
+PART_WORDS = ('claw', 'claws', 'talon', 'talons', 'hand', 'hands', 'fist', 'jaw', 'jaws', 'mouth', 'paw', 'paws',
+              'foreleg', 'wing', 'lid', 'drawer', 'handle', 'hilt', 'strap', 'clasp', 'latch', 'chain', 'hook')
+HELD_IN = re.compile(r"\b(?:in|inside|under|beneath|within|on|clutched in|clenched in|held in|gripped in|"
+                     r"wears|wearing|holds|holding)\b")
 HARD_RULES = [
     'Data only: one JSON object in the room format. No code, no prose outside fields, no comments but "_note".',
     'Contents, creatures, traps, treasure, DCs and scripted conditions come from keyed_text and nowhere else. '
@@ -66,13 +76,15 @@ HARD_RULES = [
     'A hidden truth found by a check is a claim (claims.<thing>, ROOM_LOADER section 2), with the book\'s DC.',
     'Next areas: an outside area joined to a named neighbour carries "room_link": {"author": {"level", "area"}} '
     'so the next room is authored on demand, not invented.',
+    PARTS_RULE,
 ]
 ROOM_SCHEMA = {
     'format': 'docs/architecture/ROOM_LOADER.md section 2 (the loader refuses anything else)',
     'required': {'id': 'exactly room_id', 'source_ref': 'names the keyed area', 'starting_area': 'the approach',
                  'areas': '{id: {name, called, source_area, outside?, beyond?, arrival?, tease? (approach), room_link?}}',
                  'exits': '{id: {name, areas: [a, b], secret, labels: {a: text, b: text}, go_text?}}',
-                 'facts': '{id: {area, text, visible, handling?: {nouns, look?, move?, enter?, holds?}, alarm?}}',
+                 'facts': '{id: {area, text, visible, handling?: {nouns, parts?, look?, move?, enter?, handle?, '
+                          'holds?}, alarm?}}',
                  'actors': '{id: {name, location, status (alive|hidden), visible, motive, knowledge, secrets, '
                            'communication_profile: {rhythm, humor}, stat_block?, guards?, armed?}}'},
     'optional': ['story (about, purposes, hooks with by/primary/within_beats/delivered_when, endings)', 'claims',
@@ -323,6 +335,7 @@ def authoring_problems(room, inputs):
         if leaked:
             problems.append(f'{where} names a hidden actor ({", ".join(leaked)}): hidden actors stay dm_only '
                             'until their trigger fires')
+    problems += held_and_part_problems(room)
     book_dcs = {int(n) for n in DC_IN_TEXT.findall(keyed)}
     for path, key, value in _walk(room.get('claims') or {}):
         if key == 'dc' and type(value) is int and value not in book_dcs:
@@ -330,6 +343,42 @@ def authoring_problems(room, inputs):
                          f'({", ".join(map(str, sorted(book_dcs))) or "it gives none"}); omit dc to use the '
                          "engine's default, or use the book's")
     return problems, warns
+
+
+def held_and_part_problems(room):
+    """A fact that sits in, under, or in the grip of a handled feature must be that feature's
+    ``holds``; a graspable part named on a handled feature or its held item must be in ``parts``."""
+    problems = []
+    facts = room.get('facts') if isinstance(room.get('facts'), dict) else {}
+    handled = {key: fact for key, fact in facts.items()
+               if isinstance(fact, dict) and isinstance(fact.get('handling'), dict)}
+    held_by = {fact['handling'].get('holds'): key for key, fact in handled.items() if fact['handling'].get('holds')}
+    for key, fact in facts.items():
+        if not isinstance(fact, dict) or key in handled or not isinstance(fact.get('text'), str):
+            continue
+        text = fact['text'].casefold()
+        for owner, feature in handled.items():
+            if owner == key or feature.get('area') != fact.get('area'):
+                continue
+            nouns = [str(n).casefold() for n in list(feature['handling'].get('nouns') or ()) +
+                     list(feature['handling'].get('parts') or ())]
+            named = next((n for n in nouns if re.search(r'\b' + re.escape(n) + r's?\b', text)), None)
+            if named and HELD_IN.search(text) and key not in held_by:
+                problems.append(f'fact {key} is in or on {owner} ("{named}"): list it as {owner}\'s handling.holds '
+                                'so handling the feature finds it and disturbs it')
+    for owner, feature in handled.items():
+        listed = {str(n).casefold() for n in list(feature['handling'].get('nouns') or ()) +
+                  list(feature['handling'].get('parts') or ())}
+        texts = [feature.get('text') or '']
+        held = facts.get(feature['handling'].get('holds'))
+        if isinstance(held, dict):
+            texts.append(held.get('text') or '')
+        words = set(re.findall(r"[a-z]+", ' '.join(texts).casefold()))
+        missing = sorted(w for w in PART_WORDS if w in words and w not in listed and w.rstrip('s') not in listed)
+        if missing:
+            problems.append(f'fact {owner} has graspable parts ({", ".join(missing)}): list them in handling.parts '
+                            'so "I pry the claw open" disturbs it')
+    return problems
 
 
 def loader_problems(room):
