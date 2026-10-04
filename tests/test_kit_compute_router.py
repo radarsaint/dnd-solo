@@ -89,5 +89,19 @@ class RouterOnTheBridge(Stalls):
         self.assertNotIn('model', routine['input']['private'])
 
 
+class PendingRulingTier(unittest.TestCase):
+    """Nagatha's #96 review: the docstring and QUIET_EVENT_TYPES now say the same thing."""
+
+    def test_a_pending_check_alone_is_routine(self):
+        from runtime import kit_router
+        events = [{'type': 'pending_check', 'check': None}, {'type': 'beat', 'tags': ['check']}]
+        self.assertEqual(kit_router.route('called_check', events, {})['tier'], 'routine')
+
+    def test_a_held_description_makes_it_consequential(self):
+        from runtime import kit_router
+        events = [{'type': 'pending_check', 'check': None}]
+        self.assertEqual(kit_router.route('called_check', events, {}, held=True)['tier'], 'consequential')
+
+
 if __name__ == '__main__':
     unittest.main()

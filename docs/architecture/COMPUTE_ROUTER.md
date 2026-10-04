@@ -10,6 +10,10 @@
 
 Someone the PC can only hear through a door counts as here when the PC speaks out loud (a quoted line, or says/asks/calls). On the watchroom landing, talking to the warden through the gap is consequential.
 
+This is intended. A heard NPC can answer only what is said to them through the door. Listening at the door or looking through the gap is still routine, because nobody there is spoken to.
+
+**Pending ruling.** Setting or rolling a called check counts as a quiet event (`QUIET_EVENT_TYPES`), so a check alone is routine. A held description due this turn makes it consequential, with or without the roll (a stall check's room, see ROOM_LOADER.md §4b).
+
 Only a routine turn changes the packet: `compute` {tier, why, may_omit} plus one `first_try` line. Normal and consequential packets are byte-for-byte the PR3 packet. The tier is always kept in the staged body (`body['compute']`).
 
 **Same model, same contract.** The session manifest (instructions, schema) is identical on every tier. Nothing picks or swaps a model.

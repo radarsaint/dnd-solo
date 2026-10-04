@@ -3,9 +3,14 @@ much a turn asks Kit to write: routine, normal or consequential. Same model on e
 
 Inputs, all known before Kit is called:
 * action_kind: room entry, a way through, combat and table procedures are never routine;
-* a pending ruling: a check waiting on this roll, or a held description, is consequential;
+* a pending ruling: a called check being set or rolled is quiet on its own (QUIET_EVENT_TYPES),
+  so it is routine unless something else counts. A held description due this turn (a stall
+  check's room, with or without the roll) is consequential;
 * an important NPC: anyone present in the PC's area makes the turn at least normal; an NPC
-  with a story hook here, or a card that sets speech_floor, makes it consequential;
+  with a story hook here, or a card that sets speech_floor, makes it consequential. Someone
+  only heard through a door counts as present only when the PC speaks (kit_agent.ADDRESSING).
+  That is intended: a heard NPC can answer only what is said to them through the door, and
+  listening or looking at the threshold stays routine;
 * the active brief: a due hook (story_due) or open threads now due are consequential;
 * a state change: any resolved event other than a rhythm beat or a cleared check
   (a move, an attitude shift, a learned claim, a threshold crossed) is consequential.
