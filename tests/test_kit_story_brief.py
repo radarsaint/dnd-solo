@@ -12,7 +12,7 @@ import unittest
 from pathlib import Path
 
 from runtime import kit_agent, kit_brief, kit_guards, kit_toll
-from runtime.kit_agent import KitAgent, Resolution, Room6CAdjudicator
+from runtime.kit_agent import KitAgent, Resolution, RoomAdjudicator
 from runtime.state_context import InvalidChange, Runtime
 from test_kit_agent import FIXTURE, MIRROR, RecordingModel, exchange_speech, with_raised_hooks
 
@@ -96,7 +96,7 @@ class Base(unittest.TestCase):
         return self.runtime
 
     def agent(self, model):
-        return KitAgent(self.runtime, model, Room6CAdjudicator(perception=0, insight=0, roll=lambda: 15))
+        return KitAgent(self.runtime, model, RoomAdjudicator(perception=0, insight=0, roll=lambda: 15))
 
     def beat(self, delivered=()):
         revision, state = self.runtime.load()
@@ -248,7 +248,7 @@ class ReviewFixes(Base):
         self.start()
         for _ in range(3):
             self.beat()
-        bridge = kit_agent.KitChatBridge(self.runtime, Room6CAdjudicator(perception=0, insight=0, roll=lambda: 15))
+        bridge = kit_agent.KitChatBridge(self.runtime, RoomAdjudicator(perception=0, insight=0, roll=lambda: 15))
         prepared = bridge.prepare('I nod to the dealer.', 'stuck')
         self.assertTrue(prepared['input'].get('raise_now') or
                         self.runtime.pending_kit_turn('stuck')['body'].get('story_due'))

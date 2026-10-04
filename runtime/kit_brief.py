@@ -109,10 +109,11 @@ def _check_condition(cond, source, label):
                 all(part.strip() for p in value['any'] for part in p.split('+')) and
                 isinstance(value.get('paired', []), list) and
                 all(isinstance(p, str) and p.strip() for p in value.get('paired', [])) and
-                set(value) <= {'by', 'any', 'game', 'paired'} and
+                set(value) <= {'by', 'any', 'game', 'paired', 'challenge'} and
+                value.get('challenge', False) in (True, False) and
                 ('game' not in value or value['game'] in (source.get('procedures') or {})),
                 f'{label}: said needs by (actor ids) and any (phrases; "a + b" both in one line), '
-                'and game names a procedure')
+                'game names a procedure, and challenge is true or false')
     elif kind == 'net_at_least':
         require(isinstance(value, dict) and value.get('procedure') in (source.get('procedures') or {}) and
                 type(value.get('gp')) is int and value['gp'] > 0, f'{label}: net_at_least needs procedure and gp')
@@ -276,8 +277,11 @@ def holds(cond, source, state, spoken=''):
         lines = _spoken_by(spoken, source)
         said = [line.casefold().replace('\u2019', "'") for who in value['by'] for line in lines.get(who, ())]
         names = game_names((source.get('procedures') or {}).get(value['game'])) if value.get('game') else []
+        # challenge: any question the actor puts to the PC is the challenge, however it is
+        # worded ("Who goes there?"), as the room's hook says (watchroom playtest).
         return any(_says(line, phrase) for line in said for phrase in said_phrases(value, source)) or \
-            any(_paired(line, phrase, names) for line in said for phrase in value.get('paired', ()))
+            any(_paired(line, phrase, names) for line in said for phrase in value.get('paired', ())) or \
+            bool(value.get('challenge')) and any('?' in line for line in said)
     if kind == 'toll_raised':
         from . import kit_toll
         body = (kit_toll.here(source, state).get(value) or (None, {}))[1] if state.get('area') else {}
@@ -375,8 +379,19 @@ def brief(source, state):
     agents = ((source.get('agenda') or {}).get('agents') or {})
     wants_by_actor = {agent.get('actor'): agent.get('wants') for agent in agents.values()
                       if isinstance(agent, dict) and agent.get('actor')}
+    from .kit_rooms import resolution, stage
+    where = stage(source, state)
+    tease = ((source.get('areas') or {}).get(area) or {}).get('tease') if where == 'approach' else None
+    live = state.get('actors') or {}
+    heard = heard_here(source, state)
+    present = {**present, **{key: live[key] for key in heard if key not in present}}
     people = []
     for key, actor in present.items():
+        if key in heard and key not in _present(source, state):
+            # Tease-only approach (Brendon, 2026-10-04): someone inside is only what reaches
+            # the doorway, never their card, wants, or secrets.
+            people.append({'actor': key, 'label': labels.get(key) or actor.get('name') or key, 'heard': heard[key]})
+            continue
         traits = list(actor.get('traits') or [])
         if not traits:
             profile = actor.get('communication_profile') or {}
@@ -384,7 +399,7 @@ def brief(source, state):
         wants = [w for w in (actor.get('motive'), actor.get('immediate_goal'), wants_by_actor.get(key)) if w]
         people.append({'actor': key, 'label': labels.get(key) or actor.get('name') or key,
                        'wants': wants or ['Unstated in the source: infer from the room, never invent a secret.'],
-                       'traits': traits})
+                       'traits': traits, **({'heard': heard[key]} if key in heard else {})})
     mem = story_state(state, area)
     hooks, raise_now = [], []
     for hook in story.get('hooks') or ():
@@ -410,13 +425,27 @@ def brief(source, state):
         if isinstance(clock, dict) and clock.get('when_full'):
             thresholds.append({'when': f'{key} fills: {clock.get("ticks_on", "")}'.strip(), 'then': clock['when_full']})
     endings = list(story.get('endings') or ())
+    if (source.get('areas') or {}).get(area, {}).get('outside') and not story:
+        # Outside the room (stage approach or resolution): going in and going past are both
+        # ways this ends (ROOM_LOADER.md: a bypass is a resolution).
+        endings = ['The player goes in.', 'The player goes past without going in.']
     if not endings:
         endings = ['The player leaves the scene.'] + [
             f'{labels.get(key) or actor.get("name") or key}: {actor["retreat_condition"]}'
             for key, actor in present.items() if actor.get('retreat_condition')]
-    about = story.get('about') or (source.get('level_context') or {}).get('pressure_here') or \
-        ((source.get('areas') or {}).get(area) or {}).get('name')
-    made = {'rule': BRIEF_RULE, 'area': area, 'about': about, 'beats_in_scene': mem['beats'],
+    about = (tease or {}).get('text') or story.get('about') or \
+        (source.get('level_context') or {}).get('pressure_here') or ((source.get('areas') or {}).get(area) or {}).get('name')
+    if tease:
+        # The doorway (Brendon's ruling): what reaches the PC from outside, pointing at the hook
+        # inside, and who is heard there. Kit plays toward the hook from out here.
+        pointed = next((hook for story_area in compile_story(source).values() for hook in story_area.get('hooks') or ()
+                        if hook['id'] == tease.get('points_to')), None)
+        # Tease-only (Brendon, 2026-10-04): the hook is named by id, never by its inside text.
+        tease = {'text': tease['text'], 'points_to': tease.get('points_to') if pointed else None}
+    made = {'rule': BRIEF_RULE, 'area': area, 'stage': where, 'about': about,
+            **({'tease': tease} if tease else {}),
+            **({'resolved': resolution(source, state)} if where == 'resolution' else {}),
+            'beats_in_scene': mem['beats'],
             'present': people,
             'purposes': [{'what': p['what'], 'for': p['for']} for p in story.get('purposes') or ()],
             'hooks': hooks, 'raise_now': raise_now, 'thresholds': thresholds, 'endings': endings}
@@ -467,7 +496,8 @@ def _needs(cond, source):
         said = ', '.join('"' + '" with "'.join(part.strip() for part in p.split('+')) + '"'
                          for p in said_phrases(value, source))
         paired = ', '.join(f'"{p}"' for p in value.get('paired', ()))
-        return 'says one of: ' + said + (f', or {paired} together with a game word' if paired else '')
+        return 'says one of: ' + said + (f', or {paired} together with a game word' if paired else '') + \
+            (', or puts any challenging question to the player character' if value.get('challenge') else '')
     if kind == 'toll_raised':
         toll = (source.get('tolls') or {}).get(value) or {}
         return (f'names the amount ({toll.get("amount")} {toll.get("unit", "")}) together with a toll word '
@@ -503,6 +533,38 @@ def beat_event(source, state, spoken, turn_id):
                         f'{", ".join(delivered) or "none"}.'}
 
 
+def heard_here(source, state):
+    """{actor id: sound} for the live actors heard from this approach area (its tease's
+    ``heard``). They can be voiced from here: a challenge through the door."""
+    from .kit_rooms import stage
+    if stage(source, state) != 'approach':
+        return {}
+    tease = ((source.get('areas') or {}).get((state or {}).get('area')) or {}).get('tease') or {}
+    live = (state or {}).get('actors') or {}
+    return {item['actor']: item['sound'] for item in tease.get('heard') or ()
+            if (live.get(item.get('actor')) or {}).get('status') not in (None, *GONE)}
+
+
+def heard_events(source, state, spoken, turn_id):
+    """Hooks delivered this turn by someone in another area of the room: a challenge called
+    through the door to a PC still on the threshold (watchroom playtest: the warden's challenge
+    at the door was not counted, and the hook was flagged overdue inside). No beat is added
+    to that area; only its delivered hooks are latched."""
+    events, here = [], (state or {}).get('area')
+    lines = _spoken_by(spoken, source)
+    for area, story in compile_story(source).items():
+        if area == here:
+            continue
+        mem = story_state(state, area)
+        found = [hook['id'] for hook in story.get('hooks') or ()
+                 if hook['id'] not in mem['delivered'] and hook.get('by') in lines and
+                 holds(hook['delivered_when'], source, state, spoken)]
+        if found:
+            events.append({'type': 'story_beat', 'area': area, 'delivered': found, 'beat': False,
+                           'evidence': f'Heard from {area} on turn {turn_id}; delivered: {", ".join(found)}.'})
+    return events
+
+
 def apply_event(state, source, event):
     area = event.get('area')
     story = compile_story(source).get(area)
@@ -512,7 +574,9 @@ def apply_event(state, source, event):
     require(isinstance(delivered, list) and set(delivered) <= hooks, 'story_beat delivered names hook ids')
     mem = story_state(state, area)
     mem = state.setdefault('story', {})[area] = {**mem, 'scene': scene_key(state)}
-    mem['beats'] += 1
+    require(event.get('beat', True) in (True, False), 'story_beat beat is true or false')
+    if event.get('beat', True):
+        mem['beats'] += 1
     mem['delivered'] = sorted(set(mem['delivered']) | set(delivered))
 
 

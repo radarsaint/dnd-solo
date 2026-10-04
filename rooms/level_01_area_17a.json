@@ -1,0 +1,52 @@
+{
+  "id": "dotmm-level-01-area-17a-stub-v0",
+  "stub": true,
+  "_stub": "STUB, not room content. A minimal Area 17a so the room loader can be proven on a second real room (docs/architecture/ROOM_LOADER.md). GPT writes the full 17a content (facts, actors, story brief, rules). Nothing here beyond the area names is keyed from the source; do not play it as the published room. Its facts are placeholders.",
+  "source_ref": "Mad_Mage_Source.txt / Level 1 / 17. Stone Temple Pileup / 17a (stub)",
+  "starting_area": "area_17a_doors",
+  "areas": {
+    "area_17a_doors": {
+      "name": "Outside the foyer of area 17",
+      "called": "the foyer doors",
+      "outside": true,
+      "tease": {
+        "text": "Behind the foyer doors: a heavy quiet, and the smell of something large and long dead.",
+        "heard": []
+      },
+      "_tease": "STUB placeholder so the doorway brief is not empty; GPT writes the real 17a tease."
+    },
+    "area_17a": {
+      "name": "Foyer (area 17a)",
+      "called": "the foyer",
+      "arrival": "A newcomer reaches the foyer of area 17."
+    }
+  },
+  "exits": {
+    "foyer_doors": {
+      "name": "the foyer doors",
+      "areas": [
+        "area_17a_doors",
+        "area_17a"
+      ],
+      "secret": false,
+      "labels": {
+        "area_17a_doors": "Doors into the foyer.",
+        "area_17a": "The doors back out."
+      }
+    }
+  },
+  "facts": {
+    "foyer_doors_view": {
+      "area": "area_17a_doors",
+      "visible": true,
+      "text": "Doors lead into the foyer of area 17."
+    },
+    "dead_basilisk": {
+      "area": "area_17a",
+      "visible": true,
+      "text": "A dead basilisk lies in the foyer."
+    }
+  },
+  "actors": {},
+  "resources": {}
+}

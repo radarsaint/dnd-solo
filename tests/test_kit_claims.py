@@ -9,7 +9,7 @@ import unittest
 from pathlib import Path
 
 from runtime import kit_agent, kit_claims, kit_guards, pc_sheet
-from runtime.kit_agent import PendingRuling, Room6CAdjudicator
+from runtime.kit_agent import PendingRuling, RoomAdjudicator
 from runtime.state_context import InvalidChange, Runtime
 from test_kit_agent import FIXTURE, RecordingModel
 
@@ -164,7 +164,7 @@ class PlayTests(unittest.TestCase):
         self.runtime.set_player_sheet(NIK)
         revision, state = self.runtime.load()
         self.assertEqual(self.runtime.player_view()['your_character']['ancestry'], 'Harengon')
-        adjudicator = Room6CAdjudicator(source=SOURCE)
+        adjudicator = RoomAdjudicator(source=SOURCE)
         result = adjudicator.resolve('I want to appraise the silver ring. I rolled 11 + 7 = 18',
                                      revision, state)
         self.assertEqual(result.kind, 'knowledge')
@@ -176,7 +176,7 @@ class PlayTests(unittest.TestCase):
     def test_a_missed_history_roll_learns_nothing(self):
         self.runtime.set_player_sheet(NIK)
         revision, state = self.runtime.load()
-        result = Room6CAdjudicator(source=SOURCE).resolve('What do I know about the ring? I rolled 2 + 7 = 9',
+        result = RoomAdjudicator(source=SOURCE).resolve('What do I know about the ring? I rolled 2 + 7 = 9',
                                                           revision, state)
         self.assertNotIn('claim_learned', [event['type'] for event in result.events])
 
@@ -316,7 +316,7 @@ class PlayTests(unittest.TestCase):
         self.assertEqual(packet['claims']['false_vampires']['pc_band'], 'blind')
 
     def test_reused_adjudicator_uses_current_sheet_without_caching_bonuses(self):
-        adjudicator = Room6CAdjudicator(source=SOURCE, roll=lambda: 10)
+        adjudicator = RoomAdjudicator(source=SOURCE, roll=lambda: 10)
         self.runtime.set_player_sheet(NIK)
         revision, state = self.runtime.load()
         first = adjudicator.resolve('I study their faces for a disguise.', revision, state)
@@ -337,7 +337,7 @@ class PlayTests(unittest.TestCase):
         revision, state = self.runtime.load()
         with self.assertRaisesRegex(PendingRuling, 'Load a character sheet or state the Insight roll'):
             adjudicator.resolve('I study their faces for a disguise.', revision, state)
-        explicit = Room6CAdjudicator(source=SOURCE, insight=2, roll=lambda: 10)
+        explicit = RoomAdjudicator(source=SOURCE, insight=2, roll=lambda: 10)
         third = explicit.resolve('I study their faces for a disguise.', revision, state)
         self.assertIn('= 12', ledger(third))
         self.assertNotIn('(Insight 12)', third.public_event)

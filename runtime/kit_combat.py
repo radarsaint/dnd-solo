@@ -245,7 +245,19 @@ def narration(action):
 
 
 def config(source):
-    return (source or {}).get('combat') or {}
+    """The room's combat block, plus every actor whose ``stat_block`` (inline or an SRD
+    reference, runtime/srd_creatures.py) makes them a fighter. A room with fighters and no
+    combat block can still fight on-engine (watchroom playtest)."""
+    from . import srd_creatures
+    block = (source or {}).get('combat') or {}
+    known = block.get('actors') or {}
+    statted = {key: srd_creatures.stat_block(actor.get('stat_block'))
+               for key, actor in ((source or {}).get('actors') or {}).items()
+               if isinstance(actor, dict) and actor.get('stat_block') and key not in known}
+    statted = {key: stats for key, stats in statted.items() if stats}
+    if not statted:
+        return block
+    return {**block, 'actors': {**known, **statted}}
 
 
 def initial_scene():
@@ -291,6 +303,10 @@ def _names(source, key):
     first = label.split()[0] if label else ''
     if first and first not in ('the', 'pale'):
         names.add(first)  # "dealer", "door-side", "fresco-side", "fourth"
+    last = label.split()[-1] if label else ''
+    if last and all((labels(source).get(other, other).casefold().split() or [''])[-1] != last
+                    for other in (source.get('actors') or {}) if other != key):
+        names.add(last)  # the head noun when only this actor has it: "watch warden" -> "warden"
     palette = (((source.get('texture_palette') or {}).get('areas') or {}).get(actor.get('location') or '', {})
                .get('subjects', {}).get(f'actor:{key}')) or ()
     names |= {n.casefold() for n in palette}

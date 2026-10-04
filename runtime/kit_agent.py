@@ -27,6 +27,7 @@ from . import kit_claims
 from . import kit_agenda, kit_plan, pc_sheet
 from . import kit_detail
 from . import kit_prices
+from . import kit_rooms
 from . import kit_texture
 from . import kit_toll
 from . import kit_twenty_one
@@ -39,7 +40,9 @@ from .state_context import (ASKED_EVENT_PREFIX, CONTEXT_BUDGET_BYTES, HostSequen
                             check_player_note_text, encode, require)
 
 
-ROOM_FIXTURE = PROJECT_ROOT / 'tests/fixtures/level_01_area_06c.json'
+# The room `start` mounts when the host names none: area 6c, the one room with full
+# content today. Any room file mounts with --room (runtime/kit_rooms.py).
+DEFAULT_ROOM = PROJECT_ROOT / 'tests/fixtures/level_01_area_06c.json'
 
 
 class PendingRuling(Exception):
@@ -174,9 +177,27 @@ QUOTED_SPEECH = re.compile(r'"[^"]*"|' + r"(?:(?<=^)|(?<=[\s(\[:;,.!?\u2014-]))'
 # A stealthy approach needs a Stealth ruling; it must never pass as a free, unopposed exit.
 STEALTH_INTENT = re.compile(r'\b(sneak|sneaks|sneaking|creep|creeps|creeping|tiptoe|tiptoes|tiptoeing|'
                             r'stealth|stealthily|unnoticed|unseen)\b|\bslip(s|ping)? (past|by)\b')
-# Getting into the tub means landing on whatever is stored in it.
-TUB_ENTRY = re.compile(r'\b(climb|get|sit|lie|lay|jump|hop|step|lower|slide|settle|bathe|soak|lounge)'
-                       r'\w*\b[^.]*?\b(in|into)\b[^.]*?\btub\b')
+# A room feature the file declares (a fact's ``handling``: a tub, a chest, a well) is acted
+# on by its own nouns. Getting into it means landing on whatever is stored in it.
+def _feature_entry(nouns):
+    return re.compile(r'\b(climb|get|sit|lie|lay|jump|hop|step|lower|slide|settle|bathe|soak|lounge)'
+                      r'\w*\b[^.]*?\b(in|into)\b[^.]*?\b(?:' + nouns + r')\b')
+# Handling a feature takes a hands-on verb whose own object is the feature, at most four words
+# on ("I search the old chest", "I crouch by the tub", "I look inside the chest", "what's in
+# the tub?"). A look or a watch toward it ("I look at the chest", "his eyes flick toward the
+# chest") is free description, never the feature's handling (watchroom playtest).
+def _feature_handled(nouns):
+    gap = r"(?:\s+(?!(?:toward|towards|at|or|and|while|whether)\b)[\w'-]+){0,4}?\s+"
+    return re.compile(
+        r"\b(?:search|searches|inspect|inspects|examine|examines|check|checks|open|opens|rummage|rummages|"
+        r"crouch|crouches|kneel|kneels|squat|squats|lean over|leans over|bend over|bends over)\b" + gap +
+        r"(?:" + nouns + r")\b"
+        r"|\b(?:look|looks|peer|peers|reach|reaches|feel|feels)\s+(?:\w+\s+)?(?:in|inside|into|under|beneath|behind)\b"
+        + gap + r"(?:" + nouns + r")\b"
+        r"|\bwhat(?:'?s| is) (?:in|inside|under)\b" + gap + r"(?:" + nouns + r")\b"
+        r"|\banything (?:in|inside|under)\b" + gap + r"(?:" + nouns + r")\b")
+
+
 SOCIAL_WORDS = re.compile(
     r'\b(ask|say|tell|talk|speak|offer|bargain|propose|accuse|call out|sit|greet|hello|wait|listen|'
     r'wager|help|deal|promise|refuse|decline|pay|flirt|wink|smile|laugh|bow|introduce|threaten|'
@@ -190,13 +211,108 @@ GESTURE = re.compile(
     r"\b(?:lean|leans|leaning|relax|relaxes|stretch|stretches|yawn|yawns|settle|settles|slouch|slouches|lounge|"
     r"lounges|sprawl|sprawls|fidget|fidgets|kick(?:s|ing)? back|put(?:s|ting)? (?:my|his|her) feet up|"
     r"raise(?:s|d)? a toast|cross(?:es)? (?:my|his|her) (?:arms|legs))\b"
+    # Showing empty hands: "I hold up empty hands", "Nik raises his open palms".
+    r"|\b(?:hold|holds|holding|raise|raises|raising|show|shows|showing|spread|spreads)\s+(?:up\s+)?"
+    r"(?:my|his|her|their|both|empty|open)\s+(?:\w+\s+)?(?:hands|palms)\b"
     r"|\b\w+\s+(?:my|his|her|their)\s+(?:\w+\s+)?(?:nails|fingernails|knuckles|fingers|ears|whiskers|nose|"
     r"chin|neck|feet|legs|arms|hair|beard|eyebrows?|brow|shoulders|teeth|lips)\b")
-# The tub is acted on only as the verb's own object ("tip the heavy tub over"), not as a place
+# A feature is moved only as the verb's own object ("tip the heavy tub over"), not as a place
 # something moves toward ("move my chair closer to the tub").
-TUB_MOVED = re.compile(r"\b(?:tip|tips|overturn|overturns|flip|flips|lift|lifts|move|moves|push|pushes|shove|"
-                       r"shoves|tilt|tilts|drag|drags|roll|rolls)\s+(?:(?!(?:to|toward|towards|near|by|beside|"
-                       r"next|closer|over|up|against|from|into|onto)\b)[\w'-]+\s+){0,3}tub\b")
+def _feature_moved(nouns):
+    return re.compile(r"\b(?:tip|tips|overturn|overturns|flip|flips|lift|lifts|move|moves|push|pushes|shove|"
+                      r"shoves|tilt|tilts|drag|drags|roll|rolls)\s+(?:(?!(?:to|toward|towards|near|by|beside|"
+                      r"next|closer|over|up|against|from|into|onto)\b)[\w'-]+\s+){0,3}(?:" + nouns + r")\b")
+
+
+@dataclass(frozen=True)
+class RoomWords:
+    """What the router needs from the room file: the nouns of its handled features (fact id
+    by noun) and the words naming the exits the PC can take from here (exit id by word)."""
+    features: tuple = ()
+    exits: tuple = ()
+    inward: tuple = ()  # exits from an outside area into the room: what "I step in" takes
+
+    def feature_in(self, words):
+        for noun, fact in self.features:
+            if re.search(r'\b' + re.escape(noun) + r's?\b', words):
+                return noun, fact
+        return None
+
+
+EXIT_STOPWORDS = {'the', 'a', 'an', 'to', 'of', 'into', 'and', 'way', 'back', 'out'}
+
+
+def room_words(source, state):
+    """RoomWords for the PC's area, from the room file alone."""
+    source, state = source or {}, state or {}
+    area = state.get('area')
+    features = tuple((noun.casefold(), key) for key, fact in (source.get('facts') or {}).items()
+                     if isinstance(fact, dict) and fact.get('area') == area and fact.get('handling')
+                     for noun in fact['handling'].get('nouns') or ())
+    exits = []
+    for key in state.get('known_exits') or ():
+        edge = (source.get('exits') or {}).get(key) or {}
+        if area not in edge.get('areas', ()):
+            continue
+        for word in re.findall(r"[a-z]+", str(edge.get('name') or '').casefold()):
+            if word not in EXIT_STOPWORDS:
+                exits.append((word, key))
+    inside = set(kit_rooms.room_areas(source)) if source.get('areas') else set()
+    inward = tuple(key for key in state.get('known_exits') or ()
+                   if area not in inside and area in ((source.get('exits') or {}).get(key) or {}).get('areas', ()) and
+                   inside & set(((source.get('exits') or {}).get(key) or {}).get('areas', ())))
+    return RoomWords(features, tuple(exits), inward)
+
+
+# Leaving by an exit named as the verb's object, at most three words on: "I take the stair
+# down", "I duck through the tunnel", "I slip out the back door". Further off, the exit is
+# where something else happens ("I take the key from the door").
+EXIT_OBJECT_VERBS = (r'take|takes|use|uses|climb|climbs|duck|ducks|crawl|crawls|slip|slips|descend|descends|'
+                     r'ascend|ascends|squeeze|squeezes|pass|passes|run|runs|hurry|hurries|go|goes|walk|walks')
+
+
+def _exit_object(words, exit_words):
+    names = r'doors?' + (r'|(?:' + exit_words + r')s?' if exit_words else '')
+    return re.search(r'\b(?:' + EXIT_OBJECT_VERBS + r')\b(?:\s+[\w\']+){0,3}?\s+(?:' + names + r')\b', words)
+
+
+# Going back the way the PC came, with no exit named (the exit chooser takes the one they came
+# in by). Narrow on purpose: "I go back to the table" is not leaving.
+RETRACING = re.compile(r"\b(?:retrace[sd]?|retracing)\b|\bback the way (?:i|we) came\b|"
+                       r"\b(?:go|head|walk|turn)s? back (?:out|the way)\b")
+GOING_BACK = re.compile(r"\b(?:back|return|returns|retrace[sd]?|retracing|the way (?:i|we) came|came in)\b")
+
+
+# Moving, in any tense: "Nik steps through the iron door", "she went out" (watchroom playtest).
+MOVING = re.compile(r"\b(?:leave|leaves|leaving|left|go|goes|going|went|walk|walks|walked|walking|move|moves|"
+                    r"moved|moving|step|steps|stepped|stepping)\b")
+# Going in with no exit named: "I step in", "Nik goes inside". The exit chooser takes the
+# one exit from here that leads into the room.
+GOING_IN = re.compile(r"\b(?:go|goes|went|step|steps|stepped|walk|walks|walked|head|heads|come|comes|move|moves)"
+                      r"\s+(?:on\s+|right\s+|back\s+)?(?:in|inside)\b(?!\s+(?:the|a|an|my|his|her)\b)")
+# The PC's own open hand is not an act on the room: "I keep my hands open".
+_OPEN_EXIT = (r"\b(?:open|opens|opening)\b(?:\s+[\w']+){0,2}?\s+(?:the\s+)?(?:{names})\b"
+              r"|\b(?:the\s+)?(?:{names})\b(?:\s+[\w']+){0,1}?\s+(?:open|wider)\b"
+              r"|\b(?:hands?|palms?|arms?)\s+open\b"
+              # Knocking at an exit is announcing oneself, not an act on the room.
+              r"|\b(?:knock|knocks|knocked|knocking|rap|raps|rapped|tap|taps|tapped)\b(?:\s+[\w']+){0,2}?"
+              r"\s+(?:on|at)\s+(?:the\s+)?(?:\w+\s+)?(?:{names})\b")
+
+
+def _opens_an_exit(words, exit_words, strip=False):
+    """Opening an exit here (or one's own hands), never passing through it. Exits in this
+    model are passable; going through is the exit route, checked first. With ``strip`` the
+    words come back without that phrase, so the rest of the action still routes."""
+    names = r'doors?' + (r'|(?:' + exit_words + r')s?' if exit_words else '')
+    pattern = re.compile(_OPEN_EXIT.replace('{names}', names))
+    return pattern.sub(' ', words) if strip else bool(pattern.search(words))
+
+
+def _bare_name(edge):
+    """An exit's name without its article: 'the iron door' -> 'iron door'."""
+    return re.sub(r'^(?:the|a|an)\s+', '', str((edge or {}).get('name') or '').casefold().strip())
+
+
 ADDRESS_WORDS = re.compile(r"\b(you|you're|your|yours|yourself|y'all)\b")
 SEATING = re.compile(r"\b(?:take|takes|taking|took)\s+(?:a|the|that|an empty|the empty|my|his|her|their)\s+"
                      r"(?:seat|chair|stool|place)\b|"
@@ -223,7 +339,7 @@ def npc_addressed_player(spoken):
     return False
 
 
-def room_intent(action, addressed=False):
+def room_intent(action, addressed=False, room=None):
     """Conservative routing; unrecognized text remains conversation or clarification.
 
     Only the narration outside quotation marks decides whether an action is
@@ -235,8 +351,12 @@ def room_intent(action, addressed=False):
     act is the player answering, i.e. social speech (playtest 03: Nik's plain answer
     to the dealer's question was refused as an unsupported physical action). Combat,
     stealth, exits, and the room's named checks still route as before.
+
+    `room` (RoomWords) carries the room file's own words: its handled features and its
+    exits' names. Without it only general words route (a door, "out").
     """
     text = action.translate(_TYPOGRAPHIC)
+    room = room or RoomWords()
     if is_ooc(text):
         return 'social'
     quoted = bool(QUOTED_SPEECH.search(text))
@@ -256,22 +376,29 @@ def room_intent(action, addressed=False):
             re.search(r'\b(walk|move|step|go|leave|head|edge|slip)\w*\b', words) and
             re.search(r'\b(door|past|out)\b', words)):
         return 'stealth'
-    if re.search(r'\b(leave|go|walk|move|step)\b', words) and (
-            re.search(r'\b(south|door)\b', words) or (re.search(r'\bout\b', words) and 'tub' not in words)):
+    feature = room.feature_in(words)
+    exit_words = '|'.join(re.escape(word) for word, _ in room.exits)
+    named_exit = re.search(r'\bdoors?\b', words) or (exit_words and re.search(r'\b(?:' + exit_words + r')s?\b', words))
+    if MOVING.search(words) and (named_exit or (re.search(r'\bout\b', words) and not feature)) or room.inward and GOING_IN.search(words) \
+            or re.search(r'\b(head|heads|charge|charges|barge|barges|burst|bursts|continue|continues)\b', words) and named_exit \
+            or named_exit and _exit_object(words, exit_words) or RETRACING.search(words):
         return 'exit'
-    if TUB_MOVED.search(words):
-        return 'tip_tub'
-    if TUB_ENTRY.search(words):
-        return 'enter_tub'
-    if 'tub' in words and re.search(r"\b(look|looks|search|inspect|examine|check|peer|peers|crouch|crouches|kneel|"
-                                    r"kneels|lean over|bend over|squat|rummage)\b|\bwhat'?s (?:in|inside)\b|"
-                                    r"\bwhat is (?:in|inside)\b|\banything (?:in|inside)\b", words):
-        # The 6c baseline's contradictory tub rule: a question about what is in the tub was
-        # sent to Kit's invention oracle, which must show an answer, while the room forbids
-        # inventing the contents and the leak guard forbids naming them. The source keys the
-        # contents (fact tub_stash) and a plain look at a visible feature is free (call 2), so
-        # any look or question into the tub resolves here, from the source, with no invention.
-        return 'inspect_tub'
+    if feature:
+        nouns = re.escape(feature[0]) + 's?'
+        if _feature_moved(nouns).search(words):
+            return 'move_feature'
+        if _feature_entry(nouns).search(words):
+            return 'enter_feature'
+        if _feature_handled(nouns).search(words):
+            # The 6c baseline's contradictory tub rule: a question about what is in a feature
+            # went to Kit's invention oracle while the room forbade inventing the contents. The
+            # file keys the contents (the feature's ``holds`` fact) and a plain look at a
+            # visible feature is free (call 2), so a look or question into it resolves here,
+            # from the file, with no invention.
+            return 'inspect_feature'
+        if re.search(r'\b(look|looks|looking|glance|glances|peer|peers|gaze|gazes)\b', words) and \
+                not SOCIAL_WORDS.search(words):
+            return 'observe'  # a look toward the feature, not into it: free description
     if OBSERVE.search(words):
         return 'observe'
     if SEATING.search(words) or GEAR_SET.search(words):
@@ -279,13 +406,20 @@ def room_intent(action, addressed=False):
         # physical ruling ("I sling my shield onto my back and take the seat."): the decision's
         # pc_state records the gear.
         return 'social'
+    door_business = bool(named_exit) and _opens_an_exit(words, exit_words)
+    if door_business:
+        # Opening a passable exit without going through it, from the threshold or with
+        # speech ("I ease the door open, stay on the threshold, and hold up empty hands.
+        # 'Easy.'"), is table business: every intent is kept in the restated event
+        # (watchroom playtest), and the PC stays where they are.
+        words = _opens_an_exit(words, exit_words, strip=True)
     physical = (re.search(r'\b' + PHYSICAL_VERBS + r'\b', words) or
                 (re.search(r'\btake\b', words) and
                  re.search(r'\b(coins?|ring|gear|key|cards|deck|treasure)\b', words)))
     if physical and (not addressed or DECLARED_PHYSICAL.search(words.strip()) or
                      re.search(r'(^|[.!;]\s*)i\s+take\b', words.strip())):
         return 'unsupported_action'
-    if quoted or '?' in words or SOCIAL_WORDS.search(words) or ADDRESS_WORDS.search(words) or \
+    if quoted or door_business or '?' in words or SOCIAL_WORDS.search(words) or ADDRESS_WORDS.search(words) or \
             GESTURE.search(words) or violent.search(words):
         # A violent verb that reached here is aimed at nobody: an idiom or a gesture
         # ("shoot the breeze", "kill time"), which is table talk, not a strike.
@@ -325,7 +459,7 @@ def combine(first, second):
     return Resolution(kind, public, list(first.events) + list(second.events))
 
 
-class Room6CAdjudicator:
+class RoomAdjudicator:
     def __init__(self, perception=None, insight=None, roll=None, sleight_of_hand=None, source=None,
                  npc_roll=None):
         self.perception = perception
@@ -333,9 +467,18 @@ class Room6CAdjudicator:
         self.roll = roll
         self.npc_roll = npc_roll  # the NPC's behind-the-screen d20 (tests); else seeded
         self.sleight_of_hand = sleight_of_hand
-        self.source = source  # the room source, for its table procedures (set by the bridge)
+        self.source = source  # the mounted room's source; prepare_turn refreshes it every turn
+        self.last_said = ''   # Kit's last public line, for the exit in view (one resolve)
 
-    def resolve(self, action, revision, state, addressed=False):
+    def mount(self, source):
+        """Point this adjudicator at the room mounted now. This is the only room-derived
+        state it holds: router words, features, exits, procedures, tolls, attitudes and the
+        fight config are all read from ``self.source`` on each call, and the texture palette
+        cache is keyed by room id (docs/architecture/ROOM_LOADER.md, "Long-lived hosts")."""
+        self.source = source
+
+    def resolve(self, action, revision, state, addressed=False, last_said=''):
+        self.last_said = last_said or ''
         result = self._also_bet(self._resolve(action, revision, state, addressed), action, revision, state)
         if (self.source or {}).get('tolls'):
             extra = self._toll_unstuck(result, state)
@@ -365,15 +508,13 @@ class Room6CAdjudicator:
 
     def _resolve(self, action, revision, state, addressed=False):
         require(isinstance(action, str) and action.strip(), 'Player action required')
-        if state['area'] != 'area_06c':
-            raise PendingRuling('This play slice covers area 6c only. No turn was committed.')
         narration = QUOTED_SPEECH.sub(' ', action.translate(_TYPOGRAPHIC))
         # Speech and table talk to Kit are never resolved as checks.
         spoken = bool(QUOTED_SPEECH.search(action.translate(_TYPOGRAPHIC))) or is_ooc(action)
         # A physical act changes the world (attacks, grabs, a flipped table, coins taken, paint
         # wiped off): it is resolved before any talk, toll, or card reading of the same words.
         # While a fight waits on initiative or runs, a reported initiative total routes here too.
-        if not is_ooc(action) and (self.source or {}).get('combat'):
+        if not is_ooc(action) and kit_combat.config(self.source):
             physical = self._resolve_physical(action, revision, state)
             if physical:
                 # One message, several intents: an act that starts no fight still carries the
@@ -385,6 +526,9 @@ class Room6CAdjudicator:
             toll = self._resolve_toll(action, revision, state)
             if toll:
                 return toll
+        called = self._resolve_called(action, revision, state)
+        if called:
+            return called
         target = kit_claims.roll_target(action, self.source)
         if target and not spoken:
             return self._also_card(self._resolve_knowledge(action, revision, state, *target),
@@ -400,7 +544,7 @@ class Room6CAdjudicator:
             # accused, not the table's public call (live 6c: a quiet word and a failed Intimidation).
             return self._resolve_social_check(kit_rolls.stated_skill(action), action, narration, revision,
                                               state, private=True)
-        kind = room_intent(action, addressed)
+        kind = room_intent(action, addressed, room_words(self.source, state))
         # Combat and stealth keep their rulings at the card table: "I raise my crossbow" is
         # not a raise, and sneaking out "while they check their hands" is not a check.
         # A sleight at the table ("unseen") stays a card swap.
@@ -475,43 +619,49 @@ class Room6CAdjudicator:
                                  'no roll; nothing hidden is learned; nothing changes.'}
             return Resolution(kind, 'You look around the room.' if around else 'You take a look.', [event])
         if kind == 'exit':
-            event = {'type': 'move', 'exit': 'south_door',
-                     'evidence': 'The player explicitly left through the known south door.'}
-            return Resolution(kind, 'You go through the south door into the short passage.', [event])
-        if kind == 'tip_tub':
-            public = 'The stone tub is recessed into the floor and cannot be tipped over.'
-        elif kind in ('inspect_tub', 'enter_tub'):
-            if kind == 'inspect_tub':
-                public = ('You look into the recessed tub and see a bedroll, thieves’ tools, and a bundle of '
-                          'stolen travel gear.')
-                evidence = 'The player explicitly looked inside the recessed tub.'
+            key = self._exit_taken(action, state)
+            blocked = self._exit_blocked(key, state, revision)
+            if blocked:
+                return blocked
+            event = {'type': 'move', 'exit': key, 'evidence': f'The player explicitly left by the known exit {key}.'}
+            return Resolution(kind, self._exit_text(key, state, 'go'), [event])
+        if kind in ('move_feature', 'inspect_feature', 'enter_feature'):
+            noun, key = room_words(self.source, state).feature_in(narration.lower()) or \
+                room_words(self.source, state).feature_in(action.lower())
+            handling = self.source['facts'][key]['handling']
+            text = handling.get({'move_feature': 'move', 'inspect_feature': 'look',
+                                 'enter_feature': 'enter'}[kind])
+            if not text:
+                raise PendingRuling(f'The room file gives no ruling for that with the {noun}. No turn was committed.',
+                                    attempt=True)
+            if kind == 'move_feature' or not handling.get('holds'):
+                public = text
             else:
-                # Nobody climbs into a two-foot-deep tub without finding what is stored in it.
-                public = ('You climb down into the recessed tub and find it already occupied: a bedroll, '
-                          'thieves’ tools, and a bundle of stolen travel gear are stored in it.')
-                evidence = 'The player explicitly climbed into the recessed tub, which reveals what is stored in it.'
-            event = {'type': 'reveal_fact', 'fact': 'tub_stash', 'evidence': evidence}
-            return Resolution(kind, public, [event])
+                event = {'type': 'reveal_fact', 'fact': handling['holds'],
+                         'evidence': f'The player explicitly {"looked inside" if kind == "inspect_feature" else "got into"} '
+                                     f'the {noun} ({key}), which shows what it holds.'}
+                return Resolution(kind, text, [event])
         else:
             # Social bid: restate the player's actual words. No outcome, NPC
             # commitment, or hidden fact is added; the full text stays in evidence.
             event = {'type': 'beat', 'tags': [kind],
-                     'evidence': f'Player declared: {action}. Resolution: social bid at the card '
-                                 'table, restated as the accepted event; no world state changed.'}
+                     'evidence': f'Player declared: {action}. Resolution: social bid, '
+                                 'restated as the accepted event; no world state changed.'}
             return Resolution(kind, social_event(action), [event])
         event = {'type': 'beat', 'tags': [kind],
                  'evidence': f'Player declared: {action}. Resolution: {public}'}
         return Resolution(kind, public, [event])
 
     # -- social checks rolled in conversation -----------------------------------------
-    def _resolve_social_check(self, skill, action, narration, revision, state, private=False):
-        """The player's stated roll in a social skill against the NPC they address: that
-        NPC's flat 10 + Insight (10 + Athletics for a contest of strength). NPCs never roll.
-        A bare number is the Avrae total (runtime/kit_rolls.py). Numbers stay in evidence."""
+    def _resolve_social_check(self, skill, action, narration, revision, state, private=False, who=None):
+        """The player's stated roll in a social skill against the NPC they address (or, for a
+        check Kit called, ``who``, the call's target): that NPC's flat 10 + Insight (10 +
+        Athletics for a contest of strength). NPCs never roll. A bare number is the Avrae
+        total (runtime/kit_rolls.py). Numbers stay in evidence."""
         present = self._present_actors(state)
-        who = self._lie_read_target(narration, state)
+        who = who if who in present else self._lie_read_target(narration, state)
         if who is None:
-            leader = ((self.source or {}).get('combat') or {}).get('leader')
+            leader = kit_combat.config(self.source).get('leader')
             who = leader if leader in present else next(iter(present), None)
         if who is None:
             raise PendingRuling('Who are you trying that on? Nobody here is listening. No turn was committed.')
@@ -642,7 +792,7 @@ class Room6CAdjudicator:
         if self.roll:
             return self.roll()
         if 'roll_seed' not in state:
-            raise PendingRuling('This session predates stable checks; start a fresh area 6c test database.')
+            raise PendingRuling('This session predates stable checks; start a fresh database.')
         material = f"{state['roll_seed']}:{revision}:{label}:{action.casefold()}".encode()
         return int.from_bytes(hashlib.sha256(material).digest()[:8], 'big') % 20 + 1
 
@@ -676,6 +826,114 @@ class Room6CAdjudicator:
     def _present_actors(self, state):
         return {key: actor for key, actor in (state.get('actors') or {}).items()
                 if actor.get('location') == state['area'] and actor.get('status') not in ('fled', 'dead')}
+
+    BLOCKERS_UNABLE = ('asleep', 'unconscious', 'restrained', 'bound', 'paralyzed', 'stunned')
+
+    def _exit_blockers(self, key, state):
+        """Who stands between the PC and exit ``key``: an awake actor here (within reach of the
+        PC and the exit) who is hostile, or who guards that exit (room data ``guards``) and is
+        not friendly. Everyone else lets the PC go."""
+        found = []
+        for who, actor in self._present_actors(state).items():
+            if actor.get('status') in self.BLOCKERS_UNABLE or actor.get('status') in kit_attitude.GONE:
+                continue
+            attitude = kit_attitude.level(self.source, state, who)
+            if attitude == 'hostile' or key in (actor.get('guards') or ()) and attitude not in ('friendly', 'helpful'):
+                found.append(who)
+        return found
+
+    def _exit_blocked(self, key, state, revision):
+        """Leaving past someone who can stop it is not automatic (watchroom playtest: the PC
+        took the back stair with the armed warden beside it). The move is held as a pending
+        check: the player's Athletics or Acrobatics against the blocker; only a success moves
+        the PC. An unblocked exit stays instant."""
+        blockers = self._exit_blockers(key, state)
+        if not blockers:
+            return None
+        who = blockers[0]
+        label = actor_speakers(self.source).get(who) or state['actors'][who].get('name') or who
+        exit_name = _bare_name((self.source.get('exits') or {}).get(key)) or key
+        check = {'skill': 'athletics', 'ability': 'str', 'target': who, 'called_turn': f'revision {revision}',
+                 'exit': key}
+        public = (f'The {label.lower()} is between you and the {exit_name}. Getting past is a contest: '
+                  'roll Athletics or Acrobatics.')
+        evidence = (f'The player tried to leave by {key}; {", ".join(blockers)} can stop it. '
+                    'The move is held for a contest (Athletics or Acrobatics vs the blocker); nothing moved.')
+        return Resolution('exit_contested', public,
+                          [{'type': 'beat', 'tags': ['exit_contested'], 'evidence': evidence},
+                           {'type': 'pending_check', 'check': check, 'evidence': evidence}])
+
+    def _resolve_held_exit(self, pending, total_text, revision, state):
+        """The contest for a held exit: the PC's Athletics or Acrobatics against the blocker's
+        flat 10 + Athletics. Success moves the PC through; failure keeps them here."""
+        key, who = pending['exit'], pending['target']
+        stated = kit_rolls.stated_skill(total_text)
+        skill = stated if stated in ('athletics', 'acrobatics') else 'athletics'
+        actor = state['actors'].get(who) or {}
+        flat = kit_claims.npc_passive(actor, 'athletics')
+        modifier, _ = self._pc_numbers(skill, state, total_text)
+        die = self._die(state, revision, f'exit:{key}:{who}', total_text, modifier, skill)
+        total = die + modifier
+        clear = {'type': 'pending_check', 'check': None, 'evidence': f'The contest for {key} is rolled.'}
+        evidence = (f'Contest to leave by {key} past {who}: {skill} d20 {die} + {modifier} = {total} vs flat 10 + '
+                    f'Athletics = {flat}: {"success" if total >= flat else "failure"}.')
+        label = (actor_speakers(self.source).get(who) or actor.get('name') or who).lower()
+        if total >= flat:
+            return Resolution('exit', f'You get past the {label}. ' + self._exit_text(key, state, 'go'),
+                              [{'type': 'beat', 'tags': ['exit_contested'], 'evidence': evidence},
+                               {'type': 'move', 'exit': key, 'evidence': evidence}, clear])
+        return Resolution('exit_contested', f'The {label} keeps you from the {_bare_name(self.source["exits"][key]) or key}.',
+                          [{'type': 'beat', 'tags': ['exit_contested'], 'evidence': evidence}, clear])
+
+    def _resolve_called(self, action, revision, state):
+        """A bare roll ("Perception 22", "22", "I rolled a 22") answering the check Kit called
+        last turn (watchroom playtest: the roll stalled). It resolves against the one hidden
+        claim here that the called skill finds and that matches the call's target; with none,
+        the roll is recorded and reveals nothing. Either way the call is cleared."""
+        pending = state.get('pending_check')
+        if not pending or is_ooc(action):
+            return None
+        skill, text = pending['skill'], action.translate(_TYPOGRAPHIC).strip()
+        if pending.get('exit'):
+            skill = kit_rolls.stated_skill(text) if kit_rolls.stated_skill(text) in ('athletics', 'acrobatics') else skill
+        bare = re.fullmatch(r'(?:i\s+)?(?:rolled|roll|got)?\s*(?:an?\s+)?(\d{1,2})\s*[.!]?', text, re.I)
+        stated = [roll for roll in kit_rolls.rolls(text) if roll.label not in ('attack', 'initiative')]
+        rest = re.sub(r"\b(?:i|rolled|roll|got|a|an|check|for|my|it's|that's|that|is|" +
+                      skill.replace('_', r'\s+') + r")\b|[\W\d_]+", ' ', kit_rolls.without_rolls(text).casefold())
+        if not (bare or len(stated) == 1 and stated[0].label in (None, skill) and not rest.strip()):
+            return None
+        total = int(bare.group(1)) if bare else stated[0].total
+        roll_text = text if not bare and stated[0].label == skill else f'{skill.replace("_", " ")} {total}'
+        clear = {'type': 'pending_check', 'check': None,
+                 'evidence': f'The {skill} check called on turn {pending["called_turn"]} is rolled.'}
+        target, area = pending['target'], state.get('area')
+        if pending.get('exit'):
+            return self._resolve_held_exit(pending, roll_text, revision, state)
+        if skill in SOCIAL_CHECK_SKILLS:
+            # A called social check is resolved like a stated one, against the call's target,
+            # and its outcome moves that NPC's attitude in state (watchroom playtest: a failed
+            # Persuasion was narrated and nothing recorded).
+            result = self._resolve_social_check(skill, roll_text, roll_text, revision, state,
+                                                who=target if target != 'none' else None)
+            return Resolution(result.kind, result.public_event, list(result.events) + [clear])
+        learned = set((state.get('claims') or {}).get('learned') or ())
+        found = []
+        for key, claim in kit_claims.compile_claims(self.source or {}).items():
+            fact_id = claim.get('fact') or ''
+            fact = ((self.source or {}).get('facts') or {}).get(fact_id, {})
+            if claim.get('exposure') == 'hidden' and key not in learned and fact.get('area') == area and \
+                    skill in kit_claims.claim_skills(claim) and \
+                    target in ('none', claim.get('concealer'), fact_id, key):
+                found.append((key, claim))
+        if len(found) == 1:
+            result = self._resolve_check(roll_text, revision, state, *found[0])
+            return Resolution(result.kind, result.public_event, list(result.events) + [clear])
+        modifier, _ = self._pc_numbers(skill, state, roll_text)
+        die = self._die(state, revision, f'called:{pending["called_turn"]}:{skill}', roll_text, modifier, skill)
+        evidence = (f'Player rolled the {skill} check Kit called on turn {pending["called_turn"]} '
+                    f'(target {target}): d20 {die} + {modifier} = {die + modifier}.')
+        return Resolution('called_check', f'You roll {skill.replace("_", " ").title()}: {total}.',
+                          [{'type': 'beat', 'tags': ['check'], 'evidence': evidence}, clear])
 
     def _resolve_check(self, action, revision, state, claim_id, claim):
         """An active look or read at one hidden claim, against that claim's single DC.
@@ -782,11 +1040,13 @@ class Room6CAdjudicator:
         to notice: no roll."""
         present = self._present_actors(state)
         watchers = {key: kit_claims.npc_passive(actor, 'perception') for key, actor in present.items()}
-        leaving = bool(re.search(r'\b(door|out|leave|south|past)\b', narration, re.I))
-        exit_event = {'type': 'move', 'exit': 'south_door',
-                      'evidence': 'The player left through the known south door, unnoticed.'}
+        words = room_words(self.source, state)
+        leaving = bool(re.search(r'\b(door|out|leave|past)\b', narration, re.I) or any(
+            re.search(r'\b' + re.escape(word) + r'\b', narration, re.I) for word, _ in words.exits))
+        key = self._exit_taken(action, state) if leaving and not watchers else None
+        exit_event = {'type': 'move', 'exit': key, 'evidence': f'The player left by the known exit {key}, unnoticed.'}
         if not watchers:
-            public = 'You slip out through the south door.' if leaving else 'You move without a sound.'
+            public = self._exit_text(key, state, 'slip') if leaving else 'You move without a sound.'
             return Resolution('stealth', public, [exit_event] if leaving else
                               [{'type': 'beat', 'tags': ['stealth'], 'evidence': f'Player declared: {action}. Nobody present.'}])
         dc = max(watchers.values())
@@ -796,7 +1056,10 @@ class Room6CAdjudicator:
         evidence = (f'Player tried Stealth: d20 {die} + {modifier} = {total} vs best passive Perception {dc} '
                     f'({", ".join(f"{k} {v}" for k, v in watchers.items())}).')
         if total >= dc:
-            public = 'You slip out through the south door unnoticed.' if leaving else 'You move without drawing an eye.'
+            if leaving:
+                key = self._exit_taken(action, state)
+                exit_event = dict(exit_event, exit=key)
+            public = self._exit_text(key, state, 'unseen') if leaving else 'You move without drawing an eye.'
             beat = {'type': 'beat', 'tags': ['stealth'], 'evidence': evidence}
             return Resolution('stealth', public, ([dict(exit_event, evidence=evidence)] if leaving else
                                                   self._hidden_events(state, True, evidence)) + [beat])
@@ -804,9 +1067,95 @@ class Room6CAdjudicator:
                           self._hidden_events(state, False, evidence) +
                           [{'type': 'beat', 'tags': ['stealth', 'noticed'], 'evidence': evidence}])
 
+    def _exit_taken(self, action, state):
+        """The known exit from here that the player means (docs/architecture/ROOM_LOADER.md,
+        "Which exit"). The most specific match wins: the whole name, then words no other exit
+        here shares. A tie on shared words ("the door") narrows to the exit in view (named in
+        Kit's last line) or, when the player says they go back, the one they came in by, but
+        only when that leaves exactly one. Otherwise Kit asks which in one short line, and
+        nothing is committed."""
+        source, area = self.source or {}, state.get('area')
+        exits = source.get('exits') or {}
+        here = [key for key in state.get('known_exits') or ()
+                if area in (exits.get(key) or {}).get('areas', ())]
+        if not here:
+            raise PendingRuling('There is no way out from here that you know of yet. No turn was committed.')
+        text = action.casefold()
+        words = {}
+        for word, key in room_words(source, state).exits:
+            words.setdefault(key, set()).add(word)
+        shared = {}
+        for key_words in words.values():
+            for word in key_words:
+                shared[word] = shared.get(word, 0) + 1
+        said = lambda phrase, where=text: bool(phrase) and re.search(
+            r'\b' + re.escape(phrase) + r's?\b', where) is not None
+        score = {}
+        for key in here:
+            hit = {word for word in words.get(key, ()) if said(word)}
+            if hit:
+                score[key] = (said(_bare_name(exits[key])), sum(shared[w] == 1 for w in hit), len(hit))
+        best = max(score.values(), default=None)
+        tied = [key for key in here if score.get(key) == best] if score else here
+        if not score and GOING_IN.search(QUOTED_SPEECH.sub(' ', text.translate(_TYPOGRAPHIC))):
+            inside = set(kit_rooms.room_areas(source))
+            inward = [key for key in tied if area not in inside and inside & set(exits[key].get('areas', ()))]
+            tied = inward or tied
+        if len(tied) > 1:
+            heard = self.last_said.casefold()
+            preferred = {key for key in tied if said(_bare_name(exits[key]), heard)}
+            came_by = (state.get('room') or {}).get('came_by')
+            if came_by in tied and GOING_BACK.search(text):
+                preferred.add(came_by)
+            if len(preferred) == 1:
+                tied = list(preferred)
+        if len(tied) == 1:
+            self._check_onward(tied[0], state)
+            return tied[0]
+        names = ['the ' + _bare_name(exits[key]) if _bare_name(exits[key]) else key for key in tied]
+        ask = (' or '.join(names) if len(names) == 2 else ', '.join(names[:-1]) + ', or ' + names[-1]) + '?'
+        raise PendingRuling(ask[0].upper() + ask[1:] + ' No turn was committed.')
+
+    def _check_onward(self, key, state):
+        """An exit into an area linked to another room file: that room must mount before
+        the move is accepted. If it cannot, Kit says the plain table line and nothing is
+        committed; the host gets the error naming what is missing (ROOM_LOADER.md)."""
+        source = self.source or {}
+        edge = (source.get('exits') or {}).get(key) or {}
+        there = next((a for a in edge.get('areas', ()) if a != state.get('area')), None)
+        link = ((source.get('areas') or {}).get(there) or {}).get('room_link')
+        if link:
+            # The commit mounts again inside its transaction; this read is what turns a room
+            # that can't mount into Kit's plain line before the move is accepted (a failure at
+            # commit is only a host rejection). Same function, so the two can't disagree.
+            moved = copy.deepcopy(state)
+            moved['area'] = there
+            try:
+                kit_rooms.arrive(source, moved, link)
+            except kit_rooms.RoomMountError as exc:
+                pending = PendingRuling(f'{exc.table_line} No turn was committed.')
+                pending.host_error = exc.host_view()
+                raise pending from None
+
+    def _exit_text(self, key, state, how):
+        """The line for going through an exit, from the room file (exit ``go_text`` per area,
+        else its name and where it leads)."""
+        source, area = self.source or {}, state.get('area')
+        edge = (source.get('exits') or {}).get(key) or {}
+        told = (edge.get('go_text') or {}).get(area)
+        if told and how == 'go':
+            return told
+        name = edge.get('name') or 'the way out'
+        there = next((a for a in edge.get('areas', ()) if a != area), None)
+        place = ((source.get('areas') or {}).get(there) or {}).get('called')
+        if how in ('slip', 'unseen'):
+            return f'You slip out through {name}' + (' unnoticed.' if how == 'unseen' else '.')
+        into = place and _bare_name({'name': place}) != _bare_name(edge)  # not "the gate into the gate"
+        return f'You go through {name}' + (f' into {place}.' if into else '.')
+
     def _hidden_events(self, state, hidden, evidence):
         """A PC hidden from everyone present surprises them if a fight starts (kit_combat)."""
-        if not (self.source or {}).get('combat'):
+        if not kit_combat.config(self.source):
             return []
         scene = kit_combat.scene(state)
         if bool(scene.get('pc_hidden')) == hidden:
@@ -1034,10 +1383,35 @@ class Room6CAdjudicator:
                 continue
             stake = (new_state['public'].get('last_result') or {}).get('stake') or body['asked']
             new_body = dict(body, status='waived' if outcome == 'won' else 'paid',
-                            paid=0 if outcome == 'won' else stake)
+                            paid=0 if outcome == 'won' else stake, rode_on=procedure)
             new_body.pop('restore', None)
             events.append(kit_toll.event(key, new_body, f'The toll rode on a round of {procedure}: {outcome}.'))
         return events
+
+
+# Appraisal labels: Kit's own feeling, or one she reads in an NPC (target npc). Common
+# emotions in any room, not one room's moods (watchroom playtest: "anger" was refused);
+# a near synonym is normalized to its label rather than rejected.
+APPRAISAL_LABELS = ('none', 'amusement', 'interest', 'surprise', 'concern', 'pride', 'frustration',
+                    'anger', 'fear', 'suspicion', 'contempt', 'disgust', 'sadness', 'joy', 'relief', 'unease')
+APPRAISAL_SYNONYMS = {
+    'angry': 'anger', 'rage': 'anger', 'fury': 'anger', 'furious': 'anger', 'irritation': 'frustration',
+    'irritated': 'frustration', 'annoyance': 'frustration', 'annoyed': 'frustration', 'frustrated': 'frustration',
+    'afraid': 'fear', 'scared': 'fear', 'terror': 'fear', 'dread': 'fear', 'alarm': 'fear',
+    'suspicious': 'suspicion', 'distrust': 'suspicion', 'mistrust': 'suspicion', 'wariness': 'suspicion',
+    'wary': 'suspicion', 'contemptuous': 'contempt', 'scorn': 'contempt', 'disdain': 'contempt',
+    'disgusted': 'disgust', 'revulsion': 'disgust', 'sad': 'sadness', 'grief': 'sadness', 'sorrow': 'sadness',
+    'happy': 'joy', 'happiness': 'joy', 'delight': 'joy', 'glee': 'joy', 'relieved': 'relief',
+    'uneasy': 'unease', 'anxiety': 'unease', 'anxious': 'unease', 'nervous': 'unease', 'nervousness': 'unease',
+    'worry': 'concern', 'worried': 'concern', 'curious': 'interest', 'curiosity': 'interest',
+    'amused': 'amusement', 'surprised': 'surprise', 'shock': 'surprise', 'astonishment': 'surprise',
+    'proud': 'pride', 'neutral': 'none', 'calm': 'none'}
+
+
+def appraisal_label(label):
+    """The appraisal label for a stated emotion: itself, its normalized synonym, or None."""
+    word = str(label or '').strip().casefold()
+    return word if word in APPRAISAL_LABELS else APPRAISAL_SYNONYMS.get(word)
 
 
 PLAN_SCHEMA = {
@@ -1050,8 +1424,7 @@ PLAN_SCHEMA = {
             'satisfying_rewards', 'shared_humor', 'player_surprise', 'momentum',
             'craft_pride']},
         'appraisal': {'type': 'object', 'additionalProperties': False,
-                      'properties': {'label': {'type': 'string', 'enum': [
-                          'none', 'amusement', 'interest', 'surprise', 'concern', 'pride', 'frustration']},
+                      'properties': {'label': {'type': 'string', 'enum': list(APPRAISAL_LABELS)},
                           'intensity': {'type': 'integer', 'enum': [0, 1, 2, 3]},
                           'cause': {'type': 'string'},
                           'goal_effect': {'type': 'string', 'enum': ['advances', 'threatens', 'neutral']},
@@ -1251,10 +1624,11 @@ CALL_MAX_WORDS = 60          # a roll prompt, ruling, or narrow answer stays sho
 CALL_MAX_SEGMENTS = 2
 EXCHANGE_MIN_WORDS = 40      # narration + actor speech on a social exchange
 EXCHANGE_MIN_ACTOR_WORDS = 30  # the selected actor's own speech (voiced actors only)
-# The actor floor applies to every focus actor unless their actor card says
-# "speech_floor": false (a terse background voice: forcing 30 words from one made every
-# card player a speechmaker and contradicted their card). Such a focus must still speak,
-# and the exchange total floor still applies.
+# The actor floor applies only to a focus actor whose actor card says "speech_floor": true
+# (6c's dealer, against the Nik failure). Every other actor may be brief: forcing 30 words
+# from a terse voice made every card player a speechmaker and a clipped guard a lecturer
+# (watchroom playtest). A brief focus must still speak, and the exchange total floor
+# (narration included) still applies.
 EXCHANGE_MIN_SEGMENTS = 2    # an embodied beat or second reactor, not one speech alone
 FEATURE_MIN_WORDS = 80       # scene entry or scene-turning moment
 FEATURE_MIN_SEGMENTS = 2
@@ -1268,8 +1642,8 @@ def performance_limits(scope=None):
     """
     limits = {
         'call': f'At most {CALL_MAX_WORDS} words in at most {CALL_MAX_SEGMENTS} segments. Answer and stop.',
-        'exchange': (f'The focus actor speaks at least {EXCHANGE_MIN_ACTOR_WORDS} words (an actor whose '
-                     'card sets speech_floor false may be brief but must speak); at least '
+        'exchange': (f'The focus actor speaks (at least {EXCHANGE_MIN_ACTOR_WORDS} words only when their '
+                     'card sets speech_floor true; otherwise speech_floor false may be brief but must speak); at least '
                      f'{EXCHANGE_MIN_WORDS} words across non-Kit segments; at least '
                      f'{EXCHANGE_MIN_SEGMENTS} segments (e.g. a visible beat plus the actor).'),
         'feature': (f'At least {FEATURE_MIN_WORDS} words across non-Kit segments in at least '
@@ -1504,7 +1878,9 @@ PRIVATE_INSTRUCTIONS = (
     'change an outcome, ask_player: one short plain question (ask_clarification, call scope); '
     'that turn resolves and commits nothing. Advantage '
     'or disadvantage needs a reason true now (held, equipped, active, or a position); owning is '
-    'not holding. Record it in roll_call; the performance names the mode and the cause ref.'
+    'not holding. Record it in roll_call; the performance names the mode and the cause ref. '
+    'Calling for a roll, set roll_call (target: who or what, or none); the player\u2019s bare roll '
+    'next turn answers it.'
 )
 
 PUBLIC_INSTRUCTIONS = (
@@ -1719,8 +2095,10 @@ def check_plan(plan, episodes, public_event, action_kind=None, candidates=None, 
     require(isinstance(appraisal, dict) and set(appraisal) ==
             {'label', 'intensity', 'cause', 'goal_effect', 'target'},
             'Invalid appraisal')
-    require(appraisal['label'] in PLAN_SCHEMA['properties']['appraisal']['properties']['label']['enum'],
-            'Invalid appraisal label')
+    if isinstance(appraisal, dict) and appraisal_label(appraisal.get('label')):
+        appraisal['label'] = appraisal_label(appraisal['label'])
+    require(appraisal['label'] in APPRAISAL_LABELS,
+            'Invalid appraisal label (use a common emotion: ' + ', '.join(APPRAISAL_LABELS[1:]) + ')')
     require(type(appraisal['intensity']) is int and 0 <= appraisal['intensity'] <= 3,
             'Invalid appraisal intensity')
     require(isinstance(appraisal['cause'], str) and appraisal['cause'].strip()
@@ -2148,17 +2526,21 @@ def turn_events(runtime, body, plan, turn_id, record=None):
         beat = kit_brief.beat_event(runtime.source(), after, (record or {}).get('spoken'), turn_id)
         if beat:
             events.append(beat)
+        events += kit_brief.heard_events(runtime.source(), after, (record or {}).get('spoken'), turn_id)
         # A threshold whose trigger now holds crosses (once per scene) and moves attitudes.
         events += kit_brief.threshold_events(runtime.source(), after, turn_id)
     if plan.get('pc_state'):
         events.append(kit_agenda.pc_state_event(plan['pc_state'], turn_id))
+    pending = kit_agenda.pending_check_event(plan.get('roll_call'), turn_id) if plan.get('roll_call') else None
+    if pending and not any(event.get('type') == 'pending_check' for event in events):  # a held exit wins
+        events.append(pending)
     if plan.get('claims'):
         events += kit_claims.said_events(plan['claims'], turn_id, body.get('claims_here'),
                                          runtime.load()[1])
     if body.get('agenda_here') is not None:
         reactors = kit_agenda.oddity_reactors(plan.get('pc_oddity'), runtime.source())
         ticks = kit_agenda.check_agenda(plan.get('agenda'), body['agenda_here'], runtime.source(),
-                                        runtime.load()[1], reactors)
+                                        after_event(runtime, body), reactors)
         events.append(kit_agenda.agenda_event(plan['agenda'], body['agenda_here'], turn_id, ticks, reactors))
     detail = plan.get('detail')
     if not detail:
@@ -2320,6 +2702,12 @@ def _bytes(value):
     return len(encode(value).encode())
 
 
+def check_room_context(planning_input, source, state):
+    """The room's own share of this packet within its caps (kit_rooms.check_context)."""
+    kit_rooms.check_context(source, state, dm_only=planning_input['dm_context']['dm_only'],
+                            claims=planning_input.get('claims_here'))
+
+
 def fit_to_budget(planning_input, drop_order, reserve_bytes=0, budget=CONTEXT_BUDGET_BYTES,
                   combined_budget=ONE_PASS_BUDGET_BYTES):
     """Trim the private input in place until it fits `budget` and, with reserve_bytes
@@ -2373,6 +2761,24 @@ def established_text(runtime, body):
     return ' '.join((encode(context), encode(reference), body['action'], body['public_event'], recent))
 
 
+def after_event(runtime, body):
+    """The people Kit may voice this turn, as an unsaved state: the state once the turn's
+    events land, plus, on a move, the people the PC just left. On the turn the PC walks in, the
+    room's people react and speak (watchroom playtest: the warden could not challenge Nik
+    until a turn later); on the turn they leave, those left behind still react (g17). Only
+    for checking the decision; nothing here is committed."""
+    revision, before = runtime.load()
+    after = runtime.preview_state(revision, body.get('events') or [])
+    voiced = [key for key, actor in (before.get('actors') or {}).items()
+              if actor.get('location') == before.get('area') and after.get('area') != before.get('area')]
+    # Someone heard from the threshold (the tease's heard) can answer through the door.
+    voiced += list(kit_brief.heard_here(runtime.source(), after)) + list(kit_brief.heard_here(runtime.source(), before))
+    for key in voiced:
+        if key in (after.get('actors') or {}):
+            after['actors'][key] = {**after['actors'][key], 'location': after['area']}
+    return after
+
+
 def check_decision(runtime, plan, memory, body):
     """Every private decision passes the same checks on every host path. When the
     budget trimmed memory at prepare, only the episodes the model saw can be cited."""
@@ -2380,18 +2786,21 @@ def check_decision(runtime, plan, memory, body):
         seen = set(body['memory_turn_ids'])
         memory = {**memory, 'episodes': [e for e in memory['episodes'] if e['turn_id'] in seen]}
     source = runtime.source()
+    # The people in the scene are the ones there once the event lands: walking in, the PC
+    # meets them this turn (watchroom playtest).
+    scene = after_event(runtime, body)
     check_plan(plan, memory['episodes'], body['public_event'], body['kind'],
                body['discernment_candidates'], body['action'],
                player_notes=memory['player_notes'],
                committed_turn_ids=runtime.committed_kit_turn_ids(),
-               source=source, state=runtime.load()[1],
+               source=source, state=scene,
                established=established_text(runtime, body), oracle=body.get('detail_oracle'),
                claims_packet=body.get('claims_here'), table_talk=bool(body.get('table_talk')))
     check_brief_public(plan['public_brief'], body['public_view'], body['action'],
                        kit_guards.leak_sets(source), kit_guards.leak_phrases(source))
     check_procedure_start(plan, body, runtime.load()[1])
     if not plan.get('ask_player'):  # a question to the player moves no agenda
-        kit_agenda.check_agenda(plan.get('agenda'), body.get('agenda_here'), source, runtime.load()[1],
+        kit_agenda.check_agenda(plan.get('agenda'), body.get('agenda_here'), source, scene,
                                 kit_agenda.oddity_reactors(plan.get('pc_oddity'), source))
     # A public invention reaches the performer and the player: same leak checks as the brief.
     for item in kit_detail.public_inventions(plan['detail']):
@@ -2411,6 +2820,26 @@ def player_named(runtime, action):
     return sorted(name for name in allowed if re.search(rf'\b{re.escape(name)}\b', said))
 
 
+def scene_candidates(dm_context, source, state, post_event_state):
+    """Discernment candidates for this turn. On a move, the people on both sides of the
+    doorway: those the PC leaves still react, and those in the area they walk into react and
+    speak this turn (watchroom playtest). Drawn from the room's live actors only."""
+    candidates = discernment_candidates(dm_context)
+    heard = {**kit_brief.heard_here(source, state), **kit_brief.heard_here(source, post_event_state)}
+    for key in heard:  # heard through the door from the threshold: they may answer
+        actor = (source.get('actors') or {}).get(key) or {}
+        bases = [field for field in ('immediate_goal', 'motive') if actor.get(field)]
+        if bases:
+            candidates = {**candidates, 'actor_bases': {**candidates['actor_bases'], key: bases}}
+    area = post_event_state.get('area')
+    if area == state.get('area') or area not in (source.get('areas') or {}):
+        return candidates
+    arrived = discernment_candidates({**dm_context, 'scene': {**dm_context['scene'], 'current_area': area},
+                                      'dm_only': {**dm_context['dm_only'],
+                                                  'actors': Runtime.dm_only(source, post_event_state)['actors']}})
+    return {**candidates, 'actor_bases': {**candidates['actor_bases'], **arrived['actor_bases']}}
+
+
 def prepare_inputs(runtime, revision, state, action, resolution, use_memory, one_pass=False,
                    table_talk=False):
     post_event_state = runtime.preview_state(revision, resolution.events)
@@ -2428,7 +2857,8 @@ def prepare_inputs(runtime, revision, state, action, resolution, use_memory, one
             'public_history': public_history,
             'scene_facts': scene_facts(state, resolution.events),
             'player_named': player_named(runtime, action),
-            'discernment_candidates': discernment_candidates(context['dm_context'])}
+            'discernment_candidates': scene_candidates(context['dm_context'], runtime.source(), state,
+                                                        post_event_state)}
     if table_talk:
         # Kit answers the player herself; no NPC is the focus, so no actor ids are offered.
         body['discernment_candidates'] = {**body['discernment_candidates'], 'actor_bases': {'none': ['none']}}
@@ -2488,6 +2918,7 @@ def prepare_inputs(runtime, revision, state, action, resolution, use_memory, one
         # Public: the player saw these pending rulings. Both stages may refer to them.
         body['refused_attempts'] = attempts
         planning_input['refused_attempts'] = attempts
+    check_room_context(planning_input, source, post_event_state)
     reserve = _bytes(public_performance_base(runtime, body, one_pass=True)) if one_pass else 0
     kept = fit_to_budget(planning_input, memory['drop_order'], reserve)
     if 'memory_trimmed' in planning_input['kit_state']:
@@ -2497,6 +2928,9 @@ def prepare_inputs(runtime, revision, state, action, resolution, use_memory, one
     return revision, body, planning_input
 
 
+MEMORY_TRIMMED_NOTE = ("Kit's memory was trimmed to fit the context budget this turn "
+                       '(input kit_state.memory_trimmed says what went). The session goes on; a long '
+                       'session or a heavy room is the cause.')
 BACKGROUNDED = ('backgrounded: the player is doing something else. Its state is kept. Do not remind them '
                'of it, prompt a choice in it, or make one for them; it resumes when they act in it again.')
 
@@ -2550,12 +2984,13 @@ def prepare_turn(runtime, adjudicator, action, use_memory=True, one_pass=False, 
         # The host decided this is not a game turn: nothing is adjudicated.
         return prepare_inputs(runtime, revision, state, action, table_talk_resolution(action),
                               use_memory, one_pass, table_talk=True)
-    if isinstance(adjudicator, Room6CAdjudicator):
-        if adjudicator.source is None:
-            adjudicator.source = runtime.source()
+    if isinstance(adjudicator, RoomAdjudicator):
+        # Every turn, not once: a commit may have mounted another room since the last one.
+        adjudicator.mount(runtime.source())
         last = runtime.recent_kit_turns(limit=1)
         addressed = bool(last) and npc_addressed_player(last[-1].get('spoken'))
-        resolution = adjudicator.resolve(action, revision, state, addressed=addressed)
+        said = ' '.join(str(last[-1].get(k) or '') for k in ('public_event', 'spoken')) if last else ''
+        resolution = adjudicator.resolve(action, revision, state, addressed=addressed, last_said=said)
     else:
         resolution = adjudicator.resolve(action, revision, state)
     return prepare_inputs(runtime, revision, state, action, resolution, use_memory, one_pass)
@@ -2565,11 +3000,16 @@ def prepare_opening(runtime, one_pass=False):
     revision, state = runtime.load()
     # The entry is the first Kit turn. Host bookkeeping committed before it (the player
     # character, feedback) is its own revision and does not use it up.
-    require(runtime.latest_kit_turn_id() is None and state['area'] == 'area_06c',
-            'The room entry is available only before the first turn')
-    resolution = Resolution('opening', 'A newcomer has reached the card room.', [
+    room = state.get('room') or {}
+    require(state['area'] not in (room.get('opened') or ()) and (
+        runtime.latest_kit_turn_id() is None or kit_rooms.stage(runtime.source(), state) in
+        ('approach', 'first_look') and not room.get('turns_in', {}).get(state['area'])),
+        'The room entry is available only before the first turn in a room')
+    area = runtime.source()['areas'][state['area']]
+    arrival = area.get('arrival') or f"The newcomer arrives: {area.get('name') or state['area']}."
+    resolution = Resolution('opening', arrival, [
         {'type': 'beat', 'tags': ['scene_entry'],
-         'evidence': 'Initial framing of area 6c before the player acts.'}])
+         'evidence': f"Initial framing of {state['area']} before the player acts."}])
     return prepare_inputs(runtime, revision, state, '[scene entry]', resolution, use_memory=True,
                           one_pass=one_pass)
 
@@ -2757,7 +3197,10 @@ def guard_context(source, body):
             'declared_procedures': tuple(procedures),
             'voice_contracts': {name: card.get('voice_contract') or {} for name, card in cards.items()},
             'speakers': actor_speakers(source), 'labels': speech_speakers(source),
-            'brief_speakers': tuple(name for name, card in cards.items() if card.get('speech_floor') is False),
+            # The actor word floor is room data: only a card with speech_floor true asks for it
+            # (6c's dealer). Every other voice may be terse (watchroom: a guard of short questions).
+            'brief_speakers': tuple(name for name in dict.fromkeys(list(actor_speakers(source).values()) + list(cards))
+                                    if (cards.get(name) or {}).get('speech_floor') is not True),
             'public_history': body.get('public_history', []),
             'table_talk': bool(body.get('table_talk'))}
 
@@ -2828,7 +3271,7 @@ class KitAgent:
     def __init__(self, runtime, model, adjudicator=None, performance_variant='current'):
         self.runtime = runtime
         self.model = model
-        self.adjudicator = adjudicator or Room6CAdjudicator()
+        self.adjudicator = adjudicator or RoomAdjudicator()
         self.performance_variant = check_variant(performance_variant)
 
     def turn(self, action, turn_id=None, use_memory=True):
@@ -2935,7 +3378,7 @@ class KitChatBridge:
     """Host this model loop in an assistant chat, with no API credential in Python."""
     def __init__(self, runtime, adjudicator=None):
         self.runtime = runtime
-        self.adjudicator = adjudicator or Room6CAdjudicator()
+        self.adjudicator = adjudicator or RoomAdjudicator()
 
     @_stale_guided
     def prepare(self, action=None, turn_id=None, use_memory=True, one_pass=False, opening=False,
@@ -2975,6 +3418,9 @@ class KitChatBridge:
                                           if one_pass else {}))
         warning = load_voice()[1]
         notice = {'voice_warning': warning} if warning else {}
+        if body.get('memory_turn_ids') is not None:
+            # Loud, not silent: the host sees that Kit's memory was cut to fit the budget.
+            notice['context_warning'] = MEMORY_TRIMMED_NOTE
         if body.get('table_talk'):
             notice['table_talk'] = TABLE_TALK_NOTE
         if one_pass:
@@ -3178,24 +3624,28 @@ class KitChatBridge:
 EXAMPLE_SHEET = PROJECT_ROOT / 'tests/fixtures/characters/example_pc.json'
 
 
-def start_session(db, sheet_path=None, runtime=None):
+def start_session(db, sheet_path=None, runtime=None, room=None, area=None):
     """The one bootstrap step for any AI hosting Kit (see AGENTS.md): create a fresh room
     session, load the player's sheet (the generic example PC when none is given), and
     stage the room's opening through the bridge. Returns the first prepare packet plus
     the exact next command, so a new host cannot take a wrong first step."""
+    # Mount first: a room that cannot mount fails here, before any database is touched,
+    # with the host's error and Kit's plain table line (kit_rooms.RoomMountError).
+    source = kit_rooms.load_room(room or DEFAULT_ROOM)
+    if area is not None and area not in source['areas']:
+        raise kit_rooms.RoomMountError(room or DEFAULT_ROOM, [f'no area {area!r} in this room'])
     own = runtime is None
     runtime = runtime or Runtime(db)
     try:
-        source = json.loads(ROOM_FIXTURE.read_text(encoding='utf-8'))
         try:
-            runtime.initialize(source, source['starting_area'])
+            runtime.initialize(source, area or source['starting_area'], room_path=room or DEFAULT_ROOM)
         except InvalidChange as exc:
             raise InvalidChange(f'{exc} Resume it with view and '
                                 'prepare, or pass a new --db to start fresh.') from exc
         path = Path(sheet_path) if sheet_path else EXAMPLE_SHEET
         sheet = json.loads(path.read_text(encoding='utf-8'))
         loaded = runtime.set_player_sheet(sheet)
-        prepared = KitChatBridge(runtime, Room6CAdjudicator()).prepare(
+        prepared = KitChatBridge(runtime, RoomAdjudicator()).prepare(
             opening=True, one_pass=True)
         turn = prepared['turn_id']
         return {
@@ -3238,7 +3688,10 @@ def main():
     parser.add_argument('command', choices=['start', 'init', 'view', 'prepare', 'decide', 'finish', 'complete',
                                             'abandon', 'feedback', 'character', 'notes', 'play', 'trace',
                                             'timing', 'persona'])
-    parser.add_argument('--db', default='kit-06c.sqlite')
+    parser.add_argument('--db', default='kit.sqlite')
+    parser.add_argument('--room', help='start/init: a room file to mount (default: area 6c; see '
+                                       'docs/architecture/ROOM_LOADER.md)')
+    parser.add_argument('--area', help='start: begin in this area of the room (default: its starting_area)')
     parser.add_argument('--model', help='Optional standalone Responses API model for play')
     parser.add_argument('--perception', type=int, help='Test character Wisdom (Perception) modifier')
     parser.add_argument('--insight', type=int, help='Test character Wisdom (Insight) modifier')
@@ -3282,7 +3735,10 @@ def main():
         return 0
     if args.command == 'start':
         try:
-            result = start_session(args.db, args.sheet)
+            result = start_session(args.db, args.sheet, room=args.room, area=args.area)
+        except kit_rooms.RoomMountError as exc:
+            print(json.dumps(exc.host_view(), ensure_ascii=False), file=sys.stderr)
+            return 2
         except (InvalidChange, PendingRuling) as exc:
             print(json.dumps({'stage': 'rejected', 'message': str(exc)}, ensure_ascii=False), file=sys.stderr)
             return 2
@@ -3292,7 +3748,7 @@ def main():
     runtime = Runtime(args.db)
     try:
         if args.command == 'init':
-            source = json.loads(ROOM_FIXTURE.read_text(encoding='utf-8'))
+            source = kit_rooms.load_room(args.room or DEFAULT_ROOM)
             runtime.initialize(source, source['starting_area'])
             print(json.dumps(runtime.player_view(), indent=2, ensure_ascii=False))
         elif args.command == 'view':
@@ -3316,7 +3772,7 @@ def main():
             print(json.dumps(runtime.set_player_character(args.name, args.ancestry, args.class_name,
                                                           args.level), indent=2, ensure_ascii=False))
         elif args.command in ('prepare', 'decide', 'finish', 'complete', 'abandon', 'feedback'):
-            bridge = KitChatBridge(runtime, Room6CAdjudicator(args.perception, args.insight,
+            bridge = KitChatBridge(runtime, RoomAdjudicator(args.perception, args.insight,
                                                              sleight_of_hand=args.sleight_of_hand))
             try:
                 if args.command == 'abandon':
@@ -3356,6 +3812,8 @@ def main():
                               bridge.complete(args.turn_id, submitted, degraded=args.degraded))
             except PendingRuling as exc:
                 result = {'stage': 'pending_ruling', 'message': str(exc), 'committed': False}
+                if getattr(exc, 'host_error', None):
+                    result['host_error'] = exc.host_error
                 if getattr(exc, 'recorded_revision', None) is not None:
                     result.update(attempt_recorded=True, revision=exc.recorded_revision)
             except InvalidChange as exc:
@@ -3387,10 +3845,10 @@ def main():
             if not os.environ.get('OPENAI_API_KEY'):
                 parser.error('standalone play requires OPENAI_API_KEY; for ChatGPT use prepare/decide/finish')
             model = OpenAIResponsesModel(args.model)
-            agent = KitAgent(runtime, model, Room6CAdjudicator(args.perception, args.insight,
+            agent = KitAgent(runtime, model, RoomAdjudicator(args.perception, args.insight,
                                                                sleight_of_hand=args.sleight_of_hand),
                              performance_variant=args.performance_variant or 'current')
-            print('Kit’s area 6c test. Enter an action, or /quit. Private traces: separate trace command.')
+            print(f"Kit's table: {runtime.source().get('id')}. Enter an action, or /quit. Private traces: separate trace command.")
             if runtime.load()[0] == 0:
                 try:
                     print(agent.opening()['spoken'])

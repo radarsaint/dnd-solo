@@ -10,7 +10,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from runtime import kit_agent
-from runtime.kit_agent import (KitAgent, KitChatBridge, MEMORY_LIMIT, Room6CAdjudicator,
+from runtime.kit_agent import (KitAgent, KitChatBridge, MEMORY_LIMIT, RoomAdjudicator,
                                select_episodes)
 from runtime.state_context import InvalidChange, Runtime, STATE_SCHEMA_VERSION, encode
 from test_kit_agent import FIXTURE, KIT_CHOICE, QUIET_EXCHANGE_SPEECH, RecordingModel, exchange_speech, with_raised_hooks
@@ -77,7 +77,7 @@ class MemoryTestCase(unittest.TestCase):
         self.addCleanup(lambda: self.runtime.close())
         self.runtime.initialize(json.loads(FIXTURE.read_text()), 'area_06c')
         self.model = Scripted()
-        self.adjudicator = Room6CAdjudicator(perception=0, insight=0, roll=lambda: 20)
+        self.adjudicator = RoomAdjudicator(perception=0, insight=0, roll=lambda: 20)
         self.agent = KitAgent(self.runtime, self.model, self.adjudicator)
         self.bridge = KitChatBridge(self.runtime, self.adjudicator)
 

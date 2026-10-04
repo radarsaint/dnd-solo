@@ -10,7 +10,7 @@ import unittest
 from pathlib import Path
 
 from runtime import kit_combat
-from runtime.kit_agent import KitChatBridge, PendingRuling, Room6CAdjudicator, room_intent, social_event
+from runtime.kit_agent import KitChatBridge, PendingRuling, RoomAdjudicator, room_intent, social_event
 from runtime.state_context import Runtime
 from test_kit_agent import FIXTURE
 
@@ -27,7 +27,7 @@ class SixCRouting(unittest.TestCase):
         self.addCleanup(self.runtime.close)
         self.runtime.initialize(json.loads(FIXTURE.read_text()), 'area_06c')
         self.runtime.set_player_sheet(json.loads(NIK.read_text()))
-        self.adjudicator = Room6CAdjudicator(perception=0, insight=0, roll=lambda: 10)
+        self.adjudicator = RoomAdjudicator(perception=0, insight=0, roll=lambda: 10)
         self.adjudicator.source = self.runtime.source()
 
     def kind(self, line):
@@ -85,7 +85,7 @@ class SixCRouting(unittest.TestCase):
         self.assertIn('crossbow', self.kind('I shoot the dealer with my crossbow.'))
         self.assertIn('attack', self.kind('I kick him in the gut.'))
         self.assertIn('dagger', self.kind('I thrust my dagger at the dealer.'))
-        self.assertEqual(self.kind('I tip the tub over.'), 'tip_tub')
+        self.assertEqual(self.kind('I tip the tub over.'), 'move_feature')
         self.assertEqual(self.kind('I grab a coin from the pile.'), 'combat_round')  # seen: the fight starts
         self.assertEqual(room_intent('I attack Uktarl in the middle of the game.'), 'combat')
 

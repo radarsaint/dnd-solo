@@ -8,9 +8,20 @@ from unittest.mock import patch
 
 from runtime import kit_agent, kit_claims, kit_detail, kit_guards
 from runtime.kit_agent import (EVENT_MAX_CHARS, EXCHANGE_MIN_ACTOR_WORDS, KitAgent, KitChatBridge,
-                               OpenAIResponsesModel, PendingRuling, Room6CAdjudicator,
+                               OpenAIResponsesModel, PendingRuling, RoomAdjudicator,
                                check_public_content, room_intent, social_event)
+
 from runtime.state_context import RHYTHM_EVIDENCE_MAX_CHARS, InvalidChange, Runtime, StaleTurn
+
+# The 6c room's own words (its tub, its south door) come from its file (ROOM_LOADER.md).
+from runtime import kit_agent as _kit_agent
+from runtime.kit_rooms import read_room as _read_room
+_SIXC_WORDS = _kit_agent.room_words(_read_room('tests/fixtures/level_01_area_06c.json'),
+                                    {'area': 'area_06c', 'known_exits': ['south_door']})
+
+
+def room_intent(action, addressed=False):
+    return _kit_agent.room_intent(action, addressed, _SIXC_WORDS)
 
 
 FIXTURE = Path(__file__).parent / 'fixtures/level_01_area_06c.json'
@@ -109,7 +120,7 @@ NIK_FLAT_REPLY = {'segments': [
 ]}
 
 # Evidence for a social turn keeps the full declaration; the accepted event restates it.
-SEAT_EVIDENCE = ('Player declared: I take a seat.. Resolution: social bid at the card table, '
+SEAT_EVIDENCE = ('Player declared: I take a seat.. Resolution: social bid, '
                  'restated as the accepted event; no world state changed.')
 
 
@@ -188,7 +199,7 @@ class KitAgentTests(unittest.TestCase):
         self.addCleanup(lambda: self.runtime.close())
         self.runtime.initialize(json.loads(FIXTURE.read_text()), 'area_06c')
         self.model = RecordingModel()
-        self.agent = KitAgent(self.runtime, self.model, Room6CAdjudicator(
+        self.agent = KitAgent(self.runtime, self.model, RoomAdjudicator(
             perception=0, insight=0, roll=lambda: 20))
 
     def test_personality_probe_actions_route_to_bounded_room_operations(self):
@@ -196,7 +207,7 @@ class KitAgentTests(unittest.TestCase):
             'I pull up a chair and ask what the stakes are.': 'social',
             "I call out the dealer's marked cards.": 'social',
             'I could help you get rid of Harria. What is that worth?': 'social',
-            'I tip the stone tub over and use it as cover.': 'tip_tub',
+            'I tip the stone tub over and use it as cover.': 'move_feature',
             'I attack Uktarl in the middle of the game.': 'combat',
         }
         for action, kind in probes.items():
@@ -291,14 +302,14 @@ class KitAgentTests(unittest.TestCase):
         for action in ('I attack Uktarl.', 'I pocket the silver ring.', 'I cast Detect Magic.'):
             with self.assertRaises(PendingRuling):
                 self.agent.turn(action)
-        agent = KitAgent(self.runtime, self.model, Room6CAdjudicator())
+        agent = KitAgent(self.runtime, self.model, RoomAdjudicator())
         with self.assertRaisesRegex(PendingRuling, 'Load a character sheet or state the Perception roll'):
             agent.turn('I inspect the fresco.')
         self.assertEqual(self.runtime.load()[0], 0)
         self.assertEqual(self.model.plans, [])
 
     def test_failed_check_does_not_reveal_or_fabricate_discovery(self):
-        agent = KitAgent(self.runtime, self.model, Room6CAdjudicator(
+        agent = KitAgent(self.runtime, self.model, RoomAdjudicator(
             perception=0, insight=0, roll=lambda: 1))
         result = agent.turn('I inspect the fresco.', 'failed-check')
         # A failure shows no numbers at all (table call 2) and nothing that says a secret is there.
@@ -310,11 +321,11 @@ class KitAgentTests(unittest.TestCase):
 
     def test_model_failure_does_not_reroll_same_uncommitted_check(self):
         bad = KitAgent(self.runtime, RecordingModel(leak=True),
-                       Room6CAdjudicator(perception=0))
+                       RoomAdjudicator(perception=0))
         with self.assertRaises(InvalidChange):
             bad.turn('I inspect the fresco.', 'failed-render')
         first_result = bad.model.plans[0]['accepted_public_event']
-        good = KitAgent(self.runtime, RecordingModel(), Room6CAdjudicator(perception=0))
+        good = KitAgent(self.runtime, RecordingModel(), RoomAdjudicator(perception=0))
         accepted = good.turn('I inspect the fresco.', 'accepted-render')
         self.assertEqual(accepted['public_event'], first_result)
 
@@ -551,7 +562,8 @@ class KitFocusAndScopeTests(unittest.TestCase):
         self.addCleanup(lambda: self.runtime.close())
         self.runtime.initialize(json.loads(FIXTURE.read_text()), 'area_06c')
         self.model = RecordingModel()
-        self.adjudicator = Room6CAdjudicator(perception=0, insight=0, roll=lambda: 20)
+        self.adjudicator = RoomAdjudicator(perception=0, insight=0, roll=lambda: 20,
+                                           source=self.runtime.source())
         self.bridge = KitChatBridge(self.runtime, self.adjudicator)
 
     def _prepared_plan(self, action, turn_id, **brief):
@@ -726,7 +738,7 @@ class ChatBridgeCarrierTests(unittest.TestCase):
         self.addCleanup(lambda: self.runtime.close())
         self.runtime.initialize(json.loads(FIXTURE.read_text()), 'area_06c')
         self.model = RecordingModel()
-        self.bridge = KitChatBridge(self.runtime, Room6CAdjudicator(perception=0, insight=0))
+        self.bridge = KitChatBridge(self.runtime, RoomAdjudicator(perception=0, insight=0))
 
     def assert_host_is_told_how_to_fill_the_carrier(self, instructions, brief_schema):
         self.assertEqual(set(brief_schema['required']) & {'reply_to', 'scope', 'kit_focus'},
@@ -818,7 +830,7 @@ class SocialEventTests(unittest.TestCase):
         self.addCleanup(lambda: self.runtime.close())
         self.runtime.initialize(json.loads(FIXTURE.read_text()), 'area_06c')
         self.model = RecordingModel()
-        self.adjudicator = Room6CAdjudicator(perception=0, insight=0, roll=lambda: 20)
+        self.adjudicator = RoomAdjudicator(perception=0, insight=0, roll=lambda: 20, source=self.runtime.source())
         self.bridge = KitChatBridge(self.runtime, self.adjudicator)
 
     def test_social_event_restates_the_players_words(self):
@@ -981,7 +993,7 @@ class DealerCardTests(unittest.TestCase):
         runtime = Runtime(Path(temp.name) / 'kit.sqlite')
         self.addCleanup(runtime.close)
         runtime.initialize(self.source, 'area_06c')
-        bridge = KitChatBridge(runtime, Room6CAdjudicator())
+        bridge = KitChatBridge(runtime, RoomAdjudicator())
         prepared = bridge.prepare(NIK_GREETING, 'card')
         payload = bridge.decide('card', RecordingModel().plan(prepared['input']))
         dealer = payload['input']['performance_reference']['actor_cards']['Dealer']
@@ -1005,7 +1017,7 @@ class BridgeVoiceVariantTests(unittest.TestCase):
         self.addCleanup(lambda: self.runtime.close())
         self.runtime.initialize(json.loads(FIXTURE.read_text()), 'area_06c')
         self.model = RecordingModel()
-        self.adjudicator = Room6CAdjudicator(perception=0, insight=0, roll=lambda: 20)
+        self.adjudicator = RoomAdjudicator(perception=0, insight=0, roll=lambda: 20, source=self.runtime.source())
         self.bridge = KitChatBridge(self.runtime, self.adjudicator)
 
     def _quiet_plan(self, private_input):
@@ -1059,7 +1071,7 @@ class BridgeVoiceVariantTests(unittest.TestCase):
         # The recorded variant is part of the idempotent commit, not a later edit.
         record = self.runtime.recent_kit_turns()[0]
         event = {'type': 'beat', 'tags': ['social'], 'evidence':
-                 'Player declared: Hi. What is going on here?. Resolution: social bid at the card table, '
+                 'Player declared: Hi. What is going on here?. Resolution: social bid, '
                  'restated as the accepted event; no world state changed.'}
         events = [event, replayed_story_beat(self.runtime, record, 'v1')]
         self.assertEqual(self.runtime.commit_kit_turn('v1', 0, events, record), 1)
@@ -1214,7 +1226,7 @@ class ApproachRoutingTests(unittest.TestCase):
 
     def resolve(self, action, adjudicator=None):
         revision, state = self.runtime.load()
-        return (adjudicator or Room6CAdjudicator()).resolve(action, revision, state)
+        return (adjudicator or RoomAdjudicator(source=self.runtime.source())).resolve(action, revision, state)
 
     def test_quoted_speech_is_a_social_bid_not_combat_or_a_physical_ruling(self):
         probes = {
@@ -1262,13 +1274,13 @@ class ApproachRoutingTests(unittest.TestCase):
 
     def test_climbing_into_the_tub_finds_the_stash_and_leaving_the_tub_is_not_an_exit(self):
         action = 'I climb into the stone tub and lie back like it is a hot bath.'
-        self.assertEqual(room_intent(action), 'enter_tub')
+        self.assertEqual(room_intent(action), 'enter_feature')
         resolution = self.resolve(action)
         self.assertEqual(resolution.events[0]['type'], 'reveal_fact')
         self.assertEqual(resolution.events[0]['fact'], 'tub_stash')
         self.assertIn('climb down into the recessed tub', resolution.public_event)
-        self.assertEqual(room_intent('I flip the tub over.'), 'tip_tub')
-        self.assertEqual(room_intent('I look in the tub.'), 'inspect_tub')
+        self.assertEqual(room_intent('I flip the tub over.'), 'move_feature')
+        self.assertEqual(room_intent('I look in the tub.'), 'inspect_feature')
         self.assertNotEqual(room_intent('I step out of the tub.'), 'exit')
         self.assertEqual(room_intent('I walk out.'), 'exit')
 

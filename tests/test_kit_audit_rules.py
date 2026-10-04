@@ -10,7 +10,7 @@ import unittest
 from pathlib import Path
 
 from runtime import kit_agent, kit_cards, kit_claims, pc_sheet
-from runtime.kit_agent import PendingRuling, Room6CAdjudicator
+from runtime.kit_agent import PendingRuling, RoomAdjudicator
 from runtime.state_context import InvalidChange, Runtime
 from test_kit_agent import FIXTURE, RecordingModel
 
@@ -65,7 +65,7 @@ class InsightRoutesByTargetTests(Case):
             with self.subTest(pc=pc['name']):
                 self.runtime = Runtime(Path(tempfile.mkdtemp()) / 'kit.sqlite')
                 revision, state = self.start(pc)
-                result = Room6CAdjudicator(source=self.source, roll=lambda: 20).resolve(self.ACTION, revision, state)
+                result = RoomAdjudicator(source=self.source, roll=lambda: 20).resolve(self.ACTION, revision, state)
                 self.assertEqual(result.kind, 'lie_read')
                 self.assertNotRegex(result.public_event.lower(), r'vampire|fang|pallor|posing|marked|key')
                 self.assertNotIn('reveal_fact', [e['type'] for e in result.events])
@@ -76,7 +76,7 @@ class InsightRoutesByTargetTests(Case):
         # Dealer: flat 10 + Deception 4 = 14. Nik's passive Insight 14 meets it.
         revision, state = self.start(NIK)
         state['claims'] = {'said': [{'claim': 'passage_toll', 'by': 'uktarl', 'stance': 'lie', 'version': 'Twenty.'}]}
-        result = Room6CAdjudicator(source=self.source, roll=no_roll).resolve(self.ACTION, revision, state)
+        result = RoomAdjudicator(source=self.source, roll=no_roll).resolve(self.ACTION, revision, state)
         self.assertIn('lying', result.public_event)
         # Numbers stay in the ledger (call 4), never in the public event.
         self.assertIn('passive Insight 14 meets DC 14', ledger(result))
@@ -85,11 +85,11 @@ class InsightRoutesByTargetTests(Case):
     def test_an_active_read_rolls_against_the_same_flat_number(self):
         revision, state = self.start(sheet(wis=10, skills={'insight': 2}))   # passive 12 < 14
         state['claims'] = {'said': [{'claim': 'x', 'by': 'uktarl', 'stance': 'truth', 'version': 'Ten.'}]}
-        hit = Room6CAdjudicator(source=self.source, roll=lambda: 12).resolve(self.ACTION, revision, state)
+        hit = RoomAdjudicator(source=self.source, roll=lambda: 12).resolve(self.ACTION, revision, state)
         self.assertIn('means it', hit.public_event)
         self.assertIn('Insight d20 12 + 2 = 14 vs DC 14', ledger(hit))   # 12 + 2 meets 14: a tie succeeds
         self.assertNoNumbers(hit.public_event)
-        miss = Room6CAdjudicator(source=self.source, roll=lambda: 3).resolve(self.ACTION, revision, state)
+        miss = RoomAdjudicator(source=self.source, roll=lambda: 3).resolve(self.ACTION, revision, state)
         self.assertIn('nothing to read', miss.public_event)
         self.assertNotIn('DC', miss.public_event)
 
@@ -101,7 +101,7 @@ class InsightRoutesByTargetTests(Case):
                                                                  'wis': 10, 'cha': 12},
                                                    'skills': {'deception': 1}}}
         revision, state = self.start(sheet(wis=10), source)   # passive Insight 10 < 11
-        result = Room6CAdjudicator(source=source, roll=lambda: 1).resolve(
+        result = RoomAdjudicator(source=source, roll=lambda: 1).resolve(
             'Is the innkeeper lying? I watch her face.', revision, state)
         self.assertEqual(result.kind, 'lie_read')
         self.assertIn('innkeeper', result.public_event)
@@ -109,7 +109,7 @@ class InsightRoutesByTargetTests(Case):
 
     def test_a_disguise_read_targets_only_the_disguise_claim(self):
         revision, state = self.start(sheet(wis=10, skills={'insight': 0}))
-        result = Room6CAdjudicator(source=self.source, roll=lambda: 20).resolve(
+        result = RoomAdjudicator(source=self.source, roll=lambda: 20).resolve(
             'I use Insight on their fangs: are they really vampires?', revision, state)
         self.assertEqual(result.kind, 'check')
         self.assertIn('meant to frighten you', result.public_event)
@@ -120,7 +120,7 @@ class InsightRoutesByTargetTests(Case):
         # Table call 3 (TC-3d): with nobody's words to weigh, an Insight declaration at this
         # table reads the people themselves: the hidden disguise claim.
         revision, state = self.start(NIK)
-        result = Room6CAdjudicator(source=self.source, roll=lambda: 20).resolve('I make an Insight check.',
+        result = RoomAdjudicator(source=self.source, roll=lambda: 20).resolve('I make an Insight check.',
                                                                                revision, state)
         self.assertEqual(result.kind, 'check')
         self.assertIn('false_vampires', [e.get('claim') for e in result.events])
@@ -130,7 +130,7 @@ class InsightRoutesByTargetTests(Case):
         revision, state = self.start(NIK)
         state = {**state, 'claims': {'said': [], 'learned': ['false_vampires']}}
         with self.assertRaisesRegex(PendingRuling, 'What are you reading'):
-            Room6CAdjudicator(source=self.source).resolve('I make an Insight check.', revision, state)
+            RoomAdjudicator(source=self.source).resolve('I make an Insight check.', revision, state)
 
     def test_a_bare_insight_reads_whoever_just_spoke_without_asking(self):
         # The situation settles it: whoever last spoke to the PC is the one being read.
@@ -138,7 +138,7 @@ class InsightRoutesByTargetTests(Case):
         speaker = next(key for key, actor in state['actors'].items()
                        if actor.get('location') == state['area'] and actor.get('status') not in ('fled', 'dead'))
         state = {**state, 'claims': {'said': [{'by': speaker, 'stance': 'truth'}], 'learned': []}}
-        result = Room6CAdjudicator(source=self.source, roll=lambda: 20).resolve(
+        result = RoomAdjudicator(source=self.source, roll=lambda: 20).resolve(
             'I make an Insight check.', revision, state)
         self.assertEqual(result.kind, 'lie_read')
         self.assertIn(speaker, result.events[0]['evidence'])
@@ -149,7 +149,7 @@ class PassiveAutoSucceedsTests(Case):
 
     def test_passive_perception_finds_the_key_without_a_roll(self):
         revision, state = self.start(NIK)   # passive Perception 14 vs DC 13
-        result = Room6CAdjudicator(source=self.source, roll=no_roll).resolve('I inspect the fresco.', revision, state)
+        result = RoomAdjudicator(source=self.source, roll=no_roll).resolve('I inspect the fresco.', revision, state)
         self.assertIn('stone key', result.public_event)
         self.assertIn('passive Perception 14 meets DC 13', ledger(result))
         self.assertNoNumbers(result.public_event)
@@ -158,10 +158,10 @@ class PassiveAutoSucceedsTests(Case):
     def test_a_lower_passive_rolls_and_a_tie_succeeds(self):
         pc = sheet(wis=10, skills={'perception': 1})   # passive 11 < 13
         revision, state = self.start(pc)
-        tie = Room6CAdjudicator(source=self.source, roll=lambda: 12).resolve('I inspect the fresco.', revision, state)
+        tie = RoomAdjudicator(source=self.source, roll=lambda: 12).resolve('I inspect the fresco.', revision, state)
         self.assertIn('Perception d20 12 + 1 = 13 vs DC 13', ledger(tie))
         self.assertNoNumbers(tie.public_event)
-        miss = Room6CAdjudicator(source=self.source, roll=lambda: 11).resolve('I inspect the fresco.', revision, state)
+        miss = RoomAdjudicator(source=self.source, roll=lambda: 11).resolve('I inspect the fresco.', revision, state)
         self.assertEqual(miss.public_event, 'You find nothing you can be sure of.')
         self.assertIn('= 12 vs DC 13', ledger(miss))
 
@@ -218,7 +218,7 @@ class CardEngineFlatNumbersTests(unittest.TestCase):
         self.addCleanup(runtime.close)
         runtime.initialize(copy.deepcopy(SOURCE), 'area_06c')
         state = runtime.load()[1]
-        adjudicator = Room6CAdjudicator(source=SOURCE)
+        adjudicator = RoomAdjudicator(source=SOURCE)
         claim_dc = kit_claims.claims_here(SOURCE, state, None)['claims']['marked_deck']['dc']
         self.assertEqual(adjudicator._card_dcs(self.config, state), {'watch': claim_dc})
         self.assertEqual(claim_dc, 10 + SOURCE['actors']['uktarl']['stats']['skills']['sleight_of_hand'])
@@ -229,7 +229,7 @@ class NoLeakyRefusalsTests(Case):
 
     def test_inspecting_the_deck_is_a_check_not_a_refusal(self):
         revision, state = self.start(sheet(wis=10))
-        result = Room6CAdjudicator(source=self.source, roll=lambda: 2).resolve('I inspect the deck.', revision, state)
+        result = RoomAdjudicator(source=self.source, roll=lambda: 2).resolve('I inspect the deck.', revision, state)
         self.assertEqual(result.kind, 'check')
         self.assertNotRegex(result.public_event, r'(?i)no (discovery )?dc|source gives')
 
@@ -242,13 +242,13 @@ class NoLeakyRefusalsTests(Case):
     def test_stealth_rolls_against_the_best_passive_perception(self):
         revision, state = self.start(sheet(wis=10, skills={'stealth': 4}))
         best = max(kit_claims.npc_passive(a, 'perception') for a in state['actors'].values())
-        adjudicator = Room6CAdjudicator(source=self.source, roll=lambda: best - 4)
+        adjudicator = RoomAdjudicator(source=self.source, roll=lambda: best - 4)
         result = adjudicator.resolve('I sneak out the south door.', revision, state)
         self.assertEqual(result.kind, 'stealth')
         self.assertIn(f'vs best passive Perception {best}', ledger(result))
         self.assertNotIn('passive', result.public_event)
         self.assertEqual(result.events[0]['type'], 'move')
-        caught = Room6CAdjudicator(source=self.source, roll=lambda: 1).resolve('I sneak out the south door.',
+        caught = RoomAdjudicator(source=self.source, roll=lambda: 1).resolve('I sneak out the south door.',
                                                                               revision, state)
         self.assertNotIn('move', [e['type'] for e in caught.events])
 
@@ -257,7 +257,7 @@ class NoLeakyRefusalsTests(Case):
         self.assertEqual(kit_agent.room_intent('I cast Fire Bolt at the dealer.'), 'combat')
         revision, state = self.start(NIK)
         with self.assertRaises(PendingRuling) as caught:
-            Room6CAdjudicator(source=self.source).resolve('I cast Detect Magic.', revision, state)
+            RoomAdjudicator(source=self.source).resolve('I cast Detect Magic.', revision, state)
         self.assertNotIn('Combat', str(caught.exception))
         self.assertNotIn('Fights', str(caught.exception))
 
@@ -280,7 +280,7 @@ class GeneralNotSixCTests(Case):
 
     def test_an_absent_focus_actor_is_rejected(self):
         self.start(NIK)
-        bridge = kit_agent.KitChatBridge(self.runtime, Room6CAdjudicator(source=self.source))
+        bridge = kit_agent.KitChatBridge(self.runtime, RoomAdjudicator(source=self.source))
         prepared = bridge.prepare('I ask the player by the door what they think.', 'door')
         plan = RecordingModel().plan(prepared['input'])
         plan.update(focus_actor='nobody_here')

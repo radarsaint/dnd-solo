@@ -10,7 +10,7 @@ import unittest
 from pathlib import Path
 
 from runtime import kit_agent, kit_cards, kit_guards, kit_toll, kit_twenty_one
-from runtime.kit_agent import Room6CAdjudicator
+from runtime.kit_agent import RoomAdjudicator
 from runtime.state_context import InvalidChange, Runtime
 from test_kit_agent import FIXTURE, RecordingModel
 
@@ -39,7 +39,7 @@ class Base(unittest.TestCase):
         self.runtime.set_player_sheet(NIK)
 
     def adjudicator(self, roll=15):
-        return Room6CAdjudicator(source=self.runtime.source(), roll=lambda: roll)
+        return RoomAdjudicator(source=self.runtime.source(), roll=lambda: roll)
 
     def resolve(self, action, roll=15, state=None):
         revision, loaded = self.runtime.load()

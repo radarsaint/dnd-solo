@@ -358,15 +358,19 @@ class TempleSceneTests(unittest.TestCase):
 
 
 class PaletteTests(unittest.TestCase):
-    def test_palettes_are_checked_at_init(self):
+    def test_palettes_are_checked_when_play_first_draws_on_them(self):
+        # Room loader (ROOM_LOADER.md, stage 3): a palette never delays the first framing; it is
+        # checked, per area, the first time play draws on it, and a bad one still refuses.
         broken = copy.deepcopy(TAVERN)
         broken['texture_palette']['areas']['taproom']['decks']['drink'][0]['roots'] = ['no_such_fact']
+        broken['id'] = 'tavern-broken-palette'
         temp = tempfile.TemporaryDirectory()
         self.addCleanup(temp.cleanup)
         runtime = Runtime(Path(temp.name) / 'kit.sqlite')
         self.addCleanup(runtime.close)
+        runtime.initialize(broken, 'taproom')
         with self.assertRaisesRegex(InvalidChange, 'real source ids'):
-            runtime.initialize(broken, 'taproom')
+            kit_texture.area_palette(runtime.source(), 'taproom')
         priced = copy.deepcopy(TAVERN)
         priced['texture_palette']['areas']['taproom']['decks']['price'] = []
         with self.assertRaisesRegex(InvalidChange, 'never dealt'):

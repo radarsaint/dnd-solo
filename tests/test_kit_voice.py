@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 
 from runtime import kit_agent, kit_voice
-from runtime.kit_agent import KitAgent, KitChatBridge, Room6CAdjudicator, check_speech
+from runtime.kit_agent import KitAgent, KitChatBridge, RoomAdjudicator, check_speech
 from runtime.state_context import InvalidChange, Runtime
 from test_kit_agent import (EXCHANGE_SPEECH, FIXTURE, MIRROR, NIK_GREETING, QUIET_EXCHANGE_SPEECH,
                             RecordingModel, exchange_speech)
@@ -64,7 +64,7 @@ class VoiceTestCase(unittest.TestCase):
         self.runtime = Runtime(self.path)
         self.addCleanup(lambda: self.runtime.close())
         self.runtime.initialize(json.loads(FIXTURE.read_text()), 'area_06c')
-        self.adjudicator = Room6CAdjudicator(perception=0, insight=0, roll=lambda: 20)
+        self.adjudicator = RoomAdjudicator(perception=0, insight=0, roll=lambda: 20)
         self.bridge = KitChatBridge(self.runtime, self.adjudicator)
         self.model = RecordingModel()
 
