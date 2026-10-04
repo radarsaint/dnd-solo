@@ -1,794 +1,1121 @@
 # BFDM Visual Art Bible
 
-**Status:** v0.1 — house-style foundation  
-**Purpose:** Define the recognizable visual language that should make BFDM art feel like BFDM across campaign illustration, creatures, props, environments, handouts, and future book production.
+**Status:** v0.2 — studio art-direction bible  
+**Purpose:** Define the visual language that should make campaign art, characters, creatures, environments, handouts, and future books read as recognizably BFDM.
 
-This is not a single rendering recipe. BFDM art ranges from loose painterly concept work to graphic poster art, creature design, rulebook layouts, dark fantasy vignettes, bright character studies, and dense environment illustration. The recognizable identity lives in the decisions underneath the finish.
+This document describes the **visual decisions beneath the rendering technique**. BFDM work can be loose, painterly, graphic, dark, bright, grotesque, whimsical, book-like, or poster-like and still belong to the same house style.
 
----
+The target is not “good fantasy art.”
 
-## 1. The BFDM visual identity
+The target is:
 
-BFDM art should read as **designed before it reads as rendered**.
-
-The image should have:
-
-- one clear visual premise;
-- a readable silhouette;
-- strong character-bearing shapes;
-- visible drawing logic;
-- selective rather than uniform finish;
-- deliberate color hierarchy;
-- bold focal treatment;
-- willingness to mix fantasy, horror, humor, glamour, grotesquerie, and whimsy;
-- enough roughness, asymmetry, or hand-made irregularity to keep the work from feeling generic.
-
-The goal is not “good fantasy art.”
-
-The goal is:
-
-> **A picture that feels like it came from BFDM because its design logic, staging, color, and surface decisions carry the same visual language.**
+> **This looks like BFDM made it.**
 
 ---
 
-## 2. Non-negotiable house rules
+# I. BFDM at a glance
 
-### 2.1 Concept hook first
+BFDM art is **concept-first, silhouette-driven, color-forward, visibly drawn, selectively finished, and character-bearing**.
 
-Every BFDM image should be easy to describe in one sentence.
+A successful BFDM image usually has:
+
+- one strong visual premise;
+- a readable silhouette before detail;
+- one or two dominant focal anchors;
+- shapes that feel chosen rather than defaulted;
+- visible contour and drawing logic;
+- saturated local color or strong graphic contrast;
+- selective glow, bloom, or isolated brightness;
+- deliberate rough-versus-finished contrast;
+- props, costumes, creatures, and buildings with personality;
+- enough asymmetry and hand-made irregularity to avoid anonymous AI polish.
+
+BFDM is comfortable letting the following coexist:
+
+- cute and unsettling;
+- funny and dangerous;
+- glamorous and grotesque;
+- painterly and graphic;
+- storybook and occult;
+- polished focal detail and unfinished secondary areas.
+
+That tension is a feature of the style.
+
+---
+
+# II. The five house invariants
+
+These are the strongest recurring rules. They should survive changes in subject, campaign, and finish.
+
+## 1. A picture needs a hook
+
+The image should have a central idea that can be said in one sentence.
 
 Examples of the decision pattern:
 
 - a wizard gunslinger storing spells in bullets;
-- a displacer beast crossed with a bulette;
-- a rabbit gunslinger with antlers lit by magic;
-- a bag of holding designed like a face;
-- a ship riding the silhouette of a giant sea creature;
-- a sinister creature presented like a storybook vignette;
-- a crowded medieval riverside city whose architecture is the personality.
+- an antlered rabbit adventurer carrying visibly magical equipment;
+- an occult monster rendered like an old illustrated field guide;
+- a bag whose hardware makes it look like a face;
+- a medieval waterfront town where the crooked buildings are the character;
+- a beautiful magical figure framed by overwhelming white light and saturated violet;
+- a horror portrait reduced to black silhouette, sickly teal anatomy, and a neon sunset.
 
-If the image has no hook, do not solve that problem by adding more detail.
+If the idea is weak, do not solve it by adding detail.
 
-### 2.2 Silhouette before detail
+## 2. The big read comes first
 
-Large shapes should identify the subject before texture or rendering does.
-
-Prioritize:
-
-- head shape;
-- ears, horns, antlers, wings, tails;
-- hats and hoods;
-- weapons;
-- shoulder masses;
-- capes;
-- creature anatomy;
-- large costume panels;
-- buildings and rooflines;
-- vehicle profile.
-
-### 2.3 Focal hierarchy
-
-One or two elements should carry the strongest visual attention.
-
-Typical BFDM focal anchors:
-
-- eyes;
-- face;
-- weapon;
-- glowing spell;
-- magical object;
-- creature head;
-- emblem;
-- architectural landmark;
-- strange prop.
-
-Do not render every part equally.
-
-### 2.4 Stylization beats realism
-
-Realism is optional. Readability and personality are mandatory.
-
-Anatomy, scale, proportion, material, and perspective may bend when doing so improves:
+Before texture, rendering, or ornament, the image should read through:
 
 - silhouette;
-- expression;
-- character identity;
-- drama;
-- visual humor;
-- story clarity.
+- pose;
+- large color masses;
+- head shape;
+- weapon or prop;
+- architecture or roofline;
+- one dominant magical or graphic effect.
 
-### 2.5 The hand should remain visible
+If the thumbnail read is weak, the image is not finished.
 
-Even polished BFDM work should retain some evidence of drawing.
+## 3. Everything important gets character
 
-Useful signs include:
+BFDM does not reserve personality for faces.
 
-- visible contour;
-- dark edge structure;
-- sketchy interior lines;
-- painterly fill;
+Personality can live in:
+
+- a cape;
+- a gun;
+- a mask;
+- a door;
+- a bag;
+- a bridge;
+- a roofline;
+- a magic item;
+- a creature's ears;
+- the shape of a window;
+- the way a page frame curls around a stat block.
+
+Objects and places should feel authored.
+
+## 4. Finish is selective
+
+The focal point gets the most love.
+
+Secondary areas are allowed to remain:
+
+- rougher;
+- softer;
+- flatter;
+- less resolved;
+- partially implied;
+- washed out;
+- lost into shadow or white space.
+
+Uniform polish is usually less BFDM than selective polish.
+
+## 5. The hand stays visible
+
+Even when the piece is polished, the drawing should not disappear.
+
+Look for:
+
+- dark contour structure;
+- visible interior lines;
+- brushy transitions;
 - uneven edge quality;
-- selective smudging or softness;
-- abrupt transitions between finished and unfinished regions.
+- hand-shaped asymmetry;
+- purposeful smears or soft regions;
+- linework that sometimes carries more information than rendering.
 
-Avoid smoothing everything into anonymous polished concept art.
+Avoid sanding the image down into generic commercial fantasy smoothness.
 
 ---
 
-## 3. Line and edge language
+# III. Invariants versus recurring habits
 
-BFDM linework is usually structural rather than decorative.
+Kit and other generators must distinguish **identity** from **motif**.
+
+## Invariants
+
+These define the style broadly:
+
+- concept-first design;
+- silhouette clarity;
+- focal hierarchy;
+- visible drawing logic;
+- strong local color;
+- selective finish;
+- character-bearing shapes;
+- stylization over strict realism;
+- deliberate presentation.
+
+## Recurring habits
+
+These appear often but must not be forced into every image:
+
+- cyan or electric blue;
+- magenta or violet;
+- blood red;
+- acid green;
+- glowing eyes;
+- runes;
+- spirals;
+- masks;
+- lenses;
+- stained-glass structures;
+- crescent forms;
+- decorative borders;
+- white blown-out magical backgrounds;
+- hard black fields;
+- face-like props.
+
+A BFDM image does not need all of these.
+
+Overusing them turns the style into a parody of itself.
+
+---
+
+# IV. The big read
+
+## Silhouette
+
+BFDM favors silhouettes with one or two memorable deviations from the ordinary.
+
+Examples:
+
+- oversized hat;
+- long ears;
+- antlers;
+- heavy cape;
+- broad shoulder shape;
+- strange creature head;
+- exaggerated roofline;
+- impossible bag shape;
+- large staff or gun;
+- wings that dominate the frame.
+
+The silhouette should still be readable when surface detail disappears.
+
+## Shape hierarchy
+
+Think in this order:
+
+1. overall silhouette;
+2. two or three major internal masses;
+3. focal feature;
+4. supporting design;
+5. texture.
+
+Do not begin with texture.
+
+## Asymmetry
+
+Perfect symmetry should be treated with suspicion unless symmetry is itself the concept.
+
+Useful asymmetry:
+
+- one shoulder heavier than the other;
+- cape pulled to one side;
+- mismatched armor;
+- irregular windows;
+- uneven rooflines;
+- decorative motifs that balance without mirroring;
+- creatures whose pose offsets otherwise symmetrical anatomy.
+
+---
+
+# V. Line and edge language
+
+BFDM linework is usually structural.
 
 Use:
 
 - dark or near-black outer contours;
 - variable line weight;
 - visible internal construction;
-- selective hard edges around focal areas;
-- softer, lost, or unfinished edges in secondary regions.
+- sharp focal edges;
+- lost or softened secondary edges;
+- sketch-like lines where full rendering is unnecessary.
 
-Line may disappear into painterly rendering, but the underlying drawing should still be legible.
+Line may dissolve into paint, but the underlying drawing should remain legible.
 
-For creatures, props, and architecture, line often does more work than realistic surface rendering.
+## Edge hierarchy
+
+Hardest edges generally belong around:
+
+- eyes;
+- face;
+- weapon;
+- magical object;
+- important ornament;
+- creature head;
+- major architectural landmark.
+
+Softest edges may occur in:
+
+- fog;
+- distant walls;
+- clothing away from the face;
+- secondary foliage;
+- background figures;
+- magical bloom;
+- page decoration.
 
 ---
 
-## 4. Shape language
+# VI. Color
 
-BFDM favors **large, readable, slightly exaggerated masses**.
+BFDM color is deliberate and frequently saturated.
 
-Common tendencies:
+## Core behavior
 
-- broad triangular capes;
-- oversize hats;
-- angular armor;
-- big ears, horns, wings, tails, or eye shapes;
-- strong asymmetry;
-- layered belts, straps, panels, and pouches;
-- wide creature torsos with distinctive heads;
-- buildings that lean, stack, overhang, or exaggerate verticality.
-
-Shapes should feel authored.
-
-Avoid default fantasy silhouettes that could belong to any setting.
-
----
-
-## 5. Color language
-
-BFDM color is rarely timid.
-
-### Core behaviors
+Prefer:
 
 - strong local color;
-- saturated accents;
-- dramatic hot/cool contrast;
-- glow used as emphasis rather than blanket lighting;
-- dark fields against electric color;
-- pale or white fields against concentrated saturated subjects.
+- clear separation between major color masses;
+- hot/cool contrast;
+- one or two saturated accents;
+- bright magic against darker surroundings;
+- deep shadow against pale fields;
+- white space against concentrated color.
 
-Recurring useful accent families:
+Avoid automatically grading everything toward gray-brown realism.
+
+## Useful recurring families
+
+Common BFDM color families include:
 
 - cyan / electric blue;
+- deep navy;
 - violet / magenta;
+- teal;
 - acid green;
 - blood red;
-- warm orange;
+- orange;
 - gold;
-- blown white highlights.
+- bright white.
 
-Color should make a statement.
+These are tendencies, not required palette swatches.
 
-Do not average everything toward muted cinematic realism.
+## Color hierarchy
+
+A strong BFDM piece often has:
+
+- a dominant field;
+- a secondary support color;
+- one aggressive accent.
+
+For example:
+
+- white + teal + red;
+- black + sickly teal + neon magenta;
+- cream parchment + dark ink + blue glow;
+- warm timber + white plaster + cyan roof;
+- violet clothing + blue skin + gold highlight.
 
 ---
 
-## 6. Lighting
+# VII. Light and glow
 
-Lighting is expressive before it is physically correct.
+Lighting serves the design.
 
-Preferred behaviors:
+It does not need to behave like a physically accurate renderer.
+
+Useful BFDM lighting devices:
 
 - selective bloom;
+- glowing antlers;
 - luminous eyes;
-- glowing magic;
-- isolated rim light;
-- overexposed magical effects;
-- deep surrounding darks;
-- lit faces against simplified environments;
-- bright windows, moons, flames, or magical objects as graphic anchors.
+- magical rim light;
+- overexposed spell effects;
+- stars and spark fields;
+- hard black surrounding shapes;
+- bright moons, windows, flames, or sigils;
+- washed-out white backgrounds around a central figure.
 
-Lighting can break realism if it improves image identity.
+Glow should point to something important.
 
----
-
-## 7. Rendering and finish
-
-BFDM finish level is intentionally variable.
-
-### High-finish areas
-
-Usually:
-
-- face;
-- eyes;
-- weapon;
-- magic effect;
-- creature head;
-- armor emblem;
-- focal prop;
-- signature architectural feature.
-
-### Lower-finish areas
-
-May include:
-
-- distant ground;
-- secondary limbs;
-- background walls;
-- fog;
-- clothing away from focal points;
-- foliage masses;
-- crowd shapes;
-- page ornament.
-
-This uneven distribution is part of the style.
-
-A technically polished image that is uniformly polished everywhere often feels less BFDM than a piece with deliberate rough-versus-finished contrast.
+Do not coat the entire image in equal glow.
 
 ---
 
-## 8. Characters
+# VIII. Rendering and the visible hand
 
-### Faces
+BFDM does not require one finish level.
 
-BFDM faces tend to favor:
+## The selective-finish rule
 
-- stylization over anatomical precision;
-- clear eye shapes;
+The artist can fully resolve:
+
+- the face;
+- a creature's head;
+- a weapon;
+- a magic object;
+- a costume emblem;
+- a landmark;
+- an important prop.
+
+Elsewhere the image can remain:
+
+- brushy;
+- diagrammatic;
+- simplified;
+- line-driven;
+- fogged;
+- soft;
+- partially unfinished.
+
+That contrast is part of the visual identity.
+
+## What to avoid
+
+A common generation failure is **uniformly expensive-looking fantasy concept art**.
+
+It may be beautiful and still fail BFDM.
+
+Warning signs:
+
+- every buckle rendered equally;
+- every stone individually textured;
+- glossy cinematic surfaces everywhere;
+- perfectly smooth transitions;
+- anonymous “prestige fantasy” armor;
+- no visible drawing decisions;
+- no rough-versus-finished hierarchy.
+
+---
+
+# IX. Characters
+
+BFDM character art tends to present a character as an **icon, reveal, or designed personality**, rather than as an incidental photographic moment.
+
+## Face
+
+Prefer:
+
 - readable expressions;
+- strong eye shapes;
 - simplified planes;
-- strong hair silhouette;
-- direct character presence.
+- distinctive hair;
+- stylized proportions;
+- direct presence.
 
-Attractive characters may be glamorous or sensual, but they should still feel designed rather than generically idealized.
+Do not chase photographic anatomy at the expense of identity.
 
-### Hair
+## Hair
 
-Hair is often a major silhouette feature.
-
-Use:
-
-- large directional masses;
-- sweeping shapes;
-- exaggerated bangs;
-- unusual color;
-- strong highlights;
-- visible line structure.
-
-### Posing
-
-BFDM character art often presents the subject rather than observing them candidly.
-
-Good modes:
-
-- character reveal;
-- poster pose;
-- iconic stance;
-- theatrical gesture;
-- strong prop interaction;
-- readable silhouette against simple framing.
-
----
-
-## 9. Costumes and equipment
-
-Costume is identity.
-
-Build outfits from:
-
-- large color panels;
-- visible trim;
-- belts;
-- straps;
-- asymmetrical armor;
-- pouches;
-- scarves;
-- layered cloth;
-- oversized collars;
-- geometric panels;
-- decorative symbols.
-
-Do not bury the costume under tiny realistic detail.
-
-### Surface pattern
-
-Surface pattern is an identity system, not filler.
-
-Useful BFDM motifs include:
-
-- runes;
-- stitches;
-- stained-glass structures;
-- spirals;
-- scrollwork;
-- crescent forms;
-- line grids;
-- geometric border patterns;
-- symbolic eyes;
-- masks;
-- lens shapes;
-- heraldic marks.
-
----
-
-## 10. Creatures and monsters
-
-BFDM creature design should preserve the same visual grammar as character art.
-
-Start with:
-
-1. silhouette;
-2. central anatomical hook;
-3. face/head read;
-4. one memorable abnormal feature;
-5. selective surface pattern.
-
-Do not solve monster design through generic spikes, armor, or texture noise.
-
-### Hybrid design
-
-BFDM frequently works well with hybrid premises.
-
-When combining forms:
-
-- preserve the strongest identifiable feature of each source;
-- integrate them structurally;
-- avoid looking like parts were simply pasted together;
-- keep the silhouette readable.
-
-### Horror
-
-Horror may be grotesque, funny, theatrical, or surreal.
+Hair can be a major silhouette element.
 
 Useful behaviors:
 
+- sweeping masses;
+- sharp bangs;
+- unusual color;
+- large directional shapes;
+- hard highlight streaks;
+- partially drawn or brushy ends.
+
+## Pose
+
+Strong BFDM poses often behave like:
+
+- a character reveal;
+- a poster;
+- a fashion pose;
+- a threatening stance;
+- a theatrical gesture;
+- an interaction with a meaningful prop.
+
+Avoid generic “standing fantasy hero holding weapon” staging unless the costume itself is doing substantial design work.
+
+---
+
+# X. Costume and equipment
+
+Costume should communicate identity before lore text does.
+
+Build with:
+
+- large color panels;
+- belts and straps;
+- scarves;
+- capes;
+- asymmetrical armor;
+- pouches;
+- geometric trim;
+- repeated motifs;
+- strong collar shapes;
+- layered cloth;
+- symbolic hardware.
+
+Detail should reinforce the big design.
+
+Do not bury the silhouette under random filigree.
+
+## Surface pattern
+
+Pattern should feel intentional.
+
+Useful pattern languages:
+
+- runes;
+- stitching;
+- colored piping;
+- geometric panels;
+- stained-glass divisions;
+- spirals;
+- heraldry;
+- symbolic eyes;
+- mask-like arrangements;
+- repeating triangles or diamonds.
+
+---
+
+# XI. Creatures and monsters
+
+Creature design begins with the body plan, not the texture pass.
+
+Use this order:
+
+1. silhouette;
+2. biological hook;
+3. head/face read;
+4. one memorable abnormality;
+5. surface treatment.
+
+## Hybrid creatures
+
+When combining animals or concepts:
+
+- keep the strongest readable trait of each source;
+- integrate forms structurally;
+- simplify where necessary;
+- do not merely paste body parts together.
+
+## Horror
+
+BFDM horror is allowed to be theatrical.
+
+Useful approaches:
+
 - too many eyes;
-- mouths where they do not belong;
-- glowing focal anatomy;
-- black fields;
+- wrong mouths;
+- body parts that repeat;
+- elegant forms with one grotesque violation;
+- cute subjects pushed into uncanny territory;
+- black void backgrounds;
+- limited sickly palettes;
+- glowing anatomy;
 - wet or fleshy accents;
-- distorted but readable bodies;
-- childlike or cute forms turned unsettling.
+- corpse-pale regions against aggressive color.
+
+The horror should still have a clean read.
 
 ---
 
-## 11. Props and objects
+# XII. Props and objects
 
-Objects should often carry character.
+A prop is often a miniature character design problem.
 
-A BFDM prop can feel face-like or personality-bearing through:
+BFDM props may feel face-like through:
 
-- symmetry;
-- eyes or lenses;
-- teeth;
 - buckles;
+- eye shapes;
+- lenses;
 - masks;
-- emblems;
-- handles;
+- handle placement;
+- teeth;
 - stitched seams;
-- asymmetrical hardware;
-- expressive panel shapes.
+- geometric hardware;
+- front-panel symmetry.
 
-Avoid neutral catalog presentation unless the task demands it.
+A bag, weapon, lantern, or spell case should be memorable in silhouette.
 
-Props should feel like artifacts from a world.
+Do not default to product-catalog realism unless the task specifically requires it.
 
 ---
 
-## 12. Environments and exteriors
+# XIII. Places
 
-The exterior example establishes an important BFDM environment lane.
+> **A place should have a silhouette and personality the same way a character does.**
 
-### Architectural character
+The exterior reference makes this especially clear.
 
-Buildings should feel as designed as characters.
+## Architecture as character
 
-Typical traits:
+Useful BFDM environmental traits:
 
 - crooked verticality;
-- stacked or overhanging stories;
-- half-timbered shapes;
-- exaggerated rooflines;
+- stacked stories;
+- overhangs;
 - leaning facades;
-- compressed streets;
-- dense adjacency;
+- strong roof shapes;
 - irregular windows;
-- bridges, stairs, docks, and retaining walls as compositional elements;
-- readable shopfronts and tiny signs.
+- compressed streets;
+- bridges and stairs;
+- docks;
+- retaining walls;
+- tiny storefronts and signs;
+- big trees that compete with buildings as compositional masses.
 
-### Line and material
+A settlement should be recognizable from its roofline.
 
-Use:
+## Dense but readable
 
-- dark architectural outlines;
-- simplified masonry;
-- bright white plaster;
-- wood framing;
-- bold roof color;
-- readable texture clusters rather than uniform realism.
+BFDM environments can contain a lot of information without becoming texture soup.
 
-### Color
-
-BFDM exteriors can be brighter than character art.
-
-Useful combinations:
-
-- white plaster;
-- warm timber;
-- cyan or blue roofs;
-- orange-red roof tiles;
-- saturated green trees;
-- turquoise water;
-- pale blue sky;
-- dark shadow pockets between buildings.
-
-### Density
-
-The scene may be busy, but it should remain readable.
-
-Organize density into large masses:
+Organize density into large zones:
 
 - architecture;
 - foliage;
 - water;
 - sky;
+- ground;
 - foreground silhouette.
 
-Small details should reward inspection without destroying the big read.
+Then layer small rewards inside those zones.
 
-### Perspective
+> **Environmental detail should reward looking closer without interfering with the first read.**
 
-Perspective may be slightly exaggerated or storybook-like.
+## Materials
 
-The goal is to make the place feel memorable and navigable, not architecturally sterile.
+Good environment treatment may include:
+
+- bright white plaster;
+- dark timber;
+- simplified stone;
+- orange-red tile;
+- cyan or blue roofs;
+- saturated trees;
+- turquoise water;
+- deep shadow pockets.
+
+Materials need to read clearly without becoming physically exhaustive.
+
+## Perspective
+
+Perspective can bend toward storybook clarity.
+
+A slightly compressed or exaggerated space is preferable to sterile architectural correctness if it makes the place more memorable and readable.
 
 ---
 
-## 13. Interiors
+# XIV. Interiors
 
-Interiors should use the same hierarchy as exteriors.
+Interiors follow the same logic as exteriors.
 
-Prioritize:
+Build around:
 
-- one architectural or prop anchor;
-- strong foreground/midground/background separation;
-- readable pathways;
-- light source;
-- one or two color accents;
+- one anchor;
+- one navigable spatial read;
+- a clear light source;
+- one or two dominant color accents;
 - selectively detailed clutter.
 
-Avoid filling every shelf, wall, and floor tile with equal detail.
+Strong anchors include:
+
+- hearth;
+- altar;
+- unusual door;
+- throne;
+- ritual table;
+- giant machine;
+- display wall;
+- strange window;
+- corpse;
+- magical object.
+
+Do not give every shelf equal visual weight.
 
 ---
 
-## 14. Story vignettes
+# XV. The bright storybook lane
 
-BFDM story vignettes should feel like a moment selected for meaning.
+One important BFDM lane uses:
 
-Use:
+- white or pale backgrounds;
+- watercolor-like softness;
+- dark contour drawing;
+- saturated focal color;
+- decorative curls and swirls;
+- whimsical subjects;
+- selective magical glow;
+- incomplete environments.
 
-- one clear interaction;
-- small cast;
-- moody or incomplete environment;
-- readable gesture;
-- visual tension;
-- restrained composition.
+This lane is especially useful for:
 
-The image should imply a before and after.
+- character spotlights;
+- whimsical creatures;
+- class art;
+- storybook vignettes;
+- magic items;
+- friendly or strange NPCs.
+
+Its danger is becoming too cute or too polished.
+
+Keep the drawing visible.
 
 ---
 
-## 15. Graphic and poster modes
+# XVI. The graphic-dark lane
 
-BFDM also has a strong graphic lane.
+Another strong BFDM lane uses:
 
-Useful traits:
+- black fields;
+- hard silhouettes;
+- limited palettes;
+- neon sunset or synthetic light;
+- sickly teal, violet, red, or magenta accents;
+- simplified background geometry;
+- poster-like framing.
 
-- hard black fields;
-- bright isolated color;
-- flat graphic blocks;
-- poster framing;
-- large symbols;
-- silhouette-driven composition;
-- simplified backgrounds;
-- bold text-safe areas.
+This lane is useful for:
 
-This is especially useful for:
-
-- covers;
-- splash images;
+- horror;
+- villains;
+- occult figures;
+- chapter splashes;
 - faction art;
-- chapter cards;
+- dream sequences;
 - dramatic reveals.
 
+The image should remain graphic enough to read immediately.
+
 ---
 
-## 16. Rulebook pages and handouts
+# XVII. The page-design lane
 
-Page design is part of the visual language.
+BFDM page design is not separate from BFDM illustration.
 
-### Rulebook spreads
+The page itself should feel illustrated.
+
+## Rulebook pages
 
 Prioritize:
 
-1. legibility;
+1. readable rules;
 2. hierarchy;
-3. artwork integration;
-4. ornament.
+3. integrated illustration;
+4. decorative identity.
 
-Use:
+Useful devices:
 
-- clear headings;
-- tables;
-- parchment or textured text blocks;
-- decorative edges;
-- embedded illustration;
-- large illustrated anchors;
-- page motifs that repeat across the product.
+- parchment or pale text panels;
+- colored washes behind art;
+- ink-like borders;
+- decorative curls;
+- vignettes that break panel edges;
+- bold headings;
+- tables that visually belong to the page;
+- small symbolic ornaments.
 
-Do not allow the illustration to reduce rules readability.
+Art should support the rules rather than fight them.
 
-### Player handouts
+## Player handouts
 
-Handouts should feel like objects or documents from the game world.
+A handout should feel like an object from the fiction.
 
 Possible forms:
 
-- letters;
-- maps;
-- ritual pages;
-- receipts;
-- tickets;
-- wanted posters;
-- spell notes;
-- contracts;
-- newspaper clippings;
-- item cards.
+- letter;
+- map;
+- wanted poster;
+- ritual sheet;
+- spell note;
+- receipt;
+- contract;
+- ticket;
+- newspaper clipping;
+- field note;
+- item card.
 
-When text carries gameplay information, accuracy beats aesthetics.
+If text contains gameplay information, **accuracy and readability outrank atmosphere**.
+
+Never allow “looks authentic” to make the clue unusable.
 
 ---
 
-## 17. BFDM style branches
+# XVIII. BFDM style branches
 
-The BFDM house style is the trunk. Campaign/product identities are branches.
+The house style is the trunk. Campaign/product identities are branches.
 
-### Roanoke branch
+## Roanoke
 
-Emphasize:
+Push toward:
 
 - occult Americana;
-- regional history;
-- eerie documents;
-- clue artifacts;
-- restrained horror;
-- lived-in realism with stylized presentation;
-- ominous negative space;
-- symbols, seals, maps, letters, and evidence.
+- historical residue;
+- regional oddness;
+- evidence artifacts;
+- maps, letters, journals, seals, clippings, field notes;
+- lived-in realism filtered through stylized illustration;
+- eerie negative space;
+- cryptids presented with enough specificity to feel local rather than generic.
 
-### Arcania branch
+Roanoke should still look BFDM.
 
-Emphasize:
+## Arcania
 
-- formal fantasy book design;
+Push toward:
+
+- formal fantasy-book presentation;
+- reusable page grammar;
 - class and subclass spreads;
 - creature entries;
-- item pages;
-- cleaner hierarchy;
-- consistent ornament;
-- strong illustration-to-text balance;
-- reusable page grammar.
+- magic-item pages;
+- integrated ornamental illustration;
+- controlled hierarchy;
+- cleaner production discipline without losing the hand.
 
-### Earthfall branch
+Arcania should feel like BFDM made a professional fantasy book, not like BFDM imitated another publisher.
 
-Emphasize:
+## Earthfall
 
-- louder color;
-- media spectacle;
-- corporate satire;
+Push toward:
+
+- louder saturation;
 - graphic aggression;
 - synthetic glow;
-- absurdity;
-- showmanship;
-- chaotic presentation that remains readable.
+- media spectacle;
+- corporate visual language;
+- game-show energy;
+- absurdity and menace in the same frame;
+- readable chaos.
 
-These branches modify BFDM. They do not replace it.
+Earthfall is allowed to be the least restrained branch.
 
 ---
 
-## 18. Asset-class behavior
+# XIX. Asset recipes
 
-### NPC portrait
+These are starting points, not rigid templates.
 
-- one dominant subject;
-- readable face;
+## Character spotlight
+
+Use:
+
+- one dominant figure;
+- strong silhouette;
+- face priority;
 - costume identity;
-- simple background;
-- strong focal accent.
+- one major prop or magical effect;
+- simplified background;
+- selective finish.
 
-### Monster art
+## Creature concept
 
-- silhouette first;
+Use:
+
+- silhouette-first anatomy;
 - one biological hook;
-- readable head;
-- selective texture;
-- avoid generic monster-detail overload.
+- readable face;
+- limited texture;
+- one memorable violation of expectation.
 
-### Prop / magic item
+## Prop study
 
-- object as character;
-- clear silhouette;
-- emblematic shape;
-- selective ornament;
-- presentation framing.
+Use:
 
-### Exterior
+- clear object silhouette;
+- one character-bearing motif;
+- readable hardware;
+- ornament concentrated around focal areas;
+- simple presentation field.
 
-- architecture as personality;
-- exaggerated readable massing;
-- strong roofline;
-- clear color blocks;
-- environmental density organized into large zones.
+## Exterior
 
-### Interior
+Use:
 
-- one anchor;
-- navigable space;
-- strong light source;
-- selective clutter.
+- memorable skyline;
+- large architecture/foliage/water masses;
+- strong roof color;
+- dark contour;
+- dense small detail only after the big read works.
 
-### Player handout
+## Interior
 
-- readable first;
-- diegetic second;
-- correct text;
-- material treatment supports the fiction.
+Use:
 
-### Rulebook spread
+- one spatial anchor;
+- clear approach/path;
+- one light source;
+- selective clutter;
+- strong foreground framing when useful.
 
-- hierarchy first;
-- content completeness;
-- illustration supports text;
-- recurring visual grammar.
+## Story vignette
 
-### Cover / splash
+Use:
+
+- one readable interaction;
+- small cast;
+- one emotional or narrative tension;
+- incomplete environment;
+- visual implication of what happened immediately before or after.
+
+## Player handout
+
+Use:
+
+- legibility first;
+- diegetic material second;
+- accurate text;
+- a visual clue hierarchy;
+- controlled aging/distress.
+
+## Rulebook spread
+
+Use:
+
+- complete mechanics;
+- clear headings;
+- repeatable page grammar;
+- illustration supporting text;
+- deliberate ornament;
+- no decorative text hallucination.
+
+## Cover or splash
+
+Use:
 
 - one dominant hook;
-- strong title-safe composition;
-- graphic read at thumbnail size.
+- thumbnail readability;
+- strong title-safe area;
+- large graphic masses;
+- theatrical staging.
 
 ---
 
-## 19. Negative constraints
+# XX. What BFDM is not
 
 Avoid by default:
 
-- generic ArtStation fantasy polish;
+- generic ArtStation fantasy;
 - photoreal fantasy;
 - sterile vector anime;
-- uniform rendering;
-- detail everywhere;
-- muddy gray-brown grading;
-- interchangeable fantasy armor;
-- featureless cinematic backgrounds;
-- random surface noise;
-- anonymous “epic” lighting;
-- slick AI symmetry;
-- anatomy duplication;
-- unexplained extra limbs, ears, wings, fingers, horns, or props.
+- uniformly rendered surfaces;
+- gray-brown cinematic grading;
+- interchangeable armor;
+- purposeless filigree;
+- featureless “epic” backgrounds;
+- detail soup;
+- excessive bokeh;
+- glossy AI symmetry;
+- anatomically perfect but characterless faces;
+- every surface receiving the same finish;
+- random runes added merely to signal fantasy.
+
+A piece can be technically excellent and still fail the BFDM identity test.
 
 ---
 
-## 20. Anatomy and object-count QA
+# XXI. Generated-art failure patterns
 
-Every generated image should receive a literal count check when the subject has discrete anatomy or equipment.
+## Failure: too polished
+
+Symptoms:
+
+- looks like generic premium concept art;
+- loses contour and drawing irregularity;
+- every region equally resolved.
+
+Correction:
+
+- restore line;
+- simplify secondary areas;
+- increase rough-versus-finished contrast;
+- make shapes stranger and more authored.
+
+## Failure: “BFDM motif soup”
+
+Symptoms:
+
+- spirals, masks, eyes, neon, runes, and stained-glass motifs all appear at once;
+- motifs feel pasted on.
+
+Correction:
+
+- return to the concept hook;
+- keep only motifs that support the subject.
+
+## Failure: beautiful but wrong
+
+Symptoms:
+
+- wrong anatomy count;
+- missing canon detail;
+- wrong costume;
+- wrong orientation;
+- incomplete rules text;
+- generation hides an error rather than repairing it.
+
+Correction:
+
+- fix the actual error.
+
+Do not solve an unwanted third ear by changing the camera angle.
+
+---
+
+# XXII. Anatomy and object-count QA
+
+When a subject has discrete anatomy or equipment, record the expected count before generation and verify afterward.
 
 Examples:
 
-- ears: expected 2;
-- antlers: expected 2;
-- arms: expected 2;
-- wings: expected 2;
-- firearm: expected 1;
-- visible hands: expected count;
+- ears: 2;
+- antlers: 2;
+- arms: 2;
+- hands: expected visible count;
+- wings: expected count;
 - eyes: expected count;
-- tails: expected count.
+- tails: expected count;
+- firearm: expected count.
 
-The jackalope failure is the canonical warning: a beautiful generation still fails if it gives a character three ears.
+The jackalope failure is the canonical warning:
 
-Do not fix an anatomy error by changing framing, orientation, or hiding the mistake unless the user explicitly asks for that solution.
-
-Regenerate or repair the anatomy itself.
-
----
-
-## 21. BFDM quality gate
-
-A generated image should pass all of the following:
-
-1. **Concept:** the premise is immediately legible.
-2. **Silhouette:** the subject reads at thumbnail size.
-3. **Focal hierarchy:** the image has a clear point of attention.
-4. **Design authorship:** the shapes feel chosen, not defaulted.
-5. **Color intent:** the palette makes a deliberate statement.
-6. **Selective finish:** important areas receive more attention than incidental ones.
-7. **Style identity:** the result feels adjacent to BFDM work rather than generic AI fantasy art.
-8. **Anatomy/object count:** discrete parts are correct.
-9. **Canon:** depicted facts are correct.
-10. **Function:** the image does the job of the requested asset class.
-
-If the image fails #7, it is not a successful BFDM image even if it is attractive.
+> A beautiful image still fails if the character has three ears.
 
 ---
 
-## 22. Reference-corpus use
+# XXIII. BFDM identity test
 
-Do not treat all BFDM images as equally representative.
+Before accepting a generated image, ask:
 
-Use reference labels:
+### The thumbnail test
+Does the image read when small?
 
-- **CORE** — strongest current house-style evidence;
-- **GOOD** — representative but secondary;
-- **EDGE** — experimental, historical, or useful for one narrow mode;
+### The hook test
+Can the central idea be stated immediately?
+
+### The authorship test
+Do the shapes feel deliberately chosen?
+
+### The hand test
+Can you still feel drawing decisions beneath the finish?
+
+### The hierarchy test
+Do important areas receive more attention than incidental ones?
+
+### The color test
+Is color doing something intentional?
+
+### The character test
+Do props, costume, creatures, or architecture carry personality?
+
+### The BFDM test
+If the title and campaign logo vanished, would this still plausibly belong beside BFDM work?
+
+If the final answer is no, the image is not done.
+
+---
+
+# XXIV. Using the visual reference corpus
+
+The original BFDM artwork is the authority.
+
+Generated composites and written summaries are aids.
+
+They do not outrank the source work.
+
+## Reference labels
+
+Use:
+
+- **CORE** — strongest house-style exemplar;
+- **GOOD** — clearly representative;
+- **EDGE** — useful for a narrow lane or historical experiment;
 - **NO** — exclude from style learning.
 
-Tag useful qualities separately:
+## Tag by what the image teaches
 
-- character;
+Useful tags:
+
+- silhouette;
+- line;
+- face;
+- hair;
+- costume;
 - creature;
 - prop;
 - exterior;
 - interior;
-- handout;
 - page layout;
-- linework;
-- silhouette;
+- handout;
 - palette;
 - glow;
 - roughness;
-- costume;
-- architecture;
+- graphic-dark;
+- storybook;
 - horror;
-- graphic mode.
+- architecture;
+- ornament.
 
-A generator should retrieve references relevant to the requested asset class rather than averaging the whole corpus.
+Retrieve references by the needs of the requested asset.
 
----
-
-## 23. Generation recipe
-
-For a BFDM image request, assemble:
-
-1. **canonical subject facts**;
-2. **asset class**;
-3. **campaign branch**;
-4. **central visual hook**;
-5. **relevant BFDM references**;
-6. **house-style instructions**;
-7. **explicit anatomy/object counts**;
-8. **negative constraints**.
-
-Do not rely on the phrase “in BFDM style” by itself.
+Do not average the entire corpus into one generic style.
 
 ---
 
-## 24. Success criterion
+# XXV. Reference hierarchy for generated art
 
-The target is not:
+When Kit creates new art, authority is:
 
-> “This is attractive fantasy art.”
+1. established campaign/world truth;
+2. explicit current user instruction;
+3. campaign/product-specific art direction;
+4. relevant original BFDM reference images;
+5. this art bible;
+6. asset-class recipe;
+7. generator defaults.
 
-The target is:
+A generated image never creates canon merely by depicting something.
 
-> **“This looks like BFDM made it.”**
+---
+
+# XXVI. Generation brief
+
+A useful BFDM generation brief should contain:
+
+**Subject facts**  
+What must physically be true?
+
+**Hook**  
+What is the one-sentence visual premise?
+
+**Asset class**  
+Portrait, creature, prop, exterior, handout, spread, etc.
+
+**Branch**  
+Roanoke, Arcania, Earthfall, or core BFDM.
+
+**Big shapes**  
+What defines the silhouette?
+
+**Focal point**  
+Where should the eye land first?
+
+**Palette**  
+What are the dominant and accent color relationships?
+
+**Relevant BFDM references**  
+What original works should steer this image?
+
+**Expected counts**  
+Limbs, ears, antlers, weapons, props, etc.
+
+**Negative constraints**  
+What common failure must be avoided?
+
+Do not rely on “in BFDM style” alone.
+
+---
+
+# XXVII. Final standard
+
+The successful response is not:
+
+> “That is a nice fantasy picture.”
+
+It is:
+
+> **“Yeah. That looks like BFDM.”**
