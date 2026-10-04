@@ -473,6 +473,7 @@ class FightDetailTests(unittest.TestCase):
         room = Room(self, source=source, npc_roll=lambda: 1, roll=lambda: 15)
         room.act('I roll the carcass over.', ROLL)
         room.act('Initiative 1')
+        room.decline_open()  # Nik lets the bite through (no Shield, #101's window)
         self.assertEqual(room.state['combat']['awaiting']['save'], 'con')
         result = room.act('Con save 15')
         self.assertIn('Dexterity saving throw', result.public_event)
@@ -542,7 +543,9 @@ class TieRuleTests(unittest.TestCase):
                 room = Room(self, npc_roll=lambda: 1, roll=lambda die=die: die)
                 room.act('I roll the carcass over.', ROLL)
                 result = room.act('Initiative 1')
-                self.assertEqual('hits you' in result.public_event, hit, result.public_event)
+                # A hit Nik could still turn (Shield, #101) stops at his reaction window first.
+                window = (room.state['combat'].get('awaiting') or {}).get('trigger') == 'hit'
+                self.assertEqual('hits you' in result.public_event or window, hit, result.public_event)
 
     def test_the_pcs_attack_against_a_monsters_ac(self):
         # Giant centipede AC 13.

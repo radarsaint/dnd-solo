@@ -349,7 +349,7 @@
     },
     "fresco": {
       "area": "area_06c", "visible": true,
-      "text": "A fresco covers the north wall: a carved mountain, with tiny dwarven figures in its caverns and rays of sunlight spreading outward."
+      "layer": "obvious", "text": "A fresco covers the north wall: a carved mountain, with tiny dwarven figures in its caverns and rays of sunlight spreading outward."
     },
     "tub": {
       "area": "area_06c", "visible": true,

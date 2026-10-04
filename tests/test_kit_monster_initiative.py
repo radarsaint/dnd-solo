@@ -31,21 +31,32 @@ class Room:
     """The carcass room with every die pinned: ``roll`` is the monsters' attack d20s,
     ``npc_roll`` their Stealth d20 against the PC's passive Perception (Nik: 14)."""
 
-    def __init__(self, test, source=None, start='hall', roll=lambda: 10, npc_roll=lambda: 1):
+    def __init__(self, test, source=None, start='hall', roll=lambda: 10, npc_roll=lambda: 1, sheet=None,
+                 decline_windows=True):
+        """``decline_windows``: a line given with no ``choice`` while a reaction window is open first
+        commits the player's 'no' (Kit's read: decline), as at the table: tests about rolls, triggers
+        and conditions are not about reactions. A flourish window open under a plain line is Kit's
+        read of a new action. Pass ``choice`` (or decline_windows=False) to test the windows."""
+        self.decline_windows = decline_windows
         temp = tempfile.TemporaryDirectory()
         test.addCleanup(temp.cleanup)
         self.runtime = Runtime(Path(temp.name) / 'kit.sqlite')
         test.addCleanup(self.runtime.close)
         with mock.patch('runtime.state_context.secrets.token_hex', return_value=f'{7:032x}'):
             self.runtime.initialize(kit_rooms.check_room(source or carcass()), start)
-        self.runtime.set_player_sheet(json.loads(NIK.read_text()))
+        self.runtime.set_player_sheet(sheet or json.loads(NIK.read_text()))
         self.adjudicator = RoomAdjudicator(roll=roll, npc_roll=npc_roll, source=self.runtime.source())
 
-    def act(self, action, handles=None):
+    def act(self, action, handles=None, **choice):
         """Resolve one player line. ``handles``: Kit's declared act this turn (runtime/kit_acts.py),
-        validated against the turn's offer and resolved as the bridge does at commit."""
+        validated against the turn's offer and resolved as the bridge does at commit. ``choice``: Kit's
+        structured read of a reply to an open window (react=..., flourish=...)."""
+        if self.decline_windows and not choice:
+            self.decline_open()
+            if ((self.state.get('combat') or {}).get('awaiting') or {}).get('kind') == 'flourish_window':
+                choice = {'flourish': 'new_action'}
         revision, state = self.runtime.load()
-        result = self.adjudicator.resolve(action, revision, state)
+        result = self.adjudicator.resolve(action, revision, state, choice=choice or None)
         events = list(result.events)
         if handles:
             decl = kit_acts.check({'handles': handles}, {'acts': result.offers or {}})['handles']
@@ -55,6 +66,17 @@ class Room:
             result = declared.__class__(declared.kind, f'{declared.public_event}', events, declared.handoff,
                                         result.offers)
         self.runtime.commit(f't{revision}', revision, events)
+        return result
+
+    def decline_open(self):
+        """The player says no to every reaction window open now (Kit's read: decline)."""
+        guard, result = 0, None
+        while ((self.state.get('combat') or {}).get('awaiting') or {}).get('kind') == 'reaction_window' \
+                and guard < 8:
+            guard += 1
+            revision, state = self.runtime.load()
+            result = self.adjudicator.resolve('No.', revision, state, choice={'react': 'decline'})
+            self.runtime.commit(f't{revision}d', revision, list(result.events))
         return result
 
     @property
@@ -258,6 +280,8 @@ class SaveRiderTests(unittest.TestCase):
         room = Room(self, npc_roll=lambda: 1, roll=lambda: 15)
         room.act('I roll the carcass over.', ROLL)
         result = room.act('Initiative 1')
+        if room.state['combat']['awaiting']['kind'] == 'reaction_window':
+            result = room.act('No.', react='decline')  # Kit's read: Nik lets Chronal Shift go
         return room, result
 
     def test_a_bite_that_hits_asks_the_player_for_the_save(self):
@@ -277,7 +301,7 @@ class SaveRiderTests(unittest.TestCase):
         result = room.act('Con save 14')
         combat = room.state['combat']
         self.assertEqual(combat['pc_damage'], 8, 'no half damage on a success (SRD); the second bite lands')
-        self.assertEqual(combat['awaiting']['from'], 'centipede_b', 'the second centipede bites: a second save')
+        self.assertEqual(combat['awaiting']['attacker'], 'centipede_b', 'the second centipede bites: a second save')
         self.assertNotIn('Your turn.', result.public_event)
         result = room.act('Con save 15')
         combat = room.state['combat']

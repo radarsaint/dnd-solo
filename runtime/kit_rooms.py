@@ -140,8 +140,9 @@ def first_framing_problems(source):
         if link is not None and not (isinstance(link, dict) and isinstance(link.get('room'), str)
                                      and isinstance(link.get('area'), str)):
             problems.append(f'area {key} room_link needs room and area')
+    from .kit_reveal import check_layer
     return problems + secrecy_problems(source) + tease_problems(source) + fighter_problems(source) + \
-        alarm_problems(source)
+        alarm_problems(source) + check_layer(source)
 
 
 class RoomWarning(UserWarning):

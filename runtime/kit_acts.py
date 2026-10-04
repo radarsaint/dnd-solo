@@ -6,8 +6,8 @@ is validated against what the engine offered, and only then does the engine act 
 cheap regex may put a ``hint`` in the offer so Kit can confirm it; a hint never fires a
 trigger or reveals anything by itself.
 
-Every field follows one pattern, so later fields (#101's ``react``) slot in beside
-``handles`` without a second schema style:
+Every field follows one pattern, so #101's ``react`` and ``flourish`` (Kit's read of a reply
+to an open reaction or flourish window) sit beside ``handles`` without a second schema style:
 
 * the offer: ``body['acts'][field]``, built by the engine at prepare (what may be declared
   this turn: ids, plus an optional hint), shown to Kit as ``acts.<field>`` in the packet;
@@ -72,7 +72,48 @@ def check_handles(value, offer):
                    'or a part listed with it.')
 
 
-FIELDS = {'handles': check_handles}
+# -- react / flourish: Kit's read of the player's reply to an open window (#101) ----------------
+# The offer is the open window (``body['acts']['react']`` = {'options': [reaction ids]},
+# ``body['acts']['flourish']`` = {'target': id}); the engine checks the declared choice is legal
+# (offered, still available) and never reads the reply's words itself.
+REACT_FIXED = ('decline', 'unclear')
+FLOURISH_READS = ('describe', 'new_action', 'unclear')
+REACT_SCHEMA = {'type': 'object', 'additionalProperties': False,
+                'properties': {'choice': {'type': 'string'}, 'cast_in_avrae': {'type': 'boolean'},
+                               'slot_level': {'type': ['integer', 'null']}},
+                'required': ['choice']}
+FLOURISH_SCHEMA = {'type': 'string', 'enum': list(FLOURISH_READS)}
+# The window_answer packet's decision schema: one act field per window kind.
+WINDOW_SCHEMAS = {'react': REACT_SCHEMA, 'flourish': FLOURISH_SCHEMA}
+REACT_RULE = ('react {choice, cast_in_avrae, slot_level}: choice is an offered reaction id, decline, or unclear '
+              '(then ask, one short question). cast_in_avrae true only when the reply shows the spell cast in '
+              'Avrae; slot_level only when the reply names an upcast slot.')
+FLOURISH_RULE = ('flourish: describe (the reply describes the kill), new_action (the player does something '
+                 'else instead), or unclear (then ask, one short question).')
+
+
+def check_react(value, offer):
+    """{'react': id|decline|unclear, 'cast_in_avrae': bool, 'slot_level'?} for a legal read."""
+    require(offer, 'No reaction window is open: omit react.')
+    require(isinstance(value, dict) and 'choice' in value and set(value) <= {'choice', 'cast_in_avrae', 'slot_level'},
+            'react is {choice, cast_in_avrae?, slot_level?}')
+    allowed = list(offer.get('options') or ()) + list(REACT_FIXED)
+    require(value['choice'] in allowed, f'react.choice must be one of {allowed}')
+    out = {'react': value['choice'], 'cast_in_avrae': value.get('cast_in_avrae') is True}
+    level = value.get('slot_level')
+    if level is not None:
+        require(type(level) is int and 1 <= level <= 9, 'react.slot_level is 1-9 or null')
+        out['slot_level'] = level
+    return out
+
+
+def check_flourish(value, offer):
+    require(offer, 'No flourish window is open: omit flourish.')
+    require(value in FLOURISH_READS, f'flourish must be one of {", ".join(FLOURISH_READS)}')
+    return {'flourish': value}
+
+
+FIELDS = {'handles': check_handles, 'react': check_react, 'flourish': check_flourish}
 
 
 def check(plan, body):
