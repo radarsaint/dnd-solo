@@ -100,6 +100,8 @@ class KitVisualTests(unittest.TestCase):
         self.assertNotIn("guards", safe)
         self.assertIn("player_safe is the factual ceiling",
                       brief["generation_contract"]["fact_rule"])
+        self.assertIn("Do not forward the raw request",
+                      brief["generation_contract"]["request_rule"])
 
     def test_reference_rotation_penalizes_recent_overuse(self):
         first = kit_visual.prepare_visual(self.runtime, "Draw a magical character portrait.")
