@@ -64,6 +64,7 @@ Open these only when `AGENTS.md`, the GPT instructions, a runtime message, or th
 - `docs/architecture/kit-claims-knowers.md` and `docs/GPT_HANDOFF_CLAIMS.md`: who knows what
 - `docs/architecture/kit-agendas.md` and `docs/GPT_HANDOFF_AGENDAS.md`: what NPCs want and when they act
 - `docs/architecture/kit-expression-gap.md`: how speech is checked
+- `docs/architecture/KIT_VISUAL_STYLE_SPEC.md`: house visual language and generation rules; load when Kit is asked to create new campaign art
 <!-- reference:end -->
 
 ## DEV ONLY: do not read during play, do not quote to players
