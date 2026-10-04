@@ -100,7 +100,12 @@ BOOKKEEPING_EVENTS = ('player_sheet', 'player_character', 'player_note', 'pc_sta
 # A pending check's optional fields: a held exit, and room for the check-calling follow-up's
 # quiet DC adjustment for creative use of the scene (Brendon: about -2) with its reason. Not
 # applied anywhere yet.
-PENDING_CHECK_OPTIONAL = {'exit', 'dc_adjust', 'reason', 'threshold', 'held'}
+PENDING_CHECK_OPTIONAL = {'exit', 'dc_adjust', 'reason', 'threshold', 'held', 'action'}
+# ``action``: a check the engine itself called because the act needs the PC's roll (players roll
+# in Avrae; the engine never rolls for them). The player's roll resolves that act (PR-L).
+# A standing check (Let It Ride, PR-L): an established result that holds while the PC keeps at
+# the same endeavor. Kept in state['standing_check']; cleared by the event with check None.
+STANDING_CHECK_KEYS = {'skill', 'total', 'die', 'modifier', 'area', 'route', 'against', 'approach', 'since'}
 # A heavy turn Kit opened on a check call holds its description for the roll (kit_agent.STALL_KINDS).
 HELD_KINDS = ('opening', 'exit', 'threshold_look')
 COMMIT_APPENDED_EVENTS = ('canon_entry', 'oracle_draw', 'procedure_state', 'claim_said', 'agenda_turn',
@@ -722,6 +727,8 @@ class Runtime:
             state.setdefault('room', {'id': source.get('id'), 'path': None, 'turns_in': {}})['came_by'] = key
             if state['area'] not in state['visited']:
                 state['visited'].append(state['area'])
+            if (state.get('standing_check') or {}).get('area') != state['area']:
+                state.pop('standing_check', None)  # a new area ends a standing attempt (PR-L)
             self._observe(state, source)
         elif kind == 'actor_status':
             key = event.get('actor')
@@ -866,13 +873,27 @@ class Runtime:
                                                                check['held']['kind'] in HELD_KINDS)) and
                                       ('reason' not in check or (isinstance(check['reason'], str) and
                                                                  len(check['reason']) <= 200)) and
+                                      ('action' not in check or (isinstance(check['action'], str) and
+                                                                 0 < len(check['action']) <= 2000)) and
                                       pc_sheet.SKILLS.get(check['skill']) == check['ability'] and
                                       isinstance(check['target'], str) and isinstance(check['called_turn'], str)),
-                    'pending_check is {skill, ability, target, called_turn[, exit, threshold, held, dc_adjust, reason]} or None')
+                    'pending_check is {skill, ability, target, called_turn[, exit, threshold, held, dc_adjust, reason, action]} or None')
             if check is None:
                 state.pop('pending_check', None)
             else:
                 state['pending_check'] = copy.deepcopy(check)
+        elif kind == 'standing_check':
+            from . import pc_sheet
+            check = event.get('check')
+            require(check is None or (isinstance(check, dict) and set(check) == STANDING_CHECK_KEYS and
+                                      check['skill'] in pc_sheet.SKILLS and type(check['total']) is int and
+                                      check['area'] in source['areas'] and
+                                      isinstance(check['against'], dict) and isinstance(check['approach'], str)),
+                    'standing_check is {skill, total, die, modifier, area, route, against, approach, since} or None')
+            if check is None:
+                state.pop('standing_check', None)
+            else:
+                state['standing_check'] = copy.deepcopy(check)
         elif kind == 'open_threads':
             from . import kit_threads
             kit_threads.apply_event(state, event)
