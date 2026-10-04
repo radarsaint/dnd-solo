@@ -51,7 +51,7 @@ A ZIP attached to a ChatGPT Project, GPT Knowledge, conversation, Drive, or Libr
 
 ## Historical Brendon corpus
 
-When doing personality/judgment research rather than ordinary live play, start with `corpus/brendon/README.md`. Use `evidence.jsonl` for attributable Brendon contributions and `catalog.jsonl` for their source/context containers. Derived decision records are interpretations and must cite back to both evidence and source IDs where available. Respect discovery/evaluation partitions and privacy exclusions.
+When doing personality/judgment research rather than ordinary live play, start in [radarsaint/bfdm-corpus](https://github.com/radarsaint/bfdm-corpus) (`README.md`, then `research/METHOD.md`). Use `evidence/evidence.jsonl` for attributable Brendon contributions and `evidence/catalog.jsonl` for their source/context containers. Derived decision records are interpretations and must cite back to both evidence and source IDs where available. Respect discovery/evaluation partitions and privacy exclusions. Nothing from that archive is mirrored in this repository.
 
 ## Where to learn the job
 
