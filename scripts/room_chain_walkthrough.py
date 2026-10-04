@@ -144,7 +144,7 @@ def run(folder):
                 and guard < 8:
             guard += 1
             revision, state = runtime.load()
-            answer = adjudicator.resolve('No, let it hit.', revision, state)
+            answer = adjudicator.resolve('No, let it hit.', revision, state, choice={'react': 'decline'})
             runtime.commit(f't{number}r{guard}', revision, list(answer.events))
             records.append({'line': 'No, let it hit.', 'kind': answer.kind, 'public': answer.public_event,
                             **snapshot(runtime)})

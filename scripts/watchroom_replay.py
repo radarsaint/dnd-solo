@@ -280,6 +280,48 @@ def misread(turn, packet, runtime):
     return None
 
 
+WINDOW_PACKET_BYTES = 1500
+CAMP = ROOT / 'tests/fixtures/rooms/roadcamp.json'
+WINDOW_LEG = [  # (player line, Kit's output for the window packet it gets)
+    ('Initiative 25. I stab the wagon-side cutthroat with my dagger, 18 to hit, 20 piercing.',
+     {'decision': {'window': 'voiced'}, 'performance': {'segments': [
+         {'speaker': 'Narrator', 'text': 'Your dagger finds the cutthroat and he folds against the wagon wheel.'},
+         {'speaker': 'Kit', 'text': 'The captain\'s scimitar comes in at your ribs and it will land. Shield?'}]}}),
+    ('Nah, Shield', {'decision': {'react': 'shield', 'cast_in_avrae': False}, 'performance': {'segments': [
+        {'speaker': 'Kit', 'text': 'Then cast it for me in Avrae: !cast shield?'}]}}),
+    ('Nik casts Shield! (Avrae: !cast shield)',
+     {'decision': {'react': 'shield', 'cast_in_avrae': True}, 'performance': {'segments': []}}),
+]
+
+
+def combat_window_leg():
+    """Roadcamp, Nik, every die 10: the captain's hit opens a Shield window. Kit voices it, reads an
+    unclear-mode reply ('Nah, Shield' plus no cast: she asks), then reads the cast. Counts the tiny
+    window trips and their estimated seconds; the full turn after the window is a normal trip."""
+    folder = Path(tempfile.mkdtemp())
+    runtime = Runtime(folder / 'camp.sqlite')
+    runtime.initialize(json.loads(CAMP.read_text()), 'camp')
+    runtime.set_player_sheet(json.loads(NIK.read_text()))
+    bridge = KitChatBridge(runtime, RoomAdjudicator(roll=lambda: 10, source=runtime.source()))
+    trips, seconds, engine_ms, stages = 0, 0.0, 0.0, []
+    for index, (line, output) in enumerate(WINDOW_LEG):
+        t = time.perf_counter()
+        packet = bridge.prepare(line, f'w{index}', one_pass=True)
+        while packet.get('stage') in ('window_voice', 'window_answer'):
+            stages.append(packet['stage'])
+            trips += 1
+            seconds += model_trip_s(nbytes(packet), nbytes(output))
+            result = bridge.complete(packet['turn_id'], output)
+            packet = result if result.get('stage') else {}
+        engine_ms += (time.perf_counter() - t) * 1000
+        if packet.get('stage') == 'one_pass':
+            stages.append('one_pass (full turn)')
+            bridge.abandon(packet['turn_id'])
+    runtime.close()
+    return {'stages': stages, 'window_round_trips': trips, 'window_model_est_s': round(seconds, 3),
+            'engine_ms': round(engine_ms, 1)}
+
+
 def run(out=None, turns=None, manifests=False):
     folder = Path(tempfile.mkdtemp())
     db = folder / 'replay.sqlite'
@@ -328,6 +370,7 @@ def run(out=None, turns=None, manifests=False):
             rows.append(row)
             continue
         row['packet_bytes'] = nbytes(packet)
+        row['turn_id'] = packet['turn_id']
         decision = kit_decision(packet, turn)
         quote = ' '.join((packet['input']['private'].get('player_action') or '').split()[:4])
         speech = {'segments': [{'speaker': s, 'text': x, **({'reacts_to': quote} if s == 'Kit' else {})}
@@ -363,6 +406,9 @@ def run(out=None, turns=None, manifests=False):
                     bridge.abandon(packet['turn_id'])
                     break
         rows.append(row)
+    for r in rows:
+        r['window_round_trips'] = ((runtime.kit_timing(r['turn_id']) or {}).get('window_round_trips', 0)
+                                   if r.get('turn_id') else 0)
     runtime.close()
     for r in rows:
         trips = []
@@ -371,6 +417,8 @@ def run(out=None, turns=None, manifests=False):
         # every reject repeats the whole trip with the full output.
         trips += [model_trip_s(packet, 200)] * (r['stalls'] + r['misreads'])
         trips += [model_trip_s(packet, written)] * (r['rejects'] + (1 if 'packet_bytes' in r else 0))
+        # Each reaction/flourish window is a tiny extra model trip (window packet, ~300 bytes out).
+        trips += [model_trip_s(WINDOW_PACKET_BYTES, 300)] * r['window_round_trips']
         r['model_est_s'] = round(sum(trips), 3)
         r['end_to_end_est_s'] = round(r['model_est_s'] + (sum(r['prepare_ms']) + sum(r['complete_ms'])) / 1000, 3)
     total = {key: sum(r[key] for r in rows) for key in ('stalls', 'misreads', 'rejects')}
@@ -380,6 +428,8 @@ def run(out=None, turns=None, manifests=False):
                  engine_ms_p95=pct([sum(r['prepare_ms']) + sum(r['complete_ms']) for r in rows], 0.95),
                  model_assumptions=MODEL)
     total['unresolved'] = sum(1 for r in rows if r.get('unresolved'))
+    total['window_round_trips'] = sum(r['window_round_trips'] for r in rows)
+    total['combat_window_leg'] = combat_window_leg()
     total['engine_ms'] = round(sum(sum(r['prepare_ms']) + sum(r['complete_ms']) for r in rows), 1)
     sized = [r for r in rows if 'packet_bytes' in r]
     for key in ('packet_bytes', 'decision_bytes', 'speech_bytes'):

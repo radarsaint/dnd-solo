@@ -94,12 +94,14 @@ def latency(timing):
     from .kit_agent import turn_latency
     timing = timing or {}
     end = turn_latency(timing).get('end_to_end_s')
+    if end is not None and (timing.get('host_stamps') or {}).get('shown_at') is not None:
+        return end, 'host_stamps (received to shown)'
     if end is not None:
-        return end, 'host_stamps'
+        return end, 'host_stamps (no shown_at)'
     if timing.get('prepare_to_commit_s') is not None:
-        return timing['prepare_to_commit_s'], 'prepare_to_commit'
+        return timing['prepare_to_commit_s'], 'prepare_to_commit only (no shown_at)'
     if timing.get('runtime_prepare_ms') is not None:
-        return round(timing['runtime_prepare_ms'] / 1000, 3), 'runtime_prepare'
+        return round(timing['runtime_prepare_ms'] / 1000, 3), 'runtime_prepare only (no shown_at)'
     return None, None
 
 
@@ -112,28 +114,35 @@ def _open_handoff(lines):
 
 
 def _answer(open_line, committed, action, kind, by_player, state_after, reason=None):
+    """One input after a handoff. ``closes``: it settles the handoff (a committed turn that is not a
+    re-ask of the same window); ``resolves``: it is the awaited answer from the player. A barge-in
+    (held, or committed without the awaited thing) never counts as answering; the verdict is the
+    input that closes the handoff."""
     from . import kit_rolls
     handoff = open_line['handoff']
     found = handoff['type']
+    base = {'turn_id': open_line['turn_id'], 'type': found}
     if not committed:
-        return {'turn_id': open_line['turn_id'], 'type': found, 'floor_to_player': False,
-                'how': f'held, not committed: {reason}'[:200]}
+        return {**base, 'floor_to_player': False, 'closes': False, 'resolves': False,
+                'how': f'barge-in held, not committed: {reason}'[:200]}
     if not by_player:
-        return {'turn_id': open_line['turn_id'], 'type': found, 'floor_to_player': False,
+        return {**base, 'floor_to_player': False, 'closes': True, 'resolves': False,
                 'how': 'the next input was not the player\'s'}
     if handoff.get('raised_by') == 'engine' and handoff.get('deferred_action_id'):
         still = ((state_after.get('combat') or {}).get('awaiting') or {}).get('deferred_action_id')
         ok = still != handoff['deferred_action_id']
-        how = 'answered the window' if ok else 'the window is still open'
-    elif found in ('stall_check', 'roll_call'):
+        if not ok:
+            return {**base, 'floor_to_player': False, 'closes': False, 'resolves': False,
+                    'how': f'window still open ({kind}: Kit asked again)'}
+        return {**base, 'floor_to_player': True, 'closes': True, 'resolves': True, 'how': 'answered the window'}
+    if found in ('stall_check', 'roll_call'):
         try:
             rolled = bool(kit_rolls.rolls(action or ''))
         except Exception:
             rolled = False
-        ok, how = rolled, ('rolled' if rolled else f'barged in without the roll ({kind})')
-    else:
-        ok, how = True, f'answered with a {kind} turn'
-    return {'turn_id': open_line['turn_id'], 'type': found, 'floor_to_player': ok, 'how': how}
+        return {**base, 'floor_to_player': rolled, 'closes': True, 'resolves': rolled,
+                'how': 'rolled' if rolled else f'barged in without the roll ({kind}): not an answer'}
+    return {**base, 'floor_to_player': True, 'closes': True, 'resolves': True, 'how': f'answered with a {kind} turn'}
 
 
 def log_turn(runtime, turn_id, action, kind, body=None, plan=None, record=None, by_player=True):
@@ -150,6 +159,10 @@ def log_turn(runtime, turn_id, action, kind, body=None, plan=None, record=None, 
             'handoff': classify(kind, body, plan, record, state_after),
             'latency_s': seconds, 'latency_from': source,
             'answers': _answer(open_line, True, action, kind, by_player, state_after) if open_line else None}
+    if line['answers'] and not line['answers']['closes'] and open_line.get('handoff'):
+        # Kit re-asked inside the same window: the open handoff stays the original one.
+        line['handoff'] = dict(open_line['handoff'], reasked=True)
+        line['reasks'] = open_line['turn_id']
     fired = [e.get('trigger') for e in events if e.get('type') == 'trigger_fired']
     if fired:
         line['engine'] = {'monster_initiative': fired}
@@ -170,7 +183,8 @@ def log_held(runtime, action, reason):
 
 def summary(lines, timings=None):
     """One row per committed turn, its handoff closed by what followed: floor_to_player is the
-    first next input's verdict; attempts counts inputs until a committed turn."""
+    verdict of the input that closed it (barge-ins and re-asks are attempts, never the answer);
+    attempts counts every input until then."""
     rows, by_id = [], {}
     for line in lines:
         if line.get('event') == 'turn':
@@ -189,7 +203,11 @@ def summary(lines, timings=None):
         answer = line.get('answers')
         if answer and answer['turn_id'] in by_id:
             target = by_id[answer['turn_id']]
+            while target.get('reasks') and target['reasks'] in by_id:  # a re-ask: the original window
+                target = by_id[target['reasks']]
             target['attempts'] += 1
-            if target['floor_to_player'] is None:
+            if target['floor_to_player'] is None and answer.get('closes', True):
                 target['floor_to_player'], target['how'] = answer['floor_to_player'], answer['how']
+        if line.get('event') == 'turn' and line.get('reasks'):
+            by_id[line['turn_id']]['reasks'] = line['reasks']
     return rows

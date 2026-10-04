@@ -96,7 +96,7 @@ CANON_SLOT = re.compile(r'^[a-z0-9_:]+(/[a-z0-9_]+){1,3}$')
 # Events a Kit turn may add at commit, after the adjudicated batch it was prepared with:
 # the decision's canon entries, the oracle deal it consumed, and procedure state.
 # Host bookkeeping, not a turn taken in the room (kit_rooms.stage counts the others).
-BOOKKEEPING_EVENTS = ('player_sheet', 'player_character', 'player_note', 'pc_state', 'kit_plan')
+BOOKKEEPING_EVENTS = ('player_sheet', 'player_character', 'player_note', 'pc_state', 'kit_plan', 'rest')
 # A pending check's optional fields: a held exit, and room for the check-calling follow-up's
 # quiet DC adjustment for creative use of the scene (Brendon: about -2) with its reason. Not
 # applied anywhere yet.
@@ -342,7 +342,7 @@ class Runtime:
                     ('player_input', 'public_event', 'spoken', 'trace')), 'Kit turn exceeds size limit')
         return self._commit(turn_id, expected_revision, events, record, consume_pending)
 
-    def commit_engine_interstitial(self, turn_id, expected_revision, events, record):
+    def commit_engine_interstitial(self, turn_id, expected_revision, events, record, consume_pending=False):
         """Commit a checkpoint the engine raised (kit_combat: a reaction window, a flourish
         handoff) with no model turn. It joins the public history so Kit sees it next turn;
         Kit's own appraisal, episodes and notes are untouched (she made no decision)."""
@@ -352,7 +352,11 @@ class Runtime:
         for key in ('player_input', 'public_event', 'spoken'):
             require(isinstance(record.get(key), str) and record[key].strip(), f'{key} required')
         require(len(encode(record).encode()) <= 12000, 'Interstitial exceeds size limit')
-        return self._commit(turn_id, expected_revision, events, record)
+        revision = self._commit(turn_id, expected_revision, events, record)
+        if consume_pending:  # the window turn Kit voiced was staged under this id
+            with self.db:
+                self.db.execute('DELETE FROM kit_pending WHERE turn_id=?', (turn_id,))
+        return revision
 
     def stage_kit_turn(self, turn_id, expected_revision, body):
         """Save an uncommitted chat turn so a host can perform the two model stages."""
@@ -656,6 +660,15 @@ class Runtime:
         next_revision = self.commit(f'sheet-{digest}', revision, [event])
         return {'revision': next_revision, 'character': pc_sheet.identity(sheet)}
 
+    def rest(self, kind):
+        """The PC finished a short or long rest (host bookkeeping, like the sheet): the reaction
+        inventory's uses come back (short: short-rest uses; long: everything, slots included)."""
+        require(kind in ('short', 'long'), 'A rest is short or long')
+        revision, _ = self.load()
+        event = {'type': 'rest', 'kind': kind, 'evidence': f'The host recorded a {kind} rest.'}
+        next_revision = self.commit(f'rest-{kind}-{revision}', revision, [event])
+        return {'revision': next_revision, 'pc_resources': self.load()[1].get('pc_resources')}
+
     def close_scene(self, reason):
         """Close the open scene (KRABS §8); the next scene opens. Returns the new revision and scene."""
         require(isinstance(reason, str) and reason.strip(), 'Say why the scene closes')
@@ -846,6 +859,16 @@ class Runtime:
             sheet = pc_sheet.check_sheet(event.get('sheet'))
             state['player_sheet'] = copy.deepcopy(sheet)
             state['player_character'] = pc_sheet.identity(sheet)
+            from . import kit_reactions
+            state['pc_resources'] = kit_reactions.build(sheet)  # the reaction inventory, slots, uses
+        elif kind == 'pc_resources':
+            from . import kit_reactions
+            state['pc_resources'] = copy.deepcopy(kit_reactions.check(event.get('resources')))
+        elif kind == 'rest':
+            from . import kit_reactions
+            require(event.get('kind') in ('short', 'long'), 'A rest is short or long')
+            state['pc_resources'] = kit_reactions.rest(kit_reactions.current(state), state.get('player_sheet') or {},
+                                                       event['kind'])
         elif kind == 'claim_said':
             from . import kit_claims
             said = event.get('said')

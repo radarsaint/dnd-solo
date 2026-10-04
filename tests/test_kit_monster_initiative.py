@@ -30,19 +30,20 @@ class Room:
     """The carcass room with every die pinned: ``roll`` is the monsters' attack d20s,
     ``npc_roll`` their Stealth d20 against the PC's passive Perception (Nik: 14)."""
 
-    def __init__(self, test, source=None, start='hall', roll=lambda: 10, npc_roll=lambda: 1):
+    def __init__(self, test, source=None, start='hall', roll=lambda: 10, npc_roll=lambda: 1, sheet=None):
         temp = tempfile.TemporaryDirectory()
         test.addCleanup(temp.cleanup)
         self.runtime = Runtime(Path(temp.name) / 'kit.sqlite')
         test.addCleanup(self.runtime.close)
         with mock.patch('runtime.state_context.secrets.token_hex', return_value=f'{7:032x}'):
             self.runtime.initialize(kit_rooms.check_room(source or carcass()), start)
-        self.runtime.set_player_sheet(json.loads(NIK.read_text()))
+        self.runtime.set_player_sheet(sheet or json.loads(NIK.read_text()))
         self.adjudicator = RoomAdjudicator(roll=roll, npc_roll=npc_roll, source=self.runtime.source())
 
-    def act(self, action):
+    def act(self, action, **choice):
+        """``choice``: Kit's structured read of a reply to an open window (react=..., flourish=...)."""
         revision, state = self.runtime.load()
-        result = self.adjudicator.resolve(action, revision, state)
+        result = self.adjudicator.resolve(action, revision, state, choice=choice or None)
         self.runtime.commit(f't{revision}', revision, list(result.events))
         return result
 
@@ -230,6 +231,8 @@ class SaveRiderTests(unittest.TestCase):
         room = Room(self, npc_roll=lambda: 1, roll=lambda: 15)
         room.act('I roll the carcass over.')
         result = room.act('Initiative 1')
+        if room.state['combat']['awaiting']['kind'] == 'reaction_window':
+            result = room.act('No.', react='decline')  # Kit's read: Nik lets Chronal Shift go
         return room, result
 
     def test_a_bite_that_hits_asks_the_player_for_the_save(self):
