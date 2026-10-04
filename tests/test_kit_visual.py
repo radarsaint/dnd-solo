@@ -72,6 +72,18 @@ class KitVisualTests(unittest.TestCase):
         problems = kit_rooms.first_framing_problems(source)
         self.assertTrue(any("visual.public_counts" in problem for problem in problems))
 
+    def test_request_does_not_promote_hidden_detail_to_visual_fact(self):
+        brief = kit_visual.prepare_visual(
+            self.runtime,
+            "Draw the sealed letter and the guards waiting behind the door."
+        )
+        self.assertIn("sealed letter", brief["request"].casefold())
+        safe = json.dumps(brief["player_safe"], ensure_ascii=False).casefold()
+        self.assertNotIn("sealed letter", safe)
+        self.assertNotIn("guards", safe)
+        self.assertIn("player_safe is the factual ceiling",
+                      brief["generation_contract"]["fact_rule"])
+
     def test_reference_rotation_penalizes_recent_overuse(self):
         first = kit_visual.prepare_visual(self.runtime, "Draw a magical character portrait.")
         second = kit_visual.prepare_visual(self.runtime, "Draw a magical character portrait.")
