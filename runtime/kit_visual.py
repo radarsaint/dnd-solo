@@ -28,12 +28,12 @@ MODES = (
 
 _MODE_RULES = (
     ("rulebook_page", re.compile(r"\b(rulebook|rules? page|class page|subclass page|spread|stat block|bestiary entry)\b", re.I)),
-    ("handout", re.compile(r"\b(handout|letter|note|poster|ticket|contract|map handout|newspaper|clipping)\b", re.I)),
+    ("splash", re.compile(r"\b(cover|splash|poster image|chapter card|title image)\b", re.I)),
+    ("handout", re.compile(r"\b(handout|letter|note|wanted poster|ticket|contract|map handout|newspaper|clipping)\b", re.I)),
     ("prop_study", re.compile(r"\b(item|weapon|sword|gun|mask|bag|artifact|prop|lantern|amulet|ring|object)\b", re.I)),
     ("exterior", re.compile(r"\b(exterior|town|city|village|settlement|street|waterfront|building|castle|landscape)\b", re.I)),
     ("creature_concept", re.compile(r"\b(monster|creature|cryptid|beast|aberration|dragon|pet)\b", re.I)),
     ("character_spotlight", re.compile(r"\b(portrait|character|npc|villain|hero|person|man|woman|portrait of)\b", re.I)),
-    ("splash", re.compile(r"\b(cover|splash|poster image|chapter card|title image)\b", re.I)),
 )
 
 _SUBJECT_TAGS = {
@@ -370,10 +370,21 @@ def visual_history(runtime, limit=20):
 def prepare_visual(runtime, request, mode="auto", branch="auto", record=True):
     require(isinstance(request, str) and 0 < len(request.strip()) <= 1000,
             "Visual request must be 1–1000 characters")
-    if mode == "auto":
-        mode = infer_mode(request)
-    require(mode in MODES, "Unknown visual mode: " + str(mode))
+    auto_mode = mode == "auto"
     revision, source, player_safe, actors = _safe_scene(runtime, request)
+    if auto_mode:
+        mode = infer_mode(request)
+        if mode == "story_vignette":
+            request_norm = _norm(request)
+            named_visible_actor = any(
+                _norm(actor.get("name")) and _norm(actor.get("name")) in request_norm
+                for actor in actors
+            )
+            if named_visible_actor and not re.search(
+                    r"\b(scene|room|around|together|interaction|moment|what i see|where we are)\b",
+                    request, re.I):
+                mode = "character_spotlight"
+    require(mode in MODES, "Unknown visual mode: " + str(mode))
     if branch == "auto":
         branch = infer_branch(source)
     require(isinstance(branch, str) and bool(branch.strip()), "Visual branch required")
