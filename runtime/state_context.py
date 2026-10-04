@@ -100,10 +100,10 @@ BOOKKEEPING_EVENTS = ('player_sheet', 'player_character', 'player_note', 'pc_sta
 # A pending check's optional fields: a held exit, and room for the check-calling follow-up's
 # quiet DC adjustment for creative use of the scene (Brendon: about -2) with its reason. Not
 # applied anywhere yet.
-PENDING_CHECK_OPTIONAL = {'exit', 'dc_adjust', 'reason'}
+PENDING_CHECK_OPTIONAL = {'exit', 'dc_adjust', 'reason', 'threshold'}
 COMMIT_APPENDED_EVENTS = ('canon_entry', 'oracle_draw', 'procedure_state', 'claim_said', 'agenda_turn',
                           'pc_state', 'kit_plan', 'toll_state', 'story_beat', 'threshold_crossed',
-                          'attitude_shift', 'pending_check')
+                          'attitude_shift', 'pending_check', 'open_threads')
 # A turn whose decision asks the player a question resolves nothing: its only event is a
 # rhythm beat tagged 'asked' whose evidence is the question.
 ASKED_EVENT_PREFIX = 'Kit asks before resolving: '
@@ -850,6 +850,7 @@ class Runtime:
             require(check is None or (isinstance(check, dict) and
                                       set(check) - PENDING_CHECK_OPTIONAL == {'skill', 'ability', 'target', 'called_turn'} and
                                       ('exit' not in check or check['exit'] in (source.get('exits') or {})) and
+                                      ('threshold' not in check or check['threshold'] in (source.get('exits') or {})) and
                                       ('dc_adjust' not in check or (type(check['dc_adjust']) is int and
                                                                     -5 <= check['dc_adjust'] <= 5)) and
                                       ('reason' not in check or (isinstance(check['reason'], str) and
@@ -861,6 +862,9 @@ class Runtime:
                 state.pop('pending_check', None)
             else:
                 state['pending_check'] = copy.deepcopy(check)
+        elif kind == 'open_threads':
+            from . import kit_threads
+            kit_threads.apply_event(state, event)
         elif kind == 'kit_plan':
             from . import kit_plan
             kit_plan.apply_event(state, event)

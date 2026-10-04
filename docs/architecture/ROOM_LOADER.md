@@ -264,6 +264,42 @@ my steps"), which goes by the exit the PC came in by.
 A `room_link` whose `area` is not in the linked room is refused before the move, with the
 table line and `host_error` (`kit_rooms.load_link`).
 
+## 4a. Threshold, check requests, open threads (watchroom stalls, 2026-10-04)
+
+Nine stalls from the Nik watchroom session (`tests/playtests/2026-10-04-watchroom-nik.md`),
+fixed in general code, tested on the watchroom and the 17a stub (`tests/test_kit_watchroom_stalls.py`):
+
+- **The approach brief is tease-only but never empty.** At an approach area the brief adds
+  `visible` (this area's visible facts), `ways_on` (the exit labels from here), a default
+  purpose (frame the threshold, stop at the choice), and `hooks_waiting` (the hook inside by
+  id and speaker only, never its text).
+- **Inside actors are only heard at the approach.** The performer's `speakers` list has only
+  the actors in the PC's area (both sides of a doorway on a move). Someone in the tease's
+  `heard` is listed under `heard` with the sound; they may call through the door.
+- **The first framing commits.** On room entry `reply_to` defaults to none. The scene's story
+  bases include the room's own (`tease` at an approach, story area ids, hook ids), and a
+  story anchor or basis the turn does not offer settles to an offered one (a memory tag, not
+  a secret). `actor_ref` stays strict.
+- **Perception at a threshold is not movement.** Peek, peer, look or watch through, listen at,
+  an eye or ear to the gap, cracking the door: kind `threshold_look`, the PC stays put. Going
+  through, in, or past still moves.
+- **A check request is Kit's call.** "Can I make a check?", "Could I roll Perception?": kind
+  `check_request`, nothing rolled, every other intent kept in the event. The packet's
+  `check_request` says Kit calls one (roll_call) or declines; a skill the player names is a
+  request. Brendon's rule: the player never picks the skill and never rolls first.
+- **A peek gets the next area's approach view.** `threshold_view` (through, into, label,
+  tease, heard), tease-only, on the look and on the roll for a check Kit called on it.
+- **A question declares nothing.** Sentences that ask ("Could I grab the spear before he
+  moves?", "Is there anywhere to hide?") are dropped before the physical reading.
+- **The engine's move line never follows Kit's handoff.** Entering the room, it comes first;
+  leaving, it goes before her closing remark.
+- **Open threads.** A decision may carry `open_threads` {plant: [{id, hint}], pay: [ids],
+  drop: [ids]}. They live in state (`open_threads`), every prepare packet lists them, and
+  `due` is true once the scene is ending (stage resolution). Paying an unknown id is refused.
+- **First-try lines.** Every packet opens with `first_try`: the constraints this turn checks
+  (reply_to, the story bases, the actor ids, the appraisal labels, the speakers and the heard,
+  terse speakers, a due hook, a check request, a threshold view, open threads).
+
 ## 5. 6c hardcodes
 
 Removed (line numbers on *main* 6a2b7ed):

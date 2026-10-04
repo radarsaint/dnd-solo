@@ -278,9 +278,15 @@ class KitAgentTests(unittest.TestCase):
             story_anchor='level', story_basis='pressure_here', actor_basis='motive',
             connection='The offer touches the live leadership rivalry, which Uktarl wants to exploit.',
             kit_choice='Kit wants consequential roleplay, so she gives the offer room while Uktarl tests it.')
+        # Story anchor and basis are memory tags: an inactive anchor or an unoffered basis
+        # settles to an offered one instead of rejecting the turn (watchroom T0). Actors stay strict.
+        candidates = prepared['input']['discernment_candidates']
+        for loose, settled in [({'story_anchor': 'campaign'}, ('scene', 'scene_state')),
+                               ({'story_basis': 'invented_plot'}, ('level', candidates['story_bases']['level'][0]))]:
+            read = {**plan['improv_read'], **loose}
+            kit_agent.settle_story_read(read, candidates)
+            self.assertEqual((read['story_anchor'], read['story_basis']), settled)
         for bad_read, reason in [
-            ({'story_anchor': 'campaign'}, 'not active'),
-            ({'story_basis': 'invented_plot'}, 'not established'),
             ({'actor_ref': 'harria'}, 'not available'),
             ({'actor_ref': 'bandit_a'}, 'disagrees with selected actor'),
         ]:
@@ -673,10 +679,9 @@ class KitFocusAndScopeTests(unittest.TestCase):
         plan.update(move='world_description', table_presence='quiet')
         with self.assertRaisesRegex(InvalidChange, 'feature scope'):
             self.bridge.decide('entry', {**plan, 'public_brief': {**plan['public_brief'], 'scope': 'exchange'}})
-        with self.assertRaisesRegex(InvalidChange, 'reply_to must be none'):
-            self.bridge.decide('entry', {**plan, 'public_brief': {**plan['public_brief'],
-                                                                  'reply_to': '[scene entry]'}})
-        self.bridge.decide('entry', plan)
+        # reply_to on room entry defaults to none (watchroom T0 was rejected for it).
+        self.bridge.decide('entry', {**plan, 'public_brief': {**plan['public_brief'], 'reply_to': '[scene entry]'}})
+        self.assertEqual(self.runtime.pending_kit_turn('entry')['plan']['public_brief']['reply_to'], 'none')
         with self.assertRaisesRegex(InvalidChange, 'Feature scope was flat'):
             self.bridge.finish('entry', {'segments': [
                 {'speaker': 'Narrator', 'text': 'Four pale figures play cards.'},

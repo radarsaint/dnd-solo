@@ -24,7 +24,7 @@ from . import kit_cards
 from . import kit_combat
 from . import kit_rolls
 from . import kit_claims
-from . import kit_agenda, kit_plan, pc_sheet
+from . import kit_agenda, kit_plan, kit_threads, pc_sheet
 from . import kit_detail
 from . import kit_prices
 from . import kit_rooms
@@ -177,6 +177,42 @@ QUOTED_SPEECH = re.compile(r'"[^"]*"|' + r"(?:(?<=^)|(?<=[\s(\[:;,.!?\u2014-]))'
 # A stealthy approach needs a Stealth ruling; it must never pass as a free, unopposed exit.
 STEALTH_INTENT = re.compile(r'\b(sneak|sneaks|sneaking|creep|creeps|creeping|tiptoe|tiptoes|tiptoeing|'
                             r'stealth|stealthily|unnoticed|unseen)\b|\bslip(s|ping)? (past|by)\b')
+# Perception at a threshold, not movement (watchroom T1: a peek through the door gap was read as
+# walking out through it): peek, peer, look or watch through, listen at, an eye or ear to the
+# gap, cracking the door. Going through, in, or past is still movement (MOVE_THROUGH).
+THRESHOLD_LOOK = re.compile(
+    r"\b(?:peek|peeks|peeking|peeked|peer|peers|peering|eavesdrop\w*|listen|listens|listening|listened)\b"
+    r"|\b(?:eye|eyes|ear|ears)\s+(?:up\s+)?(?:to|against)\b"
+    r"|\b(?:look|looks|looking|glance|glances|watch|watches|watching|see|sees)\s+(?:in\s+)?(?:through|in\b|into|past)"
+    r"|\b(?:crack|cracks|cracking|cracked)\s+(?:the|it|that)\b")
+THRESHOLD_GAP = re.compile(r"\b(?:gap|crack|keyhole|opening|chink|doorway|threshold|door|doors|hinges?|grille|grate)\b")
+MOVE_THROUGH = re.compile(
+    r"\b(?:go|goes|going|went|step|steps|stepping|stepped|walk|walks|walked|slip|slips|slipped|move|moves|head|heads|"
+    r"pass|passes|enter|enters|entered|run|runs|ran|squeeze|squeezes|duck|ducks|push|pushes)\b(?:\s+[\w']+){0,2}?"
+    r"\s+(?:through|in|inside|into|past|out)\b|\b(?:enter|enters|entered)\b")
+# The player asking for a check (watchroom T1/T3): Kit decides whether one applies and which
+# (Brendon: the player never picks the skill and never rolls first). Never a social declaration.
+CHECK_REQUEST = re.compile(
+    r"\b(?:can|could|may|do|should|shall|would|might|must)\s+(?:i|we|he|she|they|[a-z]+)\s+"
+    r"(?:\w+\s+){0,4}?(?:roll|rolls|check|checks|save|test)\b[^?]*\?"
+    r"|\b(?:is|would) (?:that|this|there) (?:a|an) (?:\w+\s+)?(?:check|roll)\b[^?]*\?"
+    r"|\bdo i (?:need|get|have) (?:to )?(?:make |roll )?(?:a|an) (?:\w+\s+)?(?:check|roll)\b", re.I)
+CHECK_REQUEST_PREFIX = 'You ask for a check: '
+# A sentence that asks ("Could I grab the spear before he moves?", "Is there anywhere to
+# hide?") declares nothing; asked_away drops those sentences before a physical reading.
+ASKING = re.compile(r"(?:(?<=^)|(?<=[.!?]))\s*(?:can|could|may|might|would|will|should|shall|is|are|was|were|"
+                    r"do|does|did|what|where|who|whom|how|which|why|when|any)\b[^.?!]*\?", re.I)
+
+
+def asked_away(words):
+    return ASKING.sub(' ', words)
+CHECK_REQUEST_RULE = (
+    'The player asks for a check. Kit decides: call one with roll_call (the skill, mode, and DC are '
+    'yours; the player never picks the skill and never rolls first) and stop at the call, or decline '
+    'in a line and resolve from what is plain. A skill the player named is a request, never the call. '
+    'Answer every question in the same message.')
+
+
 # A room feature the file declares (a fact's ``handling``: a tub, a chest, a well) is acted
 # on by its own nouns. Getting into it means landing on whatever is stored in it.
 def _feature_entry(nouns):
@@ -371,6 +407,9 @@ def room_intent(action, addressed=False, room=None):
         return 'combat'
     if re.search(r'\b(cast|casts|casting)\b', words):
         return 'spell'  # a spell aimed at nobody (Detect Magic, Light...) is not combat
+    if THRESHOLD_LOOK.search(words) and THRESHOLD_GAP.search(words) and not MOVE_THROUGH.search(words) and \
+            (room.exits or room.inward):
+        return 'threshold_look'
     if STEALTH_INTENT.search(words) or (
             re.search(r'\b(quietly|silently|softly)\b', words) and
             re.search(r'\b(walk|move|step|go|leave|head|edge|slip)\w*\b', words) and
@@ -413,9 +452,12 @@ def room_intent(action, addressed=False, room=None):
         # 'Easy.'"), is table business: every intent is kept in the restated event
         # (watchroom playtest), and the PC stays where they are.
         words = _opens_an_exit(words, exit_words, strip=True)
-    physical = (re.search(r'\b' + PHYSICAL_VERBS + r'\b', words) or
-                (re.search(r'\btake\b', words) and
-                 re.search(r'\b(coins?|ring|gear|key|cards|deck|treasure)\b', words)))
+    # A question is not a declared act (watchroom T3: "Is there anywhere to hide? Could he
+    # reach the bell?" stalled as a physical ruling): only the declared sentences count.
+    declared = asked_away(words)
+    physical = (re.search(r'\b' + PHYSICAL_VERBS + r'\b', declared) or
+                (re.search(r'\btake\b', declared) and
+                 re.search(r'\b(coins?|ring|gear|key|cards|deck|treasure)\b', declared)))
     if physical and (not addressed or DECLARED_PHYSICAL.search(words.strip()) or
                      re.search(r'(^|[.!;]\s*)i\s+take\b', words.strip())):
         return 'unsupported_action'
@@ -514,8 +556,9 @@ class RoomAdjudicator:
         # A physical act changes the world (attacks, grabs, a flipped table, coins taken, paint
         # wiped off): it is resolved before any talk, toll, or card reading of the same words.
         # While a fight waits on initiative or runs, a reported initiative total routes here too.
-        if not is_ooc(action) and kit_combat.config(self.source):
-            physical = self._resolve_physical(action, revision, state)
+        if not is_ooc(action) and kit_combat.config(self.source) and asked_away(narration).strip():
+            physical = self._resolve_physical(action if asked_away(narration) == narration else
+                                              asked_away(narration), revision, state)
             if physical:
                 # One message, several intents: an act that starts no fight still carries the
                 # card call made with it ("I wipe his cheek. Hit me.").
@@ -526,6 +569,8 @@ class RoomAdjudicator:
             toll = self._resolve_toll(action, revision, state)
             if toll:
                 return toll
+        if not is_ooc(action) and CHECK_REQUEST.search(narration):
+            return self._check_request(action, narration, state)
         called = self._resolve_called(action, revision, state)
         if called:
             return called
@@ -607,6 +652,8 @@ class RoomAdjudicator:
         if kind == 'spell':
             raise PendingRuling('Spell effects outside combat are not resolved in this slice yet, so the '
                                 'spell is not cast. No turn was committed.', attempt=True)
+        if kind == 'threshold_look':
+            return self._threshold_look(action, state)
         if kind == 'stealth':
             return self._resolve_stealth(action, narration, revision, state)
         if kind == 'unsupported_action':
@@ -651,6 +698,44 @@ class RoomAdjudicator:
         event = {'type': 'beat', 'tags': [kind],
                  'evidence': f'Player declared: {action}. Resolution: {public}'}
         return Resolution(kind, public, [event])
+
+    # -- perception at a threshold, and asking for a check (watchroom T1-T3) ---------
+    def _threshold_exit(self, action, state):
+        """The exit the PC is looking or listening through: the one named, else the one way
+        in from here, else None."""
+        try:
+            return self._exit_taken(action, state)
+        except PendingRuling:
+            inward = room_words(self.source, state).inward
+            return inward[0] if len(inward) == 1 else None
+
+    def _threshold_look(self, action, state):
+        key = self._threshold_exit(action, state)
+        name = ((self.source or {}).get('exits') or {}).get(key, {}).get('name') or 'the way on'
+        listening = re.search(r'\b(?:listen\w*|eavesdrop\w*|ears?)\b', action.casefold()) and \
+            not re.search(r'\b(?:peek\w*|peer\w*|look\w*|eyes?|watch\w*|see)\b', action.casefold())
+        public = f'You {"listen" if listening else "look"} at {name} without going through.'
+        event = {'type': 'beat', 'tags': ['threshold'] + ([key] if key else []),
+                 'evidence': f'Player declared: {action[:300]}. Resolution: perception at a threshold '
+                             f'({key or "no exit named"}), not movement; the PC stays where they are.'}
+        return Resolution('threshold_look', public, [event])
+
+    def _check_request(self, action, narration, state):
+        """The player asks for a check. Nothing is rolled: Kit calls one (roll_call) or declines.
+        Every other intent in the message stays in the public event (the questions, the watching)."""
+        words = social_event(action)[len(SOCIAL_EVENT_PREFIX):]
+        tags = ['check_request']
+        threshold = THRESHOLD_LOOK.search(narration.lower()) and THRESHOLD_GAP.search(narration.lower()) and \
+            not MOVE_THROUGH.search(narration.lower())
+        key = self._threshold_exit(action, state) if threshold else None
+        if key:
+            tags += ['threshold', key]
+        named = kit_rolls.stated_skill(action)
+        event = {'type': 'beat', 'tags': tags,
+                 'evidence': f'Player asked for a check: {action[:300]}. Nothing rolled; '
+                             f'{"they named " + named + " (a request)" if named else "no skill named"}. '
+                             'Kit calls a check or declines.'}
+        return Resolution('check_request', f'{CHECK_REQUEST_PREFIX}{words}', [event])
 
     # -- social checks rolled in conversation -----------------------------------------
     def _resolve_social_check(self, skill, action, narration, revision, state, private=False, who=None):
@@ -1483,6 +1568,8 @@ PLAN_SCHEMA = {
         # Kit's private running plan (runtime/kit_plan.py): the whole current plan when it
         # changes; omitted, the stored plan carries unchanged. Never reaches the performer.
         'plan': kit_plan.PLAN_SCHEMA,
+        # Hints and hooks Kit plants, pays off, or drops this turn (runtime/kit_threads.py).
+        'open_threads': kit_threads.OPEN_THREADS_SCHEMA,
     },
     'required': ['observed_event', 'goal', 'appraisal', 'memory_refs', 'improv_read', 'move', 'public_brief',
                  'focus_actor', 'table_presence', 'tone', 'player_note', 'player_mood', 'turn_mode',
@@ -1491,10 +1578,11 @@ PLAN_SCHEMA = {
 
 # The strict API schema needs every property required.
 API_PLAN_SCHEMA = json.loads(json.dumps(PLAN_SCHEMA))
-OPTIONAL_PLAN_KEYS = ('claims', 'agenda', 'salience', 'roll_call', 'pc_state', 'pc_oddity', 'ask_player', 'plan')
+OPTIONAL_PLAN_KEYS = ('claims', 'agenda', 'salience', 'roll_call', 'pc_state', 'pc_oddity', 'ask_player', 'plan',
+                      'open_threads')
 # Strict mode cannot leave an object out, so the chat-only paths (a PC state change, an
 # oddity reaction, a question to the player) are not offered to the API model at all.
-CHAT_ONLY_PLAN_KEYS = ('pc_state', 'pc_oddity', 'ask_player', 'plan')
+CHAT_ONLY_PLAN_KEYS = ('pc_state', 'pc_oddity', 'ask_player', 'plan', 'open_threads')
 for _key in CHAT_ONLY_PLAN_KEYS:
     API_PLAN_SCHEMA['properties'].pop(_key)
 API_PLAN_SCHEMA['required'] = API_PLAN_SCHEMA['required'] + [
@@ -2117,6 +2205,7 @@ def check_plan(plan, episodes, public_event, action_kind=None, candidates=None, 
             all(isinstance(ref, str) and ref in ids for ref in plan['memory_refs']),
             'Unknown or invalid memory reference')
     require(candidates is not None, 'Scene discernment candidates required')
+    settle_story_read(plan['improv_read'], candidates)
     check_improv_read(plan['improv_read'], candidates)
     for field in ('move', 'table_presence', 'tone'):
         require(plan[field] in PLAN_SCHEMA['properties'][field]['enum'], f'Invalid {field}')
@@ -2141,6 +2230,9 @@ def check_plan(plan, episodes, public_event, action_kind=None, candidates=None, 
     require(isinstance(brief, dict) and set(brief) == set(BRIEF_FIELDS) and
             all(isinstance(brief[key], str) and 0 < len(brief[key].strip()) <= 240
                 for key in BRIEF_FIELDS), 'Invalid public performance brief')
+    if action_kind == 'opening':
+        # Room entry has no player words: reply_to is none by default (watchroom T0 rejected it).
+        brief['reply_to'] = 'none'
     check_reply_to(brief['reply_to'], player_action, action_kind)
     scope = brief['scope']
     require(scope in PLAN_SCHEMA['properties']['public_brief']['properties']['scope']['enum'],
@@ -2283,6 +2375,34 @@ def check_callback_used(segments, plan):
 def _normalized(text):
     text = text.replace('’', "'").replace('‘', "'").replace('“', '"').replace('”', '"')
     return ' '.join(text.casefold().split())
+
+
+def settle_story_read(read, candidates):
+    """The story anchor and basis are Kit's memory tags, never a secret or a number: a story
+    anchor that is not active here falls back to the scene, and a basis the anchor does not
+    offer to its first basis (watchroom T0: 'Story basis is not established for this anchor').
+    The actor reference is still checked strictly."""
+    if not isinstance(read, dict):
+        return
+    bases = (candidates or {}).get('story_bases') or {}
+    if read.get('story_anchor') not in bases:
+        read['story_anchor'] = 'scene' if 'scene' in bases else 'none'
+    offered = bases.get(read['story_anchor']) or ['none']
+    if read.get('story_basis') not in offered:
+        read['story_basis'] = offered[0]
+
+
+def room_story_bases(source, state):
+    """Scene story bases worked out from the mounted room: its tease at an approach, and the
+    ids of its story areas and hooks."""
+    source, state = source or {}, state or {}
+    bases = []
+    if ((source.get('areas') or {}).get(state.get('area')) or {}).get('tease'):
+        bases.append('tease')
+    for area, story in kit_brief.compile_story(source).items():
+        bases.append(area)
+        bases += [hook['id'] for hook in story.get('hooks') or ()]
+    return bases
 
 
 def check_reply_to(reply_to, player_action, action_kind):
@@ -2505,6 +2625,16 @@ def declared_procedures(in_state, plan):
     return tuple(in_state) + tuple(this_turn)
 
 
+def threshold_exit(events):
+    """The exit a threshold look this turn was through (its beat's tags), or None."""
+    for event in events or ():
+        tags = event.get('tags') or ()
+        if event.get('type') == 'beat' and 'threshold' in tags:
+            rest = [tag for tag in tags if tag not in ('threshold', 'check_request')]
+            return rest[0] if rest else None
+    return None
+
+
 def turn_events(runtime, body, plan, turn_id, record=None):
     """The adjudicated events plus what the decision establishes: its canon entries, the
     oracle deal it consumed, and the starting state of a table procedure it declares."""
@@ -2531,7 +2661,13 @@ def turn_events(runtime, body, plan, turn_id, record=None):
         events += kit_brief.threshold_events(runtime.source(), after, turn_id)
     if plan.get('pc_state'):
         events.append(kit_agenda.pc_state_event(plan['pc_state'], turn_id))
+    if plan.get('open_threads'):
+        events.append(kit_threads.event(plan['open_threads'], turn_id, runtime.load()[1].get('area')))
     pending = kit_agenda.pending_check_event(plan.get('roll_call'), turn_id) if plan.get('roll_call') else None
+    looked = threshold_exit(body['events'])
+    if pending and pending.get('check') and looked:
+        # A check called on a look through a threshold keeps that view for the roll (watchroom T2).
+        pending = {**pending, 'check': {**pending['check'], 'threshold': looked}}
     if pending and not any(event.get('type') == 'pending_check' for event in events):  # a held exit wins
         events.append(pending)
     if plan.get('claims'):
@@ -2799,6 +2935,8 @@ def check_decision(runtime, plan, memory, body):
     check_brief_public(plan['public_brief'], body['public_view'], body['action'],
                        kit_guards.leak_sets(source), kit_guards.leak_phrases(source))
     check_procedure_start(plan, body, runtime.load()[1])
+    if plan.get('open_threads') is not None:
+        kit_threads.check(plan['open_threads'], runtime.load()[1])
     if not plan.get('ask_player'):  # a question to the player moves no agenda
         kit_agenda.check_agenda(plan.get('agenda'), body.get('agenda_here'), source, scene,
                                 kit_agenda.oddity_reactors(plan.get('pc_oddity'), source))
@@ -2825,6 +2963,10 @@ def scene_candidates(dm_context, source, state, post_event_state):
     doorway: those the PC leaves still react, and those in the area they walk into react and
     speak this turn (watchroom playtest). Drawn from the room's live actors only."""
     candidates = discernment_candidates(dm_context)
+    extra = [b for b in room_story_bases(source, post_event_state) if b not in candidates['story_bases']['scene']]
+    if extra:
+        candidates = {**candidates, 'story_bases': {**candidates['story_bases'],
+                                                    'scene': candidates['story_bases']['scene'] + extra}}
     heard = {**kit_brief.heard_here(source, state), **kit_brief.heard_here(source, post_event_state)}
     for key in heard:  # heard through the door from the threshold: they may answer
         actor = (source.get('actors') or {}).get(key) or {}
@@ -2906,6 +3048,22 @@ def prepare_inputs(runtime, revision, state, action, resolution, use_memory, one
     # ("Is the dealer cheating me?") must not be answered from the brief's secrets.
     if not table_talk:
         planning_input['story_brief'] = kit_brief.brief(source, post_event_state)
+    if resolution.kind == 'check_request':
+        # Private: the player asked for a check; the call is Kit's (watchroom T1, Brendon's rule).
+        named = re.search(r'\b(' + _SKILL_NAMES + r')\b', action, re.I)
+        planning_input['check_request'] = {'rule': CHECK_REQUEST_RULE,
+                                           'player_named': named.group(1).casefold().replace(' ', '_') if named else 'none'}
+    looked = threshold_exit(resolution.events)
+    if looked is None and any(e.get('type') == 'pending_check' and e.get('check') is None for e in resolution.events):
+        looked = (state.get('pending_check') or {}).get('threshold')
+    if looked and not table_talk:
+        # Private: the next area's approach view, tease-only, from the threshold (watchroom T2).
+        view = kit_brief.threshold_view(source, post_event_state, looked)
+        if view:
+            planning_input['threshold_view'] = view
+    threads = kit_threads.view(post_event_state, kit_rooms.stage(source, post_event_state) == 'resolution')
+    if threads and not table_talk:
+        planning_input['open_threads'] = threads
     due = kit_brief.due_hooks(source, post_event_state)
     if due and not table_talk:
         body['story_due'] = due
@@ -3067,8 +3225,8 @@ def public_performance_base(runtime, body, one_pass=False):
         'player_action': body['action'], 'accepted_public_event': body['public_event'],
         'action_kind': body['kind'],
         'performance_reference': reference,
-        # The only speaker labels this room allows: Narrator, Kit, and one per actor.
-        'speakers': list(speech_speakers(runtime.source())),
+        # The only speaker labels this turn allows: Narrator, Kit, and one per actor here.
+        **turn_speakers(runtime, body),
     }
     if body.get('refused_attempts'):
         payload['refused_attempts'] = body['refused_attempts']
@@ -3092,6 +3250,32 @@ def public_performance_base(runtime, body, one_pass=False):
         payload['personality_core'] = personality_core_text()
         payload['public_history'] = body.get('public_history', [])
     return payload
+
+
+HEARD_NOTE = ('Inside, not here: heard through the way in. They may call through it (a challenge, a '
+              'question) but are not in the scene; describe nothing of them beyond the sound.')
+
+
+def turn_speakers(runtime, body):
+    """{'speakers': [...]} for this turn, plus {'heard': [...]} at an approach: an actor in
+    another area of the room is never listed as a speaker here; one heard from this approach
+    (the tease's heard) is listed as heard (watchroom T0: the warden, inside, was a landing
+    speaker). On a move, the people on both sides of the doorway speak."""
+    source = runtime.source()
+    revision, before = runtime.load()
+    after = runtime.preview_state(revision, body.get('events') or [])
+    areas = {before.get('area'), after.get('area')}
+    labels = actor_speakers(source)
+    where = lambda key: ((after.get('actors') or {}).get(key) or (source.get('actors') or {}).get(key) or {}).get('location')
+    heard = {key: sound for key, sound in {**kit_brief.heard_here(source, before),
+                                           **kit_brief.heard_here(source, after)}.items()
+             if where(key) not in areas}
+    here = [label for key, label in labels.items() if key not in heard and where(key) in areas | {None}]
+    out = {'speakers': list(dict.fromkeys(NON_NPC_SPEAKERS + tuple(here)))}
+    if heard:
+        out['heard'] = [{'speaker': labels.get(key, key), 'heard': sound} for key, sound in heard.items()]
+        out['heard_note'] = HEARD_NOTE
+    return out
 
 
 def performance_input(runtime, body, plan):
@@ -3233,6 +3417,19 @@ def stake_amounts(procedures):
     return found
 
 
+def _entering(source, body):
+    """The move this turn goes from outside the room into it: the performance happens in the
+    new area, so the engine's line comes first (watchroom T6)."""
+    move = next((e for e in body.get('events') or () if e.get('type') == 'move'), None)
+    if not move or not source:
+        return False
+    edge = (source.get('exits') or {}).get(move.get('exit')) or {}
+    inside = set(kit_rooms.room_areas(source))
+    ends = edge.get('areas') or ()
+    return any(a in inside for a in ends) and any(a not in inside for a in ends) and \
+        _area_id(source, body.get('public_view')) in inside
+
+
 def checked_record(body, plan, speech, performance_variant, source=None, degraded=False):
     """Validate a performance. Every variant faces the same checks; the record names
     which performer instructions ran so play reviews can tell the variants apart. A
@@ -3251,9 +3448,15 @@ def checked_record(body, plan, speech, performance_variant, source=None, degrade
         kit_brief.check_raised(body['story_due'], source, {'area': body['story_area']}, spoken)
     if ask:
         kit_agenda.check_ask_spoken(speech['segments'], ask)
-    elif body['kind'] in EVENT_AFTER_PERFORMANCE_KINDS:
-        # The room reacts while the player is still there; then they are gone.
-        spoken = f"{spoken}\nNarrator: {body['public_event']}"
+    elif body['kind'] in EVENT_AFTER_PERFORMANCE_KINDS and not _entering(source, body):
+        # The room reacts while the player is still there; then they are gone. The departure
+        # line never follows Kit's closing remark (watchroom T6): it goes before her handoff.
+        lines = spoken.split('\n')
+        handoff = 0
+        while handoff < len(lines) and lines[len(lines) - 1 - handoff].startswith('Kit: '):
+            handoff += 1
+        lines.insert(len(lines) - handoff, f"Narrator: {body['public_event']}")
+        spoken = '\n'.join(lines)
     elif body['kind'] not in ('social', 'opening'):
         spoken = f"Narrator: {body['public_event']}\n{spoken}"
     record = {'player_input': body['action'], 'public_event': public_event,
@@ -3374,6 +3577,46 @@ def _spoken_lines(speech):
         return None
 
 
+def first_try_lines(runtime, body, planning_input):
+    """A few lines at the top of every packet stating what the engine already knows it will
+    check this turn, so the first decision commits (watchroom T0 and T8: the opening's reply_to
+    and story basis, an emotion label, a terse guard). Nothing here relaxes a check."""
+    source = runtime.source()
+    candidates = planning_input.get('discernment_candidates') or {}
+    opening = body['kind'] == 'opening'
+    cards = (source.get('public_performance') or {}).get('actor_cards') or {}
+    speakers = turn_speakers(runtime, body)
+    actors = [s for s in speakers['speakers'] if s not in NON_NPC_SPEAKERS]
+    terse = [name for name in actors if (cards.get(name) or {}).get('speech_floor') is not True]
+    lines = [
+        ('Room entry: reply_to is none (set for you); move world_description; scope feature, at least '
+         f'{FEATURE_MIN_WORDS} words in {FEATURE_MIN_SEGMENTS}+ segments.') if opening else
+        "reply_to: a short verbatim quote of the player's words.",
+        'improv_read story_anchor -> story_basis: ' + '; '.join(
+            f'{anchor}: {", ".join(bases)}' for anchor, bases in (candidates.get('story_bases') or {}).items())
+        + ' (anything else falls back to scene_state).',
+        'actor_ref and focus_actor: ' + ', '.join(candidates.get('actor_bases') or ['none']) + '.',
+        'appraisal.label: ' + ', '.join(APPRAISAL_LABELS) + ' (none needs intensity 0).',
+        'Speakers this turn: ' + ', '.join(speakers['speakers'])
+        + (f"; heard only, not here: {', '.join(h['speaker'] for h in speakers['heard'])}" if speakers.get('heard') else '')
+        + '. Every Kit segment needs reacts_to (a short verbatim quote of a public line this turn).',
+    ]
+    if terse:
+        lines.append(f'Terse is fine for {", ".join(terse)}: one short line meets the actor side; do not pad. '
+                     f'An exchange still needs {EXCHANGE_MIN_WORDS} words across non-Kit segments in '
+                     f'{EXCHANGE_MIN_SEGMENTS}+ segments; a call at most {CALL_MAX_WORDS} words.')
+    if body.get('story_due'):
+        lines.append('Due now: ' + ', '.join(f"{item.get('id')} (raised by {item.get('by')})"
+                                             for item in body['story_due']) + ', in character, this turn.')
+    if planning_input.get('check_request'):
+        lines.append('The player asked for a check: call one in roll_call or decline. You pick the skill.')
+    if planning_input.get('threshold_view'):
+        lines.append('A look or listen through a threshold: describe only threshold_view (tease-only); the PC has not moved.')
+    if planning_input.get('open_threads'):
+        lines.append('Open threads are listed in open_threads: pay off or drop them before the scene ends.')
+    return lines
+
+
 class KitChatBridge:
     """Host this model loop in an assistant chat, with no API credential in Python."""
     def __init__(self, runtime, adjudicator=None):
@@ -3423,15 +3666,16 @@ class KitChatBridge:
             notice['context_warning'] = MEMORY_TRIMMED_NOTE
         if body.get('table_talk'):
             notice['table_talk'] = TABLE_TALK_NOTE
+        first_try = first_try_lines(self.runtime, body, planning_input)
         if one_pass:
-            return {'turn_id': turn_id, 'stage': 'one_pass', **notice,
+            return {'first_try': first_try, 'turn_id': turn_id, 'stage': 'one_pass', **notice,
                     'performance_variant': performance_variant,
                     'instructions': one_pass_instructions(performance_variant),
                     'schema': ONE_PASS_SCHEMA,
                     'performance_limits': performance_limits(), 'host_retry': HOST_RETRY_NOTE,
                     'input': {'private': planning_input,
                               'public': public_performance_base(self.runtime, body, one_pass=True)}}
-        return {'turn_id': turn_id, 'stage': 'private_decision', **notice,
+        return {'first_try': first_try, 'turn_id': turn_id, 'stage': 'private_decision', **notice,
                 'instructions': PRIVATE_INSTRUCTIONS, 'schema': PLAN_SCHEMA,
                 'performance_limits': performance_limits(), 'host_retry': HOST_RETRY_NOTE,
                 'input': planning_input}
