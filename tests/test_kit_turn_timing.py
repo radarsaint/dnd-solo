@@ -36,10 +36,9 @@ class HostStampedTiming(Base):
     def test_every_segment_of_the_turn_is_recorded(self):
         packet = self.bridge.prepare(opening=True, one_pass=True, host_stamps={'received_at': 1000.0})
         turn = packet['turn_id']
-        bad = self.plan(packet, reply_to='the landing')
-        bad['improv_read']['story_basis'] = 'tease'  # rejected on main: one retry
+        flat = {'segments': [{'speaker': 'Narrator', 'text': 'A door, a light, a stair.'}]}  # under the floor: one retry
         try:
-            self.bridge.complete(turn, {'decision': bad, 'performance': LANDING},
+            self.bridge.complete(turn, {'decision': self.plan(packet), 'performance': flat},
                                  host_stamps={'model_sent_at': 1000.5, 'model_done_at': 1010.0})
         except InvalidChange:
             pass
