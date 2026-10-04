@@ -100,7 +100,9 @@ BOOKKEEPING_EVENTS = ('player_sheet', 'player_character', 'player_note', 'pc_sta
 # A pending check's optional fields: a held exit, and room for the check-calling follow-up's
 # quiet DC adjustment for creative use of the scene (Brendon: about -2) with its reason. Not
 # applied anywhere yet.
-PENDING_CHECK_OPTIONAL = {'exit', 'dc_adjust', 'reason', 'threshold'}
+PENDING_CHECK_OPTIONAL = {'exit', 'dc_adjust', 'reason', 'threshold', 'held'}
+# A heavy turn Kit opened on a check call holds its description for the roll (kit_agent.STALL_KINDS).
+HELD_KINDS = ('opening', 'exit', 'threshold_look')
 COMMIT_APPENDED_EVENTS = ('canon_entry', 'oracle_draw', 'procedure_state', 'claim_said', 'agenda_turn',
                           'pc_state', 'kit_plan', 'toll_state', 'story_beat', 'threshold_crossed',
                           'attitude_shift', 'pending_check', 'open_threads')
@@ -853,11 +855,14 @@ class Runtime:
                                       ('threshold' not in check or check['threshold'] in (source.get('exits') or {})) and
                                       ('dc_adjust' not in check or (type(check['dc_adjust']) is int and
                                                                     -5 <= check['dc_adjust'] <= 5)) and
+                                      ('held' not in check or (isinstance(check['held'], dict) and
+                                                               set(check['held']) == {'kind'} and
+                                                               check['held']['kind'] in HELD_KINDS)) and
                                       ('reason' not in check or (isinstance(check['reason'], str) and
                                                                  len(check['reason']) <= 200)) and
                                       pc_sheet.SKILLS.get(check['skill']) == check['ability'] and
                                       isinstance(check['target'], str) and isinstance(check['called_turn'], str)),
-                    'pending_check is {skill, ability, target, called_turn[, exit, dc_adjust, reason]} or None')
+                    'pending_check is {skill, ability, target, called_turn[, exit, threshold, held, dc_adjust, reason]} or None')
             if check is None:
                 state.pop('pending_check', None)
             else:

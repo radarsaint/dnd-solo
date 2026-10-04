@@ -38,6 +38,7 @@ from .state_context import (ASKED_EVENT_PREFIX, CONTEXT_BUDGET_BYTES, HostSequen
                             PERSONALITY_CORE, PLAYER_NOTE_MAX_EVIDENCE, PROJECT_ROOT, Runtime,
                             StaleTurn, VOICE_MAX_BYTES, load_voice, personality_core_text,
                             check_player_note_text, encode, require)
+from .state_context import HELD_KINDS as _HELD_KINDS
 
 
 # The room `start` mounts when the host names none: area 6c, the one room with full
@@ -206,6 +207,52 @@ ASKING = re.compile(r"(?:(?<=^)|(?<=[.!?]))\s*(?:can|could|may|might|would|will|
 
 def asked_away(words):
     return ASKING.sub(' ', words)
+# Short beats (plan update #3): a heavy turn may open on just a fitting check call, and the
+# engine holds the description for the roll; the next turn delivers it scaled to the result.
+STALL_KINDS = _HELD_KINDS
+HELD_RULE = (
+    'Kit opened this turn on a check; the roll is in. Deliver the held description now, in full and '
+    'not another call: what anyone would notice always lands, and the roll scales the rest (a high '
+    'roll adds what the check found, per accepted_public_event; a low one gets the plain view).')
+SHORT_BEAT_LINE = ('A short beat is a whole turn: one real reaction plus a narrowing question or an '
+                   '"are you sure?" before a risky act (ask_clarification, scope call). Do not pad it.')
+STALL_LINE = ('Heavy turn: you may open on just a fitting check call (scope call, roll_call set, a sheet '
+              'skill); the engine holds the description for the roll. Not while a due hook must land.')
+
+
+def stall_check(plan, action_kind):
+    """Kit's first commit on a heavy turn is only a check call (room entry, a first look,
+    a way through); the description is held for the roll."""
+    return (action_kind in STALL_KINDS and plan.get('public_brief', {}).get('scope') == 'call'
+            and bool(plan.get('roll_call')))
+
+
+def check_short_beat(plan, body, state):
+    """A stall calls a real sheet-skill check, never twice before the roll, never in place of a
+    due hook; and the roll turn delivers the held description, not another call."""
+    if stall_check(plan, body['kind']):
+        require(kit_agenda.called_skill(plan['roll_call'].get('skill')) is not None,
+                'A stall check on a heavy turn calls a skill check the roll can answer (e.g. Perception)')
+        require(not ((state.get('pending_check') or {}).get('held')),
+                'A held description is already waiting on the roll; deliver it before calling another')
+        require(not body.get('story_due'),
+                'A due hook lands this turn; do not stall it behind a check')
+    if body.get('held_description'):
+        require(plan['public_brief']['scope'] != 'call',
+                'The held description is due now: the roll is in, so describe (feature or exchange), '
+                'scaled to the result; not another call')
+
+
+def roll_total(action):
+    """The total in a bare or stated roll line, or None."""
+    text = action.translate(_TYPOGRAPHIC).strip()
+    bare = re.fullmatch(r'(?:i\s+)?(?:rolled|roll|got)?\s*(?:an?\s+)?(\d{1,2})\s*[.!]?', text, re.I)
+    if bare:
+        return int(bare.group(1))
+    stated = kit_rolls.rolls(text)
+    return stated[0].total if stated else None
+
+
 CHECK_REQUEST_RULE = (
     'The player asks for a check. Kit decides: call one with roll_call (the skill, mode, and DC are '
     'yours; the player never picks the skill and never rolls first) and stop at the call, or decline '
@@ -2220,8 +2267,10 @@ def check_plan(plan, episodes, public_event, action_kind=None, candidates=None, 
                     f'focus_actor {focus!r} is not an actor present here; use a present actor id or none')
     require(plan['move'] != 'kit_comment_then_npc' or plan['table_presence'] != 'quiet',
             'Chosen move conflicts with quiet table presence')
-    require(action_kind != 'opening' or plan['move'] == 'world_description',
-            'Room entry needs a world description')
+    stall = stall_check(plan, action_kind)
+    require(action_kind != 'opening' or plan['move'] == 'world_description' or
+            (stall and plan['move'] == 'ruling'),
+            'Room entry needs a world description (or, as a stall, a ruling that only calls a check)')
     if plan['move'] in ('npc_reply', 'kit_comment_then_npc'):
         require(focus_actor_id(plan) is not None, 'NPC move needs a selected actor')
         require(plan['improv_read']['actor_ref'] == focus_actor_id(plan),
@@ -2237,7 +2286,8 @@ def check_plan(plan, episodes, public_event, action_kind=None, candidates=None, 
     scope = brief['scope']
     require(scope in PLAN_SCHEMA['properties']['public_brief']['properties']['scope']['enum'],
             'Invalid brief scope')
-    require(action_kind != 'opening' or scope == 'feature', 'Room entry needs feature scope')
+    require(action_kind != 'opening' or scope == 'feature' or stall_check(plan, action_kind),
+            'Room entry needs feature scope (or call scope with roll_call: a stall check)')
     require(scope != 'call' or plan['move'] in CALL_MOVES or plan['focus_actor'] == 'none',
             'Call scope is only for a ruling, a clarification, or a turn with no focus actor')
     focus = brief['kit_focus'].strip()
@@ -2516,6 +2566,8 @@ def check_speech(speech, plan, public_view, player_action, action_kind=None, gua
     require(plan['table_presence'] != 'quiet' or kit_count == 0, 'Quiet Kit spoke directly')
     require(plan['table_presence'] != 'brief' or kit_count <= 1, 'Brief Kit took over the scene')
     require(plan['table_presence'] != 'present' or kit_count >= 1, 'Present Kit did not speak')
+    if plan['public_brief']['scope'] == 'call':  # a short beat: Kit's reaction is the turn
+        kit_guards.check_not_canned(segments)
     speakers = guards.get('speakers')
     focus = focus_speaker(plan, speakers)
     kit_voice.check_voice_presence(segments, plan, focus_speakers(plan, speakers))
@@ -2668,6 +2720,8 @@ def turn_events(runtime, body, plan, turn_id, record=None):
     if pending and pending.get('check') and looked:
         # A check called on a look through a threshold keeps that view for the roll (watchroom T2).
         pending = {**pending, 'check': {**pending['check'], 'threshold': looked}}
+    if pending and pending.get('check') and stall_check(plan, body.get('kind')):
+        pending = {**pending, 'check': {**pending['check'], 'held': {'kind': body['kind']}}}
     if pending and not any(event.get('type') == 'pending_check' for event in events):  # a held exit wins
         events.append(pending)
     if plan.get('claims'):
@@ -2935,6 +2989,7 @@ def check_decision(runtime, plan, memory, body):
     check_brief_public(plan['public_brief'], body['public_view'], body['action'],
                        kit_guards.leak_sets(source), kit_guards.leak_phrases(source))
     check_procedure_start(plan, body, runtime.load()[1])
+    check_short_beat(plan, body, runtime.load()[1])
     if plan.get('open_threads') is not None:
         kit_threads.check(plan['open_threads'], runtime.load()[1])
     if not plan.get('ask_player'):  # a question to the player moves no agenda
@@ -3061,6 +3116,12 @@ def prepare_inputs(runtime, revision, state, action, resolution, use_memory, one
         view = kit_brief.threshold_view(source, post_event_state, looked)
         if view:
             planning_input['threshold_view'] = view
+    held = (state.get('pending_check') or {}).get('held')
+    if held and not table_talk and any(e.get('type') == 'pending_check' and e.get('check') is None
+                                       for e in resolution.events):
+        # Private: the description Kit held for this roll, delivered now, scaled to the result.
+        body['held_description'] = planning_input['held_description'] = {
+            'kind': held['kind'], 'roll': roll_total(action), 'rule': HELD_RULE}
     threads = kit_threads.view(post_event_state, kit_rooms.stage(source, post_event_state) == 'resolution')
     if threads and not table_talk:
         planning_input['open_threads'] = threads
@@ -3614,6 +3675,15 @@ def first_try_lines(runtime, body, planning_input):
         lines.append('A look or listen through a threshold: describe only threshold_view (tease-only); the PC has not moved.')
     if planning_input.get('open_threads'):
         lines.append('Open threads are listed in open_threads: pay off or drop them before the scene ends.')
+    held = planning_input.get('held_description')
+    if held:
+        lines.append(f"The roll is in ({held['roll']}): deliver the held {held['kind']} description now, "
+                     'scaled to the result (held_description); not another call.')
+    elif body['kind'] in STALL_KINDS and not body.get('story_due') and \
+            not (runtime.load()[1].get('pending_check') or {}).get('held'):
+        lines.append(STALL_LINE)
+    if not opening and not held:
+        lines.append(SHORT_BEAT_LINE)
     return lines
 
 

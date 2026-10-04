@@ -417,3 +417,20 @@ Spike: branch `kit-room-loader-spike` (`c5713b2`, no PR) answered one question: 
 the `area_06c` gate enough to run a non-6c room? No. The tub and `south_door` rulings were
 hardcoded and either narrated a tub that isn't there or crashed (`Unknown fact`,
 `Exit not discovered`).
+
+### 4b. Short beats (plan update #3)
+
+A short beat is a complete, call-sized turn with no floor padding:
+
+- **Narrowing question / "are you sure?"** `move: ask_clarification`, `scope: call`: one real reaction
+  from Kit plus the question. The call cap (60 words) is the only size rule.
+- **Stall check on a heavy turn** (`opening`, `exit`, `threshold_look`; `kit_agent.STALL_KINDS`):
+  `scope: call` with a `roll_call` for a sheet skill. On room entry the move may be `ruling`. The
+  engine keeps the check as `pending_check.held = {kind}`; the roll turn's packet carries
+  `held_description` {kind, roll, rule} and that turn may not be another call. Refused while a held
+  description waits for its roll, and when a due hook must land this turn.
+- **Never canned.** On a call-scope turn a Kit segment whose statements (questions aside) are only
+  filler words ("Ooh, bold!", "Well, well, well.") is rejected (`kit_guards.check_not_canned`); a line
+  Kit already used is caught by the recycled-line check.
+
+Tests: `tests/test_kit_short_beats.py`.

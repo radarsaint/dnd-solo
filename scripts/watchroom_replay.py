@@ -99,7 +99,7 @@ def kit_decision(packet, turn):
     if turn.get('roll_call'):
         full['roll_call'] = {'skill': turn['roll_call'][0], 'mode': 'normal', 'target': turn['roll_call'][1],
                              'cause': {'kind': 'position', 'ref': 'none', 'roots': []}}
-    if opening:
+    if opening and not turn.get('stall'):
         full['public_brief']['scope'] = 'feature'
     return shape(full, schema)
 
@@ -227,6 +227,20 @@ TURNS = [
 ]
 
 
+# --short-beats: Kit opens the room entry on a fitting check call (a stall check); the player
+# rolls in Avrae and the next turn delivers the held description scaled to the roll.
+STALL_T0 = {'id': 'T0', 'opening': True, 'stall': True, 'focus': 'none', 'move': 'ruling', 'scope': 'call',
+            'presence': 'quiet', 'roll_call': ('perception', 'none'),
+            'speech': [('Narrator', 'Lamplight through a gap in an iron door, and someone humming behind it. '
+                                    'Roll Perception.')]}
+HELD_T0 = {'id': 'T0r', 'line': 'Perception check: 1d20 (13) + 2 = 15', 'expect': {'stays': True},
+           'move': 'world_description', 'scope': 'feature', 'speech': TURNS[0]['speech']}
+
+
+def short_beat_turns():
+    return [STALL_T0, HELD_T0] + TURNS[1:]
+
+
 def misread(turn, packet, runtime):
     expect = turn.get('expect') or {}
     private = packet['input']['private']
@@ -245,7 +259,7 @@ def misread(turn, packet, runtime):
     return None
 
 
-def run(out=None):
+def run(out=None, turns=None):
     folder = Path(tempfile.mkdtemp())
     db = folder / 'replay.sqlite'
     t = time.perf_counter()
@@ -254,7 +268,7 @@ def run(out=None):
     runtime = Runtime(db)
     bridge = KitChatBridge(runtime, RoomAdjudicator(roll=lambda: 10, npc_roll=lambda: 10))
     rows = []
-    for turn in TURNS:
+    for turn in turns or TURNS:
         row = {'turn': turn['id'], 'stalls': 0, 'misreads': 0, 'rejects': 0, 'reasons': [],
                'prepare_ms': [], 'complete_ms': []}
         if turn.get('opening'):
@@ -362,8 +376,10 @@ def run(out=None):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--json')
+    parser.add_argument('--short-beats', action='store_true',
+                        help='T0 opens on a stall check (Roll Perception); the roll delivers the description')
     for key, value in MODEL.items():
         parser.add_argument('--' + key.replace('_', '-'), type=float, default=value)
     args = parser.parse_args()
     MODEL.update({key: getattr(args, key) for key in MODEL})
-    run(args.json)
+    run(args.json, short_beat_turns() if args.short_beats else None)

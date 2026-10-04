@@ -1,0 +1,119 @@
+"""PR1 (plan update #3): a short beat is a complete, call-sized turn with no floor padding.
+
+(i) A real reaction plus a narrowing question, or an "are you sure?" before a risky act.
+(ii) The stall check: on a heavy turn (room entry, a first look, a way through), Kit's first
+commit may be just a fitting check call. The engine holds the description for the roll and
+the next turn delivers it, scaled to the result. Kit still calls the check; it is never
+used while one is pending or when a due hook must land; and the reaction is Kit's own
+judgment, never canned filler or a line she already used. Watchroom fixture; no model."""
+import unittest
+
+from runtime.state_context import InvalidChange
+from test_kit_watchroom_stalls import Stalls, landing
+
+PERCEPTION = {'skill': 'perception', 'mode': 'normal', 'target': 'none',
+              'cause': {'kind': 'position', 'ref': 'none', 'roots': []}}
+KICK = 'I kick the iron door open.'
+
+
+def kit(text, quote):
+    return {'speaker': 'Kit', 'text': text, 'reacts_to': quote}
+
+
+class ShortBeat(Stalls):
+    def narrow(self, turn, segments, line=KICK, quote='kick the iron door'):
+        packet = self.bridge.prepare(line, turn, one_pass=True)
+        plan = self.plan_for(packet, move='ask_clarification', table_presence='brief')
+        plan['public_brief'].update(reply_to=quote, scope='call')
+        return self.bridge.complete(turn, {'decision': plan, 'performance': {'segments': segments}})
+
+    def stall(self, turn='open', say='Roll Perception.', **update):
+        packet = self.bridge.prepare(opening=True, one_pass=True, turn_id=turn)
+        plan = self.plan_for(packet, move='ruling', table_presence='brief', **update)
+        plan['public_brief'].update(scope='call')
+        result = self.bridge.complete(turn, {'decision': plan, 'performance': {'segments': [
+            {'speaker': 'Narrator', 'text': say}]}})
+        return packet, result
+
+
+class ReactionAndNarrowingQuestion(ShortBeat):
+    def test_a_reaction_and_a_narrowing_question_is_a_whole_turn(self):
+        result = self.narrow('n', [kit('An iron door with a guard post behind it, and your boot is the plan. How do you want to do that?',
+                                       'kick the iron door')])
+        self.assertTrue(result['spoken'])
+
+    def test_an_are_you_sure_before_a_risky_act_is_a_whole_turn(self):
+        result = self.narrow('w', [kit('Whoever is humming in there will hear that door hit the wall. Are you sure?', 'kick the iron door')])
+        self.assertTrue(result['spoken'])
+
+    def test_a_short_beat_still_asks(self):
+        with self.assertRaises(InvalidChange):
+            self.narrow('q', [kit('Whoever is humming in there will hear that door hit the wall.', 'kick the iron door')])
+
+
+class CannedFillerIsNotAReaction(ShortBeat):
+    def test_a_canned_reaction_is_refused(self):
+        for filler in ('Ooh, bold!', 'Oh ho, interesting.', 'Love it. Classic.', 'Well, well, well.'):
+            with self.subTest(filler), self.assertRaisesRegex(InvalidChange, 'canned'):
+                self.narrow('c', [kit(filler + ' How do you want to do that?', 'kick the iron door')])
+            self.bridge.abandon('c')
+
+    def test_a_reaction_kit_already_used_is_refused(self):
+        line = 'Whoever is humming in there will hear that door hit the wall.'
+        self.narrow('a', [kit(line + ' Are you sure?', 'kick the iron door')])
+        with self.assertRaisesRegex(InvalidChange, 'recycles'):
+            self.narrow('b', [kit(line + ' Is that the plan?', 'kick the iron door')])
+
+
+class StallCheckOnAHeavyTurn(ShortBeat):
+    def test_room_entry_may_open_on_a_fitting_check_call(self):
+        _, result = self.stall(roll_call=PERCEPTION)
+        self.assertTrue(result['spoken'])
+        pending = self.runtime.load()[1]['pending_check']
+        self.assertEqual(pending['skill'], 'perception')
+        self.assertEqual(pending['held']['kind'], 'opening')
+
+    def test_the_roll_delivers_the_held_description_scaled_to_the_result(self):
+        self.stall(roll_call=PERCEPTION)
+        rolled = self.bridge.prepare('Perception check: 1d20 (13) + 2 = 15', 'r', one_pass=True)
+        held = rolled['input']['private']['held_description']
+        self.assertEqual(held['kind'], 'opening')
+        self.assertEqual(held['roll'], 15)
+        self.assertTrue(held['rule'])
+        self.assertTrue(any('held' in line for line in rolled['first_try']))
+        self.assertTrue(rolled['input']['private']['story_brief'])  # the description's material is there
+        plan = self.plan_for(rolled)
+        plan['public_brief'].update(reply_to='Perception check', scope='call')
+        with self.assertRaisesRegex(InvalidChange, 'held'):  # the description is due now, in full
+            self.bridge.complete('r', {'decision': plan, 'performance': {'segments': [
+                {'speaker': 'Narrator', 'text': 'You see the door.'}]}})
+        plan['public_brief'].update(scope='feature')
+        self.assertTrue(self.bridge.complete('r', {'decision': plan, 'performance': landing()})['spoken'])
+        self.assertNotIn('pending_check', self.runtime.load()[1])
+
+    def test_a_stall_must_call_the_check(self):
+        with self.assertRaises(InvalidChange):
+            self.stall()
+
+    def test_no_stall_on_an_ordinary_turn_s_floor(self):
+        """An ordinary social bid keeps its exchange; only heavy turns may open on a check."""
+        self.go_in()
+        packet = self.bridge.prepare('"Evening. Quiet night?"', 's', one_pass=True)
+        plan = self.plan_for(packet, move='ruling', table_presence='brief', roll_call=PERCEPTION)
+        plan['public_brief'].update(reply_to='Quiet night', scope='call')
+        with self.assertRaises(InvalidChange):
+            self.bridge.complete('s', {'decision': plan, 'performance': {'segments': [
+                {'speaker': 'Narrator', 'text': 'Roll Perception.'}]}})
+
+    def test_no_second_stall_while_one_is_held(self):
+        self.stall(roll_call=PERCEPTION)
+        packet = self.bridge.prepare('I peek through the gap in the door.', 'p2', one_pass=True)
+        plan = self.plan_for(packet, move='ruling', table_presence='brief', roll_call=PERCEPTION)
+        plan['public_brief'].update(reply_to='peek through the gap', scope='call')
+        with self.assertRaisesRegex(InvalidChange, 'held'):
+            self.bridge.complete('p2', {'decision': plan, 'performance': {'segments': [
+                kit('Roll Perception.', 'peek through the gap')]}})
+
+
+if __name__ == '__main__':
+    unittest.main()
