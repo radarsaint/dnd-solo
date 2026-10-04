@@ -514,6 +514,12 @@ def layer_problems(room):
     return problems
 
 
+def _held_in(noun, text):
+    """``text`` puts something in, under or in the grip of ``noun``: the preposition governs that noun
+    ("in the prospector's hand", "under the rubble"), not another one ("on the planks north of it")."""
+    return re.search(HELD_IN.pattern + r"\s+(?:[\w'-]+\s+){0,2}?" + re.escape(noun) + r"(?:'s|s)?\b", text) is not None
+
+
 def held_and_part_problems(room):
     """A fact that sits in, under, or in the grip of a handled feature must be that feature's
     ``holds``; a graspable part named on a handled feature or its held item must be in ``parts``."""
@@ -531,8 +537,10 @@ def held_and_part_problems(room):
                 continue
             nouns = [str(n).casefold() for n in list(feature['handling'].get('nouns') or ()) +
                      list(feature['handling'].get('parts') or ())]
-            named = next((n for n in nouns if re.search(r'\b' + re.escape(n) + r's?\b', text)), None)
-            if named and HELD_IN.search(text) and key not in held_by:
+            if feature['handling'].get('holds') and feature['handling']['holds'] != key:
+                continue  # holds is one fact: a second item in it rides in the held fact or the look line
+            named = next((n for n in nouns if _held_in(n, text)), None)
+            if named and key not in held_by:
                 problems.append(f'fact {key} is in or on {owner} ("{named}"): list it as {owner}\'s handling.holds '
                                 'so handling the feature finds it and disturbs it')
     for owner, feature in handled.items():
