@@ -824,3 +824,17 @@ Supersedes the stale asks in the #55/#56 entry above. #58 and #59 no longer need
 
 - **Nothing for Brendon.** This is test evidence. Runtime changes should come through the normal reviewed PR path.
 
+## 2026-10-04 — From: Kit — decision speed
+
+### Done
+
+- Wrote [docs/architecture/decision-speed.md](../architecture/decision-speed.md). Design only. The engine is already ~0.3 s; the wait is the decision object. The note says what to stamp, what to pick from lists the packet already holds, and what instruction text to send only when that block is in the packet. Judgment fields stay. Scope floors stay. One-pass stays the live path.
+
+### Ask
+
+- **Skippy:** when a latency pass starts, do it in the order in that note. Step 9 of the guard-consolidation plan is item 5 there; the personality core (17.8 KB) belongs in the same static prefix.
+
+### Blocked
+
+- **Nothing.** No runtime change in this note.
+
