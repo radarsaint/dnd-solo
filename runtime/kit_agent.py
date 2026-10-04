@@ -35,6 +35,7 @@ from . import kit_toll
 from . import kit_twenty_one
 from . import kit_guards
 from . import kit_voice
+from . import kit_visual
 from .scene_discernment import IMPROV_READ_SCHEMA, check_improv_read, discernment_candidates
 from .state_context import (ASKED_EVENT_PREFIX, CONTEXT_BUDGET_BYTES, HostSequenceError, InvalidChange,
                             PERSONALITY_CORE, PLAYER_NOTE_MAX_EVIDENCE, PROJECT_ROOT, Runtime,
@@ -4301,7 +4302,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('command', choices=['start', 'init', 'view', 'prepare', 'decide', 'finish', 'complete',
                                             'abandon', 'feedback', 'character', 'notes', 'play', 'trace',
-                                            'timing', 'persona', 'stamp', 'rehydrate'])
+                                            'timing', 'persona', 'stamp', 'rehydrate', 'visual'])
     parser.add_argument('--db', default='kit.sqlite')
     parser.add_argument('--room', help='start/init: a room file to mount (default: area 6c; see '
                                        'docs/architecture/ROOM_LOADER.md)')
@@ -4322,6 +4323,12 @@ def main():
                              'not adjudicated, not logged as the PC speaking; leak guards still apply)')
     parser.add_argument('--action', help='Player action for prepare')
     parser.add_argument('--action-file', help='UTF-8 player action file for prepare')
+    parser.add_argument('--request', help='visual: the exact art request from the player/director')
+    parser.add_argument('--request-file', help='visual: UTF-8 file containing the exact art request')
+    parser.add_argument('--visual-mode', default='auto', choices=('auto',) + kit_visual.MODES,
+                        help='visual: asset mode (default: infer from request)')
+    parser.add_argument('--visual-branch', default='auto',
+                        help='visual: BFDM campaign/product branch (default: infer from mounted source)')
     parser.add_argument('--turn-id', help='Turn ID returned by prepare')
     parser.add_argument('--input-file', help='JSON plan, speech, or combined output; - reads stdin')
     parser.add_argument('--text', help='feedback: the player’s out-of-character comment')
@@ -4397,6 +4404,20 @@ def main():
                 return 2
         elif args.command == 'notes':
             print(json.dumps(runtime.player_notes(), indent=2, ensure_ascii=False))
+        elif args.command == 'visual':
+            if (args.request is None) == (args.request_file is None):
+                parser.error('visual requires exactly one of --request or --request-file')
+            request = (args.request if args.request_file is None else
+                       Path(args.request_file).read_text(encoding='utf-8').strip())
+            try:
+                result = kit_visual.prepare_visual(runtime, request, mode=args.visual_mode,
+                                                   branch=args.visual_branch)
+            except InvalidChange as exc:
+                print(json.dumps({'stage': 'rejected', 'message': str(exc), 'committed': False},
+                                 ensure_ascii=False), file=sys.stderr)
+                return 2
+            print(json.dumps(result, ensure_ascii=False,
+                             **({'indent': 2} if args.pretty else {'separators': (',', ':')})))
         elif args.command == 'character' and args.sheet:
             sheet = json.loads(Path(args.sheet).read_text(encoding='utf-8'))
             print(json.dumps(runtime.set_player_sheet(sheet), indent=2, ensure_ascii=False))
