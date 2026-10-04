@@ -180,6 +180,12 @@ def select_references(runtime, request, mode, branch, limit=3):
     recent = recent_reference_ids(runtime, window)
     most_recent = set(recent[: int(policy.get("max_references") or 4)])
     tags = subject_tags(request)
+    refs_by_id = {ref.get("id"): ref for ref in refs}
+    recent_incidental_biases = {}
+    for recent_id in recent:
+        for bias in (refs_by_id.get(recent_id) or {}).get("subject_bias") or []:
+            if bias not in tags:
+                recent_incidental_biases[bias] = recent_incidental_biases.get(bias, 0) + 1
     scored = []
     for ref in refs:
         modes = set(ref.get("asset_modes") or [])
@@ -199,6 +205,10 @@ def select_references(runtime, request, mode, branch, limit=3):
             score += 1
         score += 4 * len(tags & biases)
         score -= 12 * len(tags & avoid)
+        incidental_bias_repeats = sum(
+            recent_incidental_biases.get(bias, 0) for bias in biases if bias not in tags
+        )
+        score -= int(policy.get("same_subject_family_recent_penalty") or 2) * incidental_bias_repeats
         if ref.get("strength") == "CORE":
             score += 1
         uses = recent.count(ref.get("id"))
