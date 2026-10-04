@@ -479,14 +479,23 @@ move choice plan idea one oh-ho well-well
 """.split())
 
 
+# A bare laugh or gasp ("Ha!", "Wow.") is how Kit reacts, not a stock verdict: before a real
+# question it is a whole short beat ("Ha! Are you sure?"). Verdict filler ("Bold!", "Classic.",
+# "Well, well, well.") is still canned, question or not.
+INTERJECTIONS = frozenset('ha haha hah heh hee oh ooh ah ahh whoa woah wow huh hmm hm mm oof yikes eek'.split())
+
+
 def check_not_canned(segments):
     """HARD: a Kit reaction says something about this move; filler alone is canned."""
     for segment in segments:
         if segment['speaker'] != 'Kit':
             continue
-        statements = [part for part in re.split(r'(?<=[.!?])\s+', segment['text'].strip())
-                      if part and not part.rstrip().endswith('?')]
+        parts = [part for part in re.split(r'(?<=[.!?])\s+', segment['text'].strip()) if part]
+        statements = [part for part in parts if not part.rstrip().endswith('?')]
         words = [w for part in statements for w in re.findall(r"[a-z][a-z'\-]*", normalize(part))]
+        asks = any(len(re.findall(r"[a-z]+", normalize(part))) >= 3 for part in parts if part.rstrip().endswith('?'))
+        if asks and words and all(word in INTERJECTIONS for word in words):
+            continue  # a laugh or a gasp, then a real question
         require(not words or any(word not in CANNED_FILLER for word in words),
                 f'Kit\'s reaction is canned filler ({segment["text"][:40]!r}); react to what this move '
                 'actually does here, in a line of your own')

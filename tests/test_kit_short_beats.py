@@ -58,6 +58,15 @@ class CannedFillerIsNotAReaction(ShortBeat):
                 self.narrow('c', [kit(filler + ' How do you want to do that?', 'kick the iron door')])
             self.bridge.abandon('c')
 
+    def test_a_laugh_or_a_gasp_before_a_real_question_passes(self):
+        for line in ('Ha! Are you sure?', 'Wow. How do you want to do that?'):
+            with self.subTest(line):
+                self.assertTrue(self.narrow('l' + line[:2], [kit(line, 'kick the iron door')])['spoken'])
+
+    def test_a_laugh_with_no_question_is_still_canned(self):
+        with self.assertRaisesRegex(InvalidChange, 'canned|ask'):
+            self.narrow('h', [kit('Ha!', 'kick the iron door')])
+
     def test_a_reaction_kit_already_used_is_refused(self):
         line = 'Whoever is humming in there will hear that door hit the wall.'
         self.narrow('a', [kit(line + ' Are you sure?', 'kick the iron door')])
@@ -113,6 +122,79 @@ class StallCheckOnAHeavyTurn(ShortBeat):
         with self.assertRaisesRegex(InvalidChange, 'held'):
             self.bridge.complete('p2', {'decision': plan, 'performance': {'segments': [
                 kit('Roll Perception.', 'peek through the gap')]}})
+
+
+class HeldDescriptionIsAnObligation(ShortBeat):
+    """Nagatha's #91 review: the held description could be forgotten (no roll, a new check, a
+    move) and its delivery was barely checked."""
+
+    def beat(self, name):
+        revision, _ = self.runtime.load()
+        self.runtime.commit(name, revision, [{'type': 'beat', 'tags': ['observe'], 'evidence': 'A look.'}])
+
+    def test_the_held_record_names_its_room(self):
+        self.stall(roll_call=PERCEPTION)
+        self.assertEqual(self.runtime.load()[1]['pending_check']['held'], {'kind': 'opening', 'area': 'landing'})
+
+    def test_no_roll_keeps_the_obligation_and_the_next_turn_delivers_the_plain_view(self):
+        self.stall(roll_call=PERCEPTION)
+        self.beat('b')  # a turn passes with no roll: the obligation stays
+        self.assertTrue(self.runtime.load()[1]['pending_check']['held'])
+        packet = self.bridge.prepare('I wait on the landing and listen.', 'n', one_pass=True)
+        held = packet['input']['private']['held_description']
+        self.assertIsNone(held['roll'])
+        self.assertIn('did not roll', held['rule'])
+        plan = self.plan_for(packet)
+        plan['public_brief'].update(reply_to='wait on the landing', scope='feature')
+        self.bridge.complete('n', {'decision': plan, 'performance': landing()})
+        self.assertNotIn('pending_check', self.runtime.load()[1])  # delivered, so discharged
+
+    def test_a_new_check_cannot_replace_the_held_one(self):
+        self.stall(roll_call=PERCEPTION)
+        packet = self.bridge.prepare('I wait on the landing and listen.', 'c2', one_pass=True)
+        plan = self.plan_for(packet, roll_call={**PERCEPTION, 'skill': 'investigation'})
+        plan['public_brief'].update(reply_to='wait on the landing', scope='feature')
+        with self.assertRaisesRegex(InvalidChange, 'held'):
+            self.bridge.complete('c2', {'decision': plan, 'performance': landing()})
+        self.assertEqual(self.runtime.load()[1]['pending_check']['skill'], 'perception')
+
+    def test_moving_rooms_lapses_it_and_it_never_lands_in_the_wrong_room(self):
+        self.stall(roll_call=PERCEPTION)
+        self.go_in()
+        self.assertNotIn('pending_check', self.runtime.load()[1])
+        packet = self.bridge.prepare('I look around.', 'w', one_pass=True)
+        self.assertNotIn('held_description', packet['input']['private'])
+
+    def test_the_resolution_turn_must_describe_the_held_place(self):
+        self.stall(roll_call=PERCEPTION)
+        rolled = self.bridge.prepare('Perception check: 1d20 (13) + 2 = 15', 'd', one_pass=True)
+        self.assertIn('door', rolled['input']['private']['held_description']['cues'])
+        plan = self.plan_for(rolled)
+        plan['public_brief'].update(reply_to='Perception check', scope='feature')
+        elsewhere = ('You take a slow breath and weigh what you know so far, turning the question of the night '
+                     'over in your mind while your pulse settles and your thoughts run on ahead of you, patient '
+                     'and careful and wholly your own, until you are ready to decide what comes next.')
+        with self.assertRaisesRegex(InvalidChange, 'held'):
+            self.bridge.complete('d', {'decision': plan, 'performance': {'segments': [
+                {'speaker': 'Narrator', 'text': elsewhere}, {'speaker': 'Narrator', 'text': (
+                    'Whatever you choose, it will be yours to choose, and the choosing will not wait '
+                    'forever, so you gather yourself and get ready, slowly and deliberately, to decide at last.')}]}})
+        self.assertTrue(self.bridge.complete('d', {'decision': plan, 'performance': landing()})['spoken'])
+
+
+class CheckRequestIsThePlayerAsking(unittest.TestCase):
+    def test_not_check_requests(self):
+        from runtime.kit_agent import CHECK_REQUEST
+        for line in ('Can I save him?', 'Dealer, can you check my hand?'):
+            with self.subTest(line):
+                self.assertIsNone(CHECK_REQUEST.search(line))
+
+    def test_still_check_requests(self):
+        from runtime.kit_agent import CHECK_REQUEST
+        for line in ('Can I roll Perception on the door?', 'Do I need to make a check?',
+                     'Can I make a saving throw?', 'Should we check for traps?'):
+            with self.subTest(line):
+                self.assertIsNotNone(CHECK_REQUEST.search(line))
 
 
 if __name__ == '__main__':
