@@ -1,0 +1,541 @@
+{
+  "schema": "bfdm_visual_reference_index_v1",
+  "note": "Metadata-only index for private BFDM style references. These images are style evidence, never campaign canon. Binary files live in the private BFDM style-reference pack, not this public repository.",
+  "references": [
+    {
+      "id": "BFDM-REF-001",
+      "pack_file": "BFDM-REF-001.jpg",
+      "strength": "CORE",
+      "asset_types": [
+        "character",
+        "horror",
+        "splash"
+      ],
+      "teaches": [
+        "graphic_dark",
+        "silhouette",
+        "limited_palette",
+        "structural_contour",
+        "poster_read"
+      ],
+      "lanes": [
+        "graphic_dark"
+      ],
+      "branches": [
+        "core",
+        "roanoke",
+        "earthfall"
+      ],
+      "subject_bias": [
+        "occult_humanoid"
+      ],
+      "subject_family": "occult_portrait"
+    },
+    {
+      "id": "BFDM-REF-002",
+      "pack_file": "BFDM-REF-002.jpg",
+      "strength": "CORE",
+      "asset_types": [
+        "character",
+        "splash"
+      ],
+      "teaches": [
+        "luminous_figure",
+        "selective_glow",
+        "white_field",
+        "costume_mass",
+        "brushy_edge"
+      ],
+      "lanes": [
+        "bright_storybook"
+      ],
+      "branches": [
+        "core",
+        "arcania"
+      ],
+      "subject_bias": [
+        "humanoid"
+      ],
+      "subject_family": "luminous_character"
+    },
+    {
+      "id": "BFDM-REF-003",
+      "pack_file": "BFDM-REF-003.jpg",
+      "strength": "CORE",
+      "asset_types": [
+        "character"
+      ],
+      "teaches": [
+        "costume",
+        "local_color",
+        "visible_line",
+        "selective_finish",
+        "magic_accent"
+      ],
+      "lanes": [
+        "bright_storybook"
+      ],
+      "branches": [
+        "core",
+        "arcania"
+      ],
+      "subject_bias": [
+        "humanoid",
+        "spellcaster"
+      ],
+      "subject_family": "costume_character"
+    },
+    {
+      "id": "BFDM-REF-004",
+      "pack_file": "BFDM-REF-004.jpg",
+      "strength": "CORE",
+      "asset_types": [
+        "creature",
+        "horror"
+      ],
+      "teaches": [
+        "grotesque",
+        "organized_chaos",
+        "biological_wrongness",
+        "internal_line",
+        "color_contrast"
+      ],
+      "lanes": [
+        "horror"
+      ],
+      "branches": [
+        "core",
+        "roanoke"
+      ],
+      "subject_bias": [
+        "aberration"
+      ],
+      "subject_family": "grotesque_creature"
+    },
+    {
+      "id": "BFDM-REF-005",
+      "pack_file": "BFDM-REF-005.jpg",
+      "strength": "CORE",
+      "asset_types": [
+        "exterior",
+        "location"
+      ],
+      "teaches": [
+        "architecture",
+        "crooked_verticality",
+        "roofline",
+        "local_color",
+        "dense_but_readable"
+      ],
+      "lanes": [
+        "storybook_environment"
+      ],
+      "branches": [
+        "core",
+        "arcania"
+      ],
+      "subject_bias": [
+        "settlement"
+      ],
+      "subject_family": "settlement_exterior"
+    },
+    {
+      "id": "BFDM-REF-006",
+      "pack_file": "BFDM-REF-006.jpg",
+      "strength": "CORE",
+      "asset_types": [
+        "creature",
+        "interior",
+        "scene"
+      ],
+      "teaches": [
+        "creature_environment_integration",
+        "structural_line",
+        "cyan_field",
+        "simplified_geometry"
+      ],
+      "lanes": [
+        "storybook_environment"
+      ],
+      "branches": [
+        "core"
+      ],
+      "subject_bias": [
+        "creature"
+      ],
+      "subject_family": "creature_environment"
+    },
+    {
+      "id": "BFDM-REF-007",
+      "pack_file": "BFDM-REF-007.jpg",
+      "strength": "CORE",
+      "asset_types": [
+        "prop",
+        "item"
+      ],
+      "teaches": [
+        "prop_personality",
+        "face_like_hardware",
+        "shape_language",
+        "asymmetry",
+        "presentation_field"
+      ],
+      "lanes": [
+        "object_study"
+      ],
+      "branches": [
+        "core",
+        "arcania"
+      ],
+      "subject_bias": [
+        "object"
+      ],
+      "subject_family": "prop_study"
+    },
+    {
+      "id": "BFDM-REF-008",
+      "pack_file": "BFDM-REF-008.jpg",
+      "strength": "GOOD",
+      "asset_types": [
+        "character",
+        "portrait"
+      ],
+      "teaches": [
+        "grounded_portrait",
+        "hat_silhouette",
+        "visible_line",
+        "restrained_palette",
+        "selective_finish"
+      ],
+      "lanes": [
+        "grounded_character"
+      ],
+      "branches": [
+        "core",
+        "roanoke"
+      ],
+      "subject_bias": [
+        "anthropomorphic"
+      ],
+      "subject_family": "anthro_portrait"
+    },
+    {
+      "id": "BFDM-REF-009",
+      "pack_file": "BFDM-REF-009.jpg",
+      "strength": "CORE",
+      "asset_types": [
+        "rulebook",
+        "handout"
+      ],
+      "teaches": [
+        "rules_hierarchy",
+        "action_vignette",
+        "negative_space",
+        "ornament",
+        "art_text_integration"
+      ],
+      "lanes": [
+        "page_design"
+      ],
+      "branches": [
+        "arcania"
+      ],
+      "subject_bias": [
+        "page"
+      ],
+      "subject_family": "rules_page"
+    },
+    {
+      "id": "BFDM-REF-010",
+      "pack_file": "BFDM-REF-010.jpg",
+      "strength": "CORE",
+      "asset_types": [
+        "rulebook",
+        "handout"
+      ],
+      "teaches": [
+        "rules_hierarchy",
+        "parchment_panels",
+        "atmospheric_wash",
+        "prop_integration",
+        "decorative_swirl"
+      ],
+      "lanes": [
+        "page_design"
+      ],
+      "branches": [
+        "arcania"
+      ],
+      "subject_bias": [
+        "page"
+      ],
+      "subject_family": "rules_page"
+    },
+    {
+      "id": "BFDM-REF-011",
+      "pack_file": "BFDM-REF-011.jpg",
+      "strength": "CORE",
+      "asset_types": [
+        "rulebook",
+        "creature",
+        "handout"
+      ],
+      "teaches": [
+        "creature_page_anchor",
+        "floating_panels",
+        "asymmetrical_layout",
+        "horror_page"
+      ],
+      "lanes": [
+        "page_design",
+        "horror"
+      ],
+      "branches": [
+        "arcania",
+        "roanoke"
+      ],
+      "subject_bias": [
+        "page",
+        "creature"
+      ],
+      "subject_family": "bestiary_page"
+    },
+    {
+      "id": "BFDM-REF-012",
+      "pack_file": "BFDM-REF-012.jpg",
+      "strength": "GOOD",
+      "asset_types": [
+        "rulebook",
+        "handout"
+      ],
+      "teaches": [
+        "dense_mechanics",
+        "heading_hierarchy",
+        "character_vignette",
+        "dark_field",
+        "accent_system"
+      ],
+      "lanes": [
+        "page_design"
+      ],
+      "branches": [
+        "arcania"
+      ],
+      "subject_bias": [
+        "page"
+      ],
+      "subject_family": "rules_page"
+    },
+    {
+      "id": "BFDM-REF-013",
+      "pack_file": "BFDM-REF-013.jpg",
+      "strength": "GOOD",
+      "asset_types": [
+        "vehicle",
+        "exterior",
+        "scene"
+      ],
+      "teaches": [
+        "vehicle_silhouette",
+        "simple_field",
+        "whimsy",
+        "local_color",
+        "concept_hook"
+      ],
+      "lanes": [
+        "storybook_environment"
+      ],
+      "branches": [
+        "core"
+      ],
+      "subject_bias": [
+        "vehicle",
+        "ship"
+      ],
+      "subject_family": "vehicle"
+    },
+    {
+      "id": "BFDM-REF-014",
+      "pack_file": "BFDM-REF-014.jpg",
+      "strength": "GOOD",
+      "asset_types": [
+        "creature"
+      ],
+      "teaches": [
+        "hybrid_creature",
+        "whimsy",
+        "readable_anatomy",
+        "silhouette",
+        "selective_texture"
+      ],
+      "lanes": [
+        "creature_design"
+      ],
+      "branches": [
+        "core"
+      ],
+      "subject_bias": [
+        "animal_hybrid"
+      ],
+      "subject_family": "whimsical_creature"
+    },
+    {
+      "id": "BFDM-REF-015",
+      "pack_file": "BFDM-REF-015.jpg",
+      "strength": "GOOD",
+      "asset_types": [
+        "character",
+        "construct",
+        "prop"
+      ],
+      "teaches": [
+        "chunky_construction",
+        "graphic_shapes",
+        "characterful_object",
+        "limited_detail"
+      ],
+      "lanes": [
+        "character_design"
+      ],
+      "branches": [
+        "core",
+        "earthfall"
+      ],
+      "subject_bias": [
+        "construct"
+      ],
+      "subject_family": "construct_character"
+    },
+    {
+      "id": "BFDM-REF-016",
+      "pack_file": "BFDM-REF-016.png",
+      "strength": "GOOD",
+      "asset_types": [
+        "character",
+        "portrait"
+      ],
+      "teaches": [
+        "face_priority",
+        "saturated_color",
+        "graphic_makeup",
+        "soft_field",
+        "stylized_face"
+      ],
+      "lanes": [
+        "bright_portrait"
+      ],
+      "branches": [
+        "core"
+      ],
+      "subject_bias": [
+        "humanoid"
+      ],
+      "subject_family": "face_portrait"
+    },
+    {
+      "id": "BFDM-REF-017",
+      "pack_file": "BFDM-REF-017.jpg",
+      "strength": "GOOD",
+      "asset_types": [
+        "character",
+        "portrait",
+        "splash"
+      ],
+      "teaches": [
+        "graphic_portrait",
+        "limited_palette",
+        "hard_shape",
+        "poster_read",
+        "expression"
+      ],
+      "lanes": [
+        "graphic_dark"
+      ],
+      "branches": [
+        "core",
+        "roanoke"
+      ],
+      "subject_bias": [
+        "humanoid"
+      ],
+      "subject_family": "graphic_portrait"
+    },
+    {
+      "id": "BFDM-REF-018",
+      "pack_file": "BFDM-REF-018.jpg",
+      "strength": "GOOD",
+      "asset_types": [
+        "character"
+      ],
+      "teaches": [
+        "small_character",
+        "white_field",
+        "costume_blocking",
+        "prop_read",
+        "selective_finish"
+      ],
+      "lanes": [
+        "grounded_character"
+      ],
+      "branches": [
+        "core",
+        "arcania"
+      ],
+      "subject_bias": [
+        "humanoid",
+        "dwarf"
+      ],
+      "subject_family": "small_character"
+    },
+    {
+      "id": "BFDM-REF-019",
+      "pack_file": "BFDM-REF-019.jpg",
+      "strength": "GOOD",
+      "asset_types": [
+        "character",
+        "creature"
+      ],
+      "teaches": [
+        "character_turnaround",
+        "clean_shape",
+        "costume_read",
+        "limited_background"
+      ],
+      "lanes": [
+        "character_design"
+      ],
+      "branches": [
+        "core"
+      ],
+      "subject_bias": [
+        "anthropomorphic"
+      ],
+      "subject_family": "character_concept"
+    },
+    {
+      "id": "BFDM-REF-020",
+      "pack_file": "BFDM-REF-020.jpg",
+      "strength": "EDGE",
+      "asset_types": [
+        "character"
+      ],
+      "teaches": [
+        "minimal_figure",
+        "negative_space",
+        "silhouette",
+        "color_accent",
+        "unfinished_field"
+      ],
+      "lanes": [
+        "minimal_character"
+      ],
+      "branches": [
+        "core"
+      ],
+      "subject_bias": [
+        "humanoid"
+      ],
+      "subject_family": "minimal_figure"
+    }
+  ]
+}
