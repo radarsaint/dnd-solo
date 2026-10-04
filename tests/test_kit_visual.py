@@ -51,6 +51,7 @@ class KitVisualTests(unittest.TestCase):
         source = copy.deepcopy(self.source)
         source["actors"]["warden"]["visual"] = {
             "public": ["Weathered human watchman.", "Brass-trimmed leather coat."],
+            "public_counts": {"arms": 2, "eyes": 2, "swords": 1},
             "dm_only": ["A black sun tattoo under his collar."],
         }
         self.replace_runtime(source, "watchroom")
@@ -59,6 +60,17 @@ class KitVisualTests(unittest.TestCase):
         self.assertIn("Weathered human watchman.", blob)
         self.assertIn("Brass-trimmed leather coat.", blob)
         self.assertNotIn("black sun tattoo", blob.casefold())
+        self.assertEqual(brief["generation_contract"]["expected_counts"], {
+            "actor:warden.arms": 2,
+            "actor:warden.eyes": 2,
+            "actor:warden.swords": 1,
+        })
+
+    def test_invalid_public_visual_counts_make_room_unmountable(self):
+        source = copy.deepcopy(self.source)
+        source["actors"]["warden"]["visual"] = {"public_counts": {"arms": "two"}}
+        problems = kit_rooms.first_framing_problems(source)
+        self.assertTrue(any("visual.public_counts" in problem for problem in problems))
 
     def test_reference_rotation_penalizes_recent_overuse(self):
         first = kit_visual.prepare_visual(self.runtime, "Draw a magical character portrait.")
