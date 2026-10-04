@@ -425,12 +425,23 @@ A short beat is a complete, call-sized turn with no floor padding:
 - **Narrowing question / "are you sure?"** `move: ask_clarification`, `scope: call`: one real reaction
   from Kit plus the question. The call cap (60 words) is the only size rule.
 - **Stall check on a heavy turn** (`opening`, `exit`, `threshold_look`; `kit_agent.STALL_KINDS`):
-  `scope: call` with a `roll_call` for a sheet skill. On room entry the move may be `ruling`. The
-  engine keeps the check as `pending_check.held = {kind}`; the roll turn's packet carries
-  `held_description` {kind, roll, rule} and that turn may not be another call. Refused while a held
-  description waits for its roll, and when a due hook must land this turn.
-- **Never canned.** On a call-scope turn a Kit segment whose statements (questions aside) are only
-  filler words ("Ooh, bold!", "Well, well, well.") is rejected (`kit_guards.check_not_canned`); a line
-  Kit already used is caught by the recycled-line check.
+  `scope: call` with a `roll_call` for a sheet skill. On room entry the move may be `ruling`. It is
+  only for an earned check: would Kit call it if the answer were instant? The engine keeps the check
+  as `pending_check.held = {kind, area}`, where `area` is the place being described.
+- **The held description is an obligation.** It stays in state until it is delivered (a turn with no
+  roll does not clear it), and only for its own area: leaving that area lapses it, so it is never
+  delivered in the wrong room. The next turn in that area carries `held_description` {kind, roll,
+  rule, cues}. With the roll in, the description is scaled to the result; with no roll, it is the
+  plain view. That turn must use `scope: feature`, may not call a new check, and must actually
+  describe the place: its narration names at least two `cues` (the area's own visible things,
+  `kit_agent.check_held_delivered`). Delivery clears the pending check. A second stall, or a stall
+  while a due hook must land, is refused.
+- **Never canned.** On a call-scope turn, a Kit segment is rejected when its statements (questions
+  aside) are only filler words ("Ooh, bold!", "Well, well, well.") (`kit_guards.check_not_canned`).
+  A bare laugh or gasp before a real question is a whole beat ("Ha! Are you sure?", "Wow. How do you
+  want to do that?"). A line Kit already used is caught by the recycled-line check.
+- **What counts as a check request.** The PC asking for themselves ("Can I roll…?", "Do I need to
+  make a check?", "Can I make a saving throw?"). It is never an NPC asked to do something ("Dealer,
+  can you check my hand?") and never "save" as a verb ("Can I save him?").
 
 Tests: `tests/test_kit_short_beats.py`.

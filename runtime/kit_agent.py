@@ -194,8 +194,11 @@ MOVE_THROUGH = re.compile(
 # The player asking for a check (watchroom T1/T3): Kit decides whether one applies and which
 # (Brendon: the player never picks the skill and never rolls first). Never a social declaration.
 CHECK_REQUEST = re.compile(
-    r"\b(?:can|could|may|do|should|shall|would|might|must)\s+(?:i|we|he|she|they|[a-z]+)\s+"
-    r"(?:\w+\s+){0,4}?(?:roll|rolls|check|checks|save|test)\b[^?]*\?"
+    # The PC asks for themselves ("Can I roll...", "Should we check..."): never an NPC asked to
+    # do something ("Dealer, can you check my hand?"); a save is the noun ("make a save"), never
+    # the verb ("Can I save him?").
+    r"\b(?:can|could|may|do|should|shall|would|might|must)\s+(?:i|we)\s+"
+    r"(?:\w+\s+){0,4}?(?:roll|rolls|check|checks|test|(?:a|an|the|my|\w+ing)\s+(?:\w+\s+)?save|saving throw)\b[^?]*\?"
     r"|\b(?:is|would) (?:that|this|there) (?:a|an) (?:\w+\s+)?(?:check|roll)\b[^?]*\?"
     r"|\bdo i (?:need|get|have) (?:to )?(?:make |roll )?(?:a|an) (?:\w+\s+)?(?:check|roll)\b", re.I)
 CHECK_REQUEST_PREFIX = 'You ask for a check: '
@@ -214,10 +217,23 @@ HELD_RULE = (
     'Kit opened this turn on a check; the roll is in. Deliver the held description now, in full and '
     'not another call: what anyone would notice always lands, and the roll scales the rest (a high '
     'roll adds what the check found, per accepted_public_event; a low one gets the plain view).')
+HELD_NO_ROLL_RULE = (
+    'Kit opened last turn on a check and the player did not roll. The held description is still owed: '
+    'deliver it now, in full, as the plain view (what anyone would notice), and answer this move too. '
+    'No new check call until it is delivered.')
+# The held description is delivered when the narration shows at least this many of the held
+# area's own visible things (fixture-free: the cue words come from the room's facts).
+HELD_CUES_NEEDED = 2
+_CUE_STOP = frozenset('''about above after again along also around away back been before behind being below
+beside between beyond both down each from have here into just like more most near none only other over
+past same some someone something still such than that their them then there these they this those
+through under very what when where which while with within without would your stands sits hangs lies
+over over'''.split())
 SHORT_BEAT_LINE = ('A short beat is a whole turn: one real reaction plus a narrowing question or an '
                    '"are you sure?" before a risky act (ask_clarification, scope call). Do not pad it.')
 STALL_LINE = ('Heavy turn: you may open on just a fitting check call (scope call, roll_call set, a sheet '
-              'skill); the engine holds the description for the roll. Not while a due hook must land.')
+              'skill); the engine holds the description for the roll. Only an earned check: would you call '
+              'it if the answer were instant? If not, describe now. Not while a due hook must land.')
 
 
 def stall_check(plan, action_kind):
@@ -238,9 +254,37 @@ def check_short_beat(plan, body, state):
         require(not body.get('story_due'),
                 'A due hook lands this turn; do not stall it behind a check')
     if body.get('held_description'):
-        require(plan['public_brief']['scope'] != 'call',
-                'The held description is due now: the roll is in, so describe (feature or exchange), '
-                'scaled to the result; not another call')
+        require(plan['public_brief']['scope'] == 'feature',
+                'The held description is due now: describe the place in full (feature scope), '
+                'scaled to the roll; not another call')
+        require(not plan.get('roll_call'),
+                'A held description is owed; deliver it before calling another check')
+
+
+def held_cues(source, state, area, threshold=None):
+    """The held area's own visible things, as cue words: the room's visible facts there (and
+    through a threshold the check looked across), its name, and who is there."""
+    areas = {area}
+    if threshold:
+        areas |= set(((source.get('exits') or {}).get(threshold) or {}).get('areas') or ())
+    texts = [fact.get('text') or '' for fact in (source.get('facts') or {}).values()
+             if fact.get('area') in areas and fact.get('visible')]
+    texts += [(source.get('areas') or {}).get(key, {}).get('name') or '' for key in areas]
+    texts += [actor.get('name') or '' for actor in (state.get('actors') or {}).values()
+              if actor.get('location') in areas and actor.get('visible', True)]
+    words = {w for text in texts for w in re.findall(r"[a-z]{4,}", text.casefold()) if w not in _CUE_STOP}
+    return sorted(words)
+
+
+def check_held_delivered(held, spoken):
+    """HARD: the turn a held description is due actually describes the held place."""
+    if not held:
+        return
+    text = spoken.casefold()
+    found = [cue for cue in held.get('cues') or () if re.search(r'\b' + re.escape(cue[:-1] if len(cue) > 5 else cue), text)]
+    require(len(found) >= min(HELD_CUES_NEEDED, len(held.get('cues') or ())),
+            f"The held {held['kind']} description is due: describe the place itself (what anyone there "
+            f"would notice: e.g. {', '.join((held.get('cues') or [])[:6])}), not just this move")
 
 
 def roll_total(action):
@@ -2721,7 +2765,14 @@ def turn_events(runtime, body, plan, turn_id, record=None):
         # A check called on a look through a threshold keeps that view for the roll (watchroom T2).
         pending = {**pending, 'check': {**pending['check'], 'threshold': looked}}
     if pending and pending.get('check') and stall_check(plan, body.get('kind')):
-        pending = {**pending, 'check': {**pending['check'], 'held': {'kind': body['kind']}}}
+        # The room the description is of: where the PC stands once this turn lands.
+        area = runtime.preview_state(runtime.load()[0], body.get('events') or [])['area']
+        pending = {**pending, 'check': {**pending['check'], 'held': {'kind': body['kind'], 'area': area}}}
+    if body.get('held_description') and not pending and \
+            not any(e.get('type') == 'pending_check' for e in list(body.get('events') or []) + events):
+        # Delivered: the held obligation is discharged with this turn.
+        events.append({'type': 'pending_check', 'check': None,
+                       'evidence': f"The held {body['held_description']['kind']} description is delivered."})
     if pending and not any(event.get('type') == 'pending_check' for event in events):  # a held exit wins
         events.append(pending)
     if plan.get('claims'):
@@ -3116,12 +3167,17 @@ def prepare_inputs(runtime, revision, state, action, resolution, use_memory, one
         view = kit_brief.threshold_view(source, post_event_state, looked)
         if view:
             planning_input['threshold_view'] = view
-    held = (state.get('pending_check') or {}).get('held')
-    if held and not table_talk and any(e.get('type') == 'pending_check' and e.get('check') is None
-                                       for e in resolution.events):
+    pending_now = state.get('pending_check') or {}
+    held = pending_now.get('held')
+    if held and not table_talk and held.get('area', state.get('area')) == post_event_state.get('area'):
         # Private: the description Kit held for this roll, delivered now, scaled to the result.
+        # No roll this turn: it is still owed, as the plain view (the obligation persists).
+        rolled = any(e.get('type') == 'pending_check' and e.get('check') is None for e in resolution.events)
         body['held_description'] = planning_input['held_description'] = {
-            'kind': held['kind'], 'roll': roll_total(action), 'rule': HELD_RULE}
+            'kind': held['kind'], 'roll': roll_total(action) if rolled else None,
+            'rule': HELD_RULE if rolled else HELD_NO_ROLL_RULE,
+            'cues': held_cues(source, post_event_state, held.get('area', state.get('area')),
+                              pending_now.get('threshold'))}
     threads = kit_threads.view(post_event_state, kit_rooms.stage(source, post_event_state) == 'resolution')
     if threads and not table_talk:
         planning_input['open_threads'] = threads
@@ -3504,6 +3560,7 @@ def checked_record(body, plan, speech, performance_variant, source=None, degrade
                           public_event=public_event)
     spoken, warnings = result if degraded else (result, [])
     kit_agenda.check_carriers_spoken(spoken, plan)
+    check_held_delivered(body.get('held_description'), spoken)
     if body.get('story_due') and not ask:
         # An undelivered primary hook is overdue: its NPC raises it now (runtime/kit_brief.py).
         kit_brief.check_raised(body['story_due'], source, {'area': body['story_area']}, spoken)
