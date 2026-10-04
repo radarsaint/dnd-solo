@@ -113,7 +113,7 @@ A ZIP uploaded to GPT Knowledge or a ChatGPT Project is a pinned build. It does 
    This includes only committed files, so no local `.sqlite` games or secrets go in. Record the full commit SHA beside the uploaded build. Rebuild and upload a new commit-stamped ZIP whenever you want friends on a newer version.
 2. Open ChatGPT → **Explore GPTs** → **Create** → the **Configure** tab.
 3. Paste in the Name, Description, Instructions and Conversation starters from sections 1–4 above.
-4. Under **Knowledge**, upload the commit-stamped runtime ZIP **and** `docs/personality/dm-personality-core.md` as a standalone file. Under **Capabilities**, set the options in section 5.
+4. Under **Knowledge**, upload the commit-stamped runtime ZIP **and** `docs/personality/dm-personality-core.md` as a standalone file. For BFDM visual-runtime testing, also make `bfdm-style-reference-pack-v1.zip` available to the chat/project; Kit hydrates it with `scripts/import_style_reference_pack.py` before using the selected reference files. Under **Capabilities**, set the options in section 5.
 5. Test it in the **Preview** pane: click "Start a new game with the example character". Kit should describe the room without showing JSON. If you see a Python error about the zip, delete it in Knowledge and upload it again.
 6. Click **Create** (or **Update**). Under **Share**, choose **Anyone with the link**, not the GPT Store. Copy the link.
 7. Send friends the link and three lines:
