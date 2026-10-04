@@ -23,6 +23,7 @@ from . import kit_brief
 from . import kit_cards
 from . import kit_combat
 from . import kit_rolls
+from . import kit_triggers
 from . import kit_claims
 from . import kit_manifest
 from . import kit_router
@@ -64,6 +65,7 @@ class Resolution:
     kind: str
     public_event: str
     events: list
+    handoff: dict = None  # telemetry seam (kit_triggers.handoff_trace): what took the floor and why
 
 
 # The accepted event is bounded at 500 characters (check_plan; card turns use
@@ -349,7 +351,8 @@ GESTURE = re.compile(
 # something moves toward ("move my chair closer to the tub").
 def _feature_moved(nouns):
     return re.compile(r"\b(?:tip|tips|overturn|overturns|flip|flips|lift|lifts|move|moves|push|pushes|shove|"
-                      r"shoves|tilt|tilts|drag|drags|roll|rolls)\s+(?:(?!(?:to|toward|towards|near|by|beside|"
+                      r"shoves|tilt|tilts|drag|drags|roll|rolls|prod|prods|poke|pokes|nudge|nudges|kick|kicks|"
+                      r"heave|heaves|tug|tugs)\s+(?:(?!(?:to|toward|towards|near|by|beside|"
                       r"next|closer|over|up|against|from|into|onto)\b)[\w'-]+\s+){0,3}(?:" + nouns + r")\b")
 
 
@@ -626,7 +629,43 @@ class RoomAdjudicator:
                                                self.npc_roll)
             if hidden:
                 result = dataclasses.replace(result, events=list(result.events) + hidden)
+        if (self.source or {}).get('triggers'):
+            fired = kit_triggers.matching(self.source, state, result, action)
+            if fired:
+                result = self._spring(result, *fired, action, revision, state)
         return result
+
+    def _spring(self, result, trigger, area, action, revision, state):
+        """A room trigger fires on this resolution (runtime/kit_triggers.py): its hidden actors
+        show themselves and, with ``starts_combat``, the fight starts without the PC attacking."""
+        after = copy.deepcopy(state)
+        after['area'] = area
+        for event in result.events:
+            if event.get('type') == 'combat_state':
+                after['combat'] = copy.deepcopy(event['state'])
+        kind, target = next(iter(trigger['on'].items()))
+        event = {'type': 'trigger_fired', 'trigger': trigger['id'],
+                 'evidence': f'Player declared: {action[:300]}. Room trigger {trigger["id"]}: the PC '
+                             f'{"disturbed " + target if kind == "disturb" else "entered " + target}.'}
+        kit_triggers.apply_event(after, self.source, event)
+        try:
+            _, passive = self._pc_numbers('perception', after, '')
+        except PendingRuling:
+            passive = None
+        surprised, trace = kit_triggers.pc_surprised(self.source, state, revision, trigger,
+                                                     10 if passive is None else passive, self.npc_roll)
+        event['evidence'] += f' {trace}.'
+        events, public, kind_now = list(result.events) + [event], result.public_event, result.kind
+        if trigger.get('starts_combat', True) and kit_combat.config(self.source):
+            fight = kit_combat.Fight(self.source, after, revision, action, check=None, roll=self.roll)
+            fight.start_by_trigger(trigger, surprised, trace)
+            events = [e for e in events if e.get('type') not in ('combat_state', 'scene_state')] + fight.events()
+            public = f'{public} {fight.public()}'.strip()
+            kind_now = 'combat_round'
+        elif trigger.get('reveal'):
+            public = f"{public} {trigger['reveal']}".strip()
+        return dataclasses.replace(result, kind=kind_now, public_event=public, events=events,
+                                   handoff=kit_triggers.handoff_trace(trigger, surprised))
 
     def _pc_score(self, skill, action, state):
         """The PC's number against an NPC's hidden check: their stated roll in that skill, else
@@ -649,6 +688,12 @@ class RoomAdjudicator:
         # A physical act changes the world (attacks, grabs, a flipped table, coins taken, paint
         # wiped off): it is resolved before any talk, toll, or card reading of the same words.
         # While a fight waits on initiative or runs, a reported initiative total routes here too.
+        awaiting = (state.get('combat') or {}).get('awaiting') or {}
+        if awaiting.get('kind') == 'roll_call' and not is_ooc(action) and \
+                kit_combat.save_total(action, awaiting['save']) is None:
+            # A monster's save rider waits on the player's own roll (Avrae) before anything else.
+            raise PendingRuling(f"{kit_combat.save_prompt(awaiting)[:-1]} in Avrae first "
+                                f"(!save {awaiting['save']}). No turn was committed.")
         if not is_ooc(action) and kit_combat.config(self.source) and asked_away(narration).strip():
             physical = self._resolve_physical(action if asked_away(narration) == narration else
                                               asked_away(narration), revision, state)
@@ -934,7 +979,8 @@ class RoomAdjudicator:
         act = kit_combat.parse(action, self.source, state)
         current = state.get('combat') or {}
         fighting = current.get('status') in ('awaiting_initiative', 'running')
-        if not act and not (fighting and kit_rolls.initiative(action) is not None):
+        owed = (current.get('awaiting') or {}).get('kind') == 'roll_call'
+        if not act and not (fighting and (kit_rolls.initiative(action) is not None or owed)):
             return None
         if act and act['kind'] == 'grab' and act.get('wrist'):
             table = card_procedure(self.source, state)
@@ -1003,7 +1049,7 @@ class RoomAdjudicator:
 
     def _present_actors(self, state):
         return {key: actor for key, actor in (state.get('actors') or {}).items()
-                if actor.get('location') == state['area'] and actor.get('status') not in ('fled', 'dead')}
+                if actor.get('location') == state['area'] and actor.get('status') not in ('fled', 'dead', 'hidden')}
 
     BLOCKERS_UNABLE = ('asleep', 'unconscious', 'restrained', 'bound', 'paralyzed', 'stunned')
 
@@ -3449,7 +3495,9 @@ def turn_speakers(runtime, body):
     heard = {key: sound for key, sound in {**kit_brief.heard_here(source, before),
                                            **kit_brief.heard_here(source, after)}.items()
              if where(key) not in areas}
-    here = [label for key, label in labels.items() if key not in heard and where(key) in areas | {None}]
+    hidden = {key for key, actor in (after.get('actors') or {}).items() if actor.get('status') == 'hidden'}
+    here = [label for key, label in labels.items()
+            if key not in heard and key not in hidden and where(key) in areas | {None}]
     out = {'speakers': list(dict.fromkeys(NON_NPC_SPEAKERS + tuple(here)))}
     if heard:
         out['heard'] = [{'speaker': labels.get(key, key), 'heard': sound} for key, sound in heard.items()]

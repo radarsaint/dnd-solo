@@ -23,6 +23,13 @@ CREATURES = {
              'attacks': [_ATTACK('mace', 'clubs', 4, 5, 'bludgeoning'), _ATTACK('mace', 'clubs', 4, 5, 'bludgeoning')]},
     'veteran': {'ac': 17, 'hp': 58, 'initiative': 1, 'grapple': 5, 'saves': {},
                 'attacks': [_ATTACK('longsword', 'cuts', 5, 7, 'slashing'), _ATTACK('longsword', 'cuts', 5, 7, 'slashing')]},
+    # SRD 5.1 Giant Centipede: Bite +4, 4 (1d4+2) piercing, and a DC 11 Constitution save or
+    # 10 (3d6) poison (no damage on a success). Poison that drops the target to 0 hp leaves it
+    # stable but poisoned for 1 hour, paralyzed while poisoned. No Stealth listed: Dex +2.
+    'giant centipede': {'ac': 13, 'hp': 4, 'initiative': 2, 'grapple': -3, 'saves': {}, 'stealth': 2,
+                        'attacks': [{**_ATTACK('bite', 'bites', 4, 4, 'piercing'),
+                                     'save': {'ability': 'con', 'dc': 11, 'damage': 10, 'type': 'poison',
+                                              'half': False, 'at_zero': ['poisoned', 'paralyzed']}}]},
 }
 
 INLINE_KEYS = ('ac', 'hp', 'attacks')

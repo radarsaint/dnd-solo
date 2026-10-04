@@ -155,7 +155,7 @@ def canon_in_scope(state):
     area = state['area']
     scene = current_scene(state)
     present = {key for key, actor in state.get('actors', {}).items()
-               if actor.get('location') == area and actor.get('status') != 'fled'}
+               if actor.get('location') == area and actor.get('status') not in ('fled', 'hidden')}
     kept = {}
     for slot, entry in (state.get('canon') or {}).items():
         scope, subject = entry.get('scope'), slot.split('/')[0]
@@ -737,6 +737,9 @@ class Runtime:
                 require(status == 'fled' and isinstance(toward, str) and re.match(r'^area_[0-9a-z_]+$', toward),
                         'Only a fleeing actor heads toward an area (e.g. area_07)')
                 actor['fled_toward'] = toward
+        elif kind == 'trigger_fired':
+            from . import kit_triggers
+            kit_triggers.apply_event(state, source, event)
         elif kind == 'spend_resource':
             key, amount = event.get('resource'), event.get('amount')
             require(key in state['resources'], 'Unknown resource')
@@ -981,8 +984,8 @@ class Runtime:
         tolls = kit_toll.public_view(source, state) if source.get('tolls') else {}
         if tolls:
             view['tolls'] = tolls
-        if source.get('combat') and (state.get('combat') or state.get('scene')):
-            from . import kit_combat
+        from . import kit_combat
+        if kit_combat.config(source) and (state.get('combat') or state.get('scene')):
             view.update(kit_combat.public_view(source, state))
         return view
 
