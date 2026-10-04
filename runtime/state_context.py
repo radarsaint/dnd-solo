@@ -465,7 +465,12 @@ class Runtime:
                 room.setdefault('turns_in', {})[acted_in] = room.get('turns_in', {}).get(acted_in, 0) + 1
             if not any(event.get('type') == 'pending_check' for event in events) and \
                     any(event.get('type') not in BOOKKEEPING_EVENTS for event in events):
-                state.pop('pending_check', None)  # a called check lasts one player turn
+                held = (state.get('pending_check') or {}).get('held')
+                if not (held and held.get('area', acted_in) == state['area']):
+                    # A called check lasts one player turn. A held description is an obligation:
+                    # it stays until delivered, and only for the room it describes (leaving
+                    # that room lapses it, so it never lands in the wrong place).
+                    state.pop('pending_check', None)
             next_revision = revision + 1
             if kit_record is not None:
                 kit = state['kit']
@@ -856,7 +861,8 @@ class Runtime:
                                       ('dc_adjust' not in check or (type(check['dc_adjust']) is int and
                                                                     -5 <= check['dc_adjust'] <= 5)) and
                                       ('held' not in check or (isinstance(check['held'], dict) and
-                                                               set(check['held']) == {'kind'} and
+                                                               set(check['held']) - {'area'} == {'kind'} and
+                                                               check['held'].get('area', state['area']) in source['areas'] and
                                                                check['held']['kind'] in HELD_KINDS)) and
                                       ('reason' not in check or (isinstance(check['reason'], str) and
                                                                  len(check['reason']) <= 200)) and
