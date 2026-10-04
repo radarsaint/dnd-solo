@@ -7,7 +7,7 @@ import json
 import unittest
 
 from runtime import kit_agent, kit_detail, kit_voice
-from runtime.kit_agent import check_scope, actor_speakers
+from runtime.kit_agent import check_scope, ceiling_note, actor_speakers
 from runtime.state_context import InvalidChange
 from test_kit_watchroom_stalls import Stalls, landing
 
@@ -102,9 +102,14 @@ class Ceilings(Stalls):
         return {'speaker': speaker, 'text': words(n, word)}
 
     def test_an_exchange_s_narration_has_a_ceiling(self):
-        with self.assertRaisesRegex(InvalidChange, 'ceiling'):
-            check_scope([self.seg('Narrator', 95), self.seg('Watch warden', 5)], self.plan('exchange', 'warden'),
-                        self.guards())
+        segments = [self.seg('Narrator', 95), self.seg('Watch warden', 5)]
+        check_scope(segments, self.plan('exchange', 'warden'), self.guards())  # advisory: never a reject
+        self.assertIn('ceiling', ceiling_note(segments, self.plan('exchange', 'warden'), self.guards()))
+
+    def test_kit_s_remarks_after_the_first_count_outside_showtime(self):
+        segments = [self.seg('Narrator', 50), self.seg('Watch warden', 10), self.seg('Kit', 10), self.seg('Kit', 45)]
+        self.assertIn('ceiling', ceiling_note(segments, self.plan('exchange', 'warden'), self.guards()))
+        self.assertIsNone(ceiling_note(segments[:3], self.plan('exchange', 'warden'), self.guards()))
 
     def test_the_focus_actor_s_move_is_never_counted(self):
         check_scope([self.seg('Narrator', 40), self.seg('Watch warden', 120)], self.plan('exchange', 'warden'),
@@ -126,8 +131,9 @@ class Ceilings(Stalls):
         check_scope(segments, self.plan('feature', detail=detail), self.guards())
 
     def test_a_feature_s_narration_has_a_ceiling(self):
-        with self.assertRaisesRegex(InvalidChange, 'ceiling'):
-            check_scope([self.seg('Narrator', 100), self.seg('Narrator', 60)], self.plan('feature'), self.guards())
+        segments = [self.seg('Narrator', 100), self.seg('Narrator', 60)]
+        check_scope(segments, self.plan('feature'), self.guards())
+        self.assertIn('ceiling', ceiling_note(segments, self.plan('feature'), self.guards()))
 
     def test_the_floors_stay(self):
         with self.assertRaisesRegex(InvalidChange, 'flat'):
@@ -135,6 +141,26 @@ class Ceilings(Stalls):
 
     def test_the_ceilings_are_in_the_packet(self):
         self.assertIn('ceiling', kit_agent.performance_limits())
+
+
+class CeilingsAreAdvisory(Stalls):
+    """Nagatha's #95 review: the ceilings said soft but rejected outside degraded mode."""
+
+    EXTRA = ('Far below, a cart rattles over cobbles and fades, and somewhere a dog answers it twice before '
+             'the night swallows both. Cold air climbs the stair behind you and tugs at your sleeve, smelling '
+             'of river mud, wet rope and smoke from a chimney you cannot see, while a moth knocks softly '
+             'against the warm glass of a lantern hung somewhere above the turn of the stair.')
+
+    def test_an_over_ceiling_turn_commits_with_a_note(self):
+        packet = self.bridge.prepare(opening=True, one_pass=True)
+        plan = self.plan_for(packet)
+        plan['public_brief'].update(reply_to='none', scope='feature')
+        speech = landing()
+        speech['segments'].append({'speaker': 'Narrator', 'text': self.EXTRA})
+        result = self.bridge.complete(packet['turn_id'], {'decision': plan, 'performance': speech})
+        self.assertTrue(result['spoken'])
+        record = self.runtime.committed_kit_turn(packet['turn_id'])
+        self.assertIn('ceiling', record['over_ceiling'])
 
 
 class OneKitRemarkUnlessPlayful(unittest.TestCase):

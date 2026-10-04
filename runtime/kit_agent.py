@@ -1810,8 +1810,9 @@ EXCHANGE_MIN_ACTOR_WORDS = 30  # the selected actor's own speech (voiced actors 
 EXCHANGE_MIN_SEGMENTS = 2    # an embodied beat or second reactor, not one speech alone
 FEATURE_MIN_WORDS = 80       # scene entry or scene-turning moment
 FEATURE_MIN_SEGMENTS = 2
-# Speech ceilings (plan update #3, PR3 d). "Roomy" means the ceiling, not unlimited. They count
-# only what can be cut: narration and any second NPC. Never counted, so never shortened: the
+# Speech ceilings (plan update #3, PR3 d). "Roomy" means the ceiling, not unlimited. Advisory:
+# over one is noted on the record (over_ceiling), never rejected. They count only what can be
+# cut: narration, any second NPC, and Kit's remarks after her first. Never counted, so never shortened: the
 # focus actor's move, a due hook's raiser, the chosen detail's fact, and Kit's single reaction.
 EXCHANGE_MAX_WORDS = 90
 FEATURE_MAX_WORDS = 150
@@ -1831,8 +1832,10 @@ def performance_limits(scope=None):
                      f'{EXCHANGE_MIN_SEGMENTS} segments (e.g. a visible beat plus the actor).'),
         'feature': (f'At least {FEATURE_MIN_WORDS} words across non-Kit segments in at least '
                     f'{FEATURE_MIN_SEGMENTS} segments.'),
-        'ceiling': (f'Narration and any second NPC stay within {EXCHANGE_MAX_WORDS} words in an exchange and '
-                    f'{FEATURE_MAX_WORDS} in a feature (a call stays within {CALL_MAX_WORDS} words in all). '
+        'ceiling': (f'Narration, any second NPC and any Kit remark after the first aim for {EXCHANGE_MAX_WORDS} '
+                    f'words at most in an exchange and {FEATURE_MAX_WORDS} in a feature. That is advisory: going '
+                    'over is noted, not rejected. A call stays within '
+                    f'{CALL_MAX_WORDS} words in all, and that is hard. '
                     'The focus actor\'s move, a due hook, the chosen detail and Kit\'s one reaction are never '
                     'counted, so never cut them. One NPC speaks unless a second changes the outcome; '
                     'one Kit remark unless the player is playful.'),
@@ -2557,29 +2560,44 @@ def check_scope(segments, plan, guards=None):
                 f'Exchange scope was flat ({performed_words} performed words in {len(segments)} '
                 f'segments; floor {EXCHANGE_MIN_WORDS} words in {EXCHANGE_MIN_SEGMENTS}). Add the '
                 'visible beat or reaction the brief calls for; a price or fact alone is not an exchange.')
-        check_ceiling(segments, plan, guards, EXCHANGE_MAX_WORDS)
         return
     require(performed_words >= FEATURE_MIN_WORDS and len(segments) >= FEATURE_MIN_SEGMENTS,
             f'Feature scope was flat ({performed_words} performed words in {len(segments)} '
             f'segments; floor {FEATURE_MIN_WORDS} words in {FEATURE_MIN_SEGMENTS}). Put people '
             'and pressure in motion, then stop at a player decision.')
-    check_ceiling(segments, plan, guards or {}, FEATURE_MAX_WORDS)
+
+
+CEILINGS = {'exchange': 'EXCHANGE_MAX_WORDS', 'feature': 'FEATURE_MAX_WORDS'}
+
+
+def ceiling_note(segments, plan, guards=None):
+    """Advisory, never a rejection (Nagatha's #95 review). Checks that the cuttable words
+    stay under the scope's ceiling. Over it, the committed record carries the note, and
+    replays and reviews count it. Call scope has its own hard cap."""
+    name = CEILINGS.get(plan['public_brief']['scope'])
+    if not name:
+        return None
+    try:
+        check_ceiling(segments, plan, guards or {}, globals()[name])
+    except InvalidChange as exc:
+        return str(exc)
+    return None
 
 
 def check_ceiling(segments, plan, guards, ceiling):
-    """SOFT: what can be cut stays under the scope's ceiling. The protected parts are never
-    counted: the focus actor, a due hook's raiser, the chosen detail's fact, and Kit (one
-    reaction; under showtime her first segment)."""
+    """What can be cut stays under the scope's ceiling (raises; ceiling_note makes it a note).
+    The protected parts are never counted: the focus actor, a due hook's raiser, the chosen
+    detail's fact, and Kit's first segment (her one reaction). Every Kit segment after the
+    first counts, in showtime or not."""
     focus = focus_speaker(plan, guards['speakers']) if 'speakers' in guards else None
     protected = {focus} | set(guards.get('raisers') or ())
     facts = [_normalized(item['fact']) for item in kit_detail.public_inventions(plan.get('detail') or {})]
-    showtime = plan.get('table_presence') == 'showtime'
     kit_seen = 0
     words = 0
     for segment in segments:
         if segment['speaker'] == 'Kit':
             kit_seen += 1
-            if not showtime or kit_seen == 1:
+            if kit_seen == 1:
                 continue
         elif segment['speaker'] in protected:
             continue
@@ -3626,6 +3644,9 @@ def checked_record(body, plan, speech, performance_variant, source=None, degrade
         record['kit_reacts_to'] = asides
     if warnings:
         record.update(degraded=True, soft_warnings=warnings)
+    note = ceiling_note(speech['segments'], plan, guard_context(source, body))
+    if note:
+        record['over_ceiling'] = note  # advisory: the turn commits; reviews count it
     return record
 
 
