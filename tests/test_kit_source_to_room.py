@@ -267,6 +267,43 @@ class PartsAndHeldItems(unittest.TestCase):
         self.assertFalse(any('graspable' in e or 'handling.holds' in e for e in errors), errors)
 
 
+class Layers(unittest.TestCase):
+    """Progressive reveal (#101) reads "layer" on facts: the authoring rules carry it, and the way on,
+    the exits and anything a trigger or a held item hangs on are always obvious."""
+
+    def inputs(self):
+        return kit_author.area_inputs(book(), '3')
+
+    def test_the_packet_carries_the_layer_rule_and_field(self):
+        packet = kit_author.packet(book(), '3')
+        self.assertIn(kit_author.LAYER_RULE, packet['hard_rules'])
+        self.assertIn('layer?', packet['schema']['required']['facts'])
+
+    def test_a_detail_layer_on_the_way_on_or_a_triggered_feature_is_refused(self):
+        room = lair_room()
+        room['facts']['webbing']['layer'] = 'detail'
+        self.assertEqual(kit_author.validate(room, self.inputs())['errors'], [])
+        room['facts']['rubble']['layer'] = 'detail'       # holds the pouch: it invites a decision
+        room['facts']['slope'] = {'area': 'loft', 'visible': True, 'layer': 'detail',
+                                  'text': 'The rubble slope drops back down to the foot of the loft.'}
+        errors = kit_author.validate(room, self.inputs())['errors']
+        self.assertTrue(any('fact rubble' in e and 'obvious' in e for e in errors), errors)
+        self.assertTrue(any('fact slope' in e and 'way on' in e for e in errors), errors)
+        room = lair_room()
+        room['facts']['webbing']['layer'] = 'hidden'
+        self.assertTrue(any('layer must be obvious or detail' in e
+                            for e in kit_author.validate(room, self.inputs())['errors']))
+
+    def test_an_id_that_is_also_a_damage_type_is_not_a_way_on(self):
+        room = lair_room()
+        room['facts']['fire'] = {'area': 'loft', 'visible': True, 'layer': 'detail',
+                                 'text': 'A small fire smoulders in a niche.'}
+        room['actors']['centipede_a']['stat_block'] = {'ac': 13, 'hp': 4, 'attacks': [
+            {'name': 'bite', 'to_hit': 4, 'damage': 4, 'type': 'fire'}]}
+        errors = kit_author.validate(room, self.inputs())['errors']
+        self.assertFalse(any('fact fire' in e for e in errors), errors)
+
+
 class CacheAndLinks(Session):
     def test_re_entry_hits_the_cache_and_a_changed_source_misses_it(self):
         self.assertEqual(self.session.request(book(), '3', self.db)['stage'], 'author_room')

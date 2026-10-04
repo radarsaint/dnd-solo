@@ -130,3 +130,12 @@ Options: `--cache DIR`, `--source PATH`, `--map-index`, `--ledger`, `--pretty`.
    (`by`), and a hidden actor cannot raise one. Such rooms use `purposes` and the tease without
    `points_to`.
 5. No same-pass authoring (above); no per-stage partial authoring (the whole area is one room file).
+
+### Layers (progressive reveal)
+
+A visible fact may carry `"layer": "obvious"` or `"layer": "detail"` (the authoring packet's `LAYER_RULE`).
+The first look into an area gives the obvious layer and holds the detail layer until the player looks there
+(#101, `kit_reveal`). The validator refuses `detail` on a fact a trigger fires on or that holds an item, and
+on a fact that describes the way on (it shares two or more content words, area names aside, with that area's
+exit names and labels). Ids are never matched as words, so a fact called `fire` is not "named" by a fire
+damage type. Leaving `layer` out is fine: the engine works it out from the room data.

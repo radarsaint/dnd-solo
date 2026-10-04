@@ -52,6 +52,12 @@ PARTS_RULE = (
     'lid, the hand...], "holds": "<fact id>"}, and the held item is its own fact (hidden allowed: "visible": '
     'false). Then "I pry the claw open" or "I take the orb from the claw" disturbs that feature and fires its '
     'trigger; the item comes into view when it is handled.')
+LAYER_RULE = (
+    'Progressive reveal: a visible fact may carry "layer": "obvious" (what the PC takes in at first look and '
+    'decides on: who is here, the way on, what invites a decision) or "detail" (visible, held until the player '
+    'looks there). The way on and the exits are always obvious, and so is a fact a trigger or a held item hangs '
+    'on; leave "layer" out when unsure (the engine works it out from the room data).')
+LAYERS = ('obvious', 'detail')
 # Words that name a graspable part of a feature ("the basilisk's claw", "the coffin's lid").
 PART_WORDS = ('claw', 'claws', 'talon', 'talons', 'hand', 'hands', 'fist', 'jaw', 'jaws', 'mouth', 'paw', 'paws',
               'foreleg', 'wing', 'lid', 'drawer', 'handle', 'hilt', 'strap', 'clasp', 'latch', 'chain', 'hook')
@@ -77,6 +83,7 @@ HARD_RULES = [
     'Next areas: an outside area joined to a named neighbour carries "room_link": {"author": {"level", "area"}} '
     'so the next room is authored on demand, not invented.',
     PARTS_RULE,
+    LAYER_RULE,
 ]
 ROOM_SCHEMA = {
     'format': 'docs/architecture/ROOM_LOADER.md section 2 (the loader refuses anything else)',
@@ -84,7 +91,7 @@ ROOM_SCHEMA = {
                  'areas': '{id: {name, called, source_area, outside?, beyond?, arrival?, tease? (approach), room_link?}}',
                  'exits': '{id: {name, areas: [a, b], secret, labels: {a: text, b: text}, go_text?}}',
                  'facts': '{id: {area, text, visible, handling?: {nouns, parts?, look?, move?, enter?, handle?, '
-                          'holds?}, alarm?}}',
+                          'holds?}, alarm?, layer? (obvious|detail)}}',
                  'actors': '{id: {name, location, status (alive|hidden), visible, motive, knowledge, secrets, '
                            'communication_profile: {rhythm, humor}, stat_block?, guards?, armed?}}'},
     'optional': ['story (about, purposes, hooks with by/primary/within_beats/delivered_when, endings)', 'claims',
@@ -336,6 +343,7 @@ def authoring_problems(room, inputs):
             problems.append(f'{where} names a hidden actor ({", ".join(leaked)}): hidden actors stay dm_only '
                             'until their trigger fires')
     problems += held_and_part_problems(room)
+    problems += layer_problems(room)
     book_dcs = {int(n) for n in DC_IN_TEXT.findall(keyed)}
     for path, key, value in _walk(room.get('claims') or {}):
         if key == 'dc' and type(value) is int and value not in book_dcs:
@@ -343,6 +351,61 @@ def authoring_problems(room, inputs):
                          f'({", ".join(map(str, sorted(book_dcs))) or "it gives none"}); omit dc to use the '
                          "engine's default, or use the book's")
     return problems, warns
+
+
+def _exit_words(room, area):
+    """Content words of the exits out of ``area`` (their names and that side's labels)."""
+    words = set()
+    for edge in (room.get('exits') or {}).values():
+        if not isinstance(edge, dict) or area not in (edge.get('areas') or ()):
+            continue
+        text = ' '.join([str(edge.get('name') or '')] + [str(v) for v in (edge.get('labels') or {}).values()])
+        words |= {w for w in re.findall(r"[a-z]{4,}", text.casefold())} - _LAYER_STOP
+    return words
+
+
+_LAYER_STOP = frozenset('back down into from through runs leads east west north south with that this the'.split())
+
+
+def _anchored(room):
+    """Fact ids a trigger fires on or that hold an item: always obvious. Read from those fields only, so
+    an id that is also a word elsewhere (a "fire" damage type) never counts."""
+    out = set()
+    for trigger in room.get('triggers') or ():
+        target = ((trigger or {}).get('on') or {}).get('disturb') if isinstance(trigger, dict) else None
+        if isinstance(target, str):
+            out.add(target)
+    for key, fact in (room.get('facts') or {}).items():
+        handling = fact.get('handling') if isinstance(fact, dict) else None
+        if isinstance(handling, dict) and handling.get('holds'):
+            out.add(key)
+    return out
+
+
+def layer_problems(room):
+    """``layer`` is obvious or detail; the way on and anything a trigger or a held item hangs on is never
+    held back as detail."""
+    problems = []
+    anchored = _anchored(room)
+    for key, fact in (room.get('facts') or {}).items():
+        if not isinstance(fact, dict) or fact.get('layer') is None:
+            continue
+        if fact['layer'] not in LAYERS:
+            problems.append(f'fact {key} layer must be obvious or detail')
+            continue
+        if fact['layer'] != 'detail' or not fact.get('visible'):
+            continue
+        if key in anchored:
+            problems.append(f'fact {key} is what a trigger or a held item hangs on: its layer must be obvious')
+            continue
+        own = set(re.findall(r"[a-z]{4,}", str(fact.get('text') or '').casefold()))
+        places = {w for a in (room.get('areas') or {}).values() if isinstance(a, dict)
+                  for w in re.findall(r"[a-z]{4,}", f"{a.get('name') or ''} {a.get('called') or ''}".casefold())}
+        shared = (own & _exit_words(room, fact.get('area'))) - places
+        if len(shared) >= 2:
+            problems.append(f'fact {key} describes the way on ({", ".join(sorted(shared))}): the way on and the '
+                            'exits are always obvious, so its layer must be obvious')
+    return problems
 
 
 def held_and_part_problems(room):
