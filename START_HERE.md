@@ -58,7 +58,7 @@ Open these only when `AGENTS.md`, the GPT instructions, a runtime message, or th
 <!-- reference:begin -->
 - `docs/CUSTOM_GPT_SETUP.md`: GPT setup and the paste-ready instructions
 - `docs/architecture/kit-06c-play-slice.md`: bridge procedure, commands, and retries. Its examples come from one early test room. The procedure applies to every room.
-- `docs/architecture/MANIFESTS.md`: session and room manifests, hash echo, `rehydrate`
+- `docs/architecture/MANIFESTS.md`: session and room manifests, the private nonce check, `rehydrate`
 - `docs/architecture/ROOM_LOADER.md`: how room files mount and chain
 - `docs/architecture/HOST_TIMING.md`: turn timing stamps
 - `docs/architecture/kit-claims-knowers.md` and `docs/GPT_HANDOFF_CLAIMS.md`: who knows what
