@@ -25,6 +25,7 @@ Checks validate structure, never self-rated typicality or word lists: a candidat
 builds from something established, the typical one is rejected, and the canon ledger
 makes the chosen answer stick.
 """
+import copy
 import re
 
 from . import kit_guards, kit_prices
@@ -82,8 +83,9 @@ DETAIL_SCHEMA = {
             'required': ['slot', 'kind', 'fact', 'basis', 'public', 'scope', 'procedure',
                          'change_reason']}},
     },
-    'required': ['request', 'slot', 'choice', 'candidates', 'typical', 'chosen', 'owner', 'handle',
-                 'because', 'price_quote', 'inventions'],
+    # PR3 (c): a dealt card is its draw_id plus the one fact; the rest defaults to NO_DETAIL.
+    # Candidates, owner, handle and because are written only for an override or a self detail.
+    'required': ['request', 'slot', 'choice', 'inventions'],
 }
 NO_DETAIL = {'request': 'none', 'slot': 'none', 'choice': 'none', 'candidates': [], 'typical': -1,
              'chosen': -1, 'owner': 'none', 'handle': 'none', 'because': 'none', 'price_quote': [],
@@ -256,8 +258,11 @@ def _check_owner_handle_because(detail, owners, known):
 def check_detail(detail, player_action, action_kind, source, state, supported_procedures=(),
                  established='', owners=(), oracle=None):
     """Private decision checks: structure, not self-rated quality."""
-    require(isinstance(detail, dict) and set(detail) == set(DETAIL_SCHEMA['required']),
+    require(isinstance(detail, dict) and set(DETAIL_SCHEMA['required']) <= set(detail) <=
+            set(DETAIL_SCHEMA['properties']),
             'Invalid detail: needs ' + ', '.join(DETAIL_SCHEMA['required']))
+    for key, value in NO_DETAIL.items():  # what was left out is none
+        detail.setdefault(key, copy.deepcopy(value))
     for key in ('request', 'slot', 'choice', 'owner', 'handle', 'because'):
         require(isinstance(detail[key], str) and detail[key].strip(), f'Invalid detail {key}')
     require(isinstance(detail['candidates'], list) and isinstance(detail['inventions'], list) and
@@ -311,7 +316,10 @@ def check_detail(detail, player_action, action_kind, source, state, supported_pr
                     'Candidates, when listed, number at least three')
             if detail['candidates']:
                 _check_candidates(detail, known)
-        if choice in dealt or choice == 'self' or choice.casefold().startswith(OVERRIDE_PREFIX):
+        # A dealt card carries its own handle and basis (palette data); owner/handle/because
+        # are Kit's to write only when she writes her own detail or overrides the deal.
+        written = not all(is_none(detail[key]) for key in ('owner', 'handle', 'because'))
+        if choice == 'self' or choice.casefold().startswith(OVERRIDE_PREFIX) or (choice in dealt and written):
             _check_owner_handle_because(detail, owners, known)
     # Prices: only through the precedence in kit_prices; never invented.
     quotes = [price_result(quote) for quote in detail['price_quote']]

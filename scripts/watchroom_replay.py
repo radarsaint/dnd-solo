@@ -104,6 +104,10 @@ def kit_decision(packet, turn):
     if turn.get('roll_call'):
         full['roll_call'] = {'skill': turn['roll_call'][0], 'mode': 'normal', 'target': turn['roll_call'][1],
                              'cause': {'kind': 'position', 'ref': 'none', 'roots': []}}
+    if 'player_bid' not in schema['properties']['improv_read']['required']:
+        # One line of ~160 characters: the bid, the pressure it meets, and Kit's choice (PR3 b).
+        full['improv_read']['kit_choice'] = ('Nik ' + (action[:60] or 'arrives at the door') +
+                                             '; the warden is awake; Kit lets him be a real obstacle.')[:160]
     if opening and not turn.get('stall'):
         full['public_brief']['scope'] = 'feature'
     return shape(full, schema)

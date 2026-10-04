@@ -11,17 +11,19 @@ from .state_context import require
 IMPROV_READ_SCHEMA = {
     'type': 'object', 'additionalProperties': False,
     'properties': {
-        'player_bid': {'type': 'string'},
         'story_anchor': {'type': 'string', 'enum': ['none', 'scene', 'level', 'campaign']},
         'story_basis': {'type': 'string'},
         'actor_ref': {'type': 'string'},
         'actor_basis': {'type': 'string', 'enum': ['none', 'motive', 'immediate_goal']},
-        'connection': {'type': 'string'},
-        'kit_choice': {'type': 'string'},
+        # One line (~160 characters): the bid as declared, the pressure it meets, and what Kit
+        # makes of it. Replaces player_bid + connection + kit_choice (plan update #3, PR3 b).
+        'kit_choice': {'type': 'string', 'maxLength': 320},
     },
-    'required': ['player_bid', 'story_anchor', 'story_basis', 'actor_ref', 'actor_basis',
-                 'connection', 'kit_choice'],
+    'required': ['story_anchor', 'story_basis', 'actor_ref', 'actor_basis', 'kit_choice'],
 }
+# Accepted from older hosts and kept in memory when sent; no longer asked for.
+LEGACY_READ_FIELDS = ('player_bid', 'connection')
+KIT_CHOICE_TARGET_CHARS = 160
 
 
 def discernment_candidates(dm_context):
@@ -52,9 +54,9 @@ def discernment_candidates(dm_context):
 
 
 def check_improv_read(read, candidates):
-    require(isinstance(read, dict) and set(read) == set(IMPROV_READ_SCHEMA['required']),
+    require(isinstance(read, dict) and set(read) - set(LEGACY_READ_FIELDS) == set(IMPROV_READ_SCHEMA['required']),
             'Incomplete scene discernment')
-    for field in ('player_bid', 'connection', 'kit_choice'):
+    for field in ('kit_choice',) + tuple(f for f in LEGACY_READ_FIELDS if f in read):
         value = read[field]
         require(isinstance(value, str) and 0 < len(value.strip()) <= 320,
                 f'Invalid scene discernment {field}')
