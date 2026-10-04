@@ -184,9 +184,31 @@ def _fires(trap, source, state, result, action):
     kind, target = next(iter(trap['on'].items()))
     if kind in ('step', 'enter'):
         return kit_triggers.arrived(source, state, result) == target
-    if kit_triggers.disturbed(source, state, result, action) != target:
+    if handled(source, state, result, action) != target:
         return False
     return kind == 'disturb' or bool(OPEN_WORDS.search(action or ''))
+
+
+def handled(source, state, result, action):
+    """The fact this resolution put the PC's hands on (moved, searched, entered), or None."""
+    from . import kit_triggers
+    if result.kind not in kit_triggers.FEATURE_KINDS:
+        return None
+    from .kit_agent import QUOTED_SPEECH, feature_owner, room_words  # local: kit_agent imports this module
+    words = room_words(source, state)
+    found = words.feature_in(QUOTED_SPEECH.sub(' ', action).lower()) or words.feature_in((action or '').lower())
+    # A part names its feature; an item it holds disturbs the feature holding it.
+    return feature_owner(source, found[1]) if found else None
+
+
+def handling_springs(source, state, feature, action):
+    """The armed trap Kit's declared handles on ``feature`` sets off, or None."""
+    for trap in source.get('traps') or ():
+        kind, target = next(iter(trap['on'].items()))
+        if target == feature and kind in ('disturb', 'open') and status(state, trap['id']) in ('armed', 'found') \
+                and (kind == 'disturb' or OPEN_WORDS.search(action or '')):
+            return trap
+    return None
 
 
 def matching(source, state, result, action):

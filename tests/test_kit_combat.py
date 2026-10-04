@@ -29,9 +29,10 @@ class Room:
         self.runtime.set_player_sheet(json.loads(NIK.read_text()))
         self.adjudicator = RoomAdjudicator(roll=roll, source=self.runtime.source())
 
-    def act(self, action):
+    def act(self, action, **choice):
+        """``choice``: Kit's structured read of a reply to an open reaction window (react=...)."""
         revision, state = self.runtime.load()
-        result = self.adjudicator.resolve(action, revision, state)
+        result = self.adjudicator.resolve(action, revision, state, choice=choice or None)
         self.runtime.commit(f't{revision}', revision, list(result.events))
         return result
 
@@ -118,11 +119,17 @@ class FightTests(unittest.TestCase):
         room = Room(self, roll=lambda: 2)
         room.act('I attack the dealer with my dagger. 18 to hit, 5 piercing damage.')
         room.act('Initiative 25.')
+        # The dagger engaged the dealer, so his break-away opens Nik's opportunity attack; he lets it go.
+        self.assertEqual(room.state['combat']['awaiting']['trigger'], 'leaves_reach')
+        room.act('Let him go.', react='decline')
         actors = room.state['actors']
         self.assertEqual((actors['uktarl']['status'], actors['uktarl']['fled_toward']), ('fled', 'area_07'))
         # The fourth player (initiative 14) acted before the dealer ran; it goes on its next turn.
         self.assertEqual(actors['doppelganger']['status'], 'alive')
         room.act('I hold my ground.')
+        # The fourth player swung at Nik (engaged), so its break-away is another opportunity attack window.
+        self.assertEqual(room.state['combat']['awaiting']['actor'], 'doppelganger')
+        room.act('Let it go.', react='decline')
         actors = room.state['actors']
         for key in ('bandit_a', 'bandit_b', 'doppelganger'):
             with self.subTest(actor=key):
@@ -140,7 +147,10 @@ class FightTests(unittest.TestCase):
     def test_npc_turns_hit_the_pc_and_report_the_damage_to_apply_in_avrae(self):
         room = Room(self, roll=lambda: 15)  # every NPC swing hits AC 14
         room.act('I scoop a handful of coins from the pot. [Sleight of Hand: 18]')
-        result = room.act('Initiative 1. I wait for them to make the first move.')
+        room.act('Initiative 1. I wait for them to make the first move.')
+        # The 21 beats Shield (AC 19), so only Chronal Shift is offered; Nik takes the hit.
+        self.assertEqual(room.state['combat']['awaiting']['options'], ['chronal_shift'])
+        result = room.act('No, take it.', react='decline')
         self.assertIn('damage', result.public_event)
         self.assertGreater(room.state['combat']['pc_damage'], 0)
         self.assertNotIn('to hit', result.public_event)
