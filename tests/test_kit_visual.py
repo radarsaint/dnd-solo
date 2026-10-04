@@ -107,6 +107,29 @@ class KitVisualTests(unittest.TestCase):
         self.assertEqual([c["id"] for c in candidates], ["halaster-blackcloak"])
         self.assertTrue(all("exact entity" in c["rule"] for c in candidates))
 
+    def test_visual_record_is_presentation_telemetry_not_world_state(self):
+        brief = kit_visual.prepare_visual(self.runtime, "Draw what I see.")
+        before = self.runtime.load()[0]
+        recorded = kit_visual.record_visual(
+            self.runtime, brief["visual_id"], "generated",
+            result_id="gen-test-1", reference_mode="text_only",
+            qa={"canon": "pass", "style": "needs review"},
+            notes="Synthetic visual bridge test."
+        )
+        after = self.runtime.load()[0]
+        self.assertEqual(before, after)
+        self.assertEqual(recorded["status"], "generated")
+        history = kit_visual.visual_history(self.runtime)
+        self.assertEqual(history[0]["result_id"], "gen-test-1")
+        self.assertEqual(history[0]["reference_mode"], "text_only")
+        self.assertEqual(history[0]["qa"]["canon"], "pass")
+
+    def test_visual_record_refuses_status_rewrite(self):
+        brief = kit_visual.prepare_visual(self.runtime, "Draw what I see.")
+        kit_visual.record_visual(self.runtime, brief["visual_id"], "generated")
+        with self.assertRaisesRegex(Exception, "already recorded"):
+            kit_visual.record_visual(self.runtime, brief["visual_id"], "failed")
+
     def test_explicit_mode_and_branch_override_inference(self):
         brief = kit_visual.prepare_visual(
             self.runtime, "Make this useful for the campaign.",
