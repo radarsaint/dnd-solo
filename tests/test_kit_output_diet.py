@@ -127,24 +127,17 @@ class Ceilings(Stalls):
         fact = 'the lamp oil smells a little rancid and sweet like old fat on a cold pan'
         detail = {'inventions': [{'fact': fact, 'public': True}]}
         segments = [{'speaker': 'Narrator', 'text': words(140) + ' ' + fact[0].upper() + fact[1:] + '.'},
-                    {'speaker': 'Narrator', 'text': 'What do you do?'}]
+                    self.seg('Narrator', 5)]
         check_scope(segments, self.plan('feature', detail=detail), self.guards())
 
     def test_a_feature_s_narration_has_a_ceiling(self):
-        segments = [self.seg('Narrator', 100), {'speaker': 'Narrator', 'text': words(60) + ' Your move.'}]
+        segments = [self.seg('Narrator', 100), self.seg('Narrator', 60)]
         check_scope(segments, self.plan('feature'), self.guards())
         self.assertIn('ceiling', ceiling_note(segments, self.plan('feature'), self.guards()))
 
     def test_the_floors_stay(self):
-        # PR-F: functional floors. An empty turn is flat; filler that names nothing here and never
-        # hands off fails however long it is.
         with self.assertRaisesRegex(InvalidChange, 'flat'):
-            check_scope([self.seg('Narrator', 5)], self.plan('feature'), self.guards())
-        things = kit_agent.visible_things(self.runtime.player_view())
-        with self.assertRaisesRegex(InvalidChange, 'visible things') as caught:
-            check_scope([self.seg('Narrator', 60), self.seg('Narrator', 60)], self.plan('feature'),
-                        self.guards(visible_things=things))
-        self.assertIn('hand the floor', str(caught.exception))
+            check_scope([self.seg('Narrator', 30), self.seg('Narrator', 30)], self.plan('feature'), self.guards())
 
     def test_the_ceilings_are_in_the_packet(self):
         self.assertIn('ceiling', kit_agent.performance_limits())
@@ -163,7 +156,7 @@ class CeilingsAreAdvisory(Stalls):
         plan = self.plan_for(packet)
         plan['public_brief'].update(reply_to='none', scope='feature')
         speech = landing()
-        speech['segments'].insert(1, {'speaker': 'Narrator', 'text': self.EXTRA})
+        speech['segments'].append({'speaker': 'Narrator', 'text': self.EXTRA})
         result = self.bridge.complete(packet['turn_id'], {'decision': plan, 'performance': speech})
         self.assertTrue(result['spoken'])
         record = self.runtime.committed_kit_turn(packet['turn_id'])

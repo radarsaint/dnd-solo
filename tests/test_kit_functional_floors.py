@@ -1,13 +1,20 @@
-"""PR-F: functional floors replace the raw word floors. A feature names the area's visible,
-decision-relevant things and hands the floor to the player; an exchange has the focus actor
-make a move and gives the player something to answer. A small sanity minimum stays against
-empty turns. Watchroom and 17a fixtures (no 6c); dice pinned; no model."""
-import unittest
+"""PR-F, after Nagatha's #102 review: one structural handoff rule, no word floors.
 
-from runtime import kit_agent
-from runtime.kit_agent import KitChatBridge, RoomAdjudicator
+A feature or exchange ends by handing the floor back to the player. Kit declares how in her
+decision (hands_off: question | check_call | npc_challenge | combat_prompt | none with a reason)
+and the engine checks the declaration against the structure of the speech (runtime/kit_floor.py).
+Omitted, the engine accepts what it can see. No minimum word count and no mood word lists: a
+lone "What do you do?" or "Stay down." is a whole turn; padded mood that hands nothing over is
+not. The same rule serves PR-H's progressive reveal (required=True: none is not enough).
+Synthetic non-6c rooms (grain mill, ferry house), the watchroom and the 17a stub; no model."""
+import unittest
+from pathlib import Path
+
+from runtime import kit_agent, kit_floor
+from runtime.kit_agent import KitChatBridge, RoomAdjudicator, check_scope, guard_context
 from runtime.state_context import InvalidChange
-from test_kit_room_review import STUB
+from test_kit_manifest_nonces import synthetic
+from test_kit_room_review import ROOT, STUB, WATCH
 from test_kit_watchroom_stalls import Stalls
 
 # 44 words: a pithy human-DM room opening (Brendon's harness case, rebuilt on the watchroom).
@@ -16,134 +23,156 @@ PITHY_OPENING = {'segments': [
                                     'hums the same four notes, over and over.'},
     {'speaker': 'Narrator', 'text': 'The stair keeps winding down past the door into the dark. Up here, only the '
                                     'humming and the light. What do you do?'}]}
-
-# 10 words: the terse NPC challenge from the same harness.
 TERSE_CHALLENGE = {'segments': [
     {'speaker': 'Narrator', 'text': 'His hand settles beside the bell cord.'},
     {'speaker': 'Watch warden', 'text': 'Who sent you?'}]}
 
-# Padded but empty: plenty of words, none of the room's visible things, no handoff.
-PADDED_FEATURE = {'segments': [
-    {'speaker': 'Narrator', 'text': 'Time passes slowly in a place like this, and the air feels heavy with old '
-                                    'memories, the kind that settle into the bones of travellers who have walked '
-                                    'too far from home and wondered, on long nights, whether any of it mattered.'},
-    {'speaker': 'Narrator', 'text': 'Shadows gather and thin again as the moments drift by, quiet and patient, and '
-                                    'somewhere in the deep the world goes on turning without hurry, indifferent '
-                                    'and vast, while your thoughts wander to roads behind you and roads ahead.'}]}
 
-PADDED_EXCHANGE = {'segments': [
-    {'speaker': 'Narrator', 'text': 'A long moment stretches out in the stillness, the kind of moment that seems to '
-                                    'hold its breath, heavy and slow, while the world outside goes about its own '
-                                    'business far away.'},
-    {'speaker': 'Narrator', 'text': 'Dust hangs in the air. Somewhere distant, water drips with patient regularity '
-                                    'onto old stone.'}]}
+def N(text):
+    return {'speaker': 'Narrator', 'text': text}
 
 
-class Base(Stalls):
-    def opening(self, runtime=None):
-        bridge = self.bridge if runtime is None else KitChatBridge(runtime, RoomAdjudicator(roll=lambda: 10))
-        packet = bridge.prepare(opening=True, one_pass=True, turn_id='open')
-        plan = self.plan_for(packet)
-        plan['public_brief'].update(scope='feature')
-        return bridge, plan
+def plan(scope, focus=None, **extra):
+    return {'public_brief': {'scope': scope, **extra.pop('brief', {})}, 'focus_actor': focus or 'none',
+            'move': 'npc_move' if focus else 'world_description', **extra}
 
-    def challenge(self):
+
+class Areas(Stalls):
+    """Guards for a look in each area: the synthetic mill and ferry house (inside, the keeper
+    present), the watchroom landing and the 17a doorway (nobody to speak)."""
+
+    def area(self, room, enter):
+        runtime = self.start(str(self.write(synthetic(room))) if room in ('mill', 'ferry') else room)
+        if enter:
+            revision, _ = runtime.load()
+            runtime.commit('in', revision, [{'type': 'move', 'exit': 'iron_door', 'evidence': 'In.'}])
+        bridge = KitChatBridge(runtime, RoomAdjudicator(roll=lambda: 10))
+        packet = bridge.prepare('I look around.', 'look', one_pass=True)
+        body = runtime.pending_kit_turn(packet['turn_id'])['body']
+        guards = guard_context(runtime.source(), body)
+        npc = next(((key, label) for key, label in guards['speakers'].items()
+                    if (runtime.load()[1]['actors'].get(key) or {}).get('location') == runtime.load()[1]['area']),
+                   (None, None))
+        return guards, npc
+
+    def each(self):
+        for room, enter in (('mill', True), ('ferry', True), (WATCH, False), (STUB, False)):
+            with self.subTest(room=str(room)):
+                yield self.area(room, enter)
+
+
+class TerseValidTurnsPass(Areas):
+    def test_terse_lines_pass_in_every_area(self):
+        for guards, (key, npc) in self.each():
+            cases = [(plan('feature'), [N('What do you do?')]),
+                     (plan('feature'), [N('Iron door. A stair down. Roll Perception.')]),
+                     (plan('call'), [N('Roll Perception.')])]
+            if npc:
+                say = lambda text: {'speaker': npc, 'text': text}
+                cases += [(plan('exchange', key), [say('Who sent you?')]),
+                          (plan('exchange', key), [say('Stay down.')]),
+                          (plan('exchange', key), [N('His hand settles beside the bell cord.'), say('Who sent you?')]),
+                          (plan('exchange', key), [N('Roll initiative.')]),
+                          (plan('exchange', key), [N('He swings. Miss. Steel sparks.'), N('Your move.')]),
+                          (plan('exchange', key), [N('He reaches for the bell.'), N('Roll Dexterity.')])]
+            for p, segments in cases:
+                check_scope(segments, p, guards)
+
+
+class JunkFails(Areas):
+    def test_padded_mood_that_hands_nothing_over_fails_in_every_area(self):
+        for guards, (key, npc) in self.each():
+            junk = [(plan('feature'), [N('Shadows gather on the iron door like old regret, and the stair breathes '
+                                         'cold air that tastes of rain and endings.'), N('Nothing moves, save the hush.')]),
+                    (plan('feature'), [N('The door and the stair sit under a heavy hush; somewhere far off thunder '
+                                         'seems to roll and roll.')]),
+                    (plan('feature'), [N('Door, stair, dust. Who could say how long the silence has lasted here, or '
+                                         'why it feels like grief?')])]
+            if npc:
+                junk += [(plan('exchange', key), [N('The air is heavy and still and quiet tonight.'),
+                                                  {'speaker': npc, 'text': 'Hm.'}]),
+                         (plan('exchange', key), [N('He stares at nothing; the lamp is low, like a check left unpaid.')])]
+            for p, segments in junk:
+                with self.assertRaisesRegex(InvalidChange, 'handing the floor back'):
+                    check_scope(segments, p, guards)
+
+
+class Declared(unittest.TestCase):
+    def test_a_declared_kind_must_be_in_the_speech(self):
+        with self.assertRaisesRegex(InvalidChange, 'hands_off says check_call'):
+            check_scope([N('What do you do?')], plan('feature', hands_off={'kind': 'check_call', 'reason': 'x'}))
+        check_scope([N('Roll Perception.')], plan('feature', hands_off={'kind': 'check_call', 'reason': 'a look'}))
+
+    def test_none_needs_a_reason_and_is_refused_where_a_handoff_is_required(self):
+        quiet = [N('The lamp burns low and even on its hook, and the room is still.')]
+        check_scope(quiet, plan('feature', hands_off={'kind': 'none', 'reason': 'he is still deciding'}))
+        with self.assertRaisesRegex(InvalidChange, 'reason'):
+            check_scope(quiet, plan('feature', hands_off={'kind': 'none', 'reason': ' '}))
+        with self.assertRaisesRegex(InvalidChange, 'handing the floor back'):
+            check_scope(quiet, plan('feature', hands_off={'kind': 'none', 'reason': 'x'}), required=True)
+
+    def test_the_shape_is_checked_with_the_plan(self):
+        with self.assertRaisesRegex(InvalidChange, 'hands_off is'):
+            kit_floor.declared({'hands_off': {'kind': 'monologue', 'reason': 'x'}})
+        self.assertIn('hands_off', kit_agent.PLAN_SCHEMA['properties'])
+        self.assertIn('hands_off', kit_agent.OPTIONAL_PLAN_KEYS)
+
+    def test_npc_challenge_means_the_focus_actor(self):
+        guards = {'speakers': {'miller': 'Floury miller', 'boy': 'Mill boy'}, 'brief_speakers': ('Floury miller', 'Mill boy')}
+        declared = plan('exchange', 'miller', hands_off={'kind': 'npc_challenge', 'reason': 'he demands'})
+        check_scope([{'speaker': 'Floury miller', 'text': 'Out of my mill.'}], declared, guards)
+        with self.assertRaisesRegex(InvalidChange, 'npc_challenge'):
+            check_scope([{'speaker': 'Mill boy', 'text': 'He wants you out.'}], declared, guards)
+
+
+class AnsweringALook(unittest.TestCase):
+    LOOK = [N('The serpents carved up each pillar are worn smooth where hands have touched them.'),
+            N('One serpent near the floor has had its head broken off and carried away.')]
+
+    def test_answering_the_players_own_look_hands_back_by_itself(self):
+        check_scope(self.LOOK, plan('feature', brief={'reply_to': 'look at the pillars'}), {'kind': 'observe'})
+
+    def test_but_not_without_a_reply_or_on_a_turn_that_is_not_a_look(self):
+        with self.assertRaisesRegex(InvalidChange, 'handing the floor back'):
+            check_scope(self.LOOK, plan('feature', brief={'reply_to': 'none'}), {'kind': 'observe'})
+        with self.assertRaisesRegex(InvalidChange, 'handing the floor back'):
+            check_scope(self.LOOK, plan('feature', brief={'reply_to': 'I wait'}), {'kind': 'social'})
+        with self.assertRaisesRegex(InvalidChange, 'handing the floor back'):
+            check_scope(self.LOOK, plan('feature', brief={'reply_to': 'look at the pillars'}), {'kind': 'observe'},
+                        required=True)
+
+
+class HarnessCasesOnTheBridge(Stalls):
+    def test_a_pithy_44_word_opening_and_a_ten_word_challenge_commit(self):
+        self.assertEqual(sum(len(s['text'].split()) for s in PITHY_OPENING['segments']), 44)
+        packet = self.bridge.prepare(opening=True, one_pass=True, turn_id='open')
+        p = self.plan_for(packet)
+        p['public_brief'].update(scope='feature')
+        self.assertTrue(self.bridge.complete('open', {'decision': p, 'performance': PITHY_OPENING})['spoken'])
         self.go_in()
         packet = self.bridge.prepare('"Evening. I am not here for trouble."', 'say', one_pass=True)
-        plan = self.plan_for(packet, move='npc_reply', focus_actor='warden', table_presence='quiet')
-        plan['improv_read'].update(actor_ref='warden', actor_basis='motive')
-        plan['public_brief'].update(scope='exchange', reply_to='I am not here for trouble')
-        return plan
+        p = self.plan_for(packet, move='npc_reply', focus_actor='warden', table_presence='quiet')
+        p['improv_read'].update(actor_ref='warden', actor_basis='motive')
+        p['public_brief'].update(scope='exchange', reply_to='I am not here for trouble')
+        self.assertTrue(self.bridge.complete('say', {'decision': p, 'performance': TERSE_CHALLENGE})['spoken'])
 
 
-class TheHarnessCasesCommit(Base):
-    def test_a_pithy_44_word_opening_commits(self):
-        self.assertEqual(sum(len(s['text'].split()) for s in PITHY_OPENING['segments']), 44)
-        bridge, plan = self.opening()
-        result = bridge.complete('open', {'decision': plan, 'performance': PITHY_OPENING})
-        self.assertTrue(result['spoken'])
+class NoWordFloorsOrLists(unittest.TestCase):
+    def test_the_word_floors_and_lists_are_gone(self):
+        for name in ('SANITY_MIN_WORDS', 'FEATURE_MIN_THINGS', '_THING_NOISE', '_HANDOFF_PHRASE', '_HANDOFF_CALL',
+                     'FEATURE_MIN_WORDS', 'EXCHANGE_MIN_WORDS'):
+            self.assertFalse(hasattr(kit_agent, name), name)
 
-    def test_a_pithy_17a_doorway_opening_commits(self):
-        runtime = self.start(STUB)
-        bridge, plan = self.opening(runtime)
-        speech = {'segments': [
-            {'speaker': 'Narrator', 'text': 'Double doors stand closed before you, the way into the foyer of this '
-                                            'place. Something dead has been lying beyond them a long while; the smell '
-                                            'says so.'},
-            {'speaker': 'Narrator', 'text': 'Nothing moves on this side. Do you open the doors?'}]}
-        self.assertTrue(bridge.complete('open', {'decision': plan, 'performance': speech})['spoken'])
+    def test_the_replay_adds_no_lines_to_kits_speech(self):
+        text = (ROOT / 'scripts/watchroom_replay.py').read_text()
+        self.assertNotIn('What do you do?\'', text.split('PITHY = {')[0] + text.split('def pithy_turns')[1])
+        self.assertNotIn('def hand_off', text)
+        self.assertNotIn('follow_contract', text)
 
-    def test_a_ten_word_npc_challenge_commits(self):
-        self.assertEqual(sum(len(s['text'].split()) for s in TERSE_CHALLENGE['segments']), 10)
-        plan = self.challenge()
-        self.assertTrue(self.bridge.complete('say', {'decision': plan, 'performance': TERSE_CHALLENGE})['spoken'])
-
-    def test_an_npc_command_is_something_to_answer(self):
-        plan = self.challenge()
-        speech = {'segments': [{'speaker': 'Narrator', 'text': 'The spear point comes up an inch, level and steady.'},
-                               {'speaker': 'Watch warden', 'text': 'No. Hands out. Now.'}]}
-        self.assertTrue(self.bridge.complete('say', {'decision': plan, 'performance': speech})['spoken'])
-
-
-class EmptyTurnsStillFail(Base):
-    def test_a_padded_feature_naming_nothing_fails(self):
-        bridge, plan = self.opening()
-        with self.assertRaisesRegex(InvalidChange, 'visible things') as caught:
-            bridge.complete('open', {'decision': plan, 'performance': PADDED_FEATURE})
-        self.assertIn('hand the floor', str(caught.exception))
-
-    def test_a_long_feature_that_never_hands_off_fails(self):
-        bridge, plan = self.opening()
-        speech = {'segments': [PITHY_OPENING['segments'][0],
-                               {'speaker': 'Narrator', 'text': 'The stair keeps winding down past the door into the '
-                                                               'dark, and cold air climbs it from far below, smelling '
-                                                               'of wet rock and old smoke.'}]}
-        with self.assertRaisesRegex(InvalidChange, 'hand the floor'):
-            bridge.complete('open', {'decision': plan, 'performance': speech})
-
-    def test_a_padded_exchange_where_the_actor_does_nothing_fails(self):
-        plan = dict(self.challenge(), move='world_description')
-        with self.assertRaisesRegex(InvalidChange, 'Watch warden') as caught:
-            self.bridge.complete('say', {'decision': plan, 'performance': PADDED_EXCHANGE})
-        self.assertIn('nothing to answer', str(caught.exception))
-
-    def test_an_exchange_that_moves_but_asks_nothing_fails(self):
-        plan = dict(self.challenge(), move='world_description')
-        speech = {'segments': [{'speaker': 'Narrator', 'text': 'The warden sets his cup down on the table, slowly, '
-                                                               'and studies the stranger in the doorway for a long '
-                                                               'moment without a word, the lamp ticking on its hook.'}]}
-        with self.assertRaisesRegex(InvalidChange, 'nothing to answer'):
-            self.bridge.complete('say', {'decision': plan, 'performance': speech})
-
-    def test_an_empty_turn_fails_the_sanity_minimum(self):
-        plan = self.challenge()
-        speech = {'segments': [{'speaker': 'Watch warden', 'text': 'Well?'}]}
-        with self.assertRaisesRegex(InvalidChange, rf'Exchange scope was flat .*{kit_agent.SANITY_MIN_WORDS}'):
-            self.bridge.complete('say', {'decision': plan, 'performance': speech})
-
-
-class Handoffs(unittest.TestCase):
-    """Unit cases for what hands the floor to the player."""
-
-    def handoff(self, *segments, focus=None):
-        return kit_agent.hands_off([{'speaker': s, 'text': t} for s, t in segments], focus)
-
-    def test_what_counts(self):
-        self.assertTrue(self.handoff(('Narrator', 'The door is open. What do you do?')))
-        self.assertTrue(self.handoff(('Kit', 'Give me a Dexterity (Stealth) check.')))
-        self.assertTrue(self.handoff(('Narrator', 'He waits.'), ('Watch warden', 'Answer from there.')))
-        self.assertTrue(self.handoff(('Watch warden', 'Who sent you?'), ('Kit', 'Oh, he means it.')))
-        self.assertTrue(self.handoff(('Narrator', 'The stair is clear. Your move.')))
-
-    def test_what_does_not(self):
-        self.assertFalse(self.handoff(('Narrator', 'The lamp burns low. Dust drifts.')))
-        self.assertFalse(self.handoff(('Watch warden', 'Who sent you?'), ('Narrator', 'He turns away and sits.')))
-
-    def test_the_limits_state_function_not_word_floors(self):
+    def test_the_limits_state_function(self):
         limits = kit_agent.performance_limits()
-        self.assertNotIn('At least 80 words', limits['feature'])
-        self.assertIn('hand', limits['feature'])
-        self.assertIn('something to answer', limits['exchange'])
+        self.assertIn('hands_off', limits)
+        self.assertNotIn('words outside', limits['feature'])
 
 
 if __name__ == '__main__':

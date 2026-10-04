@@ -14,7 +14,7 @@ WAITING = {'segments': [
     {'speaker': 'Narrator', 'text': 'The humming keeps its four notes and its slow pace, and once it falters as if '
                                     'the singer has lost his place, then picks the tune up again without hurry.'},
     {'speaker': 'Narrator', 'text': 'Cold air breathes up the stairwell from below, carrying wet stone and old smoke, '
-                                    'and somewhere far down a drip keeps its own patient time against the dark. Nobody comes up, and nobody calls out, and the light under the iron door holds steady and warm while the long minutes slowly pass. What do you do?'}]}
+                                    'and somewhere far down a drip keeps its own patient time against the dark. Nobody comes up, and nobody calls out, and the light under the iron door holds steady and warm while the long minutes slowly pass.'}]}
 
 
 WAITS = [WAITING] + [{'segments': [{'speaker': 'Narrator', 'text': a}, {'speaker': 'Narrator', 'text': b}]} for a, b in (
@@ -22,25 +22,25 @@ WAITS = [WAITING] + [{'segments': [{'speaker': 'Narrator', 'text': a}, {'speaker
      'until it gives up and drifts away down into the stairwell. '
      'The draft that carries it smells of wet rock and tallow.',
      'Inside, a stool scrapes once on flagstones. The humming pauses for a long breath, a cough follows, and '
-     'then the tune returns, a little slower than before, as if its owner has settled in for a long night of it. Lamplight wavers on the landing stones and steadies. Your move.'),
+     'then the tune returns, a little slower than before, as if its owner has settled in for a long night of it. Lamplight wavers on the landing stones and steadies.'),
     ('Wind leans on some unseen shutter far above and makes it groan. Dust sifts from the ceiling joists and '
      'settles on your sleeve like fine flour. '
      'A rat noses along the far wall, sees you, and thinks better of it.',
      'The man behind the iron door mutters a word you cannot catch, laughs at himself under his breath, and '
      'goes back to the four notes. A spoon rattles in a cup. Whatever he is drinking, he drinks it slowly, '
-     'and the landing stays empty. Below, the stair keeps its dark. Do you keep waiting?'),
+     'and the landing stays empty. Below, the stair keeps its dark.'),
     ('Your own breathing sounds loud in the hush. The stone under your boots is worn smooth in a shallow dip '
      'where countless guards have stood exactly where you stand now. '
      'The iron door is cold enough to feel from a hand away.',
      'From the room comes the creak of leather and the soft knock of a spear butt set down against wood. The '
      'hum breaks off, starts over from the first note, and steadies. Nothing else stirs on the stair, above or '
-     'below, for a good while. The light in the gap does not move. What now?'),
+     'below, for a good while. The light in the gap does not move.'),
     ('Somewhere deep below a heavy door booms shut, and the sound rolls up the stairwell and dies against the '
      'iron. The lamp beyond the gap flickers, then holds. '
      'A thin line of smoke curls out over the threshold and fades.',
      'Paper rustles inside, a page turned and smoothed flat with a palm. The singer loses the tune, finds it, '
      'loses it again, and gives up with a grunt. Silence settles, close and warm, broken only by the tick of '
-     'cooling metal somewhere near the hinges. No one comes. Do you go in?'))]
+     'cooling metal somewhere near the hinges. No one comes.'))]
 
 
 def nbytes(value):

@@ -18,7 +18,7 @@ LANDING = ('Lamplight leaks through the gap in the iron door and lays a thin bri
 
 
 LANDING_MORE = ('The post is awake. Whoever keeps it is watching the stair rather than sleeping on it, and the '
-                'door stands ajar the width of a hand, the light inside steady and close and warm. What do you do?')
+                'door stands ajar the width of a hand, the light inside steady and close and warm.')
 
 
 def landing(text=LANDING):
@@ -299,7 +299,7 @@ PAID = {'segments': [
                                     'is standing still in the dark below, listening up toward the landing, and the '
                                     'humming behind the iron door goes on as if nothing happened.'},
     {'speaker': 'Narrator', 'text': 'A long breath later the boots start again, going down this time, unhurried, '
-                                    'until the turn of the stair swallows the sound. Do you follow?'}]}
+                                    'until the turn of the stair swallows the sound.'}]}
 
 
 class S9OpenThreads(Stalls):
