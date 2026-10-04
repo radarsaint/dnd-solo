@@ -9,6 +9,34 @@ chain in one session; a room that cannot mount fails fast with a plain line from
 `runtime/kit_agent.py`, `runtime/state_context.py`, `runtime/kit_brief.py`, `runtime/kit_texture.py`.
 Line numbers below are for this branch unless marked *main*.
 
+# Visual authoring extension
+
+Room files may optionally give the visual bridge explicit **player-safe appearance data** on an area, fact, or actor:
+
+```json
+"visual": {
+  "public": [
+    "Weathered human watchman.",
+    "Brass-trimmed leather coat."
+  ],
+  "public_counts": {
+    "arms": 2,
+    "eyes": 2,
+    "swords": 1
+  },
+  "public_art_id": "watch-warden"
+}
+```
+
+This is presentation metadata. It does not create a new source of hidden canon.
+
+- `public` is a string or list of strings that may enter a player-facing visual brief once that area/fact/actor is already player-visible.
+- `public_counts` records discrete anatomy/equipment counts that image QA should preserve.
+- `public_art_id` may resolve an exact entity in `assets/art/index.json` after that actor is player-visible.
+- Private visual facts must remain in normal DM-only source/state. The visual bridge deliberately does not read a `visual.dm_only` field.
+
+The loader validates this shape at mount. A visual descriptor never makes an otherwise hidden fact or actor visible.
+
 ## 1. A room is four stages, fleshed out just in time
 
 The stages are read from state (`kit_rooms.stage`, kit_rooms.py:361), never a rail. The PC
