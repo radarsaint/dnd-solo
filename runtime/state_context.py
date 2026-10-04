@@ -61,7 +61,10 @@ RHYTHM_EVIDENCE_MAX_CHARS = 600  # per recent_rhythm entry; 12 entries stay insi
 # +2 KB (2026-10-03, main 8f2ad2e): Brendon's dm-personality-core grew by 14 lines (~1.7 KB);
 # the worst case with a full voice slot measured 1.7 KB over on main itself.
 # +1 KB for NPC attitudes (dm_only.attitudes_here and the ATTITUDES rule, runtime/kit_attitude.py).
-CONTEXT_BUDGET_BYTES = 97000 + VOICE_MAX_BYTES  # 103 KB: worst case, story brief, core growth, attitudes, full voice slot
+# +2 KB (2026-10-04, PR #87, Brendon): room headroom. A room at both of its context caps
+# (kit_rooms.DM_ONLY_ROOM_MAX_BYTES, CLAIMS_HERE_MAX_BYTES) in the suite's worst case comes to
+# ~103,475 B; the personality core is not trimmed to make room. Overflow still fails loudly.
+CONTEXT_BUDGET_BYTES = 99000 + VOICE_MAX_BYTES  # 105 KB: worst case, story brief, core growth, attitudes, full voice slot, room headroom
 # (88 KB -> 89 KB, 2026-10-03: area 6c gained the vampire_tells fact and claim, table call 8).
 # A staged or one-pass body carries the post-event public view (with the whole ledger)
 # and the procedure state: ~49.4 KB in the same worst case.

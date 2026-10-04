@@ -387,6 +387,11 @@ def brief(source, state):
     present = {**present, **{key: live[key] for key in heard if key not in present}}
     people = []
     for key, actor in present.items():
+        if key in heard and key not in _present(source, state):
+            # Tease-only approach (Brendon, 2026-10-04): someone inside is only what reaches
+            # the doorway, never their card, wants, or secrets.
+            people.append({'actor': key, 'label': labels.get(key) or actor.get('name') or key, 'heard': heard[key]})
+            continue
         traits = list(actor.get('traits') or [])
         if not traits:
             profile = actor.get('communication_profile') or {}
@@ -435,8 +440,8 @@ def brief(source, state):
         # inside, and who is heard there. Kit plays toward the hook from out here.
         pointed = next((hook for story_area in compile_story(source).values() for hook in story_area.get('hooks') or ()
                         if hook['id'] == tease.get('points_to')), None)
-        tease = {'text': tease['text'], 'points_to': tease.get('points_to'),
-                 **({'hook': pointed['text']} if pointed else {})}
+        # Tease-only (Brendon, 2026-10-04): the hook is named by id, never by its inside text.
+        tease = {'text': tease['text'], 'points_to': tease.get('points_to') if pointed else None}
     made = {'rule': BRIEF_RULE, 'area': area, 'stage': where, 'about': about,
             **({'tease': tease} if tease else {}),
             **({'resolved': resolution(source, state)} if where == 'resolution' else {}),

@@ -98,6 +98,9 @@ def first_framing_problems(source):
     problems = [f'area {key} must be an object' for key, area in areas.items() if not isinstance(area, dict)]
     if problems:
         return problems
+    problems = area_field_problems(areas)
+    if problems:
+        return problems
     if source['starting_area'] not in areas:
         problems.append(f"starting_area {source['starting_area']!r} is not one of the areas")
     for key, edge in source['exits'].items():
@@ -196,6 +199,24 @@ def fighter_problems(source):
         guards = actor.get('guards')
         if guards is not None and not (isinstance(guards, list) and all(g in (source.get('exits') or {}) for g in guards)):
             problems.append(f'actor {key} guards must list exit ids')
+    return problems
+
+
+AREA_STRINGS = ('called', 'arrival')  # optional; `name` is required
+AREA_BOOLS = ('outside', 'beyond', 'no_refreshment')
+
+
+def area_field_problems(areas):
+    """Each area's own fields have their JSON types: `name` a non-empty string (Nagatha,
+    705df01: a numeric name loaded), `called` and `arrival` strings, flags booleans."""
+    problems = []
+    for key, area in areas.items():
+        if not (isinstance(area.get('name'), str) and area['name'].strip()):
+            problems.append(f'area {key} name must be a non-empty string')
+        problems += [f'area {key} {field} must be a string' for field in AREA_STRINGS
+                     if field in area and not isinstance(area[field], str)]
+        problems += [f'area {key} {field} must be true or false' for field in AREA_BOOLS
+                     if field in area and not isinstance(area[field], bool)]
     return problems
 
 
@@ -482,19 +503,44 @@ def initial_room(source, ref=None):
     return {'id': source.get('id'), 'path': str(ref) if ref else None, 'turns_in': {}}
 
 
-def room_private_kit(source, kit):
-    """(what of Kit's memory stays with this room, the player notes that travel on)."""
+def known_fact_ids(source, state):
+    """Every fact the player has learned in this room, in any area: revealed facts, and the
+    facts of claims learned in play."""
+    from . import kit_claims
+    learned = set(((state or {}).get('claims') or {}).get('learned') or ())
+    claims = kit_claims.compile_claims(source) if learned else {}
+    return set((state or {}).get('known_facts') or ()) | {
+        claims[key].get('fact') for key in learned if key in claims and claims[key].get('fact')}
+
+
+def room_private_kit(source, kit, state=None):
+    """(what of Kit's memory stays with this room, the player notes that travel on).
+
+    A player note stays with the room only while it names a secret that is still unrevealed.
+    What the player has learned follows them (Nagatha, 705df01: "Nik knows the marked deck is
+    rigged" was archived after the deck was revealed in public). A hidden fact is revealed
+    once it is known; a keyword set once one of its revealing facts is known (the same rule
+    the leak guard applies); a leak phrase once a known fact says it or a revealed set covers
+    it ("marked deck" under the marked_deck set). A note naming a revealed secret and an
+    unrevealed one stays with the room."""
     from . import kit_guards
-    phrases = kit_guards.leak_phrases(source)['phrases']
+    facts = source.get('facts') or {}
+    known = known_fact_ids(source, state)
+    known_text = ' '.join(kit_guards.normalize(str(facts[key].get('text') or '')) for key in known if key in facts)
     sets = kit_guards.leak_sets(source)
-    hidden = [str(fact.get('text') or '').casefold() for fact in (source.get('facts') or {}).values()
-              if isinstance(fact, dict) and not fact.get('visible')]
+    revealed = lambda entry: any(kit_guards.normalize(t) in known_text for t in entry.get('revealed_texts') or ())
+    open_sets = [entry for entry in sets if not revealed(entry)]
+    phrases = [p for p in kit_guards.leak_phrases(source)['phrases']
+               if kit_guards.normalize(p) not in known_text and
+               not any(revealed(entry) and kit_guards._sentence_hits(p, entry['groups']) for entry in sets)]
+    hidden = [str(fact.get('text') or '').casefold() for key, fact in facts.items()
+              if isinstance(fact, dict) and not fact.get('visible') and key not in known]
 
     def secret(note):
         text = str(note.get('note') or '').casefold()
         return (any(p in text for p in phrases) or any(h and h in text for h in hidden) or
                 any(kit_guards._sentence_hits(sentence, entry['groups'])
-                    for entry in sets for sentence in re.split(r'(?<=[.!?])\s+', text)))
+                    for entry in open_sets for sentence in re.split(r'(?<=[.!?])\s+', text)))
     notes = list(kit.get('player_notes') or [])
     return ({'episodes': list(kit.get('episodes') or []), 'current_appraisal': kit.get('current_appraisal'),
              'player_notes': [n for n in notes if secret(n)]},
@@ -517,7 +563,7 @@ def mounted_state(old_source, state, new_source, area, ref):
     # own leak blocks): her episodes, her current appraisal, and any player note that names one
     # of the room's secrets. Player notes that don't travel on; her public lines are public.
     kit = new.get('kit') or {}
-    private, notes = room_private_kit(old_source, kit)
+    private, notes = room_private_kit(old_source, kit, state)
     left['kit'] = private
     new['kit'] = {**kit, 'episodes': [], 'current_appraisal': None, 'player_notes': notes}
     if sheet is not None:

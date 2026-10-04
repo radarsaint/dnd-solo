@@ -108,7 +108,26 @@ class MalformedRoomsFailFast(Base):
                     raise
                 except Exception as exc:  # noqa: BLE001
                     crashes.append(f'{label}: {type(exc).__name__}: {exc}'[:160])
-        self.assertEqual(crashes, [], "\n" + "\n".join(crashes))
+        # An area's own fields: a mistyped one must be refused at mount, not merely not crash.
+        loaded = []
+        area = next(iter(base['areas']))
+        for field in ('name', 'called', 'arrival', 'outside', 'beyond'):
+            for value in WRONG:
+                if value is MISSING and field != 'name' or (field in ('called', 'arrival') and isinstance(value, str)) or \
+                        (field == 'name' and isinstance(value, str) and value.strip()) or \
+                        (field in ('outside', 'beyond') and isinstance(value, bool)):
+                    continue  # a valid value (or an optional field left out)
+                body = copy.deepcopy(base)
+                if value is MISSING:
+                    body['areas'][area].pop(field, None)
+                else:
+                    body['areas'][area][field] = copy.deepcopy(value)
+                try:
+                    kit_rooms.load_room(self.write(body))
+                    loaded.append(f'{ref} areas.{area}.{field}={"<missing>" if value is MISSING else repr(value)} loaded')
+                except kit_rooms.RoomMountError:
+                    pass
+        self.assertEqual(crashes + loaded, [], "\n" + "\n".join(crashes + loaded))
 
     def test_fuzz_the_watchroom(self):
         self.fuzz(WATCH)
@@ -125,6 +144,13 @@ class MalformedRoomsFailFast(Base):
         with self.assertRaises(kit_rooms.RoomMountError) as caught:
             kit_rooms.load_room(self.write(body))
         self.assertIn('area landing must be an object', caught.exception.problems)
+        for bad in (5, 0, ['x'], '', None):
+            body = kit_rooms.read_room(WATCH)
+            body['areas']['landing']['name'] = bad
+            with self.subTest(name=bad), self.assertRaises(kit_rooms.RoomMountError) as caught:
+                kit_rooms.load_room(self.write(body))
+            self.assertIn('area landing name must be a non-empty string', caught.exception.problems)
+            self.assertIn("can't be mounted", str(caught.exception))  # Kit's plain line
         for bad in (5, ['x'], '', None):
             with self.subTest(id=bad), self.assertRaises(kit_rooms.RoomMountError) as caught:
                 kit_rooms.load_room(self.write(dict(kit_rooms.read_room(WATCH), id=bad)))
@@ -214,6 +240,119 @@ class SecretsStayInTheirRoom(Base):
         self.assertEqual([e['turn_id'] for e in archived['kit']['episodes']], ['a1', 'a2'])
 
 
+class LearnedThingsTravel(Base):
+    """Nagatha at 705df01: a note naming a secret the player has already learned was archived
+    with the room. What is revealed follows the player; what is still hidden stays."""
+
+    def record(self, line, public, note):
+        return {'player_input': line, 'public_event': public, 'spoken': 'Narrator: ' + public,
+                'trace': {'appraisal': {'read': 'none'}, 'observed_event': public, 'move': 'none', 'goal': 'none',
+                          'player_note': {'note': note, 'evidence_turns': ['this_turn'], 'replaces': 'none'}}}
+
+    def turn(self, runtime, turn_id, line, note=None, events=None):
+        revision, _ = runtime.load()
+        if events is None:
+            result = self.resolve(runtime, line)
+            events, public = list(result.events), result.public_event
+        else:
+            public = line
+        record = self.record(line, public, note) if note else {
+            'player_input': line, 'public_event': public, 'spoken': 'Narrator: ' + public,
+            'trace': {'appraisal': {'read': 'none'}, 'observed_event': public, 'move': 'none', 'goal': 'none'}}
+        runtime.commit_kit_turn(turn_id, revision, events, record)
+
+    # Non-6c: the watchroom with its chest letter and the warden's orders guarded.
+    def watchroom(self):
+        chain.build_chain(self.folder)
+        path = self.folder / 'watchroom.json'
+        body = json.loads(path.read_text(encoding='utf-8'))
+        body['facts']['warden_orders'] = {'area': 'watchroom', 'visible': False,
+                                          'text': 'The warden has orders to hold anyone who asks for the captain.'}
+        body['leak_phrases'] = {'phrases': ['sealed letter', 'orders to hold'], 'player_may_name': []}
+        body['leak_keywords'] = {'letter': {'revealed_by': 'chest_contents',
+                                            'groups': [['letter', 'envelope'], ['sealed', 'seal', 'wax']]}}
+        path.write_text(json.dumps(body), encoding='utf-8')
+        runtime = self.start(path)
+        self.turn(runtime, 'w1', 'I go through the iron door.')
+        return runtime
+
+    def leave_watchroom(self, runtime):
+        self.turn(runtime, 'w8', 'I go back through the iron door.')
+        self.turn(runtime, 'w9', 'I take the stair down.')
+        self.assertEqual(runtime.source()['id'], 'dotmm-level-01-area-17a-stub-v0')
+        return runtime.load()[1]
+
+    def notes(self, state):
+        return [n['note'] for n in state['kit']['player_notes']]
+
+    def planned_notes(self, runtime):
+        packet = KitChatBridge(runtime, RoomAdjudicator(roll=lambda: 10)).prepare('I look around.', one_pass=True)
+        return encode(packet['input']['private'].get('kit_state') or packet['input']['private'])
+
+    def test_1_a_revealed_secret_follows_the_player_non_6c(self):
+        runtime = self.watchroom()
+        self.turn(runtime, 'w2', 'I open the chest.', note='Nik knows a sealed letter is in the chest.')
+        self.assertIn('chest_contents', runtime.load()[1]['known_facts'])
+        state = self.leave_watchroom(runtime)
+        self.assertIn('Nik knows a sealed letter is in the chest.', self.notes(state))
+        self.assertIn('Nik knows a sealed letter is in the chest.', self.planned_notes(runtime))
+
+    def test_2_an_unrevealed_secret_stays_with_the_room_non_6c(self):
+        runtime = self.watchroom()
+        self.turn(runtime, 'w2', 'I look around the room.', note='Nik guesses a sealed letter is in the chest.')
+        state = self.leave_watchroom(runtime)
+        self.assertNotIn('Nik guesses a sealed letter is in the chest.', self.notes(state))
+        archived = state['rooms']['synthetic-watchroom-v1']['state']['kit']['player_notes']
+        self.assertIn('Nik guesses a sealed letter is in the chest.', [n['note'] for n in archived])
+        self.assertNotIn('sealed letter', self.planned_notes(runtime))
+
+    def test_3_partly_revealed_stays_with_the_room_non_6c(self):
+        runtime = self.watchroom()
+        both = 'Nik knows a sealed letter is in the chest and that the warden has orders to hold him.'
+        self.turn(runtime, 'w2', 'I open the chest.', note=both)
+        self.turn(runtime, 'w3', 'I look around the room.', note='Nik saw the sealed letter in the chest.')
+        state = self.leave_watchroom(runtime)
+        self.assertNotIn(both, self.notes(state))  # the orders are still hidden
+        self.assertIn('Nik saw the sealed letter in the chest.', self.notes(state))
+
+    # 6c: the marked deck.
+    def sixc(self):
+        runtime = self.start(chain.build_chain(self.folder))
+        return runtime
+
+    def leave_6c(self, runtime):
+        self.turn(runtime, 'c9', 'I walk out the south door.')
+        self.assertEqual(runtime.source()['id'], 'synthetic-watchroom-v1')
+        return runtime.load()[1]
+
+    def test_1_the_marked_deck_once_revealed_follows_nik_6c(self):
+        runtime = self.sixc()
+        note = 'Nik knows the marked deck is rigged.'
+        self.turn(runtime, 'c1', 'The marks show on the deck.', note=note,
+                  events=[{'type': 'reveal_fact', 'fact': 'marked_deck', 'evidence': 'Revealed in public play.'}])
+        state = self.leave_6c(runtime)
+        self.assertIn(note, self.notes(state))
+        self.assertIn(note, self.planned_notes(runtime))
+
+    def test_2_the_marked_deck_unrevealed_stays_in_6c(self):
+        runtime = self.sixc()
+        note = 'Nik suspects the marked deck is rigged.'
+        self.turn(runtime, 'c1', 'I watch the dealer.', note=note,
+                  events=[{'type': 'beat', 'tags': ['watch'], 'evidence': 'Watching.'}])
+        state = self.leave_6c(runtime)
+        self.assertNotIn(note, self.notes(state))
+        self.assertNotIn('marked deck', self.planned_notes(runtime))
+
+    def test_3_the_deck_revealed_but_the_doppelganger_not_stays_in_6c(self):
+        runtime = self.sixc()
+        note = 'Nik knows the marked deck is rigged and the fourth player is a doppelganger.'
+        self.turn(runtime, 'c1', 'The marks show on the deck.', note=note,
+                  events=[{'type': 'reveal_fact', 'fact': 'marked_deck', 'evidence': 'Revealed in public play.'}])
+        state = self.leave_6c(runtime)
+        self.assertNotIn(note, self.notes(state))
+        self.assertNotIn('doppelganger', self.planned_notes(runtime))
+
+
 # --------------------------------------------------------------------------- P1 4
 class DoorwayBriefCarriesTheTease(Base):
     def test_the_watchroom_landing_brief_carries_its_tease(self):
@@ -223,9 +362,31 @@ class DoorwayBriefCarriesTheTease(Base):
         tease = kit_rooms.read_room(WATCH)['areas']['landing']['tease']
         self.assertEqual(made['about'], tease['text'])
         self.assertEqual(made['tease']['points_to'], 'challenge')
-        self.assertIn('who sent you', made['tease']['hook'])
+        self.assertNotIn('hook', made['tease'])  # named by id; its inside text stays inside
         self.assertEqual([p['actor'] for p in made['present']], ['warden'])
-        self.assertTrue(made['present'][0]['heard'])
+        self.assertEqual(set(made['present'][0]), {'actor', 'label', 'heard'})
+
+    def test_the_approach_is_tease_only(self):
+        # Brendon (2026-10-04): at the approach Kit gets the tease plus what is plainly
+        # visible or audible from outside, nothing more: no inside facts, no inside actor's
+        # card or wants, no inside story (first look or exploration), in any part of the packet.
+        runtime = self.start(WATCH)
+        source = runtime.source()
+        inside = set(kit_rooms.room_areas(source))
+        secret = [f['text'] for f in source['facts'].values() if f['area'] in inside]
+        warden = source['actors']['warden']
+        secret += [warden['motive'], *warden['knowledge'], *warden['communication_profile'].values()]
+        for story in source['story'].values():
+            secret += [story['about'], *story['endings'], *(h['text'] for h in story['hooks'])]
+        secret += ['who sent you', 'where are you going']  # the hook's delivery phrases
+        packet = KitChatBridge(runtime, RoomAdjudicator(roll=lambda: 10)).prepare('I listen at the door.', one_pass=True)
+        private = encode(packet['input']['private']).casefold()
+        public = encode(packet['input']['public']).casefold()
+        for text in secret:
+            with self.subTest(text):
+                self.assertNotIn(text.casefold(), private)
+                self.assertNotIn(text.casefold(), public)
+        self.assertIn(source['areas']['landing']['tease']['text'].casefold(), private)
 
     def test_the_17a_stub_doorway_brief_carries_its_tease(self):
         runtime = self.start(STUB)
@@ -344,6 +505,28 @@ class RoomContextIsCapped(Base):
         self.addCleanup(setattr, kit_agent, 'fit_to_budget', original)
         packet = KitChatBridge(runtime, RoomAdjudicator(roll=lambda: 10)).prepare('I look around.', one_pass=True)
         self.assertEqual(packet['context_warning'], kit_agent.MEMORY_TRIMMED_NOTE)
+
+    def padded(self, size):
+        planning = {'kit_state': {'episodes': [], 'player_notes': []}, 'dialogue_history': [],
+                    'dm_context': {'recent_rhythm': [], 'dm_only': {'room': ''}}}
+        planning['dm_context']['dm_only']['room'] = 'x' * (size - kit_agent._bytes(planning))
+        self.assertEqual(kit_agent._bytes(planning), size)
+        return planning
+
+    def test_a_room_at_both_caps_fits_the_budget(self):
+        # Brendon (2026-10-04): the budget is 105,000 B so a room at both caps fits the suite's
+        # worst case (~103,475 B: 101,904 measured + the room's growth to both caps).
+        from runtime.state_context import CONTEXT_BUDGET_BYTES
+        self.assertEqual(CONTEXT_BUDGET_BYTES, 105000)
+        worst = 101904 + (kit_rooms.DM_ONLY_ROOM_MAX_BYTES - 9126) + (kit_rooms.CLAIMS_HERE_MAX_BYTES - 2153)
+        self.assertEqual(worst, 103475)
+        for size in (worst, CONTEXT_BUDGET_BYTES):
+            kit_agent.fit_to_budget(self.padded(size), [], combined_budget=10 ** 7)
+
+    def test_past_the_budget_still_fails_loudly(self):
+        from runtime.state_context import CONTEXT_BUDGET_BYTES
+        with self.assertRaisesRegex(InvalidChange, 'Context budget exceeded'):
+            kit_agent.fit_to_budget(self.padded(CONTEXT_BUDGET_BYTES + 1), [], combined_budget=10 ** 7)
 
     def test_the_caps_admit_6c_at_its_largest(self):
         # 6c's peaks across the suite (measured at 999d4cd and here): 9,554 B and 3,057 B.

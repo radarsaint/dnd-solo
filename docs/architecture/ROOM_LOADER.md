@@ -17,7 +17,7 @@ it needs at that moment.
 
 | Stage | What it is | Needs from the room file | Prepared, and when | Story brief's part |
 |---|---|---|---|---|
-| **1. approach** | Outside, not yet in: doors, what can be seen or heard | an area marked `"outside": true` and joined to an inside area; its **`tease`** (required: what is seen or heard from outside that points toward the hook, which hook, and who is audible); its visible `facts`; its `exits` with `name` and per-area `labels` | at mount: the area, its visible facts and known exits (`Runtime._observe`), and the tease checked (`kit_rooms.tease_problems`). Nothing else. | `stage: approach`; `about` is the tease; `tease` carries `points_to` and the hook's text; `present` lists the actors heard from outside, each with `heard`; endings "goes in" / "goes past" when the area has no story block (`kit_brief.brief`) |
+| **1. approach** | Outside, not yet in: doors, what can be seen or heard | an area marked `"outside": true` and joined to an inside area; its **`tease`** (required: what is seen or heard from outside that points toward the hook, which hook, and who is audible); its visible `facts`; its `exits` with `name` and per-area `labels` | at mount: the area, its visible facts and known exits (`Runtime._observe`), and the tease checked (`kit_rooms.tease_problems`). Nothing else. | `stage: approach`; `about` is the tease; `tease` carries `points_to` (the hook's id, never its inside text); `present` lists the actors heard from outside, each with only `label` and `heard` (tease-only: no card, wants or secrets); endings "goes in" / "goes past" when the area has no story block (`kit_brief.brief`) |
 | **2. first look** | Inside, no turn taken here yet: the framing that carries the hook | the room area (`name`, optional `arrival` line for the opening event); its visible facts and actors; `story.<area>.hooks` | on arrival: the opening packet (`prepare_opening`, kit_agent.py:2748) and the brief for that area (`kit_brief.brief`, kit_brief.py:366, called from `prepare_inputs`, kit_agent.py:2657) | `hooks` with `raise_by_beat`; `stage: first_look` |
 | **3. full exploration** | The back-and-forth of choices and checks | whatever mechanics the file declares: `claims` (checks), handled features (`facts.<id>.handling`), `procedures` (card games), `tolls`, `combat`, `attitudes`, `agenda`, `texture_palette` | each when play first reaches it: a card engine only on a card call (`card_procedure`, kit_agent.py:375); a fight only when one starts; a texture palette checked the first time play draws on it (`kit_texture.area_palette`, kit_texture.py:64) | the beat counter (`story_beat` via `kit_brief.beat_event`, kit_brief.py:512, from `turn_events`, kit_agent.py:2303) makes an undelivered primary hook `raise_now` after `within_beats`, whatever stage the PC jumped to; thresholds cross (`threshold_events`, kit_brief.py:540) and shift attitudes (`kit_attitude`) |
 | **4. resolution** | Out again, or past without going in | an outside area marked `"beyond": true` (past the room), or any outside area once the PC has been inside or elsewhere outside; a `room_link` area | on arrival there: if the area has `room_link`, the next room mounts in the same commit (state_context.py:487) | `stage: resolution`, `resolved: left | bypassed`; story `endings` |
@@ -43,7 +43,7 @@ Every block has a JSON type (`kit_rooms.BLOCK_TYPES`): `id` and `starting_area` 
 strings; `source_ref`, `map_ref`, `test_precondition` strings; `fixture_only`, `stub` booleans;
 `room_rules` a list; everything else an object, and every area an object.
 
-Area fields: `name`; `called` (how a line names it: "the short passage"); `outside` (not in
+Area fields: `name` (required, a non-empty string); `called` (how a line names it: "the short passage"); `outside` (not in
 the room); `beyond` (an outside area past the room: arriving there is resolution); `arrival`
 (the opening event line); `room_link` (`{room, area}`: arriving here mounts that room);
 **`tease`** (required on every approach, i.e. an outside area that is not `beyond` and is joined
@@ -103,7 +103,14 @@ walks into, may speak on that turn.
    "stat_block": {"srd": "Guard"}}], "arrives_in_rounds": 2}` (`kit_rooms.alarm_problems`; a
    malformed block fails the mount, and a fact that reads as an alarm with no `alarm` block
    mounts with a loud `RoomWarning`, because Kit would otherwise invent the responders);
-7. the room's dm_only part stays under 9,700 B and claims_here under 3,150 B.
+7. the room's dm_only part stays under 9,700 B and claims_here under 3,150 B;
+8. **the approach is tease-only** (Brendon, 2026-10-04): from an approach area Kit gets the
+   area's own facts and exits, its `tease`, and who is `heard` there (label and sound only).
+   Nothing from inside reaches her there: no inside fact, no inside actor's card, wants or
+   secrets, no inside story (`about`, hook text, endings). The tease names its hook by id
+   (`points_to`) only. Put anything the PC should sense from outside into the tease or the
+   approach area's own visible facts; first look and exploration begin on entry
+   (`DoorwayBriefCarriesTheTease.test_the_approach_is_tease_only`).
 
 **The story brief** (`story.<area>`, all optional, kit_brief.py header): `about` (what the
 scene is for), `purposes` (what each setup is for), `hooks` (`by` an actor, `primary`,
@@ -201,7 +208,12 @@ Arriving in a `room_link` area mounts the linked room in the same commit, no hos
   appraisal, and any player note that names one of the room's secrets (a leak phrase, a leak
   keyword set, or a hidden fact's text) are archived with the room and restored on return. A
   room's secrets are guarded only by its own leak blocks, so they must not reach the next room's
-  decision input at all. What she said in public stays in the dialogue history: it was public;
+  decision input at all. A note counts as secret only while its secret is unrevealed: once the
+  player has learned the fact (a known fact, or the fact behind a learned claim) or a leak set's
+  `revealed_by` fact, the note is the player's knowledge and travels with them, in the notes
+  and in the next prepare packet (`kit_rooms.known_fact_ids`; `LearnedThingsTravel`). A note
+  that still names any unrevealed secret stays archived. What she said in public stays in the
+  dialogue history: it was public;
 - room ids key the archive, so a linked file whose id is already used by another room file is
   refused.
 
@@ -213,12 +225,16 @@ prepare, naming the block, its size, and the cap, instead of the budget quietly 
 memory to make room for it. Memory trimming for a long session still happens, and is now loud:
 `prepare` returns `context_warning`.
 
-The caps bound the room's share; they do not create headroom. The suite's worst case (a long
-card game, a full detail ledger, every memory trim taken) is 101,904 B against 103,000, with
-6c's room share at 9,126 B and 2,153 B in that packet. A room at both caps in that same
-situation would come to about 103,475 B: 475 B over. So richer rooms need more headroom, and the
-only large room-independent block is the personality core (about 18 KB, 46% of a fresh 6c
-packet). That is Brendon's call; the PR #87 body has a proposal.
+The caps bound the room's share; the budget gives them room. The suite's worst case (a long
+card game, a full detail ledger, every memory trim taken) was 101,904 B, with 6c's room share
+at 9,126 B and 2,153 B in that packet. A room at both caps in that same situation comes to
+about 103,475 B. Brendon's call (2026-10-04): `CONTEXT_BUDGET_BYTES` is 105,000 (was 103,000),
+so a room at both caps fits with about 1.5 KB to spare; the personality core is not trimmed.
+Past 105,000 after every memory trim, `fit_to_budget` still fails loudly ("Context budget
+exceeded"); a room over its caps still fails to mount. With the extra room the same suite game
+now keeps more of Kit's memory before the trims stop: it lands at 103,806 B (one-pass packet
+112,704 B against 132,000). Both are tested
+(`RoomContextIsCapped`).
 
 **Long-lived hosts.** A chat host or `KitAgent` keeps one adjudicator for the whole session.
 `prepare_turn` calls `RoomAdjudicator.mount(runtime.source())` every turn, because a commit may
@@ -351,12 +367,13 @@ reason for that prep: a room either mounts in milliseconds or says plainly that 
 8. **Kit's private memory is per room** (see section 4). The cost: in room B she does not
    remember her private reads of room A, only what was said in public and the player notes.
    Room A's leak guards do not travel either: carried, 6c's `bandit` and `cards` would block
-   those words in every later room.
+   those words in every later room. Player notes about secrets the player has already learned
+   do travel (section 4).
 9. **Room files live in two places:** 6c stays in `tests/fixtures/` (14 test modules and the
    scripts load it from there) and the stub is in `rooms/`.
-10. **Budget:** the worst-case private context is 101,904 B against 103,000 (1,096 B left). A
-    room much richer than 6c (Claude measured one more speaking NPC at 942 B, one more hidden
-    claim at 535 B) is refused by the caps until headroom is found (see "Context headroom").
+10. **Budget:** 105,000 B (raised from 103,000 by Brendon, 2026-10-04, so a room at both caps,
+    ~103,475 B with every trim taken, fits). The suite's worst case now trims less and lands at
+    103,806 B.
 11. **No agenda fixture.** No room file in the repo declares an `agenda` block; Claude's probe
     showed the path works, but no test room carries one.
 

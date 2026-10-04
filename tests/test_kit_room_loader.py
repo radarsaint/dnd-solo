@@ -233,19 +233,19 @@ class Mounting(unittest.TestCase):
         cases = [
             (self.folder / 'none.json', 'no room file'),
             (self.broken('{"id": "x",'), 'not valid JSON'),
-            (self.broken({'id': 'x', 'areas': {'a': {}}}), 'missing starting_area'),
-            (self.broken({'id': 'x', 'starting_area': 'b', 'areas': {'a': {}}, 'exits': {}, 'facts': {}, 'actors': {}}),
+            (self.broken({'id': 'x', 'areas': {'a': {'name': 'A'}}}), 'missing starting_area'),
+            (self.broken({'id': 'x', 'starting_area': 'b', 'areas': {'a': {'name': 'A'}}, 'exits': {}, 'facts': {}, 'actors': {}}),
              "starting_area 'b' is not one of the areas"),
-            (self.broken({'id': 'x', 'starting_area': 'a', 'areas': {'a': {}}, 'exits': {}, 'facts': {}, 'actors': {},
+            (self.broken({'id': 'x', 'starting_area': 'a', 'areas': {'a': {'name': 'A'}}, 'exits': {}, 'facts': {}, 'actors': {},
                           'puzzles': {}}), "unsupported block 'puzzles'"),
-            (self.broken({'id': 'x', 'starting_area': 'a', 'areas': {'a': {}}, 'exits': {}, 'facts': {}, 'actors': {},
+            (self.broken({'id': 'x', 'starting_area': 'a', 'areas': {'a': {'name': 'A'}}, 'exits': {}, 'facts': {}, 'actors': {},
                           'procedures': {'dice': {'kind': 'dice_game'}}}), "unsupported kind 'dice_game'"),
-            (self.broken({'id': 'x', 'starting_area': 'a', 'areas': {'a': {}}, 'exits': {}, 'facts': {}, 'actors': {},
+            (self.broken({'id': 'x', 'starting_area': 'a', 'areas': {'a': {'name': 'A'}}, 'exits': {}, 'facts': {}, 'actors': {},
                           'procedures': {'p': {'kind': 'card_game', 'game': 'poker'}}}), "unsupported card game 'poker'"),
         ]
         for block in ('exits', 'facts', 'actors'):  # a list where an object belongs
             for value in ([], [{'areas': ['a', 'a']}]):
-                body = {'id': 'x', 'starting_area': 'a', 'areas': {'a': {}}, 'exits': {}, 'facts': {}, 'actors': {}}
+                body = {'id': 'x', 'starting_area': 'a', 'areas': {'a': {'name': 'A'}}, 'exits': {}, 'facts': {}, 'actors': {}}
                 cases.append((self.broken(dict(body, **{block: value})), f'{block} must be an object'))
         for path, problem in cases:
             with self.subTest(problem=problem, path=path.name):
