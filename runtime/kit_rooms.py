@@ -123,6 +123,10 @@ def first_framing_problems(source):
         if handling is not None and not (isinstance(handling, dict) and handling.get('nouns') and
                                          (handling.get('holds') is None or handling['holds'] in source['facts'])):
             problems.append(f'fact {key} handling needs nouns, and holds must name a fact')
+        elif handling is not None and handling.get('parts') is not None and not (
+                isinstance(handling['parts'], list) and
+                all(isinstance(part, str) and part.strip() for part in handling['parts'])):
+            problems.append(f'fact {key} handling parts must be a list of words (the claw of a carcass)')
     for key, actor in source['actors'].items():
         if not (isinstance(actor, dict) and actor.get('location') in areas and actor.get('status')):
             problems.append(f'actor {key} needs a location among the areas and a status')
