@@ -170,7 +170,7 @@ def recent_reference_ids(runtime, limit=6):
     return out
 
 
-def select_references(runtime, request, mode, branch, limit=3):
+def select_references(runtime, request, mode, branch, limit=3, public_context=None):
     manifest = _json(STYLE_MANIFEST)
     refs = manifest.get("references") or []
     if not refs:
@@ -179,7 +179,10 @@ def select_references(runtime, request, mode, branch, limit=3):
     window = int(policy.get("recent_usage_window") or 6)
     recent = recent_reference_ids(runtime, window)
     most_recent = set(recent[: int(policy.get("max_references") or 4)])
-    tags = subject_tags(request)
+    tag_text = request
+    if public_context:
+        tag_text += " " + json.dumps(public_context, ensure_ascii=False)
+    tags = subject_tags(tag_text)
     refs_by_id = {ref.get("id"): ref for ref in refs}
     recent_incidental_biases = {}
     for recent_id in recent:
@@ -209,8 +212,8 @@ def select_references(runtime, request, mode, branch, limit=3):
             recent_incidental_biases.get(bias, 0) for bias in biases if bias not in tags
         )
         score -= int(policy.get("same_subject_family_recent_penalty") or 2) * incidental_bias_repeats
-        if ref.get("strength") == "CORE":
-            score += 1
+        strength = ref.get("strength")
+        score += {"CORE": 2, "GOOD": 1, "EDGE": 0, "NO": -100}.get(strength, 0)
         uses = recent.count(ref.get("id"))
         score -= int(policy.get("same_reference_recent_penalty") or 4) * uses
         if ref.get("id") in most_recent:
@@ -398,7 +401,7 @@ def prepare_visual(runtime, request, mode="auto", branch="auto", record=True):
     if branch == "auto":
         branch = infer_branch(source)
     require(isinstance(branch, str) and bool(branch.strip()), "Visual branch required")
-    refs = select_references(runtime, request, mode, branch)
+    refs = select_references(runtime, request, mode, branch, public_context=player_safe)
     visual_id = "visual-" + uuid.uuid4().hex[:12]
     result = {
         "stage": "visual_brief",
