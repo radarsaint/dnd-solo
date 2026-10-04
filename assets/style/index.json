@@ -45,7 +45,7 @@
       "avoid_for": [
         "bright_storybook"
       ],
-      "private_path": "assets/style/references/BFDM-CORE-01.png"
+      "private_path": "assets/style/references/BFDM-CORE-01.jpg"
     },
     {
       "id": "BFDM-CORE-02",
@@ -79,7 +79,7 @@
         "arcane"
       ],
       "avoid_for": [],
-      "private_path": "assets/style/references/BFDM-CORE-02.png"
+      "private_path": "assets/style/references/BFDM-CORE-02.jpg"
     },
     {
       "id": "BFDM-CORE-03",
@@ -111,7 +111,7 @@
         "costume"
       ],
       "avoid_for": [],
-      "private_path": "assets/style/references/BFDM-CORE-03.png"
+      "private_path": "assets/style/references/BFDM-CORE-03.jpg"
     },
     {
       "id": "BFDM-CORE-04",
@@ -147,7 +147,7 @@
       "avoid_for": [
         "grounded_portrait"
       ],
-      "private_path": "assets/style/references/BFDM-CORE-04.png"
+      "private_path": "assets/style/references/BFDM-CORE-04.jpg"
     },
     {
       "id": "BFDM-CORE-05",
@@ -181,7 +181,7 @@
         "settlement"
       ],
       "avoid_for": [],
-      "private_path": "assets/style/references/BFDM-CORE-05.png"
+      "private_path": "assets/style/references/BFDM-CORE-05.jpg"
     },
     {
       "id": "BFDM-CORE-06",
@@ -213,7 +213,7 @@
         "creature"
       ],
       "avoid_for": [],
-      "private_path": "assets/style/references/BFDM-CORE-06.png"
+      "private_path": "assets/style/references/BFDM-CORE-06.jpg"
     },
     {
       "id": "BFDM-CORE-07",
@@ -247,7 +247,7 @@
         "equipment"
       ],
       "avoid_for": [],
-      "private_path": "assets/style/references/BFDM-CORE-07.png"
+      "private_path": "assets/style/references/BFDM-CORE-07.jpg"
     },
     {
       "id": "BFDM-CORE-08",
@@ -278,7 +278,7 @@
       "avoid_for": [
         "human_portrait"
       ],
-      "private_path": "assets/style/references/BFDM-CORE-08.png"
+      "private_path": "assets/style/references/BFDM-CORE-08.jpg"
     },
     {
       "id": "BFDM-CORE-09",
