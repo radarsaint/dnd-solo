@@ -1,7 +1,10 @@
-# Functional floors (PR-F)
+# Functional floors (PR-F, reworked after Nagatha's #102 review)
 
-`runtime/kit_agent.py`: `check_scope`, `hands_off`, `visible_things`, `things_named`. These replace the raw word floors
-(80 words in 2 segments for a feature, 40 words in 2 for an exchange).
+`runtime/kit_floor.py` holds the one handoff rule. `runtime/kit_agent.py` `check_scope` applies it for each
+scope. Together they replace the raw word floors (80 words in 2 segments for a feature, 40 words in 2 for an
+exchange). Nothing here counts words or matches vocabulary lists. The first PR-F head had an 8-word minimum,
+anchor-word "visible things" with a 6c-tuned `_THING_NOISE` list, and handoff phrase lists. All of that is
+gone.
 
 ## Why
 
@@ -11,38 +14,56 @@ Brendon's harness run on 691e834 showed the word count and the job had come apar
   40-word exchange floor.
 - A padded turn with 90+ words of mood that named nothing in the room and handed nothing to the player passed.
 
-## The checks (soft, like the floors they replace: warnings in degraded mode)
+## Kit declares, the engine validates the structure
+
+Kit's decision carries an optional `hands_off: {kind, reason}`. It works the same way as `handles` on #97
+(runtime/kit_acts.py on kit-monster-initiative): a structured field the engine checks, never English it
+guesses at.
+
+| kind | the engine checks |
+|---|---|
+| `question` | the last sentence (of the last segment, or the last non-Kit segment) ends with `?` and speaks to the PC, or is a short narrowing question |
+| `check_call` | the last segment names a check: a skill or ability from `pc_sheet`, initiative, a saving throw, a death save or an attack roll |
+| `npc_challenge` | the focus actor speaks last outside Kit's remarks |
+| `combat_prompt` | the last sentence is a short address to the PC ("Your move.") |
+| `none` | `reason` is not blank, and the turn is not one that must hand off (`required`, e.g. a progressive-reveal room entry on #101) |
+
+When `hands_off` is left out, any of the four prompts seen in the speech counts. Undeclared, an NPC line
+must be a line, not a sound: two words or more, or ending in `?`/`!`, so "Stay down." passes and "Hm." does not.
+A turn that answers the player's own look or inquiry (a reply_to quote on an observe, inspect, threshold-look,
+check, knowledge or lie-read event) hands the floor back by being the answer.
+
+The decision is fixed once it is saved for a turn. `hands_off` is the one key Kit may restate when she
+resubmits (`Runtime.AMENDABLE_PLAN_KEYS`). That way a handoff rejection is answered by declaring the turn's
+function, or by changing the speech, and never by appending a stock prompt.
+
+## Per scope
 
 | Scope | Must do |
 |---|---|
-| all but `call` | at least `SANITY_MIN_WORDS` = 8 words outside Kit's segments (Kit's count under showtime), against empty turns |
-| `feature` | name at least `FEATURE_MIN_THINGS` = 2 of the area's visible things (fewer if the area has fewer), and hand the floor to the player |
-| `exchange` | the focus actor makes a move (speaks, or the narration names them acting), and the player gets something to answer |
+| `feature` | hand the floor back (above) |
+| `exchange` | hand the floor back. Unless the hand-off is a check call or a combat prompt (the mechanics taking the floor), the focus actor must also make a move: speak, or be named acting in the narration |
 | `call` | unchanged: at most 60 words in 2 segments |
 
-* **Visible things** come from the public view only: each known exit, each present actor, each known fact here
-  and each established detail, reduced to anchor words (content words, stemmed, room-noise words removed). A
-  thing counts as named when a spoken word matches one of its anchors. Each spoken word names at most one thing.
-  No room data is needed beyond what the player can already see, so this works on any room, including rooms
-  authored from the book at runtime.
-* **Handing off** (`hands_off`): the last segment, or the last non-Kit segment when Kit reacts after it, asks a
-  question, calls a roll or check, says "what do you do", "your move" and the like, or is an NPC's line the player
-  can answer ("Hands out. Now.", "Stay down."). In an exchange, the focus actor asking anything also counts.
-* **A card with `speech_floor: true`** keeps its 30-word actor floor. That is room data the room opted into,
-  not a global word floor.
+A card with `speech_floor: true` keeps its 30-word actor floor. That is room data the room opted into, not a
+global word floor.
 
-The packet states all of this up front (`performance_limits`, the room-entry `first_try` line), so Kit can meet
-it on the first try. Short is fine when the turn does its job, and long is not enough when it doesn't.
+## One rule with #101's reveal handoff
+
+PR-H (#101, kit-combat-checkpoints) needs a room entry with a progressive reveal to end on a prompt. That is
+`kit_floor.function(segments, plan, guards, required=True)`, the same rule with `none` refused. The rejection
+text is the same ("... does not end with handing the floor back to the player ..."). Answering a look
+passes on the same basis.
 
 ## Watchroom replay (`scripts/watchroom_replay.py`, dice pinned, model time is the labelled estimate)
 
-`--pithy` swaps in the harness cases: a 44-word opening on T0, the 10-word challenge on T5, and short lines on T6,
-T8 and T10.
+The replay no longer appends "What do you do?" to Kit's lines, and no longer pads a rejected turn. Lines run
+exactly as played. When a handoff is rejected, the replay's Kit restates `hands_off` (none, with a reason)
+and the reject still counts. `--pithy` swaps in the harness cases.
 
-| | word floors (PR-T head) | functional floors |
+| run | rejects / unresolved | e2e median / p95 |
 |---|---|---|
-| `--pithy` rejects / unresolved | 12 / 2 | 0 / 0 |
-| `--pithy` e2e median / p95, full packets | 16.96 s / 60.04 s | 14.70 s / 16.46 s |
-| `--pithy` e2e median / p95, `--manifests` | 11.68 s / 47.69 s | 9.58 s / 12.94 s |
-| live lines (default) rejects | 0 | 0 (Kit ends a feature on a question, as the limits now say) |
-| live lines with `--live-speech` (exactly as played, no handoff) | 0 | 3 (T0, T2, T4 end on narration and are sent back once for a handoff) |
+| default (lines as played) | 1 / 0 (T0: the opening ends on narration) | 15.73 s / 23.57 s |
+| `--manifests` | 1 / 0 (T0) | 10.62 s / 21.43 s |
+| `--pithy` | 0 / 0 | 14.75 s / 16.51 s |
+| `--pithy --manifests` | 0 / 0 | 9.90 s / 13.29 s |

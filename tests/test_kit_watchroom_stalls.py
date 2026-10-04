@@ -36,6 +36,9 @@ def inside_only(source):
     return secret + ['who sent you', 'where are you going']
 
 
+QUIET = {'kind': 'none', 'reason': 'the description stands on its own; the player acts next'}
+
+
 class Stalls(Base):
     def setUp(self):
         super().setUp()
@@ -45,7 +48,10 @@ class Stalls(Base):
     def plan_for(self, packet, **update):
         from test_kit_agent import RecordingModel
         plan = RecordingModel().plan(packet['input']['private'])
-        plan.update({'move': 'world_description', 'table_presence': 'quiet', 'focus_actor': 'none', **update})
+        plan.update({'move': 'world_description', 'table_presence': 'quiet', 'focus_actor': 'none',
+                     # Kit declares how the turn hands over (#102 review). These fixtures replay
+                     # watchroom description beats that end on the scene, not on a prompt.
+                     'hands_off': QUIET, **update})
         plan['improv_read'].update(actor_ref='none', actor_basis='none')
         return plan
 

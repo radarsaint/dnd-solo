@@ -15,7 +15,7 @@ from runtime.kit_agent import KitChatBridge, RoomAdjudicator, check_scope, guard
 from runtime.state_context import InvalidChange
 from test_kit_manifest_nonces import synthetic
 from test_kit_room_review import ROOT, STUB, WATCH
-from test_kit_watchroom_stalls import Stalls
+from test_kit_watchroom_stalls import Stalls, landing
 
 # 44 words: a pithy human-DM room opening (Brendon's harness case, rebuilt on the watchroom).
 PITHY_OPENING = {'segments': [
@@ -155,6 +155,26 @@ class HarnessCasesOnTheBridge(Stalls):
         p['improv_read'].update(actor_ref='warden', actor_basis='motive')
         p['public_brief'].update(scope='exchange', reply_to='I am not here for trouble')
         self.assertTrue(self.bridge.complete('say', {'decision': p, 'performance': TERSE_CHALLENGE})['spoken'])
+
+
+class RestatingTheHandoff(Stalls):
+    """The decision is fixed for a turn, but how the turn hands over is Kit's answer to a handoff
+    rejection: she may restate hands_off on the resubmit, and nothing else."""
+
+    def test_a_handoff_reject_is_answered_by_declaring_not_by_appending_a_prompt(self):
+        packet = self.bridge.prepare(opening=True, one_pass=True, turn_id='open')
+        p = self.plan_for(packet, hands_off=None)
+        p.pop('hands_off')
+        p['public_brief'].update(scope='feature')
+        with self.assertRaisesRegex(InvalidChange, 'handing the floor back'):
+            self.bridge.complete('open', {'decision': p, 'performance': landing()})
+        with self.assertRaisesRegex(InvalidChange, 'already fixed'):
+            self.bridge.complete('open', {'decision': {**p, 'table_presence': 'brief'}, 'performance': landing()})
+        p['hands_off'] = {'kind': 'none', 'reason': 'the landing is set; the player has not acted yet'}
+        spoken = self.bridge.complete('open', {'decision': p, 'performance': landing()})['spoken']
+        self.assertNotIn('What do you do', spoken)
+        self.assertEqual(self.runtime.committed_kit_turn('open')['trace'].get('hands_off', p['hands_off']),
+                         p['hands_off'])
 
 
 class NoWordFloorsOrLists(unittest.TestCase):

@@ -20,7 +20,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from runtime import kit_agent, kit_detail, kit_manifest  # noqa: E402
+from runtime import kit_detail, kit_manifest  # noqa: E402
 from runtime.kit_agent import KitChatBridge, PendingRuling, RoomAdjudicator, start_session  # noqa: E402
 from runtime.state_context import InvalidChange, Runtime  # noqa: E402
 
@@ -197,18 +197,14 @@ def correct(decision, message, packet):
     elif 'Actor basis' in message:
         bases = private['discernment_candidates']['actor_bases'].get(read.get('actor_ref'), ['none'])
         read['actor_basis'] = bases[0]
-    elif 'scope was flat' in message:
-        return 'pad'
-    elif 'hand the floor' in message or 'nothing to answer' in message:
-        return 'handoff'
+    elif 'handing the floor back' in message and decision.get('hands_off') is None:
+        # The line stays as played (no appended prompt, #102 review): Kit restates the turn's
+        # function instead. The reject still counts.
+        decision['hands_off'] = {'kind': 'none', 'reason': 'the scene is set; the player has not acted yet'}
     else:
         return False
     return True
 
-
-PAD = ['Somewhere below, a door closes and the sound climbs the stair and fades.',
-       'Oil smoke drifts along the ceiling beams and gathers in the corner by the slit.',
-       'The wind finds the arrow slit and the lamp flame leans and steadies again.']
 
 TURNS = [
     {'id': 'T0', 'opening': True, 'story_basis': 'tease', 'focus': 'none', 'move': 'world_description',
@@ -324,24 +320,6 @@ def short_beat_turns():
     return [STALL_T0, HELD_T0] + TURNS[1:]
 
 
-LIVE_SPEECH = {'on': False}  # --live-speech: Kit's live lines exactly, no first-try handoff
-
-
-def follow_contract(speech, decision):
-    """PR-F: performance_limits says a feature or exchange ends by handing the floor to the
-    player. Kit's live lines predate that rule; on her first try she ends a turn that does not
-    hand off with a short question (unless --live-speech replays the live lines as they were)."""
-    if LIVE_SPEECH['on'] or decision['public_brief'].get('scope') not in ('feature', 'exchange'):
-        return
-    if not kit_agent.hands_off(speech['segments']):
-        hand_off(speech)
-
-
-def hand_off(speech):
-    last = next(s for s in reversed(speech['segments']) if s['speaker'] != 'Kit')
-    last['text'] = last['text'].rstrip() + ' What do you do?'
-
-
 def misread(turn, packet, runtime):
     expect = turn.get('expect') or {}
     private = packet['input']['private']
@@ -417,7 +395,6 @@ def run(out=None, turns=None, manifests=False):
         quote = ' '.join((packet['input']['private'].get('player_action') or '').split()[:4])
         speech = {'segments': [{'speaker': s, 'text': x, **({'reacts_to': quote} if s == 'Kit' else {})}
                                for s, x in turn['speech']]}
-        follow_contract(speech, decision)
         row['decision_bytes'] = nbytes(decision)
         row['speech_bytes'] = nbytes(speech)
         for _ in range(6):
@@ -444,12 +421,6 @@ def run(out=None, turns=None, manifests=False):
                 message = str(exc)
                 row['reasons'].append(f'reject: {message}'[:200])
                 fixed = correct(decision, message, packet)
-                if fixed == 'handoff':  # Kit ends on a question and resubmits
-                    hand_off(speech)
-                    continue
-                if fixed == 'pad':  # Kit adds a visible beat and resubmits
-                    speech['segments'].insert(1, {'speaker': 'Narrator', 'text': PAD[row['rejects'] % len(PAD)]})
-                    continue
                 if not fixed:
                     row['unresolved'] = True
                     bridge.abandon(packet['turn_id'])
@@ -503,14 +474,11 @@ if __name__ == '__main__':
                         help='three-layer packets (SessionManifest, RoomManifest, TurnDelta), as the live CLI sends')
     parser.add_argument('--pithy', action='store_true',
                         help='short human-DM lines on T0, T5, T6, T8 and T10 (PR-F harness cases)')
-    parser.add_argument('--live-speech', action='store_true',
-                        help="Kit's live lines exactly as played (no first-try handoff; PR-F)")
     parser.add_argument('--short-beats', action='store_true',
                         help='T0 opens on a stall check (Roll Perception); the roll delivers the description')
     for key, value in MODEL.items():
         parser.add_argument('--' + key.replace('_', '-'), type=float, default=value)
     args = parser.parse_args()
     MODEL.update({key: getattr(args, key) for key in MODEL})
-    LIVE_SPEECH['on'] = args.live_speech
     turns = short_beat_turns() if args.short_beats else pithy_turns() if args.pithy else None
     run(args.json, turns, manifests=args.manifests)
