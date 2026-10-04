@@ -3973,17 +3973,36 @@ class KitChatBridge:
         return packet
 
     def _layer(self, turn_id, packet):
-        """SessionManifest, RoomManifest, TurnDelta (kit_manifest). A body the host was sent
-        recently is replaced by its hash."""
-        session, room, _ = kit_manifest.split(packet)
+        """SessionManifest, RoomManifest, TurnDelta (kit_manifest; docs/architecture/MANIFESTS.md).
+        A body is sent only when the host does not hold its hash: on the first turn, after a cache
+        miss, or when it changes (a changed room goes as a diff). Every CHECK_EVERY turns the packet
+        carries a manifest check instead of a re-send."""
+        session, room, delta = kit_manifest.split(packet)
         hashes = {'session': kit_manifest.digest(session), 'room': kit_manifest.digest(room)}
-        recent = [row for row in self.runtime.recent_kit_timings(limit=kit_manifest.FULL_EVERY + 1)
-                  if row['turn_id'] != turn_id]
-        held = kit_manifest.plan_sends(recent)
-        cached = {layer: hashes[layer] in held[layer] for layer in hashes}
-        layered, _, _ = kit_manifest.layered(packet, cached['session'], cached['room'])
-        return layered, {'manifest': {**hashes, 'sent': [layer for layer in hashes if not cached[layer]]},
-                         'room_manifest': room, 'full_packet_bytes': _bytes(packet)}
+        previous = next((row for row in reversed(self.runtime.recent_kit_timings(limit=50))
+                         if row['turn_id'] != turn_id and row.get('manifest')), None)
+        prior = (previous or {}).get('manifest')
+        rejected = sum(1 for a in (previous or {}).get('attempts') or () if a.get('outcome') == 'rejected')
+        held = kit_manifest.held_by_host(prior)
+        cached = {layer: held[layer] == hashes[layer] for layer in hashes}
+        base = None
+        if not cached['room'] and held['room'] and kit_manifest.digest(previous.get('room_manifest') or {}) == held['room']:
+            base = (held['room'], previous['room_manifest'])
+        layered, _, _ = kit_manifest.layered(packet, cached['session'], cached['room'], room_base=base)
+        turn_no = (prior or {}).get('turn_no', 0) + 1
+        due = cached['session'] and kit_manifest.check_due(prior, rejected)
+        record = {**hashes, 'sent': [layer for layer in hashes if 'body' in layered[f'{layer}_manifest']],
+                  'held': dict(hashes), 'turn_no': turn_no,
+                  'since_check': 0 if due or not cached['session'] else (prior or {}).get('since_check', 0) + 1}
+        if 'diff' in layered['room_manifest']:
+            record['diff'] = ['room']
+        if due:
+            lines, expected = kit_manifest.check_lines(session, room, delta, f'{hashes["session"]}:{turn_no}')
+            if lines:
+                record.update(check=lines, check_expected=expected)
+                head = {key: layered.pop(key) for key in ('session_manifest', 'room_manifest', 'manifest_rule')}
+                layered = {**head, 'manifest_check': {'ask': kit_manifest.CHECK_RULE, 'lines': lines}, **layered}
+        return layered, {'manifest': record, 'room_manifest': room, 'full_packet_bytes': _bytes(packet)}
 
     def rehydrate(self, turn_id):
         """Both manifest bodies for a layered turn, in full (the host lost a copy)."""
@@ -3996,7 +4015,9 @@ class KitChatBridge:
                    'host_retry': HOST_RETRY_NOTE, 'personality_core': personality_core_text()}
         room = timing.get('room_manifest') or {}
         hashes = {'session': kit_manifest.digest(session), 'room': kit_manifest.digest(room)}
-        self.runtime.record_kit_timing(turn_id, manifest={**hashes, 'sent': ['session', 'room']})
+        record = {key: value for key, value in record.items() if key != 'cache_miss'}
+        self.runtime.record_kit_timing(turn_id, manifest={**record, **hashes, 'sent': ['session', 'room'],
+                                                          'held': dict(hashes), 'rehydrated': True})
         return {'turn_id': turn_id,
                 'session_manifest': {'hash': hashes['session'], 'body': session},
                 'room_manifest': {'hash': hashes['room'], 'body': room},
@@ -4177,7 +4198,14 @@ class KitChatBridge:
         try:
             record = (self.runtime.kit_timing(turn_id) or {}).get('manifest')
             if isinstance(output, dict) and (record or 'manifest' in output):
-                kit_manifest.check_echo(output, record)
+                try:
+                    kit_manifest.check_echo(output, record)
+                except kit_manifest.ManifestMismatch:
+                    if record:  # a real cache miss: the next turn re-sends the bodies
+                        self.runtime.record_kit_timing(turn_id, manifest={**record, 'cache_miss': True})
+                    raise
+                if record and record.get('check') and not record.get('check_passed'):
+                    self.runtime.record_kit_timing(turn_id, manifest={**record, 'check_passed': True})
                 output = {key: value for key, value in output.items() if key != 'manifest'}
             result = self._complete(turn_id, output, degraded)
         except InvalidChange:
@@ -4259,7 +4287,8 @@ def start_session(db, sheet_path=None, runtime=None, room=None, area=None, manif
                           '--action "<the player\'s words>", then complete again. When the player talks to you, '
                           'not the room, mid-scene, add --table-talk to prepare.'
                           + (' Add "manifest": {"session": <session_manifest.hash>, "room": <room_manifest.hash>} '
-                             'to every output; a "cached" manifest is the copy you were sent earlier '
+                             'to every output; a "cached" manifest is the copy you were sent earlier, a "diff" '
+                             'updates that copy, and a "manifest_check" asks you to continue lines from it '
                              '(rehydrate --turn-id T if you lost it).' if manifests else '')),
             'prepared': prepared,
         }

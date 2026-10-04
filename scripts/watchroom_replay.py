@@ -20,7 +20,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from runtime import kit_detail  # noqa: E402
+from runtime import kit_detail, kit_manifest  # noqa: E402
 from runtime.kit_agent import KitChatBridge, PendingRuling, RoomAdjudicator, start_session  # noqa: E402
 from runtime.state_context import InvalidChange, Runtime  # noqa: E402
 
@@ -57,13 +57,57 @@ def nbytes(value):
 
 
 KIT_COPY = {}
+ROOM_COPY = {}
+
+
+def hold(packet):
+    """Kit keeps the bodies she is sent and applies a room diff to the copy she holds."""
+    if 'body' in (packet.get('session_manifest') or {}):
+        KIT_COPY.clear()
+        KIT_COPY.update(packet['session_manifest']['body'])
+    room = packet.get('room_manifest') or {}
+    if 'body' in room:
+        ROOM_COPY.clear()
+        ROOM_COPY.update(room['body'])
+    elif 'diff' in room:
+        assert kit_manifest.digest(ROOM_COPY) == room['base'], 'room diff against a copy Kit does not hold'
+        updated = kit_manifest.apply_diff(ROOM_COPY, room['diff'])
+        ROOM_COPY.clear()
+        ROOM_COPY.update(updated)
+        assert kit_manifest.digest(ROOM_COPY) == room['hash'], 'room diff did not land on the new hash'
+
+
+def strings(value):
+    if isinstance(value, str):
+        yield value
+    elif isinstance(value, dict):
+        for item in value.values():
+            yield from strings(item)
+    elif isinstance(value, list):
+        for item in value:
+            yield from strings(item)
+
+
+def answer_check(packet):
+    """Kit continues each check line from the copy she holds."""
+    out = {}
+    for key, prompt in packet['manifest_check']['lines'].items():
+        want = kit_manifest.WORD.findall(prompt.casefold())
+        body = ROOM_COPY if key == 'room' else KIT_COPY
+        out[key] = ''
+        for text in strings(body):
+            found = kit_manifest.WORD.findall(text.casefold())
+            hit = next((i for i in range(len(found) - len(want) + 1) if found[i:i + len(want)] == want), None)
+            if hit is not None:
+                out[key] = ' '.join(found[hit + len(want):hit + len(want) + kit_manifest.CHECK_WORDS])
+                break
+    return out
 
 
 def kit_decision(packet, turn):
     """The decision Kit writes on her first try, shaped to what the packet's schema requires."""
     private = packet['input']['private']
-    if 'body' in (packet.get('session_manifest') or {}):
-        KIT_COPY.update(packet['session_manifest']['body'])  # the copy Kit keeps from the first full send
+    hold(packet)  # the copies Kit keeps from the full sends (and room diffs)
     schema = (packet.get('schema') or KIT_COPY['schema'])['properties']['decision']
     action = private.get('player_action') or ''
     opening = private['action_kind'] == 'opening'
@@ -328,6 +372,9 @@ def run(out=None, turns=None, manifests=False):
             rows.append(row)
             continue
         row['packet_bytes'] = nbytes(packet)
+        if 'session_manifest' in packet:
+            row['manifest_sent'] = [layer for layer in ('session', 'room')
+                                    if 'body' in packet[f'{layer}_manifest'] or 'diff' in packet[f'{layer}_manifest']]
         decision = kit_decision(packet, turn)
         quote = ' '.join((packet['input']['private'].get('player_action') or '').split()[:4])
         speech = {'segments': [{'speaker': s, 'text': x, **({'reacts_to': quote} if s == 'Kit' else {})}
@@ -341,6 +388,10 @@ def run(out=None, turns=None, manifests=False):
                 if 'session_manifest' in packet:  # Kit echoes the manifest hashes she was sent
                     output['manifest'] = {'session': packet['session_manifest']['hash'],
                                           'room': packet['room_manifest']['hash']}
+                    if 'manifest_check' in packet:
+                        output['manifest']['check'] = answer_check(packet)
+                        row['manifest_check'] = True
+                    row['manifest_out_bytes'] = nbytes(output['manifest'])
                 result = bridge.complete(packet['turn_id'], output)
                 row['complete_ms'].append(round((time.perf_counter() - t) * 1000, 1))
                 row['spoken_tail'] = result['spoken'][-120:]
@@ -389,7 +440,8 @@ def run(out=None, turns=None, manifests=False):
     for r in rows:
         print(f"{r['turn']:>4} {r.get('kinds')} stall {r['stalls']} misread {r['misreads']} reject {r['rejects']} "
               f"packet {r.get('packet_bytes', '-')} decision {r.get('decision_bytes', '-')} "
-              f"speech {r.get('speech_bytes', '-')} prepare_ms {r['prepare_ms']} complete_ms {r['complete_ms']}")
+              f"speech {r.get('speech_bytes', '-')} sent {r.get('manifest_sent', '-')}"
+              f"{' check' if r.get('manifest_check') else ''} prepare_ms {r['prepare_ms']} complete_ms {r['complete_ms']}")
         for reason in r['reasons']:
             print('       ', reason)
     print('TOTAL', json.dumps(total))
