@@ -57,7 +57,9 @@ class KitVisualTests(unittest.TestCase):
         self.assertIn("broken nose", " ".join(warden["visual"]).casefold())
         self.assertEqual(warden["counts"], {"arms": 2, "eyes": 2, "swords": 1})
         self.assertEqual(brief["generation_contract"]["expected_counts"]["actor:warden.swords"], 1)
-        self.assertEqual(brief["style"]["references"][0]["id"], "BFDM-GOOD-15")
+        refs = brief["style"]["references"]
+        self.assertTrue(any("human_portrait" in ref.get("subject_bias", []) for ref in refs))
+        self.assertNotIn("BFDM-CORE-08", [ref["id"] for ref in refs])
 
     def test_named_visible_actor_defaults_to_character_spotlight(self):
         self.replace_runtime(copy.deepcopy(self.source), "watchroom")
