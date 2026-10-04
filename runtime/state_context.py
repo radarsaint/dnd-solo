@@ -105,7 +105,7 @@ PENDING_CHECK_OPTIONAL = {'exit', 'dc_adjust', 'reason', 'threshold', 'held'}
 HELD_KINDS = ('opening', 'exit', 'threshold_look')
 COMMIT_APPENDED_EVENTS = ('canon_entry', 'oracle_draw', 'procedure_state', 'claim_said', 'agenda_turn',
                           'pc_state', 'kit_plan', 'toll_state', 'story_beat', 'threshold_crossed',
-                          'attitude_shift', 'pending_check', 'open_threads')
+                          'attitude_shift', 'pending_check', 'open_threads', 'risk_warned')
 # A turn whose decision asks the player a question resolves nothing: its only event is a
 # rhythm beat tagged 'asked' whose evidence is the question.
 ASKED_EVENT_PREFIX = 'Kit asks before resolving: '
@@ -341,6 +341,18 @@ class Runtime:
                     ('player_input', 'public_event', 'spoken', 'trace')), 'Kit turn exceeds size limit')
         return self._commit(turn_id, expected_revision, events, record, consume_pending)
 
+    def commit_engine_interstitial(self, turn_id, expected_revision, events, record):
+        """Commit a checkpoint the engine raised (kit_combat: a reaction window, a flourish
+        handoff) with no model turn. It joins the public history so Kit sees it next turn;
+        Kit's own appraisal, episodes and notes are untouched (she made no decision)."""
+        require(isinstance(record, dict) and record.get('engine_checkpoint') is True and
+                record.get('turn_role') == 'interstitial' and isinstance(record.get('interstitial'), dict),
+                'Interstitial record required')
+        for key in ('player_input', 'public_event', 'spoken'):
+            require(isinstance(record.get(key), str) and record[key].strip(), f'{key} required')
+        require(len(encode(record).encode()) <= 12000, 'Interstitial exceeds size limit')
+        return self._commit(turn_id, expected_revision, events, record)
+
     def stage_kit_turn(self, turn_id, expected_revision, body):
         """Save an uncommitted chat turn so a host can perform the two model stages."""
         require(isinstance(turn_id, str) and bool(turn_id.strip()), 'Turn ID required')
@@ -472,7 +484,7 @@ class Runtime:
                     # that room lapses it, so it never lands in the wrong place).
                     state.pop('pending_check', None)
             next_revision = revision + 1
-            if kit_record is not None:
+            if kit_record is not None and not kit_record.get('engine_checkpoint'):
                 kit = state['kit']
                 trace = kit_record['trace']
                 read = trace.get('improv_read') if isinstance(trace.get('improv_read'), dict) else {}
@@ -873,6 +885,9 @@ class Runtime:
                 state.pop('pending_check', None)
             else:
                 state['pending_check'] = copy.deepcopy(check)
+        elif kind == 'risk_warned':
+            from . import kit_interstitial
+            kit_interstitial.apply(state, event)
         elif kind == 'open_threads':
             from . import kit_threads
             kit_threads.apply_event(state, event)
