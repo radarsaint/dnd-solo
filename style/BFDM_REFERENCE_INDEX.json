@@ -29,7 +29,8 @@
       "subject_bias": [
         "occult_humanoid"
       ],
-      "subject_family": "occult_portrait"
+      "subject_family": "occult_portrait",
+      "sha256": "e7cda4a7599e5d2e94590f85140e70a3d17cfb81553041c08c5e109e0e8b60b0"
     },
     {
       "id": "BFDM-REF-002",
@@ -56,7 +57,8 @@
       "subject_bias": [
         "humanoid"
       ],
-      "subject_family": "luminous_character"
+      "subject_family": "luminous_character",
+      "sha256": "bcef37f5c516deb868aedbe19d47002f348009c651d6ab0ade9d21301a6df5b8"
     },
     {
       "id": "BFDM-REF-003",
@@ -83,7 +85,8 @@
         "humanoid",
         "spellcaster"
       ],
-      "subject_family": "costume_character"
+      "subject_family": "costume_character",
+      "sha256": "b3f3fb88ec2c0ff6907c10bffe631c32253abe2224c47f3bae5a9e170bd37585"
     },
     {
       "id": "BFDM-REF-004",
@@ -110,7 +113,8 @@
       "subject_bias": [
         "aberration"
       ],
-      "subject_family": "grotesque_creature"
+      "subject_family": "grotesque_creature",
+      "sha256": "2af1ad6e61106a1389785b2f7d7dc468c5e649fddec3d026182450c4c1ec8008"
     },
     {
       "id": "BFDM-REF-005",
@@ -137,7 +141,8 @@
       "subject_bias": [
         "settlement"
       ],
-      "subject_family": "settlement_exterior"
+      "subject_family": "settlement_exterior",
+      "sha256": "50ed3787c360faa0b1e3911471bba665656a291af076cdbf52c7543305b92a45"
     },
     {
       "id": "BFDM-REF-006",
@@ -163,7 +168,8 @@
       "subject_bias": [
         "creature"
       ],
-      "subject_family": "creature_environment"
+      "subject_family": "creature_environment",
+      "sha256": "c1f33238c2665390bfc4e1d02771d3b9b2b49b57ed154d5cba9627c692f11e61"
     },
     {
       "id": "BFDM-REF-007",
@@ -190,7 +196,8 @@
       "subject_bias": [
         "object"
       ],
-      "subject_family": "prop_study"
+      "subject_family": "prop_study",
+      "sha256": "a659635ada0ed44028775c78b17f06a9176fac735e2792acba64369fcd92342c"
     },
     {
       "id": "BFDM-REF-008",
@@ -217,7 +224,8 @@
       "subject_bias": [
         "anthropomorphic"
       ],
-      "subject_family": "anthro_portrait"
+      "subject_family": "anthro_portrait",
+      "sha256": "2d23cf7236d06304711b03c5f6cb5e6697f03b44b321d093c0db78890b2ca558"
     },
     {
       "id": "BFDM-REF-009",
@@ -243,7 +251,8 @@
       "subject_bias": [
         "page"
       ],
-      "subject_family": "rules_page"
+      "subject_family": "rules_page",
+      "sha256": "60bb082796477589792bf05cb9db5c1e7b971ec5c19b796b8a02d10c2ac88869"
     },
     {
       "id": "BFDM-REF-010",
@@ -269,7 +278,8 @@
       "subject_bias": [
         "page"
       ],
-      "subject_family": "rules_page"
+      "subject_family": "rules_page",
+      "sha256": "190363fc345024055cb8b0ea79fc2266997478ad0a9a786feb6abf076a539623"
     },
     {
       "id": "BFDM-REF-011",
@@ -298,7 +308,8 @@
         "page",
         "creature"
       ],
-      "subject_family": "bestiary_page"
+      "subject_family": "bestiary_page",
+      "sha256": "5b122a5c25aba5ea749e37d0edb0471ccd3c755165c6b7f48d5d3c726a57f65d"
     },
     {
       "id": "BFDM-REF-012",
@@ -324,7 +335,8 @@
       "subject_bias": [
         "page"
       ],
-      "subject_family": "rules_page"
+      "subject_family": "rules_page",
+      "sha256": "0f0f3b71738628d848f9bb180deaaecea99a3b75434e8b48217134e2ad831c69"
     },
     {
       "id": "BFDM-REF-013",
@@ -352,7 +364,8 @@
         "vehicle",
         "ship"
       ],
-      "subject_family": "vehicle"
+      "subject_family": "vehicle",
+      "sha256": "8745b086e0e9713e751ab36ccb7d24a9e4bb57355a8841605109e5352eeaff4d"
     },
     {
       "id": "BFDM-REF-014",
@@ -377,7 +390,8 @@
       "subject_bias": [
         "animal_hybrid"
       ],
-      "subject_family": "whimsical_creature"
+      "subject_family": "whimsical_creature",
+      "sha256": "b654572e72c0f93db095f14fb106ece45ceda6aedea1c5bfda1b6ef330ab02ae"
     },
     {
       "id": "BFDM-REF-015",
@@ -404,7 +418,8 @@
       "subject_bias": [
         "construct"
       ],
-      "subject_family": "construct_character"
+      "subject_family": "construct_character",
+      "sha256": "bba2eaa6985b81aa2f350763bd60a46dc998323c1cab8c79a3ecbdb98c8ad798"
     },
     {
       "id": "BFDM-REF-016",
@@ -430,7 +445,8 @@
       "subject_bias": [
         "humanoid"
       ],
-      "subject_family": "face_portrait"
+      "subject_family": "face_portrait",
+      "sha256": "52f4fffdf3edfdb2603d079345d66aeb71d45e670b578d7fbb83918919d5bb3d"
     },
     {
       "id": "BFDM-REF-017",
@@ -458,7 +474,8 @@
       "subject_bias": [
         "humanoid"
       ],
-      "subject_family": "graphic_portrait"
+      "subject_family": "graphic_portrait",
+      "sha256": "7b68fa47b0de3a2a7c3931c7632e56cb6c8ca55d1f52b7f3ac1bf9878d57bcf2"
     },
     {
       "id": "BFDM-REF-018",
@@ -485,7 +502,8 @@
         "humanoid",
         "dwarf"
       ],
-      "subject_family": "small_character"
+      "subject_family": "small_character",
+      "sha256": "20eee934c74d8bdcf37db44b5c9a39ab45b7282b06e7246655585aa1ab3ef3b8"
     },
     {
       "id": "BFDM-REF-019",
@@ -510,7 +528,8 @@
       "subject_bias": [
         "anthropomorphic"
       ],
-      "subject_family": "character_concept"
+      "subject_family": "character_concept",
+      "sha256": "e114aea256a25778c8e1675f0f8b05385b568b78bcf93d3340901a77ba37ad8b"
     },
     {
       "id": "BFDM-REF-020",
@@ -535,7 +554,13 @@
       "subject_bias": [
         "humanoid"
       ],
-      "subject_family": "minimal_figure"
+      "subject_family": "minimal_figure",
+      "sha256": "0b40466c1b71fcc9ab6f565ea136c296cc7cb95c1ffe754f05fcd5cc83c0e99a"
     }
-  ]
+  ],
+  "private_pack": {
+    "filename": "bfdm-style-reference-pack-v1.zip",
+    "sha256": "c4075f162e5fd476837bef91c763eb1854ba6f9e8db7a7a19d195f20ca6b93c6",
+    "image_count": 20
+  }
 }
