@@ -100,10 +100,12 @@ BOOKKEEPING_EVENTS = ('player_sheet', 'player_character', 'player_note', 'pc_sta
 # A pending check's optional fields: a held exit, and room for the check-calling follow-up's
 # quiet DC adjustment for creative use of the scene (Brendon: about -2) with its reason. Not
 # applied anywhere yet.
-PENDING_CHECK_OPTIONAL = {'exit', 'dc_adjust', 'reason'}
+PENDING_CHECK_OPTIONAL = {'exit', 'dc_adjust', 'reason', 'threshold', 'held'}
+# A heavy turn Kit opened on a check call holds its description for the roll (kit_agent.STALL_KINDS).
+HELD_KINDS = ('opening', 'exit', 'threshold_look')
 COMMIT_APPENDED_EVENTS = ('canon_entry', 'oracle_draw', 'procedure_state', 'claim_said', 'agenda_turn',
                           'pc_state', 'kit_plan', 'toll_state', 'story_beat', 'threshold_crossed',
-                          'attitude_shift', 'pending_check')
+                          'attitude_shift', 'pending_check', 'open_threads')
 # A turn whose decision asks the player a question resolves nothing: its only event is a
 # rhythm beat tagged 'asked' whose evidence is the question.
 ASKED_EVENT_PREFIX = 'Kit asks before resolving: '
@@ -463,7 +465,12 @@ class Runtime:
                 room.setdefault('turns_in', {})[acted_in] = room.get('turns_in', {}).get(acted_in, 0) + 1
             if not any(event.get('type') == 'pending_check' for event in events) and \
                     any(event.get('type') not in BOOKKEEPING_EVENTS for event in events):
-                state.pop('pending_check', None)  # a called check lasts one player turn
+                held = (state.get('pending_check') or {}).get('held')
+                if not (held and held.get('area', acted_in) == state['area']):
+                    # A called check lasts one player turn. A held description is an obligation:
+                    # it stays until delivered, and only for the room it describes (leaving
+                    # that room lapses it, so it never lands in the wrong place).
+                    state.pop('pending_check', None)
             next_revision = revision + 1
             if kit_record is not None:
                 kit = state['kit']
@@ -850,17 +857,25 @@ class Runtime:
             require(check is None or (isinstance(check, dict) and
                                       set(check) - PENDING_CHECK_OPTIONAL == {'skill', 'ability', 'target', 'called_turn'} and
                                       ('exit' not in check or check['exit'] in (source.get('exits') or {})) and
+                                      ('threshold' not in check or check['threshold'] in (source.get('exits') or {})) and
                                       ('dc_adjust' not in check or (type(check['dc_adjust']) is int and
                                                                     -5 <= check['dc_adjust'] <= 5)) and
+                                      ('held' not in check or (isinstance(check['held'], dict) and
+                                                               set(check['held']) - {'area'} == {'kind'} and
+                                                               check['held'].get('area', state['area']) in source['areas'] and
+                                                               check['held']['kind'] in HELD_KINDS)) and
                                       ('reason' not in check or (isinstance(check['reason'], str) and
                                                                  len(check['reason']) <= 200)) and
                                       pc_sheet.SKILLS.get(check['skill']) == check['ability'] and
                                       isinstance(check['target'], str) and isinstance(check['called_turn'], str)),
-                    'pending_check is {skill, ability, target, called_turn[, exit, dc_adjust, reason]} or None')
+                    'pending_check is {skill, ability, target, called_turn[, exit, threshold, held, dc_adjust, reason]} or None')
             if check is None:
                 state.pop('pending_check', None)
             else:
                 state['pending_check'] = copy.deepcopy(check)
+        elif kind == 'open_threads':
+            from . import kit_threads
+            kit_threads.apply_event(state, event)
         elif kind == 'kit_plan':
             from . import kit_plan
             kit_plan.apply_event(state, event)

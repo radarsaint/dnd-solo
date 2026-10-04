@@ -264,6 +264,42 @@ my steps"), which goes by the exit the PC came in by.
 A `room_link` whose `area` is not in the linked room is refused before the move, with the
 table line and `host_error` (`kit_rooms.load_link`).
 
+## 4a. Threshold, check requests, open threads (watchroom stalls, 2026-10-04)
+
+Nine stalls from the Nik watchroom session (`tests/playtests/2026-10-04-watchroom-nik.md`),
+fixed in general code, tested on the watchroom and the 17a stub (`tests/test_kit_watchroom_stalls.py`):
+
+- **The approach brief is tease-only but never empty.** At an approach area the brief adds
+  `visible` (this area's visible facts), `ways_on` (the exit labels from here), a default
+  purpose (frame the threshold, stop at the choice), and `hooks_waiting` (the hook inside by
+  id and speaker only, never its text).
+- **Inside actors are only heard at the approach.** The performer's `speakers` list has only
+  the actors in the PC's area (both sides of a doorway on a move). Someone in the tease's
+  `heard` is listed under `heard` with the sound; they may call through the door.
+- **The first framing commits.** On room entry `reply_to` defaults to none. The scene's story
+  bases include the room's own (`tease` at an approach, story area ids, hook ids), and a
+  story anchor or basis the turn does not offer settles to an offered one (a memory tag, not
+  a secret). `actor_ref` stays strict.
+- **Perception at a threshold is not movement.** Peek, peer, look or watch through, listen at,
+  an eye or ear to the gap, cracking the door: kind `threshold_look`, the PC stays put. Going
+  through, in, or past still moves.
+- **A check request is Kit's call.** "Can I make a check?", "Could I roll Perception?": kind
+  `check_request`, nothing rolled, every other intent kept in the event. The packet's
+  `check_request` says Kit calls one (roll_call) or declines; a skill the player names is a
+  request. Brendon's rule: the player never picks the skill and never rolls first.
+- **A peek gets the next area's approach view.** `threshold_view` (through, into, label,
+  tease, heard), tease-only, on the look and on the roll for a check Kit called on it.
+- **A question declares nothing.** Sentences that ask ("Could I grab the spear before he
+  moves?", "Is there anywhere to hide?") are dropped before the physical reading.
+- **The engine's move line never follows Kit's handoff.** Entering the room, it comes first;
+  leaving, it goes before her closing remark.
+- **Open threads.** A decision may carry `open_threads` {plant: [{id, hint}], pay: [ids],
+  drop: [ids]}. They live in state (`open_threads`), every prepare packet lists them, and
+  `due` is true once the scene is ending (stage resolution). Paying an unknown id is refused.
+- **First-try lines.** Every packet opens with `first_try`: the constraints this turn checks
+  (reply_to, the story bases, the actor ids, the appraisal labels, the speakers and the heard,
+  terse speakers, a due hook, a check request, a threshold view, open threads).
+
 ## 5. 6c hardcodes
 
 Removed (line numbers on *main* 6a2b7ed):
@@ -381,3 +417,31 @@ Spike: branch `kit-room-loader-spike` (`c5713b2`, no PR) answered one question: 
 the `area_06c` gate enough to run a non-6c room? No. The tub and `south_door` rulings were
 hardcoded and either narrated a tub that isn't there or crashed (`Unknown fact`,
 `Exit not discovered`).
+
+### 4b. Short beats (plan update #3)
+
+A short beat is a complete, call-sized turn with no floor padding:
+
+- **Narrowing question / "are you sure?"** `move: ask_clarification`, `scope: call`: one real reaction
+  from Kit plus the question. The call cap (60 words) is the only size rule.
+- **Stall check on a heavy turn** (`opening`, `exit`, `threshold_look`; `kit_agent.STALL_KINDS`):
+  `scope: call` with a `roll_call` for a sheet skill. On room entry the move may be `ruling`. It is
+  only for an earned check: would Kit call it if the answer were instant? The engine keeps the check
+  as `pending_check.held = {kind, area}`, where `area` is the place being described.
+- **The held description is an obligation.** It stays in state until it is delivered (a turn with no
+  roll does not clear it), and only for its own area: leaving that area lapses it, so it is never
+  delivered in the wrong room. The next turn in that area carries `held_description` {kind, roll,
+  rule, cues}. With the roll in, the description is scaled to the result; with no roll, it is the
+  plain view. That turn must use `scope: feature`, may not call a new check, and must actually
+  describe the place: its narration names at least two `cues` (the area's own visible things,
+  `kit_agent.check_held_delivered`). Delivery clears the pending check. A second stall, or a stall
+  while a due hook must land, is refused.
+- **Never canned.** On a call-scope turn, a Kit segment is rejected when its statements (questions
+  aside) are only filler words ("Ooh, bold!", "Well, well, well.") (`kit_guards.check_not_canned`).
+  A bare laugh or gasp before a real question is a whole beat ("Ha! Are you sure?", "Wow. How do you
+  want to do that?"). A line Kit already used is caught by the recycled-line check.
+- **What counts as a check request.** The PC asking for themselves ("Can I roll…?", "Do I need to
+  make a check?", "Can I make a saving throw?"). It is never an NPC asked to do something ("Dealer,
+  can you check my hand?") and never "save" as a verb ("Can I save him?").
+
+Tests: `tests/test_kit_short_beats.py`.

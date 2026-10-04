@@ -442,14 +442,89 @@ def brief(source, state):
                         if hook['id'] == tease.get('points_to')), None)
         # Tease-only (Brendon, 2026-10-04): the hook is named by id, never by its inside text.
         tease = {'text': tease['text'], 'points_to': tease.get('points_to') if pointed else None}
+    frame = approach_frame(source, state, story) if where == 'approach' else {}
     made = {'rule': BRIEF_RULE, 'area': area, 'stage': where, 'about': about,
-            **({'tease': tease} if tease else {}),
+            **({'tease': tease} if tease else {}), **frame,
             **({'resolved': resolution(source, state)} if where == 'resolution' else {}),
             'beats_in_scene': mem['beats'],
             'present': people,
-            'purposes': [{'what': p['what'], 'for': p['for']} for p in story.get('purposes') or ()],
+            'purposes': [{'what': p['what'], 'for': p['for']} for p in story.get('purposes') or ()]
+            or ([APPROACH_PURPOSE] if where == 'approach' else []),
             'hooks': hooks, 'raise_now': raise_now, 'thresholds': thresholds, 'endings': endings}
     return _capped(made)
+
+
+# The approach is tease-only (Brendon, 2026-10-04), but never empty (watchroom T0: a thin doorway
+# brief): what is plainly visible here, the ways on from here, what the approach is for, and the
+# hook waiting inside, named by id and speaker only.
+APPROACH_PURPOSE = {'what': 'Frame the threshold from outside: what is seen and heard from here, nothing from inside.',
+                    'for': 'A choice at the way in: go in, look or listen, knock or call out, or go past.'}
+THRESHOLD_RULE = ('Tease-only: what reaches the PC through this way from where they stand. Describe only '
+                  'this; the first look and anything inside begin on entry. A check you call can sharpen '
+                  'what is heard or noticed here, never reveal what is inside.')
+
+
+def _visible_here(source, state, area):
+    seen = set((state or {}).get('visible_facts') or ())
+    return [fact['text'] for key, fact in (source.get('facts') or {}).items()
+            if isinstance(fact, dict) and fact.get('area') == area and (fact.get('visible') or key in seen)]
+
+
+def _ways_on(source, state, area):
+    exits = source.get('exits') or {}
+    known = (state or {}).get('known_exits') or [key for key, edge in exits.items() if not edge.get('secret')]
+    return [((exits[key].get('labels') or {}).get(area) or exits[key].get('name') or key)
+            for key in known if area in (exits.get(key) or {}).get('areas', ())]
+
+
+def approach_frame(source, state, story=None):
+    """The approach brief's frame: visible, ways_on, hooks_waiting (ids and speakers only)."""
+    from .kit_agent import actor_speakers
+    area = (state or {}).get('area')
+    labels = actor_speakers(source)
+    inside = compile_story(source)
+    waiting = []
+    for story_area, body in inside.items():
+        if story_area == area:
+            continue
+        mem = story_state(state, story_area)
+        for hook in body.get('hooks') or ():
+            if hook['id'] not in mem['delivered']:
+                waiting.append({'id': hook['id'], 'by': labels.get(hook['by'], hook['by']), 'inside': True})
+    pointed = (((source.get('areas') or {}).get(area) or {}).get('tease') or {}).get('points_to')
+    waiting.sort(key=lambda item: item['id'] != pointed)
+    visible = _visible_here(source, state, area) or [((source.get('areas') or {}).get(area) or {}).get('name') or area]
+    return {'visible': visible, 'ways_on': _ways_on(source, state, area), 'hooks_waiting': waiting}
+
+
+def threshold_view(source, state, exit_key):
+    """What a look or listen through ``exit_key`` gives from the PC's area: the next area's
+    approach-stage view, tease-only (watchroom T2), without moving the PC. None if the exit is
+    not here."""
+    from .kit_agent import actor_speakers
+    from .kit_rooms import outside
+    source, state = source or {}, state or {}
+    area = state.get('area')
+    edge = (source.get('exits') or {}).get(exit_key) or {}
+    if area not in edge.get('areas', ()):
+        return None
+    other = next((a for a in edge['areas'] if a != area), area)
+    areas = source.get('areas') or {}
+    # The tease belongs to the outside (approach) side of the way in: from out here it is
+    # this area's own tease; from inside looking out, the outside area's.
+    side = other if outside(source, other) and (areas.get(other) or {}).get('tease') else area
+    tease = (areas.get(side) or {}).get('tease') or {}
+    labels = actor_speakers(source)
+    live = state.get('actors') or {}
+    heard = [{'speaker': labels.get(item['actor'], item['actor']), 'heard': item['sound']}
+             for item in tease.get('heard') or ()
+             if (live.get(item.get('actor')) or {}).get('location', (source.get('actors') or {}).get(
+                 item.get('actor'), {}).get('location')) == other
+             and (live.get(item.get('actor')) or {}).get('status') not in GONE]
+    return {'rule': THRESHOLD_RULE, 'through': edge.get('name') or exit_key,
+            'into': (areas.get(other) or {}).get('called') or (areas.get(other) or {}).get('name') or other,
+            'label': (edge.get('labels') or {}).get(area) or edge.get('name') or exit_key,
+            'tease': tease.get('text') or (edge.get('labels') or {}).get(area) or '', 'heard': heard}
 
 
 def _size(made):
@@ -470,10 +545,11 @@ def _capped(made):
                 made['trimmed'] = True
                 break
         else:
-            longest = max(made['present'], key=lambda p: len(p['traits']) + len(p['wants']), default=None)
-            if longest and len(longest['traits']) > 1:
+            longest = max(made['present'], key=lambda p: len(p.get('traits', ())) + len(p.get('wants', ())),
+                          default=None)
+            if longest and len(longest.get('traits', ())) > 1:
                 longest['traits'].pop()
-            elif longest and len(longest['wants']) > 1:
+            elif longest and len(longest.get('wants', ())) > 1:
                 longest['wants'].pop()
             else:
                 break

@@ -467,6 +467,40 @@ def check_ruling_dodge(plan, action_kind, player_action, table_talk=False):
             'clarification; otherwise the actor answers in an exchange.')
 
 
+# Kit's reaction is her judgment of this move, never a stock interjection (plan update #3: a
+# short beat's reaction must be real). A Kit segment whose statements, questions set aside, are
+# all filler words is canned. A line she already used is caught by the recycled-line check.
+CANNED_FILLER = frozenset("""
+ooh oh ho oho ah aha ahh hmm hm mm huh heh ha haha whoa wow woah well okay ok alright right so now
+bold nice cool neat fun great lovely interesting classic love loving it that this those these
+yes yep yeah sure indeed very really quite truly of course fair enough i we you me my our
+here there go goes going let lets let's see look at a an the and but is s are what how
+move choice plan idea one oh-ho well-well
+""".split())
+
+
+# A bare laugh or gasp ("Ha!", "Wow.") is how Kit reacts, not a stock verdict: before a real
+# question it is a whole short beat ("Ha! Are you sure?"). Verdict filler ("Bold!", "Classic.",
+# "Well, well, well.") is still canned, question or not.
+INTERJECTIONS = frozenset('ha haha hah heh hee oh ooh ah ahh whoa woah wow huh hmm hm mm oof yikes eek'.split())
+
+
+def check_not_canned(segments):
+    """HARD: a Kit reaction says something about this move; filler alone is canned."""
+    for segment in segments:
+        if segment['speaker'] != 'Kit':
+            continue
+        parts = [part for part in re.split(r'(?<=[.!?])\s+', segment['text'].strip()) if part]
+        statements = [part for part in parts if not part.rstrip().endswith('?')]
+        words = [w for part in statements for w in re.findall(r"[a-z][a-z'\-]*", normalize(part))]
+        asks = any(len(re.findall(r"[a-z]+", normalize(part))) >= 3 for part in parts if part.rstrip().endswith('?'))
+        if asks and words and all(word in INTERJECTIONS for word in words):
+            continue  # a laugh or a gasp, then a real question
+        require(not words or any(word not in CANNED_FILLER for word in words),
+                f'Kit\'s reaction is canned filler ({segment["text"][:40]!r}); react to what this move '
+                'actually does here, in a line of your own')
+
+
 def check_clarification_shape(segments, plan):
     """HARD: a clarification asks the player something and is not an NPC reply in disguise."""
     if plan['move'] != 'ask_clarification':
