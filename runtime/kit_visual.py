@@ -44,6 +44,13 @@ _SUBJECT_TAGS = {
     "item": re.compile(r"\b(item|weapon|mask|bag|artifact|prop|object|equipment|lantern|amulet|ring)\b", re.I),
     "settlement": re.compile(r"\b(town|city|village|settlement|street|waterfront|building|castle)\b", re.I),
     "rules": re.compile(r"\b(rule|rules|class|subclass|stat block|bestiary|mechanics|spread)\b", re.I),
+    "hybrid": re.compile(r"\b(hybrid|chimera|centaur|merged|crossed with|mashup)\b", re.I),
+    "construct": re.compile(r"\b(construct|robot|automaton|golem|mechanical|machine)\b", re.I),
+    "vehicle": re.compile(r"\b(ship|boat|vehicle|wagon|carriage|airship|submarine)\b", re.I),
+    "story": re.compile(r"\b(scene|moment|encounter|discovery|conversation|interaction|what i see)\b", re.I),
+    "sci_fi": re.compile(r"\b(sci-fi|science fiction|cyberpunk|synthetic|space|futuristic)\b", re.I),
+    "symbol": re.compile(r"\b(symbol|sigil|glyph|tattoo|emblem|seal|ornament)\b", re.I),
+    "costume": re.compile(r"\b(costume|outfit|clothing|fashion|armor design|dress)\b", re.I),
 }
 
 CORE_STYLE = [
