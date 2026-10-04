@@ -109,6 +109,7 @@ def select_references(mode, request, branch="core", recent_reference_ids=(), lim
         selected.append({
             "id": ref["id"],
             "pack_file": ref["pack_file"],
+            "hydrated_path": "style/private_refs/" + ref["pack_file"],
             "strength": ref.get("strength"),
             "teaches": ref.get("teaches") or [],
             "lanes": ref.get("lanes") or [],
@@ -130,6 +131,7 @@ def select_references(mode, request, branch="core", recent_reference_ids=(), lim
             selected.append({
                 "id": ref["id"],
                 "pack_file": ref["pack_file"],
+                "hydrated_path": "style/private_refs/" + ref["pack_file"],
                 "strength": ref.get("strength"),
                 "teaches": ref.get("teaches") or [],
                 "lanes": ref.get("lanes") or [],
