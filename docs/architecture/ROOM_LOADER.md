@@ -45,7 +45,8 @@ strings; `source_ref`, `map_ref`, `test_precondition` strings; `fixture_only`, `
 
 Area fields: `name` (required, a non-empty string); `called` (how a line names it: "the short passage"); `outside` (not in
 the room); `beyond` (an outside area past the room: arriving there is resolution); `arrival`
-(the opening event line); `room_link` (`{room, area}`: arriving here mounts that room);
+(the opening event line); `room_link` (`{room, area}`: arriving here mounts that room; or
+`{"author": {"level", "area"}}`: a room Kit writes from the book's keyed text, docs/architecture/SOURCE_TO_ROOM.md);
 **`tease`** (required on every approach, i.e. an outside area that is not `beyond` and is joined
 to an inside area):
 

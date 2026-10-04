@@ -21,3 +21,9 @@ assets/handouts/*
 !assets/handouts/index.json
 *.sqlite
 *.sqlite-*
+
+# Source-to-room authoring (docs/architecture/SOURCE_TO_ROOM.md): the book text is licensed and
+# never committed. Point KIT_SOURCE_TEXT or config/kit_source.json at a local copy. Rooms Kit
+# writes from it are cached per session beside the database and are never committed either.
+config/kit_source.json
+*.authored/

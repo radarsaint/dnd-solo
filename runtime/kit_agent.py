@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from . import kit_attitude
+from . import kit_author
 from . import kit_brief
 from . import kit_cards
 from . import kit_combat
@@ -629,6 +630,7 @@ class RoomAdjudicator:
         self.sleight_of_hand = sleight_of_hand
         self.source = source  # the mounted room's source; prepare_turn refreshes it every turn
         self.last_said = ''   # Kit's last public line, for the exit in view (one resolve)
+        self.authored = None  # the session's authored-room directory (kit_author), set by prepare_turn
 
     def mount(self, source):
         """Point this adjudicator at the room mounted now. This is the only room-derived
@@ -1403,7 +1405,7 @@ class RoomAdjudicator:
             moved = copy.deepcopy(state)
             moved['area'] = there
             try:
-                kit_rooms.arrive(source, moved, link)
+                kit_rooms.arrive(source, moved, link, authored=self.authored)
             except kit_rooms.RoomMountError as exc:
                 pending = PendingRuling(f'{exc.table_line} No turn was committed.')
                 pending.host_error = exc.host_view()
@@ -3439,6 +3441,7 @@ def prepare_turn(runtime, adjudicator, action, use_memory=True, one_pass=False, 
     if isinstance(adjudicator, RoomAdjudicator):
         # Every turn, not once: a commit may have mounted another room since the last one.
         adjudicator.mount(runtime.source())
+        adjudicator.authored = getattr(runtime, 'authored_dir', lambda: None)()
         last = runtime.recent_kit_turns(limit=1)
         addressed = bool(last) and npc_addressed_player(last[-1].get('spoken'))
         said = ' '.join(str(last[-1].get(k) or '') for k in ('public_event', 'spoken')) if last else ''
@@ -4157,6 +4160,12 @@ class KitChatBridge:
         manifest = {}
         if one_pass and self.manifests:
             packet, manifest = self._layer(turn_id, packet)
+        ahead = kit_author.author_ahead(self.runtime.source(), self.runtime.load()[1],
+                                        getattr(self.runtime, 'path', None))
+        if ahead:
+            # Rooms one step away that Kit writes from the book: author them now, while the
+            # player reads this turn, so the next room is ready by entry (SOURCE_TO_ROOM.md).
+            packet['author_ahead'] = ahead
         # Runtime time and packet size, from the bridge's own clock (docs/architecture/HOST_TIMING.md).
         self.runtime.record_kit_timing(turn_id, runtime_prepare_ms=round((time.perf_counter() - clock) * 1000, 2),
                                        packet_bytes=_bytes(packet), **manifest)

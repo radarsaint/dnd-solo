@@ -1,0 +1,6 @@
+{
+  "_note": "Synthetic geometry ledger (tests only): the exits a DM map would show, as data.",
+  "areas": {
+    "2a": {"exits": [{"to": "2b", "kind": "open hall", "secret": false}, {"to": "1", "kind": "open hall", "secret": false}]}
+  }
+}
