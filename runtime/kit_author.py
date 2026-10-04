@@ -480,7 +480,7 @@ def mount_probe(room):
         path = Path(tmp) / 'room.json'
         path.write_text(json.dumps(room, ensure_ascii=False), encoding='utf-8')
         try:
-            started = start_session(Path(tmp) / 'probe.sqlite', room=str(path), manifests=False)
+            started = start_session(Path(tmp) / 'probe.sqlite', room=str(path), manifests=False, example_pc=True)
         except kit_rooms.RoomMountError as exc:
             return list(exc.problems), None
         except (InvalidChange, KeyError, TypeError, ValueError, AttributeError) as exc:

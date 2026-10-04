@@ -13,6 +13,7 @@ from runtime import kit_agent, pc_sheet
 from runtime.state_context import InvalidChange, Runtime
 
 ROOT = Path(__file__).resolve().parents[1]
+WATCH = ROOT / 'tests' / 'fixtures' / 'rooms' / 'watchroom.json'  # any room: none is the default (de-6c)
 
 
 class StartSessionTests(unittest.TestCase):
@@ -29,7 +30,7 @@ class StartSessionTests(unittest.TestCase):
         self.assertNotEqual(sheet['name'], 'Nik')
 
     def test_start_initializes_loads_example_sheet_and_stages_opening(self):
-        result = kit_agent.start_session(self.db)
+        result = kit_agent.start_session(self.db, room=str(WATCH), example_pc=True)
         self.assertEqual(result['stage'], 'started')
         self.assertTrue(result['example_sheet'])
         self.assertEqual(result['character']['name'], 'Wren')
@@ -50,18 +51,19 @@ class StartSessionTests(unittest.TestCase):
         sheet['name'] = 'Pip'
         path = Path(self.tmp.name) / 'pip.json'
         path.write_text(json.dumps(sheet), encoding='utf-8')
-        result = kit_agent.start_session(self.db, str(path))
+        result = kit_agent.start_session(self.db, str(path), room=str(WATCH))
         self.assertFalse(result['example_sheet'])
         self.assertEqual(result['character']['name'], 'Pip')
 
     def test_start_refuses_a_database_with_a_game(self):
-        kit_agent.start_session(self.db)
+        kit_agent.start_session(self.db, room=str(WATCH), example_pc=True)
         with self.assertRaisesRegex(InvalidChange, 'new --db'):
-            kit_agent.start_session(self.db)
+            kit_agent.start_session(self.db, room=str(WATCH), example_pc=True)
 
     def test_cli_start_prints_the_first_packet(self):
         out = io.StringIO()
-        with mock.patch.object(sys, 'argv', ['kit_agent', 'start', '--db', self.db]), \
+        with mock.patch.object(sys, 'argv', ['kit_agent', 'start', '--db', self.db, '--example-pc',
+                                             '--room', str(WATCH)]), \
                 contextlib.redirect_stdout(out):
             self.assertEqual(kit_agent.main(), 0)
         printed = json.loads(out.getvalue())

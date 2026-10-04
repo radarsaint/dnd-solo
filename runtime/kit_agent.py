@@ -3468,6 +3468,10 @@ def prepare_inputs(runtime, revision, state, action, resolution, use_memory, one
     # ("Is the dealer cheating me?") must not be answered from the brief's secrets.
     if not table_talk:
         planning_input['story_brief'] = kit_brief.brief(source, post_event_state)
+    if post_event_state.get('pc_provenance'):
+        # Session manifest (cached): whose character this is, as engine state (the example loaner is
+        # nobody's character, whatever is claimed at the table).
+        planning_input['pc_provenance'] = dict(post_event_state['pc_provenance'])
     if kit_combat.config(source) and post_event_state.get('player_sheet'):
         # Session manifest (cached): the PC's reactions and what is left, one compact line. It changes
         # only when something is spent or restored; whether the reaction is used this round is live in
@@ -4587,6 +4591,8 @@ class KitChatBridge:
                    'schema': ONE_PASS_SCHEMA, 'performance_limits': performance_limits(),
                    'host_retry': HOST_RETRY_NOTE, 'personality_core': personality_core_text()}
         _, state = self.runtime.load()
+        if state.get('pc_provenance'):
+            session['pc_provenance'] = dict(state['pc_provenance'])
         if kit_combat.config(self.runtime.source()) and state.get('player_sheet'):
             from . import kit_reactions  # the same session line prepare_inputs puts in the manifest
             session['available_reactions'] = kit_reactions.line(kit_reactions.current(state))
@@ -4850,35 +4856,87 @@ class KitChatBridge:
 
 
 EXAMPLE_SHEET = PROJECT_ROOT / 'tests/fixtures/characters/example_pc.json'
+# Where a session can begin: the bundle's room files (rooms/), then its playable test rooms.
+ROOM_CHOICES = (PROJECT_ROOT / 'rooms', PROJECT_ROOT / 'tests/fixtures/rooms', DEFAULT_ROOM)
+ONBOARDING_RULE = (
+    'You are Kit. No room and no character are loaded yet, and nothing has happened in any game. In one or two '
+    'short lines in your own voice, ask the player for their character sheet (a character_sheet_v1 JSON file) '
+    'and where they want to begin (input.rooms). If input.example_pc is offered, you may offer it plainly as a '
+    'loaner, named as the example PC (it is nobody\'s character). Do not narrate a scene, describe a room or '
+    'speak for anyone else; no speaker labels. Then wait for the answer and run next_step.')
 
 
-def start_session(db, sheet_path=None, runtime=None, room=None, area=None, manifests=False):
-    """The one bootstrap step for any AI hosting Kit (see AGENTS.md): create a fresh room
-    session, load the player's sheet (the generic example PC when none is given), and
-    stage the room's opening through the bridge. Returns the first prepare packet plus
-    the exact next command, so a new host cannot take a wrong first step."""
+def room_choices():
+    """[{room, name, stub?}] the bundle can mount (names from each file; nothing is mounted)."""
+    out = []
+    for place in ROOM_CHOICES:
+        for path in sorted(place.glob('*.json')) if place.is_dir() else [place]:
+            try:
+                data = json.loads(path.read_text(encoding='utf-8'))
+            except (OSError, ValueError):
+                continue
+            rel = str(path.relative_to(PROJECT_ROOT))
+            if not isinstance(data, dict) or not isinstance(data.get('areas'), dict) or \
+                    any(c['room'] == rel for c in out):
+                continue
+            first = data['areas'].get(data.get('starting_area')) or {}
+            out.append({'room': rel, 'name': first.get('name') or data.get('id'),
+                        **({'stub': True} if data.get('stub') else {})})
+    return out
+
+
+def onboarding(db, sheet_path, room):
+    """A bare (or half) start: nothing mounted, no database touched. A tiny packet for Kit to ask
+    for the sheet (or offer the example PC as a loaner) and where to begin."""
+    needs = [need for need, given in (('sheet', sheet_path), ('room', room)) if not given]
+    data = {'needs': needs}
+    if 'sheet' in needs:
+        example = json.loads(EXAMPLE_SHEET.read_text(encoding='utf-8'))
+        data['example_pc'] = {**pc_sheet.identity(example), 'provenance': 'example',
+                              'offer': 'a loaner for this session, not anyone\'s character'}
+    if 'room' in needs:
+        data['rooms'] = room_choices()
+    sheet_arg = f'--sheet {sheet_path}' if sheet_path else '--sheet <their sheet file> (or --example-pc)'
+    room_arg = f'--room {room}' if room else '--room <the room they chose>'
+    return {'stage': 'onboarding', 'db': str(db), 'mounted': False,
+            'next_step': ('You are Kit. Write the question prepared.instructions asks for and show it to the '
+                          'player; nothing is staged, so there is no complete. When they answer, run: '
+                          f'python3 -m runtime.kit_agent start --db {db} {sheet_arg} {room_arg}'),
+            'prepared': {'stage': 'onboarding', 'instructions': ONBOARDING_RULE, 'input': data,
+                         'schema': {'performance': {'segments': [{'speaker': 'Kit', 'text': 'one short ask'}]}}}}
+
+
+def start_session(db, sheet_path=None, runtime=None, room=None, area=None, manifests=False, example_pc=False):
+    """The one bootstrap step for any AI hosting Kit (see AGENTS.md). A start that names a sheet
+    (or ``example_pc``, the bundled loaner) and a room creates a fresh session, loads the sheet and
+    stages the room's opening through the bridge. A bare or half start mounts nothing: it returns
+    the onboarding packet (Kit asks for the sheet and where to begin). Returns the packet plus the
+    exact next command, so a new host cannot take a wrong first step."""
+    require(not (sheet_path and example_pc), 'Give the player\'s --sheet or --example-pc, not both')
+    if not (sheet_path or example_pc) or not room:
+        return onboarding(db, sheet_path or ('--example-pc' if example_pc else None), room)
     # Mount first: a room that cannot mount fails here, before any database is touched,
     # with the host's error and Kit's plain table line (kit_rooms.RoomMountError).
-    source = kit_rooms.load_room(room or DEFAULT_ROOM)
+    source = kit_rooms.load_room(room)
     if area is not None and area not in source['areas']:
-        raise kit_rooms.RoomMountError(room or DEFAULT_ROOM, [f'no area {area!r} in this room'])
+        raise kit_rooms.RoomMountError(room, [f'no area {area!r} in this room'])
     own = runtime is None
     runtime = runtime or Runtime(db)
     try:
         try:
-            runtime.initialize(source, area or source['starting_area'], room_path=room or DEFAULT_ROOM)
+            runtime.initialize(source, area or source['starting_area'], room_path=room)
         except InvalidChange as exc:
             raise InvalidChange(f'{exc} Resume it with view and '
                                 'prepare, or pass a new --db to start fresh.') from exc
         path = Path(sheet_path) if sheet_path else EXAMPLE_SHEET
         sheet = json.loads(path.read_text(encoding='utf-8'))
-        loaded = runtime.set_player_sheet(sheet)
+        loaded = runtime.set_player_sheet(sheet, provenance='example' if example_pc else 'player')
         prepared = KitChatBridge(runtime, RoomAdjudicator(), manifests=manifests).prepare(
             opening=True, one_pass=True)
         turn = prepared['turn_id']
         return {
             'stage': 'started', 'db': str(db), 'character': loaded['character'],
-            'sheet': str(path), 'example_sheet': not sheet_path,
+            'sheet': str(path), 'example_sheet': bool(example_pc),
             'next_step': ('You are Kit. Write one JSON object {"decision", "performance"} that follows '
                           'prepared.instructions and prepared.schema, save it to a file, then run: '
                           f'python3 -m runtime.kit_agent complete --db {db} --turn-id {turn} '
@@ -4961,7 +5019,10 @@ def main():
     parser.add_argument('--class-name', dest='class_name', help='character: class (optional)')
     parser.add_argument('--level', type=int, help='character: level (optional)')
     parser.add_argument('--sheet', help='start/character: a character_sheet_v1 JSON file (any PC; see '
-                                        'runtime/pc_sheet.py). start defaults to the example PC')
+                                        'runtime/pc_sheet.py). A start without --sheet or --example-pc, or '
+                                        'without --room, mounts nothing: Kit asks first (onboarding)')
+    parser.add_argument('--example-pc', dest='example_pc', action='store_true',
+                        help='start: the player chose the bundled example PC as a loaner')
     parser.add_argument('--held', help='character: comma list of what the PC holds now ("" for nothing)')
     parser.add_argument('--active', help='character: comma list of spells/conditions active now')
     parser.add_argument('--replaces', default='none', help='feedback: note id this feedback supersedes')
@@ -4983,7 +5044,8 @@ def main():
         return 0
     if args.command == 'start':
         try:
-            result = start_session(args.db, args.sheet, room=args.room, area=args.area, manifests=not args.full)
+            result = start_session(args.db, args.sheet, room=args.room, area=args.area, manifests=not args.full,
+                                   example_pc=args.example_pc)
         except kit_rooms.RoomMountError as exc:
             print(json.dumps(exc.host_view(), ensure_ascii=False), file=sys.stderr)
             return 2

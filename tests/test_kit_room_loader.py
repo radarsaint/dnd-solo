@@ -211,8 +211,11 @@ class Mounting(unittest.TestCase):
         self.assertEqual((kit_rooms.stage(runtime.source(), state), kit_rooms.resolution(runtime.source(), state)),
                          ('resolution', 'bypassed'))
 
-    def test_6c_still_starts_by_default_and_reads_its_behaviour_from_its_file(self):
-        runtime, started = self.start(None)
+    def test_6c_starts_when_named_and_reads_its_behaviour_from_its_file(self):
+        # de-6c: no room is the default; a start with no --room mounts nothing (test_kit_onboarding).
+        started = start_session(self.folder / 'bare.sqlite', NIK)
+        self.assertEqual((started['stage'], started['prepared']['input']['needs']), ('onboarding', ['room']))
+        runtime, started = self.start(SIXC)
         self.assertEqual(runtime.source()['id'], 'dotmm-level-01-area-06c-testbed-v1')
         self.assertEqual(kit_rooms.stage(runtime.source(), runtime.load()[1]), 'first_look')
         result, _ = self.play(runtime, 'I look in the tub.')
@@ -273,7 +276,7 @@ class Mounting(unittest.TestCase):
     def test_the_cli_prints_the_host_error_and_table_line(self):
         path = self.broken({'id': 'x', 'areas': {}})
         done = subprocess.run([sys.executable, '-m', 'runtime.kit_agent', 'start', '--db',
-                               str(self.folder / 'cli.sqlite'), '--room', str(path)],
+                               str(self.folder / 'cli.sqlite'), '--example-pc', '--room', str(path)],
                               cwd=ROOT, capture_output=True, text=True, env={'PATH': '/usr/bin:/bin'})
         self.assertEqual(done.returncode, 2)
         out = json.loads(done.stderr)

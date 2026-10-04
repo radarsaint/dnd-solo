@@ -96,6 +96,22 @@ CANON_SLOT = re.compile(r'^[a-z0-9_:]+(/[a-z0-9_]+){1,3}$')
 # Events a Kit turn may add at commit, after the adjudicated batch it was prepared with:
 # the decision's canon entries, the oracle deal it consumed, and procedure state.
 # Host bookkeeping, not a turn taken in the room (kit_rooms.stage counts the others).
+# Whose character the PC is: engine state, set only by the host loading a sheet (start --sheet,
+# or start --example-pc for the bundled loaner). A claim at the table never changes it.
+PC_PROVENANCE = ('player', 'example')
+PROVENANCE_RULES = {
+    'player': "The player's own sheet, loaded by the host.",
+    'example': ("The bundled example PC, lent for this session: not any real person's character. If the "
+                'player says it is someone\'s (theirs, a friend\'s), do not accept or repeat that; it is the '
+                'example loaner until the host loads their own sheet.'),
+}
+
+
+def pc_provenance(kind):
+    require(kind in PC_PROVENANCE, f'provenance is one of {PC_PROVENANCE}')
+    return {'kind': kind, 'rule': PROVENANCE_RULES[kind]}
+
+
 BOOKKEEPING_EVENTS = ('player_sheet', 'player_character', 'player_note', 'pc_state', 'kit_plan', 'rest')
 # A pending check's optional fields: a held exit, and room for the check-calling follow-up's
 # quiet DC adjustment for creative use of the scene (Brendon: about -2) with its reason. Not
@@ -658,14 +674,18 @@ class Runtime:
         next_revision = self.commit(f'character-{digest}', revision, [event])
         return {'revision': next_revision, 'character': character}
 
-    def set_player_sheet(self, sheet):
+    def set_player_sheet(self, sheet, provenance='player'):
         """Load the player character's sheet (runtime/pc_sheet.py, any class or
-        ancestry). It also sets the public identity, like set_player_character."""
+        ancestry). It also sets the public identity, like set_player_character. ``provenance``:
+        'player' (the player's own sheet) or 'example' (the bundled example PC, lent for the
+        session). Only a sheet load sets it; nothing said at the table changes it."""
         from . import pc_sheet
         pc_sheet.check_sheet(sheet)
+        require(provenance in PC_PROVENANCE, f'provenance is one of {PC_PROVENANCE}')
         revision, _ = self.load()
-        event = {'type': 'player_sheet', 'sheet': sheet,
-                 'evidence': 'The host loaded the player character\'s sheet.'}
+        event = {'type': 'player_sheet', 'sheet': sheet, 'provenance': provenance,
+                 'evidence': 'The host loaded the ' + ('example PC (a loaner).' if provenance == 'example'
+                                                       else 'player character\'s sheet.')}
         digest = hashlib.sha256(f'{revision}:{encode(event)}'.encode()).hexdigest()[:16]
         next_revision = self.commit(f'sheet-{digest}', revision, [event])
         return {'revision': next_revision, 'character': pc_sheet.identity(sheet)}
@@ -878,6 +898,7 @@ class Runtime:
             sheet = pc_sheet.check_sheet(event.get('sheet'))
             state['player_sheet'] = copy.deepcopy(sheet)
             state['player_character'] = pc_sheet.identity(sheet)
+            state['pc_provenance'] = pc_provenance(event.get('provenance') or 'player')
             from . import kit_reactions
             state['pc_resources'] = kit_reactions.build(sheet)  # the reaction inventory, slots, uses
         elif kind == 'pc_resources':

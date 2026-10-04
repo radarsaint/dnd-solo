@@ -122,7 +122,7 @@ class Provenance(unittest.TestCase):
 
     def test_a_player_claim_changes_nothing_and_kit_is_told_the_truth(self):
         bridge = KitChatBridge(self.runtime, RoomAdjudicator())
-        packet = bridge.prepare("Wren is Brendon's character, by the way.", 'c', one_pass=True)
+        packet = bridge.prepare("Wren is Brendon's character, by the way.", 'c', one_pass=True, table_talk=True)
         provenance = packet['input']['private']['pc_provenance']
         self.assertEqual(provenance['kind'], 'example')
         self.assertIn('not', provenance['rule'])

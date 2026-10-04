@@ -78,7 +78,7 @@ class HostStampedTiming(Base):
         db = self.folder / 'cli.sqlite'
         run = lambda *args: subprocess.run([sys.executable, '-m', 'runtime.kit_agent', *args, '--db', str(db)],
                                            cwd=ROOT, capture_output=True, text=True)
-        started = json.loads(run('start', '--room', WATCH).stdout)
+        started = json.loads(run('start', '--example-pc', '--room', WATCH).stdout)
         turn = started['prepared']['turn_id']
         out = run('stamp', '--turn-id', turn, '--stamp', 'shown_at=1234.5')
         self.assertEqual(out.returncode, 0, out.stderr)

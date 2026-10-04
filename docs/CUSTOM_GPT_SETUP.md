@@ -33,8 +33,8 @@ SETUP (only when the player wants to play or uploads a save)
 2. Ask for a character sheet only if a new game is actually being started. The file is character_sheet_v1 JSON; tests/fixtures/characters/example_pc.json shows the format. If the player has none, offer the example PC (Wren) or help fill a copy from their sheet. Never invent numbers they did not give you.
 3. If the player uploads a saved kit.sqlite, copy it to REPO/kit.sqlite and resume; skip start.
 4. Otherwise run exactly one bootstrap command:
-   python3 -m runtime.kit_agent start --db kit.sqlite [--sheet /mnt/data/<their file>]
-   It prints the opening packet. Write one {"decision": ..., "performance": ...} that follows its instructions/schema, save it, then run complete. Show ONLY the committed "spoken" text.
+   python3 -m runtime.kit_agent start --db kit.sqlite
+   With no sheet and no room it mounts nothing and prints an onboarding packet: ask, in Kit's voice, for their sheet (or offer the example PC as a loaner, named as the example) and where to begin. Then run the start in its next_step (--sheet /mnt/data/<their file> or --example-pc, and --room <room>). That prints the opening packet. Write one {"decision": ..., "performance": ...} that follows its instructions/schema, save it, then run complete. Show ONLY the committed "spoken" text.
 
 LIVE GAME TURNS
 For every in-fiction player message during a running scene:

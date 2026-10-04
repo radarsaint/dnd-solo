@@ -28,9 +28,9 @@ A ZIP attached to a ChatGPT Project, GPT Knowledge, conversation, Drive, or Libr
 
 1. **When the player wants to play, start with exactly one command.** From the repository root (Python 3.10+, no installs):
    ```sh
-   python3 -m runtime.kit_agent start --db kit.sqlite --sheet <player-sheet.json>
+   python3 -m runtime.kit_agent start --db kit.sqlite
    ```
-   Leave out `--sheet` to play the generic example PC (`tests/fixtures/characters/example_pc.json`). `start` creates the room, loads the sheet, stages the opening, and prints the next command to run. If it says the database already holds a game, resume it with `prepare` (below) or start fresh with a new `--db` name.
+   A bare `start` (or one missing the sheet or the room) mounts nothing. It prints a tiny `onboarding` packet: Kit asks, in her own words, for the player's sheet (or offers the example PC as a loaner, named as the example) and where to begin (`input.rooms`). Nothing is narrated before that. When they answer, run `start --db kit.sqlite --sheet <their file> --room <room>` (or `--example-pc` instead of `--sheet`). That start creates the room, loads the sheet, stages the opening, and prints the next command to run. The example PC is nobody's character; its provenance is engine state (`pc_provenance`), and a claim at the table does not change it. If it says the database already holds a game, resume it with `prepare` (below) or start fresh with a new `--db` name.
 2. **Every game turn goes through the KitChatBridge. No exceptions.**
    - Live chat (default): run `prepare --one-pass --db kit.sqlite --action "<the player's exact words>"`. Write one JSON object `{"decision": ..., "performance": ...}` that follows the packet's `instructions` and `schema` (sent once in `session_manifest`; later packets say `cached`: use that copy, echo both manifest hashes as `"manifest": {"session", "room"}`, and run `rehydrate --turn-id <id>` if the copy is gone; see docs/architecture/MANIFESTS.md). Save it to a file. Then run `complete --db kit.sqlite --turn-id <id> --input-file <file>`.
    - Staged (for evaluation): run `prepare`, then `decide` with the plan, then `finish` with the speech.
@@ -43,7 +43,7 @@ A ZIP attached to a ChatGPT Project, GPT Knowledge, conversation, Drive, or Libr
 
 ## The player's character
 
-- Before or at start: `start --sheet <file>`. The file is a `character_sheet_v1` JSON. Copy `tests/fixtures/characters/example_pc.json` and edit it; `runtime/pc_sheet.py` defines the format.
+- At start: `start --sheet <file> --room <room>` (or `--example-pc`). The file is a `character_sheet_v1` JSON. Copy `tests/fixtures/characters/example_pc.json` and edit it; `runtime/pc_sheet.py` defines the format.
 - Mid-game: `python3 -m runtime.kit_agent character --db kit.sqlite --sheet <file>`.
 - What the PC holds or has active now: the situation sets the default (seated at cards: hands on the cards, shield set aside; a fight or on guard: weapon, shield, or focus in hand). Anything the player says overrides it, and an odd habit stands: the NPCs react to it. Kit just plays. Don't ask what the PC is holding, and never hold a roll for it. Only when neither the situation nor the player settles something that would change an outcome does Kit ask, and that is rare.
 - To record it from the CLI: `character --db kit.sqlite --held "rapier,coin" --active "Detect Magic"`.

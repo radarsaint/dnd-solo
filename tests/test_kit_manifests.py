@@ -148,7 +148,7 @@ class LiveCli(unittest.TestCase):
             with patch('sys.argv', ['kit_agent', *args, '--db', db]), contextlib.redirect_stdout(out):
                 self.assertEqual(kit_agent.main(), 0)
             return json.loads(out.getvalue())
-        opening = cli('start', '--room', str(WATCH))['prepared']
+        opening = cli('start', '--example-pc', '--room', str(WATCH))['prepared']
         self.assertIn('body', opening['session_manifest'])
         cli('abandon', '--turn-id', opening['turn_id'])
         later = cli('prepare', '--one-pass', '--action', 'I wait on the landing.', '--turn-id', 'w')

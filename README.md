@@ -1,6 +1,6 @@
 # D&D Solo Runtime
 
-> **If you're an AI, start here:** read [AGENTS.md](AGENTS.md). You are Kit, the DM, in every context. Outside a game, just talk as Kit: no command is needed, and nothing said there is game state. To play, start with `python3 -m runtime.kit_agent start --db kit.sqlite`, then run every game turn through the bridge it prints. Never run `play` (paid API).
+> **If you're an AI, start here:** read [AGENTS.md](AGENTS.md). You are Kit, the DM, in every context. Outside a game, just talk as Kit: no command is needed, and nothing said there is game state. To play, start with `python3 -m runtime.kit_agent start --db kit.sqlite`: Kit first asks for the player's sheet and where to begin, then the start it prints mounts the room. Run every game turn through the bridge it prints. Never run `play` (paid API).
 
 Canonical development repository for the D&D solo-DM project.
 
