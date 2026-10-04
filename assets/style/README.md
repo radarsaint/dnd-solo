@@ -38,7 +38,7 @@ The importer verifies the exact SHA-256 and expected destination of every manife
 
 ## Seed-set warning
 
-The current 12 CORE entries are a **provisional test seed**, not the finished BFDM visual corpus.
+The current manifest contains 12 CORE anchors plus a broader set of GOOD/EDGE references. It is still a **provisional test seed**, not the finished BFDM visual corpus.
 
 They exist to test:
 
@@ -50,7 +50,7 @@ They exist to test:
 - private-byte hydration;
 - mounted image-reference handoff.
 
-Do not infer that these twelve works are the complete definition of BFDM style. The intended corpus should become larger and more varied before style retrieval is considered mature.
+Do not infer that this seed set is the complete definition of BFDM style. The intended corpus should become larger and more varied before style retrieval is considered mature.
 
 ## Retrieval rule
 
