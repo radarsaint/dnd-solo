@@ -1,7 +1,9 @@
-# Decision: Canonical DM Personality Core
+# ADR 0004: Canonical DM Personality Core
 
 ## Status
 Accepted
+
+This record was filed as `0001-canonical-dm-personality-core.md`, which duplicated ADR 0001. It is ADR 0004. ADR 0001 remains "Do not implement the DM as one monolithic prompt."
 
 ## Context
 

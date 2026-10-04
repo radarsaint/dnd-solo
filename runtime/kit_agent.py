@@ -1,7 +1,9 @@
-"""Area 6c Kit play slice: grounded events, private appraisal, public performance.
+"""Kit play bridge: grounded events, a private decision, and public performance.
 
-Only a few explicitly bounded room actions are adjudicated here. The model can
+The mounted room file declares which actions are adjudicated. The model can
 choose and perform a DM move, but it cannot submit world changes to storage.
+Any room file in the repo format mounts through the room loader
+(runtime/kit_rooms.py).
 """
 import argparse
 import copy
@@ -43,8 +45,9 @@ from .state_context import (ASKED_EVENT_PREFIX, CONTEXT_BUDGET_BYTES, HostSequen
 from .state_context import HELD_KINDS as _HELD_KINDS
 
 
-# The room `start` mounts when the host names none: area 6c, the one room with full
-# content today. Any room file mounts with --room (runtime/kit_rooms.py).
+# Fallback when `start` is given no --room: a legacy regression fixture.
+# The room format is the reference. Name a room with --room
+# (runtime/kit_rooms.py).
 DEFAULT_ROOM = PROJECT_ROOT / 'tests/fixtures/level_01_area_06c.json'
 
 

@@ -1,44 +1,46 @@
 # Project Status
 
+Current state of `main`. Older snapshots in this folder and under `docs/architecture/runtime/` are marked HISTORICAL on their first line and are not a description of the runtime now.
+
 ## Active workstreams
 
 ### DM personality / behavior
-Status: canonical core and area 6c personality protocol captured. The character-onboarding test and two short area 6c room tests have been reviewed; a multi-turn preference test is still pending.
+Status: the canonical core is loaded every turn, with the voice files. Kit is the same person in ordinary conversation, creative work and debrief, and live play. The runtime supplies authority during a game turn. It does not create her.
 
-The current document defines identity, core appetites, pillar weighting, appetite resolution, inhibition rules, stakes telegraphing, NPC performance, visible DM presence, player relationship, character relationship, and self-evaluation.
-
-The onboarding test found that Kit engaged with a player-created character motive and could stand by a ruling, then reconsider it when explicitly invited. It also found unsolicited advice, rushing ahead of the player's current task, a weak campaign opening, and generic banter. The next behavior pass should focus on interaction-state detection, a distinct theatrical table voice (Brendon's voice spec supersedes the earlier "restraint" framing), and a causal handoff into play. See `docs/WHAT_WE_ARE_BUILDING.md` for the plain-English overview.
-
-The [Nik room test](../tests/playtests/2026-09-26-area-06c-nik.md) failed more directly: an 81-second wait produced a basic room opening and a flat toll exchange. The player described Kit as mechanically aware but still “an it, not a she,” then noted the dealer had no appreciable voice change, longer improvised invitation, or readable story promise. An Insight ruling was given in chat without being saved to the backend. The next live pass must test expressed personality and persistence. Latency is recorded but is not this phase's gate; the player has explicitly prioritized quality.
-
-The [voice-spec branch test](../tests/playtests/2026-09-29-area-06c-voice-spec-nik.md) gave Nik a more substantial dealer exchange, but Kit's greeting quip contradicted the greeting just spoken. When asked what game was underway, the chat host invented high card and matching-coin stakes despite the source only specifying cards, coins, and Uktarl's marked deck. The run never made cheating or detecting it playable. The player called some dialogue better but still AI-sounding and stopped the test. This is a failed live sample, not a voice improvement claim; no fix was requested in this pass.
+Expressed personality is specified and partly wired: a private decision, scene discernment, a running plan, a public-safe `kit_focus`, and speech checks. A player who would rather sit with Kit than with an experienced human DM is still the standard to test. Early playtests, recorded under `tests/playtests/`, found generic voice, thin NPC performance, and at least one ruling that never reached the save. Those sessions are evidence about expression, from an earlier room model.
 
 ### Technical DM runtime
-Status: SQLite source/state backend and a bounded area 6c Kit play loop implemented on `kit-area-06c-testbed`.
+Status: a generalized room loader and a ChatGPT bridge, on SQLite.
 
-The play loop separates source-grounded room adjudication, a private Kit decision, and public performance. It persists world changes, a Kit episode, and the transcript atomically. In a tool-enabled chat, the staged `prepare`, `decide`, and `finish` path runs without a separate API key. An optional `prepare --one-pass` and `complete` path reduces model/tool round trips for live chat, with weaker causal evidence. Its host-to-commit intervals in the new live test were about 97–136 seconds per original turn, including host authoring and tools, not model-only inference. A [reusable scene-discernment step](../docs/architecture/scene-discernment.md) makes Kit select how the player's current bid, eligible story pressure, a live actor's established aim, and her own appraisal connect. Area 6c then supplies actor cards and a saved scene entry as performance inputs. These are structural changes, not a demonstrated improvement in play. Full rules, combat, NPC belief updates, and measured entertainment quality remain open.
+`runtime/kit_rooms.py` mounts any room file in the repo's room format. A room has four stages — approach, first look, exploration, resolution — and each stage is prepared when play reaches it. The PC can start in a stage, barge in, or go past. Rooms chain in one session when an area carries a `room_link`: the room left is archived, the character carries over, and room-scoped facts stay behind. A room that cannot mount fails fast. Kit says a plain line, and the session does not invent a substitute room.
 
-The [personality implementation audit](../docs/personality/kit-personality-implementation.md) found that the stable core is loaded and an appraisal label is saved, but Kit's distinctive expressed behavior, appetite regulation, and player relationship are not working runtime systems. The [performance pipeline design](../docs/architecture/expressed-performance-pipeline.md) and [area 6c blind comparison packet](../tests/scenarios/expressed-performance-v1.md) now put Kit's identity comparison before actor-led performer changes: fix the same private decision and accepted event, compare candidate expression and a public-safe causal handoff, inspect blind player preference, then test transfer in a second playable room. No model-generated candidate has yet passed that comparison.
+The bridge is `prepare` / `decide` / `finish`, or `prepare --one-pass` and `complete`. Packets are three layers (session manifest, room manifest, turn delta) with a hash echo and `rehydrate`. Table talk and feedback are separate from PC actions. What a room can do is data in its file: claims, agendas, attitudes, tolls, card procedures, combat, texture. Undeclared mechanics stay off.
+
+Authoring a room from the book's keyed text, at runtime, as the PC approaches, is in progress off `main`. On `main`, play runs from room files that already exist. The loader prepares those files stage by stage.
+
+Area 6c is one past regression room. The room format is the reference. `start` with no `--room` mounts that old fixture as a legacy fallback. Pass `--room` for the room you mean. See `docs/architecture/ROOM_LOADER.md`.
+
+Full rules, general source retrieval, NPC belief over a long campaign, and a measured claim that Kit is the better DM remain open.
 
 ### Player-facing UX/UI
-Status: active design.
+Status: the player meets Kit in chat through the bridge.
 
-Action: define explicit presentation contracts once technical message/event shapes are known.
+Action: define presentation contracts once the message and event shapes settle.
 
 ### Maps and visual assets
-Status: asset collection/indexing underway in another project conversation.
+Status: map, art, and handout manifests are indexed. Licensed image bytes stay in a private asset pack. See `docs/decisions/0002-map-and-visual-authority.md` and `docs/decisions/0003-private-binary-assets.md`.
 
-Action: add files/references and stable IDs to `assets/maps/index.json` and `assets/art/index.json`. Runtime should request assets by stable ID and semantic role, not by chat attachment position.
+Action: the runtime requests assets by stable id and semantic role. Geometry stays with the canonical map. Artwork does not establish hidden canon.
 
 ### Campaign content
-Status: campaign-specific runtime concerns are being examined separately from the generic DM personality.
+Status: campaign and level layers live in `docs/campaign/` as DM material. Retrieving an arbitrary keyed area from the book and turning it into a room file as the PC approaches is the authoring work above.
 
-Action: establish a campaign manifest and through-line schema before importing large adventure/source collections.
+Action: prove play on varied, previously unplayed keyed areas once authoring is on `main`. No single room is the proof.
 
 ## Next integration milestone
 
-A live playtest should now probe this path:
+A live playtest should be able to walk this path in whatever room the PC has reached:
 
-source material -> current scene/state -> bounded adjudication -> Kit event appraisal and move -> player-facing performance -> validated state update
+source for that area -> current scene and state -> bounded adjudication -> Kit's appraisal and move -> player-facing performance -> validated state update
 
-The current slice uses the area 6c fixture and a map reference. It does not load maps/assets from manifest IDs or execute tactical opposition. First test the onboarding failures and multi-turn room behavior with a real character. Compare player-facing runs, memory ablations, and eventually experienced human DMs before claiming that Kit's personality succeeds.
+The milestone is KRABS stage 1: any keyed area of the book, built from the source text when play reaches it, produces responsive play across several exchanges. Tests use varied, unplayed rooms. Persona continuity across conversation, debrief, and play stays in force while that work lands. Latency is recorded. Quality of the spoken scene is the gate.

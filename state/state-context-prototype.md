@@ -1,3 +1,5 @@
+HISTORICAL: describes the state at 2026-09-24; see state/project-status.md for current state.
+
 # State/context implementation handoff
 
 Date: 2026-09-24

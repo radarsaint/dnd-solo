@@ -1,3 +1,5 @@
+HISTORICAL: describes the state at runtime 0.3.0 (2026-09-23); see state/project-status.md for current state.
+
 # Runtime Architecture Changes — 0.3.0
 
 **Date:** 2026-09-23
