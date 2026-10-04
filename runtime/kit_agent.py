@@ -4302,7 +4302,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('command', choices=['start', 'init', 'view', 'prepare', 'decide', 'finish', 'complete',
                                             'abandon', 'feedback', 'character', 'notes', 'play', 'trace',
-                                            'timing', 'persona', 'stamp', 'rehydrate', 'visual'])
+                                            'timing', 'persona', 'stamp', 'rehydrate', 'visual',
+                                            'visual-record', 'visual-history'])
     parser.add_argument('--db', default='kit.sqlite')
     parser.add_argument('--room', help='start/init: a room file to mount (default: area 6c; see '
                                        'docs/architecture/ROOM_LOADER.md)')
@@ -4329,6 +4330,14 @@ def main():
                         help='visual: asset mode (default: infer from request)')
     parser.add_argument('--visual-branch', default='auto',
                         help='visual: BFDM campaign/product branch (default: infer from mounted source)')
+    parser.add_argument('--visual-id', help='visual-record: visual_id returned by visual')
+    parser.add_argument('--visual-status', choices=kit_visual.VISUAL_STATUSES,
+                        help='visual-record: generated, canonical, failed, or abandoned')
+    parser.add_argument('--result-id', help='visual-record: optional host/image-generation result identifier')
+    parser.add_argument('--reference-mode', choices=kit_visual.REFERENCE_MODES,
+                        help='visual-record: image, text_only, or canonical')
+    parser.add_argument('--qa-file', help='visual-record: optional JSON object/list with post-generation QA observations')
+    parser.add_argument('--visual-notes', help='visual-record: optional short host/test note')
     parser.add_argument('--turn-id', help='Turn ID returned by prepare')
     parser.add_argument('--input-file', help='JSON plan, speech, or combined output; - reads stdin')
     parser.add_argument('--text', help='feedback: the player’s out-of-character comment')
@@ -4418,6 +4427,24 @@ def main():
                 return 2
             print(json.dumps(result, ensure_ascii=False,
                              **({'indent': 2} if args.pretty else {'separators': (',', ':')})))
+        elif args.command == 'visual-record':
+            if not args.visual_id or not args.visual_status:
+                parser.error('visual-record requires --visual-id and --visual-status')
+            qa = None
+            if args.qa_file:
+                qa = json.loads(Path(args.qa_file).read_text(encoding='utf-8'))
+            try:
+                result = kit_visual.record_visual(
+                    runtime, args.visual_id, args.visual_status, result_id=args.result_id,
+                    reference_mode=args.reference_mode, qa=qa, notes=args.visual_notes)
+            except InvalidChange as exc:
+                print(json.dumps({'stage': 'rejected', 'message': str(exc), 'committed': False},
+                                 ensure_ascii=False), file=sys.stderr)
+                return 2
+            print(json.dumps(result, ensure_ascii=False,
+                             **({'indent': 2} if args.pretty else {'separators': (',', ':')})))
+        elif args.command == 'visual-history':
+            print(json.dumps(kit_visual.visual_history(runtime), indent=2, ensure_ascii=False))
         elif args.command == 'character' and args.sheet:
             sheet = json.loads(Path(args.sheet).read_text(encoding='utf-8'))
             print(json.dumps(runtime.set_player_sheet(sheet), indent=2, ensure_ascii=False))
