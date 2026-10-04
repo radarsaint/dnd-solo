@@ -203,14 +203,14 @@ Do not mechanically paste every style trait into every request. Select the trait
 
 When Kit is asked for art during a live campaign:
 
-1. Determine whether the request is for **existing canonical art** or **new generated art**.
-2. If existing art is appropriate, use the visual-asset manifests and reveal rules instead of regenerating it.
-3. If new art is requested, assemble only facts the player is legitimately allowed to see.
-4. Resolve the relevant art mode.
-5. Apply campaign-specific art direction.
-6. Apply this house-style specification strongly.
-7. Generate the image.
-8. Treat the result as a player-facing depiction, not a new source of world truth.
+1. Treat an explicit human request to draw/show/create/generate an image as a **media request**, not as PC speech.
+2. Run `python3 -m runtime.kit_agent visual --db kit.sqlite --request "<exact request>"` (or `--request-file`).
+3. Use the returned `player_safe` block as the factual ceiling for the image.
+4. If the brief offers an available exact canonical asset and it answers the request, prefer it unless the user explicitly wants a new interpretation.
+5. Otherwise use the returned art mode, campaign branch, BFDM style instructions, and retrieved style-reference metadata with ChatGPT's built-in image generation capability.
+6. Never call a paid model/image API from the Python runtime.
+7. Treat the result as a player-facing depiction, not a new source of world truth.
+8. Check the output against the brief's QA list when the host environment can inspect the generated image; otherwise record the visual test for human review rather than pretending pixel QA occurred.
 
 If generation accidentally depicts an unsupported fact, that detail is not canon unless the runtime or director explicitly adopts it.
 
@@ -266,16 +266,24 @@ Do not create a second canonical visual registry for style references. Style-cor
 
 ## 17. Implementation status
 
-This document establishes the behavioral contract. It does not claim that current `main` already:
+The first runtime slice now exists on the visual-bridge test branch:
 
-- routes art requests automatically;
-- retrieves a curated style-reference corpus;
-- selects art modes in code;
-- injects this specification into an image-generation call;
-- validates generated images against canon and reveal state;
-- stores generated image provenance.
+- `runtime/kit_visual.py` builds a player-safe visual brief from `Runtime.player_view()`;
+- `python3 -m runtime.kit_agent visual ...` exposes that brief to a mounted Kit;
+- `assets/style/index.json` provides machine-readable BFDM reference metadata and recent-use rotation;
+- exact visible entity art may be offered from `assets/art/index.json`;
+- the runtime does not call an image API and does not move the game revision;
+- explicit `visual.public` descriptors can enrich future room sources without exposing private visual facts.
 
-Those remain implementation work. The first engineering target should be the smallest path that makes a mid-campaign generated image inherit the house style without bypassing the existing authority and secrecy model.
+Still not implemented:
+
+- automatic hydration/distribution of the private BFDM reference-image pack;
+- pixel-level post-generation QA inside Python;
+- automatic storage of generated image bytes;
+- a durable generated-asset provenance record that links an output image back to its visual brief;
+- broad authoring coverage of `visual.public` appearance data across rooms/campaigns.
+
+The mounted acceptance test is defined in [`KIT_VISUAL_BRIDGE.md`](KIT_VISUAL_BRIDGE.md).
 
 ## 18. Success criterion
 
