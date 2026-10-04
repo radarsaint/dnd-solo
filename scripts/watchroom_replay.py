@@ -56,10 +56,15 @@ def nbytes(value):
     return len(json.dumps(value, ensure_ascii=False).encode('utf-8'))
 
 
+KIT_COPY = {}
+
+
 def kit_decision(packet, turn):
     """The decision Kit writes on her first try, shaped to what the packet's schema requires."""
     private = packet['input']['private']
-    schema = packet['schema']['properties']['decision']
+    if 'body' in (packet.get('session_manifest') or {}):
+        KIT_COPY.update(packet['session_manifest']['body'])  # the copy Kit keeps from the first full send
+    schema = (packet.get('schema') or KIT_COPY['schema'])['properties']['decision']
     action = private.get('player_action') or ''
     opening = private['action_kind'] == 'opening'
     focus = turn.get('focus', 'none')
@@ -259,14 +264,14 @@ def misread(turn, packet, runtime):
     return None
 
 
-def run(out=None, turns=None):
+def run(out=None, turns=None, manifests=False):
     folder = Path(tempfile.mkdtemp())
     db = folder / 'replay.sqlite'
     t = time.perf_counter()
-    started = start_session(db, NIK, room=ROOM)
+    started = start_session(db, NIK, room=ROOM, manifests=manifests)
     start_ms = (time.perf_counter() - t) * 1000
     runtime = Runtime(db)
-    bridge = KitChatBridge(runtime, RoomAdjudicator(roll=lambda: 10, npc_roll=lambda: 10))
+    bridge = KitChatBridge(runtime, RoomAdjudicator(roll=lambda: 10, npc_roll=lambda: 10), manifests=manifests)
     rows = []
     for turn in turns or TURNS:
         row = {'turn': turn['id'], 'stalls': 0, 'misreads': 0, 'rejects': 0, 'reasons': [],
@@ -316,7 +321,11 @@ def run(out=None, turns=None):
         for _ in range(6):
             t = time.perf_counter()
             try:
-                result = bridge.complete(packet['turn_id'], {'decision': decision, 'performance': speech})
+                output = {'decision': decision, 'performance': speech}
+                if 'session_manifest' in packet:  # Kit echoes the manifest hashes she was sent
+                    output['manifest'] = {'session': packet['session_manifest']['hash'],
+                                          'room': packet['room_manifest']['hash']}
+                result = bridge.complete(packet['turn_id'], output)
                 row['complete_ms'].append(round((time.perf_counter() - t) * 1000, 1))
                 row['spoken_tail'] = result['spoken'][-120:]
                 last = speech['segments'][-1]['text']
@@ -376,10 +385,12 @@ def run(out=None, turns=None):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--json')
+    parser.add_argument('--manifests', action='store_true',
+                        help='three-layer packets (SessionManifest, RoomManifest, TurnDelta), as the live CLI sends')
     parser.add_argument('--short-beats', action='store_true',
                         help='T0 opens on a stall check (Roll Perception); the roll delivers the description')
     for key, value in MODEL.items():
         parser.add_argument('--' + key.replace('_', '-'), type=float, default=value)
     args = parser.parse_args()
     MODEL.update({key: getattr(args, key) for key in MODEL})
-    run(args.json, short_beat_turns() if args.short_beats else None)
+    run(args.json, short_beat_turns() if args.short_beats else None, manifests=args.manifests)

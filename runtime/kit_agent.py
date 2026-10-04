@@ -24,6 +24,7 @@ from . import kit_cards
 from . import kit_combat
 from . import kit_rolls
 from . import kit_claims
+from . import kit_manifest
 from . import kit_agenda, kit_plan, kit_threads, pc_sheet
 from . import kit_detail
 from . import kit_prices
@@ -3733,9 +3734,12 @@ def turn_latency(timing):
 
 class KitChatBridge:
     """Host this model loop in an assistant chat, with no API credential in Python."""
-    def __init__(self, runtime, adjudicator=None):
+    def __init__(self, runtime, adjudicator=None, manifests=False):
+        """``manifests``: send one-pass packets in three layers (kit_manifest; the live CLI
+        does). Off by default, so staged evals and the Python API see the full packet."""
         self.runtime = runtime
         self.adjudicator = adjudicator or RoomAdjudicator()
+        self.manifests = manifests
 
     @_stale_guided
     def prepare(self, action=None, turn_id=None, use_memory=True, one_pass=False, opening=False,
@@ -3800,10 +3804,43 @@ class KitChatBridge:
                       'instructions': PRIVATE_INSTRUCTIONS, 'schema': PLAN_SCHEMA,
                       'performance_limits': performance_limits(), 'host_retry': HOST_RETRY_NOTE,
                       'input': planning_input}
+        manifest = {}
+        if one_pass and self.manifests:
+            packet, manifest = self._layer(turn_id, packet)
         # Runtime time and packet size, from the bridge's own clock (docs/architecture/HOST_TIMING.md).
         self.runtime.record_kit_timing(turn_id, runtime_prepare_ms=round((time.perf_counter() - clock) * 1000, 2),
-                                       packet_bytes=_bytes(packet))
+                                       packet_bytes=_bytes(packet), **manifest)
         return packet
+
+    def _layer(self, turn_id, packet):
+        """SessionManifest, RoomManifest, TurnDelta (kit_manifest). A body the host was sent
+        recently is replaced by its hash."""
+        session, room, _ = kit_manifest.split(packet)
+        hashes = {'session': kit_manifest.digest(session), 'room': kit_manifest.digest(room)}
+        recent = [row for row in self.runtime.recent_kit_timings(limit=kit_manifest.FULL_EVERY + 1)
+                  if row['turn_id'] != turn_id]
+        held = kit_manifest.plan_sends(recent)
+        cached = {layer: hashes[layer] in held[layer] for layer in hashes}
+        layered, _, _ = kit_manifest.layered(packet, cached['session'], cached['room'])
+        return layered, {'manifest': {**hashes, 'sent': [layer for layer in hashes if not cached[layer]]},
+                         'room_manifest': room, 'full_packet_bytes': _bytes(packet)}
+
+    def rehydrate(self, turn_id):
+        """Both manifest bodies for a layered turn, in full (the host lost a copy)."""
+        timing = self.runtime.kit_timing(turn_id) or {}
+        record = timing.get('manifest')
+        require(record is not None, f'Turn {turn_id!r} was not sent in layers; nothing to rehydrate')
+        variant = timing.get('performance_variant') or DEFAULT_BRIDGE_VARIANT
+        session = {'performance_variant': variant, 'instructions': one_pass_instructions(variant),
+                   'schema': ONE_PASS_SCHEMA, 'performance_limits': performance_limits(),
+                   'host_retry': HOST_RETRY_NOTE, 'personality_core': personality_core_text()}
+        room = timing.get('room_manifest') or {}
+        hashes = {'session': kit_manifest.digest(session), 'room': kit_manifest.digest(room)}
+        self.runtime.record_kit_timing(turn_id, manifest={**hashes, 'sent': ['session', 'room']})
+        return {'turn_id': turn_id,
+                'session_manifest': {'hash': hashes['session'], 'body': session},
+                'room_manifest': {'hash': hashes['room'], 'body': room},
+                'manifest_rule': kit_manifest.MANIFEST_RULE}
 
     @_stale_guided
     def decide(self, turn_id, plan, performance_variant=DEFAULT_BRIDGE_VARIANT):
@@ -3978,6 +4015,10 @@ class KitChatBridge:
         host's model_sent_at and model_done_at for this output (HOST_TIMING.md)."""
         clock = time.perf_counter()
         try:
+            record = (self.runtime.kit_timing(turn_id) or {}).get('manifest')
+            if isinstance(output, dict) and (record or 'manifest' in output):
+                kit_manifest.check_echo(output, record)
+                output = {key: value for key, value in output.items() if key != 'manifest'}
             result = self._complete(turn_id, output, degraded)
         except InvalidChange:
             self._attempt(turn_id, output, host_stamps, clock, 'rejected')
@@ -4023,7 +4064,7 @@ class KitChatBridge:
 EXAMPLE_SHEET = PROJECT_ROOT / 'tests/fixtures/characters/example_pc.json'
 
 
-def start_session(db, sheet_path=None, runtime=None, room=None, area=None):
+def start_session(db, sheet_path=None, runtime=None, room=None, area=None, manifests=False):
     """The one bootstrap step for any AI hosting Kit (see AGENTS.md): create a fresh room
     session, load the player's sheet (the generic example PC when none is given), and
     stage the room's opening through the bridge. Returns the first prepare packet plus
@@ -4044,7 +4085,7 @@ def start_session(db, sheet_path=None, runtime=None, room=None, area=None):
         path = Path(sheet_path) if sheet_path else EXAMPLE_SHEET
         sheet = json.loads(path.read_text(encoding='utf-8'))
         loaded = runtime.set_player_sheet(sheet)
-        prepared = KitChatBridge(runtime, RoomAdjudicator()).prepare(
+        prepared = KitChatBridge(runtime, RoomAdjudicator(), manifests=manifests).prepare(
             opening=True, one_pass=True)
         turn = prepared['turn_id']
         return {
@@ -4056,7 +4097,10 @@ def start_session(db, sheet_path=None, runtime=None, room=None, area=None):
                           '--input-file <file>. Show the player only the "spoken" field. Every later '
                           f'turn: python3 -m runtime.kit_agent prepare --one-pass --db {db} '
                           '--action "<the player\'s words>", then complete again. When the player talks to you, '
-                          'not the room, mid-scene, add --table-talk to prepare.'),
+                          'not the room, mid-scene, add --table-talk to prepare.'
+                          + (' Add "manifest": {"session": <session_manifest.hash>, "room": <room_manifest.hash>} '
+                             'to every output; a "cached" manifest is the copy you were sent earlier '
+                             '(rehydrate --turn-id T if you lost it).' if manifests else '')),
             'prepared': prepared,
         }
     finally:
@@ -4097,7 +4141,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('command', choices=['start', 'init', 'view', 'prepare', 'decide', 'finish', 'complete',
                                             'abandon', 'feedback', 'character', 'notes', 'play', 'trace',
-                                            'timing', 'persona', 'stamp'])
+                                            'timing', 'persona', 'stamp', 'rehydrate'])
     parser.add_argument('--db', default='kit.sqlite')
     parser.add_argument('--room', help='start/init: a room file to mount (default: area 6c; see '
                                        'docs/architecture/ROOM_LOADER.md)')
@@ -4139,6 +4183,9 @@ def main():
     parser.add_argument('--stamp', action='append', default=[],
                         help='prepare/complete/stamp: a host time NAME=EPOCH_SECONDS, one of '
                              + ', '.join(HOST_STAMPS) + ' (docs/architecture/HOST_TIMING.md); repeatable')
+    parser.add_argument('--full', action='store_true',
+                        help='prepare --one-pass/start: send the whole packet, not the three layers '
+                             '(docs/architecture/MANIFESTS.md)')
     parser.add_argument('--pretty', action='store_true',
                         help='prepare/decide/finish/complete: indent the JSON for reading (default compact)')
     args = parser.parse_args()
@@ -4148,7 +4195,7 @@ def main():
         return 0
     if args.command == 'start':
         try:
-            result = start_session(args.db, args.sheet, room=args.room, area=args.area)
+            result = start_session(args.db, args.sheet, room=args.room, area=args.area, manifests=not args.full)
         except kit_rooms.RoomMountError as exc:
             print(json.dumps(exc.host_view(), ensure_ascii=False), file=sys.stderr)
             return 2
@@ -4171,6 +4218,14 @@ def main():
         elif args.command == 'timing':
             print(json.dumps([{**row, 'latency': turn_latency(row)} for row in runtime.recent_kit_timings()],
                              indent=2, ensure_ascii=False))
+        elif args.command == 'rehydrate':
+            if not args.turn_id:
+                parser.error('rehydrate requires --turn-id')
+            try:
+                print(json.dumps(KitChatBridge(runtime).rehydrate(args.turn_id), ensure_ascii=False))
+            except InvalidChange as exc:
+                print(json.dumps({'stage': 'rejected', 'message': str(exc)}, ensure_ascii=False), file=sys.stderr)
+                return 2
         elif args.command == 'stamp':
             if not args.turn_id or not args.stamp:
                 parser.error('stamp requires --turn-id and at least one --stamp NAME=EPOCH_SECONDS')
@@ -4196,7 +4251,8 @@ def main():
                                                           args.level), indent=2, ensure_ascii=False))
         elif args.command in ('prepare', 'decide', 'finish', 'complete', 'abandon', 'feedback'):
             bridge = KitChatBridge(runtime, RoomAdjudicator(args.perception, args.insight,
-                                                             sleight_of_hand=args.sleight_of_hand))
+                                                             sleight_of_hand=args.sleight_of_hand),
+                                   manifests=not args.full)
             try:
                 if args.command == 'abandon':
                     if not args.turn_id:

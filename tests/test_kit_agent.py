@@ -1205,10 +1205,11 @@ class BridgeVoiceVariantTests(unittest.TestCase):
 
     def test_cli_prepare_one_pass_takes_the_variant(self):
         self.runtime.close()
-        code, out, _ = self._cli('prepare', '--one-pass', '--action', NIK_GREETING, '--turn-id', 'cli-v1')
+        # --full: the whole packet (the default live CLI sends layers; test_kit_manifests covers those)
+        code, out, _ = self._cli('prepare', '--one-pass', '--full', '--action', NIK_GREETING, '--turn-id', 'cli-v1')
         self.assertEqual((code, json.loads(out)['performance_variant']), (0, 'kit_expression_v1'))
         self.assertIn('KIT’S TABLE VOICE', json.loads(out)['instructions'])
-        code, out, _ = self._cli('prepare', '--one-pass', '--action', 'What are the stakes?',
+        code, out, _ = self._cli('prepare', '--one-pass', '--full', '--action', 'What are the stakes?',
                                  '--turn-id', 'cli-base', '--performance-variant', 'current')
         self.assertEqual((code, json.loads(out)['performance_variant']), (0, 'current'))
         self.assertNotIn('KIT’S TABLE VOICE', json.loads(out)['instructions'])
