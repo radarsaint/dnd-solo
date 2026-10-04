@@ -3,6 +3,8 @@ import copy
 import json
 import tempfile
 import unittest
+import subprocess
+import sys
 from pathlib import Path
 
 from runtime import kit_rooms, kit_visual
@@ -167,6 +169,41 @@ class KitVisualTests(unittest.TestCase):
         )
         self.assertEqual(brief["mode"], "prop_study")
         self.assertEqual(brief["branch"], "earthfall")
+
+
+class KitVisualCliTests(unittest.TestCase):
+    def test_cli_visual_record_and_history_round_trip(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            db = Path(tmp) / "kit.sqlite"
+            source = kit_rooms.load_room(WATCHROOM)
+            runtime = Runtime(db)
+            runtime.initialize(source, source["starting_area"], room_path=WATCHROOM)
+            runtime.close()
+
+            visual = subprocess.run(
+                [sys.executable, "-m", "runtime.kit_agent", "visual",
+                 "--db", str(db), "--request", "Draw what I see.", "--pretty"],
+                cwd=ROOT, capture_output=True, text=True, check=True)
+            brief = json.loads(visual.stdout)
+            self.assertEqual(brief["stage"], "visual_brief")
+            visual_id = brief["visual_id"]
+
+            record = subprocess.run(
+                [sys.executable, "-m", "runtime.kit_agent", "visual-record",
+                 "--db", str(db), "--visual-id", visual_id,
+                 "--visual-status", "generated", "--reference-mode", "text_only", "--pretty"],
+                cwd=ROOT, capture_output=True, text=True, check=True)
+            recorded = json.loads(record.stdout)
+            self.assertEqual(recorded["stage"], "visual_recorded")
+
+            history = subprocess.run(
+                [sys.executable, "-m", "runtime.kit_agent", "visual-history",
+                 "--db", str(db)],
+                cwd=ROOT, capture_output=True, text=True, check=True)
+            rows = json.loads(history.stdout)
+            self.assertEqual(rows[0]["visual_id"], visual_id)
+            self.assertEqual(rows[0]["status"], "generated")
+            self.assertEqual(rows[0]["reference_mode"], "text_only")
 
 
 class KitVisualInferenceTests(unittest.TestCase):
