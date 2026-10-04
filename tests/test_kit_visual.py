@@ -70,6 +70,31 @@ class VisualBriefTests(unittest.TestCase):
         self.assertIn("varied", rule)
         self.assertIn("do not repeatedly default", rule)
 
+    def test_visual_brief_recommends_small_varied_reference_set(self):
+        brief = kit_visual.build_visual_brief(
+            self.runtime, "Draw a portrait of whoever is visible.", "character_spotlight")
+        refs = brief["style"]["recommended_references"]
+        self.assertGreaterEqual(len(refs), 1)
+        self.assertLessEqual(len(refs), 3)
+        self.assertEqual(len({ref["id"] for ref in refs}), len(refs))
+        self.assertTrue(all("teaches" in ref for ref in refs))
+
+    def test_recent_reference_is_penalized_when_alternatives_exist(self):
+        first = kit_visual.build_visual_brief(
+            self.runtime, "Draw a magical character portrait.", "character_spotlight")
+        recent = [ref["id"] for ref in first["style"]["recommended_references"]]
+        second = kit_visual.build_visual_brief(
+            self.runtime, "Draw a magical character portrait.", "character_spotlight",
+            recent_reference_ids=recent)
+        next_ids = [ref["id"] for ref in second["style"]["recommended_references"]]
+        self.assertNotEqual(recent, next_ids)
+
+    def test_visual_branch_is_explicit_metadata_not_world_truth(self):
+        brief = kit_visual.build_visual_brief(
+            self.runtime, "Make this a horror scene.", "scene_vignette", branch="roanoke")
+        self.assertEqual(brief["style"]["branch"], "roanoke")
+        self.assertNotIn("roanoke", json.dumps(brief["player_safe_facts"]).casefold())
+
 
 if __name__ == "__main__":
     unittest.main()
