@@ -9,7 +9,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from runtime import kit_rolls, kit_rooms, kit_triggers, srd_creatures
+from runtime import kit_acts, kit_rolls, kit_rooms, kit_triggers, srd_creatures
 from runtime.kit_agent import KitChatBridge, PendingRuling, RoomAdjudicator, turn_speakers
 from runtime.state_context import InvalidChange, Runtime
 
@@ -17,6 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 CARCASS = ROOT / 'tests' / 'fixtures' / 'rooms' / 'carcass.json'
 NIK = ROOT / 'tests' / 'fixtures' / 'characters' / 'nik.json'
 HIDDEN_WORDS = ('centipede', 'banded', 'rust-red')
+ROLL = {'target': 'carcass', 'act': 'roll'}  # Kit's declaration for 'I roll the carcass over.'
 
 
 def carcass(**changes):
@@ -40,10 +41,20 @@ class Room:
         self.runtime.set_player_sheet(json.loads(NIK.read_text()))
         self.adjudicator = RoomAdjudicator(roll=roll, npc_roll=npc_roll, source=self.runtime.source())
 
-    def act(self, action):
+    def act(self, action, handles=None):
+        """Resolve one player line. ``handles``: Kit's declared act this turn (runtime/kit_acts.py),
+        validated against the turn's offer and resolved as the bridge does at commit."""
         revision, state = self.runtime.load()
         result = self.adjudicator.resolve(action, revision, state)
-        self.runtime.commit(f't{revision}', revision, list(result.events))
+        events = list(result.events)
+        if handles:
+            decl = kit_acts.check({'handles': handles}, {'acts': result.offers or {}})['handles']
+            after = self.runtime.preview_state(revision, events)
+            declared = self.adjudicator.declared_handling(decl, action, revision, after)
+            events += list(declared.events)
+            result = declared.__class__(declared.kind, f'{declared.public_event}', events, declared.handoff,
+                                        result.offers)
+        self.runtime.commit(f't{revision}', revision, events)
         return result
 
     @property
@@ -137,11 +148,11 @@ class HiddenActorTests(unittest.TestCase):
 
 class MonsterInitiativeTests(unittest.TestCase):
     def test_disturbing_the_carcass_starts_the_fight_without_a_player_attack(self):
-        for action in ('I roll the carcass over.', 'I search the carcass.',
-                       'I prod the basilisk carcass with my staff.'):
+        for action, act in (('I roll the carcass over.', 'roll'), ('I search the carcass.', 'search'),
+                            ('I prod the basilisk carcass with my staff.', 'push')):
             with self.subTest(action=action):
                 room = Room(self)
-                result = room.act(action)
+                result = room.act(action, {'target': 'carcass', 'act': act})
                 self.assertEqual(result.kind, 'combat_round')
                 self.assertIn('Two giant centipedes boil out', result.public_event)
                 self.assertTrue(result.public_event.endswith('Roll initiative.'))
@@ -153,9 +164,23 @@ class MonsterInitiativeTests(unittest.TestCase):
                     self.assertEqual(state['actors'][key]['status'], 'alive')
                 self.assertEqual(state['triggers_fired'], ['carcass_disturbed'])
 
+    def test_the_words_alone_never_fire_it_they_offer_kit_the_call(self):
+        """The design steer: the regex only hints; without Kit's declared handles nothing fires."""
+        for action, hint in (('I roll the carcass over.', {'target': 'carcass', 'act': 'roll'}),
+                             ('I search the carcass.', {'target': 'carcass', 'act': 'search'}),
+                             ('I pry the claw open.', {'target': 'claw', 'act': 'pry'})):
+            with self.subTest(action=action):
+                room = Room(self)
+                result = room.act(action)
+                self.assertEqual(result.kind, 'feature_act')
+                self.assertEqual(result.offers['handles']['hint'], hint)
+                self.assertNotIn('trigger_fired', [e['type'] for e in result.events])
+                self.assertEqual(room.state.get('triggers_fired') or [], [])
+                self.assertNotIn('orb', room.state['known_facts'])
+
     def test_after_the_trigger_they_are_present_and_speak(self):
         room = Room(self)
-        room.act('I roll the carcass over.')
+        room.act('I roll the carcass over.', ROLL)
         speakers = turn_speakers(room.runtime, {'events': []})['speakers']
         self.assertIn('Banded centipede', speakers)
         self.assertIn('Banded centipede', json.dumps(room.runtime.player_view()))
@@ -165,11 +190,14 @@ class MonsterInitiativeTests(unittest.TestCase):
         result = room.act('I look around the hall.')
         self.assertNotIn('trigger_fired', [e['type'] for e in result.events])
         self.assertIsNone(room.state.get('combat'))
-        room.act('I roll the carcass over.')
+        room.act('I roll the carcass over.', ROLL)
         room.act('Initiative 20')
         room.act('I hit the banded centipede with my quarterstaff: 17 to hit, 6 bludgeoning damage.')
-        events = [e['type'] for e in room.act('I search the carcass.').events]
-        self.assertNotIn('trigger_fired', events)
+        result = room.act('I search the carcass.')
+        self.assertNotIn('trigger_fired', [e['type'] for e in result.events])
+        self.assertFalse((result.offers or {}).get('handles'), 'a spent trigger offers nothing to declare')
+        with self.assertRaises(InvalidChange):
+            kit_acts.check({'handles': {'target': 'carcass', 'act': 'search'}}, {'acts': result.offers or {}})
 
     def test_entering_an_area_can_spring_an_ambush(self):
         source = carcass()
@@ -188,7 +216,7 @@ class SurpriseTests(unittest.TestCase):
     def test_an_unaware_pc_is_surprised_and_loses_round_one(self):
         # Stealth d20 20 + 2 = 22 beats Nik's passive Perception 14: he does not notice them.
         room = Room(self, npc_roll=lambda: 20, roll=lambda: 2)
-        room.act('I roll the carcass over.')
+        room.act('I roll the carcass over.', ROLL)
         self.assertIn('pc', room.state['combat']['surprised'])
         result = room.act('Initiative 20')
         self.assertIn('surprised', result.public_event)
@@ -200,7 +228,7 @@ class SurpriseTests(unittest.TestCase):
     def test_a_pc_who_notices_any_of_them_is_not_surprised(self):
         # Stealth d20 1 + 2 = 3 against passive 14.
         room = Room(self, npc_roll=lambda: 1)
-        room.act('I roll the carcass over.')
+        room.act('I roll the carcass over.', ROLL)
         self.assertNotIn('pc', room.state['combat']['surprised'])
         result = room.act('Initiative 20')
         self.assertNotIn('surprised', result.public_event)
@@ -210,17 +238,17 @@ class SurpriseTests(unittest.TestCase):
         source = carcass()
         source['triggers'][0]['surprise'] = {'dc': 15}
         room = Room(self, source=source)
-        room.act('I roll the carcass over.')
+        room.act('I roll the carcass over.', ROLL)
         self.assertIn('pc', room.state['combat']['surprised'])
         source = carcass()
         del source['triggers'][0]['surprise']
         room = Room(self, source=source, npc_roll=lambda: 20)
-        room.act('I roll the carcass over.')
+        room.act('I roll the carcass over.', ROLL)
         self.assertEqual(room.state['combat']['surprised'], [])
 
     def test_the_ambushers_are_never_surprised(self):
         room = Room(self, npc_roll=lambda: 20)
-        room.act('I roll the carcass over.')
+        room.act('I roll the carcass over.', ROLL)
         self.assertNotIn('centipede_a', room.state['combat']['surprised'])
 
 
@@ -228,7 +256,7 @@ class SaveRiderTests(unittest.TestCase):
     def bitten(self):
         # Not surprised; the centipedes' d20 15 + 4 = 19 hits AC 14. Nik's init 1 puts them first.
         room = Room(self, npc_roll=lambda: 1, roll=lambda: 15)
-        room.act('I roll the carcass over.')
+        room.act('I roll the carcass over.', ROLL)
         result = room.act('Initiative 1')
         return room, result
 
@@ -323,27 +351,29 @@ class DisturbByPartOrItemTests(unittest.TestCase):
         return room.state.get('triggers_fired') or []
 
     def test_prying_a_part_or_taking_the_held_item_fires_the_carcass_trigger(self):
-        for action in ('I pry the claw open.', 'I take the orb from the claw.',
-                       "I pull the orb out of the basilisk's talon.", 'I wrench the foreleg aside.'):
+        for action, handles in (('I pry the claw open.', {'target': 'claw', 'act': 'pry'}),
+                                ("I pull the orb out of the basilisk's talon.", {'target': 'talon', 'act': 'pull'}),
+                                ('I wrench the foreleg aside.', {'target': 'foreleg', 'act': 'pry'})):
             with self.subTest(action=action):
                 room = Room(self)
-                result = room.act(action)
+                result = room.act(action, handles)
                 self.assertEqual(self.fired(room), ['carcass_disturbed'])
                 self.assertEqual(result.kind, 'combat_round')
                 self.assertTrue(result.public_event.endswith('Roll initiative.'))
 
     def test_taking_the_item_shows_it(self):
         room = Room(self)
-        result = room.act('I take the orb from the claw.')
+        result = room.act('I pry the claw open.', {'target': 'claw', 'act': 'pry'})
         self.assertIn('orb', room.state['known_facts'])
         self.assertIn({'type': 'reveal_fact', 'fact': 'orb'},
                       [{k: e[k] for k in ('type', 'fact')} for e in result.events if e['type'] == 'reveal_fact'])
 
     def test_another_feature_fires_its_own_trigger_only(self):
-        for action in ('I pry the lid off.', 'I take the ring from the coffin.', 'I lift the lid of the sarcophagus.'):
+        for action, handles in (('I pry the lid off.', {'target': 'lid', 'act': 'pry'}),
+                                ('I lift the lid of the sarcophagus.', {'target': 'coffin', 'act': 'lift'})):
             with self.subTest(action=action):
                 room = Room(self, source=with_coffin())
-                room.act(action)
+                room.act(action, handles)
                 self.assertEqual(self.fired(room), ['coffin_disturbed'])
                 self.assertEqual(room.state['actors']['centipede_b']['status'], 'alive')
                 self.assertEqual(room.state['actors']['centipede_a']['status'], 'hidden')

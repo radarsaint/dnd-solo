@@ -367,9 +367,7 @@ def parse(action, source, state):
                 'teeth': bool(TEETH.search(text))}
     pcs = pc_names(state)
     take, loot = taken_valuables(text, pcs)
-    if take and loot and _names_feature(text, source, state):
-        take = None  # taking something from a feature the room keys (a ring from a coffin) is the feature's
-    if take and loot:
+    if take and loot and table_scene(source):
         what = 'ring' if re.search(r'\bring\b', text) and not re.search(r'\bcoins?|gold|pot|money|stacks?\b', text) \
             else 'coins'
         return {'kind': 'take', 'what': what, 'target': None, 'covert': bool(COVERT.search(text)),
@@ -384,10 +382,31 @@ def parse(action, source, state):
     return None
 
 
-def _names_feature(text, source, state):
-    """True when the words name one of the room's handled features (or a part of one)."""
-    from .kit_agent import room_words  # local: kit_agent imports this module
-    return room_words(source, state).feature_in(text) is not None
+def table_scene(source):
+    """True for a room whose combat block keys loose loot on a table (``loose_money``): only
+    there do coins and a ring lie about to be taken, and only there is ``room_now`` shown."""
+    return bool(((source or {}).get('combat') or {}).get('loose_money'))
+
+
+# Conditions that stop the PC moving and acting (SRD: incapacitated, and every condition that
+# includes it), and the 0 HP state.
+INCAPACITATING = ('incapacitated', 'paralyzed', 'petrified', 'stunned', 'unconscious')
+
+
+def pc_conditions(state):
+    """The PC's conditions now: they persist past the fight until they end by rule."""
+    return list((state or {}).get('pc_conditions') or [])
+
+
+def pc_incapacitated(state):
+    """Why the PC cannot move or act now ('down', or the condition), else None."""
+    current = (state or {}).get('combat') or {}
+    if current.get('status') in ('awaiting_initiative', 'running') and current.get('pc_down'):
+        return 'down'
+    for name in pc_conditions(state):
+        if name in INCAPACITATING:
+            return name
+    return None
 
 
 def _default_target(text, source, state, here):
@@ -476,19 +495,21 @@ class Fight:
         self.scene['pc_hidden'] = False  # the first blow gives the PC away
         return True
 
-    def start_by_trigger(self, trigger, pc_surprised, trace):
+    def start_by_trigger(self, trigger, pc_surprised, trace, waking=None):
         """A room trigger starts (or joins) the fight without the PC attacking (kit_triggers).
-        The ambushers are never surprised; the PC is when he noticed none of them."""
+        The ambushers are never surprised; the PC is when he noticed none of them. Joining a
+        running fight, each newcomer takes its place in the order by its initiative."""
+        waking = list(trigger['actors'] if waking is None else waking)
         started = self.ensure_fight(f"trigger:{trigger['id']}")
         if started:
             self.fight['surprised'] = ['pc'] if pc_surprised else []
         else:
-            for key in trigger['actors']:
+            for key in waking:
                 if key in self.config.get('actors', {}) and key not in self.fight['hp']:
                     self.fight['hp'][key] = self.fight['max_hp'][key] = self.stats(key)['hp']
                     if self.fight['order']:
-                        self.fight['order'].append(key)
-        self.trace.append(f"room trigger {trigger['id']}: {', '.join(trigger['actors'])} join; {trace}")
+                        self.join_order(key)
+        self.trace.append(f"room trigger {trigger['id']}: {', '.join(waking)} join; {trace}")
         if trigger.get('reveal'):
             self.lines.append(trigger['reveal'])
         if self.fight['status'] == 'awaiting_initiative':
@@ -497,6 +518,31 @@ class Fight:
 
     def pc_surprised_now(self):
         return 'pc' in (self.fight.get('surprised') or ()) and self.fight.get('round') == 1
+
+    def pc_can_react(self):
+        """SRD surprise: a surprised PC takes no reaction until his first turn ends (round 1).
+        The seam #101's reaction windows read; a PC who is down or incapacitated has none."""
+        if not self.fight or self.fight.get('pc_down'):
+            return False
+        return not self.pc_surprised_now() and not any(c in INCAPACITATING for c in pc_conditions(self.state))
+
+    def initiative_of(self, key):
+        """(count, tiebreak): the PC's reported total, an NPC's flat 10 + Dexterity."""
+        if key == 'pc':
+            return (self.fight.get('pc_initiative') or 0, 99)
+        bonus = self.stats(key).get('initiative', 0)
+        return (10 + bonus, bonus)
+
+    def join_order(self, key):
+        """A creature joining a running fight takes its initiative count in the order (SRD);
+        whoever is up next stays up next."""
+        order = self.fight['order']
+        mine = self.initiative_of(key)
+        at = next((i for i, other in enumerate(order) if self.initiative_of(other) < mine), len(order))
+        order.insert(at, key)
+        if at <= self.fight['next']:
+            self.fight['next'] += 1  # its count has passed this round: it acts from the next
+        self.trace.append(f'{key} joins the order at initiative {mine[0]}')
 
     def surprised(self):
         """Nobody is surprised unless the PC is hidden from everyone when it starts."""
@@ -512,7 +558,7 @@ class Fight:
     def resolve(self, act):
         awaiting = (self.fight or {}).get('awaiting')
         if awaiting and awaiting.get('kind') == 'roll_call':
-            return self.resume_save(awaiting)
+            return self.resume_save(awaiting, act)
         init = kit_rolls.initiative(self.action)
         kind = (act or {}).get('kind')
         if kind == 'attack':
@@ -600,7 +646,10 @@ class Fight:
             self.check_over()
 
     # -- a save the player rolls (a monster attack's rider) ---------------------------
-    def resume_save(self, awaiting):
+    def resume_save(self, awaiting, act=None):
+        """The player's save answers the roll call. Another queued save is asked next; else
+        the round goes on, and anything else he declared with it ('Con save 14, then I cast
+        magic missile') is his turn when it comes."""
         total = save_total(self.action, awaiting['save'])
         if total is None:
             self.lines.append(save_prompt(awaiting))
@@ -609,7 +658,7 @@ class Fight:
         damage = int(awaiting['damage'])
         dealt = (damage // 2 if awaiting.get('half') else 0) if saved else damage
         self.trace.append(f"PC {awaiting['save']} save {total} vs DC {awaiting['dc']} "
-                          f"({awaiting.get('from')}): {'saved' if saved else 'failed'}, {dealt} {awaiting['type']}")
+                          f"({attacker(awaiting)}): {'saved' if saved else 'failed'}, {dealt} {awaiting['type']}")
         self.fight['awaiting'] = None
         if not dealt:
             self.lines.append(f"You shake off the {awaiting['type']}.")
@@ -622,13 +671,36 @@ class Fight:
                 self.fight['pc_down'] = True
                 self.fight['pc_damage'] = int(hp)
                 if awaiting.get('at_zero'):
-                    self.fight['pc_conditions'] = list(awaiting['at_zero'])
+                    # Conditions live on the PC, not the fight: they outlast it (runtime state).
+                    self.fight['pc_conditions'] = list(dict.fromkeys(list(self.fight.get('pc_conditions') or ()) +
+                                                                     list(awaiting['at_zero'])))
                     self.lines.append(f"You drop, stable but {' and '.join(awaiting['at_zero'])}.")
                 else:
                     self.lines.append('You go down.')
+        # What he declared with the save waits for his turn (kept across further saves).
+        rest = after_save_clause(self.action) or self.fight.get('declared_next') or ''
+        self.fight.pop('declared_next', None)
+        queued = list(self.fight.get('saves_queued') or ())
+        if queued and not self.fight.get('pc_down'):
+            self.fight['awaiting'] = queued.pop(0)
+            self.fight['saves_queued'] = queued
+            self.lines.append(save_prompt(self.fight['awaiting']))
+            if rest:
+                self.fight['declared_next'] = rest
+            return self.public(), self.events()
+        self.fight.pop('saves_queued', None)
         if self.fight['status'] == 'running' and not self.fight.get('pc_down'):
             self.run_npcs()
         self.check_over()
+        if rest and self.fight['status'] == 'running' and not self.fight.get('pc_down'):
+            if self.fight.get('awaiting'):
+                self.fight['declared_next'] = rest
+            elif self.pc_turn_now():
+                follow = parse(rest, self.source, self.state)
+                if follow:
+                    self.trace.append(f'his declared act after the save: {rest[:120]}')
+                    self.action = rest
+                    return self.resolve(follow)
         self.finish()
         return self.public(), self.events()
 
@@ -709,7 +781,7 @@ class Fight:
             return False
         key = targets[0]
         ac = self.stats(key)['ac']
-        hit = spell in SPELL_AUTO or natural == 20 or (natural != 1 and total >= ac)
+        hit = spell in SPELL_AUTO or natural == 20 or (natural != 1 and kit_rolls.meets_or_beats(total, ac))
         self.trace.append(f'PC {weapon} vs {key}: {total} vs AC {ac}: {"hit" if hit else "miss"}')
         what = 'stomp' if weapon == 'stomp' else spell.title() if spell else weapon
         if not hit:
@@ -757,7 +829,7 @@ class Fight:
         for index, attack in enumerate(stats.get('attacks') or []):
             die = self.die(f'npc:{key}:r{self.fight["round"]}:{index}')
             total = die + attack['to_hit']
-            hit = die == 20 or (die != 1 and total >= self.pc_ac())
+            hit = die == 20 or (die != 1 and kit_rolls.meets_or_beats(total, self.pc_ac()))
             dealt = attack['damage'] * (2 if die == 20 else 1)
             self.trace.append(f'{key} {attack["name"]}: d20 {die} + {attack["to_hit"]} = {total} vs AC {self.pc_ac()}: '
                               f'{"hit " + str(dealt) if hit else "miss"}')
@@ -770,12 +842,17 @@ class Fight:
                 self.fight['pc_down'] = True
                 break
             rider = attack.get('save')
-            if rider and not self.fight.get('awaiting'):
-                # The player rolls his own save (Avrae); the round waits on it.
-                self.fight['awaiting'] = {'kind': 'roll_call', 'awaits': 'player_roll', 'save': rider['ability'],
-                                          'dc': rider['dc'], 'damage': rider['damage'], 'type': rider['type'],
-                                          'half': bool(rider.get('half')), 'at_zero': list(rider.get('at_zero') or ()),
-                                          'from': key}
+            if rider:
+                # The player rolls his own save (Avrae); the round waits on it. A second rider
+                # this turn waits its turn behind the first (each is asked, one at a time).
+                owed = {'kind': 'roll_call', 'awaits': 'player_roll', 'save': rider['ability'],
+                        'dc': rider['dc'], 'damage': rider['damage'], 'type': rider['type'],
+                        'half': bool(rider.get('half')), 'at_zero': list(rider.get('at_zero') or ()),
+                        'from': key}
+                if self.fight.get('awaiting'):
+                    self.fight.setdefault('saves_queued', []).append(owed)
+                else:
+                    self.fight['awaiting'] = owed
         who = f'The {self.label(key)}'
         swings = len(stats.get('attacks') or [])
         if not hits:
@@ -790,7 +867,7 @@ class Fight:
                               f'{who} hits you: {amounts} damage.')
         if self.fight.get('pc_down'):
             self.lines.append('You go down.')
-        elif (self.fight.get('awaiting') or {}).get('from') == key:
+        elif attacker(self.fight.get('awaiting')) == key:
             self.lines.append(save_prompt(self.fight['awaiting']))
 
     def should_retreat(self, key):
@@ -950,6 +1027,26 @@ class Fight:
 ABILITY_NAMES = {'str': 'Strength', 'dex': 'Dexterity', 'con': 'Constitution', 'int': 'Intelligence',
                  'wis': 'Wisdom', 'cha': 'Charisma'}
 BARE_NUMBER = re.compile(r'^\W*(\d{1,2})\W*$')
+ABILITY_WORDS = {'str': 'str|strength', 'dex': 'dex|dexterity', 'con': 'con|constitution',
+                 'int': 'int|intelligence', 'wis': 'wis|wisdom', 'cha': 'cha|charisma'}
+# "Con save 14", "Con: 14", "Constitution 14", "con save: 14" (the ability, then the total).
+_SAVE_CLAUSE = r"\b(?:{words})\b(?:\s+sav(?:e|ing throw))?\s*[:=]?\s*(?:is\s+|of\s+)?(\d{{1,2}})\b"
+
+
+def attacker(awaiting):
+    """Who a save rider came from: ``from`` (#97), or ``attacker`` (#101's name for it)."""
+    awaiting = awaiting or {}
+    return awaiting.get('attacker') or awaiting.get('from')
+
+
+def after_save_clause(action):
+    """What the player declared after his save total ('Con save 14, then I cast...'), or ''."""
+    found = re.search(r'\b\d{1,2}\b\s*(?:[,;.!]+\s*|\s+)(?:and\s+|then\s+|and then\s+)?(?=\w)(.+)$',
+                      action or '', re.S)
+    if not found:
+        return ''
+    rest = found.group(1).strip()
+    return rest if re.search(r'\b(?:i|nik|he|she|they)\b', rest, re.I) or re.match(r'(?i)(?:cast|attack|stab|hit|run|move)\b', rest) else ''
 
 
 def save_prompt(awaiting):
@@ -967,6 +1064,9 @@ def save_total(action, ability):
     for roll in found:
         if roll.label == f'{ability}_save':
             return roll.total
+    named = re.search(_SAVE_CLAUSE.format(words=ABILITY_WORDS.get(ability, ability)), action or '', re.I)
+    if named:
+        return int(named.group(1))
     loose = [roll for roll in found if roll.label in (None, ABILITY_NAMES.get(ability, '').casefold(), ability)]
     if loose:
         return loose[0].total
@@ -1016,10 +1116,12 @@ def public_view(source, state):
                         'wounds': wounds, 'damage_you_took': current.get('pc_damage', 0)}
         if (current.get('awaiting') or {}).get('kind') == 'roll_call':
             out['fight']['roll_needed'] = save_prompt(current['awaiting'])[len('Roll a '):-1]
-        if current.get('pc_conditions'):
-            out['fight']['your_conditions'] = list(current['pc_conditions'])
+        if current['status'] != 'over' and 'pc' in (current.get('surprised') or ()) and current.get('round') == 1:
+            out['fight']['you_are_surprised'] = True  # no reactions until your first turn ends
+    if pc_conditions(state):
+        out['your_conditions'] = pc_conditions(state)
     sc = state.get('scene')
-    if sc:
+    if sc and table_scene(source):
         out['room_now'] = {'table': sc.get('table'), 'coins': sc.get('pot'), 'ring': _ring_text(source, sc.get('ring')),
                            'you_took': list(sc.get('pc_took') or []),
                            **({'you_hold': labels(source).get(sc['grappled'], sc['grappled'])} if sc.get('grappled') else {})}
