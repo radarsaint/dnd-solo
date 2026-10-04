@@ -371,6 +371,26 @@ GESTURE = re.compile(
     r"chin|neck|feet|legs|arms|hair|beard|eyebrows?|brow|shoulders|teeth|lips)\b")
 # A feature is moved only as the verb's own object ("tip the heavy tub over"), not as a place
 # something moves toward ("move my chair closer to the tub").
+# Hands on part of a feature, or on what it holds: prying, wrenching, taking, pulling out
+# ('I pry the claw open', 'I take the orb from the claw'). It disturbs the feature.
+MANIPULATE_VERBS = (r'pry|pries|prise|prises|prize|lever|levers|yank|yanks|wrench|wrenches|twist|twists|pull|pulls|'
+                    r'tug|tugs|grab|grabs|take|takes|lift|lifts|pick|picks|pluck|plucks|snap|snaps|break|breaks|'
+                    r'cut|cuts|saw|saws|loosen|loosens|remove|removes|extract|extracts|peel|peels|unclench|'
+                    r'unclenches|force|forces|slide|slides|touch|touches|tap|taps|lever')
+
+
+def _feature_manipulated(nouns):
+    return re.compile(r"\b(?:" + MANIPULATE_VERBS + r")\b(?:\s+[\w'-]+){0,5}?\s+(?:" + nouns + r")\b")
+
+
+def feature_owner(source, key):
+    """The feature that holds fact ``key`` (the claw's orb belongs to the carcass), else ``key``."""
+    for owner, fact in ((source or {}).get('facts') or {}).items():
+        if isinstance(fact, dict) and (fact.get('handling') or {}).get('holds') == key:
+            return owner
+    return key
+
+
 def _feature_moved(nouns):
     return re.compile(r"\b(?:tip|tips|overturn|overturns|flip|flips|lift|lifts|move|moves|push|pushes|shove|"
                       r"shoves|tilt|tilts|drag|drags|roll|rolls|prod|prods|poke|pokes|nudge|nudges|kick|kicks|"
@@ -400,9 +420,10 @@ def room_words(source, state):
     """RoomWords for the PC's area, from the room file alone."""
     source, state = source or {}, state or {}
     area = state.get('area')
+    # A feature's ``parts`` (the carcass's claw) name it as surely as its nouns do.
     features = tuple((noun.casefold(), key) for key, fact in (source.get('facts') or {}).items()
                      if isinstance(fact, dict) and fact.get('area') == area and fact.get('handling')
-                     for noun in fact['handling'].get('nouns') or ())
+                     for noun in list(fact['handling'].get('nouns') or ()) + list(fact['handling'].get('parts') or ()))
     exits = []
     for key in state.get('known_exits') or ():
         edge = (source.get('exits') or {}).get(key) or {}
@@ -546,6 +567,8 @@ def room_intent(action, addressed=False, room=None):
             return 'move_feature'
         if _feature_entry(nouns).search(words):
             return 'enter_feature'
+        if _feature_manipulated(nouns).search(words):
+            return 'handle_feature'
         if _feature_handled(nouns).search(words):
             # The 6c baseline's contradictory tub rule: a question about what is in a feature
             # went to Kit's invention oracle while the room forbade inventing the contents. The
@@ -831,6 +854,8 @@ class RoomAdjudicator:
                 return blocked
             event = {'type': 'move', 'exit': key, 'evidence': f'The player explicitly left by the known exit {key}.'}
             return Resolution(kind, self._exit_text(key, state, 'go'), [event])
+        if kind == 'handle_feature':
+            return self._handle_feature(action, narration, state)
         if kind in ('move_feature', 'inspect_feature', 'enter_feature'):
             noun, key = room_words(self.source, state).feature_in(narration.lower()) or \
                 room_words(self.source, state).feature_in(action.lower())
@@ -857,6 +882,25 @@ class RoomAdjudicator:
         event = {'type': 'beat', 'tags': [kind],
                  'evidence': f'Player declared: {action}. Resolution: {public}'}
         return Resolution(kind, public, [event])
+
+    def _handle_feature(self, action, narration, state):
+        """Hands on part of a feature or on what it holds: the feature is disturbed (its
+        trigger fires, runtime/kit_triggers.py), and what it holds comes into view."""
+        words = room_words(self.source, state)
+        noun, key = words.feature_in(narration.lower()) or words.feature_in(action.lower())
+        owner = feature_owner(self.source, key)
+        handling = self.source['facts'][owner]['handling']
+        text = handling.get('handle') or handling.get('move') or handling.get('look')
+        if not text:
+            raise PendingRuling(f'The room file gives no ruling for that with the {noun}. No turn was committed.',
+                                attempt=True)
+        events = [{'type': 'beat', 'tags': ['handle_feature'],
+                   'evidence': f'Player declared: {action}. Resolution: hands on the {noun} ({owner}): {text}'}]
+        held = handling.get('holds')
+        if held and held not in state.get('known_facts', []):
+            events.append({'type': 'reveal_fact', 'fact': held,
+                           'evidence': f'The player handled the {noun} ({owner}), which shows what it holds.'})
+        return Resolution('handle_feature', text, events)
 
     # -- perception at a threshold, and asking for a check (watchroom T1-T3) ---------
     def _threshold_exit(self, action, state):

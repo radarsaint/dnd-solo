@@ -296,5 +296,70 @@ class SaveRollParsingTests(unittest.TestCase):
                 self.assertTrue(roll.label.endswith('_save'))
 
 
+def with_coffin():
+    """The carcass room plus a second feature: a coffin whose lid (a part) and signet ring (a
+    held item) wake the second centipede; the carcass wakes only the first."""
+    source = carcass()
+    source['facts']['coffin'] = {
+        'area': 'hall', 'visible': True, 'text': 'A stone coffin rests against the far pillar, its lid askew.',
+        'handling': {'nouns': ['coffin', 'sarcophagus'], 'parts': ['lid'], 'holds': 'signet',
+                     'move': 'The coffin grinds an inch across the flagstones.',
+                     'handle': 'Stone scrapes on stone as the lid shifts.',
+                     'look': 'Dust and old linen fill the coffin.'}}
+    source['facts']['signet'] = {'area': 'hall', 'visible': False,
+                                 'text': 'A tarnished signet ring lies on the linen inside the coffin.',
+                                 'handling': {'nouns': ['signet', 'ring'], 'look': 'A tarnished signet ring.'}}
+    source['triggers'][0]['actors'] = ['centipede_a']
+    source['triggers'].append({'id': 'coffin_disturbed', 'on': {'disturb': 'coffin'}, 'starts_combat': True,
+                               'actors': ['centipede_b'], 'reveal': 'Something rust-red pours out of the coffin.'})
+    return source
+
+
+class DisturbByPartOrItemTests(unittest.TestCase):
+    """Manipulating part of a feature, or taking an item from it, disturbs that feature (17a:
+    'I pry the claw open', 'I take the orb from the claw')."""
+
+    def fired(self, room):
+        return room.state.get('triggers_fired') or []
+
+    def test_prying_a_part_or_taking_the_held_item_fires_the_carcass_trigger(self):
+        for action in ('I pry the claw open.', 'I take the orb from the claw.',
+                       "I pull the orb out of the basilisk's talon.", 'I wrench the foreleg aside.'):
+            with self.subTest(action=action):
+                room = Room(self)
+                result = room.act(action)
+                self.assertEqual(self.fired(room), ['carcass_disturbed'])
+                self.assertEqual(result.kind, 'combat_round')
+                self.assertTrue(result.public_event.endswith('Roll initiative.'))
+
+    def test_taking_the_item_shows_it(self):
+        room = Room(self)
+        result = room.act('I take the orb from the claw.')
+        self.assertIn('orb', room.state['known_facts'])
+        self.assertIn({'type': 'reveal_fact', 'fact': 'orb'},
+                      [{k: e[k] for k in ('type', 'fact')} for e in result.events if e['type'] == 'reveal_fact'])
+
+    def test_another_feature_fires_its_own_trigger_only(self):
+        for action in ('I pry the lid off.', 'I take the ring from the coffin.', 'I lift the lid of the sarcophagus.'):
+            with self.subTest(action=action):
+                room = Room(self, source=with_coffin())
+                room.act(action)
+                self.assertEqual(self.fired(room), ['coffin_disturbed'])
+                self.assertEqual(room.state['actors']['centipede_b']['status'], 'alive')
+                self.assertEqual(room.state['actors']['centipede_a']['status'], 'hidden')
+
+    def test_looking_at_a_part_disturbs_nothing(self):
+        room = Room(self)
+        result = room.act('I look at the claw.')
+        self.assertEqual(self.fired(room), [])
+        self.assertNotIn('trigger_fired', [e['type'] for e in result.events])
+
+    def test_parts_must_be_words(self):
+        source = carcass()
+        source['facts']['carcass']['handling']['parts'] = 'claw'
+        with self.assertRaises(kit_rooms.RoomMountError):
+            kit_rooms.check_room(source)
+
+
 if __name__ == '__main__':
     unittest.main()

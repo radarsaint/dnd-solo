@@ -442,6 +442,8 @@ def parse(action, source, state):
                 'teeth': bool(TEETH.search(text))}
     pcs = pc_names(state)
     take, loot = taken_valuables(text, pcs)
+    if take and loot and _names_feature(text, source, state):
+        take = None  # taking something from a feature the room keys (a ring from a coffin) is the feature's
     if take and loot:
         what = 'ring' if re.search(r'\bring\b', text) and not re.search(r'\bcoins?|gold|pot|money|stacks?\b', text) \
             else 'coins'
@@ -455,6 +457,12 @@ def parse(action, source, state):
     if in_fight and WAIT.search(text):
         return {'kind': 'wait', 'target': None}
     return None
+
+
+def _names_feature(text, source, state):
+    """True when the words name one of the room's handled features (or a part of one)."""
+    from .kit_agent import room_words  # local: kit_agent imports this module
+    return room_words(source, state).feature_in(text) is not None
 
 
 def _default_target(text, source, state, here):
