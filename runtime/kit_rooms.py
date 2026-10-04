@@ -38,11 +38,12 @@ REQUIRED = ('id', 'starting_area', 'areas', 'exits', 'facts', 'actors')
 KNOWN_BLOCKS = set(REQUIRED) | {
     'resources', 'fixture_only', 'stub', 'source_ref', 'map_ref', 'test_precondition', 'level_context',
     'campaign_context', 'public_performance', 'numeric_facts', 'leak_phrases', 'leak_keywords', 'claims',
-    'room_rules', 'procedures', 'tolls', 'attitudes', 'story', 'texture_palette', 'combat', 'agenda'}
+    'room_rules', 'procedures', 'tolls', 'attitudes', 'story', 'texture_palette', 'combat', 'agenda',
+    'triggers'}
 # The JSON type of each block (anything not listed is an object). A wrong type is refused at
 # mount, before any engine reads it.
 BLOCK_TYPES = {'id': str, 'starting_area': str, 'source_ref': str, 'map_ref': str, 'test_precondition': str,
-               'fixture_only': bool, 'stub': bool, 'room_rules': list}
+               'fixture_only': bool, 'stub': bool, 'room_rules': list, 'triggers': list}
 CARD_GAMES = ('twenty_one', 'three_dragon_ante')
 CARRIED_LIMIT = 24  # things taken out of rooms, kept as text; the oldest go first
 STAGES = ('approach', 'first_look', 'explore', 'resolution')
@@ -336,11 +337,11 @@ def later_stage_problems(source):
     """Every later-stage block, validated without being built: no card engine, no brief, no
     fight is created here. The texture palette is not checked here at all: it is checked per
     area the first time play draws on it (kit_texture.area_palette)."""
-    from . import kit_agenda, kit_attitude, kit_brief, kit_cards, kit_claims, kit_toll
+    from . import kit_agenda, kit_attitude, kit_brief, kit_cards, kit_claims, kit_toll, kit_triggers
     problems = []
     checks = [('claims', kit_claims.compile_claims), ('attitudes', kit_attitude.compile_attitudes),
               ('agenda', kit_agenda.compile_agenda), ('tolls', kit_toll.compile_tolls),
-              ('story', kit_brief.compile_story)]
+              ('story', kit_brief.compile_story), ('triggers', kit_triggers.compile_triggers)]
     for block, check in checks:
         if source.get(block):
             try:

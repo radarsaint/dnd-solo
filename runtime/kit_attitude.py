@@ -47,7 +47,7 @@ REARM = {'card_read': 'each_time', 'held_edge': 'new_round'}  # after a miss, wh
 RISING = 2  # each earlier miss adds this to the NPC's next roll (they keep watching: Call 10, "repeatedly")
 TRIGGERS = ('card_read', 'held_edge')
 TEXT_MAX = 200
-GONE = ('dead', 'fled', 'unconscious', 'defeated', 'gone')
+GONE = ('dead', 'fled', 'unconscious', 'defeated', 'gone', 'hidden')
 HISTORY = 4
 # Reading the marked backs, the pinpricks, or the next card on the deck.
 CARD_READ = re.compile(

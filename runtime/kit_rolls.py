@@ -43,7 +43,8 @@ _TOTAL = re.compile(r'\b(?:rolled|rolling|roll(?:ed)?:|got|get|total(?:\s+of)?|s
                     r'|\b(\d{1,2})\s+(?:to[- ]hit|on the attack|for the attack)\b'
                     r'|\b(?:to[- ]hit|attack(?: roll)?|initiative|init)\s*(?:roll\s*)?(?:is|of|was|:|=)?\s*(\d{1,2})\b'
                     r'|\b(' + _SKILL + r'|(?:strength|dexterity|constitution|intelligence|wisdom|charisma)'
-                    r'(?:\s+sav(?:e|ing throw))?)\s*(?:check|roll|save|saving throw)?\s*[:=]?\s*(\d{1,2})\b')
+                    r'(?:\s+sav(?:e|ing throw))?|(?:str|dex|con|int|wis|cha)\s+sav(?:e|ing throw))'
+                    r'\s*(?:check|roll|save|saving throw)?\s*[:=]?\s*(\d{1,2})\b')
 
 
 @dataclass(frozen=True)

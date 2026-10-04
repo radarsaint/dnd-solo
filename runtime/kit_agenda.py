@@ -46,7 +46,7 @@ TRIGGERS = ('stall', 'elsewhere', 'engaged', 'odd', 'any')  # odd: the PC does s
 # that exchange IS its advance. quiet: nothing advances this turn, for the stated reason
 # (valid with agents present while no advance is due). paced: the same, named for the pace.
 HOLDS = ('none', 'engaged', 'quiet', 'paced')
-GONE = ('fled', 'dead', 'defeated', 'gone')
+GONE = ('fled', 'dead', 'defeated', 'gone', 'hidden')
 TEXT_MAX = 200
 MAX_SEGMENTS = 12
 
