@@ -1,7 +1,9 @@
-# Decision: Canonical DM Personality Core
+# ADR 0004: Canonical DM Personality Core
 
 ## Status
 Accepted
+
+Previously filed as `0001-canonical-dm-personality-core.md`, which collided with ADR 0001 (`0001-no-monolithic-prompt.md`). This record is ADR 0004.
 
 ## Context
 

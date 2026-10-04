@@ -1,44 +1,55 @@
 # Project Status
 
-## Active workstreams
+Current development truth is GitHub `main`. This note describes the executable runtime on that branch. An older pinned ZIP is a snapshot of whatever commit is in its filename.
 
-### DM personality / behavior
-Status: canonical core and area 6c personality protocol captured. The character-onboarding test and two short area 6c room tests have been reviewed; a multi-turn preference test is still pending.
+## What runs
 
-The current document defines identity, core appetites, pillar weighting, appetite resolution, inhibition rules, stakes telegraphing, NPC performance, visible DM presence, player relationship, character relationship, and self-evaluation.
+Kit is a persistent persona whose principal vocation is Dungeon Master. In a live game the Python runtime owns rules, state, and hidden facts. Kit owns judgment and voice. Outside a game turn she is still Kit, and conversation is not game state.
 
-The onboarding test found that Kit engaged with a player-created character motive and could stand by a ruling, then reconsider it when explicitly invited. It also found unsolicited advice, rushing ahead of the player's current task, a weak campaign opening, and generic banter. The next behavior pass should focus on interaction-state detection, a distinct theatrical table voice (Brendon's voice spec supersedes the earlier "restraint" framing), and a causal handoff into play. See `docs/WHAT_WE_ARE_BUILDING.md` for the plain-English overview.
+The play bridge is `runtime/kit_agent.py`. A turn is `prepare` (or `prepare --one-pass`) and then `decide`/`finish` or `complete`. The model submits a private decision and a public performance. The runtime adjudicates and commits world changes. The model does not write storage. The `play` command calls a paid API and is not used.
 
-The [Nik room test](../tests/playtests/2026-09-26-area-06c-nik.md) failed more directly: an 81-second wait produced a basic room opening and a flat toll exchange. The player described Kit as mechanically aware but still “an it, not a she,” then noted the dealer had no appreciable voice change, longer improvised invitation, or readable story promise. An Insight ruling was given in chat without being saved to the backend. The next live pass must test expressed personality and persistence. Latency is recorded but is not this phase's gate; the player has explicitly prioritized quality.
+### Room loader
 
-The [voice-spec branch test](../tests/playtests/2026-09-29-area-06c-voice-spec-nik.md) gave Nik a more substantial dealer exchange, but Kit's greeting quip contradicted the greeting just spoken. When asked what game was underway, the chat host invented high card and matching-coin stakes despite the source only specifying cards, coins, and Uktarl's marked deck. The run never made cheating or detecting it playable. The player called some dialogue better but still AI-sounding and stopped the test. This is a failed live sample, not a voice improvement claim; no fix was requested in this pass.
+`runtime/kit_rooms.py` mounts any room file in the repo's room format. The contract is `docs/architecture/ROOM_LOADER.md`. A room is data: areas, exits, facts, actors, and optional mechanic blocks (claims, procedures, tolls, combat, attitudes, story, agenda, texture). An unsupported block fails the mount. Rooms can chain in one session when an area carries a `room_link`. A room that cannot mount fails before any turn is committed, and Kit has a plain line for the table.
 
-### Technical DM runtime
-Status: SQLite source/state backend and a bounded area 6c Kit play loop implemented on `kit-area-06c-testbed`.
+Play inside a mounted file is read from state, in four stages: approach, first look, exploration, resolution. Each stage prepares only what that moment needs from the file already loaded. That staging is the loader. It does not write the room.
 
-The play loop separates source-grounded room adjudication, a private Kit decision, and public performance. It persists world changes, a Kit episode, and the transcript atomically. In a tool-enabled chat, the staged `prepare`, `decide`, and `finish` path runs without a separate API key. An optional `prepare --one-pass` and `complete` path reduces model/tool round trips for live chat, with weaker causal evidence. Its host-to-commit intervals in the new live test were about 97–136 seconds per original turn, including host authoring and tools, not model-only inference. A [reusable scene-discernment step](../docs/architecture/scene-discernment.md) makes Kit select how the player's current bid, eligible story pressure, a live actor's established aim, and her own appraisal connect. Area 6c then supplies actor cards and a saved scene entry as performance inputs. These are structural changes, not a demonstrated improvement in play. Full rules, combat, NPC belief updates, and measured entertainment quality remain open.
+`start` with no `--room` still opens `tests/fixtures/level_01_area_06c.json`. That path is a leftover fallback so an unnamed start and the old suite have a file. Area 6c is one past regression room. It is not the reference room, and it is not a template. The other room files on `main` are a synthetic watchroom (`tests/fixtures/rooms/watchroom.json`), a non-playable area 17a stub (`rooms/level_01_area_17a.json`), and an older synthetic feasibility fixture. None of them was built from the book at approach time. No committed room file yet carries a real `room_link`; the chain tests add links on temporary copies.
 
-The [personality implementation audit](../docs/personality/kit-personality-implementation.md) found that the stable core is loaded and an appraisal label is saved, but Kit's distinctive expressed behavior, appetite regulation, and player relationship are not working runtime systems. The [performance pipeline design](../docs/architecture/expressed-performance-pipeline.md) and [area 6c blind comparison packet](../tests/scenarios/expressed-performance-v1.md) now put Kit's identity comparison before actor-led performer changes: fix the same private decision and accepted event, compare candidate expression and a public-safe causal handoff, inspect blind player preference, then test transfer in a second playable room. No model-generated candidate has yet passed that comparison.
+### Source-to-room authoring
 
-### Player-facing UX/UI
-Status: active design.
+The direction of the work is that a keyed area of the book becomes a room file when the PC approaches, and the loader mounts that file. That authoring path is in progress and is not on `main`. There is no `kit_source` or `kit_author` module in this tree, `docs/architecture/SOURCE_TO_ROOM.md` is not here, and the book's keyed text is not in the repository. The context packet still lists source retrieval as a missing production layer. Until authoring lands, a room plays only when a room file already exists.
 
-Action: define explicit presentation contracts once technical message/event shapes are known.
+### What the bridge already does
 
-### Maps and visual assets
-Status: asset collection/indexing underway in another project conversation.
+Present and tested, for whatever room file is mounted:
 
-Action: add files/references and stable IDs to `assets/maps/index.json` and `assets/art/index.json`. Runtime should request assets by stable ID and semantic role, not by chat attachment position.
+- SQLite snapshots, an append-only event ledger, stale-writer checks, idempotent retries, and an atomic commit of an accepted turn with its world changes.
+- A player-safe projection. Hidden facts stay out of what the player is shown.
+- Character sheets (`character_sheet_v1`).
+- Claims and knowers, card procedures, tolls, a minimal fight, attitudes, and a story brief, each only when the room file declares the block. Agenda code is room-agnostic; no room file in the repo currently declares an `agenda` block.
+- Scene discernment and a saved private decision before the public performance.
+- Performance checks for secrecy, room-fit, and the expression floors the current guards implement.
+- Session and room manifests, with hash echo and `rehydrate`.
+- Table talk, which is not a PC action.
+- Voice files joined to the personality core on each turn.
 
-### Campaign content
-Status: campaign-specific runtime concerns are being examined separately from the generic DM personality.
+The same packet still names what is absent: a rules resolver, source retrieval, level-story state, Halaster state, faction ticks, a player model beyond evidence-cited notes, and character patterns.
 
-Action: establish a campaign manifest and through-line schema before importing large adventure/source collections.
+### Personality
 
-## Next integration milestone
+`docs/personality/dm-personality-core.md` is the live identity. `docs/voice/` is loaded with it. The core influences taste and emphasis. It does not override source, rules, state, NPC knowledge, geometry, or hidden information.
 
-A live playtest should now probe this path:
+The core being loaded is not evidence that the spoken turn feels like Kit. Early live samples failed on voice, lifeless NPCs, an invented procedure, and wait time: character onboarding (2026-09-23) and the area 6c exchanges with Nik (2026-09-26 and 2026-09-29), recorded under `tests/playtests/`. Later engine work does not retire those failures. Quality is still judged in play.
 
-source material -> current scene/state -> bounded adjudication -> Kit event appraisal and move -> player-facing performance -> validated state update
+### Maps, assets, and campaign docs
 
-The current slice uses the area 6c fixture and a map reference. It does not load maps/assets from manifest IDs or execute tactical opposition. First test the onboarding failures and multi-turn room behavior with a real character. Compare player-facing runs, memory ablations, and eventually experienced human DMs before claiming that Kit's personality succeeds.
+Map and art manifests live under `assets/`. Licensed image bytes stay out of the public repo (ADR 0003). The runtime does not request those assets by id during a turn.
+
+`docs/campaign/` holds DM-facing level layers. They are design material. They are not mounted as the PC moves.
+
+## Next
+
+1. Land source-to-room authoring, so a keyed area becomes a room file when play reaches it, and prove it on rooms that were not hand-written in advance.
+2. Keep rulings in the room file. The loader already refuses a room it cannot run; new mechanics should arrive as data, not as another room-specific code path.
+3. Keep judging the spoken turn. A green suite is not a personality result.

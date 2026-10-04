@@ -1,3 +1,5 @@
+HISTORICAL: 2026-09-23 architecture note. Superseded as a description of the running runtime by docs/architecture/ROOM_LOADER.md and docs/architecture/KRABS.md. The level-story and map documents it names remain design material.
+
 # Runtime Architecture Changes — 0.2.0
 
 **Date:** 2026-09-23
