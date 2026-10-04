@@ -4077,38 +4077,35 @@ class KitChatBridge:
 
     def _layer(self, turn_id, packet):
         """SessionManifest, RoomManifest, TurnDelta (kit_manifest; docs/architecture/MANIFESTS.md).
-        A body is sent only when the host does not hold its hash: on the first turn, after a cache
-        miss, or when it changes (a changed room goes as a diff). Every CHECK_EVERY turns the packet
-        carries a manifest check instead of a re-send."""
-        session, room, delta = kit_manifest.split(packet)
+        A body is sent only when the host does not hold it: on the first turn, after that layer's
+        nonce came back wrong or missing, or when it changes (a changed room goes as a diff). Each
+        body or diff sent carries a new nonce; every packet asks Kit to echo the nonces she holds."""
+        session, room, _ = kit_manifest.split(packet)
         hashes = {'session': kit_manifest.digest(session), 'room': kit_manifest.digest(room)}
         previous = next((row for row in reversed(self.runtime.recent_kit_timings(limit=50))
                          if row['turn_id'] != turn_id and row.get('manifest')), None)
         prior = (previous or {}).get('manifest')
-        rejected = sum(1 for a in (previous or {}).get('attempts') or () if a.get('outcome') == 'rejected')
         held = kit_manifest.held_by_host(prior)
-        cached = {layer: held[layer] == hashes[layer] for layer in hashes}
+        cached = {layer: bool(held[layer]) and held[layer][0] == hashes[layer] for layer in hashes}
         base = None
-        if not cached['room'] and held['room'] and kit_manifest.digest(previous.get('room_manifest') or {}) == held['room']:
-            base = (held['room'], previous['room_manifest'])
-        layered, _, _ = kit_manifest.layered(packet, cached['session'], cached['room'], room_base=base)
-        turn_no = (prior or {}).get('turn_no', 0) + 1
-        due = cached['session'] and kit_manifest.check_due(prior, rejected)
+        if not cached['room'] and held['room'] and \
+                kit_manifest.digest(previous.get('room_manifest') or {}) == held['room'][0]:
+            base = (held['room'][0], previous['room_manifest'])
+        nonces = {layer: held[layer][1] if cached[layer] else kit_manifest.new_nonce() for layer in hashes}
+        layered, _, _ = kit_manifest.layered(packet, cached['session'], cached['room'], room_base=base,
+                                             nonces=nonces)
         record = {**hashes, 'sent': [layer for layer in hashes if 'body' in layered[f'{layer}_manifest']],
-                  'held': dict(hashes), 'turn_no': turn_no,
-                  'since_check': 0 if due or not cached['session'] else (prior or {}).get('since_check', 0) + 1}
+                  'held': dict(hashes), 'nonce': nonces, 'turn_no': (prior or {}).get('turn_no', 0) + 1}
         if 'diff' in layered['room_manifest']:
             record['diff'] = ['room']
-        if due:
-            lines, expected = kit_manifest.check_lines(session, room, delta, f'{hashes["session"]}:{turn_no}')
-            if lines:
-                record.update(check=lines, check_expected=expected)
-                head = {key: layered.pop(key) for key in ('session_manifest', 'room_manifest', 'manifest_rule')}
-                layered = {**head, 'manifest_check': {'ask': kit_manifest.CHECK_RULE, 'lines': lines}, **layered}
+        head = {key: layered.pop(key) for key in ('session_manifest', 'room_manifest', 'manifest_rule')}
+        layered = {**head, 'manifest_check': {'ask': kit_manifest.CHECK_RULE, 'lines': dict(kit_manifest.CHECK_LINES)},
+                   **layered}
         return layered, {'manifest': record, 'room_manifest': room, 'full_packet_bytes': _bytes(packet)}
 
-    def rehydrate(self, turn_id):
-        """Both manifest bodies for a layered turn, in full (the host lost a copy)."""
+    def rehydrate(self, turn_id, layers=None):
+        """The manifest bodies for a layered turn, in full, each with a new nonce: the layers whose
+        nonce came back wrong or missing on this turn, else (an explicit request) both."""
         timing = self.runtime.kit_timing(turn_id) or {}
         record = timing.get('manifest')
         require(record is not None, f'Turn {turn_id!r} was not sent in layers; nothing to rehydrate')
@@ -4117,14 +4114,20 @@ class KitChatBridge:
                    'schema': ONE_PASS_SCHEMA, 'performance_limits': performance_limits(),
                    'host_retry': HOST_RETRY_NOTE, 'personality_core': personality_core_text()}
         room = timing.get('room_manifest') or {}
-        hashes = {'session': kit_manifest.digest(session), 'room': kit_manifest.digest(room)}
-        record = {key: value for key, value in record.items() if key != 'cache_miss'}
-        self.runtime.record_kit_timing(turn_id, manifest={**record, **hashes, 'sent': ['session', 'room'],
-                                                          'held': dict(hashes), 'rehydrated': True})
-        return {'turn_id': turn_id,
-                'session_manifest': {'hash': hashes['session'], 'body': session},
-                'room_manifest': {'hash': hashes['room'], 'body': room},
-                'manifest_rule': kit_manifest.MANIFEST_RULE}
+        bodies = {'session': session, 'room': room}
+        hashes = {layer: kit_manifest.digest(body) for layer, body in bodies.items()}
+        wanted = tuple(layers or record.get('miss') or kit_manifest.LAYERS)
+        nonces = dict(record.get('nonce') or {})
+        nonces.update({layer: kit_manifest.new_nonce() for layer in wanted})
+        record = {key: value for key, value in record.items() if key not in ('cache_miss', 'miss')}
+        self.runtime.record_kit_timing(turn_id, manifest={**record, **hashes, 'sent': list(wanted),
+                                                          'held': dict(hashes), 'nonce': nonces,
+                                                          'rehydrated': True})
+        out = {'turn_id': turn_id}
+        for layer in wanted:
+            out[f'{layer}_manifest'] = {'hash': hashes[layer], 'nonce': nonces[layer], 'body': bodies[layer]}
+        out['manifest_rule'] = kit_manifest.MANIFEST_RULE
+        return out
 
     @_stale_guided
     def decide(self, turn_id, plan, performance_variant=DEFAULT_BRIDGE_VARIANT):
@@ -4303,12 +4306,19 @@ class KitChatBridge:
             if isinstance(output, dict) and (record or 'manifest' in output):
                 try:
                     kit_manifest.check_echo(output, record)
-                except kit_manifest.ManifestMismatch:
-                    if record:  # a real cache miss: the next turn re-sends the bodies
-                        self.runtime.record_kit_timing(turn_id, manifest={**record, 'cache_miss': True})
+                except kit_manifest.ManifestMismatch as miss:
+                    if record:  # a real cache miss: the next turn re-sends only the missed layers
+                        self.runtime.record_kit_timing(turn_id, manifest={**record, 'miss': list(miss.layers)})
                     raise
-                if record and record.get('check') and not record.get('check_passed'):
-                    self.runtime.record_kit_timing(turn_id, manifest={**record, 'check_passed': True})
+                if record and (record.get('miss') or record.get('cache_miss')):
+                    # A correct echo after a miss: the host holds the copies after all (#99 review).
+                    self.runtime.record_kit_timing(turn_id, manifest={
+                        key: value for key, value in record.items() if key not in ('miss', 'cache_miss')})
+                if record:
+                    segments = ((output.get('performance') or {}).get('segments') or []) \
+                        if isinstance(output.get('performance'), dict) else []
+                    kit_manifest.check_spoken([str(seg.get('text') or '') for seg in segments
+                                               if isinstance(seg, dict)], record)
                 output = {key: value for key, value in output.items() if key != 'manifest'}
             result = self._complete(turn_id, output, degraded)
         except InvalidChange:
@@ -4389,9 +4399,9 @@ def start_session(db, sheet_path=None, runtime=None, room=None, area=None, manif
                           f'turn: python3 -m runtime.kit_agent prepare --one-pass --db {db} '
                           '--action "<the player\'s words>", then complete again. When the player talks to you, '
                           'not the room, mid-scene, add --table-talk to prepare.'
-                          + (' Add "manifest": {"session": <session_manifest.hash>, "room": <room_manifest.hash>} '
-                             'to every output; a "cached" manifest is the copy you were sent earlier, a "diff" '
-                             'updates that copy, and a "manifest_check" asks you to continue lines from it '
+                          + (' Add "manifest": {"check": {"session": <nonce>, "room": <nonce>}} to every output: '
+                             'the nonce of each manifest copy you hold (manifest_check), private, never aloud. A '
+                             '"cached" manifest is the copy you were sent earlier and a "diff" updates that copy '
                              '(rehydrate --turn-id T if you lost it).' if manifests else '')),
             'prepared': prepared,
         }

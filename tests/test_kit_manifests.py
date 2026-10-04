@@ -54,7 +54,17 @@ class Layers(Stalls):
                                     manifests=True)
 
     def echo(self, packet):
-        return {'session': packet['session_manifest']['hash'], 'room': packet['room_manifest']['hash']}
+        """The hashes, plus the nonces of the copies this host holds (#99 review: every layer and
+        room diff carries one; Kit echoes them in manifest.check)."""
+        held = self.__dict__.setdefault('held_nonces', {})
+        for layer in ('session', 'room'):
+            item = packet.get(f'{layer}_manifest') or {}
+            if item.get('nonce'):
+                held[layer] = item['nonce']
+        echo = {'session': packet['session_manifest']['hash'], 'room': packet['room_manifest']['hash']}
+        if packet.get('manifest_check'):
+            echo['check'] = {layer: held.get(layer) or '' for layer in packet['manifest_check']['lines']}
+        return echo
 
     def open_room(self, echo=True):
         packet = self.bridge.prepare(opening=True, one_pass=True, turn_id='open')
@@ -128,10 +138,13 @@ class EchoOrRehydrate(Layers):
         with self.assertRaisesRegex(InvalidChange, 'rehydrate'):
             self.bridge.complete('w1', output)
         full = self.bridge.rehydrate('w1')
-        self.assertEqual(full['session_manifest'], packet['session_manifest'])
+        self.assertEqual({k: v for k, v in full['session_manifest'].items() if k != 'nonce'},
+                         {k: v for k, v in packet['session_manifest'].items() if k != 'nonce'})
+        self.assertNotEqual(full['session_manifest']['nonce'], packet['session_manifest']['nonce'])
         self.assertEqual(full['room_manifest']['hash'], later['room_manifest']['hash'])
         self.assertEqual(kit_manifest.digest(full['room_manifest']['body']), full['room_manifest']['hash'])
-        output['manifest'] = self.echo(full)
+        self.echo(full)                      # the host keeps the copies (and their nonces)
+        output['manifest'] = self.echo(later)
         self.assertTrue(self.bridge.complete('w1', output)['spoken'])
 
 
@@ -144,14 +157,17 @@ def words(text):
 
 class Host:
     """A scripted host with an honest memory: it keeps every body it is sent, applies room
-    diffs to the copy it holds, and answers a manifest check from that copy (or cannot)."""
+    diffs to the copy it holds, and echoes the nonce of each copy it holds (or cannot)."""
 
     def __init__(self):
         self.bodies = {'session': None, 'room': None}
+        self.nonces = {'session': None, 'room': None}
 
     def read(self, packet):
         for layer in ('session', 'room'):
             item = packet.get(f'{layer}_manifest') or {}
+            if item.get('nonce') and ('body' in item or 'diff' in item):
+                self.nonces[layer] = item['nonce']
             if 'body' in item:
                 self.bodies[layer] = item['body']
             elif 'diff' in item:
@@ -161,35 +177,13 @@ class Host:
 
     def forget(self):
         self.bodies = {'session': None, 'room': None}
-
-    def strings(self, value):
-        if isinstance(value, str):
-            yield value
-        elif isinstance(value, dict):
-            for item in value.values():
-                yield from self.strings(item)
-        elif isinstance(value, list):
-            for item in value:
-                yield from self.strings(item)
-
-    def continue_line(self, layer, prompt):
-        """The words after ``prompt`` in the held body, as many as the check asks for."""
-        body = self.bodies['room' if layer == 'room' else 'session']
-        if body is None:
-            return None
-        want = words(prompt)
-        for text in self.strings(body):
-            found = words(text)
-            for i in range(len(found) - len(want) + 1):
-                if found[i:i + len(want)] == want:
-                    return ' '.join(found[i + len(want):i + len(want) + kit_manifest.CHECK_WORDS])
-        return None
+        self.nonces = {'session': None, 'room': None}
 
     def echo(self, packet):
         echo = {'session': packet['session_manifest']['hash'], 'room': packet['room_manifest']['hash']}
         check = packet.get('manifest_check')
         if check:
-            echo['check'] = {layer: self.continue_line(layer, prompt) or '' for layer, prompt in check['lines'].items()}
+            echo['check'] = {layer: self.nonces[layer] or '' for layer in check['lines']}
         return echo
 
 
@@ -273,71 +267,33 @@ class Amortized(Layers):
         self.assertTrue(again['session_manifest'].get('cached'))
         self.assertTrue(again['room_manifest'].get('cached'))
 
-    def test_a_check_comes_every_few_turns_and_never_with_a_body(self):
-        self.play_open()
-        checked = []
-        for n in range(2 * kit_manifest.CHECK_EVERY):
+    def test_the_delta_never_carries_a_held_nonce(self):
+        opened = self.play_open()
+        for n in range(3):
             packet, output = self.play_wait(f'w{n}')
-            checked.append('manifest_check' in packet)
-            self.assertNotIn('body', packet['session_manifest'])
+            self.assertIn('manifest_check', packet)
+            text = json.dumps(packet)
+            for layer in ('session', 'room'):
+                self.assertNotIn(opened[f'{layer}_manifest']['nonce'], text)
             self.bridge.complete(f'w{n}', output)
-        self.assertEqual(sum(checked), 2, checked)
-        self.assertTrue(checked[kit_manifest.CHECK_EVERY - 1])
-        self.assertFalse(any(checked[:kit_manifest.CHECK_EVERY - 1]))
 
-    def test_the_check_asks_for_words_the_delta_does_not_carry(self):
-        self.play_open()
-        for n in range(kit_manifest.CHECK_EVERY):
-            packet, output = self.play_wait(f'w{n}')
-            if 'manifest_check' in packet:
-                break
-            self.bridge.complete(f'w{n}', output)
-        lines = packet['manifest_check']['lines']
-        self.assertEqual(set(lines), {'instructions', 'core', 'room'})
-        delta = ' '.join(words(json.dumps({k: v for k, v in packet.items() if not k.endswith('_manifest')})))
-        for layer, prompt in lines.items():
-            answer = self.host.continue_line(layer, prompt)
-            self.assertTrue(answer, layer)
-            self.assertNotIn(' '.join(words(prompt)) + ' ' + answer, delta, layer)
-        self.bridge.complete(packet['turn_id'], output)
-
-    def test_a_host_that_lost_its_copy_fails_the_check_and_is_rehydrated(self):
+    def test_a_host_that_lost_its_copy_is_caught_on_the_next_turn_and_rehydrated(self):
         self.play_open()
         packet, output = self.play_wait('w0')
         self.bridge.complete('w0', output)
         self.host.forget()        # the chat trimmed the old turns: the bodies are gone
-        for n in range(1, kit_manifest.CHECK_EVERY + 1):
-            packet, output = self.play_wait(f'w{n}')
-            if 'manifest_check' in packet:
-                break
-            self.bridge.complete(f'w{n}', output)
-        self.assertIn('manifest_check', packet, 'context loss must be caught within CHECK_EVERY turns')
+        packet, output = self.play_wait('w1')
         with self.assertRaisesRegex(InvalidChange, 'rehydrate'):
-            self.bridge.complete(packet['turn_id'], output)
-        self.host.read(self.bridge.rehydrate(packet['turn_id']))
+            self.bridge.complete('w1', output)
+        self.host.read(self.bridge.rehydrate('w1'))
         output['manifest'] = self.host.echo(packet)
-        self.assertTrue(self.bridge.complete(packet['turn_id'], output)['spoken'])
+        self.assertTrue(self.bridge.complete('w1', output)['spoken'])
 
-    def test_a_close_quote_passes_and_a_guess_fails(self):
-        self.play_open()
-        for n in range(kit_manifest.CHECK_EVERY):
-            packet, output = self.play_wait(f'w{n}')
-            if 'manifest_check' in packet:
-                break
-            self.bridge.complete(f'w{n}', output)
-        good = dict(output['manifest']['check'])
-        output['manifest']['check'] = dict(good, core='I do not have that text any more, sorry')
-        with self.assertRaisesRegex(InvalidChange, 'rehydrate'):
-            self.bridge.complete(packet['turn_id'], output)
-        first = good['instructions'].split()
-        output['manifest']['check'] = dict(good, instructions=' '.join(first[:-1]).upper() + '.')
-        self.assertTrue(self.bridge.complete(packet['turn_id'], output)['spoken'])
-
-    def test_a_rejection_streak_asks_for_a_check_not_a_resend(self):
+    def test_a_rejection_does_not_resend_a_layer(self):
         self.play_open()
         packet, out = self.play_wait('w1')
         flat = dict(out, performance={'segments': [{'speaker': 'Narrator', 'text': 'Dark.'}]})
-        for _ in range(kit_manifest.REJECT_STREAK):
+        for _ in range(2):
             with self.assertRaises(InvalidChange):
                 self.bridge.complete('w1', flat)
         self.bridge.abandon('w1')

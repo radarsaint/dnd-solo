@@ -58,10 +58,16 @@ def nbytes(value):
 
 KIT_COPY = {}
 ROOM_COPY = {}
+NONCES = {}
 
 
 def hold(packet):
-    """Kit keeps the bodies she is sent and applies a room diff to the copy she holds."""
+    """Kit keeps the bodies she is sent and applies a room diff to the copy she holds, with the
+    nonce of each copy."""
+    for layer in ('session', 'room'):
+        item = packet.get(f'{layer}_manifest') or {}
+        if item.get('nonce') and ('body' in item or 'diff' in item):
+            NONCES[layer] = item['nonce']
     if 'body' in (packet.get('session_manifest') or {}):
         KIT_COPY.clear()
         KIT_COPY.update(packet['session_manifest']['body'])
@@ -89,19 +95,8 @@ def strings(value):
 
 
 def answer_check(packet):
-    """Kit continues each check line from the copy she holds."""
-    out = {}
-    for key, prompt in packet['manifest_check']['lines'].items():
-        want = kit_manifest.WORD.findall(prompt.casefold())
-        body = ROOM_COPY if key == 'room' else KIT_COPY
-        out[key] = ''
-        for text in strings(body):
-            found = kit_manifest.WORD.findall(text.casefold())
-            hit = next((i for i in range(len(found) - len(want) + 1) if found[i:i + len(want)] == want), None)
-            if hit is not None:
-                out[key] = ' '.join(found[hit + len(want):hit + len(want) + kit_manifest.CHECK_WORDS])
-                break
-    return out
+    """Kit echoes the nonce of each copy she holds (#99 review: a nonce per layer and diff)."""
+    return {layer: NONCES.get(layer, '') for layer in packet['manifest_check']['lines']}
 
 
 def kit_decision(packet, turn):
@@ -366,6 +361,8 @@ def misread(turn, packet, runtime):
 
 
 def run(out=None, turns=None, manifests=False):
+    for copy_held in (KIT_COPY, ROOM_COPY, NONCES):
+        copy_held.clear()  # a fresh Kit: nothing held from an earlier run in this process
     folder = Path(tempfile.mkdtemp())
     db = folder / 'replay.sqlite'
     t = time.perf_counter()
@@ -427,9 +424,8 @@ def run(out=None, turns=None, manifests=False):
             t = time.perf_counter()
             try:
                 output = {'decision': decision, 'performance': speech}
-                if 'session_manifest' in packet:  # Kit echoes the manifest hashes she was sent
-                    output['manifest'] = {'session': packet['session_manifest']['hash'],
-                                          'room': packet['room_manifest']['hash']}
+                if 'session_manifest' in packet:  # Kit echoes the nonces of the copies she holds
+                    output['manifest'] = {}
                     if 'manifest_check' in packet:
                         output['manifest']['check'] = answer_check(packet)
                         row['manifest_check'] = True
@@ -462,7 +458,12 @@ def run(out=None, turns=None, manifests=False):
     runtime.close()
     for r in rows:
         trips = []
-        packet, written = r.get('packet_bytes', 60000), r.get('decision_bytes', 0) + r.get('speech_bytes', 0)
+        # Everything Kit writes: the decision, the speech and the private manifest echo (hashes and
+        # nonces, every layered turn).
+        packet = r.get('packet_bytes', 60000)
+        written = r.get('decision_bytes', 0) + r.get('speech_bytes', 0) + r.get('manifest_out_bytes', 0)
+        if 'packet_bytes' in r:
+            r['output_bytes'] = written
         # A stall or misread costs Kit a trip to read the ruling and reword (about 200 bytes out);
         # every reject repeats the whole trip with the full output.
         trips += [model_trip_s(packet, 200)] * (r['stalls'] + r['misreads'])
