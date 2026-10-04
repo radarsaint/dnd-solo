@@ -8,11 +8,10 @@
 **Canonical implementation repository:**  
 https://github.com/radarsaint/dnd-solo
 
-**Public BFDM research projection:**  
-https://github.com/radarsaint/dnd-solo/tree/main/corpus/bfdm
-
-**Private canonical BFDM research repository:**  
+**Canonical BFDM research repository:**  
 https://github.com/radarsaint/bfdm-corpus
+
+This repository does not mirror the corpus. Check it out alongside (`../bfdm-corpus`).
 
 ---
 
