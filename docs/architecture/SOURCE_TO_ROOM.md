@@ -50,7 +50,7 @@ hooks in `kit_rooms.py` (`resolved_link`), `state_context.py` (`Runtime.path`, `
 `named_neighbours`, `level_notes`, `geometry`, the room `schema` with its limits (room 16,000 B,
 dm_only 9,700 B, claims_here 3,150 B, 2 attempts) and the SRD creature list, the `hard_rules`, and
 the `submit` command. It never carries another area's text (`AuthoringPacket.test_it_never_carries_
-another_area_s_text`). Level 1's packets run 7.2-9.2 KB (17a: 7,190 B compact).
+another_area_s_text`). Level 1's packets run 7.1-9.2 KB (17a: 7,138 B compact).
 
 Hard rules, in short: data only; contents, creatures, traps, treasure and numbers from keyed_text;
 geometry from geometry and neighbours, `source_area` on every area; a stat block on every creature
