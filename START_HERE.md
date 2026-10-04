@@ -74,7 +74,7 @@ These are for building and testing Kit. During a game, don't open them, don't qu
 - `docs/campaign/`: campaign DM layers for every level. Spoilers.
 - `corpus/`: Brendon's historical writing and the bfdm corpus mirror. Design and research material, not a play source.
 - `tests/` (except the runtime fixtures above): unit tests, `tests/playtests/` records, `tests/scenarios/` scripts
-- `docs/collab/`: the agent collaboration protocol and `docs/collab/BOARD.md`
+- `docs/collab/`: the agent collaboration protocol. Builders read the live `docs/collab/BOARD.md` (open work and settled rules). Finished history is verbatim in `docs/collab/board-archive/`; read that only when you need an old entry.
 - `docs/architecture/` (except the reference files above): design specs and plans
 - `scripts/`: dev and test tools (batch runner, probes, replays, asset import)
 - `docs/decisions/`: architecture decision records
