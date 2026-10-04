@@ -11,14 +11,23 @@ Every field follows one pattern, so later fields (#101's ``react``) slot in besi
 
 * the offer: ``body['acts'][field]``, built by the engine at prepare (what may be declared
   this turn: ids, plus an optional hint), shown to Kit as ``acts.<field>`` in the packet;
-* the declaration: ``plan[field]``, optional; omitted or ``none`` means nothing declared;
+* the declaration: ``plan[field]``. When a field is offered the decision must answer it
+  (#97 review B): a declaration, or ``none`` for handles. Kit cannot leave it out and still
+  narrate the thing happening. A field not offered must not be declared;
 * the check: ``FIELDS[field](value, offer)`` returns the normalized declaration or None and
   raises InvalidChange (a rejection Kit can fix) when it names something not offered.
 
 ``handles: {target, act}``: the PC's hands go on a keyed feature this turn (pry the claw,
 take the orb, climb onto the carcass, stab the hide). ``target`` is a feature id, one of its
 parts, or the id of what it holds, as offered; ``act`` is from HANDLE_ACTS. A look, a step
-toward it, cover behind it or a question about it is no handling: omit the field.
+toward it, cover behind it, a look at it, examining it, or a question about it is no
+handling: ``{"target": "none", "act": "none"}``. The offer comes on every physical turn in an
+area with a pending disturb trigger on a feature the PC knows about, so a pronoun ("I push it
+open") or another word for it ("the stone slab") is Kit's to resolve.
+
+``downed: {act}``: the PC is down at 0 hit points and foes act before his next turn. Kit says
+whether they attack him (``attack``) or leave him be (``turn_away``); the engine runs their
+turns on that call.
 """
 import re
 
@@ -31,25 +40,39 @@ HANDLE_ACTS = ('take', 'pry', 'lift', 'move', 'push', 'roll', 'pull', 'break', '
 MOVE_ACTS = ('move', 'push', 'roll', 'lift', 'kick')
 ENTER_ACTS = ('climb', 'enter')
 SEARCH_ACTS = ('search', 'open')
+# Mid-fight, a light touch is the turn's one free object interaction (SRD); the rest take the action.
+OBJECT_ACTS = ('take', 'open', 'pull', 'hook', 'touch')
 NONE = 'none'
 
 HANDLES_SCHEMA = {'type': 'object', 'additionalProperties': False,
                   'properties': {'target': {'type': 'string'},
                                  'act': {'type': 'string', 'enum': list(HANDLE_ACTS) + [NONE]}},
                   'required': ['target', 'act']}
-# The decision schema's act fields (PLAN_SCHEMA properties), all optional.
-SCHEMAS = {'handles': HANDLES_SCHEMA}
+DOWNED_ACTS = ('attack', 'turn_away')
+DOWNED_SCHEMA = {'type': 'object', 'additionalProperties': False,
+                 'properties': {'act': {'type': 'string', 'enum': list(DOWNED_ACTS)}}, 'required': ['act']}
+# The decision schema's act fields (PLAN_SCHEMA properties). Each is required only on a turn
+# that offers it (check), so the schema keeps them optional.
+SCHEMAS = {'handles': HANDLES_SCHEMA, 'downed': DOWNED_SCHEMA}
 
-HANDLES_RULE = ('Set handles {target, act} only if the PC puts hands on it this turn (pry, take, climb, '
-                'stab, search...). A look, a step toward it, cover behind it or a question: omit handles.')
+HANDLES_RULE = ('Answer handles every turn it is offered. {target, act} only when the PC physically '
+                'manipulates a listed thing this turn (pries, lifts, pushes, takes, climbs, opens, stabs it; '
+                '"it" or another word for it counts). Looking, examining, a step toward it, cover behind it '
+                'or a question is not handling: {"target": "none", "act": "none"}. Never narrate a hidden '
+                'creature unless your handles sets it off.')
+DOWNED_RULE = ('The PC is down at 0 hit points and acts.downed.foes act before his next turn. Your call, by '
+               'what they want: {"act": "attack"} (a hit on him is a critical hit: two failed death saves) or '
+               '{"act": "turn_away"} (they leave him be).')
+RULES = {'handles': HANDLES_RULE, 'downed': DOWNED_RULE}
 
 
 def declared(plan, field):
-    """The raw declaration, or None when omitted or none."""
+    """The raw declaration, or None when it says none."""
     value = (plan or {}).get(field)
     if value in (None, NONE):
         return None
-    if isinstance(value, dict) and NONE in (value.get('target'), value.get('act')):
+    if isinstance(value, dict) and set(value) == {'target', 'act'} and \
+            str(value.get('target')).strip().casefold() == NONE and str(value.get('act')).strip().casefold() == NONE:
         return None
     return value
 
@@ -57,7 +80,9 @@ def declared(plan, field):
 def check_handles(value, offer):
     """{feature, part, act} for a valid declaration (part: the part word or held id named)."""
     require(isinstance(value, dict) and set(value) == {'target', 'act'},
-            'handles is {target, act} or omitted')
+            'handles is {target, act}, or {"target": "none", "act": "none"}')
+    require(NONE not in (str(value['target']).strip().casefold(), str(value['act']).strip().casefold()),
+            'handles says none with both: {"target": "none", "act": "none"}')
     require(offer, 'Nothing here can be handled this turn: omit handles.')
     act = str(value['act']).strip().casefold()
     require(act in HANDLE_ACTS, f'handles.act is one of {", ".join(HANDLE_ACTS)}')
@@ -72,19 +97,34 @@ def check_handles(value, offer):
                    'or a part listed with it.')
 
 
-FIELDS = {'handles': check_handles}
+def check_downed(value, offer):
+    """{act, foes} for Kit's call on foes acting while the PC is down."""
+    require(isinstance(value, dict) and set(value) == {'act'} and value.get('act') in DOWNED_ACTS,
+            'downed is {"act": "attack"} or {"act": "turn_away"}')
+    require(offer, 'Nobody is acting on a downed PC this turn: leave downed out.')
+    return {'act': value['act'], 'foes': list(offer.get('foes') or ())}
+
+
+FIELDS = {'handles': check_handles, 'downed': check_downed}
 
 
 def check(plan, body):
     """Every act field the decision declares, validated against this turn's offers:
-    {field: normalized} (only the declared ones)."""
+    {field: normalized} (only the declared ones). An offered field must be answered (a
+    question to the player answers none of them and declares nothing)."""
     offers = (body or {}).get('acts') or {}
+    asked = bool((plan or {}).get('ask_player'))
     out = {}
     for field, checker in FIELDS.items():
+        if offers.get(field) and not asked:
+            require(field in (plan or {}),
+                    f'acts.{field} is offered this turn: answer it'
+                    + (' ({target, act}, or {"target": "none", "act": "none"} when his hands go on nothing '
+                       'listed).' if field == 'handles' else ' ({"act": "attack"} or {"act": "turn_away"}).'))
         value = declared(plan, field)
         if value is None:
             continue
-        require(not (plan or {}).get('ask_player'), f'A question to the player declares no {field}.')
+        require(not asked, f'A question to the player declares no {field}.')
         out[field] = checker(value, offers.get(field))
     return out
 
@@ -95,6 +135,8 @@ def model_view(offers):
     for field, offer in (offers or {}).items():
         if field == 'handles' and offer:
             view['handles'] = {'targets': offer['targets'], **({'hint': offer['hint']} if offer.get('hint') else {})}
+        elif field == 'downed' and offer:
+            view['downed'] = {'foes': list(offer.get('names') or offer.get('foes') or ())}
     return view
 
 
@@ -127,7 +169,8 @@ HINT_VERBS = {
     'stab': 'stab|stabs|hit|hits|strike|strikes|hack|hacks|slash|slashes|whack|whacks',
     'kick': 'kick|kicks|stomp|stomps',
     'climb': 'climb|climbs|clamber|clambers|scramble|scrambles|mount|mounts|stand on|stands on|sit on|sits on',
-    'search': 'search|searches|rummage|rummages|examine|examines|inspect|inspects|check|checks|feel|feels',
+    # Not examine, inspect or check: looking closely is not handling (#97 review).
+    'search': 'search|searches|rummage|rummages|feel|feels',
     'open': 'open|opens|unseal|unseals',
     'hook': 'hook|hooks|fish|fishes|lever out',
     'touch': 'touch|touches|tap|taps|stroke|strokes|rub|rubs|grip|grips|grasp|grasps',

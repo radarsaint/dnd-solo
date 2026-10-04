@@ -44,32 +44,42 @@ PR-H's typed interstitials can lift `awaiting` into a roll_call interstitial unc
 
 ## Declared acts (`runtime/kit_acts.py`)
 
-The engine does not read intent out of English to change the world. When the player's words
-name a feature a pending disturb trigger watches, the turn carries an offer, and Kit's decision
-says whether his hands go on it:
+The engine does not read intent out of English to change the world. On ANY non-OOC physical
+turn (not a question, not speech, not table talk) in an area where a pending disturb trigger
+watches a feature the PC has found, the turn carries an offer, and Kit's decision says whether
+his hands go on it. Kit resolves pronouns and synonyms ("I push it open", "I heave the stone
+slab aside"); no noun has to match.
 
 ```json
-"acts": {"handles": {"targets": {"carcass": ["claw", "talon", "foreleg"]}, "hint": {"target": "claw", "act": "pry"}}}
+"acts": {"handles": {"targets": {"sarcophagus": ["lid", "seal"]}, "hint": {"target": "lid", "act": "move"}}}
 ```
 
-- `targets`: each watched feature here, with its parts (and what it holds, once the PC has seen
-  it: an unseen orb is no handle). `hint` (optional) is a regex's guess at a hands-on act on the
-  verb's own object. It only helps Kit confirm; it never fires a trigger or reveals anything.
-- The decision may add `"handles": {"target": <feature, part or held id>, "act": <take|pry|lift|
-  move|push|roll|pull|break|cut|stab|kick|climb|enter|open|search|hook|touch|other>}`. Omitted
-  (or `none`) means no handling: a look, a step toward it, cover behind it, a question. A
-  declaration naming anything not offered is rejected; so is one on an `ask_player` turn.
+- `targets`: each watched, found feature here, with its parts (and what it holds, once the PC
+  has seen it: an unseen orb is no handle). A hidden feature (a trapdoor nobody has found) is
+  not offered, not shown outside `dm_only`, and cannot fire; it becomes found when the PC
+  legitimately discovers it (a search or check that reveals it, its own reveal). `hint`
+  (optional) is a regex's guess at a hands-on act. It only hints: it never gates the offer,
+  fires a trigger or reveals anything.
+- When an offer exists the decision MUST answer it: `"handles": {"target": <feature, part or
+  held id>, "act": <take|pry|lift|move|push|roll|pull|break|cut|stab|kick|climb|enter|open|
+  search|hook|touch|other>}`, or `{"target": "none", "act": "none"}` (a look, a step toward it,
+  cover behind it). Looking or examining is not disturbing unless the PC physically manipulates
+  something. An omitted answer, a declaration naming anything not offered, or one on an
+  `ask_player` turn is rejected.
+- A performance that names or describes a hidden actor (its name, its SRD creature, words of
+  its reveal) is rejected unless this turn's declaration fires that actor's trigger: no "a grey
+  ghoul lunges out" without a `handles` that opens the sarcophagus.
 - The engine resolves a valid declaration at commit, on the state after the turn's events: the
   feature's `enter` line (climb, enter), `look` line (search, open), `move` line (move, push,
   roll, lift, kick the whole feature), else its `handle` line; what it holds comes into view; its
   trigger fires. The outcome is read after Kit's performance (`Narrator: ... Roll initiative.`),
-  so a fight it starts ends the turn on the roll call. The record keeps `declared`, and the
-  turn's timing keeps the `handoff` trace.
-- A move, look-into or get-into that the router reads off the words on a watched feature
-  commits nothing itself: the turn is `feature_act`, Kit's call (never a routine turn). A line
-  the engine would have refused (`climb onto the carcass`) becomes Kit's call too.
-- `handles` is the first of a family: each act field has an offer, an optional declaration and
-  one validator in `kit_acts.FIELDS`, so a later field (#101's `react`) uses the same shape.
+  so a fight it starts ends the turn on the roll call. The record keeps `declared`.
+- Mid-fight, handling a feature costs the PC's action (or his free object interaction for a
+  simple open/take/pull, per SRD).
+- The router picks the feature the words name first (longest name on a tie), not file order:
+  "I look inside the chest beside the sarcophagus" is the chest.
+- `handles` and `downed` (below) share one shape: an offer, a required answer, one validator in
+  `kit_acts.FIELDS`. #101's `react` uses it too.
 
 ## Parts and held items
 
@@ -81,12 +91,32 @@ shown only there.
 
 ## The PC who cannot act
 
-At 0 hit points in a running fight, or with an incapacitating condition (incapacitated,
-paralyzed, petrified, stunned, unconscious), every in-fiction line is a pending ruling: he
-cannot move, act or speak. Conditions are the PC's (`state.pc_conditions`, a session key that
-travels between rooms), not the fight's: they outlast it until a `pc_conditions` event sets
-the list when one ends by rule (healing, an hour of poison). A surprised PC has no reaction
-until his first turn ends (`Fight.pc_can_react`, `fight.you_are_surprised` in the view).
+At 0 hit points, or with an incapacitating condition (incapacitated, paralyzed, petrified,
+stunned, unconscious), in-fiction acts are refused, but the session never freezes:
+
+- He still reports rolls. The engine never rolls for the PC. At the start of each of his turns
+  at 0 HP the round stops on "Roll a death saving throw." He rolls in Avrae and reports it: 10+
+  succeeds, 3 successes stabilize, 3 failures kill, a natural 20 regains 1 HP, a natural 1 is two
+  failures. Damage at 0 HP is a failure (two on a crit); damage at 0 HP that meets his max HP is
+  death (SRD massive damage, also on the hit that drops him).
+- Healing from an ally, an effect or a potion revives him (`unconscious` ends, death saves reset).
+- Monsters keep acting. Before a monster's turn against a downed PC the turn carries a `downed`
+  offer; Kit answers `{"downed": {"<foe id>": "attack" | "turn_away"}}` (required). Attacks on a
+  paralyzed or unconscious PC have advantage and a hit within 5 ft is a crit.
+- Conditions carry their SRD terms (`state.pc_condition_terms`: a duration in seconds and/or a
+  repeat save at the end of his turn, e.g. a ghoul's paralysis: Con DC 10, one minute). The
+  player rolls repeat saves and reports them; conditions expire with time (rounds in a fight,
+  `advance_time` outside one). Every change is a `pc_conditions` event. Conditions are the PC's
+  (a session key that travels between rooms), not the fight's.
+- A surprised PC has no reaction until his first turn ends (`Fight.pc_can_react`).
+
+## Ties
+
+One rule, Brendon's: when a creature acts on another, the actor meets or beats.
+`kit_rolls.meets_or_beats(actor_total, target)` for attack vs AC, a check vs a passive score,
+Stealth vs passive Perception (both ways, surprise included). `kit_rolls.attacker_wins(dc,
+save_total)` (`dc >= save_total`) for every save: a save that ties the DC fails, the PC's and a
+monster's alike (a house rule over 5e). Death saves have no attacker: 10 or more succeeds.
 
 ## Save riders, more
 

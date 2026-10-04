@@ -104,7 +104,8 @@ PENDING_CHECK_OPTIONAL = {'exit', 'dc_adjust', 'reason', 'threshold', 'held'}
 # A heavy turn Kit opened on a check call holds its description for the roll (kit_agent.STALL_KINDS).
 HELD_KINDS = ('opening', 'exit', 'threshold_look')
 # What the engine's outcome of a declared act may add (runtime/kit_acts.py: handles).
-DECLARED_EVENTS = ('beat', 'reveal_fact', 'trigger_fired', 'scene_state', 'combat_state', 'actor_status')
+DECLARED_EVENTS = ('beat', 'reveal_fact', 'trigger_fired', 'scene_state', 'combat_state', 'actor_status',
+                   'pc_conditions')
 COMMIT_APPENDED_EVENTS = ('canon_entry', 'oracle_draw', 'procedure_state', 'claim_said', 'agenda_turn',
                           'pc_state', 'kit_plan', 'toll_state', 'story_beat', 'threshold_crossed',
                           'attitude_shift', 'pending_check', 'open_threads')
@@ -747,10 +748,12 @@ class Runtime:
             conditions = event.get('conditions')
             require(isinstance(conditions, list) and all(isinstance(c, str) and c.strip() for c in conditions),
                     'pc_conditions lists condition names')
+            terms = event.get('terms', {})
+            require(isinstance(terms, dict) and all(isinstance(v, dict) for v in terms.values()),
+                    'pc_conditions terms are {condition: {how it ends}}')
             state['pc_conditions'] = list(dict.fromkeys(conditions))
-            current = state.get('combat') or {}
-            if current.get('pc_conditions') is not None:
-                current['pc_conditions'] = list(dict.fromkeys(conditions))
+            # How each ends (kit_combat.condition_terms): durations, repeat saves, "while".
+            state['pc_condition_terms'] = {k: copy.deepcopy(v) for k, v in terms.items() if k in conditions}
         elif kind == 'trigger_fired':
             from . import kit_triggers
             kit_triggers.apply_event(state, source, event)

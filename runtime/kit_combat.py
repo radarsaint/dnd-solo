@@ -391,22 +391,77 @@ def table_scene(source):
 # Conditions that stop the PC moving and acting (SRD: incapacitated, and every condition that
 # includes it), and the 0 HP state.
 INCAPACITATING = ('incapacitated', 'paralyzed', 'petrified', 'stunned', 'unconscious')
+# SRD: attack rolls against a paralyzed, petrified, stunned or unconscious creature have
+# advantage; a hit from within 5 feet on a paralyzed or unconscious one is a critical hit.
+ADVANTAGE_AGAINST = ('paralyzed', 'petrified', 'stunned', 'unconscious')
+AUTO_CRIT = ('paralyzed', 'unconscious')
+ROUND_SECONDS = 6
 
 
 def pc_conditions(state):
-    """The PC's conditions now: they persist past the fight until they end by rule."""
+    """The PC's conditions now (names): they persist past the fight until they end by rule."""
     return list((state or {}).get('pc_conditions') or [])
 
 
+def condition_terms(state):
+    """How each of the PC's conditions ends (SRD): {name: {'rounds': n} (a duration in rounds,
+    ticking at the end of his turns), {'until_s': t} (the session clock), {'while': other}
+    (it lasts while the other does: the centipede's paralysis while poisoned), {'while':
+    'down'} (unconscious at 0 hit points), and 'save': {ability, dc, when: 'end_of_turn'} (he
+    repeats the save at the end of each of his turns)}."""
+    return copy.deepcopy((state or {}).get('pc_condition_terms') or {})
+
+
 def pc_incapacitated(state):
-    """Why the PC cannot move or act now ('down', or the condition), else None."""
+    """Why the PC cannot move or act now ('dead', 'down', or the condition), else None."""
     current = (state or {}).get('combat') or {}
-    if current.get('status') in ('awaiting_initiative', 'running') and current.get('pc_down'):
+    if current.get('pc_dead'):
+        return 'dead'
+    if current.get('pc_down'):
         return 'down'
     for name in pc_conditions(state):
         if name in INCAPACITATING:
             return name
     return None
+
+
+def expire_after(state, seconds):
+    """(names, terms, ended) once ``seconds`` of game time pass: conditions whose duration runs
+    out end, and so does whatever lasts only while they do."""
+    names, terms = pc_conditions(state), condition_terms(state)
+    now = int((state or {}).get('elapsed_seconds') or 0) + int(seconds)
+    ended = []
+    for name in list(names):
+        term = terms.get(name) or {}
+        if 'until_s' in term and now >= int(term['until_s']) or \
+                'rounds' in term and int(seconds) >= int(term['rounds']) * ROUND_SECONDS:
+            ended.append(name)
+        elif 'rounds' in term:
+            term['rounds'] = int(term['rounds']) - int(seconds) // ROUND_SECONDS
+    changed = True
+    while changed:
+        changed = False
+        for name in names:
+            parent = (terms.get(name) or {}).get('while')
+            if name not in ended and parent and parent != 'down' and (parent in ended or parent not in names):
+                ended.append(name)
+                changed = True
+    kept = [n for n in names if n not in ended]
+    return kept, {n: t for n, t in terms.items() if n in kept}, ended
+
+
+def soonest_expiry(state):
+    """Seconds until the first timed condition ends, else None."""
+    terms = condition_terms(state)
+    now = int((state or {}).get('elapsed_seconds') or 0)
+    waits = []
+    for name in pc_conditions(state):
+        term = terms.get(name) or {}
+        if 'until_s' in term:
+            waits.append(max(1, int(term['until_s']) - now))
+        elif 'rounds' in term:
+            waits.append(max(1, int(term['rounds']) * ROUND_SECONDS))
+    return min(waits) if waits else None
 
 
 def _default_target(text, source, state, here):
@@ -458,6 +513,9 @@ class Fight:
         self.labels = labels(source)
         self.needs_roll = False  # the act is an attack still waiting on its Avrae roll
         self.sheet = state.get('player_sheet') or {}
+        self.conditions = pc_conditions(state)
+        self.terms = condition_terms(state)
+        self.conditions_changed = False
 
     # -- helpers ---------------------------------------------------------------------
     def label(self, key):
@@ -524,7 +582,7 @@ class Fight:
         The seam #101's reaction windows read; a PC who is down or incapacitated has none."""
         if not self.fight or self.fight.get('pc_down'):
             return False
-        return not self.pc_surprised_now() and not any(c in INCAPACITATING for c in pc_conditions(self.state))
+        return not self.pc_surprised_now() and not any(c in INCAPACITATING for c in self.conditions)
 
     def initiative_of(self, key):
         """(count, tiebreak): the PC's reported total, an NPC's flat 10 + Dexterity."""
@@ -557,6 +615,19 @@ class Fight:
     # -- the PC's act ----------------------------------------------------------------
     def resolve(self, act):
         awaiting = (self.fight or {}).get('awaiting')
+        if awaiting and awaiting.get('kind') == 'kit_call':
+            # Kit's call on the downed PC's foes never came (a host that skipped it): the
+            # creatures do what their stat line says (default: they keep attacking).
+            choice = self.default_vs_downed(awaiting)
+            self.trace.append(f'no call on the downed PC: {choice} (default)')
+            self.fight['awaiting'] = None
+            self.fight['vs_downed'] = choice
+            self.run_npcs()
+            awaiting = self.fight.get('awaiting')
+            if not (awaiting and awaiting.get('kind') == 'roll_call') or \
+                    save_total(self.action, awaiting['save']) is None:
+                self.finish()
+                return self.public(), self.events()
         if awaiting and awaiting.get('kind') == 'roll_call':
             return self.resume_save(awaiting, act)
         init = kit_rolls.initiative(self.action)
@@ -592,10 +663,18 @@ class Fight:
     def pc_wait(self, act):
         self.lines.append('You hold your ground and wait for them to come to you.')
 
-    def pc_turn_now(self):
-        """The PC's turn, and he can take it (a surprised PC loses his round-one turn)."""
+    def pc_slot(self):
         order = self.fight['order']
-        return bool(order) and order[self.fight['next'] % len(order)] == 'pc' and not self.pc_surprised_now()
+        return bool(order) and order[self.fight['next'] % len(order)] == 'pc'
+
+    def pc_cannot_act(self):
+        return bool(self.fight.get('pc_down') or self.fight.get('pc_dead') or
+                    any(c in INCAPACITATING for c in self.conditions))
+
+    def pc_turn_now(self):
+        """The PC's turn, and he can take it (a surprised PC loses his round-one turn; a PC at
+        0 hit points or incapacitated takes none: his slot is a death save, or a repeat save)."""
+        return self.pc_slot() and not self.pc_surprised_now() and not self.pc_cannot_act()
 
     def set_order(self, pc_init):
         entries = [('pc', pc_init, 99)]
@@ -624,6 +703,8 @@ class Fight:
 
     def step(self):
         order = self.fight['order']
+        if self.pc_slot():
+            self.end_pc_turn()
         self.fight['next'] += 1
         if self.fight['next'] >= len(order):
             self.fight['next'] = 0
@@ -631,19 +712,217 @@ class Fight:
 
     def run_npcs(self):
         """Every turn up to the PC's. A surprised PC's round-one turn passes; a save the
-        player must roll (a monster's rider) stops the round until he rolls it."""
+        player must roll (a monster's rider, a death save, a repeat save) stops the round until
+        he rolls it; foes acting while he is down wait on Kit's call (attack him or turn away)."""
         guard = 0
         while self.fight['status'] == 'running' and not self.pc_turn_now() and \
-                not self.fight.get('awaiting') and guard < 12:
+                not self.fight.get('awaiting') and guard < 24:
             guard += 1
             key = self.fight['order'][self.fight['next']]
             if key == 'pc':
-                self.lines.append('You are surprised and lose your first turn.')
-                self.trace.append('PC surprised: round 1 turn lost')
+                self.fight['vs_downed'] = None  # a fresh call for the next stretch
+                if self.pc_surprised_now():
+                    self.lines.append('You are surprised and lose your first turn.')
+                    self.trace.append('PC surprised: round 1 turn lost')
+                elif not self.pc_slot_passes():
+                    break
+            elif self.fight.get('pc_down') and self.active(key) and self.fight.get('vs_downed') is None and \
+                    not (key in self.fight.get('surprised', []) and self.fight['round'] == 1):
+                foes = self.foes_before_pc()
+                self.fight['awaiting'] = {'kind': 'kit_call', 'call': 'downed', 'foes': foes}
+                self.trace.append(f'the PC is down: Kit calls what {", ".join(foes)} do')
+                break
             elif self.active(key):
                 self.npc_turn(key)
             self.step()
             self.check_over()
+        if self.fight['status'] == 'over' and self.dying():
+            self.ask_death_save()
+
+    def foes_before_pc(self):
+        order, at = self.fight['order'], self.fight['next']
+        out = []
+        for offset in range(len(order)):
+            key = order[(at + offset) % len(order)]
+            if key == 'pc':
+                break
+            if self.active(key):
+                out.append(key)
+        return out
+
+    def default_vs_downed(self, awaiting=None):
+        foes = (awaiting or {}).get('foes') or []
+        said = [self.stats(k).get('vs_downed') for k in foes if k in self.config.get('actors', {})]
+        return 'turn_away' if said and all(c == 'turn_away' for c in said) else 'attack'
+
+    def dying(self):
+        return bool(self.fight.get('pc_down') and not self.fight.get('pc_stable') and not self.fight.get('pc_dead'))
+
+    def ask_death_save(self):
+        if not self.fight.get('awaiting'):
+            self.fight['awaiting'] = {'kind': 'roll_call', 'awaits': 'player_roll', 'save': 'death'}
+            self.lines.append(save_prompt(self.fight['awaiting']))
+
+    def pc_slot_passes(self):
+        """The PC's slot when he cannot act. False: it waits on his roll (death save, repeat
+        save); True: it passes (stable at 0 hp, or incapacitated with no save to repeat)."""
+        if self.fight.get('pc_dead'):
+            return False
+        if self.dying():
+            self.ask_death_save()
+            return False
+        repeat = self.repeat_save_due()
+        if repeat:
+            name, save = repeat
+            self.fight['awaiting'] = {'kind': 'roll_call', 'awaits': 'player_roll', 'save': save['ability'],
+                                      'dc': save['dc'], 'repeat': name, 'damage': 0, 'type': name,
+                                      **({'from': save['from']} if save.get('from') else {})}
+            self.lines.append(save_prompt(self.fight['awaiting']))
+            return False
+        why = 'down' if self.fight.get('pc_down') else next(c for c in self.conditions if c in INCAPACITATING)
+        self.lines.append('You lie still.' if why == 'down' else f'You are {why} and cannot act.')
+        self.trace.append(f'PC turn passes ({why})')
+        return True
+
+    def repeat_save_due(self):
+        for name in self.conditions:
+            save = (self.terms.get(name) or {}).get('save')
+            if save and save.get('when') == 'end_of_turn':
+                return name, save
+        return None
+
+    def end_pc_turn(self):
+        """The end of the PC's turn: durations in rounds tick (SRD), the free object
+        interaction comes back next turn."""
+        self.fight.pop('interaction_used', None)
+        for name in list(self.conditions):
+            term = self.terms.get(name) or {}
+            if 'rounds' in term:
+                term['rounds'] = int(term['rounds']) - 1
+                if term['rounds'] <= 0:
+                    self.remove_condition(name, 'its duration runs out')
+                    self.lines.append('The paralysis wears off.' if name == 'paralyzed' else f'You are no longer {name}.')
+
+    # -- the PC's conditions ------------------------------------------------------------
+    def add_condition(self, name, term=None):
+        if name not in self.conditions:
+            self.conditions.append(name)
+        term = dict(term or {})
+        if 'until_s_in' in term:
+            term['until_s'] = int(self.state.get('elapsed_seconds') or 0) + int(term.pop('until_s_in'))
+        self.terms[name] = term
+        self.conditions_changed = True
+        self.trace.append(f'PC {name} ({term or "until it ends by rule"})')
+
+    def remove_condition(self, name, why=''):
+        gone = [name] + [n for n in self.conditions if (self.terms.get(n) or {}).get('while') == name]
+        for item in gone:
+            if item in self.conditions:
+                self.conditions.remove(item)
+                self.terms.pop(item, None)
+                self.conditions_changed = True
+        self.trace.append(f'PC {", ".join(gone)} ends{": " + why if why else ""}')
+
+    # -- the PC's hit points (SRD: dropping to 0, death saves, massive damage) ----------
+    def hurt_pc(self, dealt, crit=False, at_zero=None):
+        """Damage to the PC; lines for what it does. At 0 hit points a hit is a failed death
+        save (two on a critical); damage at least his hit point maximum kills outright."""
+        hp = self.pc_hp()
+        if hp is None:
+            self.fight['pc_damage'] += dealt
+            return []
+        hp = int(hp)
+        if self.fight.get('pc_down'):
+            if dealt >= hp:
+                return self.pc_dies(f'massive damage at 0 hp ({dealt} >= {hp})')
+            self.fight['pc_stable'] = False
+            return self.death_failures(2 if crit else 1, 'hit at 0 hp' + (' (critical)' if crit else ''))
+        left = hp - int(self.fight['pc_damage'])
+        self.fight['pc_damage'] += dealt
+        if self.fight['pc_damage'] < hp:
+            return []
+        self.fight['pc_damage'] = hp
+        if dealt - left >= hp:
+            return self.pc_dies(f'massive damage ({dealt - left} past 0 >= {hp})')
+        self.fight['pc_down'] = True
+        self.fight['death_saves'] = {'successes': 0, 'failures': 0}
+        self.add_condition('unconscious', {'while': 'down'})
+        if at_zero:
+            for name in at_zero:
+                self.add_condition(name, (at_zero_terms(at_zero)).get(name))
+            self.fight['pc_stable'] = True
+            return [f"You drop, stable but {' and '.join(at_zero)}."]
+        self.fight['pc_stable'] = False
+        return ['You go down.']
+
+    def death_failures(self, count, why):
+        saves = self.fight.setdefault('death_saves', {'successes': 0, 'failures': 0})
+        saves['failures'] += count
+        self.trace.append(f'death save failure x{count} ({why}): {saves}')
+        if saves['failures'] >= 3:
+            return self.pc_dies('three failed death saves')
+        return [f"That is {saves['failures']} failed death save{'s' if saves['failures'] != 1 else ''}."]
+
+    def pc_dies(self, why):
+        self.fight.update(pc_dead=True, pc_down=True, pc_stable=False, awaiting=None, status='over')
+        self.fight.pop('saves_queued', None)
+        self.trace.append(f'PC dies: {why}')
+        return ['You die.']
+
+    def revive(self, hit_points, why):
+        """Healing at 0 hit points: he comes to (SRD), death saves reset."""
+        hp = int(self.pc_hp() or 0)
+        self.fight['pc_damage'] = max(0, hp - int(hit_points)) if hp else 0
+        self.fight.update(pc_down=False, pc_stable=False, death_saves={'successes': 0, 'failures': 0})
+        if (self.fight.get('awaiting') or {}).get('save') == 'death' or \
+                (self.fight.get('awaiting') or {}).get('kind') == 'kit_call':
+            self.fight['awaiting'] = None
+        self.fight['vs_downed'] = None
+        if 'unconscious' in self.conditions and (self.terms.get('unconscious') or {}).get('while') == 'down':
+            self.remove_condition('unconscious', why)
+        self.trace.append(f'PC revived with {hit_points} hp ({why})')
+
+    def heal(self, amount, why, own_action=False):
+        """Hit points regained (a potion, an ally's spell, an effect): the amount the player
+        reports from Avrae. Healing at 0 hit points revives him."""
+        if not self.fight:
+            self.lines.append('You are not hurt.')
+            return False
+        if self.fight.get('pc_dead'):
+            self.lines.append('You are dead; healing does not bring you back.')
+            return False
+        if self.fight.get('pc_down'):
+            self.revive(amount, why)
+            self.lines.append(f'You come to with {amount} hit point{"s" if amount != 1 else ""}.')
+        else:
+            before = int(self.fight.get('pc_damage') or 0)
+            self.fight['pc_damage'] = max(0, before - int(amount))
+            self.lines.append(f'You regain {before - self.fight["pc_damage"]} hit points.')
+            self.trace.append(f'PC heals {amount} ({why})')
+        if own_action and self.fight['status'] == 'running':
+            if self.pc_turn_now():
+                self.advance_past_pc()
+                self.run_npcs()
+        self.finish()
+        return True
+
+    def resume_downed(self, choice):
+        """Kit's call on the foes acting while the PC is down (runtime/kit_acts.py downed)."""
+        awaiting = self.fight.get('awaiting') or {}
+        if awaiting.get('kind') == 'kit_call':
+            self.fight['awaiting'] = None
+        self.fight['vs_downed'] = choice
+        self.trace.append(f'Kit: the foes {"attack the downed PC" if choice == "attack" else "turn away from him"}')
+        if choice == 'turn_away' and self.fight.get('pc_stable'):
+            for key in self.foes_before_pc():
+                self.lines.append(f'The {self.label(key)} leaves you where you fell.')
+            self.fight['status'] = 'over'
+            self.fight['ended'] = 'foes turned from the downed PC'
+            self.trace.append('fight over: nobody fights a stable, downed PC')
+        else:
+            self.run_npcs()
+        self.finish()
+        return self.public(), self.events()
 
     # -- a save the player rolls (a monster attack's rider) ---------------------------
     def resume_save(self, awaiting, act=None):
@@ -654,29 +933,36 @@ class Fight:
         if total is None:
             self.lines.append(save_prompt(awaiting))
             return self.public(), self.events()
-        saved = total >= int(awaiting['dc'])
+        if awaiting['save'] == 'death':
+            return self.resume_death(total)
+        if awaiting.get('repeat'):
+            return self.resume_repeat(awaiting, total)
+        # Brendon's save rule: the attacker meets or beats, so a save that ties the DC fails.
+        saved = not kit_rolls.attacker_wins(awaiting['dc'], total)
         damage = int(awaiting['damage'])
         dealt = (damage // 2 if awaiting.get('half') else 0) if saved else damage
         self.trace.append(f"PC {awaiting['save']} save {total} vs DC {awaiting['dc']} "
                           f"({attacker(awaiting)}): {'saved' if saved else 'failed'}, {dealt} {awaiting['type']}")
         self.fight['awaiting'] = None
-        if not dealt:
+        condition = awaiting.get('condition')
+        immune = condition and any(str(word).casefold() in str(self.sheet.get('ancestry') or '').casefold()
+                                   for word in condition.get('immune') or ())
+        if condition and not saved and not immune:
+            term = {'rounds': int(condition['rounds'])} if condition.get('rounds') else {}
+            if condition.get('repeat') == 'end_of_turn':
+                term['save'] = {'ability': awaiting['save'], 'dc': int(awaiting['dc']), 'when': 'end_of_turn',
+                                **({'from': attacker(awaiting)} if attacker(awaiting) else {})}
+            self.add_condition(condition['name'], term)
+            self.lines.append(f"You are {condition['name']}.")
+        elif condition:
+            self.lines.append(f"You shake off the {condition['name'] if condition['name'] != 'paralyzed' else 'paralysis'}.")
+        if not dealt and not condition:
             self.lines.append(f"You shake off the {awaiting['type']}.")
-        else:
+        elif dealt:
             self.lines.append(f"You {'resist some of' if saved else 'fail to resist'} the {awaiting['type']}: "
                               f"{dealt} {awaiting['type']} damage.")
-            self.fight['pc_damage'] += dealt
-            hp = self.pc_hp()
-            if hp is not None and self.fight['pc_damage'] >= int(hp):
-                self.fight['pc_down'] = True
-                self.fight['pc_damage'] = int(hp)
-                if awaiting.get('at_zero'):
-                    # Conditions live on the PC, not the fight: they outlast it (runtime state).
-                    self.fight['pc_conditions'] = list(dict.fromkeys(list(self.fight.get('pc_conditions') or ()) +
-                                                                     list(awaiting['at_zero'])))
-                    self.lines.append(f"You drop, stable but {' and '.join(awaiting['at_zero'])}.")
-                else:
-                    self.lines.append('You go down.')
+            # Conditions live on the PC, not the fight: they outlast it (runtime state).
+            self.lines.extend(self.hurt_pc(dealt, at_zero=awaiting.get('at_zero')))
         # What he declared with the save waits for his turn (kept across further saves).
         rest = after_save_clause(self.action) or self.fight.get('declared_next') or ''
         self.fight.pop('declared_next', None)
@@ -689,7 +975,7 @@ class Fight:
                 self.fight['declared_next'] = rest
             return self.public(), self.events()
         self.fight.pop('saves_queued', None)
-        if self.fight['status'] == 'running' and not self.fight.get('pc_down'):
+        if self.fight['status'] == 'running':
             self.run_npcs()
         self.check_over()
         if rest and self.fight['status'] == 'running' and not self.fight.get('pc_down'):
@@ -701,6 +987,61 @@ class Fight:
                     self.trace.append(f'his declared act after the save: {rest[:120]}')
                     self.action = rest
                     return self.resolve(follow)
+        self.finish()
+        return self.public(), self.events()
+
+    def resume_death(self, roll):
+        """His death save (rolled in Avrae, reported): 10 or more succeeds (no attacker, so no
+        tie rule), a 1 is two failures, a 20 brings him back with 1 hit point. Three successes:
+        stable; three failures: dead. Then his turn passes."""
+        self.fight['awaiting'] = None
+        saves = self.fight.setdefault('death_saves', {'successes': 0, 'failures': 0})
+        if roll >= 20:
+            self.revive(1, 'natural 20 on a death save')
+            self.lines.append('Natural 20: you come to with 1 hit point.')
+            self.finish()
+            return self.public(), self.events()
+        if roll <= 1:
+            self.lines.extend(self.death_failures(2, 'natural 1 on a death save'))
+        elif roll >= 10:
+            saves['successes'] += 1
+            self.trace.append(f'death save {roll}: success ({saves})')
+            if saves['successes'] >= 3:
+                self.fight['pc_stable'] = True
+                self.fight['death_saves'] = {'successes': 0, 'failures': 0}
+                self.lines.append('You are stable.')
+            else:
+                self.lines.append(f"Death save {roll}: {saves['successes']} success"
+                                  f"{'es' if saves['successes'] != 1 else ''}, {saves['failures']} failure"
+                                  f"{'s' if saves['failures'] != 1 else ''}.")
+        else:
+            self.lines.extend(self.death_failures(1, f'death save {roll}'))
+        if self.fight.get('pc_dead'):
+            return self.public(), self.events()
+        if self.fight['status'] == 'running':
+            if self.pc_slot():
+                self.step()
+            self.run_npcs()
+        elif self.dying():
+            self.ask_death_save()
+        self.finish()
+        return self.public(), self.events()
+
+    def resume_repeat(self, awaiting, total):
+        """The save he repeats at the end of his turn against a condition (the ghoul's
+        paralysis): beating the DC ends it (a tie is the attacker's)."""
+        self.fight['awaiting'] = None
+        name = awaiting['repeat']
+        if not kit_rolls.attacker_wins(awaiting['dc'], total):
+            self.remove_condition(name, f'repeat save {total} vs DC {awaiting["dc"]}')
+            self.lines.append(f"You shake off the {'paralysis' if name == 'paralyzed' else name}.")
+        else:
+            self.trace.append(f'repeat save {total} vs DC {awaiting["dc"]}: still {name}')
+            self.lines.append(f'You are still {name}.')
+        if self.fight['status'] == 'running':
+            if self.pc_slot():
+                self.step()
+            self.run_npcs()
         self.finish()
         return self.public(), self.events()
 
@@ -745,10 +1086,18 @@ class Fight:
                     posted_targets[key] = result
             for key in targets:
                 result = posted_targets.get(key) or {}
-                if result.get('save') and result['save'][2] is not None:
-                    saved = result['save'][2]
+                if result.get('save') and (result['save'][2] is not None or result['save'][1] is not None):
+                    # The tie is the attacker's (Brendon): with the total and the DC known the
+                    # engine decides, not Avrae's own success line.
+                    saved = not kit_rolls.attacker_wins(dc, result['save'][1]) if result['save'][1] is not None \
+                        else result['save'][2]
                     dealt = result['damage'][0] if result.get('damage') else \
                         ((damage // 2 if half else 0) if saved else damage)
+                    if result['save'][2] is True and not saved:
+                        # Avrae counted a tie as a save (5e); at this table the tie fails: the
+                        # full damage (Avrae's half, doubled, when that is all it showed).
+                        dealt = result['damage'][0] * 2 if result.get('damage') and half else damage
+                        self.trace.append(f'{key} tied the DC: Avrae said saved, the table rule says failed')
                     self.trace.append(f'{key} {ability} save from Avrae: {result["save"][1]} '
                                       f'{"saved" if saved else "failed"}, {dealt} damage')
                     hits.append((key, dealt))
@@ -757,7 +1106,7 @@ class Fight:
                 if bonus is None:
                     bonus = _mod(((self.state['actors'][key].get('stats') or {}).get('abilities') or {}).get(ability, 10))
                 die = self.die(f'save:{key}:{spell}')
-                saved = die + bonus >= int(dc)
+                saved = not kit_rolls.attacker_wins(dc, die + bonus)  # a tie is the PC's (the attacker)
                 dealt = (damage // 2 if half else 0) if saved else damage
                 self.trace.append(f'{key} {ability} save d20 {die} + {bonus} vs DC {dc}: '
                                   f'{"saved" if saved else "failed"}, {dealt} damage')
@@ -823,32 +1172,43 @@ class Fight:
         if self.should_retreat(key):
             self.flee(key)
             return
-        if self.fight.get('pc_down'):
+        if self.fight.get('pc_dead'):
             return
-        hits, misses = [], 0
+        down = bool(self.fight.get('pc_down'))
+        if down and self.fight.get('vs_downed') == 'turn_away':
+            self.lines.append(f'The {self.label(key)} leaves you where you fell.')
+            self.trace.append(f'{key} turns away from the downed PC (Kit)')
+            return
+        helpless = down or any(c in ADVANTAGE_AGAINST for c in self.conditions)
+        hits, misses, after = [], 0, []
         for index, attack in enumerate(stats.get('attacks') or []):
             die = self.die(f'npc:{key}:r{self.fight["round"]}:{index}')
+            if helpless:
+                die = max(die, self.die(f'npc:{key}:r{self.fight["round"]}:{index}:advantage'))
             total = die + attack['to_hit']
             hit = die == 20 or (die != 1 and kit_rolls.meets_or_beats(total, self.pc_ac()))
-            dealt = attack['damage'] * (2 if die == 20 else 1)
-            self.trace.append(f'{key} {attack["name"]}: d20 {die} + {attack["to_hit"]} = {total} vs AC {self.pc_ac()}: '
-                              f'{"hit " + str(dealt) if hit else "miss"}')
+            crit = die == 20 or (hit and not attack.get('ranged') and
+                                 (down or any(c in AUTO_CRIT for c in self.conditions)))
+            dealt = attack['damage'] * (2 if crit else 1)
+            self.trace.append(f'{key} {attack["name"]}: d20 {die}{" (advantage)" if helpless else ""} + '
+                              f'{attack["to_hit"]} = {total} vs AC {self.pc_ac()}: '
+                              f'{("crit " if crit else "hit ") + str(dealt) if hit else "miss"}')
             if not hit:
                 misses += 1
                 continue
-            self.fight['pc_damage'] += dealt
             hits.append((dealt, attack['type']))
-            if self.pc_hp() is not None and self.fight['pc_damage'] >= int(self.pc_hp()):
-                self.fight['pc_down'] = True
+            was_down = bool(self.fight.get('pc_down'))
+            after.extend(self.hurt_pc(dealt, crit=crit))
+            if self.fight.get('pc_dead') or (self.fight.get('pc_down') and not was_down):
                 break
             rider = attack.get('save')
-            if rider:
+            if rider and not was_down:
                 # The player rolls his own save (Avrae); the round waits on it. A second rider
                 # this turn waits its turn behind the first (each is asked, one at a time).
                 owed = {'kind': 'roll_call', 'awaits': 'player_roll', 'save': rider['ability'],
-                        'dc': rider['dc'], 'damage': rider['damage'], 'type': rider['type'],
+                        'dc': rider['dc'], 'damage': rider.get('damage', 0), 'type': rider.get('type', 'poison'),
                         'half': bool(rider.get('half')), 'at_zero': list(rider.get('at_zero') or ()),
-                        'from': key}
+                        'from': key, **({'condition': rider['condition']} if rider.get('condition') else {})}
                 if self.fight.get('awaiting'):
                     self.fight.setdefault('saves_queued', []).append(owed)
                 else:
@@ -865,9 +1225,8 @@ class Fight:
             amounts = ' and '.join(f'{amount} {dtype}' for dtype, amount in by_type.items())
             self.lines.append(f'{who} hits you {count}: {amounts} damage.' if swings > 1 else
                               f'{who} hits you: {amounts} damage.')
-        if self.fight.get('pc_down'):
-            self.lines.append('You go down.')
-        elif attacker(self.fight.get('awaiting')) == key:
+        self.lines.extend(after)
+        if not self.fight.get('pc_down') and attacker(self.fight.get('awaiting')) == key:
             self.lines.append(save_prompt(self.fight['awaiting']))
 
     def should_retreat(self, key):
@@ -1004,7 +1363,7 @@ class Fight:
     def finish(self):
         if self.fight and self.fight['status'] == 'running':
             order = self.fight['order']
-            if order and self.pc_turn_now() and not self.fight.get('pc_down') and not self.fight.get('awaiting'):
+            if order and self.pc_turn_now() and not self.fight.get('awaiting'):
                 self.lines.append('Your turn.')
 
     def public(self):
@@ -1015,6 +1374,9 @@ class Fight:
         events = [{'type': 'scene_state', 'state': self.scene, 'evidence': evidence}]
         if self.fight:
             events.append({'type': 'combat_state', 'state': self.fight, 'evidence': evidence})
+        if self.conditions_changed:
+            events.append({'type': 'pc_conditions', 'conditions': list(self.conditions),
+                           'terms': copy.deepcopy(self.terms), 'evidence': evidence})
         for key, status in self.statuses.items():
             event = {'type': 'actor_status', 'actor': key, 'status': status, 'evidence': evidence}
             toward = getattr(self, 'fled_toward', {}).get(key)
@@ -1051,12 +1413,44 @@ def after_save_clause(action):
 
 def save_prompt(awaiting):
     """The roll call for a save the player owes (never the DC)."""
+    if awaiting['save'] == 'death':
+        return 'Roll a death saving throw.'
+    if awaiting.get('repeat'):
+        return f"Roll a {ABILITY_NAMES.get(awaiting['save'], awaiting['save'])} saving throw (end of your turn, against the {'paralysis' if awaiting['repeat'] == 'paralyzed' else awaiting['repeat']})."
     return f"Roll a {ABILITY_NAMES.get(awaiting['save'], awaiting['save'])} saving throw."
+
+
+def at_zero_terms(names):
+    """SRD Giant Centipede: dropped to 0 by its poison, the target is stable but poisoned for
+    1 hour, even after regaining hit points, and paralyzed while poisoned in this way."""
+    out = {}
+    for name in names:
+        out[name] = {'until_s_in': 3600} if name == 'poisoned' else {'while': 'poisoned'} \
+            if name == 'paralyzed' and 'poisoned' in names else {}
+    return out
+
+
+def death_save_total(action):
+    """The d20 he reports for a death save (Avrae's ``!g ds`` line, "Death save 12", "nat 20",
+    or the bare number answering the roll call), 1-20, else None."""
+    text = action or ''
+    avrae = re.search(r'\b\d*d20\s*\((\d{1,2})\)[^=\n]*=\s*`?\*{0,2}(\d{1,2})', text)
+    if avrae:
+        value = int(avrae.group(2))
+    else:
+        named = re.search(r'\bdeath\s+sav(?:e|es|ing\s+throws?)\b\D{0,15}?(\d{1,2})\b', text, re.I) or \
+            re.search(r'\b(?:natural|nat)\s*(\d{1,2})\b', text, re.I) or BARE_NUMBER.match(text)
+        if not named:
+            return None
+        value = int(named.group(named.lastindex))
+    return value if 1 <= value <= 30 else None
 
 
 def save_total(action, ability):
     """The player's total for an ``ability`` save: a roll labelled as that save, else an
     unlabelled one, else a bare number (the answer to the roll call)."""
+    if ability == 'death':
+        return death_save_total(action)
     try:
         found = kit_rolls.rolls(action)
     except Exception:
@@ -1116,6 +1510,14 @@ def public_view(source, state):
                         'wounds': wounds, 'damage_you_took': current.get('pc_damage', 0)}
         if (current.get('awaiting') or {}).get('kind') == 'roll_call':
             out['fight']['roll_needed'] = save_prompt(current['awaiting'])[len('Roll a '):-1]
+        if current.get('pc_dead'):
+            out['fight']['you_are'] = 'dead'
+        elif current.get('pc_down'):
+            out['fight']['you_are'] = 'down, stable' if current.get('pc_stable') else 'down, dying'
+            if not current.get('pc_stable'):
+                out['fight']['death_saves'] = dict(current.get('death_saves') or {'successes': 0, 'failures': 0})
+        if (current.get('awaiting') or {}).get('kind') == 'kit_call':
+            out['fight']['waiting_on'] = 'what your foes do while you are down'
         if current['status'] != 'over' and 'pc' in (current.get('surprised') or ()) and current.get('round') == 1:
             out['fight']['you_are_surprised'] = True  # no reactions until your first turn ends
     if pc_conditions(state):

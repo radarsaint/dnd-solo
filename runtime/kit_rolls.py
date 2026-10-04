@@ -55,6 +55,14 @@ def meets_or_beats(actor_total, target):
     return int(actor_total) >= int(target)
 
 
+def attacker_wins(dc, save_total):
+    """Brendon's save rule (2026-10-04, a house rule over 5e): the attacker must meet or beat
+    the defender, so a save that only ties the DC FAILS. Both ways: the PC's save against a
+    monster's DC, and a monster's save against the PC's spell save DC. Death saves have no
+    attacker and are not this rule (10 or more succeeds)."""
+    return int(dc) >= int(save_total)
+
+
 @dataclass(frozen=True)
 class Roll:
     """One stated roll. ``die`` is None when only the total was given."""
