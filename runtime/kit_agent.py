@@ -3374,6 +3374,50 @@ def _spoken_lines(speech):
         return None
 
 
+HOST_STAMPS = ('received_at', 'model_sent_at', 'model_done_at', 'shown_at')
+
+
+def check_stamps(stamps):
+    """Host stamps are epoch seconds under their known names (HOST_TIMING.md)."""
+    require(isinstance(stamps, dict) and set(stamps) <= set(HOST_STAMPS) and
+            all(type(value) in (int, float) and value > 0 for value in stamps.values()),
+            f'Host stamps are epoch seconds named {", ".join(HOST_STAMPS)}')
+    return {key: float(value) for key, value in stamps.items()}
+
+
+def turn_latency(timing):
+    """End-to-end time for one turn, from the player's message to Kit's first playable line,
+    split into host, runtime, model, validation and retry. Durations the host did not stamp are
+    None and named in ``missing``; nothing is guessed."""
+    timing = timing or {}
+    stamps = timing.get('host_stamps') or {}
+    attempts = timing.get('attempts') or []
+    missing = [key for key in HOST_STAMPS if key not in stamps and not (
+        key in ('model_sent_at', 'model_done_at') and attempts and all(key in a for a in attempts))]
+    span = lambda a, b: round(b - a, 3) if a is not None and b is not None else None
+    model = [span(a.get('model_sent_at'), a.get('model_done_at')) for a in attempts]
+    model_s = round(sum(model), 3) if model and None not in model else None
+    first_sent = next((a['model_sent_at'] for a in attempts if 'model_sent_at' in a), None)
+    rejected = [a for a in attempts if a['outcome'] == 'rejected']
+    last_done = attempts[-1].get('model_done_at') if attempts else None
+    retry_s = span(rejected[0].get('model_done_at'), last_done) if rejected else 0.0
+    received, shown = stamps.get('received_at'), stamps.get('shown_at')
+    end = span(received, shown)
+    runtime_s = (timing.get('runtime_prepare_ms') or 0) / 1000
+    validation_ms = round(sum(a.get('validation_ms') or 0 for a in attempts), 2)
+    host = None
+    if end is not None and model_s is not None:
+        host = round(end - model_s - runtime_s - validation_ms / 1000, 3)
+    return {'end_to_end_s': end, 'host_s': host,
+            'host_before_prepare_s': span(received, timing.get('prepare_started_at')),
+            'host_prepare_to_model_s': span(timing.get('prepared_at'), first_sent),
+            'runtime_prepare_ms': timing.get('runtime_prepare_ms'), 'model_s': model_s,
+            'validation_ms': validation_ms, 'retry_s': retry_s, 'rejects': len(rejected),
+            'shown_after_commit_s': span(timing.get('committed_at'), shown),
+            'packet_bytes': timing.get('packet_bytes'),
+            'output_bytes': [a['output_bytes'] for a in attempts], 'missing': missing}
+
+
 class KitChatBridge:
     """Host this model loop in an assistant chat, with no API credential in Python."""
     def __init__(self, runtime, adjudicator=None):
@@ -3382,12 +3426,15 @@ class KitChatBridge:
 
     @_stale_guided
     def prepare(self, action=None, turn_id=None, use_memory=True, one_pass=False, opening=False,
-                performance_variant=None, table_talk=False):
+                performance_variant=None, table_talk=False, host_stamps=None):
         """Stage a turn. One-pass turns fix their performer variant here (default
         DEFAULT_BRIDGE_VARIANT); staged turns choose it at decide. ``table_talk``: the host
         marks the line as the player talking to Kit mid-scene (meta mode, never adjudicated,
         recorded as table talk); the hidden-information guards still apply."""
         turn_id = turn_id or str(uuid.uuid4())
+        started = time.time()
+        clock = time.perf_counter()
+        stamps = check_stamps(host_stamps or {})
         require(one_pass or performance_variant is None,
                 'A staged turn chooses its performance variant at decide')
         if one_pass:
@@ -3414,8 +3461,11 @@ class KitChatBridge:
         self.runtime.stage_kit_turn(turn_id, revision, body)
         # Wall clock, not monotonic: stages may run in separate processes.
         self.runtime.record_kit_timing(turn_id, mode=body['host_mode'], prepared_at=time.time(),
+                                       prepare_started_at=started,
                                        **({'performance_variant': performance_variant}
                                           if one_pass else {}))
+        if stamps:
+            self.stamp(turn_id, **stamps)
         warning = load_voice()[1]
         notice = {'voice_warning': warning} if warning else {}
         if body.get('memory_turn_ids') is not None:
@@ -3424,17 +3474,22 @@ class KitChatBridge:
         if body.get('table_talk'):
             notice['table_talk'] = TABLE_TALK_NOTE
         if one_pass:
-            return {'turn_id': turn_id, 'stage': 'one_pass', **notice,
-                    'performance_variant': performance_variant,
-                    'instructions': one_pass_instructions(performance_variant),
-                    'schema': ONE_PASS_SCHEMA,
-                    'performance_limits': performance_limits(), 'host_retry': HOST_RETRY_NOTE,
-                    'input': {'private': planning_input,
-                              'public': public_performance_base(self.runtime, body, one_pass=True)}}
-        return {'turn_id': turn_id, 'stage': 'private_decision', **notice,
-                'instructions': PRIVATE_INSTRUCTIONS, 'schema': PLAN_SCHEMA,
-                'performance_limits': performance_limits(), 'host_retry': HOST_RETRY_NOTE,
-                'input': planning_input}
+            packet = {'turn_id': turn_id, 'stage': 'one_pass', **notice,
+                      'performance_variant': performance_variant,
+                      'instructions': one_pass_instructions(performance_variant),
+                      'schema': ONE_PASS_SCHEMA,
+                      'performance_limits': performance_limits(), 'host_retry': HOST_RETRY_NOTE,
+                      'input': {'private': planning_input,
+                                'public': public_performance_base(self.runtime, body, one_pass=True)}}
+        else:
+            packet = {'turn_id': turn_id, 'stage': 'private_decision', **notice,
+                      'instructions': PRIVATE_INSTRUCTIONS, 'schema': PLAN_SCHEMA,
+                      'performance_limits': performance_limits(), 'host_retry': HOST_RETRY_NOTE,
+                      'input': planning_input}
+        # Runtime time and packet size, from the bridge's own clock (docs/architecture/HOST_TIMING.md).
+        self.runtime.record_kit_timing(turn_id, runtime_prepare_ms=round((time.perf_counter() - clock) * 1000, 2),
+                                       packet_bytes=_bytes(packet))
+        return packet
 
     @_stale_guided
     def decide(self, turn_id, plan, performance_variant=DEFAULT_BRIDGE_VARIANT):
@@ -3586,9 +3641,39 @@ class KitChatBridge:
                               'to the player; its effect may appear only through kit_focus or '
                               'callback on later turns. Prepare the next turn fresh.')}
 
+    def stamp(self, turn_id, **stamps):
+        """Record host-side times for a turn (epoch seconds): received_at (the player's message
+        arrived), model_sent_at / model_done_at (the packet went to the model / its output came
+        back), shown_at (Kit's first playable line was shown). See HOST_TIMING.md."""
+        stamps = check_stamps(stamps)
+        prior = self.runtime.kit_timing(turn_id) or {}
+        self.runtime.record_kit_timing(turn_id, host_stamps={**(prior.get('host_stamps') or {}), **stamps})
+        return {'turn_id': turn_id, 'host_stamps': {**(prior.get('host_stamps') or {}), **stamps}}
+
+    def _attempt(self, turn_id, output, host_stamps, clock, outcome):
+        """One submitted output: its bytes, the model trip the host stamped, validation time."""
+        prior = self.runtime.kit_timing(turn_id) or {}
+        stamps = check_stamps(host_stamps or {})
+        attempt = {'output_bytes': _bytes(output), 'validation_ms': round((time.perf_counter() - clock) * 1000, 2),
+                   'outcome': outcome, **{key: stamps[key] for key in ('model_sent_at', 'model_done_at') if key in stamps}}
+        self.runtime.record_kit_timing(turn_id, attempts=list(prior.get('attempts') or []) + [attempt])
+
     @_stale_guided
-    def complete(self, turn_id, output, degraded=False):
-        """Validate and commit one model output in one host round trip."""
+    def complete(self, turn_id, output, degraded=False, host_stamps=None):
+        """Validate and commit one model output in one host round trip. ``host_stamps``: the
+        host's model_sent_at and model_done_at for this output (HOST_TIMING.md)."""
+        clock = time.perf_counter()
+        try:
+            result = self._complete(turn_id, output, degraded)
+        except InvalidChange:
+            self._attempt(turn_id, output, host_stamps, clock, 'rejected')
+            raise
+        if not result.get('already_committed'):
+            self._attempt(turn_id, output, host_stamps, clock, 'committed')
+            result['timing'] = self.runtime.kit_timing(turn_id)
+        return result
+
+    def _complete(self, turn_id, output, degraded=False):
         require(isinstance(output, dict) and set(output) == {'decision', 'performance'},
                 'Expected a decision and performance')
         pending = self._pending_or_replay(turn_id, speech=output['performance'],
@@ -3683,11 +3768,22 @@ def persona_text(folder=None):
     return '\n\n'.join(parts) + '\n'
 
 
+def _cli_stamps(items):
+    out = {}
+    for item in items or ():
+        name, _, value = item.partition('=')
+        try:
+            out[name.strip()] = float(value)
+        except ValueError:
+            raise InvalidChange(f'--stamp takes NAME=EPOCH_SECONDS, got {item!r}') from None
+    return out
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('command', choices=['start', 'init', 'view', 'prepare', 'decide', 'finish', 'complete',
                                             'abandon', 'feedback', 'character', 'notes', 'play', 'trace',
-                                            'timing', 'persona'])
+                                            'timing', 'persona', 'stamp'])
     parser.add_argument('--db', default='kit.sqlite')
     parser.add_argument('--room', help='start/init: a room file to mount (default: area 6c; see '
                                        'docs/architecture/ROOM_LOADER.md)')
@@ -3726,6 +3822,9 @@ def main():
     parser.add_argument('--degraded', action='store_true',
                         help=f'finish/complete: accept style misses as warnings (only after '
                              f'{DEGRADED_AFTER_REJECTIONS} rejections on the turn)')
+    parser.add_argument('--stamp', action='append', default=[],
+                        help='prepare/complete/stamp: a host time NAME=EPOCH_SECONDS, one of '
+                             + ', '.join(HOST_STAMPS) + ' (docs/architecture/HOST_TIMING.md); repeatable')
     parser.add_argument('--pretty', action='store_true',
                         help='prepare/decide/finish/complete: indent the JSON for reading (default compact)')
     args = parser.parse_args()
@@ -3756,7 +3855,17 @@ def main():
         elif args.command == 'trace':
             print(json.dumps(runtime.recent_kit_turns(), indent=2, ensure_ascii=False))
         elif args.command == 'timing':
-            print(json.dumps(runtime.recent_kit_timings(), indent=2, ensure_ascii=False))
+            print(json.dumps([{**row, 'latency': turn_latency(row)} for row in runtime.recent_kit_timings()],
+                             indent=2, ensure_ascii=False))
+        elif args.command == 'stamp':
+            if not args.turn_id or not args.stamp:
+                parser.error('stamp requires --turn-id and at least one --stamp NAME=EPOCH_SECONDS')
+            try:
+                print(json.dumps(KitChatBridge(runtime).stamp(args.turn_id, **_cli_stamps(args.stamp)),
+                                 ensure_ascii=False))
+            except (InvalidChange, ValueError) as exc:
+                print(json.dumps({'stage': 'rejected', 'message': str(exc)}, ensure_ascii=False), file=sys.stderr)
+                return 2
         elif args.command == 'notes':
             print(json.dumps(runtime.player_notes(), indent=2, ensure_ascii=False))
         elif args.command == 'character' and args.sheet:
@@ -3799,7 +3908,7 @@ def main():
                     result = bridge.prepare(action, args.turn_id, use_memory=not args.no_memory,
                                             one_pass=args.one_pass, opening=args.opening,
                                             performance_variant=args.performance_variant,
-                                            table_talk=args.table_talk)
+                                            table_talk=args.table_talk, host_stamps=_cli_stamps(args.stamp))
                 else:
                     if not args.turn_id or not args.input_file:
                         parser.error(f'{args.command} requires --turn-id and --input-file')
@@ -3809,7 +3918,8 @@ def main():
                     result = (bridge.decide(args.turn_id, submitted, variant) if args.command == 'decide' else
                               bridge.finish(args.turn_id, submitted, degraded=args.degraded)
                               if args.command == 'finish' else
-                              bridge.complete(args.turn_id, submitted, degraded=args.degraded))
+                              bridge.complete(args.turn_id, submitted, degraded=args.degraded,
+                                              host_stamps=_cli_stamps(args.stamp)))
             except PendingRuling as exc:
                 result = {'stage': 'pending_ruling', 'message': str(exc), 'committed': False}
                 if getattr(exc, 'host_error', None):
