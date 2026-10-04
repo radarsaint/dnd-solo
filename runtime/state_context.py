@@ -220,6 +220,7 @@ def check_player_note_text(text):
 
 class Runtime:
     def __init__(self, path):
+        self.path = path  # the session's file; authored rooms live beside it (kit_author.session_dir)
         self.db = sqlite3.connect(path)
         self.db.execute("PRAGMA foreign_keys = ON")
         self.db.executescript("""
@@ -285,6 +286,11 @@ class Runtime:
         with self.db:
             self.db.execute('INSERT INTO source VALUES (1, ?)', (encode(source),))
             self.db.execute('INSERT INTO snapshots VALUES (0, ?)', (encode(state),))
+
+    def authored_dir(self):
+        """Where this session's authored rooms are cached (None for an in-memory database)."""
+        from . import kit_author
+        return None if str(self.path) == ':memory:' else kit_author.session_dir(self.path)
 
     def source(self):
         row = self.db.execute('SELECT body FROM source WHERE id=1').fetchone()
@@ -504,7 +510,7 @@ class Runtime:
             link = (source['areas'].get(state['area']) or {}).get('room_link')
             if link:
                 from . import kit_rooms
-                new_source, state = kit_rooms.arrive(source, state, link)
+                new_source, state = kit_rooms.arrive(source, state, link, authored=self.authored_dir())
                 self.db.execute('UPDATE source SET body=? WHERE id=1', (encode(new_source),))
             self.db.execute('INSERT INTO turns VALUES (?, ?, ?)', (turn_id, digest, next_revision))
             self.db.executemany('INSERT INTO ledger(turn_id, body) VALUES (?, ?)',

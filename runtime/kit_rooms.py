@@ -128,9 +128,13 @@ def first_framing_problems(source):
             problems.append(f'actor {key} needs a location among the areas and a status')
     for key, area in areas.items():
         link = area.get('room_link')
-        if link is not None and not (isinstance(link, dict) and isinstance(link.get('room'), str)
-                                     and isinstance(link.get('area'), str)):
-            problems.append(f'area {key} room_link needs room and area')
+        if link is not None and not (isinstance(link, dict) and (
+                isinstance(link.get('room'), str) and isinstance(link.get('area'), str) or
+                # Authored on demand from the book (runtime/kit_author.py): {author: {level, area}}.
+                'room' not in link and isinstance(link.get('author'), dict) and
+                isinstance(link['author'].get('area'), str) and link['author'].get('level') is not None and
+                isinstance(link.get('area', ''), str))):
+            problems.append(f'area {key} room_link needs room and area (or author: {{level, area}})')
     return problems + secrecy_problems(source) + tease_problems(source) + fighter_problems(source) + \
         alarm_problems(source)
 
@@ -380,8 +384,22 @@ def load_room(ref):
         raise RoomMountError(ref, [f'malformed room data ({type(exc).__name__}: {exc})']) from None
 
 
-def load_link(link):
+def resolved_link(link, authored=None):
+    """A ``room_link`` as {room, area}. An ``author`` link names a keyed area whose room Kit
+    writes from the book (runtime/kit_author.py); it resolves to that session's accepted room,
+    or raises kit_author.RoomNotAuthored (a RoomMountError) naming the request command."""
+    if 'author' not in link or 'room' in link:
+        return link
+    from . import kit_author
+    if authored is None:
+        raise kit_author.RoomNotAuthored(f"area {link['author'].get('area')}", [
+            'this room is authored from the book and the session has no authored-room cache'], {})
+    return kit_author.Session(authored).resolve_link(link)
+
+
+def load_link(link, authored=None):
     """The room an area's ``room_link`` leads to, checked down to its arrival area."""
+    link = resolved_link(link, authored)
     source = load_room(link['room'])
     if link['area'] not in source['areas']:
         raise RoomMountError(link['room'], [f"room_link area {link['area']!r} is not one of its areas"])
@@ -392,10 +410,12 @@ def _same_file(a, b):
     return room_path(a).resolve() == room_path(b).resolve()
 
 
-def arrive(old_source, state, link):
+def arrive(old_source, state, link, authored=None):
     """(the linked room, the state on arrival in it): the room loaded and checked, the room
-    left archived, the arrival area observed, and the new room's context within its caps."""
+    left archived, the arrival area observed, and the new room's context within its caps.
+    ``authored``: the session's authored-room directory, for ``author`` links."""
     from .state_context import Runtime
+    link = resolved_link(link, authored)
     source = load_link(link)
     seen = ((state.get('rooms') or {}).get(source.get('id')) or {}).get('state', {}).get('room', {}).get('path')
     if source.get('id') == old_source.get('id') or seen and _same_file(seen, link['room']) is False:
