@@ -166,3 +166,24 @@ A mounted Kit should be able to handle this sequence:
 7. Player can continue the same scene normally afterward.
 
 The initial unit tests live in `tests/test_kit_visual.py`.
+
+
+## Private BFDM reference pack
+
+The public repository stores reference metadata only. The selected original BFDM image bytes live in the private pack:
+
+`bfdm-style-reference-pack-v1.zip`
+
+Hydrate them into a mounted checkout with:
+
+```sh
+python3 scripts/import_style_reference_pack.py /path/to/bfdm-style-reference-pack-v1.zip
+```
+
+The importer verifies the pack SHA-256 and each image against `style/BFDM_REFERENCE_INDEX.json`, then copies the verified files under:
+
+`style/private_refs/`
+
+That directory is gitignored.
+
+A visual brief's `recommended_references` includes both the stable BFDM reference id and its hydrated path. If the private pack is not mounted, Kit can still use the art bible and reference metadata, but must not pretend it visually inspected reference bytes it cannot see.
