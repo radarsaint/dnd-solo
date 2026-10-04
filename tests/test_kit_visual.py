@@ -56,6 +56,11 @@ class KitVisualTests(unittest.TestCase):
         self.assertEqual(warden["counts"], {"arms": 2, "eyes": 2, "swords": 1})
         self.assertEqual(brief["generation_contract"]["expected_counts"]["actor:warden.swords"], 1)
 
+    def test_named_visible_actor_defaults_to_character_spotlight(self):
+        self.replace_runtime(copy.deepcopy(self.source), "watchroom")
+        brief = kit_visual.prepare_visual(self.runtime, "Draw the watch warden.")
+        self.assertEqual(brief["mode"], "character_spotlight")
+
     def test_only_explicit_public_visual_descriptors_cross_boundary(self):
         source = copy.deepcopy(self.source)
         source["actors"]["warden"]["visual"] = {
@@ -139,6 +144,22 @@ class KitVisualTests(unittest.TestCase):
         with self.assertRaisesRegex(Exception, "already recorded"):
             kit_visual.record_visual(self.runtime, brief["visual_id"], "failed")
 
+    def test_different_asset_modes_pull_different_reference_families(self):
+        requests = [
+            ("portrait of a human guard", "character_spotlight"),
+            ("town waterfront exterior", "exterior"),
+            ("magic item bag", "prop_study"),
+            ("occult cryptid monster", "creature_concept"),
+            ("subclass rules page", "rulebook_page"),
+        ]
+        first_ids = []
+        for request, mode in requests:
+            brief = kit_visual.prepare_visual(self.runtime, request, mode=mode)
+            refs = brief["style"]["references"]
+            self.assertTrue(refs)
+            first_ids.append(refs[0]["id"])
+        self.assertGreaterEqual(len(set(first_ids)), 4)
+
     def test_explicit_mode_and_branch_override_inference(self):
         brief = kit_visual.prepare_visual(
             self.runtime, "Make this useful for the campaign.",
@@ -158,6 +179,8 @@ class KitVisualInferenceTests(unittest.TestCase):
             "Make a subclass rules page.": "rulebook_page",
             "Create a player handout letter.": "handout",
             "Give me a chapter cover.": "splash",
+            "Make a poster image for the chapter.": "splash",
+            "Make a wanted poster handout.": "handout",
             "Draw what I see.": "story_vignette",
         }
         for request, expected in cases.items():
