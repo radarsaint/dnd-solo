@@ -10,6 +10,7 @@ from __future__ import annotations
 from copy import deepcopy
 
 from .state_context import InvalidChange, require
+from . import kit_visual_refs
 
 
 VISUAL_MODES = (
@@ -63,7 +64,7 @@ def _safe_subjects(player_view):
     ]
 
 
-def build_visual_brief(runtime, request, mode=None):
+def build_visual_brief(runtime, request, mode=None, branch="core", recent_reference_ids=()):
     """Return a host-facing, player-safe visual brief without changing game state.
 
     No source actor cards, unrevealed facts, hidden geometry, claims, agendas, or
@@ -75,6 +76,9 @@ def build_visual_brief(runtime, request, mode=None):
     revision, state = runtime.load()
     player_view = deepcopy(runtime.player_view())
     visual_mode = normalize_mode(mode)
+    require(branch in ("core", "roanoke", "arcania", "earthfall"), "Unknown visual branch")
+    references = kit_visual_refs.select_references(
+        visual_mode, request, branch=branch, recent_reference_ids=recent_reference_ids, limit=3)
 
     brief = {
         "schema": "kit_visual_brief_v1",
@@ -94,9 +98,13 @@ def build_visual_brief(runtime, request, mode=None):
                if player_view.get("your_character") else {}),
         },
         "style": {
+            "branch": branch,
             "house_style": "docs/architecture/KIT_VISUAL_STYLE_SPEC.md",
             "art_bible": "docs/architecture/BFDM_VISUAL_ART_BIBLE.md",
             "reference_guide": "docs/architecture/BFDM_VISUAL_REFERENCE_GUIDE.md",
+            "reference_index": "style/BFDM_REFERENCE_INDEX.json",
+            "recommended_references": references,
+            "reference_pack": "bfdm-style-reference-pack-v1.zip",
             "reference_selection_rule": (
                 "Choose a small, relevant and varied BFDM reference set for this asset class. "
                 "Do not repeatedly default to one mascot, one character, or one campaign image. "
