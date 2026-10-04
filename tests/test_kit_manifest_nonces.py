@@ -227,7 +227,9 @@ class RestoredSave(Fresh):
             packet, output = self.turn(f'w{n}')
             self.bridge.complete(f'w{n}', output)
         copied = Path(self.folder) / 'uploaded.sqlite'
-        shutil.copy(self.runtime.path, copied)
+        self.runtime.db.commit()
+        source_db = Path(self.runtime.db.execute('PRAGMA database_list').fetchone()[2])
+        shutil.copy(source_db, copied)
         runtime = Runtime(copied)
         self.addCleanup(runtime.close)
         bridge = KitChatBridge(runtime, RoomAdjudicator(roll=lambda: 10, npc_roll=lambda: 10), manifests=True)
@@ -237,9 +239,9 @@ class RestoredSave(Fresh):
         plan['public_brief'].update(reply_to='I wait on the landing', scope='feature')
         fresh = NonceHost()       # the new chat holds nothing
         with self.assertRaisesRegex(InvalidChange, 'rehydrate'):
-            bridge.complete('r1', {'decision': plan, 'performance': WAITS[1], 'manifest': fresh.echo(first)})
+            bridge.complete('r1', {'decision': plan, 'performance': WAITS[3], 'manifest': fresh.echo(first)})
         fresh.read(bridge.rehydrate('r1'))
-        self.assertTrue(bridge.complete('r1', {'decision': plan, 'performance': WAITS[1],
+        self.assertTrue(bridge.complete('r1', {'decision': plan, 'performance': WAITS[3],
                                                'manifest': fresh.echo(first)})['spoken'])
 
 

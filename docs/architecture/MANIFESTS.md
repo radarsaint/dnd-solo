@@ -21,52 +21,57 @@ Each manifest is sent in one of three forms:
 
 | Form | When |
 |---|---|
-| `{"hash": h, "body": {...}}` | the host does not hold any copy: the session's first turn, or the turn after a cache miss |
-| `{"hash": h, "base": h0, "diff": [...]}` (room only) | the room changed and the host holds `h0`; each entry sets `value` at `path` or removes `path` (`kit_manifest.apply_diff`). Used only when the diff is smaller than the body |
-| `{"hash": h, "cached": true}` | the host holds `h` |
+| `{"hash": h, "nonce": n, "body": {...}}` | the host does not hold this layer: the session's first turn, or the turn after this layer's nonce came back wrong or missing |
+| `{"hash": h, "base": h0, "nonce": n, "diff": [...]}` (room only) | the room changed and the host holds `h0`; each entry sets `value` at `path` or removes `path` (`kit_manifest.apply_diff`). Used only when the diff is smaller than the body |
+| `{"hash": h, "cached": true}` | the host holds `h` (no nonce: the host must already have it) |
 
 * **No scheduled re-send (PR-T).** Until #96 both bodies came back every 8th prepared turn (`FULL_EVERY`). That
-  turn was 60–67 KB (T9 in the replay) and set p95. Now a body is sent only when its hash is new to the host.
-  What the host holds is recorded on each layered turn's telemetry (`manifest.held`), so it survives across
-  CLI processes.
-* **Echo.** Kit echoes both hashes: `"manifest": {"session": h1, "room": h2}`. A missing or wrong echo is
-  refused (`ManifestMismatch`) and counts as a **cache miss**: the turn is marked `cache_miss`, and the next
-  prepared turn sends both bodies in full. The echo alone proves little (a cached layer carries its own hash,
-  Nagatha's #94 review), so it is a consistency check, not the safety net.
-* **Rehydrate.** `rehydrate --turn-id T` (Python: `bridge.rehydrate(turn_id)`) returns both bodies in full and
-  records that the host now holds them. Kit can ask for it at any time. A lost copy costs one retry, not a bad turn.
-* **The safety net: a manifest check.** Every `CHECK_EVERY` = 4 layered turns since the last full session send
-  or the last check, and on the turn after one with `REJECT_STREAK` = 2 or more rejections, the packet carries
-  `manifest_check`. It holds the first 6 words of one sentence from each of the `instructions`, the `core` and
-  the `room`. Kit adds `"check": {key: "<the next 8 words>"}` inside `"manifest"`, copied from the bodies she holds.
-  6 of 8 words in place must match (case and punctuation ignored). A failed or missing answer is a cache miss.
-  The turn is refused with a pointer to rehydrate, and Kit writes it again from the full bodies.
-  * The lines are chosen so that only a host holding the body can answer. The continuation does not appear
-    anywhere in the turn delta, and the 6 prompt words occur exactly once in the layer. The choice is
-    deterministic per session hash and turn number.
-  * The check covers all three things a trimmed chat loses: the invariants, the persona core and the room's DM truth.
-  * A check that is never committed (the turn was abandoned) is asked again on the next turn.
+  turn was 60–67 KB (T9 in the replay) and set p95. Now a body is sent only when the host does not hold it.
+  What the host holds, and each copy's nonce, is recorded on each layered turn's telemetry (`manifest.held`,
+  `manifest.nonce`), so it survives across CLI processes.
+* **The safety net: nonces (#99 review).** Every body and every room diff carries a short random nonce
+  (`kit_manifest.new_nonce`: a digit and 6 hex characters, so it is never an English word). Every layered packet
+  carries `manifest_check`, and Kit answers it in the private `manifest` block of her output (stripped before
+  anything is spoken): `"manifest": {"check": {"session": n1, "room": n2}}`, the nonces of the copies she holds.
+  * The nonce of a cached layer is never in the packet, so only a host that read and kept the body (or applied
+    the latest diff) can give it. A host whose room copy went stale, because it skipped a diff, gives the old
+    nonce and is caught on that same turn. The line-completion check this replaces could not catch that: its
+    room line was always the constraints boilerplate that every room shares (Nagatha's p99_stale and p99_pool).
+  * A wrong or missing nonce is refused (`ManifestMismatch`, naming the layers) and marks **only those layers**
+    as missed (`manifest.miss`). The next prepared turn re-sends just them. `rehydrate --turn-id T` returns just
+    them, each with a new nonce, so Kit can rewrite the refused turn at once.
+  * A correct resubmission of the same turn clears the miss, so nothing is re-sent needlessly.
+  * The match is lenient: case, quotes, punctuation and extra words around the nonce don't matter
+    (`_check_passes`, any order, at least 60% of the expected words; a nonce is one word, so it must be there).
+  * The hash echo (`"session"`, `"room"` in `manifest`) is optional now. A cached layer carries its own hash,
+    so echoing it proves nothing (#94 review). If Kit gives one it must match, and a wrong hash misses both layers.
+* **Spoken guard.** Spoken that contains a manifest hash, a nonce or the check's wording is refused
+  (`kit_manifest.check_spoken`, p99_leak).
+* **Restore from an uploaded save.** A new chat that uploads `kit.sqlite` holds no bodies, but the database says
+  it does. Every packet carries the check, so turn 1 of the new chat fails it, the turn is refused, and
+  `rehydrate` sends both layers (p99_restore). No cached packet ever goes out without the check.
+* **Rehydrate on request.** Kit can run `rehydrate --turn-id T` at any time. With no miss recorded, it returns
+  both layers.
 
-### Why a check rather than a staggered refresh
+### Why a nonce every turn rather than a periodic check or a staggered refresh
 
-The custom GPT runner trims or summarizes old turns without any signal, so some periodic proof is needed. These
-are the options, measured on the watchroom replay (`--manifests`, model time is the labelled estimate):
+The custom GPT runner trims or summarizes old turns without any signal, so some proof that the copy is still
+there is needed. The options, measured on the watchroom replay (`--manifests`, model time is the labelled
+estimate, Kit's private echo counted as output):
 
-| Design | Worst steady-state turn | Catches a lost body within | Extra cost on the turn that checks |
+| Design | p95 | Catches a lost or stale copy within | Cost per turn |
 |---|---|---|---|
-| Full re-send every 8 turns (#96) | 15.7 s (T9, 66.6 KB) | 8 turns, only by luck of timing | +53 KB in |
+| Full re-send every 8 turns (#96) | 15.6 s (T9, 66.6 KB) | 8 turns, only by luck of timing | +53 KB in on every 8th turn |
 | Staggered refresh (one layer per turn, spread out) | ~15.6 s (the session body alone is ~53 KB) | 8 turns per layer | +53 KB in on a session turn |
-| **Manifest check every 4 turns (this)** | **11.8 s (T7, an ordinary turn)** | **4 turns, and proven, not assumed** | **~+0.5 KB in, ~+0.2 KB out (~0.08 s)** |
+| Line completion every 4 turns (first PR-T head, cf6296e) | 13.4 s | 4 turns for a lost copy, **never** for a stale room (p99_stale) | ~+0.5 KB in, ~+0.2 KB out on a check turn |
+| **Nonce per layer and diff, echoed every turn (this)** | **13.7 s** | **the same turn, lost or stale, per layer** | **~+0.3 KB in (the check), 52 B out (~0.26 s)** |
 
-The session body is ~53 KB of the ~60 KB opening, so any design that re-sends it on a schedule keeps a ~15 s turn
-in the tail. The check costs about a sentence. It also tells you when the copy is really gone, where a blind
-re-send only bets that it might be. A host that cannot answer pays one full rehydrate (the same 60 KB, once),
-and only when the loss is real.
+The nonce costs about as much as the hash echo it replaces (51 B on main) and catches what the line check missed,
+on the turn it happens. A host that fails it pays one re-send of only the layer it lacks.
 
-**Limits.** A model could in principle copy the 8 words from an old summary that kept them verbatim while
-losing the rest. With three lines from three different places changing every check, that is unlikely to hold
-for long. If the host loses its sandbox (files gone), the database goes with it and the session restarts from
-`start`, which sends everything.
+**Limits.** A model that kept the nonce in a summary but lost the body would pass. The nonce is meaningless on
+its own, so a summarizer has no reason to keep it, but it is a bet, not a proof. If the host loses its sandbox
+(files gone), the database goes with it and the session restarts from `start`, which sends everything.
 
 ## Does the runner carry prior context? (honest answer)
 
@@ -86,14 +91,17 @@ must keep the bodies it was sent, or rehydrate.
 
 ## Sizes (watchroom replay, `scripts/watchroom_replay.py --manifests`, T0–T10, dice pinned)
 
-| | #96 (main 2804b79) | PR-T |
+The replay now counts Kit's private manifest echo as output (#99 review). The main column adds main's 51-byte hash
+echo (+0.26 s a turn), which its replay did not count.
+
+| | #96 (main 0bce3ad) | PR-T (nonces) |
 |---|---|---|
-| T9 packet (the old scheduled re-send) | 66,593 B | 13,658 B |
+| T9 packet (the old scheduled re-send) | 66,593 B | 14,240 B |
 | full-body sends after T0 | 1 session + 1 room | 0 session, 1 room diff (T7, the move into the watchroom) |
-| packet median / mean | 14,380 / 21,872 B | 13,658 / 17,232 B |
-| e2e median / p95 (model est) | 10.28 s / 15.35 s | 10.30 s / 13.39 s |
-| e2e p95 over T1–T10 (steady state, no opening) | 13.99 s | 11.24 s |
-| worst steady-state turn | 15.74 s (T9) | 11.79 s (T7) |
+| packet median | 14,380 B | 14,240 B |
+| echo out per turn | 51 B (hashes) | 52 B (nonces) |
+| e2e median / p95 (model est) | 10.54 s / 15.61 s | 10.62 s / 13.72 s |
+| worst steady-state turn | 15.99 s (T9) | 12.14 s (T7) |
 
 The 11-turn p95 still includes T0, the session opening, which has to carry the bodies once (~60 KB, ~15 s).
-Every later turn is an ordinary 8–17 KB delta, with ~0.5 KB extra on a check turn (T4, T8).
+Every later turn is an ordinary 9–17 KB delta, including the ~0.3 KB check.

@@ -138,10 +138,13 @@ class EchoOrRehydrate(Layers):
         with self.assertRaisesRegex(InvalidChange, 'rehydrate'):
             self.bridge.complete('w1', output)
         full = self.bridge.rehydrate('w1')
-        self.assertEqual(full['session_manifest'], packet['session_manifest'])
+        self.assertEqual({k: v for k, v in full['session_manifest'].items() if k != 'nonce'},
+                         {k: v for k, v in packet['session_manifest'].items() if k != 'nonce'})
+        self.assertNotEqual(full['session_manifest']['nonce'], packet['session_manifest']['nonce'])
         self.assertEqual(full['room_manifest']['hash'], later['room_manifest']['hash'])
         self.assertEqual(kit_manifest.digest(full['room_manifest']['body']), full['room_manifest']['hash'])
-        output['manifest'] = self.echo(full)
+        self.echo(full)                      # the host keeps the copies (and their nonces)
+        output['manifest'] = self.echo(later)
         self.assertTrue(self.bridge.complete('w1', output)['spoken'])
 
 
