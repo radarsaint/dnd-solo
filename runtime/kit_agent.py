@@ -25,6 +25,7 @@ from . import kit_combat
 from . import kit_rolls
 from . import kit_claims
 from . import kit_manifest
+from . import kit_router
 from . import kit_agenda, kit_plan, kit_threads, pc_sheet
 from . import kit_detail
 from . import kit_prices
@@ -3088,6 +3089,9 @@ def check_decision(runtime, plan, memory, body):
     # The people in the scene are the ones there once the event lands: walking in, the PC
     # meets them this turn (watchroom playtest).
     scene = after_event(runtime, body)
+    if (body.get('compute') or {}).get('tier') == 'routine':
+        kit_router.fill_routine(plan, kit_voice.mode_hint(body['kind'], is_ooc(body.get('action') or ''))
+                                or 'description')
     check_plan(plan, memory['episodes'], body['public_event'], body['kind'],
                body['discernment_candidates'], body['action'],
                player_notes=memory['player_notes'],
@@ -3757,6 +3761,36 @@ def _spoken_lines(speech):
         return None
 
 
+# The PC speaking out loud: a quoted line, or says/asks/calls/shouts.
+ADDRESSING = re.compile(r'["\u201c\u201d]|\b(?:say|says|said|ask|asks|asked|call|calls|called|shout|shouts|'
+                        r'whisper|whispers|tell|tells)\b', re.I)
+
+
+def important_speakers(source):
+    """Speakers whose turns are never routine: a card that sets speech_floor, or anyone who
+    raises a story hook (room data)."""
+    cards = (source.get('public_performance') or {}).get('actor_cards') or {}
+    names = {name for name, card in cards.items() if (card or {}).get('speech_floor') is True}
+    labels = actor_speakers(source)
+    for story in kit_brief.compile_story(source).values():
+        names |= {labels.get(hook['by'], hook['by']) for hook in story.get('hooks') or () if hook.get('by')}
+    return names
+
+
+def compute_tier(runtime, body, planning_input):
+    """routine / normal / consequential, from what the engine already knows (kit_router)."""
+    here = turn_speakers(runtime, body)
+    speakers = [s for s in here['speakers'] if s not in NON_NPC_SPEAKERS]
+    if ADDRESSING.search(body.get('action') or ''):
+        # Someone heard through the door can answer through it when the PC speaks (watchroom T5).
+        speakers += [h['speaker'] for h in here.get('heard') or ()]
+    threads = planning_input.get('open_threads') or {}
+    return kit_router.route(body['kind'], body.get('events') or (), runtime.load()[1], speakers,
+                            important_speakers(runtime.source()), body.get('story_due') or (),
+                            threads_due=bool(threads.get('due')) if isinstance(threads, dict) else False,
+                            held=bool(body.get('held_description')))
+
+
 def first_try_lines(runtime, body, planning_input):
     """A few lines at the top of every packet stating what the engine already knows it will
     check this turn, so the first decision commits (watchroom T0 and T8: the opening's reply_to
@@ -3803,6 +3837,10 @@ def first_try_lines(runtime, body, planning_input):
         lines.append(STALL_LINE)
     if not opening and not held:
         lines.append(SHORT_BEAT_LINE)
+    compute = planning_input.get('compute') or {}
+    if compute.get('tier') == 'routine':
+        lines.append('Routine turn (engine): you may leave out ' + ', '.join(compute['may_omit'])
+                     + '; the engine fills neutral values. Write move, kit_choice, the brief and the speech.')
     return lines
 
 
@@ -3893,6 +3931,10 @@ class KitChatBridge:
         body['host_mode'] = 'one_pass' if one_pass else 'staged'
         if one_pass:
             body['performance_variant'] = performance_variant
+            # The engine decides how much this turn asks Kit to write (kit_router; PR4).
+            body['compute'] = compute_tier(self.runtime, body, planning_input)
+            if body['compute']['tier'] == 'routine':  # only a routine turn changes what Kit writes
+                planning_input['compute'] = body['compute']
         self.runtime.stage_kit_turn(turn_id, revision, body)
         # Wall clock, not monotonic: stages may run in separate processes.
         self.runtime.record_kit_timing(turn_id, mode=body['host_mode'], prepared_at=time.time(),

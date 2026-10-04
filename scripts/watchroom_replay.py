@@ -108,9 +108,21 @@ def kit_decision(packet, turn):
         # One line of ~160 characters: the bid, the pressure it meets, and Kit's choice (PR3 b).
         full['improv_read']['kit_choice'] = ('Nik ' + (action[:60] or 'arrives at the door') +
                                              '; the warden is awake; Kit lets him be a real obstacle.')[:160]
+    if (private.get('compute') or {}).get('tier') == 'routine':
+        # The engine says routine: Kit leaves out what it may (PR4); her choices stay.
+        for key in private['compute']['may_omit']:
+            if key.startswith('improv_read.'):
+                full['improv_read'].pop(key.split('.', 1)[1], None)
+            else:
+                full.pop(key, None)
+        full['focus_actor'] = 'none'
     if opening and not turn.get('stall'):
         full['public_brief']['scope'] = 'feature'
     return shape(full, schema)
+
+
+OMITTED = {'appraisal', 'memory_refs', 'tone', 'player_note', 'player_mood', 'turn_mode',
+           'story_anchor', 'story_basis', 'actor_ref', 'actor_basis'}
 
 
 def shape(value, schema):
@@ -124,7 +136,7 @@ def shape(value, schema):
             continue
         if key in required or key in ('roll_call',):
             out[key] = shape(item, props[key])
-    for key in required - set(out):
+    for key in required - set(out) - OMITTED:
         if key == 'kit_choice':
             out[key] = 'Kit lets the warden be a real obstacle.'
     return out
