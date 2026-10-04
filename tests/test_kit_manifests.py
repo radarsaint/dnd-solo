@@ -292,7 +292,8 @@ class Amortized(Layers):
     def test_a_rejection_does_not_resend_a_layer(self):
         self.play_open()
         packet, out = self.play_wait('w1')
-        flat = dict(out, performance={'segments': [{'speaker': 'Narrator', 'text': 'Dark.'}]})
+        flat = dict(out, performance={'segments': [{'speaker': 'Narrator', 'text': 'Dark.'}] +
+                                      [{'speaker': 'Kit', 'text': 'Ooh.'}] * 3})   # quiet Kit speaks
         for _ in range(2):
             with self.assertRaises(InvalidChange):
                 self.bridge.complete('w1', flat)

@@ -9,7 +9,7 @@ import unittest
 from runtime import kit_agent, kit_detail, kit_voice
 from runtime.kit_agent import check_scope, ceiling_note, actor_speakers
 from runtime.state_context import InvalidChange
-from test_kit_watchroom_stalls import Stalls, landing
+from test_kit_watchroom_stalls import QUIET, Stalls, landing
 
 WORD = 'stone '
 
@@ -95,8 +95,9 @@ class Ceilings(Stalls):
         return {'speakers': actor_speakers(self.runtime.source()), 'brief_speakers': ('Watch warden',), **extra}
 
     def plan(self, scope, focus='none', **update):
+        # These are ceiling cases: Kit declares that the beat stands without a prompt (#102).
         return {'public_brief': {'scope': scope}, 'focus_actor': focus, 'table_presence': 'brief',
-                'improv_read': {'actor_ref': focus}, **update}
+                'improv_read': {'actor_ref': focus}, 'hands_off': QUIET, **update}
 
     def seg(self, speaker, n, word='stone'):
         return {'speaker': speaker, 'text': words(n, word)}
@@ -136,8 +137,10 @@ class Ceilings(Stalls):
         self.assertIn('ceiling', ceiling_note(segments, self.plan('feature'), self.guards()))
 
     def test_the_floors_stay(self):
-        with self.assertRaisesRegex(InvalidChange, 'flat'):
-            check_scope([self.seg('Narrator', 30), self.seg('Narrator', 30)], self.plan('feature'), self.guards())
+        # The floor is functional now (#102): undeclared, a beat that never hands over is refused.
+        with self.assertRaisesRegex(InvalidChange, 'handing the floor back'):
+            check_scope([self.seg('Narrator', 30), self.seg('Narrator', 30)], self.plan('feature', hands_off=None),
+                        self.guards())
 
     def test_the_ceilings_are_in_the_packet(self):
         self.assertIn('ceiling', kit_agent.performance_limits())

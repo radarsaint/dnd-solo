@@ -682,10 +682,10 @@ class KitFocusAndScopeTests(unittest.TestCase):
         # reply_to on room entry defaults to none (watchroom T0 was rejected for it).
         self.bridge.decide('entry', {**plan, 'public_brief': {**plan['public_brief'], 'reply_to': '[scene entry]'}})
         self.assertEqual(self.runtime.pending_kit_turn('entry')['plan']['public_brief']['reply_to'], 'none')
-        with self.assertRaisesRegex(InvalidChange, 'Feature scope was flat'):
+        with self.assertRaisesRegex(InvalidChange, 'Feature scope does not end with handing the floor back'):
             self.bridge.finish('entry', {'segments': [
                 {'speaker': 'Narrator', 'text': 'Four pale figures play cards.'},
-                {'speaker': 'Dealer', 'text': 'Ten gold.'}]})
+                {'speaker': 'Dealer', 'text': 'Hm.'}]})
 
     def test_retry_carries_the_specific_rejection_reason(self):
         flat = iter([NIK_FLAT_REPLY, QUIET_EXCHANGE_SPEECH])
@@ -1313,8 +1313,8 @@ class TerseCardPlayerTests(unittest.TestCase):
         wrong = [terse[0], {'speaker': 'Door-side player', 'text': 'Please, just sit.'}, terse[2]]
         with self.assertRaisesRegex(InvalidChange, 'selected Fresco-side player never spoke'):
             kit_agent.check_scope(wrong, self.plan('bandit_b'), self.GUARDS)
-        # The whole-turn floor still guards against a flat card-player beat.
-        with self.assertRaisesRegex(InvalidChange, 'Exchange scope was flat'):
+        # The handoff rule still guards against a flat card-player beat (a grunt, undeclared).
+        with self.assertRaisesRegex(InvalidChange, 'Exchange scope does not end with handing the floor back'):
             kit_agent.check_scope([{'speaker': 'Narrator', 'text': 'He glares.'},
                                    {'speaker': 'Fresco-side player', 'text': 'Out.'}], self.plan('bandit_b'), self.GUARDS)
 

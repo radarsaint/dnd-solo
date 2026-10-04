@@ -29,6 +29,8 @@ class HostStampedTiming(Base):
         from test_kit_agent import RecordingModel
         plan = RecordingModel().plan(packet['input']['private'])
         plan.update(move='world_description', table_presence='quiet', focus_actor='none')
+        # The landing beat stands without a prompt, and Kit says so (#102).
+        plan['hands_off'] = {'kind': 'none', 'reason': 'the landing description stands; the player acts next'}
         plan['improv_read'].update(actor_ref='none', actor_basis='none', story_basis='scene_state')
         plan['public_brief'].update({'reply_to': 'none', 'scope': 'feature', **brief})
         return plan
@@ -36,7 +38,9 @@ class HostStampedTiming(Base):
     def test_every_segment_of_the_turn_is_recorded(self):
         packet = self.bridge.prepare(opening=True, one_pass=True, host_stamps={'received_at': 1000.0})
         turn = packet['turn_id']
-        flat = {'segments': [{'speaker': 'Narrator', 'text': 'A door, a light, a stair.'}]}  # under the floor: one retry
+        flat = {'segments': [{'speaker': 'Narrator', 'text': 'A door, a light, a stair.'},
+                             {'speaker': 'Kit', 'text': 'Ooh.'}, {'speaker': 'Kit', 'text': 'Ooh.'},
+                             {'speaker': 'Kit', 'text': 'Ooh.'}]}  # quiet Kit speaks: one retry
         try:
             self.bridge.complete(turn, {'decision': self.plan(packet), 'performance': flat},
                                  host_stamps={'model_sent_at': 1000.5, 'model_done_at': 1010.0})

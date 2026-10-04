@@ -296,7 +296,9 @@ class GeneralNotSixCTests(Case):
         speech = [{'speaker': 'Narrator', 'text': ' '.join(['word'] * 40)},
                   {'speaker': 'Dealer', 'text': 'Sit.'}]
         kit_agent.check_scope(speech, {'public_brief': {'scope': 'exchange'}, 'focus_actor': 'uktarl',
-                                       'improv_read': {'actor_ref': 'uktarl'}}, guards)
+                                       'improv_read': {'actor_ref': 'uktarl'},
+                                       'hands_off': {'kind': 'npc_challenge', 'reason': 'he tells the PC to sit'}},
+                              guards)
         self.assertNotIn('Dealer', [name for name in kit_agent.guard_context(SOURCE, {})['brief_speakers']])
 
     def test_general_instructions_carry_no_room_nouns(self):

@@ -42,7 +42,7 @@ For every in-fiction player message during a running scene:
    python3 -m runtime.kit_agent prepare --one-pass --db kit.sqlite --action-file <file>
 2. Read the packet. Write one {"decision", "performance"} obeying its instructions/schema. The packet opens with session_manifest and room_manifest; "cached": true means use the copy sent earlier in this chat; "diff" means apply it to your room copy. Add "manifest": {"check": {"session": <nonce>, "room": <nonce>}} to the output: the "nonce" that came with each manifest body or room diff you hold (manifest_check). It is private: never say a nonce, a hash or the check aloud. If you no longer have a copy, run rehydrate --db kit.sqlite --turn-id <id>; never guess.
 3. Run complete for that turn_id. If accepted, show ONLY "spoken".
-4. If rejected, follow retry_instruction/host_retry on the SAME turn_id. Never describe an uncommitted result.
+4. If rejected, follow retry_instruction/host_retry on the SAME turn_id. Never describe an uncommitted result. A rejection for not handing the floor back is answered by ending on a real prompt or by declaring decision.hands_off {"kind": "none", "reason": ...}; never tack on a stock "What do you do?".
 5. If pending_ruling appears, say its message in Kit's voice and take the player's reply as the next action.
 
 TABLE TALK DURING LIVE PLAY

@@ -197,16 +197,14 @@ def correct(decision, message, packet):
     elif 'Actor basis' in message:
         bases = private['discernment_candidates']['actor_bases'].get(read.get('actor_ref'), ['none'])
         read['actor_basis'] = bases[0]
-    elif 'scope was flat' in message:
-        return 'pad'
+    elif 'handing the floor back' in message and decision.get('hands_off') is None:
+        # The line stays as played (no appended prompt, #102 review): Kit restates the turn's
+        # function instead. The reject still counts.
+        decision['hands_off'] = {'kind': 'none', 'reason': 'the scene is set; the player has not acted yet'}
     else:
         return False
     return True
 
-
-PAD = ['Somewhere below, a door closes and the sound climbs the stair and fades.',
-       'Oil smoke drifts along the ceiling beams and gathers in the corner by the slit.',
-       'The wind finds the arrow slit and the lamp flame leans and steadies again.']
 
 TURNS = [
     {'id': 'T0', 'opening': True, 'story_basis': 'tease', 'focus': 'none', 'move': 'world_description',
@@ -295,6 +293,27 @@ STALL_T0 = {'id': 'T0', 'opening': True, 'stall': True, 'focus': 'none', 'move':
                                     'Roll Perception.')]}
 HELD_T0 = {'id': 'T0r', 'line': 'Perception check: 1d20 (13) + 2 = 15', 'expect': {'stays': True},
            'move': 'world_description', 'scope': 'feature', 'speech': TURNS[0]['speech']}
+
+
+# --pithy (PR-F): the same game with the short lines a human DM would use where they do the job.
+# Brendon's harness cases: a 44-word room opening and a 10-word NPC challenge. Under the raw word
+# floors each was rejected and padded; under the functional floors they commit.
+PITHY = {
+    'T0': [('Narrator', 'An iron door stands ajar, lamplight leaking through the gap. Behind it someone hums the '
+                        'same four notes, over and over.'),
+           ('Narrator', 'The stair keeps winding down past the door into the dark. Up here, only the humming and '
+                        'the light. What do you do?')],
+    'T5': [('Narrator', 'His hand settles beside the bell cord.'), ('Watch warden', 'Who sent you?')],
+    'T6': [('Narrator', 'Two steps in, and the spear point finds the middle of his coat.'),
+           ('Watch warden', 'Passing through to where?')],
+    'T8': [('Narrator', 'The spear comes up an inch, level with his throat.'), ('Watch warden', 'No. Hands out. Now.')],
+    'T10': [('Narrator', 'Nik hits the floor hard at the warden\'s feet, the spear already over him.'),
+            ('Watch warden', 'Stay down.')],
+}
+
+
+def pithy_turns():
+    return [dict(turn, speech=PITHY[turn['id']]) if turn['id'] in PITHY else turn for turn in TURNS]
 
 
 def short_beat_turns():
@@ -402,9 +421,6 @@ def run(out=None, turns=None, manifests=False):
                 message = str(exc)
                 row['reasons'].append(f'reject: {message}'[:200])
                 fixed = correct(decision, message, packet)
-                if fixed == 'pad':  # Kit adds a visible beat and resubmits
-                    speech['segments'].insert(1, {'speaker': 'Narrator', 'text': PAD[row['rejects'] % len(PAD)]})
-                    continue
                 if not fixed:
                     row['unresolved'] = True
                     bridge.abandon(packet['turn_id'])
@@ -456,10 +472,13 @@ if __name__ == '__main__':
     parser.add_argument('--json')
     parser.add_argument('--manifests', action='store_true',
                         help='three-layer packets (SessionManifest, RoomManifest, TurnDelta), as the live CLI sends')
+    parser.add_argument('--pithy', action='store_true',
+                        help='short human-DM lines on T0, T5, T6, T8 and T10 (PR-F harness cases)')
     parser.add_argument('--short-beats', action='store_true',
                         help='T0 opens on a stall check (Roll Perception); the roll delivers the description')
     for key, value in MODEL.items():
         parser.add_argument('--' + key.replace('_', '-'), type=float, default=value)
     args = parser.parse_args()
     MODEL.update({key: getattr(args, key) for key in MODEL})
-    run(args.json, short_beat_turns() if args.short_beats else None, manifests=args.manifests)
+    turns = short_beat_turns() if args.short_beats else pithy_turns() if args.pithy else None
+    run(args.json, turns, manifests=args.manifests)
