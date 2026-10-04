@@ -1,0 +1,410 @@
+{
+  "schema_version": 1,
+  "kind": "bfdm_style_reference_manifest",
+  "policy": {
+    "authority": "Reference art teaches visual decisions only. It is never campaign canon.",
+    "max_references": 4,
+    "recent_usage_window": 6,
+    "same_reference_recent_penalty": 4,
+    "same_subject_family_recent_penalty": 2,
+    "subject_bias_rule": "A subject bias may raise a reference only when the requested subject actually matches it.",
+    "fallback": "If no private reference bytes are hydrated, use the reference metadata plus BFDM_VISUAL_ART_BIBLE.md as text-only direction."
+  },
+  "references": [
+    {
+      "id": "BFDM-CORE-01",
+      "label": "graphic-dark occult portrait",
+      "strength": "CORE",
+      "sha256": "e7cda4a7599e5d2e94590f85140e70a3d17cfb81553041c08c5e109e0e8b60b0",
+      "asset_modes": [
+        "character_spotlight",
+        "creature_concept",
+        "story_vignette",
+        "splash"
+      ],
+      "branches": [
+        "core",
+        "roanoke",
+        "earthfall"
+      ],
+      "lanes": [
+        "graphic_dark",
+        "horror"
+      ],
+      "teaches": [
+        "silhouette",
+        "limited_palette",
+        "structural_contour",
+        "graphic_contrast",
+        "horror"
+      ],
+      "subject_bias": [
+        "occult",
+        "horror"
+      ],
+      "avoid_for": [
+        "bright_storybook"
+      ],
+      "private_path": "assets/style/references/BFDM-CORE-01.png"
+    },
+    {
+      "id": "BFDM-CORE-02",
+      "label": "luminous character figure",
+      "strength": "CORE",
+      "sha256": "bcef37f5c516deb868aedbe19d47002f348009c651d6ab0ade9d21301a6df5b8",
+      "asset_modes": [
+        "character_spotlight",
+        "story_vignette",
+        "splash"
+      ],
+      "branches": [
+        "core",
+        "arcania",
+        "earthfall"
+      ],
+      "lanes": [
+        "luminous",
+        "bright_storybook"
+      ],
+      "teaches": [
+        "color_mass",
+        "glow",
+        "selective_finish",
+        "figure_presentation",
+        "brushy_edges"
+      ],
+      "subject_bias": [
+        "magic",
+        "divine",
+        "arcane"
+      ],
+      "avoid_for": [],
+      "private_path": "assets/style/references/BFDM-CORE-02.png"
+    },
+    {
+      "id": "BFDM-CORE-03",
+      "label": "costume and color character study",
+      "strength": "CORE",
+      "sha256": "b3f3fb88ec2c0ff6907c10bffe631c32253abe2224c47f3bae5a9e170bd37585",
+      "asset_modes": [
+        "character_spotlight",
+        "story_vignette",
+        "splash"
+      ],
+      "branches": [
+        "core",
+        "arcania",
+        "earthfall"
+      ],
+      "lanes": [
+        "character_design"
+      ],
+      "teaches": [
+        "costume_shape",
+        "color_blocking",
+        "visible_line",
+        "selective_finish",
+        "magic_accent"
+      ],
+      "subject_bias": [
+        "spellcaster",
+        "costume"
+      ],
+      "avoid_for": [],
+      "private_path": "assets/style/references/BFDM-CORE-03.png"
+    },
+    {
+      "id": "BFDM-CORE-04",
+      "label": "grotesque theatrical collision",
+      "strength": "CORE",
+      "sha256": "2af1ad6e61106a1389785b2f7d7dc468c5e649fddec3d026182450c4c1ec8008",
+      "asset_modes": [
+        "creature_concept",
+        "story_vignette",
+        "splash"
+      ],
+      "branches": [
+        "core",
+        "roanoke",
+        "earthfall"
+      ],
+      "lanes": [
+        "horror",
+        "grotesque"
+      ],
+      "teaches": [
+        "organized_chaos",
+        "biological_wrongness",
+        "internal_line",
+        "theatrical_horror",
+        "color_collision"
+      ],
+      "subject_bias": [
+        "aberration",
+        "curse",
+        "body_horror"
+      ],
+      "avoid_for": [
+        "grounded_portrait"
+      ],
+      "private_path": "assets/style/references/BFDM-CORE-04.png"
+    },
+    {
+      "id": "BFDM-CORE-05",
+      "label": "exterior settlement design",
+      "strength": "CORE",
+      "sha256": "50ed3787c360faa0b1e3911471bba665656a291af076cdbf52c7543305b92a45",
+      "asset_modes": [
+        "exterior",
+        "story_vignette"
+      ],
+      "branches": [
+        "core",
+        "arcania",
+        "roanoke"
+      ],
+      "lanes": [
+        "storybook_environment"
+      ],
+      "teaches": [
+        "architecture_personality",
+        "crooked_verticality",
+        "roofline",
+        "local_color",
+        "dense_readable_detail",
+        "storybook_perspective"
+      ],
+      "subject_bias": [
+        "town",
+        "city",
+        "waterfront",
+        "settlement"
+      ],
+      "avoid_for": [],
+      "private_path": "assets/style/references/BFDM-CORE-05.png"
+    },
+    {
+      "id": "BFDM-CORE-06",
+      "label": "creature integrated into environment",
+      "strength": "CORE",
+      "sha256": "c1f33238c2665390bfc4e1d02771d3b9b2b49b57ed154d5cba9627c692f11e61",
+      "asset_modes": [
+        "creature_concept",
+        "story_vignette"
+      ],
+      "branches": [
+        "core",
+        "roanoke",
+        "arcania"
+      ],
+      "lanes": [
+        "creature_environment"
+      ],
+      "teaches": [
+        "creature_environment_unity",
+        "strong_line",
+        "authored_anatomy",
+        "simplified_background",
+        "color_field"
+      ],
+      "subject_bias": [
+        "monster",
+        "cryptid",
+        "creature"
+      ],
+      "avoid_for": [],
+      "private_path": "assets/style/references/BFDM-CORE-06.png"
+    },
+    {
+      "id": "BFDM-CORE-07",
+      "label": "prop personality studies",
+      "strength": "CORE",
+      "sha256": "a659635ada0ed44028775c78b17f06a9176fac735e2792acba64369fcd92342c",
+      "asset_modes": [
+        "prop_study",
+        "handout"
+      ],
+      "branches": [
+        "core",
+        "arcania",
+        "earthfall"
+      ],
+      "lanes": [
+        "object_design"
+      ],
+      "teaches": [
+        "object_as_character",
+        "face_like_hardware",
+        "shape_language",
+        "geometric_color",
+        "presentation_field"
+      ],
+      "subject_bias": [
+        "item",
+        "bag",
+        "artifact",
+        "mask",
+        "equipment"
+      ],
+      "avoid_for": [],
+      "private_path": "assets/style/references/BFDM-CORE-07.png"
+    },
+    {
+      "id": "BFDM-CORE-08",
+      "label": "grounded anthropomorphic traveler portrait",
+      "strength": "CORE",
+      "sha256": "2d23cf7236d06304711b03c5f6cb5e6697f03b44b321d093c0db78890b2ca558",
+      "asset_modes": [
+        "character_spotlight"
+      ],
+      "branches": [
+        "core",
+        "roanoke"
+      ],
+      "lanes": [
+        "grounded_portrait"
+      ],
+      "teaches": [
+        "hat_silhouette",
+        "expressive_face",
+        "earth_tone_control",
+        "visible_sketch",
+        "selective_finish"
+      ],
+      "subject_bias": [
+        "anthropomorphic",
+        "traveler"
+      ],
+      "avoid_for": [
+        "human_portrait"
+      ],
+      "private_path": "assets/style/references/BFDM-CORE-08.png"
+    },
+    {
+      "id": "BFDM-CORE-09",
+      "label": "rules spread subclass page",
+      "strength": "CORE",
+      "sha256": "190363fc345024055cb8b0ea79fc2266997478ad0a9a786feb6abf076a539623",
+      "asset_modes": [
+        "rulebook_page",
+        "handout"
+      ],
+      "branches": [
+        "core",
+        "arcania"
+      ],
+      "lanes": [
+        "page_design"
+      ],
+      "teaches": [
+        "rules_hierarchy",
+        "parchment_panels",
+        "embedded_illustration",
+        "decorative_swirl",
+        "page_unity"
+      ],
+      "subject_bias": [
+        "subclass",
+        "class",
+        "rules"
+      ],
+      "avoid_for": [],
+      "private_path": "assets/style/references/BFDM-CORE-09.jpg"
+    },
+    {
+      "id": "BFDM-CORE-10",
+      "label": "illustrated rules continuation",
+      "strength": "CORE",
+      "sha256": "60bb082796477589792bf05cb9db5c1e7b971ec5c19b796b8a02d10c2ac88869",
+      "asset_modes": [
+        "rulebook_page",
+        "handout"
+      ],
+      "branches": [
+        "core",
+        "arcania"
+      ],
+      "lanes": [
+        "page_design"
+      ],
+      "teaches": [
+        "rules_plus_vignette",
+        "negative_space",
+        "illustration_breakout",
+        "soft_atmosphere",
+        "ornament_control"
+      ],
+      "subject_bias": [
+        "subclass",
+        "class",
+        "rules"
+      ],
+      "avoid_for": [],
+      "private_path": "assets/style/references/BFDM-CORE-10.jpg"
+    },
+    {
+      "id": "BFDM-CORE-11",
+      "label": "creature rulebook entry",
+      "strength": "CORE",
+      "sha256": "5b122a5c25aba5ea749e37d0edb0471ccd3c755165c6b7f48d5d3c726a57f65d",
+      "asset_modes": [
+        "rulebook_page",
+        "handout",
+        "creature_concept"
+      ],
+      "branches": [
+        "core",
+        "arcania",
+        "roanoke"
+      ],
+      "lanes": [
+        "page_design",
+        "bestiary"
+      ],
+      "teaches": [
+        "creature_page_anchor",
+        "floating_rule_panels",
+        "horror_plus_mechanics",
+        "asymmetric_balance"
+      ],
+      "subject_bias": [
+        "bestiary",
+        "monster",
+        "cryptid"
+      ],
+      "avoid_for": [],
+      "private_path": "assets/style/references/BFDM-CORE-11.jpg"
+    },
+    {
+      "id": "BFDM-CORE-12",
+      "label": "dense mechanics character vignette",
+      "strength": "CORE",
+      "sha256": "0f0f3b71738628d848f9bb180deaaecea99a3b75434e8b48217134e2ad831c69",
+      "asset_modes": [
+        "rulebook_page",
+        "handout"
+      ],
+      "branches": [
+        "core",
+        "arcania"
+      ],
+      "lanes": [
+        "page_design"
+      ],
+      "teaches": [
+        "dense_mechanics_hierarchy",
+        "accent_system",
+        "small_vignette",
+        "dark_field_pale_panels",
+        "ornament_unity"
+      ],
+      "subject_bias": [
+        "rules",
+        "class",
+        "subclass"
+      ],
+      "avoid_for": [],
+      "private_path": "assets/style/references/BFDM-CORE-12.jpg"
+    }
+  ]
+}
