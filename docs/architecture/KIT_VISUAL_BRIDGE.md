@@ -90,6 +90,8 @@ Use `python3 -m runtime.kit_agent visual-history --db kit.sqlite` to inspect rec
 
 The `player_safe` section is built from `Runtime.player_view()`, plus explicitly public visual descriptors.
 
+The raw request is retained for intent and provenance, but it is **not** a factual source. Do not copy factual claims from the raw request into the image prompt unless the same fact is supported by `player_safe`. The host should reconstruct factual depiction from `player_safe` and use the request only for presentation intent.
+
 It may contain:
 
 - the current public location name;
