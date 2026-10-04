@@ -196,7 +196,7 @@ When a player explicitly asks the assistant to create/show/draw/generate an imag
 3. Read the returned brief.
 4. If an available exact canonical asset answers the request, reveal that safe asset.
 5. Otherwise use ChatGPT's built-in image generation capability.
-6. Give the image generator factual content only from `player_safe`.
+6. Give the image generator factual content only from `player_safe`. The wording of the user's request does not promote an unsupported subject/detail into fact; if the request names something hidden or unestablished, omit it or tell the user it cannot safely be depicted yet.
 7. Apply the returned BFDM style references and house-style instructions.
 8. Do not use Python to call a paid image/model API.
 9. The picture does not alter game state.
