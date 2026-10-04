@@ -64,7 +64,7 @@ def lair_room(**changes):
         'facts': {
             'lantern': {'area': 'loft', 'visible': True,
                         'text': 'A rusted lantern hangs from a hook over a dry cistern.',
-                        'handling': {'nouns': ['lantern'], 'look': 'Rust, and a cold wick.',
+                        'handling': {'nouns': ['lantern'], 'parts': ['hook'], 'look': 'Rust, and a cold wick.',
                                      'move': 'The lantern swings on its hook.'}},
             'bones': {'area': 'loft', 'visible': True, 'text': 'Pigeon bones litter the planks.'},
             'roost': {'area': 'loft', 'visible': False, 'text': 'Four stirges roost out of sight among the rafters.'},
@@ -299,6 +299,73 @@ def gate_room():
              'delivered_when': {'said': {'by': ['ysolde'], 'any': ['guild', 'east']}}}]}},
         'resources': {},
     }
+
+
+class PartsAndHeldItems(unittest.TestCase):
+    """A feature with graspable parts or a held item must list parts/holds, so 'I lift the lantern off
+    its hook' and 'I take the key from the lantern' disturb it (#97). Synthetic keyed text, area 3."""
+
+    def inputs(self):
+        return kit_author.area_inputs(book(), '3')
+
+    def test_the_packet_carries_the_rule_and_the_schema_fields(self):
+        packet = kit_author.packet(book(), '3')
+        self.assertIn(kit_author.PARTS_RULE, packet['hard_rules'])
+        self.assertIn('parts?', packet['schema']['required']['facts'])
+        self.assertIn('holds?', packet['schema']['required']['facts'])
+
+    def test_an_item_in_a_feature_that_does_not_hold_it_is_refused(self):
+        room = lair_room()
+        room['facts']['wick_key'] = {'area': 'loft', 'visible': False,
+                                     'text': 'A tiny key is wedged inside the lantern.'}
+        errors = kit_author.validate(room, self.inputs())['errors']
+        self.assertTrue(any('fact wick_key is in or on lantern' in e and 'handling.holds' in e for e in errors), errors)
+        room['facts']['lantern']['handling']['holds'] = 'wick_key'
+        errors = kit_author.validate(room, self.inputs())['errors']
+        self.assertFalse(any('handling.holds' in e for e in errors), errors)
+
+    def test_a_graspable_part_must_be_listed(self):
+        self.assertEqual(kit_author.validate(lair_room(), self.inputs())['errors'], [])
+        room = lair_room()
+        del room['facts']['lantern']['handling']['parts']      # "hangs from a hook": the hook is graspable
+        errors = kit_author.validate(room, self.inputs())['errors']
+        self.assertTrue(any('fact lantern has graspable parts (hook)' in e for e in errors), errors)
+
+
+class Layers(unittest.TestCase):
+    """Progressive reveal (#101) reads "layer" on facts: the authoring rules carry it, and the way on,
+    the exits and anything a trigger or a held item hangs on are always obvious."""
+
+    def inputs(self):
+        return kit_author.area_inputs(book(), '3')
+
+    def test_the_packet_carries_the_layer_rule_and_field(self):
+        packet = kit_author.packet(book(), '3')
+        self.assertIn(kit_author.LAYER_RULE, packet['hard_rules'])
+        self.assertIn('layer?', packet['schema']['required']['facts'])
+
+    def test_a_detail_layer_on_the_way_on_or_a_triggered_feature_is_refused(self):
+        room = lair_room()
+        room['facts']['bones']['layer'] = 'detail'
+        self.assertEqual(kit_author.validate(room, self.inputs())['errors'], [])
+        room['facts']['lantern']['layer'] = 'detail'       # the trigger fires on it: it invites a decision
+        room['exits']['down']['labels']['loft'] = 'A narrow stair spirals steeply downward.'
+        room['facts']['stairwell'] = {'area': 'loft', 'visible': True, 'layer': 'detail',
+                                      'text': 'Worn treads spiral steeply downward into the dark.'}
+        errors = kit_author.validate(room, self.inputs())['errors']
+        self.assertTrue(any('fact lantern' in e and 'obvious' in e for e in errors), errors)
+        self.assertTrue(any('fact stairwell' in e and 'way on' in e for e in errors), errors)
+        room = lair_room()
+        room['facts']['bones']['layer'] = 'hidden'
+        self.assertTrue(any('layer must be obvious or detail' in e
+                            for e in kit_author.validate(room, self.inputs())['errors']))
+
+    def test_an_id_that_is_also_a_damage_type_is_not_a_way_on(self):
+        room = lair_room()
+        room['facts']['fire'] = {'area': 'loft', 'visible': True, 'layer': 'detail',
+                                 'text': 'Pigeon feathers drift across the planks.'}
+        errors = kit_author.validate(room, self.inputs())['errors']
+        self.assertFalse(any('fact fire' in e and 'way on' in e for e in errors), errors)
 
 
 class CacheAndLinks(Session):

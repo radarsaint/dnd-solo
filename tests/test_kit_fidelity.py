@@ -388,6 +388,8 @@ class SyntheticAreas(Harness, unittest.TestCase):
         for key in hidden_actors(room):
             room['actors'][key]['name'] = 'Lantern stirge'
         room['facts']['here']['text'] = 'A rusted lantern hangs from a hook.'      # the source says it openly
+        if 'handling' in room['facts']['here']:
+            room['facts']['here']['handling']['parts'] = ['hook']             # PARTS_RULE: a graspable hook
         self.assertEqual(errors(room, inputs), [])
         room['facts']['here']['text'] = 'A rusted lantern hangs from a hook, and a stirge wing pokes out.'
         self.assertTrue(any('names hidden actor' in e and 'stirg' in e for e in errors(room, inputs)))

@@ -125,7 +125,9 @@ whether it is a way), `level_notes`, `geometry`, the room `schema` (limits, SRD 
 
 `kit_author.validate` reports **every** error at once (the repair gets one try): the authoring
 rules (data only, id, `source_area`, author links to named neighbours, ledger exits, trigger `on`
-is disturb or enter, hidden actors need a waking trigger), the fidelity diff above, the room
+is disturb or enter, hidden actors need a waking trigger, a fact in, under or in the grip of a
+handled feature must be that feature's `holds`, a graspable part word (claw, lid, hand, hook...) on a
+handled feature or its held item must be in `parts`, `layer` rules below), the fidelity diff above, the room
 loader's checks with every later-stage compiler (`every_problem`: all entries, not the first),
 alarms with no responders, trap schema, and a **mount probe** (`start_session` on a throwaway DB).
 
@@ -148,6 +150,20 @@ Kit to improvise from, its named ways as uncertain author links, neutral names, 
 committed record, handoff line), `author_ahead` lists the area for retry, and the next entry after
 an accepted submit mounts the real room. A fallback belongs to its session (the session id in the
 DB's `session_meta`): another session authors the area afresh.
+
+### Parts, held items and layers
+
+A feature with graspable parts or a held item lists them (`PARTS_RULE`): `handling.parts` (the claw,
+the lid, the hand) and `handling.holds` (the held item, its own fact, hidden allowed), so "I pry the
+claw open" or "I take the orb from the claw" is Kit's declared handles on that feature and fires its
+trigger (#97, ROOM_TRIGGERS.md).
+
+A visible fact may carry `"layer": "obvious"` or `"layer": "detail"` (`LAYER_RULE`). The first look
+into an area gives the obvious layer and holds the detail layer until the player looks there (#101,
+`kit_reveal`). The validator refuses `detail` on a fact a trigger fires on or that holds an item, and
+on a fact that describes the way on (it shares two or more content words, area names aside, with that
+area's exit names and labels). Ids are never matched as words. Leaving `layer` out is fine: the engine
+works it out from the room data.
 
 ## 6. Traps (`kit_traps`)
 
