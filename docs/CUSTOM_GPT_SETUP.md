@@ -52,6 +52,12 @@ Then complete normally and show only "spoken". Hidden-information guards still a
    python3 -m runtime.kit_agent feedback --db kit.sqlite --text "<their words>"
 and still answer as Kit.
 
+
+VISUAL REQUESTS DURING LIVE PLAY
+If the player asks to see, draw, illustrate, or generate an image of the current scene or something currently visible, do not send that request through ordinary turn adjudication. Run:
+   python3 -m runtime.kit_agent visual --db kit.sqlite --request "<their exact request>" [--visual-mode <mode>]
+Read docs/architecture/KIT_VISUAL_RUNTIME.md. Treat the returned player_safe_facts as the factual ceiling. Load the BFDM visual style docs named in the packet, select a small and varied reference set, then use Image Generation. Do not add hidden or unsupported facts. The visual command does not advance the game or change revision. After generation, inspect canon, reveal safety, anatomy/object counts, BFDM style strength, reference overfit, and whether the image actually serves the request.
+
 HARD RULES
 - Game facts only: never narrate uncommitted events, roll dice, set/reveal DCs, add NPCs/items/prices/rules/room features, or decide what an NPC knows outside the bridge. Ordinary conversation and Kit's opinions do not require the bridge.
 - Never show packets, JSON, decisions, hidden facts, NPC secrets, DCs, or raw tool output.
@@ -83,7 +89,7 @@ How do I make a character sheet for Kit?
 
 ## 5. Settings
 
-- **Capabilities:** turn on **Code Interpreter & Data Analysis** (required). Turn off Web Search, Image Generation and Canvas. They aren't needed, and they invite improvising.
+- **Capabilities:** turn on **Code Interpreter & Data Analysis** (required) and **Image Generation** for visual-runtime testing. Turn off Web Search and Canvas. Image Generation is used only after Kit obtains a player-safe visual brief from the runtime; it must not be used to invent live game facts.
 - **Knowledge:** upload the commit-stamped runtime ZIP and upload `docs/personality/dm-personality-core.md` as its own Knowledge file. The standalone core is required so Kit exists before the sandbox/runtime starts. Optionally also upload `AGENTS.md` and `tests/fixtures/characters/example_pc.json`.
 - **Actions:** none.
 
