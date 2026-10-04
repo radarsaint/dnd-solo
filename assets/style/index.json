@@ -405,6 +405,513 @@
       ],
       "avoid_for": [],
       "private_path": "assets/style/references/BFDM-CORE-12.jpg"
+    },
+    {
+      "id": "BFDM-GOOD-13",
+      "label": "dark human face portrait",
+      "strength": "GOOD",
+      "sha256": "2b33c9c33b6549b7f8738a8b954572b990436e1309bbd467e69ab8d191cb3b1f",
+      "asset_modes": [
+        "character_spotlight",
+        "splash"
+      ],
+      "branches": [
+        "core",
+        "roanoke"
+      ],
+      "lanes": [
+        "graphic_dark",
+        "portrait"
+      ],
+      "teaches": [
+        "face_simplification",
+        "hair_silhouette",
+        "black_field",
+        "selective_highlights",
+        "high_contrast"
+      ],
+      "subject_bias": [
+        "human_portrait",
+        "horror"
+      ],
+      "avoid_for": [
+        "bright_storybook"
+      ],
+      "private_path": "assets/style/references/BFDM-GOOD-13.jpg"
+    },
+    {
+      "id": "BFDM-GOOD-14",
+      "label": "whimsical centaur hybrid character",
+      "strength": "GOOD",
+      "sha256": "bfcb3e11ade706f03bd980969c7efa9350fe40278db9db637302728be2d7d8c6",
+      "asset_modes": [
+        "character_spotlight",
+        "creature_concept"
+      ],
+      "branches": [
+        "core",
+        "arcania"
+      ],
+      "lanes": [
+        "whimsy",
+        "hybrid_character"
+      ],
+      "teaches": [
+        "hybrid_anatomy",
+        "comic_premise",
+        "costume_integration",
+        "clean_silhouette",
+        "simple_field"
+      ],
+      "subject_bias": [
+        "hybrid",
+        "anthropomorphic"
+      ],
+      "avoid_for": [
+        "horror"
+      ],
+      "private_path": "assets/style/references/BFDM-GOOD-14.jpg"
+    },
+    {
+      "id": "BFDM-GOOD-15",
+      "label": "graphic limited-palette male portrait",
+      "strength": "GOOD",
+      "sha256": "7b68fa47b0de3a2a7c3931c7632e56cb6c8ca55d1f52b7f3ac1bf9878d57bcf2",
+      "asset_modes": [
+        "character_spotlight",
+        "splash"
+      ],
+      "branches": [
+        "core",
+        "roanoke"
+      ],
+      "lanes": [
+        "graphic_portrait"
+      ],
+      "teaches": [
+        "limited_palette",
+        "poster_face",
+        "hard_contour",
+        "negative_space",
+        "expression"
+      ],
+      "subject_bias": [
+        "human_portrait"
+      ],
+      "avoid_for": [],
+      "private_path": "assets/style/references/BFDM-GOOD-15.jpg"
+    },
+    {
+      "id": "BFDM-GOOD-16",
+      "label": "ship riding a sea-creature silhouette",
+      "strength": "GOOD",
+      "sha256": "8745b086e0e9713e751ab36ccb7d24a9e4bb57355a8841605109e5352eeaff4d",
+      "asset_modes": [
+        "exterior",
+        "prop_study",
+        "story_vignette"
+      ],
+      "branches": [
+        "core",
+        "arcania"
+      ],
+      "lanes": [
+        "vehicle_world_concept",
+        "storybook"
+      ],
+      "teaches": [
+        "one_weird_idea",
+        "vehicle_silhouette",
+        "worldbuilding_hook",
+        "bright_local_color",
+        "simplified_water"
+      ],
+      "subject_bias": [
+        "vehicle",
+        "creature"
+      ],
+      "avoid_for": [],
+      "private_path": "assets/style/references/BFDM-GOOD-16.jpg"
+    },
+    {
+      "id": "BFDM-GOOD-17",
+      "label": "red-eyed construct character",
+      "strength": "GOOD",
+      "sha256": "bba2eaa6985b81aa2f350763bd60a46dc998323c1cab8c79a3ecbdb98c8ad798",
+      "asset_modes": [
+        "character_spotlight",
+        "creature_concept",
+        "prop_study"
+      ],
+      "branches": [
+        "core",
+        "arcania",
+        "earthfall"
+      ],
+      "lanes": [
+        "construct",
+        "object_character"
+      ],
+      "teaches": [
+        "chunky_mechanical_shape",
+        "face_like_hardware",
+        "red_glow_focus",
+        "asymmetry",
+        "object_as_character"
+      ],
+      "subject_bias": [
+        "construct",
+        "item"
+      ],
+      "avoid_for": [],
+      "private_path": "assets/style/references/BFDM-GOOD-17.jpg"
+    },
+    {
+      "id": "BFDM-GOOD-18",
+      "label": "dark creature face in a void",
+      "strength": "GOOD",
+      "sha256": "ccec96a0cd714d91de9d75e5bcf050cbc74c771f085542115a8ee073add8104a",
+      "asset_modes": [
+        "creature_concept",
+        "story_vignette",
+        "splash"
+      ],
+      "branches": [
+        "core",
+        "roanoke"
+      ],
+      "lanes": [
+        "horror",
+        "dark_void"
+      ],
+      "teaches": [
+        "eye_focus",
+        "void_background",
+        "selective_finish",
+        "grotesque_face",
+        "tiny_light_accents"
+      ],
+      "subject_bias": [
+        "horror",
+        "creature"
+      ],
+      "avoid_for": [
+        "bright_storybook"
+      ],
+      "private_path": "assets/style/references/BFDM-GOOD-18.jpg"
+    },
+    {
+      "id": "BFDM-EDGE-19",
+      "label": "clean layered fantasy costume study",
+      "strength": "EDGE",
+      "sha256": "c867a04ab5fcb2b039980ca0b7501053e9f2d0deccb1fb155f87253897d7ff83",
+      "asset_modes": [
+        "character_spotlight"
+      ],
+      "branches": [
+        "core",
+        "arcania"
+      ],
+      "lanes": [
+        "costume_study"
+      ],
+      "teaches": [
+        "layered_cloth",
+        "costume_panels",
+        "purple_accent",
+        "front_facing_read",
+        "simple_background"
+      ],
+      "subject_bias": [
+        "human_portrait",
+        "costume"
+      ],
+      "avoid_for": [
+        "graphic_dark"
+      ],
+      "private_path": "assets/style/references/BFDM-EDGE-19.jpg"
+    },
+    {
+      "id": "BFDM-GOOD-20",
+      "label": "moody forest discovery vignette",
+      "strength": "GOOD",
+      "sha256": "7034e85ff5dc5107b345e34c30b180cf9b86731268b74863dd3eb499135a480a",
+      "asset_modes": [
+        "story_vignette",
+        "character_spotlight"
+      ],
+      "branches": [
+        "core",
+        "roanoke"
+      ],
+      "lanes": [
+        "moody_vignette"
+      ],
+      "teaches": [
+        "narrative_action",
+        "atmospheric_depth",
+        "dark_environment",
+        "small_glow_focus",
+        "selective_scene_detail"
+      ],
+      "subject_bias": [
+        "story",
+        "horror"
+      ],
+      "avoid_for": [],
+      "private_path": "assets/style/references/BFDM-GOOD-20.jpg"
+    },
+    {
+      "id": "BFDM-GOOD-21",
+      "label": "surreal mushroom-creature encounter",
+      "strength": "GOOD",
+      "sha256": "963f384e5d117271031622adfc978ad62aba530e863868169d0270981baa3322",
+      "asset_modes": [
+        "creature_concept",
+        "story_vignette"
+      ],
+      "branches": [
+        "core",
+        "arcania"
+      ],
+      "lanes": [
+        "whimsical_grotesque"
+      ],
+      "teaches": [
+        "cute_grotesque_collision",
+        "overlapping_forms",
+        "expression",
+        "saturated_focus",
+        "dark_field"
+      ],
+      "subject_bias": [
+        "creature",
+        "hybrid"
+      ],
+      "avoid_for": [],
+      "private_path": "assets/style/references/BFDM-GOOD-21.jpg"
+    },
+    {
+      "id": "BFDM-EDGE-22",
+      "label": "masked streetwear character",
+      "strength": "EDGE",
+      "sha256": "3a453c008c1ec0ffc573e1261c5f1412905fd4daf7c4cd9215d5c4c14d1279b3",
+      "asset_modes": [
+        "character_spotlight",
+        "splash"
+      ],
+      "branches": [
+        "earthfall",
+        "core"
+      ],
+      "lanes": [
+        "streetwear",
+        "synthetic_color"
+      ],
+      "teaches": [
+        "mask_silhouette",
+        "graphic_background",
+        "streetwear_panels",
+        "cyan_orange_contrast",
+        "clean_pose"
+      ],
+      "subject_bias": [
+        "human_portrait",
+        "sci_fi"
+      ],
+      "avoid_for": [
+        "historical"
+      ],
+      "private_path": "assets/style/references/BFDM-EDGE-22.jpg"
+    },
+    {
+      "id": "BFDM-EDGE-23",
+      "label": "vertical symbolic ornament composition",
+      "strength": "EDGE",
+      "sha256": "44e0604a0b898d0d6440b4db9eb929e9f7d52369ae19301a6a4f7a574cae7df0",
+      "asset_modes": [
+        "prop_study",
+        "handout",
+        "splash"
+      ],
+      "branches": [
+        "core",
+        "roanoke",
+        "arcania"
+      ],
+      "lanes": [
+        "symbolic",
+        "ornament"
+      ],
+      "teaches": [
+        "vertical_emblem",
+        "scrollwork",
+        "negative_space",
+        "symbolic_shape",
+        "decorative_flow"
+      ],
+      "subject_bias": [
+        "symbol",
+        "item"
+      ],
+      "avoid_for": [],
+      "private_path": "assets/style/references/BFDM-EDGE-23.jpg"
+    },
+    {
+      "id": "BFDM-GOOD-24",
+      "label": "moonlit armored figure vignette",
+      "strength": "GOOD",
+      "sha256": "89ff3ce80b0e544673b2631a96721943a5e98366978e076038927b1408a35c63",
+      "asset_modes": [
+        "character_spotlight",
+        "story_vignette",
+        "splash"
+      ],
+      "branches": [
+        "core",
+        "roanoke"
+      ],
+      "lanes": [
+        "graphic_dark",
+        "moonlit"
+      ],
+      "teaches": [
+        "moon_anchor",
+        "red_weapon_accent",
+        "dark_mass",
+        "implied_environment",
+        "theatrical_pose"
+      ],
+      "subject_bias": [
+        "human_portrait",
+        "horror"
+      ],
+      "avoid_for": [],
+      "private_path": "assets/style/references/BFDM-GOOD-24.jpg"
+    },
+    {
+      "id": "BFDM-EDGE-25",
+      "label": "soft red-haired face study",
+      "strength": "EDGE",
+      "sha256": "4767557d832d1d1f5c798029bf2a550a0ff01f125a2cddd64b3224c3f5991482",
+      "asset_modes": [
+        "character_spotlight"
+      ],
+      "branches": [
+        "core",
+        "arcania"
+      ],
+      "lanes": [
+        "soft_portrait"
+      ],
+      "teaches": [
+        "hair_color_mass",
+        "face_focus",
+        "soft_light",
+        "minimal_background",
+        "beauty_stylization"
+      ],
+      "subject_bias": [
+        "human_portrait"
+      ],
+      "avoid_for": [
+        "horror"
+      ],
+      "private_path": "assets/style/references/BFDM-EDGE-25.jpg"
+    },
+    {
+      "id": "BFDM-EDGE-26",
+      "label": "geometric science-fantasy figure",
+      "strength": "EDGE",
+      "sha256": "0c30a3d4d000b4f5f15a6116adeb911d4bc4887bc5a9360ed7861ba0e99d6ceb",
+      "asset_modes": [
+        "character_spotlight",
+        "splash"
+      ],
+      "branches": [
+        "earthfall",
+        "core"
+      ],
+      "lanes": [
+        "graphic_scifi",
+        "geometric"
+      ],
+      "teaches": [
+        "geometric_framing",
+        "hard_panels",
+        "white_blue_orange",
+        "poster_symmetry",
+        "clean_silhouette"
+      ],
+      "subject_bias": [
+        "sci_fi",
+        "human_portrait"
+      ],
+      "avoid_for": [
+        "storybook_environment"
+      ],
+      "private_path": "assets/style/references/BFDM-EDGE-26.jpg"
+    },
+    {
+      "id": "BFDM-GOOD-27",
+      "label": "warm interior character interaction",
+      "strength": "GOOD",
+      "sha256": "cfb866192450f5e8f3db31d050b8408edafa509956fb3219a61d05ab97e502d9",
+      "asset_modes": [
+        "story_vignette",
+        "character_spotlight"
+      ],
+      "branches": [
+        "core",
+        "arcania"
+      ],
+      "lanes": [
+        "interior_vignette"
+      ],
+      "teaches": [
+        "character_interaction",
+        "warm_interior_light",
+        "scale_contrast",
+        "prop_rich_scene",
+        "narrative_pose"
+      ],
+      "subject_bias": [
+        "story",
+        "anthropomorphic"
+      ],
+      "avoid_for": [],
+      "private_path": "assets/style/references/BFDM-GOOD-27.jpg"
+    },
+    {
+      "id": "BFDM-GOOD-28",
+      "label": "small figures under a looming cave mark",
+      "strength": "GOOD",
+      "sha256": "f8efac1338f37d57c4fc30a6515019df202a8ebfcef64b384601d3dd2d7cfdff",
+      "asset_modes": [
+        "story_vignette",
+        "exterior"
+      ],
+      "branches": [
+        "core",
+        "roanoke"
+      ],
+      "lanes": [
+        "ominous_vignette",
+        "negative_space"
+      ],
+      "teaches": [
+        "small_figures_large_space",
+        "symbol_focal_point",
+        "atmosphere",
+        "narrative_scale",
+        "unfinished_environment"
+      ],
+      "subject_bias": [
+        "story",
+        "horror"
+      ],
+      "avoid_for": [],
+      "private_path": "assets/style/references/BFDM-GOOD-28.jpg"
     }
   ]
 }
