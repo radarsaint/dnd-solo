@@ -10,7 +10,8 @@ A room's ``triggers`` list says what wakes something up. Each entry is data:
      "reveal": "<public line when they show themselves>"}
 
 ``disturb`` fires when the PC moves, searches, or gets into the feature (the room's handled
-fact); ``enter`` fires when the PC arrives in the area. A trigger fires once. Firing commits a
+fact), or puts hands on one of its ``parts`` or takes what it ``holds`` ('I pry the claw open',
+'I take the orb from the claw'); ``enter`` fires when the PC arrives in the area. A trigger fires once. Firing commits a
 ``trigger_fired`` event (the actors go from hidden to alive and visible) and, with
 ``starts_combat``, the fight starts awaiting initiative with the reveal line read first.
 
@@ -29,7 +30,7 @@ import hashlib
 from .state_context import InvalidChange, require
 
 KINDS = ('disturb', 'enter')
-FEATURE_KINDS = ('move_feature', 'inspect_feature', 'enter_feature')
+FEATURE_KINDS = ('move_feature', 'inspect_feature', 'enter_feature', 'handle_feature')
 FIELDS = {'id', 'on', 'starts_combat', 'actors', 'surprise', 'reveal'}
 
 
@@ -98,10 +99,11 @@ def disturbed(source, state, result, action):
     """The fact this resolution handled (moved, searched, entered), or None."""
     if result.kind not in FEATURE_KINDS:
         return None
-    from .kit_agent import QUOTED_SPEECH, room_words  # local: kit_agent imports this module
+    from .kit_agent import QUOTED_SPEECH, feature_owner, room_words  # local: kit_agent imports this module
     words = room_words(source, state)
     found = words.feature_in(QUOTED_SPEECH.sub(' ', action).lower()) or words.feature_in(action.lower())
-    return found[1] if found else None
+    # A part names its feature; an item it holds (the claw's orb) disturbs the feature holding it.
+    return feature_owner(source, found[1]) if found else None
 
 
 def arrived(source, state, result):
