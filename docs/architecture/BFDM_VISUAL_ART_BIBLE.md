@@ -952,7 +952,7 @@ Correction:
 
 - fix the actual error.
 
-Do not solve an unwanted third ear by changing the camera angle.
+Do not solve a duplicated body part by changing the camera angle or hiding it.
 
 ---
 
@@ -971,9 +971,9 @@ Examples:
 - tails: expected count;
 - firearm: expected count.
 
-The jackalope failure is the canonical warning:
+A prior anatomy-count failure is the canonical warning:
 
-> A beautiful image still fails if the character has three ears.
+> A beautiful image still fails if the subject has the wrong number of body parts.
 
 ---
 
