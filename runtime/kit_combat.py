@@ -705,6 +705,8 @@ class Fight:
                     self.run_npcs()
                 elif waiting['trigger'] == 'npc_save':
                     self.resume_spell_save(waiting, react)
+                    if self.fight['status'] == 'awaiting_initiative':
+                        self.fight['opener_spent'] = True  # the spell paused here was his opening blow
                     self.after_pc_action(True)
                 else:  # leaves_reach: an opportunity attack
                     key = waiting['actor']
