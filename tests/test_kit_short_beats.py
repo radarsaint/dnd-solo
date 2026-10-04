@@ -174,7 +174,9 @@ class HeldDescriptionIsAnObligation(ShortBeat):
         elsewhere = ('You take a slow breath and weigh what you know so far, turning the question of the night '
                      'over in your mind while your pulse settles and your thoughts run on ahead of you, patient '
                      'and careful and wholly your own, until you are ready to decide what comes next.')
-        with self.assertRaisesRegex(InvalidChange, 'held'):
+        # PR-F: the functional feature floor now catches this first (it names none of the place's
+        # visible things); the held-description check behind it says the same thing.
+        with self.assertRaisesRegex(InvalidChange, 'visible things|held'):
             self.bridge.complete('d', {'decision': plan, 'performance': {'segments': [
                 {'speaker': 'Narrator', 'text': elsewhere}, {'speaker': 'Narrator', 'text': (
                     'Whatever you choose, it will be yours to choose, and the choosing will not wait '

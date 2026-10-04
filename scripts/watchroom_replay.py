@@ -20,7 +20,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from runtime import kit_detail, kit_manifest  # noqa: E402
+from runtime import kit_agent, kit_detail, kit_manifest  # noqa: E402
 from runtime.kit_agent import KitChatBridge, PendingRuling, RoomAdjudicator, start_session  # noqa: E402
 from runtime.state_context import InvalidChange, Runtime  # noqa: E402
 
@@ -204,6 +204,8 @@ def correct(decision, message, packet):
         read['actor_basis'] = bases[0]
     elif 'scope was flat' in message:
         return 'pad'
+    elif 'hand the floor' in message or 'nothing to answer' in message:
+        return 'handoff'
     else:
         return False
     return True
@@ -302,8 +304,47 @@ HELD_T0 = {'id': 'T0r', 'line': 'Perception check: 1d20 (13) + 2 = 15', 'expect'
            'move': 'world_description', 'scope': 'feature', 'speech': TURNS[0]['speech']}
 
 
+# --pithy (PR-F): the same game with the short lines a human DM would use where they do the job.
+# Brendon's harness cases: a 44-word room opening and a 10-word NPC challenge. Under the raw word
+# floors each was rejected and padded; under the functional floors they commit.
+PITHY = {
+    'T0': [('Narrator', 'An iron door stands ajar, lamplight leaking through the gap. Behind it someone hums the '
+                        'same four notes, over and over.'),
+           ('Narrator', 'The stair keeps winding down past the door into the dark. Up here, only the humming and '
+                        'the light. What do you do?')],
+    'T5': [('Narrator', 'His hand settles beside the bell cord.'), ('Watch warden', 'Who sent you?')],
+    'T6': [('Narrator', 'Two steps in, and the spear point finds the middle of his coat.'),
+           ('Watch warden', 'Passing through to where?')],
+    'T8': [('Narrator', 'The spear comes up an inch, level with his throat.'), ('Watch warden', 'No. Hands out. Now.')],
+    'T10': [('Narrator', 'Nik hits the floor hard at the warden\'s feet, the spear already over him.'),
+            ('Watch warden', 'Stay down.')],
+}
+
+
+def pithy_turns():
+    return [dict(turn, speech=PITHY[turn['id']]) if turn['id'] in PITHY else turn for turn in TURNS]
+
+
 def short_beat_turns():
     return [STALL_T0, HELD_T0] + TURNS[1:]
+
+
+LIVE_SPEECH = {'on': False}  # --live-speech: Kit's live lines exactly, no first-try handoff
+
+
+def follow_contract(speech, decision):
+    """PR-F: performance_limits says a feature or exchange ends by handing the floor to the
+    player. Kit's live lines predate that rule; on her first try she ends a turn that does not
+    hand off with a short question (unless --live-speech replays the live lines as they were)."""
+    if LIVE_SPEECH['on'] or decision['public_brief'].get('scope') not in ('feature', 'exchange'):
+        return
+    if not kit_agent.hands_off(speech['segments']):
+        hand_off(speech)
+
+
+def hand_off(speech):
+    last = next(s for s in reversed(speech['segments']) if s['speaker'] != 'Kit')
+    last['text'] = last['text'].rstrip() + ' What do you do?'
 
 
 def misread(turn, packet, runtime):
@@ -379,6 +420,7 @@ def run(out=None, turns=None, manifests=False):
         quote = ' '.join((packet['input']['private'].get('player_action') or '').split()[:4])
         speech = {'segments': [{'speaker': s, 'text': x, **({'reacts_to': quote} if s == 'Kit' else {})}
                                for s, x in turn['speech']]}
+        follow_contract(speech, decision)
         row['decision_bytes'] = nbytes(decision)
         row['speech_bytes'] = nbytes(speech)
         for _ in range(6):
@@ -406,6 +448,9 @@ def run(out=None, turns=None, manifests=False):
                 message = str(exc)
                 row['reasons'].append(f'reject: {message}'[:200])
                 fixed = correct(decision, message, packet)
+                if fixed == 'handoff':  # Kit ends on a question and resubmits
+                    hand_off(speech)
+                    continue
                 if fixed == 'pad':  # Kit adds a visible beat and resubmits
                     speech['segments'].insert(1, {'speaker': 'Narrator', 'text': PAD[row['rejects'] % len(PAD)]})
                     continue
@@ -455,10 +500,16 @@ if __name__ == '__main__':
     parser.add_argument('--json')
     parser.add_argument('--manifests', action='store_true',
                         help='three-layer packets (SessionManifest, RoomManifest, TurnDelta), as the live CLI sends')
+    parser.add_argument('--pithy', action='store_true',
+                        help='short human-DM lines on T0, T5, T6, T8 and T10 (PR-F harness cases)')
+    parser.add_argument('--live-speech', action='store_true',
+                        help="Kit's live lines exactly as played (no first-try handoff; PR-F)")
     parser.add_argument('--short-beats', action='store_true',
                         help='T0 opens on a stall check (Roll Perception); the roll delivers the description')
     for key, value in MODEL.items():
         parser.add_argument('--' + key.replace('_', '-'), type=float, default=value)
     args = parser.parse_args()
     MODEL.update({key: getattr(args, key) for key in MODEL})
-    run(args.json, short_beat_turns() if args.short_beats else None, manifests=args.manifests)
+    LIVE_SPEECH['on'] = args.live_speech
+    turns = short_beat_turns() if args.short_beats else pithy_turns() if args.pithy else None
+    run(args.json, turns, manifests=args.manifests)

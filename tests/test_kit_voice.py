@@ -238,11 +238,13 @@ class ShowtimeTests(VoiceTestCase):
         payload = self.bridge.decide('show', plan)
         self.assertIn('showtime', payload['instructions'])
         self.assertIn('overacting is welcome', payload['instructions'])
-        # Without Kit's segment the actor side alone is below the exchange floor under
-        # `present`; under showtime her theatrical narration is scene material.
+        # Without Kit's segment the actor side alone is below the sanity minimum under
+        # `present`; under showtime her theatrical narration is scene material (PR-F).
+        terse = {'segments': SHOWTIME_SPEECH['segments'][:2] + [{'speaker': 'Dealer', 'text': 'Well?'}]}
         present = {**plan, 'table_presence': 'present'}
         with self.assertRaisesRegex(InvalidChange, 'Exchange scope was flat'):
-            check_speech(SHOWTIME_SPEECH, present, {}, 'I stop and take in the whole room', 'social')
+            check_speech(terse, present, {}, 'I stop and take in the whole room', 'social')
+        check_speech(terse, plan, {}, 'I stop and take in the whole room', 'social')
         check_speech(SHOWTIME_SPEECH, plan, {}, 'I stop and take in the whole room', 'social')
         too_much = {'segments': [{'speaker': 'Kit', 'text': 'Look at it.', 'reacts_to': 'take in the whole room'}] * 4 + SHOWTIME_SPEECH['segments'][1:]}
         with self.assertRaisesRegex(InvalidChange, 'Showtime: Kit takes the stage in 1-'):

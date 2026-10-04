@@ -80,7 +80,8 @@ may say), optional `go_text` per area. Fact field `handling` (`nouns`, `holds`, 
   nobody blocks stays instant.
 - `public_performance.actor_cards.<label>.speech_floor`: `true` asks for the 30-word actor
   floor (6c's dealer). Default is no actor floor, so a terse voice (a guard of short questions)
-  passes; the exchange still needs its 40 words across narration and speech.
+  passes; the exchange still needs the actor's move and something for the player to answer
+  (functional floors, docs/architecture/FUNCTIONAL_FLOORS.md).
 
 **Hook delivery.** A `said` condition may set `"challenge": true`: any question the hook's
 actor puts to the PC delivers it, however it is worded ("Who goes there?"). A hook is

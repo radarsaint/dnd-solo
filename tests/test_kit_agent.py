@@ -1307,11 +1307,11 @@ class TerseCardPlayerTests(unittest.TestCase):
         kit_agent.check_scope(terse, self.plan('bandit_b'), self.GUARDS)
         silent = [segment for segment in terse if segment['speaker'] != 'Fresco-side player']
         silent[0] = {'speaker': 'Narrator', 'text': ' '.join(['word'] * 45)}
-        with self.assertRaisesRegex(InvalidChange, 'selected Fresco-side player never spoke'):
+        with self.assertRaisesRegex(InvalidChange, 'selected Fresco-side player makes no move'):
             kit_agent.check_scope(silent, self.plan('bandit_b'), self.GUARDS)
         # The selected card player must be the one who speaks, not another at the table.
         wrong = [terse[0], {'speaker': 'Door-side player', 'text': 'Please, just sit.'}, terse[2]]
-        with self.assertRaisesRegex(InvalidChange, 'selected Fresco-side player never spoke'):
+        with self.assertRaisesRegex(InvalidChange, 'selected Fresco-side player makes no move'):
             kit_agent.check_scope(wrong, self.plan('bandit_b'), self.GUARDS)
         # The whole-turn floor still guards against a flat card-player beat.
         with self.assertRaisesRegex(InvalidChange, 'Exchange scope was flat'):

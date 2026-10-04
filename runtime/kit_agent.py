@@ -1793,24 +1793,27 @@ _STOPWORDS = frozenset('''
 # with no focus actor (e.g. a narrow observation) may also be a call.
 CALL_MOVES = ('ruling', 'ask_clarification')
 
-# Flat-reply guard, checked per selected scope in check_speech. These numbers are
-# a floor against the Nik failure (a 13-word beat plus a 23-word price quote on
-# an important social turn), NOT a quality target: passing them does not make a
-# turn good, and they must never be used to reward length. Tune them with blind
-# review evidence. Words are counted in non-Kit segments, so Kit's table remarks
-# cannot stand in for the actor's side of an exchange.
+# Functional floors (PR-F), checked per selected scope in check_speech. They replaced the raw
+# word floors (80 words for a feature, 40 for an exchange): a playable 44-word room opening and
+# a 10-word NPC challenge ("His hand settles beside the bell cord. / Who sent you?") were
+# rejected by the word count alone, while a padded turn that said nothing passed it. A turn now
+# has to do its job:
+# * feature: name at least FEATURE_MIN_THINGS of the area's visible things (exits, actors,
+#   known facts, established details: what the player can decide about), and hand the floor
+#   to the player (hands_off).
+# * exchange: the focus actor makes a move (speaks, or the narration shows them acting) and
+#   the player gets something to answer (hands_off).
+# * both: at least SANITY_MIN_WORDS words outside Kit's segments, against empty turns.
+# These are floors against flat replies, NOT a quality target, and never a reason to pad.
 CALL_MAX_WORDS = 60          # a roll prompt, ruling, or narrow answer stays short
 CALL_MAX_SEGMENTS = 2
-EXCHANGE_MIN_WORDS = 40      # narration + actor speech on a social exchange
-EXCHANGE_MIN_ACTOR_WORDS = 30  # the selected actor's own speech (voiced actors only)
+SANITY_MIN_WORDS = 8         # narration + actor speech, against an empty turn
+FEATURE_MIN_THINGS = 2       # the area's visible things a feature names (fewer if the area has fewer)
+EXCHANGE_MIN_ACTOR_WORDS = 30  # the selected actor's own speech (only a card with speech_floor true)
 # The actor floor applies only to a focus actor whose actor card says "speech_floor": true
-# (6c's dealer, against the Nik failure). Every other actor may be brief: forcing 30 words
-# from a terse voice made every card player a speechmaker and a clipped guard a lecturer
-# (watchroom playtest). A brief focus must still speak, and the exchange total floor
-# (narration included) still applies.
-EXCHANGE_MIN_SEGMENTS = 2    # an embodied beat or second reactor, not one speech alone
-FEATURE_MIN_WORDS = 80       # scene entry or scene-turning moment
-FEATURE_MIN_SEGMENTS = 2
+# (room data, opted in against the Nik failure). Every other actor may be brief: forcing 30
+# words from a terse voice made every card player a speechmaker and a clipped guard a lecturer
+# (watchroom playtest).
 # Speech ceilings (plan update #3, PR3 d). "Roomy" means the ceiling, not unlimited. Advisory:
 # over one is noted on the record (over_ceiling), never rejected. They count only what can be
 # cut: narration, any second NPC, and Kit's remarks after her first. Never counted, so never shortened: the
@@ -1827,12 +1830,15 @@ def performance_limits(scope=None):
     """
     limits = {
         'call': f'At most {CALL_MAX_WORDS} words in at most {CALL_MAX_SEGMENTS} segments. Answer and stop.',
-        'exchange': (f'The focus actor speaks (at least {EXCHANGE_MIN_ACTOR_WORDS} words only when their '
-                     'card sets speech_floor true; otherwise speech_floor false may be brief but must speak); at least '
-                     f'{EXCHANGE_MIN_WORDS} words across non-Kit segments; at least '
-                     f'{EXCHANGE_MIN_SEGMENTS} segments (e.g. a visible beat plus the actor).'),
-        'feature': (f'At least {FEATURE_MIN_WORDS} words across non-Kit segments in at least '
-                    f'{FEATURE_MIN_SEGMENTS} segments.'),
+        'exchange': ('The focus actor makes a move (speaks, or acts in the narration) and the player gets '
+                     'something to answer: a question, a demand, an NPC line, or a roll call at the end. '
+                     f'The focus actor speaks at least {EXCHANGE_MIN_ACTOR_WORDS} words only when their card sets '
+                     'speech_floor true; otherwise speech_floor false may be brief. '
+                     f'At least {SANITY_MIN_WORDS} words outside Kit\'s segments.'),
+        'feature': (f'Name at least {FEATURE_MIN_THINGS} of the visible things here (exits, people, known '
+                    'facts) and end by handing the floor to the player: a question, a roll call, an NPC '
+                    f'line to answer, or "your move". At least {SANITY_MIN_WORDS} words outside Kit\'s segments. '
+                    'Short is fine when it does the job.'),
         'ceiling': (f'Narration, any second NPC and any Kit remark after the first aim for {EXCHANGE_MAX_WORDS} '
                     f'words at most in an exchange and {FEATURE_MAX_WORDS} in a feature. That is advisory: going '
                     'over is noted, not rejected. A call stays within '
@@ -1846,8 +1852,8 @@ def performance_limits(scope=None):
                    f'{kit_voice.COMBAT_MAX_AVG_SENTENCE_WORDS} words, none over '
                    f'{kit_voice.COMBAT_MAX_SENTENCE_WORDS}). Showtime: 1 to '
                    f'{kit_voice.SHOWTIME_MAX_KIT_SEGMENTS} Kit segments, and they count toward the floors.'),
-        'note': ('Floors guard against flat replies; they are not targets. Kit segments do not count '
-                 'toward the actor side. Never pad.'),
+        'note': ('Floors check that a turn does its job; they are not length targets. Kit segments do not '
+                 'count toward the actor side. Never pad.'),
         'padding': (f'Rejected as padding: any {kit_guards.PADDING_REPEAT_RUN_WORDS}-word run said twice, '
                     f'{kit_guards.RESTATE_MAX_RUN_WORDS}+ consecutive words echoed from the player, '
                     f'an {kit_guards.RECYCLED_RUN_WORDS}-word run reused from recent turns, narration '
@@ -2529,9 +2535,90 @@ def _words(text):
     return len(re.findall(r"[\w’']+", text))
 
 
+_HANDOFF_CALL = re.compile(r"\b(roll|check|saving throw|save)\b", re.IGNORECASE)
+_HANDOFF_PHRASE = re.compile(r"\b(what do you|what does \w+ do|your (move|call|turn)|up to you|will you|do you|"
+                             r"you (could|can|might) (try|go|take|open|wait|answer|leave|press|push|knock|turn|step))\b",
+                             re.IGNORECASE)
+
+
+def hands_off(segments, focus=None):
+    """The turn ends by giving the player the floor: its last segment, or its last non-Kit
+    segment (Kit may react after it), asks a question, calls a roll, says "your move" or the
+    like, or is an NPC's line the player can answer. In an exchange, the focus actor asking
+    anything also counts."""
+    if not segments:
+        return False
+    tail = [segments[-1]]
+    others = [segment for segment in segments if segment['speaker'] != 'Kit']
+    if others and others[-1] is not segments[-1]:
+        tail.append(others[-1])
+    for segment in tail:
+        text = segment['text']
+        last = (kit_guards.sentences(text) or [''])[-1]
+        if '?' in text or _HANDOFF_CALL.search(text) or _HANDOFF_PHRASE.search(last):
+            return True
+        if is_npc_speaker(segment['speaker']):
+            return True
+    return bool(focus) and any(segment['speaker'] == focus and '?' in segment['text'] for segment in segments)
+
+
+def _stem(word):
+    for suffix in ('ing', 'ed', 'es', 's'):
+        if word.endswith(suffix) and len(word) - len(suffix) >= 3:
+            word = word[:-len(suffix)]
+            break
+    if len(word) >= 4 and word[-1] == word[-2] and word[-1] not in 'aeiou':
+        word = word[:-1]
+    return word
+
+
+# Words in visible-thing labels that name nothing the player can act on.
+_THING_NOISE = frozenset(
+    'someone something standing stands lies lying leads near beside behind past toward towards front '
+    'over same four three five several each pale small large long short thin wide open opens closed '
+    'area room sits sitting covers spreading outward elaborate little feet floor wall north south east west'
+    .split())
+
+
+def _anchors(text):
+    return {_stem(word) for word in kit_guards.content_words(kit_guards.tokens(text))
+            if word not in _STOPWORDS and word not in _THING_NOISE}
+
+
+def visible_things(view):
+    """The area's visible, decision-relevant things from the public view: each exit, each
+    present actor, each known fact here and each established detail, as the anchor words
+    (stems) that name it."""
+    view = view or {}
+    things = [_anchors(f"{item.get('description', '')} {str(item.get('id', '')).replace('_', ' ')}")
+              for item in view.get('exits') or ()]
+    things += [_anchors(item.get('name', '')) for item in view.get('actors') or ()]
+    things += [_anchors(text) for text in view.get('known_facts_here') or ()]
+    things += [_anchors(item.get('fact', '')) for item in view.get('established_details') or ()]
+    return [sorted(thing) for thing in things if thing]
+
+
+def things_named(segments, things):
+    """How many distinct visible things the performance names. Each spoken word names at most
+    one thing (greedy, the thing with the fewest anchors first)."""
+    said = {_stem(word) for segment in segments for word in kit_guards.tokens(segment['text'])}
+
+    def hits(anchor):
+        return {word for word in said if word == anchor or (len(anchor) >= 4 and len(word) >= 4 and
+                                                             (word.startswith(anchor) or anchor.startswith(word)))}
+    used, named = set(), 0
+    for thing in sorted(things, key=len):
+        words = set().union(*(hits(anchor) for anchor in thing)) - used
+        if words:
+            used.add(sorted(words)[0])
+            named += 1
+    return named
+
+
 def check_scope(segments, plan, guards=None):
-    """Flat-reply guard per selected scope. A floor, not a measure of quality."""
+    """Functional floors per selected scope (PR-F). A floor, not a measure of quality."""
     scope = plan['public_brief']['scope']
+    guards = guards or {}
     # Showtime: Kit's theatrical narration in her own segments is scene material.
     showtime = plan.get('table_presence') == 'showtime'
     performed = [segment for segment in segments if segment['speaker'] != 'Kit' or showtime]
@@ -2542,30 +2629,45 @@ def check_scope(segments, plan, guards=None):
                 f'Call scope ran long ({total} words in {len(segments)} segments; limit '
                 f'{CALL_MAX_WORDS} words in {CALL_MAX_SEGMENTS}). Answer directly and stop.')
         return
+    name = 'Exchange' if scope == 'exchange' else 'Feature'
+    require(performed_words >= SANITY_MIN_WORDS,
+            f'{name} scope was flat ({performed_words} performed words; at least {SANITY_MIN_WORDS} outside '
+            'Kit\'s segments). Say what happens, then hand the floor to the player.')
+    problems = []
     if scope == 'exchange':
-        guards = guards or {}
-        # Without the room's speaker labels there is no actor to count; the total floor applies.
+        # Without the room's speaker labels there is no actor to check.
         actor = focus_speaker(plan, guards['speakers']) if 'speakers' in guards else None
-        if actor and actor in guards.get('brief_speakers', ()):
-            require(any(segment['speaker'] == actor for segment in segments),
-                    f'Exchange scope: the selected {actor} never spoke. A brief line is enough; '
-                    'the exchange floor still applies to the whole turn.')
-        elif actor:
-            actor_words = sum(_words(segment['text']) for segment in segments
-                              if segment['speaker'] == actor)
-            require(actor_words >= EXCHANGE_MIN_ACTOR_WORDS,
+        if actor and actor not in guards.get('brief_speakers', ()):
+            actor_words = sum(_words(segment['text']) for segment in segments if segment['speaker'] == actor)
+            if actor_words < EXCHANGE_MIN_ACTOR_WORDS:
+                problems.append(
                     f'Exchange scope: the {actor} spoke {actor_words} words (floor '
                     f'{EXCHANGE_MIN_ACTOR_WORDS}). Answer the words in reply_to and let the actor '
                     'pursue the brief tactic; do not pad with generic banter.')
-        require(performed_words >= EXCHANGE_MIN_WORDS and len(segments) >= EXCHANGE_MIN_SEGMENTS,
-                f'Exchange scope was flat ({performed_words} performed words in {len(segments)} '
-                f'segments; floor {EXCHANGE_MIN_WORDS} words in {EXCHANGE_MIN_SEGMENTS}). Add the '
-                'visible beat or reaction the brief calls for; a price or fact alone is not an exchange.')
-        return
-    require(performed_words >= FEATURE_MIN_WORDS and len(segments) >= FEATURE_MIN_SEGMENTS,
-            f'Feature scope was flat ({performed_words} performed words in {len(segments)} '
-            f'segments; floor {FEATURE_MIN_WORDS} words in {FEATURE_MIN_SEGMENTS}). Put people '
-            'and pressure in motion, then stop at a player decision.')
+        elif actor:
+            names = _anchors(actor)
+            spoke = any(segment['speaker'] == actor for segment in segments)
+            acted = any(segment['speaker'] == 'Narrator' and
+                        names & {_stem(word) for word in kit_guards.tokens(segment['text'])}
+                        for segment in segments)
+            if not (spoke or acted):
+                problems.append(f'Exchange scope: the selected {actor} makes no move. Let them speak or act; '
+                                'one brief line or one visible action is enough.')
+        if not hands_off(segments, actor):
+            problems.append('Exchange scope gives the player nothing to answer. End on what the actor asks or '
+                            'demands, or on a roll call; do not trail off into narration.')
+    else:
+        things = guards.get('visible_things') or []
+        need = min(FEATURE_MIN_THINGS, len(things))
+        named = things_named(performed, things)
+        if named < need:
+            problems.append(f'Feature scope names {named} of the area\'s visible things (at least {need}: '
+                            'its exits, people and known facts). Show what is there to act on; do not pad '
+                            'with mood.')
+        if not hands_off(segments):
+            problems.append('Feature scope does not hand the floor to the player. End on a question, a roll '
+                            'call, an NPC line to answer, or "your move".')
+    require(not problems, ' '.join(problems))
 
 
 CEILINGS = {'exchange': 'EXCHANGE_MAX_WORDS', 'feature': 'FEATURE_MAX_WORDS'}
@@ -3560,6 +3662,7 @@ def guard_context(source, body):
             'declared_procedures': tuple(procedures),
             'voice_contracts': {name: card.get('voice_contract') or {} for name, card in cards.items()},
             'speakers': actor_speakers(source), 'labels': speech_speakers(source),
+            'visible_things': visible_things(view),
             # The actor word floor is room data: only a card with speech_floor true asks for it
             # (6c's dealer). Every other voice may be terse (watchroom: a guard of short questions).
             'brief_speakers': tuple(name for name in dict.fromkeys(list(actor_speakers(source).values()) + list(cards))
@@ -3803,8 +3906,8 @@ def first_try_lines(runtime, body, planning_input):
     actors = [s for s in speakers['speakers'] if s not in NON_NPC_SPEAKERS]
     terse = [name for name in actors if (cards.get(name) or {}).get('speech_floor') is not True]
     lines = [
-        ('Room entry: reply_to is none (set for you); move world_description; scope feature, at least '
-         f'{FEATURE_MIN_WORDS} words in {FEATURE_MIN_SEGMENTS}+ segments.') if opening else
+        ('Room entry: reply_to is none (set for you); move world_description; scope feature: name at least '
+         f'{FEATURE_MIN_THINGS} visible things and end by handing the floor to the player.') if opening else
         "reply_to: a short verbatim quote of the player's words.",
         'improv_read story_anchor -> story_basis: ' + '; '.join(
             f'{anchor}: {", ".join(bases)}' for anchor, bases in (candidates.get('story_bases') or {}).items())
@@ -3816,9 +3919,9 @@ def first_try_lines(runtime, body, planning_input):
         + '. Every Kit segment needs reacts_to (a short verbatim quote of a public line this turn).',
     ]
     if terse:
-        lines.append(f'Terse is fine for {", ".join(terse)}: one short line meets the actor side; do not pad. '
-                     f'An exchange still needs {EXCHANGE_MIN_WORDS} words across non-Kit segments in '
-                     f'{EXCHANGE_MIN_SEGMENTS}+ segments; a call at most {CALL_MAX_WORDS} words.')
+        lines.append(f'Terse is fine for {", ".join(terse)}: one short line or one visible action is their move; do not pad. '
+                     'An exchange ends on something the player can answer; a call at most '
+                     f'{CALL_MAX_WORDS} words.')
     if body.get('story_due'):
         lines.append('Due now: ' + ', '.join(f"{item.get('id')} (raised by {item.get('by')})"
                                              for item in body['story_due']) + ', in character, this turn.')

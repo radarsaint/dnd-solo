@@ -16,7 +16,7 @@ LANDING = {'segments': [
                                     'across the landing stones. Behind the door someone hums the same four notes '
                                     'over and over, and a chair creaks when he shifts.'},
     {'speaker': 'Narrator', 'text': 'A stair winds on down past the door into the dark. The post is awake, and the '
-                                    'door stands ajar the width of a hand, the light inside steady and close, and nothing at all climbs the stair from below tonight, not yet anyway.'}]}
+                                    'door stands ajar the width of a hand, the light inside steady and close, and nothing at all climbs the stair from below tonight, not yet anyway. What do you do?'}]}
 
 
 class HostStampedTiming(Base):
