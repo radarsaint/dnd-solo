@@ -47,6 +47,15 @@ class KitVisualTests(unittest.TestCase):
         self.assertNotIn("keep strangers off the stair", blob)
         self.assertNotIn("guards from the gatehouse below", blob)
 
+    def test_fixture_visual_data_makes_visible_warden_drawable_without_invention(self):
+        self.replace_runtime(copy.deepcopy(self.source), "watchroom")
+        brief = kit_visual.prepare_visual(self.runtime, "Draw the watch warden.")
+        warden = brief["player_safe"]["visible_actors"][0]
+        self.assertEqual(warden["id"], "warden")
+        self.assertIn("broken nose", " ".join(warden["visual"]).casefold())
+        self.assertEqual(warden["counts"], {"arms": 2, "eyes": 2, "swords": 1})
+        self.assertEqual(brief["generation_contract"]["expected_counts"]["actor:warden.swords"], 1)
+
     def test_only_explicit_public_visual_descriptors_cross_boundary(self):
         source = copy.deepcopy(self.source)
         source["actors"]["warden"]["visual"] = {
