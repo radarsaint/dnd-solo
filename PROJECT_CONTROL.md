@@ -125,7 +125,7 @@ Before Friday:
 
 - GPT 1 — project truth / contradiction audit;
 - GPT 2 — Kit quality / failure-localization audit;
-- GPT 3 — BFDM research-readiness / Work queue;
+- GPT 3 — BFDM research-readiness / Work queue (complete; incorporated into paired coordination PRs);
 - Grok Build — executable runtime audit (complete);
 - separate GPT — mechanical corpus preparation;
 - control-room thread — synthesis and task routing.
