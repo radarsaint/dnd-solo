@@ -29,6 +29,15 @@ At the audited commit:
 
 This is materially beyond the old “Area 6c staged prototype” description.
 
+## Room-loader versus source-to-room boundary
+
+This distinction is settled and important:
+
+- **Built:** a generalized loader can mount conforming room JSON and chain rooms.
+- **Not built on current main:** general adventure-source retrieval/authoring that takes untouched keyed adventure text and produces the next playable room on demand.
+
+PR #100 is the current proposed source-to-room authoring path. Until equivalent functionality lands and is demonstrated across varied previously unplayed keyed areas, do not say “Kit can play any keyed room from the book” merely because the loader is generalized.
+
 ## What is not proven
 
 - Area 6c remains the only richly authored room on current `main`.
@@ -92,6 +101,17 @@ Important unresolved stack questions for Skippy include:
 - which pinned Kit build is actually mounted in external GPT/project environments.
 
 Do not resolve these by guessing from open-PR age.
+
+## Current authority traps
+
+Fresh agents are at particular risk of being misled by surfaces that still look current:
+
+- **Project KRABS v0.1** — historical pinned project material. Live `dnd-solo/main` contains **KRABS v0.2.2**, which explicitly supersedes v0.1, PR #44's v0.2 draft, and v0.2.1.
+- **In-repo `corpus/bfdm/` and `corpus/brendon/`** — obsolete mirror/bootstrap. Canonical BFDM authority is `radarsaint/bfdm-corpus`.
+- **Append-only collaboration board** — historical decision provenance, not the current work queue.
+- **Old open PRs** — open status does not mean active/canonical. #5, #11, #23, #36, #43, #44, and #67 are particularly easy to mistake for current direction.
+- **Duplicate current cleanup drafts** — #105/#110, #106/#108, and #107/#109 require one survivor/stack decision rather than parallel extension.
+- **Pinned ZIPs** — reproduce their commit only; they do not answer what current main does.
 
 ## Documentation state
 
