@@ -78,6 +78,22 @@ Therefore both of these claims are currently too strong:
 
 The next meaningful acceptance evidence should come from sustained current-main play in a materially different real room, after known blockers are merged or deliberately avoided. The purpose is to discover the next quality ceiling rather than rediscover known plumbing defects.
 
+## Four-audit synthesis
+
+The four October 7 audits converge on one project-level failure mode:
+
+> **proxy evidence has repeatedly been mistaken for demonstrated truth.**
+
+Runtime tests can pass while play is poor. Historical failures can outlive the builds that caused them. Searchable sources can support unverified derived claims. Old documents can still call themselves canonical after authority moved elsewhere.
+
+Current confidence should therefore be tracked separately across:
+- executable runtime truth;
+- player-experience evidence;
+- BFDM research trust;
+- project/coordination authority.
+
+The machinery is currently ahead of the evidence on both runtime quality and BFDM research trust.
+
 ## Product acceptance rule
 
 **Kit is the product. The total experience is the acceptance layer.**
@@ -143,8 +159,8 @@ Do not harden derived BFDM claims into runtime behavior merely because they are 
 
 Before Friday:
 
-- GPT 1 — project truth / contradiction audit;
-- GPT 2 — Kit quality / failure-localization audit;
+- GPT 1 — project truth / contradiction audit (complete; incorporated);
+- GPT 2 — Kit quality / failure-localization audit (complete; incorporated);
 - GPT 3 — BFDM research-readiness / Work queue (complete; incorporated into paired coordination PRs);
 - Grok Build — executable runtime audit (complete);
 - separate GPT — mechanical corpus preparation;
