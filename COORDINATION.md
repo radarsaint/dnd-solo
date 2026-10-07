@@ -114,6 +114,30 @@ A handoff is incomplete if it omits:
 - A source being present is not evidence it was used live.
 - A successful component is not automatically a successful product change.
 
+
+## Behavioral evidence freshness
+
+Player-facing quality claims must name both the evidence type and whether it still applies to the current build.
+
+Use these states:
+
+- **DEMONSTRATED_CURRENT_FAILURE** — reproduced on current `main` or directly shown by a failing-first test against current `main`.
+- **DEMONSTRATED_CURRENT_SUCCESS** — current-build human/live evidence shows the behavior works well.
+- **HISTORICAL_FAILURE** — real failure on an older build; still useful for regression history, but not proof of current failure.
+- **MECHANICALLY_ADDRESSED_UNRETESTED** — code/tests/replay indicate the old defect was repaired, but comparable human play has not confirmed the experienced result.
+- **STALE_FAILURE** — evidence now supports removing the old failure from the current indictment.
+- **UNKNOWN_CURRENT** — implementation changed enough that neither the old failure nor the intended fix has current player-facing confirmation.
+
+Always record the build/commit and evidence class where practical.
+
+Do not upgrade:
+- unit-test success -> behavioral-eval success;
+- behavioral-eval success -> actual-play success;
+- an old failure -> current failure after material implementation changes;
+- an intended fix -> demonstrated player-experience improvement.
+
+When implementation moves faster than player-facing evaluation, say so explicitly. Lack of current evidence is not proof of quality and not proof of failure.
+
 ## Conflict resolution
 
 When two agents disagree:
