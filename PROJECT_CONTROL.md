@@ -125,7 +125,7 @@ Do not resolve these by guessing from open-PR age.
 Fresh agents are at particular risk of being misled by surfaces that still look current:
 
 - **Project KRABS v0.1** — historical pinned project material. Live `dnd-solo/main` contains **KRABS v0.2.2**, which explicitly supersedes v0.1, PR #44's v0.2 draft, and v0.2.1.
-- **In-repo `corpus/bfdm/` and `corpus/brendon/`** — obsolete mirror/bootstrap. Canonical BFDM authority is `radarsaint/bfdm-corpus`. Removal is draft PR #114 (`retire/in-repo-corpus-mirror`), not this docs refresh. Do not extend the mirror.
+- **In-repo `corpus/bfdm/` and `corpus/brendon/`** — removed on draft PR #114 (`retire/in-repo-corpus-mirror`). `main` still contains the obsolete mirror until this branch lands. Canonical BFDM authority is `radarsaint/bfdm-corpus`. Do not recreate the mirror.
 - **Append-only collaboration board** — historical decision provenance, not the current work queue. Board-split drafts #107 and #109 are not adopted; a second live board would compete with this file.
 - **Old open PRs** — open status does not mean active/canonical. #5, #11, #23, #36, #43, and #44 are particularly easy to mistake for current direction. #67 is an older mirror-retirement draft, superseded by the follow-on above.
 - **Superseded cleanup drafts** — #105 and #110 are superseded by this control refresh. Unique leftovers kept here: ADR `0004-canonical-dm-personality-core.md` (the old filename collided with ADR 0001), HISTORICAL banners on the 0.2/0.3 runtime notes and the state-context handoff, and the fact that no committed room file contains `room_link`. #106 and #108 are superseded by draft PR #114 (`retire/in-repo-corpus-mirror`; #108 had the cleaner deletion scope, but a stale base). #107 and #109 are not adopted.
