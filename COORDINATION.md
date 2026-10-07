@@ -25,6 +25,24 @@ Runtime correctness, judgment, cognition, memory, BFDM fidelity, personality, la
 
 If a task crosses the runtime/research boundary, inspect both repos.
 
+## Proxy is not proof
+
+Across this project, a strong-looking proxy must not be mistaken for the thing it is meant to demonstrate.
+
+Examples:
+
+- passing tests != satisfying play;
+- a landed fix != demonstrated player-facing improvement;
+- citation presence != semantic verification;
+- source accessibility != trustworthy derived research;
+- room loading != source-to-room capability;
+- architecture/specification != implemented capability;
+- a document labeling itself canonical != current authority;
+- BFDM research quality != current Kit quality;
+- DM judgment != the whole Kit experience.
+
+When a claim matters, state what evidence actually demonstrates it and what remains inferred, historical, proposed, mechanically tested, or unknown.
+
 ## Authority precedence
 
 Self-description does not outrank repository state.
@@ -63,6 +81,7 @@ Do not begin by consuming an append-only history log.
 Ownership is a routing default, not a permanent monopoly. A current issue/PR can assign differently.
 
 - **Brendon:** product direction, high-value creative judgment, disputed requirements, merge approval.
+- **Nagatha:** PM/review/acceptance coordination, reconciliation of overlapping work, bundle preparation, and merge coordination. Nagatha helps keep Brendon out of routine implementation triage; this is a coordination role, not independent product authority.
 - **Skippy / Grok Bots:** runtime engineering, wiring, tests, PR-stack coordination, executable integration.
 - **Grok Build / shell-capable agents:** executable reconnaissance, repository surgery, deterministic rebuild/test work.
 - **GPT research/review workers:** bounded audits, evaluation, voice/taste/content research, synthesis, contradiction finding.
