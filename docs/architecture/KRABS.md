@@ -8,10 +8,10 @@
 **Canonical implementation repository:**  
 https://github.com/radarsaint/dnd-solo
 
-**Public BFDM research projection:**  
+**Historical in-repo BFDM mirror (not current research truth):**  
 https://github.com/radarsaint/dnd-solo/tree/main/corpus/bfdm
 
-**Private canonical BFDM research repository:**  
+**Canonical BFDM research repository (visibility may change):**  
 https://github.com/radarsaint/bfdm-corpus
 
 ---
@@ -133,7 +133,7 @@ The implementation does not establish:
 - cross-platform publication guarantees;
 - proof that Kit is an excellent DM.
 
-The current laboratory has already produced important failures.
+The current laboratory has already produced important historical failures. These are regression/evaluation evidence, not claims that every failure remains present on current `main`.
 
 Passing automated tests did not prevent:
 
