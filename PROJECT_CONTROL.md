@@ -69,18 +69,11 @@ Do not resolve these by guessing from open-PR age.
 
 ## Documentation state
 
-Operational `START_HERE.md` and `AGENTS.md` are closer to executable truth than older overview documents.
+This coordination branch refreshes the primary human/agent entry points: `README.md`, `START_HERE.md`, `AGENTS.md`, `docs/WHAT_WE_ARE_BUILDING.md`, `state/project-status.md`, and the collaboration protocol.
 
-Known stale or misleading material includes:
+Older runtime architecture documents and historical Area 6c wording may still describe prior slices. Treat them as reference/history unless current control or executable code confirms the claim.
 
-- `docs/WHAT_WE_ARE_BUILDING.md`;
-- `state/project-status.md`;
-- portions of `README.md`;
-- older runtime architecture docs;
-- the old two-agent collaboration protocol;
-- historical Area 6c wording in code/docs.
-
-This coordination refresh exists to repair that drift.
+Future drift should be handled by rewriting this current-control layer and linking to the commit/PR that changed truth, not by appending another competing handoff.
 
 ## Cross-repo rules
 
