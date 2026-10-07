@@ -1,7 +1,11 @@
-"""Area 6c Kit play slice: grounded events, private appraisal, public performance.
+"""Kit play bridge: mount a conforming room file, adjudicate the turn, record a private decision, and check the public performance.
 
-Only a few explicitly bounded room actions are adjudicated here. The model can
-choose and perform a DM move, but it cannot submit world changes to storage.
+Any conforming room file mounts through the room loader (runtime/kit_rooms.py).
+Area 6c is the default when start is given no --room. It is the richest authored
+regression room, not the definition of the engine. The model chooses and performs
+a DM move. Accepted turns may also commit checked model proposals (canon, claims,
+agenda, and related state). The model does not write storage except through those
+checked commits.
 """
 import argparse
 import copy
@@ -43,8 +47,9 @@ from .state_context import (ASKED_EVENT_PREFIX, CONTEXT_BUDGET_BYTES, HostSequen
 from .state_context import HELD_KINDS as _HELD_KINDS
 
 
-# The room `start` mounts when the host names none: area 6c, the one room with full
-# content today. Any room file mounts with --room (runtime/kit_rooms.py).
+# Legacy default when `start` is given no --room. Area 6c is the richest authored
+# room, kept so an unnamed start still has a file. It is not the definition of the
+# engine. Name a conforming room file with --room (runtime/kit_rooms.py).
 DEFAULT_ROOM = PROJECT_ROOT / 'tests/fixtures/level_01_area_06c.json'
 
 

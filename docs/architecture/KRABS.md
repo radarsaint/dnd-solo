@@ -8,11 +8,13 @@
 **Canonical implementation repository:**  
 https://github.com/radarsaint/dnd-solo
 
-**Historical in-repo BFDM mirror (not current research truth):**  
+**Historical in-repo BFDM mirror (obsolete bootstrap; not research authority):**  
 https://github.com/radarsaint/dnd-solo/tree/main/corpus/bfdm
 
-**Canonical BFDM research repository (visibility may change):**  
+**Canonical BFDM research repository:**  
 https://github.com/radarsaint/bfdm-corpus
+
+Repository visibility does not decide authority. Public or private settings do not make another copy canonical. Current BFDM research truth is `bfdm-corpus` `main`, plus any draft PR the task explicitly names.
 
 ---
 
@@ -92,7 +94,7 @@ KRABS is not a greenfield proposal.
 
 The current executable system is much narrower than the intended end state.
 
-"dnd-solo" currently provides a bounded solo-DM laboratory centered on Dungeon of the Mad Mage, Level 1. Area 6c was the first room built; it is one regression room among several and has no primacy. Kit must run any keyed area of the book.
+"dnd-solo" currently provides a SQLite chat-hosted solo-DM runtime that can load and chain conforming authored room files. Area 6c is still the only richly authored room on current main; the watchroom is synthetic and area 17a is a sparse stub. That loader is not source-to-room. Kit cannot yet turn untouched keyed adventure text into the next playable room. Running any keyed area of the book is the product target, not a description of what is built. PR #100 is the proposed authoring path, not current capability.
 
 The implemented foundation includes, in various degrees:
 
@@ -1268,20 +1270,23 @@ Historical behavior may be:
 - format-specific;
 - unresolved.
 
-**Evidence visibility**
+**Evidence location**
 
-KRABS distinguishes:
+KRABS distinguishes where evidence lives. Repository visibility does not decide which repository is canonical.
 
-**Public primary evidence**  
-Directly inspectable by an external reviewer.
+**Canonical BFDM research**  
+`radarsaint/bfdm-corpus` on its current `main`, plus any draft PR the task explicitly names. This is the research authority whether the repository is public or private.
 
-**Public derived BFDM research**  
-Decision cases and analyses in the public mirror whose derivation and provenance can be examined.
+**Inspectable primary evidence**  
+Source records a reviewer can open in that repository or in an authenticated archive.
 
-**Private/raw backing evidence**  
-Source archives that remain authenticated/private or LFS-backed and cannot currently be independently reconstructed by an unauthenticated external reviewer.
+**Derived research**  
+Decision cases, propositions, and analyses. Derived text is interpretation. A citation is not semantic verification, and source accessibility is not derived-research trust.
 
-KRABS must not imply that all BFDM conclusions can be independently re-derived from the public repository.
+**Historical in-repo mirror**  
+`dnd-solo` `corpus/bfdm` and `corpus/brendon` are obsolete bootstrap copies. They are not a second canonical corpus. Do not treat "public" versus "private" as the authority test.
+
+KRABS must not imply that every BFDM conclusion can be re-derived from an old mirror, a pinned ZIP, or a document that calls itself canonical.
 
 ---
 

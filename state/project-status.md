@@ -34,6 +34,8 @@ Area 6c remains the only richly authored room on current `main`.
 
 The watchroom is synthetic. The 17a room is sparse. Mounting a room proves loader/runtime compatibility, not satisfying play.
 
+No committed room file on the inspected tree contains a `room_link`. Chaining is implemented and tested with temporary copies, not with an authored multi-room campaign already in the repo. Source-to-room authoring (untouched keyed adventure text to the next playable room) is not built. PR #100 is proposed, not landed.
+
 Current evidence therefore supports:
 
 > generalized runtime substrate; generalized excellent player experience not demonstrated.

@@ -83,7 +83,7 @@ Ownership is a routing default, not a permanent monopoly. A current issue/PR can
 - **Brendon:** product direction, high-value creative judgment, disputed requirements, merge approval.
 - **Nagatha:** PM/review/acceptance coordination, reconciliation of overlapping work, bundle preparation, and merge coordination. Nagatha helps keep Brendon out of routine implementation triage; this is a coordination role, not independent product authority.
 - **Skippy / Grok Bots:** runtime engineering, wiring, tests, PR-stack coordination, executable integration.
-- **Grok Build / shell-capable agents:** executable reconnaissance, repository surgery, deterministic rebuild/test work.
+- **Grok Build / shell-capable agents:** executable reconnaissance, repository surgery, deterministic rebuild/test work. Grok Build is not Skippy and is not a Grok Bot.
 - **GPT research/review workers:** bounded audits, evaluation, voice/taste/content research, synthesis, contradiction finding.
 - **ChatGPT Work:** scarce broad autonomous multi-source research or evaluation where its capabilities materially outperform ordinary GPT.
 - **Control-room/synthesis thread:** reconcile outputs across workers against current repo truth and the product end state.

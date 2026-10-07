@@ -33,6 +33,8 @@ Current `main` has a generalized room loader; one-pass and staged host paths; SQ
 
 The runtime remains much less generalized at the **authored experience** layer. Area 6c is still the only richly authored room on current `main`; the watchroom is synthetic and 17a is sparse. The natural-language router remains heavily regex-based, several adjudication domains still fall into pending rulings, and the social substrate is intentionally simple under the performance layer.
 
+Loading a conforming room file is not source-to-room. Current `main` does not retrieve untouched keyed adventure text and author the next playable room. That work is proposed in dnd-solo PR #100. It is not landed.
+
 Therefore the current evidence does **not** justify the claim that Kit is already a generalized good DM. It justifies a stronger and more precise claim:
 
 > Kit has a substantially generalized runtime substrate. Generalized excellent play is not yet demonstrated.
