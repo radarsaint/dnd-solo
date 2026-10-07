@@ -1,6 +1,8 @@
+> **HISTORICAL BOOTSTRAP — DO NOT USE AS THE CURRENT BFDM ENTRY POINT.** Current research belongs in `radarsaint/bfdm-corpus`. This directory is retained only as an older source-index/bootstrap snapshot until retirement cleanup lands.
+
 # Brendon Corpus Library
 
-This directory is the canonical cross-agent **index** for the historical material used to seed Kit.
+This directory was the canonical cross-agent **index** for the historical material used to seed Kit.
 
 The decision corpus answers: **what judgment did Brendon demonstrate?**
 
