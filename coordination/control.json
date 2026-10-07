@@ -16,5 +16,12 @@
     "docs/collab/BOARD.md"
   ],
   "verify_live_main_before_state_sensitive_work": true,
-  "canonical_rule": "dnd-solo main is executable runtime truth; open PRs are proposed state"
+  "canonical_rule": "dnd-solo main is executable runtime truth; open PRs are proposed state",
+  "authority_traps": {
+    "project_krabs_v01": "HISTORICAL_PINNED_SUPERSEDED_BY_DND_SOLO_MAIN_KRABS_V0_2_2",
+    "in_repo_bfdm": "HISTORICAL_MIRROR_NOT_CANONICAL",
+    "collaboration_board": "HISTORY_NOT_LIVE_QUEUE",
+    "open_pr_rule": "OPEN_DOES_NOT_EQUAL_ACTIVE_OR_CANONICAL",
+    "source_to_room": "ROOM_LOADER_BUILT_SOURCE_AUTHORING_NOT_ON_MAIN"
+  }
 }
