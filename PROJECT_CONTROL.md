@@ -41,7 +41,33 @@ This is materially beyond the old “Area 6c staged prototype” description.
 
 Current product-level statement:
 
-> Kit has a substantially generalized runtime substrate and insufficient evidence of generalized excellent play.
+> Kit has a substantially generalized runtime substrate, a small set of demonstrated current runtime blockers, and insufficient post-fix human evidence to know the current DM-quality ceiling.
+
+The implementation has advanced faster than player-facing evaluation. Several historically serious failures should now be classified as `MECHANICALLY_ADDRESSED_UNRETESTED` or `UNKNOWN_CURRENT`, not silently carried forward as current defects.
+
+## Current demonstrated quality blockers
+
+The 2026-10-07 quality/failure-localization audit identified four current-main defects supported strongly enough to call demonstrated:
+
+- **PR #103 — PC roll ownership / Let It Ride:** current main can silently reroll a player's established check across several adjudication paths.
+- **PR #97 + dependent #101 — combat transition completeness:** player-initiated combat exists, but monster initiation, surprise/save riders, hidden-actor reveal, downed/death-state and related transition handling remain incomplete on main.
+- **PR #102 — validator functional floors:** raw word-count floors can reject short complete DM turns and reward padding.
+- **PR #73 — deliberate social omission:** at least one live-observed deception-shaped omission class remains unfixed on main.
+
+These are narrower than the older claims that “combat does not work,” “NPCs are lifeless,” “natural language is broken,” or “Area 6c is the architecture.” Those broader claims are stale or currently unproven.
+
+## Current quality-evidence gap
+
+The largest uncertainty is now **freshness of human evidence**.
+
+Major runtime changes landed after the last serious Brendon-facing quality sessions: story briefs, attitudes, router work, room loading, watchroom repairs, packet layering, output diet, compute routing, and speed work.
+
+Therefore both of these claims are currently too strong:
+
+- “Kit still has the old player-facing failures.”
+- “The new machinery fixed the player-facing experience.”
+
+The next meaningful acceptance evidence should come from sustained current-main play in a materially different real room, after known blockers are merged or deliberately avoided. The purpose is to discover the next quality ceiling rather than rediscover known plumbing defects.
 
 ## Product acceptance rule
 
