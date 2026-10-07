@@ -1,44 +1,87 @@
 # Project Status
 
-## Active workstreams
+**Updated:** 2026-10-07  
+**Executable state audited against:** `main @ e3a5e9908357441051df24dac8086d8d4c7f26f5`
 
-### DM personality / behavior
-Status: canonical core and area 6c personality protocol captured. The character-onboarding test and two short area 6c room tests have been reviewed; a multi-turn preference test is still pending.
+For fast current orientation, read [`PROJECT_CONTROL.md`](../PROJECT_CONTROL.md). For cross-AI work, read [`COORDINATION.md`](../COORDINATION.md).
 
-The current document defines identity, core appetites, pillar weighting, appetite resolution, inhibition rules, stakes telegraphing, NPC performance, visible DM presence, player relationship, character relationship, and self-evaluation.
+## Current runtime
 
-The onboarding test found that Kit engaged with a player-created character motive and could stand by a ruling, then reconsider it when explicitly invited. It also found unsolicited advice, rushing ahead of the player's current task, a weak campaign opening, and generic banter. The next behavior pass should focus on interaction-state detection, a distinct theatrical table voice (Brendon's voice spec supersedes the earlier "restraint" framing), and a causal handoff into play. See `docs/WHAT_WE_ARE_BUILDING.md` for the plain-English overview.
+The runtime is no longer accurately described as a bounded Area 6c prototype.
 
-The [Nik room test](../tests/playtests/2026-09-26-area-06c-nik.md) failed more directly: an 81-second wait produced a basic room opening and a flat toll exchange. The player described Kit as mechanically aware but still “an it, not a she,” then noted the dealer had no appreciable voice change, longer improvised invitation, or readable story promise. An Insight ruling was given in chat without being saved to the backend. The next live pass must test expressed personality and persistence. Latency is recorded but is not this phase's gate; the player has explicitly prioritized quality.
+Current `main` provides a chat-hosted SQLite runtime with:
 
-The [voice-spec branch test](../tests/playtests/2026-09-29-area-06c-voice-spec-nik.md) gave Nik a more substantial dealer exchange, but Kit's greeting quip contradicted the greeting just spoken. When asked what game was underway, the chat host invented high card and matching-coin stakes despite the source only specifying cards, coins, and Uktarl's marked deck. The run never made cheating or detecting it playable. The player called some dialogue better but still AI-sounding and stopped the test. This is a failed live sample, not a voice improvement claim; no fix was requested in this pass.
+- live `start -> prepare --one-pass -> complete`;
+- staged `prepare -> decide -> finish` for evaluation;
+- arbitrary room-file mounting and room chaining;
+- persistent snapshots, immutable ledger events, Kit turns, pending turns, revisions, and telemetry;
+- hidden-information/player-knowledge projection;
+- bounded natural-language routing;
+- checks, tolls, card procedures, minimal combat, claims/knowers, agendas, attitudes, Kit plans, and limited Kit memory;
+- manifest/hash/rehydration support;
+- retry/idempotency and stale-turn protection;
+- explicit table-talk mode.
 
-### Technical DM runtime
-Status: SQLite source/state backend and a bounded area 6c Kit play loop implemented on `kit-area-06c-testbed`.
+The audited suite is **813 tests green**.
 
-The play loop separates source-grounded room adjudication, a private Kit decision, and public performance. It persists world changes, a Kit episode, and the transcript atomically. In a tool-enabled chat, the staged `prepare`, `decide`, and `finish` path runs without a separate API key. An optional `prepare --one-pass` and `complete` path reduces model/tool round trips for live chat, with weaker causal evidence. Its host-to-commit intervals in the new live test were about 97–136 seconds per original turn, including host authoring and tools, not model-only inference. A [reusable scene-discernment step](../docs/architecture/scene-discernment.md) makes Kit select how the player's current bid, eligible story pressure, a live actor's established aim, and her own appraisal connect. Area 6c then supplies actor cards and a saved scene entry as performance inputs. These are structural changes, not a demonstrated improvement in play. Full rules, combat, NPC belief updates, and measured entertainment quality remain open.
+This means the runtime substrate has generalized substantially.
 
-The [personality implementation audit](../docs/personality/kit-personality-implementation.md) found that the stable core is loaded and an appraisal label is saved, but Kit's distinctive expressed behavior, appetite regulation, and player relationship are not working runtime systems. The [performance pipeline design](../docs/architecture/expressed-performance-pipeline.md) and [area 6c blind comparison packet](../tests/scenarios/expressed-performance-v1.md) now put Kit's identity comparison before actor-led performer changes: fix the same private decision and accepted event, compare candidate expression and a public-safe causal handoff, inspect blind player preference, then test transfer in a second playable room. No model-generated candidate has yet passed that comparison.
+It does **not** mean Kit is already a generalized good DM.
 
-### Player-facing UX/UI
-Status: active design.
+## Current content/evidence limit
 
-Action: define explicit presentation contracts once technical message/event shapes are known.
+Area 6c remains the only richly authored room on current `main`.
 
-### Maps and visual assets
-Status: asset collection/indexing underway in another project conversation.
+The watchroom is synthetic. The 17a room is sparse. Mounting a room proves loader/runtime compatibility, not satisfying play.
 
-Action: add files/references and stable IDs to `assets/maps/index.json` and `assets/art/index.json`. Runtime should request assets by stable ID and semantic role, not by chat attachment position.
+Current evidence therefore supports:
 
-### Campaign content
-Status: campaign-specific runtime concerns are being examined separately from the generic DM personality.
+> generalized runtime substrate; generalized excellent player experience not demonstrated.
 
-Action: establish a campaign manifest and through-line schema before importing large adventure/source collections.
+Historical Area 6c playtests remain useful evidence of failure, but they must not be treated as a complete description of current implementation.
 
-## Next integration milestone
+## Player-facing quality
 
-A live playtest should now probe this path:
+The product target is the complete experience of playing and building D&D with Kit.
 
-source material -> current scene/state -> bounded adjudication -> Kit event appraisal and move -> player-facing performance -> validated state update
+Green backend tests, valid state, good private reasoning, correct source use, or distinctive prose are component successes. They do not independently establish product success.
 
-The current slice uses the area 6c fixture and a map reference. It does not load maps/assets from manifest IDs or execute tactical opposition. First test the onboarding failures and multi-turn room behavior with a real character. Compare player-facing runs, memory ablations, and eventually experienced human DMs before claiming that Kit's personality succeeds.
+The next quality evidence must increasingly come from current-main end-to-end play across materially different situations and from evaluation that can distinguish:
+
+- intent/routing failure;
+- adjudication failure;
+- state/continuity failure;
+- NPC cognition failure;
+- performance/expression failure;
+- latency/tool friction;
+- integration failures where individually working components combine into a worse experience.
+
+## Current technical caveats
+
+The 2026-10-07 executable audit found several important current facts:
+
+- `room_intent()` still relies heavily on regex routing;
+- unsupported physical actions and out-of-combat spells can still become `PendingRuling`;
+- model-authored changes can become durable canon/state after validation, so “the model cannot write world state” is not a correct blanket description;
+- table talk is a distinct runtime path, not the same thing as simply addressing Kit by name;
+- the in-repo BFDM mirror is not canonical research truth;
+- several open runtime PRs overlap and require explicit stack/ownership resolution before broad integration;
+- visual runtime PRs #111 and #112 appear to compete.
+
+## Current work routing
+
+Default runtime integration owner: **Skippy / Grok Bots**.
+
+A separate Grok Build audit established executable ground truth. Parallel GPT audits are examining project contradictions, player-facing quality, and BFDM research readiness. A separate GPT is handling corpus mechanical preparation.
+
+Do not duplicate those temporary workstreams.
+
+## Documentation status
+
+`START_HERE.md` and `AGENTS.md` are the live-operation entry points.
+
+`PROJECT_CONTROL.md` is the development orientation entry point.
+
+Older architecture documents may describe an earlier slice. They are history/reference unless current control or executable code confirms them.
+
+`docs/collab/BOARD.md` is history, not the current task queue.
