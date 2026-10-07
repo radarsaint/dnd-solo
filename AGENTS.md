@@ -51,7 +51,7 @@ A ZIP attached to a ChatGPT Project, GPT Knowledge, conversation, Drive, or Libr
 
 ## Historical Brendon corpus
 
-When doing personality/judgment research rather than ordinary live play, start with `corpus/brendon/README.md`. Use `evidence.jsonl` for attributable Brendon contributions and `catalog.jsonl` for their source/context containers. Derived decision records are interpretations and must cite back to both evidence and source IDs where available. Respect discovery/evaluation partitions and privacy exclusions.
+The canonical research/archive repository is `radarsaint/bfdm-corpus`. The in-repo `corpus/` material is a historical/runtime mirror and is **not** current corpus truth. For current personality/judgment research, inspect `bfdm-corpus` `main`, start with its `PROJECT_CONTROL.md` and `research/NEXT_HANDOFF.md`, and name any active draft PR you rely on. Derived research is interpretation and must not be hardened into runtime behavior merely because it is polished or cited.
 
 ## Where to learn the job
 
