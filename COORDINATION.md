@@ -115,6 +115,22 @@ A handoff is incomplete if it omits:
 - A successful component is not automatically a successful product change.
 
 
+
+## Research readiness has two axes
+
+Do not collapse source accessibility into research trust.
+
+For BFDM work, distinguish:
+
+1. **SOURCE / SUBSTRATE READINESS** — the relevant primary material exists, is oriented, and can be retrieved.
+2. **DERIVED-RESEARCH TRUST READINESS** — the specific propositions/hypotheses being reused have been semantically reconstructed from the primary evidence at the claimed scope/confidence.
+
+A source family may be ready to research while the existing paper written about it remains unverified.
+
+Current example: S3/S4 live-judgment material is source-researchable, while PR #38 is still auditing whether existing derived case propositions deserve semantic trust.
+
+When a downstream task depends on a derived claim, name which axis is satisfied and which is still open.
+
 ## Behavioral evidence freshness
 
 Player-facing quality claims must name both the evidence type and whether it still applies to the current build.
