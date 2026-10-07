@@ -59,10 +59,10 @@ The project should keep asking both:
 
 ## A short explanation to share
 
-> I’m building Kit, an AI Dungeon Master for a solo D&D campaign—one who can do more than generate the next line of narration. Her promise is to make solo play feel as responsive, surprising, and alive as playing with a great human DM, while offering something a human DM usually can’t: a world that is always available, remembers everything, and reacts consistently to every player choice.
+> I’m building Kit, an AI Dungeon Master and creative partner whose goal is not merely to generate legal D&D turns, but to make the complete experience worth choosing.
 >
-> The current prototype is a working test room where Kit makes a DM decision, acts out the scene, and saves what happened. Her advantage won’t come from telling better stories alone. It will come from combining a distinctive, consistent personality with the invisible systems that make a campaign feel real: applying rules, tracking maps, remembering past events, modeling NPC motives, and maintaining a persistent world that changes in response to the player. Kit should feel like a creative partner with a point of view—and like the reliable game engine beneath the story.
+> The current runtime is already more than the original Area 6c prototype: it can mount room files, persist world and knowledge state, run a bounded set of procedures and combat, protect hidden information, carry NPC agendas and claims, and host one-pass play through ChatGPT. Its mechanical test suite is broad.
 >
-> Early playtesting has shown promise, along with clear problems in her timing and voice. Those sessions are helping us determine when she should pause, when she should advance the scene, and how her personality can make moments more vivid without taking control away from the player.
+> The important limitation is different now: the generalized **experience** has not been proven. Area 6c is still the only richly authored room on current `main`, and green engine tests do not establish that Kit is an excellent DM. Current development therefore pairs runtime hardening with end-to-end play evidence.
 >
-> Next, we’ll use further playtesting to refine Kit’s timing and voice, then strengthen the underlying systems for rules, memory, NPC motives, maps, and persistent world state before building out the full campaign.
+> The long-term target is one persistent Kit who is satisfying to play D&D with, satisfying to build campaigns with, able to preserve history and relationships over time, and eventually capable of operating ambitious multi-player campaigns without turning the human director into the runtime.
