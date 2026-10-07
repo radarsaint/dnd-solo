@@ -25,37 +25,37 @@ We are building several cooperating parts around Kit:
 
 These are practical software layers for making behavior coherent. Calling one layer her “thoughts” does not claim she is conscious. The point is to make her choices traceable and improve them through playtests.
 
-## What we have accomplished
+## Current implementation state
 
-- Kit has a compact, stable personality description and a process for changing it after repeated test failures. Her goals include roleplay, competent opposition, creativity, humor, challenge, rewards, momentum, and campaign payoffs.
-- We chose one repeatable test scene: Level 1, area 6c of *Dungeon of the Mad Mage*. Its conditional starting situation was checked against the room source and DM map. The player can see the card players, table, carving, tub, and door; Kit also has private facts that must be discovered through play.
-- A small runtime saves the room state, player knowledge, turns, and Kit's recent decisions. It resolves a few known interactions and checks, prevents unsupported outcomes from becoming canon, and commits an accepted turn together with its world changes.
-- The room can be hosted by an assistant with access to this repository. ChatGPT supplies Kit's private decision and public performance through `prepare`, `decide`, and `finish`; the Python runtime validates and saves them. This path does not require a separate model choice or `OPENAI_API_KEY`. The legacy `play` terminal command calls the paid API; it is not used and must not be run.
-- Automated tests check state and turn plumbing, including secrecy, restarts, stale turns, rollback, a saved scene entry, and blind-review packet handling. A reusable private scene read now selects from the live story and actor goals before Kit directs a performance. The current room supplies a dealer's vocal cue and social context as one example. A one-pass chat option uses fewer model/tool round trips. Live speed and personality quality have not been retested.
-- An earlier chat playtest of character creation showed both promise and failure. Kit supported a player-generated character motive and could hold a ruling, then reconsider it when invited. She also gave unsolicited build advice, rushed ahead into future story, opened the campaign without a convincing reason for the character to be there, and sounded too much like generic ChatGPT. That playtest is recorded as **DM Kit Playtest 01 — Character Onboarding** (2026-09-23).
-- A short [room playtest with Nik](../tests/playtests/2026-09-26-area-06c-nik.md) took 81 seconds to produce a thin dealer exchange. The player found the room opening basic, the NPCs lifeless, and the dealer without a distinct voice or playable story invitation. He called Kit mechanically aware but still “an it, not a she.” This is a clear failure of the tested personality experience, despite the passing backend tests.
+As of the 2026-10-07 executable audit of `main @ e3a5e9908357441051df24dac8086d8d4c7f26f5`, Kit's runtime is materially beyond the original Area 6c prototype.
 
-## Direction after the first room test
+Current `main` has a generalized room loader; one-pass and staged host paths; SQLite snapshots and an immutable event ledger; hidden-information projection; claims/knowers; agendas; attitudes; limited combat and card/toll procedures; manifests and rehydration; idempotent retries; table-talk support; a private Kit plan; bounded memory; output guards; and 813 passing mechanical tests.
 
-The immediate problem is the conversion from Kit's private choice into what the player hears. **We have specified her identity and loaded it into the runtime, but have not built or validated a reliable expressive personality.** Her current plan can name NPC embodiment and select a tactic while the accepted performance remains a short, generic reply. The richer workshop's appetite and relationship dynamics are still design, not live state. A longer trace or another schema field does not establish a more entertaining DM. The next improvement must be visible in the spoken scene: a recognizable actor pursuing a goal, a particular response to the player's actual move, Kit's own taste shaping what happens, and a live opening the player can take or ignore. See the [implementation audit](personality/kit-personality-implementation.md).
+The runtime remains much less generalized at the **authored experience** layer. Area 6c is still the only richly authored room on current `main`; the watchroom is synthetic and 17a is sparse. The natural-language router remains heavily regex-based, several adjudication domains still fall into pending rulings, and the social substrate is intentionally simple under the performance layer.
 
-We will use published work on reactive dramatic beats, autonomous social actors, appraisal, and agent memory as design precedents. We will adapt the parts that solve a specific observed problem, then compare player-facing performances. One [small exploratory NPC dialogue study](https://arxiv.org/abs/2510.25820) found that tighter scaffolding helped one role's stability while reducing other roles' improvisational believability in a synthetic evaluation; its ten-person usability study did not find a reliable general improvement. We therefore test each constraint at the table instead of assuming more structure improves personality. See [the existing research mapping](architecture/kit-06c-play-slice.md#performance-method-and-limits); this project has not implemented those systems wholesale.
+Therefore the current evidence does **not** justify the claim that Kit is already a generalized good DM. It justifies a stronger and more precise claim:
 
-**Performance quality is what we build toward.** A turn may be longer if it earns the space; a simple roll prompt should still be quick and direct. Record end-to-end latency and remove avoidable tool/model round trips where convenient, but do not cut a compelling exchange to satisfy a speed target at this stage. The earlier 81-second wait remains a serious usability failure to address after the expressed performance is worth waiting for.
+> Kit has a substantially generalized runtime substrate. Generalized excellent play is not yet demonstrated.
 
-We build grounded performance into the runtime and move on to a second playable scene; Brendon plays when he chooses. The evidence we want is a player who can tell the NPCs apart, understand what they want, feel Kit's judgment in the scene, and choose to continue. Source fidelity, fair rulings, and the player's freedom to act remain mandatory.
+See `PROJECT_CONTROL.md` for current development orientation and `COORDINATION.md` for cross-agent truth/ownership rules.
 
-The [expressed-performance pipeline](architecture/expressed-performance-pipeline.md) spells out the turn boundaries, performance direction, quality gates, comparison method, and implementation order. The [first comparison packet](../tests/scenarios/expressed-performance-v1.md) makes the area 6c probes and blind review usable now.
+## Development direction
 
-## What comes next
+The product target is the complete experience of playing and building D&D with Kit. No subsystem is allowed to become the goal by proxy.
 
-**Current personality priority: preserve Kit across contexts.** Add explicit evaluation for ordinary conversation, creative/debrief discussion, and live DM play so that all three feel like the same person under different authority constraints. This is not blocked on cross-campaign memory infrastructure.
+Runtime correctness, DM judgment, BFDM research, cognition, memory, personality, latency, visuals, and UI all matter because of what they contribute to the whole experience. A feature can pass its local test and still make Kit worse to use.
 
-1. **Make her expressed performance worth playing.** Build short, actor-led, and more developed scene responses where each is appropriate. Make the opening, NPC tactics, Kit's own table presence, and the player's next choice legible in the transcript. Do not set a universal word count or demand a joke or monologue every turn.
-2. **Expand the room's rulings.** Build conversation, investigation, creative physical actions, and consequences, plus saved NPC commitments where the current slice pauses. Brendon plays the room when he chooses.
-3. **Grow beyond the room.** Character sheets are loaded from any `character_sheet_v1` file; next come fuller rules and combat, campaign-wide state and source retrieval, maps and art, and a proper player-facing interface. Solo combat needs judgment about action economy without erasing the player's tactical choices.
+Near-term development should therefore do two things in parallel without conflating them:
 
-Today we have a working test bed and a candid first playtest, not a complete solo campaign or proof that Kit outperforms a human DM. The room lets us improve her behavior against real player decisions before scaling the system.
+1. **Keep hardening the runtime where current evidence exposes real execution failures.** Resolve the overlapping runtime PR stack, broaden adjudication and authored room coverage, and preserve state/knowledge/agency contracts.
+2. **Increase end-to-end evidence.** Test current `main` across materially different play situations and evaluate the experienced result, not only whether internal components behaved correctly.
+
+BFDM and future cognition work remain important, but should follow the empirical sequence in the canonical `bfdm-corpus`: source-grounded research, bounded findings, minimal cognition experiments, then architecture demanded by observed failures.
+
+The project should keep asking both:
+
+- did the targeted component improve?
+- did the complete experience with Kit become better?
 
 ## A short explanation to share
 
