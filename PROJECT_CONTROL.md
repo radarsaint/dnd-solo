@@ -5,6 +5,7 @@
 **Sibling repo:** `radarsaint/bfdm-corpus`
 
 Read `COORDINATION.md` before substantial cross-agent work.
+For the durable cross-repo mental model and corpus-content orientation, read `docs/PROJECT_UNDERSTANDING.md` once before deep project work.
 
 This file is deliberately short and rewritable. Git history, issues, PRs, and `docs/collab/BOARD.md` preserve history.
 
