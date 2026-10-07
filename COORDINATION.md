@@ -25,6 +25,27 @@ Runtime correctness, judgment, cognition, memory, BFDM fidelity, personality, la
 
 If a task crosses the runtime/research boundary, inspect both repos.
 
+## Authority precedence
+
+Self-description does not outrank repository state.
+
+If an artifact says “canonical,” “current,” “source of truth,” or similar, interpret that label within the authority hierarchy in this file.
+
+Examples:
+- a Project attachment may have been canonical when exported and still be historical now;
+- an in-repo mirror may call itself canonical while the project has since moved authority to a sibling repo;
+- an open PR may contain a newer-looking design than `main` without being canonical;
+- a canonical specification can supersede older canonical specifications.
+
+When labels conflict, prefer:
+1. live repository metadata and `main`;
+2. the current repo's control layer;
+3. explicit supersession statements in newer canonical docs;
+4. active issue/PR state for proposed work;
+5. historical/pinned artifacts only for reconstructing their own version.
+
+Never resolve a conflict by choosing the newest-looking prose alone.
+
 ## Session bootstrap
 
 Before substantial work:
