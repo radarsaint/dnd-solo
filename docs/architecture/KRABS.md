@@ -8,8 +8,7 @@
 **Canonical implementation repository:**  
 https://github.com/radarsaint/dnd-solo
 
-**Historical in-repo BFDM mirror (obsolete bootstrap; not research authority):**  
-https://github.com/radarsaint/dnd-solo/tree/main/corpus/bfdm
+**In-repo BFDM mirror:** removed on the retirement branch. Do not recreate corpus/bfdm or corpus/brendon in this repository. `main` still has the obsolete copy until that branch lands.
 
 **Canonical BFDM research repository:**  
 https://github.com/radarsaint/bfdm-corpus
@@ -1283,8 +1282,8 @@ Source records a reviewer can open in that repository or in an authenticated arc
 **Derived research**  
 Decision cases, propositions, and analyses. Derived text is interpretation. A citation is not semantic verification, and source accessibility is not derived-research trust.
 
-**Historical in-repo mirror**  
-`dnd-solo` `corpus/bfdm` and `corpus/brendon` are obsolete bootstrap copies. They are not a second canonical corpus. Do not treat "public" versus "private" as the authority test.
+**Removed in-repo mirror**  
+This branch no longer carries corpus/bfdm or corpus/brendon. Those directories were an obsolete bootstrap, not a second canonical corpus. Do not recreate them. `main` still contains the old copy until this branch lands.
 
 KRABS must not imply that every BFDM conclusion can be re-derived from an old mirror, a pinned ZIP, or a document that calls itself canonical.
 
