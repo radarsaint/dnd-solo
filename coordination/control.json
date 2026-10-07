@@ -1,0 +1,20 @@
+{
+  "schema": "kit_project_control/v1",
+  "repo": "radarsaint/dnd-solo",
+  "role": "EXECUTABLE_RUNTIME",
+  "sibling_repo": "radarsaint/bfdm-corpus",
+  "last_verified_main": "e3a5e9908357441051df24dac8086d8d4c7f26f5",
+  "verified_on": "2026-10-07",
+  "current_entrypoint": "PROJECT_CONTROL.md",
+  "coordination_contract": "COORDINATION.md",
+  "handoff_template": "coordination/HANDOFF_TEMPLATE.md",
+  "live_operation_entrypoints": [
+    "START_HERE.md",
+    "AGENTS.md"
+  ],
+  "history_only": [
+    "docs/collab/BOARD.md"
+  ],
+  "verify_live_main_before_state_sensitive_work": true,
+  "canonical_rule": "dnd-solo main is executable runtime truth; open PRs are proposed state"
+}
