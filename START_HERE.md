@@ -1,5 +1,7 @@
 # START HERE: how to read this ZIP
 
+> **Development / project work:** read [PROJECT_CONTROL.md](PROJECT_CONTROL.md) and [COORDINATION.md](COORDINATION.md) first. This file is the live-play/repository map, not the cross-agent work queue.
+
 This is the `dnd-solo` repository: the runtime, docs, and test material for Kit (Kitiara), an AI Dungeon Master for solo D&D.
 Kit runs a game by calling a Python engine in this folder (`runtime/`). The engine owns rules, state, and hidden facts. Kit owns judgment and voice.
 Most files here are for the people and agents building Kit, not for play. The lists below say which is which. Don't move or rename anything: the engine finds files by path.
