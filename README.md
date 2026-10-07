@@ -6,7 +6,7 @@
 
 Canonical development repository for the D&D solo-DM project.
 
-Collaborators: read the [Kit collaboration protocol](docs/collab/README.md) and its append-only [board](docs/collab/BOARD.md) first.
+Collaborators: read [PROJECT_CONTROL.md](PROJECT_CONTROL.md) and [COORDINATION.md](COORDINATION.md) first, then the issue/PR that owns your task. The old [collaboration board](docs/collab/BOARD.md) is retained as history, not as the live work queue.
 
 This repository separates the project into layers so campaign content, runtime behavior, player-facing presentation, assets, and test material can evolve independently without turning into one giant prompt or design document.
 
@@ -15,6 +15,9 @@ This repository separates the project into layers so campaign content, runtime b
 We are building Kitiara (DM Kit), an AI Dungeon Master with a recognizable personality and the judgment to run a solo campaign. The goal is a DM a player would eventually prefer to an experienced human DM. Kit should care about the story and the player, embody NPCs, run fair danger, enjoy surprises, and know when to speak or let the world carry the scene. The [plain-English project outline](docs/WHAT_WE_ARE_BUILDING.md) explains the goal, what is working, the first playtest's failures, and what comes next.
 
 ## Current state
+
+> **Current executable reality:** the runtime has generalized substantially beyond the original Area 6c prototype. See [PROJECT_CONTROL.md](PROJECT_CONTROL.md) for the commit-stamped current state. The sections below include historical implementation context and should not outrank live `main`.
+
 
 The DM personality work now has a canonical live contract and a separate development pipeline:
 
