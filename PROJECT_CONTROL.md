@@ -101,6 +101,16 @@ Older runtime architecture documents and historical Area 6c wording may still de
 
 Future drift should be handled by rewriting this current-control layer and linking to the commit/PR that changed truth, not by appending another competing handoff.
 
+## Current BFDM / Friday research dependency
+
+The current BFDM bottleneck is not source searchability. It is semantic trust in the derived layer and adversarial testing of candidate hypotheses.
+
+Runtime/cognition work should **not** assume that PR #28's contrast families are verified gold labels. PR #38 currently has 20 staged S3 cases / 120 propositions at `UNVERIFIED`.
+
+For Friday, scarce ChatGPT Work is better spent establishing trustworthy research dependencies and attacking hypotheses from primary evidence than building precedent/retrieval/cognition infrastructure.
+
+Skippy/runtime work should consume verified research outputs only when their scope/confidence is explicit, and should keep current-main player-experience evidence separate from BFDM research quality.
+
 ## Cross-repo rules
 
 Use `bfdm-corpus main` for canonical BFDM source/research state.
