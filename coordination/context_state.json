@@ -25,8 +25,8 @@
   "last_completed_pass": {
     "kind": "BOUNDED_SEMANTIC_RECONCILIATION",
     "completed_on": "2026-10-08",
-    "scope": "Reconciled Brendon-approved merges of dnd-solo #113, dnd-solo #117, and bfdm-corpus #39 onto canonical main, plus the follow-up brain narrowing. No #115 comment id newer than 6060014309.",
-    "result": "Accepted: coordination contract, Project Brain, Gardener checkpoint, and context-status checker are on main and are not proposed. BFDM README now points bootstrap at dnd-solo main. Narrowed: one dispatcher-started pass is not operational continuity. Rejected: treating a status-checker warning as completion. Unresolved: #118 G4 cold start from default main, G5 repeatability, ChatGPT Project source membership, BFDM README program paragraph still saying BCS-000172.",
+    "scope": "Reconciled Brendon-approved merges of dnd-solo #113, dnd-solo #117, and bfdm-corpus #39, plus leftover Brain sentences that still called the PR #40 delta unreconciled. No #115 comment id newer than 6060014309.",
+    "result": "Accepted: coordination contract, Project Brain, Gardener checkpoint, and context-status checker are on main. Narrowed: belief-table and next-move sentences that still treated that work as proposed. Rejected: a status-checker warning as completion. Unresolved: #118 G4 and G5, and ChatGPT Project source membership.",
     "resulting_brain_commit": "86e4adefbcac04131f65c43b80ff33d9a923031d"
   },
   "active_pass": null,
@@ -35,7 +35,6 @@
     "Issue #118 G5 is unmet: a second meaningful change has not invoked the Gardener without a person delivering the prompt.",
     "A status-checker warning is not completion and does not accept a semantic delta.",
     "ChatGPT Project source membership remains a manual Project-UI change.",
-    "BFDM README current-program paragraph still says source containers run through BCS-000172; PROJECT_CONTROL.md has the post-#40 195/193 facts.",
     "Do not keep editing merged coordination branches docs/coordination-refresh-2026-10-07, tooling/project-context-status-116, or docs/cross-repo-coordination-2026-10-07."
   ],
   "needs_review": [],
