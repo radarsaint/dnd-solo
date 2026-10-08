@@ -1,9 +1,22 @@
-# Recent Project-Context Changes
+# HISTORICAL — Project-Context Changelog
 
-**Purpose:** short rolling summary of changes that alter how a capable fresh GPT should understand or approach the project.  
-**Not:** code changelog, research log, or work queue.
+**Status:** superseded as an active context surface on 2026-10-07.  
+**Do not maintain this file as current project memory.**  
+**Do not require fresh collaborators to read it.**
 
-Keep this file compact. Retain roughly the most recent 10–20 material context changes. Older provenance remains in Git history, PRs/issues, audits, and the context inbox.
+This file is preserved only as provenance for the early project-context continuity design.
+
+Its former active functions now belong to:
+
+- `docs/PROJECT_UNDERSTANDING.md` — the living semantic Project Brain;
+- live `main` + each repo's `PROJECT_CONTROL.md` — current changing facts/state;
+- `coordination/context_state.json` — restartable Project Gardener reconciliation checkpoint;
+- dnd-solo issue #115 — unreconciled semantic-delta inbox;
+- Git history, PRs/issues, audits, and decision records — historical provenance.
+
+The entries below describe real context changes from the initial October 7 continuity work, but they are a **historical snapshot**. If they conflict with the Project Brain or live authority, they do not control.
+
+---
 
 ## 2026-10-07 — Context continuity became an explicit project requirement
 
