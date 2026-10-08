@@ -28,6 +28,20 @@ Describe the dependency or follow-up if checked.
 
 Commands, tests, source checks, or evaluation performed:
 
+## Downstream use and completion boundary
+
+**The component this PR delivers:**
+
+**Who/what actually consumes it:**
+
+**Who invokes that consumer, and when:**
+
+**End-to-end evidence of actual use (link):**
+
+**What remains unconsumed or blocked, with next owner:**
+
+Do not equate a passing PR test or merge readiness with end-to-end consumption; if that occurs after merge, leave a named follow-up open until acceptance is proven.
+
 ## Project-context impact
 
 Choose one:

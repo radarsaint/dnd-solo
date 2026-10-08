@@ -183,6 +183,12 @@ Do not leave the only copy in chat history.
 
 A semantic delta is proposed context, not project truth. A later Project Gardener reconciles it against authority before promoting it into the Project Brain.
 
+**Do not stop at recording the delta.** An unreconciled #115 comment or material repo change is a pending Gardener obligation. Its named coordinator must actually dispatch a suitable Gardener pass, which checks evidence, writes any warranted Brain/control correction, and only then advances the checkpoint. A detector, scheduled checker, or posted issue is not an invocation. Until that dispatch path is exercised and verified, say the continuity loop is not yet operational; point to dnd-solo issue #118. Do not make Brendon the default human reminder.
+
+## End-to-end completion gate
+
+For each substantial task, identify **what the output enables**, the **real consumer**, the **trigger that causes consumption**, the **responsible dispatcher/executor**, and the **observable outcome proving use**. Track PREPARED, RECORDED, DELIVERED, EXECUTED, and VERIFIED honestly; even VERIFIED component behavior does not establish that the final consumer received or benefited from it. If consumption is not yet possible, retain a named BLOCKED next action instead of declaring completion. Examples: a mergeable runtime PR is not a mounted build, a source record is not a verified research claim, and a semantic inbox comment is not a reconciled Brain.
+
 ## Staleness behavior
 
 No prose file can truthfully promise to be "never stale."
@@ -225,7 +231,8 @@ Do not:
 - create another independent project-status or project-memory system because the current one is imperfect.
 - weaken or redefine a required outcome because this GPT lacks the tool to execute it;
 - hand routine executable work back to Brendon before checking/routing to the appropriate project executor;
-- claim an external handoff was delivered or executed merely because instructions were recorded somewhere.
+- claim an external handoff was delivered or executed merely because instructions were recorded somewhere;
+- treat issue/checker creation, a staged PR, or code validation as proof that its downstream user actually used the result.
 
 Improve the existing shared model and use deeper evidence progressively.
 

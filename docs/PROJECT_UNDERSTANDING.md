@@ -4,8 +4,8 @@
 **Status:** proposed on coordination PR #113; not canonical `main` until merged  
 **Target canonical location:** `radarsaint/dnd-solo/docs/PROJECT_UNDERSTANDING.md`  
 **Sibling repository:** `radarsaint/bfdm-corpus`  
-**Last substantive refresh:** 2026-10-07  
-**Context reviewed against:** `dnd-solo/main @ e3a5e9908357441051df24dac8086d8d4c7f26f5`; `bfdm-corpus/main @ 65513f294e72a3eb961d5699c21ddc1f14ceef2c`
+**Last substantive refresh:** 2026-10-08  
+**Context reviewed against:** `dnd-solo/main @ e3a5e9908357441051df24dac8086d8d4c7f26f5`; `bfdm-corpus/main @ dc0d558188c3e492f69c34a8e278e0cf9e17373b`
 
 > This document is the project's current **semantic model**: what we are building, where we are, why we got here, what changed our thinking, how the major workstreams fit together, what we currently believe, what remains uncertain, and where the evidence points next.
 >
@@ -51,7 +51,7 @@ The project is **past the stage where its main problem can honestly be described
 
 The current runtime is materially beyond the original Area 6c prototype. It has a generalized chat-hosted SQLite substrate, room loading, hidden-information projection, claims/knowers, agendas, attitudes, persistence, one-pass and staged execution, bounded procedures and combat, manifests, retry/idempotency support, and a large mechanical test surface.
 
-The research substrate has also advanced. The BFDM corpus has canonical source containers through BCS-000172, model-facing Discord retrieval exists, the old Git LFS opacity problem is substantially addressed, and historically important material across Roanoke, Empire City, later campaigns, Earthfall, and the 2026 design workbench is researchable.
+The research substrate has also advanced. BFDM PR #40 merged on 2026-10-08: the catalog now holds 195 BCS identities through BCS-000195, with 193 indexed source containers (BCS-000059 is context-only; BCS-000068 is an excerpt without a source container). Model-facing Discord retrieval exists, and the old Git LFS opacity problem should not be restarted. The remaining missing revisions, Rowing Oak imagery, Bodfish Google Site, partial Earthfall/Saturday Project histories, and known-source gaps remain explicit archival work dependent on source access. Accessible evidence is not semantically verified judgment research.
 
 The important bottlenecks have moved upward.
 
@@ -86,6 +86,8 @@ Source accessibility is not trustworthy derived research.
 Room loading is not source-to-room authoring.  
 Architecture is not implementation.  
 A document calling itself canonical is not necessarily current authority.
+
+**A built component is not an outcome until someone actually uses its output.** The October 8 PR #40 continuity check exposed a further failure: the semantic inbox, Gardener protocol, checkpoint, and drift checker could all exist while nobody was assigned or invoked to reconcile the recorded change. A successful status check can report an unreconciled Brain; it does not complete that reconciliation. The broader failure mode is **premature completion / missing downstream consumer**: work is marked finished at the build, record, review, or test boundary rather than at the promised consequence. It must be guarded against in every workstream.
 
 This thread exposed the same failure at the project-management layer: a bootstrap file, context inbox, or freshness checker does not by itself mean a future GPT has inherited the project's real mental model.
 
@@ -160,7 +162,7 @@ The target is:
 
 This document is the semantic center of that system.
 
-The intended maintenance model is a **restartable Project Gardener role**, not a permanent Gardener agent. Any suitable GPT should eventually be able to reconcile a bounded slice of new evidence into the Project Brain, checkpoint what it completed, and leave the work resumable by another GPT. That protocol is still being implemented and must not be confused with an already-landed runtime capability.
+The intended maintenance model is a **restartable Project Gardener role**, not a permanent Gardener agent. A suitable GPT reconciles bounded evidence into this Brain and leaves a checkpoint another GPT can resume. **A Gardener pass must be actually invoked and its output consumed.** Recording a #115 delta or detecting SHA drift is only intake; a named dispatcher/worker must begin a reconciliation pass, commit the supported semantic change or explicit no-change disposition, and advance the checkpoint only when the work is durable. As of 2026-10-08 that automatic/reliable invocation and a fully closed real pass are not demonstrated. See active closure issue dnd-solo #118; do not call this system operational merely because PRs #113/#117 describe or validate its components.
 
 ## 1.6 What changed our thinking recently
 
@@ -173,6 +175,8 @@ The runtime generalized faster than older summaries reflected. Statements built 
 At the same time, generalized mechanics do not prove generalized excellent DMing. The project needs current human evidence.
 
 ### Retrieval stopped being the main BFDM problem
+
+After merged archive-completion PR #40, the catalog has BCS-000001–BCS-000195 and the source index has 193 containers. The limited remaining archival gaps remain in the existing ledger; they do not license redoing the completed high-priority ingestion pass. PR #27 is separate Discord retrieval maintenance with merge conflicts.
 
 Discord and source retrieval are usable enough that restarting the old Git LFS/searchability problem would waste effort.
 
@@ -213,6 +217,7 @@ These are current working conclusions, not eternal doctrine.
 | Restraint, non-intervention, and what the DM declines to do are important BFDM evidence. | Strong research-direction conclusion. |
 | No individual AI agent's context window can safely serve as project memory. | Strong operational conclusion from repeated project failures. |
 | A fresh collaborator needs semantic continuity plus live authority, not one or the other. | Strong project-management conclusion. |
+| A component, PR, index, evaluation, status signal, or handoff is not completed project value until its specified next consumer uses it and the intended result is observed. | Strong operational conclusion; PR #40's recorded-but-unreconciled Gardener delta and tested-but-unmerged/runtime-deployment boundaries expose this failure. |
 
 ## 1.8 What we no longer treat as safe assumptions
 
@@ -229,6 +234,8 @@ Do not proceed from these older or tempting models:
 - A document's own "canonical" label outranks live repository authority.
 - Nagatha, Skippy, Work, Grok Build, ordinary GPT, or any other single worker can be relied on as the whole project's persistent memory.
 - A collection of context files is sufficient if a fresh GPT still has to reconstruct the actual project model from them.
+- A posted semantic delta, green Gardener checker, passing unit suite, mergeable PR, generated packet, uploaded source, or prepared handoff demonstrates its downstream purpose was achieved.
+- A task may be marked complete without identifying its real consumer, trigger/invocation, responsible actor, and observable acceptance result.
 
 ## 1.9 What remains uncertain
 
@@ -256,7 +263,7 @@ The project has hypotheses about precedent, recognition, retrieval, inhibition, 
 
 ### Semantic continuity reliability
 
-The Project Brain/Gardener design is intended to end repeated manual re-briefing. It is not proven until a genuinely fresh GPT can recover the project model, reason strategically from it, and later improve it without Brendon reconstructing the context.
+The Project Brain/Gardener design is intended to end repeated manual re-briefing. It is not proven until a bounded Gardener pass is invoked after a real change, reconciles the new evidence into durable Brain/control state, and a genuinely fresh GPT recovers the corrected model without Brendon prompting the pass or reconstructing the context. Structural status checks alone do not establish that loop.
 
 ## 1.10 What we are trying to learn next
 
@@ -275,18 +282,18 @@ What do failure/correction trajectories, restraint cases, and contrast families 
 How much improvement can be achieved with trusted precedent and minimal recognition/retrieval mechanisms before heavier architecture is justified?
 
 **Project continuity:**  
-Can a fresh GPT recover and continue the real project conversation from this Project Brain plus live authority, and can another GPT later reconcile new evidence into it without depending on the previous thread?
+Does a material merge or semantic delta actually cause a suitable Gardener to run, reconcile and commit the updated model, and leave a checkpoint a fresh GPT can use without prompting from Brendon? Can the fresh GPT then reason correctly from the result?
 
 ## 1.11 Likely next moves
 
 These are current directional expectations, not commitments.
 
-- Reconcile the runtime PR stack and close or deliberately account for known demonstrated blockers.
-- Generate fresh sustained human play evidence against current runtime state.
-- Continue the BFDM forensic integrity work and high-value semantic verification.
-- Use verified research, not merely polished research, to shape later precedent/minimal-cognition experiments.
-- Finish the semantic project-continuity system: this Project Brain, a restartable reconciliation protocol, bounded state/checkpointing, and cold-start evaluation.
-- Avoid building heavier cognition or project-management machinery until evidence shows it is the next constraint.
+- **Close the actual Gardener consumption loop first** (dnd-solo issue #118): reconcile PR #40 plus the premature-completion correction into the Brain, write and checkpoint the result honestly, establish a named invocation path, then test fresh-GPT consumption and repeatability. This is unfinished despite the existing role/checker design.
+- Reconcile the runtime PR stack into a combined build, ensure that build actually reaches the mounted Kit, and generate fresh sustained human play evidence beyond Area 6c.
+- Finish BFDM PR #27's Discord retrieval conflicts as a separate engineering task. Preserve missing revision, Rowing Oak image, Bodfish Site, Project-history, and known-source gaps as capability-dependent archive work, not grounds to repeat merged PR #40.
+- Prioritize forensic semantic verification in BFDM PR #38; then adversarially test PR #28's hypothesis families against independent Earthfall/Saturday evidence, respecting prep-versus-play distinctions.
+- Only use verified research to shape later bounded Stage 3 cognition/precedent experiments; keep larger Stage 4 architecture deferred.
+- For each substantial task, verify the full chain from output to named consumer, invocation, real use, and acceptance evidence. Do not mark an intermediary as the end result.
 
 ## 1.12 Decision horizon
 
@@ -385,7 +392,7 @@ It contains or indexes:
 
 The corpus exists so later research can reconstruct **what Brendon actually made, ran, changed, rejected, learned, and valued**, with provenance and uncertainty preserved.
 
-As of the current merged corpus state inspected on 2026-10-07, canonical source containers run through **BCS-000172**.
+As of BFDM `main` merge `dc0d558188c3e492f69c34a8e278e0cf9e17373b` on 2026-10-08, the catalog contains **195 BCS records through BCS-000195**, with **193 indexed source containers**; BCS-000059 is context-only and BCS-000068 is an excerpt. The PR #40 admission and index repairs do not establish live use, historical revision completeness, or semantic verification of derived research.
 
 ---
 
