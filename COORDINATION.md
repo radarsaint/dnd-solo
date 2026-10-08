@@ -66,15 +66,19 @@ Never resolve a conflict by choosing the newest-looking prose alone.
 
 ## Session bootstrap
 
-Before substantial work:
+For substantial project/research/implementation work, start at `dnd-solo/PROJECT_BOOTSTRAP.md`.
 
-1. Resolve the live `main` SHA for every repo the task depends on.
-2. Read that repo's `PROJECT_CONTROL.md`.
-3. Read the issue/PR that owns the task.
-4. Read only the domain documents needed for the task.
-5. Read historical boards/handoffs only when reconstructing history or resolving a contradiction.
+That router requires a fresh GPT to acquire, in order:
 
-Do not begin by consuming an append-only history log.
+1. durable project/corpus understanding;
+2. the agent/tool/capability map;
+3. live repository truth and current control state;
+4. recent material context changes;
+5. the issue/PR that actually owns the task.
+
+Do not begin by consuming an append-only history log, an old Project attachment, or an arbitrary open PR.
+
+For a narrowly bounded task, load only the portions of this context that can materially affect the work; the bootstrap is an orientation system, not an excuse to flood every worker with the entire archive.
 
 ## Work ownership
 
@@ -126,6 +130,35 @@ When the sibling repo changes in a way that affects this repo, update the cross-
 A different live SHA does **not** automatically make the snapshot false. It means the agent must verify whether intervening commits materially changed the claims it is about to rely on.
 
 Never silently call a dated control snapshot current without checking live GitHub.
+
+## GPT context continuity
+
+The project must carry forward durable understanding rather than relying on Brendon, Nagatha, Skippy, or any one chat's context window.
+
+Canonical surfaces:
+
+- `PROJECT_BOOTSTRAP.md` — stable project-work router.
+- `docs/PROJECT_UNDERSTANDING.md` — durable mental model, creative/corpus understanding, major boundaries and corrections.
+- each repo's `PROJECT_CONTROL.md` — fast-changing current state.
+- `coordination/AGENTS_AND_TOOLS.md` — identity, capability, persistence, and routing map.
+- `coordination/CONTEXT_CHANGELOG.md` — compact rolling summary of recent material context changes.
+- `dnd-solo` issue #115 — durable context-delta inbox for discoveries that happen outside an appropriate repo-changing PR.
+
+At the end of substantial work, classify context impact as:
+
+- `NONE`
+- `CONTROL`
+- `UNDERSTANDING`
+- `AGENTS_TOOLS`
+- `AUTHORITY`
+
+If authorized work already has an owning PR, update the correct context surface there.
+
+If a durable project lesson exists but no appropriate repo change owns it, persist a structured `CONTEXT_DELTA` to issue #115. Chat history alone is not durable project state.
+
+A context delta is **not project truth merely because it is in the inbox**. Reconciliation must compare it to authoritative evidence and fold it into the correct current context surface.
+
+Context files are rewritten and compacted. They are not append-only diaries.
 
 ## Handoffs
 
