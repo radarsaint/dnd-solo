@@ -6,7 +6,7 @@
 
 Canonical development repository for the D&D solo-DM project.
 
-Collaborators: read [PROJECT_CONTROL.md](PROJECT_CONTROL.md) and [COORDINATION.md](COORDINATION.md) first, then the issue/PR that owns your task. The old [collaboration board](docs/collab/BOARD.md) is retained as history, not as the live work queue.
+Collaborators: start with [PROJECT_BOOTSTRAP.md](PROJECT_BOOTSTRAP.md). It routes you through the durable project understanding, agent/tool map, live current-state controls, recent context changes, and then the issue/PR that owns your task. The old [collaboration board](docs/collab/BOARD.md) is retained as history, not as the live work queue.
 
 This repository separates the project into layers so campaign content, runtime behavior, player-facing presentation, assets, and test material can evolve independently without turning into one giant prompt or design document.
 
