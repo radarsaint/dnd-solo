@@ -1,38 +1,308 @@
 # Project Understanding — DM Kit / BFDM
 
-**Purpose:** durable mental model for humans and AI collaborators  
-**Status:** living orientation document, not executable or research authority  
-**Canonical location:** `radarsaint/dnd-solo/docs/PROJECT_UNDERSTANDING.md`  
+**Purpose:** living semantic Project Brain for humans and AI collaborators  
+**Status:** proposed on coordination PR #113; not canonical `main` until merged  
+**Target canonical location:** `radarsaint/dnd-solo/docs/PROJECT_UNDERSTANDING.md`  
 **Sibling repository:** `radarsaint/bfdm-corpus`  
-**Last substantive refresh:** 2026-10-07
+**Last substantive refresh:** 2026-10-07  
 **Context reviewed against:** `dnd-solo/main @ e3a5e9908357441051df24dac8086d8d4c7f26f5`; `bfdm-corpus/main @ 65513f294e72a3eb961d5699c21ddc1f14ceef2c`
 
-> This document exists so a fresh collaborator does not have to reconstruct the project from old chats, stale attachments, historical boards, scattered research papers, or repository archaeology before doing useful work.
+> This document is the project's current **semantic model**: what we are building, where we are, why we got here, what changed our thinking, how the major workstreams fit together, what we currently believe, what remains uncertain, and where the evidence points next.
+>
+> It exists so a capable fresh GPT can resume the project conversation without Brendon reconstructing the project by hand.
 
-It should explain **what the project is, what exists now, what the BFDM corpus actually contains, how the major creative lines fit together, what is known versus inferred, and which false mental models to avoid**.
+This document does **not** replace live authority.
 
-It is deliberately not the final authority for changing facts.
-
-For current executable state, use live `dnd-solo/main` plus `PROJECT_CONTROL.md`.  
-For current corpus/source/research state, use live `bfdm-corpus/main` plus that repo's `PROJECT_CONTROL.md`.  
+For current executable facts, use live `dnd-solo/main` plus `PROJECT_CONTROL.md`.  
+For current corpus/source/research facts, use live `bfdm-corpus/main` plus that repo's `PROJECT_CONTROL.md`.  
 For proposed work, use the owning issue or PR.  
 For player-facing quality, use current human/live evidence rather than architecture or test counts.
 
-If this document conflicts with those current authorities, **this document is stale and must be corrected**.
+If those sources change the meaning of this document, this document should be **rewritten to match the better model**. Do not preserve an outdated interpretation merely because it has history behind it; Git, PRs, audits, and decision records preserve the history.
 
 ---
 
-# 1. The project in one paragraph
+# 1. Living project brief
 
-The project is building **Kitiara ("Kit", "DM Kit")**, an AI Dungeon Master and creative partner whose success is judged by the complete experience of playing and building D&D with her.
+## 1.1 What we are building
 
-The near-term executable surface is a solo-DM runtime in `radarsaint/dnd-solo`. The deeper research program in `radarsaint/bfdm-corpus` preserves and studies Brendon's long history of campaign design, live Dungeon Master judgment, experimentation, failure, revision, and creative method.
+The project is building **Kitiara ("Kit", "DM Kit")**, a persistent AI Dungeon Master and creative partner.
 
-The corpus is not the product. The runtime is not the product. The architecture is not the product. **Kit is the product. The total experienced game is the acceptance layer.**
+The near-term executable surface is the solo-DM runtime in `radarsaint/dnd-solo`. The deeper research program in `radarsaint/bfdm-corpus` preserves and studies Brendon's long history of campaign design, live Dungeon Master judgment, experimentation, failure, revision, and creative method.
 
-Longer term, the ambition includes a Kit capable of carrying persistent, asynchronous, multi-player campaigns under Brendon's direction at a scale comparable to the historical Roanoke productions, without requiring Brendon or volunteer human DMs to function as the continuous runtime.
+The corpus is not the product.  
+The runtime is not the product.  
+The architecture is not the product.  
+BFDM research is not the product.
+
+**Kit is the product. The total experienced game is the acceptance layer.**
+
+Longer term, the project aims at a Kit capable of carrying persistent, asynchronous, multiplayer campaigns under Brendon's direction at a scale comparable to the historical Roanoke productions, without requiring Brendon or volunteer human DMs to provide the continuous runtime.
+
+The hard requirement is therefore larger than "make an LLM good at narration." Kit has to combine persistent world truth, source grounding, adjudication, differentiated NPC/faction state, campaign continuity, DM judgment, personality, presentation, restraint, long-horizon consequences, and director intent into one coherent Dungeon Master experience.
+
+## 1.2 Where the project is now
+
+The project is **past the stage where its main problem can honestly be described as missing machinery**.
+
+The current runtime is materially beyond the original Area 6c prototype. It has a generalized chat-hosted SQLite substrate, room loading, hidden-information projection, claims/knowers, agendas, attitudes, persistence, one-pass and staged execution, bounded procedures and combat, manifests, retry/idempotency support, and a large mechanical test surface.
+
+The research substrate has also advanced. The BFDM corpus has canonical source containers through BCS-000172, model-facing Discord retrieval exists, the old Git LFS opacity problem is substantially addressed, and historically important material across Roanoke, Empire City, later campaigns, Earthfall, and the 2026 design workbench is researchable.
+
+The important bottlenecks have moved upward.
+
+Right now the project has three major confidence gaps:
+
+1. **Current player-experience truth.** Runtime implementation advanced faster than sustained Brendon-facing evaluation. Several old failures may no longer be current, while several intended fixes have not yet proved themselves in ordinary play.
+2. **BFDM derived-research trust.** Source accessibility is strong enough for serious research, but polished derived work is not automatically trustworthy. The active forensic audit exists because citations and locators can still reconstruct incorrectly or support claims too broadly.
+3. **Shared project understanding.** Capable AI workers have repeatedly entered the project with different mental models, forcing Brendon to rebuild context, correct resource identities, explain what has already been solved, or stop agents from treating proxies as outcomes. The project itself now needs to carry that semantic continuity.
+
+This means the current program is increasingly about **turning uncertainty into evidence and keeping the resulting understanding coherent**, rather than reflexively adding more architecture.
+
+## 1.3 How we got here
+
+The current approach is the result of several rounds of correction.
+
+Early Kit work proved that a model could be given state, rules, personality material, and a bounded playable scene. Area 6c became a useful testbed because it was richly authored and repeatedly exercised.
+
+That success also produced a false mental model: implementation and evaluation began to orbit Area 6c too heavily. Later work generalized the runtime substantially, while project audits clarified that Area 6c is a historical testbed, not the architecture of Kit and not a sufficient model of DM quality.
+
+Player-facing tests then exposed another gap: strong architecture and green tests could coexist with flat NPCs, weak expression, bad pacing, missed social intent, or simply an unsatisfying game. The project increasingly separated **what the machinery knows** from **what actually reaches the player**.
+
+At the same time, BFDM research expanded. The corpus became substantially more accessible, including model-facing Discord retrieval. That removed a major mechanical research blocker, but it exposed a deeper epistemic one: accessible evidence does not make existing derived conclusions correct. The forensic integrity work exists because some polished, cited research could not yet be treated as source-verified.
+
+The October 7 audits unified these problems under one project-level correction:
+
+> **Proxy evidence is not demonstrated truth.**
+
+Passing tests are not satisfying play.  
+A landed fix is not demonstrated player-facing improvement.  
+Citation presence is not semantic verification.  
+Source accessibility is not trustworthy derived research.  
+Room loading is not source-to-room authoring.  
+Architecture is not implementation.  
+A document calling itself canonical is not necessarily current authority.
+
+This thread exposed the same failure at the project-management layer: a bootstrap file, context inbox, or freshness checker does not by itself mean a future GPT has inherited the project's real mental model.
+
+The response is the current Project Brain design: the project should preserve not only state and evidence, but also the **best current semantic understanding of what that state means**.
+
+## 1.4 Current strategic model
+
+The project should now be understood as four linked questions:
+
+**Can the machinery support the work?**  
+This is primarily the `dnd-solo` runtime question. The answer is increasingly "yes, across a much broader surface than before," with concrete remaining gaps rather than a missing foundation.
+
+**Can we trust the research we want Kit to learn from?**  
+This is the BFDM evidence question. Source/substrate readiness is ahead of derived-research trust. High-leverage claims need semantic verification before they become runtime doctrine.
+
+**Can Kit actually use and express what the project gives her?**  
+Private state, BFDM insight, source knowledge, and runtime capability only matter if they survive into good DM judgment and player-facing performance.
+
+**Does the player actually experience a better Dungeon Master?**  
+This is the final acceptance question. It cannot be answered by tests, architecture, research quality, or internal reasoning alone.
+
+A fifth supporting question has now become explicit:
+
+**Can every serious collaborator start from the same evolving mental model of the project?**  
+If not, the project repeatedly pays a tax in contradictory plans, duplicated work, stale assumptions, and Brendon having to act as manual memory.
+
+No single agent or chat should be the memory substrate. Nagatha remains valuable for PM/review/acceptance reconciliation, Skippy remains central to runtime engineering, Grok Build is a shell/repository execution resource, ordinary GPTs perform substantial reasoning/research/synthesis, and ChatGPT Work is reserved for work where its autonomous multi-source capability materially matters. The project itself must carry the continuity between them.
+
+## 1.5 Current workstreams and how they depend on one another
+
+### Runtime and integration
+
+The runtime lane is no longer "build a DM engine from scratch."
+
+Its near-term job is to reconcile and land known runtime work, close demonstrated blockers, avoid stale failure claims, and preserve enough instrumentation that later player-facing evaluation can tell us what actually happened.
+
+Current demonstrated blocker classes include:
+- player-roll ownership / Let It Ride behavior (#103);
+- incomplete combat transitions and related state handling (#97 / #101);
+- validator functional floors rewarding length over functional completeness (#102);
+- at least one deliberate social-omission recognition gap (#73).
+
+These are narrower than old blanket claims that combat, natural language, NPCs, or the whole runtime "do not work."
+
+### Player-experience evaluation
+
+This lane is now disproportionately important because implementation has outrun evidence.
+
+The next valuable play evidence is not another proof that Area 6c can run. It is sustained current-build play in a materially different real room that crosses ordinary boundaries between exploration, social interaction, physical action, checks, NPC initiative, and combat where appropriate.
+
+The goal is to discover the **next quality ceiling**, not to rediscover already-known plumbing defects.
+
+### BFDM integrity and research
+
+The corpus is sufficiently accessible for serious work.
+
+The current research priority is trust: verify high-leverage derived claims against primary evidence, attack attractive hypotheses adversarially, find restraint/non-intervention cases that visible-action research can miss, and reconstruct failure -> diagnosis -> correction -> later-behavior trajectories.
+
+PR #28 remains useful as a hypothesis map rather than a gold-label foundation. PR #38 is active forensic integrity work and demonstrates why semantic verification matters.
+
+Stage 3 precedent/minimal-cognition experiments should consume evidence whose lineage and confidence are explicit. Stage 4 heavier cognition architecture remains later.
+
+### Project understanding and continuity
+
+This workstream exists because project knowledge was repeatedly trapped inside individual chats, stale Project files, branch-local handoffs, and agent-specific context windows.
+
+The target is not "better documentation."
+
+The target is:
+
+> A fresh capable GPT should be able to understand what the project is, where it is, why it got here, what changed the team's thinking, what resources exist, what is currently true, what remains uncertain, and where the work is heading—without Brendon rebuilding that model by hand.
+
+This document is the semantic center of that system.
+
+The intended maintenance model is a **restartable Project Gardener role**, not a permanent Gardener agent. Any suitable GPT should eventually be able to reconcile a bounded slice of new evidence into the Project Brain, checkpoint what it completed, and leave the work resumable by another GPT. That protocol is still being implemented and must not be confused with an already-landed runtime capability.
+
+## 1.6 What changed our thinking recently
+
+Several recent changes materially alter how a competent collaborator should reason about the project.
+
+### Runtime maturity moved the bottleneck
+
+The runtime generalized faster than older summaries reflected. Statements built around "Area 6c prototype" are now stale as project-level descriptions.
+
+At the same time, generalized mechanics do not prove generalized excellent DMing. The project needs current human evidence.
+
+### Retrieval stopped being the main BFDM problem
+
+Discord and source retrieval are usable enough that restarting the old Git LFS/searchability problem would waste effort.
+
+The harder problem is now whether derived propositions actually reconstruct from their cited evidence at the confidence and scope claimed.
+
+### The project separated source readiness from research trust
+
+"Ready to research" does not mean "existing research is verified."
+
+That distinction is now central to any attempt to turn BFDM findings into cognition, prompting, evaluation, or runtime behavior.
+
+### Historical player-facing failures were reclassified
+
+Some failures remain current and demonstrated. Others were mechanically addressed but not retested. Others are now stale.
+
+This prevents both pessimistic carry-forward ("Kit is still broken in all the old ways") and unjustified optimism ("the fixes landed, therefore the experience is fixed").
+
+### Project continuity became a product-support problem in its own right
+
+Repeated GPT sessions could possess a great deal of information and still form the wrong project model.
+
+The project now treats accumulated semantic understanding as durable state that must survive thread boundaries.
+
+## 1.7 What we currently believe
+
+These are current working conclusions, not eternal doctrine.
+
+| Current belief | Confidence / basis |
+| --- | --- |
+| Kit is the product; total experienced play is the acceptance layer. | Settled project north star. |
+| `dnd-solo/main` is materially beyond the old Area 6c prototype. | Strong executable evidence. |
+| Generalized runtime capability has not yet demonstrated generalized excellent DM play. | Strong; human evidence lags implementation. |
+| The next major runtime-quality knowledge gain comes from sustained current-build play across ordinary boundaries. | Strong current evaluation conclusion. |
+| BFDM source accessibility is substantially improved and is no longer the central research bottleneck. | Strong corpus-state evidence. |
+| Derived BFDM research requires semantic verification before high-confidence downstream use. | Strong; active forensic audit already found reconstruction problems. |
+| Heavy preparation in Brendon's work often functions as infrastructure/pressure rather than a script. | Strong recurring historical pattern, still subject to context and counterexamples. |
+| Restraint, non-intervention, and what the DM declines to do are important BFDM evidence. | Strong research-direction conclusion. |
+| No individual AI agent's context window can safely serve as project memory. | Strong operational conclusion from repeated project failures. |
+| A fresh collaborator needs semantic continuity plus live authority, not one or the other. | Strong project-management conclusion. |
+
+## 1.8 What we no longer treat as safe assumptions
+
+Do not proceed from these older or tempting models:
+
+- Area 6c is the architecture of Kit.
+- A generalized room loader means source-to-room authoring is solved.
+- Green tests demonstrate a good Dungeon Master.
+- An old player-facing failure remains current merely because it once happened.
+- A merged mechanical fix proves the player experience improved.
+- BFDM material is trustworthy because it is polished, cited, or internally coherent.
+- Searchability is the same thing as research verification.
+- More cognition architecture is automatically the next useful step.
+- A document's own "canonical" label outranks live repository authority.
+- Nagatha, Skippy, Work, Grok Build, ordinary GPT, or any other single worker can be relied on as the whole project's persistent memory.
+- A collection of context files is sufficient if a fresh GPT still has to reconstruct the actual project model from them.
+
+## 1.9 What remains uncertain
+
+The most important unknowns are now relatively specific.
+
+### Current DM-quality ceiling
+
+We do not yet know how good current Kit actually feels over sustained ordinary play after the large wave of runtime repairs and generalization.
+
+### Remaining expression gap
+
+Historical evidence suggests that useful private machinery can fail to survive into player-facing performance. We do not yet know the present size or dominant cause of that gap on current main.
+
+### Generalization beyond the richest testbed
+
+The runtime is generalized more broadly than Area 6c, but current high-quality evidence across varied real adventure situations remains thin.
+
+### BFDM trust depth
+
+We do not yet know how much existing derived research will survive semantic forensic verification unchanged, narrowed, or downgraded.
+
+### What minimal cognition is actually necessary
+
+The project has hypotheses about precedent, recognition, retrieval, inhibition, attention, and longer-horizon judgment. It does not yet have evidence that a large cognition architecture is required to get the next major quality gain.
+
+### Semantic continuity reliability
+
+The Project Brain/Gardener design is intended to end repeated manual re-briefing. It is not proven until a genuinely fresh GPT can recover the project model, reason strategically from it, and later improve it without Brendon reconstructing the context.
+
+## 1.10 What we are trying to learn next
+
+The project should prioritize questions that reduce these uncertainties.
+
+**Runtime / player experience:**  
+What does current Kit actually do in sustained non-6c play once known blockers are removed, merged, or explicitly avoided?
+
+**BFDM:**  
+Which high-leverage derived claims survive semantic source verification, and which need narrowing, correction, or rejection?
+
+**Judgment research:**  
+What do failure/correction trajectories, restraint cases, and contrast families actually reveal about the recognition and judgment Kit needs?
+
+**Cognition:**  
+How much improvement can be achieved with trusted precedent and minimal recognition/retrieval mechanisms before heavier architecture is justified?
+
+**Project continuity:**  
+Can a fresh GPT recover and continue the real project conversation from this Project Brain plus live authority, and can another GPT later reconcile new evidence into it without depending on the previous thread?
+
+## 1.11 Likely next moves
+
+These are current directional expectations, not commitments.
+
+- Reconcile the runtime PR stack and close or deliberately account for known demonstrated blockers.
+- Generate fresh sustained human play evidence against current runtime state.
+- Continue the BFDM forensic integrity work and high-value semantic verification.
+- Use verified research, not merely polished research, to shape later precedent/minimal-cognition experiments.
+- Finish the semantic project-continuity system: this Project Brain, a restartable reconciliation protocol, bounded state/checkpointing, and cold-start evaluation.
+- Avoid building heavier cognition or project-management machinery until evidence shows it is the next constraint.
+
+## 1.12 Decision horizon
+
+Most current work should not require Brendon to perform repository archaeology or routine coordination.
+
+The questions that genuinely belong with Brendon are the ones involving product judgment or authority, including:
+
+- whether current player experience is actually good enough;
+- whether a proposed behavior feels like Kit and serves the game;
+- disputed creative or product priorities;
+- meaningful tradeoffs between different desirable experiences;
+- whether a research interpretation captures his actual judgment when evidence remains ambiguous;
+- merge/authority decisions that have not been delegated;
+- when the evidence is strong enough to move from experimentation into a more committed architecture.
+
+The system should bring those decisions to him **with the relevant project model already assembled**.
+
+It should not bring him the job of remembering the project.
 
 ---
+
 
 # 2. Authority model
 
