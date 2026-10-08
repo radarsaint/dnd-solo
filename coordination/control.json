@@ -1,5 +1,5 @@
 {
-  "schema": "kit_project_control/v1",
+  "schema": "kit_project_control/v2",
   "repo": "radarsaint/dnd-solo",
   "role": "EXECUTABLE_RUNTIME",
   "sibling_repo": "radarsaint/bfdm-corpus",
@@ -32,5 +32,24 @@
     "chatgpt_work": "SCARCE_MULTI_SOURCE_AUTONOMOUS_RESEARCH_WHERE_MATERIALLY_ADVANTAGED",
     "grok_build": "EXECUTABLE_RECONNAISSANCE_REPO_SURGERY_DETERMINISTIC_TEST_WORK_NOT_SKIPPY_NOT_A_GROK_BOT"
   },
-  "governing_correction": "PROXY_EVIDENCE_IS_NOT_DEMONSTRATED_TRUTH"
+  "governing_correction": "PROXY_EVIDENCE_IS_NOT_DEMONSTRATED_TRUTH",
+  "project_bootstrap": "PROJECT_BOOTSTRAP.md",
+  "project_understanding": "docs/PROJECT_UNDERSTANDING.md",
+  "agents_and_tools": "coordination/AGENTS_AND_TOOLS.md",
+  "context_changelog": "coordination/CONTEXT_CHANGELOG.md",
+  "context_inbox": {
+    "repo": "radarsaint/dnd-solo",
+    "issue": 115,
+    "role": "DURABLE_CONTEXT_DELTA_INBOX_NOT_AUTHORITY_NOT_WORK_QUEUE"
+  },
+  "context_review": {
+    "reviewed_on": "2026-10-07",
+    "reviewed_against": {
+      "radarsaint/dnd-solo": "e3a5e9908357441051df24dac8086d8d4c7f26f5",
+      "radarsaint/bfdm-corpus": "65513f294e72a3eb961d5699c21ddc1f14ceef2c"
+    },
+    "last_integrated_context_inbox_comment_id": null,
+    "staleness_rule": "LIVE_MAIN_SHA_CHANGE_REQUIRES_IMPACT_CHECK_NOT_AUTOMATIC_INVALIDATION"
+  },
+  "context_backflow": "SUBSTANTIAL_WORK_CLASSIFIES_CONTEXT_IMPACT_AND_UPDATES_CANONICAL_CONTEXT_OR_ENQUEUES_ISSUE_115"
 }
