@@ -4,8 +4,9 @@
 **Last runtime truth audit:** `main @ e3a5e9908357441051df24dac8086d8d4c7f26f5`  
 **Sibling repo:** `radarsaint/bfdm-corpus`
 
-Read `COORDINATION.md` before substantial cross-agent work.
-For the durable cross-repo mental model and corpus-content orientation, read `docs/PROJECT_UNDERSTANDING.md` once before deep project work.
+For substantial project work, start with `PROJECT_BOOTSTRAP.md`. It routes to the durable mental model, agent/tool map, this current-state control surface, recent context changes, and the owning issue/PR.
+
+This file is the **current runtime-state layer**, not the complete project memory.
 
 This file is deliberately short and rewritable. Git history, issues, PRs, and `docs/collab/BOARD.md` preserve history.
 
