@@ -82,7 +82,7 @@ Examples:
 - load audits, decisions, Git history, source material, or BFDM evidence for historical/causal/research work;
 - load specific architecture/code/tests for runtime implementation work.
 
-`coordination/CONTEXT_CHANGELOG.md` is **not required bootstrap reading**. It is supplementary provenance pending separate disposition.
+`coordination/CONTEXT_CHANGELOG.md` is **historical provenance only**. It is superseded as an active context surface; do not maintain it or require fresh collaborators to read it.
 
 Do not begin by consuming an append-only history log, an old Project attachment, every context file, or an arbitrary open PR.
 
