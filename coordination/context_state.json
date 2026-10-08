@@ -2,17 +2,17 @@
   "schema": "kit_project_gardener_state/v1",
   "purpose": "RESUMABILITY_CURSOR_NOT_KNOWLEDGE_STORE",
   "canonical_location": "radarsaint/dnd-solo/coordination/context_state.json",
-  "state_revision": 5,
+  "state_revision": 6,
   "semantic_brain": {
     "repo": "radarsaint/dnd-solo",
     "path": "docs/PROJECT_UNDERSTANDING.md",
-    "last_semantic_commit": "f451dced0e47e6a82d47f3c1f97fdf6eefd89312",
+    "last_semantic_commit": "86e4adefbcac04131f65c43b80ff33d9a923031d",
     "last_reviewed_on": "2026-10-08"
   },
   "checkpoint": {
     "reviewed_against_main": {
-      "radarsaint/dnd-solo": "f7215011c728495a7e93410217ac4618523acf6a",
-      "radarsaint/bfdm-corpus": "9b986623a1a5ec1b14a27be23d4e32e8d1faf32e"
+      "radarsaint/dnd-solo": "86e4adefbcac04131f65c43b80ff33d9a923031d",
+      "radarsaint/bfdm-corpus": "1fedaee76e2b2e17d05619ee3ff115fe5646167a"
     },
     "context_inbox": {
       "repo": "radarsaint/dnd-solo",
@@ -25,9 +25,9 @@
   "last_completed_pass": {
     "kind": "BOUNDED_SEMANTIC_RECONCILIATION",
     "completed_on": "2026-10-08",
-    "scope": "Reconciled Brendon-approved merges of dnd-solo #113, dnd-solo #117, and bfdm-corpus #39 onto canonical main. No #115 comment id newer than 6060014309.",
-    "result": "Accepted: coordination contract, Project Brain, Gardener checkpoint, and context-status checker are on main and are not proposed. Narrowed: one dispatcher-started pass is not operational continuity. Rejected: treating a status-checker warning as completion. Unresolved: #118 G4 cold start from default main, G5 repeatability, ChatGPT Project source membership.",
-    "resulting_brain_commit": "f451dced0e47e6a82d47f3c1f97fdf6eefd89312"
+    "scope": "Reconciled Brendon-approved merges of dnd-solo #113, dnd-solo #117, and bfdm-corpus #39 onto canonical main, plus the follow-up brain narrowing. No #115 comment id newer than 6060014309.",
+    "result": "Accepted: coordination contract, Project Brain, Gardener checkpoint, and context-status checker are on main and are not proposed. BFDM README now points bootstrap at dnd-solo main. Narrowed: one dispatcher-started pass is not operational continuity. Rejected: treating a status-checker warning as completion. Unresolved: #118 G4 cold start from default main, G5 repeatability, ChatGPT Project source membership, BFDM README program paragraph still saying BCS-000172.",
+    "resulting_brain_commit": "86e4adefbcac04131f65c43b80ff33d9a923031d"
   },
   "active_pass": null,
   "unresolved": [
@@ -35,6 +35,7 @@
     "Issue #118 G5 is unmet: a second meaningful change has not invoked the Gardener without a person delivering the prompt.",
     "A status-checker warning is not completion and does not accept a semantic delta.",
     "ChatGPT Project source membership remains a manual Project-UI change.",
+    "BFDM README current-program paragraph still says source containers run through BCS-000172; PROJECT_CONTROL.md has the post-#40 195/193 facts.",
     "Do not keep editing merged coordination branches docs/coordination-refresh-2026-10-07, tooling/project-context-status-116, or docs/cross-repo-coordination-2026-10-07."
   ],
   "needs_review": [],
