@@ -2,11 +2,11 @@
   "schema": "kit_project_gardener_state/v1",
   "purpose": "RESUMABILITY_CURSOR_NOT_KNOWLEDGE_STORE",
   "canonical_location": "radarsaint/dnd-solo/coordination/context_state.json",
-  "state_revision": 1,
+  "state_revision": 2,
   "semantic_brain": {
     "repo": "radarsaint/dnd-solo",
     "path": "docs/PROJECT_UNDERSTANDING.md",
-    "last_semantic_commit": "5b12c4beb52782730e8a4df989aa1ad880991c15",
+    "last_semantic_commit": "5d719fea95bc0656f1ad03822c4ead7e00248fa8",
     "last_reviewed_on": "2026-10-07"
   },
   "checkpoint": {
