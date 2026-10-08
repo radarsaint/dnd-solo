@@ -2,40 +2,42 @@
   "schema": "kit_project_gardener_state/v1",
   "purpose": "RESUMABILITY_CURSOR_NOT_KNOWLEDGE_STORE",
   "canonical_location": "radarsaint/dnd-solo/coordination/context_state.json",
-  "state_revision": 6,
+  "state_revision": 7,
   "semantic_brain": {
     "repo": "radarsaint/dnd-solo",
     "path": "docs/PROJECT_UNDERSTANDING.md",
-    "last_semantic_commit": "86e4adefbcac04131f65c43b80ff33d9a923031d",
+    "last_semantic_commit": "e4e3431b0fad688a8a834ac15e576eddd36ed51f",
     "last_reviewed_on": "2026-10-08"
   },
   "checkpoint": {
     "reviewed_against_main": {
-      "radarsaint/dnd-solo": "86e4adefbcac04131f65c43b80ff33d9a923031d",
+      "radarsaint/dnd-solo": "e4e3431b0fad688a8a834ac15e576eddd36ed51f",
       "radarsaint/bfdm-corpus": "1fedaee76e2b2e17d05619ee3ff115fe5646167a"
     },
     "context_inbox": {
       "repo": "radarsaint/dnd-solo",
       "issue": 115,
       "issue_state_at_checkpoint": "open",
-      "last_fully_reconciled_comment_id": 6060014309,
-      "comment_count_at_checkpoint": 2
+      "last_fully_reconciled_comment_id": 6065921827,
+      "comment_count_at_checkpoint": 3
     }
   },
   "last_completed_pass": {
     "kind": "BOUNDED_SEMANTIC_RECONCILIATION",
     "completed_on": "2026-10-08",
-    "scope": "Reconciled Brendon-approved merges of dnd-solo #113, dnd-solo #117, and bfdm-corpus #39, plus leftover Brain sentences that still called the PR #40 delta unreconciled. No #115 comment id newer than 6060014309.",
-    "result": "Accepted: coordination contract, Project Brain, Gardener checkpoint, and context-status checker are on main. Narrowed: belief-table and next-move sentences that still treated that work as proposed. Rejected: a status-checker warning as completion. Unresolved: #118 G4 and G5, and ChatGPT Project source membership.",
-    "resulting_brain_commit": "86e4adefbcac04131f65c43b80ff33d9a923031d"
+    "scope": "Reconciled #115 comment 6065921827: the 2026-10-08 merge wave started one unsynchronized Gardener pass per merged pull request.",
+    "result": "Accepted, narrowed: three kit-gardener-on-merge successes (c6b15d24, 7f376ca7, fbf0e7ba) followed #113, #117, and #39; no GitHub APPROVE review exists because author and merger are the same user. Rejected: treating only the #39 merge as the dispatcher trigger, and treating checkpoint tip 4228be7 as a newer brain. Unresolved: #118 G4 and G5, and ChatGPT Project source membership. bfdm-corpus PROJECT_CONTROL.md was not false.",
+    "resulting_brain_commit": "e4e3431b0fad688a8a834ac15e576eddd36ed51f",
+    "reconciled_comment_id": 6065921827
   },
   "active_pass": null,
   "unresolved": [
-    "Issue #118 G4 is unmet: an unbriefed cold start from the default-branch entry has not been recorded after these merges.",
-    "Issue #118 G5 is unmet: a second meaningful change has not invoked the Gardener without a person delivering the prompt.",
+    "Issue #118 G4 is unmet: an unbriefed cold start from the default-branch entry has not been recorded.",
+    "Issue #118 G5 is unmet: merge-triggered invocation without a pasted prompt is not the full acceptance chain; a cold-start worker has not used the corrected model.",
     "A status-checker warning is not completion and does not accept a semantic delta.",
     "ChatGPT Project source membership remains a manual Project-UI change.",
-    "Do not keep editing merged coordination branches docs/coordination-refresh-2026-10-07, tooling/project-context-status-116, or docs/cross-repo-coordination-2026-10-07."
+    "Do not keep editing merged coordination branches docs/coordination-refresh-2026-10-07, tooling/project-context-status-116, or docs/cross-repo-coordination-2026-10-07.",
+    "The semantic result of the 2026-10-08 merge wave is brain commit e4e3431b0fad688a8a834ac15e576eddd36ed51f after correction, not checkpoint-only commits."
   ],
   "needs_review": [],
   "checkpoint_rules": {
