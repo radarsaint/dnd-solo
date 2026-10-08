@@ -71,6 +71,7 @@ For substantial project/research/implementation work, start at `dnd-solo/PROJECT
 
 The required path is deliberately small:
 
+0. **Identify the worker** before acting on the repository. Tool availability does not redefine worker identity. An ordinary GPT is not Grok Build, not ChatGPT Work, and not a shell executor. Repository and shell implementation goes to Grok Build unless a named owner such as Skippy has that lane. Brendon is not the routine repository executor.
 1. **Project Brain** — read `docs/PROJECT_UNDERSTANDING.md` to acquire the current semantic model.
 2. **Live authority/current control** — reconcile state-sensitive claims against live GitHub and the relevant repo's `PROJECT_CONTROL.md`.
 3. **Owning task** — read the issue/PR or explicit user instruction that controls the work.
@@ -351,6 +352,10 @@ A semantic/context delta is **not project truth merely because it is in the inbo
 
 
 ## Tool-boundary and executor-routing rule
+
+Worker identity comes before repository reasoning. Determine the worker from its product and execution environment. Tool availability does not redefine that identity.
+
+An ordinary GPT specifies, routes, and reviews repository and shell work. It is not that executor, even when a GitHub connector is present. Hand the original acceptance condition to Grok Build unless a named owner such as Skippy already owns the lane. Brendon may transport the packet. He is not the routine executor of the underlying work.
 
 A worker's local tool limitations do **not** change the project's required outcome.
 

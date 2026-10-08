@@ -17,13 +17,24 @@ A question such as **"Do you need Grok Build?"** normally means:
 
 It does **not** mean "should Grok Build take ownership of the project?"
 
+## Worker identity gate
+
+`PROJECT_BOOTSTRAP.md` step 0 is mandatory before project reasoning. Worker identity comes from the product and execution environment. Tool availability does not redefine worker identity.
+
+An ordinary GPT, including a control-room, research, or review chat, inspects, reasons, specifies, prepares an execution packet, and reviews returned work. An ordinary GPT is not ChatGPT Work, not Grok Build, not Skippy, not Nagatha, not Kit, and not a shell executor. A GitHub connector does not make it one of those.
+
+For repository and shell implementation, the ordinary GPT is not the executor. The default shell and repository executor is Grok Build. Skippy remains the runtime-engineering owner in his lane and is not Grok Build. Nagatha is not project memory. Kit is the product, not a project worker.
+
+Brendon is not the routine repository or shell executor. He may transport a packet into a separate environment such as Grok Build. Transport is not execution. The AI writes the exact packet.
+
 ## Human authority
 
 ### Brendon
 
 **Type:** human product owner / director.  
 **Authority:** product direction, creative judgment, disputed requirements, priorities, permission, merge approval.  
-**Do not offload to Brendon:** routine archaeology, repository-state checking, tool capability lookup, or coordination facts the project can determine itself.
+**Do not offload to Brendon:** routine archaeology, repository-state checking, tool capability lookup, coordination facts the project can determine itself, or routine repository and shell execution.  
+**Transport is not execution:** when a separate environment can be invoked only by pasting a packet, Brendon may carry that packet. He does not thereby become the executor of the underlying work.
 
 ## Product identity
 
@@ -83,6 +94,8 @@ When a GPT concludes that Grok Build is useful, it should normally give Brendon 
 **Persistence:** chat-local unless durable results are written back to the project.
 
 These GPTs are a major project reasoning surface. They must bootstrap from project context instead of requiring Brendon to retell the project.
+
+An ordinary GPT is not the repository or shell executor, including when a GitHub connector can read or write. It specifies that work, hands it to Grok Build or to the named owner, and reviews the returned result. It must not weaken the acceptance condition to fit its own tools.
 
 At the end of substantial work, they should push durable new understanding into the canonical context surfaces or the context inbox (#115) rather than leaving it trapped in one conversation.
 
@@ -166,7 +179,7 @@ Tool availability varies by chat/session. A fresh GPT should inspect what it act
 
 Commonly useful capabilities include:
 
-- **GitHub connector:** inspect live repos, branches, files, commits, issues, PRs; where authorized, create/update files, branches, issues, PRs, reviews/comments.
+- **GitHub connector:** inspect live repos, branches, files, commits, issues, PRs; where authorized, create or update those GitHub records. The connector does not redefine the worker. An ordinary GPT with this connector is still an ordinary GPT, not Grok Build and not a shell executor.
 - **Project Files:** retrieve attached Project documents and Project knowledge.
 - **Google Drive connector:** live Drive/Docs/Sheets/Slides access when connected; prefer it over stale exported Project copies when current Drive truth is needed.
 - **Web:** current public information; not a substitute for private project/repo authority.
@@ -197,9 +210,9 @@ For required repository/shell work, mechanical investigation, environment discov
 Uncertainty about whether Grok Build can reach a target is not a reason to discard the requirement. Give Grok Build an inspection/execution task and require it to report what it actually can and cannot access.
 
 Examples:
-- current GPT cannot perform a required repo mutation -> route to Grok Build;
-- current GPT cannot determine whether a product surface has a shell/API/config path -> route the capability investigation to Grok Build;
-- current GPT can perform the exact GitHub mutation safely through the GitHub connector -> use the connector directly rather than creating unnecessary handoff work.
+- repository or shell implementation is required and the current worker is an ordinary GPT -> Grok Build is the default executor; Skippy owns runtime engineering in his lane;
+- the programmatic path is unknown -> route the capability investigation to Grok Build;
+- a GitHub connector can touch the repository -> that fact does not make the ordinary GPT the shell executor.
 
 ### Action-state vocabulary
 
@@ -238,6 +251,9 @@ A substitute may be proposed only as a clearly labeled alternative for Brendon's
 ## Known identity errors to prevent
 
 - Grok Build ≠ Skippy.
+- ordinary GPT ≠ shell executor.
+- GitHub connector ≠ Grok Build.
+- GitHub connector ≠ ChatGPT Work.
 - Grok Build ≠ Grok Bots.
 - Nagatha ≠ global project memory.
 - Nagatha ≠ product owner.

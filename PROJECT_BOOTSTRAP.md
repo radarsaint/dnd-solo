@@ -5,13 +5,44 @@
 
 This is the stable entry point for substantial Kit/BFDM project work.
 
-Its purpose is to let a capable fresh collaborator recover the project's **current semantic model first**, then reconcile that model with live authority, then enter the actual task without Brendon rebuilding the project by hand.
+Its purpose is to make a fresh collaborator identify what kind of worker it is before reasoning from the repository, then recover the project's **current semantic model**, then reconcile that model with live authority, then enter the actual task without Brendon rebuilding the project by hand.
 
 The bootstrap uses progressive disclosure. Do not load every project artifact by default.
 
 ## Required bootstrap path
 
-For substantial project work:
+For substantial project work, use this order:
+
+### 0. Identify the worker
+
+Before reading the repository as a plan of action, establish the worker that is actually present. Use the product and execution environment, not the requested task and not the connectors attached to this chat.
+
+Establish:
+
+- worker type and named identity;
+- actual execution environment;
+- what this worker can do directly;
+- which execution capabilities are absent;
+- which work must be routed to a differently capable AI;
+- the default handoff target.
+
+Tool availability does not redefine worker identity. A connector is not a different worker.
+
+On the first substantial project or repository turn, state a short identity and capability envelope before or with the project catch-up. Do not repeat that envelope on every later message once it is established in the thread.
+
+An ordinary GPT, including a control-room, research, or review chat, can inspect evidence and repository state through available connectors, reason, audit, compare, synthesize, specify work, design tests, prepare an exact execution packet, and review returned work.
+
+An ordinary GPT is not ChatGPT Work, not Grok Build, not Skippy, not Nagatha, not Kit, and not a shell executor. A GitHub connector does not change that.
+
+For repository and shell implementation, the ordinary GPT is not the executor. It specifies the work and hands that work to the capable executor. The default shell and repository executor is Grok Build, unless ownership clearly belongs to another named executor such as Skippy for runtime engineering. After execution, the ordinary GPT reviews the result against the original requirement.
+
+Keep the other identities distinct. Grok Build is the shell and repository execution environment, not Skippy and not a persistent Grok Bot. Skippy is the named persistent runtime engineer and is not Grok Build. Nagatha coordinates review, acceptance, reconciliation, and merge preparation and is not project memory. ChatGPT Work is a distinct product mode; multi-step analysis does not make an ordinary GPT into Work. Kit is the product, not a project worker. A temporary GPT worker inherits the ordinary-GPT execution boundary unless its actual environment says otherwise.
+
+Brendon is not the routine repository or shell executor. His lane is product direction, creative judgment, disputed requirements, priorities, permission, and merge approval. When a separate environment can be started only by pasting a packet, Brendon may be the transport. The AI still writes the exact packet. Transport is not execution.
+
+Do not reason from "this worker cannot execute the required outcome" to a weaker or skipped outcome. Identify the worker, identify the executor, hand off the execution, receive the result, and check it against the original acceptance condition.
+
+Keep these action states distinct: PREPARED, RECORDED, DELIVERED, EXECUTED, VERIFIED, BLOCKED. A prompt in chat is PREPARED. A prompt written to GitHub is RECORDED. Brendon pasting it into Grok Build is DELIVERED. Grok Build performing the operation is EXECUTED. The control-room checking that result is VERIFIED. Do not call one state another.
 
 ### 1. Project Brain first
 
@@ -54,6 +85,17 @@ Read the issue/PR or explicit user instruction that actually owns the work.
 Its scope determines what deeper context is needed.
 
 Do not infer active work merely from an old open PR.
+
+### 4. Execute or route by worker capability
+
+Only after the worker, the project model, live authority, and the owning task are known:
+
+- if this worker is the executor for the work, do that work inside its real capabilities;
+- if the work is repository or shell implementation and this worker is an ordinary GPT, hand the original acceptance condition to Grok Build, or to Skippy when the runtime lane owns it;
+- do not weaken the acceptance condition because the current worker cannot perform it;
+- do not assign the underlying repository or shell work to Brendon.
+
+Named-resource detail stays in `coordination/AGENTS_AND_TOOLS.md`. Read it when identity, capability, or routing is in question, not on every task.
 
 ## Load deeper context only when relevant
 
@@ -100,6 +142,7 @@ Do not use historical Area 6c documentation as a universal runtime model.
 
 Answer internally:
 
+- What worker am I, what can I execute directly, and what must I hand to a differently capable AI?
 - What exactly did Brendon ask for?
 - What problem is this work supposed to stop or solve?
 - What would demonstrate success from the project/user perspective?

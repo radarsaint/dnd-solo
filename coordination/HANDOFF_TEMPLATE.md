@@ -29,6 +29,10 @@ Execution state:
 - PREPARED | RECORDED | DELIVERED | EXECUTED | VERIFIED | BLOCKED
 - use the highest state actually supported by evidence; do not collapse these states
 
+Worker:
+- identity of the worker writing this handoff
+- executor of any repository or shell work, if that executor is different
+
 Verification:
 - tests / commands / source checks
 - failures or gaps
