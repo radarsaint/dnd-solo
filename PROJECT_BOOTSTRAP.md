@@ -80,7 +80,7 @@ The issue is the semantic-delta inbox, not project truth.
 
 Use Git history, audits, decision records, PRs/issues, playtests, source material, and BFDM evidence as needed.
 
-`coordination/CONTEXT_CHANGELOG.md` is not required bootstrap reading. Treat it as supplementary provenance until its long-term disposition is handled separately.
+`coordination/CONTEXT_CHANGELOG.md` is historical provenance only. It is superseded as an active context surface; do not maintain it and do not read it unless reconstructing the early continuity-design history.
 
 ### BFDM research work
 
