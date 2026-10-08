@@ -2,17 +2,17 @@
   "schema": "kit_project_gardener_state/v1",
   "purpose": "RESUMABILITY_CURSOR_NOT_KNOWLEDGE_STORE",
   "canonical_location": "radarsaint/dnd-solo/coordination/context_state.json",
-  "state_revision": 4,
+  "state_revision": 5,
   "semantic_brain": {
     "repo": "radarsaint/dnd-solo",
     "path": "docs/PROJECT_UNDERSTANDING.md",
-    "last_semantic_commit": "59f21e1992c50ffbd405cead03b8c1e5731e0efb",
+    "last_semantic_commit": "f451dced0e47e6a82d47f3c1f97fdf6eefd89312",
     "last_reviewed_on": "2026-10-08"
   },
   "checkpoint": {
     "reviewed_against_main": {
-      "radarsaint/dnd-solo": "e3a5e9908357441051df24dac8086d8d4c7f26f5",
-      "radarsaint/bfdm-corpus": "dc0d558188c3e492f69c34a8e278e0cf9e17373b"
+      "radarsaint/dnd-solo": "f7215011c728495a7e93410217ac4618523acf6a",
+      "radarsaint/bfdm-corpus": "9b986623a1a5ec1b14a27be23d4e32e8d1faf32e"
     },
     "context_inbox": {
       "repo": "radarsaint/dnd-solo",
@@ -25,15 +25,17 @@
   "last_completed_pass": {
     "kind": "BOUNDED_SEMANTIC_RECONCILIATION",
     "completed_on": "2026-10-08",
-    "scope": "Reconciled issue #115 comments 6059734349 and 6060014309 against live mains: merged BFDM PR #40 archive facts, and the premature-completion / missing-consumer pattern.",
-    "result": "Both deltas accepted into the proposed Project Brain on this branch and the paired BFDM control branch. Those branches are not canonical main. Automatic invocation and cold-start consumption on the default-branch entry remain unproven.",
-    "resulting_brain_commit": "59f21e1992c50ffbd405cead03b8c1e5731e0efb"
+    "scope": "Reconciled Brendon-approved merges of dnd-solo #113, dnd-solo #117, and bfdm-corpus #39 onto canonical main. No #115 comment id newer than 6060014309.",
+    "result": "Accepted: coordination contract, Project Brain, Gardener checkpoint, and context-status checker are on main and are not proposed. Narrowed: one dispatcher-started pass is not operational continuity. Rejected: treating a status-checker warning as completion. Unresolved: #118 G4 cold start from default main, G5 repeatability, ChatGPT Project source membership.",
+    "resulting_brain_commit": "f451dced0e47e6a82d47f3c1f97fdf6eefd89312"
   },
   "active_pass": null,
   "unresolved": [
-    "PR #113, BFDM PR #39, and stacked PR #117 are proposed. Canonical main does not yet serve the updated Project Brain.",
-    "The Grok Automation dispatcher is installed and has not yet been observed to execute a GitHub write on its own.",
-    "ChatGPT Project source membership remains a manual Project-UI change."
+    "Issue #118 G4 is unmet: an unbriefed cold start from the default-branch entry has not been recorded after these merges.",
+    "Issue #118 G5 is unmet: a second meaningful change has not invoked the Gardener without a person delivering the prompt.",
+    "A status-checker warning is not completion and does not accept a semantic delta.",
+    "ChatGPT Project source membership remains a manual Project-UI change.",
+    "Do not keep editing merged coordination branches docs/coordination-refresh-2026-10-07, tooling/project-context-status-116, or docs/cross-repo-coordination-2026-10-07."
   ],
   "needs_review": [],
   "checkpoint_rules": {
