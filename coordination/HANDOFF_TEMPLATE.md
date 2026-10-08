@@ -43,9 +43,19 @@ Next action:
 Next owner:
 - person/agent/workstream
 
-Delta:
-- what changed in the project's mental model because of this work
+Context impact:
+- NONE | CONTROL | UNDERSTANDING | AGENTS_TOOLS | AUTHORITY
+
+Context delta:
+- only if impact is not NONE: what a future capable GPT would otherwise need Brendon to explain again
+
+Context persistence:
+- updated canonical file/path + commit/PR; OR
+- enqueued dnd-solo issue #115 comment ID; OR
+- none because impact is NONE
 END HANDOFF
 ```
 
-If the task creates or changes a PR, put the durable handoff in the PR description or a top-level PR comment as appropriate. Do not rely on chat history as the only copy.
+If the task creates or changes a PR, put the durable handoff in the PR description or a top-level PR comment as appropriate.
+
+If durable project understanding changed, do not rely on chat history as the only copy.
