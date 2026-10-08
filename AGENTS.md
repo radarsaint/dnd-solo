@@ -32,7 +32,7 @@ A ZIP attached to a ChatGPT Project, GPT Knowledge, conversation, Drive, or Libr
    ```sh
    python3 -m runtime.kit_agent start --db kit.sqlite --sheet <player-sheet.json>
    ```
-   Leave out `--sheet` to play the generic example PC (`tests/fixtures/characters/example_pc.json`). `start` creates the room, loads the sheet, stages the opening, and prints the next command to run. If it says the database already holds a game, resume it with `prepare` (below) or start fresh with a new `--db` name.
+   Leave out `--sheet` to play the generic example PC (`tests/fixtures/characters/example_pc.json`). `start` creates the room, loads the sheet, stages the opening, and prints the next command to run. If it says the database already holds a game, resume it with `prepare` (below) or start fresh with a new `--db` name. With no `--room`, `start` mounts area 6c (`tests/fixtures/level_01_area_06c.json`). That file is the legacy default and the richest authored room, not the definition of the engine. Pass `--room <file>` to mount another conforming room file. Loading a room file is not the same as turning untouched adventure text into a room.
 2. **Every game turn goes through the KitChatBridge. No exceptions.**
    - Live chat (default): run `prepare --one-pass --db kit.sqlite --action "<the player's exact words>"`. Write one JSON object `{"decision": ..., "performance": ...}` that follows the packet's `instructions` and `schema` (sent once in `session_manifest`; later packets say `cached`: use that copy, echo both manifest hashes as `"manifest": {"session", "room"}`, and run `rehydrate --turn-id <id>` if the copy is gone; see docs/architecture/MANIFESTS.md). Save it to a file. Then run `complete --db kit.sqlite --turn-id <id> --input-file <file>`.
    - Staged (for evaluation): run `prepare`, then `decide` with the plan, then `finish` with the speech.
@@ -51,7 +51,7 @@ A ZIP attached to a ChatGPT Project, GPT Knowledge, conversation, Drive, or Libr
 
 ## Historical Brendon corpus
 
-When doing personality/judgment research rather than ordinary live play, start with `corpus/brendon/README.md`. Use `evidence.jsonl` for attributable Brendon contributions and `catalog.jsonl` for their source/context containers. Derived decision records are interpretations and must cite back to both evidence and source IDs where available. Respect discovery/evaluation partitions and privacy exclusions.
+The canonical research/archive repository is `radarsaint/bfdm-corpus`. The in-repo `corpus/` material is a historical/runtime mirror and is **not** current corpus truth. For current personality/judgment research, inspect `bfdm-corpus` `main`, start with its `PROJECT_CONTROL.md` and `research/NEXT_HANDOFF.md`, and name any active draft PR you rely on. Derived research is interpretation and must not be hardened into runtime behavior merely because it is polished or cited.
 
 ## Where to learn the job
 

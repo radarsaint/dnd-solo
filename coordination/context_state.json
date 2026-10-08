@@ -1,0 +1,49 @@
+{
+  "schema": "kit_project_gardener_state/v1",
+  "purpose": "RESUMABILITY_CURSOR_NOT_KNOWLEDGE_STORE",
+  "canonical_location": "radarsaint/dnd-solo/coordination/context_state.json",
+  "state_revision": 4,
+  "semantic_brain": {
+    "repo": "radarsaint/dnd-solo",
+    "path": "docs/PROJECT_UNDERSTANDING.md",
+    "last_semantic_commit": "59f21e1992c50ffbd405cead03b8c1e5731e0efb",
+    "last_reviewed_on": "2026-10-08"
+  },
+  "checkpoint": {
+    "reviewed_against_main": {
+      "radarsaint/dnd-solo": "e3a5e9908357441051df24dac8086d8d4c7f26f5",
+      "radarsaint/bfdm-corpus": "dc0d558188c3e492f69c34a8e278e0cf9e17373b"
+    },
+    "context_inbox": {
+      "repo": "radarsaint/dnd-solo",
+      "issue": 115,
+      "issue_state_at_checkpoint": "open",
+      "last_fully_reconciled_comment_id": 6060014309,
+      "comment_count_at_checkpoint": 2
+    }
+  },
+  "last_completed_pass": {
+    "kind": "BOUNDED_SEMANTIC_RECONCILIATION",
+    "completed_on": "2026-10-08",
+    "scope": "Reconciled issue #115 comments 6059734349 and 6060014309 against live mains: merged BFDM PR #40 archive facts, and the premature-completion / missing-consumer pattern.",
+    "result": "Both deltas accepted into the proposed Project Brain on this branch and the paired BFDM control branch. Those branches are not canonical main. Automatic invocation and cold-start consumption on the default-branch entry remain unproven.",
+    "resulting_brain_commit": "59f21e1992c50ffbd405cead03b8c1e5731e0efb"
+  },
+  "active_pass": null,
+  "unresolved": [
+    "PR #113, BFDM PR #39, and stacked PR #117 are proposed. Canonical main does not yet serve the updated Project Brain.",
+    "The Grok Automation dispatcher is installed and has not yet been observed to execute a GitHub write on its own.",
+    "ChatGPT Project source membership remains a manual Project-UI change."
+  ],
+  "needs_review": [],
+  "checkpoint_rules": {
+    "sha_advance_means": "REVIEW_REQUIRED_NOT_AUTOMATIC_SEMANTIC_STALENESS",
+    "advance_only_after": [
+      "RELEVANT_EVIDENCE_INSPECTED",
+      "SEMANTIC_IMPACT_DECIDED",
+      "REQUIRED_PROJECT_BRAIN_EDITS_DURABLY_WRITTEN",
+      "UNRESOLVED_CONTRADICTIONS_EXPLICITLY_RECORDED"
+    ],
+    "partial_pass_policy": "STOP_AT_LAST_COMPLETELY_RECONCILED_BOUNDARY"
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "schema": "kit_project_control/v2",
+  "repo": "radarsaint/dnd-solo",
+  "role": "EXECUTABLE_RUNTIME",
+  "sibling_repo": "radarsaint/bfdm-corpus",
+  "last_verified_main": "e3a5e9908357441051df24dac8086d8d4c7f26f5",
+  "verified_on": "2026-10-07",
+  "current_entrypoint": "PROJECT_CONTROL.md",
+  "coordination_contract": "COORDINATION.md",
+  "handoff_template": "coordination/HANDOFF_TEMPLATE.md",
+  "live_operation_entrypoints": [
+    "START_HERE.md",
+    "AGENTS.md"
+  ],
+  "history_only": [
+    "docs/collab/BOARD.md",
+    "coordination/CONTEXT_CHANGELOG.md"
+  ],
+  "verify_live_main_before_state_sensitive_work": true,
+  "canonical_rule": "dnd-solo main is executable runtime truth; open PRs are proposed state",
+  "authority_traps": {
+    "project_krabs_v01": "HISTORICAL_PINNED_SUPERSEDED_BY_DND_SOLO_MAIN_KRABS_V0_2_2",
+    "in_repo_bfdm": "HISTORICAL_MIRROR_NOT_CANONICAL",
+    "collaboration_board": "HISTORY_NOT_LIVE_QUEUE",
+    "open_pr_rule": "OPEN_DOES_NOT_EQUAL_ACTIVE_OR_CANONICAL",
+    "source_to_room": "ROOM_LOADER_BUILT_SOURCE_AUTHORING_NOT_ON_MAIN"
+  },
+  "ownership": {
+    "brendon": "PRODUCT_DIRECTION_HIGH_VALUE_CREATIVE_JUDGMENT_MERGE_APPROVAL",
+    "nagatha": "PM_REVIEW_ACCEPTANCE_RECONCILIATION_BUNDLE_AND_MERGE_COORDINATION",
+    "skippy_grok_bots": "RUNTIME_ENGINEERING_WIRING_TESTS_PR_STACK_INTEGRATION",
+    "gpt_workers": "BOUNDED_RESEARCH_EVALUATION_VOICE_TASTE_CONTENT_AUDIT_SYNTHESIS",
+    "chatgpt_work": "SCARCE_MULTI_SOURCE_AUTONOMOUS_RESEARCH_WHERE_MATERIALLY_ADVANTAGED",
+    "grok_build": "EXECUTABLE_RECONNAISSANCE_REPO_SURGERY_DETERMINISTIC_TEST_WORK_NOT_SKIPPY_NOT_A_GROK_BOT"
+  },
+  "governing_correction": "PROXY_EVIDENCE_IS_NOT_DEMONSTRATED_TRUTH",
+  "project_bootstrap": "PROJECT_BOOTSTRAP.md",
+  "project_understanding": "docs/PROJECT_UNDERSTANDING.md",
+  "agents_and_tools": "coordination/AGENTS_AND_TOOLS.md",
+  "context_inbox": {
+    "repo": "radarsaint/dnd-solo",
+    "issue": 115,
+    "role": "UNRECONCILED_SEMANTIC_DELTA_INBOX_NOT_AUTHORITY_NOT_WORK_QUEUE"
+  },
+  "context_backflow": "SUBSTANTIAL_WORK_CLASSIFIES_CONTEXT_IMPACT_AND_UPDATES_CANONICAL_CONTEXT_OR_ENQUEUES_SEMANTIC_DELTA_ISSUE_115",
+  "gardener_state": "coordination/context_state.json",
+  "gardener_state_role": "SINGLE_SHARED_RESUMABILITY_CURSOR_NOT_KNOWLEDGE_STORE"
+}

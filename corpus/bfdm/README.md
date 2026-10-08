@@ -1,8 +1,10 @@
+> **HISTORICAL MIRROR — DO NOT USE FOR CURRENT BFDM STATE.** The canonical repository is `radarsaint/bfdm-corpus`. This copy remains only until the retirement cleanup lands. Its self-description below reflects the older topology and may be stale.
+
 # BFDM Corpus
 
 > **Governing invariant:** `bfdm-corpus` is not primarily a training dataset. It is the durable research archive of Brendon's D&D creative history. **Kit is one consumer of it.**
 
-Private archive and research environment for Brendon's D&D creative body of work and the live-play context around it.
+Historical mirror of an earlier private archive and research environment for Brendon's D&D creative body of work and the live-play context around it.
 
 This repository must remain useful even if Kit's architecture changes completely or Kit is replaced. Training, retrieval, prompting, evaluation, and voice distillation are downstream uses of the archive—not the archive's organizing purpose.
 
@@ -44,6 +46,6 @@ A source may belong in this archive without being Brendon-authored or eligible t
 
 ## Canonical-repo rule
 
-This is the canonical private corpus repository.
+This was copied from the canonical corpus at an earlier point. It is not canonical current research truth.
 
 Do not create a parallel private Brendon-corpus repository. Reconcile older staging material here while preserving stable IDs and provenance.

@@ -1,3 +1,5 @@
+HISTORICAL: 2026-09 feasibility note for the first state/context experiment. It is not the current storage or turn contract. Current behavior is the code under `runtime/` and the orientation in PROJECT_CONTROL.md.
+
 # State and Context Prototype
 
 Status: executable feasibility prototype, version 0.1.1. This is an implementation experiment, not completion of the broader runtime 0.4.0 milestone.

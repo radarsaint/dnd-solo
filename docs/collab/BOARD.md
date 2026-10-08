@@ -1,6 +1,8 @@
-# Kit collaboration board
+# Kit collaboration board — historical log
 
-Append-only. Read this file before starting work; add a dated entry rather than rewriting history.
+> **Do not use this file as the current work queue.** Start with repository-root `PROJECT_CONTROL.md`, `COORDINATION.md`, and the issue/PR that owns your task. This append-only board is retained as collaboration history and evidence of prior decisions.
+
+Append-only historical log. Add dated entries only when preserving history that does not belong in a live issue/PR.
 
 ## Settled rules — don't re-ask
 
