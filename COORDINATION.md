@@ -138,6 +138,7 @@ The project must carry forward durable semantic understanding rather than relyin
 The semantic center is:
 
 - `docs/PROJECT_UNDERSTANDING.md` — the living Project Brain: the best current human-readable model of what the project is, where it is, why it got here, what changed the team's thinking, how workstreams relate, what is believed, what remains uncertain, and where the evidence points.
+- `coordination/context_state.json` in `dnd-solo` — the single shared Project Gardener resumability checkpoint/cursor. It records what has been fully reconciled; it is not a knowledge store and is not duplicated in the BFDM repo.
 - live repository state and each repo's `PROJECT_CONTROL.md` — current operational/executable/research truth.
 - Git history, PRs/issues, audits, playtests, decisions, source material, and BFDM evidence — episodic/history/evidence layers that support or challenge the current semantic model.
 - `dnd-solo` issue #115 — intake for durable semantic changes discovered outside an appropriate repo-changing PR. Inbox material is proposed context, not truth.
@@ -155,6 +156,18 @@ No individual Gardener owns project continuity.
 A Gardener pass must be resumable by another GPT that has none of the previous GPT's conversation context.
 
 Nagatha may perform PM/review/reconciliation work in her normal lane, but she is not the project's memory substrate. The same is true of Skippy, ChatGPT Work, Grok Build, ordinary GPT threads, and control-room/synthesis threads.
+
+### Starting a Gardener pass
+
+Before selecting work, a Gardener must:
+
+1. read the current Project Brain;
+2. read the single shared checkpoint at `dnd-solo/coordination/context_state.json`;
+3. resolve live `main` for each repo relevant to the pass;
+4. identify material newer than the recorded reviewed boundaries, including unreconciled #115 comments after the recorded inbox cursor;
+5. choose a bounded reconciliation scope that can be completed or safely stopped at a whole checkpoint boundary.
+
+The checkpoint tells the Gardener **where reconciliation stopped**, not what to believe. The Project Brain carries the current semantic model; live authority and evidence determine whether that model must change.
 
 ### Purpose of a Gardener pass
 
@@ -305,7 +318,7 @@ A boundary counts as reconciled only when:
 - required Project Brain edits were completed and durably written;
 - unresolved contradictions were explicitly preserved rather than hidden.
 
-The machine-readable checkpoint/cursor is a resumability mechanism, not a knowledge store. Git history and the underlying evidence preserve provenance; the Project Brain preserves the current semantic model.
+The machine-readable checkpoint/cursor is `dnd-solo/coordination/context_state.json`. It is a resumability mechanism, not a knowledge store. It is the single shared Gardener checkpoint for the project; sibling repos point to it rather than duplicating cursor/review state. Git history and the underlying evidence preserve provenance; the Project Brain preserves the current semantic model.
 
 ### Context impact from ordinary work
 
