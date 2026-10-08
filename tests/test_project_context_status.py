@@ -32,6 +32,22 @@ POINTER = json.loads((FIXTURES / 'bfdm_control_shared_pointer.json').read_text(e
 DUPLICATE = json.loads((FIXTURES / 'bfdm_control_duplicate_cursor.json').read_text(encoding='utf-8'))
 
 
+def inbox_issue(comment_ids):
+    return {
+        'state': 'open',
+        'title': '[Project Context] Semantic delta inbox',
+        'comments': [{'id': item} for item in comment_ids],
+    }
+
+
+def issue_at_live_cursor():
+    """An inbox with nothing pending past the checkpoint this tree records."""
+    cursor = STATE['checkpoint']['context_inbox']['last_fully_reconciled_comment_id']
+    if cursor is None:
+        return CLEAR
+    return inbox_issue([cursor])
+
+
 def bump(sha):
     return sha[:-1] + ('0' if sha[-1] != '0' else '1')
 
@@ -44,7 +60,7 @@ class ProjectContextStatusTests(unittest.TestCase):
     def evaluate(self, **overrides):
         args = {
             'live_shas': {DND: DND_SHA, BFDM: BFDM_SHA},
-            'issue': CLEAR,
+            'issue': issue_at_live_cursor(),
             'bfdm_control': POINTER,
             'sibling_local_state_present': False,
             'resolve_commits': True,
@@ -103,7 +119,9 @@ class ProjectContextStatusTests(unittest.TestCase):
         self.assertFalse(report['project_brain_automatically_stale'])
 
     def test_zero_comments_and_null_cursor(self):
-        report = self.evaluate(issue=CLEAR)
+        state = json.loads(json.dumps(STATE))
+        state['checkpoint']['context_inbox']['last_fully_reconciled_comment_id'] = None
+        report = self.evaluate(issue=CLEAR, state_override=state)
         inbox = report['semantic_inbox']
         self.assertIsNone(inbox['recorded_cursor'])
         self.assertEqual(inbox['comment_count'], 0)
@@ -114,7 +132,9 @@ class ProjectContextStatusTests(unittest.TestCase):
         self.assertNotIn('INTEGRITY_FAILURE', report['classification'])
 
     def test_pending_semantic_deltas(self):
-        report = self.evaluate(issue=PENDING)
+        state = json.loads(json.dumps(STATE))
+        state['checkpoint']['context_inbox']['last_fully_reconciled_comment_id'] = None
+        report = self.evaluate(issue=PENDING, state_override=state)
         inbox = report['semantic_inbox']
         self.assertEqual(inbox['status'], 'SEMANTIC_DELTAS_PENDING')
         self.assertEqual(inbox['pending_comment_ids'], [101, 202])
@@ -277,37 +297,46 @@ class ProjectContextStatusTests(unittest.TestCase):
 
     def test_cli_exit_codes(self):
         script = str(ROOT / 'scripts' / 'project_context_status.py')
-        valid = subprocess.run(
-            [sys.executable, script, '--offline', '--json', '--dnd-sha', DND_SHA, '--bfdm-sha', BFDM_SHA,
-             '--bfdm-control', str(FIXTURES / 'bfdm_control_shared_pointer.json'),
-             '--issue-fixture', str(FIXTURES / 'issue_clear.json'),
-             '--sibling-local-state', 'absent'],
-            capture_output=True, text=True, check=False)
-        self.assertEqual(valid.returncode, 0, valid.stderr)
-        payload = json.loads(valid.stdout)
-        self.assertEqual(payload['classification'], 'REVIEWED_CURRENT')
-        self.assertEqual(payload['schema'], STATUS.SCHEMA)
-        unavailable = subprocess.run(
-            [sys.executable, script, '--offline', '--json',
-             '--bfdm-control', str(FIXTURES / 'bfdm_control_shared_pointer.json'),
-             '--issue-fixture', str(FIXTURES / 'issue_clear.json'),
-             '--sibling-local-state', 'absent'],
-            capture_output=True, text=True, check=False)
-        self.assertEqual(unavailable.returncode, 3, unavailable.stderr)
-        self.assertEqual(json.loads(unavailable.stdout)['classification'], 'AUTHORITY_UNAVAILABLE')
+        cursor = STATE['checkpoint']['context_inbox']['last_fully_reconciled_comment_id']
         with tempfile.TemporaryDirectory() as tmp:
+            issue_path = Path(tmp) / 'issue.json'
+            issue_path.write_text(json.dumps(issue_at_live_cursor()), encoding='utf-8')
+            valid = subprocess.run(
+                [sys.executable, script, '--offline', '--json', '--dnd-sha', DND_SHA, '--bfdm-sha', BFDM_SHA,
+                 '--bfdm-control', str(FIXTURES / 'bfdm_control_shared_pointer.json'),
+                 '--issue-fixture', str(issue_path),
+                 '--sibling-local-state', 'absent'],
+                capture_output=True, text=True, check=False)
+            self.assertEqual(valid.returncode, 0, valid.stderr)
+            payload = json.loads(valid.stdout)
+            self.assertEqual(payload['classification'], 'REVIEWED_CURRENT')
+            self.assertEqual(payload['schema'], STATUS.SCHEMA)
+            self.assertEqual(payload['semantic_inbox']['recorded_cursor'], cursor)
+            unavailable = subprocess.run(
+                [sys.executable, script, '--offline', '--json',
+                 '--bfdm-control', str(FIXTURES / 'bfdm_control_shared_pointer.json'),
+                 '--issue-fixture', str(issue_path),
+                 '--sibling-local-state', 'absent'],
+                capture_output=True, text=True, check=False)
+            self.assertEqual(unavailable.returncode, 3, unavailable.stderr)
+            self.assertEqual(json.loads(unavailable.stdout)['classification'], 'AUTHORITY_UNAVAILABLE')
             broken = subprocess.run(
                 [sys.executable, script, '--offline', '--json', '--root', tmp,
                  '--dnd-sha', DND_SHA, '--bfdm-sha', BFDM_SHA,
                  '--bfdm-control', str(FIXTURES / 'bfdm_control_shared_pointer.json'),
-                 '--issue-fixture', str(FIXTURES / 'issue_clear.json'),
+                 '--issue-fixture', str(issue_path),
                  '--sibling-local-state', 'absent', '--skip-commit-resolve'],
                 capture_output=True, text=True, check=False)
-        self.assertEqual(broken.returncode, 2, broken.stderr)
-        self.assertEqual(json.loads(broken.stdout)['classification'], 'INTEGRITY_FAILURE')
+            self.assertEqual(broken.returncode, 2, broken.stderr)
+            self.assertEqual(json.loads(broken.stdout)['classification'], 'INTEGRITY_FAILURE')
 
     def test_sha_advance_and_pending_deltas_are_both_visible(self):
-        report = self.evaluate(live_shas={DND: bump(DND_SHA), BFDM: BFDM_SHA}, issue=PENDING)
+        state = json.loads(json.dumps(STATE))
+        state['checkpoint']['context_inbox']['last_fully_reconciled_comment_id'] = None
+        report = self.evaluate(
+            live_shas={DND: bump(DND_SHA), BFDM: BFDM_SHA},
+            issue=PENDING,
+            state_override=state)
         self.assertEqual(report['classification'], 'SEMANTIC_DELTAS_PENDING')
         self.assertEqual(report['review_signals'], ['SHA_ADVANCED_REVIEW_NEEDED', 'SEMANTIC_DELTAS_PENDING'])
         self.assertEqual(report['repos'][DND]['status'], 'SHA_ADVANCED_REVIEW_NEEDED')
