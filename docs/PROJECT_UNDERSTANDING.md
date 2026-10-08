@@ -5,6 +5,7 @@
 **Canonical location:** `radarsaint/dnd-solo/docs/PROJECT_UNDERSTANDING.md`  
 **Sibling repository:** `radarsaint/bfdm-corpus`  
 **Last substantive refresh:** 2026-10-07
+**Context reviewed against:** `dnd-solo/main @ e3a5e9908357441051df24dac8086d8d4c7f26f5`; `bfdm-corpus/main @ 65513f294e72a3eb961d5699c21ddc1f14ceef2c`
 
 > This document exists so a fresh collaborator does not have to reconstruct the project from old chats, stale attachments, historical boards, scattered research papers, or repository archaeology before doing useful work.
 
@@ -550,6 +551,8 @@ Use explicit freshness categories from `COORDINATION.md` when making current beh
 # 13. Current project roles
 
 Treat this section as coordination state, not permanent architecture. Verify current control/PRs before relying on it.
+
+For the detailed identity/capability map—including the distinction between Nagatha, Skippy, Grok Bots, Grok Build, ordinary GPT/Grok, ChatGPT Work, temporary workers, repositories, and tool surfaces—use `coordination/AGENTS_AND_TOOLS.md`. Do not infer one named resource is interchangeable with another.
 
 Current working division reflected in the October 7 coordination drafts:
 
