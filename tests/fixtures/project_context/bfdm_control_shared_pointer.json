@@ -1,0 +1,12 @@
+{
+  "schema": "kit_project_control/v2",
+  "repo": "radarsaint/bfdm-corpus",
+  "role": "HISTORICAL_ARCHIVE_AND_RESEARCH",
+  "gardener_state": "radarsaint/dnd-solo/coordination/context_state.json",
+  "gardener_state_role": "SINGLE_SHARED_RESUMABILITY_CURSOR_NOT_KNOWLEDGE_STORE",
+  "context_inbox": {
+    "repo": "radarsaint/dnd-solo",
+    "issue": 115,
+    "role": "UNRECONCILED_SEMANTIC_DELTA_INBOX_NOT_AUTHORITY_NOT_WORK_QUEUE"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "schema": "kit_project_control/v2",
+  "repo": "radarsaint/bfdm-corpus",
+  "gardener_state": "coordination/context_state.json",
+  "gardener_state_role": "LOCAL_DUPLICATE_CURSOR",
+  "context_review": {
+    "reviewed_against_main": {
+      "radarsaint/bfdm-corpus": "65513f294e72a3eb961d5699c21ddc1f14ceef2c"
+    }
+  },
+  "last_fully_reconciled_comment_id": null
+}
