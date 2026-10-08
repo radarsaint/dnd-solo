@@ -30,7 +30,7 @@ The project is building **Kitiara ("Kit", "DM Kit")**, a persistent AI Dungeon M
 
 **KRABS v0.2.2 (`docs/architecture/KRABS.md` on current `dnd-solo/main`) is the canonical long-term Kit Reference Architecture & Behavioral Specification.** It defines what Kit is supposed to become and the contracts implementations must satisfy. Current runtime code may implement only part of KRABS, and later evidence may justify revising KRABS itself, but the runtime does not supersede KRABS merely by evolving beyond an early prototype.
 
-The old ChatGPT Project attachment containing **KRABS v0.1** is superseded by the live v0.2.2 specification. That is a version/authority correction, **not** a decision that KRABS as a project architecture is obsolete or belongs to an "old era."
+The old ChatGPT Project attachment containing **KRABS v0.1** is superseded by the live v0.2.2 specification. That is a version/authority correction, **not** a decision that KRABS as a project architecture is obsolete or belongs to an "old era." The other legacy ChatGPT Project attachments are the same kind of non-authority; section 17 names them, and `docs/KIT_PROJECT_START_HERE.md` is only the router to live authority.
 
 The near-term executable surface is the solo-DM runtime in `radarsaint/dnd-solo`. The deeper research program in `radarsaint/bfdm-corpus` preserves and studies Brendon's long history of campaign design, live Dungeon Master judgment, experimentation, failure, revision, and creative method.
 
@@ -918,6 +918,7 @@ When updating this file:
 # 17. Current known traps for future agents
 
 - **KRABS itself is not historical.** Current `dnd-solo/main` carries **KRABS v0.2.2** as the canonical long-term Kit Reference Architecture & Behavioral Specification. The old Project attachment containing **KRABS v0.1** is stale only because that version was superseded. Never compress this into "KRABS is old-era material."
+- **Legacy ChatGPT Project attachments do not outrank live GitHub.** Ignore these filenames as current sources even if a chat still has them mounted: `Design player facing UX UI.txt`; `Project overview.txt`; both copies of `Kit Runtime Setup.txt`; `Mad Mage Attached.txt`; both copies of `BFDM Corpus Research.txt`; `Corpus State Chat.txt`; both copies of `Corpus Understanding Assessment.txt`. The router and the verified homes are `docs/KIT_PROJECT_START_HERE.md`. That router is not a second Project Brain. The generalized Restartable Role Runtime in the later assessment is not current architecture.
 - Old pinned ZIPs reproduce old builds only.
 - Open PRs can be important and newer without being merged truth.
 - `dnd-solo` contains historical BFDM mirror material that should not outrank the canonical `bfdm-corpus`.

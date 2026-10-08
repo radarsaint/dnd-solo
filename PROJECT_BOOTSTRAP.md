@@ -162,6 +162,7 @@ If an artifact conflicts with live authority, say so and use live authority.
 Do not:
 - ask Brendon to reconstruct routine project history that the project can retrieve;
 - treat the old Project KRABS v0.1 attachment as current authority;
+- treat any legacy ChatGPT Project attachment named below as current knowledge;
 - treat Area 6c as the architecture of Kit;
 - treat BFDM searchability as verified research;
 - treat green runtime tests as proof of good play;
@@ -176,3 +177,23 @@ Do not:
 - claim an external handoff was delivered or executed merely because instructions were recorded somewhere.
 
 Improve the existing shared model and use deeper evidence progressively.
+
+## ChatGPT Project attachments
+
+`docs/KIT_PROJECT_START_HERE.md` is the stable router for a fresh GPT that arrives through a ChatGPT Project. It is not a second Project Brain and it is not a status snapshot.
+
+These legacy Project filenames are not active sources, even if they are still attached and even if one of them calls itself canonical:
+
+- `Design player facing UX UI.txt`
+- `Project overview.txt` (this is the KRABS v0.1 attachment, not a reason to treat KRABS itself as abandoned)
+- `Kit Runtime Setup.txt` (both copies)
+- `Mad Mage Attached.txt`
+- `BFDM Corpus Research.txt` (both copies)
+- `Corpus State Chat.txt`
+- `Corpus Understanding Assessment.txt` (both copies)
+
+The second `Corpus Understanding Assessment.txt` proposes a generalized Restartable Role Runtime. That proposal is not current architecture.
+
+KRABS v0.2.2 in live `docs/architecture/KRABS.md` remains the canonical long-term specification. Superseding v0.1 does not make KRABS historical.
+
+The router records the verified home for each file's useful content. ChatGPT Project membership itself cannot be changed from the repositories.

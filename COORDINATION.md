@@ -51,6 +51,7 @@ If an artifact says “canonical,” “current,” “source of truth,” or si
 
 Examples:
 - a Project attachment may have been canonical when exported and still be historical now;
+- the legacy ChatGPT Project filenames in `docs/KIT_PROJECT_START_HERE.md` stay non-authoritative even while still attached;
 - an in-repo mirror may call itself canonical while the project has since moved authority to a sibling repo;
 - an open PR may contain a newer-looking design than `main` without being canonical;
 - a canonical specification can supersede older canonical specifications.
