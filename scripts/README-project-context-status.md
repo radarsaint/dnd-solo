@@ -70,6 +70,8 @@ Semantic inbox status is `CLEAR`, `SEMANTIC_DELTAS_PENDING`, `CURSOR_INTEGRITY_F
 
 `INTEGRITY_FAILURE`: fix the plumbing named in `integrity_failures` before relying on the checkpoint.
 
+The bootstrap contract includes the worker identity gate: step 0 before the Project Brain, identity distinct from tool availability, an ordinary GPT distinguished from Grok Build, ChatGPT Work, and a shell executor, repository work routed to a capable executor, Grok Build as the normal shell executor, Brendon excluded as the routine repository fallback, the action-state names, and a ban on weakening the acceptance condition because the current worker cannot perform it. A passing check does not prove project understanding or worker understanding. `proves_gpt_understanding` and `proves_worker_understanding` stay false.
+
 `AUTHORITY_UNAVAILABLE`: retry when GitHub can be read. Do not treat the gap as semantic staleness.
 
 Exit 0 with a review signal is a successful check that found review work. It is not a green claim that the semantic model was re-approved.

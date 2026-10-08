@@ -225,6 +225,7 @@ class ProjectContextStatusTests(unittest.TestCase):
     def test_progressive_bootstrap_contract(self):
         text = (ROOT / 'PROJECT_BOOTSTRAP.md').read_text(encoding='utf-8')
         self.assertEqual(STATUS.bootstrap_contract_errors(text), [])
+        self.assertLess(text.find('### 0. Identify the worker'), text.find('### 1. Project Brain first'))
         self.assertLess(text.find('### 1. Project Brain first'), text.find('### 2. Reconcile with live authority'))
         self.assertLess(text.find('### 2. Reconcile with live authority'), text.find('### 3. Enter the owning task'))
         self.assertLess(text.find('### 3. Enter the owning task'), text.find('## Load deeper context only when relevant'))
@@ -251,6 +252,7 @@ class ProjectContextStatusTests(unittest.TestCase):
         self.assertIn('radarsaint/bfdm-corpus/main', route['live_authority'])
         self.assertIn('PROJECT_CONTROL.md', route['live_authority'])
         self.assertEqual(route['owning_task'], 'issue/PR or explicit user instruction')
+        self.assertTrue(route['worker_identity_before_brain'])
         self.assertTrue(route['deeper_context_conditional'])
         self.assertTrue(route['agents_and_tools_conditional'])
         self.assertTrue(route['gardener_checkpoint_discoverable'])
@@ -261,6 +263,7 @@ class ProjectContextStatusTests(unittest.TestCase):
         self.assertFalse(route['changelog_required'])
         self.assertFalse(route['area_6c_treated_as_architecture'])
         self.assertFalse(route['proves_gpt_understanding'])
+        self.assertFalse(route['proves_worker_understanding'])
 
     def test_historical_surface_guard_on_real_tree(self):
         changelog = (ROOT / 'coordination' / 'CONTEXT_CHANGELOG.md').read_text(encoding='utf-8')
@@ -405,6 +408,73 @@ class GhApiFallbackTests(unittest.TestCase):
         self.assertIn('issues: read', text)
         self.assertNotIn('issues: write', text)
         self.assertNotRegex(text, r': write\b')
+
+
+class WorkerIdentityGateTests(unittest.TestCase):
+    def bootstrap(self):
+        return (ROOT / 'PROJECT_BOOTSTRAP.md').read_text(encoding='utf-8')
+
+    def test_real_bootstrap_has_the_identity_gate(self):
+        text = self.bootstrap()
+        self.assertEqual(STATUS.bootstrap_contract_errors(text), [])
+        self.assertLess(text.find('### 0. Identify the worker'), text.find('### 1. Project Brain first'))
+        self.assertLess(text.find('### 3. Enter the owning task'), text.find('### 4. Execute or route by worker capability'))
+        self.assertLess(
+            text.find('### 4. Execute or route by worker capability'),
+            text.find('## Load deeper context only when relevant'))
+
+    def test_missing_gate_is_an_integrity_failure(self):
+        text = self.bootstrap().replace('### 0. Identify the worker', '### Worker note', 1)
+        errors = STATUS.bootstrap_contract_errors(text)
+        self.assertIn('worker identity gate is not before Project Brain', errors)
+
+    def test_gate_after_brain_is_an_integrity_failure(self):
+        text = self.bootstrap()
+        text = text.replace('### 0. Identify the worker', '### HOLD', 1)
+        text = text.replace('### 1. Project Brain first', '### 0. Identify the worker', 1)
+        text = text.replace('### HOLD', '### 1. Project Brain first', 1)
+        errors = STATUS.bootstrap_contract_errors(text)
+        self.assertIn('worker identity gate is not before Project Brain', errors)
+
+    def test_tool_availability_must_not_redefine_identity(self):
+        text = self.bootstrap().replace(
+            'Tool availability does not redefine worker identity.',
+            'Tools decide the worker.',
+            1)
+        errors = STATUS.bootstrap_contract_errors(text)
+        self.assertIn('worker identity is not distinguished from tool availability', errors)
+
+    def test_ordinary_gpt_must_stay_distinct_from_executors(self):
+        text = self.bootstrap().replace('not Grok Build', 'alongside Grok Build')
+        errors = STATUS.bootstrap_contract_errors(text)
+        self.assertIn(
+            'ordinary GPT is not explicitly distinguished from Grok Build, ChatGPT Work, and a shell executor',
+            errors)
+
+    def test_brendon_is_not_the_routine_executor(self):
+        text = self.bootstrap().replace('Brendon is not the routine', 'Brendon handles routine', 1)
+        errors = STATUS.bootstrap_contract_errors(text)
+        self.assertIn('Brendon is not excluded as the routine repository executor', errors)
+
+    def test_local_inability_must_not_weaken_the_outcome(self):
+        text = self.bootstrap().replace('a weaker or skipped outcome', 'a different outcome', 1)
+        errors = STATUS.bootstrap_contract_errors(text)
+        self.assertIn('local inability is not forbidden from weakening the acceptance condition', errors)
+
+    def test_repository_execution_must_be_routed(self):
+        text = self.bootstrap().replace('do not weaken the acceptance condition', 'record the acceptance condition', 1)
+        errors = STATUS.bootstrap_contract_errors(text)
+        self.assertIn('repository execution is not routed to a capable executor instead of being skipped', errors)
+
+    def test_structural_gate_does_not_prove_understanding(self):
+        route = STATUS.cold_start_route(
+            (ROOT / 'README.md').read_text(encoding='utf-8'),
+            (ROOT / 'START_HERE.md').read_text(encoding='utf-8'),
+            self.bootstrap())
+        self.assertEqual(route['errors'], [])
+        self.assertTrue(route['worker_identity_before_brain'])
+        self.assertFalse(route['proves_gpt_understanding'])
+        self.assertFalse(route['proves_worker_understanding'])
 
 
 if __name__ == '__main__':

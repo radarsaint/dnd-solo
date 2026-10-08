@@ -95,9 +95,47 @@ def slice_between(text, start, end):
     return text[begin:finish]
 
 
+def _worker_identity_gate_errors(text):
+    """Structural worker-identity contract. Empty means the gate is present.
+
+    Passing this check does not prove that a model understood its own role.
+    """
+    errors = []
+    gate = text.find('### 0. Identify the worker')
+    brain = text.find('### 1. Project Brain first')
+    owning = text.find('### 3. Enter the owning task')
+    route = text.find('### 4. Execute or route by worker capability')
+    deeper = text.find('## Load deeper context only when relevant')
+    if gate < 0 or brain < 0 or gate >= brain:
+        errors.append('worker identity gate is not before Project Brain')
+        return errors
+    if not (owning >= 0 and route > owning and (deeper < 0 or route < deeper)):
+        errors.append('execute-or-route step is not after the owning task and before deeper context')
+    step0 = text[gate:brain].lower()
+    if 'tool availability does not redefine worker identity' not in step0:
+        errors.append('worker identity is not distinguished from tool availability')
+    if not all(phrase in step0 for phrase in (
+            'ordinary gpt', 'not grok build', 'not chatgpt work', 'not a shell')):
+        errors.append('ordinary GPT is not explicitly distinguished from Grok Build, ChatGPT Work, and a shell executor')
+    if not all(phrase in step0 for phrase in ('grok build', 'default', 'shell')):
+        errors.append('Grok Build is not identified as the normal shell/repository executor')
+    if 'brendon is not the routine' not in step0:
+        errors.append('Brendon is not excluded as the routine repository executor')
+    if any(state not in text[gate:brain] for state in (
+            'PREPARED', 'RECORDED', 'DELIVERED', 'EXECUTED', 'VERIFIED', 'BLOCKED')):
+        errors.append('action-state distinctions are missing from the worker identity gate')
+    if 'weaker' not in step0 and 'weaken' not in step0:
+        errors.append('local inability is not forbidden from weakening the acceptance condition')
+    routed = text[route:deeper].lower() if route >= 0 and deeper > route else ''
+    if 'grok build' not in routed or 'not weaken' not in routed:
+        errors.append('repository execution is not routed to a capable executor instead of being skipped')
+    return errors
+
+
 def bootstrap_contract_errors(text):
     """Structural progressive-disclosure failures. Empty means the contract holds."""
     errors = []
+    errors.extend(_worker_identity_gate_errors(text))
     brain = text.find('### 1. Project Brain first')
     authority = text.find('### 2. Reconcile with live authority')
     owning = text.find('### 3. Enter the owning task')
@@ -165,6 +203,9 @@ def cold_start_route(readme, start_here, bootstrap):
             'PROJECT_CONTROL.md',
         ] if ('PROJECT_CONTROL.md' in bootstrap and 'dnd-solo/main' in bootstrap and 'bfdm-corpus/main' in bootstrap) else [],
         'owning_task': 'issue/PR or explicit user instruction' if discovered_task else None,
+        'worker_identity_before_brain': (
+            bootstrap.find('### 0. Identify the worker') >= 0
+            and bootstrap.find('### 0. Identify the worker') < bootstrap.find('### 1. Project Brain first')),
         'deeper_context_conditional': deeper > bootstrap.find('### 3. Enter the owning task') >= 0,
         'agents_and_tools_conditional': 'coordination/AGENTS_AND_TOOLS.md' in tail and 'when' in tail.lower(),
         'gardener_checkpoint_discoverable': 'coordination/context_state.json' in tail and '#115' in tail,
@@ -174,6 +215,7 @@ def cold_start_route(readme, start_here, bootstrap):
         'changelog_required': 'CONTEXT_CHANGELOG.md' in required,
         'area_6c_treated_as_architecture': ('Area 6c' in bootstrap and not warning),
         'proves_gpt_understanding': False,
+        'proves_worker_understanding': False,
         'errors': errors,
     }
 
