@@ -28,6 +28,10 @@ If those sources change the meaning of this document, this document should be **
 
 The project is building **Kitiara ("Kit", "DM Kit")**, a persistent AI Dungeon Master and creative partner.
 
+**KRABS v0.2.2 (`docs/architecture/KRABS.md` on current `dnd-solo/main`) is the canonical long-term Kit Reference Architecture & Behavioral Specification.** It defines what Kit is supposed to become and the contracts implementations must satisfy. Current runtime code may implement only part of KRABS, and later evidence may justify revising KRABS itself, but the runtime does not supersede KRABS merely by evolving beyond an early prototype.
+
+The old ChatGPT Project attachment containing **KRABS v0.1** is superseded by the live v0.2.2 specification. That is a version/authority correction, **not** a decision that KRABS as a project architecture is obsolete or belongs to an "old era."
+
 The near-term executable surface is the solo-DM runtime in `radarsaint/dnd-solo`. The deeper research program in `radarsaint/bfdm-corpus` preserves and studies Brendon's long history of campaign design, live Dungeon Master judgment, experimentation, failure, revision, and creative method.
 
 The corpus is not the product.  
@@ -199,6 +203,7 @@ These are current working conclusions, not eternal doctrine.
 | Current belief | Confidence / basis |
 | --- | --- |
 | Kit is the product; total experienced play is the acceptance layer. | Settled project north star. |
+| KRABS v0.2.2 on `dnd-solo/main` is the current canonical long-term reference architecture and behavioral specification for Kit. | Verified live repository authority; v0.1 is superseded, not KRABS itself. |
 | `dnd-solo/main` is materially beyond the old Area 6c prototype. | Strong executable evidence. |
 | Generalized runtime capability has not yet demonstrated generalized excellent DM play. | Strong; human evidence lags implementation. |
 | The next major runtime-quality knowledge gain comes from sustained current-build play across ordinary boundaries. | Strong current evaluation conclusion. |
@@ -912,7 +917,7 @@ When updating this file:
 
 # 17. Current known traps for future agents
 
-- The old Project attachment containing **KRABS v0.1** calls itself canonical but is stale relative to live repo authority.
+- **KRABS itself is not historical.** Current `dnd-solo/main` carries **KRABS v0.2.2** as the canonical long-term Kit Reference Architecture & Behavioral Specification. The old Project attachment containing **KRABS v0.1** is stale only because that version was superseded. Never compress this into "KRABS is old-era material."
 - Old pinned ZIPs reproduce old builds only.
 - Open PRs can be important and newer without being merged truth.
 - `dnd-solo` contains historical BFDM mirror material that should not outrank the canonical `bfdm-corpus`.
