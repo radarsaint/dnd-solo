@@ -42,14 +42,7 @@
     "issue": 115,
     "role": "DURABLE_CONTEXT_DELTA_INBOX_NOT_AUTHORITY_NOT_WORK_QUEUE"
   },
-  "context_review": {
-    "reviewed_on": "2026-10-07",
-    "reviewed_against": {
-      "radarsaint/dnd-solo": "e3a5e9908357441051df24dac8086d8d4c7f26f5",
-      "radarsaint/bfdm-corpus": "65513f294e72a3eb961d5699c21ddc1f14ceef2c"
-    },
-    "last_integrated_context_inbox_comment_id": null,
-    "staleness_rule": "LIVE_MAIN_SHA_CHANGE_REQUIRES_IMPACT_CHECK_NOT_AUTOMATIC_INVALIDATION"
-  },
-  "context_backflow": "SUBSTANTIAL_WORK_CLASSIFIES_CONTEXT_IMPACT_AND_UPDATES_CANONICAL_CONTEXT_OR_ENQUEUES_ISSUE_115"
+  "context_backflow": "SUBSTANTIAL_WORK_CLASSIFIES_CONTEXT_IMPACT_AND_UPDATES_CANONICAL_CONTEXT_OR_ENQUEUES_ISSUE_115",
+  "gardener_state": "coordination/context_state.json",
+  "gardener_state_role": "SINGLE_SHARED_RESUMABILITY_CURSOR_NOT_KNOWLEDGE_STORE"
 }
