@@ -37,6 +37,12 @@ Verification:
 - tests / commands / source checks
 - failures or gaps
 
+Downstream consumption:
+- actual consumer of this output
+- trigger / responsible dispatcher that invokes the consumer
+- evidence that output reached and was used by the consumer; if not, say NOT YET CONSUMED
+- observed acceptance result or remaining BLOCKED state and next owner
+
 Cross-repo impact:
 - none, or exact dependency/implication
 
@@ -66,6 +72,6 @@ END HANDOFF
 
 If the task creates or changes a PR, put the durable handoff in the PR description or a top-level PR comment as appropriate.
 
-If durable project understanding changed, do not rely on chat history as the only copy.
+If durable project understanding changed, do not rely on chat history as the only copy. Recording a semantic delta is NOT evidence that a Gardener has been invoked or that the Project Brain is reconciled; name the actual pending Gardener owner and keep the loop open until durable reconciliation and consumer verification.
 
 If a required operation exceeded the worker's local tools, the handoff must name the executor it was routed to or state BLOCKED with the exact missing capability. Do not convert a tool limitation into a weaker acceptance condition or manual Brendon task.
