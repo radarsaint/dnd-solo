@@ -219,7 +219,7 @@ These are current working conclusions, not eternal doctrine.
 | Restraint, non-intervention, and what the DM declines to do are important BFDM evidence. | Strong research-direction conclusion. |
 | No individual AI agent's context window can safely serve as project memory. | Strong operational conclusion from repeated project failures. |
 | A fresh collaborator needs semantic continuity plus live authority, not one or the other. | Strong project-management conclusion. |
-| A component, PR, index, evaluation, status signal, or handoff is not completed project value until its specified next consumer uses it and the intended result is observed. | Strong operational conclusion; PR #40's recorded-but-unreconciled Gardener delta and tested-but-unmerged/runtime-deployment boundaries expose this failure. |
+| A component, PR, index, evaluation, status signal, or handoff is not completed project value until its specified next consumer uses it and the intended result is observed. | Strong operational conclusion. The PR #40 delta is reconciled in this Brain; #113, #117, and BFDM #39 are merged. Unbriefed consumption and some runtime-deployment boundaries remain open. |
 
 ## 1.8 What we no longer treat as safe assumptions
 
@@ -290,7 +290,7 @@ Does a material merge or semantic delta actually cause a suitable Gardener to ru
 
 These are current directional expectations, not commitments.
 
-- **Close the actual Gardener consumption loop first** (dnd-solo issue #118): reconcile PR #40 plus the premature-completion correction into the Brain, write and checkpoint the result honestly, establish a named invocation path, then test fresh-GPT consumption and repeatability. This is unfinished despite the existing role/checker design.
+- **Finish Gardener consumption closeout** (dnd-solo issue #118): PR #40 and the premature-completion correction are already in this Brain, and #113, #117, and BFDM #39 are on main. What remains is an unbriefed cold start from the default-branch entry and a second change handled without a person delivering the prompt. A checker warning or a single receipt is not that closeout.
 - Reconcile the runtime PR stack into a combined build, ensure that build actually reaches the mounted Kit, and generate fresh sustained human play evidence beyond Area 6c.
 - Finish BFDM PR #27's Discord retrieval conflicts as a separate engineering task. Preserve missing revision, Rowing Oak image, Bodfish Site, Project-history, and known-source gaps as capability-dependent archive work, not grounds to repeat merged PR #40.
 - Prioritize forensic semantic verification in BFDM PR #38; then adversarially test PR #28's hypothesis families against independent Earthfall/Saturday evidence, respecting prep-versus-play distinctions.
