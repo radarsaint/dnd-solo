@@ -1,11 +1,11 @@
 # Project Understanding — DM Kit / BFDM
 
 **Purpose:** living semantic Project Brain for humans and AI collaborators  
-**Status:** proposed on coordination PR #113; not canonical `main` until merged  
-**Target canonical location:** `radarsaint/dnd-solo/docs/PROJECT_UNDERSTANDING.md`  
+**Status:** canonical on `dnd-solo/main` after Brendon-approved merges of #113 and #117 on 2026-10-08. It is no longer a proposed side-branch draft.  
+**Canonical location:** `radarsaint/dnd-solo/docs/PROJECT_UNDERSTANDING.md`  
 **Sibling repository:** `radarsaint/bfdm-corpus`  
 **Last substantive refresh:** 2026-10-08  
-**Context reviewed against:** `dnd-solo/main @ e3a5e9908357441051df24dac8086d8d4c7f26f5`; `bfdm-corpus/main @ dc0d558188c3e492f69c34a8e278e0cf9e17373b`
+**Context reviewed against:** `dnd-solo/main @ ea74255559faa57dc2b044f01731f61e0f85079d`; `bfdm-corpus/main @ c18796a2e988d91353707b33377c8ea0e670974d`
 
 > This document is the project's current **semantic model**: what we are building, where we are, why we got here, what changed our thinking, how the major workstreams fit together, what we currently believe, what remains uncertain, and where the evidence points next.
 >
@@ -162,7 +162,9 @@ The target is:
 
 This document is the semantic center of that system.
 
-The intended maintenance model is a **restartable Project Gardener role**, not a permanent Gardener agent. A suitable GPT reconciles bounded evidence into this Brain and leaves a checkpoint another GPT can resume. **A Gardener pass must be actually invoked and its output consumed.** Recording a #115 delta or detecting SHA drift is only intake; a named dispatcher/worker must begin a reconciliation pass, commit the supported semantic change or explicit no-change disposition, and advance the checkpoint only when the work is durable. As of 2026-10-08 that automatic/reliable invocation and a fully closed real pass are not demonstrated. See active closure issue dnd-solo #118; do not call this system operational merely because PRs #113/#117 describe or validate its components.
+The intended maintenance model is a **restartable Project Gardener role**, not a permanent Gardener agent. A suitable GPT reconciles bounded evidence into this Brain and leaves a checkpoint another GPT can resume. **A Gardener pass must be actually invoked and its output consumed.** Recording a #115 delta or detecting SHA drift is only intake; a named dispatcher/worker must begin a reconciliation pass, commit the supported semantic change or explicit no-change disposition, and advance the checkpoint only when the work is durable.
+
+As of the 2026-10-08 approving merges, the coordination contract, this Project Brain, the Gardener checkpoint (`coordination/context_state.json`), and the context-status checker are on canonical `main`. They are not proposed or unmerged. dnd-solo #113 merged as `aba505351edf61df62445a4961090b4839435dc6`; stacked #117 merged as `ea74255559faa57dc2b044f01731f61e0f85079d`; paired bfdm-corpus #39 merged as `c18796a2e988d91353707b33377c8ea0e670974d`. Do not keep editing those coordination branches. A status-checker warning is not completion and does not accept a semantic delta. The merge of #39 triggered the Grok Automation dispatcher; that is observed invocation, not proof the continuity system is operational. Issue #118 G4 (unbriefed cold start from default-branch entry) and G5 (a second change without a person delivering the prompt) remain unmet. ChatGPT Project source membership remains a manual Project-UI change.
 
 ## 1.6 What changed our thinking recently
 
