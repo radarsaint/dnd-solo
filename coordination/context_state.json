@@ -2,17 +2,17 @@
   "schema": "kit_project_gardener_state/v1",
   "purpose": "RESUMABILITY_CURSOR_NOT_KNOWLEDGE_STORE",
   "canonical_location": "radarsaint/dnd-solo/coordination/context_state.json",
-  "state_revision": 7,
+  "state_revision": 8,
   "semantic_brain": {
     "repo": "radarsaint/dnd-solo",
     "path": "docs/PROJECT_UNDERSTANDING.md",
-    "last_semantic_commit": "e4e3431b0fad688a8a834ac15e576eddd36ed51f",
+    "last_semantic_commit": "f62064e970baa17e76aa107fd52b699f8f709a13",
     "last_reviewed_on": "2026-10-08"
   },
   "checkpoint": {
     "reviewed_against_main": {
-      "radarsaint/dnd-solo": "e4e3431b0fad688a8a834ac15e576eddd36ed51f",
-      "radarsaint/bfdm-corpus": "1fedaee76e2b2e17d05619ee3ff115fe5646167a"
+      "radarsaint/dnd-solo": "f62064e970baa17e76aa107fd52b699f8f709a13",
+      "radarsaint/bfdm-corpus": "54a2093838b69138eb72e513a4eb813d0717fd19"
     },
     "context_inbox": {
       "repo": "radarsaint/dnd-solo",
@@ -25,19 +25,19 @@
   "last_completed_pass": {
     "kind": "BOUNDED_SEMANTIC_RECONCILIATION",
     "completed_on": "2026-10-08",
-    "scope": "Reconciled #115 comment 6065921827: the 2026-10-08 merge wave started one unsynchronized Gardener pass per merged pull request.",
-    "result": "Accepted, narrowed: three kit-gardener-on-merge successes (c6b15d24, 7f376ca7, fbf0e7ba) followed #113, #117, and #39; no GitHub APPROVE review exists because author and merger are the same user. Rejected: treating only the #39 merge as the dispatcher trigger, and treating checkpoint tip 4228be7 as a newer brain. Unresolved: #118 G4 and G5, and ChatGPT Project source membership. bfdm-corpus PROJECT_CONTROL.md was not false.",
-    "resulting_brain_commit": "e4e3431b0fad688a8a834ac15e576eddd36ed51f",
+    "scope": "Reconciled dnd-solo #119 merge 6d973812, which recorded accepted issue #118 G4 and C2. No #115 comment id was greater than 6065921827.",
+    "result": "Accepted, narrowed: G4 and C2 acceptance in comment 6068887374 is on the Brain. The prior G2 gap, 2cdcee1f ahead of e4e3431b, is checkpoint-only and is not semantic falsehood. Rejected: treating G4 as still unmet, and treating #119 as a new semantic model or as G5/G6 acceptance. Unresolved: G5 cold-start correction, G2 checkbox until a fresh checker no longer reports an undecided advance, and ChatGPT Project source membership. bfdm-corpus PROJECT_CONTROL.md no longer says G4 is unmet.",
+    "resulting_brain_commit": "f62064e970baa17e76aa107fd52b699f8f709a13",
     "reconciled_comment_id": 6065921827
   },
   "active_pass": null,
   "unresolved": [
-    "Issue #118 G4 is unmet: an unbriefed cold start from the default-branch entry has not been recorded.",
-    "Issue #118 G5 is unmet: merge-triggered invocation without a pasted prompt is not the full acceptance chain; a cold-start worker has not used the corrected model.",
+    "Issue #118 G5 is unmet: the cold-start transcript did not state the three unsynchronized merge-triggered runs, surviving brain 86e4adef, or checkpoint-only writes such as 4228be7c. Do not open a synthetic delta only to retry it.",
+    "Issue #118 G2 checkbox is not checked. The prior advance of 2cdcee1f over reviewed brain e4e3431b is disposed as checkpoint-only. Acceptance still requires a fresh checker that does not report an undecided SHA advance. This checkpoint commit moves main after brain f62064e and is cursor-only, not a newer brain.",
     "A status-checker warning is not completion and does not accept a semantic delta.",
-    "ChatGPT Project source membership remains a manual Project-UI change.",
+    "ChatGPT Project source membership remains a manual Project-UI change. G6 stays open.",
     "Do not keep editing merged coordination branches docs/coordination-refresh-2026-10-07, tooling/project-context-status-116, or docs/cross-repo-coordination-2026-10-07.",
-    "The semantic result of the 2026-10-08 merge wave is brain commit e4e3431b0fad688a8a834ac15e576eddd36ed51f after correction, not checkpoint-only commits."
+    "Do not check issue #118 G2, G5, or G6 from this pass."
   ],
   "needs_review": [],
   "checkpoint_rules": {
