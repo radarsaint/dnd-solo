@@ -1,0 +1,99 @@
+# Mechanical Gardener checkpoint check.
+# Does not rewrite the Project Brain, advance cursors, open issues, or post comments.
+# A SHA advance is a review signal (warning), not a failed semantic claim.
+# Schedule runs only after this file is on the default branch; pull_request and
+# workflow_dispatch can run earlier.
+
+name: project-context-status
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '23 16 * * 1,4'
+  pull_request:
+    paths:
+      - 'coordination/**'
+      - 'PROJECT_BOOTSTRAP.md'
+      - 'PROJECT_CONTROL.md'
+      - 'COORDINATION.md'
+      - 'docs/PROJECT_UNDERSTANDING.md'
+      - 'scripts/project_context_status.py'
+      - 'scripts/README-project-context-status.md'
+      - 'tests/test_project_context_status.py'
+      - 'tests/fixtures/project_context/**'
+      - '.github/pull_request_template.md'
+      - '.github/workflows/project-context-status.yml'
+  push:
+    branches:
+      - main
+      - docs/coordination-refresh-2026-10-07
+    paths:
+      - 'coordination/**'
+      - 'PROJECT_BOOTSTRAP.md'
+      - 'PROJECT_CONTROL.md'
+      - 'COORDINATION.md'
+      - 'docs/PROJECT_UNDERSTANDING.md'
+      - 'scripts/project_context_status.py'
+      - 'scripts/README-project-context-status.md'
+      - 'tests/test_project_context_status.py'
+      - 'tests/fixtures/project_context/**'
+      - '.github/pull_request_template.md'
+      - '.github/workflows/project-context-status.yml'
+
+permissions:
+  contents: read
+  issues: read
+
+concurrency:
+  group: project-context-status-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  status:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Offline fixture tests
+        run: python3 -m unittest tests.test_project_context_status -v
+
+      - name: Compare checkpoint to live authority
+        id: status
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BFDM_CONTROL_FALLBACK_REF: docs/cross-repo-coordination-2026-10-07
+        run: |
+          set -o pipefail
+          set +e
+          python3 scripts/project_context_status.py --json --human-out "$GITHUB_STEP_SUMMARY" | tee context-status.json
+          code=$?
+          set -e
+          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+          python3 - << 'PY'
+          import json
+          from pathlib import Path
+          report = json.loads(Path('context-status.json').read_text(encoding='utf-8'))
+          if report['classification'] == 'INTEGRITY_FAILURE':
+              detail = '; '.join(report['integrity_failures'])
+              print('::error::Project context plumbing integrity failure: ' + detail)
+          elif report['classification'] == 'AUTHORITY_UNAVAILABLE':
+              print('::warning::Project context authority unavailable. This is not a claim that the Project Brain is stale.')
+          source = report['sibling_pointer'].get('source') or {}
+          if report['sibling_pointer'].get('on_live_main') is False:
+              print('::warning::BFDM shared pointer is not on bfdm-corpus main (source ' + str(source.get('ref')) + '). Not a second cursor.')
+          for signal in report['review_signals']:
+              print('::warning::' + signal + ': semantic review is required. The Project Brain was not rewritten and no cursor was advanced.')
+          print('classification=' + report['classification'])
+          PY
+          if [ "$code" -eq 2 ]; then
+            exit 2
+          fi
+          exit 0
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: project-context-status
+          path: context-status.json

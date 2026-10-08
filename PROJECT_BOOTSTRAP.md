@@ -206,6 +206,14 @@ A different live SHA does **not** automatically invalidate the Project Brain. It
 
 If an artifact conflicts with live authority, say so and use live authority.
 
+## Mechanical status check
+
+`scripts/project_context_status.py` reports whether the Gardener checkpoint, the progressive bootstrap contract, and the issue #115 cursor are structurally intact, and whether live main SHAs or inbox comments are past the recorded boundary.
+
+How to run it, and what to do with the result: `scripts/README-project-context-status.md`.
+
+`SHA_ADVANCED_REVIEW_NEEDED` and `SEMANTIC_DELTAS_PENDING` are review signals for a later Project Gardener pass. They do not rewrite the Project Brain, advance the checkpoint, or prove the current semantic model is false. A passing check does not prove that a GPT understands the project.
+
 ## What not to do
 
 Do not:
