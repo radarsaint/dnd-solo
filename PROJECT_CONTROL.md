@@ -136,7 +136,7 @@ Fresh agents are at particular risk of being misled by surfaces that still look 
 
 ## Documentation state
 
-This coordination branch refreshes the primary human/agent entry points: `README.md`, `START_HERE.md`, `AGENTS.md`, `docs/WHAT_WE_ARE_BUILDING.md`, `state/project-status.md`, and the collaboration protocol.
+The merged coordination refresh (dnd-solo #113, now on `main`) refreshed the primary human/agent entry points: `README.md`, `START_HERE.md`, `AGENTS.md`, `docs/WHAT_WE_ARE_BUILDING.md`, `state/project-status.md`, and the collaboration protocol. #117 (context-status checker) and bfdm-corpus #39 are also on main. They are not proposed side-branch drafts.
 
 Older runtime architecture documents and historical Area 6c wording may still describe prior slices. Treat them as reference/history unless current control or executable code confirms the claim.
 
