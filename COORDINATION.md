@@ -68,17 +68,25 @@ Never resolve a conflict by choosing the newest-looking prose alone.
 
 For substantial project/research/implementation work, start at `dnd-solo/PROJECT_BOOTSTRAP.md`.
 
-That router requires a fresh GPT to acquire, in order:
+The required path is deliberately small:
 
-1. durable project/corpus understanding;
-2. the agent/tool/capability map;
-3. live repository truth and current control state;
-4. recent material context changes;
-5. the issue/PR that actually owns the task.
+1. **Project Brain** — read `docs/PROJECT_UNDERSTANDING.md` to acquire the current semantic model.
+2. **Live authority/current control** — reconcile state-sensitive claims against live GitHub and the relevant repo's `PROJECT_CONTROL.md`.
+3. **Owning task** — read the issue/PR or explicit user instruction that controls the work.
 
-Do not begin by consuming an append-only history log, an old Project attachment, or an arbitrary open PR.
+Then load deeper context progressively according to the task.
 
-For a narrowly bounded task, load only the portions of this context that can materially affect the work; the bootstrap is an orientation system, not an excuse to flood every worker with the entire archive.
+Examples:
+- load `coordination/AGENTS_AND_TOOLS.md` when named-resource identity/capability/routing matters;
+- load `coordination/context_state.json` and unreconciled #115 deltas for a Project Gardener pass;
+- load audits, decisions, Git history, source material, or BFDM evidence for historical/causal/research work;
+- load specific architecture/code/tests for runtime implementation work.
+
+`coordination/CONTEXT_CHANGELOG.md` is **not required bootstrap reading**. It is supplementary provenance pending separate disposition.
+
+Do not begin by consuming an append-only history log, an old Project attachment, every context file, or an arbitrary open PR.
+
+For a narrowly bounded task, load only the portions of deeper context that can materially affect the work. Progressive disclosure is part of the continuity design.
 
 ## Work ownership
 
