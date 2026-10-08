@@ -456,6 +456,30 @@ def sha_status(reviewed, live):
     return 'SHA_ADVANCED_REVIEW_NEEDED'
 
 
+CHECKPOINT_SELF_PATH = 'coordination/context_state.json'
+
+
+def sha_observation(reviewed, live, changed_paths):
+    """Classify a live SHA against the reviewed SHA.
+
+    changed_paths is None when the diff was not inspected. A list is the
+    paths changed from the reviewed tree to the live tree. A checkpoint
+    file that only records the review is not an undecided semantic advance.
+    An uninspected difference stays undecided.
+    """
+    status = sha_status(reviewed, live)
+    if status != 'SHA_ADVANCED_REVIEW_NEEDED':
+        return status, ('MATCH' if status == 'REVIEWED_CURRENT' else None)
+    if changed_paths is None:
+        return status, 'UNINSPECTED'
+    paths = [item for item in changed_paths if item]
+    if not paths:
+        return 'REVIEWED_CURRENT', 'SAME_TREE'
+    if set(paths) <= set([CHECKPOINT_SELF_PATH]):
+        return 'REVIEWED_CURRENT', 'CHECKPOINT_ONLY'
+    return status, 'SUBSTANTIVE'
+
+
 def handoff_and_pr_errors(handoff, pull_template):
     errors = []
     if 'Context impact:' not in handoff:
@@ -473,7 +497,8 @@ def handoff_and_pr_errors(handoff, pull_template):
 
 def evaluate(root, *, live_shas, issue, bfdm_control, sibling_local_state_present=None,
              bfdm_unavailable=False, bfdm_source=None, resolve_commits=True,
-             online_commit_lookup=None, state_override=None, dnd_control_override=None):
+             online_commit_lookup=None, state_override=None, dnd_control_override=None,
+             commit_diffs=None):
     """Return a status report. This function does not write repository files."""
     root = Path(root)
     failures = []
@@ -575,15 +600,26 @@ def evaluate(root, *, live_shas, issue, bfdm_control, sibling_local_state_presen
     if not isinstance(live_shas, dict):
         live_shas = {}
     repos = {}
+    if not isinstance(commit_diffs, dict):
+        commit_diffs = {}
     for repo in (DND_REPO, BFDM_REPO):
         live = live_shas.get(repo, None)
         if isinstance(live, str) and live.strip().upper() == 'UNAVAILABLE':
             live = None
+        reviewed_value = reviewed.get(repo) if isinstance(reviewed, dict) else None
+        changed = commit_diffs[repo] if repo in commit_diffs else None
+        status, disposition = sha_observation(reviewed_value, live, changed)
         repos[repo] = {
-            'reviewed_main': norm_sha(reviewed.get(repo)) if isinstance(reviewed, dict) else None,
+            'reviewed_main': norm_sha(reviewed_value) if isinstance(reviewed, dict) else None,
             'live_main': norm_sha(live) if live is not None else None,
-            'status': sha_status(reviewed.get(repo) if isinstance(reviewed, dict) else None, live),
+            'status': status,
+            'advance_disposition': disposition,
         }
+    if any(item.get('advance_disposition') == 'CHECKPOINT_ONLY' for item in repos.values()):
+        notes.append('A live tip that changes only coordination/context_state.json is the checkpoint '
+                     'recording the reviewed SHA, not an undecided semantic advance.')
+    if any(item.get('advance_disposition') == 'SAME_TREE' for item in repos.values()):
+        notes.append('A live tip with the same tree as the reviewed SHA is not an undecided semantic advance.')
     brain = state.get('semantic_brain') if isinstance(state, dict) else {}
     semantic_sha = brain.get('last_semantic_commit') if isinstance(brain, dict) else None
     commit = commit_status(root, semantic_sha, resolve=resolve_commits, online_lookup=online_commit_lookup)
@@ -686,6 +722,8 @@ def format_human(report):
         lines.append('Repo %s: %s' % (repo, item['status']))
         lines.append('  reviewed_main: %s' % reviewed)
         lines.append('  live_main: %s' % live)
+        if item.get('advance_disposition') not in (None, 'MATCH'):
+            lines.append('  advance_disposition: %s' % item['advance_disposition'])
     inbox = report['semantic_inbox']
     lines.extend([
         '',
@@ -909,6 +947,28 @@ def commit_exists_online(sha):
     return bool(result.ok and isinstance(result.data, dict) and norm_sha(result.data.get('sha')) == sha)
 
 
+def fetch_compare_paths(repo, base, head):
+    """Paths changed from base to head, or None if the diff cannot be trusted.
+
+    A non-descendant head stays uninspected so it cannot be cleared as checkpoint-only.
+    """
+    result = api_get('repos/%s/compare/%s...%s' % (repo, base, head))
+    if not result.ok or not isinstance(result.data, dict):
+        return None
+    if result.data.get('behind_by'):
+        return None
+    files = result.data.get('files')
+    if not isinstance(files, list) or len(files) >= 300:
+        return None
+    paths = []
+    for item in files:
+        if isinstance(item, dict) and isinstance(item.get('filename'), str):
+            paths.append(item['filename'])
+        else:
+            return None
+    return paths
+
+
 def resolve_sibling(explicit_control, explicit_unavailable, offline):
     if explicit_unavailable:
         return None, {'ref': None, 'on_live_main': None, 'kind': 'UNAVAILABLE'}, None
@@ -954,6 +1014,20 @@ def build_report(args):
     if args.sibling_local_state is not None:
         local_state = args.sibling_local_state
     lookup = None if args.skip_commit_resolve or offline else commit_exists_online
+    commit_diffs = None
+    if not offline:
+        try:
+            checkpoint_state = load_json(Path(args.root) / LOCAL_STATE)
+        except (OSError, json.JSONDecodeError):
+            checkpoint_state = {}
+        reviewed_map = {}
+        if isinstance(checkpoint_state, dict) and isinstance(checkpoint_state.get('checkpoint'), dict):
+            reviewed_map = checkpoint_state['checkpoint'].get('reviewed_against_main') or {}
+        commit_diffs = {}
+        for repo, live_sha in live.items():
+            reviewed_sha = reviewed_map.get(repo) if isinstance(reviewed_map, dict) else None
+            if norm_sha(live_sha) and norm_sha(reviewed_sha) and norm_sha(live_sha) != norm_sha(reviewed_sha):
+                commit_diffs[repo] = fetch_compare_paths(repo, norm_sha(reviewed_sha), norm_sha(live_sha))
     return evaluate(
         args.root,
         live_shas=live,
@@ -964,6 +1038,7 @@ def build_report(args):
         bfdm_source=source,
         resolve_commits=not args.skip_commit_resolve,
         online_commit_lookup=lookup,
+        commit_diffs=commit_diffs,
     )
 
 
