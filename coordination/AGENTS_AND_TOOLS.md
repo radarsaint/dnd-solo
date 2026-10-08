@@ -176,6 +176,56 @@ Commonly useful capabilities include:
 
 Do not assume a named capability is available merely because another chat had it.
 
+## Execution-routing contract
+
+A worker's local tool boundary does **not** redefine the project's required outcome.
+
+When a task requires an action the current worker cannot perform directly:
+
+1. preserve the original acceptance condition exactly;
+2. inspect the available project resources and identify the strongest appropriate executor;
+3. route the blocked operation to that executor instead of weakening the task;
+4. give Brendon a paste-ready execution packet only when the executor is externally/manual-invocation by design;
+5. do not ask Brendon to perform routine repository, shell, inspection, migration, or tooling work merely because the current GPT lacks that capability;
+6. if no known executor can perform or investigate the operation, report the task as **BLOCKED** with the exact missing capability and evidence for that conclusion;
+7. never replace the requested outcome with a nearby substitute and call the step complete.
+
+### Grok Build escalation rule
+
+For required repository/shell work, mechanical investigation, environment discovery, CI/build/test work, repository surgery, or a mutation whose programmatic path is unknown to the current GPT, **Grok Build is the default escalation resource** unless a more specific connected tool clearly owns the action.
+
+Uncertainty about whether Grok Build can reach a target is not a reason to discard the requirement. Give Grok Build an inspection/execution task and require it to report what it actually can and cannot access.
+
+Examples:
+- current GPT cannot perform a required repo mutation -> route to Grok Build;
+- current GPT cannot determine whether a product surface has a shell/API/config path -> route the capability investigation to Grok Build;
+- current GPT can perform the exact GitHub mutation safely through the GitHub connector -> use the connector directly rather than creating unnecessary handoff work.
+
+### Action-state vocabulary
+
+Use these states literally:
+
+- **PREPARED** — instructions/artifact exist, but have not been delivered to the executor.
+- **RECORDED** — instructions/status were written to a durable surface such as GitHub; this does not imply executor receipt.
+- **DELIVERED** — the intended external executor actually received the task. For manually invoked Grok Build, this occurs only after Brendon has pasted the prompt there or otherwise confirmed delivery.
+- **EXECUTED** — the executor actually performed the operation and produced verifiable results.
+- **VERIFIED** — the claimed result was independently checked against the relevant authority/output.
+- **BLOCKED** — the required outcome remains unperformed because no available/identified executor can currently complete or investigate the missing operation.
+
+Never promote one state to another without evidence. In particular, a GitHub comment is **RECORDED**, not **DELIVERED** to Grok Build.
+
+### Acceptance-condition integrity
+
+If the requested outcome is X, inability to perform X locally does not authorize substituting Y.
+
+Do not turn:
+- "remove/replace the stale source" into "document that it is stale";
+- "send this to Grok Build" into "post a GitHub comment";
+- "execute the migration" into "write instructions for the user to do it";
+- "verify the external result" into "assume the handoff succeeded."
+
+A substitute may be proposed only as a clearly labeled alternative for Brendon's decision. It may not silently become completion.
+
 ## Routing heuristics
 
 - **Current runtime truth or implementation:** live `dnd-solo`, then Skippy/runtime owner; use Grok Build for shell/plumbing when useful.
