@@ -348,6 +348,45 @@ Chat history alone is not durable project state.
 
 A semantic/context delta is **not project truth merely because it is in the inbox**. A later Gardener must reconcile it against authoritative evidence before promoting it into the Project Brain.
 
+
+## Tool-boundary and executor-routing rule
+
+A worker's local tool limitations do **not** change the project's required outcome.
+
+If a required action cannot be executed with the current worker's tools:
+
+1. preserve the original acceptance condition;
+2. identify the strongest appropriate project executor;
+3. route the blocked operation to that executor rather than weakening or redefining the task;
+4. for repository/shell work, environment discovery, mechanical investigation, CI/build/test work, repository surgery, or an unknown programmatic path, use **Grok Build as the default escalation resource** unless a more specific connected tool clearly owns the action;
+5. do not assign routine glue work to Brendon merely because the current GPT cannot perform it;
+6. if no available executor can perform or investigate the operation, mark the work **BLOCKED** and name the exact missing capability;
+7. do not call the task complete until the original acceptance condition has actually been met or Brendon explicitly changes it.
+
+Uncertainty about whether Grok Build can access a target is not permission to discard the requirement. Give Grok Build a bounded inspection/execution prompt and require evidence of what it could or could not do.
+
+### Execution status language
+
+Use status verbs literally:
+
+- `PREPARED` — instructions/artifact exist only.
+- `RECORDED` — written to a durable surface such as GitHub.
+- `DELIVERED` — the intended executor actually received it.
+- `EXECUTED` — the intended operation actually ran.
+- `VERIFIED` — the claimed result was independently checked.
+- `BLOCKED` — the required outcome remains unperformed because no available/identified executor can currently complete or investigate the missing operation.
+
+Never promote one state to another without evidence.
+
+A GitHub issue/comment containing a Grok Build prompt is `RECORDED`, not `DELIVERED` to Grok Build.
+
+A nearby substitute is not completion. Examples:
+
+- documenting a stale source is not the same as removing/replacing it;
+- posting a handoff is not the same as the executor receiving it;
+- writing instructions for Brendon is not the same as executing repository/shell work;
+- a successful implementation handoff is not the same as an independently verified result.
+
 ## Handoffs
 
 Every substantial worker result should include the capsule in `coordination/HANDOFF_TEMPLATE.md`.
