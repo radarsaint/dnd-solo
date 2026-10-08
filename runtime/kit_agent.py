@@ -39,6 +39,7 @@ from . import kit_toll
 from . import kit_twenty_one
 from . import kit_guards
 from . import kit_voice
+from . import kit_visual
 from .scene_discernment import IMPROV_READ_SCHEMA, check_improv_read, discernment_candidates
 from .state_context import (ASKED_EVENT_PREFIX, CONTEXT_BUDGET_BYTES, HostSequenceError, InvalidChange,
                             PERSONALITY_CORE, PLAYER_NOTE_MAX_EVIDENCE, PROJECT_ROOT, Runtime,
@@ -4304,7 +4305,7 @@ def _cli_stamps(items):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('command', choices=['start', 'init', 'view', 'prepare', 'decide', 'finish', 'complete',
+    parser.add_argument('command', choices=['start', 'init', 'view', 'visual', 'prepare', 'decide', 'finish', 'complete',
                                             'abandon', 'feedback', 'character', 'notes', 'play', 'trace',
                                             'timing', 'persona', 'stamp', 'rehydrate'])
     parser.add_argument('--db', default='kit.sqlite')
@@ -4327,6 +4328,11 @@ def main():
                              'not adjudicated, not logged as the PC speaking; leak guards still apply)')
     parser.add_argument('--action', help='Player action for prepare')
     parser.add_argument('--action-file', help='UTF-8 player action file for prepare')
+    parser.add_argument('--request', help='visual: the user\'s exact art request')
+    parser.add_argument('--visual-mode', dest='visual_mode', choices=kit_visual.VISUAL_MODES,
+                        help='visual: requested asset mode (default scene_vignette)')
+    parser.add_argument('--visual-branch', dest='visual_branch', choices=('core', 'roanoke', 'arcania', 'earthfall'),
+                        default='core', help='visual: BFDM campaign/product branch (default core)')
     parser.add_argument('--turn-id', help='Turn ID returned by prepare')
     parser.add_argument('--input-file', help='JSON plan, speech, or combined output; - reads stdin')
     parser.add_argument('--text', help='feedback: the player’s out-of-character comment')
@@ -4378,6 +4384,17 @@ def main():
             print(json.dumps(runtime.player_view(), indent=2, ensure_ascii=False))
         elif args.command == 'view':
             print(json.dumps(runtime.player_view(), indent=2, ensure_ascii=False))
+        elif args.command == 'visual':
+            if not args.request:
+                parser.error('visual requires --request')
+            try:
+                result = kit_visual.build_visual_brief(runtime, args.request, args.visual_mode, args.visual_branch)
+                kit_visual.validate_visual_brief(result)
+            except InvalidChange as exc:
+                print(json.dumps({'stage': 'rejected', 'message': str(exc)}, ensure_ascii=False), file=sys.stderr)
+                return 2
+            print(json.dumps(result, ensure_ascii=False,
+                             **({'indent': 2} if args.pretty else {'separators': (',', ':')})))
         elif args.command == 'trace':
             print(json.dumps(runtime.recent_kit_turns(), indent=2, ensure_ascii=False))
         elif args.command == 'timing':

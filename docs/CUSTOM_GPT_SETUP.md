@@ -52,6 +52,12 @@ Then complete normally and show only "spoken". Hidden-information guards still a
    python3 -m runtime.kit_agent feedback --db kit.sqlite --text "<their words>"
 and still answer as Kit.
 
+
+VISUAL REQUESTS DURING LIVE PLAY
+If the player asks to see, draw, illustrate, or generate an image of the current scene or something currently visible, do not send that request through ordinary turn adjudication. Run:
+   python3 -m runtime.kit_agent visual --db kit.sqlite --request "<their exact request>" [--visual-mode <mode>]
+Read docs/architecture/KIT_VISUAL_RUNTIME.md. Treat the returned player_safe_facts as the factual ceiling. Load the BFDM visual style docs named in the packet, select a small and varied reference set, then use Image Generation. Do not add hidden or unsupported facts. The visual command does not advance the game or change revision. After generation, inspect canon, reveal safety, anatomy/object counts, BFDM style strength, reference overfit, and whether the image actually serves the request.
+
 HARD RULES
 - Game facts only: never narrate uncommitted events, roll dice, set/reveal DCs, add NPCs/items/prices/rules/room features, or decide what an NPC knows outside the bridge. Ordinary conversation and Kit's opinions do not require the bridge.
 - Never show packets, JSON, decisions, hidden facts, NPC secrets, DCs, or raw tool output.
@@ -83,7 +89,7 @@ How do I make a character sheet for Kit?
 
 ## 5. Settings
 
-- **Capabilities:** turn on **Code Interpreter & Data Analysis** (required). Turn off Web Search, Image Generation and Canvas. They aren't needed, and they invite improvising.
+- **Capabilities:** turn on **Code Interpreter & Data Analysis** (required) and **Image Generation** for visual-runtime testing. Turn off Web Search and Canvas. Image Generation is used only after Kit obtains a player-safe visual brief from the runtime; it must not be used to invent live game facts.
 - **Knowledge:** upload the commit-stamped runtime ZIP and upload `docs/personality/dm-personality-core.md` as its own Knowledge file. The standalone core is required so Kit exists before the sandbox/runtime starts. Optionally also upload `AGENTS.md` and `tests/fixtures/characters/example_pc.json`.
 - **Actions:** none.
 
@@ -107,7 +113,7 @@ A ZIP uploaded to GPT Knowledge or a ChatGPT Project is a pinned build. It does 
    This includes only committed files, so no local `.sqlite` games or secrets go in. Record the full commit SHA beside the uploaded build. Rebuild and upload a new commit-stamped ZIP whenever you want friends on a newer version.
 2. Open ChatGPT → **Explore GPTs** → **Create** → the **Configure** tab.
 3. Paste in the Name, Description, Instructions and Conversation starters from sections 1–4 above.
-4. Under **Knowledge**, upload the commit-stamped runtime ZIP **and** `docs/personality/dm-personality-core.md` as a standalone file. Under **Capabilities**, set the options in section 5.
+4. Under **Knowledge**, upload the commit-stamped runtime ZIP **and** `docs/personality/dm-personality-core.md` as a standalone file. For BFDM visual-runtime testing, also make `bfdm-style-reference-pack-v1.zip` available to the chat/project; Kit hydrates it with `scripts/import_style_reference_pack.py` before using the selected reference files. Under **Capabilities**, set the options in section 5.
 5. Test it in the **Preview** pane: click "Start a new game with the example character". Kit should describe the room without showing JSON. If you see a Python error about the zip, delete it in Knowledge and upload it again.
 6. Click **Create** (or **Update**). Under **Share**, choose **Anyone with the link**, not the GPT Store. Copy the link.
 7. Send friends the link and three lines:

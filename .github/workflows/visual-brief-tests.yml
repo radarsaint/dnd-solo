@@ -1,0 +1,26 @@
+name: Visual brief tests
+
+on:
+  pull_request:
+    paths:
+      - 'runtime/kit_visual.py'
+      - 'runtime/kit_visual_refs.py'
+      - 'runtime/kit_agent.py'
+      - 'style/BFDM_REFERENCE_INDEX.json'
+      - 'tests/test_kit_visual.py'
+      - 'START_HERE.md'
+      - 'docs/CUSTOM_GPT_SETUP.md'
+      - 'docs/architecture/KIT_VISUAL_RUNTIME.md'
+      - 'docs/architecture/KIT_VISUAL_STYLE_SPEC.md'
+  workflow_dispatch:
+
+jobs:
+  visual-brief:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Run visual brief tests
+        run: python3 -m unittest tests.test_kit_visual tests.test_start_here

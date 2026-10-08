@@ -21,3 +21,6 @@ assets/handouts/*
 !assets/handouts/index.json
 *.sqlite
 *.sqlite-*
+
+# Private BFDM style-reference bytes for DM Kit visual generation.
+style/private_refs/

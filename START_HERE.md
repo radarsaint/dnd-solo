@@ -67,6 +67,9 @@ Open these only when `AGENTS.md`, the GPT instructions, a runtime message, or th
 - `docs/architecture/kit-agendas.md` and `docs/GPT_HANDOFF_AGENDAS.md`: what NPCs want and when they act
 - `docs/architecture/kit-expression-gap.md`: how speech is checked
 - `docs/architecture/KIT_VISUAL_STYLE_SPEC.md`: house visual language and generation rules; load when Kit is asked to create new campaign art
+- `docs/architecture/KIT_VISUAL_RUNTIME.md`: DM Kit visual-brief command and host procedure; load for live visual requests
+- `docs/architecture/BFDM_VISUAL_ART_BIBLE.md`: human-facing BFDM visual doctrine; load for new campaign art
+- `docs/architecture/BFDM_VISUAL_REFERENCE_GUIDE.md`: starter exemplar guide and reference-selection rules; load for new campaign art
 <!-- reference:end -->
 
 ## DEV ONLY: do not read during play, do not quote to players
