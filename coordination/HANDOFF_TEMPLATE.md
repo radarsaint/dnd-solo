@@ -25,6 +25,10 @@ Changes made:
 - files / PR / issue
 - none, if read-only
 
+Execution state:
+- PREPARED | RECORDED | DELIVERED | EXECUTED | VERIFIED | BLOCKED
+- use the highest state actually supported by evidence; do not collapse these states
+
 Verification:
 - tests / commands / source checks
 - failures or gaps
@@ -59,3 +63,5 @@ END HANDOFF
 If the task creates or changes a PR, put the durable handoff in the PR description or a top-level PR comment as appropriate.
 
 If durable project understanding changed, do not rely on chat history as the only copy.
+
+If a required operation exceeded the worker's local tools, the handoff must name the executor it was routed to or state BLOCKED with the exact missing capability. Do not convert a tool limitation into a weaker acceptance condition or manual Brendon task.
