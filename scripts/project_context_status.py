@@ -708,25 +708,7 @@ class ApiResult(object):
         self.data = data
 
 
-def api_get(path):
-    """GET a GitHub API path. 404 is a result; transport failure is not ok."""
-    if _which('gh'):
-        proc = subprocess.run(['gh', 'api', path], capture_output=True, text=True, timeout=30, check=False)
-        raw = proc.stdout.strip()
-        data = None
-        if raw:
-            try:
-                data = json.loads(raw)
-            except json.JSONDecodeError:
-                data = None
-        if proc.returncode == 0:
-            return ApiResult(True, 200, data)
-        message = ''
-        if isinstance(data, dict):
-            message = str(data.get('message', ''))
-        if proc.returncode != 0 and ('Not Found' in message or 'Not Found' in proc.stderr):
-            return ApiResult(False, 404, data)
-        return ApiResult(False, None, data)
+def _api_get_urllib(path):
     request = urllib.request.Request(
         'https://api.github.com/' + path,
         headers={'Accept': 'application/vnd.github+json', 'User-Agent': 'kit-project-context-status'})
@@ -745,6 +727,92 @@ def api_get(path):
         return ApiResult(False, exc.code, payload)
     except (urllib.error.URLError, TimeoutError, json.JSONDecodeError):
         return ApiResult(False, None, None)
+
+
+def _run_gh_api(path):
+    return subprocess.run(['gh', 'api', path], capture_output=True, text=True, timeout=30, check=False)
+
+
+def _gh_http_status(proc, data):
+    if isinstance(data, dict):
+        raw = data.get('status')
+        if type(raw) is int:
+            return raw
+        if isinstance(raw, str) and raw.isdigit():
+            return int(raw)
+    match = re.search(r'HTTP (\d{3})', proc.stderr or '')
+    if match:
+        return int(match.group(1))
+    return None
+
+
+def _gh_auth_unavailable(proc, data, status):
+    if status == 401:
+        return True
+    blob = '\n'.join([
+        proc.stderr or '',
+        proc.stdout or '',
+        json.dumps(data) if isinstance(data, dict) else '',
+    ]).lower()
+    markers = (
+        'gh auth login',
+        'bad credentials',
+        'requires authentication',
+        'must authenticate',
+        'populate the gh_token',
+        'set the gh_token',
+        'no oauth token',
+    )
+    return any(marker in blob for marker in markers)
+
+
+def _gh_api_result(proc):
+    """Return a kept GitHub CLI result, or None when urllib should be tried.
+
+    A real HTTP response, including 404, is kept. Authentication failures and
+    invocations that never produced an API response are not kept.
+    """
+    raw = (proc.stdout or '').strip()
+    data = None
+    if raw:
+        try:
+            data = json.loads(raw)
+        except json.JSONDecodeError:
+            data = None
+    if proc.returncode == 0:
+        return ApiResult(True, 200, data)
+    status = _gh_http_status(proc, data)
+    message = str(data.get('message', '')) if isinstance(data, dict) else ''
+    not_found = status == 404 or message.lower() == 'not found' or 'not found' in (proc.stderr or '').lower()
+    if not_found:
+        return ApiResult(False, 404, data)
+    if _gh_auth_unavailable(proc, data, status):
+        return None
+    if status is not None and isinstance(data, dict):
+        return ApiResult(False, status, data)
+    return None
+
+
+def api_get(path, runner=None, transport=None):
+    """GET a GitHub API path. 404 is a result; transport failure is not ok.
+
+    ``gh api`` is used when it returns a usable response. If ``gh`` is missing,
+    unauthenticated, or otherwise cannot produce one, the urllib path is used.
+    """
+    web = transport or _api_get_urllib
+    if runner is None and not _which('gh'):
+        return web(path)
+    invoke = runner or _run_gh_api
+    try:
+        proc = invoke(path)
+    except (OSError, subprocess.TimeoutExpired):
+        return web(path)
+    if not hasattr(proc, 'returncode'):
+        return web(path)
+    kept = _gh_api_result(proc)
+    if kept is None:
+        return web(path)
+    return kept
 
 
 def _which(name):

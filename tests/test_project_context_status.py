@@ -311,5 +311,101 @@ class ProjectContextStatusTests(unittest.TestCase):
         self.assertFalse(report['project_brain_automatically_stale'])
 
 
+class GhApiFallbackTests(unittest.TestCase):
+    """api_get must not require a live GitHub login. Runners and transports are fakes."""
+
+    def result(self, runner, transport):
+        calls = []
+
+        def transport_spy(path):
+            calls.append(path)
+            return transport(path)
+
+        found = STATUS.api_get('repos/radarsaint/dnd-solo/issues/115', runner=runner, transport=transport_spy)
+        return found, calls
+
+    def test_gh_success_does_not_call_urllib(self):
+        def runner(_path):
+            return subprocess.CompletedProcess(
+                ['gh', 'api'], 0, stdout='{"sha":"abc"}\n', stderr='')
+
+        found, calls = self.result(runner, lambda _path: self.fail('urllib should not run'))
+        self.assertTrue(found.ok)
+        self.assertEqual(found.status, 200)
+        self.assertEqual(found.data, {'sha': 'abc'})
+        self.assertEqual(calls, [])
+
+    def test_gh_404_is_kept(self):
+        body = '{"message":"Not Found","status":"404"}\n'
+
+        def runner(_path):
+            return subprocess.CompletedProcess(
+                ['gh', 'api'], 1, stdout=body, stderr='gh: Not Found (HTTP 404)\n')
+
+        found, calls = self.result(runner, lambda _path: self.fail('urllib should not replace a real 404'))
+        self.assertFalse(found.ok)
+        self.assertEqual(found.status, 404)
+        self.assertEqual(found.data['message'], 'Not Found')
+        self.assertEqual(calls, [])
+
+    def test_unauthenticated_gh_falls_back_to_urllib(self):
+        def runner(_path):
+            return subprocess.CompletedProcess(
+                ['gh', 'api'], 4, stdout='',
+                stderr='To get started with GitHub CLI, please run:  gh auth login\n')
+
+        def transport(path):
+            self.assertIn('issues/115', path)
+            return STATUS.ApiResult(True, 200, {'state': 'open', 'title': 'Semantic delta inbox'})
+
+        found, calls = self.result(runner, transport)
+        self.assertEqual(calls, ['repos/radarsaint/dnd-solo/issues/115'])
+        self.assertTrue(found.ok)
+        self.assertEqual(found.data['state'], 'open')
+
+    def test_gh_401_falls_back_and_urllib_404_is_preserved(self):
+        def runner(_path):
+            return subprocess.CompletedProcess(
+                ['gh', 'api'], 1,
+                stdout='{"message":"Bad credentials","status":"401"}\n',
+                stderr='gh: Bad credentials (HTTP 401)\n')
+
+        def transport(_path):
+            return STATUS.ApiResult(False, 404, {'message': 'Not Found'})
+
+        found, calls = self.result(runner, transport)
+        self.assertEqual(len(calls), 1)
+        self.assertFalse(found.ok)
+        self.assertEqual(found.status, 404)
+        self.assertEqual(found.data['message'], 'Not Found')
+
+    def test_unusable_gh_output_falls_back(self):
+        def runner(_path):
+            raise subprocess.TimeoutExpired(cmd='gh', timeout=30)
+
+        found, calls = self.result(runner, lambda _path: STATUS.ApiResult(True, 200, {'ok': True}))
+        self.assertEqual(len(calls), 1)
+        self.assertTrue(found.ok)
+
+    def test_non_auth_http_error_is_not_replaced(self):
+        def runner(_path):
+            return subprocess.CompletedProcess(
+                ['gh', 'api'], 1,
+                stdout='{"message":"Validation Failed","status":"422"}\n',
+                stderr='gh: Validation Failed (HTTP 422)\n')
+
+        found, calls = self.result(runner, lambda _path: self.fail('urllib should not hide a real HTTP error'))
+        self.assertFalse(found.ok)
+        self.assertEqual(found.status, 422)
+        self.assertEqual(calls, [])
+
+    def test_workflow_requests_issue_read_and_no_write(self):
+        text = (ROOT / '.github' / 'workflows' / 'project-context-status.yml').read_text(encoding='utf-8')
+        self.assertIn('contents: read', text)
+        self.assertIn('issues: read', text)
+        self.assertNotIn('issues: write', text)
+        self.assertNotRegex(text, r': write\b')
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -42,6 +42,7 @@ on:
 
 permissions:
   contents: read
+  issues: read
 
 concurrency:
   group: project-context-status-${{ github.ref }}
