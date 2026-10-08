@@ -131,20 +131,187 @@ A different live SHA does **not** automatically make the snapshot false. It mean
 
 Never silently call a dated control snapshot current without checking live GitHub.
 
-## GPT context continuity
+## Project Brain continuity and Gardener role
 
-The project must carry forward durable understanding rather than relying on Brendon, Nagatha, Skippy, or any one chat's context window.
+The project must carry forward durable semantic understanding rather than relying on Brendon, Nagatha, Skippy, any particular GPT, or any one chat's context window.
 
-Canonical surfaces:
+The semantic center is:
 
-- `PROJECT_BOOTSTRAP.md` — stable project-work router.
-- `docs/PROJECT_UNDERSTANDING.md` — durable mental model, creative/corpus understanding, major boundaries and corrections.
-- each repo's `PROJECT_CONTROL.md` — fast-changing current state.
-- `coordination/AGENTS_AND_TOOLS.md` — identity, capability, persistence, and routing map.
-- `coordination/CONTEXT_CHANGELOG.md` — compact rolling summary of recent material context changes.
-- `dnd-solo` issue #115 — durable context-delta inbox for discoveries that happen outside an appropriate repo-changing PR.
+- `docs/PROJECT_UNDERSTANDING.md` — the living Project Brain: the best current human-readable model of what the project is, where it is, why it got here, what changed the team's thinking, how workstreams relate, what is believed, what remains uncertain, and where the evidence points.
+- live repository state and each repo's `PROJECT_CONTROL.md` — current operational/executable/research truth.
+- Git history, PRs/issues, audits, playtests, decisions, source material, and BFDM evidence — episodic/history/evidence layers that support or challenge the current semantic model.
+- `dnd-solo` issue #115 — intake for durable semantic changes discovered outside an appropriate repo-changing PR. Inbox material is proposed context, not truth.
 
-At the end of substantial work, classify context impact as:
+The Project Brain is rewritten as understanding improves. It is not an append-only diary and must not become a substitute for live authority.
+
+### The Project Gardener is a role, not an agent
+
+There is no permanent "Gardener GPT."
+
+**Project Gardener** is a restartable role that any suitable GPT with the necessary repository/evidence access may perform for one bounded pass.
+
+No individual Gardener owns project continuity.
+
+A Gardener pass must be resumable by another GPT that has none of the previous GPT's conversation context.
+
+Nagatha may perform PM/review/reconciliation work in her normal lane, but she is not the project's memory substrate. The same is true of Skippy, ChatGPT Work, Grok Build, ordinary GPT threads, and control-room/synthesis threads.
+
+### Purpose of a Gardener pass
+
+A Gardener does not summarize activity for its own sake.
+
+Its job is to answer:
+
+> **Does new authoritative evidence, a correction, a decision, a result, or accumulated project work change what a competent future collaborator should believe about this project?**
+
+If the answer is no, the Gardener records/reconciles the reviewed boundary without manufacturing a semantic change.
+
+If the answer is yes, the Gardener updates the affected current model so a future collaborator inherits the better understanding.
+
+### Bounded-pass rule
+
+Every Gardener pass must choose a tractable, explicit scope before reconciling.
+
+Valid scopes include, for example:
+
+- a bounded range of new project-context inbox items;
+- runtime/project changes since a known reviewed commit;
+- a specific BFDM trust/research development;
+- a bounded set of audits or playtest results;
+- agent/tool capability or ownership changes;
+- one contradiction affecting the Project Brain;
+- one Project Brain section whose underlying authority materially changed.
+
+Do not attempt to "re-read the whole project" on every pass.
+
+Do not begin a pass whose completion boundary cannot be described.
+
+When the available context window is insufficient for the next whole unit of work, stop at the last completely reconciled boundary and hand off. Partial silent reconciliation is worse than a smaller completed pass.
+
+### Evidence and authority during reconciliation
+
+A Gardener applies the same authority rules as any other serious project worker.
+
+In particular:
+
+1. live `dnd-solo/main` controls current executable/runtime facts;
+2. live `bfdm-corpus/main` controls merged corpus/source/research facts;
+3. current human/live evidence controls player-experience claims;
+4. owning issues/PRs describe proposed or active task state but do not become canonical merely by being open;
+5. primary evidence outranks derived BFDM interpretation when the two conflict;
+6. explicit current Brendon corrections/decisions outrank prior project interpretation within the scope of that correction;
+7. historical artifacts remain evidence about history, not automatic current truth.
+
+A Gardener must distinguish verified fact, historical fact, observed outcome, research interpretation, inference, proposal, disputed claim, and unknown.
+
+Do not resolve a genuine contradiction by averaging sources or choosing the most polished prose.
+
+### Semantic reconciliation rule
+
+When new material changes the project model, reconcile meaning rather than append chronology.
+
+For each material change, determine:
+
+1. **Previous model** — what a competent collaborator would have believed before this evidence.
+2. **New evidence or correction** — what changed.
+3. **Revised model** — what should now be believed, at what scope and confidence.
+4. **Why it matters** — what project reasoning, workstream, risk, priority, or decision changes because of it.
+5. **Historical preservation** — whether an old decision/interpretation needs to remain available as provenance even though it is no longer current.
+
+Then rewrite the affected Project Brain section so the new model is coherent with the rest of the document.
+
+Do not merely append "on DATE we learned X."
+
+Do not preserve both old and new beliefs as if they are simultaneously current when one has superseded the other.
+
+Do not generalize a local correction farther than the evidence supports.
+
+### What belongs in the Project Brain
+
+Promote a change into the Project Brain when a future capable GPT would otherwise need Brendon to explain it again in order to reason correctly about the project.
+
+Typical examples:
+
+- project purpose or success criteria;
+- current strategic model;
+- major workstream relationships;
+- important architecture/product boundaries;
+- material changes in what is demonstrated versus merely proposed;
+- durable research-trust changes;
+- important failure/correction trajectories;
+- repeated false mental models future workers must avoid;
+- agent/tool identity or capability facts that materially affect routing;
+- significant uncertainties, risks, or approaching decisions;
+- changes in where the evidence points next.
+
+Do not promote:
+
+- routine implementation churn;
+- every commit or test result;
+- temporary worker chatter;
+- raw research excerpts better left in their evidence layer;
+- ephemeral task status already owned by an issue/PR;
+- speculative ideas that have not become part of the working project model.
+
+### Gardener write discipline
+
+A Gardener should make the smallest semantic edit that produces the best current model.
+
+Prefer:
+- rewriting stale claims;
+- narrowing overbroad claims;
+- reclassifying confidence;
+- moving a question from "belief" to "uncertainty";
+- changing the stated strategic consequence when evidence changed;
+- preserving deep history while improving the current synthesis.
+
+Avoid:
+- duplicating the same truth across multiple competing "brains";
+- producing another standalone summary instead of improving the canonical Project Brain;
+- changing executable/runtime behavior;
+- silently changing BFDM source truth or research claims outside the evidence supported by the pass;
+- using the Gardener role to make product/creative decisions that belong to Brendon.
+
+### Stop conditions and safe handoff
+
+A Gardener pass stops when any of these is true:
+
+- the declared bounded scope is completely reconciled;
+- the next item would exceed the available context window;
+- authoritative evidence needed to resolve the next item is unavailable;
+- the next step requires Brendon's product/creative/authority decision;
+- the pass discovers a contradiction that cannot be resolved from evidence;
+- continuing would cross into a different workstream that should be a separate pass.
+
+At stop, the worker must leave durable evidence of:
+
+- the exact scope completed;
+- the authoritative repo/commit/evidence boundaries inspected;
+- semantic changes made, or an explicit statement that none were warranted;
+- unresolved items and why they remain unresolved;
+- the next unreconciled boundary;
+- the commit/PR containing any Project Brain change.
+
+The handoff must be sufficient for a new GPT to resume without access to the departing GPT's chat.
+
+### Checkpoint integrity
+
+Never advance a reconciliation checkpoint merely because material was opened, skimmed, or partially processed.
+
+A boundary counts as reconciled only when:
+
+- the relevant evidence was inspected;
+- its semantic impact was decided;
+- required Project Brain edits were completed and durably written;
+- unresolved contradictions were explicitly preserved rather than hidden.
+
+The machine-readable checkpoint/cursor is a resumability mechanism, not a knowledge store. Git history and the underlying evidence preserve provenance; the Project Brain preserves the current semantic model.
+
+### Context impact from ordinary work
+
+Not every worker is performing a Gardener pass.
+
+At the end of substantial ordinary work, classify project-context impact as:
 
 - `NONE`
 - `CONTROL`
@@ -152,13 +319,13 @@ At the end of substantial work, classify context impact as:
 - `AGENTS_TOOLS`
 - `AUTHORITY`
 
-If authorized work already has an owning PR, update the correct context surface there.
+If authorized work already updates the correct current semantic/control surface in its owning PR, do not duplicate the same change elsewhere.
 
-If a durable project lesson exists but no appropriate repo change owns it, persist a structured `CONTEXT_DELTA` to issue #115. Chat history alone is not durable project state.
+If durable project understanding changed but the worker cannot appropriately edit the Project Brain, persist the change for later reconciliation in the project context inbox (#115).
 
-A context delta is **not project truth merely because it is in the inbox**. Reconciliation must compare it to authoritative evidence and fold it into the correct current context surface.
+Chat history alone is not durable project state.
 
-Context files are rewritten and compacted. They are not append-only diaries.
+A semantic/context delta is **not project truth merely because it is in the inbox**. A later Gardener must reconcile it against authoritative evidence before promoting it into the Project Brain.
 
 ## Handoffs
 
