@@ -350,6 +350,14 @@ Chat history alone is not durable project state.
 
 A semantic/context delta is **not project truth merely because it is in the inbox**. A later Gardener must reconcile it against authoritative evidence before promoting it into the Project Brain.
 
+### Mandatory downstream-consumption check
+
+For substantial work, name the output, its intended user/consumer, the trigger that causes real use, the responsible dispatcher/executor, and the observable acceptance evidence. A component's own tests are evidence of that component, not its downstream effect. A reviewed PR is not necessarily merged; a merged runtime change is not necessarily mounted; a mounted build is not necessarily good player experience; a posted semantic delta is not a revised Project Brain.
+
+**The Gardener requires an actual invocation.** When a material merge or #115 delta makes reconciliation necessary, the project coordination owner must assign and start a bounded Gardener pass using the project's existing agent/executor routing. Detecting pending work in a read-only GitHub check does not satisfy the invocation. A suitable GPT may perform the semantic review; Grok Build handles shell/repository plumbing when needed. The pass is not complete until its semantic decision and any required Brain/control updates are durably written and checked, and then the shared cursor is advanced. If nobody or no available tool can start the pass, leave an explicit BLOCKED owner/action; never silently classify it as completed or expect Brendon to remember to prompt it.
+
+As of 2026-10-08 the invocation/consumption loop is **not yet proven**. Dnd-solo issue #118 tracks the first real PR #40 reconciliation, invocation adoption, fresh-GPT recovery and repeatability. Do not claim continuity is operational because the protocol, inbox, checkpoint, or status checker exists. This correction should be tested against the actual entry routes, not by a GPT that was told which facts to recite.
+
 
 ## Tool-boundary and executor-routing rule
 
