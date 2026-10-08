@@ -157,7 +157,7 @@ If an artifact conflicts with live authority, say so and use live authority.
 
 Do not:
 - ask Brendon to reconstruct routine project history that the project can retrieve;
-- treat the old Project KRABS v0.1 attachment as current authority, or compress that correction into “KRABS is old-era”; current `dnd-solo/main` KRABS v0.2.2 remains the canonical long-term architecture/specification;
+- treat the old Project KRABS v0.1 attachment as current authority;
 - treat Area 6c as the architecture of Kit;
 - treat BFDM searchability as verified research;
 - treat green runtime tests as proof of good play;
