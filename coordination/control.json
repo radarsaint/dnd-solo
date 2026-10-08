@@ -13,7 +13,8 @@
     "AGENTS.md"
   ],
   "history_only": [
-    "docs/collab/BOARD.md"
+    "docs/collab/BOARD.md",
+    "coordination/CONTEXT_CHANGELOG.md"
   ],
   "verify_live_main_before_state_sensitive_work": true,
   "canonical_rule": "dnd-solo main is executable runtime truth; open PRs are proposed state",
@@ -36,7 +37,6 @@
   "project_bootstrap": "PROJECT_BOOTSTRAP.md",
   "project_understanding": "docs/PROJECT_UNDERSTANDING.md",
   "agents_and_tools": "coordination/AGENTS_AND_TOOLS.md",
-  "context_changelog": "coordination/CONTEXT_CHANGELOG.md",
   "context_inbox": {
     "repo": "radarsaint/dnd-solo",
     "issue": 115,
