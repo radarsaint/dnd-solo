@@ -44,8 +44,8 @@ Repo SHA status, one per repository:
 
 | Status | Meaning |
 |---|---|
-| `REVIEWED_CURRENT` | Live `main` SHA matches `checkpoint.reviewed_against_main`. |
-| `SHA_ADVANCED_REVIEW_NEEDED` | Live `main` moved. A Gardener must decide whether the new commits change the project model. |
+| `REVIEWED_CURRENT` | Live `main` SHA matches `checkpoint.reviewed_against_main`, or the live tip is the same tree, or its only path change from the reviewed SHA is `coordination/context_state.json`. That checkpoint file records the review. It is not an undecided semantic advance. |
+| `SHA_ADVANCED_REVIEW_NEEDED` | Live `main` moved and the diff was substantive, or the diff could not be inspected. A Gardener must decide whether the new commits change the project model. |
 | `UNAVAILABLE` | The live SHA could not be retrieved or was not a commit SHA. |
 
 Top-level classification:

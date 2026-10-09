@@ -102,6 +102,45 @@ class ProjectContextStatusTests(unittest.TestCase):
         self.assertFalse(report['mutations']['gardener_cursor_advanced'])
         self.assertFalse(report['mutations']['project_brain_rewritten'])
 
+    def test_checkpoint_only_advance_is_not_undecided(self):
+        report = self.evaluate(
+            live_shas={DND: bump(DND_SHA), BFDM: BFDM_SHA},
+            commit_diffs={DND: ['coordination/context_state.json']},
+        )
+        self.assertEqual(report['repos'][DND]['status'], 'REVIEWED_CURRENT')
+        self.assertEqual(report['repos'][DND]['advance_disposition'], 'CHECKPOINT_ONLY')
+        self.assertEqual(report['repos'][BFDM]['status'], 'REVIEWED_CURRENT')
+        self.assertEqual(report['classification'], 'REVIEWED_CURRENT')
+        self.assertNotIn('SHA_ADVANCED_REVIEW_NEEDED', report['review_signals'])
+        self.assertFalse(report['project_brain_automatically_stale'])
+        self.assertFalse(report['mutations']['gardener_cursor_advanced'])
+        self.assertIn('not an undecided semantic advance', '\n'.join(report['notes']))
+
+    def test_same_tree_advance_is_not_undecided(self):
+        report = self.evaluate(
+            live_shas={DND: bump(DND_SHA), BFDM: BFDM_SHA},
+            commit_diffs={DND: []},
+        )
+        self.assertEqual(report['repos'][DND]['advance_disposition'], 'SAME_TREE')
+        self.assertEqual(report['classification'], 'REVIEWED_CURRENT')
+
+    def test_substantive_advance_still_needs_review(self):
+        report = self.evaluate(
+            live_shas={DND: bump(DND_SHA), BFDM: BFDM_SHA},
+            commit_diffs={DND: ['docs/PROJECT_UNDERSTANDING.md', 'coordination/context_state.json']},
+        )
+        self.assertEqual(report['repos'][DND]['status'], 'SHA_ADVANCED_REVIEW_NEEDED')
+        self.assertEqual(report['repos'][DND]['advance_disposition'], 'SUBSTANTIVE')
+        self.assertEqual(report['classification'], 'SHA_ADVANCED_REVIEW_NEEDED')
+
+    def test_uninspected_advance_stays_undecided(self):
+        report = self.evaluate(
+            live_shas={DND: bump(DND_SHA), BFDM: BFDM_SHA},
+            commit_diffs={DND: None},
+        )
+        self.assertEqual(report['repos'][DND]['status'], 'SHA_ADVANCED_REVIEW_NEEDED')
+        self.assertEqual(report['repos'][DND]['advance_disposition'], 'UNINSPECTED')
+
     def test_bfdm_sha_advanced(self):
         report = self.evaluate(live_shas={DND: DND_SHA, BFDM: bump(BFDM_SHA)})
         self.assertEqual(report['repos'][BFDM]['status'], 'SHA_ADVANCED_REVIEW_NEEDED')
