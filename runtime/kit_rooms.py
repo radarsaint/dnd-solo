@@ -131,7 +131,39 @@ def first_framing_problems(source):
                                      and isinstance(link.get('area'), str)):
             problems.append(f'area {key} room_link needs room and area')
     return problems + secrecy_problems(source) + tease_problems(source) + fighter_problems(source) + \
-        alarm_problems(source)
+        alarm_problems(source) + visual_problems(source)
+
+
+def visual_problems(source):
+    """Optional public visual descriptors are authoring data, never a second hidden-fact path."""
+    problems = []
+    groups = (("area", source.get("areas") or {}),
+              ("fact", source.get("facts") or {}),
+              ("actor", source.get("actors") or {}))
+    for kind, items in groups:
+        for key, item in items.items():
+            if not isinstance(item, dict) or "visual" not in item:
+                continue
+            visual = item.get("visual")
+            if not isinstance(visual, dict):
+                problems.append(f"{kind} {key} visual must be an object")
+                continue
+            public = visual.get("public")
+            if public is not None and not (
+                    isinstance(public, str) or
+                    isinstance(public, list) and all(isinstance(v, str) and v.strip() for v in public)):
+                problems.append(f"{kind} {key} visual.public must be a string or nonblank string list")
+            art_id = visual.get("public_art_id")
+            if art_id is not None and not (isinstance(art_id, str) and art_id.strip()):
+                problems.append(f"{kind} {key} visual.public_art_id must be a nonblank string")
+            counts = visual.get("public_counts")
+            if counts is not None and not (
+                    isinstance(counts, dict) and all(
+                        isinstance(name, str) and name.strip() and type(value) is int and value >= 0
+                        for name, value in counts.items())):
+                problems.append(
+                    f"{kind} {key} visual.public_counts must map nonblank names to nonnegative integers")
+    return problems
 
 
 class RoomWarning(UserWarning):

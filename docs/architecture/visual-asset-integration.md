@@ -160,7 +160,16 @@ The next visual-system problem is presentation: masking/cropping player maps to 
 
 ## Generated campaign art
 
-Newly generated art is governed by [`KIT_VISUAL_STYLE_SPEC.md`](KIT_VISUAL_STYLE_SPEC.md).
+Newly generated art is governed by [`KIT_VISUAL_STYLE_SPEC.md`](KIT_VISUAL_STYLE_SPEC.md) and the executable host boundary in [`KIT_VISUAL_BRIDGE.md`](KIT_VISUAL_BRIDGE.md).
+
+During a running game, an explicit request to draw/show/generate the current fiction must go through:
+
+```sh
+python3 -m runtime.kit_agent visual --db kit.sqlite --request "<exact request>"
+```
+
+The visual command is read-only with respect to world revision. It projects a factual depiction ceiling from the same player-safe state used by narration, then adds non-canonical style-reference metadata. The user's request does not promote hidden or unsupported details into facts.
+
 
 The two systems have different jobs:
 

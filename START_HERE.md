@@ -39,6 +39,8 @@ The engine runs or loads these by itself (no need to open them):
 - `runtime/data/srd_5_1_prices.json`: SRD equipment prices
 - `docs/voice/*.md`: table voice, joined to the personality core every turn
 - `docs/personality/kit-taste.json`: texture palette
+- `assets/art/index.json`: exact canonical-art lookup when the `visual` command is used
+- `assets/style/index.json`: BFDM style-reference retrieval when the `visual` command is used
 - `rooms/*.json`: room files the loader mounts with `--room`
 - the runtime fixtures under `tests/`, listed below
 <!-- load-at-table:end -->
@@ -67,6 +69,7 @@ Open these only when `AGENTS.md`, the GPT instructions, a runtime message, or th
 - `docs/architecture/kit-agendas.md` and `docs/GPT_HANDOFF_AGENDAS.md`: what NPCs want and when they act
 - `docs/architecture/kit-expression-gap.md`: how speech is checked
 - `docs/architecture/KIT_VISUAL_STYLE_SPEC.md`: house visual language and generation rules; load when Kit is asked to create new campaign art
+- `docs/architecture/KIT_VISUAL_BRIDGE.md`: runtime/host procedure for player-safe art requests; load when testing or using Kit's image-generation path
 <!-- reference:end -->
 
 ## DEV ONLY: do not read during play, do not quote to players
@@ -83,7 +86,7 @@ These are for building and testing Kit. During a game, don't open them, don't qu
 - `docs/decisions/`: architecture decision records
 - `docs/personality/dm-personality-development.md`, `docs/personality/dm-personality-layer-v0.1.md`, `docs/personality/kit-personality-implementation.md`: how the core is tuned, and design history. Only `docs/personality/dm-personality-core.md` is live.
 - `state/`: project status notes
-- `assets/`: map and art indexes (the licensed images aren't in the repo)
+- `assets/`: map/art/style manifests and private-binary destinations. The `visual` runtime may read `assets/art/index.json` and `assets/style/index.json`; Kit should not browse other asset metadata during ordinary play
 - `README.md`, `CONTRIBUTING.md`, `docs/WHAT_WE_ARE_BUILDING.md`: overviews for humans
 <!-- dev-only:end -->
 
