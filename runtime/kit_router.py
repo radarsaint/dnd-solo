@@ -28,7 +28,7 @@ import copy
 TIERS = ('routine', 'normal', 'consequential')
 # A social declaration with nobody here to answer it is routine; with someone here it is not.
 NEVER_ROUTINE_KINDS = ('opening', 'exit', 'combat_round', 'social_check', 'lie_read',
-                       'exit_contested', 'toll_defer')
+                       'exit_contested', 'toll_defer', 'feature_act')
 QUIET_EVENT_TYPES = ('beat', 'pending_check')
 ROUTINE_DEFAULTS = {
     'appraisal': {'label': 'none', 'intensity': 0, 'cause': 'A routine turn: nothing here moves Kit.',
@@ -41,7 +41,7 @@ ROUTINE_DEFAULTS = {
 ROUTINE_READ_DEFAULTS = {'story_anchor': 'none', 'story_basis': 'none', 'actor_ref': 'none', 'actor_basis': 'none'}
 
 
-def route(kind, events, state, speakers=(), important=(), due=(), threads_due=False, held=False):
+def route(kind, events, state, speakers=(), important=(), due=(), threads_due=False, held=False, offered=()):
     """{'tier', 'why': [...], 'may_omit': [...]} for one turn. Pure: same inputs, same tier."""
     why = []
     if kind == 'opening':
@@ -61,6 +61,9 @@ def route(kind, events, state, speakers=(), important=(), due=(), threads_due=Fa
         return {'tier': 'consequential', 'why': why, 'may_omit': []}
     if kind in NEVER_ROUTINE_KINDS:
         return {'tier': 'normal', 'why': [f'{kind} turn'], 'may_omit': []}
+    if offered:
+        # Kit may declare an act this turn (runtime/kit_acts.py): her call can change the world.
+        return {'tier': 'normal', 'why': ['an act may be declared: ' + ', '.join(sorted(offered))], 'may_omit': []}
     if speakers:
         return {'tier': 'normal', 'why': ['someone is here: ' + ', '.join(sorted(speakers))], 'may_omit': []}
     return {'tier': 'routine', 'why': ['no one here, nothing changes, nothing due'],

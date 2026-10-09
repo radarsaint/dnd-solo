@@ -38,11 +38,12 @@ REQUIRED = ('id', 'starting_area', 'areas', 'exits', 'facts', 'actors')
 KNOWN_BLOCKS = set(REQUIRED) | {
     'resources', 'fixture_only', 'stub', 'source_ref', 'map_ref', 'test_precondition', 'level_context',
     'campaign_context', 'public_performance', 'numeric_facts', 'leak_phrases', 'leak_keywords', 'claims',
-    'room_rules', 'procedures', 'tolls', 'attitudes', 'story', 'texture_palette', 'combat', 'agenda'}
+    'room_rules', 'procedures', 'tolls', 'attitudes', 'story', 'texture_palette', 'combat', 'agenda',
+    'triggers'}
 # The JSON type of each block (anything not listed is an object). A wrong type is refused at
 # mount, before any engine reads it.
 BLOCK_TYPES = {'id': str, 'starting_area': str, 'source_ref': str, 'map_ref': str, 'test_precondition': str,
-               'fixture_only': bool, 'stub': bool, 'room_rules': list}
+               'fixture_only': bool, 'stub': bool, 'room_rules': list, 'triggers': list}
 CARD_GAMES = ('twenty_one', 'three_dragon_ante')
 CARRIED_LIMIT = 24  # things taken out of rooms, kept as text; the oldest go first
 STAGES = ('approach', 'first_look', 'explore', 'resolution')
@@ -50,7 +51,8 @@ STAGES = ('approach', 'first_look', 'explore', 'resolution')
 # State that belongs to the character and the session; everything else belongs to the room
 # and is archived when the PC leaves it (state_context.Runtime.mount_room).
 SESSION_KEYS = ('schema_version', 'kit', 'player_character', 'player_sheet', 'pc_state', 'roll_seed',
-                'elapsed_seconds', 'rooms', 'carried', 'scene_id', 'scenes_closed', 'memory_trimmed')
+                'elapsed_seconds', 'rooms', 'carried', 'scene_id', 'scenes_closed', 'memory_trimmed',
+                'pc_conditions', 'pc_condition_terms')
 
 
 class RoomMountError(InvalidChange):
@@ -122,9 +124,17 @@ def first_framing_problems(source):
         if handling is not None and not (isinstance(handling, dict) and handling.get('nouns') and
                                          (handling.get('holds') is None or handling['holds'] in source['facts'])):
             problems.append(f'fact {key} handling needs nouns, and holds must name a fact')
+        elif handling is not None and handling.get('parts') is not None and not (
+                isinstance(handling['parts'], list) and
+                all(isinstance(part, str) and part.strip() for part in handling['parts'])):
+            problems.append(f'fact {key} handling parts must be a list of words (the claw of a carcass)')
     for key, actor in source['actors'].items():
         if not (isinstance(actor, dict) and actor.get('location') in areas and actor.get('status')):
             problems.append(f'actor {key} needs a location among the areas and a status')
+        elif actor.get('status') == 'hidden':
+            # Hidden is left only by a trigger, and seen by nobody before it: visible must be false.
+            if actor.get('visible') is not False:
+                problems.append(f'actor {key} is hidden and needs "visible": false until its trigger fires')
     for key, area in areas.items():
         link = area.get('room_link')
         if link is not None and not (isinstance(link, dict) and isinstance(link.get('room'), str)
@@ -317,6 +327,10 @@ def tease_problems(source):
                 problems.append(f'area {key} tease heard entries need an actor and a sound')
             elif item.get('actor') not in source['actors']:
                 problems.append(f"area {key} tease heard {item.get('actor')!r} is not an actor")
+            elif (source['actors'][item['actor']] or {}).get('status') == 'hidden':
+                # A heard actor is named to Kit and the player: a hidden one would be given away.
+                problems.append(f"area {key} tease heard {item['actor']!r} is hidden until a trigger "
+                                'fires; put the sound in the tease text without naming it')
     return problems
 
 
@@ -336,17 +350,23 @@ def later_stage_problems(source):
     """Every later-stage block, validated without being built: no card engine, no brief, no
     fight is created here. The texture palette is not checked here at all: it is checked per
     area the first time play draws on it (kit_texture.area_palette)."""
-    from . import kit_agenda, kit_attitude, kit_brief, kit_cards, kit_claims, kit_toll
+    from . import kit_agenda, kit_attitude, kit_brief, kit_cards, kit_claims, kit_toll, kit_triggers
     problems = []
     checks = [('claims', kit_claims.compile_claims), ('attitudes', kit_attitude.compile_attitudes),
               ('agenda', kit_agenda.compile_agenda), ('tolls', kit_toll.compile_tolls),
-              ('story', kit_brief.compile_story)]
+              ('story', kit_brief.compile_story), ('triggers', kit_triggers.compile_triggers)]
     for block, check in checks:
         if source.get(block):
             try:
                 check(source)
             except (InvalidChange, KeyError, TypeError, AttributeError) as exc:
                 problems.append(f'{block}: {exc}')
+    if not any(problem.startswith('triggers:') for problem in problems):
+        # Hidden is left only by a trigger: a hidden actor no trigger wakes would never appear.
+        woken = {key for trigger in (source.get('triggers') or ()) for key in trigger['actors']}
+        problems += [f'actor {key} is hidden but no trigger wakes it (an orphan: it would never appear)'
+                     for key, actor in (source.get('actors') or {}).items()
+                     if isinstance(actor, dict) and actor.get('status') == 'hidden' and key not in woken]
     for key, config in (source.get('procedures') or {}).items():
         if not key.startswith('_') and isinstance(config, dict) and config.get('kind') == 'card_game':
             try:

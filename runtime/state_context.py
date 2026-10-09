@@ -103,6 +103,9 @@ BOOKKEEPING_EVENTS = ('player_sheet', 'player_character', 'player_note', 'pc_sta
 PENDING_CHECK_OPTIONAL = {'exit', 'dc_adjust', 'reason', 'threshold', 'held'}
 # A heavy turn Kit opened on a check call holds its description for the roll (kit_agent.STALL_KINDS).
 HELD_KINDS = ('opening', 'exit', 'threshold_look')
+# What the engine's outcome of a declared act may add (runtime/kit_acts.py: handles).
+DECLARED_EVENTS = ('beat', 'reveal_fact', 'trigger_fired', 'scene_state', 'combat_state', 'actor_status',
+                   'pc_conditions')
 COMMIT_APPENDED_EVENTS = ('canon_entry', 'oracle_draw', 'procedure_state', 'claim_said', 'agenda_turn',
                           'pc_state', 'kit_plan', 'toll_state', 'story_beat', 'threshold_crossed',
                           'attitude_shift', 'pending_check', 'open_threads')
@@ -155,7 +158,7 @@ def canon_in_scope(state):
     area = state['area']
     scene = current_scene(state)
     present = {key for key, actor in state.get('actors', {}).items()
-               if actor.get('location') == area and actor.get('status') != 'fled'}
+               if actor.get('location') == area and actor.get('status') not in ('fled', 'hidden')}
     kept = {}
     for slot, entry in (state.get('canon') or {}).items():
         scope, subject = entry.get('scope'), slot.split('/')[0]
@@ -445,12 +448,15 @@ class Runtime:
                 staged = json.loads(pending[1])
                 prepared = staged['events']
                 asked = isinstance(kit_record['trace'].get('ask_player'), dict)
+                # An act Kit declared (runtime/kit_acts.py) appends the engine's outcome of it.
+                declared = bool(kit_record.get('declared'))
                 require(staged['action'] == kit_record['player_input'] and
                         (asked and events == [{'type': 'beat', 'tags': ['asked'],
                                                 'evidence': kit_record['public_event']}] and kit_record['public_event'].startswith(ASKED_EVENT_PREFIX) or
-                         not asked and staged['public_event'] == kit_record['public_event'] and
+                         not asked and (staged['public_event'] == kit_record['public_event'] or
+                                        declared and kit_record['public_event'].startswith(staged['public_event'])) and
                          events[:len(prepared)] == prepared and
-                         all(event.get('type') in COMMIT_APPENDED_EVENTS
+                         all(event.get('type') in COMMIT_APPENDED_EVENTS + (DECLARED_EVENTS if declared else ())
                              for event in events[len(prepared):])), 'Pending Kit event changed')
             source = self.source()
             acted_in = state['area']
@@ -737,6 +743,20 @@ class Runtime:
                 require(status == 'fled' and isinstance(toward, str) and re.match(r'^area_[0-9a-z_]+$', toward),
                         'Only a fleeing actor heads toward an area (e.g. area_07)')
                 actor['fled_toward'] = toward
+        elif kind == 'pc_conditions':
+            # The PC's conditions now (a condition ending by rule, healing): the whole list.
+            conditions = event.get('conditions')
+            require(isinstance(conditions, list) and all(isinstance(c, str) and c.strip() for c in conditions),
+                    'pc_conditions lists condition names')
+            terms = event.get('terms', {})
+            require(isinstance(terms, dict) and all(isinstance(v, dict) for v in terms.values()),
+                    'pc_conditions terms are {condition: {how it ends}}')
+            state['pc_conditions'] = list(dict.fromkeys(conditions))
+            # How each ends (kit_combat.condition_terms): durations, repeat saves, "while".
+            state['pc_condition_terms'] = {k: copy.deepcopy(v) for k, v in terms.items() if k in conditions}
+        elif kind == 'trigger_fired':
+            from . import kit_triggers
+            kit_triggers.apply_event(state, source, event)
         elif kind == 'spend_resource':
             key, amount = event.get('resource'), event.get('amount')
             require(key in state['resources'], 'Unknown resource')
@@ -896,6 +916,10 @@ class Runtime:
             from . import kit_combat
             kit_combat.check_fight(event.get('state'))
             state['combat'] = copy.deepcopy(event['state'])
+            if event['state'].get('pc_conditions'):
+                # Conditions are the PC's, not the fight's: they outlast it until they end by rule.
+                state['pc_conditions'] = list(dict.fromkeys(list(state.get('pc_conditions') or ()) +
+                                                            list(event['state']['pc_conditions'])))
         elif kind == 'pc_state':
             from . import pc_sheet
             sheet = state.get('player_sheet')
@@ -981,8 +1005,8 @@ class Runtime:
         tolls = kit_toll.public_view(source, state) if source.get('tolls') else {}
         if tolls:
             view['tolls'] = tolls
-        if source.get('combat') and (state.get('combat') or state.get('scene')):
-            from . import kit_combat
+        from . import kit_combat
+        if kit_combat.config(source) and (state.get('combat') or state.get('scene')):
             view.update(kit_combat.public_view(source, state))
         return view
 
