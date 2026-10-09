@@ -53,7 +53,10 @@ class RouterOnTheBridge(Stalls):
         return plan
 
     def echo(self, packet):
-        return {'session': packet['session_manifest']['hash'], 'room': packet['room_manifest']['hash']}
+        # The router is under test here, not the host's memory: echo the nonces the record holds.
+        nonces = self.runtime.kit_timing(packet['turn_id'])['manifest']['nonce']
+        return {'session': packet['session_manifest']['hash'], 'room': packet['room_manifest']['hash'],
+                'check': dict(nonces)}
 
     def test_an_empty_landing_wait_is_routine_and_asks_for_less(self):
         packet = self.bridge.prepare(WAIT, 'w', one_pass=True)
