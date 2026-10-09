@@ -9,6 +9,7 @@ import json
 import re
 import secrets
 import sqlite3
+import uuid
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -96,16 +97,18 @@ CANON_SLOT = re.compile(r'^[a-z0-9_:]+(/[a-z0-9_]+){1,3}$')
 # Events a Kit turn may add at commit, after the adjudicated batch it was prepared with:
 # the decision's canon entries, the oracle deal it consumed, and procedure state.
 # Host bookkeeping, not a turn taken in the room (kit_rooms.stage counts the others).
-BOOKKEEPING_EVENTS = ('player_sheet', 'player_character', 'player_note', 'pc_state', 'kit_plan')
+BOOKKEEPING_EVENTS = ('player_sheet', 'player_character', 'player_note', 'pc_state', 'kit_plan', 'rest')
 # A pending check's optional fields: a held exit, and room for the check-calling follow-up's
 # quiet DC adjustment for creative use of the scene (Brendon: about -2) with its reason. Not
 # applied anywhere yet.
 PENDING_CHECK_OPTIONAL = {'exit', 'dc_adjust', 'reason', 'threshold', 'held'}
 # A heavy turn Kit opened on a check call holds its description for the roll (kit_agent.STALL_KINDS).
 HELD_KINDS = ('opening', 'exit', 'threshold_look')
+# What the engine's outcome of a declared act may add (runtime/kit_acts.py: handles).
+DECLARED_EVENTS = ('beat', 'reveal_fact', 'trigger_fired', 'scene_state', 'combat_state', 'actor_status')
 COMMIT_APPENDED_EVENTS = ('canon_entry', 'oracle_draw', 'procedure_state', 'claim_said', 'agenda_turn',
                           'pc_state', 'kit_plan', 'toll_state', 'story_beat', 'threshold_crossed',
-                          'attitude_shift', 'pending_check', 'open_threads')
+                          'attitude_shift', 'pending_check', 'open_threads', 'risk_warned')
 # A turn whose decision asks the player a question resolves nothing: its only event is a
 # rhythm beat tagged 'asked' whose evidence is the question.
 ASKED_EVENT_PREFIX = 'Kit asks before resolving: '
@@ -155,7 +158,7 @@ def canon_in_scope(state):
     area = state['area']
     scene = current_scene(state)
     present = {key for key, actor in state.get('actors', {}).items()
-               if actor.get('location') == area and actor.get('status') != 'fled'}
+               if actor.get('location') == area and actor.get('status') not in ('fled', 'hidden')}
     kept = {}
     for slot, entry in (state.get('canon') or {}).items():
         scope, subject = entry.get('scope'), slot.split('/')[0]
@@ -220,6 +223,7 @@ def check_player_note_text(text):
 
 class Runtime:
     def __init__(self, path):
+        self.path = path  # the session dir is its parent (kit_handoff's trace lives there); authored rooms live beside it (kit_author.session_dir)
         self.db = sqlite3.connect(path)
         self.db.execute("PRAGMA foreign_keys = ON")
         self.db.executescript("""
@@ -234,6 +238,7 @@ class Runtime:
             );
             -- Timing telemetry is deliberately outside turns/ledger/kit_turns: it never
             -- enters a turn digest, so an identical retry stays idempotent.
+            CREATE TABLE IF NOT EXISTS session_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS kit_telemetry (
                 seq INTEGER PRIMARY KEY, turn_id TEXT NOT NULL UNIQUE, body TEXT NOT NULL
             );
@@ -246,11 +251,19 @@ class Runtime:
     def close(self):
         self.db.close()
 
+    def session_id(self):
+        row = self.db.execute("SELECT value FROM session_meta WHERE key='session_id'").fetchone()
+        return row[0] if row else None
+
     def initialize(self, source, area, room_path=None):
         """Create a fresh fixture session. Refuse to overwrite a running game. ``room_path``:
         the room file it was mounted from (kit_rooms), kept in the first snapshot."""
         require(self.db.execute('SELECT 1 FROM source').fetchone() is None,
                 'This database already holds a game.')
+        # The session's id: what scopes an authoring fallback to this session (kit_author).
+        with self.db:
+            self.db.execute("INSERT OR IGNORE INTO session_meta(key, value) VALUES ('session_id', ?)",
+                            (uuid.uuid4().hex,))
         require(area in source['areas'], 'Unknown starting area')
         for exit_id, edge in source['exits'].items():
             require(len(edge['areas']) == 2 and len(set(edge['areas'])) == 2,
@@ -285,6 +298,11 @@ class Runtime:
         with self.db:
             self.db.execute('INSERT INTO source VALUES (1, ?)', (encode(source),))
             self.db.execute('INSERT INTO snapshots VALUES (0, ?)', (encode(state),))
+
+    def authored_dir(self):
+        """Where this session's authored rooms are cached (None for an in-memory database)."""
+        from . import kit_author
+        return None if str(self.path) == ':memory:' else kit_author.session_dir(self.path)
 
     def source(self):
         row = self.db.execute('SELECT body FROM source WHERE id=1').fetchone()
@@ -340,6 +358,22 @@ class Runtime:
         require(all(len(encode(record[key]).encode()) <= 12000 for key in
                     ('player_input', 'public_event', 'spoken', 'trace')), 'Kit turn exceeds size limit')
         return self._commit(turn_id, expected_revision, events, record, consume_pending)
+
+    def commit_engine_interstitial(self, turn_id, expected_revision, events, record, consume_pending=False):
+        """Commit a checkpoint the engine raised (kit_combat: a reaction window, a flourish
+        handoff) with no model turn. It joins the public history so Kit sees it next turn;
+        Kit's own appraisal, episodes and notes are untouched (she made no decision)."""
+        require(isinstance(record, dict) and record.get('engine_checkpoint') is True and
+                record.get('turn_role') == 'interstitial' and isinstance(record.get('interstitial'), dict),
+                'Interstitial record required')
+        for key in ('player_input', 'public_event', 'spoken'):
+            require(isinstance(record.get(key), str) and record[key].strip(), f'{key} required')
+        require(len(encode(record).encode()) <= 12000, 'Interstitial exceeds size limit')
+        revision = self._commit(turn_id, expected_revision, events, record)
+        if consume_pending:  # the window turn Kit voiced was staged under this id
+            with self.db:
+                self.db.execute('DELETE FROM kit_pending WHERE turn_id=?', (turn_id,))
+        return revision
 
     def stage_kit_turn(self, turn_id, expected_revision, body):
         """Save an uncommitted chat turn so a host can perform the two model stages."""
@@ -435,6 +469,7 @@ class Runtime:
                 self.db.rollback()
                 return prior[1]
             revision, state = self.load()
+            area_before = state.get('area')
             if revision != expected_revision:
                 raise StaleTurn(f'Expected revision {expected_revision}; current is {revision}')
             if consume_pending:
@@ -445,12 +480,15 @@ class Runtime:
                 staged = json.loads(pending[1])
                 prepared = staged['events']
                 asked = isinstance(kit_record['trace'].get('ask_player'), dict)
+                # An act Kit declared (runtime/kit_acts.py) appends the engine's outcome of it.
+                declared = bool(kit_record.get('declared'))
                 require(staged['action'] == kit_record['player_input'] and
                         (asked and events == [{'type': 'beat', 'tags': ['asked'],
                                                 'evidence': kit_record['public_event']}] and kit_record['public_event'].startswith(ASKED_EVENT_PREFIX) or
-                         not asked and staged['public_event'] == kit_record['public_event'] and
+                         not asked and (staged['public_event'] == kit_record['public_event'] or
+                                        declared and kit_record['public_event'].startswith(staged['public_event'])) and
                          events[:len(prepared)] == prepared and
-                         all(event.get('type') in COMMIT_APPENDED_EVENTS
+                         all(event.get('type') in COMMIT_APPENDED_EVENTS + (DECLARED_EVENTS if declared else ())
                              for event in events[len(prepared):])), 'Pending Kit event changed')
             source = self.source()
             acted_in = state['area']
@@ -472,7 +510,7 @@ class Runtime:
                     # that room lapses it, so it never lands in the wrong place).
                     state.pop('pending_check', None)
             next_revision = revision + 1
-            if kit_record is not None:
+            if kit_record is not None and not kit_record.get('engine_checkpoint'):
                 kit = state['kit']
                 trace = kit_record['trace']
                 read = trace.get('improv_read') if isinstance(trace.get('improv_read'), dict) else {}
@@ -501,10 +539,12 @@ class Runtime:
             # commit (docs/architecture/ROOM_LOADER.md): no host step, and a room that cannot
             # mount rejects the whole turn, so the session stays where it was. After Kit's episode:
             # the turn that leaves was decided in this room, so its memory stays with this room.
+            # Only on arrival: standing in a room's own approach that links back (the way the PC
+            # came) does not bounce the PC out again on every later commit.
             link = (source['areas'].get(state['area']) or {}).get('room_link')
-            if link:
+            if link and state['area'] != area_before:
                 from . import kit_rooms
-                new_source, state = kit_rooms.arrive(source, state, link)
+                new_source, state = kit_rooms.arrive(source, state, link, authored=self.authored_dir())
                 self.db.execute('UPDATE source SET body=? WHERE id=1', (encode(new_source),))
             self.db.execute('INSERT INTO turns VALUES (?, ?, ?)', (turn_id, digest, next_revision))
             self.db.executemany('INSERT INTO ledger(turn_id, body) VALUES (?, ?)',
@@ -643,6 +683,15 @@ class Runtime:
         next_revision = self.commit(f'sheet-{digest}', revision, [event])
         return {'revision': next_revision, 'character': pc_sheet.identity(sheet)}
 
+    def rest(self, kind):
+        """The PC finished a short or long rest (host bookkeeping, like the sheet): the reaction
+        inventory's uses come back (short: short-rest uses; long: everything, slots included)."""
+        require(kind in ('short', 'long'), 'A rest is short or long')
+        revision, _ = self.load()
+        event = {'type': 'rest', 'kind': kind, 'evidence': f'The host recorded a {kind} rest.'}
+        next_revision = self.commit(f'rest-{kind}-{revision}', revision, [event])
+        return {'revision': next_revision, 'pc_resources': self.load()[1].get('pc_resources')}
+
     def close_scene(self, reason):
         """Close the open scene (KRABS §8); the next scene opens. Returns the new revision and scene."""
         require(isinstance(reason, str) and reason.strip(), 'Say why the scene closes')
@@ -737,6 +786,21 @@ class Runtime:
                 require(status == 'fled' and isinstance(toward, str) and re.match(r'^area_[0-9a-z_]+$', toward),
                         'Only a fleeing actor heads toward an area (e.g. area_07)')
                 actor['fled_toward'] = toward
+        elif kind == 'pc_conditions':
+            # The PC's conditions now (a condition ending by rule, healing): the whole list.
+            conditions = event.get('conditions')
+            require(isinstance(conditions, list) and all(isinstance(c, str) and c.strip() for c in conditions),
+                    'pc_conditions lists condition names')
+            state['pc_conditions'] = list(dict.fromkeys(conditions))
+            current = state.get('combat') or {}
+            if current.get('pc_conditions') is not None:
+                current['pc_conditions'] = list(dict.fromkeys(conditions))
+        elif kind == 'trigger_fired':
+            from . import kit_triggers
+            kit_triggers.apply_event(state, source, event)
+        elif kind == 'trap_state':
+            from . import kit_traps
+            kit_traps.apply_event(state, source, event)
         elif kind == 'spend_resource':
             key, amount = event.get('resource'), event.get('amount')
             require(key in state['resources'], 'Unknown resource')
@@ -830,6 +894,16 @@ class Runtime:
             sheet = pc_sheet.check_sheet(event.get('sheet'))
             state['player_sheet'] = copy.deepcopy(sheet)
             state['player_character'] = pc_sheet.identity(sheet)
+            from . import kit_reactions
+            state['pc_resources'] = kit_reactions.build(sheet)  # the reaction inventory, slots, uses
+        elif kind == 'pc_resources':
+            from . import kit_reactions
+            state['pc_resources'] = copy.deepcopy(kit_reactions.check(event.get('resources')))
+        elif kind == 'rest':
+            from . import kit_reactions
+            require(event.get('kind') in ('short', 'long'), 'A rest is short or long')
+            state['pc_resources'] = kit_reactions.rest(kit_reactions.current(state), state.get('player_sheet') or {},
+                                                       event['kind'])
         elif kind == 'claim_said':
             from . import kit_claims
             said = event.get('said')
@@ -873,6 +947,9 @@ class Runtime:
                 state.pop('pending_check', None)
             else:
                 state['pending_check'] = copy.deepcopy(check)
+        elif kind == 'risk_warned':
+            from . import kit_interstitial
+            kit_interstitial.apply(state, event)
         elif kind == 'open_threads':
             from . import kit_threads
             kit_threads.apply_event(state, event)
@@ -896,6 +973,10 @@ class Runtime:
             from . import kit_combat
             kit_combat.check_fight(event.get('state'))
             state['combat'] = copy.deepcopy(event['state'])
+            if event['state'].get('pc_conditions'):
+                # Conditions are the PC's, not the fight's: they outlast it until they end by rule.
+                state['pc_conditions'] = list(dict.fromkeys(list(state.get('pc_conditions') or ()) +
+                                                            list(event['state']['pc_conditions'])))
         elif kind == 'pc_state':
             from . import pc_sheet
             sheet = state.get('player_sheet')
@@ -981,8 +1062,8 @@ class Runtime:
         tolls = kit_toll.public_view(source, state) if source.get('tolls') else {}
         if tolls:
             view['tolls'] = tolls
-        if source.get('combat') and (state.get('combat') or state.get('scene')):
-            from . import kit_combat
+        from . import kit_combat
+        if kit_combat.config(source) and (state.get('combat') or state.get('scene')):
             view.update(kit_combat.public_view(source, state))
         return view
 
@@ -1033,7 +1114,19 @@ class Runtime:
                if source.get('procedures') else {}),
             **({'tolls_here': Runtime._tolls_here(source, state)} if Runtime._tolls_here(source, state) else {}),
             **Runtime._attitudes_here(source, state),
+            **({'traps_here': Runtime._traps_here(source, state)} if Runtime._traps_here(source, state) else {}),
         }
+
+    @staticmethod
+    def _traps_here(source, state):
+        """The room's traps in the PC's area, with their state (runtime/kit_traps.py)."""
+        area, out = state['area'], {}
+        for trap in source.get('traps') or ():
+            kind, target = next(iter(trap['on'].items()))
+            where = target if kind in ('step', 'enter') else (source['facts'].get(target) or {}).get('area')
+            if where == area:
+                out[trap['id']] = {**trap, 'status': ((state.get('traps') or {}).get(trap['id']) or {}).get('status', 'armed')}
+        return out
 
     def context(self, personality_core=None, max_bytes=CONTEXT_BUDGET_BYTES):
         if personality_core is None:

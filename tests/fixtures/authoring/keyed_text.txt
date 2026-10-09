@@ -1,0 +1,36 @@
+SYNTHETIC KEYED TEXT (tests only; written in the style of a published adventure, not from one)
+
+The Saltworks Undercroft
+This test level has four keyed areas. A sidebar that numbers things must not read as an area:
+1. Do not let the warden count your coins for you.
+2. The salt lies to lanterns.
+
+Exploring This Level
+All locations are keyed to the test map.
+
+1. Gatehouse
+A squat gatehouse straddles the tunnel. A brass bell hangs from a chain beside the window.
+Warden. A gray-haired warden named Ysolde Marr sits behind the window and waves travelers east into area 2. She claims that she keeps the tunnel for the salt guild. In fact, she is a smuggler waiting for a boat that is three days late.
+If anyone threatens her, she rings the bell; two guards from the barracks arrive in 2 rounds.
+Ledger. A successful DC 12 Wisdom (Insight) check reveals that she is lying about the guild.
+2. Needle Hall
+A 10-foot-wide hall runs east from the gatehouse (area 1) toward the loft (area 3). Tiny holes pock both walls at knee height.
+2a. Pressure Plate
+Pressure Plate. A loose flagstone in the middle of the hall is a pressure plate. A character who succeeds on a DC 13 Wisdom (Perception) check notices it.
+A creature that steps on the plate triggers a volley of needles: DC 12 Dexterity saving throw, taking 7 (2d6) piercing damage on a failure and half that on a success. Wedging a dagger under the plate keeps it from moving.
+2b. Broken Needles
+Spent needles crunch underfoot here, and a dead rat lies stiff by the east wall.
+Secret Door. A secret door in the east wall swings open onto the gallery (area 4).
+3. Cistern Loft
+A rusted lantern hangs from a hook over a dry cistern, and pigeon bones litter the planks.
+Stirges. Four stirges roost out of sight among the rafters. If the lantern is disturbed, the stirges swoop down and attack.
+A narrow stair leads down from the loft to the gallery (area 4).
+Treasure. A rusted lockbox on the ledge holds 12 gp.
+4. Gallery of Glass
+Two tall panes of smoked glass face each other across a narrow gallery. The glassblower's tools are kept in area 1.
+Reflections. When a creature walks between the panes, a skeletal reflection of it steps out of each one. The reflections use the skeleton statistics and crumble after 1 minute.
+(Only the south pane is real glass. The north pane is an illusion that conceals a niche holding a silver flask worth 25 gp.)
+
+Chapter Two: The Brine Vaults
+1. Flooded Stair
+This area belongs to the next level and must never be read as level one's.

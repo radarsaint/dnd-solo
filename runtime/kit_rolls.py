@@ -43,7 +43,16 @@ _TOTAL = re.compile(r'\b(?:rolled|rolling|roll(?:ed)?:|got|get|total(?:\s+of)?|s
                     r'|\b(\d{1,2})\s+(?:to[- ]hit|on the attack|for the attack)\b'
                     r'|\b(?:to[- ]hit|attack(?: roll)?|initiative|init)\s*(?:roll\s*)?(?:is|of|was|:|=)?\s*(\d{1,2})\b'
                     r'|\b(' + _SKILL + r'|(?:strength|dexterity|constitution|intelligence|wisdom|charisma)'
-                    r'(?:\s+sav(?:e|ing throw))?)\s*(?:check|roll|save|saving throw)?\s*[:=]?\s*(\d{1,2})\b')
+                    r'(?:\s+sav(?:e|ing throw))?|(?:str|dex|con|int|wis|cha)\s+sav(?:e|ing throw))'
+                    r'\s*(?:check|roll|save|saving throw)?\s*[:=]?\s*(\d{1,2})\b')
+
+
+def meets_or_beats(actor_total, target):
+    """Brendon's tie rule (2026-10-04): when a creature acts on another creature, meeting the
+    number wins, so the ACTOR wins ties. One rule for every such comparison: an attack against
+    AC, a check against a passive score (a monster's Stealth against the PC's passive
+    Perception, the PC's Stealth against a monster's), a contest against a flat number."""
+    return int(actor_total) >= int(target)
 
 
 @dataclass(frozen=True)

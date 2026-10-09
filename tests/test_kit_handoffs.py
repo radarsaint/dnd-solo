@@ -1,0 +1,450 @@
+"""PR-H, second half: progressive reveal on room entry, the per-turn handoff trace, and the
+adversarial cases Nik will push in the 5-room test (barging in, split actions, asking for a
+check mid-window, flourishing early, answering a window with something else, and a centipede
+ambush whose Con save meets a Shield window). Non-6c fixtures (carcass, roadcamp, watchroom);
+every die pinned; no model."""
+import copy
+import io
+import json
+import time
+import unittest
+from contextlib import redirect_stdout
+from pathlib import Path
+
+from runtime import kit_handoff, kit_reveal, kit_rooms
+from runtime.kit_agent import KitChatBridge, PendingRuling, WindowAnswer
+from runtime.state_context import InvalidChange
+from test_kit_combat_checkpoints import CAST, Camp, DECLINE, KILL_CAPTAIN, OPEN, SHIELD, shield_only
+from test_kit_monster_initiative import ROLL, Room, carcass
+from test_kit_short_beats import PERCEPTION, ShortBeat
+
+ROOT = Path(__file__).resolve().parents[1]
+CARCASS_LOOK = ('A basilisk carcass sprawls across the floor of the hall, grey hide split and stinking, its '
+                'stone-dull eyes still open toward the stair you came down, one foreleg folded under the bulk '
+                'of it as if it lay down to sleep and never got up again.')
+CARCASS_MORE = ('Nothing else moves. The stink is thick enough to taste, sweet and wrong, and the hide twitches '
+                'once where the light from the stair falls across it, then lies still, heavy and grey, between '
+                'you and the rest of the hall.')
+KIT_HANDOFF = 'So. What draws you in first?'
+POURED = ('Serpents coil up every pillar, carved so fine the scales catch the light, and the ceiling they '
+          'hold up is lost in the dark.')
+
+
+def plan_for(packet, **update):
+    from test_kit_agent import RecordingModel
+    plan = RecordingModel().plan(packet['input']['private'])
+    plan.update({'move': 'world_description', 'table_presence': 'brief', 'focus_actor': 'none', **update})
+    plan['improv_read'].update(actor_ref='none', actor_basis='none')
+    plan['public_brief'].update(reply_to='none', scope='feature')
+    return plan
+
+
+def trace(runtime):
+    return kit_handoff.read(kit_handoff.trace_path(runtime))
+
+
+def kit_line(text, quote='A basilisk carcass sprawls'):
+    return {'speaker': 'Kit', 'text': text, 'reacts_to': quote}
+
+
+class Reveal(unittest.TestCase):
+    def opening(self, source=None):
+        room = Room(self, source=source)
+        bridge = KitChatBridge(room.runtime, room.adjudicator)
+        return room, bridge, bridge.prepare(opening=True, one_pass=True, turn_id='open')
+
+    def enter(self, room, bridge, packet, segments):
+        return bridge.complete('open', {'decision': plan_for(packet), 'performance': {'segments': segments}})
+
+    def test_room_entry_gets_the_obvious_layer_and_holds_the_rest(self):
+        _, _, packet = self.opening()
+        reveal = packet['input']['private']['reveal']
+        self.assertEqual(reveal['obvious'], [carcass()['facts']['carcass']['text']])
+        self.assertEqual(reveal['hold'], ['Pillars carved with coiling serpents hold...'])
+        self.assertTrue(any('obvious layer' in line for line in packet['first_try']))
+
+    def test_the_entry_ends_with_kit_handing_the_floor_back(self):
+        room, bridge, packet = self.opening()
+        with self.assertRaisesRegex(InvalidChange, 'handing the floor back'):
+            self.enter(room, bridge, packet, [{'speaker': 'Narrator', 'text': CARCASS_LOOK},
+                                              {'speaker': 'Narrator', 'text': CARCASS_MORE}])
+        result = self.enter(room, bridge, packet, [{'speaker': 'Narrator', 'text': CARCASS_LOOK},
+                                                   {'speaker': 'Narrator', 'text': CARCASS_MORE},
+                                                   kit_line(KIT_HANDOFF)])
+        self.assertTrue(result['spoken'].endswith('Kit: So. What draws you in first?'))
+
+    def test_pouring_out_the_held_layer_is_refused(self):
+        source = carcass()
+        source['facts']['urns'] = {'area': 'hall', 'visible': True,
+                                   'text': 'Cracked funeral urns lean against the far wall, spilling ash.'}
+        room, bridge, packet = self.opening(source)
+        with self.assertRaisesRegex(InvalidChange, 'held layer'):
+            self.enter(room, bridge, packet, [{'speaker': 'Narrator', 'text': CARCASS_LOOK + ' ' + POURED +
+                                               ' Cracked funeral urns lean on the wall, spilling ash.'},
+                                              kit_line(KIT_HANDOFF)])
+
+    def test_the_layers_come_from_room_data(self):
+        source = carcass()
+        source['facts']['carcass']['layer'] = 'detail'
+        source['facts']['pillars']['layer'] = 'obvious'
+        split = kit_reveal.layers(kit_rooms.check_room(source), {'area': 'hall'})
+        self.assertEqual(split, {'obvious': ['pillars'], 'detail': ['carcass']})
+        source['facts']['pillars']['layer'] = 'loud'
+        with self.assertRaisesRegex(kit_rooms.RoomMountError, 'layer must be obvious or detail'):
+            kit_rooms.check_room(source)
+
+    def test_no_reveal_when_nothing_is_held_or_after_the_first_look(self):
+        source = carcass()
+        del source['facts']['pillars']
+        _, _, packet = self.opening(source)
+        self.assertNotIn('reveal', packet['input']['private'])
+        room, bridge, packet = self.opening()
+        self.enter(room, bridge, packet, [{'speaker': 'Narrator', 'text': CARCASS_LOOK}, {'speaker': 'Narrator', 'text': CARCASS_MORE}, kit_line(KIT_HANDOFF)])
+        later = bridge.prepare('I look around the hall.', 'look', one_pass=True)
+        self.assertNotIn('reveal', later['input']['private'])
+
+    def test_the_reveal_is_traced_and_the_next_look_takes_the_floor(self):
+        room, bridge, packet = self.opening()
+        self.enter(room, bridge, packet, [{'speaker': 'Narrator', 'text': CARCASS_LOOK}, {'speaker': 'Narrator', 'text': CARCASS_MORE}, kit_line(KIT_HANDOFF)])
+        first = trace(room.runtime)[-1]
+        self.assertEqual(first['handoff']['type'], 'progressive_reveal')
+        self.assertEqual(first['handoff']['trigger'], 'first look: hall')
+        look = bridge.prepare('I look at the pillars.', 'look', one_pass=True)
+        plan = plan_for(look)
+        plan['public_brief'].update(reply_to='look at the pillars')
+        bridge.complete('look', {'decision': plan, 'performance': {'segments': [
+            {'speaker': 'Narrator', 'text': 'The serpents carved up each pillar are worn smooth where hands have '
+                                            'touched them, as if people once leaned here to rest a while, and '
+                                            'the stone between the coils is dark with old soot.'},
+            {'speaker': 'Narrator', 'text': 'Up close the carving is finer than it looked from the stair: every '
+                                            'scale cut separately, every eye a drilled pit, and one serpent near '
+                                            'the floor has had its head broken off and carried away, the break '
+                                            'clean and old, the edges gone soft with years of dust and damp.'}]}})
+        answer = trace(room.runtime)[-1]['answers']
+        self.assertEqual((answer['turn_id'], answer['type'], answer['floor_to_player']),
+                         ('open', 'progressive_reveal', True))
+
+
+class RevealFixes(unittest.TestCase):
+    """Nagatha's #101 probes: a directed entry is honored, a single held fact is still a leak, ids
+    are never matched as words, and the exits are always in the obvious layer."""
+
+    def test_a_directed_entry_is_resolved_not_refused(self):
+        """'I go in and roll the carcass over': the entry and the act are one turn. The act on a
+        watched feature is Kit's declared handles (#97); declaring it fires the ambush, and the
+        directed entry needs no handoff question."""
+        from test_kit_agent import RecordingModel
+        room = Room(self, start='stair')
+        bridge = KitChatBridge(room.runtime, room.adjudicator)
+        packet = bridge.prepare('I go in and roll the carcass over.', 'in', one_pass=True)
+        self.assertIn('carcass', packet['input']['private']['acts']['handles']['targets'],
+                      'the act in the new area is offered, not dropped')
+        self.assertIn('reveal', packet['input']['private'])
+        plan = RecordingModel().plan(packet['input']['private'])
+        plan['improv_read'].update(actor_ref='none', actor_basis='none')
+        plan.update(move='world_description', focus_actor='none', handles=ROLL,
+                    reveal_entry={'mode': 'directed', 'relevant': []})
+        for key in ('objective', 'visible_cue', 'player_opening'):
+            plan['public_brief'].pop(key, None)
+        plan['public_brief']['scope'] = 'call'
+        speech = {'segments': [{'speaker': 'Narrator', 'text': 'You step into the hall, set your shoulder to '
+                                                               'the grey carcass and heave it over.'}]}
+        result = bridge.complete('in', {'decision': plan, 'performance': speech})
+        self.assertEqual(room.state['triggers_fired'], ['carcass_disturbed'])
+        self.assertEqual(room.state['area'], 'hall')
+        self.assertTrue(result['spoken'].rstrip().endswith('Roll initiative.'))
+
+    def test_kit_marks_a_directed_entry_and_no_handoff_is_needed(self):
+        source = carcass()
+        reveal = kit_reveal.view(kit_rooms.check_room(source), {'area': 'hall', 'room': {}, 'visited': []}, 'exit')
+        segments = [{'speaker': 'Narrator', 'text': CARCASS_LOOK},
+                    {'speaker': 'Narrator', 'text': 'You go straight to the pillars: serpents coil up each one.'}]
+        src = kit_rooms.check_room(source)
+        with self.assertRaisesRegex(InvalidChange, 'handing the floor back'):
+            kit_reveal.check_spoken(reveal, segments, src)
+        with self.assertRaisesRegex(InvalidChange, 'held layer'):
+            kit_reveal.check_spoken(reveal, segments, src, {'reveal_entry': {'mode': 'directed'}})
+        kit_reveal.check_spoken(reveal, segments, src, {'reveal_entry': {'mode': 'directed', 'relevant': ['pillars']}})
+        with self.assertRaisesRegex(InvalidChange, 'not held here'):
+            kit_reveal.check_spoken(reveal, segments, src, {'reveal_entry': {'mode': 'directed', 'relevant': ['orb']}})
+
+    def test_a_single_held_fact_poured_out_is_refused(self):
+        src = kit_rooms.check_room(carcass())
+        reveal = kit_reveal.view(src, {'area': 'hall', 'room': {}, 'visited': []}, 'opening')
+        self.assertEqual(reveal['hold_ids'], ['pillars'])
+        held = src['facts']['pillars']['text']
+        with self.assertRaisesRegex(InvalidChange, 'held layer'):
+            kit_reveal.check_spoken(reveal, [{'speaker': 'Narrator', 'text': src['facts']['carcass']['text'] + ' ' + held},
+                                             kit_line('Anything?')], src)
+        kit_reveal.check_spoken(reveal, [{'speaker': 'Narrator', 'text': src['facts']['carcass']['text']},
+                                         kit_line('You walk in. Anything?')], src)
+
+    def test_an_id_that_is_a_word_elsewhere_is_not_obvious(self):
+        source = carcass()
+        source['facts']['brazier'] = {'area': 'hall', 'visible': True, 'text': 'A cold brazier full of old ash.'}
+        source['facts']['fire'] = {'area': 'hall', 'visible': True, 'text': 'A small fire smoulders in a niche.'}
+        source['actors']['centipede_a']['stat_block'] = {'ac': 13, 'hp': 4, 'attacks': [
+            {'name': 'bite', 'to_hit': 4, 'damage': 4, 'type': 'fire'}]}
+        split = kit_reveal.layers(kit_rooms.check_room(source), {'area': 'hall'})
+        self.assertIn('fire', split['detail'])
+        self.assertIn('carcass', split['obvious'])
+
+    def test_the_exits_are_always_in_the_obvious_layer(self):
+        reveal = kit_reveal.view(kit_rooms.check_room(carcass()), {'area': 'hall', 'room': {}, 'visited': []}, 'opening')
+        self.assertEqual(reveal['exits'], ['A stair climbs out of the hall.'])
+        self.assertNotIn('Where do you look first', kit_reveal.REVEAL_RULE)
+
+
+def voice(bridge, turn, text='The blow comes in hard at your ribs. Shield, or Chronal Shift?'):
+    return bridge.complete(turn, {'decision': {'window': 'voiced'}, 'performance': {'segments': [
+        {'speaker': 'Narrator', 'text': 'Steel flashes in the firelight and the fight turns on you.'},
+        {'speaker': 'Kit', 'text': text}]}})
+
+
+def answer(bridge, turn, action, choice, segments=()):
+    """Kit's window_answer: ``choice`` (the engine's flat form, e.g. SHIELD) declared as the react
+    act field (runtime/kit_acts.py)."""
+    decision = {'react': {'choice': choice['react'], **{k: v for k, v in choice.items() if k != 'react'}}}
+    bridge.prepare(action, turn, one_pass=True)
+    return bridge.complete(turn, {'decision': decision, 'performance': {'segments': list(segments)}})
+
+
+class Trace(unittest.TestCase):
+    def camp(self):
+        camp = Camp(self)
+        return camp, KitChatBridge(camp.runtime, camp.adjudicator)
+
+    def test_every_committed_turn_writes_a_line_in_the_session_dir(self):
+        camp, bridge = self.camp()
+        bridge.prepare(OPEN, 'h1', one_pass=True)
+        self.assertEqual(trace(camp.runtime), [], 'nothing is traced until Kit voices the window')
+        voice(bridge, 'h1')
+        path = kit_handoff.trace_path(camp.runtime)
+        self.assertEqual(path.parent, Path(camp.runtime.path).resolve().parent)
+        (line,) = trace(camp.runtime)
+        self.assertEqual(line['event'], 'turn')
+        self.assertEqual(line['handoff']['type'], 'reaction_window')
+        self.assertEqual(line['handoff']['trigger'], 'hit')
+        self.assertEqual(line['handoff']['awaits'], 'player_answer')
+        self.assertIsNotNone(line['latency_s'])
+        self.assertTrue(line['latency_from'].endswith('(no shown_at)'), line['latency_from'])
+
+    def test_a_barge_in_is_an_attempt_and_the_verdict_is_the_input_that_resolves_it(self):
+        camp, bridge = self.camp()
+        bridge.prepare(OPEN, 'h1', one_pass=True)
+        voice(bridge, 'h1')
+        # Kit reads the barge-in as unclear and asks: the window stays open, the ask is not an answer.
+        answer(bridge, 'h2', 'Can I make an Arcana check on his blade?', {'react': 'unclear'},
+               [{'speaker': 'Kit', 'text': 'Not now: the blade is coming. Shield or not?'}])
+        ask = trace(camp.runtime)[-1]
+        self.assertEqual((ask['answers']['closes'], ask['answers']['floor_to_player']), (False, False))
+        packet = answer(bridge, 'h3', CAST, SHIELD)
+        self.assertEqual(packet['stage'], 'one_pass')
+        rows = kit_handoff.summary(trace(camp.runtime))
+        self.assertEqual(rows[0]['handoff'], 'reaction_window')
+        self.assertIsNone(rows[0]['floor_to_player'], 'the resolving turn is not committed yet')
+        self.assertEqual(rows[0]['attempts'], 1)
+
+    def test_the_cli_dumps_rows_and_refreshes_latency_from_host_stamps(self):
+        camp, bridge = self.camp()
+        now = time.time()
+        bridge.prepare(OPEN, 'h1', one_pass=True, host_stamps={'received_at': now - 2.5})
+        voice(bridge, 'h1')
+        bridge.stamp('h1', shown_at=now)
+        from scripts import handoff_trace
+        out = io.StringIO()
+        with redirect_stdout(out):
+            handoff_trace.main([str(camp.runtime.path), '--json'])
+        (row,) = json.loads(out.getvalue())
+        self.assertEqual(row['handoff'], 'reaction_window')
+        self.assertEqual(row['latency_from'], 'host_stamps (received to shown)')
+        self.assertAlmostEqual(row['latency_s'], 2.5, places=2)
+        out = io.StringIO()
+        with redirect_stdout(out):
+            handoff_trace.main([str(Path(camp.runtime.path).parent)])
+        self.assertIn('reaction_window', out.getvalue())
+        self.assertIn('trigger: hit', out.getvalue())
+
+
+class BargingIn(ShortBeat):
+    """Nik barges in during a held stall check."""
+
+    def test_barging_through_the_door_is_honoured_but_the_stall_is_not_answered(self):
+        self.stall(roll_call=PERCEPTION)
+        packet = self.bridge.prepare('I go through the iron door.', 'in', one_pass=True)
+        plan = self.plan_for(packet, table_presence='brief')
+        plan['public_brief'].update(reply_to='go through the iron door', scope='feature')
+        self.bridge.complete('in', {'decision': plan, 'performance': {'segments': [
+            {'speaker': 'Narrator', 'text': 'Lamplight pools on a scarred table where a warden in a dented helm '
+                                            'hums over a ledger, a plain wooden chest under the arrow slit behind '
+                                            'him, his spear propped within easy reach of his hand.'},
+            {'speaker': 'Narrator', 'text': 'He looks up at the sound of the door and stops humming, and for a '
+                                            'long moment the only thing moving in the room is the lamp flame, '
+                                            'bending a little in the draught you let in, throwing his shadow '
+                                            'long across the boards toward your boots.'},
+            kit_line('So. What draws you in first?', 'go through the iron door')]}})
+        lines = trace(self.runtime)
+        self.assertEqual(lines[0]['handoff']['type'], 'stall_check')
+        answer = lines[-1]['answers']
+        self.assertEqual((answer['type'], answer['floor_to_player']), ('stall_check', False))
+        self.assertIn('barged in without the roll', answer['how'])
+        self.assertEqual(lines[-1]['handoff']['type'], 'progressive_reveal')
+
+    def test_a_barge_that_stays_put_still_owes_the_held_description(self):
+        self.stall(roll_call=PERCEPTION)
+        packet = self.bridge.prepare('I kick the iron door open.', 'k', one_pass=True)
+        held = packet['input']['private']['held_description']
+        self.assertIsNone(held['roll'])
+        self.assertIn('did not roll', held['rule'])
+
+
+class SplitActions(unittest.TestCase):
+    def test_a_reaction_answer_with_an_attack_tacked_on_resolves_only_the_reaction(self):
+        camp = Camp(self)
+        camp.act(OPEN)
+        camp.act('Yes, Shield. Then I Fire Bolt the bandit captain, 19 to hit, 9 fire. ' + CAST, **SHIELD)
+        self.assertEqual(camp.fight['hp']['harl'], camp.fight['max_hp']['harl'], 'not his turn: no Fire Bolt')
+        self.assertEqual(camp.state['pc_resources']['slots']['1']['used'], 1, 'Shield was cast')
+
+    def test_disturbing_the_carcass_and_attacking_in_one_breath_waits_for_initiative(self):
+        room = Room(self)
+        result = room.act('I roll the carcass over and stab whatever comes out with my dagger, 18 to hit, 4 piercing.',
+                          ROLL)
+        self.assertTrue(result.public_event.endswith('Roll initiative.'))
+        self.assertEqual(room.state['combat']['status'], 'awaiting_initiative')
+        self.assertEqual(room.state['combat']['hp'], room.state['combat']['max_hp'], 'nothing was there to stab')
+
+
+class ChecksMidWindow(unittest.TestCase):
+    def test_asking_for_a_check_while_a_window_is_open_holds_the_window(self):
+        camp = Camp(self)
+        camp.act(OPEN)
+        waiting = copy.deepcopy(camp.fight['awaiting'])
+        revision, state = camp.runtime.load()
+        for line in ('Can I make an Arcana check?', 'Perception check: 17'):
+            with self.subTest(line):
+                with self.assertRaises(WindowAnswer):  # Kit reads it first
+                    camp.adjudicator.resolve(line, revision, state)
+                with self.assertRaises(PendingRuling):  # her read: unclear, she asks
+                    camp.adjudicator.resolve(line, revision, state, choice={'react': 'unclear'})
+        self.assertEqual(camp.fight['awaiting'], waiting)
+        self.assertEqual(camp.fight['pc_damage'], 0)
+
+
+class EarlyFlourish(unittest.TestCase):
+    def test_describing_the_kill_with_a_miss_kills_nobody(self):
+        camp = Camp(self)
+        result = camp.act('Initiative 25. I stab the bandit captain through the throat and he dies at my feet, '
+                          '4 to hit, 30 piercing.')
+        self.assertEqual(camp.state['actors']['harl']['status'], 'alive')
+        self.assertNotEqual((camp.fight.get('awaiting') or {}).get('kind'), 'flourish_window')
+        self.assertNotIn('goes down', result.public_event)
+
+    def test_describing_the_kill_with_no_roll_waits_for_the_roll(self):
+        camp = Camp(self)
+        revision, state = camp.runtime.load()
+        with self.assertRaises(PendingRuling):
+            camp.adjudicator.resolve('I slit the bandit captain\'s throat and he falls dead.', revision, state)
+        self.assertEqual(camp.state['actors']['harl']['status'], 'alive')
+
+    def test_the_flourish_after_a_real_kill_changes_no_outcome(self):
+        camp = Camp(self)
+        camp.act(KILL_CAPTAIN)
+        before = copy.deepcopy(camp.state['actors'])
+        camp.act('I wrench the dagger free and kick the other two bandits dead as well.', flourish='describe')
+        after = camp.state['actors']
+        self.assertEqual(after['cutthroat_a']['status'], before['cutthroat_a']['status'])
+        self.assertEqual(after['cutthroat_b']['status'], before['cutthroat_b']['status'])
+
+
+class AnotherActionAsTheAnswer(unittest.TestCase):
+    def test_an_attack_instead_of_a_shield_answer_is_held(self):
+        camp = Camp(self)
+        camp.act(OPEN)
+        waiting = copy.deepcopy(camp.fight['awaiting'])
+        revision, state = camp.runtime.load()
+        with self.assertRaises(WindowAnswer):
+            camp.adjudicator.resolve('I stab the bandit captain with my dagger, 18 to hit, 30 piercing.',
+                                     revision, state)
+        with self.assertRaises(PendingRuling) as caught:  # Kit: not an answer; she asks again
+            camp.adjudicator.resolve('I stab the bandit captain with my dagger, 18 to hit, 30 piercing.',
+                                     revision, state, choice={'react': 'unclear'})
+        self.assertEqual(caught.exception.code, 'unclear')
+        self.assertEqual(camp.fight['awaiting'], waiting)
+        self.assertEqual(camp.state['actors']['harl']['status'], 'alive')
+
+
+class AmbushSaveMeetsShield(unittest.TestCase):
+    """Order: the reaction first (before damage), then the save the hit carries."""
+
+    def ambushed(self):
+        # Stealth 1 + 2 = 3: Nik is not surprised. Bites d20 12 + 4 = 16: hit AC 14, miss AC 19.
+        room = Room(self, npc_roll=lambda: 1, roll=lambda: 12, sheet=shield_only())
+        room.act('I roll the carcass over.', ROLL)
+        result = room.act('Initiative 1')
+        return room, result
+
+    def test_the_shield_window_comes_first_and_no_damage_lands_before_it(self):
+        room, result = self.ambushed()
+        waiting = room.state['combat']['awaiting']
+        self.assertEqual((waiting['kind'], waiting['options']), ('reaction_window', ['shield']))
+        self.assertEqual(waiting['rider']['ability'], 'con')
+        self.assertEqual(room.state['combat']['pc_damage'], 0)
+        self.assertTrue(result.public_event.endswith("bite comes at you: that is a 16, a hit."), result.public_event)
+
+    def test_a_save_stated_during_the_shield_window_is_not_an_answer(self):
+        room, _ = self.ambushed()
+        revision, state = room.runtime.load()
+        with self.assertRaises(WindowAnswer):
+            room.adjudicator.resolve('Con save 12', revision, state)
+        with self.assertRaises(PendingRuling):
+            room.adjudicator.resolve('Con save 12', revision, state, choice={'react': 'unclear'})
+
+    def test_declining_shield_takes_the_bite_then_asks_for_the_save(self):
+        room, _ = self.ambushed()
+        result = room.act('No.', **DECLINE)
+        combat = room.state['combat']
+        self.assertEqual(combat['pc_damage'], 4)
+        self.assertEqual((combat['awaiting']['kind'], combat['awaiting']['save']), ('roll_call', 'con'))
+        self.assertTrue(result.public_event.endswith('Roll a Constitution saving throw.'))
+        self.assertNotIn('11', result.public_event)
+        result = room.act('Con save 5')
+        combat = room.state['combat']
+        self.assertEqual(combat['pc_damage'], 4 + 10 + 4, 'the poison lands; the second bite is not re-offered')
+        self.assertEqual(combat['awaiting']['kind'], 'roll_call', 'declined once this round: no second offer')
+        result = room.act('Con save 15')
+        self.assertTrue(result.public_event.endswith('Your turn.'))
+        self.assertEqual(room.state['combat']['pc_damage'], 18)
+
+    def test_shield_turns_the_bite_so_no_save_is_owed(self):
+        room, _ = self.ambushed()
+        result = room.act(CAST, **SHIELD)
+        combat = room.state['combat']
+        self.assertEqual(combat['pc_damage'], 0)
+        self.assertIsNone(combat.get('awaiting'))
+        self.assertTrue(result.public_event.endswith('Your turn.'))
+
+
+class AmbushTrace(unittest.TestCase):
+    def test_the_save_is_traced_as_an_engine_roll_call(self):
+        room = Room(self, npc_roll=lambda: 1, roll=lambda: 12, sheet=shield_only())
+        bridge = KitChatBridge(room.runtime, room.adjudicator)
+        room.act('I roll the carcass over.', ROLL)
+        bridge.prepare('Initiative 1', 'i', one_pass=True)
+        voice(bridge, 'i', 'The bite lands on your shin. Shield?')
+        packet = answer(bridge, 'n', 'No.', DECLINE)
+        self.assertEqual(packet['stage'], 'window_voice', 'the save the bite carries is the next window')
+        self.assertEqual(packet['input']['window'], {'kind': 'roll_call', 'trigger': 'save_rider',
+                                                     'awaits': 'player_roll', 'save': 'Constitution', 'avrae': '!save con'})
+        with self.assertRaisesRegex(InvalidChange, 'DC'):
+            voice(bridge, 'n', 'Poison burns in the wound. Roll a Constitution save, DC 11?')
+        voice(bridge, 'n', 'Poison burns in the wound. Roll a Constitution save in Avrae: !save con?')
+        lines = trace(room.runtime)
+        self.assertEqual([(line['handoff']['type'], line['handoff']['trigger']) for line in lines],
+                         [('reaction_window', 'hit'), ('roll_call', 'save_rider')])
+        self.assertEqual(lines[1]['answers']['floor_to_player'], True)
+        self.assertEqual(room.runtime.kit_timing('n')['window_round_trips'], 2, 'the read and the next voice')
+
+
+if __name__ == '__main__':
+    unittest.main()

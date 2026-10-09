@@ -38,11 +38,13 @@ REQUIRED = ('id', 'starting_area', 'areas', 'exits', 'facts', 'actors')
 KNOWN_BLOCKS = set(REQUIRED) | {
     'resources', 'fixture_only', 'stub', 'source_ref', 'map_ref', 'test_precondition', 'level_context',
     'campaign_context', 'public_performance', 'numeric_facts', 'leak_phrases', 'leak_keywords', 'claims',
-    'room_rules', 'procedures', 'tolls', 'attitudes', 'story', 'texture_palette', 'combat', 'agenda'}
+    'room_rules', 'procedures', 'tolls', 'attitudes', 'story', 'texture_palette', 'combat', 'agenda',
+    'triggers', 'traps', 'source_claims', 'authoring'}
 # The JSON type of each block (anything not listed is an object). A wrong type is refused at
 # mount, before any engine reads it.
 BLOCK_TYPES = {'id': str, 'starting_area': str, 'source_ref': str, 'map_ref': str, 'test_precondition': str,
-               'fixture_only': bool, 'stub': bool, 'room_rules': list}
+               'fixture_only': bool, 'stub': bool, 'room_rules': list, 'triggers': list, 'traps': list,
+               'source_claims': list}
 CARD_GAMES = ('twenty_one', 'three_dragon_ante')
 CARRIED_LIMIT = 24  # things taken out of rooms, kept as text; the oldest go first
 STAGES = ('approach', 'first_look', 'explore', 'resolution')
@@ -50,7 +52,8 @@ STAGES = ('approach', 'first_look', 'explore', 'resolution')
 # State that belongs to the character and the session; everything else belongs to the room
 # and is archived when the PC leaves it (state_context.Runtime.mount_room).
 SESSION_KEYS = ('schema_version', 'kit', 'player_character', 'player_sheet', 'pc_state', 'roll_seed',
-                'elapsed_seconds', 'rooms', 'carried', 'scene_id', 'scenes_closed', 'memory_trimmed')
+                'elapsed_seconds', 'rooms', 'carried', 'scene_id', 'scenes_closed', 'memory_trimmed',
+                'pc_conditions')
 
 
 class RoomMountError(InvalidChange):
@@ -122,16 +125,29 @@ def first_framing_problems(source):
         if handling is not None and not (isinstance(handling, dict) and handling.get('nouns') and
                                          (handling.get('holds') is None or handling['holds'] in source['facts'])):
             problems.append(f'fact {key} handling needs nouns, and holds must name a fact')
+        elif handling is not None and handling.get('parts') is not None and not (
+                isinstance(handling['parts'], list) and
+                all(isinstance(part, str) and part.strip() for part in handling['parts'])):
+            problems.append(f'fact {key} handling parts must be a list of words (the claw of a carcass)')
     for key, actor in source['actors'].items():
         if not (isinstance(actor, dict) and actor.get('location') in areas and actor.get('status')):
             problems.append(f'actor {key} needs a location among the areas and a status')
+        elif actor.get('status') == 'hidden':
+            # Hidden is left only by a trigger, and seen by nobody before it: visible must be false.
+            if actor.get('visible') is not False:
+                problems.append(f'actor {key} is hidden and needs "visible": false until its trigger fires')
     for key, area in areas.items():
         link = area.get('room_link')
-        if link is not None and not (isinstance(link, dict) and isinstance(link.get('room'), str)
-                                     and isinstance(link.get('area'), str)):
-            problems.append(f'area {key} room_link needs room and area')
+        if link is not None and not (isinstance(link, dict) and (
+                isinstance(link.get('room'), str) and isinstance(link.get('area'), str) or
+                # Authored on demand from the book (runtime/kit_author.py): {author: {level, area}}.
+                'room' not in link and isinstance(link.get('author'), dict) and
+                isinstance(link['author'].get('area'), str) and link['author'].get('level') is not None and
+                isinstance(link.get('area', ''), str))):
+            problems.append(f'area {key} room_link needs room and area (or author: {{level, area}})')
+    from .kit_reveal import check_layer
     return problems + secrecy_problems(source) + tease_problems(source) + fighter_problems(source) + \
-        alarm_problems(source)
+        alarm_problems(source) + check_layer(source)
 
 
 class RoomWarning(UserWarning):
@@ -317,6 +333,10 @@ def tease_problems(source):
                 problems.append(f'area {key} tease heard entries need an actor and a sound')
             elif item.get('actor') not in source['actors']:
                 problems.append(f"area {key} tease heard {item.get('actor')!r} is not an actor")
+            elif (source['actors'][item['actor']] or {}).get('status') == 'hidden':
+                # A heard actor is named to Kit and the player: a hidden one would be given away.
+                problems.append(f"area {key} tease heard {item['actor']!r} is hidden until a trigger "
+                                'fires; put the sound in the tease text without naming it')
     return problems
 
 
@@ -336,17 +356,22 @@ def later_stage_problems(source):
     """Every later-stage block, validated without being built: no card engine, no brief, no
     fight is created here. The texture palette is not checked here at all: it is checked per
     area the first time play draws on it (kit_texture.area_palette)."""
-    from . import kit_agenda, kit_attitude, kit_brief, kit_cards, kit_claims, kit_toll
+    from . import kit_agenda, kit_attitude, kit_brief, kit_cards, kit_claims, kit_toll, kit_triggers
     problems = []
     checks = [('claims', kit_claims.compile_claims), ('attitudes', kit_attitude.compile_attitudes),
               ('agenda', kit_agenda.compile_agenda), ('tolls', kit_toll.compile_tolls),
-              ('story', kit_brief.compile_story)]
+              ('story', kit_brief.compile_story), ('triggers', kit_triggers.compile_triggers)]
     for block, check in checks:
         if source.get(block):
-            try:
-                check(source)
-            except (InvalidChange, KeyError, TypeError, AttributeError) as exc:
-                problems.append(f'{block}: {exc}')
+            problems += [f'{block}: {p}' for p in every_problem(source, block, check)]
+    from . import kit_traps
+    problems += [f'traps: {p}' for p in kit_traps.trap_problems(source)]
+    if not any(problem.startswith('triggers:') for problem in problems):
+        # Hidden is left only by a trigger: a hidden actor no trigger wakes would never appear.
+        woken = {key for trigger in (source.get('triggers') or ()) for key in trigger['actors']}
+        problems += [f'actor {key} is hidden but no trigger wakes it (an orphan: it would never appear)'
+                     for key, actor in (source.get('actors') or {}).items()
+                     if isinstance(actor, dict) and actor.get('status') == 'hidden' and key not in woken]
     for key, config in (source.get('procedures') or {}).items():
         if not key.startswith('_') and isinstance(config, dict) and config.get('kind') == 'card_game':
             try:
@@ -354,6 +379,84 @@ def later_stage_problems(source):
             except (InvalidChange, KeyError, TypeError) as exc:
                 problems.append(f'procedure {key}: {exc}')
     return problems
+
+
+COMPILE_ERRORS = (InvalidChange, KeyError, TypeError, AttributeError, ValueError, IndexError)
+MAX_PROBLEMS_PER_BLOCK = 12
+
+
+def _first(source, check):
+    try:
+        check(source)
+    except COMPILE_ERRORS as exc:
+        return str(exc) or type(exc).__name__
+    return None
+
+
+def _items(value, path=()):
+    """Removable pieces of a block, deepest first: (path, ...) into dicts and lists."""
+    out = []
+    if isinstance(value, dict):
+        for key, item in value.items():
+            out += _items(item, path + (key,)) + [path + (key,)]
+    elif isinstance(value, list):
+        for index, item in enumerate(value):
+            out += _items(item, path + (index,)) + [path + (index,)]
+    return out
+
+
+def _without(block, path):
+    import copy as _copy
+    block = _copy.deepcopy(block)
+    parent = block
+    for step in path[:-1]:
+        parent = parent[step]
+    del parent[path[-1]]
+    return block
+
+
+def every_problem(source, block, check):
+    """Every problem a block's compiler finds, not just its first: the compilers stop at the
+    first error, so the piece that raised it is set aside and the compiler runs again (up to
+    MAX_PROBLEMS_PER_BLOCK). A repair gets one try, so it sees them all."""
+    import copy as _copy
+    import sys as _sys
+    found = []
+    # A soft pass first: the compiler's own require() records instead of raising, so one
+    # entry with two problems (a hook missing its text and its condition) names both.
+    module = _sys.modules.get(getattr(check, '__module__', ''))
+    original = getattr(module, 'require', None)
+    if original is not None:
+        def record(condition, message):
+            if not condition and message not in found:
+                found.append(message)
+        module.require = record
+        try:
+            check(_copy.deepcopy(source))
+        except Exception:  # noqa: BLE001 - soft pass: bad data may fail anywhere after a recorded miss
+            pass
+        finally:
+            module.require = original
+        found = found[:MAX_PROBLEMS_PER_BLOCK]
+    trial = _copy.deepcopy(source)
+    while len(found) < MAX_PROBLEMS_PER_BLOCK:
+        error = _first(trial, check)
+        if error is None:
+            break
+        if error not in found:
+            found.append(error)
+        culprit = None
+        # Whole entries only (a list element, or a block's top-level entry), never one field of
+        # an entry: setting aside a field would only raise a new, made-up problem.
+        for path in [p for p in _items(trial[block]) if isinstance(p[-1], int) or len(p) == 1]:
+            candidate = {**trial, block: _without(trial[block], path)}
+            if _first(candidate, check) != error:
+                culprit = candidate
+                break
+        if culprit is None:
+            break
+        trial = culprit
+    return found
 
 
 def check_room(source, ref='room'):
@@ -379,8 +482,22 @@ def load_room(ref):
         raise RoomMountError(ref, [f'malformed room data ({type(exc).__name__}: {exc})']) from None
 
 
-def load_link(link):
+def resolved_link(link, authored=None):
+    """A ``room_link`` as {room, area}. An ``author`` link names a keyed area whose room Kit
+    writes from the book (runtime/kit_author.py); it resolves to that session's accepted room,
+    or raises kit_author.RoomNotAuthored (a RoomMountError) naming the request command."""
+    if 'author' not in link or 'room' in link:
+        return link
+    from . import kit_author
+    if authored is None:
+        raise kit_author.RoomNotAuthored(f"area {link['author'].get('area')}", [
+            'this room is authored from the book and the session has no authored-room cache'], {})
+    return kit_author.Session(authored).resolve_link(link)
+
+
+def load_link(link, authored=None):
     """The room an area's ``room_link`` leads to, checked down to its arrival area."""
+    link = resolved_link(link, authored)
     source = load_room(link['room'])
     if link['area'] not in source['areas']:
         raise RoomMountError(link['room'], [f"room_link area {link['area']!r} is not one of its areas"])
@@ -391,10 +508,12 @@ def _same_file(a, b):
     return room_path(a).resolve() == room_path(b).resolve()
 
 
-def arrive(old_source, state, link):
+def arrive(old_source, state, link, authored=None):
     """(the linked room, the state on arrival in it): the room loaded and checked, the room
-    left archived, the arrival area observed, and the new room's context within its caps."""
+    left archived, the arrival area observed, and the new room's context within its caps.
+    ``authored``: the session's authored-room directory, for ``author`` links."""
     from .state_context import Runtime
+    link = resolved_link(link, authored)
     source = load_link(link)
     seen = ((state.get('rooms') or {}).get(source.get('id')) or {}).get('state', {}).get('room', {}).get('path')
     if source.get('id') == old_source.get('id') or seen and _same_file(seen, link['room']) is False:

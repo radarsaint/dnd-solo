@@ -45,7 +45,9 @@ strings; `source_ref`, `map_ref`, `test_precondition` strings; `fixture_only`, `
 
 Area fields: `name` (required, a non-empty string); `called` (how a line names it: "the short passage"); `outside` (not in
 the room); `beyond` (an outside area past the room: arriving there is resolution); `arrival`
-(the opening event line); `room_link` (`{room, area}`: arriving here mounts that room);
+(the opening event line); `room_link` (`{room, area}`: arriving here mounts that room; or
+`{"author": {"level", "area"}}`: a room Kit writes from a source's keyed text, docs/architecture/SOURCE_TO_ROOM.md;
+an unauthored one is entered as a flagged fallback stand-in);
 **`tease`** (required on every approach, i.e. an outside area that is not `beyond` and is joined
 to an inside area):
 
@@ -191,9 +193,17 @@ A room that fails raises `RoomMountError` (kit_rooms.py:55):
 - **Room context over its caps** (below) is refused the same way: at `start`, before a move into
   the room, and at prepare.
 
+Two optional blocks for authored rooms (SOURCE_TO_ROOM.md): **`traps`** (a list; the trap schema in
+`runtime/kit_traps.py`: `on` step/enter/disturb/open, `effect` with the source's save, DC and
+damage dice, `detect`, `disarm`, `reset`; run on-engine with a `roll_call` for the player's save)
+and **`source_claims`** (a list of `{"quote", "actors"?, "facts"?, "note"?}`: a quote copied from
+the source tying an entity the extractor could not place to room entries; the fidelity check
+holds the room to it). Neither changes a hand-made room.
+
 ## 4. Rooms in a row
 
-Arriving in a `room_link` area mounts the linked room in the same commit, no host step
+Arriving in a `room_link` area (a move into it this commit; standing in a linked approach does not
+re-mount) mounts the linked room in the same commit, no host step
 (state_context.py:487, `kit_rooms.mounted_state`, kit_rooms.py:432):
 - the room left is archived in `state['rooms'][id]` with its resolution (`left`/`bypassed`) and
   all of its room-scoped state; coming back restores it as it was left;
