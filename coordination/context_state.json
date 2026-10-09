@@ -2,17 +2,17 @@
   "schema": "kit_project_gardener_state/v1",
   "purpose": "RESUMABILITY_CURSOR_NOT_KNOWLEDGE_STORE",
   "canonical_location": "radarsaint/dnd-solo/coordination/context_state.json",
-  "state_revision": 9,
+  "state_revision": 10,
   "semantic_brain": {
     "repo": "radarsaint/dnd-solo",
     "path": "docs/PROJECT_UNDERSTANDING.md",
-    "last_semantic_commit": "cf3547e9c8c767a9085e9fbd477666a706381c79",
-    "last_reviewed_on": "2026-10-08"
+    "last_semantic_commit": "7e4c75e8445338ff051cebd1b2175bfacf15e413",
+    "last_reviewed_on": "2026-10-09"
   },
   "checkpoint": {
     "reviewed_against_main": {
-      "radarsaint/dnd-solo": "cf3547e9c8c767a9085e9fbd477666a706381c79",
-      "radarsaint/bfdm-corpus": "54a2093838b69138eb72e513a4eb813d0717fd19"
+      "radarsaint/dnd-solo": "7e4c75e8445338ff051cebd1b2175bfacf15e413",
+      "radarsaint/bfdm-corpus": "6795362e967e89230086afc28c04450cc7d0cce4"
     },
     "context_inbox": {
       "repo": "radarsaint/dnd-solo",
@@ -24,19 +24,18 @@
   },
   "last_completed_pass": {
     "kind": "BOUNDED_SEMANTIC_RECONCILIATION",
-    "completed_on": "2026-10-08",
-    "scope": "Reviewed dnd-solo commits after e4e3431b through 66a9faeb, and bfdm-corpus 54a20938. No issue #115 comment id was greater than 6065921827.",
-    "result": "Accepted, narrowed: 2cdcee1f and 66a9faeb change only the checkpoint. d6a7f3e merged as 6d973812 records accepted G4 and C2. f62064e disposes the 2cdcee1f gap and is not a new corpus or runtime claim. bfdm 54a20938 only records that acceptance in PROJECT_CONTROL.md. The checker equality rule was a defect: a checkpoint-only descendant is not an undecided semantic advance. Rejected: treating those checkpoint commits as semantic falsehood, and treating this correction as G5, G6, or player-quality acceptance. Unresolved: G5, G6, and the G2 checkbox until this checker is on main and a fresh run does not report an undecided advance.",
-    "resulting_brain_commit": "cf3547e9c8c767a9085e9fbd477666a706381c79",
+    "completed_on": "2026-10-09",
+    "scope": "Reviewed dnd-solo commits after cf3547e9 through e12b97fc (#120), and bfdm-corpus 54a20938. No issue #115 comment id was greater than 6065921827.",
+    "result": "Accepted, narrow: 2608c275 and merge e12b97fc change only coordination/context_state.json relative to reviewed brain cf3547e9. The checker rule is on main. A fresh run reported REVIEWED_CURRENT / CHECKPOINT_ONLY for that pair and REVIEWED_CURRENT for bfdm 54a20938. Brain 7e4c75e8 records that G2 evidence. bfdm 6795362e records the same fact in PROJECT_CONTROL.md. Rejected: treating the checkpoint-only tip as an undecided semantic advance, and treating this pass as G5, G6, or player-quality acceptance. Unresolved: G5 and G6.",
+    "resulting_brain_commit": "7e4c75e8445338ff051cebd1b2175bfacf15e413",
     "reconciled_comment_id": 6065921827
   },
   "active_pass": null,
   "unresolved": [
     "Issue #118 G5 is unmet: the cold-start transcript did not state the three unsynchronized merge-triggered runs, surviving brain 86e4adef, or checkpoint-only writes such as 4228be7c. Do not open a synthetic delta only to retry it.",
-    "Issue #118 G2 is not checked by this checkpoint commit. The checker correction is cf3547e9. Acceptance still requires that checker on main and a fresh run that does not report an undecided SHA advance.",
     "A status-checker warning is not completion and does not accept a semantic delta.",
     "ChatGPT Project source membership remains a manual Project-UI change. G6 stays open.",
-    "Do not keep editing merged coordination branches docs/coordination-refresh-2026-10-07, tooling/project-context-status-116, or docs/cross-repo-coordination-2026-10-07.",
+    "Do not keep editing merged coordination branches docs/coordination-refresh-2026-10-07, tooling/project-context-status-116, docs/cross-repo-coordination-2026-10-07, or tooling/checkpoint-only-sha-not-undecided.",
     "Do not check issue #118 G5 or G6 from this pass."
   ],
   "needs_review": [],
