@@ -26,6 +26,7 @@ from . import kit_attitude
 from . import kit_brief
 from . import kit_cards
 from . import kit_reactions
+from . import kit_combat_acts
 from . import kit_combat
 from . import kit_rolls
 from . import kit_triggers
@@ -1422,7 +1423,14 @@ class RoomAdjudicator:
         return Resolution('physical_act', ' '.join(lines), events)
 
     def _resolve_physical(self, action, revision, state):
-        act = kit_combat.parse(action, self.source, state)
+        declared = (getattr(self, 'choice', None) or {}).get('combat_acts')
+        if declared is not None:
+            # Kit declared the turn's combat acts (runtime/kit_combat_acts.py): validated against
+            # the offer, then the engine rules on each. The English is not read again.
+            entries = kit_combat_acts.check(declared, kit_combat_acts.offer(self.source, state))
+            act = kit_combat_acts.to_act(entries, self.source, state)
+        else:
+            act = kit_combat.parse(action, self.source, state)
         declared = act and act['kind'] == 'ruling' and len(act['steps']) == 1 and any(
             re.search(rf"\b{re.escape(str(t).replace('_', ' '))}\b", act['steps'][0].get('text', ''), re.I)
             for key, info in kit_triggers.disturb_targets(self.source, state).items()

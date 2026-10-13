@@ -200,8 +200,15 @@ def check_downed(value, offer):
     return {'act': value['act'], 'foes': list(offer.get('foes') or ())}
 
 
+def check_combat_acts(value, offer):
+    """Kit's declared combat acts this turn (runtime/kit_combat_acts.py): shape and ids checked
+    against the offer; the rules are the engine's at resolve."""
+    from . import kit_combat_acts
+    return kit_combat_acts.check(value, offer)
+
+
 FIELDS = {'handles': check_handles, 'react': check_react, 'flourish': check_flourish,
-          'downed': check_downed}
+          'downed': check_downed, 'combat_acts': check_combat_acts}
 
 
 def check(plan, body):

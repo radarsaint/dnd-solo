@@ -847,7 +847,7 @@ APPROACH = re.compile(r"\b(?:close (?:in|the (?:distance|gap))|closes in|step (?
 
 def sheet_thrown(state, weapon):
     """The sheet says this weapon has the thrown property."""
-    for item in ((state.get('player_sheet') or {}).get('weapons') or ()) + \
+    for item in list((state.get('player_sheet') or {}).get('weapons') or ()) + \
             list((state.get('player_sheet') or {}).get('gear') or ()):
         text = json.dumps(item).casefold() if not isinstance(item, str) else item.casefold()
         if weapon in text and 'thrown' in text:
@@ -1213,6 +1213,7 @@ class Fight:
         acted = reacted = moved = bonus = False
         first_weapon = None
         self.in_multi = len(steps) > 1  # one clause alone keeps its own lines
+        self.fight.pop('pc_dodging', None)  # a Dodge lasts until his next turn starts
         try:
             for index, step in enumerate(steps, 1):
                 self.action = step['text']
@@ -1227,6 +1228,31 @@ class Fight:
                     because = 'the fight is waiting on your answer first'
                 elif not self.pc_turn_now():
                     because = 'it is not your turn'
+                elif kind == 'refused':
+                    because = one['because']
+                elif kind == 'standard':
+                    if acted:
+                        because = 'you have already used your action this turn'
+                    else:
+                        because = self.pc_standard(one)
+                        acted = because is None
+                        if self.needs_roll:
+                            return
+                elif kind == 'withdraw' and one.get('standard') and acted:
+                    because = 'you have already used your action this turn'
+                elif kind == 'attack' and one.get('declared_bonus'):
+                    if bonus:
+                        because = 'you have already used your bonus action this turn'
+                    elif not (acted and str(one.get('weapon')) in self.LIGHT and str(first_weapon) in self.LIGHT):
+                        because = ('an off-hand attack follows an attack with a light weapon, and is made '
+                                   'with another light weapon')
+                    elif self.out_of_reach(one):
+                        because = f"the {self.label(one['target'])} is out of your reach now"
+                    else:
+                        bonus = True
+                        if not self.pc_attack(one):
+                            self.needs_roll = True
+                            return
                 elif kind == 'missing_reaction':
                     because = 'it is not on your sheet'
                     fizzled = self.avrae_fizzle(one['name'])
@@ -1298,7 +1324,13 @@ class Fight:
                 if self.fight.get('awaiting'):
                     # A checkpoint opened (a window, a flourish): the clauses after it wait for his turn.
                     rest = ' '.join(s['text'] for s in steps[index:])
-                    if rest:
+                    if act.get('declared') and steps[index:]:
+                        # Kit's declared entries after the checkpoint run as declared on his turn.
+                        self.fight['declared_next_steps'] = steps[index:]
+                        for later, s in enumerate(steps[index:], index + 1):
+                            self.trace.append(f'clause {later}/{len(steps)}: held for your turn ({s["label"][:60]})')
+                        self.lines.append('The rest waits for your next turn.')
+                    elif rest:
                         self.fight['declared_next'] = rest
                         for later, s in enumerate(steps[index:], index + 1):
                             self.trace.append(f'clause {later}/{len(steps)}: resolved (held for your turn: '
@@ -2069,6 +2101,27 @@ class Fight:
                          provoke=not act.get('disengage'))
         self.lines.append('You fall back out of reach.' if foes else 'You move off.')
 
+    def pc_standard(self, act):
+        """A standard action Kit declared (SRD): Dodge, Dash, Hide, Help. None when it happens,
+        else why not (voiced)."""
+        what = act['standard']
+        if what == 'dodge':
+            self.fight['pc_dodging'] = True
+            self.lines.append('You take the Dodge action: attacks against you have disadvantage until your next turn.')
+        elif what == 'dash':
+            self.lines.append('You Dash, covering double ground this turn.')
+        elif what == 'hide':
+            roll = kit_rolls.check_roll(self.action, 'stealth')
+            if roll is None or roll.label != 'stealth':
+                self.lines.append('Hiding is a Stealth check: roll it in Avrae (!check stealth) and tell me the total.')
+                self.needs_roll = True
+                return None
+            self.trace.append(f'hide: Stealth {roll.total}')
+            self.lines.append(f'You slip out of sight (Stealth {roll.total}).')
+        elif what == 'help':
+            return 'there is no ally here for you to help'
+        return None
+
     def pc_wait(self, act):
         self.lines.append('You hold your ground and wait for them to come to you.')
 
@@ -2430,6 +2483,13 @@ class Fight:
     def declared_turn(self):
         """What the player declared with a save ('..., then I cast magic missile') is his act when
         his turn comes and nothing else waits."""
+        held = (self.fight or {}).get('declared_next_steps')
+        if held and self.fight['status'] == 'running' and not self.fight.get('pc_down') and \
+                not self.fight.get('awaiting') and self.pc_turn_now():
+            self.fight.pop('declared_next_steps', None)
+            self.trace.append(f'his declared acts after the checkpoint: {len(held)}')
+            self._resolve({'kind': 'multi', 'target': None, 'steps': held, 'declared': True})
+            return
         rest = (self.fight or {}).get('declared_next')
         if not rest or self.fight['status'] != 'running' or self.fight.get('pc_down') or \
                 self.fight.get('awaiting') or not self.pc_turn_now():
@@ -2706,6 +2766,8 @@ class Fight:
             die = self.die(f'npc:{key}:r{self.fight["round"]}:{index}')
             if helpless:
                 die = max(die, self.die(f'npc:{key}:r{self.fight["round"]}:{index}:advantage'))
+            elif self.fight.get('pc_dodging'):
+                die = min(die, self.die(f'npc:{key}:r{self.fight["round"]}:{index}:dodge'))
             total = die + attack['to_hit']
             ac = self.pc_ac()
             missile = bool(attack.get('auto_hit'))  # magic missile: no roll, Shield blocks it
@@ -2884,7 +2946,7 @@ class Fight:
 
 
     def pc_grab(self, act):
-        if not CLAUSE_PARSER:
+        if not (CLAUSE_PARSER or act.get('contest')):
             return self.pc_grab_main(act)
         key = act['target']
         if not key:
