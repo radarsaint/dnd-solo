@@ -11,7 +11,7 @@ from runtime import kit_agent, kit_prices, kit_texture, state_context
 ROOT = Path(__file__).resolve().parent.parent
 START = ROOT / 'START_HERE.md'
 PATH = re.compile(r'`([A-Za-z0-9_.*/-]+(?:/|\.(?:md|json|py)))`')
-DEV_FOLDERS = ('corpus', 'tests', 'docs/campaign', 'docs/architecture', 'docs/collab', 'scripts')
+DEV_FOLDERS = ('tests', 'docs/campaign', 'docs/architecture', 'docs/collab', 'scripts')
 
 
 def block(name):
