@@ -256,5 +256,101 @@ class DirectedReveal(unittest.TestCase):
                                      action='I walk in and go straight to the shelves.')
 
 
+class NeverDropAnAct(unittest.TestCase):
+    """#101 review P1-3, the cases left at c8bf217: D1, D5 and d1c from Nagatha's probes."""
+
+    def camp(self):
+        from test_kit_combat_checkpoints import Camp, KILL_CAPTAIN, shield_only
+        camp = Camp(self, sheet=shield_only())
+        camp.act(KILL_CAPTAIN)
+        self.assertEqual(camp.fight['awaiting']['kind'], 'flourish_window')
+        return camp
+
+    def test_d1_an_act_with_the_flourish_is_held_for_his_turn_and_kit_says_so(self):
+        camp = self.camp()
+        stab = 'I stab the wagon-side cutthroat with my dagger, 18 to hit, 20 piercing.'
+        result = camp.act(stab, flourish='new_action')
+        self.assertIn('already acted this turn', result.public_event)
+        self.assertIn('stab the wagon-side cutthroat', camp.fight.get('declared_next') or '')
+
+    def stay_and_fight(self):
+        """The road camp with cutthroats who hold their ground when the captain falls."""
+        from test_kit_combat_checkpoints import CAMP, Camp, shield_only
+        source = json.loads(CAMP.read_text())
+        for key in ('cutthroat_a', 'cutthroat_b'):
+            source['combat']['actors'][key].pop('retreat')
+        path = Path(tempfile.mkdtemp()) / 'camp.json'
+        path.write_text(json.dumps(source))
+        with mock.patch('test_kit_combat_checkpoints.CAMP', path):
+            camp = Camp(self, sheet=wizard(hp=200), roll=lambda: 2)  # every foe misses
+        camp.act('Initiative 25. I stab the bandit captain with my dagger, 18 to hit, 30 piercing.')
+        self.assertEqual(camp.fight['awaiting']['kind'], 'flourish_window')
+        return camp
+
+    def test_d1_the_held_act_runs_when_his_turn_comes(self):
+        camp = self.stay_and_fight()
+        result = camp.act('I stab the fire-side cutthroat with my dagger, 18 to hit, 20 piercing.', flourish='new_action')
+        self.assertIn('already acted this turn', result.public_event)
+        self.assertIn('Your dagger hits the fire-side cutthroat', result.public_event,
+                      'the round runs to his turn and the held stab lands there')
+        self.assertLess(result.public_event.index('already acted'), result.public_event.index('Your dagger hits'))
+        self.assertEqual(camp.state['actors']['cutthroat_b']['status'], 'dead')
+        self.assertFalse(camp.fight.get('declared_next'))
+
+    def test_d1_a_held_act_the_fight_outlasts_is_said_not_dropped(self):
+        camp = self.camp()  # the cutthroats flee when the captain falls: the fight ends first
+        result = camp.act('I stab the fire-side cutthroat with my dagger, 18 to hit, 20 piercing.', flourish='new_action')
+        while (camp.fight.get('awaiting') or {}).get('kind') == 'reaction_window':
+            result = camp.act('No.', react='decline')
+        self.assertEqual(camp.fight['status'], 'over')
+        self.assertFalse(camp.fight.get('declared_next'))
+        self.assertIn('held act', result.public_event)
+
+    def test_d1c_a_foe_he_has_run_from_gets_no_opportunity_window(self):
+        camp = self.camp()
+        camp.act("I grab the captain's purse and run for the road.", flourish='new_action')
+        self.assertNotEqual((camp.fight.get('awaiting') or {}).get('trigger'), 'leaves_reach')
+
+    def test_d5_step_back_and_fire_bolt_runs_the_move_then_the_attack(self):
+        arena = Arena(self, 'rope_bridge', sheet=wizard(hp=200), roll=lambda: 2)
+        arena.act('Initiative 25. I stab the bridge ogre with my dagger, 5 to hit, 3 piercing.')  # a miss
+        result = arena.act('I back away 30 feet and cast Fire Bolt at the bridge ogre, 25 to hit, 9 fire.')
+        text = result.public_event
+        self.assertIn('swings as you go', text)
+        self.assertIn('Your Fire Bolt hits', text)
+        self.assertLess(text.index('swings as you go'), text.index('Your Fire Bolt hits'))
+        # Hurt, the ogre flees; he is out of its reach, so no opportunity attack is offered.
+        self.assertNotEqual((arena.fight.get('awaiting') or {}).get('trigger'), 'leaves_reach')
+
+
+class HeldLayerWithheld(unittest.TestCase):
+    """h_reveal: a paraphrase of the held layer slips past any word check, so on the entry turn Kit
+    is never shown a held fact's text unless the player's own words point at it. What she was not
+    shown she cannot paraphrase."""
+
+    def entry(self, action):
+        arena = Arena(self, 'kiln')
+        source = json.loads((ROOMS / 'kiln.json').read_text())
+        bridge = KitChatBridge(arena.runtime, arena.adjudicator)
+        packet = bridge.prepare(action, 'e', one_pass=True, opening=action is None)
+        return source, json.dumps(packet, ensure_ascii=False)
+
+    def test_no_held_text_reaches_kit_on_the_entry(self):
+        source, sent = self.entry(None)
+        for key in ('shelves', 'soot'):
+            self.assertNotIn(source['facts'][key]['text'], sent)
+            self.assertNotIn(' '.join(source['facts'][key]['text'].split()[:4]), sent, 'not even its gist')
+        self.assertIn(source['facts']['kiln']['text'], sent, 'the obvious layer is there')
+        self.assertIn('shelves', sent, 'the held fact is named by id, so Kit knows something is held')
+
+    def test_a_held_fact_the_player_points_at_is_given(self):
+        from runtime import kit_reveal, kit_rooms
+        src = kit_rooms.check_room(json.loads((ROOMS / 'kiln.json').read_text()))
+        reveal = kit_reveal.view(src, {'area': 'kiln', 'room': {}, 'visited': []}, 'exit',
+                                 action='I walk in and go straight to the shelves.')
+        self.assertEqual(list(reveal['pointed']), ['shelves'])
+        self.assertEqual(reveal['hold'], ['soot'])
+
+
 if __name__ == '__main__':
     unittest.main()

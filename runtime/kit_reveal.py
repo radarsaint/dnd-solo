@@ -23,8 +23,9 @@ from .state_context import require
 LAYERS = ('obvious', 'detail')
 ENTRY_KINDS = ('opening', 'exit')
 REVEAL_RULE = ('Room entry, progressive reveal: give the obvious layer first (reveal.obvious, who is here, the '
-               'ways on: reveal.exits), in a few lines. Hold the rest (reveal.hold) for when the player looks; it '
-               'is visible, not secret, and becomes the answer to where they look. If the player gave no directed '
+               'ways on: reveal.exits), in a few lines. Hold the rest (reveal.hold, by id: you are not shown it yet) '
+               'for when the player looks; it is visible, not secret, and becomes the answer to where they look; '
+               'reveal.pointed is what the player’s own words already point at. If the player gave no directed '
                'action, end with Kit handing the floor back in her own words, a short question (example only, '
                'not a line to use: asking where they look). If their entry directs an action (they go in and do '
                'something), honor it: decision.reveal_entry {"mode": "directed", "relevant": [held fact ids the '
@@ -81,7 +82,39 @@ def layers(source, state):
     return out
 
 
-def view(source, state, kind, table_talk=False, held=False):
+def pointed(source, hold_ids, action):
+    """The held facts the player's own words point at (the fact's id, or one of its own cue words)."""
+    if not action:
+        return []
+    said = _cues(action) | set(re.findall(r'[a-z]+', action.casefold()))
+    facts = source.get('facts') or {}
+    return [key for key in hold_ids
+            if key.casefold() in said or (_cues((facts.get(key) or {}).get('text') or '') & said)]
+
+
+def withhold(value, texts):
+    """``value`` with every string that carries one of ``texts`` dropped (in lists) or blanked:
+    the held layer's text is not in Kit's packet, so she cannot paraphrase it (#101 review)."""
+    if not texts:
+        return value
+    if isinstance(value, dict):
+        return {k: withhold(v, texts) for k, v in value.items()}
+    if isinstance(value, list):
+        return [withhold(v, texts) for v in value if not (isinstance(v, str) and any(t in v for t in texts))]
+    if isinstance(value, str) and any(t in value for t in texts):
+        for t in texts:
+            value = value.replace(t, '[held]')
+    return value
+
+
+def held_texts(source, reveal):
+    """The held facts' texts Kit must not see this turn: all but the ones the player pointed at."""
+    facts = (source or {}).get('facts') or {}
+    return [facts[k]['text'] for k in (reveal or {}).get('hold_ids') or ()
+            if k in facts and k not in ((reveal or {}).get('pointed') or {})]
+
+
+def view(source, state, kind, table_talk=False, held=False, action=None):
     """The reveal block for this turn's packet, or None. Only on the first look into an area
     (room entry), never at an approach, during a fight, or while a held description is owed."""
     from . import kit_rooms
@@ -96,12 +129,16 @@ def view(source, state, kind, table_talk=False, held=False):
         return None
     facts = source['facts']
     area = state.get('area')
+    near = pointed(source, split['detail'], action)
     exits = [str(((edge or {}).get('labels') or {}).get(area) or edge.get('name') or key)
              for key, edge in (source.get('exits') or {}).items()
              if isinstance(edge, dict) and area in (edge.get('areas') or ()) and not edge.get('secret')]
     return {'rule': REVEAL_RULE, 'area': state.get('area'), 'exits': exits,
             'obvious': [facts[k]['text'] for k in split['obvious']],
-            'hold': [_gist(facts[k]['text']) for k in split['detail']],
+            # Held facts by id only: their text is withheld from Kit's packet (no gist to paraphrase),
+            # except the ones the player's own words point at, which she is given to answer.
+            'hold': [k for k in split['detail'] if k not in near],
+            'pointed': {k: facts[k]['text'] for k in near},
             'hold_ids': split['detail']}
 
 

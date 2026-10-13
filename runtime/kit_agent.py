@@ -738,10 +738,16 @@ class RoomAdjudicator:
                 not any(e.get('type') == 'combat_state' for e in result.events):
             # Kit read a new act during the flourish: the flourish is passed and the round runs on after it.
             fight = self._fight(action, revision, state)
+            if any(e.get('type') == 'move' for e in result.events) and fight.fight:
+                # He left the area with the new act (d1c): nobody is in his reach any more.
+                fight.break_contact('he left the area')
             public, events = fight.pass_flourish()
             kind = INTERSTITIAL_KIND if (fight.fight or {}).get('awaiting') else result.kind
+            # The round he leaves behind resolves where it happened: its events land before his move.
+            moves = [e for e in result.events if e.get('type') == 'move']
+            rest = [e for e in result.events if e.get('type') != 'move']
             result = dataclasses.replace(result, kind=kind, public_event=f'{result.public_event} {public}'.strip(),
-                                         events=list(result.events) + events)
+                                         events=rest + list(events) + moves)
         if (self.source or {}).get('tolls'):
             extra = self._toll_unstuck(result, state)
             if extra:
@@ -3757,12 +3763,12 @@ def prepare_inputs(runtime, revision, state, action, resolution, use_memory, one
         body['story_due'] = due
         body['story_area'] = post_event_state['area']
     reveal = kit_reveal.view(source, post_event_state, resolution.kind, table_talk,
-                             held=bool(body.get('held_description')) or bool(due))
+                             held=bool(body.get('held_description')) or bool(due), action=action)
     if reveal:
         # Private: room entry gives the obvious layer first, then hands the floor back (PR-H).
         # A due hook takes the entry instead: its NPC holds the floor (the challenge is the decision).
         body['progressive_reveal'] = reveal
-        planning_input['reveal'] = {key: reveal[key] for key in ('rule', 'obvious', 'hold')}
+        planning_input['reveal'] = {key: reveal[key] for key in ('rule', 'obvious', 'hold', 'pointed')}
     table = card_procedure(source, post_event_state)
     if table and not str(resolution.kind).startswith('card_') and resolution.kind != 'opening':
         planning_input['activities'] = {table[0]: BACKGROUNDED}
@@ -4965,6 +4971,9 @@ class KitChatBridge:
                       'instructions': PRIVATE_INSTRUCTIONS, 'schema': PLAN_SCHEMA,
                       'performance_limits': performance_limits(), 'host_retry': HOST_RETRY_NOTE,
                       'input': planning_input}
+        withheld = kit_reveal.held_texts(self.runtime.source(), body.get('progressive_reveal'))
+        if withheld:
+            packet['input'] = kit_reveal.withhold(packet['input'], withheld)
         manifest = {}
         if one_pass and self.manifests:
             packet, manifest = self._layer(turn_id, packet)

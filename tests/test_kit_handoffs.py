@@ -60,7 +60,7 @@ class Reveal(unittest.TestCase):
         _, _, packet = self.opening()
         reveal = packet['input']['private']['reveal']
         self.assertEqual(reveal['obvious'], [carcass()['facts']['carcass']['text']])
-        self.assertEqual(reveal['hold'], ['Pillars carved with coiling serpents hold...'])
+        self.assertEqual(reveal['hold'], ['pillars'], 'held by id: its text is withheld from Kit (#101 review)')
         self.assertTrue(any('obvious layer' in line for line in packet['first_try']))
 
     def test_the_entry_ends_with_kit_handing_the_floor_back(self):

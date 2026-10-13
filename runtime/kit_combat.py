@@ -389,11 +389,14 @@ def parse(action, source, state):
     in_fight = bool((state.get('combat') or {}).get('status') in ('awaiting_initiative', 'running'))
     if in_fight and OWN_SHIELD.search(text):
         return {'kind': 'own_shield', 'target': None, 'avrae': bool(re.search(r'!cast|casts shield!', text))}
+    away = WITHDRAW.search(text) if in_fight else None
     if spell:
         name = spell.group(1)
         area = name in SPELL_SAVE and SPELL_SAVE[name][2]
         return {'kind': 'attack', 'spell': name, 'weapon': name, 'area': bool(area),
-                'target': None if area else (named or _default_target(text, source, state, here))}
+                'target': None if area else (named or _default_target(text, source, state, here)),
+                **({'move_first': {'disengage': bool(re.search(r'\bdisengag', text))}}
+                   if away and away.start() < spell.start() else {})}
     actor_names = tuple(name for key in (state.get('actors') or {}) for name in _names(source, key))
     attack = first_aimed_attack(text, actor_names)
     weapon = re.search(r'\b(' + WEAPONS + r')\b', text)
@@ -1282,6 +1285,10 @@ class Fight:
             self._resolve(act)
         except Checkpoint:
             pass
+        try:
+            self.declared_turn()  # an act held for his turn runs once it comes (and nothing waits)
+        except Checkpoint:
+            pass
         self.finish()
         return self.public(), self.events()
 
@@ -1322,6 +1329,14 @@ class Fight:
             self.fight['awaiting'] = None
             if self.fight['status'] == 'running':
                 self.advance_past_pc()
+                if kind and not self.pc_turn_now():
+                    # His action this turn was the kill: the new act is never dropped (#101 review
+                    # P1-3, D1). It waits for his next turn, and he is told so.
+                    self.fight['declared_next'] = self.action
+                    self.trace.append(f'new act with the flourish, held for his turn: {self.action[:120]}')
+                    self.lines.append('You have already acted this turn; that waits for your next turn.')
+                    self.run_npcs()
+                    return
         if kind == 'attack' and not self.hostiles() and not (self.fight and self.fight.get('status') != 'over'):
             # Nobody here to fight (a lurker not yet shown is not a target): no fight starts, and
             # the rest of the message (a feature disturbed) resolves on its own.
@@ -1338,6 +1353,9 @@ class Fight:
             if self.fight['status'] == 'awaiting_initiative' and self.fight['opener_spent']:
                 self.lines.append('Your first blow is already struck; roll initiative before the next one.')
             else:
+                if act.get('move_first') and self.pc_turn_now():
+                    # 'I back away 30 feet and cast Fire Bolt': the move, then the attack (D5).
+                    self.pc_move_away(act['move_first'])
                 acted = self.pc_attack(act)
                 self.needs_roll = not acted and init is None
                 if self.fight['status'] == 'awaiting_initiative' and acted:
@@ -1733,7 +1751,7 @@ class Fight:
     def declared_turn(self):
         """What the player declared with a save ('..., then I cast magic missile') is his act when
         his turn comes and nothing else waits."""
-        rest = self.fight.get('declared_next')
+        rest = (self.fight or {}).get('declared_next')
         if not rest or self.fight['status'] != 'running' or self.fight.get('pc_down') or \
                 self.fight.get('awaiting') or not self.pc_turn_now():
             return
@@ -2262,6 +2280,11 @@ class Fight:
 
     # -- output ---------------------------------------------------------------------
     def finish(self):
+        if self.fight and self.fight['status'] != 'running' and self.fight.get('declared_next'):
+            # The fight ended before his held act came up: say so rather than drop it silently.
+            held = self.fight.pop('declared_next')
+            self.trace.append(f'held act moot, the fight is over: {held[:120]}')
+            self.lines.append('The fight is over before your held act comes up, so it does not happen.')
         if self.fight and self.fight['status'] == 'running':
             order = self.fight['order']
             if order and self.pc_turn_now() and not self.fight.get('awaiting'):
