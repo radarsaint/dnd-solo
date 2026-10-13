@@ -2,16 +2,16 @@
   "schema": "kit_project_gardener_state/v1",
   "purpose": "RESUMABILITY_CURSOR_NOT_KNOWLEDGE_STORE",
   "canonical_location": "radarsaint/dnd-solo/coordination/context_state.json",
-  "state_revision": 13,
+  "state_revision": 14,
   "semantic_brain": {
     "repo": "radarsaint/dnd-solo",
     "path": "docs/PROJECT_UNDERSTANDING.md",
-    "last_semantic_commit": "7e4c75e8445338ff051cebd1b2175bfacf15e413",
+    "last_semantic_commit": "43c164d3bb9d595f81b7a6de40e4a1c71c429d85",
     "last_reviewed_on": "2026-10-13"
   },
   "checkpoint": {
     "reviewed_against_main": {
-      "radarsaint/dnd-solo": "87a8d5eab25211da4e13f8897a1ef5e6b99e334c",
+      "radarsaint/dnd-solo": "310601d35d8ad7edf066f856d04d5cc0eecd558a",
       "radarsaint/bfdm-corpus": "6795362e967e89230086afc28c04450cc7d0cce4"
     },
     "context_inbox": {
@@ -19,24 +19,22 @@
       "issue": 115,
       "issue_state_at_checkpoint": "open",
       "last_fully_reconciled_comment_id": 6153931678,
-      "comment_count_at_checkpoint": 5
+      "comment_count_at_checkpoint": 6
     }
   },
   "last_completed_pass": {
     "kind": "BOUNDED_SEMANTIC_RECONCILIATION",
     "completed_on": "2026-10-13",
-    "scope": "Reviewed live mains dnd-solo 87a8d5eab25211da4e13f8897a1ef5e6b99e334c and bfdm-corpus 6795362e967e89230086afc28c04450cc7d0cce4. Issue #115 comment 6153931678 (PR #97 pending review at 304ef625c3c3236c51afb2b580e42d12df894aac, not merged; supersedes earlier head ba201902).",
-    "result": "Rejected: do not update the Project Brain with unmerged proposals. PR #97 remains pending review; its structured handles offer, state-change rule, and clause-level negation are not on main. The Brain already records #97 as an open runtime blocker class. No correction required. Unresolved: G5 and G6.",
-    "resulting_brain_commit": "7e4c75e8445338ff051cebd1b2175bfacf15e413",
-    "reconciled_comment_id": 6153931678
+    "scope": "Reviewed live mains and reconciled #115 comment 6153906547 (approved cleanup). Concurrent pass advanced cursor past it.",
+    "result": "Accepted: no in-repo corpus on main after #114. #121 salvage historical. Closed PRs not active. Paid play pending with Skippy. Brain commit 43c164d. G5 and G6 stay open.",
+    "resulting_brain_commit": "43c164d3bb9d595f81b7a6de40e4a1c71c429d85",
+    "reconciled_comment_id": 6153906547
   },
   "active_pass": null,
   "unresolved": [
-    "Issue #118 G5 is unmet: the cold-start transcript did not state the three unsynchronized merge-triggered runs, surviving brain 86e4adef, or checkpoint-only writes such as 4228be7c. Do not open a synthetic delta only to retry it.",
-    "A status-checker warning is not completion and does not accept a semantic delta.",
+    "Issue #118 G5 is unmet.",
     "ChatGPT Project source membership remains a manual Project-UI change. G6 stays open.",
-    "Do not keep editing merged coordination branches docs/coordination-refresh-2026-10-07, tooling/project-context-status-116, docs/cross-repo-coordination-2026-10-07, or tooling/checkpoint-only-sha-not-undecided.",
-    "Do not check issue #118 G5 or G6 from this pass."
+    "Legacy paid play route removal is pending with Skippy."
   ],
   "needs_review": [],
   "checkpoint_rules": {
