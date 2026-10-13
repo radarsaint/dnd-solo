@@ -51,7 +51,7 @@ A ZIP attached to a ChatGPT Project, GPT Knowledge, conversation, Drive, or Libr
 
 ## Historical Brendon corpus
 
-The canonical research/archive repository is `radarsaint/bfdm-corpus`. The in-repo `corpus/` material is a historical/runtime mirror and is **not** current corpus truth. For current personality/judgment research, inspect `bfdm-corpus` `main`, start with its `PROJECT_CONTROL.md` and `research/NEXT_HANDOFF.md`, and name any active draft PR you rely on. Derived research is interpretation and must not be hardened into runtime behavior merely because it is polished or cited.
+The canonical research/archive repository is `radarsaint/bfdm-corpus`. The old in-repo mirror has been removed on this branch. Do not recreate it, and do not look for `corpus/bfdm` or `corpus/brendon` here. For current personality/judgment research, inspect `bfdm-corpus` `main`, start with its `PROJECT_CONTROL.md` and `research/NEXT_HANDOFF.md`, and name any active draft PR you rely on. Derived research is interpretation and must not be hardened into runtime behavior merely because it is polished or cited.
 
 ## Where to learn the job
 
