@@ -2,7 +2,7 @@
   "schema": "kit_project_gardener_state/v1",
   "purpose": "RESUMABILITY_CURSOR_NOT_KNOWLEDGE_STORE",
   "canonical_location": "radarsaint/dnd-solo/coordination/context_state.json",
-  "state_revision": 11,
+  "state_revision": 12,
   "semantic_brain": {
     "repo": "radarsaint/dnd-solo",
     "path": "docs/PROJECT_UNDERSTANDING.md",
@@ -11,24 +11,24 @@
   },
   "checkpoint": {
     "reviewed_against_main": {
-      "radarsaint/dnd-solo": "a62bc0c70ead981f5175c632c71867d2fb2d91c4",
+      "radarsaint/dnd-solo": "b343c3eaa84377892f8feaf8f3a9d076d6e383d2",
       "radarsaint/bfdm-corpus": "6795362e967e89230086afc28c04450cc7d0cce4"
     },
     "context_inbox": {
       "repo": "radarsaint/dnd-solo",
       "issue": 115,
       "issue_state_at_checkpoint": "open",
-      "last_fully_reconciled_comment_id": 6065921827,
-      "comment_count_at_checkpoint": 3
+      "last_fully_reconciled_comment_id": 6153835037,
+      "comment_count_at_checkpoint": 4
     }
   },
   "last_completed_pass": {
     "kind": "BOUNDED_SEMANTIC_RECONCILIATION",
     "completed_on": "2026-10-13",
-    "scope": "Reviewed dnd-solo commits after 7e4c75e8445338ff051cebd1b2175bfacf15e413 through a62bc0c70ead981f5175c632c71867d2fb2d91c4 (#121 merge). bfdm-corpus main unchanged at 6795362e967e89230086afc28c04450cc7d0cce4. No issue #115 comment id greater than 6065921827.",
-    "result": "Accepted, narrow: #121 merge a62bc0c70ead981f5175c632c71867d2fb2d91c4 adds historical design notes (decision-speed.md, creative-social-requirements-audit.md), Roanoke Discord exporter scripts and docs, .gitignore entry for .private/, and 2026-09-28 approach-range playtest records. No changes to runtime behavior, PROJECT_UNDERSTANDING.md, PROJECT_CONTROL.md, corpus/, or semantic model. No brain correction required. Rejected: treating this as a semantic advance of the Project Brain or as closing G5/G6. Unresolved: G5 and G6.",
+    "scope": "Reviewed live mains dnd-solo b343c3eaa84377892f8feaf8f3a9d076d6e383d2 and bfdm-corpus 6795362e967e89230086afc28c04450cc7d0cce4. Issue #115 comment 6153835037 (PR #97 pending review at ba201902b2f9ca7bf9206bf828c0aa6271d2bfb2, not merged).",
+    "result": "Rejected: do not update the Project Brain with unmerged proposals. PR #97 remains pending review; its structured handles model, actor-wins-ties, house-rule save ties, player-rolled death saves, and hidden-info rules are not on main. The Brain already records #97 as an open runtime blocker class. No correction required. Unresolved: G5 and G6.",
     "resulting_brain_commit": "7e4c75e8445338ff051cebd1b2175bfacf15e413",
-    "reconciled_comment_id": 6065921827
+    "reconciled_comment_id": 6153835037
   },
   "active_pass": null,
   "unresolved": [
