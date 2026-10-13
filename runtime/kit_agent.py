@@ -4011,46 +4011,48 @@ def declare(runtime, adjudicator, body, plan):
                          'kind': result.kind, 'handoff': result.handoff}}
 
 
-# A watched feature shifting, giving or coming open (#97 review P1-B'); a sentence that says it
-# does not ("it will not budge") is no movement.
-FEATURE_MOVES = re.compile(r"\b(?:shift|shifts|shifted|slide|slides|slid|grind|grinds|ground|scrape|scrapes|scraped|"
-                           r"give|gives|gave|budge|budges|budged|move|moves|moved|open|opens|opened|swing|swings|"
-                           r"swung|lift|lifts|lifted|rise|rises|rose|tilt|tilts|tilted|creak|creaks|creaked|"
-                           r"groan|groans|groaned|crack|cracks|cracked|aside|ajar|loose|loosens|loosened|grate|grates|"
-                           r"rasp|rasps|rasped|yield|yields|yielded|topple|topples|toppled|tip|tips|tipped)\b")
-NOT_MOVING = re.compile(r"\b(?:not|never|no|nothing|won't|wont|doesn't|does not|refuses?|fails?|holds? fast|"
-                        r"stays? put|unmoved|stuck)\b|n't\b")
+# B'': nothing changes state without a firing declaration. Movement or state change is a
+# verb family (stems, any person or tense), checked per clause, whatever its noun.
+_MOVE_STEMS = (r"shift|slid|slide|grind|ground|scrap|give|gave|budg|mov|open|lift|rais|rise|rose|tip|tilt|"
+               r"swing|swung|crack|creak|groan|grat|rasp|yield|toppl|loosen|gap|split|sag|buckl|lurch|swiv")
+FEATURE_MOVES = re.compile(r"\b(?:" + _MOVE_STEMS + r")\w*\b|\b(?:aside|ajar|apart|loose|free|away)\b")
+NOT_MOVING = re.compile(r"\b(?:not|never|no|nothing|none|won't|wont|cannot|can't|refuses?|fails?|"
+                        r"holds? fast|stays? put|unmoved|stuck|still)\b|n't\b")
+# Clause breaks: punctuation and the conjunctions that start a new claim.
+CLAUSE = re.compile(r"[.!?;:,\n]+|\s+(?:but|and|yet|while|then|though|although|until|as)\s+|\s+-+\s+")
 
 
 def unmoved_words(source, state, body, acts):
-    """The offered features' words when Kit answered handles none on a turn that offered it:
-    the performance may not show them moving (check_unmoved). [] otherwise."""
-    offer = ((body or {}).get('acts') or {}).get('handles')
-    if not offer or (acts or {}).get('handles'):
+    """On a turn beside a watched, found feature where Kit's declaration fired nothing (a
+    none, no offer at all, or an omitted answer): the features' words, and check_unmoved
+    runs over the performance. [] otherwise."""
+    if (acts or {}).get('handles'):
         return []
     targets = kit_triggers.disturb_targets(source or {}, state)
+    if not targets:
+        return []
     words = {'it'}
-    for feature in offer.get('targets') or {}:
+    for feature, info in targets.items():
         words.add(feature.casefold())
-        words.update((targets.get(feature) or {}).get('words') or ())
+        words.update(info.get('words') or ())
     return sorted(words)
 
 
 def check_unmoved(spoken, words):
-    """HARD (#97 review P1-B'): with handles none, no sentence shows an offered feature (or
-    "it") moving or opening, unless it says it does not. Stone scraping with no thing named is
-    a move too when the player's hands were on it."""
+    """HARD (#97 review B''): with no firing declaration, no clause of the performance shows
+    anything moving or changing state, whatever its noun or person ("you feel the stone give"),
+    unless that same clause says it does not ("it will not budge"). One negation excuses only
+    its own clause."""
     if not words:
         return
-    for sentence in re.split(r'(?<=[.!?])\s+|\n', (spoken or '').casefold()):
-        sentence = re.sub(r'^[a-z ]+:\s*', '', sentence)
-        if not FEATURE_MOVES.search(sentence) or NOT_MOVING.search(sentence):
-            continue
-        named = any(re.search(r'\b' + re.escape(w) + r's?\b', sentence) for w in words)
-        if named or not re.search(r'\b(?:you|your)\b', sentence):
-            raise InvalidChange('handles is none, but the performance shows a listed thing moving or opening. '
-                                'If his hands move it, declare handles {target, act}; if not, say why it '
-                                'does not move (handles.reason) and narrate that.')
+    for line in (spoken or '').casefold().splitlines():
+        line = re.sub(r'^[a-z][a-z \'-]{0,40}:\s*', '', line)
+        for clause in CLAUSE.split(line):
+            if FEATURE_MOVES.search(clause) and not NOT_MOVING.search(clause):
+                raise InvalidChange('Nothing here moved: no declaration fired, but the performance shows '
+                                    'something moving or opening ("' + clause.strip()[:60] + '"). If his hands '
+                                    'move it, declare handles {target, act}; if not, narrate handles.reason '
+                                    '(it will not budge, it is too heavy, he stops short).')
 
 
 _HIDDEN_STOP = frozenset('''a an the of and or to in on at by for from with into onto out over under up down off
