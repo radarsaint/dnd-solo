@@ -231,11 +231,14 @@ def check(plan, body):
     asked = bool((plan or {}).get('ask_player'))
     out = {}
     for field, checker in FIELDS.items():
-        if offers.get(field) and not asked and field not in OPTIONAL_FIELDS:
+        if offers.get(field) and not asked and (field not in OPTIONAL_FIELDS or offers[field].get('required')):
             require(field in (plan or {}),
                     f'acts.{field} is offered this turn: answer it'
                     + (' ({target, act}, or {"target": "none", "act": "none", "reason": ...} when his hands go on nothing '
-                       'listed).' if field == 'handles' else ' ({"act": "attack"} or {"act": "turn_away"}).'))
+                       'listed).' if field == 'handles' else
+                       ': the engine did not read this message, so declare every act in it (an object or '
+                       'environment act as kind object).' if field == 'combat_acts' else
+                       ' ({"act": "attack"} or {"act": "turn_away"}).'))
         value = declared(plan, field)
         if value is None:
             if field == 'handles' and offers.get(field) and not asked and \

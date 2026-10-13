@@ -77,8 +77,8 @@ ord#26 [rb] "I'll use my reaction for Uncanny Dodge, then stab the ogre, 16 to h
    -> Uncanny Dodge: you take half, 6 instead of 13. Your rapier hits the bridge ogre. The bridge ogre is hurt. The bridge ogre breaks away, leaving your reach.
    clauses=['resolved', 'resolved'] hp={'ogre': 54} pc_damage=6
 ord#27 [rb] 'I stab the ogre, 16 to hit, 5 piercing, then use Cunning Action to disengage and back off 10 feet.'
-   -> Your rapier hits the bridge ogre. The bridge ogre is hurt. The disengage didn't happen because you have already used your action this turn. The bridge ogre lashes out as you go: 13 bludgeoning damage. You fall back out of reach. The ogre lumbers off the far end. Nobody is left in the room to fight you.
-   clauses=['resolved', 'refused', 'resolved'] hp={'ogre': 54} pc_damage=26
+   -> Your rapier hits the bridge ogre. The bridge ogre is hurt. You fall back out of reach. You move off. The ogre lumbers off the far end. Nobody is left in the room to fight you.
+   clauses=['resolved', 'resolved', 'resolved'] hp={'ogre': 54} pc_damage=13
 ord#28 [rb] 'With a snarl I drive my rapier at the ogre, 16 to hit, 5 piercing.'
    -> Your rapier hits the bridge ogre. The bridge ogre is hurt. The bridge ogre breaks away, leaving your reach.
    clauses=['resolved'] hp={'ogre': 54} pc_damage=13
@@ -206,8 +206,8 @@ fz#20 [rb] 'I hide behind the post.'
 fz#21 [rb] 'I use Cunning Action to hide.'
    -> ASK Hiding is a Stealth check: roll it in Avrae (!check stealth) and tell me the total. Your turn. No turn was committed.
 fz#22 [rb] 'I ready an attack for when the ogre comes close.'
-   -> "Ready an attack for when the ogre comes close" didn't happen because that's my call, not the fight's: tell me how you go about it and I'll rule on it. Your turn.
-   clauses=['refused'] hp={'ogre': 59} pc_damage=13
+   -> RULING "ready an attack for when the ogre comes close" needs the DM's call. Say how you go about it, or try it another way; nothing else in that message has happened y
+   clauses=['ruling']
 fz#23 [rb] 'I drink a healing potion.'
    -> ASK Roll the healing in Avrae and say how much (e.g. "potion of healing: 7"). No turn was committed.
 fz#24 [rb] 'I stab the ogre, 16 to hit, 5 piercing, and it staggers back.'
@@ -236,8 +236,8 @@ fz#32 [wl] 'I blast the imp, 17 to hit, 6 force; then blast it again, 15 to hit,
    -> Your Eldritch Blast hits the ember imp. The ember imp is hurt. The Eldritch Blast at the ember imp didn't happen because you have already used your action this turn. The ember imp hits you: 7 fire damage. The kobold slinger hits you: 4 bludgeoning damage. Your turn.
    clauses=['resolved', 'refused'] hp={'archer': 7, 'imp': 12} pc_damage=22
 fz#33 [wl] 'I kick the kiln door at the imp.'
-   -> "Kick the kiln door at the imp" didn't happen because that's my call, not the fight's: tell me how you go about it and I'll rule on it. Your turn.
-   clauses=['refused'] hp={'archer': 7, 'imp': 18} pc_damage=11
+   -> RULING "kick the kiln door at the imp" needs the DM's call. Say how you go about it, or try it another way; nothing else in that message has happened yet.
+   clauses=['ruling']
 fz#34 [wl] 'I stab the slinger with my dagger, 16 to hit, 3 piercing, then bonus action off-hand dagger at it, 14 to hit, 2 piercing.'
    -> Your dagger hits the kobold slinger. The kobold slinger is hurt. Your dagger hits the kobold slinger. The kobold slinger is badly hurt. The ember imp hits you: 7 fire damage. The kobold slinger hits you: 4 bludgeoning damage. Your turn.
    clauses=['resolved', 'resolved'] hp={'archer': 2, 'imp': 18} pc_damage=22
@@ -379,14 +379,14 @@ rv5d#24 [rb] 'Uncanny Dodge, then I back off 10 feet and throw a dagger at the b
 rv5d#25 [rb] 'I hold my breath, grip the rope, and look down.'
    -> no combat_acts (Kit answers or narrates)
 rv5d#26 [rb] 'I hold the line.'
-   -> "Hold the line" didn't happen because that's my call, not the fight's: tell me how you go about it and I'll rule on it. Your turn.
-   clauses=['refused'] hp={'ogre': 59} pc_damage=13
+   -> RULING "hold the line" needs the DM's call. Say how you go about it, or try it another way; nothing else in that message has happened yet.
+   clauses=['ruling']
 rv5d#27 [rb] 'I push past the pain and stab the bridge ogre with my rapier, 16 to hit, 5 piercing.'
    -> Your rapier hits the bridge ogre. The bridge ogre is hurt. The bridge ogre breaks away, leaving your reach.
    clauses=['resolved'] hp={'ogre': 54} pc_damage=13
 rv5d#28 [rb] 'I hold my rapier out, point first, and wait for it.'
-   -> "Hold my rapier out, point first, and wait for it" didn't happen because that's my call, not the fight's: tell me how you go about it and I'll rule on it. Your turn.
-   clauses=['refused'] hp={'ogre': 59} pc_damage=13
+   -> RULING "hold my rapier out, point first, and wait for it" needs the DM's call. Say how you go about it, or try it another way; nothing else in that message has happene
+   clauses=['ruling']
 rv5d#29 [rb] 'I stab the ogre, 16 to hit, 5 piercing, then Uncanny Dodge, then grin, then back off 5 feet.'
    -> Your rapier hits the bridge ogre. The bridge ogre is hurt. Uncanny Dodge: you take half, 6 instead of 13. The bridge ogre lashes out as you go: 13 bludgeoning damage. You fall back out of reach. The ogre lumbers off the far end. Nobody is left in the room to fight you.
    clauses=['resolved', 'resolved', 'resolved'] hp={'ogre': 54} pc_damage=19
@@ -407,8 +407,8 @@ rv5d#34 [rb] "What's the DC to cut the ropes?"
 rv5d#35 [rb] 'I study the ogre, looking for a weak spot.'
    -> no combat_acts (Kit answers or narrates)
 rv5d#36 [rb] 'I cut the bridge rope behind the ogre.'
-   -> "Cut the bridge rope behind the ogre" didn't happen because that's my call, not the fight's: tell me how you go about it and I'll rule on it. Your turn.
-   clauses=['refused'] hp={'ogre': 59} pc_damage=13
+   -> RULING "cut the bridge rope behind the ogre" needs the DM's call. Say how you go about it, or try it another way; nothing else in that message has happened yet.
+   clauses=['ruling']
 rv5d#37 [wl] 'I hold my pact blade steady, and Hellish Rebuke the imp (Avrae: !cast hellish rebuke -t imp -l 1), 10 fire.'
    -> Hellish Rebuke: 10 fire damage to the ember imp. The ember imp is badly hurt. Your turn.
    clauses=['resolved'] hp={'archer': 7, 'imp': 8} pc_damage=11
@@ -419,11 +419,11 @@ rv5d#39 [wl] 'I stab the kobold slinger with my dagger, 16 to hit, 3 piercing.\n
    -> Your dagger hits the kobold slinger. The kobold slinger is hurt. Hellish Rebuke: 8 fire damage to the kobold slinger. The kobold slinger goes down and does not get up. The ember imp hits you: 7 fire damage. Your turn.
    clauses=['resolved', 'resolved'] hp={'archer': 0, 'imp': 18} pc_damage=18
 rv5d#40 [wl] 'I push the kiln door shut, then stab the kobold slinger with my dagger, 16 to hit, 3 piercing.'
-   -> "Push the kiln door shut" didn't happen because that's my call, not the fight's: tell me how you go about it and I'll rule on it. Your dagger hits the kobold slinger. The kobold slinger is hurt. The ember imp hits you: 7 fire damage. The kobold slinger hits you: 4 bludgeoning damage. Your turn.
-   clauses=['refused', 'resolved'] hp={'archer': 4, 'imp': 18} pc_damage=22
+   -> RULING "push the kiln door shut" needs the DM's call. Say how you go about it, or try it another way; nothing else in that message has happened yet.
+   clauses=['ruling', 'waits']
 rv5d#41 [wl] 'I push the door.'
-   -> "Push the door" didn't happen because that's my call, not the fight's: tell me how you go about it and I'll rule on it. Your turn.
-   clauses=['refused'] hp={'archer': 7, 'imp': 18} pc_damage=11
+   -> RULING "push the door" needs the DM's call. Say how you go about it, or try it another way; nothing else in that message has happened yet.
+   clauses=['ruling']
 rv5d#42 [wl] 'I shove the ember imp into the kiln.'
    -> The shove at the ember imp didn't happen because shoving is the DM's call for now: say how you go about it. Your turn.
    clauses=['refused'] hp={'archer': 7, 'imp': 18} pc_damage=11
@@ -445,11 +445,11 @@ rv5d#47 [wl] 'Hellish Rebuke the slinger (Avrae: !cast hellish rebuke -t slinger
 rv5d#48 [wl] "I wait, watching the imp's flames, then grin."
    -> no combat_acts (Kit answers or narrates)
 rv5d#49 [wl] 'I take the bellows, hold them up, and pump them at the imp.'
-   -> "Take the bellows, hold them up, and pump them at the imp" didn't happen because that's my call, not the fight's: tell me how you go about it and I'll rule on it. Your turn.
-   clauses=['refused'] hp={'archer': 7, 'imp': 18} pc_damage=11
+   -> RULING "take the bellows, hold them up, and pump them at the imp" needs the DM's call. Say how you go about it, or try it another way; nothing else in that message has
+   clauses=['ruling']
 rv5d#50 [wl] 'I hold my ground.'
-   -> "Hold my ground" didn't happen because that's my call, not the fight's: tell me how you go about it and I'll rule on it. Your turn.
-   clauses=['refused'] hp={'archer': 7, 'imp': 18} pc_damage=11
+   -> RULING "hold my ground" needs the DM's call. Say how you go about it, or try it another way; nothing else in that message has happened yet.
+   clauses=['ruling']
 rv5d#51 [wz] 'Shield.'
    -> The Shield didn't happen because it is not on your sheet. Your turn.
    clauses=['refused'] hp={'archer': 7, 'imp': 18} pc_damage=11
@@ -472,13 +472,13 @@ rv5d#57 [wz] 'I hold my staff high, mutter, and Fire Bolt the imp, 17 to hit, 7 
    -> Your Fire Bolt hits the ember imp. The ember imp is hurt. The ember imp hits you: 7 fire damage. The kobold slinger hits you: 4 bludgeoning damage. Your turn.
    clauses=['resolved'] hp={'archer': 7, 'imp': 11} pc_damage=22
 rv5d#58 [wz] 'I push the shelf over onto the slinger.'
-   -> "Push the shelf over onto the slinger" didn't happen because that's my call, not the fight's: tell me how you go about it and I'll rule on it. Your turn.
-   clauses=['refused'] hp={'archer': 7, 'imp': 18} pc_damage=11
+   -> RULING "push the shelf over onto the slinger" needs the DM's call. Say how you go about it, or try it another way; nothing else in that message has happened yet.
+   clauses=['ruling']
 rv5d#59 [wz] 'I grab the kobold slinger.'
    -> ASK Grabbing the kobold slinger is a contest: roll Athletics in Avrae (!check athletics) and tell me the total. Your turn. No turn was committed.
 rv5d#60 [wz] "I grip the slinger's sling and yank it away."
-   -> "Grip the slinger's sling and yank it away" didn't happen because that's my call, not the fight's: tell me how you go about it and I'll rule on it. Your turn.
-   clauses=['refused'] hp={'archer': 7, 'imp': 18} pc_damage=11
+   -> RULING "grip the slinger's sling and yank it away" needs the DM's call. Say how you go about it, or try it another way; nothing else in that message has happened yet.
+   clauses=['ruling']
 rv5d#61 [wz] 'I step up to the imp and stab it with my dagger, 15 to hit, 3 piercing.'
    -> You close on the ember imp. Your dagger hits the ember imp. The ember imp is hurt. The ember imp hits you: 7 fire damage. The kobold slinger hits you: 4 bludgeoning damage. Your turn.
    clauses=['resolved', 'resolved'] hp={'archer': 7, 'imp': 15} pc_damage=22
@@ -551,8 +551,8 @@ rv92#22 [rb] 'I back off 10 feet, then I back off another 10 feet.'
    -> The bridge ogre lashes out as you go: 13 bludgeoning damage. You fall back out of reach. You move off. The bridge ogre hits you: 13 bludgeoning damage. Your turn.
    clauses=['resolved', 'resolved'] hp={'ogre': 59} pc_damage=39
 rv92#23 [rb] 'I hold my ground, sword up, and wait.'
-   -> "Hold my ground, sword up, and wait" didn't happen because that's my call, not the fight's: tell me how you go about it and I'll rule on it. Your turn.
-   clauses=['refused'] hp={'ogre': 59} pc_damage=13
+   -> RULING "hold my ground, sword up, and wait" needs the DM's call. Say how you go about it, or try it another way; nothing else in that message has happened yet.
+   clauses=['ruling']
 rv92#24 [rb] 'I wait, and then I stab the bridge ogre with my rapier, 18 to hit, 7 piercing.'
    -> Your rapier hits the bridge ogre. The bridge ogre is hurt. The bridge ogre breaks away, leaving your reach.
    clauses=['resolved'] hp={'ogre': 52} pc_damage=13
@@ -569,8 +569,8 @@ rv92#28 [rb] 'I take a deep breath, the planks creaking, ropes swaying, and stab
    -> Your rapier hits the bridge ogre. The bridge ogre is hurt. The bridge ogre breaks away, leaving your reach.
    clauses=['resolved'] hp={'ogre': 52} pc_damage=13
 rv92#29 [rb] 'I check the knots and the planks, then back off 10 feet.'
-   -> "Check the knots and the planks" didn't happen because that's my call, not the fight's: tell me how you go about it and I'll rule on it. The bridge ogre lashes out as you go: 13 bludgeoning damage. You fall back out of reach. The bridge ogre hits you: 13 bludgeoning damage. Your turn.
-   clauses=['refused', 'resolved'] hp={'ogre': 59} pc_damage=39
+   -> RULING "check the knots and the planks" needs the DM's call. Say how you go about it, or try it another way; nothing else in that message has happened yet.
+   clauses=['ruling', 'waits']
 rv92#30 [rb] '"Steady, steady," I whisper, and then I wait.'
    -> no combat_acts (Kit answers or narrates)
 rv92#31 [wl] 'I cast Hellish Rebuke on the ember imp (Avrae: !cast hellish rebuke -t imp -l 1), 12 fire, then I stab the kobold slinger with my dagger, 18 to hit, 3 piercing.'

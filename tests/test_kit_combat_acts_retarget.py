@@ -200,15 +200,16 @@ class EveryEntryResolves(unittest.TestCase):
         self.assertIn('"I Shield myself" didn\'t happen because it is not on your sheet', result.public_event)
         self.assertEqual(arena.fight['hp']['ogre'], 52)
 
-    def test_object_and_environment_deeds_are_refused_with_a_record_and_the_attack_lands(self):
+    def test_object_and_environment_deeds_are_rulings_with_a_record_and_nothing_commits(self):
         for says in ('push the kiln door shut', 'push the shelf over onto the slinger', 'cut the bellows strap'):
             arena = kiln(self, warlock(hp=60, gear=['dagger', 'rapier']))
-            result = arena.act('(declared)', combat_acts=[
+            before = copy.deepcopy(arena.fight)
+            exc = arena.held('(declared)', combat_acts=[
                 A('object', 1, says=says),
                 A('attack', 2, target='archer', weapon='dagger', roll='16 to hit, 3 piercing')])
-            self.assertIn(f'"{says[0].upper() + says[1:]}" didn\'t happen because', result.public_event)
-            self.assertEqual(arena.fight['hp']['archer'], 4)
-            self.assertEqual([c[2] for c in clause_log(result)], ['refused', 'resolved'])
+            self.assertIn(f'"{says}" needs the DM\'s call', str(exc))
+            self.assertEqual([c['outcome'] for c in exc.clauses], ['ruling', 'waits'])
+            self.assertEqual(arena.fight, before)
 
     def test_an_off_hand_stab_is_his_bonus_action(self):
         arena = kiln(self, without_shield(wizard(hp=60)))
@@ -282,8 +283,11 @@ class DeclaredFuzz(unittest.TestCase):
                 arena = ud_bridge(self, sheet()) if room == 'bridge' else kiln(self, sheet())
                 try:
                     result = arena.act('(declared)', combat_acts=entries)
-                except Exception as caught:  # an Avrae ask commits nothing and says so
-                    self.assertIn('No turn was committed', str(caught), entries)
+                except Exception as caught:  # an Avrae ask or a ruling commits nothing and says so
+                    if getattr(caught, 'clauses', None):
+                        self.assertEqual(len(caught.clauses), 3, entries)
+                    else:
+                        self.assertIn('No turn was committed', str(caught), entries)
                     checked += 1
                     continue
                 log = clause_log(result)

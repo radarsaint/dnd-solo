@@ -81,14 +81,18 @@ class DeclaredAttacks(unittest.TestCase):
 
 
 class DeclaredOtherActs(unittest.TestCase):
-    def test_an_object_act_is_refused_and_the_attack_still_lands(self):
+    def test_an_object_act_is_kits_ruling_and_nothing_in_the_message_commits(self):
+        # Slice 2: an object or environment act is never a guessed engine act; the whole
+        # message waits on the ruling, every entry recorded.
         sheet = without_shield(wizard(hp=60))
         arena = kiln(self, sheet)
-        result = arena.act('I push the kiln door shut, then stab the slinger.', combat_acts=[
+        before = copy.deepcopy(arena.fight)
+        exc = arena.held('I push the kiln door shut, then stab the slinger.', combat_acts=[
             A('object', 1, says='push the kiln door shut'),
             A('attack', 2, target='archer', weapon='dagger', roll='16 to hit, 3 piercing')])
-        self.assertIn('"Push the kiln door shut" didn\'t happen because', result.public_event)
-        self.assertEqual(arena.fight['hp']['archer'], 4)
+        self.assertIn('"push the kiln door shut" needs the DM\'s call', str(exc))
+        self.assertEqual([c['outcome'] for c in exc.clauses], ['ruling', 'waits'])
+        self.assertEqual(arena.fight, before)
 
     def test_a_grapple_is_contested_and_asks_for_athletics_when_unrolled(self):
         arena = bridge(self)

@@ -1212,6 +1212,7 @@ class Fight:
         whole = self.action
         acted = reacted = moved = bonus = False
         first_weapon = None
+        feet, dashes, speed = 0, 0, self.pc_speed()  # movement against speed (SRD), Dash adds his speed
         self.in_multi = len(steps) > 1  # one clause alone keeps its own lines
         self.fight.pop('pc_dodging', None)  # a Dodge lasts until his next turn starts
         try:
@@ -1230,16 +1231,30 @@ class Fight:
                     because = 'it is not your turn'
                 elif kind == 'refused':
                     because = one['because']
-                elif kind == 'standard':
-                    if acted:
+                elif kind == 'standard' or (kind == 'withdraw' and one.get('standard')):
+                    # SRD: Dash, Disengage and Hide take his action; a rogue's Cunning Action
+                    # (level 2+) takes one as his bonus action instead, once his action is spent.
+                    what = one.get('standard')
+                    cunning = what in ('dash', 'disengage', 'hide') and self.cunning_action() and \
+                        (acted or one.get('bonus'))
+                    if cunning and bonus:
+                        because = 'you have already used your bonus action this turn'
+                    elif acted and not cunning:
                         because = 'you have already used your action this turn'
+                    elif kind == 'withdraw':
+                        because = self.move_budget(one, feet, speed * (1 + dashes))
+                        if because is None:
+                            feet += one.get('distance_ft') or 0
+                            self.pc_move_away(one)
+                            moved = True
+                            bonus, acted = (True, acted) if cunning else (bonus, True)
                     else:
                         because = self.pc_standard(one)
-                        acted = because is None
                         if self.needs_roll:
                             return
-                elif kind == 'withdraw' and one.get('standard') and acted:
-                    because = 'you have already used your action this turn'
+                        if because is None:
+                            bonus, acted = (True, acted) if cunning else (bonus, True)
+                            dashes += what == 'dash'
                 elif kind == 'attack' and one.get('declared_bonus'):
                     if bonus:
                         because = 'you have already used your bonus action this turn'
@@ -1276,10 +1291,14 @@ class Fight:
                         reacted = True
                     else:
                         because = self.refused_because or 'it has nothing to answer'
+                elif kind in ('withdraw', 'approach') and self.move_budget(one, feet, speed * (1 + dashes)):
+                    because = self.move_budget(one, feet, speed * (1 + dashes))
                 elif kind == 'withdraw':
+                    feet += one.get('distance_ft') or 0
                     self.pc_move_away(one)
                     moved = True
                 elif kind == 'approach':
+                    feet += one.get('distance_ft') or 0
                     self.pc_approach(one)
                     moved = True
                 elif kind == 'own_shield':
@@ -2102,6 +2121,30 @@ class Fight:
         self.pc_withdraw('he moves away' + (' (Disengage)' if act.get('disengage') else ''),
                          provoke=not act.get('disengage'))
         self.lines.append('You fall back out of reach.' if foes else 'You move off.')
+
+    def cunning_action(self):
+        """A rogue of level 2+ with Cunning Action on his sheet."""
+        sheet = (self.state or {}).get('player_sheet') or {}
+        features = ' '.join(str(f) for f in sheet.get('features') or ()).casefold()
+        return 'cunning action' in features and int(sheet.get('level') or 0) >= 2
+
+    def pc_speed(self):
+        """His walking speed in feet: the sheet's, else 30 (SRD medium default)."""
+        speed = ((self.state or {}).get('player_sheet') or {}).get('speed')
+        if isinstance(speed, dict):
+            speed = speed.get('walk')
+        found = re.search(r'\d+', str(speed or ''))
+        return int(found.group(0)) if found else 30
+
+    @staticmethod
+    def move_budget(act, used, budget):
+        """Why a declared move of distance_ft does not fit in what is left of his speed, else None."""
+        want = act.get('distance_ft') or 0
+        if want and used + want > budget:
+            left = max(budget - used, 0)
+            return (f'you have only {left} feet of movement left this turn' if left else
+                    'you have no movement left this turn')
+        return None
 
     def pc_standard(self, act):
         """A standard action Kit declared (SRD): Dodge, Dash, Hide, Help. None when it happens,

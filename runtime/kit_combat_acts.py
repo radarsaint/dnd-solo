@@ -156,11 +156,12 @@ def to_act(entries, source, state):
                        'target': None if area else target}
         elif kind == 'move':
             if entry.get('way') == 'toward' or (target and entry.get('way') != 'away'):
-                act = {'kind': 'approach', 'target': target}
+                act = {'kind': 'approach', 'target': target, 'distance_ft': entry.get('distance_ft')}
             else:
-                act = {'kind': 'withdraw', 'target': None, 'disengage': False}
+                act = {'kind': 'withdraw', 'target': None, 'disengage': False, 'distance_ft': entry.get('distance_ft')}
         elif kind == 'disengage':
-            act = {'kind': 'withdraw', 'target': None, 'disengage': True, 'standard': 'disengage'}
+            act = {'kind': 'withdraw', 'target': None, 'disengage': True, 'standard': 'disengage',
+                   'distance_ft': entry.get('distance_ft')}
         elif kind == 'reaction':
             key = entry.get('reaction')
             if key not in reactions:
@@ -182,11 +183,17 @@ def to_act(entries, source, state):
         elif kind == 'shove':
             refuse = 'shoving is the DM\'s call for now: say how you go about it'
         elif kind == 'object':
-            refuse = "that's my call, not the fight's: tell me how you go about it and I'll rule on it"
+            # An object or environment act is the DM's ruling: the whole message waits on it.
+            act = {'kind': 'ruling', 'target': target}
+            text = entry.get('says') or text or 'that'
         if act is None:
             act = {'kind': 'refused', 'target': target, 'because': refuse}
         act['declared'] = True
         steps.append({'start': 0, 'end': len(text), 'act': act, 'block': False, 'bound': target,
                       'text': text, 'label': _label(entry, labels)})
+    if any(s['act']['kind'] == 'ruling' for s in steps):
+        # Kit declared an act that needs a ruling: nothing in the message commits until it is
+        # ruled on (kit_agent.clause_ruling), every entry recorded 'ruling' or 'waits'.
+        return {'kind': 'ruling', 'target': None, 'steps': steps, 'declared': True}
     first = next((s['act'] for s in steps if s['act'].get('target')), steps[0]['act'] if steps else {})
     return {'kind': 'multi', 'target': first.get('target'), 'steps': steps, 'declared': True}

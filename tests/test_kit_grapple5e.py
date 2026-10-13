@@ -74,21 +74,36 @@ class ContestedGrapple(unittest.TestCase):
 
 
 class KitVoicePending(unittest.TestCase):
+    """Since #122 slice 2 these messages are Kit's to declare in a running fight (main's parser
+    cannot read them): what she declares is still said in Kit's voice, never the engine's, and
+    spends nothing."""
+
+    def declared(self, arena, text, entries):
+        from runtime.kit_agent import KitChatBridge
+        from test_kit_combat_acts_slice2 import plan_for
+        bridge = KitChatBridge(arena.runtime, arena.adjudicator)
+        packet = bridge.prepare(text, 'v', one_pass=True)
+        self.assertTrue(packet['input']['private']['acts']['combat_acts'], text)
+        return bridge.complete('v', {'decision': plan_for(packet, entries), 'performance': {'segments': [
+            {'speaker': 'Narrator', 'text': 'You set your feet.'}]}})
+
     def test_hold_the_line_is_said_in_kits_voice(self):
         arena = bridge(self, rogue(), 10)
-        exc, shown = ruling_of(self, arena, 'I hold the line.')
-        said = shown['player_message']
+        before = copy.deepcopy(arena.fight)
+        result = self.declared(arena, 'I hold the line.', [{'kind': 'object', 'order': 1, 'says': 'hold the line'}])
+        said = result['public_event']
         self.assertIn('hold the line', said.casefold())
-        self.assertNotEqual(said, "That one needs the DM's call. Say a little more about how you go about it, "
-                                  "or try it another way.")
+        self.assertNotIn("That one needs the DM's call. Say a little more", said)
         for word in ('slice', 'committed', 'ruling', 'engine'):
             self.assertNotIn(word, said.casefold())
+        self.assertEqual((arena.fight['hp'], arena.fight['pc_damage']), (before['hp'], before['pc_damage']))
 
     def test_a_bare_shield_outside_a_window_says_it_waits_for_its_moment(self):
         arena = kiln(self, wizard(hp=60), 2)  # every foe misses: no window open
         self.assertIsNone(arena.fight.get('awaiting'))
-        exc, shown = ruling_of(self, arena, 'Shield.')
-        said = shown['player_message']
+        result = self.declared(arena, 'Shield.', [{'kind': 'reaction', 'order': 1, 'reaction': 'shield',
+                                                   'says': 'Shield'}])
+        said = result['public_event']
         self.assertIn('Shield', said)
         self.assertIn('reaction', said.casefold())
         for word in ('slice', 'committed', 'ruling', 'engine'):

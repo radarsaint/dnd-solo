@@ -731,6 +731,10 @@ class RoomAdjudicator:
             near = str(exc).startswith(UNSUPPORTED_RULING) and not is_ooc(action) and \
                 (self.source or {}).get('triggers') and kit_triggers.disturb_targets(self.source, state)
             if not near:
+                # Otherwise, in a running fight on his turn, Kit declares the deed (combat_acts).
+                offered = self._declare_instead(exc, action, revision, state)
+                if offered:
+                    return offered
                 raise
             # Not hands-on ('I take a step toward the claw'): Kit's to voice, nothing to
             # declare (no offer; #97 review P1-E).
@@ -771,6 +775,29 @@ class RoomAdjudicator:
         if result.kind == 'exit' and choice is None:
             result = self._also_after_entry(result, action, revision, state)
         return self._offer_combat_acts(self._offer_downed(result), action, state)
+
+    # What main's parser says when it cannot read a deed: in a running fight on his turn these
+    # become Kit's declaration (combat_acts), not a pending ruling (#122). A missing roll stays an ask.
+    UNREAD = (UNSUPPORTED_RULING, 'Who are you attacking, and with what?', 'The room file gives no ruling')
+
+    def _declare_instead(self, exc, action, revision, state):
+        """A deed main's parser could not read, on his turn in a running fight: nothing is
+        resolved from the words; the turn offers combat_acts and Kit must declare it (her
+        declaration wins; an object or environment act she declares is the ruling)."""
+        if is_ooc(action) or (self.choice or {}).get('combat_acts') is not None or \
+                not str(exc).startswith(self.UNREAD):
+            return None
+        fight = state.get('combat') or {}
+        if fight.get('status') != 'running' or fight.get('awaiting') or fight.get('pc_down'):
+            return None
+        offer = kit_combat_acts.offer(self.source, state)
+        if not offer or not self._fight(action, revision, state).pc_turn_now():
+            return None
+        event = {'type': 'beat', 'tags': ['combat_declare'],
+                 'evidence': f'Player declared: {action}. Resolution: Kit declares the combat acts '
+                             '(combat_acts); nothing changed from the words alone.'}
+        return Resolution('feature_act', social_event(action), [event],
+                          offers={'combat_acts': {**offer, 'required': True}})
 
     def _offer_combat_acts(self, result, action, state):
         """On his turn in a running fight, offer combat_acts (runtime/kit_combat_acts.py): Kit
@@ -1450,6 +1477,8 @@ class RoomAdjudicator:
             re.search(rf"\b{re.escape(str(t).replace('_', ' '))}\b", act['steps'][0].get('text', ''), re.I)
             for key, info in kit_triggers.disturb_targets(self.source, state).items()
             for t in [key, *info.get('words', ())])
+        if act and act['kind'] == 'ruling' and act.get('declared'):
+            raise clause_ruling(act['steps'])  # Kit declared it needs a ruling: hers to make
         if act and act['kind'] == 'ruling' and not (declared and len(act['steps']) == 1):
             # A lone act on a room-authored trigger target is a declared, legal action.
             raise clause_ruling(act['steps'])
@@ -4367,9 +4396,16 @@ def declare(runtime, adjudicator, body, plan):
         # Kit declared the turn's combat acts: they replace the engine's read of the words, on
         # the state before this turn, entry by entry (runtime/kit_combat_acts.py).
         revision, before = runtime.load()
-        fought = adjudicator.resolve(body['action'], revision, before, choice={'combat_acts': plan['combat_acts']})
+        try:
+            fought = adjudicator.resolve(body['action'], revision, before, choice={'combat_acts': plan['combat_acts']})
+        except PendingRuling as exc:
+            # A ruling she declared, or an Avrae ask: said, and nothing in the message commits.
+            shown = pending_ruling_result(exc)
+            fought = Resolution('physical_act', shown['player_message'], [
+                {'type': 'beat', 'tags': ['combat_declare', 'pending'],
+                 'evidence': f"Player declared: {body['action']}. Resolution: {shown['message']}"}])
         body = {**body, 'events': list(fought.events), 'public_event': fought.public_event,
-                'combat_acts': acts['combat_acts']}
+                'kind': fought.kind, 'combat_acts': acts['combat_acts']}
         acts = {field: value for field, value in acts.items() if field != 'combat_acts'}
         after = runtime.preview_state(revision, body['events'])
         if not acts:
@@ -4663,6 +4699,9 @@ def checked_record(body, plan, speech, performance_variant, source=None, degrade
         # Kit's declared combat acts replaced the engine's read of the words (declare): the
         # commit checks the replaced events against this count.
         record['declared'] = {'combat_acts': {'entries': body['combat_acts'], 'events': len(body['events'])}}
+        if body['kind'] == INTERSTITIAL_KIND:
+            # Her declared turn opened a checkpoint (a reaction window): the turn is interstitial.
+            record['engine_interstitial'] = interstitial_of(body['events'])
     if declared:
         record['declared'] = {**(record.get('declared') or {}), 'acts': declared['acts'], 'kind': declared['kind'],
                               **({'handoff': declared['handoff']} if declared.get('handoff') else {})}
@@ -4734,6 +4773,8 @@ class KitAgent:
             if record.get('degraded'):
                 timing['degraded'] = True
             record.update(kit_interstitial.describe(record['trace'], turn_id))
+            if record.get('engine_interstitial'):
+                record.update(turn_role='interstitial', interstitial=record['engine_interstitial'])
             next_revision = self.runtime.commit_kit_turn(
                 turn_id, revision, turn_events(self.runtime, body, plan, turn_id, record), record)
             outcome = 'committed'
@@ -5308,6 +5349,8 @@ class KitChatBridge:
         variant = (self.runtime.kit_timing(turn_id) or {}).get('performance_variant', 'current')
         record = self._checked_or_log(turn_id, body, pending['plan'], speech, variant, degraded)
         record.update(kit_interstitial.describe(record['trace'], turn_id))
+        if record.get('engine_interstitial'):
+            record.update(turn_role='interstitial', interstitial=record['engine_interstitial'])
         revision = self.runtime.commit_kit_turn(
             turn_id, pending['revision'], turn_events(self.runtime, body, pending['plan'], turn_id, record),
             record, consume_pending=True)
@@ -5502,6 +5545,8 @@ class KitChatBridge:
         variant = body.get('performance_variant', 'current')
         record = self._checked_or_log(turn_id, body, plan, output['performance'], variant, degraded)
         record.update(kit_interstitial.describe(record['trace'], turn_id))
+        if record.get('engine_interstitial'):
+            record.update(turn_role='interstitial', interstitial=record['engine_interstitial'])
         next_revision = self.runtime.commit_kit_turn(
             turn_id, revision, turn_events(self.runtime, body, plan, turn_id, record), record,
             consume_pending=True)

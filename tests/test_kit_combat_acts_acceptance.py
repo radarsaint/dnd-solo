@@ -100,10 +100,15 @@ class AcceptanceSets(unittest.TestCase):
             try:
                 result = made.act(text, combat_acts=declared)
             except PendingRuling as caught:
-                self.assertIn('No turn was committed', str(caught), label)
+                if getattr(caught, 'clauses', None):  # Kit declared a ruling: every entry recorded
+                    self.assertEqual(len(caught.clauses), len(declared), label)
+                else:
+                    self.assertIn('No turn was committed', str(caught), label)
                 self.assertEqual((made.fight.get('hp'), made.fight.get('pc_damage'), made.state['pc_resources']),
                                  before, label)
-                lines.append(f'{label} [{kind}] {text!r}\n   -> ASK {str(caught)[:160]}')
+                outcomes = [c['outcome'] for c in getattr(caught, 'clauses', None) or ()]
+                lines.append(f'{label} [{kind}] {text!r}\n   -> {"RULING" if outcomes else "ASK"} {str(caught)[:160]}'
+                             + (f'\n   clauses={outcomes}' if outcomes else ''))
                 counted += 1
                 continue
             log = clause_log(result)
