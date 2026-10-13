@@ -151,20 +151,39 @@ NOT_HANDS = re.compile(r'^(?:at|to|toward|towards|near|by|beside|behind|around|p
 LOOK_KINDS = ('observe', 'threshold_look')
 
 
+# Perception or idling only ("I look at the lid", "I listen at it", "I wait"): no hands go on
+# anything. The line's lead verb decides, plus no second clause ("and", "then", a comma).
+PERCEIVING = re.compile(r"^\s*(?:i\s+)?(?:\w+ly\s+)?(?:look|looks|glance|glances|peer|peers|peek|peeks|gaze|gazes|"
+                        r"stare|stares|watch|watches|listen|listens|sniff|sniffs|smell|smells|study|studies|"
+                        r"examine|examines|inspect|inspects|eye|eyes|wait|waits|pause|pauses|stand|stands|"
+                        r"take a step|take a look|have a look)\b")
+FURTHER = re.compile(r"\b(?:and|then|before|after|while)\b|[,;]")
+
+
 def physical(action):
-    """A turn where the PC's hands may go on something: not table talk, not only speech in
-    quotes or a question, and with a hands-on verb or a verb whose object is a pronoun ("I push
-    it"). A look, a listen, a sniff or a wait is not (#97 review P1-E)."""
-    from . import kit_acts
+    """A turn that is not table talk, not only speech or a question, and not only a look, a
+    listen or a wait (#97 review P1-E). It says nothing about verbs: whether the PC's hands go
+    on a feature is Kit's call on the offer (E')."""
     from .kit_agent import QUOTED_SPEECH, asked_away, is_ooc  # local: kit_agent imports this module
     if is_ooc(action or ''):
         return False
-    words = asked_away(QUOTED_SPEECH.sub(' ', action or '')).casefold()
-    words = re.sub(r"\b(?:take|takes|taking)\s+(?:a|one|two|three|another)\s+(?:\w+\s+)?steps?\b", ' ', words)
-    verbs = '|'.join(kit_acts.HINT_VERBS.values()) + '|' + PHYSICAL_EXTRA
-    if re.search(r'\b(?:' + verbs + r')\b', words):
-        return True
-    return any(not NOT_HANDS.match(m.group(1)) for m in PRONOUN_OBJECT.finditer(words))
+    words = asked_away(QUOTED_SPEECH.sub(' ', action or '')).casefold().strip()
+    if not re.search(r'[a-z]{2}', words):
+        return False
+    if PERCEIVING.search(words) and not FURTHER.search(words.rstrip('.!')):
+        return False
+    return True
+
+
+def refers(action, targets):
+    """True when the line names a watched feature (its nouns, parts or held thing) or refers
+    to one with a pronoun object ("I shoulder it")."""
+    from .kit_agent import QUOTED_SPEECH  # local
+    text = QUOTED_SPEECH.sub(' ', action or '').casefold()
+    for info in targets.values():
+        if any(re.search(r'\b' + re.escape(w) + r'(?:s|es)?\b', text) for w in info['words']):
+            return True
+    return bool(re.search(r'\b(?:it|them)\b', text))
 
 
 def handles_offer(source, state, action, area=None, kind=None):
@@ -176,6 +195,10 @@ def handles_offer(source, state, action, area=None, kind=None):
     from . import kit_acts
     from .kit_agent import QUOTED_SPEECH, asked_away  # local: kit_agent imports this module
     targets = disturb_targets(source, state, area)
+    # E': structure, not verbs. Any turn beside a watched, found feature that is not a look,
+    # a listen or a wait (the engine's read, or the line's lead verb with nothing after it).
+    # Unnamed synonyms ("the stone slab") reach Kit too; none needs a reason, so a turn whose
+    # hands go elsewhere costs one field.
     if not targets or kind in LOOK_KINDS or not physical(action):
         return None
     text = QUOTED_SPEECH.sub(' ', action or '').casefold()

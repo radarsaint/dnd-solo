@@ -128,6 +128,13 @@ def first_framing_problems(source):
                 isinstance(handling['parts'], list) and
                 all(isinstance(part, str) and part.strip() for part in handling['parts'])):
             problems.append(f'fact {key} handling parts must be a list of words (the claw of a carcass)')
+        if isinstance(handling, dict):
+            for field in ('interior', 'contents'):
+                # What lies behind a watched feature (#97 review): never shown until it fires.
+                value = handling.get(field)
+                if value is not None and not (isinstance(value, list) and
+                                              all(isinstance(w, str) and w.strip() for w in value)):
+                    problems.append(f'fact {key} handling {field} must be a list of words')
     for key, actor in source['actors'].items():
         if not (isinstance(actor, dict) and actor.get('location') in areas and actor.get('status')):
             problems.append(f'actor {key} needs a location among the areas and a status')

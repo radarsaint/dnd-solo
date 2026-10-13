@@ -113,7 +113,7 @@ class NoneNeedsAReasonTests(unittest.TestCase):
 
     def test_none_with_a_reason_may_not_narrate_the_feature_moving(self):
         for line, text in (('I push the lid aside.', 'The lid grinds aside a hand-width.'),
-                           ('I push it.', 'You push. Stone scrapes.'),
+                           ('I push it.', 'You push. It scrapes.'),
                            ('I pry it open.', 'It comes open with a crack.')):
             with self.subTest(line=line):
                 room = Room(self)
