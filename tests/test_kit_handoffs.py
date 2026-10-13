@@ -47,6 +47,14 @@ def kit_line(text, quote='A basilisk carcass sprawls'):
     return {'speaker': 'Kit', 'text': text, 'reacts_to': quote}
 
 
+
+def flourish_flag(cls):
+    """The flourish window is behind the off-by-default flag since #101 review at d0e533e."""
+    from unittest import mock as _mock
+    from runtime import kit_combat as _kc
+    return _mock.patch.object(_kc, 'CLAUSE_PARSER', True)(cls)
+
+
 class Reveal(unittest.TestCase):
     def opening(self, source=None):
         room = Room(self, source=source)
@@ -334,6 +342,7 @@ class ChecksMidWindow(unittest.TestCase):
         self.assertEqual(camp.fight['pc_damage'], 0)
 
 
+@flourish_flag
 class EarlyFlourish(unittest.TestCase):
     def test_describing_the_kill_with_a_miss_kills_nobody(self):
         camp = Camp(self)
