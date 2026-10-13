@@ -5,7 +5,7 @@
 **Canonical location:** `radarsaint/dnd-solo/docs/PROJECT_UNDERSTANDING.md`  
 **Sibling repository:** `radarsaint/bfdm-corpus`  
 **Last substantive refresh:** 2026-10-13  
-**Context reviewed against:** `dnd-solo/main @ 1a09fc53d6579ffa2ffe42d58f2da44c26a5a112`; `bfdm-corpus/main @ 6795362e967e89230086afc28c04450cc7d0cce4`
+**Context reviewed against:** `dnd-solo/main @ e94e9fdd53381a504d649386f8978674837da71d`; `bfdm-corpus/main @ 6795362e967e89230086afc28c04450cc7d0cce4`
 
 > This document is the project's current **semantic model**: what we are building, where we are, why we got here, what changed our thinking, how the major workstreams fit together, what we currently believe, what remains uncertain, and where the evidence points next.
 >
@@ -126,7 +126,7 @@ Its near-term job is to reconcile and land known runtime work, close demonstrate
 
 Current demonstrated blocker classes include:
 - player-roll ownership / Let It Ride behavior (#103);
-- incomplete combat transitions and related state handling (#97 / #101);
+- incomplete combat transitions and related state handling (#101 still open; #97 monster-initiated combat landed);
 - validator functional floors rewarding length over functional completeness (#102);
 - at least one deliberate social-omission recognition gap (#73).
 
@@ -194,6 +194,10 @@ That distinction is now central to any attempt to turn BFDM findings into cognit
 
 On 2026-10-13, #114 merged as `c9ce777729b77610944314b544cad709becbfe2d` and removed the obsolete in-repo BFDM mirror. There is no `corpus/` directory on `dnd-solo` main. `radarsaint/bfdm-corpus` is the only corpus. #121 merged as `a62bc0c70ead981f5175c632c71867d2fb2d91c4` and salvaged historical design notes, the Roanoke Discord exporter, and a 2026-09-28 playtest onto main; those files are repository history, not proof of player-facing quality. Superseded PRs #5, #11, #23, #36, #38, #43, #44 and issue #35 are closed. 87 stale branches were deleted. The legacy paid play route remains in `runtime/kit_agent.py` until Skippy removes it. Do not restart finished cleanup or treat the closed items as active direction.
 
+### Monster-initiated combat landed via structured handles and sealed features
+
+On 2026-10-13, #97 merged as `e94e9fdd53381a504d649386f8978674837da71d` (head `9ba408382698c2acaf3d72767e5e828c8f755e38`). Disturb triggers now fire only from Kit's structured `handles: {target, act}` declaration against the engine's offer; the noun regex is only a hint. A watched unfired feature is sealed: narration cannot reveal its interior/contents or claim it open/moved without a firing declaration. Hidden actors stay filtered until their trigger fires. Death and condition saves are player-rolled in Avrae and reported. Ties: the actor wins contests; a save that ties the DC fails (house rule). Pending rulings are structured and curtain-safe. Green tests do not prove player-facing quality. #101 combat checkpoints remains open and unmerged.
+
 ## 2. Evidence and truth classes
 
 ### 2.1 Executable truth
@@ -217,61 +221,3 @@ Open PRs may contain newer and important work while remaining non-canonical.
 ## 2.5 Historical truth
 
 Old ZIPs, old branches, historical boards, archived handoffs, old Project attachments, and superseded architecture docs are valuable for reconstructing history. They do not automatically describe current state.
-
----
-
-# 3. The two primary repositories
-
-## `radarsaint/dnd-solo`
-
-This is the current executable Kit runtime and player-facing development surface.
-
-Its job is to make live play possible: world state, room loading, hidden information, adjudication, persistence, NPC/campaign context, Kit's private decision step, player-facing performance, and the bridge through which a chat-hosted Kit runs a game.
-
-At the 2026-10-07 audited `main @ e3a5e9908357441051df24dac8086d8d4c7f26f5`, the runtime is substantially beyond the old Area 6c prototype. It has a generalized room loader, one-pass and staged host paths, SQLite-backed state and event history, hidden-information projection, claims/knowers, agendas, attitudes, bounded combat and procedures, manifests, retry/idempotency support, table-talk handling, and a large mechanical test suite.
-
-That does **not** mean generalized excellent DM play has been demonstrated.
-
-Area 6c remains historically important because it has the richest authored/testing history. It is a testbed, not the architecture of Kit and not a sufficient model of all DM quality.
-
-General room loading also does not equal general source-to-room authoring. A runtime that can mount a conforming room file is different from a system that can take untouched keyed adventure text and reliably produce the next excellent playable room.
-
-## `radarsaint/bfdm-corpus`
-
-This is the durable research archive of Brendon's D&D creative history and BFDM research program.
-
-It is deliberately broader than a training dataset for Kit.
-
-It contains or indexes:
-- canonical human-readable source containers;
-- context-only source material;
-- Discord harvests;
-- model-facing Discord projections and deterministic term routing;
-- campaign/project/person/identity registries;
-- att
-
----
-
-# 17. Current known traps for future agents
-
-- **KRABS itself is not historical.** Current `dnd-solo/main` carries **KRABS v0.2.2** as the canonical long-term Kit Reference Architecture & Behavioral Specification. The old Project attachment containing **KRABS v0.1** is stale only because that version was superseded. Never compress this into "KRABS is old-era material."
-- **Legacy ChatGPT Project attachments do not outrank live GitHub.** Ignore these filenames as current sources even if a chat still has them mounted: `Design player facing UX UI.txt`; `Project overview.txt`; both copies of `Kit Runtime Setup.txt`; `Mad Mage Attached.txt`; both copies of `BFDM Corpus Research.txt`; `Corpus State Chat.txt`; both copies of `Corpus Understanding Assessment.txt`. The router and the verified homes are `docs/KIT_PROJECT_START_HERE.md`. That router is not a second Project Brain. The generalized Restartable Role Runtime in the later assessment is not current architecture.
-- Old pinned ZIPs reproduce old builds only.
-- Open PRs can be important and newer without being merged truth.
-- There is no in-repo BFDM corpus mirror on `dnd-solo` main. #114 removed it (merge `c9ce777729b77610944314b544cad709becbfe2d`). Canonical research is only `radarsaint/bfdm-corpus`. Do not recreate the mirror or treat closed superseded PRs (#5, #11, #23, #36, #38, #43, #44) or the 87 deleted stale branches as active work. Salvaged historical files from #121 (`docs/architecture/decision-speed.md`, `docs/personality/creative-social-requirements-audit.md`, the Roanoke Discord exporter, and `tests/playtests/2026-09-28-approach-range/`) are repository history, not proof of player-facing quality. The legacy paid play route remains in `runtime/kit_agent.py` until Skippy removes it.
-- Area 6c's density can make it appear more architecturally central than it is.
-- Discord searchability can create false confidence in zero-match searches if coverage is not checked.
-- Derived research can look more certain than the primary evidence warrants.
-- 2026 workbench transcripts contain both Brendon turns and AI-generated turns; do not attribute the assistant's inventions to Brendon merely because they appear in a canonical source container.
-- A source document may show intent but not delivered play.
-- A live message may show a local decision but not a universal preference.
-- A later correction does not automatically prove every earlier instance was wrong.
-- A successful technical component does not establish a successful Kit experience.
-
----
-
-# 18. Working understanding of Brendon's design practice
-
-This is intentionally phrased as a **working model**, not doctrine.
-
-Across the primary material read so far, Brendon appears to care unusually strongly about building worlds that **produce behavior** rather than merely describing settings.
