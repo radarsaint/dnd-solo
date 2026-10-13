@@ -83,7 +83,7 @@ COVERT = re.compile(r"\b(quietly|unnoticed|unseen|without (?:anyone|them) (?:see
                     r"(?:backs?|eyes?))(?:'s|'re|\s+(?:is|are|was|were))?\s+(?:not\s+)?(?:looking|watching|distracted|busy|"
                     r"turned|elsewhere|looking away|looks away|look away))\b")
 # Shield typed on his own turn, or after its window passed: a reaction spell with no trigger now.
-OWN_SHIELD = re.compile(r"!cast\s+shield\b|\b(?:cast|casts|casting|raise|raises|throw up|throws up)\s+(?:a\s+|my\s+)?shield\b"
+OWN_SHIELD = re.compile(r"!cast\s+shield\b|\bshield\s+(?:myself|me)\b|\b(?:cast|casts|casting|raise|raises|throw up|throws up)\s+(?:a\s+|my\s+)?shield\b"
                         r"(?!\s+(?:bash|slam))")
 # Combat movement away from his foes ('I step back 30 feet', 'I fall back', 'I disengage').
 WITHDRAW = re.compile(r"\b(?:disengage|disengages|disengaging)\b|\b(?:step|steps|stepping|back|backs|backing|move|moves|"
@@ -413,7 +413,9 @@ def late_reaction(text, source, state, here):
     made legal without a prompt, named by the player."""
     events = (state.get('combat') or {}).get('unprompted') or ()
     resources = state.get('pc_resources') or {}
-    named = name_target(text, source, state, here)
+    aimed = re.search(r"\s-t\s+([a-z][\w'-]*)", text)
+    named = (name_target(aimed.group(1), source, state, here) if aimed else None) or \
+        name_target(text, source, state, here)
     for event in sorted(events, key=lambda e: e.get('attacker') != named):
         for key in event['options']:
             found = kit_reactions.entry(resources, key) or {}
@@ -444,52 +446,120 @@ def parse(action, source, state):
     return parse_one(action, source, state)
 
 
-_SPLIT = re.compile(r"[.;!?]+\s*|,\s*(?:and\s+)?(?:then\s+)?|\s+(?:and\s+)?then\s+|\s+and\s+", re.I)
-_DETAIL = re.compile(r"^\W*(?:\(|\d|dc\s*\d|for\s+\d|total|avrae)|^\s*!\w|^\W*[A-Za-z']+\W*$", re.I)
+_SPLIT = re.compile(r"\s*\n\s*|[.;!?]+\s*|,\s*(?:and\s+)?(?:then\s+)?|\s+(?:and\s+)?then\s+|\s+and\s+", re.I)
+_DETAIL = re.compile(r"^\W*(?:\(|\d|dc\s*\d|for\s+\d|total|avrae)|^\s*!\w|^\W*[A-Za-z']+\W*$|"
+                     r"^\W*(?:i\s+)?(?:pause|breathe|take a (?:deep |slow )?breath|steady (?:myself|now|my\w*)|"
+                     r"brace myself|grin|wink|nod|shrug|smile|laugh|sigh)\b", re.I)
+SHIELD_SELF = re.compile(r"\bshield\s+(?:myself|me)\b|\b(?:cast|casts|casting|raise|raises)\s+(?:a\s+|my\s+)?shield\b"
+                         r"(?!\s+(?:bash|slam))|!cast\s+shield\b")
+UNRESOLVED = "I couldn't tell what that would do in this fight"
+
+
+# An Avrae-shaped line: a command, a bold field, "X casts Y!" / "X attacks with Y!", or a
+# "Field: number" result line ("To Hit: 1d20 (11) + 7 = 18", "Hellish Rebuke: 12 fire").
+_AVRAE_SHAPED = re.compile(r"^\s*(?:!\w|\*\*|[\w' -]+ (?:casts|attacks with|uses) [^\n]*!\s*$|"
+                           r"(?:to hit|damage|dc|meta|effect|spell slots|[\w' -]+ save)\s*:|[\w' -]{2,40}:\s*`?\d)", re.I)
+_BLOCK_HEAD = re.compile(r"!cast\s+([a-z' ]+?)(?:\s+-\w|\s*$)|!a(?:ttack)?\s+([a-z' ]+?)(?:\s+-\w|\s*$)|"
+                         r"\bcasts\s+([a-z' ]+?)!|\battacks with (?:an? )?([a-z' ]+?)!|\*\*([a-z' ]+?)\*\*", re.I)
+
+
+def avrae_blocks(action):
+    """[(start, end)] of each pasted Avrae block: from its first Avrae-shaped line to its last.
+    A short name line between two of them (a target, 'Hollow-eyed ghoul') is inside; the lines
+    after the last one are the player's again (#101 review at 92b86a6)."""
+    lines, at = [], 0
+    for line in action.split('\n'):
+        lines.append((at, at + len(line), line))
+        at += len(line) + 1
+    shaped = [bool(_AVRAE_SHAPED.match(line)) for _, _, line in lines]
+    blocks, i = [], 0
+    while i < len(lines):
+        if not shaped[i]:
+            i += 1
+            continue
+        j = i
+        while True:
+            k = j + 1
+            while k < len(lines) and not shaped[k] and len(lines[k][2].split()) <= 4 and \
+                    not re.match(r"\s*(?:i|then|and)\b", lines[k][2], re.I):
+                k += 1
+            if k < len(lines) and shaped[k]:
+                j = k
+                continue
+            break
+        blocks.append((lines[i][0], lines[j][1]))
+        i = j + 1
+    return blocks
+
+
+def _pieces(action):
+    """(start, end, is_block) spans: Avrae blocks whole, the rest split at clause boundaries."""
+    masked = re.sub(r'\([^)]*\)', lambda m: '_' * len(m.group(0)), action)
+    masked = re.sub(r'!(?=\w)', '_', masked)
+    out, at = [], 0
+    regions = []
+    for b0, b1 in avrae_blocks(action):
+        regions.append((at, b0, False))
+        regions.append((b0, b1, True))
+        at = b1
+    regions.append((at, len(action), False))
+    for r0, r1, block in regions:
+        if block:
+            out.append((r0, r1, True))
+            continue
+        cut = r0
+        for m in _SPLIT.finditer(masked, r0, r1):
+            if m.end() > r1:
+                break
+            out.append((cut, m.start(), False))
+            cut = m.end()
+        out.append((cut, r1, False))
+    return [p for p in out if p[1] > p[0]]
 
 
 def clauses(action, source, state):
     """Every clause of the message that is an act, a move or a reaction, in order, each with
-    the details after it (its rolls, its Avrae aside, a trailing 'and the imp'); [] or one when
-    the message is a single act."""
-    masked = re.sub(r'\([^)]*\)', lambda m: '_' * len(m.group(0)), action)
-    masked = re.sub(r'!(?=\w)', '_', masked)
-    # A pasted Avrae block (from its first output line on) is the details of the clause before it.
-    block = re.search(r"^.*(?:\*\*|^\s*[\w' -]+ (?:casts|attacks with|uses) [^\n]*!\s*$|^\s*!\w).*$", action, re.M)
-    avrae_from = block.start() if block and block.start() > 0 else len(action) + 1
-    if avrae_from <= len(action):
-        masked = masked[:avrae_from] + '_' * (len(action) - avrae_from)
-    cuts, at = [], 0
-    for m in _SPLIT.finditer(masked):
-        cuts.append((at, m.start()))
-        at = m.end()
-    cuts.append((at, len(action)))
+    the details after it (its rolls, its Avrae aside or pasted block, a trailing 'and the imp').
+    Waiting and breathing are flavor (details), never a clause of their own."""
     resources = state.get('pc_resources') or {}
+    shield_known = any(r.get('id') == 'shield' for r in resources.get('reactions') or ())
     steps, lead = [], None
-    for start, end in cuts:
+    for start, end, block in _pieces(action):
         piece = action[start:end].strip()
         if not re.search(r'[A-Za-z]', piece):
             if steps:
-                steps[-1]['end'] = end
+                steps[-1]['end'] = max(steps[-1]['end'], end)
             continue
-        if start >= avrae_from - 1 and action[start:avrae_from].strip() == '':
-            piece = '(avrae)'  # the pasted block: details of the clause before it
-        missing = None if _DETAIL.match(piece) else missing_reaction(piece, resources)
-        if missing:
-            # Named, but not on his sheet: never read as some other act ('Uncanny Dodge that hit').
-            act = {'kind': 'missing_reaction', 'target': None, 'name': missing}
-        else:
-            act = None if _DETAIL.match(piece) else parse_one(piece, source, state)
-        if act is None or act.get('kind') is None:
+        act = None
+        if block:
+            head = _BLOCK_HEAD.search(piece)
+            name = next((g for g in head.groups() if g), '').strip().casefold() if head else ''
+            own = re.match(r"\s*!(?:cast|a|attack)\b|\s*[\w' -]+ (?:casts|attacks with) ", piece, re.I)
+            prev = steps[-1]['text_so_far'] if steps else ''
+            if steps and (name and name in prev.casefold() or not own):
+                steps[-1]['end'] = max(steps[-1]['end'], end)  # the results of the clause before it
+                steps[-1]['text_so_far'] = action[steps[-1]['start']:steps[-1]['end']]
+                continue
+            act = parse_one(piece, source, state)
+        elif not _DETAIL.match(piece):
+            missing = missing_reaction(piece, resources)
+            if not missing and not shield_known and SHIELD_SELF.search(piece.casefold()):
+                missing = 'Shield'
+            act = {'kind': 'missing_reaction', 'target': None, 'name': missing} if missing else \
+                parse_one(piece, source, state)
+        if act is None or act.get('kind') in (None, 'wait'):
             if steps:
-                steps[-1]['end'] = end
+                steps[-1]['end'] = max(steps[-1]['end'], end)
+                steps[-1]['text_so_far'] = action[steps[-1]['start']:steps[-1]['end']]
             elif lead is None:
                 lead = start
             continue
-        steps.append({'start': start if lead is None else lead, 'end': end, 'act': act})
+        first = start if lead is None else lead
+        steps.append({'start': first, 'end': end, 'act': act, 'block': block, 'text_so_far': action[first:end]})
         lead = None
     for step in steps:
-        step['text'] = action[step['start']:step['end']].strip(' ,;')
+        step.pop('text_so_far', None)
+        step['text'] = action[step['start']:step['end']].strip(' ,;\n')
         step['label'] = _label(step)
     if len(steps) < 2:
         return steps
@@ -533,7 +603,9 @@ def parse_one(action, source, state):
     text = narration(action).casefold()
     here = present(source, state)
     sc = scene(state)
-    named = name_target(text, source, state, here)
+    aimed = re.search(r"\s-t\s+([a-z][\w'-]*)", text)  # Avrae's -t names the target
+    named = (name_target(aimed.group(1), source, state, here) if aimed else None) or \
+        name_target(text, source, state, here)
     spell = _SPELL.search(text)
     in_fight = bool((state.get('combat') or {}).get('status') in ('awaiting_initiative', 'running'))
     late = late_reaction(text, source, state, here) if in_fight else None
@@ -560,9 +632,11 @@ def parse_one(action, source, state):
     stated_attack = kit_rolls.attack_total(action) is not None and (weapon or in_fight or named)
     if (attack and (hostile_target or stated_attack or in_fight) and
             not (TABLE.search(text[attack.end():attack.end() + 25]) and not named)) or (not attack and stated_attack):
-        return {'kind': 'attack', 'weapon': weapon.group(1) if weapon else 'unarmed strike',
+        held = None if weapon or not re.search(r'\b(?:stab|stabs|slash|slashes|thrust|thrusts|cut|cuts)\b', text) \
+            else sheet_weapon(state)  # 'I stab' with no weapon named: the blade on his sheet
+        return {'kind': 'attack', 'weapon': weapon.group(1) if weapon else held or 'unarmed strike',
                 'target': named or _default_target(text, source, state, here), 'area': False,
-                'unarmed': not weapon, 'nonlethal': bool(NONLETHAL.search(text))}
+                'unarmed': not (weapon or held), 'nonlethal': bool(NONLETHAL.search(text))}
     if FLIP.search(text) and TABLE.search(text):
         return {'kind': 'flip', 'object': 'table', 'target': None}
     if touched_face(text, pc_names(state)) and (named or _creature_words(text) or here):
@@ -576,14 +650,33 @@ def parse_one(action, source, state):
         return {'kind': 'take', 'what': what, 'target': None, 'covert': bool(COVERT.search(text)),
                 'handful': bool(re.search(r'\b(handful|a few|some|fistful|a stack)\b', text))}
     grab = GRAB.search(text)
+    # A grapple is aimed at a creature: what the verb takes ('the rope', 'my cloak') decides.
+    gripped = re.split(r"[,;.\n]|\band\b|\bthen\b", text[grab.end():])[0] if grab else ''
+    if grab and not (name_target(gripped, source, state, here) or _creature_words(gripped)):
+        grab = None
     if grab and (named or _creature_words(text)) and here and not VALUABLES.search(text[grab.end():grab.end() + 30]) \
             and not GAZE.search(text[grab.end():grab.end() + 20]):
         return {'kind': 'grab', 'target': named or _default_target(text, source, state, here),
                 'teeth': bool(TEETH.search(text)), 'wrist': bool(re.search(r'\b(wrist|hand|arm)\b', text))}
+    if in_fight and APPROACH.search(text) and not attack:
+        return {'kind': 'approach', 'target': named or _default_target(text, source, state, here)}
     if in_fight and WITHDRAW.search(text) and not attack:
         return {'kind': 'withdraw', 'target': None, 'disengage': bool(re.search(r'\bdisengag', text))}
     if in_fight and WAIT.search(text):
         return {'kind': 'wait', 'target': None}
+    return None
+
+
+APPROACH = re.compile(r"\b(?:close (?:in|the (?:distance|gap))|closes in|step (?:up|in)|steps (?:up|in)|advance|advances|"
+                      r"charge|charges|rush|rushes|move (?:toward|towards|up to|back to|in on)|close on|press in)\b")
+
+
+def sheet_weapon(state):
+    """The first melee weapon on his sheet's gear, or None."""
+    for item in ((state.get('player_sheet') or {}).get('gear') or ()):
+        found = re.search(r'\b(' + WEAPONS + r')\b', str(item).casefold())
+        if found and not RANGED.search(found.group(1)):
+            return found.group(1)
     return None
 
 
@@ -881,13 +974,11 @@ class Fight:
             # Nothing it can answer now (the hit was not its kind, or the reaction is spent): no
             # effect. Only a cast Avrae actually made is counted, at its -l level (else its own).
             if avrae_cast and found.get('kind') == 'spell':
+                # Avrae spent a slot on a cast that did nothing: not counted here, and he is told
+                # how to give it back in Avrae, so the two stay matched.
                 level = cast_level(self.action) or (found.get('cost') or {}).get('slot') or 1
-                slot = (self.resources.get('slots') or {}).get(str(level))
-                if slot and slot['used'] < slot['max']:
-                    self.resources, spent = kit_reactions.spend(self.resources, react, level)
-                    self.resources_changed = True
-                    self.trace.append(f'PC casts {name} with no trigger: level {spent} slot counted (Avrae cast), '
-                                      'no effect')
+                self.trace.append(f'PC cast {name} in Avrae with no trigger: level {level} slot not counted')
+                self.lines.append(f'Avrae spent a level {level} slot on {name}; undo it there with !g ss {level} +1.')
             return refuse(f'{name} has nothing to answer right now, so it does nothing.',
                           'it has nothing to answer right now')
         if not kit_reactions.payable(self.resources, found):
@@ -937,7 +1028,7 @@ class Fight:
         parser. No clause is dropped: each resolves, or Kit says it didn't happen and why."""
         steps = act['steps']
         whole = self.action
-        acted = reacted = False
+        acted = reacted = moved = False
         self.in_multi = True
         try:
             for index, step in enumerate(steps, 1):
@@ -956,24 +1047,37 @@ class Fight:
                 elif kind == 'missing_reaction':
                     because = 'it is not on your sheet'
                 elif kind == 'late_reaction':
+                    effect = (kit_reactions.entry(self.resources, one['react']) or {}).get('effect')
                     if reacted:
                         because = 'you have already used your reaction'
+                    elif acted and effect == 'absorb_elements' and one.get('event'):
+                        because = 'you have already acted, and the fire it answers came before your turn'
                     elif self.pc_late_reaction(one):
                         reacted = True
                     else:
                         because = self.refused_because or 'it has nothing to answer'
                 elif kind == 'withdraw':
                     self.pc_move_away(one)
+                    moved = True
+                elif kind == 'approach':
+                    self.pc_approach(one)
+                    moved = True
                 elif kind == 'own_shield':
                     self.pc_own_shield(one)  # a cast with no trigger: said, never his action
                 elif kind in self.MULTI_ACTIONS:
                     if acted:
                         because = 'you have already used your action this turn'
+                    elif kind == 'attack' and self.out_of_reach(one):
+                        because = f"the {self.label(one['target'])} is out of your reach now"
                     elif kind == 'attack':
                         if one.get('move_first'):
                             self.pc_move_away(one['move_first'])
-                        acted = self.pc_attack(one)
-                        if not acted:
+                            moved = True
+                            if self.out_of_reach(one):
+                                because = f"the {self.label(one['target'])} is out of your reach now"
+                        if because is None:
+                            acted = self.pc_attack(one)
+                        if because is None and not acted:
                             self.needs_roll = True
                             return
                     else:
@@ -981,9 +1085,11 @@ class Fight:
                         {'grab': self.pc_grab, 'face': self.pc_face, 'flip': self.pc_flip, 'take': self.pc_take,
                          'wait': self.pc_wait, 'own_shield': self.pc_own_shield}[kind](one)
                 if because is None and len(self.lines) == before:
-                    because = 'the engine could not resolve it'
+                    because = None if one.get('flavor') else UNRESOLVED.replace("I couldn't tell", 'I could not tell')
                 if because:
-                    self.lines.append(f"{label} didn't happen because {because}.")
+                    said = f"{label} didn't happen because {because}."
+                    if said not in self.lines:  # the same refusal is said once
+                        self.lines.append(said)
                 self.trace.append(f"clause {index}/{len(steps)}: {'refused' if because else 'resolved'} "
                                   f"({step['text'][:60]})")
                 if self.fight.get('awaiting'):
@@ -999,7 +1105,23 @@ class Fight:
         finally:
             self.in_multi = False
             self.action = whole
-        self.after_pc_action(acted)
+        self.after_pc_action(acted or moved)  # moving ends his turn the way one move does
+
+    def out_of_reach(self, act):
+        """A melee blow at a foe he has moved out of reach of (this turn's clauses, in order)."""
+        key = act.get('target')
+        weapon = str(act.get('weapon') or '')
+        if not key or act.get('spell') or act.get('area') or RANGED.search(weapon):
+            return False
+        return key in (self.fight.get('apart') or ()) and key not in (self.fight.get('engaged') or ())
+
+    def pc_approach(self, act):
+        key = act.get('target')
+        if key and self.active(key):
+            self.engage(key)
+            self.lines.append(f'You close on the {self.label(key)}.')
+        else:
+            self.lines.append('You move up.')
 
     def engage(self, key):
         engaged = self.fight.setdefault('engaged', [])
@@ -1673,7 +1795,12 @@ class Fight:
                 if act.get('move_first') and self.pc_turn_now():
                     # 'I back away 30 feet and cast Fire Bolt': the move, then the attack (D5).
                     self.pc_move_away(act['move_first'])
-                acted = self.pc_attack(act)
+                if self.out_of_reach(act):
+                    self.lines.append(f"Your {act.get('weapon') or 'blow'} didn't happen because the "
+                                      f"{self.label(act['target'])} is out of your reach now.")
+                    acted = True
+                else:
+                    acted = self.pc_attack(act)
                 self.needs_roll = not acted and init is None
                 if self.fight['status'] == 'awaiting_initiative' and acted:
                     self.fight['opener_spent'] = True
@@ -1682,7 +1809,8 @@ class Fight:
         elif kind:
             acted = True
             {'grab': self.pc_grab, 'face': self.pc_face, 'flip': self.pc_flip, 'take': self.pc_take,
-             'wait': self.pc_wait, 'own_shield': self.pc_own_shield, 'withdraw': self.pc_move_away}[kind](act)
+             'wait': self.pc_wait, 'own_shield': self.pc_own_shield, 'withdraw': self.pc_move_away,
+             'approach': self.pc_approach}[kind](act)
         self.after_pc_action(acted)
 
     def pc_own_shield(self, act):
@@ -1691,6 +1819,9 @@ class Fight:
         Avrae spent is counted so the session matches Avrae."""
         landed = int(self.fight.get('pc_damage') or 0) > 0
         on_sheet = any(r.get('id') == 'shield' for r in self.resources.get('reactions') or ())
+        if not on_sheet:
+            self.lines.append("Shield didn't happen because it is not on your sheet.")
+            return
         if act.get('avrae') and on_sheet and kit_reactions.free_slot(self.resources, 1):
             self.resources, slot = kit_reactions.spend(self.resources, 'shield')
             self.resources_changed = True
