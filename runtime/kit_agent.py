@@ -197,6 +197,9 @@ THRESHOLD_LOOK = re.compile(
     r"|\b(?:eye|eyes|ear|ears)\s+(?:up\s+)?(?:to|against)\b"
     r"|\b(?:look|looks|looking|glance|glances|watch|watches|watching|see|sees)\s+(?:in\s+)?(?:through|in\b|into|past)"
     r"|\b(?:crack|cracks|cracking|cracked)\s+(?:the|it|that)\b")
+PERCEIVING = re.compile(r"\b(?:look|looks|looking|glance|glances|peer|peers|peering|peek|peeks|peeking|gaze|gazes|"
+                        r"watch|watches|watching|listen|listens|listening|scan|scans|survey|surveys|sniff|sniffs|"
+                        r"smell|smells)\b")
 THRESHOLD_GAP = re.compile(r"\b(?:gap|crack|keyhole|opening|chink|doorway|threshold|door|doors|hinges?|grille|grate)\b")
 MOVE_THROUGH = re.compile(
     r"\b(?:go|goes|going|went|step|steps|stepping|stepped|walk|walks|walked|slip|slips|slipped|move|moves|head|heads|"
@@ -560,8 +563,12 @@ def room_intent(action, addressed=False, room=None):
         return 'combat'
     if re.search(r'\b(cast|casts|casting)\b', words):
         return 'spell'  # a spell aimed at nobody (Detect Magic, Light...) is not combat
-    if THRESHOLD_LOOK.search(words) and THRESHOLD_GAP.search(words) and not MOVE_THROUGH.search(words) and \
-            (room.exits or room.inward):
+    exit_named = bool(room.exits) and re.search(
+        r'\b(?:' + '|'.join(re.escape(word) for word, _ in room.exits) + r')s?\b', words)
+    if THRESHOLD_LOOK.search(words) and (THRESHOLD_GAP.search(words) or exit_named) and \
+            not MOVE_THROUGH.search(words) and (room.exits or room.inward):
+        # Looking or listening through a gap, or down a named exit ('I peer down the stair
+        # into the hall'), from where the PC stands: perception, not movement (#97 p2b).
         return 'threshold_look'
     if STEALTH_INTENT.search(words) or (
             re.search(r'\b(quietly|silently|softly)\b', words) and
@@ -621,6 +628,10 @@ def room_intent(action, addressed=False, room=None):
         return 'social'
     if addressed:
         return 'social'  # an answer to the question the NPC just asked
+    if PERCEIVING.search(words):
+        # A look or listen with no physical verb is free perception, never a physical ruling
+        # ('I peer ahead.', 'I listen.'): a pending ruling must not stall a plain look (#97 p2b).
+        return 'observe'
     return 'unsupported_action'
 
 
@@ -1014,6 +1025,9 @@ class RoomAdjudicator:
                      'evidence': f'Player declared: {action}. Resolution: they look '
                                  f'{"around the room" if around else "at what is plainly visible"}; free description, '
                                  'no roll; nothing hidden is learned; nothing changes.'}
+            if re.search(r'\b(?:listen\w*|sniff\w*|smell\w*)\b', action.lower()) and \
+                    not re.search(r'\b(?:look\w*|peer\w*|peek\w*|glanc\w*|gaz\w*|watch\w*|scan\w*)\b', action.lower()):
+                return Resolution(kind, 'You listen.' if 'listen' in action.lower() else 'You breathe in the air.', [event])
             return Resolution(kind, 'You look around the room.' if around else 'You take a look.', [event])
         if kind == 'exit':
             key = self._exit_taken(action, state)
@@ -4313,6 +4327,16 @@ def turn_latency(timing):
             'output_bytes': [a['output_bytes'] for a in attempts], 'missing': missing}
 
 
+def pending_ruling_result(exc):
+    """The host-facing result of a PendingRuling: shown to the player, nothing committed."""
+    result = {'stage': 'pending_ruling', 'message': str(exc), 'committed': False}
+    if getattr(exc, 'host_error', None):
+        result['host_error'] = exc.host_error
+    if getattr(exc, 'recorded_revision', None) is not None:
+        result.update(attempt_recorded=True, revision=exc.recorded_revision)
+    return result
+
+
 class KitChatBridge:
     """Host this model loop in an assistant chat, with no API credential in Python."""
     def __init__(self, runtime, adjudicator=None, manifests=False):
@@ -4321,6 +4345,15 @@ class KitChatBridge:
         self.runtime = runtime
         self.adjudicator = adjudicator or RoomAdjudicator()
         self.manifests = manifests
+
+    def try_prepare(self, *args, **kwargs):
+        """prepare() for hosts: a pending ruling never crashes the turn. It comes back as a
+        structured result (stage pending_ruling, nothing committed) that the host shows the
+        player; the CLI uses this too, so every host handles a ruling the same way."""
+        try:
+            return self.prepare(*args, **kwargs)
+        except PendingRuling as exc:
+            return pending_ruling_result(exc)
 
     @_stale_guided
     def prepare(self, action=None, turn_id=None, use_memory=True, one_pass=False, opening=False,
@@ -4884,11 +4917,7 @@ def main():
                               bridge.complete(args.turn_id, submitted, degraded=args.degraded,
                                               host_stamps=_cli_stamps(args.stamp)))
             except PendingRuling as exc:
-                result = {'stage': 'pending_ruling', 'message': str(exc), 'committed': False}
-                if getattr(exc, 'host_error', None):
-                    result['host_error'] = exc.host_error
-                if getattr(exc, 'recorded_revision', None) is not None:
-                    result.update(attempt_recorded=True, revision=exc.recorded_revision)
+                result = pending_ruling_result(exc)
             except InvalidChange as exc:
                 rejected = {'stage': 'rejected', 'message': str(exc), 'committed': False}
                 if isinstance(exc, HostSequenceError):
