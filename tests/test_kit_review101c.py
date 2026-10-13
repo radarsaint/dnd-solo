@@ -1008,3 +1008,28 @@ class FlourishOffByDefault(unittest.TestCase):
                            'dagger, 18 to hit, 3 piercing.')
         self.assertNotEqual((arena.fight.get('awaiting') or {}).get('kind'), 'flourish_window', result.public_event)
         self.assertIn('breaks away', result.public_event)
+
+
+class VoicedNothingHappens(unittest.TestCase):
+    """Nagatha at 35fac3b, before the playtest: an act that changes nothing is said, never echoed
+    as table talk or dropped in silence."""
+
+    def test_an_attack_once_the_fight_is_over_is_voiced(self):
+        arena = Arena(self, 'rope_bridge', sheet=rogue(), roll=lambda: 10)
+        arena.act('Initiative 25. I stab the bridge ogre with my rapier, 5 to hit, 3 piercing.')
+        arena.act('I stab the bridge ogre with my rapier, 25 to hit, 80 piercing.')
+        self.assertEqual(arena.fight['status'], 'over')
+        before = arena.state
+        result = arena.act('I stab the bridge ogre with my rapier, 17 to hit, 6 piercing.')
+        self.assertIn("There's nobody left to hit.", result.public_event)
+        self.assertNotIn('You declare', result.public_event)
+        self.assertEqual(arena.fight, before['combat'])
+
+    def test_a_decline_with_an_act_after_the_fight_ends_voids_it_out_loud(self):
+        arena = Arena(self, 'kiln', sheet=warlock(hp=60), roll=lambda: 10)
+        arena.act(KILN_OPEN)
+        arena.act('I stab the imp with my dagger, 18 to hit, 20 piercing.')
+        self.assertEqual(arena.fight['awaiting']['trigger'], 'leaves_reach')
+        result = arena.act('I let it go and cast Hex on the slinger', react='decline')
+        self.assertEqual(arena.fight['status'], 'over')
+        self.assertIn('The fight is over before your held act comes up, so it does not happen.', result.public_event)

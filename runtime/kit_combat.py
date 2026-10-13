@@ -1892,7 +1892,7 @@ class Fight:
         found = kit_reactions.entry(self.resources, react) or {}
         names = [n for n in (found.get('name', ''), react.replace('_', ' ')) if n and react != 'decline']
         attacking = found.get('effect') in self.ATTACKING
-        kept, skipped_attack = [], False
+        kept, said, skipped_attack = [], [], False
         for part in self._CLAUSES.split(self.action):
             part = (part or '').strip(' ,;')
             if not part or self._AVRAE_LINE.match(part):
@@ -1905,11 +1905,17 @@ class Fight:
                 continue
             if self._ANSWER_ONLY.match(part):
                 continue  # the answer itself ('No, let it hit.')
+            said.append(part)
             act = parse(part, self.source, self.state)
             if act and (act.get('kind') != 'attack' or act.get('spell') or kit_rolls.attack_total(part) is not None
                         or name_target(part, self.source, self.state, self.hostiles())):
                 kept.append(part)
         if not kept:
+            if said and self.fight.get('status') == 'over':
+                # An act said with the answer that the fight's end leaves nothing to do ('I let it
+                # go and cast Hex on the slinger'): voided out loud, like a held act.
+                self.trace.append(f'act with the window answer moot, the fight is over: {" ".join(said)[:120]}')
+                self.lines.append('The fight is over before your held act comes up, so it does not happen.')
             return
         rest = ' '.join(kept)
         self.fight['declared_next'] = rest
@@ -2011,6 +2017,10 @@ class Fight:
             # Nobody here to fight (a lurker not yet shown is not a target): no fight starts, and
             # the rest of the message (a feature disturbed) resolves on its own.
             self.trace.append('attack at nobody: no fight')
+            target = (act or {}).get('target')
+            if self.fight or (target and target in self.state.get('actors', {}) and not self.active(target)):
+                # The fight is over, or its target is dead or gone: said, not echoed as table talk.
+                self.lines.append("There's nobody left to hit.")
             return
         if kind == 'attack':
             self.ensure_fight('pc')
