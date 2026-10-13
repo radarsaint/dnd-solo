@@ -854,3 +854,109 @@ class ClauseFuzzWide(unittest.TestCase):
                 self.assertNotIn('twists out of your grip', result.public_event, text)
                 checked += 1
         self.assertGreater(checked, 300)
+
+
+def ruling_of(test, arena, text):
+    """The pending ruling a message becomes (nothing committed), with its clause record."""
+    revision, state = arena.runtime.load()
+    with test.assertRaises(PendingRuling) as caught:
+        arena.adjudicator.resolve(text, revision, state)
+    from runtime.kit_agent import pending_ruling_result
+    return caught.exception, pending_ruling_result(caught.exception)
+
+
+class Review5d(unittest.TestCase):
+    """Nagatha FAILED 5dd307f. The engine commits only a clause it reads with high confidence (a
+    known combat verb, a resolved target, a legal action); any other deed is a pending ruling for
+    Kit's call, recorded as 'ruling'. Nothing in that message commits until it is ruled on."""
+
+    def kiln(self, sheet):
+        arena = Arena(self, 'kiln', sheet=sheet, roll=lambda: 10)
+        arena.act(KILN_OPEN)
+        return arena
+
+    def test_a_thrown_dagger_after_backing_off_flies(self):
+        arena = ud_bridge(self, rogue(gear=['rapier', 'dagger', 'shortbow']))
+        result = arena.act('I step back 5 feet, then throw a dagger at the bridge ogre, 15 to hit, 4 piercing.')
+        self.assertEqual(arena.fight['hp']['ogre'], 55, result.public_event)
+
+    def test_pushing_a_shelf_onto_a_foe_and_yanking_a_sling_are_rulings(self):
+        sheet = without_shield(wizard(hp=60))
+        for text in ['I push the shelf over onto the slinger.', "I grip the slinger's sling and yank it away.",
+                     'I shove the ember imp into the kiln.']:
+            arena = self.kiln(sheet)
+            before = copy.deepcopy(arena.fight)
+            exc, shown = ruling_of(self, arena, text)
+            self.assertEqual(arena.fight, before, text)
+            self.assertNotIn('twists out of your', shown['player_message'], text)
+            self.assertIn('ruling', [c['outcome'] for c in shown['clauses']], text)
+
+    def test_it_binds_to_the_creature_just_named(self):
+        sheet = without_shield(wizard(hp=60))
+        arena = self.kiln(sheet)
+        arena.act('I step up to the imp and stab it with my dagger, 15 to hit, 3 piercing.')
+        self.assertEqual(arena.fight['hp']['imp'], 15)
+        self.assertEqual(arena.fight['hp']['archer'], 7)
+
+    def test_a_late_absorb_cast_after_he_acted_fizzles_and_counts(self):
+        sheet = without_shield(wizard(hp=60))
+        sheet['spells']['1'] = sheet['spells']['1'] + ['Absorb Elements']
+        arena = self.kiln(sheet)
+        result = arena.act('Fire Bolt the imp, 17 to hit, 7 fire, and Absorb Elements (Avrae: !cast absorb elements -l 1).')
+        self.assertIn('fizzles', result.public_event)
+        self.assertEqual(arena.slot1(), 1)
+
+    def test_a_door_clause_is_a_ruling_with_a_record(self):
+        arena = self.kiln(warlock(hp=60))
+        exc, shown = ruling_of(self, arena, 'I push the kiln door shut, then stab the kobold slinger with my dagger, '
+                                            '16 to hit, 3 piercing.')
+        self.assertEqual([c['outcome'] for c in shown['clauses']], ['ruling', 'waits'])
+        self.assertIn('push the kiln door shut', shown['player_message'])
+        self.assertNotRegex(shown['player_message'], r'engine|slice|committed')
+        self.assertEqual(arena.fight['hp']['archer'], 7)
+
+    def test_cutting_the_rope_is_a_ruling(self):
+        arena = ud_bridge(self)
+        exc, shown = ruling_of(self, arena, 'I cut the bridge rope behind the ogre.')
+        self.assertEqual([c['outcome'] for c in shown['clauses']], ['ruling'])
+
+    def test_an_off_hand_stab_is_his_bonus_action(self):
+        sheet = without_shield(wizard(hp=60))
+        arena = self.kiln(sheet)
+        result = arena.act('I stab the kobold slinger with my dagger, 18 to hit, 3 piercing, and with my off-hand '
+                           'dagger I stab the ember imp, 15 to hit, 2 piercing.')
+        self.assertEqual((arena.fight['hp']['archer'], arena.fight['hp']['imp']), (4, 16), result.public_event)
+
+    def test_a_single_act_gets_a_clause_record(self):
+        arena = ud_bridge(self)
+        result = arena.act('I stab the bridge ogre with my rapier, 16 to hit, 5 piercing.')
+        self.assertEqual(clause_log(result), [(1, 1, 'resolved')])
+
+
+class HighConfidenceFuzz(unittest.TestCase):
+    """Property: a clause outside the high-confidence set (object and environment deeds, shoves,
+    yanks, cuts at things) is never committed as an engine act."""
+
+    def test_no_low_confidence_clause_is_ever_committed(self):
+        import itertools
+        deeds = ['I push the shelf over onto the slinger', 'I yank the sling away', 'I shove the ember imp into the kiln',
+                 'I push the kiln door shut', 'I kick the bellows at the imp', 'I cut the bellows strap',
+                 'I take the poker from the rack', 'I shove the kobold slinger']
+        acts = ['stab the kobold slinger with my dagger, 18 to hit, 3 piercing', 'I step back 5 feet',
+                'Fire Bolt the imp, 17 to hit, 7 fire', 'I grin', 'I wait']
+        checked = 0
+        sheet = without_shield(wizard(hp=60))
+        for deed, act, order in itertools.product(deeds, acts, (0, 1)):
+            text = (f'{deed}, then {act}.' if order else f'{act}, then {deed}.')
+            arena = self.kiln_arena(sheet)
+            before = (copy.deepcopy(arena.fight), copy.deepcopy(arena.state['pc_resources']))
+            exc, shown = ruling_of(self, arena, text)
+            self.assertEqual((arena.fight, arena.state['pc_resources']), before, text)
+            self.assertIn('ruling', [c['outcome'] for c in shown['clauses']], text)
+            checked += 1
+        self.assertGreaterEqual(checked, 80)
+
+    def kiln_arena(self, sheet):
+        arena = Arena(self, 'kiln', sheet=sheet, roll=lambda: 10)
+        arena.act(KILN_OPEN)
+        return arena

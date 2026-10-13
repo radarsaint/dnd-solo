@@ -29,6 +29,7 @@ A fight, at a play-by-post table with Avrae (Brendon: Avrae is at every game):
 Deterministic Python; no model calls, no dice for the player.
 """
 import copy
+import json
 import hashlib
 import re
 
@@ -440,7 +441,11 @@ def parse(action, source, state):
     running fight's message holds two or more acts, moves or reactions (#101 review at f3e880e)."""
     if (state.get('combat') or {}).get('status') == 'running' and not (state.get('combat') or {}).get('awaiting'):
         steps = clauses(action, source, state)
-        if len(steps) >= 2 or (steps and steps[0]['act'].get('kind') == 'missing_reaction'):
+        if any(step['act'].get('kind') == 'ruling' for step in steps):
+            # A deed the engine cannot read with confidence: Kit's call, nothing committed (the
+            # existing pending-ruling flow), and the clauses after it wait with it.
+            return {'kind': 'ruling', 'target': None, 'steps': steps}
+        if steps:
             first = next((s['act'] for s in steps if s['act'].get('target')), steps[0]['act'])
             return {'kind': 'multi', 'target': first.get('target'), 'steps': steps}
     return parse_one(action, source, state)
@@ -523,9 +528,11 @@ def clauses(action, source, state):
     Waiting and breathing are flavor (details), never a clause of their own."""
     resources = state.get('pc_resources') or {}
     shield_known = any(r.get('id') == 'shield' for r in resources.get('reactions') or ())
-    steps, lead = [], None
+    steps, lead, last_named = [], None, None
+    here = present(source, state)
     for start, end, block in _pieces(action):
         piece = action[start:end].strip()
+        named_here = name_target(piece.casefold(), source, state, here)
         if not re.search(r'[A-Za-z]', piece):
             if steps:
                 steps[-1]['end'] = max(steps[-1]['end'], end)
@@ -545,9 +552,18 @@ def clauses(action, source, state):
             missing = missing_reaction(piece, resources)
             if not missing and not shield_known and SHIELD_SELF.search(piece.casefold()):
                 missing = 'Shield'
-            act = {'kind': 'missing_reaction', 'target': None, 'name': missing} if missing else \
-                parse_one(piece, source, state)
+            if missing:
+                act = {'kind': 'missing_reaction', 'target': None, 'name': missing}
+            else:
+                act = parse_one(piece, source, state)
+                if not (act and act.get('kind') == 'late_reaction'):
+                    deed = confidence(piece, act, source, state, last_named)
+                    if deed == 'ruling':
+                        act = {'kind': 'ruling', 'target': None}
+                    elif deed == 'flavor':
+                        act = None
         if act is None or act.get('kind') in (None, 'wait'):
+            last_named = named_here or last_named
             if steps:
                 steps[-1]['end'] = max(steps[-1]['end'], end)
                 steps[-1]['text_so_far'] = action[steps[-1]['start']:steps[-1]['end']]
@@ -555,21 +571,82 @@ def clauses(action, source, state):
                 lead = start
             continue
         first = start if lead is None else lead
-        steps.append({'start': first, 'end': end, 'act': act, 'block': block, 'text_so_far': action[first:end]})
+        steps.append({'start': first, 'end': end, 'act': act, 'block': block, 'text_so_far': action[first:end],
+                      'bound': None if named_here else last_named})
         lead = None
+        last_named = named_here or last_named
     for step in steps:
         step.pop('text_so_far', None)
         step['text'] = action[step['start']:step['end']].strip(' ,;\n')
         step['label'] = _label(step)
-    if len(steps) < 2:
-        return steps
     # Each clause re-read on its own text with its details (an attack's rolls ride after it).
     for step in steps:
-        if step['act'].get('kind') != 'missing_reaction':
+        if step['act'].get('kind') not in ('missing_reaction', 'ruling'):
             again = parse_one(step['text'], source, state)
             if again and again.get('kind') == step['act'].get('kind'):
                 step['act'] = again
+        # 'it', 'him': the creature the clause before named ('step up to the imp and stab it').
+        if step.get('bound') and step['act'].get('target') and PRONOUN_IT.search(step['text'].casefold()) and \
+                not name_target(step['text'].casefold(), source, state, here):
+            step['act'] = {**step['act'], 'target': step['bound']}
     return steps
+
+
+PRONOUN_IT = re.compile(r"\b(?:it|him|her|them)\b")
+# High confidence (#101 review at 5dd307f): the engine commits a known combat verb at a resolved
+# target, a move, a reaction. A deed on an object or the room is Kit's call; holding things,
+# looks, words and breath are flavor.
+_HEAD = re.compile(r"^\W*(?:(?:and|then|so|now)\s+)*(?:i\s+)?([a-z']+)\s*(.*)$", re.S)
+OBJECT_VERBS = frozenset('''push pushes pull pulls shove shoves yank yanks drag drags haul hauls kick kicks cut cuts slice
+slices open opens shut shuts close closes take takes pick picks lift lifts tip tips topple topples knock knocks
+throw throws toss tosses hurl hurls pump pumps light lights break breaks smash smashes pry prise climb climbs jump
+jumps set sets untie unties tie ties pour pours douse douses stamp stamps heave heaves upend upends'''.split())
+GRAPPLE_VERBS = frozenset('grab grabs grabbing grapple grapples seize seizes tackle tackles pin pins collar collars clamp'.split())
+FLAVOR_VERBS = frozenset('''grip grips hold holds clutch clutches squeeze squeezes tighten tightens look looks glance glances
+glare glares stare stares watch watches eye eyes say says shout shouts yell yells taunt taunts mutter mutters whisper
+whispers curse curses snarl snarls growl growls spit spits grit grits wipe wipes'''.split())
+_PREP = re.compile(r"\s(?:with|at|behind|into|onto|over|on|across|from|toward|towards|to|by)\b|[,;.]|\band\b|\bthen\b")
+THROWN = frozenset('dagger daggers handaxe javelin spear dart darts trident hammer'.split())
+
+
+def confidence(piece, act, source, state, last_named=None):
+    """'engine' (commit it), 'ruling' (Kit's call) or 'flavor' (no deed) for one clause."""
+    head = _HEAD.match(piece.casefold())
+    if not head or piece.strip().endswith('?'):
+        return 'engine' if act else 'flavor'
+    verb, rest = head.group(1), head.group(2)
+    obj = _PREP.split(' ' + rest, 1)[0].strip()
+    here = present(source, state)
+    who = name_target(obj, source, state, here)
+    heads = {n.split()[-1] for n in _names(source, who)} if who else set()
+    tail = re.sub(r"'s$", '', (obj.split() or [''])[-1])
+    creature = bool(who and (tail in heads or obj.split()[-1].endswith("'s")) or PRONOUN_IT.fullmatch(obj or '-') or
+                    re.fullmatch(r"(?:the |a )?(?:\w+ )?(?:foe|enemy|creature|monster)", obj or '-'))
+    if verb in FLAVOR_VERBS:
+        return 'flavor'
+    if verb in GRAPPLE_VERBS:
+        return 'engine' if creature and act and act.get('kind') == 'grab' else 'ruling'
+    if verb in ('close', 'closes') and re.match(r"(?:in|on|the (?:distance|gap))\b", rest):
+        return 'engine' if act else 'flavor'
+    if verb in ('throw', 'throws', 'toss', 'tosses', 'hurl', 'hurls'):
+        thrown = act and act.get('kind') == 'attack' and any(w in THROWN for w in obj.split())
+        return 'engine' if thrown else 'ruling'
+    if verb in ('cut', 'cuts', 'slice', 'slices') and (creature or not obj):
+        return 'engine' if act else 'ruling'
+    if verb in OBJECT_VERBS:
+        if re.match(r"past\b", rest):
+            return 'flavor'  # 'push past the pain'
+        return 'ruling'
+    if act and act.get('kind') == 'attack' and not act.get('spell'):
+        named = name_target(piece.casefold(), source, state, here) or re.search(r"\s-t\s", piece) or \
+            (last_named and PRONOUN_IT.search(piece.casefold()))
+        hostile = [k for k in here if (state.get('actors') or {}).get(k, {}).get('status') not in ('dead', 'unconscious')]
+        if obj and not creature and not named and not re.match(r"(?:my|it|him|her|them)\b", obj) and \
+                not re.match(r"\d", obj):
+            return 'ruling'  # a blow at a thing ('stab the barrel')
+        if not named and len(hostile) > 1 and not (state.get('combat') or {}).get('last_target'):
+            return 'ruling'  # who? more than one foe here, none named
+    return 'engine' if act else 'flavor'
 
 
 def _label(step):
@@ -634,7 +711,9 @@ def parse_one(action, source, state):
             not (TABLE.search(text[attack.end():attack.end() + 25]) and not named)) or (not attack and stated_attack):
         held = None if weapon or not re.search(r'\b(?:stab|stabs|slash|slashes|thrust|thrusts|cut|cuts)\b', text) \
             else sheet_weapon(state)  # 'I stab' with no weapon named: the blade on his sheet
-        return {'kind': 'attack', 'weapon': weapon.group(1) if weapon else held or 'unarmed strike',
+        thrown = bool(weapon and re.search(r'\b(?:throw|throws|hurl|hurls|toss|tosses)\b', text) and
+                      (weapon.group(1) in THROWN or sheet_thrown(state, weapon.group(1))))
+        return {'kind': 'attack', 'weapon': weapon.group(1) if weapon else held or 'unarmed strike', 'thrown': thrown,
                 'target': named or _default_target(text, source, state, here), 'area': False,
                 'unarmed': not (weapon or held), 'nonlethal': bool(NONLETHAL.search(text))}
     if FLIP.search(text) and TABLE.search(text):
@@ -669,6 +748,16 @@ def parse_one(action, source, state):
 
 APPROACH = re.compile(r"\b(?:close (?:in|the (?:distance|gap))|closes in|step (?:up|in)|steps (?:up|in)|advance|advances|"
                       r"charge|charges|rush|rushes|move (?:toward|towards|up to|back to|in on)|close on|press in)\b")
+
+
+def sheet_thrown(state, weapon):
+    """The sheet says this weapon has the thrown property."""
+    for item in ((state.get('player_sheet') or {}).get('weapons') or ()) + \
+            list((state.get('player_sheet') or {}).get('gear') or ()):
+        text = json.dumps(item).casefold() if not isinstance(item, str) else item.casefold()
+        if weapon in text and 'thrown' in text:
+            return True
+    return False
 
 
 def sheet_weapon(state):
@@ -1026,8 +1115,9 @@ class Fight:
         parser. No clause is dropped: each resolves, or Kit says it didn't happen and why."""
         steps = act['steps']
         whole = self.action
-        acted = reacted = moved = False
-        self.in_multi = True
+        acted = reacted = moved = bonus = False
+        first_weapon = None
+        self.in_multi = len(steps) > 1  # one clause alone keeps its own lines
         try:
             for index, step in enumerate(steps, 1):
                 self.action = step['text']
@@ -1058,6 +1148,9 @@ class Fight:
                             because += f', so the cast fizzles. {fizzled[:-1]}'
                     elif acted and effect == 'absorb_elements' and one.get('event'):
                         because = 'you have already acted, and the fire it answers came before your turn'
+                        fizzled = self.avrae_fizzle('Absorb Elements')
+                        if fizzled:
+                            because += f', so the cast fizzles. {fizzled[:-1]}'
                     elif self.pc_late_reaction(one):
                         reacted = True
                     else:
@@ -1070,6 +1163,12 @@ class Fight:
                     moved = True
                 elif kind == 'own_shield':
                     self.pc_own_shield(one)  # a cast with no trigger: said, never his action
+                elif kind == 'attack' and acted and not bonus and self.off_hand(step['text'], one, first_weapon):
+                    bonus = True  # two-weapon fighting: the off-hand light weapon, his bonus action
+                    if self.out_of_reach(one):
+                        because = f"the {self.label(one['target'])} is out of your reach now"
+                    else:
+                        self.pc_attack(one)
                 elif kind in self.MULTI_ACTIONS:
                     if acted:
                         because = 'you have already used your action this turn'
@@ -1083,6 +1182,7 @@ class Fight:
                                 because = f"the {self.label(one['target'])} is out of your reach now"
                         if because is None:
                             acted = self.pc_attack(one)
+                            first_weapon = one.get('weapon')
                         if because is None and not acted:
                             self.needs_roll = True
                             return
@@ -1092,7 +1192,7 @@ class Fight:
                          'wait': self.pc_wait, 'own_shield': self.pc_own_shield}[kind](one)
                 if because is None and len(self.lines) == before:
                     because = None if one.get('flavor') else UNRESOLVED.replace("I couldn't tell", 'I could not tell')
-                if because:
+                if because and (self.in_multi or len(self.lines) == before):
                     said = f"{label} didn't happen because {because}."
                     if said not in self.lines:  # the same refusal is said once
                         self.lines.append(said)
@@ -1132,12 +1232,19 @@ class Fight:
         self.trace.append(f'{name} cast in Avrae with nothing to do: level {level} slot counted')
         return f'The level {level} slot Avrae spent is counted.'
 
+    LIGHT = ('dagger', 'shortsword', 'handaxe', 'scimitar', 'sickle', 'club', 'hammer', 'knife')
+
+    def off_hand(self, text, act, first_weapon):
+        """A two-weapon off-hand blow: named as such, a light melee weapon in each hand."""
+        return bool(re.search(r"\boff[- ]?hand\b|\bother hand\b|\bsecond (?:dagger|blade|knife)\b", text, re.I)) and \
+            str(act.get('weapon')) in self.LIGHT and str(first_weapon) in self.LIGHT and not act.get('spell')
+
     def out_of_reach(self, act):
         """A melee blow at a foe he has moved out of reach of (this turn's clauses, in order)."""
         key = act.get('target')
         weapon = str(act.get('weapon') or '')
-        if not key or act.get('spell') or act.get('area') or RANGED.search(weapon):
-            return False
+        if not key or act.get('spell') or act.get('area') or RANGED.search(weapon) or act.get('thrown'):
+            return False  # a thrown weapon (a dagger thrown, the sheet's thrown property) flies
         return key in (self.fight.get('apart') or ()) and key not in (self.fight.get('engaged') or ())
 
     def pc_approach(self, act):

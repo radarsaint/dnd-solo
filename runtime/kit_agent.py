@@ -1420,6 +1420,15 @@ class RoomAdjudicator:
 
     def _resolve_physical(self, action, revision, state):
         act = kit_combat.parse(action, self.source, state)
+        declared = act and act['kind'] == 'ruling' and len(act['steps']) == 1 and any(
+            re.search(rf"\b{re.escape(str(t).replace('_', ' '))}\b", act['steps'][0].get('text', ''), re.I)
+            for key, info in kit_triggers.disturb_targets(self.source, state).items()
+            for t in [key, *info.get('words', ())])
+        if act and act['kind'] == 'ruling' and not (declared and len(act['steps']) == 1):
+            # A lone act on a room-authored trigger target is a declared, legal action.
+            raise clause_ruling(act['steps'])
+        if act and act['kind'] == 'ruling':
+            act = None  # the room's own trigger handles it, as before
         current = state.get('combat') or {}
         fighting = current.get('status') in ('awaiting_initiative', 'running')
         owed = (current.get('awaiting') or {}).get('kind') in ('roll_call', 'kit_call')
@@ -4888,6 +4897,22 @@ def player_message(message):
     return safe or "Hold on: say a little more about what you do."
 
 
+def clause_ruling(steps):
+    """A message holding a deed the engine cannot read with confidence (#101 review at 5dd307f):
+    one pending ruling for Kit's call, nothing in the message committed. Its clause record marks
+    that clause 'ruling' and the ones after it (or around it) 'waits'."""
+    ruled = next(step for step in steps if step['act'].get('kind') == 'ruling')
+    words = re.sub(r'\s+', ' ', ruled['text']).strip(' .,;')
+    words = re.sub(r'^(?:and|then|so)\s+', '', words, flags=re.I)
+    words = re.sub(r'^I\s+', '', words)
+    exc = PendingRuling(f'"{words}" needs the DM\'s call. Say how you go about it, or try it another way; nothing '
+                        'else in that message has happened yet.', attempt=True)
+    exc.clauses = [{'index': i, 'total': len(steps), 'text': step['text'][:120],
+                    'outcome': 'ruling' if step['act'].get('kind') == 'ruling' else 'waits'}
+                   for i, step in enumerate(steps, 1)]
+    return exc
+
+
 def pending_ruling_result(exc):
     """The host-facing result of a PendingRuling: shown to the player, nothing committed.
     ``message`` is the engine's; ``player_message`` is the one Kit may relay."""
@@ -4895,6 +4920,8 @@ def pending_ruling_result(exc):
               'committed': False}
     if getattr(exc, 'host_error', None):
         result['host_error'] = exc.host_error
+    if getattr(exc, 'clauses', None):
+        result['clauses'] = exc.clauses
     if getattr(exc, 'recorded_revision', None) is not None:
         result.update(attempt_recorded=True, revision=exc.recorded_revision)
     return result
