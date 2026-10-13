@@ -700,7 +700,7 @@ class Fight:
 
     def decline(self, waiting):
         """The player said no: each reaction offered is not offered again this round unless the
-        stakes rise (the hit would now drop him, more damage than he declined, a new damage type)."""
+        stakes rise (the hit would now drop him, or a new damage type for a typed reaction)."""
         mark = self.fight.get('declined') or {}
         if mark.get('round') != self.fight.get('round') or 'reactions' not in mark:
             mark = {'round': self.fight.get('round'), 'reactions': {}}
@@ -723,7 +723,6 @@ class Fight:
                 out.append(key)
                 continue
             rose = (stakes == 'drop' and before.get('stakes') != 'drop') or \
-                (damage is not None and before.get('damage') is not None and damage > before['damage']) or \
                 (key == 'absorb_elements' and dtype is not None and before.get('type') is not None and
                  dtype != before['type'])  # a new damage type matters only to a typed reaction
             if rose:
@@ -1194,6 +1193,9 @@ class Fight:
 
     # -- the act that came with a window answer (#101 review P1-3): never dropped ----------
     _CLAUSES = re.compile(r'\bthen\b|\n+|(?<=[.!?])\s+(?=[A-Z])')
+    _ANSWER_ONLY = re.compile(r"^\W*(?:no|nah|nope|yes|yeah|sure|ok(?:ay)?|pass|decline|skip|"
+                              r"(?:i )?let (?:it|him|her|them) (?:hit|land|go|through)|don'?t|not now)\b"
+                              r"(?:[\s,.!]*(?:let (?:it|him|her|them) (?:hit|land|go)|i take it|i'?ll take it))?\W*$", re.I)
     _AVRAE_LINE = re.compile(r'^\s*(?:spell slots|an invisible barrier|\+5 ac|you |[^\w]*\d+d\d+|\*\*|meta|effect)',
                              re.I)
 
@@ -1216,7 +1218,11 @@ class Fight:
             if attacking and not skipped_attack and kit_rolls.attack_total(part) is not None:
                 skipped_attack = True  # the reaction's own attack
                 continue
-            if parse(part, self.source, self.state):
+            if self._ANSWER_ONLY.match(part):
+                continue  # the answer itself ('No, let it hit.')
+            act = parse(part, self.source, self.state)
+            if act and (act.get('kind') != 'attack' or act.get('spell') or kit_rolls.attack_total(part) is not None
+                        or name_target(part, self.source, self.state, self.hostiles())):
                 kept.append(part)
         if not kept:
             return

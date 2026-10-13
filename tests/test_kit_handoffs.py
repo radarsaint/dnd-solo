@@ -301,11 +301,12 @@ class BargingIn(ShortBeat):
 
 
 class SplitActions(unittest.TestCase):
-    def test_a_reaction_answer_with_an_attack_tacked_on_resolves_only_the_reaction(self):
+    def test_a_reaction_answer_with_an_attack_tacked_on_holds_the_attack_for_his_turn(self):
+        # #101 review P1: the act that rides a window answer is never dropped; it waits for his turn.
         camp = Camp(self)
         camp.act(OPEN)
         camp.act('Yes, Shield. Then I Fire Bolt the bandit captain, 19 to hit, 9 fire. ' + CAST, **SHIELD)
-        self.assertEqual(camp.fight['hp']['harl'], camp.fight['max_hp']['harl'], 'not his turn: no Fire Bolt')
+        self.assertEqual(camp.fight['hp']['harl'], camp.fight['max_hp']['harl'] - 9, 'the Fire Bolt lands on his turn')
         self.assertEqual(camp.state['pc_resources']['slots']['1']['used'], 1, 'Shield was cast')
 
     def test_disturbing_the_carcass_and_attacking_in_one_breath_waits_for_initiative(self):

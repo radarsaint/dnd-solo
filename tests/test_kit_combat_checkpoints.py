@@ -92,7 +92,7 @@ class ReactionWindow(unittest.TestCase):
                         result.public_event)
         waiting = camp.fight['awaiting']
         self.assertEqual((waiting['kind'], waiting['awaits'], waiting['options']),
-                         ('reaction_window', 'player_answer', ['shield', 'chronal_shift']))
+                         ('reaction_window', 'player_answer', ['shield']))  # a 6-point hit: no reroll window
         self.assertTrue(waiting['deferred_action_id'])
         self.assertEqual(camp.fight['pc_damage'], 0, 'stopped before damage')
         self.assertEqual(camp.state['actors']['cutthroat_a']['status'], 'dead', 'the PC\'s blow stands')
@@ -153,7 +153,7 @@ class ReactionWindow(unittest.TestCase):
         # The captain's other blows and the fire-side cutthroat's mace land without a second offer.
         self.assertIsNone(camp.fight.get('awaiting'))
         self.assertEqual(camp.fight['pc_damage'], 28)
-        self.assertEqual(camp.fight['declined']['families'], {'hit': 'normal'})
+        self.assertEqual(camp.fight['declined']['reactions']['shield']['stakes'], 'normal')
 
     def test_a_declined_window_comes_back_when_the_hit_would_drop_him(self):
         sheet = shield_only()
@@ -199,7 +199,9 @@ class ReactionWindow(unittest.TestCase):
         self.assertEqual(camp.fight['awaiting']['options'], ['chronal_shift'])
 
     def test_chronal_shift_forces_a_reroll_and_counts_its_uses(self):
-        camp = Camp(self, roll=rolls(10, 2))  # the scimitar's 10 (15, a hit); the reroll 2 (7, a miss)
+        hurt = copy.deepcopy(NIK)
+        hurt['hp'] = 22  # a 6-point blow is over a quarter of him: worth a reroll window
+        camp = Camp(self, roll=rolls(10, 2), sheet=hurt)  # the scimitar's 10 (15, a hit); the reroll 2 (7, a miss)
         camp.act(OPEN)
         result = camp.act('Chronal Shift: reroll that.', react='chronal_shift')
         self.assertEqual(camp.state['pc_resources']['uses']['chronal_shift'], {'max': 2, 'used': 1, 'recharge': 'long'})
@@ -235,6 +237,7 @@ class AbsorbElements(unittest.TestCase):
     def camp(self):
         sheet = without_shield(shield_only())
         sheet['spells']['1'].append('Absorb Elements')
+        sheet['hp'] = 26  # the 6-point fire blow matters to him: a window worth opening
         source = json.loads(CAMP.read_text())
         source['combat']['actors']['harl']['attacks'][0].update(name='flame blade', type='fire')
         path = Path(tempfile.mkdtemp()) / 'camp.json'
@@ -414,7 +417,7 @@ class EngineInterstitials(unittest.TestCase):
         packet = bridge.prepare(OPEN, 'h1', one_pass=True)
         self.assertEqual(packet['stage'], 'window_voice')
         window = packet['input']['window']
-        self.assertEqual([o['id'] for o in window['options']], ['shield', 'chronal_shift'])
+        self.assertEqual([o['id'] for o in window['options']], ['shield'])
         self.assertEqual(window['options'][0]['avrae'], '!cast shield')
         self.assertIn('scimitar comes at you', packet['input']['narrate_first'])
         self.assertLess(len(json.dumps(packet)), 4000)
@@ -485,7 +488,7 @@ class EngineInterstitials(unittest.TestCase):
         camp, bridge = self.bridge()
         bridge.prepare(OPEN, 'h1', one_pass=True)
         branches = camp.runtime.kit_timing('h1')['speculative']
-        self.assertEqual(set(branches), {'shield', 'chronal_shift', 'decline'})
+        self.assertEqual(set(branches), {'shield', 'decline'})
         self.assertEqual(set(branches['shield']), {'pc_damage', 'pc_down', 'next_checkpoint'})
         self.voice(bridge, 'h1')
         self.assertNotIn('speculative', json.dumps(camp.state))

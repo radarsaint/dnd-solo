@@ -132,6 +132,7 @@ class Windows(unittest.TestCase):
         sheet['feats'] = []
         sheet['spells'] = []
         sheet['features'] = sheet['features'][:1]
+        sheet['hp'] = 26  # the 6-point blow is a quarter of him: worth halving
         camp = Camp(self, sheet=sheet)
         camp.act(OPEN)
         self.assertEqual(camp.fight['awaiting']['options'], ['uncanny_dodge'])
@@ -195,22 +196,23 @@ class ManifestLine(unittest.TestCase):
         bridge.abandon(turn)
         return packet, kit_manifest.digest(session)
 
-    def test_the_line_is_in_the_session_manifest_and_changes_only_on_spend(self):
+    def test_definitions_are_cached_and_what_is_ready_rides_the_turn_delta(self):
+        # #101 review: the static reaction list stays in the cached session manifest; what is
+        # spendable now (slots, uses) is per-turn, so spending never busts the session cache.
         camp = Camp(self, sheet=shield_only(), roll=lambda: 2)
         bridge = KitChatBridge(camp.runtime, camp.adjudicator)
         packet, first = self.session_hash(bridge, 'a', 'I look around the camp.')
         line = packet['input']['private']['available_reactions']
-        self.assertIn('Shield (spell, L1+ slot, cast in Avrae: !cast shield)', line)
+        self.assertIn('Shield', line)
+        self.assertNotIn('L1 4/4', line, 'live counts are not in the cached definitions')
         self.assertLess(len(line), 300)
-        _, again = self.session_hash(bridge, 'b', 'I look at the wagon.')
-        self.assertEqual(first, again, 'nothing spent: the cached session manifest is unchanged')
+        self.assertIn('L1 4/4', packet['input']['private']['reactions_ready'])
         revision, state = camp.runtime.load()
         spent, _ = kit_reactions.spend(state['pc_resources'], 'shield')
         camp.runtime.commit('spend', revision, [{'type': 'pc_resources', 'resources': spent, 'evidence': 'test'}])
         packet, after = self.session_hash(bridge, 'c', 'I look at the fire.')
-        self.assertNotEqual(first, after)
-        self.assertIn('L1 3/4', packet['input']['private']['available_reactions'])
-
+        self.assertEqual(first, after, 'a spend leaves the session manifest cached')
+        self.assertIn('L1 3/4', packet['input']['private']['reactions_ready'])
 
 if __name__ == '__main__':
     unittest.main()

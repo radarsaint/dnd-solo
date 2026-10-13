@@ -148,8 +148,8 @@ class FightTests(unittest.TestCase):
         room = Room(self, roll=lambda: 15)  # every NPC swing hits AC 14
         room.act('I scoop a handful of coins from the pot. [Sleight of Hand: 18]')
         room.act('Initiative 1. I wait for them to make the first move.')
-        # The 21 beats Shield (AC 19), so only Chronal Shift is offered; Nik takes the hit.
-        self.assertEqual(room.state['combat']['awaiting']['options'], ['chronal_shift'])
+        # The first blows beat Shield and are too light for a reroll; the 18 is the first Shield turns.
+        self.assertEqual(room.state['combat']['awaiting']['options'], ['shield', 'chronal_shift'])
         result = room.act('No, take it.', react='decline')
         self.assertIn('damage', result.public_event)
         self.assertGreater(room.state['combat']['pc_damage'], 0)
