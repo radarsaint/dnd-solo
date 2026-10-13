@@ -52,7 +52,7 @@ STAGES = ('approach', 'first_look', 'explore', 'resolution')
 # and is archived when the PC leaves it (state_context.Runtime.mount_room).
 SESSION_KEYS = ('schema_version', 'kit', 'player_character', 'player_sheet', 'pc_state', 'roll_seed',
                 'elapsed_seconds', 'rooms', 'carried', 'scene_id', 'scenes_closed', 'memory_trimmed',
-                'pc_conditions')
+                'pc_conditions', 'pc_condition_terms')
 
 
 class RoomMountError(InvalidChange):

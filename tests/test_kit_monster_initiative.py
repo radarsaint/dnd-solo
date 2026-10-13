@@ -38,7 +38,7 @@ class Room:
         and conditions are not about reactions. A flourish window open under a plain line is Kit's
         read of a new action. Pass ``choice`` (or decline_windows=False) to test the windows."""
         self.decline_windows = decline_windows
-        temp = tempfile.TemporaryDirectory()
+        temp = self._temp = tempfile.TemporaryDirectory()  # held: a probe's throwaway test case may go
         test.addCleanup(temp.cleanup)
         self.runtime = Runtime(Path(temp.name) / 'kit.sqlite')
         test.addCleanup(self.runtime.close)
@@ -47,8 +47,9 @@ class Room:
         self.runtime.set_player_sheet(sheet or json.loads(NIK.read_text()))
         self.adjudicator = RoomAdjudicator(roll=roll, npc_roll=npc_roll, source=self.runtime.source())
 
-    def act(self, action, handles=None, **choice):
+    def act(self, action, handles=None, downed=None, **choice):
         """Resolve one player line. ``handles``: Kit's declared act this turn (runtime/kit_acts.py),
+        ``downed``: Kit's call on foes acting while the PC is down. Both are
         validated against the turn's offer and resolved as the bridge does at commit. ``choice``: Kit's
         structured read of a reply to an open window (react=..., flourish=...)."""
         if self.decline_windows and not choice:
@@ -58,10 +59,14 @@ class Room:
         revision, state = self.runtime.load()
         result = self.adjudicator.resolve(action, revision, state, choice=choice or None)
         events = list(result.events)
-        if handles:
-            decl = kit_acts.check({'handles': handles}, {'acts': result.offers or {}})['handles']
+        plan = {**({'handles': handles} if handles else {}), **({'downed': {'act': downed}} if downed else {})}
+        if plan:
+            acts = kit_acts.check(plan, {'acts': result.offers or {}})
             after = self.runtime.preview_state(revision, events)
-            declared = self.adjudicator.declared_handling(decl, action, revision, after)
+            if hasattr(self.adjudicator, 'declared_acts'):
+                declared = self.adjudicator.declared_acts(acts, action, revision, after)
+            else:  # before the act family resolved more than handles
+                declared = self.adjudicator.declared_handling(acts['handles'], action, revision, after)
             events += list(declared.events)
             result = declared.__class__(declared.kind, f'{declared.public_event}', events, declared.handoff,
                                         result.offers)
@@ -336,7 +341,7 @@ class SaveRiderTests(unittest.TestCase):
         room.runtime.set_player_sheet(sheet)
         result = room.act('Con save 3')
         self.assertIn('stable', result.public_event)
-        self.assertEqual(room.state['combat']['pc_conditions'], ['poisoned', 'paralyzed'])
+        self.assertEqual(room.state['pc_conditions'], ['unconscious', 'poisoned', 'paralyzed'])
 
 
 class SaveRollParsingTests(unittest.TestCase):

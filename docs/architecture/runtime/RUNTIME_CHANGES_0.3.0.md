@@ -1,3 +1,5 @@
+HISTORICAL: 2026-09-23 contract note. Superseded as a description of the live turn packet by the current bridge and docs/architecture/MANIFESTS.md. DM_PERSONALITY_BACKEND_CONTRACT.md remains the contract file this note added.
+
 # Runtime Architecture Changes — 0.3.0
 
 **Date:** 2026-09-23

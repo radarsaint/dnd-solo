@@ -108,14 +108,16 @@ def _known(fact_key, source, state):
 
 def disturb_targets(source, state, area=None):
     """{feature id: {'words': [nouns], 'parts': [parts and the held id, if known]}} for each
-    feature in the area whose ``disturb`` trigger has not fired."""
+    feature in the area whose ``disturb`` trigger has not fired and that the PC knows is there
+    (visible, or found since: known_facts). An unfound trapdoor is never offered and cannot
+    fire until it is found (#97 review C)."""
     area = area or state.get('area')
     facts = source.get('facts') or {}
     out = {}
     for trigger in pending(source, state):
         kind, key = next(iter(trigger['on'].items()))
         fact = facts.get(key) or {}
-        if kind != 'disturb' or fact.get('area') != area or key in out:
+        if kind != 'disturb' or fact.get('area') != area or key in out or not _known(key, source, state):
             continue
         handling = fact.get('handling') or {}
         words = [str(n).casefold() for n in handling.get('nouns') or ()]
@@ -131,23 +133,28 @@ def disturb_targets(source, state, area=None):
     return out
 
 
+def physical(action):
+    """A turn that does something in the fiction: not table talk, not only speech in quotes,
+    not only a question. Any such turn may put the PC's hands on something."""
+    from .kit_agent import QUOTED_SPEECH, asked_away, is_ooc  # local: kit_agent imports this module
+    if is_ooc(action or ''):
+        return False
+    words = asked_away(QUOTED_SPEECH.sub(' ', action or ''))
+    return bool(re.search(r'[a-z]{2}', words.casefold()))
+
+
 def handles_offer(source, state, action, area=None):
-    """The ``handles`` act offer (runtime/kit_acts.py) when the action names a feature that a
-    pending disturb trigger watches, else None: {targets: {feature: [parts]}, hint?}. The
-    hint is the regex's guess at a hands-on act; it never fires anything."""
+    """The ``handles`` act offer (runtime/kit_acts.py) on any physical turn in an area with a
+    known feature that a pending disturb trigger watches, else None: {targets: {feature:
+    [parts]}, hint?}. Kit resolves pronouns and other words for it ("I push it open", "the
+    stone slab"); the hint is only the regex's guess at a hands-on act on a named feature. It
+    never fires anything."""
     from . import kit_acts
     from .kit_agent import QUOTED_SPEECH, asked_away  # local: kit_agent imports this module
     targets = disturb_targets(source, state, area)
-    if not targets:
+    if not targets or not physical(action):
         return None
     text = QUOTED_SPEECH.sub(' ', action or '').casefold()
-    named = {}
-    for feature, info in targets.items():
-        for word in info['words']:
-            if re.search(r'\b' + re.escape(word) + r's?\b', text):
-                named.setdefault(feature, word)
-    if not named:
-        return None
     offer = {'targets': {feature: info['parts'] for feature, info in targets.items()}}
     nouns = {}
     for feature, info in targets.items():
@@ -161,6 +168,19 @@ def handles_offer(source, state, action, area=None):
             info['held'] if guess['word'] in info['held_words'] else None)
         offer['hint'] = {'target': part or feature, 'act': guess['act']}
     return offer
+
+
+def named_feature(source, state, action, area=None):
+    """The watched feature the words name (for routing an engine feature read), else None."""
+    from .kit_agent import QUOTED_SPEECH
+    text = QUOTED_SPEECH.sub(' ', action or '').casefold()
+    best = None
+    for feature, info in disturb_targets(source, state, area).items():
+        for word in info['words']:
+            found = re.search(r'\b' + re.escape(word) + r's?\b', text)
+            if found and (best is None or found.start() < best[0]):
+                best = (found.start(), feature)
+    return best[1] if best else None
 
 
 def arrived(source, state, result):

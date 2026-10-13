@@ -1,5 +1,7 @@
 # START HERE: how to read this ZIP
 
+> **Development / project work:** start with [PROJECT_BOOTSTRAP.md](PROJECT_BOOTSTRAP.md). It carries the project-wide context bootstrap. This file is the live-play/repository map, not the cross-agent work queue.
+
 This is the `dnd-solo` repository: the runtime, docs, and test material for Kit (Kitiara), an AI Dungeon Master for solo D&D.
 Kit runs a game by calling a Python engine in this folder (`runtime/`). The engine owns rules, state, and hidden facts. Kit owns judgment and voice.
 Most files here are for the people and agents building Kit, not for play. The lists below say which is which. Don't move or rename anything: the engine finds files by path.
@@ -64,6 +66,7 @@ Open these only when `AGENTS.md`, the GPT instructions, a runtime message, or th
 - `docs/architecture/kit-claims-knowers.md` and `docs/GPT_HANDOFF_CLAIMS.md`: who knows what
 - `docs/architecture/kit-agendas.md` and `docs/GPT_HANDOFF_AGENDAS.md`: what NPCs want and when they act
 - `docs/architecture/kit-expression-gap.md`: how speech is checked
+- `docs/architecture/KIT_VISUAL_STYLE_SPEC.md`: house visual language and generation rules; load when Kit is asked to create new campaign art
 <!-- reference:end -->
 
 ## DEV ONLY: do not read during play, do not quote to players
@@ -72,7 +75,7 @@ These are for building and testing Kit. During a game, don't open them, don't qu
 
 <!-- dev-only:begin -->
 - `docs/campaign/`: campaign DM layers for every level. Spoilers.
-- `corpus/`: Brendon's historical writing and the bfdm corpus mirror. Design and research material, not a play source.
+- `corpus/`: obsolete in-repo mirror of older writing and a BFDM bootstrap. Not a play source and not current research. Canonical BFDM research is the `radarsaint/bfdm-corpus` repository.
 - `tests/` (except the runtime fixtures above): unit tests, `tests/playtests/` records, `tests/scenarios/` scripts
 - `docs/collab/`: the agent collaboration protocol and `docs/collab/BOARD.md`
 - `docs/architecture/` (except the reference files above): design specs and plans

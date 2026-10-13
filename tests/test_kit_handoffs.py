@@ -112,6 +112,8 @@ class Reveal(unittest.TestCase):
         look = bridge.prepare('I look at the pillars.', 'look', one_pass=True)
         plan = plan_for(look)
         plan['public_brief'].update(reply_to='look at the pillars')
+        # #97 may offer handles near a watched feature; a look touches nothing (none, or no offer).
+        plan['handles'] = {'target': 'none', 'act': 'none'}
         bridge.complete('look', {'decision': plan, 'performance': {'segments': [
             {'speaker': 'Narrator', 'text': 'The serpents carved up each pillar are worn smooth where hands have '
                                             'touched them, as if people once leaned here to rest a while, and '

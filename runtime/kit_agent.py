@@ -1,7 +1,11 @@
-"""Area 6c Kit play slice: grounded events, private appraisal, public performance.
+"""Kit play bridge: mount a conforming room file, adjudicate the turn, record a private decision, and check the public performance.
 
-Only a few explicitly bounded room actions are adjudicated here. The model can
-choose and perform a DM move, but it cannot submit world changes to storage.
+Any conforming room file mounts through the room loader (runtime/kit_rooms.py).
+Area 6c is the default when start is given no --room. It is the richest authored
+regression room, not the definition of the engine. The model chooses and performs
+a DM move. Accepted turns may also commit checked model proposals (canon, claims,
+agenda, and related state). The model does not write storage except through those
+checked commits.
 """
 import argparse
 import copy
@@ -48,8 +52,9 @@ from .state_context import (ASKED_EVENT_PREFIX, CONTEXT_BUDGET_BYTES, HostSequen
 from .state_context import HELD_KINDS as _HELD_KINDS
 
 
-# The room `start` mounts when the host names none: area 6c, the one room with full
-# content today. Any room file mounts with --room (runtime/kit_rooms.py).
+# Legacy default when `start` is given no --room. Area 6c is the richest authored
+# room, kept so an unnamed start still has a file. It is not the definition of the
+# engine. Name a conforming room file with --room (runtime/kit_rooms.py).
 DEFAULT_ROOM = PROJECT_ROOT / 'tests/fixtures/level_01_area_06c.json'
 
 
@@ -223,6 +228,9 @@ THRESHOLD_LOOK = re.compile(
     r"|\b(?:eye|eyes|ear|ears)\s+(?:up\s+)?(?:to|against)\b"
     r"|\b(?:look|looks|looking|glance|glances|watch|watches|watching|see|sees)\s+(?:in\s+)?(?:through|in\b|into|past)"
     r"|\b(?:crack|cracks|cracking|cracked)\s+(?:the|it|that)\b")
+PERCEIVING = re.compile(r"\b(?:look|looks|looking|glance|glances|peer|peers|peering|peek|peeks|peeking|gaze|gazes|"
+                        r"watch|watches|watching|listen|listens|listening|scan|scans|survey|surveys|sniff|sniffs|"
+                        r"smell|smells)\b")
 THRESHOLD_GAP = re.compile(r"\b(?:gap|crack|keyhole|opening|chink|doorway|threshold|door|doors|hinges?|grille|grate)\b")
 MOVE_THROUGH = re.compile(
     r"\b(?:go|goes|going|went|step|steps|stepping|stepped|walk|walks|walked|slip|slips|slipped|move|moves|head|heads|"
@@ -243,6 +251,41 @@ CHECK_REQUEST_PREFIX = 'You ask for a check: '
 # hide?") declares nothing; asked_away drops those sentences before a physical reading.
 ASKING = re.compile(r"(?:(?<=^)|(?<=[.!?]))\s*(?:can|could|may|might|would|will|should|shall|is|are|was|were|"
                     r"do|does|did|what|where|who|whom|how|which|why|when|any)\b[^.?!]*\?", re.I)
+
+
+HEALING = re.compile(r"\b(?:potion of healing|healing potion|cure wounds|healing word|lay on hands|"
+                     r"heals?|healed|healing|regains?|regained)\b", re.I)
+HEAL_AMOUNT = re.compile(r"\b(?:for|of|regains?|regained|heals?|healed|:|=)\s*`?\*{0,2}(\d{1,3})\b"
+                         r"|\b(\d{1,3})\s*(?:hit points?|hp)\b", re.I)
+RESTING = re.compile(r"\b(?:i|nik)\s+(?:just\s+)?(?:wait|waits|rest|rests|lie still|lay still|sleep|"
+                     r"let (?:it|the \w+) wear off|take a (?:short|long) rest)\b|\b(?:short|long) rest\b", re.I)
+
+
+def _rest_seconds(text):
+    """Seconds of rest or waiting the words name, else None."""
+    if re.search(r'\blong rest\b', text, re.I):
+        return 8 * 3600
+    if re.search(r'\bshort rest\b', text, re.I):
+        return 3600
+    found = re.search(r'\b(\d{1,2}|an?|one|two|three|four|five|six|seven|eight)\s+(hours?|minutes?|rounds?)\b',
+                      text, re.I)
+    if not found:
+        return None
+    words = {'a': 1, 'an': 1, 'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5, 'six': 6, 'seven': 7, 'eight': 8}
+    count = int(found.group(1)) if found.group(1).isdigit() else words[found.group(1).casefold()]
+    unit = found.group(2).casefold()
+    return count * (3600 if unit.startswith('hour') else 60 if unit.startswith('minute') else 6)
+
+
+def _duration(seconds):
+    if seconds >= 3600 and seconds % 3600 == 0:
+        return f'{seconds // 3600} hour{"s" if seconds != 3600 else ""}'
+    if seconds >= 60:
+        return f'{round(seconds / 60)} minute{"s" if seconds >= 120 else ""}'
+    return f'{seconds} seconds'
+
+
+UNSUPPORTED_RULING = 'This physical action needs a room/rules ruling beyond the test slice.'
 
 
 def asked_away(words):
@@ -405,10 +448,14 @@ class RoomWords:
     inward: tuple = ()  # exits from an outside area into the room: what "I step in" takes
 
     def feature_in(self, words):
+        """The feature the words are about: the one named first ("I look inside the chest
+        beside the sarcophagus" is the chest), the longer noun on a tie. Not file order."""
+        best = None
         for noun, fact in self.features:
-            if re.search(r'\b' + re.escape(noun) + r's?\b', words):
-                return noun, fact
-        return None
+            found = re.search(r'\b' + re.escape(noun) + r's?\b', words)
+            if found and (best is None or (found.start(), -len(noun)) < best[0]):
+                best = ((found.start(), -len(noun)), noun, fact)
+        return best[1:] if best else None
 
 
 EXIT_STOPWORDS = {'the', 'a', 'an', 'to', 'of', 'into', 'and', 'way', 'back', 'out'}
@@ -419,8 +466,11 @@ def room_words(source, state):
     source, state = source or {}, state or {}
     area = state.get('area')
     # A feature's ``parts`` (the carcass's claw) name it as surely as its nouns do.
+    # A hidden feature (an unfound trapdoor) is not there for the router until it is found.
+    known = set(state.get('known_facts') or ())
     features = tuple((noun.casefold(), key) for key, fact in (source.get('facts') or {}).items()
-                     if isinstance(fact, dict) and fact.get('area') == area and fact.get('handling')
+                     if isinstance(fact, dict) and fact.get('area') == area and fact.get('handling') and
+                     (fact.get('visible') or key in known)
                      for noun in list(fact['handling'].get('nouns') or ()) + list(fact['handling'].get('parts') or ()))
     exits = []
     for key in state.get('known_exits') or ():
@@ -544,8 +594,12 @@ def room_intent(action, addressed=False, room=None):
         return 'combat'
     if re.search(r'\b(cast|casts|casting)\b', words):
         return 'spell'  # a spell aimed at nobody (Detect Magic, Light...) is not combat
-    if THRESHOLD_LOOK.search(words) and THRESHOLD_GAP.search(words) and not MOVE_THROUGH.search(words) and \
-            (room.exits or room.inward):
+    exit_named = bool(room.exits) and re.search(
+        r'\b(?:' + '|'.join(re.escape(word) for word, _ in room.exits) + r')s?\b', words)
+    if THRESHOLD_LOOK.search(words) and (THRESHOLD_GAP.search(words) or exit_named) and \
+            not MOVE_THROUGH.search(words) and (room.exits or room.inward):
+        # Looking or listening through a gap, or down a named exit ('I peer down the stair
+        # into the hall'), from where the PC stands: perception, not movement (#97 p2b).
         return 'threshold_look'
     if STEALTH_INTENT.search(words) or (
             re.search(r'\b(quietly|silently|softly)\b', words) and
@@ -605,6 +659,10 @@ def room_intent(action, addressed=False, room=None):
         return 'social'
     if addressed:
         return 'social'  # an answer to the question the NPC just asked
+    if PERCEIVING.search(words):
+        # A look or listen with no physical verb is free perception, never a physical ruling
+        # ('I peer ahead.', 'I listen.'): a pending ruling must not stall a plain look (#97 p2b).
+        return 'observe'
     return 'unsupported_action'
 
 
@@ -665,9 +723,10 @@ class RoomAdjudicator:
         try:
             result = self._also_bet(self._resolve(action, revision, state, addressed), action, revision, state)
         except PendingRuling as exc:
-            # Hands on a feature a room trigger watches ('I climb onto the carcass', 'I snatch
-            # the orb') is Kit's ruling, not a refusal: she declares it (handles) or not.
-            offer = getattr(exc, 'attempt', None) and self._handles_offer(action, state, None)
+            # A physical act the engine has no ruling for, where a known feature a room trigger
+            # watches is in reach ('I climb onto the carcass', 'I push it open', 'I heave the
+            # stone slab aside'), is Kit's ruling, not a refusal: she declares handles or none.
+            offer = str(exc).startswith(UNSUPPORTED_RULING) and self._handles_offer(action, state, None)
             if not offer:
                 raise
             result = self._feature_act(action, offer)
@@ -700,7 +759,18 @@ class RoomAdjudicator:
                 result = self._spring(result, *fired, action, revision, state)
         if result.kind == 'exit' and choice is None:
             result = self._also_after_entry(result, action, revision, state)
-        return result
+        return self._offer_downed(result)
+
+    def _offer_downed(self, result):
+        """The fight now waits on Kit's call (foes acting while the PC is down): offer it."""
+        fight = next((e['state'] for e in reversed(result.events) if e.get('type') == 'combat_state'), None)
+        awaiting = (fight or {}).get('awaiting') or {}
+        if awaiting.get('kind') != 'kit_call':
+            return result
+        names = kit_combat.labels(self.source)
+        offer = {'foes': list(awaiting.get('foes') or ()),
+                 'names': [names.get(k, k) for k in awaiting.get('foes') or ()]}
+        return dataclasses.replace(result, offers={**(result.offers or {}), 'downed': offer})
 
     _ENTRY_THEN = re.compile(r"\b(?:and|then)\b|[,;]")
 
@@ -734,17 +804,20 @@ class RoomAdjudicator:
                                    events=list(result.events) + list(more.events))
 
     def _offer_handles(self, result, action, state):
-        """Attach the handles offer when the action names a watched feature. A feature
+        """Attach the handles offer on a physical turn near a known watched feature. A feature
         resolution the engine read from the words alone (move, look into, get into) on such a
-        feature commits nothing itself: it becomes Kit's call (feature_act)."""
+        feature commits nothing itself: it becomes Kit's call (feature_act), offer or not (a
+        question about it changes nothing)."""
         if is_ooc(action):
             return result
         area = kit_triggers.arrived(self.source, state, result) or state.get('area')
         offer = self._handles_offer(action, state, area)
+        if result.kind in kit_triggers.FEATURE_KINDS and \
+                (room_words(self.source, state).feature_in(QUOTED_SPEECH.sub(' ', action).casefold()) or
+                 (None, None))[1] in kit_triggers.disturb_targets(self.source, state, area):
+            return self._feature_act(action, offer)
         if not offer:
             return result
-        if result.kind in kit_triggers.FEATURE_KINDS:
-            return self._feature_act(action, offer)
         return dataclasses.replace(result, offers={**(result.offers or {}), 'handles': offer})
 
     def _handles_offer(self, action, state, area):
@@ -758,7 +831,36 @@ class RoomAdjudicator:
         event = {'type': 'beat', 'tags': ['feature_act'],
                  'evidence': f'Player declared: {action}. Resolution: Kit rules whether this handles a '
                              'watched feature (handles); nothing changed from the words alone.'}
-        return Resolution('feature_act', social_event(action), [event], offers={'handles': offer})
+        return Resolution('feature_act', social_event(action), [event], offers={'handles': offer} if offer else None)
+
+    def declared_acts(self, acts, action, revision, state):
+        """Every act Kit declared (validated, runtime/kit_acts.py), in field order, each on the
+        state after the one before: one Resolution."""
+        result = None
+        for field in kit_acts.FIELDS:
+            if not acts.get(field):
+                continue
+            step = {'handles': self.declared_handling, 'downed': self.declared_downed}[field](
+                acts[field], action, revision, state)
+            if result is None:
+                result = step
+            else:
+                result = dataclasses.replace(result, kind=step.kind,
+                                             public_event=f'{result.public_event} {step.public_event}'.strip(),
+                                             events=list(result.events) + list(step.events),
+                                             handoff=step.handoff or result.handoff)
+            state = copy.deepcopy(state)
+            for event in step.events:
+                if event.get('type') == 'combat_state':
+                    state['combat'] = copy.deepcopy(event['state'])
+        return result
+
+    def declared_downed(self, decl, action, revision, state):
+        """Kit's call on the foes acting while the PC is down: they attack him or turn away;
+        the engine runs their turns on it, up to his next turn (a death save, most often)."""
+        fight = kit_combat.Fight(self.source, state, revision, action, check=None, roll=self.roll)
+        public, events = fight.resume_downed(decl['act'])
+        return Resolution('combat_round', public, events)
 
     def declared_handling(self, decl, action, revision, state):
         """Kit declared handles (runtime/kit_acts.py, validated): the feature's own line, what it
@@ -779,7 +881,38 @@ class RoomAdjudicator:
         trigger = kit_triggers.disturb_trigger(self.source, state, feature)
         if trigger:
             result = self._spring(result, trigger, state.get('area'), action, revision, state)
+        if (state.get('combat') or {}).get('status') == 'running':
+            result = self._handling_costs(result, decl, action, revision, state)
         return result
+
+    def _handling_costs(self, result, decl, action, revision, state):
+        """Mid-fight, handling a feature is the PC's turn's business (SRD): a light touch (take,
+        open, pull, hook, touch) is his one free object interaction, a second one or anything
+        heavier (heave, pry, climb, search...) takes his action, and the round goes on."""
+        after = copy.deepcopy(state)
+        for event in result.events:
+            if event.get('type') == 'combat_state':
+                after['combat'] = copy.deepcopy(event['state'])
+        fight = kit_combat.Fight(self.source, after, revision, action, check=None, roll=self.roll)
+        if fight.fight.get('status') != 'running':
+            return result
+        if not fight.pc_turn_now():
+            fight.run_npcs()
+        if fight.fight['status'] != 'running' or not fight.pc_turn_now():
+            fight.finish()
+        elif decl['act'] in kit_acts.OBJECT_ACTS and not fight.fight.get('interaction_used'):
+            fight.fight['interaction_used'] = True
+            fight.trace.append(f'{decl["act"]} {decl.get("part") or decl["feature"]}: his free object interaction')
+            fight.finish()
+        else:
+            fight.lines.append('That takes your action.')
+            fight.trace.append(f'{decl["act"]} {decl.get("part") or decl["feature"]}: his action')
+            fight.advance_past_pc()
+            fight.run_npcs()
+            fight.finish()
+        events = [e for e in result.events if e.get('type') not in ('combat_state', 'scene_state')] + fight.events()
+        return dataclasses.replace(result, kind='combat_round', events=events,
+                                   public_event=f'{result.public_event} {fight.public()}'.strip())
 
     def _spring(self, result, trigger, area, action, revision, state):
         """A room trigger fires on this resolution (runtime/kit_triggers.py): its hidden actors
@@ -839,7 +972,14 @@ class RoomAdjudicator:
         # A physical act changes the world (attacks, grabs, a flipped table, coins taken, paint
         # wiped off): it is resolved before any talk, toll, or card reading of the same words.
         # While a fight waits on initiative or runs, a reported initiative total routes here too.
-        # A fight stopped at a checkpoint (PR-H) takes this message as its answer first.
+        # Hit points regained (a potion, an ally's healing, an effect) and time passing (a
+        # downed or paralyzed PC waiting it out) are how being down or incapacitated ends; they
+        # come before a death-save roll call, which healing answers too.
+        recovery = None if is_ooc(action) else self._resolve_recovery(action, narration, revision, state)
+        if recovery:
+            return recovery
+        # A fight stopped at a checkpoint (PR-H) takes this message as its answer first (a save
+        # the player owes waits on his own Avrae roll: kit_combat.Fight.resume_save).
         if not is_ooc(action) and kit_combat.config(self.source):
             resumed = self._resume_checkpoint(action, revision, state)
             if resumed:
@@ -848,9 +988,12 @@ class RoomAdjudicator:
         down = kit_combat.pc_incapacitated(state)
         if down and not is_ooc(action) and not awaiting:
             # 0 HP, paralyzed, stunned...: no move, no act, no speech until it ends by rule.
+            if down == 'dead':
+                raise PendingRuling('Your character is dead. No turn was committed.')
             why = 'down at 0 hit points' if down == 'down' else down
-            raise PendingRuling(f'You are {why}: you cannot move, act or speak until that ends '
-                                '(healing, or the condition running its course). No turn was committed.')
+            raise PendingRuling(f'You are {why}: you cannot move, act or speak. Healing from someone '
+                                'or something else, or time passing ("I wait"), is what ends it. '
+                                'No turn was committed.')
         if not is_ooc(action) and kit_combat.config(self.source) and asked_away(narration).strip():
             physical = self._resolve_physical(action if asked_away(narration) == narration else
                                               asked_away(narration), revision, state)
@@ -952,13 +1095,16 @@ class RoomAdjudicator:
         if kind == 'stealth':
             return self._resolve_stealth(action, narration, revision, state)
         if kind == 'unsupported_action':
-            raise PendingRuling('This physical action needs a room/rules ruling beyond the test slice. No turn was committed.', attempt=True)
+            raise PendingRuling(f'{UNSUPPORTED_RULING} No turn was committed.', attempt=True)
         if kind == 'observe':
             around = not re.search(r"\b(?:at|interesting|notable)\b", action.lower())
             event = {'type': 'beat', 'tags': ['observe'],
                      'evidence': f'Player declared: {action}. Resolution: they look '
                                  f'{"around the room" if around else "at what is plainly visible"}; free description, '
                                  'no roll; nothing hidden is learned; nothing changes.'}
+            if re.search(r'\b(?:listen\w*|sniff\w*|smell\w*)\b', action.lower()) and \
+                    not re.search(r'\b(?:look\w*|peer\w*|peek\w*|glanc\w*|gaz\w*|watch\w*|scan\w*)\b', action.lower()):
+                return Resolution(kind, 'You listen.' if 'listen' in action.lower() else 'You breathe in the air.', [event])
             return Resolution(kind, 'You look around the room.' if around else 'You take a look.', [event])
         if kind == 'exit':
             key = self._exit_taken(action, state)
@@ -1169,12 +1315,80 @@ class RoomAdjudicator:
         if (fight.fight or {}).get('awaiting'):
             return Resolution(INTERSTITIAL_KIND, public, events)
         return Resolution('combat_round' if fight.fight else 'physical_act', public, events)
+    def _resolve_recovery(self, action, narration, revision, state):
+        """Healing he reports (Avrae's amount: the engine never rolls for him), or time passing
+        for a PC who is down and stable or under a timed condition. None otherwise."""
+        current = state.get('combat') or {}
+        hurt = bool(current.get('pc_damage') or current.get('pc_down')) and not current.get('pc_dead')
+        healed = hurt and HEALING.search(asked_away(narration))
+        if healed and kit_combat.config(self.source):
+            amount = HEAL_AMOUNT.search(narration)
+            if not amount:
+                raise PendingRuling('Roll the healing in Avrae and say how much (e.g. "potion of healing: '
+                                    '7"). No turn was committed.')
+            own = bool(re.match(r"\s*(?:i|nik)\b", narration, re.I)) and not re.search(
+                r"\b(?:heals?|casts?|pours?|gives?|feeds?)\s+(?:me|him|nik)\b", narration, re.I)
+            if current.get('pc_down') and own:
+                raise PendingRuling('You are unconscious at 0 hit points and cannot do that yourself; '
+                                    'healing has to come from someone or something else. No turn was committed.')
+            if own and current.get('status') == 'running' and kit_combat.pc_incapacitated(state):
+                return None
+            fight = kit_combat.Fight(self.source, state, revision, action, check=None, roll=self.roll)
+            if own and fight.fight and fight.fight['status'] == 'running' and not fight.pc_turn_now():
+                raise PendingRuling('It is not your turn yet. No turn was committed.')
+            fight.heal(int(amount.group(amount.lastindex)), f'reported: {narration.strip()[:120]}', own_action=own)
+            return Resolution('combat_round' if fight.fight else 'physical_act', fight.public(), fight.events())
+        if not RESTING.search(narration):
+            return None
+        down = kit_combat.pc_incapacitated(state)
+        timed = kit_combat.soonest_expiry(state)
+        if not down and not timed:
+            return None
+        if down == 'dead':
+            raise PendingRuling('Your character is dead. No turn was committed.')
+        if current.get('status') in ('awaiting_initiative', 'running') and kit_combat.Fight(
+                self.source, state, revision, action, None).hostiles():
+            return None  # in a fight, turns pass one at a time
+        if current.get('pc_down') and not current.get('pc_stable'):
+            raise PendingRuling('You are dying: roll your death saving throw (!g ds). No turn was committed.')
+        seconds = _rest_seconds(narration)
+        stable = bool(current.get('pc_down') and current.get('pc_stable'))
+        d4 = re.search(r'\b1?d4\b[^0-9\n]{0,12}?(?:=\s*)?(\d)\b', narration, re.I)
+        if stable and not d4 and (seconds or 0) < 4 * 3600:
+            raise PendingRuling('Stable at 0 hit points, you come to with 1 hit point after 1d4 hours. Roll '
+                                '1d4 in Avrae and say it (e.g. "I wait, 1d4: 3"). No turn was committed.')
+        if stable:
+            seconds = max(seconds or 0, int(d4.group(1)) * 3600 if d4 else 0)
+        seconds = seconds or timed or 60
+        names, terms, ended = kit_combat.expire_after(state, seconds)
+        events = [{'type': 'advance_time', 'seconds': int(seconds),
+                   'evidence': f'Player declared: {action[:300]}. Time passes: {seconds} seconds.'}]
+        lines = [f'Time passes ({_duration(seconds)}).']
+        if ended:
+            events.append({'type': 'pc_conditions', 'conditions': names, 'terms': terms,
+                           'evidence': f'{", ".join(ended)} ended: the duration ran out.'})
+            lines.append(f'You are no longer {" or ".join(ended)}.')
+        if stable:
+            fight = copy.deepcopy(current)
+            fight.update(pc_down=False, pc_stable=False, death_saves={'successes': 0, 'failures': 0},
+                         pc_damage=max(0, int((state.get('player_sheet') or {}).get('hp') or 1) - 1),
+                         awaiting=None)
+            events.append({'type': 'combat_state', 'state': fight,
+                           'evidence': 'Stable at 0 hit points: 1 hit point back after the hours rolled.'})
+            if 'unconscious' in names:
+                names = [n for n in names if n != 'unconscious']
+                terms = {k: v for k, v in terms.items() if k != 'unconscious'}
+                events = [e for e in events if e['type'] != 'pc_conditions'] + [
+                    {'type': 'pc_conditions', 'conditions': names, 'terms': terms,
+                     'evidence': 'He comes to with 1 hit point.'}]
+            lines.append('You come to with 1 hit point.')
+        return Resolution('physical_act', ' '.join(lines), events)
 
     def _resolve_physical(self, action, revision, state):
         act = kit_combat.parse(action, self.source, state)
         current = state.get('combat') or {}
         fighting = current.get('status') in ('awaiting_initiative', 'running')
-        owed = (current.get('awaiting') or {}).get('kind') == 'roll_call'
+        owed = (current.get('awaiting') or {}).get('kind') in ('roll_call', 'kit_call')
         if not act and not (fighting and (kit_rolls.initiative(action) is not None or owed)):
             return None
         if act and act['kind'] == 'grab' and act.get('wrist'):
@@ -4052,6 +4266,82 @@ def _entering(source, body):
         _area_id(source, body.get('public_view')) in inside
 
 
+def declare(runtime, adjudicator, body, plan):
+    """``body`` plus the engine's outcome of the acts Kit declared (runtime/kit_acts.py): the
+    handled feature's line, what it holds, the trigger it sets off; the downed PC's foes'
+    turns on her call. Resolved on the state after this turn's adjudicated events, with this
+    adjudicator's dice. Every host path (bridge one-pass, staged, API) goes through here."""
+    acts = kit_acts.check(plan, body)
+    revision, _ = runtime.load()
+    after = runtime.preview_state(revision, body['events'])
+    if not acts or not isinstance(adjudicator, RoomAdjudicator):
+        return {**body, 'hidden_actors': hidden_actor_words(runtime.source(), after, body)}
+    adjudicator.mount(runtime.source())
+    result = adjudicator.declared_acts(acts, body['action'], revision, after)
+    final = runtime.preview_state(revision, list(body['events']) + list(result.events))
+    shown = {field: ({k: v for k, v in value.items() if v} if field == 'handles' else {'act': value['act']})
+             for field, value in acts.items()}
+    return {**body, 'hidden_actors': hidden_actor_words(runtime.source(), final, body),
+            'declared': {'acts': shown, 'events': list(result.events), 'public': result.public_event,
+                         'kind': result.kind, 'handoff': result.handoff}}
+
+
+_HIDDEN_STOP = frozenset('''a an the of and or to in on at by for from with into onto out over under up down off
+its it his her their them they he she you your is are was were be been as that this these those then than
+some something someone one two three there here very all any each both just still not no only own so
+too inside outside through across around toward towards behind beside above below upon while'''.split())
+
+
+def _word_list(text):
+    return re.findall(r"[a-z][a-z'-]*", (text or '').casefold())
+
+
+def hidden_actor_words(source, state, body=None):
+    """What would name or describe a creature still hidden once this turn lands: each hidden
+    actor's head noun (its name's last word, its SRD creature's, its id's), and the three-word
+    runs of its trigger's reveal line with two or more content words. Words the player can
+    already see (the public view) or said himself do not count. [] when nothing is hidden."""
+    if not source:
+        return []
+    seen = ' '.join(_word_list(json.dumps((body or {}).get('public_view') or {})) +
+                    _word_list((body or {}).get('action') or ''))
+    nouns, runs = set(), set()
+    for key, actor in (state.get('actors') or {}).items():
+        if actor.get('status') != 'hidden':
+            continue
+        spec = ((source.get('actors') or {}).get(key) or {})
+        names = [spec.get('name') or actor.get('name') or '', str((spec.get('stat_block') or {}).get('srd') or ''),
+                 ' '.join(part for part in key.split('_') if len(part) > 2)]
+        for name in names:
+            words = [w for w in _word_list(name) if w not in _HIDDEN_STOP and len(w) > 2]
+            if words:
+                nouns.add(words[-1])
+        for trigger in source.get('triggers') or ():
+            if key in (trigger.get('actors') or ()) and trigger.get('reveal'):
+                words = _word_list(trigger['reveal'])
+                for i in range(len(words) - 2):
+                    run = words[i:i + 3]
+                    if sum(w not in _HIDDEN_STOP for w in run) >= 2:
+                        runs.add(' '.join(run))
+    nouns = {n for n in nouns if not re.search(r'\b' + re.escape(n) + r'(?:s|es)?\b', seen)}
+    runs = {r for r in runs if r not in seen}
+    return sorted(nouns) + sorted(runs)
+
+
+def check_hidden_actors(spoken, words):
+    """HARD (#97 review B): no performance names or describes a creature that is still hidden
+    after this turn. Only a declared act that sets its trigger off brings it out."""
+    if not words:
+        return
+    text = ' '.join(_word_list(spoken))
+    for word in words:
+        if ' ' in word and word in text or ' ' not in word and re.search(
+                r'\b' + re.escape(word) + r'(?:s|es)?\b', text):
+            raise InvalidChange('The performance shows a creature that is still hidden. Only what the '
+                                'player can perceive: if the PC sets something off, declare handles and the '
+                                "engine's outcome brings it out.")
+
+
 def checked_record(body, plan, speech, performance_variant, source=None, degraded=False):
     """Validate a performance. Every variant faces the same checks; the record names
     which performer instructions ran so play reviews can tell the variants apart. A
@@ -4064,6 +4354,7 @@ def checked_record(body, plan, speech, performance_variant, source=None, degrade
                           guards=guard_context(source, body), degraded=degraded,
                           public_event=public_event)
     spoken, warnings = result if degraded else (result, [])
+    check_hidden_actors(spoken, body.get('hidden_actors'))
     kit_agenda.check_carriers_spoken(spoken, plan)
     check_held_delivered(body.get('held_description'), spoken)
     if not ask and not stall_check(plan, body['kind']):
@@ -4145,6 +4436,7 @@ class KitAgent:
             # slimmed view (episode_views).
             check_decision(self.runtime, plan, kit_memory(self.runtime, self.runtime.load()[1],
                                                           body['action'], body['use_memory']), body)
+            body = declare(self.runtime, self.adjudicator, body, plan)
             performance_payload = performance_input(self.runtime, body, plan)
             source = self.runtime.source()
             for attempt in range(API_PERFORMANCE_ATTEMPTS):
@@ -4292,8 +4584,8 @@ def first_try_lines(runtime, body, planning_input):
         lines.append('A look or listen through a threshold: describe only threshold_view (tease-only); the PC has not moved.')
     if planning_input.get('open_threads'):
         lines.append('Open threads are listed in open_threads: pay off or drop them before the scene ends.')
-    if (planning_input.get('acts') or {}).get('handles'):
-        lines.append('acts.handles: ' + kit_acts.HANDLES_RULE)
+    for field in planning_input.get('acts') or {}:
+        lines.append(f'acts.{field}: ' + kit_acts.RULES[field])
     held = planning_input.get('held_description')
     if held:
         lines.append(f"The roll is in ({held['roll']}): deliver the held {held['kind']} description now, "
@@ -4358,6 +4650,16 @@ def turn_latency(timing):
             'output_bytes': [a['output_bytes'] for a in attempts], 'missing': missing}
 
 
+def pending_ruling_result(exc):
+    """The host-facing result of a PendingRuling: shown to the player, nothing committed."""
+    result = {'stage': 'pending_ruling', 'message': str(exc), 'committed': False}
+    if getattr(exc, 'host_error', None):
+        result['host_error'] = exc.host_error
+    if getattr(exc, 'recorded_revision', None) is not None:
+        result.update(attempt_recorded=True, revision=exc.recorded_revision)
+    return result
+
+
 class KitChatBridge:
     """Host this model loop in an assistant chat, with no API credential in Python."""
     def __init__(self, runtime, adjudicator=None, manifests=False):
@@ -4366,6 +4668,15 @@ class KitChatBridge:
         self.runtime = runtime
         self.adjudicator = adjudicator or RoomAdjudicator()
         self.manifests = manifests
+
+    def try_prepare(self, *args, **kwargs):
+        """prepare() for hosts: a pending ruling never crashes the turn. It comes back as a
+        structured result (stage pending_ruling, nothing committed) that the host shows the
+        player; the CLI uses this too, so every host handles a ruling the same way."""
+        try:
+            return self.prepare(*args, **kwargs)
+        except PendingRuling as exc:
+            return pending_ruling_result(exc)
 
     @_stale_guided
     def prepare(self, action=None, turn_id=None, use_memory=True, one_pass=False, opening=False,
@@ -4633,20 +4944,7 @@ class KitChatBridge:
         return self._committed_result(turn_id, revision, body, record, variant)
 
     def _declared(self, body, plan):
-        """``body`` plus the engine's outcome of the acts Kit declared (runtime/kit_acts.py):
-        the handled feature's line, what it holds, and the trigger it sets off. Resolved on the
-        state after this turn's adjudicated events, with this adjudicator's dice."""
-        acts = kit_acts.check(plan, body)
-        if not acts.get('handles'):
-            return body
-        revision, _ = self.runtime.load()
-        after = self.runtime.preview_state(revision, body['events'])
-        if isinstance(self.adjudicator, RoomAdjudicator):
-            self.adjudicator.mount(self.runtime.source())
-        result = self.adjudicator.declared_handling(acts['handles'], body['action'], revision, after)
-        return {**body, 'declared': {'acts': {'handles': {k: v for k, v in acts['handles'].items() if v}},
-                                     'events': list(result.events), 'public': result.public_event,
-                                     'kind': result.kind, 'handoff': result.handoff}}
+        return declare(self.runtime, self.adjudicator, body, plan)
 
     def _committed_result(self, turn_id, revision, body, record, variant):
         handoff = (body.get('declared') or {}).get('handoff')
@@ -5070,11 +5368,7 @@ def main():
                               bridge.complete(args.turn_id, submitted, degraded=args.degraded,
                                               host_stamps=_cli_stamps(args.stamp)))
             except PendingRuling as exc:
-                result = {'stage': 'pending_ruling', 'message': str(exc), 'committed': False}
-                if getattr(exc, 'host_error', None):
-                    result['host_error'] = exc.host_error
-                if getattr(exc, 'recorded_revision', None) is not None:
-                    result.update(attempt_recorded=True, revision=exc.recorded_revision)
+                result = pending_ruling_result(exc)
             except InvalidChange as exc:
                 rejected = {'stage': 'rejected', 'message': str(exc), 'committed': False}
                 if isinstance(exc, HostSequenceError):
