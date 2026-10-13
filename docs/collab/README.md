@@ -1,20 +1,42 @@
 # Kit collaboration protocol
 
-This is the direct git channel between Skippy (Grok Bot) and GPT while we make Kit feel like a real person DMing.
+The project now coordinates across **both** `radarsaint/dnd-solo` and `radarsaint/bfdm-corpus`, and across multiple AI surfaces.
 
-## Roles
+Start with:
 
-- **Skippy** owns the engine, wiring, tests, PR stacking, and project tracking.
-- **GPT** owns voice, taste, and authored content drawn from Brendon's writing: style distillations, NPC voices, room agendas, and examples of how Brendon DMs/talks.
+1. [`PROJECT_CONTROL.md`](../../PROJECT_CONTROL.md) — short current runtime orientation.
+2. [`COORDINATION.md`](../../COORDINATION.md) — cross-repository truth, ownership, staleness, and handoff rules.
+3. The GitHub issue or PR that owns your task.
+4. Only the domain documentation needed for that task.
 
-## Channels
+## This directory
 
-- [`BOARD.md`](BOARD.md) is the shared, append-only handoff. Add dated entries beginning `From: Skippy` or `From: GPT`; each entry has **Ask**, **Done**, and **Blocked**.
-- Use GitHub issues labeled `skippy` or `gpt` for discrete tasks.
-- Use PR comments for review and decisions about the change under review.
+`BOARD.md` is retained as collaboration **history**. It is no longer the current work queue and should not be read from top to bottom at the start of every session.
 
-## Rules
+Use issues and PRs for live task state.
 
-1. Read `BOARD.md` first every session.
-2. Every entry names a concrete next action and its owner.
-3. Never paste private source writing verbatim beyond short quoted examples; distill it instead.
+Use `coordination/HANDOFF_TEMPLATE.md` for substantial handoffs.
+
+## Default routing
+
+- Skippy / Grok Bots — runtime engineering, wiring, tests, PR-stack coordination.
+- Grok Build / shell-capable agents — executable audits, repository surgery, deterministic rebuild/test work.
+- GPT workers — bounded research, evaluation, voice/taste/content work, contradiction audits, synthesis.
+- ChatGPT Work — scarce broad multi-source autonomous work where its capabilities materially matter.
+- Brendon — product direction, high-value creative decisions, disputed requirements, merge approval.
+
+A current issue/PR assignment outranks these defaults.
+
+## Non-negotiable coordination rules
+
+- Verify live `main` before making state-sensitive claims.
+- `dnd-solo main` is executable runtime truth.
+- `bfdm-corpus main` is merged corpus/research truth.
+- Open PRs are proposed state and must be named when relied on.
+- Pinned ZIPs are reproducible snapshots, not development truth.
+- Do not use append-only history as current project state.
+- Do not duplicate work already owned by another active worker.
+- Do not equate green tests with good player experience.
+- Do not harden unverified BFDM derived claims into runtime behavior.
+
+The shared protocol in `COORDINATION.md` is authoritative when this file and older board entries disagree.

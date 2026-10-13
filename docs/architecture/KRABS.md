@@ -8,11 +8,13 @@
 **Canonical implementation repository:**  
 https://github.com/radarsaint/dnd-solo
 
-**Public BFDM research projection:**  
+**Historical in-repo BFDM mirror (obsolete bootstrap; not research authority):**  
 https://github.com/radarsaint/dnd-solo/tree/main/corpus/bfdm
 
-**Private canonical BFDM research repository:**  
+**Canonical BFDM research repository:**  
 https://github.com/radarsaint/bfdm-corpus
+
+Repository visibility does not decide authority. Public or private settings do not make another copy canonical. Current BFDM research truth is `bfdm-corpus` `main`, plus any draft PR the task explicitly names.
 
 ---
 
@@ -92,7 +94,7 @@ KRABS is not a greenfield proposal.
 
 The current executable system is much narrower than the intended end state.
 
-"dnd-solo" currently provides a bounded solo-DM laboratory centered on Dungeon of the Mad Mage, especially Level 1 Area 6c.
+"dnd-solo" currently provides a SQLite chat-hosted solo-DM runtime that can load and chain conforming authored room files. Area 6c is still the only richly authored room on current main; the watchroom is synthetic and area 17a is a sparse stub. That loader is not source-to-room. Kit cannot yet turn untouched keyed adventure text into the next playable room. Running any keyed area of the book is the product target, not a description of what is built. PR #100 is the proposed authoring path, not current capability.
 
 The implemented foundation includes, in various degrees:
 
@@ -133,7 +135,7 @@ The implementation does not establish:
 - cross-platform publication guarantees;
 - proof that Kit is an excellent DM.
 
-The current laboratory has already produced important failures.
+The current laboratory has already produced important historical failures. These are regression/evaluation evidence, not claims that every failure remains present on current `main`.
 
 Passing automated tests did not prevent:
 
@@ -1268,20 +1270,23 @@ Historical behavior may be:
 - format-specific;
 - unresolved.
 
-**Evidence visibility**
+**Evidence location**
 
-KRABS distinguishes:
+KRABS distinguishes where evidence lives. Repository visibility does not decide which repository is canonical.
 
-**Public primary evidence**  
-Directly inspectable by an external reviewer.
+**Canonical BFDM research**  
+`radarsaint/bfdm-corpus` on its current `main`, plus any draft PR the task explicitly names. This is the research authority whether the repository is public or private.
 
-**Public derived BFDM research**  
-Decision cases and analyses in the public mirror whose derivation and provenance can be examined.
+**Inspectable primary evidence**  
+Source records a reviewer can open in that repository or in an authenticated archive.
 
-**Private/raw backing evidence**  
-Source archives that remain authenticated/private or LFS-backed and cannot currently be independently reconstructed by an unauthenticated external reviewer.
+**Derived research**  
+Decision cases, propositions, and analyses. Derived text is interpretation. A citation is not semantic verification, and source accessibility is not derived-research trust.
 
-KRABS must not imply that all BFDM conclusions can be independently re-derived from the public repository.
+**Historical in-repo mirror**  
+`dnd-solo` `corpus/bfdm` and `corpus/brendon` are obsolete bootstrap copies. They are not a second canonical corpus. Do not treat "public" versus "private" as the authority test.
+
+KRABS must not imply that every BFDM conclusion can be re-derived from an old mirror, a pinned ZIP, or a document that calls itself canonical.
 
 ---
 
@@ -1557,9 +1562,9 @@ The North Star is not the next release test.
 
 Capability should be earned progressively.
 
-**Stage 1 — One room worth playing**
+**Stage 1 — Any keyed room worth playing**
 
-Area 6c produces responsive, coherent, entertaining play across multiple exchanges.
+Any keyed area of the book, built from the source text when play reaches it, produces responsive, coherent, entertaining play across multiple exchanges. Tests use varied, unplayed rooms; no room has primacy.
 
 The system understands the room's function rather than merely its facts.
 
@@ -1575,7 +1580,7 @@ Latency is measured.
 
 **Stage 2 — Transfer to another real scene**
 
-A second playable location with different actors, pressures, and activity proves that the Area 6c solution is not room-specific scaffolding.
+Multi-room runs across locations with different actors, pressures, and activity prove the solution is not room-specific scaffolding.
 
 **Stage 3 — Pillar transfer**
 
@@ -1644,9 +1649,9 @@ KRABS should not turn every newly identified end-state concern into an implement
 The immediate work remains:
 
 1. Preserve Kit as one recognizable persona across ordinary conversation, creative/debrief work, and runtime-backed DM play. Add a small cross-context evaluation now; do not wait for cross-campaign memory infrastructure.
-2. Make Area 6c consistently worth playing.
-3. Improve the room's ability to adjudicate natural player actions.
-4. Preserve the room's actual play function rather than allowing optional mechanics to swallow it.
+2. Make any keyed area of the book playable on demand from the source text, proven across varied, unplayed rooms.
+3. Improve each room's ability to adjudicate natural player actions.
+4. Preserve each room's actual play function rather than allowing optional mechanics to swallow it.
 5. Make NPC motives and scene pressure legible in play.
 6. Keep Kit coherent and recognizable inside the game as well as outside it.
 7. Measure full player-visible latency.

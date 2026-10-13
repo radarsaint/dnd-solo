@@ -1,3 +1,5 @@
+HISTORICAL: 2026-09-24 feasibility handoff for the first SQLite experiment. Superseded by the room loader and the current play bridge. Current orientation is PROJECT_CONTROL.md.
+
 # State/context implementation handoff
 
 Date: 2026-09-24
