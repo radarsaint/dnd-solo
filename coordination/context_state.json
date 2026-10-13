@@ -2,41 +2,40 @@
   "schema": "kit_project_gardener_state/v1",
   "purpose": "RESUMABILITY_CURSOR_NOT_KNOWLEDGE_STORE",
   "canonical_location": "radarsaint/dnd-solo/coordination/context_state.json",
-  "state_revision": 17,
+  "state_revision": 18,
   "semantic_brain": {
     "repo": "radarsaint/dnd-solo",
     "path": "docs/PROJECT_UNDERSTANDING.md",
-    "last_semantic_commit": "43c164d3bb9d595f81b7a6de40e4a1c71c429d85",
+    "last_semantic_commit": "f42eff46971792c18d8d7213f739791670025a72",
     "last_reviewed_on": "2026-10-13"
   },
   "checkpoint": {
     "reviewed_against_main": {
-      "radarsaint/dnd-solo": "c386b5657b2b135ab567fc289be56e6478ab7256",
+      "radarsaint/dnd-solo": "f42eff46971792c18d8d7213f739791670025a72",
       "radarsaint/bfdm-corpus": "6795362e967e89230086afc28c04450cc7d0cce4"
     },
     "context_inbox": {
       "repo": "radarsaint/dnd-solo",
       "issue": 115,
       "issue_state_at_checkpoint": "open",
-      "last_fully_reconciled_comment_id": 6154288086,
-      "comment_count_at_checkpoint": 9
+      "last_fully_reconciled_comment_id": 6154618488,
+      "comment_count_at_checkpoint": 10
     }
   },
   "last_completed_pass": {
     "kind": "BOUNDED_SEMANTIC_RECONCILIATION",
     "completed_on": "2026-10-13",
-    "scope": "Reviewed live mains and #115 comment 6154288086 (PR #101 combat checkpoints pending delta).",
-    "result": "Unresolved: PR #101 remains open and unmerged at head c8bf217de1d88a1c65c11181d2500dbf0bf1863b. Delta explicitly defers reconciliation until #97 and #101 merge. No Brain change. G5 and G6 stay open.",
-    "resulting_brain_commit": "43c164d3bb9d595f81b7a6de40e4a1c71c429d85",
-    "reconciled_comment_id": 6154288086
+    "scope": "Reviewed #97 merge e94e9fdd / head 9ba4083 and #115 comment 6154618488 (round-7 sealed-feature refinement). Accepted. #101 delta remains deferred.",
+    "result": "Accepted: #97 is on main. Brain records structured handles, sealed features, player-rolled saves, house-rule ties. #101 remains open and unmerged. G5 and G6 stay open.",
+    "resulting_brain_commit": "f42eff46971792c18d8d7213f739791670025a72",
+    "reconciled_comment_id": 6154618488
   },
   "active_pass": null,
   "unresolved": [
     "Issue #118 G5 is unmet.",
     "ChatGPT Project source membership remains a manual Project-UI change. G6 stays open.",
     "Legacy paid play route removal is pending with Skippy.",
-    "PR #97 monster initiative sealed-feature model is pending review and unmerged; reconcile its semantic claims only after merge.",
-    "PR #101 combat checkpoints reaction model is pending review and unmerged; reconcile its semantic claims only after #97 and #101 merge."
+    "PR #101 combat checkpoints reaction model is pending review and unmerged; reconcile its semantic claims only after merge."
   ],
   "needs_review": [],
   "checkpoint_rules": {
