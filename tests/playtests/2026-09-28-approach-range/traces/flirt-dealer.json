@@ -1,0 +1,375 @@
+{
+  "label": "host model: Grok via KitChatBridge; not GPT; author-played, not a quality verdict.",
+  "approach": "Flirting with / charming the dealer",
+  "final_revision": 4,
+  "committed_turns": [
+    {
+      "performance_variant": "kit_expression_v1",
+      "player_input": "[scene entry]",
+      "public_event": "A newcomer has reached the card room.",
+      "spoken": "Narrator: A coin rings off the table edge and wobbles across the floor toward the south door, and nobody at the card table moves to catch it. Four of them sit at a worn table near that door, pale as candle tallow, pointed teeth showing when they breathe, dressed in lace and velvet gone shiny at the elbows. Each has coins stacked in front of them; a silver ring sits among the stacks in the middle. The man dealing has stopped mid-hand, one card pinned between two fingers. Beyond them, the whole north wall is a carved mountain, tiny dwarves in tiny caverns, stone sunbeams fanning over a long tub sunk into the floor.\nNarrator: When the dealer speaks it is slow and savoring, each word laid down like a card he means you to look at.\nDealer: Well, now. The door brought us company. Come in, come in, the passage is draftier than we are. That coin by your boot is the most interesting thing that has happened at this table in an hour, so tell me: are you the sort who picks it up, or the sort who waits to see whose it is?",
+      "trace": {
+        "appraisal": {
+          "cause": "A newcomer walks in on a game with a performer dealing.",
+          "goal_effect": "advances",
+          "intensity": 1,
+          "label": "interest",
+          "target": "scene"
+        },
+        "focus_actor": "uktarl",
+        "goal": "npc_embodiment",
+        "improv_read": {
+          "actor_basis": "immediate_goal",
+          "actor_ref": "uktarl",
+          "connection": "The gang works newcomers here; the dealer wants control of the encounter from the first word, so he speaks first and sets the terms of attention, not money.",
+          "kit_choice": "Let the room open on the dealer performing for an audience, and stay out of it herself so the player meets people, not a DM.",
+          "player_bid": "No bid yet; a newcomer has reached the card room.",
+          "story_anchor": "level",
+          "story_basis": "pressure_here"
+        },
+        "memory_refs": [],
+        "move": "world_description",
+        "observed_event": "A newcomer has reached the card room.",
+        "player_note": {
+          "evidence_turns": [],
+          "note": "none",
+          "replaces": "none"
+        },
+        "public_brief": {
+          "callback": "none",
+          "kit_focus": "Open on people in motion, a game interrupted, and put the carving and tub in view without comment; no DM voice yet.",
+          "objective": "Make the newcomer the center of the table's attention on the dealer's terms.",
+          "player_opening": "The newcomer can answer him, approach, ignore the table, or look at the carving and tub.",
+          "reply_to": "none",
+          "scope": "feature",
+          "tactic": "Welcome the newcomer as theatre and pull them toward the table before they decide anything.",
+          "visible_cue": "A dropped coin rolls toward the door; the dealer holds one card unplayed between two fingers."
+        },
+        "table_presence": "quiet",
+        "tone": "curious"
+      }
+    },
+    {
+      "performance_variant": "kit_expression_v1",
+      "player_input": "I sidle up beside the dealer, smile, and say, \"Do you always look this dangerous, or is it the candlelight?\"",
+      "public_event": "You declare: \"I sidle up beside the dealer, smile, and say, \"Do you always look this dangerous, or is it the candlelight?\"\"",
+      "spoken": "Kit: You walked straight past three sets of fangs to flirt with the fourth. Noted.\nDealer: Candlelight is the kindest friend a face like mine ever had, and I'd hate to disappoint it. Always, I'm afraid. It is exhausting. But a charming thing like you did not come all this way down to compliment a man's complexion. So tell me, while you're standing this close: what do you want that the smile hasn't already got you?\nNarrator: He tilts his card so the flame runs along its edge. Across the table, the player by the door rolls his eyes so hard his whole head goes with them.",
+      "trace": {
+        "appraisal": {
+          "cause": "The newcomer walks up to the fanged dealer and flirts with him on the first line.",
+          "goal_effect": "advances",
+          "intensity": 2,
+          "label": "amusement",
+          "target": "player"
+        },
+        "focus_actor": "uktarl",
+        "goal": "shared_humor",
+        "improv_read": {
+          "actor_basis": "motive",
+          "actor_ref": "uktarl",
+          "connection": "He is a vain performer who profits from newcomers; flattery is currency he understands, so he returns it with interest and uses the closeness to fish for what she wants.",
+          "kit_choice": "The player made a bold, funny social choice aimed at the scariest-looking person in the room; Kit lets herself react for one beat, then gives the dealer the whole stage.",
+          "player_bid": "Sidles up to the dealer and flirts, asking if he always looks this dangerous or if it is the candlelight.",
+          "story_anchor": "scene",
+          "story_basis": "scene_state"
+        },
+        "memory_refs": [],
+        "move": "kit_comment_then_npc",
+        "observed_event": "You declare: \"I sidle up beside the dealer, smile, and say, \"Do you always look this dangerous, or is it the candlelight?\"\"",
+        "player_note": {
+          "evidence_turns": [
+            "this_turn"
+          ],
+          "note": "Leads with charm and flirtation toward the most imposing NPC.",
+          "replaces": "none"
+        },
+        "public_brief": {
+          "callback": "none",
+          "kit_focus": "One short DM beat of amused recognition at flirting with the fanged man, then the flirtation belongs to the dealer and the table’s groan.",
+          "objective": "Turn her charm into information about what she wants and how much she carries.",
+          "player_opening": "She can keep flirting, say what she wants, or sit down.",
+          "reply_to": "Do you always look this dangerous, or is it the candlelight?",
+          "scope": "exchange",
+          "tactic": "Accept the compliment extravagantly, flirt back as salesmanship, and ask what she wants that the smile cannot get her.",
+          "visible_cue": "He tilts the card between two fingers to catch the candlelight; the player by the door rolls his eyes."
+        },
+        "table_presence": "brief",
+        "tone": "wry"
+      }
+    },
+    {
+      "performance_variant": "kit_expression_v1",
+      "player_input": "I laugh, touch his sleeve, and say, \"I don't gamble with money. I gamble with company. Buy me a hand?\"",
+      "public_event": "You declare: \"I laugh, touch his sleeve, and say, \"I don't gamble with money. I gamble with company. Buy me a hand?\"\"",
+      "spoken": "Dealer: Company. Now there's a currency nobody down here ever has enough of. All right. I will buy you a hand. If you win, you keep whatever it wins. If you lose, you owe me one small favor, to be named at a time of my choosing. Nothing indecent. Probably. Sit.\nNarrator: He hooks the chair beside him with one boot and drags it out. Across the table, the player by the fresco sighs through his teeth and tosses his cards in.\nCard player: Deal or don't. Some of us are losing actual money.",
+      "trace": {
+        "appraisal": {
+          "cause": "She asks him to stake her a hand in exchange for her company.",
+          "goal_effect": "advances",
+          "intensity": 1,
+          "label": "amusement",
+          "target": "npc"
+        },
+        "focus_actor": "uktarl",
+        "goal": "npc_embodiment",
+        "improv_read": {
+          "actor_basis": "motive",
+          "actor_ref": "uktarl",
+          "connection": "He profits from newcomers; staking her costs him nothing with a deck he controls, and the terms let him set a price later. The rest of the table resents losing money to his showing off.",
+          "kit_choice": "Kit stays out of it; the flirtation has become a negotiation and the players’ irritation shows the room has its own opinion.",
+          "player_bid": "Laughs, touches his sleeve, says she gambles with company rather than money, and asks him to buy her a hand.",
+          "story_anchor": "scene",
+          "story_basis": "scene_state"
+        },
+        "memory_refs": [
+          "flirt-t1"
+        ],
+        "move": "npc_reply",
+        "observed_event": "You declare: \"I laugh, touch his sleeve, and say, \"I don't gamble with money. I gamble with company. Buy me a hand?\"\"",
+        "player_note": {
+          "evidence_turns": [],
+          "note": "none",
+          "replaces": "none"
+        },
+        "public_brief": {
+          "callback": "none",
+          "kit_focus": "Let the flirtation turn into a bargain with the dealer driving it; no DM remark, and the other players’ impatience gets one visible beat.",
+          "objective": "Seat her on his terms and leave her owing him something.",
+          "player_opening": "She can accept the favor terms, counter, or refuse.",
+          "reply_to": "Buy me a hand?",
+          "scope": "exchange",
+          "tactic": "Agree to stake the hand but name his own terms: win and keep it, lose and owe him a favor to be named later.",
+          "visible_cue": "He pulls out the chair beside him with his foot; the player by the fresco sighs and throws in his cards."
+        },
+        "table_presence": "quiet",
+        "tone": "warm"
+      }
+    },
+    {
+      "performance_variant": "kit_expression_v1",
+      "player_input": "I sit, lean in close, and say, \"Deal. But if I win, you walk me to that door yourself.\"",
+      "public_event": "You declare: \"I sit, lean in close, and say, \"Deal. But if I win, you walk me to that door yourself.\"\"",
+      "spoken": "Dealer: Walk you to the door. On my arm, I suppose, like a gentleman.\nNarrator: For one sentence the drawl drops away and his voice goes short and exact.\nDealer: And if you lose, the door costs what it costs everyone. Ten gold. No favors, no company, coin.\nNarrator: Then the warmth is back as if it never left. Two cards whisper across the wood and stop in front of you, face down.\nDealer: There. Now we're both gambling. Look whenever your nerve is ready.",
+      "trace": {
+        "appraisal": {
+          "cause": "She has turned the flirtation into a passage bargain on her own terms.",
+          "goal_effect": "advances",
+          "intensity": 2,
+          "label": "interest",
+          "target": "player"
+        },
+        "focus_actor": "uktarl",
+        "goal": "npc_embodiment",
+        "improv_read": {
+          "actor_basis": "motive",
+          "actor_ref": "uktarl",
+          "connection": "She has named passage as her prize, which touches the gang’s real business; he likes the game but restates the true price if she loses, because control of the door is the thing he actually sells.",
+          "kit_choice": "The flirtation has found the room’s real stakes by itself. Kit lets the dealer name them in his crisp voice and stays silent so it lands.",
+          "player_bid": "Sits, leans in, accepts the deal, and adds that if she wins he must walk her to the door himself.",
+          "story_anchor": "level",
+          "story_basis": "pressure_here"
+        },
+        "memory_refs": [
+          "flirt-t2"
+        ],
+        "move": "npc_reply",
+        "observed_event": "You declare: \"I sit, lean in close, and say, \"Deal. But if I win, you walk me to that door yourself.\"\"",
+        "player_note": {
+          "evidence_turns": [],
+          "note": "none",
+          "replaces": "none"
+        },
+        "public_brief": {
+          "callback": "none",
+          "kit_focus": "Let her charm find the real stakes on its own; give the dealer’s one crisp sentence about the door full weight, then stop at the dealt cards.",
+          "objective": "Keep the door his to sell, even inside a flirtation.",
+          "player_opening": "She can look at her cards, change the terms, or back out before looking.",
+          "reply_to": "if I win, you walk me to that door yourself",
+          "scope": "exchange",
+          "tactic": "Accept her prize with relish, then name the price if she loses in crisp terms, and deal.",
+          "visible_cue": "The drawl drops to crisp terms for one sentence; two cards slide face down in front of her."
+        },
+        "table_presence": "quiet",
+        "tone": "warm"
+      }
+    }
+  ],
+  "player_notes": [
+    {
+      "evidence_turns": [
+        "flirt-t1"
+      ],
+      "id": "n2",
+      "note": "Leads with charm and flirtation toward the most imposing NPC.",
+      "source": "observed"
+    }
+  ],
+  "episodes": [
+    {
+      "actor_ref": "uktarl",
+      "appraisal": {
+        "cause": "A newcomer walks in on a game with a performer dealing.",
+        "goal_effect": "advances",
+        "intensity": 1,
+        "label": "interest",
+        "target": "scene"
+      },
+      "brief": {
+        "callback": "none",
+        "kit_focus": "Open on people in motion, a game interrupted, and put the carving and tub in view without comment; no DM voice yet.",
+        "objective": "Make the newcomer the center of the table's attention on the dealer's terms.",
+        "player_opening": "The newcomer can answer him, approach, ignore the table, or look at the carving and tub.",
+        "reply_to": "none",
+        "scope": "feature",
+        "tactic": "Welcome the newcomer as theatre and pull them toward the table before they decide anything.",
+        "visible_cue": "A dropped coin rolls toward the door; the dealer holds one card unplayed between two fingers."
+      },
+      "event": "A newcomer has reached the card room.",
+      "goal": "npc_embodiment",
+      "kit_choice": "Let the room open on the dealer performing for an audience, and stay out of it herself so the player meets people, not a DM.",
+      "move": "world_description",
+      "player_bid": "No bid yet; a newcomer has reached the card room.",
+      "player_input": "[scene entry]",
+      "public_event": "A newcomer has reached the card room.",
+      "story_anchor": "level",
+      "story_basis": "pressure_here",
+      "turn_id": "open"
+    },
+    {
+      "actor_ref": "uktarl",
+      "appraisal": {
+        "cause": "The newcomer walks up to the fanged dealer and flirts with him on the first line.",
+        "goal_effect": "advances",
+        "intensity": 2,
+        "label": "amusement",
+        "target": "player"
+      },
+      "brief": {
+        "callback": "none",
+        "kit_focus": "One short DM beat of amused recognition at flirting with the fanged man, then the flirtation belongs to the dealer and the table’s groan.",
+        "objective": "Turn her charm into information about what she wants and how much she carries.",
+        "player_opening": "She can keep flirting, say what she wants, or sit down.",
+        "reply_to": "Do you always look this dangerous, or is it the candlelight?",
+        "scope": "exchange",
+        "tactic": "Accept the compliment extravagantly, flirt back as salesmanship, and ask what she wants that the smile cannot get her.",
+        "visible_cue": "He tilts the card between two fingers to catch the candlelight; the player by the door rolls his eyes."
+      },
+      "event": "You declare: \"I sidle up beside the dealer, smile, and say, \"Do you always look this dangerous, or is it the candlelight?\"\"",
+      "goal": "shared_humor",
+      "kit_choice": "The player made a bold, funny social choice aimed at the scariest-looking person in the room; Kit lets herself react for one beat, then gives the dealer the whole stage.",
+      "move": "kit_comment_then_npc",
+      "player_bid": "Sidles up to the dealer and flirts, asking if he always looks this dangerous or if it is the candlelight.",
+      "player_input": "I sidle up beside the dealer, smile, and say, \"Do you always look this dangerous, or is it the candlelight?\"",
+      "public_event": "You declare: \"I sidle up beside the dealer, smile, and say, \"Do you always look this dangerous, or is it the candlelight?\"\"",
+      "story_anchor": "scene",
+      "story_basis": "scene_state",
+      "turn_id": "flirt-t1"
+    },
+    {
+      "actor_ref": "uktarl",
+      "appraisal": {
+        "cause": "She asks him to stake her a hand in exchange for her company.",
+        "goal_effect": "advances",
+        "intensity": 1,
+        "label": "amusement",
+        "target": "npc"
+      },
+      "brief": {
+        "callback": "none",
+        "kit_focus": "Let the flirtation turn into a bargain with the dealer driving it; no DM remark, and the other players’ impatience gets one visible beat.",
+        "objective": "Seat her on his terms and leave her owing him something.",
+        "player_opening": "She can accept the favor terms, counter, or refuse.",
+        "reply_to": "Buy me a hand?",
+        "scope": "exchange",
+        "tactic": "Agree to stake the hand but name his own terms: win and keep it, lose and owe him a favor to be named later.",
+        "visible_cue": "He pulls out the chair beside him with his foot; the player by the fresco sighs and throws in his cards."
+      },
+      "event": "You declare: \"I laugh, touch his sleeve, and say, \"I don't gamble with money. I gamble with company. Buy me a hand?\"\"",
+      "goal": "npc_embodiment",
+      "kit_choice": "Kit stays out of it; the flirtation has become a negotiation and the players’ irritation shows the room has its own opinion.",
+      "move": "npc_reply",
+      "player_bid": "Laughs, touches his sleeve, says she gambles with company rather than money, and asks him to buy her a hand.",
+      "player_input": "I laugh, touch his sleeve, and say, \"I don't gamble with money. I gamble with company. Buy me a hand?\"",
+      "public_event": "You declare: \"I laugh, touch his sleeve, and say, \"I don't gamble with money. I gamble with company. Buy me a hand?\"\"",
+      "story_anchor": "scene",
+      "story_basis": "scene_state",
+      "turn_id": "flirt-t2"
+    },
+    {
+      "actor_ref": "uktarl",
+      "appraisal": {
+        "cause": "She has turned the flirtation into a passage bargain on her own terms.",
+        "goal_effect": "advances",
+        "intensity": 2,
+        "label": "interest",
+        "target": "player"
+      },
+      "brief": {
+        "callback": "none",
+        "kit_focus": "Let her charm find the real stakes on its own; give the dealer’s one crisp sentence about the door full weight, then stop at the dealt cards.",
+        "objective": "Keep the door his to sell, even inside a flirtation.",
+        "player_opening": "She can look at her cards, change the terms, or back out before looking.",
+        "reply_to": "if I win, you walk me to that door yourself",
+        "scope": "exchange",
+        "tactic": "Accept her prize with relish, then name the price if she loses in crisp terms, and deal.",
+        "visible_cue": "The drawl drops to crisp terms for one sentence; two cards slide face down in front of her."
+      },
+      "event": "You declare: \"I sit, lean in close, and say, \"Deal. But if I win, you walk me to that door yourself.\"\"",
+      "goal": "npc_embodiment",
+      "kit_choice": "The flirtation has found the room’s real stakes by itself. Kit lets the dealer name them in his crisp voice and stays silent so it lands.",
+      "move": "npc_reply",
+      "player_bid": "Sits, leans in, accepts the deal, and adds that if she wins he must walk her to the door himself.",
+      "player_input": "I sit, lean in close, and say, \"Deal. But if I win, you walk me to that door yourself.\"",
+      "public_event": "You declare: \"I sit, lean in close, and say, \"Deal. But if I win, you walk me to that door yourself.\"\"",
+      "story_anchor": "level",
+      "story_basis": "pressure_here",
+      "turn_id": "flirt-t3"
+    }
+  ],
+  "known_facts": [
+    "card_table",
+    "fresco",
+    "tub",
+    "treasure_on_table"
+  ],
+  "area": "area_06c",
+  "timings": [
+    {
+      "turn_id": "open",
+      "committed_at": 1790649102.9553115,
+      "mode": "one_pass",
+      "outcome": "committed",
+      "performance_variant": "kit_expression_v1",
+      "prepare_to_commit_s": 0.003,
+      "prepared_at": 1790649102.9519606
+    },
+    {
+      "turn_id": "flirt-t1",
+      "committed_at": 1790649102.9622405,
+      "mode": "one_pass",
+      "outcome": "committed",
+      "performance_variant": "kit_expression_v1",
+      "prepare_to_commit_s": 0.004,
+      "prepared_at": 1790649102.9585447
+    },
+    {
+      "turn_id": "flirt-t2",
+      "committed_at": 1790649102.9664726,
+      "mode": "one_pass",
+      "outcome": "committed",
+      "performance_variant": "kit_expression_v1",
+      "prepare_to_commit_s": 0.003,
+      "prepared_at": 1790649102.963698
+    },
+    {
+      "turn_id": "flirt-t3",
+      "committed_at": 1790649102.9722543,
+      "mode": "one_pass",
+      "outcome": "committed",
+      "performance_variant": "kit_expression_v1",
+      "prepare_to_commit_s": 0.004,
+      "prepared_at": 1790649102.9684286
+    }
+  ],
+  "host_log_rejections_and_pending_rulings": []
+}

@@ -10,6 +10,7 @@ coverage/
 dist/
 build/
 .tmp/
+.private/
 
 # User-supplied licensed visual binaries.
 # Hydrate these locally with scripts/import_visual_assets.py.

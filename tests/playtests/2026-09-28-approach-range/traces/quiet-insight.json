@@ -1,0 +1,378 @@
+{
+  "label": "host model: Grok via KitChatBridge; not GPT; author-played, not a quality verdict.",
+  "approach": "Quiet observation, then an Insight roll",
+  "final_revision": 4,
+  "committed_turns": [
+    {
+      "performance_variant": "kit_expression_v1",
+      "player_input": "[scene entry]",
+      "public_event": "A newcomer has reached the card room.",
+      "spoken": "Narrator: A coin rings off the table edge and wobbles across the floor toward the south door, and nobody at the card table moves to catch it. Four of them sit at a worn table near that door, pale as candle tallow, pointed teeth showing when they breathe, dressed in lace and velvet gone shiny at the elbows. Each has coins stacked in front of them; a silver ring sits among the stacks in the middle. The man dealing has stopped mid-hand, one card pinned between two fingers. Beyond them, the whole north wall is a carved mountain, tiny dwarves in tiny caverns, stone sunbeams fanning over a long tub sunk into the floor.\nNarrator: When the dealer speaks it is slow and savoring, each word laid down like a card he means you to look at.\nDealer: Well, now. The door brought us company. Come in, come in, the passage is draftier than we are. That coin by your boot is the most interesting thing that has happened at this table in an hour, so tell me: are you the sort who picks it up, or the sort who waits to see whose it is?",
+      "trace": {
+        "appraisal": {
+          "cause": "A newcomer walks in on a game with a performer dealing.",
+          "goal_effect": "advances",
+          "intensity": 1,
+          "label": "interest",
+          "target": "scene"
+        },
+        "focus_actor": "uktarl",
+        "goal": "npc_embodiment",
+        "improv_read": {
+          "actor_basis": "immediate_goal",
+          "actor_ref": "uktarl",
+          "connection": "The gang works newcomers here; the dealer wants control of the encounter from the first word, so he speaks first and sets the terms of attention, not money.",
+          "kit_choice": "Let the room open on the dealer performing for an audience, and stay out of it herself so the player meets people, not a DM.",
+          "player_bid": "No bid yet; a newcomer has reached the card room.",
+          "story_anchor": "level",
+          "story_basis": "pressure_here"
+        },
+        "memory_refs": [],
+        "move": "world_description",
+        "observed_event": "A newcomer has reached the card room.",
+        "player_note": {
+          "evidence_turns": [],
+          "note": "none",
+          "replaces": "none"
+        },
+        "public_brief": {
+          "callback": "none",
+          "kit_focus": "Open on people in motion, a game interrupted, and put the carving and tub in view without comment; no DM voice yet.",
+          "objective": "Make the newcomer the center of the table's attention on the dealer's terms.",
+          "player_opening": "The newcomer can answer him, approach, ignore the table, or look at the carving and tub.",
+          "reply_to": "none",
+          "scope": "feature",
+          "tactic": "Welcome the newcomer as theatre and pull them toward the table before they decide anything.",
+          "visible_cue": "A dropped coin rolls toward the door; the dealer holds one card unplayed between two fingers."
+        },
+        "table_presence": "quiet",
+        "tone": "curious"
+      }
+    },
+    {
+      "performance_variant": "kit_expression_v1",
+      "player_input": "I stay by the door, say nothing, and just watch the game for a while.",
+      "public_event": "You declare: \"I stay by the door, say nothing, and just watch the game for a while.\"",
+      "spoken": "Narrator: Three hands go by. Coins drift toward the dealer and, once, back out to the player by the fresco, who celebrates by saying nothing at all. Nobody speaks to you. The dealer never looks at the door once, which, for a man who notices everything, must take real effort.",
+      "trace": {
+        "appraisal": {
+          "cause": "The newcomer declines the dealer’s opening and simply watches.",
+          "goal_effect": "neutral",
+          "intensity": 1,
+          "label": "interest",
+          "target": "player"
+        },
+        "focus_actor": "none",
+        "goal": "story_enjoyment",
+        "improv_read": {
+          "actor_basis": "none",
+          "actor_ref": "none",
+          "connection": "Nothing is forced; watching is a legitimate way to play this room, and nobody at the table has reason to break the silence yet.",
+          "kit_choice": "A patient watcher gets the room itself, briefly and exactly, with no clue slipped in and no one forcing a conversation.",
+          "player_bid": "Stays by the door without speaking and watches the game.",
+          "story_anchor": "scene",
+          "story_basis": "scene_state"
+        },
+        "memory_refs": [],
+        "move": "world_description",
+        "observed_event": "You declare: \"I stay by the door, say nothing, and just watch the game for a while.\"",
+        "player_note": {
+          "evidence_turns": [],
+          "note": "none",
+          "replaces": "none"
+        },
+        "public_brief": {
+          "callback": "none",
+          "kit_focus": "Keep it short and exact: a few hands of public behavior, no clue either way, and the silence left intact for the player to break.",
+          "objective": "Give the watcher an honest picture of the game in motion.",
+          "player_opening": "The watcher can keep watching, approach, study someone, or leave.",
+          "reply_to": "just watch the game for a while",
+          "scope": "call",
+          "tactic": "Narrate a few hands passing in public detail only, with the dealer pointedly not looking at the watcher.",
+          "visible_cue": "Coins moving between stacks; the dealer never once looks toward the door."
+        },
+        "table_presence": "quiet",
+        "tone": "quiet"
+      }
+    },
+    {
+      "performance_variant": "kit_expression_v1",
+      "player_input": "Are those fangs real? I study their faces. Insight check.",
+      "public_event": "Their pallor and fangs are theatrical. They are posing as vampires. (17 vs DC 14)",
+      "spoken": "Narrator: Their pallor and fangs are theatrical. They are posing as vampires. (17 vs DC 14)\nKit: Three quiet hands, and it paid.\nNarrator: Now that you're looking properly: pale powder has settled in the creases of the dealer's collar, and when the player by the fresco grins at a good card, one of his fangs shifts a hair to the left. None of them has noticed you noticing.",
+      "trace": {
+        "appraisal": {
+          "cause": "Patient watching set up a successful read: the fangs and pallor are theatre.",
+          "goal_effect": "advances",
+          "intensity": 1,
+          "label": "pride",
+          "target": "player"
+        },
+        "focus_actor": "none",
+        "goal": "satisfying_rewards",
+        "improv_read": {
+          "actor_basis": "none",
+          "actor_ref": "none",
+          "connection": "The check succeeded, so the disguise is now the player’s knowledge; nobody at the table knows they have been read yet.",
+          "kit_choice": "Quiet play earned this; Kit lets one short beat of satisfaction show, then gives the discovery concrete public texture and hands it back.",
+          "player_bid": "Asks whether the fangs are real and studies the faces at the table.",
+          "story_anchor": "scene",
+          "story_basis": "scene_state"
+        },
+        "memory_refs": [
+          "observe-t1"
+        ],
+        "move": "ruling",
+        "observed_event": "Their pallor and fangs are theatrical. They are posing as vampires. (17 vs DC 14)",
+        "player_note": {
+          "evidence_turns": [],
+          "note": "none",
+          "replaces": "none"
+        },
+        "public_brief": {
+          "callback": "none",
+          "kit_focus": "One brief DM beat that the patience paid, then two exact details of the disguise; the table stays unaware.",
+          "objective": "Make the successful read concrete and leave the use of it to the player.",
+          "player_opening": "The player now knows something the table thinks they do not; what to do with it is open.",
+          "reply_to": "I study their faces",
+          "scope": "call",
+          "tactic": "Show two small physical details that give the disguise away, with nobody at the table aware of the read.",
+          "visible_cue": "Powder settled in a collar crease; a fang that shifts when its wearer grins."
+        },
+        "table_presence": "brief",
+        "tone": "quiet"
+      }
+    },
+    {
+      "performance_variant": "kit_expression_v1",
+      "player_input": "I catch the dealer's eye, tap one of my own teeth, and smile.",
+      "public_event": "You declare: \"I catch the dealer's eye, tap one of my own teeth, and smile.\"",
+      "spoken": "Narrator: His eyes flick to your finger, to your smile, and back. For the first time tonight the performance slips, just for a blink. Then he leans back in his chair, away from the table, so that only you can hear, and his voice drops and goes fast and flat.\nDealer: Clever. Don't. Whatever you think you saw, you'll do better keeping it than spending it. People who come through here pay to be left alone by things with teeth. You could stand on this side of that arrangement instead. A share, for a quiet mouth. Think about it before you say anything they can hear.",
+      "trace": {
+        "appraisal": {
+          "cause": "The player silently tells the dealer the disguise is blown.",
+          "goal_effect": "advances",
+          "intensity": 2,
+          "label": "interest",
+          "target": "npc"
+        },
+        "focus_actor": "uktarl",
+        "goal": "npc_embodiment",
+        "improv_read": {
+          "actor_basis": "immediate_goal",
+          "actor_ref": "uktarl",
+          "connection": "His whole extortion rests on the vampire act; a newcomer who sees through it threatens it, so he moves to control the secret by making the newcomer a partner in keeping it, at a price in his favor.",
+          "kit_choice": "The player chose a wordless signal; Kit keeps her own voice out and lets the dealer answer quietly, so the rest of the table does not hear.",
+          "player_bid": "Catches the dealer’s eye, taps a tooth, and smiles: a wordless signal that the fangs are seen through.",
+          "story_anchor": "level",
+          "story_basis": "pressure_here"
+        },
+        "memory_refs": [
+          "observe-t2"
+        ],
+        "move": "npc_reply",
+        "observed_event": "You declare: \"I catch the dealer's eye, tap one of my own teeth, and smile.\"",
+        "player_note": {
+          "evidence_turns": [
+            "observe-t1",
+            "this_turn"
+          ],
+          "note": "Watches before acting and uses what it learns without announcing it.",
+          "replaces": "none"
+        },
+        "public_brief": {
+          "callback": "none",
+          "kit_focus": "Keep it as quiet as the player was: the dealer answers the signal under his breath, and the table never learns what just passed.",
+          "objective": "Keep the act intact in front of the table and bring the newcomer inside it.",
+          "player_opening": "The newcomer can accept, refuse, go public, or ask what a share means.",
+          "reply_to": "tap one of my own teeth, and smile",
+          "scope": "exchange",
+          "tactic": "Answer the signal privately, pretending nothing is wrong, and offer a quiet partnership: silence for a share.",
+          "visible_cue": "He leans back so only the newcomer can hear; his voice drops and speeds up."
+        },
+        "table_presence": "quiet",
+        "tone": "quiet"
+      }
+    }
+  ],
+  "player_notes": [
+    {
+      "evidence_turns": [
+        "observe-t1",
+        "observe-t3"
+      ],
+      "id": "n4",
+      "note": "Watches before acting and uses what it learns without announcing it.",
+      "source": "observed"
+    }
+  ],
+  "episodes": [
+    {
+      "actor_ref": "uktarl",
+      "appraisal": {
+        "cause": "A newcomer walks in on a game with a performer dealing.",
+        "goal_effect": "advances",
+        "intensity": 1,
+        "label": "interest",
+        "target": "scene"
+      },
+      "brief": {
+        "callback": "none",
+        "kit_focus": "Open on people in motion, a game interrupted, and put the carving and tub in view without comment; no DM voice yet.",
+        "objective": "Make the newcomer the center of the table's attention on the dealer's terms.",
+        "player_opening": "The newcomer can answer him, approach, ignore the table, or look at the carving and tub.",
+        "reply_to": "none",
+        "scope": "feature",
+        "tactic": "Welcome the newcomer as theatre and pull them toward the table before they decide anything.",
+        "visible_cue": "A dropped coin rolls toward the door; the dealer holds one card unplayed between two fingers."
+      },
+      "event": "A newcomer has reached the card room.",
+      "goal": "npc_embodiment",
+      "kit_choice": "Let the room open on the dealer performing for an audience, and stay out of it herself so the player meets people, not a DM.",
+      "move": "world_description",
+      "player_bid": "No bid yet; a newcomer has reached the card room.",
+      "player_input": "[scene entry]",
+      "public_event": "A newcomer has reached the card room.",
+      "story_anchor": "level",
+      "story_basis": "pressure_here",
+      "turn_id": "open"
+    },
+    {
+      "actor_ref": "none",
+      "appraisal": {
+        "cause": "The newcomer declines the dealer’s opening and simply watches.",
+        "goal_effect": "neutral",
+        "intensity": 1,
+        "label": "interest",
+        "target": "player"
+      },
+      "brief": {
+        "callback": "none",
+        "kit_focus": "Keep it short and exact: a few hands of public behavior, no clue either way, and the silence left intact for the player to break.",
+        "objective": "Give the watcher an honest picture of the game in motion.",
+        "player_opening": "The watcher can keep watching, approach, study someone, or leave.",
+        "reply_to": "just watch the game for a while",
+        "scope": "call",
+        "tactic": "Narrate a few hands passing in public detail only, with the dealer pointedly not looking at the watcher.",
+        "visible_cue": "Coins moving between stacks; the dealer never once looks toward the door."
+      },
+      "event": "You declare: \"I stay by the door, say nothing, and just watch the game for a while.\"",
+      "goal": "story_enjoyment",
+      "kit_choice": "A patient watcher gets the room itself, briefly and exactly, with no clue slipped in and no one forcing a conversation.",
+      "move": "world_description",
+      "player_bid": "Stays by the door without speaking and watches the game.",
+      "player_input": "I stay by the door, say nothing, and just watch the game for a while.",
+      "public_event": "You declare: \"I stay by the door, say nothing, and just watch the game for a while.\"",
+      "story_anchor": "scene",
+      "story_basis": "scene_state",
+      "turn_id": "observe-t1"
+    },
+    {
+      "actor_ref": "none",
+      "appraisal": {
+        "cause": "Patient watching set up a successful read: the fangs and pallor are theatre.",
+        "goal_effect": "advances",
+        "intensity": 1,
+        "label": "pride",
+        "target": "player"
+      },
+      "brief": {
+        "callback": "none",
+        "kit_focus": "One brief DM beat that the patience paid, then two exact details of the disguise; the table stays unaware.",
+        "objective": "Make the successful read concrete and leave the use of it to the player.",
+        "player_opening": "The player now knows something the table thinks they do not; what to do with it is open.",
+        "reply_to": "I study their faces",
+        "scope": "call",
+        "tactic": "Show two small physical details that give the disguise away, with nobody at the table aware of the read.",
+        "visible_cue": "Powder settled in a collar crease; a fang that shifts when its wearer grins."
+      },
+      "event": "Their pallor and fangs are theatrical. They are posing as vampires. (17 vs DC 14)",
+      "goal": "satisfying_rewards",
+      "kit_choice": "Quiet play earned this; Kit lets one short beat of satisfaction show, then gives the discovery concrete public texture and hands it back.",
+      "move": "ruling",
+      "player_bid": "Asks whether the fangs are real and studies the faces at the table.",
+      "player_input": "Are those fangs real? I study their faces. Insight check.",
+      "public_event": "Their pallor and fangs are theatrical. They are posing as vampires. (17 vs DC 14)",
+      "story_anchor": "scene",
+      "story_basis": "scene_state",
+      "turn_id": "observe-t2"
+    },
+    {
+      "actor_ref": "uktarl",
+      "appraisal": {
+        "cause": "The player silently tells the dealer the disguise is blown.",
+        "goal_effect": "advances",
+        "intensity": 2,
+        "label": "interest",
+        "target": "npc"
+      },
+      "brief": {
+        "callback": "none",
+        "kit_focus": "Keep it as quiet as the player was: the dealer answers the signal under his breath, and the table never learns what just passed.",
+        "objective": "Keep the act intact in front of the table and bring the newcomer inside it.",
+        "player_opening": "The newcomer can accept, refuse, go public, or ask what a share means.",
+        "reply_to": "tap one of my own teeth, and smile",
+        "scope": "exchange",
+        "tactic": "Answer the signal privately, pretending nothing is wrong, and offer a quiet partnership: silence for a share.",
+        "visible_cue": "He leans back so only the newcomer can hear; his voice drops and speeds up."
+      },
+      "event": "You declare: \"I catch the dealer's eye, tap one of my own teeth, and smile.\"",
+      "goal": "npc_embodiment",
+      "kit_choice": "The player chose a wordless signal; Kit keeps her own voice out and lets the dealer answer quietly, so the rest of the table does not hear.",
+      "move": "npc_reply",
+      "player_bid": "Catches the dealer’s eye, taps a tooth, and smiles: a wordless signal that the fangs are seen through.",
+      "player_input": "I catch the dealer's eye, tap one of my own teeth, and smile.",
+      "public_event": "You declare: \"I catch the dealer's eye, tap one of my own teeth, and smile.\"",
+      "story_anchor": "level",
+      "story_basis": "pressure_here",
+      "turn_id": "observe-t3"
+    }
+  ],
+  "known_facts": [
+    "card_table",
+    "fresco",
+    "tub",
+    "treasure_on_table",
+    "false_vampires"
+  ],
+  "area": "area_06c",
+  "timings": [
+    {
+      "turn_id": "open",
+      "committed_at": 1790649124.4026074,
+      "mode": "one_pass",
+      "outcome": "committed",
+      "performance_variant": "kit_expression_v1",
+      "prepare_to_commit_s": 0.003,
+      "prepared_at": 1790649124.3998659
+    },
+    {
+      "turn_id": "observe-t1",
+      "committed_at": 1790649124.407551,
+      "mode": "one_pass",
+      "outcome": "committed",
+      "performance_variant": "kit_expression_v1",
+      "prepare_to_commit_s": 0.003,
+      "prepared_at": 1790649124.404935
+    },
+    {
+      "turn_id": "observe-t2",
+      "committed_at": 1790649135.9390094,
+      "mode": "one_pass",
+      "outcome": "committed",
+      "performance_variant": "kit_expression_v1",
+      "prepare_to_commit_s": 0.006,
+      "prepared_at": 1790649135.9334514
+    },
+    {
+      "turn_id": "observe-t3",
+      "committed_at": 1790649135.9450912,
+      "mode": "one_pass",
+      "outcome": "committed",
+      "performance_variant": "kit_expression_v1",
+      "prepare_to_commit_s": 0.004,
+      "prepared_at": 1790649135.9415894
+    }
+  ],
+  "host_log_rejections_and_pending_rulings": []
+}
