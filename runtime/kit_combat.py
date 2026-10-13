@@ -1953,7 +1953,9 @@ class Fight:
         self.check_over()
         if self.fight and acted:
             self.fight.pop('unprompted', None)  # an unprompted reaction is declared before his own act
-        if self.fight and acted and self.fight['status'] in ('running', 'over'):
+        if self.fight and acted and self.fight['status'] in ('running', 'over') and CLAUSE_PARSER:
+            # The flourish window is behind the same off-by-default flag (#101 review at d0e533e:
+            # by default it stalled the round). Off, the round runs on exactly as on main.
             worthy = [(key, chosen) for key, chosen in self.kills
                       if (self.status(key) == 'dead' or chosen) and
                       (self.important(key) or self.fight['status'] == 'over')]

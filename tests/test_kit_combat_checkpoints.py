@@ -30,6 +30,14 @@ def rolls(*values, then=10):
     return lambda: seq.pop(0) if seq else then
 
 
+
+def flourish_flag(cls):
+    """The flourish window is behind the off-by-default flag since #101 review at d0e533e."""
+    from unittest import mock as _mock
+    from runtime import kit_combat as _kc
+    return _mock.patch.object(_kc, 'CLAUSE_PARSER', True)(cls)
+
+
 class Camp:
     def __init__(self, test, roll=lambda: 10, sheet=NIK):
         temp = tempfile.TemporaryDirectory()
@@ -265,6 +273,7 @@ class AbsorbElements(unittest.TestCase):
         self.assertEqual(camp.act(OPEN).kind, 'combat_round')
 
 
+@flourish_flag
 class FlourishWindow(unittest.TestCase):
     def test_a_kill_of_the_leader_commits_before_the_handoff(self):
         camp = Camp(self)
@@ -332,6 +341,7 @@ class FlourishWindow(unittest.TestCase):
         self.assertEqual(fight['awaiting']['kind'], 'flourish_window')
 
 
+@flourish_flag
 class OpportunityAttack(unittest.TestCase):
     def leader_down(self, camp):
         camp.act(KILL_CAPTAIN)
@@ -472,6 +482,7 @@ class EngineInterstitials(unittest.TestCase):
         with self.assertRaisesRegex(InvalidChange, 'react.choice must be one of'):
             bridge.complete('h2', {'decision': {'react': {'choice': 'yes'}}, 'performance': {'segments': []}})
 
+    @flourish_flag
     def test_the_flourish_answer_carries_the_rule_to_kit(self):
         _, bridge = self.bridge()
         handoff = bridge.prepare(KILL_CAPTAIN, 'f1', one_pass=True)

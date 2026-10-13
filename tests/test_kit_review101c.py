@@ -976,3 +976,35 @@ class HighConfidenceFuzz(unittest.TestCase):
         arena = Arena(self, 'kiln', sheet=sheet, roll=lambda: 10)
         arena.act(KILN_OPEN)
         return arena
+
+
+class FlourishOffByDefault(unittest.TestCase):
+    """Nagatha at d0e533e: the flourish window ran by default and stalled play. It is behind the
+    off-by-default flag; a kill now plays on exactly as on main (rv92 #35, /tmp/rvt x.txt)."""
+
+    def kiln(self):
+        arena = Arena(self, 'kiln', sheet=warlock(hp=60), roll=lambda: 10)
+        arena.act(KILN_OPEN)
+        return arena
+
+    def test_killing_the_imp_runs_the_round_and_the_slinger_flees(self):
+        arena = self.kiln()
+        result = arena.act('I stab the imp with my dagger, 18 to hit, 20 piercing.')
+        self.assertIn('The ember imp goes down and does not get up.', result.public_event)
+        # The round ran on: the slinger's turn came and it runs (main: it flees; #101 keeps the
+        # opportunity attack its leaving reach offers, a reaction window, voiced).
+        self.assertIn('The kobold slinger breaks away, leaving your reach.', result.public_event)
+        self.assertNotEqual((arena.fight.get('awaiting') or {}).get('kind'), 'flourish_window')
+
+    def test_the_next_message_is_a_normal_act_not_a_flourish_answer(self):
+        arena = Arena(self, 'rope_bridge', sheet=rogue(), roll=lambda: 10)
+        arena.act('Initiative 25. I stab the bridge ogre with my rapier, 5 to hit, 3 piercing.')
+        arena.act('I stab the bridge ogre with my rapier, 25 to hit, 50 piercing.')
+        self.assertNotEqual(((arena.fight or {}).get('awaiting') or {}).get('kind'), 'flourish_window')
+
+    def test_rv92_35_rebuke_then_stab(self):
+        arena = self.kiln()
+        result = arena.act('I cast Hellish Rebuke on the imp at 2nd level, 15 fire, then stab the slinger with my '
+                           'dagger, 18 to hit, 3 piercing.')
+        self.assertNotEqual((arena.fight.get('awaiting') or {}).get('kind'), 'flourish_window', result.public_event)
+        self.assertIn('breaks away', result.public_event)
