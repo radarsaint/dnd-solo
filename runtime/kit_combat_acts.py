@@ -25,6 +25,8 @@ KINDS = ('attack', 'bonus_attack', 'spell', 'move', 'reaction', 'dodge', 'dash',
          'help', 'grapple', 'shove', 'object')
 STANDARD = ('dodge', 'dash', 'disengage', 'hide', 'help')
 MOVE_WAYS = ('away', 'toward')
+# SRD 5.1 weapons with the thrown property (a sheet may also mark one "thrown").
+SRD_THROWN = ('dagger', 'dart', 'handaxe', 'javelin', 'light hammer', 'spear', 'trident', 'net')
 ENTRY_SCHEMA = {'type': 'object', 'additionalProperties': False,
                 'properties': {'kind': {'type': 'string', 'enum': list(KINDS)},
                                'target': {'type': ['string', 'null']},
@@ -32,6 +34,7 @@ ENTRY_SCHEMA = {'type': 'object', 'additionalProperties': False,
                                'spell': {'type': ['string', 'null']},
                                'reaction': {'type': ['string', 'null']},
                                'roll': {'type': ['string', 'null']},
+                               'thrown': {'type': ['boolean', 'null']},
                                'distance_ft': {'type': ['integer', 'null']},
                                'way': {'type': ['string', 'null'], 'enum': list(MOVE_WAYS) + [None]},
                                'order': {'type': 'integer'},
@@ -41,7 +44,7 @@ SCHEMA = {'type': 'array', 'items': ENTRY_SCHEMA, 'maxItems': 8}
 RULE = ('combat_acts: one entry per thing the player does this turn, in his order (order 1, 2, ...): '
         'kind (' + ', '.join(KINDS) + '), target (an offered actor id), weapon (on his sheet) or spell '
         '(on his sheet) or reaction (an offered reaction id), roll (his stated roll or Avrae paste, '
-        'verbatim; null if none), distance_ft and way (away|toward) for a move, says (his words for it). '
+        'verbatim; null if none), thrown (true only when he throws the weapon), distance_ft and way (away|toward) for a move, says (his words for it). '
         'Declare what he said, not what would be wise; the engine refuses what the rules do not allow, '
         'and asks for a missing roll.')
 
@@ -108,7 +111,10 @@ def _label(entry, labels):
         words = re.sub(r'^\s*(?:and|then|so)\s+', '', entry['says'].strip(' .,;'), flags=re.I)
         return f'"{words[:1].upper() + words[1:]}"'
     who = labels.get(entry.get('target'), entry.get('target'))
-    what = entry.get('weapon') or entry.get('spell') or entry.get('reaction') or entry['kind'].replace('_', ' ')
+    what = entry.get('weapon') or entry.get('spell') or entry.get('reaction') or entry['kind']
+    what = str(what).replace('_', ' ')
+    if entry.get('spell') or entry.get('reaction'):
+        what = what.title()
     return f'The {what}' + (f' at the {str(who).lower()}' if who else '')
 
 
@@ -132,9 +138,13 @@ def to_act(entries, source, state):
             if listed and weapon != 'unarmed strike' and not any(weapon == w or weapon in w for w in listed):
                 # A sheet that lists no gear says nothing either way: the weapon stands.
                 refuse = f'there is no {weapon} on your sheet'
+            elif entry.get('thrown') and not (any(weapon == w or weapon.endswith(' ' + w) for w in SRD_THROWN) or
+                                              kit_combat.sheet_thrown(state, weapon)):
+                refuse = f'a {weapon} is not a thrown weapon'
             else:
+                # Thrown only when Kit says he throws it: a dagger stabbed is a melee blow.
                 act = {'kind': 'attack', 'weapon': weapon, 'target': target, 'area': False,
-                       'unarmed': weapon == 'unarmed strike', 'thrown': kit_combat.sheet_thrown(state, weapon),
+                       'unarmed': weapon == 'unarmed strike', 'thrown': bool(entry.get('thrown')),
                        'declared_bonus': kind == 'bonus_attack'}
         elif kind == 'spell':
             spell = str(entry.get('spell') or '').casefold()

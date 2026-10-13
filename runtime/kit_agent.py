@@ -770,7 +770,22 @@ class RoomAdjudicator:
                 result = self._spring(result, *fired, action, revision, state)
         if result.kind == 'exit' and choice is None:
             result = self._also_after_entry(result, action, revision, state)
-        return self._offer_downed(result)
+        return self._offer_combat_acts(self._offer_downed(result), action, state)
+
+    def _offer_combat_acts(self, result, action, state):
+        """On his turn in a running fight, offer combat_acts (runtime/kit_combat_acts.py): Kit
+        may declare the turn's acts, entry by entry, and at commit they replace the engine's
+        read of the words (declare). Left out, the engine's own read stands."""
+        if is_ooc(action) or (self.choice or {}).get('combat_acts') is not None:
+            return result
+        fight = state.get('combat') or {}
+        if fight.get('status') != 'running' or fight.get('awaiting') or \
+                not any(e.get('type') == 'combat_state' for e in result.events):
+            return result
+        offer = kit_combat_acts.offer(self.source, state)
+        if not offer:
+            return result
+        return dataclasses.replace(result, offers={**(result.offers or {}), 'combat_acts': offer})
 
     def _offer_downed(self, result):
         """The fight now waits on Kit's call (foes acting while the PC is down): offer it."""
@@ -2185,6 +2200,10 @@ for _key in CHAT_ONLY_PLAN_KEYS:
     API_PLAN_SCHEMA['properties'].pop(_key)
 # Strict mode: handles always carries reason ("none" on a declaration; kit_acts.NONE_REASONS on none).
 API_PLAN_SCHEMA['properties']['handles']['required'] = ['target', 'act', 'reason']
+# Strict mode: combat_acts is null when not declared, and each entry carries every key (null when unused).
+API_PLAN_SCHEMA['properties']['combat_acts']['type'] = ['array', 'null']
+API_PLAN_SCHEMA['properties']['combat_acts']['items']['required'] = \
+    list(API_PLAN_SCHEMA['properties']['combat_acts']['items']['properties'])
 API_PLAN_SCHEMA['required'] = API_PLAN_SCHEMA['required'] + [
     key for key in OPTIONAL_PLAN_KEYS if key not in CHAT_ONLY_PLAN_KEYS]
 
@@ -4344,6 +4363,18 @@ def declare(runtime, adjudicator, body, plan):
         return {**body, 'hidden_actors': hidden_actor_words(runtime.source(), after, body),
                 **({'sealed': sealed} if sealed else {})}
     adjudicator.mount(runtime.source())
+    if acts.get('combat_acts'):
+        # Kit declared the turn's combat acts: they replace the engine's read of the words, on
+        # the state before this turn, entry by entry (runtime/kit_combat_acts.py).
+        revision, before = runtime.load()
+        fought = adjudicator.resolve(body['action'], revision, before, choice={'combat_acts': plan['combat_acts']})
+        body = {**body, 'events': list(fought.events), 'public_event': fought.public_event,
+                'combat_acts': acts['combat_acts']}
+        acts = {field: value for field, value in acts.items() if field != 'combat_acts'}
+        after = runtime.preview_state(revision, body['events'])
+        if not acts:
+            return {**body, 'hidden_actors': hidden_actor_words(runtime.source(), after, body),
+                    **({'sealed': sealed} if sealed else {})}
     result = adjudicator.declared_acts(acts, body['action'], revision, after)
     final = runtime.preview_state(revision, list(body['events']) + list(result.events))
     shown = {field: ({k: v for k, v in value.items() if v} if field == 'handles' else {'act': value['act']})
@@ -4628,8 +4659,12 @@ def checked_record(body, plan, speech, performance_variant, source=None, degrade
         record['kit_reacts_to'] = asides
     if warnings:
         record.update(degraded=True, soft_warnings=warnings)
+    if body.get('combat_acts'):
+        # Kit's declared combat acts replaced the engine's read of the words (declare): the
+        # commit checks the replaced events against this count.
+        record['declared'] = {'combat_acts': {'entries': body['combat_acts'], 'events': len(body['events'])}}
     if declared:
-        record['declared'] = {'acts': declared['acts'], 'kind': declared['kind'],
+        record['declared'] = {**(record.get('declared') or {}), 'acts': declared['acts'], 'kind': declared['kind'],
                               **({'handoff': declared['handoff']} if declared.get('handoff') else {})}
     note = ceiling_note(speech['segments'], plan, guard_context(source, body))
     if note:

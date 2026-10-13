@@ -66,7 +66,7 @@ class DeclaredAttacks(unittest.TestCase):
         arena = bridge(self, rogue(gear=['rapier', 'dagger (thrown)', 'shortbow']))
         arena.act('I step back and throw a dagger.', combat_acts=[
             A('move', 1, way='away', distance_ft=5),
-            A('attack', 2, target='ogre', weapon='dagger', roll='15 to hit, 4 piercing')])
+            A('attack', 2, target='ogre', weapon='dagger', thrown=True, roll='15 to hit, 4 piercing')])
         self.assertEqual(arena.fight['hp']['ogre'], 55)
 
     def test_every_entry_gets_a_clause_record(self):

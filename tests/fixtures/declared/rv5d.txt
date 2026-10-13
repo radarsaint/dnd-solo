@@ -1,0 +1,64 @@
+rb|I hold the rail with my free hand and stab the bridge ogre with my rapier, 16 to hit, 5 piercing.
+rb|I grip my rapier tighter, then stab the bridge ogre, 16 to hit, 5 piercing.
+rb|I hold the ogre's gaze, and stab it with my rapier, 16 to hit, 5 piercing.
+rb|I shove the ogre.
+rb|I grab the bridge ogre's arm.
+rb|I grab the rope, then stab the bridge ogre with my rapier, 16 to hit, 5 piercing.
+rb|I push the rope aside and stab the bridge ogre with my rapier, 16 to hit, 5 piercing.
+rb|I back off 10 feet, then close in and stab the bridge ogre with my rapier, 16 to hit, 5 piercing.
+rb|I step back 5 feet, then throw a dagger at the bridge ogre, 15 to hit, 4 piercing.
+rb|I step back 5 feet and stab the bridge ogre with my rapier, 16 to hit, 5 piercing.
+rb|I charge the bridge ogre and stab it with my rapier, 16 to hit, 5 piercing.
+rb|I pause, breathe, steady myself, then stab the bridge ogre with my rapier, 16 to hit, 5 piercing.
+rb|I grin.
+rb|I wait.
+rb|I steady myself, grin, and back off 10 feet.
+rb|"Come on then, big fellow, come and get me," I taunt, and I stab the bridge ogre with my rapier, 16 to hit, 5 piercing.
+rb|"Wait," I say, "wait, let's talk."
+rb|I stab the bridge ogre with my rapier, 9 to hit, 5 piercing.
+rb|I stab the bridge ogre with my rapier, 15 to hit, 5 piercing.
+rb|Nik attacks with a Rapier!\nTo Hit: 1d20 (2) + 7 = 9\nMiss!\nthen I back off 10 feet.
+rb|!a rapier -t ogre\nNik attacks with a Rapier!\nTo Hit: 1d20 (15) + 7 = 22\nDamage: 1d8 (6) + 4 = 10 piercing
+rb|Nik attacks with a Rapier!\nTo Hit: 1d20 (15) + 7 = 22\nDamage: 10 piercing\nI grin at the ogre, "Smell that, lump?"
+rb|I stab the ogre with my rapier, 16 to hit, 5 piercing, and with the same breath I step back 5 feet.
+rb|Uncanny Dodge, then I back off 10 feet and throw a dagger at the bridge ogre, 15 to hit, 4 piercing.
+rb|I hold my breath, grip the rope, and look down.
+rb|I hold the line.
+rb|I push past the pain and stab the bridge ogre with my rapier, 16 to hit, 5 piercing.
+rb|I hold my rapier out, point first, and wait for it.
+rb|I stab the ogre, 16 to hit, 5 piercing, then Uncanny Dodge, then grin, then back off 5 feet.
+rb|Steady. I stab the bridge ogre with my rapier, 16 to hit, 5 piercing. Then I wait.
+rb|I disengage and back off 10 feet.
+rb|I dash back across the bridge.
+rb|I stab the bridge ogre with my rapier, 20 to hit, 9 piercing; I stab the bridge ogre with my rapier, 20 to hit, 9 piercing.
+rb|What's the DC to cut the ropes?
+rb|I study the ogre, looking for a weak spot.
+rb|I cut the bridge rope behind the ogre.
+wl|I hold my pact blade steady, and Hellish Rebuke the imp (Avrae: !cast hellish rebuke -t imp -l 1), 10 fire.
+wl|!cast hellish rebuke -t imp -l 1\nHellish Rebuke: 10 fire\nthen I stab the kobold slinger with my dagger, 16 to hit, 3 piercing.
+wl|I stab the kobold slinger with my dagger, 16 to hit, 3 piercing.\n!cast hellish rebuke -t slinger -l 1\nHellish Rebuke: 8 fire
+wl|I push the kiln door shut, then stab the kobold slinger with my dagger, 16 to hit, 3 piercing.
+wl|I push the door.
+wl|I shove the ember imp into the kiln.
+wl|I grip the dagger, grit my teeth, and stab the ember imp, 16 to hit, 3 piercing.
+wl|I step back 10 feet, then stab the ember imp with my dagger, 16 to hit, 3 piercing.
+wl|I step back 10 feet, then cast Eldritch Blast at the ember imp, 17 to hit, 6 force.
+wl|I Uncanny Dodge (Avrae: !cast uncanny dodge), then stab the imp, 16 to hit, 3 piercing.
+wl|Hellish Rebuke the slinger (Avrae: !cast hellish rebuke -t slinger -l 1), 9 fire, then Hellish Rebuke the imp (Avrae: !cast hellish rebuke -t imp -l 1), 11 fire.
+wl|I wait, watching the imp's flames, then grin.
+wl|I take the bellows, hold them up, and pump them at the imp.
+wl|I hold my ground.
+wz|Shield.
+wz|Fire Bolt the imp, 14 to hit, 6 fire.
+wz|Fire Bolt the imp, 9 to hit, 6 fire.
+wz|Absorb Elements (Avrae: !cast absorb elements -l 1), then I back away 10 feet, breathing hard, and Fire Bolt the imp, 17 to hit, 7 fire.
+wz|I cast Absorb Elements at 2nd level, then Fire Bolt the imp, 17 to hit, 7 fire.
+wz|!cast absorb elements -l 1\nthen Fire Bolt the slinger, 19 to hit, 8 fire.
+wz|I hold my staff high, mutter, and Fire Bolt the imp, 17 to hit, 7 fire.
+wz|I push the shelf over onto the slinger.
+wz|I grab the kobold slinger.
+wz|I grip the slinger's sling and yank it away.
+wz|I step up to the imp and stab it with my dagger, 15 to hit, 3 piercing.
+wz|Fire Bolt the imp, 17 to hit, 7 fire, and Absorb Elements (Avrae: !cast absorb elements -l 1).
+wz|I look at the slinger's pouch. What's in it?
+wz|Is the kiln trapped? What DC do I need?

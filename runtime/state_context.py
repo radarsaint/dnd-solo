@@ -106,6 +106,9 @@ HELD_KINDS = ('opening', 'exit', 'threshold_look')
 # What the engine's outcome of a declared act may add (runtime/kit_acts.py: handles).
 DECLARED_EVENTS = ('beat', 'reveal_fact', 'trigger_fired', 'scene_state', 'combat_state', 'actor_status',
                    'pc_conditions')
+# Kit's declared combat acts (runtime/kit_combat_acts.py, #122) replace the engine's read of the
+# words: the prepared events give way to the engine's outcome of her entries, which may hold only these.
+COMBAT_DECLARED_EVENTS = ('beat', 'combat_state', 'scene_state', 'actor_status', 'pc_conditions', 'pc_resources')
 COMMIT_APPENDED_EVENTS = ('canon_entry', 'oracle_draw', 'procedure_state', 'claim_said', 'agenda_turn',
                           'pc_state', 'kit_plan', 'toll_state', 'story_beat', 'threshold_crossed',
                           'attitude_shift', 'pending_check', 'open_threads', 'risk_warned')
@@ -467,6 +470,15 @@ class Runtime:
                 asked = isinstance(kit_record['trace'].get('ask_player'), dict)
                 # An act Kit declared (runtime/kit_acts.py) appends the engine's outcome of it.
                 declared = bool(kit_record.get('declared'))
+                fought = (kit_record.get('declared') or {}).get('combat_acts')
+                if fought:
+                    # Her entries were resolved on the state before this turn: the word read gives way.
+                    prepared = events[:fought['events']]
+                    require(staged['action'] == kit_record['player_input'] and not asked and
+                            all(event.get('type') in COMBAT_DECLARED_EVENTS for event in prepared) and
+                            all(event.get('type') in COMMIT_APPENDED_EVENTS + DECLARED_EVENTS
+                                for event in events[len(prepared):]), 'Pending Kit event changed')
+                    staged = {**staged, 'events': prepared, 'public_event': kit_record['public_event']}
                 require(staged['action'] == kit_record['player_input'] and
                         (asked and events == [{'type': 'beat', 'tags': ['asked'],
                                                 'evidence': kit_record['public_event']}] and kit_record['public_event'].startswith(ASKED_EVENT_PREFIX) or

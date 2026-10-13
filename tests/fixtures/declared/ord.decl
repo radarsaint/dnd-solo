@@ -1,0 +1,50 @@
+atk ogre rapier =16 to hit, 5 piercing
+atk ogre rapier =17 to hit, 6 damage
+atk ogre rapier =18 to hit, 7 piercing
+atk ogre rapier =16 to hit, 5 piercing
+atk ogre rapier =16 to hit, 5 piercing
+atk ogre rapier =16 to hit, 5 damage
+atk ogre rapier =16 to hit, 5 piercing
+atk ogre rapier =16 to hit, 5 piercing
+atk ogre rapier =16 to hit and 5 piercing damage
+atk ogre rapier =16 to hit, 5 piercing
+atk ogre rapier =16 to hit, 5 piercing
+atk ogre rapier =16 to hit, 5 piercing
+thr ogre dagger =15 to hit, 4 piercing
+thr ogre dagger =15 to hit, 4 damage
+atk ogre shortbow =15 to hit, 6 piercing
+away 15
+away 10
+away 10
+away 10
+disengage
+dodge
+dodge
+dash
+rea uncanny_dodge
+rea uncanny_dodge
+rea uncanny_dodge ; atk ogre rapier =16 to hit, 5 piercing
+atk ogre rapier =16 to hit, 5 piercing ; disengage ; away 10
+atk ogre rapier =16 to hit, 5 piercing
+atk ogre rapier =16 to hit, 5 piercing
+atk ogre rapier =!a rapier -t ogre\nNik attacks with a Rapier!\nTo Hit: 1d20 (12) + 7 = 19\nDamage: 1d8 (4) + 4 = 8 piercing ; away 5
+spl imp eldritch blast =17 to hit, 6 force
+spl archer eldritch blast =15 to hit, 7 force
+spl imp eldritch blast =16 to hit, 8 force
+spl imp eldritch blast =!cast eldritch blast -t imp\nEldritch Blast: 1d20 (10) + 5 = 15 to hit\nDamage: 1d10 (6) = 6 force
+atk archer dagger =16 to hit, 3 piercing
+atk archer dagger =16 to hit, 3 piercing
+rea hellish_rebuke imp =(Avrae: !cast hellish rebuke -t imp -l 1), 11 fire
+rea hellish_rebuke imp =2d10 = 11 fire. (!cast hellish rebuke -t imp)
+away 15
+away 5 ; spl archer eldritch blast =17 to hit, 6 force
+spl archer fire bolt =17 to hit, 8 fire
+spl archer fire bolt =17 to hit, 8 fire
+spl imp fire bolt =17 to hit, 7 fire
+spl archer magic missile =(Avrae: !cast magic missile -t slinger), 10 force
+spl imp ray of frost =16 to hit, 5 cold
+atk imp dagger =15 to hit, 3 piercing
+rea absorb_elements =(Avrae: !cast absorb elements -l 1)
+rea absorb_elements =(!cast absorb elements -l 1) ; away 5 ; spl imp fire bolt =17 to hit, 7 fire
+away 10
+dodge ; away 10
