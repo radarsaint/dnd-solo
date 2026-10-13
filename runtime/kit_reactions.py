@@ -413,6 +413,20 @@ def spend_slot(resources, level):
     return out, key
 
 
+def carry_spent(fresh, before):
+    """``fresh`` (built from a sheet) with the slots and uses spent in ``before`` still spent,
+    capped at the new maximums. Only a rest gives them back."""
+    out = copy.deepcopy(fresh)
+    if not isinstance(before, dict):
+        return out
+    for group in ('slots', 'uses'):
+        for key, entry in (out.get(group) or {}).items():
+            old = (before.get(group) or {}).get(key)
+            if isinstance(old, dict) and isinstance(old.get('used'), int):
+                entry['used'] = min(int(entry.get('max') or 0), old['used'])
+    return out
+
+
 def rest(resources, sheet, kind):
     """A long rest restores everything; a short rest restores short-rest uses (and nothing else)."""
     if kind == 'long':

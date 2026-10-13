@@ -134,7 +134,7 @@ def check_entry(plan, reveal):
     require(not unknown, f'reveal_entry.relevant names facts that are not held here: {", ".join(unknown)}')
 
 
-def check_spoken(reveal, segments, source=None, plan=None):
+def check_spoken(reveal, segments, source=None, plan=None, action=None):
     """Structural: unless Kit marked the entry directed, the reveal turn ends with Kit handing the
     floor back; and the narration does not pour out the held layer (any held fact whose own cue
     words the narration uses, beyond the ones the action made relevant)."""
@@ -153,6 +153,14 @@ def check_spoken(reveal, segments, source=None, plan=None):
         return
     facts = source.get('facts') or {}
     relevant = set(((plan or {}).get('reveal_entry') or {}).get('relevant') or ())
+    if action is not None and relevant:
+        # Not self-certified (#101 review): each held fact Kit calls relevant is one the player's
+        # own words point at (its id, or its own cue words).
+        said = _cues(action) | set(re.findall(r'[a-z]+', action.casefold()))
+        unpointed = [key for key in sorted(relevant) if key in facts and
+                     key.casefold() not in said and not (_cues(facts[key].get('text') or '') & said)]
+        require(not unpointed, 'Room entry, progressive reveal: the player did not point at ' +
+                ', '.join(unpointed) + '; hold it, or give it only where his words direct')
     # What the obvious layer may name: the shown facts, who is here, the area and its ways on.
     here = [' '.join(str(a.get(k) or '') for k in ('name', 'label', 'title'))
             for a in (source.get('actors') or {}).values()

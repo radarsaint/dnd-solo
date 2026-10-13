@@ -3903,6 +3903,10 @@ WINDOW_NEXT_STEP = ('Committed in Kit\'s voice: show the player "spoken". Their 
 WINDOW_SEGMENT_MAX = 600
 WINDOW_SPOKEN_MAX = 1200
 ASK_CODES = ('unclear', 'needs_cast', 'needs_roll', 'ranged_weapon')
+# A window Kit cannot read is asked about at most this many times; the next unclear (or still
+# uncast) answer is taken as a no, so a confused exchange never stalls the fight (#101 review A7).
+MAX_WINDOW_ASKS = 2
+TAKEN_AS_NO = ('unclear', 'needs_cast')
 
 
 def window_view(source, state, waiting):
@@ -4435,7 +4439,8 @@ def checked_record(body, plan, speech, performance_variant, source=None, degrade
     kit_agenda.check_carriers_spoken(spoken, plan)
     check_held_delivered(body.get('held_description'), spoken)
     if not ask and not stall_check(plan, body['kind']):
-        kit_reveal.check_spoken(body.get('progressive_reveal'), speech['segments'], source, plan)
+        kit_reveal.check_spoken(body.get('progressive_reveal'), speech['segments'], source, plan,
+                                action=body.get('action') or '')
     if body.get('story_due') and not ask:
         # An undelivered primary hook is overdue: its NPC raises it now (runtime/kit_brief.py).
         kit_brief.check_raised(body['story_due'], source, {'area': body['story_area']}, spoken)
@@ -4758,6 +4763,20 @@ def pending_ruling_result(exc):
     return result
 
 
+def window_voice_core():
+    """Brendon's Voice Spec from the personality core (~1 KB): enough to stay Kit in a window line."""
+    text = personality_core_text()
+    found = re.search(r"## Brendon's Voice Spec.*?(?=\n## |\Z)", text, re.S)
+    return (found.group(0) if found else text[:1200]).strip()
+
+
+def window_scene(runtime, state):
+    """The scene a window line sits in: the area and what the player can see there (no hidden facts)."""
+    view = runtime._player_view(runtime.source(), state) or {}
+    return {'area': view.get('area'), 'known_facts_here': list(view.get('known_facts_here') or ())[:6],
+            'actors': [a.get('name') if isinstance(a, dict) else a for a in view.get('actors') or ()][:6]}
+
+
 class KitChatBridge:
     """Host this model loop in an assistant chat, with no API credential in Python."""
     def __init__(self, runtime, adjudicator=None, manifests=False):
@@ -4876,7 +4895,12 @@ class KitChatBridge:
         packet = {'stage': 'window_voice', 'turn_id': turn_id, 'instructions': WINDOW_VOICE_RULE,
                   'schema': WINDOW_VOICE_SCHEMA,
                   'input': {'window': window, 'narrate_first': resolution.public_event,
-                            'character': (state_after.get('player_character') or {}).get('name')}}
+                            'character': (state_after.get('player_character') or {}).get('name'),
+                            # Who is voicing it and where (#101 review): the voice spec, not the
+                            # whole core, and the scene as the player sees it, so the tiny call
+                            # stays tiny and in character.
+                            'personality_core': window_voice_core(),
+                            'scene': window_scene(self.runtime, state_after)}}
         speculative = speculative_branches(self.runtime, self.adjudicator, waiting, state_after, revision)
         timing = self.runtime.kit_timing(turn_id) or {}
         self.runtime.record_kit_timing(
@@ -4928,8 +4952,16 @@ class KitChatBridge:
         choice = check_window_answer(body['window'], output['decision'], segments)
         clock, started = time.perf_counter(), time.time()
         try:
-            revision, prepared, planning_input = prepare_turn(self.runtime, self.adjudicator, body['action'],
-                                                              one_pass=True, choice=choice)
+            try:
+                revision, prepared, planning_input = prepare_turn(self.runtime, self.adjudicator, body['action'],
+                                                                  one_pass=True, choice=choice)
+            except PendingRuling as exc:
+                if getattr(exc, 'code', None) not in TAKEN_AS_NO or \
+                        self._window_asks(body.get('deferred_action_id')) < MAX_WINDOW_ASKS:
+                    raise
+                choice = {'react': 'decline', 'taken_as_no': True}
+                revision, prepared, planning_input = prepare_turn(self.runtime, self.adjudicator, body['action'],
+                                                                  one_pass=True, choice=choice)
         except EngineInterstitial as raised:
             return self._window_voice(turn_id, body['action'], raised.revision, raised.resolution, started, clock,
                                       None, restage=True)
@@ -4963,6 +4995,14 @@ class KitChatBridge:
                              check_variant(DEFAULT_BRIDGE_VARIANT), started, clock, None)
         packet['window_answered'] = choice
         return packet
+
+    def _window_asks(self, deferred_action_id):
+        """How many times Kit has already asked about this open window."""
+        if not deferred_action_id:
+            return 0
+        return sum(1 for turn in self.runtime.recent_kit_turns(limit=12)
+                   if (turn.get('trace') or {}).get('move') == 'window_ask' and
+                   (turn.get('interstitial') or {}).get('deferred_action_id') == deferred_action_id)
 
     def _layer(self, turn_id, packet):
         """SessionManifest, RoomManifest, TurnDelta (kit_manifest). A body the host was sent
@@ -5316,8 +5356,10 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('command', choices=['start', 'init', 'view', 'prepare', 'decide', 'finish', 'complete',
                                             'abandon', 'feedback', 'character', 'notes', 'play', 'trace',
-                                            'timing', 'persona', 'stamp', 'rehydrate'])
+                                            'timing', 'persona', 'stamp', 'rehydrate', 'rest'])
     parser.add_argument('--db', default='kit.sqlite')
+    parser.add_argument('--kind', choices=['short', 'long'], help='rest: a short or a long rest (slots and uses '
+                                                                  'come back; re-sending the sheet does not)')
     parser.add_argument('--room', help='start/init: a room file to mount (default: area 6c; see '
                                        'docs/architecture/ROOM_LOADER.md)')
     parser.add_argument('--area', help='start: begin in this area of the room (default: its starting_area)')
@@ -5410,6 +5452,10 @@ def main():
             except (InvalidChange, ValueError) as exc:
                 print(json.dumps({'stage': 'rejected', 'message': str(exc)}, ensure_ascii=False), file=sys.stderr)
                 return 2
+        elif args.command == 'rest':
+            if args.kind not in ('short', 'long'):
+                parser.error('rest requires --kind short or --kind long')
+            print(json.dumps(runtime.rest(args.kind), indent=2, ensure_ascii=False))
         elif args.command == 'notes':
             print(json.dumps(runtime.player_notes(), indent=2, ensure_ascii=False))
         elif args.command == 'character' and args.sheet:

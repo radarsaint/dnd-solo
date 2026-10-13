@@ -82,6 +82,14 @@ COVERT = re.compile(r"\b(quietly|unnoticed|unseen|without (?:anyone|them) (?:see
                     r"(?:while|when|as)\s+(?:no ?one|no-one|nobody|they|the others|everyone(?: else)?|he|she|their "
                     r"(?:backs?|eyes?))(?:'s|'re|\s+(?:is|are|was|were))?\s+(?:not\s+)?(?:looking|watching|distracted|busy|"
                     r"turned|elsewhere|looking away|looks away|look away))\b")
+# Shield typed on his own turn, or after its window passed: a reaction spell with no trigger now.
+OWN_SHIELD = re.compile(r"!cast\s+shield\b|\b(?:cast|casts|casting|raise|raises|throw up|throws up)\s+(?:a\s+|my\s+)?shield\b"
+                        r"(?!\s+(?:bash|slam))")
+# Combat movement away from his foes ('I step back 30 feet', 'I fall back', 'I disengage').
+WITHDRAW = re.compile(r"\b(?:disengage|disengages|disengaging)\b|\b(?:step|steps|stepping|back|backs|backing|move|moves|"
+                      r"moving|fall|falls|falling|retreat|retreats|retreating|withdraw|withdraws|run|runs|running|"
+                      r"dash|dashes|dashing|hop|hops|scramble|scrambles)\b[^.!?]{0,40}?\b(?:away|back|off|clear|"
+                      r"out of (?:his |its |her |their )?reach|\d+\s*(?:feet|foot|ft))\b")
 WAIT = re.compile(r'\b(wait|waits|ready|readied|hold my action|hold (?:my )?ground|let them come|'
                   r'make the first move|stand my ground|on guard)\b')
 EVERYONE = re.compile(r'\b(middle of the (?:card )?table|the (?:card )?table|all of them|them all|everyone|'
@@ -379,6 +387,8 @@ def parse(action, source, state):
     named = name_target(text, source, state, here)
     spell = _SPELL.search(text)
     in_fight = bool((state.get('combat') or {}).get('status') in ('awaiting_initiative', 'running'))
+    if in_fight and OWN_SHIELD.search(text):
+        return {'kind': 'own_shield', 'target': None, 'avrae': bool(re.search(r'!cast|casts shield!', text))}
     if spell:
         name = spell.group(1)
         area = name in SPELL_SAVE and SPELL_SAVE[name][2]
@@ -415,6 +425,8 @@ def parse(action, source, state):
             and not GAZE.search(text[grab.end():grab.end() + 20]):
         return {'kind': 'grab', 'target': named or _default_target(text, source, state, here),
                 'teeth': bool(TEETH.search(text)), 'wrist': bool(re.search(r'\b(wrist|hand|arm)\b', text))}
+    if in_fight and WITHDRAW.search(text) and not attack:
+        return {'kind': 'withdraw', 'target': None, 'disengage': bool(re.search(r'\bdisengag', text))}
     if in_fight and WAIT.search(text):
         return {'kind': 'wait', 'target': None}
     return None
@@ -798,6 +810,9 @@ class Fight:
                 self.fight['awaiting'] = None
                 if react == 'decline':
                     self.decline(waiting)
+                    if (self.choice or {}).get('taken_as_no'):
+                        self.lines.append('No clear answer, so that is taken as a no.')
+                        self.trace.append('window asked twice without a clear answer: taken as a decline')
                 self.resolve_window(waiting, react)
                 self.route_rest(waiting, react)
             elif kind == 'roll_call' and (waiting['save'] == 'death' or waiting.get('repeat')):
@@ -870,11 +885,7 @@ class Fight:
             raise NeedsChoice(waiting)
         react = self.choice['react']
         if react == 'unclear':
-            if waiting.get('asked'):
-                # Asked once already: the window lapses as a decline, said in the fiction.
-                self.lines.append('The moment passes.')
-                self.trace.append('a second unclear answer: the window lapses as a decline')
-                return 'decline'
+            # The bridge caps the asks (kit_agent.MAX_WINDOW_ASKS), then answers decline itself.
             raise Unclear('Kit could not tell which reaction, if any, the player takes.', 'unclear')
         if react == 'decline':
             return react
@@ -1334,8 +1345,32 @@ class Fight:
         elif kind:
             acted = True
             {'grab': self.pc_grab, 'face': self.pc_face, 'flip': self.pc_flip, 'take': self.pc_take,
-             'wait': self.pc_wait}[kind](act)
+             'wait': self.pc_wait, 'own_shield': self.pc_own_shield, 'withdraw': self.pc_move_away}[kind](act)
         self.after_pc_action(acted)
+
+    def pc_own_shield(self, act):
+        """Shield is a reaction to being hit (or targeted by magic missile). Cast on his own turn,
+        or after the hit it answers has landed, it has no trigger: it changes nothing, and the slot
+        Avrae spent is counted so the session matches Avrae."""
+        landed = int(self.fight.get('pc_damage') or 0) > 0
+        on_sheet = any(r.get('id') == 'shield' for r in self.resources.get('reactions') or ())
+        if act.get('avrae') and on_sheet and kit_reactions.free_slot(self.resources, 1):
+            self.resources, slot = kit_reactions.spend(self.resources, 'shield')
+            self.resources_changed = True
+            self.trace.append(f'PC casts Shield with no trigger (own turn): level {slot} slot counted, no effect')
+        if landed:
+            self.lines.append('That hit has already landed; Shield cannot undo it. It is a reaction to being '
+                              'hit, so it does nothing on your own turn.')
+        else:
+            self.lines.append('Shield is a reaction to being hit; cast on your own turn it does nothing.')
+
+    def pc_move_away(self, act):
+        """He moves out of his foes' reach on his turn: each foe in reach may take its opportunity
+        attack (none if he disengages), then engagement ends."""
+        foes = [key for key in self.hostiles() if self.in_reach(key)]
+        self.pc_withdraw('he moves away' + (' (Disengage)' if act.get('disengage') else ''),
+                         provoke=not act.get('disengage'))
+        self.lines.append('You fall back out of reach.' if foes else 'You move off.')
 
     def pc_wait(self, act):
         self.lines.append('You hold your ground and wait for them to come to you.')

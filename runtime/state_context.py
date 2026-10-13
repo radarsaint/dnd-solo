@@ -877,7 +877,9 @@ class Runtime:
             state['player_sheet'] = copy.deepcopy(sheet)
             state['player_character'] = pc_sheet.identity(sheet)
             from . import kit_reactions
-            state['pc_resources'] = kit_reactions.build(sheet)  # the reaction inventory, slots, uses
+            # The reaction inventory, slots and uses, rebuilt from the sheet; what was spent since the
+            # last rest stays spent (re-sending or editing the sheet is not a rest: #101 review D7).
+            state['pc_resources'] = kit_reactions.carry_spent(kit_reactions.build(sheet), state.get('pc_resources'))
         elif kind == 'pc_resources':
             from . import kit_reactions
             state['pc_resources'] = copy.deepcopy(kit_reactions.check(event.get('resources')))
