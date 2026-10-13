@@ -11,13 +11,20 @@ from contextlib import redirect_stdout
 from pathlib import Path
 from unittest import mock
 
-from runtime import kit_reactions
+from runtime import kit_combat, kit_reactions
 from runtime.kit_agent import KitChatBridge, PendingRuling, RoomAdjudicator
 from runtime.state_context import Runtime
 
 ROOT = Path(__file__).resolve().parents[1]
 ROOMS = ROOT / 'tests' / 'fixtures' / 'rooms'
 NIK = json.loads((ROOT / 'tests' / 'fixtures' / 'characters' / 'nik.json').read_text())
+
+
+def clause_parser(cls):
+    """The word-matching clause splitter and confidence gate are off by default since the
+    2026-10-13 architecture decision (Kit-declared acts replace them). These classes pin the
+    flagged-off code's behaviour while it remains: run with CLAUSE_PARSER on."""
+    return mock.patch.object(kit_combat, 'CLAUSE_PARSER', True)(cls)
 
 
 def wizard(**extra):
@@ -137,6 +144,7 @@ class UnclearCap(unittest.TestCase):
         self.assertEqual(arena.slot1(), 0)
 
 
+@clause_parser
 class CombatMovement(unittest.TestCase):
     """D5/d1c: moving away ends engagement; a PC who left gets no opportunity-attack window."""
 
@@ -256,6 +264,7 @@ class DirectedReveal(unittest.TestCase):
                                      action='I walk in and go straight to the shelves.')
 
 
+@clause_parser
 class NeverDropAnAct(unittest.TestCase):
     """#101 review P1-3, the cases left at c8bf217: D1, D5 and d1c from Nagatha's probes."""
 
@@ -455,6 +464,7 @@ class LateRerollIsSaid(unittest.TestCase):
         self.assertEqual((arena.fight['pc_damage'], arena.slot1()), (13, 0))
 
 
+@clause_parser
 class LateReactionKeepsTheAct(unittest.TestCase):
     """Nagatha at 70c1612 (P1): a late reaction in the same message as his act resolves, then the
     rest of the message is his act; neither order drops the attack."""
@@ -544,6 +554,7 @@ def ud_bridge(test, sheet=None):
     return arena
 
 
+@clause_parser
 class EveryClauseResolves(unittest.TestCase):
     """Nagatha FAILED f3e880e: fresh multi-clause messages. The message is split into all its
     clauses; reactions resolve, every other clause goes in order to the act and move parser, and
@@ -601,6 +612,7 @@ class EveryClauseResolves(unittest.TestCase):
         self.assertEqual(slots(), {'1': 0, '2': 1, '3': 1})
 
 
+@clause_parser
 class ClauseFuzz(unittest.TestCase):
     """Fresh clause combinations across sheets and rooms: the invariant holds for every one."""
 
@@ -662,6 +674,7 @@ class SealedRemoval(unittest.TestCase):
             self.assertEqual(SealedSubject.verdict(self, self.CRYPT, text), 'ok', text)
 
 
+@clause_parser
 class Review92(unittest.TestCase):
     """Nagatha FAILED 92b86a6: reach after moving, filler, Avrae pastes, grapple wording (P1s), and
     the cheap P2s. Rooms: rope bridge (rogue), kiln (warlock, Absorb wizard)."""
@@ -818,6 +831,7 @@ class Review92(unittest.TestCase):
         self.assertNotIn('the engine', kit_combat.UNRESOLVED)
 
 
+@clause_parser
 class ClauseFuzzWide(unittest.TestCase):
     """Widened: pastes, filler, reach after moving, grip and glare wording, across sheets and rooms."""
 
@@ -865,6 +879,7 @@ def ruling_of(test, arena, text):
     return caught.exception, pending_ruling_result(caught.exception)
 
 
+@clause_parser
 class Review5d(unittest.TestCase):
     """Nagatha FAILED 5dd307f. The engine commits only a clause it reads with high confidence (a
     known combat verb, a resolved target, a legal action); any other deed is a pending ruling for
@@ -933,6 +948,7 @@ class Review5d(unittest.TestCase):
         self.assertEqual(clause_log(result), [(1, 1, 'resolved')])
 
 
+@clause_parser
 class HighConfidenceFuzz(unittest.TestCase):
     """Property: a clause outside the high-confidence set (object and environment deeds, shoves,
     yanks, cuts at things) is never committed as an engine act."""

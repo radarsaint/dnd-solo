@@ -7,7 +7,7 @@ import unittest
 
 from runtime import kit_combat
 from runtime.kit_agent import pending_ruling_result
-from test_kit_review101c import Arena, KILN_OPEN, rogue, ruling_of, without_shield, wizard
+from test_kit_review101c import clause_parser, Arena, KILN_OPEN, rogue, ruling_of, without_shield, wizard
 
 
 def kiln(test, sheet, die):
@@ -28,6 +28,7 @@ def shrine(test, sheet, die):
     return arena
 
 
+@clause_parser
 class ContestedGrapple(unittest.TestCase):
     def test_a_bare_grab_with_no_roll_asks_for_athletics_and_holds_nobody(self):
         for make, sheet, text in ((kiln, without_shield(wizard(hp=60)), 'I grab the kobold slinger.'),

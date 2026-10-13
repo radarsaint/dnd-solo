@@ -29,6 +29,7 @@ A fight, at a play-by-post table with Avrae (Brendon: Avrae is at every game):
 Deterministic Python; no model calls, no dice for the player.
 """
 import copy
+import os
 import json
 import hashlib
 import re
@@ -445,9 +446,94 @@ def late_reaction(text, source, state, here):
     return None
 
 
+# The word-matching clause splitter and confidence gate (#101 review rounds) are off by default:
+# Brendon's decision (2026-10-13) ends the word-matching parser; Kit declares combat acts as
+# structured entries instead (the follow-up PR). Set KIT_COMBAT_CLAUSES=1 to exercise them.
+CLAUSE_PARSER = os.environ.get('KIT_COMBAT_CLAUSES') == '1'
+
+def _main_act(action, source, state):
+    """What the player physically does, or None. A dict with ``kind`` (attack, grab,
+    face, flip, take, wait), ``target`` (actor id or None), and the details each needs."""
+    if not config(source) or state.get('area') != config(source).get('area', state.get('area')):
+        return None
+    text = narration(action).casefold()
+    here = present(source, state)
+    sc = scene(state)
+    named = name_target(text, source, state, here)
+    spell = _SPELL.search(text)
+    in_fight = bool((state.get('combat') or {}).get('status') in ('awaiting_initiative', 'running'))
+    if spell:
+        name = spell.group(1)
+        area = name in SPELL_SAVE and SPELL_SAVE[name][2]
+        return {'kind': 'attack', 'spell': name, 'weapon': name, 'area': bool(area),
+                'target': None if area else (named or _default_target(text, source, state, here))}
+    actor_names = tuple(name for key in (state.get('actors') or {}) for name in _names(source, key))
+    attack = first_aimed_attack(text, actor_names)
+    weapon = re.search(r'\b(' + WEAPONS + r')\b', text)
+    if attack and attack.group(1) in ('stomp', 'stomps'):
+        target = named or sc.get('grovelling') or _default_target(text, source, state, here)
+        return {'kind': 'attack', 'weapon': 'stomp', 'target': target, 'area': False, 'unarmed': True}
+    hostile_target = named or (_creature_words(text) and not OBJECTS.search(text[attack.end():attack.end() + 30]
+                                                                             if attack else ''))
+    stated_attack = kit_rolls.attack_total(action) is not None and (weapon or in_fight or named)
+    if (attack and (hostile_target or stated_attack or in_fight) and
+            not (TABLE.search(text[attack.end():attack.end() + 25]) and not named)) or (not attack and stated_attack):
+        return {'kind': 'attack', 'weapon': weapon.group(1) if weapon else 'unarmed strike',
+                'target': named or _default_target(text, source, state, here), 'area': False,
+                'unarmed': not weapon, 'nonlethal': bool(NONLETHAL.search(text))}
+    if FLIP.search(text) and TABLE.search(text):
+        return {'kind': 'flip', 'object': 'table', 'target': None}
+    if touched_face(text, pc_names(state)) and (named or _creature_words(text) or here):
+        return {'kind': 'face', 'target': named or _default_target(text, source, state, here),
+                'teeth': bool(TEETH.search(text))}
+    pcs = pc_names(state)
+    take, loot = taken_valuables(text, pcs)
+    if take and loot and table_scene(source):
+        what = 'ring' if re.search(r'\bring\b', text) and not re.search(r'\bcoins?|gold|pot|money|stacks?\b', text) \
+            else 'coins'
+        return {'kind': 'take', 'what': what, 'target': None, 'covert': bool(COVERT.search(text)),
+                'handful': bool(re.search(r'\b(handful|a few|some|fistful|a stack)\b', text))}
+    grab = GRAB.search(text)
+    if grab and (named or _creature_words(text)) and here and not VALUABLES.search(text[grab.end():grab.end() + 30]) \
+            and not GAZE.search(text[grab.end():grab.end() + 20]):
+        return {'kind': 'grab', 'target': named or _default_target(text, source, state, here),
+                'teeth': bool(TEETH.search(text)), 'wrist': bool(re.search(r'\b(wrist|hand|arm)\b', text))}
+    if in_fight and WAIT.search(text):
+        return {'kind': 'wait', 'target': None}
+    return None
+
+
+def main_parse(action, source, state):
+    """Main's act parsing (e94e9fd, _main_act, verbatim), with #101's reactions where main reads
+    no act: a reaction named after its moment, or Shield on his own turn. When main reads a
+    complete act, that act is the turn exactly as on main (Kit-declared acts will carry both)."""
+    first = _main_act(action, source, state)
+    if not config(source) or (state.get('combat') or {}).get('status') != 'running':
+        return first
+    # main's act stands, except two readings that only ever ask or idle: a rollless weapon
+    # 'attack' from a word like 'hit', and 'wait' from 'Wait, I cast Shield'.
+    if first and first.get('kind') != 'wait' and not (first.get('kind') == 'attack' and not first.get('spell') and
+                                                      kit_rolls.attack_total(action) is None):
+        return first
+    text = narration(action).casefold()
+    here = present(source, state)
+    react = late_reaction(text, source, state, here) or (
+        {'kind': 'own_shield', 'target': None, 'avrae': bool(re.search(r'!cast|casts shield!', text))}
+        if OWN_SHIELD.search(text) else None)
+    if not react:
+        return first
+    if (state.get('combat') or {}).get('awaiting'):
+        return react
+    step = {'start': 0, 'end': len(action), 'act': react, 'block': False, 'bound': None, 'text': action,
+            'label': 'that'}
+    return {'kind': 'multi', 'target': react.get('target'), 'steps': [step]}
+
+
 def parse(action, source, state):
-    """The player's act: one clause (parse_one), or a ``multi`` of every clause in order when a
-    running fight's message holds two or more acts, moves or reactions (#101 review at f3e880e)."""
+    """The player's act. By default main's act parsing (main_parse) plus #101's reactions; with
+    CLAUSE_PARSER, one clause (parse_one) or a ``multi`` of every clause in order."""
+    if not CLAUSE_PARSER:
+        return main_parse(action, source, state)
     if (state.get('combat') or {}).get('status') == 'running' and not (state.get('combat') or {}).get('awaiting'):
         steps = clauses(action, source, state)
         if any(step['act'].get('kind') == 'ruling' for step in steps):
@@ -2778,7 +2864,28 @@ class Fight:
         self.crack('flee', key)
 
     # -- other physical acts ---------------------------------------------------------------
+    def pc_grab_main(self, act):
+        key = act['target']
+        if not key:
+            self.lines.append('There is nobody within reach to grab.')
+            return
+        dc = 10 + self.stats(key).get('grapple', 0)
+        result = self.check('athletics', dc, f'grab:{key}')
+        self.trace.append(f'grab {key}: {result}')
+        self.scene['provocations'] += 1
+        if not result['success']:
+            self.lines.append(f'The {self.label(key)} twists out of your grip.')
+            return
+        self.scene['grappled'] = key
+        where = 'by the wrist' if act.get('wrist') else 'by the collar'
+        self.lines.append(f'You have the {self.label(key)} {where}, and he cannot pull free.')
+        if act.get('teeth'):
+            self.crack('teeth', key)
+
+
     def pc_grab(self, act):
+        if not CLAUSE_PARSER:
+            return self.pc_grab_main(act)
         key = act['target']
         if not key:
             self.lines.append('There is nobody within reach to grab.')

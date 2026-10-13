@@ -1448,8 +1448,7 @@ class RoomAdjudicator:
             # Nothing happened yet: the blow waits on its Avrae roll. The fight's start
             # (initiative) waits with it, so no turn is committed.
             fight.fight = before
-            waiting = re.sub(r'\s*Your turn\.\s*$', '', public.replace(' Roll initiative.', ''))
-            raise PendingRuling(f'{waiting} No turn was committed.')
+            raise PendingRuling(f'{public.replace(" Roll initiative.", "")} No turn was committed.')
         if not public:
             return None
         return self._fight_resolution(fight, public, events, action, state)
