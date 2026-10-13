@@ -1,0 +1,103 @@
+{
+ "id": "synthetic-shrine-v1",
+ "fixture_only": true,
+ "_note": "Synthetic room (Nagatha #101 re-review, invented, not adventure content): a cult adept who casts hold person (2nd level) and magic missile, so spells open Counterspell and Shield.",
+ "starting_area": "shrine",
+ "areas": {
+  "shrine": {
+   "name": "Shrine",
+   "called": "the shrine",
+   "arrival": "Someone steps in."
+  },
+  "out": {
+   "name": "Passage",
+   "called": "the passage",
+   "outside": true,
+   "beyond": true
+  }
+ },
+ "exits": {
+  "out": {
+   "name": "the passage",
+   "areas": [
+    "shrine",
+    "out"
+   ],
+   "secret": false,
+   "labels": {
+    "shrine": "A passage leads back the way you came.",
+    "out": "Back toward the room."
+   }
+  }
+ },
+ "facts": {
+  "altar": {
+   "area": "shrine",
+   "visible": true,
+   "layer": "obvious",
+   "text": "A black altar stands under a hanging censer."
+  },
+  "mosaic": {
+   "area": "shrine",
+   "visible": true,
+   "text": "A floor mosaic shows a serpent eating its own tail."
+  }
+ },
+ "actors": {
+  "adept": {
+   "name": "Cult adept",
+   "location": "shrine",
+   "status": "alive",
+   "visible": true,
+   "pronoun": "she",
+   "motive": "Kill the intruder.",
+   "knowledge": [],
+   "secrets": [],
+   "communication_profile": {
+    "rhythm": "Hiss.",
+    "humor": "None."
+   },
+   "armed": true
+  }
+ },
+ "combat": {
+  "leader": "adept",
+  "underlings": [],
+  "reach_order": [
+   "adept"
+  ],
+  "actors": {
+   "adept": {
+    "ac": 12,
+    "hp": 22,
+    "initiative": 5,
+    "grapple": 0,
+    "saves": {
+     "wis": 4
+    },
+    "attacks": [
+     {
+      "name": "hold person",
+      "verb": "casts",
+      "to_hit": 4,
+      "damage": 0,
+      "type": "psychic",
+      "spell": true,
+      "level": 2
+     },
+     {
+      "name": "magic missile",
+      "verb": "casts",
+      "to_hit": 0,
+      "damage": 10,
+      "type": "force",
+      "auto_hit": true
+     }
+    ]
+   }
+  },
+  "area": "shrine"
+ },
+ "story": {},
+ "resources": {}
+}

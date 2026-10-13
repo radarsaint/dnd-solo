@@ -31,10 +31,21 @@ TRIGGERS = (
     'falling',                     # Feather Fall
     'foe_leaves_reach',            # the opportunity attack
     'elemental_damage_taken',      # Absorb Elements
-    'creature_hits_you_within_range',  # Hellish Rebuke
+    'creature_hits_you_within_range',  # Hellish Rebuke: AFTER the damage lands
+    'missed_by_melee',             # Riposte: a creature misses the PC with a melee attack
+    'damaged_by_melee',            # Parry: a creature damages the PC with a melee attack
     'custom',                      # the sheet's own words; Kit reads the trigger
 )
-EFFECTS = ('shield', 'silvery_barbs', 'absorb_elements', 'opportunity_attack', 'uncanny_dodge', 'chronal_shift')
+# Reactions the engine resolves itself (the common SRD and published options).
+EFFECTS = ('shield', 'silvery_barbs', 'absorb_elements', 'opportunity_attack', 'uncanny_dodge', 'chronal_shift',
+           'deflect_missiles', 'hellish_rebuke', 'counterspell', 'parry', 'riposte', 'sentinel', 'mage_slayer',
+           'succeed_save', 'add_to_save')
+# The closed set Kit declares for any other reaction (react.effect); the engine applies it and checks it
+# against the reaction's own sheet text (allowed_effects).
+CLOSED_EFFECTS = ('reduce_damage', 'negate_hit', 'impose_disadvantage', 'force_reroll', 'deal_damage', 'move',
+                  'succeed_save', 'none')
+# Effects whose amount is the player's own Avrae roll, reported in the reply (never rolled here).
+ROLLED = ('deflect_missiles', 'parry', 'hellish_rebuke', 'riposte', 'reduce_damage', 'deal_damage', 'add_to_save')
 ELEMENTS = ('acid', 'cold', 'fire', 'lightning', 'thunder')
 KIT = 'kit_adjudicates'
 
@@ -47,27 +58,41 @@ CATALOG = {
                       'trigger': ['creature_succeeds'], 'range_ft': 60},
     'absorb_elements': {'name': 'Absorb Elements', 'kind': 'spell', 'level': 1, 'effect': 'absorb_elements',
                         'trigger': ['elemental_damage_taken']},
-    'counterspell': {'name': 'Counterspell', 'kind': 'spell', 'level': 3, 'effect': KIT,
+    'counterspell': {'name': 'Counterspell', 'kind': 'spell', 'level': 3, 'effect': 'counterspell',
                      'trigger': ['spell_cast_within_range'], 'range_ft': 60},
     'feather_fall': {'name': 'Feather Fall', 'kind': 'spell', 'level': 1, 'effect': KIT, 'trigger': ['falling']},
-    'hellish_rebuke': {'name': 'Hellish Rebuke', 'kind': 'spell', 'level': 1, 'effect': KIT,
-                       'trigger': ['creature_hits_you_within_range'], 'range_ft': 60},
+    # SRD: in response to being damaged by a creature within 60 feet: 2d10 fire, Dex save for half.
+    'hellish_rebuke': {'name': 'Hellish Rebuke', 'kind': 'spell', 'level': 1, 'effect': 'hellish_rebuke',
+                       'trigger': ['creature_hits_you_within_range'], 'range_ft': 60, 'save': 'dex', 'dice': '2d10',
+                       'type': 'fire'},
     'uncanny_dodge': {'name': 'Uncanny Dodge', 'kind': 'feature', 'effect': 'uncanny_dodge',
                       'trigger': ['self_hit_by_attack']},
-    'deflect_missiles': {'name': 'Deflect Missiles', 'kind': 'feature', 'effect': KIT,
-                         'trigger': ['self_hit_by_ranged_weapon']},
-    'protection': {'name': 'Protection (fighting style)', 'kind': 'feature', 'effect': KIT,
+    # SRD monk: reduce a ranged weapon hit by 1d10 + Dex + monk level (the player's roll).
+    'deflect_missiles': {'name': 'Deflect Missiles', 'kind': 'feature', 'effect': 'deflect_missiles',
+                         'trigger': ['self_hit_by_ranged_weapon'], 'dice': '1d10 + Dex + monk level'},
+    # SRD fighting style: impose disadvantage on an attack against an ally within 5 feet (needs a shield).
+    'protection': {'name': 'Protection (fighting style)', 'kind': 'feature', 'effect': 'impose_disadvantage',
                    'trigger': ['ally_attacked_within_5ft'], 'needs': 'a shield'},
+    # Battle Master maneuvers (one superiority die each).
+    'riposte': {'name': 'Riposte', 'kind': 'feature', 'effect': 'riposte', 'trigger': ['missed_by_melee'],
+                'pool': 'superiority_dice', 'dice': 'superiority die (added to the damage)'},
+    'parry': {'name': 'Parry', 'kind': 'feature', 'effect': 'parry', 'trigger': ['damaged_by_melee'],
+              'pool': 'superiority_dice', 'dice': 'superiority die + Dex'},
     # Chronurgy: after seeing a roll succeed or fail, force a reroll; the new roll stands.
     'chronal_shift': {'name': 'Chronal Shift', 'kind': 'feature', 'effect': 'chronal_shift',
                       'trigger': ['creature_succeeds'],
                       'range_ft': 30, 'recharge': 'long', 'uses': 2},
-    'lucky_footwork': {'name': 'Lucky Footwork', 'kind': 'feature', 'effect': KIT, 'trigger': ['self_fails_save'],
-                       'note': 'Dexterity saves: add 1d4'},
-    'sentinel': {'name': 'Sentinel', 'kind': 'feat', 'effect': KIT,
+    'lucky_footwork': {'name': 'Lucky Footwork', 'kind': 'feature', 'effect': 'add_to_save', 'trigger': ['self_fails_save'],
+                       'note': 'Dexterity saves: add 1d4', 'save_only': 'dex', 'dice': '1d4'},
+    # Sentinel: the opportunity attack also stops the foe (speed 0).
+    'sentinel': {'name': 'Sentinel', 'kind': 'feat', 'effect': 'sentinel',
                  'trigger': ['ally_attacked_within_5ft', 'foe_leaves_reach']},
-    'mage_slayer': {'name': 'Mage Slayer', 'kind': 'feat', 'effect': KIT, 'trigger': ['spell_cast_within_range'],
+    # Mage Slayer: a melee weapon attack at a creature within 5 feet casting a spell.
+    'mage_slayer': {'name': 'Mage Slayer', 'kind': 'feat', 'effect': 'mage_slayer', 'trigger': ['spell_cast_within_range'],
                     'range_ft': 5},
+    # DMG: when you fail a Dexterity save while wearing it, a reaction and 1 charge to succeed instead.
+    'ring_of_evasion': {'name': 'Ring of Evasion', 'kind': 'item', 'effect': 'succeed_save', 'trigger': ['self_fails_save'],
+                        'save_only': 'dex', 'charges': 3, 'recharge': 'dawn'},
     # Not a reaction of its own: it changes what the opportunity attack may be.
     'war_caster': {'name': 'War Caster', 'kind': 'feat', 'modifies': 'opportunity_attack',
                    'note': 'War Caster: may cast a 1-action, single-target spell instead (Kit adjudicates)'},
@@ -86,18 +111,27 @@ hypnotic_pattern leomund_s_tiny_hut lightning_bolt magic_circle major_image nond
 remove_curse sending sleet_storm slow stinking_cloud tongues vampiric_touch water_breathing'''.split())
 OPPORTUNITY = {'id': 'opportunity_attack', 'name': 'Opportunity attack', 'kind': 'basic',
                'effect': 'opportunity_attack', 'trigger': ['foe_leaves_reach'], 'cost': None}
-# Section names a sheet may use for features, feats and items (any of them, any format).
-FEATURE_KEYS = ('features', 'class_features', 'subclass_features', 'racial_traits', 'traits', 'species_traits')
+# Pools several reactions draw on: the pool's own sheet entry sets its size ('Combat Superiority (4/short
+# rest)'); otherwise the SRD default, marked assumed.
+POOLS = {'superiority_dice': {'from': ('combat_superiority', 'superiority_dice'), 'uses': 4, 'recharge': 'short'}}
+# Section names a sheet may use for features, feats and items (any of them, any format): D&D Beyond's
+# actions and reactions blocks, and a Battle Master's maneuvers, are features too.
+FEATURE_KEYS = ('features', 'class_features', 'subclass_features', 'racial_traits', 'traits', 'species_traits',
+                'maneuvers', 'actions', 'reactions', 'bonus_actions')
 FEAT_KEYS = ('feats',)
 ITEM_KEYS = ('magic_items', 'items', 'equipment', 'gear')
 USES = re.compile(r'\((\d+)\s*/\s*(short|long)(?: or long)? rest\)', re.I)
+CHARGES = re.compile(r'\((\d+)\s+charges?\)', re.I)
+ORDINAL = re.compile(r'^(?:level[_ ]?|lvl[_ ]?|l)?(\d)(?:st|nd|rd|th)?(?:[_ ]?level)?$', re.I)
 REACTION_WORDS = re.compile(r'\b(?:1 reaction|as a reaction|use your reaction|uses? (?:its|their|your) reaction|'
                             r'reaction,? which you take)\b', re.I)
 
 
 def ident(name):
-    base = USES.sub('', str(name or '')).split('(')[0]
-    return re.sub(r'[^a-z0-9]+', '_', base.casefold()).strip('_')
+    base = CHARGES.sub('', USES.sub('', str(name or ''))).split('(')[0]
+    key = re.sub(r'[^a-z0-9]+', '_', base.casefold()).strip('_')
+    # 'Fighting Style: Protection', 'Maneuver: Riposte', 'Feat: Sentinel' name the option itself.
+    return re.sub(r'^(?:fighting_style|maneuvers?|feat|feats|maneuver_options?)_', '', key)
 
 
 def _entries(value):
@@ -143,7 +177,11 @@ def slots(sheet):
         raw = {str(i + 1): n for i, n in enumerate(raw)}
     out = {}
     for level, value in (raw.items() if isinstance(raw, dict) else ()):
-        if not str(level).isdigit():
+        found = ORDINAL.match(str(level).strip())  # '1', '1st', 'level_1', 'L1', '1st level'
+        if not found:
+            continue
+        level = found.group(1)
+        if isinstance(value, str) and not value.strip().isdigit():
             continue
         if isinstance(value, dict):
             top = int(value.get('max', value.get('total', 0)) or 0)
@@ -156,13 +194,61 @@ def slots(sheet):
 
 def _uses(name, detail, known):
     match = USES.search(name) or USES.search(str(detail.get('uses') or ''))
+    charges = CHARGES.search(name) or CHARGES.search(str(detail.get('charges') or '') and f"({detail.get('charges')} charges)")
     if isinstance(detail.get('uses'), int):
         return {'max': detail['uses'], 'used': 0, 'recharge': str(detail.get('recharge') or 'long').split()[0]}
     if match:
         return {'max': int(match.group(1)), 'used': 0, 'recharge': match.group(2).casefold()}
+    if isinstance(detail.get('charges'), int) or charges:
+        top = detail['charges'] if isinstance(detail.get('charges'), int) else int(charges.group(1))
+        return {'max': top, 'used': 0, 'recharge': str(detail.get('recharge') or known.get('recharge') or 'dawn').split()[0],
+                'charges': True}
+    if known.get('charges'):
+        return {'max': known['charges'], 'used': 0, 'recharge': known.get('recharge', 'dawn'), 'charges': True,
+                'assumed': True}
     if known.get('uses'):
         return {'max': known['uses'], 'used': 0, 'recharge': known['recharge'], 'assumed': True}
     return None
+
+
+# A reaction the catalog does not know: its trigger read from its own words (else 'custom', which Kit
+# may open from the reply when the sheet text matches the moment; see allowed_effects).
+TEXT_TRIGGERS = (
+    (r'\bfail\w*\b[^.]{0,40}\bsav(?:e|ing throw)', 'self_fails_save'),
+    (r'\bmiss(?:es)?\s+you\b[^.]{0,30}\bmelee\b|\bmelee\b[^.]{0,30}\bmiss(?:es)?\s+you\b', 'missed_by_melee'),
+    (r'\bdamages?\s+you\b[^.]{0,30}\bmelee\b|\bmelee\b[^.]{0,40}\bdamages?\s+you\b', 'damaged_by_melee'),
+    (r'\b(?:hit|hits)\s+(?:you|by)\b|\bwhen you are hit\b|\battack(?:s)? (?:roll )?(?:hits|against) you\b',
+     'self_hit_by_attack'),
+    (r'\bcast(?:s|ing)? a spell\b', 'spell_cast_within_range'),
+    (r'\bleaves? your reach\b', 'foe_leaves_reach'),
+    (r'\bfall(?:s|ing)\b', 'falling'),
+    (r'\b(?:acid|cold|fire|lightning|thunder) damage\b', 'elemental_damage_taken'),
+    (r'\bdamages? you\b|\bdamaged by\b', 'creature_hits_you_within_range'),
+)
+
+
+def text_trigger(text):
+    for pattern, trigger in TEXT_TRIGGERS:
+        if re.search(pattern, text or '', re.I):
+            return trigger
+    return 'custom'
+
+
+def allowed_effects(entry):
+    """The closed effects Kit may declare for a reaction the engine does not resolve itself, read
+    from the reaction's own sheet text (what it says it does). Unknown text allows only 'none'."""
+    text = ' '.join(str(entry.get(k) or '') for k in ('when', 'note', 'name')).casefold()
+    out = []
+    for effect, pattern in (('reduce_damage', r'\breduc|\bresist|\bhalf\b|\bless damage'),
+                            ('negate_hit', r'\bmiss(?:es)?\b|\bbonus to (?:your )?ac\b|\+\d+ (?:to )?ac\b|\bnegat'),
+                            ('impose_disadvantage', r'\bdisadvantage\b'),
+                            ('force_reroll', r'\breroll|\broll again\b|\bre-roll'),
+                            ('deal_damage', r'\bdeals?\b[^.]{0,30}\bdamage\b|\btakes? \d*d\d+'),
+                            ('move', r'\bmove\b|\bteleport|\bfeet\b'),
+                            ('succeed_save', r'\bsucceed\b|\bsuccess instead\b')):
+        if re.search(pattern, text):
+            out.append(effect)
+    return out + ['none']
 
 
 def _says_reaction(detail):
@@ -187,7 +273,7 @@ def build(sheet):
             continue
         reactions.append({'id': key, 'name': known['name'], 'source': f'spell (level {level})', 'kind': 'spell',
                           'trigger': list(known['trigger']), 'cost': {'slot': level or 1}, 'effect': known['effect'],
-                          **({'range_ft': known['range_ft']} if known.get('range_ft') else {})})
+                          **{k: known[k] for k in ('range_ft', 'save', 'dice', 'type') if known.get(k)}})
     for keys, kind in ((FEATURE_KEYS, 'feature'), (FEAT_KEYS, 'feat'), (ITEM_KEYS, 'item')):
         for section in keys:
             for name, detail in _entries((sheet or {}).get(section)):
@@ -202,21 +288,44 @@ def build(sheet):
                 if known and known.get('modifies'):
                     modifiers.append(known)
                     continue
-                known = known or {'name': name, 'effect': KIT, 'trigger': ['custom'],
-                                  'when': str(detail.get('text') or detail.get('description') or '')[:200]}
-                use = _uses(name, detail, known)
+                text = str(detail.get('text') or detail.get('description') or '')
+                known = known or {'name': CHARGES.sub('', name).strip(), 'effect': KIT,
+                                  'trigger': [text_trigger(text)], 'when': text[:200]}
+                use = None if known.get('pool') else _uses(name, detail, known)
+                if known.get('pool'):
+                    pool = known['pool']
+                    uses.setdefault(pool, _pool(sheet, pool))
+                    reactions.append({'id': key, 'name': known['name'], 'kind': known.get('kind', kind),
+                                      'source': f"{known.get('kind', kind)} ({section})",
+                                      'trigger': list(known['trigger']), 'cost': {'uses': pool},
+                                      'effect': known['effect'],
+                                      **{k: known[k] for k in ('note', 'dice') if known.get(k)}})
+                    continue
                 if use:
                     uses[key] = use
                 reactions.append({'id': key, 'name': known['name'], 'kind': known.get('kind', kind),
                                   'source': f"{known.get('kind', kind)} ({section})", 'trigger': list(known['trigger']),
                                   'cost': {'uses': key} if use else None, 'effect': known['effect'],
-                                  **{k: known[k] for k in ('range_ft', 'note', 'when', 'needs') if known.get(k)}})
+                                  **{k: known[k] for k in ('range_ft', 'note', 'when', 'needs', 'save_only', 'dice',
+                                                           'save', 'type') if known.get(k)}})
     opportunity = dict(OPPORTUNITY, source='every creature (SRD)')
     notes = [m['note'] for m in modifiers if m['modifies'] == 'opportunity_attack']
     if notes:
         opportunity['note'] = '; '.join(notes)
     reactions.append(opportunity)
     return {'v': 1, 'sheet': _digest(sheet), 'reactions': reactions, 'slots': slots(sheet), 'uses': uses}
+
+
+def _pool(sheet, pool):
+    """A shared pool's size from the sheet entry that grants it, else the SRD default (assumed)."""
+    spec = POOLS[pool]
+    for section in FEATURE_KEYS + FEAT_KEYS:
+        for name, detail in _entries((sheet or {}).get(section)):
+            if ident(name) in spec['from']:
+                use = _uses(name, detail, {})
+                if use:
+                    return use
+    return {'max': spec['uses'], 'used': 0, 'recharge': spec['recharge'], 'assumed': True}
 
 
 def _digest(sheet):
@@ -315,6 +424,37 @@ def rest(resources, sheet, kind):
     return out
 
 
+def definitions(resources):
+    """The static half of the reactions line (cached in the session manifest): what each reaction is,
+    what it costs and how it is cast. No counts: spending a slot or a use never changes it, so the
+    cached manifest is not re-sent every round (#101 review P1-4)."""
+    parts = []
+    for r in resources.get('reactions') or ():
+        cost = r.get('cost') or {}
+        if 'slot' in cost:
+            what = f"spell, L{cost['slot']}+ slot, cast in Avrae: !cast {r['name'].casefold()}"
+        elif 'uses' in cost:
+            use = (resources.get('uses') or {}).get(cost['uses']) or {}
+            pool = '' if cost['uses'] == r['id'] else f" {cost['uses'].replace('_', ' ')}"
+            what = (f"{use.get('max')} charges, regained at {use.get('recharge')}" if use.get('charges') else
+                    f"{use.get('max')}{pool} per {use.get('recharge')} rest")
+        else:
+            what = 'no cost'
+        flag = ', Kit declares the effect' if r['effect'] == KIT else ''
+        note = f"; {r['note']}" if r.get('note') and r['kind'] == 'basic' else ''
+        parts.append(f"{r['name']} ({what}{flag}{note})")
+    return 'Reactions: ' + '; '.join(parts) + '.'
+
+
+def ready(resources):
+    """The live half (per-turn delta, like HP): slots and uses left now."""
+    left = [f"L{k} {s['max'] - s['used']}/{s['max']}" for k, s in sorted((resources.get('slots') or {}).items(),
+                                                                       key=lambda kv: int(kv[0]))]
+    for key, use in sorted((resources.get('uses') or {}).items()):
+        left.append(f"{key.replace('_', ' ')} {use['max'] - use['used']}/{use['max']}")
+    return ('Left: ' + ', '.join(left) + '.') if left else 'Left: no slots or limited uses.'
+
+
 def line(resources):
     """The compact 'available reactions' line Kit sees in the session manifest. It changes only when
     something is spent or restored, so the cached manifest is resent only then."""
@@ -325,10 +465,13 @@ def line(resources):
             what = f"spell, L{cost['slot']}+ slot, cast in Avrae: !cast {r['name'].casefold()}"
         elif 'uses' in cost:
             use = resources['uses'][cost['uses']]
-            what = f"{use['max'] - use['used']}/{use['max']} per {use['recharge']} rest"
+            pool = '' if cost['uses'] == r['id'] else f" {cost['uses'].replace('_', ' ')}"
+            what = (f"{use['max'] - use['used']}/{use['max']} charges, regained at {use['recharge']}"
+                    if use.get('charges') else
+                    f"{use['max'] - use['used']}/{use['max']}{pool} per {use['recharge']} rest")
         else:
             what = 'no cost'
-        flag = '' if r['effect'] in EFFECTS else ', Kit adjudicates'
+        flag = ', Kit declares the effect' if r['effect'] == KIT else ''
         note = f"; {r['note']}" if r.get('note') and r['kind'] == 'basic' else ''
         parts.append(f"{r['name']} ({what}{flag}{note})")
     left = ', '.join(f"L{k} {s['max'] - s['used']}/{s['max']}" for k, s in sorted(resources.get('slots', {}).items(),

@@ -1,0 +1,100 @@
+{
+ "id": "synthetic-bridge-v1",
+ "fixture_only": true,
+ "_note": "Synthetic room (Nagatha #101 re-review, invented, not adventure content): a bridge ogre with a greatclub who retreats once hurt, so a foe leaving reach opens the opportunity attack.",
+ "starting_area": "span",
+ "areas": {
+  "span": {
+   "name": "Rope bridge",
+   "called": "the rope bridge",
+   "arrival": "Someone steps in."
+  },
+  "out": {
+   "name": "Passage",
+   "called": "the passage",
+   "outside": true,
+   "beyond": true
+  }
+ },
+ "exits": {
+  "out": {
+   "name": "the passage",
+   "areas": [
+    "span",
+    "out"
+   ],
+   "secret": false,
+   "labels": {
+    "span": "A passage leads back the way you came.",
+    "out": "Back toward the room."
+   }
+  }
+ },
+ "facts": {
+  "ropes": {
+   "area": "span",
+   "visible": true,
+   "layer": "obvious",
+   "text": "Frayed ropes creak over a dark gorge."
+  },
+  "planks": {
+   "area": "span",
+   "visible": true,
+   "text": "Three planks near the middle are missing."
+  }
+ },
+ "actors": {
+  "ogre": {
+   "name": "Bridge ogre",
+   "location": "span",
+   "status": "alive",
+   "visible": true,
+   "pronoun": "he",
+   "motive": "Kill the intruder.",
+   "knowledge": [],
+   "secrets": [],
+   "communication_profile": {
+    "rhythm": "Hiss.",
+    "humor": "None."
+   },
+   "armed": true
+  }
+ },
+ "combat": {
+  "leader": "ogre",
+  "underlings": [],
+  "reach_order": [
+   "ogre"
+  ],
+  "in_reach": [],
+  "actors": {
+   "ogre": {
+    "ac": 11,
+    "hp": 59,
+    "initiative": 0,
+    "grapple": 6,
+    "saves": {},
+    "attacks": [
+     {
+      "name": "greatclub",
+      "verb": "clubs",
+      "to_hit": 6,
+      "damage": 13,
+      "type": "bludgeoning"
+     }
+    ],
+    "retreat": {
+     "when": [
+      "damaged"
+     ],
+     "toward": "area_out",
+     "exit": "out",
+     "text": "The ogre lumbers off the far end."
+    }
+   }
+  },
+  "area": "span"
+ },
+ "story": {},
+ "resources": {}
+}

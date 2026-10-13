@@ -3681,11 +3681,13 @@ def prepare_inputs(runtime, revision, state, action, resolution, use_memory, one
     if not table_talk:
         planning_input['story_brief'] = kit_brief.brief(source, post_event_state)
     if kit_combat.config(source) and post_event_state.get('player_sheet'):
-        # Session manifest (cached): the PC's reactions and what is left, one compact line. It changes
-        # only when something is spent or restored; whether the reaction is used this round is live in
-        # the fight view (TurnDelta), so the cached manifest is not resent every round.
+        # Session manifest (cached): what the PC's reactions are and cost, with no counts, so a spend
+        # never busts the cache. What is left now (slots, uses) is live state like HP: the per-turn
+        # delta carries it, with the fight view's reaction available/spent (#101 review P1-4).
         from . import kit_reactions
-        planning_input['available_reactions'] = kit_reactions.line(kit_reactions.current(post_event_state))
+        resources = kit_reactions.current(post_event_state)
+        planning_input['available_reactions'] = kit_reactions.definitions(resources)
+        planning_input['reactions_ready'] = kit_reactions.ready(resources)
     if resolution.kind == FLOURISH_KIND:
         dead = ((state.get('combat') or {}).get('awaiting') or {}).get('target')
         label = actor_speakers(source).get(dead, dead or 'the target')
@@ -4891,7 +4893,7 @@ class KitChatBridge:
         _, state = self.runtime.load()
         if kit_combat.config(self.runtime.source()) and state.get('player_sheet'):
             from . import kit_reactions  # the same session line prepare_inputs puts in the manifest
-            session['available_reactions'] = kit_reactions.line(kit_reactions.current(state))
+            session['available_reactions'] = kit_reactions.definitions(kit_reactions.current(state))
         room = timing.get('room_manifest') or {}
         hashes = {'session': kit_manifest.digest(session), 'room': kit_manifest.digest(room)}
         self.runtime.record_kit_timing(turn_id, manifest={**hashes, 'sent': ['session', 'room']})
