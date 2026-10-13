@@ -443,3 +443,13 @@ def without_shield(sheet):
     sheet = copy.deepcopy(sheet)
     sheet['spells'] = {level: [s for s in names if s != 'Shield'] for level, names in sheet['spells'].items()}
     return sheet
+
+
+class LateRerollIsSaid(unittest.TestCase):
+    def test_a_reroll_declared_after_the_hit_landed_changes_nothing_and_spends_nothing(self):
+        sheet = rogue(spells={'1': ['Silvery Barbs']}, slots={'1': 2})
+        arena = Arena(self, 'rope_bridge', sheet=sheet, roll=lambda: 10)
+        arena.act('Initiative 25. I stab the bridge ogre with my rapier, 5 to hit, 3 piercing.')
+        result = arena.act('Silvery Barbs on the ogre! (Avrae: !cast silvery barbs)')
+        self.assertIn('Silvery Barbs cannot change it now', result.public_event)
+        self.assertEqual((arena.fight['pc_damage'], arena.slot1()), (13, 0))

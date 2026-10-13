@@ -735,6 +735,12 @@ class Fight:
         found = kit_reactions.entry(self.resources, react) or {}
         event = act['event']
         name = found.get('name', react)
+        late_ok = ('absorb_elements', 'uncanny_dodge', 'deflect_missiles', 'parry', 'hellish_rebuke')
+        if event is not None and found.get('effect') not in late_ok and \
+                (self.declared_effect(react) or {}).get('type') not in ('reduce_damage', 'deal_damage'):
+            # A reroll (Silvery Barbs) cannot be replayed after the hit has landed: said, nothing spent.
+            self.lines.append(f'That hit has already landed; {name} cannot change it now.')
+            return
         if event is None:
             # Nothing it can answer now (the hit was not its kind, or the reaction is spent): no
             # effect; a slot Avrae spent is counted so the session matches Avrae.
