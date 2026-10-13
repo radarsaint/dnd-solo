@@ -43,10 +43,15 @@ SEARCH_ACTS = ('search', 'open')
 # Mid-fight, a light touch is the turn's one free object interaction (SRD); the rest take the action.
 OBJECT_ACTS = ('take', 'open', 'pull', 'hook', 'touch')
 NONE = 'none'
+# Why the PC's hands go on nothing offered, when handles is offered and Kit answers none
+# (#97 review P1-B'): a bare none on a hands-on turn is no answer.
+NONE_REASONS = ('blocked', 'too_heavy', 'not_the_feature', 'stopped_short', 'ooc')
 
 HANDLES_SCHEMA = {'type': 'object', 'additionalProperties': False,
                   'properties': {'target': {'type': 'string'},
-                                 'act': {'type': 'string', 'enum': list(HANDLE_ACTS) + [NONE]}},
+                                 'act': {'type': 'string', 'enum': list(HANDLE_ACTS) + [NONE]},
+                                 # Only with none: why nothing offered is handled (none on a declaration).
+                                 'reason': {'type': 'string', 'enum': list(NONE_REASONS) + [NONE]}},
                   'required': ['target', 'act']}
 DOWNED_ACTS = ('attack', 'turn_away')
 DOWNED_SCHEMA = {'type': 'object', 'additionalProperties': False,
@@ -58,18 +63,36 @@ SCHEMAS = {'handles': HANDLES_SCHEMA, 'downed': DOWNED_SCHEMA}
 HANDLES_RULE = ('Answer handles every turn it is offered. {target, act} only when the PC physically '
                 'manipulates a listed thing this turn (pries, lifts, pushes, takes, climbs, opens, stabs it; '
                 '"it" or another word for it counts). Looking, examining, a step toward it, cover behind it '
-                'or a question is not handling: {"target": "none", "act": "none"}. Never narrate a hidden '
-                'creature unless your handles sets it off.')
+                'or a question is not handling: {"target": "none", "act": "none", "reason": ...}. A none always '
+                'carries a reason: blocked, too_heavy, not_the_feature (his hands go on something else), '
+                'stopped_short (he does not go through with it) or ooc. With none, never narrate a listed '
+                'thing moving or opening, and never narrate a hidden creature unless your handles sets it off.')
 DOWNED_RULE = ('The PC is down at 0 hit points and acts.downed.foes act before his next turn. Your call, by '
                'what they want: {"act": "attack"} (a hit on him is a critical hit: two failed death saves) or '
                '{"act": "turn_away"} (they leave him be).')
 RULES = {'handles': HANDLES_RULE, 'downed': DOWNED_RULE}
 
 
+def _is_none(value):
+    return isinstance(value, dict) and set(value) in ({'target', 'act'}, {'target', 'act', 'reason'}) and \
+        str(value.get('target')).strip().casefold() == NONE and str(value.get('act')).strip().casefold() == NONE
+
+
+def none_reason(plan):
+    """The reason on a handles none answer, else None."""
+    value = (plan or {}).get('handles')
+    if not _is_none(value):
+        return None
+    reason = str(value.get('reason') or '').strip().casefold()
+    return reason if reason in NONE_REASONS else None
+
+
 def declared(plan, field):
     """The raw declaration, or None when it says none."""
     value = (plan or {}).get(field)
     if value in (None, NONE):
+        return None
+    if field == 'handles' and _is_none(value):
         return None
     if isinstance(value, dict) and set(value) == {'target', 'act'} and \
             str(value.get('target')).strip().casefold() == NONE and str(value.get('act')).strip().casefold() == NONE:
@@ -79,8 +102,10 @@ def declared(plan, field):
 
 def check_handles(value, offer):
     """{feature, part, act} for a valid declaration (part: the part word or held id named)."""
-    require(isinstance(value, dict) and set(value) == {'target', 'act'},
-            'handles is {target, act}, or {"target": "none", "act": "none"}')
+    require(isinstance(value, dict) and set(value) - {'reason'} == {'target', 'act'},
+            'handles is {target, act}, or {"target": "none", "act": "none", "reason": ...}')
+    require(str(value.get('reason') or NONE).strip().casefold() == NONE,
+            'handles.reason goes only with none: a declaration fires, it needs no reason.')
     require(NONE not in (str(value['target']).strip().casefold(), str(value['act']).strip().casefold()),
             'handles says none with both: {"target": "none", "act": "none"}')
     require(offer, 'Nothing here can be handled this turn: omit handles.')
@@ -119,10 +144,15 @@ def check(plan, body):
         if offers.get(field) and not asked:
             require(field in (plan or {}),
                     f'acts.{field} is offered this turn: answer it'
-                    + (' ({target, act}, or {"target": "none", "act": "none"} when his hands go on nothing '
+                    + (' ({target, act}, or {"target": "none", "act": "none", "reason": ...} when his hands go on nothing '
                        'listed).' if field == 'handles' else ' ({"act": "attack"} or {"act": "turn_away"}).'))
         value = declared(plan, field)
         if value is None:
+            if field == 'handles' and offers.get(field) and not asked and \
+                    (plan or {}).get(field) not in (None,) and none_reason(plan) is None:
+                require(False, 'acts.handles none needs a reason: {"target": "none", "act": "none", "reason": '
+                               f'one of {", ".join(NONE_REASONS)}}}. If his hands go on a listed thing, '
+                               'declare it instead.')
             continue
         require(not asked, f'A question to the player declares no {field}.')
         out[field] = checker(value, offers.get(field))

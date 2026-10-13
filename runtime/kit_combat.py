@@ -624,6 +624,15 @@ class Fight:
             self.fight['vs_downed'] = choice
             self.run_npcs()
             awaiting = self.fight.get('awaiting')
+            if awaiting and awaiting.get('kind') == 'roll_call' and awaiting.get('save') == 'death' and \
+                    save_total(self.action, 'death') is not None:
+                # A death save counts only once it is owed (#97 review): this one was typed
+                # before the foes' blows, which come first in the order. The round waits for
+                # a fresh roll at his slot.
+                self.lines.append('That death save was rolled before those blows; roll it again now.')
+                self.trace.append('early death save not counted: the foes act before his slot')
+                self.finish()
+                return self.public(), self.events()
             if not (awaiting and awaiting.get('kind') == 'roll_call') or \
                     save_total(self.action, awaiting['save']) is None:
                 self.finish()
@@ -1096,7 +1105,10 @@ class Fight:
                     if result['save'][2] is True and not saved:
                         # Avrae counted a tie as a save (5e); at this table the tie fails: the
                         # full damage (Avrae's half, doubled, when that is all it showed).
-                        dealt = result['damage'][0] * 2 if result.get('damage') and half else damage
+                        # The full rolled total (the dice Avrae shows), never Avrae's half
+                        # doubled: that loses 1 on an odd total (#97 review P2).
+                        shown = result['damage'][0] if result.get('damage') else damage
+                        dealt = (unhalved_damage(self.action, shown) or shown * 2) if half else damage
                         self.trace.append(f'{key} tied the DC: Avrae said saved, the table rule says failed')
                     self.trace.append(f'{key} {ability} save from Avrae: {result["save"][1]} '
                                       f'{"saved" if saved else "failed"}, {dealt} damage')
@@ -1428,6 +1440,22 @@ def at_zero_terms(names):
         out[name] = {'until_s_in': 3600} if name == 'poisoned' else {'while': 'poisoned'} \
             if name == 'paralyzed' and 'poisoned' in names else {}
     return out
+
+
+def unhalved_damage(action, shown):
+    """The full total behind Avrae's halved damage line ("8d6 (4, 3, 5, ...) [fire] = `14`"): the
+    dice it shows, summed, when that sum halves (rounded down) to ``shown``; else None."""
+    for line in str(action or '').splitlines():
+        if not re.search(r'\bdamage\b', line, re.I):
+            continue
+        found = re.search(r'\(([\d,\s~]+)\)[^=]*=\s*`?(\d+)`?', line)
+        if not found or int(found.group(2)) != shown:
+            continue
+        dice = [int(d) for d in re.findall(r'\d+', found.group(1))]
+        total = sum(dice)
+        if dice and total // 2 == shown:
+            return total
+    return None
 
 
 def death_save_total(action):
