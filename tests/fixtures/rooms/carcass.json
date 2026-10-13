@@ -1,0 +1,127 @@
+{
+  "id": "synthetic-carcass-v1",
+  "fixture_only": true,
+  "_note": "Synthetic, non-6c room for monster-initiated combat (PR-M): a dead basilisk with two giant centipedes hidden under it. They burst out if the carcass is disturbed. Data only. Not adventure content.",
+  "starting_area": "hall",
+  "areas": {
+    "hall": {
+      "name": "Pillared hall",
+      "called": "the hall",
+      "arrival": "A stranger steps between the pillars."
+    },
+    "stair": {
+      "name": "Stair up",
+      "called": "the stair",
+      "outside": true,
+      "beyond": true
+    }
+  },
+  "exits": {
+    "stair": {
+      "name": "the stair up",
+      "areas": [
+        "hall",
+        "stair"
+      ],
+      "secret": false,
+      "labels": {
+        "hall": "A stair climbs out of the hall.",
+        "stair": "The stair back down to the hall."
+      }
+    }
+  },
+  "facts": {
+    "carcass": {
+      "area": "hall",
+      "visible": true,
+      "text": "The carcass of a basilisk lies across the floor, grey hide split and stinking.",
+      "handling": {
+        "nouns": [
+          "carcass",
+          "basilisk",
+          "body",
+          "hide"
+        ],
+        "look": "You haul back a flap of the stiff grey hide.",
+        "move": "You put your shoulder to the carcass and it rolls half over.",
+        "parts": [
+          "claw",
+          "talon",
+          "foreleg"
+        ],
+        "holds": "orb",
+        "handle": "The stiff grey limb shifts under your hands and the whole carcass rocks with it."
+      }
+    },
+    "orb": {
+      "area": "hall",
+      "visible": false,
+      "text": "A milky glass orb is clenched in the basilisk's claw.",
+      "handling": {
+        "nouns": [
+          "orb",
+          "sphere"
+        ],
+        "look": "The orb is cold and cloudy, and something dark turns slowly inside it."
+      }
+    },
+    "pillars": {
+      "area": "hall",
+      "visible": true,
+      "text": "Pillars carved with coiling serpents hold up the ceiling."
+    }
+  },
+  "actors": {
+    "centipede_a": {
+      "name": "Banded centipede",
+      "location": "hall",
+      "status": "hidden",
+      "visible": false,
+      "motive": "Feed.",
+      "knowledge": [],
+      "secrets": [],
+      "communication_profile": {
+        "rhythm": "Clicking mandibles.",
+        "humor": "None."
+      },
+      "stat_block": {
+        "srd": "Giant Centipede"
+      }
+    },
+    "centipede_b": {
+      "name": "Rust-red centipede",
+      "location": "hall",
+      "status": "hidden",
+      "visible": false,
+      "motive": "Feed.",
+      "knowledge": [],
+      "secrets": [],
+      "communication_profile": {
+        "rhythm": "Clicking mandibles.",
+        "humor": "None."
+      },
+      "stat_block": {
+        "srd": "Giant Centipede"
+      }
+    }
+  },
+  "triggers": [
+    {
+      "id": "carcass_disturbed",
+      "on": {
+        "disturb": "carcass"
+      },
+      "starts_combat": true,
+      "actors": [
+        "centipede_a",
+        "centipede_b"
+      ],
+      "surprise": {
+        "stealth": 2
+      },
+      "reveal": "Two giant centipedes boil out from under the carcass, mandibles clicking."
+    }
+  ],
+  "story": {},
+  "resources": {}
+}

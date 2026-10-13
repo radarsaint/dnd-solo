@@ -45,7 +45,7 @@ def discernment_candidates(dm_context):
     current_area = scene['current_area']
     actor_bases = {'none': ['none']}
     for actor_id, actor in actors.items():
-        if actor.get('location') != current_area or actor.get('status') in ('dead', 'fled'):
+        if actor.get('location') != current_area or actor.get('status') in ('dead', 'fled', 'hidden'):
             continue
         bases = [key for key in ('immediate_goal', 'motive') if actor.get(key)]
         if bases:

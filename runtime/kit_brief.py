@@ -69,7 +69,7 @@ BRIEF_MAX_BYTES = 5000  # the compiled brief; longer lists are trimmed from the 
 MAX_ITEMS = 6  # per list (purposes, hooks, thresholds, endings, an actor's traits): the brief stays ~5 KB
 DEFAULT_WITHIN = 3
 MAX_WITHIN = 12
-GONE = ('dead', 'fled', 'unconscious', 'defeated', 'gone')
+GONE = ('dead', 'fled', 'unconscious', 'defeated', 'gone', 'hidden')  # hidden: lurking until a trigger fires
 CONDITIONS = ('toll_raised', 'procedure_running', 'fact_known', 'claim_learned', 'said', 'any',
               # state-only conditions for thresholds (never speakable):
               'net_at_least', 'broke', 'toll_refused', 'exposed', 'actor_damaged', 'attitude_at_most',

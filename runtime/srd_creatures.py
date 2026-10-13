@@ -23,6 +23,26 @@ CREATURES = {
              'attacks': [_ATTACK('mace', 'clubs', 4, 5, 'bludgeoning'), _ATTACK('mace', 'clubs', 4, 5, 'bludgeoning')]},
     'veteran': {'ac': 17, 'hp': 58, 'initiative': 1, 'grapple': 5, 'saves': {},
                 'attacks': [_ATTACK('longsword', 'cuts', 5, 7, 'slashing'), _ATTACK('longsword', 'cuts', 5, 7, 'slashing')]},
+    # SRD 5.1 Giant Centipede: Bite +4, 4 (1d4+2) piercing, and a DC 11 Constitution save or
+    # 10 (3d6) poison (no damage on a success). Poison that drops the target to 0 hp leaves it
+    # stable but poisoned for 1 hour, paralyzed while poisoned. No Stealth listed: Dex +2.
+    'giant centipede': {'ac': 13, 'hp': 4, 'initiative': 2, 'grapple': -3, 'saves': {}, 'stealth': 2,
+                        'attacks': [{**_ATTACK('bite', 'bites', 4, 4, 'piercing'),
+                                     'save': {'ability': 'con', 'dc': 11, 'damage': 10, 'type': 'poison',
+                                              'half': False, 'at_zero': ['poisoned', 'paralyzed']}}]},
+    # SRD 5.1 Ghoul: AC 12, 22 (5d8) hp, Dex 15. Bite +2, 9 (2d6+2) piercing, or Claws +4,
+    # 7 (2d4+2) slashing; a creature other than an elf or undead hit by the claws makes a DC 10
+    # Constitution save or is paralyzed for 1 minute, repeating the save at the end of each of
+    # its turns. The engine's one swing a turn is the claws.
+    'ghoul': {'ac': 12, 'hp': 22, 'initiative': 2, 'grapple': 1, 'saves': {}, 'stealth': 2,
+              'attacks': [{**_ATTACK('claws', 'rakes', 4, 7, 'slashing'),
+                           'save': {'ability': 'con', 'dc': 10, 'damage': 0, 'type': 'paralysis',
+                                    'condition': {'name': 'paralyzed', 'rounds': 10, 'repeat': 'end_of_turn',
+                                                  'immune': ['elf']}}}]},
+    # SRD 5.1 Skeleton: AC 13 (armor scraps), 13 (2d8+4) hp, Dex 14. Shortsword +4, 5 (1d6+2)
+    # piercing. No Stealth listed: Dex +2.
+    'skeleton': {'ac': 13, 'hp': 13, 'initiative': 2, 'grapple': 0, 'saves': {}, 'stealth': 2,
+                 'attacks': [_ATTACK('shortsword', 'stabs', 4, 5, 'piercing')]},
 }
 
 INLINE_KEYS = ('ac', 'hp', 'attacks')
