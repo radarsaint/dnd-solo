@@ -10,6 +10,7 @@ B'': on any turn beside a watched feature where nothing fired, no clause of the 
 Rooms: the from-scratch crypt (tests/fixtures/rooms/crypt.json) and the bell tower
 (test_kit_review97c.belfry), plus a well written here. Dice pinned.
 """
+import re
 import unittest
 
 from runtime import kit_agent
@@ -74,7 +75,7 @@ class NothingMovesWithoutAFiringTests(unittest.TestCase):
     def test_movement_in_any_clause_is_rejected_on_a_none_turn(self):
         for source, line in ((None, 'I push the lid aside.'), (well(), 'I crank the winch.')):
             for text in SLIPS:
-                text = text if source is None else text.replace('lid', 'crank')
+                text = text if source is None else re.sub(r'\blid\b', 'crank', text)
                 with self.subTest(line=line, text=text):
                     room = Room(self, source=source)
                     # 'You feel ...' also trips the agency guard first; either way it is refused.
