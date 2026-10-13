@@ -4448,11 +4448,12 @@ def check_sealed(spoken, sealed):
                 if _has(terms['contents'], clause) or _has(own, clause) or generic:
                     raise InvalidChange(f'The {feature} is still sealed: nothing behind it is seen until a declaration '
                                         f'fires it ("{clause[:60]}"). Narrate it closed (handles.reason).')
-                if NOT_MOVING.search(clause):
-                    continue
+                if NOT_MOVING.search(re.sub(r"\b(away|off)\s+to\s+nothing\b", r"\1 to dust", clause)):
+                    continue  # 'rusted away to nothing' is removal, not a negation
+                clause = re.sub(r"\b(away|off)\s+to\s+nothing\b", r"\1 to dust", clause)
                 itself = _subject_is_feature(clause, terms)
                 # Worn down to a remnant ('rusted away to stubs') is still there; worn off is not.
-                worn_off = itself and any(m and not re.match(r"\s+to\b", clause[m.end():])
+                worn_off = itself and any(m and not re.match(r"\s+to\b(?!\s+(?:nothing|dust|ash|ashes|powder)\b)", clause[m.end():])
                                           for m in (_WEAR_OFF.search(clause), _DAMAGE_OFF.search(clause)))
                 if not itself:
                     # Wear and breakage are description only when what wore or broke is not the

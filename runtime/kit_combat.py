@@ -434,6 +434,98 @@ def late_reaction(text, source, state, here):
 
 
 def parse(action, source, state):
+    """The player's act: one clause (parse_one), or a ``multi`` of every clause in order when a
+    running fight's message holds two or more acts, moves or reactions (#101 review at f3e880e)."""
+    if (state.get('combat') or {}).get('status') == 'running' and not (state.get('combat') or {}).get('awaiting'):
+        steps = clauses(action, source, state)
+        if len(steps) >= 2 or (steps and steps[0]['act'].get('kind') == 'missing_reaction'):
+            first = next((s['act'] for s in steps if s['act'].get('target')), steps[0]['act'])
+            return {'kind': 'multi', 'target': first.get('target'), 'steps': steps}
+    return parse_one(action, source, state)
+
+
+_SPLIT = re.compile(r"[.;!?]+\s*|,\s*(?:and\s+)?(?:then\s+)?|\s+(?:and\s+)?then\s+|\s+and\s+", re.I)
+_DETAIL = re.compile(r"^\W*(?:\(|\d|dc\s*\d|for\s+\d|total|avrae)|^\s*!\w|^\W*[A-Za-z']+\W*$", re.I)
+
+
+def clauses(action, source, state):
+    """Every clause of the message that is an act, a move or a reaction, in order, each with
+    the details after it (its rolls, its Avrae aside, a trailing 'and the imp'); [] or one when
+    the message is a single act."""
+    masked = re.sub(r'\([^)]*\)', lambda m: '_' * len(m.group(0)), action)
+    masked = re.sub(r'!(?=\w)', '_', masked)
+    # A pasted Avrae block (from its first output line on) is the details of the clause before it.
+    block = re.search(r"^.*(?:\*\*|^\s*[\w' -]+ (?:casts|attacks with|uses) [^\n]*!\s*$|^\s*!\w).*$", action, re.M)
+    avrae_from = block.start() if block and block.start() > 0 else len(action) + 1
+    if avrae_from <= len(action):
+        masked = masked[:avrae_from] + '_' * (len(action) - avrae_from)
+    cuts, at = [], 0
+    for m in _SPLIT.finditer(masked):
+        cuts.append((at, m.start()))
+        at = m.end()
+    cuts.append((at, len(action)))
+    resources = state.get('pc_resources') or {}
+    steps, lead = [], None
+    for start, end in cuts:
+        piece = action[start:end].strip()
+        if not re.search(r'[A-Za-z]', piece):
+            if steps:
+                steps[-1]['end'] = end
+            continue
+        if start >= avrae_from - 1 and action[start:avrae_from].strip() == '':
+            piece = '(avrae)'  # the pasted block: details of the clause before it
+        missing = None if _DETAIL.match(piece) else missing_reaction(piece, resources)
+        if missing:
+            # Named, but not on his sheet: never read as some other act ('Uncanny Dodge that hit').
+            act = {'kind': 'missing_reaction', 'target': None, 'name': missing}
+        else:
+            act = None if _DETAIL.match(piece) else parse_one(piece, source, state)
+        if act is None or act.get('kind') is None:
+            if steps:
+                steps[-1]['end'] = end
+            elif lead is None:
+                lead = start
+            continue
+        steps.append({'start': start if lead is None else lead, 'end': end, 'act': act})
+        lead = None
+    for step in steps:
+        step['text'] = action[step['start']:step['end']].strip(' ,;')
+        step['label'] = _label(step)
+    if len(steps) < 2:
+        return steps
+    # Each clause re-read on its own text with its details (an attack's rolls ride after it).
+    for step in steps:
+        if step['act'].get('kind') != 'missing_reaction':
+            again = parse_one(step['text'], source, state)
+            if again and again.get('kind') == step['act'].get('kind'):
+                step['act'] = again
+    return steps
+
+
+def _label(step):
+    act = step['act']
+    if act.get('kind') == 'missing_reaction':
+        return act['name']
+    if act.get('kind') == 'late_reaction':
+        names = act.get('names') or [act['react'].replace('_', ' ')]
+        again = ' again' if re.search(r'\bagain\b', step['text'], re.I) else ''
+        return names[0].title() + again
+    return f'"{step["text"][:80]}"'
+
+
+def missing_reaction(text, resources):
+    """A reaction the catalog knows, named in the clause, that is not on his sheet."""
+    have = {r['id'] for r in resources.get('reactions') or ()}
+    low = text.casefold()
+    for key, spec in kit_reactions.CATALOG.items():
+        if key in have or key in ('shield', 'opportunity_attack'):
+            continue
+        if re.search(r'\b' + re.escape(spec['name'].casefold()) + r'\b', low):
+            return spec['name']
+    return None
+
+
+def parse_one(action, source, state):
     """What the player physically does, or None. A dict with ``kind`` (attack, grab,
     face, flip, take, wait), ``target`` (actor id or None), and the details each needs."""
     if not config(source) or state.get('area') != config(source).get('area', state.get('area')):
@@ -446,12 +538,6 @@ def parse(action, source, state):
     in_fight = bool((state.get('combat') or {}).get('status') in ('awaiting_initiative', 'running'))
     late = late_reaction(text, source, state, here) if in_fight else None
     if late:
-        # The reaction's own clause; the rest of the message is his act (#101 review at 70c1612).
-        clause, rest = split_clause(action, late['names'])
-        late['clause'] = clause
-        act = parse(rest, source, state) if rest and re.search(r'\w', rest) else None
-        if act and act.get('kind') != 'late_reaction':
-            late['rest'], late['rest_text'] = act, rest
         return late
     if in_fight and OWN_SHIELD.search(text):
         return {'kind': 'own_shield', 'target': None, 'avrae': bool(re.search(r'!cast|casts shield!', text))}
@@ -770,43 +856,56 @@ class Fight:
     def pc_late_reaction(self, act):
         """He declares a reaction he was not prompted for: it answers the event it was legal for
         (the attacker he names, else the latest). The cost is paid; the round's reaction is the one
-        already past, so his own turn's reaction stays."""
+        already past, so his own turn's reaction stays. True when it took effect; otherwise the
+        reason is said (alone: its own line; in a multi-clause message: "didn't happen because")."""
         react = act['react']
         found = kit_reactions.entry(self.resources, react) or {}
         event = act['event']
         name = found.get('name', react)
+        self.refused_because = None
+
+        def refuse(line, because):
+            self.refused_because = because
+            if not getattr(self, 'in_multi', False):
+                self.lines.append(line)
+            return False
+
         late_ok = ('absorb_elements', 'uncanny_dodge', 'deflect_missiles', 'parry', 'hellish_rebuke')
+        avrae_cast = bool(re.search(r'!cast\s+' + re.escape(name.casefold()), self.action.casefold()))
         if event is not None and found.get('effect') not in late_ok and \
                 (self.declared_effect(react) or {}).get('type') not in ('reduce_damage', 'deal_damage'):
             # A reroll (Silvery Barbs) cannot be replayed after the hit has landed: said, nothing spent.
-            self.lines.append(f'That hit has already landed; {name} cannot change it now.')
-            return
+            return refuse(f'That hit has already landed; {name} cannot change it now.',
+                          'that hit has already landed and it cannot change it now')
         if event is None:
             # Nothing it can answer now (the hit was not its kind, or the reaction is spent): no
-            # effect; a slot Avrae spent is counted so the session matches Avrae.
-            if act.get('avrae') and found.get('kind') == 'spell' and kit_reactions.payable(self.resources, found):
-                self.resources, slot = kit_reactions.spend(self.resources, react)
-                self.resources_changed = True
-                self.trace.append(f'PC casts {name} with no trigger: level {slot} slot counted, no effect')
-            self.lines.append(f'{name} has nothing to answer right now, so it does nothing.')
-            return
+            # effect. Only a cast Avrae actually made is counted, at its -l level (else its own).
+            if avrae_cast and found.get('kind') == 'spell':
+                level = cast_level(self.action) or (found.get('cost') or {}).get('slot') or 1
+                slot = (self.resources.get('slots') or {}).get(str(level))
+                if slot and slot['used'] < slot['max']:
+                    self.resources, spent = kit_reactions.spend(self.resources, react, level)
+                    self.resources_changed = True
+                    self.trace.append(f'PC casts {name} with no trigger: level {spent} slot counted (Avrae cast), '
+                                      'no effect')
+            return refuse(f'{name} has nothing to answer right now, so it does nothing.',
+                          'it has nothing to answer right now')
         if not kit_reactions.payable(self.resources, found):
-            self.lines.append(f'{name} is not available: no slot or use left.')
-            return
+            return refuse(f'{name} is not available: no slot or use left.', 'there is no slot or use left for it')
         if found.get('kind') == 'spell' and not act.get('avrae'):
-            self.lines.append(f'Cast {name} in Avrae first (!cast {name.casefold()}), then say so.')
-            return
+            return refuse(f'Cast {name} in Avrae first (!cast {name.casefold()}), then say so.',
+                          f'it is cast in Avrae first (!cast {name.casefold()})')
         effect = found.get('effect')
         if effect == 'hellish_rebuke' and self.reaction_roll() is None:
-            self.lines.append(f"Roll {name}'s damage in Avrae ({found.get('dice', 'its roll')}), then say so.")
-            return
+            return refuse(f"Roll {name}'s damage in Avrae ({found.get('dice', 'its roll')}), then say so.",
+                          f"its damage roll is missing ({found.get('dice', 'its roll')} in Avrae)")
         level = cast_level(self.action) or (self.choice or {}).get('slot_level')
         if level and found.get('kind') == 'spell':
             slot = (self.resources.get('slots') or {}).get(str(level))
             need = (found.get('cost') or {}).get('slot') or 1
             if int(level) < int(need) or not slot or slot['used'] >= slot['max']:
-                self.lines.append(f'There is no level {level} slot left for {name} on the sheet.')
-                return
+                return refuse(f'There is no level {level} slot left for {name} on the sheet.',
+                              f'there is no level {level} slot left for it')
         self.fight.pop('unprompted', None)
         self.resources, slot = kit_reactions.spend(self.resources, react, level)
         self.resources_changed = True
@@ -828,6 +927,79 @@ class Fight:
             self.lines.append(f'{name}: {cut} less damage.')
         else:
             self.answer_attacker({'attacker': event.get('attacker'), 'trigger': event['trigger']}, react)
+        return True
+
+    MULTI_ACTIONS = ('attack', 'grab', 'face', 'flip', 'take', 'wait')
+
+    def run_clauses(self, act):
+        """A message of several clauses (#101 review at f3e880e), structurally: every clause in
+        order; a reaction clause resolves as a reaction, every other one goes to the act and move
+        parser. No clause is dropped: each resolves, or Kit says it didn't happen and why."""
+        steps = act['steps']
+        whole = self.action
+        acted = reacted = False
+        self.in_multi = True
+        try:
+            for index, step in enumerate(steps, 1):
+                self.action = step['text']
+                one = step['act']
+                kind = one.get('kind')
+                label = step['label']
+                before = len(self.lines)
+                because = None
+                if not self.fight or self.fight.get('status') != 'running':
+                    because = 'the fight is over'
+                elif self.fight.get('awaiting'):
+                    because = 'the fight is waiting on your answer first'
+                elif not self.pc_turn_now():
+                    because = 'it is not your turn'
+                elif kind == 'missing_reaction':
+                    because = 'it is not on your sheet'
+                elif kind == 'late_reaction':
+                    if reacted:
+                        because = 'you have already used your reaction'
+                    elif self.pc_late_reaction(one):
+                        reacted = True
+                    else:
+                        because = self.refused_because or 'it has nothing to answer'
+                elif kind == 'withdraw':
+                    self.pc_move_away(one)
+                elif kind == 'own_shield':
+                    self.pc_own_shield(one)  # a cast with no trigger: said, never his action
+                elif kind in self.MULTI_ACTIONS:
+                    if acted:
+                        because = 'you have already used your action this turn'
+                    elif kind == 'attack':
+                        if one.get('move_first'):
+                            self.pc_move_away(one['move_first'])
+                        acted = self.pc_attack(one)
+                        if not acted:
+                            self.needs_roll = True
+                            return
+                    else:
+                        acted = True
+                        {'grab': self.pc_grab, 'face': self.pc_face, 'flip': self.pc_flip, 'take': self.pc_take,
+                         'wait': self.pc_wait, 'own_shield': self.pc_own_shield}[kind](one)
+                if because is None and len(self.lines) == before:
+                    because = 'the engine could not resolve it'
+                if because:
+                    self.lines.append(f"{label} didn't happen because {because}.")
+                self.trace.append(f"clause {index}/{len(steps)}: {'refused' if because else 'resolved'} "
+                                  f"({step['text'][:60]})")
+                if self.fight.get('awaiting'):
+                    # A checkpoint opened (a window, a flourish): the clauses after it wait for his turn.
+                    rest = ' '.join(s['text'] for s in steps[index:])
+                    if rest:
+                        self.fight['declared_next'] = rest
+                        for later, s in enumerate(steps[index:], index + 1):
+                            self.trace.append(f'clause {later}/{len(steps)}: resolved (held for your turn: '
+                                              f"{s['text'][:60]})")
+                        self.lines.append('The rest waits for your next turn.')
+                    break
+        finally:
+            self.in_multi = False
+            self.action = whole
+        self.after_pc_action(acted)
 
     def engage(self, key):
         engaged = self.fight.setdefault('engaged', [])
@@ -1477,14 +1649,11 @@ class Fight:
                     self.lines.append('You have already acted this turn; that waits for your next turn.')
                     self.run_npcs()
                     return
-        if kind == 'late_reaction' and act.get('rest') and self.fight and self.pc_turn_now():
-            whole, self.action = self.action, act.get('clause') or self.action
-            try:
-                self.pc_late_reaction(act)
-            finally:
-                self.action = whole
-            act = act['rest']
-            kind = act.get('kind')
+        if kind == 'multi':
+            if self.fight['status'] == 'running' and not self.pc_turn_now():
+                self.run_npcs()  # whoever acts before the PC in the order
+            self.run_clauses(act)
+            return
         if kind == 'attack' and not self.hostiles() and not (self.fight and self.fight.get('status') != 'over'):
             # Nobody here to fight (a lurker not yet shown is not a target): no fight starts, and
             # the rest of the message (a feature disturbed) resolves on its own.

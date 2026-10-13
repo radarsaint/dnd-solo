@@ -529,3 +529,133 @@ class SealedSubject(unittest.TestCase):
                             (self.CHEST, "The chest's paint has flaked off in strips."),
                             (self.CHEST, 'Its corners are chipped off and smoothed by hands.')]:
             self.assertEqual(self.verdict(terms, text), 'ok', text)
+
+
+def clause_log(result):
+    """The engine's per-clause record (in the turn's evidence): [(index, total, outcome)]."""
+    import re as _re
+    text = next((e.get('evidence', '') for e in result.events if 'clause 1/' in e.get('evidence', '')), '')
+    return [(int(a), int(b), c) for a, b, c in _re.findall(r'clause (\d+)/(\d+): (resolved|refused)', text)]
+
+
+def ud_bridge(test, sheet=None):
+    arena = Arena(test, 'rope_bridge', sheet=sheet or rogue(), roll=lambda: 10)
+    arena.act('Initiative 25. I stab the bridge ogre with my rapier, 5 to hit, 3 piercing.')
+    return arena
+
+
+class EveryClauseResolves(unittest.TestCase):
+    """Nagatha FAILED f3e880e: fresh multi-clause messages. The message is split into all its
+    clauses; reactions resolve, every other clause goes in order to the act and move parser, and
+    no clause is silently dropped: each one resolves or gets a 'didn't happen because' line."""
+
+    def test_stab_dodge_and_back_off(self):
+        arena = ud_bridge(self)
+        result = arena.act('I stab the bridge ogre with my rapier, 18 to hit, 7 piercing, Uncanny Dodge that '
+                           'greatclub hit, and back off 10 feet.')
+        self.assertEqual(arena.fight['hp']['ogre'], 52, 'the stab lands')
+        self.assertIn('Uncanny Dodge: you take half', result.public_event)
+        self.assertEqual([c[2] for c in clause_log(result)], ['resolved'] * 3)
+
+    def test_dodge_twice_then_stab(self):
+        arena = ud_bridge(self)
+        result = arena.act('I Uncanny Dodge that hit and Uncanny Dodge it again, then stab the bridge ogre with my '
+                           'rapier, 18 to hit, 7 piercing.')
+        self.assertEqual(arena.fight['hp']['ogre'], 52)
+        self.assertIn("Uncanny Dodge again didn't happen because you have already used your reaction",
+                      result.public_event)
+        self.assertEqual([c[2] for c in clause_log(result)], ['resolved', 'refused', 'resolved'])
+
+    def test_warlock_dodge_rebuke_stab(self):
+        sheet = warlock(hp=60)
+        arena = Arena(self, 'kiln', sheet=sheet, roll=lambda: 10)
+        arena.act(KILN_OPEN)
+        result = arena.act('I Uncanny Dodge that hit and Hellish Rebuke the ember imp (Avrae: !cast hellish rebuke) '
+                           '2d10 = 12 fire, then stab the kobold slinger with my rapier, 18 to hit, 4 piercing.')
+        text = result.public_event
+        self.assertIn("Uncanny Dodge didn't happen because it is not on your sheet", text)
+        self.assertIn('Hellish Rebuke: 12 fire damage to the ember imp.', text)
+        self.assertEqual(arena.fight['hp']['archer'], 3)
+        self.assertEqual(arena.slot1(), 1)
+
+    def test_dodge_step_back_then_stab_keeps_the_move(self):
+        arena = ud_bridge(self)
+        result = arena.act('I Uncanny Dodge that hit, step back 5 feet, then stab the bridge ogre with my rapier, '
+                           '18 to hit, 7 piercing.')
+        text = result.public_event
+        self.assertIn('lashes out as you go', text)
+        self.assertLess(text.index('lashes out as you go'), text.index('Your rapier hits'))
+
+    def test_a_repeat_spell_reaction_charges_only_what_avrae_cast(self):
+        sheet = without_shield(wizard(hp=60))
+        sheet['spells']['1'] = sheet['spells']['1'] + ['Absorb Elements']
+        arena = Arena(self, 'kiln', sheet=sheet, roll=lambda: 10)
+        arena.act(KILN_OPEN)
+        arena.act('Absorb Elements! (Avrae: !cast absorb elements -l 3)')
+        slots = lambda: {k: v['used'] for k, v in arena.state['pc_resources']['slots'].items()}
+        self.assertEqual(slots(), {'1': 0, '2': 0, '3': 1})
+        arena.act('Absorb Elements again!')  # no Avrae cast: nothing charged
+        self.assertEqual(slots(), {'1': 0, '2': 0, '3': 1})
+        arena.act('Absorb Elements! (Avrae: !cast absorb elements -l 2)')  # Avrae cast it: counted at -l 2
+        self.assertEqual(slots(), {'1': 0, '2': 1, '3': 1})
+
+
+class ClauseFuzz(unittest.TestCase):
+    """Fresh clause combinations across sheets and rooms: the invariant holds for every one."""
+
+    def setups(self):
+        ae = without_shield(wizard(hp=60))
+        ae['spells']['1'] = ae['spells']['1'] + ['Absorb Elements']
+        rw = warlock(hp=60)
+        rw['features'] = rw['features'] + ['Uncanny Dodge']
+        return [
+            ('rope_bridge', rogue(), 'Initiative 25. I stab the bridge ogre with my rapier, 5 to hit, 3 piercing.',
+             ['I Uncanny Dodge that hit', 'Uncanny Dodge it again', 'step back 5 feet', 'back off 10 feet',
+              'stab the bridge ogre with my rapier, 18 to hit, 7 piercing', 'I grab the bridge ogre',
+              'Hellish Rebuke the ogre']),
+            ('kiln', rw, KILN_OPEN,
+             ['Uncanny Dodge that fire spit', 'Hellish Rebuke the ember imp (Avrae: !cast hellish rebuke) 2d10 = 12 fire',
+              'stab the kobold slinger with my rapier, 18 to hit, 4 piercing', 'step back 5 feet',
+              'Absorb Elements (Avrae: !cast absorb elements)']),
+            ('kiln', ae, KILN_OPEN,
+             ['I cast Absorb Elements (Avrae: !cast absorb elements -l 2)', 'Fire Bolt the kobold slinger, 19 to hit, 8 fire',
+              'back off 10 feet', 'stab the ember imp with my dagger, 18 to hit, 4 piercing', 'Uncanny Dodge that hit']),
+        ]
+
+    def test_no_clause_is_silently_dropped(self):
+        import itertools
+        joins = [', ', ', then ', ' and ', '. ', '; ']
+        checked = 0
+        for room, sheet, opener, pool in self.setups():
+            for n in (2, 3):
+                for combo in itertools.permutations(pool, n):
+                    if checked > 400:
+                        break
+                    join = joins[checked % len(joins)]
+                    text = join.join(combo) + '.'
+                    arena = Arena(self, room, sheet=sheet, roll=lambda: 10)
+                    arena.act(opener)
+                    try:
+                        result = arena.act(text)
+                    except PendingRuling as caught:
+                        self.assertIn('No turn was committed', str(caught), text)
+                        checked += 1
+                        continue
+                    log = clause_log(result)
+                    self.assertEqual(len(log), n, f'{text!r}: {log}')
+                    if any(c[2] == 'refused' for c in log):
+                        self.assertIn("didn't happen because", result.public_event, text)
+                    checked += 1
+        self.assertGreater(checked, 100)
+
+
+class SealedRemoval(unittest.TestCase):
+    CRYPT = SealedSubject.CRYPT
+
+    def test_worn_to_nothing_is_removal(self):
+        for text in ['The lid has rusted away to nothing.', 'The lid has worn away to dust.',
+                     'Its lid has crumbled away to ash.']:
+            self.assertEqual(SealedSubject.verdict(self, self.CRYPT, text), 'refused', text)
+        for text in ['The handles have rusted away to stubs.',
+                     'The carvings on the lid have worn away to faint lines.', 'The lid is worn away to faint lines.']:
+            self.assertEqual(SealedSubject.verdict(self, self.CRYPT, text), 'ok', text)
