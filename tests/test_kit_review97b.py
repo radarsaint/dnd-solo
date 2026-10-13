@@ -138,6 +138,9 @@ def bridge_turn(room, action, handles=None, text='Cold stone, dust, and silence.
         plan['handles'] = handles
     elif not omit:
         plan['handles'] = {'target': 'none', 'act': 'none'}
+    if packet['input']['private'].get('reveal'):
+        # #101: a room entry the player's own act directs ('I step inside the arch'): no handoff owed.
+        plan['reveal_entry'] = {'mode': 'directed', 'relevant': []}
     try:
         return packet, bridge.complete(turn_id, {'decision': plan, 'performance': {
             'segments': [{'speaker': 'Narrator', 'text': text}]}})
