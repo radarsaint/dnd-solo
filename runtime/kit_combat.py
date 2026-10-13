@@ -376,6 +376,29 @@ def _creature_words(text):
                                                   r"neck|shoulder|head|chest|gut)\b", text))
 
 
+def late_reaction(text, source, state, here):
+    """'I Uncanny Dodge that hit', 'Hellish Rebuke on the imp': a reaction the last foes' turns
+    made legal without a prompt, named by the player."""
+    events = (state.get('combat') or {}).get('unprompted') or ()
+    resources = state.get('pc_resources') or {}
+    named = name_target(text, source, state, here)
+    for event in sorted(events, key=lambda e: e.get('attacker') != named):
+        for key in event['options']:
+            found = kit_reactions.entry(resources, key) or {}
+            names = {found.get('name', '').casefold(), key.replace('_', ' ')} - {''}
+            if any(re.search(r'\b' + re.escape(n) + r'\b', text) for n in names):
+                return {'kind': 'late_reaction', 'target': event.get('attacker'), 'react': key, 'event': event,
+                        'avrae': bool(re.search(r'!cast|\bcasts\b', text))}
+    for found in resources.get('reactions') or ():
+        if found['id'] in ('shield', 'opportunity_attack'):
+            continue  # Shield on his turn is own_shield; an opportunity attack is just an attack
+        names = {found.get('name', '').casefold(), found['id'].replace('_', ' ')} - {''}
+        if any(re.search(r'\b' + re.escape(n) + r'\b', text) for n in names):
+            return {'kind': 'late_reaction', 'target': None, 'react': found['id'], 'event': None,
+                    'avrae': bool(re.search(r'!cast|\bcasts\b', text))}
+    return None
+
+
 def parse(action, source, state):
     """What the player physically does, or None. A dict with ``kind`` (attack, grab,
     face, flip, take, wait), ``target`` (actor id or None), and the details each needs."""
@@ -387,6 +410,9 @@ def parse(action, source, state):
     named = name_target(text, source, state, here)
     spell = _SPELL.search(text)
     in_fight = bool((state.get('combat') or {}).get('status') in ('awaiting_initiative', 'running'))
+    late = late_reaction(text, source, state, here) if in_fight else None
+    if late:
+        return late
     if in_fight and OWN_SHIELD.search(text):
         return {'kind': 'own_shield', 'target': None, 'avrae': bool(re.search(r'!cast|casts shield!', text))}
     away = WITHDRAW.search(text) if in_fight else None
@@ -690,9 +716,65 @@ class Fight:
         """The reaction is used; its cost is paid from the session's inventory (a spell's slot is the
         one the player's Avrae cast used, or the lowest free one at its level)."""
         self.fight['reaction_used'] = True
+        self.fight.pop('unprompted', None)
         self.resources, slot = kit_reactions.spend(self.resources, key, slot_level)
         self.resources_changed = True
         self.trace.append(f'PC uses {key}' + (f' (level {slot} slot, cast in Avrae)' if slot else ''))
+
+    def unprompted(self, trigger, options, **event):
+        """A reaction this event made legal but not worth a prompt (#101 P2): the player may still
+        declare it, before his own act on his next turn."""
+        self.fight.setdefault('unprompted', []).append({'trigger': trigger, 'options': list(options), **event})
+        self.trace.append(f"{', '.join(options)} legal for {trigger} by {event.get('attacker')}, not prompted")
+
+    def pc_late_reaction(self, act):
+        """He declares a reaction he was not prompted for: it answers the event it was legal for
+        (the attacker he names, else the latest). The cost is paid; the round's reaction is the one
+        already past, so his own turn's reaction stays."""
+        react = act['react']
+        found = kit_reactions.entry(self.resources, react) or {}
+        event = act['event']
+        name = found.get('name', react)
+        if event is None:
+            # Nothing it can answer now (the hit was not its kind, or the reaction is spent): no
+            # effect; a slot Avrae spent is counted so the session matches Avrae.
+            if act.get('avrae') and found.get('kind') == 'spell' and kit_reactions.payable(self.resources, found):
+                self.resources, slot = kit_reactions.spend(self.resources, react)
+                self.resources_changed = True
+                self.trace.append(f'PC casts {name} with no trigger: level {slot} slot counted, no effect')
+            self.lines.append(f'{name} has nothing to answer right now, so it does nothing.')
+            return
+        if not kit_reactions.payable(self.resources, found):
+            self.lines.append(f'{name} is not available: no slot or use left.')
+            return
+        if found.get('kind') == 'spell' and not act.get('avrae'):
+            self.lines.append(f'Cast {name} in Avrae first (!cast {name.casefold()}), then say so.')
+            return
+        effect = found.get('effect')
+        if effect == 'hellish_rebuke' and self.reaction_roll() is None:
+            self.lines.append(f"Roll {name}'s damage in Avrae ({found.get('dice', 'its roll')}), then say so.")
+            return
+        self.fight.pop('unprompted', None)
+        self.resources, slot = kit_reactions.spend(self.resources, react)
+        self.resources_changed = True
+        self.trace.append(f"PC declares {react} for the unprompted {event['trigger']} by {event.get('attacker')}"
+                          + (f' (level {slot} slot)' if slot else ''))
+        dealt = int(event.get('damage') or 0)
+        if effect in ('absorb_elements', 'uncanny_dodge'):
+            back = dealt - dealt // 2
+            self.fight['pc_damage'] = max(0, int(self.fight.get('pc_damage') or 0) - back)
+            if effect == 'absorb_elements':
+                self.fight['absorb_bonus'] = {'type': event['type'], 'dice': '1d6', 'armed': True}
+                self.lines.append(f"Absorb Elements: resistance to the {event['type']}; your next melee hit "
+                                  f"adds 1d6 {event['type']}.")
+            else:
+                self.lines.append('Uncanny Dodge: you take half.')
+        elif effect in ('deflect_missiles', 'parry') or (self.declared_effect(react) or {}).get('type') == 'reduce_damage':
+            cut = min(dealt, int(self.reaction_roll() or 0))
+            self.fight['pc_damage'] = max(0, int(self.fight.get('pc_damage') or 0) - cut)
+            self.lines.append(f'{name}: {cut} less damage.')
+        else:
+            self.answer_attacker({'attacker': event.get('attacker'), 'trigger': event['trigger']}, react)
 
     def engage(self, key):
         engaged = self.fight.setdefault('engaged', [])
@@ -892,7 +974,8 @@ class Fight:
             raise Unclear('Kit could not tell which reaction, if any, the player takes.', 'unclear')
         if react == 'decline':
             return react
-        if react not in waiting['options']:
+        if react not in waiting['options'] and react not in (waiting.get('eligible') or ()):
+            # Prompted or not: the worth-it threshold decides only whether Kit asks (#101 P2).
             raise Unclear(f'{react} is not offered in this window (offered: {", ".join(waiting["options"])}).',
                           'not_offered')
         found = kit_reactions.entry(self.resources, react)
@@ -1180,6 +1263,8 @@ class Fight:
         if not dealt or not self.pc_can_react() or not self.active(key):
             return
         options = self.fresh(self.options_for(['creature_hits_you_within_range']), 'normal', dealt)
+        if options and not self.meaningful(dealt):
+            self.unprompted('damaged', options, attacker=key, damage=dealt)
         if options and self.meaningful(dealt):
             if before:
                 before()
@@ -1258,6 +1343,8 @@ class Fight:
         """What follows the PC's act: the fight may end, a worthy kill hands the floor over (a
         flourish), and the round runs on to the PC's next turn."""
         self.check_over()
+        if self.fight and acted:
+            self.fight.pop('unprompted', None)  # an unprompted reaction is declared before his own act
         if self.fight and acted and self.fight['status'] in ('running', 'over'):
             worthy = [(key, chosen) for key, chosen in self.kills
                       if (self.status(key) == 'dead' or chosen) and
@@ -1360,6 +1447,8 @@ class Fight:
                 self.needs_roll = not acted and init is None
                 if self.fight['status'] == 'awaiting_initiative' and acted:
                     self.fight['opener_spent'] = True
+        elif kind == 'late_reaction':
+            self.pc_late_reaction(act)
         elif kind:
             acted = True
             {'grab': self.pc_grab, 'face': self.pc_face, 'flip': self.pc_flip, 'take': self.pc_take,
@@ -2059,11 +2148,19 @@ class Fight:
                 self.options_for(triggers, fit=lambda r: self.turns_hit(r, die, total, ac, attack, missile, dealt,
                                                                          stakes)),
                 stakes, dealt, attack.get('type'))
+            eligible = [] if not self.pc_can_react() else self.fresh(
+                self.options_for(triggers, fit=lambda r: self.turns_hit(r, die, total, ac, attack, missile, dealt,
+                                                                         stakes, need_worth=False)),
+                stakes, dealt, attack.get('type'))
+            if not options and eligible:
+                self.unprompted('hit', eligible, attacker=key, damage=dealt, type=attack.get('type'),
+                                name=attack['name'])
             if options:
                 say_so_far(2)
                 self.lines.append(f"{who}'s {attack['name']} comes at you: {'it never misses' if missile else f'that is a {total}, a hit'}.")
                 self.wait_for('reaction_window', 'player_answer', trigger='hit', options=options, attacker=key,
                               attack_index=index, die=die, total=total, damage=dealt, base=attack['damage'],
+                              eligible=[e for e in eligible if e not in options],
                               type=attack.get('type'), name=attack['name'], triggers=triggers, stakes=stakes,
                               crit=crit, ranged=ranged, **({'magic_missile': True} if missile else {}),
                               **({'rider': attack['save']} if attack.get('save') else {}))
@@ -2113,7 +2210,7 @@ class Fight:
             out.append('self_hit_by_ranged_weapon')
         return out
 
-    def turns_hit(self, entry, die, total, ac, attack, missile, dealt=0, stakes='normal'):
+    def turns_hit(self, entry, die, total, ac, attack, missile, dealt=0, stakes='normal', need_worth=True):
         """Whether offering this reaction can change the outcome now (#101 review pacing): Shield only
         when +5 AC turns it (never a natural 20) or it is a magic missile; a reroll only on a hit worth
         one (it would drop him, or it is meaningful) and never a natural 20 Silvery Barbs cannot
@@ -2121,7 +2218,7 @@ class Fight:
         effect = entry['effect']
         hp = int(self.pc_hp() or 0)
         left = hp - int(self.fight.get('pc_damage') or 0) if hp else None
-        worth = stakes == 'drop' or self.meaningful(dealt)
+        worth = not need_worth or stakes == 'drop' or self.meaningful(dealt)
         if effect == 'shield':
             return missile or (die != 20 and total < ac + 5)
         if effect == 'absorb_elements':

@@ -354,3 +354,92 @@ class HeldLayerWithheld(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+EXAMPLE = json.loads((ROOT / 'tests' / 'fixtures' / 'characters' / 'example_pc.json').read_text())
+
+
+def rogue(**extra):
+    """Wren at level 5: Uncanny Dodge, no spells."""
+    sheet = copy.deepcopy(EXAMPLE)
+    sheet.update(level=5, hp=60, ac=15)
+    sheet['features'] = sheet['features'] + ['Uncanny Dodge']
+    sheet.update(extra)
+    return sheet
+
+
+def warlock(**extra):
+    """A tiefling warlock: Hellish Rebuke, two pact slots, no Shield."""
+    sheet = copy.deepcopy(EXAMPLE)
+    sheet.update({'name': 'Sorrel', 'class': 'Warlock', 'level': 3, 'hp': 40, 'ac': 13, 'spell_save_dc': 13,
+                  'features': ['Pact of the Blade'], 'spells': {'cantrips': ['Eldritch Blast'],
+                                                                 '1': ['Hellish Rebuke', 'Hex']},
+                  'slots': {'1': 2}})
+    sheet.update(extra)
+    return sheet
+
+
+class PlayerMayDeclare(unittest.TestCase):
+    """Nagatha #101 P2 (player agency): the 'worth it' threshold decides only whether Kit prompts.
+    A reaction the hit makes legal is the player's to take when he says so, prompted or not."""
+
+    def test_an_eligible_reaction_not_prompted_in_an_open_window_is_accepted(self):
+        sheet = wizard(hp=60)
+        sheet['spells']['1'] = sheet['spells']['1'] + ['Absorb Elements']
+        arena = Arena(self, 'kiln', sheet=sheet, roll=lambda: 10)  # 15s: every attack hits
+        arena.act(KILN_OPEN)
+        waiting = arena.fight['awaiting']
+        self.assertEqual(waiting['options'], ['shield'], 'the 7-point fire spit is not worth prompting Absorb at 60 hp')
+        result = arena.act('Nik casts Absorb Elements! (Avrae: !cast absorb elements)',
+                           react='absorb_elements', cast_in_avrae=True)
+        self.assertIn('Absorb Elements: resistance to the fire', result.public_event)
+        self.assertEqual(arena.fight['pc_damage'], 3 + 4, 'the fire spit halved, the sling lands')
+        self.assertEqual(arena.slot1(), 1)
+
+    def test_uncanny_dodge_declared_after_an_unprompted_hit_halves_it(self):
+        arena = Arena(self, 'rope_bridge', sheet=rogue(), roll=lambda: 10)  # 16 hits AC 15
+        arena.act('Initiative 25. I stab the bridge ogre with my rapier, 5 to hit, 3 piercing.')  # a miss
+        self.assertIsNone(arena.fight.get('awaiting'), '13 of 60 hp: no prompt')
+        self.assertEqual(arena.fight['pc_damage'], 13)
+        result = arena.act('I Uncanny Dodge that greatclub hit.')
+        self.assertIn('Uncanny Dodge: you take half.', result.public_event)
+        self.assertEqual(arena.fight['pc_damage'], 6)
+        again = arena.act('Uncanny Dodge again!')
+        self.assertEqual(arena.fight['pc_damage'], 6, 'one reaction for that round')
+        self.assertIn('nothing to answer', again.public_event)
+
+    def test_hellish_rebuke_declared_after_unprompted_damage_answers_the_named_attacker(self):
+        arena = Arena(self, 'kiln', sheet=warlock(), roll=lambda: 10)  # imp 15, sling 15: both hit AC 13
+        arena.act('Initiative 25. I stab the kobold slinger with my dagger, 5 to hit, 3 piercing.')
+        self.assertIsNone(arena.fight.get('awaiting'), '7 and 4 of 40 hp: no prompt')
+        held = arena.act('Hellish Rebuke on the ember imp!')
+        self.assertIn('!cast hellish rebuke', held.public_event, 'a spell is cast in Avrae first')
+        self.assertEqual(arena.slot1(), 0)
+        result = arena.act('Hellish Rebuke on the ember imp! (Avrae: !cast hellish rebuke) 2d10 = 12 fire')
+        self.assertIn('Hellish Rebuke: 12 fire damage to the ember imp.', result.public_event)
+        self.assertEqual(arena.slot1(), 1)
+
+    def test_a_reaction_the_hit_does_not_allow_is_still_refused(self):
+        sheet = wizard(hp=200)
+        sheet['spells']['1'] = sheet['spells']['1'] + ['Absorb Elements']
+        arena = Arena(self, 'rope_bridge', sheet=without_shield(sheet), roll=lambda: 10)
+        arena.act('Initiative 25. I stab the bridge ogre with my dagger, 5 to hit, 3 piercing.')
+        result = arena.act('Nik casts Absorb Elements! (Avrae: !cast absorb elements)')
+        self.assertIn('Absorb Elements has nothing to answer right now', result.public_event)
+        self.assertEqual(arena.fight['pc_damage'], 13, 'a greatclub is not elemental damage')
+        self.assertEqual(arena.slot1(), 1, 'the slot Avrae spent is counted, as with Shield')
+
+    def test_the_claim_lapses_once_he_takes_his_turn(self):
+        arena = Arena(self, 'rope_bridge', sheet=rogue(), roll=lambda: 10)
+        arena.act('Initiative 25. I stab the bridge ogre with my rapier, 5 to hit, 3 piercing.')
+        arena.act('I stab the bridge ogre with my rapier, 5 to hit, 3 piercing.')
+        # Round 1's blow lapsed when he acted; only round 2's is his to answer.
+        self.assertEqual(len(arena.fight['unprompted']), 1)
+        arena.act('I Uncanny Dodge that greatclub hit.')
+        self.assertEqual(arena.fight['pc_damage'], 13 + 6)
+
+
+def without_shield(sheet):
+    sheet = copy.deepcopy(sheet)
+    sheet['spells'] = {level: [s for s in names if s != 'Shield'] for level, names in sheet['spells'].items()}
+    return sheet
