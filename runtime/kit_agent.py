@@ -4020,8 +4020,17 @@ def declare(runtime, adjudicator, body, plan):
 # back, removed, gone or on the floor; a small movement check covers clauses about the feature
 # itself. Nothing else in the room is constrained (a pack opens, a flame shifts).
 INTERIOR_DEFAULTS = ('inside', 'interior', 'within', 'inner', 'innards')
-OPEN_STATE = re.compile(r"\b(?:open|opened|off|back|removed|gone|floor|ground|aside|ajar|away|apart|"
-                        r"lifted|raised|loose|free|in two|broken)\b")
+# State predicates on the feature, never bare words (#97 review at fc85f26): "the lid is now
+# off", "has been pushed back", "lies aside"; not "sits back against the wall" or "stands apart".
+_COPULA = r"(?:is|are|was|were|lies|lie|lay|rests|sits|stands|hangs|now|has been|have been|had been|comes|came|goes|went)"
+_DISPLACED = r"(?:pushed|thrown|slid|pulled|swung|rolled|drawn|levered|pried|prised|shoved|heaved|lifted|knocked|tipped|eased|dragged|ripped|torn|wrenched|kicked)"
+OPEN_STATE = re.compile(r"\b" + _COPULA + r"\s+(?:\w+\s+){0,2}?(?:open|opened|off|aside|ajar|removed|gone|in two|broken open|"
+                        r"split open|cracked open|unsealed)\b"
+                        r"|\b" + _DISPLACED + r"\s+(?:\w+\s+){0,1}?(?:back|off|aside|open|away|up|clear|free|loose)\b"
+                        r"|\b(?:open|off|aside|ajar|in two)\s+now\b|\bnow\s+(?:open|off|aside|ajar|gone)\b")
+# A part lying on the floor is off the feature ("the lid lies on the floor"); the feature itself
+# resting on the floor is just where it stands.
+PART_DOWN = re.compile(r"\b" + _COPULA + r"\s+(?:\w+\s+){0,3}?(?:on|at|across)\s+(?:the|your|his|her)\s+(?:floor|ground|flagstones|feet)\b")
 FEATURE_MOVES = re.compile(r"\b(?:shift|slid|slide|grind|budg|swing|swung|tilt|tip|lift|rais|rise|rose|crack|"
                            r"creak|groan|scrap|grat|rasp|yield|give|gave|loosen|lurch|swiv|gap)\w*\b")
 NOT_MOVING = re.compile(r"\b(?:not|never|no|nothing|none|won't|wont|cannot|can't|refuses?|fails?|"
@@ -4031,7 +4040,17 @@ CLAUSE = re.compile(r"[.!?;:,\n\u2014\u2013]+|\s+(?:but|and|yet|while|then|thoug
 ENGLISH = re.compile(r"\b(?:the|a|an|and|of|to|is|are|you|your|it|its|in|on|at|with|from|he|she|they|"
                      r"his|her|their|this|that|not|but|for|as|by|into|there|here|no)\b")
 _GENERIC_INSIDE = re.compile(r"\b(?:interior|inner|innards)\b|\b(?:inside|within)\b(?!\s+(?:the|a|an|your|his|her|"
-                             r"their|reach|earshot|sight|range|view)\b)")
+                             r"their|its|my|our|reach|earshot|sight|range|view|you|him|me|them|us|yourself|himself|"
+                             r"herself|myself|themselves)\b)")
+# The PC's (or someone's) own movement: "you duck inside", "he steps within".
+_GOING_INSIDE = re.compile(r"\b(?:you|i|he|she|they|we)\s+(?:\w+ly\s+)?(?:duck|ducks|step|steps|go|goes|slip|slips|move|"
+                           r"moves|walk|walks|head|heads|crawl|crawls|climb|climbs|hurry|hurries|edge|edges|come|comes|"
+                           r"stay|stays|wait|waits|run|runs|squeeze|squeezes|back|backs)\s+(?:back\s+)?(?:inside|within)\b")
+# "it" names the feature only with a movement or state predicate right after it ("it slides",
+# "it is now off"), never as a dummy subject ("it is dark back here", "it has been a long night").
+_IT_MOVES = re.compile(r"^it\s+(?:(?:slowly|suddenly|finally|then|now|just)\s+)?(?:shift|slid|slide|grind|budg|swing|swung|"
+                       r"tilt|tip|lift|rise|rose|crack|creak|groan|scrap|grat|rasp|yield|give|gave|loosen|lurch|swiv|"
+                       r"come|came|mov|open|fall|fell|drop)\w*\b")
 
 
 def sealed_terms(source, state):
@@ -4055,7 +4074,7 @@ def sealed_terms(source, state):
                     name = ((source.get('actors') or {}).get(key) or {}).get('name') or ''
                     contents += [w for w in _word_list(name) if len(w) > 3 and w not in _HIDDEN_STOP]
         names = sorted({feature.casefold(), *[w for w in info.get('words') or () if w not in contents]})
-        out[feature] = {'names': names,
+        out[feature] = {'names': names, 'parts': list(info.get('parts') or ()),
                         'interior': list(INTERIOR_DEFAULTS) + [str(w).casefold() for w in handling.get('interior') or ()],
                         'contents': sorted(set(contents))}
     return out
@@ -4080,20 +4099,28 @@ def check_sealed(spoken, sealed):
                 continue
             for feature, terms in sealed.items():
                 own = [w for w in terms['interior'] if w not in INTERIOR_DEFAULTS]
-                if _has(terms['contents'], clause) or _has(own, clause) or _GENERIC_INSIDE.search(clause):
+                generic = _GENERIC_INSIDE.search(clause) and not _GOING_INSIDE.search(clause)
+                if _has(terms['contents'], clause) or _has(own, clause) or generic:
                     raise InvalidChange(f'The {feature} is still sealed: nothing behind it is seen until a declaration '
                                         f'fires it ("{clause[:60]}"). Narrate it closed (handles.reason).')
-                # Subject only (#101 Reveal): the clause opens on the feature or a part of it
-                # (within its first three words), or on "it". Description that only mentions it
-                # ("cracked urns lean on the wall", "its head broken off") is not about its seal.
+                if NOT_MOVING.search(clause):
+                    continue
+                # Subject only: the clause opens on the feature or a part of it (its first three
+                # words), or on an "it" with a movement predicate. Bare mentions never count.
                 head = ' '.join(_word_list(clause)[:3])
-                about = _has(terms['names'], head) or re.match(r"^it\b(?!s)", clause)
+                named = _has(terms['names'], head)
+                part = _has(terms.get('parts') or (), head)
+                it = _IT_MOVES.match(clause) or re.match(r"^it\b(?!s)", clause) and OPEN_STATE.search(clause)
                 # A subjectless fragment ("Then: aside.", "A gap now.", "Open stone.") carries the
                 # last subject: an open-state word in it is the seal breaking.
-                fragment = len(_word_list(clause)) <= 3 and not re.match(r"^(?:you|your|i|he|she|they)\b", clause) \
-                    and re.search(r"\b(?:open|aside|ajar|off|gap|gone|apart)\b", clause)
-                if (about or fragment) and not NOT_MOVING.search(clause) and \
-                        (OPEN_STATE.search(clause) or FEATURE_MOVES.search(clause) or fragment):
+                fragment = len(_word_list(clause)) <= 3 and not re.match(r"^(?:you|your|i|he|she|they|it|its|a rat|the)\b", clause) \
+                    and re.search(r"\b(?:open|aside|ajar|off|gap|gone)\b", clause) or \
+                    re.match(r"^(?:then\s+|and\s+)?(?:aside|open|ajar|a gap)\b", clause)
+                moved = named and (OPEN_STATE.search(clause) or re.search(r"\b(?:aside|ajar)\b", clause) or
+                                   FEATURE_MOVES.search(clause) and
+                                   not re.search(r"\b(?:worn|carved|cracked with age|chipped)\b", clause)) or \
+                    part and PART_DOWN.search(clause)
+                if moved or it or fragment:
                     raise InvalidChange(f'Nothing here moved: the {feature} is still sealed, but the performance shows '
                                         f'it moving or opening ("{clause[:60]}"). If his hands move it, declare handles '
                                         '{target, act}; if not, narrate handles.reason (it will not budge).')

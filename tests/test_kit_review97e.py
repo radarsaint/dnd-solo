@@ -145,5 +145,53 @@ class ExistingSceneDescriptionTests(unittest.TestCase):
                 kit_agent.check_sealed(text.capitalize() + '.', sealed)
 
 
+class OrdinaryLinesPassTests(unittest.TestCase):
+    """Must pass (#97 review at fc85f26): description that mentions a sealed feature, an
+    open-state word, "it" or "inside" without saying the seal broke."""
+    P10 = ('The sarcophagus sits back against the far wall.',
+           'The coffin rests on the floor of the nave, its carvings worn smooth.',
+           "The tomb's carvings are worn away by centuries.",
+           'The tomb stands apart from the pews.',
+           'The sarcophagus is broken at one corner, an old chip.',
+           'It is dark back here.',
+           'You duck inside.',
+           'A chill settles within you.')
+    CRYPT_SWEEP = ('The sarcophagus looms in the candlelight.', 'The lid is carved with a sleeping knight.',
+                   'Moss grows along the base of the coffin.', 'The tomb is older than the chapel above it.',
+                   'It is cold here.', 'It is quiet now.', 'It has been years since anyone came.',
+                   'You step back from the coffin.', 'You walk around the sarcophagus.',
+                   'A draft moves through the nave.', 'The candles gutter and go out one by one.',
+                   'You step inside the vestibule.', 'Fear settles inside you.',
+                   'The lid is heavy granite, a hand thick.', 'Wax drips off the candle onto the floor.',
+                   'The tomb sits apart, on a low dais.', 'Its carvings are worn off at the corners.',
+                   'A rat runs off along the wall.')
+    CHAPEL_SWEEP = ('The reliquary gleams on the altar.', 'Its gilt is flaking away at the corners.',
+                    'The clasp is shaped like a hand.', 'The chest sits back on the altar, out of reach of the door.',
+                    'It is dim in the chapel.', 'You slip inside the stairwell.', 'A cold dread grows within you.',
+                    'The casket rests on a cloth on the floor of the altar.')
+
+    def check(self, source, lines):
+        room = Room(self, source=source)
+        sealed = kit_agent.sealed_terms(room.runtime.source(), room.state)
+        self.assertTrue(sealed)
+        for text in lines:
+            with self.subTest(text=text):
+                kit_agent.check_sealed(text, sealed)
+
+    def test_p10_lines(self):
+        self.check(None, self.P10)
+
+    def test_crypt_sweep(self):
+        self.check(None, self.CRYPT_SWEEP)
+
+    def test_chapel_sweep(self):
+        self.check(chapel(), self.CHAPEL_SWEEP)
+
+    def test_p10_lines_through_the_bridge(self):
+        for text in self.P10:
+            with self.subTest(text=text):
+                bridge_turn(Room(self), 'I look around the nave.', None, omit=True, text=text)
+
+
 if __name__ == '__main__':
     unittest.main()
