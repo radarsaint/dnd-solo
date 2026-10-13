@@ -726,10 +726,13 @@ class RoomAdjudicator:
             # A physical act the engine has no ruling for, where a known feature a room trigger
             # watches is in reach ('I climb onto the carcass', 'I push it open', 'I heave the
             # stone slab aside'), is Kit's ruling, not a refusal: she declares handles or none.
-            offer = str(exc).startswith(UNSUPPORTED_RULING) and self._handles_offer(action, state, None)
-            if not offer:
+            near = str(exc).startswith(UNSUPPORTED_RULING) and not is_ooc(action) and \
+                (self.source or {}).get('triggers') and kit_triggers.disturb_targets(self.source, state)
+            if not near:
                 raise
-            result = self._feature_act(action, offer)
+            # Not hands-on ('I take a step toward the claw'): Kit's to voice, nothing to
+            # declare (no offer; #97 review P1-E).
+            result = self._feature_act(action, self._handles_offer(action, state, None))
         waiting = (state.get('combat') or {}).get('awaiting') or {}
         if waiting.get('kind') == 'flourish_window' and (choice or {}).get('flourish') == 'new_action' and \
                 not any(e.get('type') == 'combat_state' for e in result.events):
@@ -811,7 +814,7 @@ class RoomAdjudicator:
         if is_ooc(action):
             return result
         area = kit_triggers.arrived(self.source, state, result) or state.get('area')
-        offer = self._handles_offer(action, state, area)
+        offer = self._handles_offer(action, state, area, result.kind)
         if result.kind in kit_triggers.FEATURE_KINDS and \
                 (room_words(self.source, state).feature_in(QUOTED_SPEECH.sub(' ', action).casefold()) or
                  (None, None))[1] in kit_triggers.disturb_targets(self.source, state, area):
@@ -820,10 +823,11 @@ class RoomAdjudicator:
             return result
         return dataclasses.replace(result, offers={**(result.offers or {}), 'handles': offer})
 
-    def _handles_offer(self, action, state, area):
+    def _handles_offer(self, action, state, area, kind=None):
+        """None on a look, a listen or a threshold look the engine resolved (#97 review P1-E)."""
         if is_ooc(action) or not (self.source or {}).get('triggers'):
             return None
-        return kit_triggers.handles_offer(self.source, state, action, area)
+        return kit_triggers.handles_offer(self.source, state, action, area, kind)
 
     def _feature_act(self, action, offer):
         """A turn about a watched feature: nothing is resolved from the words; Kit's decision
@@ -1096,6 +1100,12 @@ class RoomAdjudicator:
             return self._resolve_stealth(action, narration, revision, state)
         if kind == 'unsupported_action':
             raise PendingRuling(f'{UNSUPPORTED_RULING} No turn was committed.', attempt=True)
+        if kind == 'observe' and THRESHOLD_LOOK.search(QUOTED_SPEECH.sub(' ', action).lower()):
+            key = self._area_exit(action, state)
+            if key:
+                # A look into the next area by its name ('I look into the vestibule'): a look
+                # through that way from here, voiced from the room's own exit (#97 review P2).
+                return self._threshold_look(action, state, key)
         if kind == 'observe':
             around = not re.search(r"\b(?:at|interesting|notable)\b", action.lower())
             event = {'type': 'beat', 'tags': ['observe'],
@@ -1149,8 +1159,26 @@ class RoomAdjudicator:
             inward = room_words(self.source, state).inward
             return inward[0] if len(inward) == 1 else None
 
-    def _threshold_look(self, action, state):
-        key = self._threshold_exit(action, state)
+    def _area_exit(self, action, state):
+        """The exit from here to an area the words name (its name or what it is called), else None."""
+        text = QUOTED_SPEECH.sub(' ', action).casefold()
+        here = state.get('area')
+        areas = (self.source or {}).get('areas') or {}
+        for key, edge in ((self.source or {}).get('exits') or {}).items():
+            ends = edge.get('areas') or ()
+            if here not in ends or edge.get('secret'):
+                continue
+            for other in ends:
+                if other == here:
+                    continue
+                spec = areas.get(other) or {}
+                names = {str(spec.get('name') or '').casefold(), re.sub(r'^the\s+', '', str(spec.get('called') or '').casefold())}
+                if any(n and re.search(r'\b' + re.escape(n) + r'\b', text) for n in names):
+                    return key
+        return None
+
+    def _threshold_look(self, action, state, key=None):
+        key = key or self._threshold_exit(action, state)
         name = ((self.source or {}).get('exits') or {}).get(key, {}).get('name') or 'the way on'
         listening = re.search(r'\b(?:listen\w*|eavesdrop\w*|ears?)\b', action.casefold()) and \
             not re.search(r'\b(?:peek\w*|peer\w*|look\w*|eyes?|watch\w*|see)\b', action.casefold())
@@ -2129,6 +2157,8 @@ OPTIONAL_PLAN_KEYS = ('claims', 'agenda', 'salience', 'roll_call', 'pc_state', '
 CHAT_ONLY_PLAN_KEYS = ('pc_state', 'pc_oddity', 'ask_player', 'risk_confirm', 'plan', 'open_threads', 'reveal_entry')
 for _key in CHAT_ONLY_PLAN_KEYS:
     API_PLAN_SCHEMA['properties'].pop(_key)
+# Strict mode: handles always carries reason ("none" on a declaration; kit_acts.NONE_REASONS on none).
+API_PLAN_SCHEMA['properties']['handles']['required'] = ['target', 'act', 'reason']
 API_PLAN_SCHEMA['required'] = API_PLAN_SCHEMA['required'] + [
     key for key in OPTIONAL_PLAN_KEYS if key not in CHAT_ONLY_PLAN_KEYS]
 
@@ -4276,8 +4306,10 @@ def declare(runtime, adjudicator, body, plan):
     acts = kit_acts.check(plan, body)
     revision, _ = runtime.load()
     after = runtime.preview_state(revision, body['events'])
+    unmoved = unmoved_words(runtime.source(), after, body, acts)
     if not acts or not isinstance(adjudicator, RoomAdjudicator):
-        return {**body, 'hidden_actors': hidden_actor_words(runtime.source(), after, body)}
+        return {**body, 'hidden_actors': hidden_actor_words(runtime.source(), after, body),
+                **({'unmoved': unmoved} if unmoved else {})}
     adjudicator.mount(runtime.source())
     result = adjudicator.declared_acts(acts, body['action'], revision, after)
     final = runtime.preview_state(revision, list(body['events']) + list(result.events))
@@ -4286,6 +4318,48 @@ def declare(runtime, adjudicator, body, plan):
     return {**body, 'hidden_actors': hidden_actor_words(runtime.source(), final, body),
             'declared': {'acts': shown, 'events': list(result.events), 'public': result.public_event,
                          'kind': result.kind, 'handoff': result.handoff}}
+
+
+# A watched feature shifting, giving or coming open (#97 review P1-B'); a sentence that says it
+# does not ("it will not budge") is no movement.
+FEATURE_MOVES = re.compile(r"\b(?:shift|shifts|shifted|slide|slides|slid|grind|grinds|ground|scrape|scrapes|scraped|"
+                           r"give|gives|gave|budge|budges|budged|move|moves|moved|open|opens|opened|swing|swings|"
+                           r"swung|lift|lifts|lifted|rise|rises|rose|tilt|tilts|tilted|creak|creaks|creaked|"
+                           r"groan|groans|groaned|crack|cracks|cracked|aside|ajar|loose|loosens|loosened|grate|grates|"
+                           r"rasp|rasps|rasped|yield|yields|yielded|topple|topples|toppled|tip|tips|tipped)\b")
+NOT_MOVING = re.compile(r"\b(?:not|never|no|nothing|won't|wont|doesn't|does not|refuses?|fails?|holds? fast|"
+                        r"stays? put|unmoved|stuck)\b|n't\b")
+
+
+def unmoved_words(source, state, body, acts):
+    """The offered features' words when Kit answered handles none on a turn that offered it:
+    the performance may not show them moving (check_unmoved). [] otherwise."""
+    offer = ((body or {}).get('acts') or {}).get('handles')
+    if not offer or (acts or {}).get('handles'):
+        return []
+    targets = kit_triggers.disturb_targets(source or {}, state)
+    words = {'it'}
+    for feature in offer.get('targets') or {}:
+        words.add(feature.casefold())
+        words.update((targets.get(feature) or {}).get('words') or ())
+    return sorted(words)
+
+
+def check_unmoved(spoken, words):
+    """HARD (#97 review P1-B'): with handles none, no sentence shows an offered feature (or
+    "it") moving or opening, unless it says it does not. Stone scraping with no thing named is
+    a move too when the player's hands were on it."""
+    if not words:
+        return
+    for sentence in re.split(r'(?<=[.!?])\s+|\n', (spoken or '').casefold()):
+        sentence = re.sub(r'^[a-z ]+:\s*', '', sentence)
+        if not FEATURE_MOVES.search(sentence) or NOT_MOVING.search(sentence):
+            continue
+        named = any(re.search(r'\b' + re.escape(w) + r's?\b', sentence) for w in words)
+        if named or not re.search(r'\b(?:you|your)\b', sentence):
+            raise InvalidChange('handles is none, but the performance shows a listed thing moving or opening. '
+                                'If his hands move it, declare handles {target, act}; if not, say why it '
+                                'does not move (handles.reason) and narrate that.')
 
 
 _HIDDEN_STOP = frozenset('''a an the of and or to in on at by for from with into onto out over under up down off
@@ -4357,6 +4431,7 @@ def checked_record(body, plan, speech, performance_variant, source=None, degrade
                           public_event=public_event)
     spoken, warnings = result if degraded else (result, [])
     check_hidden_actors(spoken, body.get('hidden_actors'))
+    check_unmoved(spoken, body.get('unmoved'))
     kit_agenda.check_carriers_spoken(spoken, plan)
     check_held_delivered(body.get('held_description'), spoken)
     if not ask and not stall_check(plan, body['kind']):
@@ -4652,9 +4727,30 @@ def turn_latency(timing):
             'output_bytes': [a['output_bytes'] for a in attempts], 'missing': missing}
 
 
+# Engine wording that must never reach the player word for word (#97 review P2): the
+# message is for the host; player_message is what Kit may say at the table.
+_ENGINE_SENTENCES = re.compile(r"[^.!?]*\b(?:No turn was committed|in this slice|test slice|room/rules ruling|"
+                               r"noted in the public history|engine|host)\b[^.!?]*[.!?]\s*", re.I)
+PLAYER_SAFE_UNSUPPORTED = ("That one needs the DM's call. Say a little more about how you go about it, "
+                           "or try it another way.")
+
+
+def player_message(message):
+    """A player-safe line for a pending ruling: no engine or test-slice wording."""
+    text = str(message or '')
+    if text.startswith(UNSUPPORTED_RULING):
+        return PLAYER_SAFE_UNSUPPORTED
+    if re.search(r'\b(?:slice)\b', text, re.I):
+        return "That isn't something you can make happen here yet. Try it another way."
+    safe = _ENGINE_SENTENCES.sub('', text).strip()
+    return safe or "Hold on: say a little more about what you do."
+
+
 def pending_ruling_result(exc):
-    """The host-facing result of a PendingRuling: shown to the player, nothing committed."""
-    result = {'stage': 'pending_ruling', 'message': str(exc), 'committed': False}
+    """The host-facing result of a PendingRuling: shown to the player, nothing committed.
+    ``message`` is the engine's; ``player_message`` is the one Kit may relay."""
+    result = {'stage': 'pending_ruling', 'message': str(exc), 'player_message': player_message(str(exc)),
+              'committed': False}
     if getattr(exc, 'host_error', None):
         result['host_error'] = exc.host_error
     if getattr(exc, 'recorded_revision', None) is not None:

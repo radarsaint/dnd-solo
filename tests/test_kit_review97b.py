@@ -179,8 +179,8 @@ class AnyPhysicalTurnOffersTests(unittest.TestCase):
     def test_a_look_is_offered_but_nothing_fires_and_no_hint_says_handle(self):
         room = Room(self)
         result = room.act('I look at the sarcophagus.')
-        self.assertIn('handles', result.offers or {})
-        self.assertNotIn('hint', result.offers['handles'])
+        # #97 review P1-E: a look is not a hands-on turn, so nothing is offered at all.
+        self.assertNotIn('handles', result.offers or {})
         self.assertFalse(room.state.get('triggers_fired'))
 
     def test_examining_is_not_a_hands_on_hint(self):
@@ -219,7 +219,8 @@ class AnswerAndHiddenActorTests(unittest.TestCase):
             with self.subTest(text=text):
                 room = Room(self)
                 with self.assertRaisesRegex(InvalidChange, 'still hidden'):
-                    bridge_turn(room, 'I push the lid aside.', {'target': 'none', 'act': 'none'}, text=text)
+                    bridge_turn(room, 'I push the lid aside.', {'target': 'none', 'act': 'none', 'reason': 'blocked'},
+                                text=text)
                 self.assertFalse(room.state.get('triggers_fired'))
 
     def test_the_declaration_that_wakes_it_lets_kit_show_it(self):

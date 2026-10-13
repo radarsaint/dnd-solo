@@ -133,17 +133,41 @@ def disturb_targets(source, state, area=None):
     return out
 
 
+# Hands-on verbs beyond the hint's (kit_acts.HINT_VERBS): any of them, or a verb with "it",
+# "them", "this" or "that" as its own object, makes a turn physical (#97 review P1-E).
+PHYSICAL_EXTRA = (r'set|sets|put|puts|place|places|lean|leans|press|presses|jam|jams|wedge|wedges|knock|knocks|'
+                  r'bang|bangs|throw|throws|toss|tosses|drop|drops|hold|holds|carry|carries|tear|tears|rip|rips|'
+                  r'slide|slides|swing|swings|bash|bashes|turn|turns|wrestle|wrestles|jump|jumps|step on|'
+                  r'steps on|brace|braces|haul|hauls|hammer|hammers|chip|chips|scrape|scrapes|unlock|unlocks|'
+                  r'close|closes|shut|shuts|slam|slams|tilt|tilts|topple|topples|budge|budges|dig|digs|'
+                  r'reach|reaches|thrust|thrusts|empty|empties|loot|loots|steal|steals|use|uses')
+PRONOUN_OBJECT = re.compile(r"\b([a-z]+)\s+(?:it|them|this|that)\b")
+NOT_HANDS = re.compile(r'^(?:at|to|toward|towards|near|by|beside|behind|around|past|from|about|of|on|over|'
+                       r'into|through|look|looks|watch|watches|see|sees|hear|hears|listen|listens|smell|smells|'
+                       r'sniff|sniffs|study|studies|examine|examines|inspect|inspects|check|checks|eye|eyes|'
+                       r'consider|considers|ignore|ignores|leave|leaves|is|was|and|or|if|but|do|does|think|say|'
+                       r'says|ask|asks|tell|tells|mean|means|wait|waits)$')
+# The engine's own perception reads: never a hands-on turn.
+LOOK_KINDS = ('observe', 'threshold_look')
+
+
 def physical(action):
-    """A turn that does something in the fiction: not table talk, not only speech in quotes,
-    not only a question. Any such turn may put the PC's hands on something."""
+    """A turn where the PC's hands may go on something: not table talk, not only speech in
+    quotes or a question, and with a hands-on verb or a verb whose object is a pronoun ("I push
+    it"). A look, a listen, a sniff or a wait is not (#97 review P1-E)."""
+    from . import kit_acts
     from .kit_agent import QUOTED_SPEECH, asked_away, is_ooc  # local: kit_agent imports this module
     if is_ooc(action or ''):
         return False
-    words = asked_away(QUOTED_SPEECH.sub(' ', action or ''))
-    return bool(re.search(r'[a-z]{2}', words.casefold()))
+    words = asked_away(QUOTED_SPEECH.sub(' ', action or '')).casefold()
+    words = re.sub(r"\b(?:take|takes|taking)\s+(?:a|one|two|three|another)\s+(?:\w+\s+)?steps?\b", ' ', words)
+    verbs = '|'.join(kit_acts.HINT_VERBS.values()) + '|' + PHYSICAL_EXTRA
+    if re.search(r'\b(?:' + verbs + r')\b', words):
+        return True
+    return any(not NOT_HANDS.match(m.group(1)) for m in PRONOUN_OBJECT.finditer(words))
 
 
-def handles_offer(source, state, action, area=None):
+def handles_offer(source, state, action, area=None, kind=None):
     """The ``handles`` act offer (runtime/kit_acts.py) on any physical turn in an area with a
     known feature that a pending disturb trigger watches, else None: {targets: {feature:
     [parts]}, hint?}. Kit resolves pronouns and other words for it ("I push it open", "the
@@ -152,7 +176,7 @@ def handles_offer(source, state, action, area=None):
     from . import kit_acts
     from .kit_agent import QUOTED_SPEECH, asked_away  # local: kit_agent imports this module
     targets = disturb_targets(source, state, area)
-    if not targets or not physical(action):
+    if not targets or kind in LOOK_KINDS or not physical(action):
         return None
     text = QUOTED_SPEECH.sub(' ', action or '').casefold()
     offer = {'targets': {feature: info['parts'] for feature, info in targets.items()}}
