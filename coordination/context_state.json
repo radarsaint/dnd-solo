@@ -2,7 +2,7 @@
   "schema": "kit_project_gardener_state/v1",
   "purpose": "RESUMABILITY_CURSOR_NOT_KNOWLEDGE_STORE",
   "canonical_location": "radarsaint/dnd-solo/coordination/context_state.json",
-  "state_revision": 19,
+  "state_revision": 20,
   "semantic_brain": {
     "repo": "radarsaint/dnd-solo",
     "path": "docs/PROJECT_UNDERSTANDING.md",
@@ -11,31 +11,32 @@
   },
   "checkpoint": {
     "reviewed_against_main": {
-      "radarsaint/dnd-solo": "04b883f4a2ee6b2e54cf2092bc5055810cc16aeb",
+      "radarsaint/dnd-solo": "980f8d57c490dc6a851ff2adc4200f945833007d",
       "radarsaint/bfdm-corpus": "6795362e967e89230086afc28c04450cc7d0cce4"
     },
     "context_inbox": {
       "repo": "radarsaint/dnd-solo",
       "issue": 115,
       "issue_state_at_checkpoint": "open",
-      "last_fully_reconciled_comment_id": 6155739600,
-      "comment_count_at_checkpoint": 11
+      "last_fully_reconciled_comment_id": 6157550419,
+      "comment_count_at_checkpoint": 12
     }
   },
   "last_completed_pass": {
     "kind": "BOUNDED_SEMANTIC_RECONCILIATION",
     "completed_on": "2026-10-13",
-    "scope": "Reviewed #115 comment 6155739600 (#97 merge close-out record). Already reflected in prior brain f42eff46. Accepted as confirmation. #101 remains deferred.",
-    "result": "Accepted: prior #97 pending deltas superseded by the merge record. Brain already records #97 on main (structured handles, sealed features, player-rolled saves, house-rule ties). #101 open and unmerged. G5 and G6 stay open.",
+    "scope": "Reviewed #115 comment 6157550419 (architecture change: Kit-declared combat_acts, word-matching parser ends). PENDING REVIEW on draft #122. Main default path unchanged.",
+    "result": "Reject: do not update Brain to claim the word-matching combat parser has ended or that Kit declares combat_acts. Those are not on main. #101 trimmed on branch (d0e533e); #122 is first slice draft. Main act parsing remains the regex path. #101 and #122 stay pending. G5 and G6 stay open.",
     "resulting_brain_commit": "f42eff46971792c18d8d7213f739791670025a72",
-    "reconciled_comment_id": 6155739600
+    "reconciled_comment_id": 6157550419
   },
   "active_pass": null,
   "unresolved": [
     "Issue #118 G5 is unmet.",
     "ChatGPT Project source membership remains a manual Project-UI change. G6 stays open.",
     "Legacy paid play route removal is pending with Skippy.",
-    "PR #101 combat checkpoints reaction model is pending review and unmerged; reconcile its semantic claims only after merge."
+    "PR #101 combat checkpoints reaction model is pending review and unmerged; reconcile its semantic claims only after merge.",
+    "PR #122 Kit-declared combat_acts is draft; word-matching parser ends only after it lands. Main default path unchanged."
   ],
   "needs_review": [],
   "checkpoint_rules": {
