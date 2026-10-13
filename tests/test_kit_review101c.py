@@ -427,8 +427,7 @@ class PlayerMayDeclare(unittest.TestCase):
         result = arena.act('Nik casts Absorb Elements! (Avrae: !cast absorb elements)')
         self.assertIn('Absorb Elements has nothing to answer right now', result.public_event)
         self.assertEqual(arena.fight['pc_damage'], 13, 'a greatclub is not elemental damage')
-        self.assertEqual(arena.slot1(), 0, 'a cast that did nothing is undone in Avrae, not counted')
-        self.assertIn('!g ss 1 +1', result.public_event)
+        self.assertEqual(arena.slot1(), 1, 'the slot Avrae spent is counted, as with Shield')
 
     def test_the_claim_lapses_once_he_takes_his_turn(self):
         arena = Arena(self, 'rope_bridge', sheet=rogue(), roll=lambda: 10)
@@ -599,7 +598,7 @@ class EveryClauseResolves(unittest.TestCase):
         arena.act('Absorb Elements again!')  # no Avrae cast: nothing charged
         self.assertEqual(slots(), {'1': 0, '2': 0, '3': 1})
         arena.act('Absorb Elements! (Avrae: !cast absorb elements -l 2)')  # Avrae cast it: counted at -l 2
-        self.assertEqual(slots(), {'1': 0, '2': 0, '3': 1}, 'a cast that did nothing is undone in Avrae, not counted')
+        self.assertEqual(slots(), {'1': 0, '2': 1, '3': 1})
 
 
 class ClauseFuzz(unittest.TestCase):
@@ -754,13 +753,40 @@ class Review92(unittest.TestCase):
         self.assertTrue(result.public_event.rstrip().endswith('Your turn.'))
         self.assertEqual(arena.fight['round'], 3, 'the foes took their turn')
 
-    def test_a_cast_reaction_that_does_nothing_gets_an_avrae_undo_cue(self):
+    def test_a_cast_reaction_that_does_nothing_counts_its_slot_and_fizzles(self):
         sheet = without_shield(wizard(hp=60))
         sheet['spells']['1'] = sheet['spells']['1'] + ['Absorb Elements']
         arena = self.kiln(sheet)
         arena.act('Absorb Elements! (Avrae: !cast absorb elements -l 1)')
         result = arena.act('Absorb Elements! (Avrae: !cast absorb elements -l 2)')
-        self.assertIn('!g ss 2 +1', result.public_event)
+        self.assertNotIn('!g ss', result.public_event, 'no undo cue: the engine matches Avrae')
+        self.assertIn('fizzles', result.public_event)
+        self.assertEqual(arena.state['pc_resources']['slots']['2']['used'], 1)
+
+    def test_a_second_reaction_already_cast_in_avrae_fizzles_and_counts(self):
+        arena = self.kiln(warlock(hp=60))
+        result = arena.act('Hellish Rebuke the ember imp (Avrae: !cast hellish rebuke) 2d10 = 12 fire, then Hellish '
+                           'Rebuke the slinger (Avrae: !cast hellish rebuke) 2d10 = 9 fire.')
+        self.assertIn('Hellish Rebuke: 12 fire damage to the ember imp.', result.public_event)
+        self.assertIn('fizzles', result.public_event)
+        self.assertEqual(arena.slot1(), 2, 'both casts Avrae made are counted')
+        self.assertEqual(arena.fight['hp']['archer'], 7, 'the second does nothing')
+
+    def test_an_off_sheet_reaction_cast_in_avrae_fizzles_and_counts(self):
+        arena = self.kiln(without_shield(wizard(hp=60)))  # no Absorb Elements on this sheet
+        result = arena.act('Absorb Elements (Avrae: !cast absorb elements -l 1), then Fire Bolt the kobold slinger, '
+                           '19 to hit, 8 fire.')
+        self.assertIn("Absorb Elements didn't happen because it is not on your sheet", result.public_event)
+        self.assertIn('fizzles', result.public_event)
+        self.assertEqual(arena.slot1(), 1)
+
+    def test_an_illegal_reaction_not_yet_cast_is_refused_before_the_cast(self):
+        arena = self.kiln(warlock(hp=60))
+        result = arena.act('Hellish Rebuke the ember imp (Avrae: !cast hellish rebuke) 2d10 = 12 fire, then Hellish '
+                           'Rebuke the slinger.')
+        self.assertNotIn('cast in Avrae first', result.public_event, 'never ask for a cast that cannot happen')
+        self.assertIn('you have already used your reaction', result.public_event)
+        self.assertEqual(arena.slot1(), 1)
 
     def test_absorb_elements_after_his_own_act_lapses(self):
         sheet = without_shield(wizard(hp=60))

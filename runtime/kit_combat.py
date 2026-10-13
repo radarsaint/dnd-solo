@@ -973,12 +973,10 @@ class Fight:
         if event is None:
             # Nothing it can answer now (the hit was not its kind, or the reaction is spent): no
             # effect. Only a cast Avrae actually made is counted, at its -l level (else its own).
-            if avrae_cast and found.get('kind') == 'spell':
-                # Avrae spent a slot on a cast that did nothing: not counted here, and he is told
-                # how to give it back in Avrae, so the two stay matched.
-                level = cast_level(self.action) or (found.get('cost') or {}).get('slot') or 1
-                self.trace.append(f'PC cast {name} in Avrae with no trigger: level {level} slot not counted')
-                self.lines.append(f'Avrae spent a level {level} slot on {name}; undo it there with !g ss {level} +1.')
+            fizzled = self.avrae_fizzle(name)
+            if fizzled:
+                return refuse(f'{name} has nothing to answer right now, so it fizzles. {fizzled}',
+                              f'it has nothing to answer right now, so it fizzles. {fizzled}'[:-1])
             return refuse(f'{name} has nothing to answer right now, so it does nothing.',
                           'it has nothing to answer right now')
         if not kit_reactions.payable(self.resources, found):
@@ -1046,10 +1044,18 @@ class Fight:
                     because = 'it is not your turn'
                 elif kind == 'missing_reaction':
                     because = 'it is not on your sheet'
+                    fizzled = self.avrae_fizzle(one['name'])
+                    if fizzled:
+                        because += f', so the cast fizzles. {fizzled[:-1]}'
                 elif kind == 'late_reaction':
                     effect = (kit_reactions.entry(self.resources, one['react']) or {}).get('effect')
                     if reacted:
+                        # Refused before any cast is asked for; one Avrae already made fizzles, counted.
                         because = 'you have already used your reaction'
+                        fizzled = self.avrae_fizzle((kit_reactions.entry(self.resources, one['react']) or {})
+                                                    .get('name', one['react']))
+                        if fizzled:
+                            because += f', so the cast fizzles. {fizzled[:-1]}'
                     elif acted and effect == 'absorb_elements' and one.get('event'):
                         because = 'you have already acted, and the fire it answers came before your turn'
                     elif self.pc_late_reaction(one):
@@ -1106,6 +1112,25 @@ class Fight:
             self.in_multi = False
             self.action = whole
         self.after_pc_action(acted or moved)  # moving ends his turn the way one move does
+
+    def avrae_fizzle(self, name):
+        """A reaction spell Avrae already cast that cannot take effect: Avrae spent the slot (at
+        its -l level, else the spell's own), so the engine counts it too. The sentence that says
+        so, or '' when Avrae did not cast it."""
+        if not re.search(r'!cast\s+' + re.escape(name.casefold()) + r'\b', self.action.casefold()):
+            return ''
+        spec = next((c for c in kit_reactions.CATALOG.values() if c['name'] == name), {})
+        if spec and spec.get('kind') != 'spell':
+            return ''
+        level = cast_level(self.action) or spec.get('level') or 1
+        slot = (self.resources.get('slots') or {}).get(str(level))
+        if not slot or slot['used'] >= slot['max']:
+            return ''
+        self.resources['slots'] = copy.deepcopy(self.resources['slots'])
+        self.resources['slots'][str(level)]['used'] += 1
+        self.resources_changed = True
+        self.trace.append(f'{name} cast in Avrae with nothing to do: level {level} slot counted')
+        return f'The level {level} slot Avrae spent is counted.'
 
     def out_of_reach(self, act):
         """A melee blow at a foe he has moved out of reach of (this turn's clauses, in order)."""
