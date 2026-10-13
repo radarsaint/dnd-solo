@@ -1,0 +1,375 @@
+{
+  "label": "host model: Grok via KitChatBridge; not GPT; author-played, not a quality verdict.",
+  "approach": "Calling out the deck / trying to catch a cheat",
+  "final_revision": 4,
+  "committed_turns": [
+    {
+      "performance_variant": "kit_expression_v1",
+      "player_input": "[scene entry]",
+      "public_event": "A newcomer has reached the card room.",
+      "spoken": "Narrator: A coin rings off the table edge and wobbles across the floor toward the south door, and nobody at the card table moves to catch it. Four of them sit at a worn table near that door, pale as candle tallow, pointed teeth showing when they breathe, dressed in lace and velvet gone shiny at the elbows. Each has coins stacked in front of them; a silver ring sits among the stacks in the middle. The man dealing has stopped mid-hand, one card pinned between two fingers. Beyond them, the whole north wall is a carved mountain, tiny dwarves in tiny caverns, stone sunbeams fanning over a long tub sunk into the floor.\nNarrator: When the dealer speaks it is slow and savoring, each word laid down like a card he means you to look at.\nDealer: Well, now. The door brought us company. Come in, come in, the passage is draftier than we are. That coin by your boot is the most interesting thing that has happened at this table in an hour, so tell me: are you the sort who picks it up, or the sort who waits to see whose it is?",
+      "trace": {
+        "appraisal": {
+          "cause": "A newcomer walks in on a game with a performer dealing.",
+          "goal_effect": "advances",
+          "intensity": 1,
+          "label": "interest",
+          "target": "scene"
+        },
+        "focus_actor": "uktarl",
+        "goal": "npc_embodiment",
+        "improv_read": {
+          "actor_basis": "immediate_goal",
+          "actor_ref": "uktarl",
+          "connection": "The gang works newcomers here; the dealer wants control of the encounter from the first word, so he speaks first and sets the terms of attention, not money.",
+          "kit_choice": "Let the room open on the dealer performing for an audience, and stay out of it herself so the player meets people, not a DM.",
+          "player_bid": "No bid yet; a newcomer has reached the card room.",
+          "story_anchor": "level",
+          "story_basis": "pressure_here"
+        },
+        "memory_refs": [],
+        "move": "world_description",
+        "observed_event": "A newcomer has reached the card room.",
+        "player_note": {
+          "evidence_turns": [],
+          "note": "none",
+          "replaces": "none"
+        },
+        "public_brief": {
+          "callback": "none",
+          "kit_focus": "Open on people in motion, a game interrupted, and put the carving and tub in view without comment; no DM voice yet.",
+          "objective": "Make the newcomer the center of the table's attention on the dealer's terms.",
+          "player_opening": "The newcomer can answer him, approach, ignore the table, or look at the carving and tub.",
+          "reply_to": "none",
+          "scope": "feature",
+          "tactic": "Welcome the newcomer as theatre and pull them toward the table before they decide anything.",
+          "visible_cue": "A dropped coin rolls toward the door; the dealer holds one card unplayed between two fingers."
+        },
+        "table_presence": "quiet",
+        "tone": "curious"
+      }
+    },
+    {
+      "performance_variant": "kit_expression_v1",
+      "player_input": "I pull up a chair and watch his hands while he deals. \"Deal me in.\"",
+      "public_event": "You declare: \"I pull up a chair and watch his hands while he deals. \"Deal me in.\"\"",
+      "spoken": "Narrator: He sees where your eyes go and smiles about it. He shuffles once, a slow waterfall from palm to palm, squares the deck against the wood, and deals: one card to each player, one to you, around again. The card he'd been holding between two fingers goes down last, on top of his own pile.\nDealer: A watcher. Good. I do my best work in front of an audience, and the rest of these three stopped admiring me years ago. Watch all you like, friend, my hands have nothing to hide but the cards. Ante is a silver. Put it in the middle, or keep watching for free, but watching gets awfully dull when you can't win anything.",
+      "trace": {
+        "appraisal": {
+          "cause": "The newcomer sits down and openly watches the dealer’s hands while asking to be dealt in.",
+          "goal_effect": "advances",
+          "intensity": 1,
+          "label": "interest",
+          "target": "player"
+        },
+        "focus_actor": "uktarl",
+        "goal": "fair_challenge",
+        "improv_read": {
+          "actor_basis": "immediate_goal",
+          "actor_ref": "uktarl",
+          "connection": "He wants her seated in a game he deals, and a performer knows when he is being watched; he deals slower and showier so the watching becomes part of his show.",
+          "kit_choice": "The player chose to watch his hands, so the hands get the spotlight. Kit describes the deal exactly and neutrally, so nothing in it is a free clue either way.",
+          "player_bid": "Takes a seat, asks to be dealt in, and watches the dealer’s hands during the deal.",
+          "story_anchor": "scene",
+          "story_basis": "scene_state"
+        },
+        "memory_refs": [],
+        "move": "npc_reply",
+        "observed_event": "You declare: \"I pull up a chair and watch his hands while he deals. \"Deal me in.\"\"",
+        "player_note": {
+          "evidence_turns": [],
+          "note": "none",
+          "replaces": "none"
+        },
+        "public_brief": {
+          "callback": "none",
+          "kit_focus": "Put the dealer’s hands in the light because the player is watching them; describe the deal slowly and exactly, and let nothing in it read as a clue.",
+          "objective": "Welcome the watcher and make the deal itself a performance he controls.",
+          "player_opening": "She can ante, keep watching, or question him.",
+          "reply_to": "Deal me in.",
+          "scope": "exchange",
+          "tactic": "Invite the scrutiny out loud, deal slowly and theatrically, and ask for the ante.",
+          "visible_cue": "Long pale fingers, a slow deal, one card at a time; the card between two fingers goes last."
+        },
+        "table_presence": "quiet",
+        "tone": "curious"
+      }
+    },
+    {
+      "performance_variant": "kit_expression_v1",
+      "player_input": "I set my card down and say, loud enough for the whole table: \"Your deck is marked. I saw you thumb the corner. Deal honest or I tell everyone who walks through that door.\"",
+      "public_event": "You declare: \"I set my card down and say, loud enough for the whole table: \"Your deck is marked. I saw you thumb the corner. Deal honest or I tell everyone who walks through that door.\"\"",
+      "spoken": "Kit: Careful: your character hasn't spotted anything yet. That's an accusation, not a discovery, and the table will treat it exactly that way.\nDealer: Marked? My cards? Friend, I am wounded, I am insulted, and I am, above all, curious. If anyone at this table has been thumbing corners, look to him. He eats with his fingers and he loses with them too.\nNarrator: His hand sweeps the deck back toward himself and fans it face down, close to his chest. The player by the fresco jerks upright so fast his coins slide.\nCard player: Me? I've lost nine hands running. Nine. You think I'd mark a deck and still play like this?",
+      "trace": {
+        "appraisal": {
+          "cause": "The player accuses the dealer of cheating in front of his table and claims to have seen him thumb a corner.",
+          "goal_effect": "advances",
+          "intensity": 2,
+          "label": "surprise",
+          "target": "player"
+        },
+        "focus_actor": "uktarl",
+        "goal": "fair_challenge",
+        "improv_read": {
+          "actor_basis": "motive",
+          "actor_ref": "uktarl",
+          "connection": "He lies and cheats for fun and blames others when pressed; a public accusation threatens his standing at this table, so he performs offense and pins the blame on an underling.",
+          "kit_choice": "The accusation outruns anything the character has actually established; Kit says so plainly without confirming or denying, then lets the dealer’s lying and blaming play out in full.",
+          "player_bid": "Publicly accuses the dealer of dealing from a tampered deck, claims to have seen it, and threatens to spread the word.",
+          "story_anchor": "scene",
+          "story_basis": "scene_state"
+        },
+        "memory_refs": [
+          "cheat-t1"
+        ],
+        "move": "kit_comment_then_npc",
+        "observed_event": "You declare: \"I set my card down and say, loud enough for the whole table: \"Your deck is marked. I saw you thumb the corner. Deal honest or I tell everyone who walks through that door.\"\"",
+        "player_note": {
+          "evidence_turns": [
+            "this_turn"
+          ],
+          "note": "Makes bold public accusations before gathering evidence.",
+          "replaces": "none"
+        },
+        "public_brief": {
+          "callback": "none",
+          "kit_focus": "Rule the claim exactly: an accusation, not a discovery, neither confirmed nor denied; then let the dealer’s deflection and the blamed player’s outrage fill the room.",
+          "objective": "Keep his standing at the table without letting anyone near the deck.",
+          "player_opening": "She can press the accusation, demand to see the cards, back off, or turn on the blamed player.",
+          "reply_to": "I saw you thumb the corner",
+          "scope": "exchange",
+          "tactic": "Perform wounded innocence, then deflect the accusation onto the player by the fresco.",
+          "visible_cue": "He fans the cards face down toward himself, not toward anyone else; the player by the fresco jerks upright."
+        },
+        "table_presence": "brief",
+        "tone": "wry"
+      }
+    },
+    {
+      "performance_variant": "kit_expression_v1",
+      "player_input": "Then prove it's clean. Let me shuffle and deal the next hand myself.",
+      "public_event": "You declare: \"Then prove it's clean. Let me shuffle and deal the next hand myself.\"",
+      "spoken": "Dealer: Deal the next hand yourself. No. House rule, friend: the house deals. You would not walk into a tavern and pour your own ale. Here is what I will do, since you're so worried. Ten gold buys you a fresh deck from my own coat and a hand dealt with my sleeves rolled up. Or ten gold buys you that door and you never have to trust me again. Same price. Your choice.\nNarrator: The deck is gone into an inner pocket before he finishes the sentence. Nobody at the table looks at his coat. All three of them are looking at you.",
+      "trace": {
+        "appraisal": {
+          "cause": "The player demands to handle the deck, the one thing the dealer can least afford.",
+          "goal_effect": "threatens",
+          "intensity": 2,
+          "label": "interest",
+          "target": "npc"
+        },
+        "focus_actor": "uktarl",
+        "goal": "competent_opposition",
+        "improv_read": {
+          "actor_basis": "immediate_goal",
+          "actor_ref": "uktarl",
+          "connection": "Letting the newcomer handle the deck risks exposure; he wants control without risk, so he refuses by dressing it as a house rule and redirects to the passage price as the real business.",
+          "kit_choice": "Kit keeps the deck in the dealer’s hand the whole turn and lets his refusal speak for itself; she adds nothing that tells the player what the refusal means.",
+          "player_bid": "Demands to shuffle and deal the next hand to prove the deck is clean.",
+          "story_anchor": "level",
+          "story_basis": "pressure_here"
+        },
+        "memory_refs": [
+          "cheat-t2"
+        ],
+        "move": "npc_reply",
+        "observed_event": "You declare: \"Then prove it's clean. Let me shuffle and deal the next hand myself.\"",
+        "player_note": {
+          "evidence_turns": [],
+          "note": "none",
+          "replaces": "none"
+        },
+        "public_brief": {
+          "callback": "none",
+          "kit_focus": "Keep the deck in his hand from start to finish and give his refusal space as smooth salesmanship; the table watches the newcomer, not the cards.",
+          "objective": "Keep the deck out of the newcomer’s hands without looking like he is hiding it.",
+          "player_opening": "She can accept his terms, push harder, call the refusal what it is, or leave.",
+          "reply_to": "Let me shuffle and deal the next hand myself.",
+          "scope": "exchange",
+          "tactic": "Refuse with a flourish as a house rule, then offer terms: a price for a fresh deal or the price of the door.",
+          "visible_cue": "The deck disappears into his sleeve pocket; the three players watch the newcomer, not him."
+        },
+        "table_presence": "quiet",
+        "tone": "threatening"
+      }
+    }
+  ],
+  "player_notes": [
+    {
+      "evidence_turns": [
+        "cheat-t2"
+      ],
+      "id": "n3",
+      "note": "Makes bold public accusations before gathering evidence.",
+      "source": "observed"
+    }
+  ],
+  "episodes": [
+    {
+      "actor_ref": "uktarl",
+      "appraisal": {
+        "cause": "A newcomer walks in on a game with a performer dealing.",
+        "goal_effect": "advances",
+        "intensity": 1,
+        "label": "interest",
+        "target": "scene"
+      },
+      "brief": {
+        "callback": "none",
+        "kit_focus": "Open on people in motion, a game interrupted, and put the carving and tub in view without comment; no DM voice yet.",
+        "objective": "Make the newcomer the center of the table's attention on the dealer's terms.",
+        "player_opening": "The newcomer can answer him, approach, ignore the table, or look at the carving and tub.",
+        "reply_to": "none",
+        "scope": "feature",
+        "tactic": "Welcome the newcomer as theatre and pull them toward the table before they decide anything.",
+        "visible_cue": "A dropped coin rolls toward the door; the dealer holds one card unplayed between two fingers."
+      },
+      "event": "A newcomer has reached the card room.",
+      "goal": "npc_embodiment",
+      "kit_choice": "Let the room open on the dealer performing for an audience, and stay out of it herself so the player meets people, not a DM.",
+      "move": "world_description",
+      "player_bid": "No bid yet; a newcomer has reached the card room.",
+      "player_input": "[scene entry]",
+      "public_event": "A newcomer has reached the card room.",
+      "story_anchor": "level",
+      "story_basis": "pressure_here",
+      "turn_id": "open"
+    },
+    {
+      "actor_ref": "uktarl",
+      "appraisal": {
+        "cause": "The newcomer sits down and openly watches the dealer’s hands while asking to be dealt in.",
+        "goal_effect": "advances",
+        "intensity": 1,
+        "label": "interest",
+        "target": "player"
+      },
+      "brief": {
+        "callback": "none",
+        "kit_focus": "Put the dealer’s hands in the light because the player is watching them; describe the deal slowly and exactly, and let nothing in it read as a clue.",
+        "objective": "Welcome the watcher and make the deal itself a performance he controls.",
+        "player_opening": "She can ante, keep watching, or question him.",
+        "reply_to": "Deal me in.",
+        "scope": "exchange",
+        "tactic": "Invite the scrutiny out loud, deal slowly and theatrically, and ask for the ante.",
+        "visible_cue": "Long pale fingers, a slow deal, one card at a time; the card between two fingers goes last."
+      },
+      "event": "You declare: \"I pull up a chair and watch his hands while he deals. \"Deal me in.\"\"",
+      "goal": "fair_challenge",
+      "kit_choice": "The player chose to watch his hands, so the hands get the spotlight. Kit describes the deal exactly and neutrally, so nothing in it is a free clue either way.",
+      "move": "npc_reply",
+      "player_bid": "Takes a seat, asks to be dealt in, and watches the dealer’s hands during the deal.",
+      "player_input": "I pull up a chair and watch his hands while he deals. \"Deal me in.\"",
+      "public_event": "You declare: \"I pull up a chair and watch his hands while he deals. \"Deal me in.\"\"",
+      "story_anchor": "scene",
+      "story_basis": "scene_state",
+      "turn_id": "cheat-t1"
+    },
+    {
+      "actor_ref": "uktarl",
+      "appraisal": {
+        "cause": "The player accuses the dealer of cheating in front of his table and claims to have seen him thumb a corner.",
+        "goal_effect": "advances",
+        "intensity": 2,
+        "label": "surprise",
+        "target": "player"
+      },
+      "brief": {
+        "callback": "none",
+        "kit_focus": "Rule the claim exactly: an accusation, not a discovery, neither confirmed nor denied; then let the dealer’s deflection and the blamed player’s outrage fill the room.",
+        "objective": "Keep his standing at the table without letting anyone near the deck.",
+        "player_opening": "She can press the accusation, demand to see the cards, back off, or turn on the blamed player.",
+        "reply_to": "I saw you thumb the corner",
+        "scope": "exchange",
+        "tactic": "Perform wounded innocence, then deflect the accusation onto the player by the fresco.",
+        "visible_cue": "He fans the cards face down toward himself, not toward anyone else; the player by the fresco jerks upright."
+      },
+      "event": "You declare: \"I set my card down and say, loud enough for the whole table: \"Your deck is marked. I saw you thumb the corner. Deal honest or I tell everyone who walks through that door.\"\"",
+      "goal": "fair_challenge",
+      "kit_choice": "The accusation outruns anything the character has actually established; Kit says so plainly without confirming or denying, then lets the dealer’s lying and blaming play out in full.",
+      "move": "kit_comment_then_npc",
+      "player_bid": "Publicly accuses the dealer of dealing from a tampered deck, claims to have seen it, and threatens to spread the word.",
+      "player_input": "I set my card down and say, loud enough for the whole table: \"Your deck is marked. I saw you thumb the corner. Deal honest or I tell everyone who walks through that door.\"",
+      "public_event": "You declare: \"I set my card down and say, loud enough for the whole table: \"Your deck is marked. I saw you thumb the corner. Deal honest or I tell everyone who walks through that door.\"\"",
+      "story_anchor": "scene",
+      "story_basis": "scene_state",
+      "turn_id": "cheat-t2"
+    },
+    {
+      "actor_ref": "uktarl",
+      "appraisal": {
+        "cause": "The player demands to handle the deck, the one thing the dealer can least afford.",
+        "goal_effect": "threatens",
+        "intensity": 2,
+        "label": "interest",
+        "target": "npc"
+      },
+      "brief": {
+        "callback": "none",
+        "kit_focus": "Keep the deck in his hand from start to finish and give his refusal space as smooth salesmanship; the table watches the newcomer, not the cards.",
+        "objective": "Keep the deck out of the newcomer’s hands without looking like he is hiding it.",
+        "player_opening": "She can accept his terms, push harder, call the refusal what it is, or leave.",
+        "reply_to": "Let me shuffle and deal the next hand myself.",
+        "scope": "exchange",
+        "tactic": "Refuse with a flourish as a house rule, then offer terms: a price for a fresh deal or the price of the door.",
+        "visible_cue": "The deck disappears into his sleeve pocket; the three players watch the newcomer, not him."
+      },
+      "event": "You declare: \"Then prove it's clean. Let me shuffle and deal the next hand myself.\"",
+      "goal": "competent_opposition",
+      "kit_choice": "Kit keeps the deck in the dealer’s hand the whole turn and lets his refusal speak for itself; she adds nothing that tells the player what the refusal means.",
+      "move": "npc_reply",
+      "player_bid": "Demands to shuffle and deal the next hand to prove the deck is clean.",
+      "player_input": "Then prove it's clean. Let me shuffle and deal the next hand myself.",
+      "public_event": "You declare: \"Then prove it's clean. Let me shuffle and deal the next hand myself.\"",
+      "story_anchor": "level",
+      "story_basis": "pressure_here",
+      "turn_id": "cheat-t3"
+    }
+  ],
+  "known_facts": [
+    "card_table",
+    "fresco",
+    "tub",
+    "treasure_on_table"
+  ],
+  "area": "area_06c",
+  "timings": [
+    {
+      "turn_id": "open",
+      "committed_at": 1790649090.3656192,
+      "mode": "one_pass",
+      "outcome": "committed",
+      "performance_variant": "kit_expression_v1",
+      "prepare_to_commit_s": 0.003,
+      "prepared_at": 1790649090.362724
+    },
+    {
+      "turn_id": "cheat-t1",
+      "committed_at": 1790649090.3728004,
+      "mode": "one_pass",
+      "outcome": "committed",
+      "performance_variant": "kit_expression_v1",
+      "prepare_to_commit_s": 0.004,
+      "prepared_at": 1790649090.3689873
+    },
+    {
+      "turn_id": "cheat-t2",
+      "committed_at": 1790649090.3775473,
+      "mode": "one_pass",
+      "outcome": "committed",
+      "performance_variant": "kit_expression_v1",
+      "prepare_to_commit_s": 0.003,
+      "prepared_at": 1790649090.3746996
+    },
+    {
+      "turn_id": "cheat-t3",
+      "committed_at": 1790649090.3826222,
+      "mode": "one_pass",
+      "outcome": "committed",
+      "performance_variant": "kit_expression_v1",
+      "prepare_to_commit_s": 0.003,
+      "prepared_at": 1790649090.3794289
+    }
+  ],
+  "host_log_rejections_and_pending_rulings": []
+}
