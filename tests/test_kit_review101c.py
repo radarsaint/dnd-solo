@@ -402,7 +402,7 @@ class PlayerMayDeclare(unittest.TestCase):
         self.assertIsNone(arena.fight.get('awaiting'), '13 of 60 hp: no prompt')
         self.assertEqual(arena.fight['pc_damage'], 13)
         result = arena.act('I Uncanny Dodge that greatclub hit.')
-        self.assertIn('Uncanny Dodge: you take half.', result.public_event)
+        self.assertIn('Uncanny Dodge: you take half, 6 instead of 13.', result.public_event)
         self.assertEqual(arena.fight['pc_damage'], 6)
         again = arena.act('Uncanny Dodge again!')
         self.assertEqual(arena.fight['pc_damage'], 6, 'one reaction for that round')
@@ -453,3 +453,79 @@ class LateRerollIsSaid(unittest.TestCase):
         result = arena.act('Silvery Barbs on the ogre! (Avrae: !cast silvery barbs)')
         self.assertIn('Silvery Barbs cannot change it now', result.public_event)
         self.assertEqual((arena.fight['pc_damage'], arena.slot1()), (13, 0))
+
+
+class LateReactionKeepsTheAct(unittest.TestCase):
+    """Nagatha at 70c1612 (P1): a late reaction in the same message as his act resolves, then the
+    rest of the message is his act; neither order drops the attack."""
+
+    def bridge(self):
+        arena = Arena(self, 'rope_bridge', sheet=rogue(), roll=lambda: 10)
+        arena.act('Initiative 25. I stab the bridge ogre with my rapier, 5 to hit, 3 piercing.')
+        self.assertEqual(arena.fight['pc_damage'], 13)
+        return arena
+
+    def check(self, arena, text):
+        result = arena.act(text)
+        self.assertIn('Uncanny Dodge: you take half', result.public_event)
+        self.assertIn('hits the bridge ogre', result.public_event)
+        self.assertEqual(arena.fight['hp']['ogre'], 59 - 7)
+        return result
+
+    def test_dodge_then_attack(self):
+        self.check(self.bridge(), 'I Uncanny Dodge that hit, then stab the bridge ogre with my rapier, '
+                                  '18 to hit, 7 piercing.')
+
+    def test_attack_then_dodge(self):
+        self.check(self.bridge(), 'I stab the bridge ogre with my rapier, 18 to hit, 7 piercing, and Uncanny '
+                                  'Dodge that greatclub hit.')
+
+    def test_the_late_dodge_says_the_new_damage(self):
+        result = self.bridge().act('I Uncanny Dodge that greatclub hit.')
+        self.assertIn('Uncanny Dodge: you take half, 6 instead of 13.', result.public_event)
+
+    def test_a_late_spell_uses_the_slot_avrae_cast_and_the_fire_bolt_still_flies(self):
+        sheet = without_shield(wizard(hp=60))
+        sheet['spells']['1'] = sheet['spells']['1'] + ['Absorb Elements']
+        arena = Arena(self, 'kiln', sheet=sheet, roll=lambda: 10)
+        arena.act(KILN_OPEN)
+        self.assertIsNone(arena.fight.get('awaiting'))
+        result = arena.act('I cast Absorb Elements at 2nd level (Avrae: !cast absorb elements -l 2), then Fire Bolt '
+                           'the kobold slinger, 19 to hit, 8 fire.')
+        self.assertIn('Absorb Elements: resistance to the fire', result.public_event)
+        self.assertIn('Your Fire Bolt hits', result.public_event)
+        slots = arena.state['pc_resources']['slots']
+        self.assertEqual((slots['1']['used'], slots['2']['used']), (0, 1))
+
+
+class SealedSubject(unittest.TestCase):
+    """Nagatha at 70c1612 (P2): 'its lid' and 'the sarcophagus's lid' are the feature's part, and
+    wear is description only when what wore is not the feature or its part."""
+    CRYPT = {'names': ['coffin', 'handle', 'lid', 'sarcophagus', 'tomb'], 'parts': ['lid', 'handle'],
+             'interior': [], 'contents': []}
+    CHEST = {'names': ['chest', 'strongbox', 'lid', 'hasp'], 'parts': ['lid', 'hasp'], 'interior': [],
+             'contents': []}
+
+    def verdict(self, terms, text):
+        from runtime.kit_agent import InvalidChange, check_sealed
+        try:
+            check_sealed(text, {'f': terms})
+            return 'ok'
+        except InvalidChange:
+            return 'refused'
+
+    def test_the_part_itself_coming_off_is_refused(self):
+        for terms, text in [(self.CRYPT, 'Its lid is knocked off.'), (self.CRYPT, "The sarcophagus's lid is pried off."),
+                            (self.CRYPT, "The sarcophagus's lid is broken off."), (self.CHEST, "The chest's hasp is pried off."),
+                            (self.CRYPT, 'The lid is stripped off.'), (self.CRYPT, 'The lid has rotted away.'),
+                            (self.CRYPT, 'The lid is peeled back.'), (self.CHEST, 'Its lid has been worn away.'),
+                            (self.CRYPT, "The lid's handle is pried off and the lid follows.")]:
+            self.assertEqual(self.verdict(terms, text), 'refused', text)
+
+    def test_wear_on_something_else_is_description(self):
+        for terms, text in [(self.CRYPT, "The knight's nose is broken off."),
+                            (self.CRYPT, "The lid's carvings have crumbled away at the foot."),
+                            (self.CRYPT, 'The stone handles have rusted away to stubs.'),
+                            (self.CHEST, "The chest's paint has flaked off in strips."),
+                            (self.CHEST, 'Its corners are chipped off and smoothed by hands.')]:
+            self.assertEqual(self.verdict(terms, text), 'ok', text)

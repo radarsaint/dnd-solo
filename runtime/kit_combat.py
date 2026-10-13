@@ -376,6 +376,38 @@ def _creature_words(text):
                                                   r"neck|shoulder|head|chest|gut)\b", text))
 
 
+_CLAUSE_OPEN = re.compile(r"[.;!?]\s*|,?\s+(?:and\s+)?then\b\s*|,?\s+and\b\s*", re.I)
+_CLAUSE_CLOSE = re.compile(r"[.;!?]|,|\s+(?:and\s+)?then\b|\s+and\b", re.I)
+
+
+def cast_level(text):
+    """The slot level the player's Avrae cast used: '!cast absorb elements -l 2', 'at 2nd level',
+    'level 2 slot'; None when the message does not say."""
+    found = re.search(r"!cast\b[^\n)]*?\s-l\s*(\d)|\bat\s+(\d)(?:st|nd|rd|th)[- ]level\b|\b(?:level|lvl)\s+(\d)\s+slot\b|"
+                      r"\b(\d)(?:st|nd|rd|th)[- ]level\s+slot\b", text or '', re.I)
+    return int(next(g for g in found.groups() if g)) if found else None
+
+
+def split_clause(action, names):
+    """(the clause naming the reaction, the rest of the message)."""
+    found = None
+    for n in names:
+        found = re.search(r'\b' + re.escape(n) + r'\b', action, re.I)
+        if found:
+            break
+    if not found:
+        return action, ''
+    # An Avrae aside ('(Avrae: !cast absorb elements -l 2)') and its '!' belong to the clause.
+    masked = re.sub(r'\([^)]*\)', lambda m: '_' * len(m.group(0)), action)
+    masked = re.sub(r'!(?=\w)', '_', masked)
+    start = 0
+    for m in _CLAUSE_OPEN.finditer(masked, 0, found.start()):
+        start = m.end()
+    close = _CLAUSE_CLOSE.search(masked, found.end())
+    end = close.end() if close else len(action)
+    return action[start:end], (action[:start] + ' ' + action[end:]).strip(' ,;')
+
+
 def late_reaction(text, source, state, here):
     """'I Uncanny Dodge that hit', 'Hellish Rebuke on the imp': a reaction the last foes' turns
     made legal without a prompt, named by the player."""
@@ -388,6 +420,7 @@ def late_reaction(text, source, state, here):
             names = {found.get('name', '').casefold(), key.replace('_', ' ')} - {''}
             if any(re.search(r'\b' + re.escape(n) + r'\b', text) for n in names):
                 return {'kind': 'late_reaction', 'target': event.get('attacker'), 'react': key, 'event': event,
+                        'names': sorted(names, key=len, reverse=True),
                         'avrae': bool(re.search(r'!cast|\bcasts\b', text))}
     for found in resources.get('reactions') or ():
         if found['id'] in ('shield', 'opportunity_attack'):
@@ -395,6 +428,7 @@ def late_reaction(text, source, state, here):
         names = {found.get('name', '').casefold(), found['id'].replace('_', ' ')} - {''}
         if any(re.search(r'\b' + re.escape(n) + r'\b', text) for n in names):
             return {'kind': 'late_reaction', 'target': None, 'react': found['id'], 'event': None,
+                    'names': sorted(names, key=len, reverse=True),
                     'avrae': bool(re.search(r'!cast|\bcasts\b', text))}
     return None
 
@@ -412,6 +446,12 @@ def parse(action, source, state):
     in_fight = bool((state.get('combat') or {}).get('status') in ('awaiting_initiative', 'running'))
     late = late_reaction(text, source, state, here) if in_fight else None
     if late:
+        # The reaction's own clause; the rest of the message is his act (#101 review at 70c1612).
+        clause, rest = split_clause(action, late['names'])
+        late['clause'] = clause
+        act = parse(rest, source, state) if rest and re.search(r'\w', rest) else None
+        if act and act.get('kind') != 'late_reaction':
+            late['rest'], late['rest_text'] = act, rest
         return late
     if in_fight and OWN_SHIELD.search(text):
         return {'kind': 'own_shield', 'target': None, 'avrae': bool(re.search(r'!cast|casts shield!', text))}
@@ -760,8 +800,15 @@ class Fight:
         if effect == 'hellish_rebuke' and self.reaction_roll() is None:
             self.lines.append(f"Roll {name}'s damage in Avrae ({found.get('dice', 'its roll')}), then say so.")
             return
+        level = cast_level(self.action) or (self.choice or {}).get('slot_level')
+        if level and found.get('kind') == 'spell':
+            slot = (self.resources.get('slots') or {}).get(str(level))
+            need = (found.get('cost') or {}).get('slot') or 1
+            if int(level) < int(need) or not slot or slot['used'] >= slot['max']:
+                self.lines.append(f'There is no level {level} slot left for {name} on the sheet.')
+                return
         self.fight.pop('unprompted', None)
-        self.resources, slot = kit_reactions.spend(self.resources, react)
+        self.resources, slot = kit_reactions.spend(self.resources, react, level)
         self.resources_changed = True
         self.trace.append(f"PC declares {react} for the unprompted {event['trigger']} by {event.get('attacker')}"
                           + (f' (level {slot} slot)' if slot else ''))
@@ -774,7 +821,7 @@ class Fight:
                 self.lines.append(f"Absorb Elements: resistance to the {event['type']}; your next melee hit "
                                   f"adds 1d6 {event['type']}.")
             else:
-                self.lines.append('Uncanny Dodge: you take half.')
+                self.lines.append(f'Uncanny Dodge: you take half, {dealt // 2} instead of {dealt}.')
         elif effect in ('deflect_missiles', 'parry') or (self.declared_effect(react) or {}).get('type') == 'reduce_damage':
             cut = min(dealt, int(self.reaction_roll() or 0))
             self.fight['pc_damage'] = max(0, int(self.fight.get('pc_damage') or 0) - cut)
@@ -1430,6 +1477,14 @@ class Fight:
                     self.lines.append('You have already acted this turn; that waits for your next turn.')
                     self.run_npcs()
                     return
+        if kind == 'late_reaction' and act.get('rest') and self.fight and self.pc_turn_now():
+            whole, self.action = self.action, act.get('clause') or self.action
+            try:
+                self.pc_late_reaction(act)
+            finally:
+                self.action = whole
+            act = act['rest']
+            kind = act.get('kind')
         if kind == 'attack' and not self.hostiles() and not (self.fight and self.fight.get('status') != 'over'):
             # Nobody here to fight (a lurker not yet shown is not a target): no fight starts, and
             # the rest of the message (a feature disturbed) resolves on its own.

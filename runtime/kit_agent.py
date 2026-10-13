@@ -4414,6 +4414,21 @@ def _has(words, text):
     return any(re.search(r'\b' + re.escape(w) + r'(?:s|es)?\b', text) for w in words)
 
 
+_POSSESSED = re.compile(r"^(?:the\s+|a\s+)?(?:(its|their)|([a-z][a-z-]*)'s)\s+([a-z][a-z-]*)(?:\s+([a-z][a-z-]*))?")
+
+
+def _subject_is_feature(clause, terms):
+    """The clause's subject is the sealed feature or a part of it: 'the lid', 'its lid', 'the
+    sarcophagus's lid', 'the lid's handle'; not 'the knight's nose' or 'the lid's carvings'."""
+    own = list(terms['names']) + list(terms.get('parts') or ())
+    owned = _POSSESSED.match(clause)
+    if owned:
+        owner = owned.group(1) or owned.group(2)
+        noun = owned.group(3) if _has(own, owned.group(3)) else (owned.group(4) or '')  # 'its stone lid'
+        return _has(own, noun) and (owner in ('its', 'their') or _has(own, owner))
+    return _has(own, ' '.join(_word_list(clause)[:3]))
+
+
 def check_sealed(spoken, sealed):
     """HARD: on a no-fire turn nothing shows a sealed feature open or moved, or what is behind it.
     Per clause; a negation excuses only its own clause."""
@@ -4435,12 +4450,15 @@ def check_sealed(spoken, sealed):
                                         f'fires it ("{clause[:60]}"). Narrate it closed (handles.reason).')
                 if NOT_MOVING.search(clause):
                     continue
-                words3 = _word_list(clause)[:3]
-                itself = _has(terms['names'] + list(terms.get('parts') or ()), ' '.join(words3)) and \
-                    not re.search(r"'s\b|\bits\b|\btheir\b", ' '.join(clause.split()[:3]))
-                clause = _WEAR_OFF.sub(r'\1', clause)
+                itself = _subject_is_feature(clause, terms)
+                # Worn down to a remnant ('rusted away to stubs') is still there; worn off is not.
+                worn_off = itself and any(m and not re.match(r"\s+to\b", clause[m.end():])
+                                          for m in (_WEAR_OFF.search(clause), _DAMAGE_OFF.search(clause)))
                 if not itself:
-                    clause = _DAMAGE_OFF.sub(r'\1', clause)
+                    # Wear and breakage are description only when what wore or broke is not the
+                    # feature or its part ("the knight's nose is broken off", "the lid's carvings
+                    # crumbled away"); "the lid is stripped off", "its lid is pried off" count.
+                    clause = _DAMAGE_OFF.sub(r'\1', _WEAR_OFF.sub(r'\1', clause))
                 # Subject only: the clause opens on the feature or a part of it (its first three
                 # words), or on an "it" with a movement predicate. Bare mentions never count.
                 head = ' '.join(_word_list(clause)[:3])
@@ -4457,7 +4475,8 @@ def check_sealed(spoken, sealed):
                                    FEATURE_MOVES.search(clause) and
                                    not re.search(r"\b(?:worn|carved|cracked with age|chipped)\b", clause)) or \
                     part and PART_DOWN.search(clause)
-                if moved or it or fragment:
+                moved = moved or itself and (OPEN_STATE.search(clause) or COMES_AWAY.search(clause))
+                if moved or it or fragment or worn_off:
                     raise InvalidChange(f'Nothing here moved: the {feature} is still sealed, but the performance shows '
                                         f'it moving or opening ("{clause[:60]}"). If his hands move it, declare handles '
                                         '{target, act}; if not, narrate handles.reason (it will not budge).')
