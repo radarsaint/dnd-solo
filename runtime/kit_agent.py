@@ -4030,6 +4030,17 @@ OPEN_STATE = re.compile(r"\b" + _COPULA + r"\s+(?:\w+\s+){0,2}?(?:open|opened|of
                         r"|\b(?:open|off|aside|ajar|in two)\s+now\b|\bnow\s+(?:open|off|aside|ajar|gone)\b")
 # A part lying on the floor is off the feature ("the lid lies on the floor"); the feature itself
 # resting on the floor is just where it stands.
+# Coming away from the feature ("the lid comes away in your hands", "comes free").
+COMES_AWAY = re.compile(r"\b(?:comes?|came|coming|pulls?|pulled|breaks?|broke)\s+(?:\w+\s+)?(?:away|free|loose|off)\b")
+# Wear and damage (#97 review at eb0f643): "faces worn off", "chipped off at one corner", "the
+# gilt has flaked off". Pure wear is always description; breakage ("broken off", "knocked
+# off") is description only when what broke is not the feature or its part itself (a
+# possessive, "its", or another subject), so "the lid is knocked off" still counts.
+_WEAR = (r"worn|wearing|chipped|chipping|flaked|flaking|weathered|eroded|rubbed|peeled|peeling|crumbled|"
+         r"crumbling|rotted|rotting|rusted|scoured|faded|scraped|scratched|pitted|corroded|stripped|gnawed")
+_DAMAGE = r"broken|knocked|snapped|smashed|cracked|hacked|pried|prised|chiselled|chiseled|struck|sheared"
+_WEAR_OFF = re.compile(r"\b(" + _WEAR + r")\s+(?:\w+\s+)?(?:off|away|back)\b")
+_DAMAGE_OFF = re.compile(r"\b(" + _DAMAGE + r")\s+(?:\w+\s+)?(?:off|away)\b")
 PART_DOWN = re.compile(r"\b" + _COPULA + r"\s+(?:\w+\s+){0,3}?(?:on|at|across)\s+(?:the|your|his|her)\s+(?:floor|ground|flagstones|feet)\b")
 FEATURE_MOVES = re.compile(r"\b(?:shift|slid|slide|grind|budg|swing|swung|tilt|tip|lift|rais|rise|rose|crack|"
                            r"creak|groan|scrap|grat|rasp|yield|give|gave|loosen|lurch|swiv|gap)\w*\b")
@@ -4105,6 +4116,12 @@ def check_sealed(spoken, sealed):
                                         f'fires it ("{clause[:60]}"). Narrate it closed (handles.reason).')
                 if NOT_MOVING.search(clause):
                     continue
+                words3 = _word_list(clause)[:3]
+                itself = _has(terms['names'] + list(terms.get('parts') or ()), ' '.join(words3)) and \
+                    not re.search(r"'s\b|\bits\b|\btheir\b", ' '.join(clause.split()[:3]))
+                clause = _WEAR_OFF.sub(r'\1', clause)
+                if not itself:
+                    clause = _DAMAGE_OFF.sub(r'\1', clause)
                 # Subject only: the clause opens on the feature or a part of it (its first three
                 # words), or on an "it" with a movement predicate. Bare mentions never count.
                 head = ' '.join(_word_list(clause)[:3])
@@ -4116,7 +4133,8 @@ def check_sealed(spoken, sealed):
                 fragment = len(_word_list(clause)) <= 3 and not re.match(r"^(?:you|your|i|he|she|they|it|its|a rat|the)\b", clause) \
                     and re.search(r"\b(?:open|aside|ajar|off|gap|gone)\b", clause) or \
                     re.match(r"^(?:then\s+|and\s+)?(?:aside|open|ajar|a gap)\b", clause)
-                moved = named and (OPEN_STATE.search(clause) or re.search(r"\b(?:aside|ajar)\b", clause) or
+                moved = named and (OPEN_STATE.search(clause) or COMES_AWAY.search(clause) or
+                                   re.search(r"\b(?:aside|ajar)\b", clause) or
                                    FEATURE_MOVES.search(clause) and
                                    not re.search(r"\b(?:worn|carved|cracked with age|chipped)\b", clause)) or \
                     part and PART_DOWN.search(clause)
