@@ -2,16 +2,16 @@
   "schema": "kit_project_gardener_state/v1",
   "purpose": "RESUMABILITY_CURSOR_NOT_KNOWLEDGE_STORE",
   "canonical_location": "radarsaint/dnd-solo/coordination/context_state.json",
-  "state_revision": 10,
+  "state_revision": 11,
   "semantic_brain": {
     "repo": "radarsaint/dnd-solo",
     "path": "docs/PROJECT_UNDERSTANDING.md",
     "last_semantic_commit": "7e4c75e8445338ff051cebd1b2175bfacf15e413",
-    "last_reviewed_on": "2026-10-09"
+    "last_reviewed_on": "2026-10-13"
   },
   "checkpoint": {
     "reviewed_against_main": {
-      "radarsaint/dnd-solo": "7e4c75e8445338ff051cebd1b2175bfacf15e413",
+      "radarsaint/dnd-solo": "a62bc0c70ead981f5175c632c71867d2fb2d91c4",
       "radarsaint/bfdm-corpus": "6795362e967e89230086afc28c04450cc7d0cce4"
     },
     "context_inbox": {
@@ -24,9 +24,9 @@
   },
   "last_completed_pass": {
     "kind": "BOUNDED_SEMANTIC_RECONCILIATION",
-    "completed_on": "2026-10-09",
-    "scope": "Reviewed dnd-solo commits after cf3547e9 through e12b97fc (#120), and bfdm-corpus 54a20938. No issue #115 comment id was greater than 6065921827.",
-    "result": "Accepted, narrow: 2608c275 and merge e12b97fc change only coordination/context_state.json relative to reviewed brain cf3547e9. The checker rule is on main. A fresh run reported REVIEWED_CURRENT / CHECKPOINT_ONLY for that pair and REVIEWED_CURRENT for bfdm 54a20938. Brain 7e4c75e8 records that G2 evidence. bfdm 6795362e records the same fact in PROJECT_CONTROL.md. Rejected: treating the checkpoint-only tip as an undecided semantic advance, and treating this pass as G5, G6, or player-quality acceptance. Unresolved: G5 and G6.",
+    "completed_on": "2026-10-13",
+    "scope": "Reviewed dnd-solo commits after 7e4c75e8445338ff051cebd1b2175bfacf15e413 through a62bc0c70ead981f5175c632c71867d2fb2d91c4 (#121 merge). bfdm-corpus main unchanged at 6795362e967e89230086afc28c04450cc7d0cce4. No issue #115 comment id greater than 6065921827.",
+    "result": "Accepted, narrow: #121 merge a62bc0c70ead981f5175c632c71867d2fb2d91c4 adds historical design notes (decision-speed.md, creative-social-requirements-audit.md), Roanoke Discord exporter scripts and docs, .gitignore entry for .private/, and 2026-09-28 approach-range playtest records. No changes to runtime behavior, PROJECT_UNDERSTANDING.md, PROJECT_CONTROL.md, corpus/, or semantic model. No brain correction required. Rejected: treating this as a semantic advance of the Project Brain or as closing G5/G6. Unresolved: G5 and G6.",
     "resulting_brain_commit": "7e4c75e8445338ff051cebd1b2175bfacf15e413",
     "reconciled_comment_id": 6065921827
   },
