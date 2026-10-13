@@ -37,13 +37,14 @@ WELL_HANDS = ('I put my back into the crank.', 'I crank the winch.', 'I haul up 
 LOOKS = ('I look at the lid.', 'I look around the nave.', 'I peer through the arch.', 'I listen at the lid.',
          'I wait.')
 
-SLIPS = ('You heave. The top shifts under your palms and slides aside; dust and old bones below.',
-         'You shove; the cover slides aside. Dust and bones.',
-         'You feel the stone give.',
+# Round 5 (#97 review at 304ef62): the guard is state-based. Slips about the feature, "it", or
+# what is behind it are refused; unnamed synonyms ("the top", "the cover", "stone") are the
+# accepted residual risk, caught by the next packet's feature_state backstop.
+SLIPS = ('The lid shifts under your palms and slides aside; dust below.',
+         'You shove; the lid slides aside. Dust and bones.',
          'It does not budge, but something inside shifts.',
-         'The top shifts under your palms.',
-         'Something grinds and shifts.',
-         'A gap opens at the edge.')
+         'It shifts.',
+         'A gap opens inside.')
 HONEST = ('You strain, but it will not budge.', 'It does not move.', 'Dust lies thick on the stone.')
 
 
@@ -73,10 +74,11 @@ class NothingMovesWithoutAFiringTests(unittest.TestCase):
     def test_movement_in_any_clause_is_rejected_on_a_none_turn(self):
         for source, line in ((None, 'I push the lid aside.'), (well(), 'I crank the winch.')):
             for text in SLIPS:
+                text = text if source is None else text.replace('lid', 'crank')
                 with self.subTest(line=line, text=text):
                     room = Room(self, source=source)
                     # 'You feel ...' also trips the agency guard first; either way it is refused.
-                    with self.assertRaisesRegex(InvalidChange, 'moving or opening|Player agency'):
+                    with self.assertRaisesRegex(InvalidChange, 'moving or opening|Player agency|still sealed'):
                         bridge_turn(room, line, self.NONE, text=text)
                     self.assertFalse(room.state.get('triggers_fired'))
 
@@ -94,7 +96,7 @@ class NothingMovesWithoutAFiringTests(unittest.TestCase):
         self.assertFalse(room.state.get('triggers_fired'))
 
     def test_clause_level_unit(self):
-        for text in SLIPS + ('Stone scrapes.',):
+        for text in SLIPS + ('It scrapes.',):
             with self.subTest(text=text):
                 with self.assertRaises(InvalidChange):
                     kit_agent.check_unmoved(text, ['lid'])

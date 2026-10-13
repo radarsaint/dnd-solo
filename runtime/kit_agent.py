@@ -3623,6 +3623,9 @@ def prepare_inputs(runtime, revision, state, action, resolution, use_memory, one
     table = card_procedure(source, post_event_state)
     if table and not str(resolution.kind).startswith('card_') and resolution.kind != 'opening':
         planning_input['activities'] = {table[0]: BACKGROUNDED}
+    sealed_view = feature_state_view(source, post_event_state)
+    if sealed_view:
+        planning_input['feature_state'] = sealed_view  # the backstop (#97 review)
     if resolution.offers and not table_talk:
         # Private: what Kit may declare this turn (handles...), validated against this offer.
         body['acts'] = resolution.offers
@@ -3997,10 +4000,10 @@ def declare(runtime, adjudicator, body, plan):
     acts = kit_acts.check(plan, body)
     revision, _ = runtime.load()
     after = runtime.preview_state(revision, body['events'])
-    unmoved = unmoved_words(runtime.source(), after, body, acts)
+    sealed = {} if (acts or {}).get('handles') else sealed_terms(runtime.source(), after)
     if not acts or not isinstance(adjudicator, RoomAdjudicator):
         return {**body, 'hidden_actors': hidden_actor_words(runtime.source(), after, body),
-                **({'unmoved': unmoved} if unmoved else {})}
+                **({'sealed': sealed} if sealed else {})}
     adjudicator.mount(runtime.source())
     result = adjudicator.declared_acts(acts, body['action'], revision, after)
     final = runtime.preview_state(revision, list(body['events']) + list(result.events))
@@ -4011,48 +4014,109 @@ def declare(runtime, adjudicator, body, plan):
                          'kind': result.kind, 'handoff': result.handoff}}
 
 
-# B'': nothing changes state without a firing declaration. Movement or state change is a
-# verb family (stems, any person or tense), checked per clause, whatever its noun.
-_MOVE_STEMS = (r"shift|slid|slide|grind|ground|scrap|give|gave|budg|mov|open|lift|rais|rise|rose|tip|tilt|"
-               r"swing|swung|crack|creak|groan|grat|rasp|yield|toppl|loosen|gap|split|sag|buckl|lurch|swiv")
-FEATURE_MOVES = re.compile(r"\b(?:" + _MOVE_STEMS + r")\w*\b|\b(?:aside|ajar|apart|loose|free|away)\b")
+# B-triple-prime (#97 review at 304ef62): a positive, state-based guard. A watched feature whose
+# trigger has not fired is sealed. On a turn where nothing fired, the performance may not show
+# what is behind it (its interior or contents terms, from the room) or say it is open, off,
+# back, removed, gone or on the floor; a small movement check covers clauses about the feature
+# itself. Nothing else in the room is constrained (a pack opens, a flame shifts).
+INTERIOR_DEFAULTS = ('inside', 'interior', 'within', 'inner', 'innards')
+OPEN_STATE = re.compile(r"\b(?:open|opened|off|back|removed|gone|floor|ground|aside|ajar|away|apart|"
+                        r"lifted|raised|loose|free|in two|broken)\b")
+FEATURE_MOVES = re.compile(r"\b(?:shift|slid|slide|grind|budg|swing|swung|tilt|tip|lift|rais|rise|rose|crack|"
+                           r"creak|groan|scrap|grat|rasp|yield|give|gave|loosen|lurch|swiv|gap)\w*\b")
 NOT_MOVING = re.compile(r"\b(?:not|never|no|nothing|none|won't|wont|cannot|can't|refuses?|fails?|"
                         r"holds? fast|stays? put|unmoved|stuck|still)\b|n't\b")
-# Clause breaks: punctuation and the conjunctions that start a new claim.
-CLAUSE = re.compile(r"[.!?;:,\n]+|\s+(?:but|and|yet|while|then|though|although|until|as)\s+|\s+-+\s+")
+CLAUSE = re.compile(r"[.!?;:,\n\u2014\u2013]+|\s+(?:but|and|yet|while|then|though|although|until|as)\s+|\s+-+\s+")
+# Kit narrates in English: a segment of four or more words with none of these is not English.
+ENGLISH = re.compile(r"\b(?:the|a|an|and|of|to|is|are|you|your|it|its|in|on|at|with|from|he|she|they|"
+                     r"his|her|their|this|that|not|but|for|as|by|into|there|here|no)\b")
+_GENERIC_INSIDE = re.compile(r"\b(?:interior|inner|innards)\b|\b(?:inside|within)\b(?!\s+(?:the|a|an|your|his|her|"
+                             r"their|reach|earshot|sight|range|view)\b)")
+
+
+def sealed_terms(source, state):
+    """{feature: {'names', 'interior', 'contents'}} for each watched, found feature in the PC's
+    area whose trigger has not fired. Interior and contents come from the room
+    (handling.interior / handling.contents), defaulting to the generic inside words, what it
+    holds, and the hidden actors its trigger wakes."""
+    if not source:
+        return {}
+    facts = source.get('facts') or {}
+    out = {}
+    for feature, info in kit_triggers.disturb_targets(source, state).items():
+        handling = (facts.get(feature) or {}).get('handling') or {}
+        contents = [str(w).casefold() for w in handling.get('contents') or ()]
+        held = handling.get('holds')
+        if held:
+            contents += [str(n).casefold() for n in ((facts.get(held) or {}).get('handling') or {}).get('nouns') or ()]
+        for trigger in kit_triggers.pending(source, state):
+            if trigger['on'].get('disturb') == feature:
+                for key in trigger['actors']:
+                    name = ((source.get('actors') or {}).get(key) or {}).get('name') or ''
+                    contents += [w for w in _word_list(name) if len(w) > 3 and w not in _HIDDEN_STOP]
+        names = sorted({feature.casefold(), *[w for w in info.get('words') or () if w not in contents]})
+        out[feature] = {'names': names,
+                        'interior': list(INTERIOR_DEFAULTS) + [str(w).casefold() for w in handling.get('interior') or ()],
+                        'contents': sorted(set(contents))}
+    return out
+
+
+def _has(words, text):
+    return any(re.search(r'\b' + re.escape(w) + r'(?:s|es)?\b', text) for w in words)
+
+
+def check_sealed(spoken, sealed):
+    """HARD: on a no-fire turn nothing shows a sealed feature open or moved, or what is behind it.
+    Per clause; a negation excuses only its own clause."""
+    if not sealed:
+        return
+    for segment in (spoken or '').splitlines():
+        segment = re.sub(r"^[a-z][a-z '-]{0,40}:\s*", '', segment.casefold())
+        if len(_word_list(segment)) >= 4 and not ENGLISH.search(segment):
+            raise InvalidChange('Kit narrates in English. Say it again in English.')
+        for clause in CLAUSE.split(segment):
+            clause = clause.strip()
+            if not clause:
+                continue
+            for feature, terms in sealed.items():
+                own = [w for w in terms['interior'] if w not in INTERIOR_DEFAULTS]
+                if _has(terms['contents'], clause) or _has(own, clause) or _GENERIC_INSIDE.search(clause):
+                    raise InvalidChange(f'The {feature} is still sealed: nothing behind it is seen until a declaration '
+                                        f'fires it ("{clause[:60]}"). Narrate it closed (handles.reason).')
+                # Subject only (#101 Reveal): the clause opens on the feature or a part of it
+                # (within its first three words), or on "it". Description that only mentions it
+                # ("cracked urns lean on the wall", "its head broken off") is not about its seal.
+                head = ' '.join(_word_list(clause)[:3])
+                about = _has(terms['names'], head) or re.match(r"^it\b(?!s)", clause)
+                # A subjectless fragment ("Then: aside.", "A gap now.", "Open stone.") carries the
+                # last subject: an open-state word in it is the seal breaking.
+                fragment = len(_word_list(clause)) <= 3 and not re.match(r"^(?:you|your|i|he|she|they)\b", clause) \
+                    and re.search(r"\b(?:open|aside|ajar|off|gap|gone|apart)\b", clause)
+                if (about or fragment) and not NOT_MOVING.search(clause) and \
+                        (OPEN_STATE.search(clause) or FEATURE_MOVES.search(clause) or fragment):
+                    raise InvalidChange(f'Nothing here moved: the {feature} is still sealed, but the performance shows '
+                                        f'it moving or opening ("{clause[:60]}"). If his hands move it, declare handles '
+                                        '{target, act}; if not, narrate handles.reason (it will not budge).')
 
 
 def unmoved_words(source, state, body, acts):
-    """On a turn beside a watched, found feature where Kit's declaration fired nothing (a
-    none, no offer at all, or an omitted answer): the features' words, and check_unmoved
-    runs over the performance. [] otherwise."""
+    """The sealed features' names when nothing fired, else [] (kept for callers)."""
     if (acts or {}).get('handles'):
         return []
-    targets = kit_triggers.disturb_targets(source or {}, state)
-    if not targets:
-        return []
-    words = {'it'}
-    for feature, info in targets.items():
-        words.add(feature.casefold())
-        words.update(info.get('words') or ())
-    return sorted(words)
+    return sorted({w for terms in sealed_terms(source, state).values() for w in terms['names']})
 
 
 def check_unmoved(spoken, words):
-    """HARD (#97 review B''): with no firing declaration, no clause of the performance shows
-    anything moving or changing state, whatever its noun or person ("you feel the stone give"),
-    unless that same clause says it does not ("it will not budge"). One negation excuses only
-    its own clause."""
-    if not words:
-        return
-    for line in (spoken or '').casefold().splitlines():
-        line = re.sub(r'^[a-z][a-z \'-]{0,40}:\s*', '', line)
-        for clause in CLAUSE.split(line):
-            if FEATURE_MOVES.search(clause) and not NOT_MOVING.search(clause):
-                raise InvalidChange('Nothing here moved: no declaration fired, but the performance shows '
-                                    'something moving or opening ("' + clause.strip()[:60] + '"). If his hands '
-                                    'move it, declare handles {target, act}; if not, narrate handles.reason '
-                                    '(it will not budge, it is too heavy, he stops short).')
+    """check_sealed for a bare word list ("it" is always covered)."""
+    if words:
+        check_sealed(spoken, {'feature': {'names': [w for w in words if w != 'it'], 'interior': [], 'contents': []}})
+
+
+def feature_state_view(source, state):
+    """Private backstop: each sealed feature said plainly in every packet, so a slip is
+    corrected next turn instead of becoming canon."""
+    return {feature: 'sealed: closed and unmoved; nothing inside has been seen'
+            for feature in sealed_terms(source, state)}
 
 
 _HIDDEN_STOP = frozenset('''a an the of and or to in on at by for from with into onto out over under up down off
@@ -4124,9 +4188,9 @@ def checked_record(body, plan, speech, performance_variant, source=None, degrade
                           public_event=public_event)
     spoken, warnings = result if degraded else (result, [])
     check_hidden_actors(spoken, body.get('hidden_actors'))
-    check_unmoved(spoken, body.get('unmoved'))
     kit_agenda.check_carriers_spoken(spoken, plan)
     check_held_delivered(body.get('held_description'), spoken)
+    check_sealed(spoken, body.get('sealed'))  # after the held layer, so its errors come first
     if body.get('story_due') and not ask:
         # An undelivered primary hook is overdue: its NPC raises it now (runtime/kit_brief.py).
         kit_brief.check_raised(body['story_due'], source, {'area': body['story_area']}, spoken)
