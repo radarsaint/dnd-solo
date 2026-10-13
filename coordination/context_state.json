@@ -2,7 +2,7 @@
   "schema": "kit_project_gardener_state/v1",
   "purpose": "RESUMABILITY_CURSOR_NOT_KNOWLEDGE_STORE",
   "canonical_location": "radarsaint/dnd-solo/coordination/context_state.json",
-  "state_revision": 15,
+  "state_revision": 16,
   "semantic_brain": {
     "repo": "radarsaint/dnd-solo",
     "path": "docs/PROJECT_UNDERSTANDING.md",
@@ -11,24 +11,24 @@
   },
   "checkpoint": {
     "reviewed_against_main": {
-      "radarsaint/dnd-solo": "0ddb904cb89170f8f15b3f0df31e39649ce2c1d4",
+      "radarsaint/dnd-solo": "3815b8893e2fa133850b4189ef216217854810e4",
       "radarsaint/bfdm-corpus": "6795362e967e89230086afc28c04450cc7d0cce4"
     },
     "context_inbox": {
       "repo": "radarsaint/dnd-solo",
       "issue": 115,
       "issue_state_at_checkpoint": "open",
-      "last_fully_reconciled_comment_id": 6154084613,
-      "comment_count_at_checkpoint": 7
+      "last_fully_reconciled_comment_id": 6154210181,
+      "comment_count_at_checkpoint": 8
     }
   },
   "last_completed_pass": {
     "kind": "BOUNDED_SEMANTIC_RECONCILIATION",
     "completed_on": "2026-10-13",
-    "scope": "Reviewed live mains and #115 comment 6154084613 (PR #97 round-5 sealed-feature pending delta).",
-    "result": "Unresolved: PR #97 remains open and unmerged at head fc85f26. Delta explicitly defers reconciliation until merge. No Brain change. G5 and G6 stay open.",
+    "scope": "Reviewed live mains and #115 comment 6154210181 (PR #97 round-6 sealed-feature pending delta).",
+    "result": "Unresolved: PR #97 remains open and unmerged at head eb0f643342f79e8a8fadb79d72882dfdf5d95b34. Delta explicitly defers reconciliation until merge. No Brain change. G5 and G6 stay open.",
     "resulting_brain_commit": "43c164d3bb9d595f81b7a6de40e4a1c71c429d85",
-    "reconciled_comment_id": 6154084613
+    "reconciled_comment_id": 6154210181
   },
   "active_pass": null,
   "unresolved": [
