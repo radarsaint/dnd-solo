@@ -737,7 +737,7 @@ class Review92(unittest.TestCase):
 
     def test_grabbing_the_ogre_is_a_grapple(self):
         arena = ud_bridge(self)
-        result = arena.act('I grab the bridge ogre by the arm.')
+        result = arena.act('I grab the bridge ogre by the arm, Athletics 9.')  # contested since rv5e
         self.assertIn('grip', result.public_event)
 
     # P2s

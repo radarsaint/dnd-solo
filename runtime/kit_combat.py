@@ -307,6 +307,15 @@ def config(source):
     return {**block, 'actors': {**known, **statted}}
 
 
+def escape_bonus(stats):
+    """A creature's bonus to resist a grapple: the better of its Athletics (``athletics``, else
+    the stat line's ``grapple``, Str with proficiency) and Acrobatics (``acrobatics``, else its
+    Dex modifier, ``initiative``)."""
+    athletics = stats.get('athletics', stats.get('grapple', 0))
+    acrobatics = stats.get('acrobatics', stats.get('initiative', 0))
+    return max(int(athletics or 0), int(acrobatics or 0))
+
+
 def initial_scene():
     return {'table': 'upright', 'pot': 'on_table', 'ring': 'on_table', 'pc_took': [], 'grappled': None,
             'grovelling': None, 'provocations': 0, 'act': 'holding', 'cracked_by': None}
@@ -1190,6 +1199,8 @@ class Fight:
                         acted = True
                         {'grab': self.pc_grab, 'face': self.pc_face, 'flip': self.pc_flip, 'take': self.pc_take,
                          'wait': self.pc_wait, 'own_shield': self.pc_own_shield}[kind](one)
+                        if self.needs_roll:
+                            return
                 if because is None and len(self.lines) == before:
                     because = None if one.get('flavor') else UNRESOLVED.replace("I couldn't tell", 'I could not tell')
                 if because and (self.in_multi or len(self.lines) == before):
@@ -2772,11 +2783,22 @@ class Fight:
         if not key:
             self.lines.append('There is nobody within reach to grab.')
             return
-        dc = 10 + self.stats(key).get('grapple', 0)
-        result = self.check('athletics', dc, f'grab:{key}')
-        self.trace.append(f'grab {key}: {result}')
+        # SRD contested grapple (Nagatha's ruling after 01dc0a6): his Athletics, rolled in Avrae,
+        # against the creature's better of Athletics and Acrobatics, rolled here. The actor wins
+        # ties. Without his roll nobody is held: the grab waits on it. Sizes are not modelled.
+        roll = kit_rolls.check_roll(self.action, 'athletics')
+        if roll is None or roll.label != 'athletics':
+            self.lines.append(f'Grabbing the {self.label(key)} is a contest: roll Athletics in Avrae '
+                              '(!check athletics) and tell me the total.')
+            self.needs_roll = True
+            return
+        die = self.die(f'escape:{key}')
+        bonus = escape_bonus(self.stats(key))
+        held = kit_rolls.meets_or_beats(roll.total, die + bonus)
+        self.trace.append(f'grab {key}: Athletics {roll.total} vs d20 {die} + {bonus} = {die + bonus}: '
+                          f'{"held" if held else "slips"}')
         self.scene['provocations'] += 1
-        if not result['success']:
+        if not held:
             self.lines.append(f'The {self.label(key)} twists out of your grip.')
             return
         self.scene['grappled'] = key

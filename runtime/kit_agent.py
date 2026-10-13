@@ -25,6 +25,7 @@ from pathlib import Path
 from . import kit_attitude
 from . import kit_brief
 from . import kit_cards
+from . import kit_reactions
 from . import kit_combat
 from . import kit_rolls
 from . import kit_triggers
@@ -1105,7 +1106,9 @@ class RoomAdjudicator:
         if kind == 'stealth':
             return self._resolve_stealth(action, narration, revision, state)
         if kind == 'unsupported_action':
-            raise PendingRuling(f'{UNSUPPORTED_RULING} No turn was committed.', attempt=True)
+            exc = PendingRuling(f'{UNSUPPORTED_RULING} No turn was committed.', attempt=True)
+            exc.player_line = unsupported_line(action, state)
+            raise exc
         if kind == 'observe' and THRESHOLD_LOOK.search(QUOTED_SPEECH.sub(' ', action).lower()):
             key = self._area_exit(action, state)
             if key:
@@ -1445,7 +1448,8 @@ class RoomAdjudicator:
             # Nothing happened yet: the blow waits on its Avrae roll. The fight's start
             # (initiative) waits with it, so no turn is committed.
             fight.fight = before
-            raise PendingRuling(f'{public.replace(" Roll initiative.", "")} No turn was committed.')
+            waiting = re.sub(r'\s*Your turn\.\s*$', '', public.replace(' Roll initiative.', ''))
+            raise PendingRuling(f'{waiting} No turn was committed.')
         if not public:
             return None
         return self._fight_resolution(fight, public, events, action, state)
@@ -4897,6 +4901,24 @@ def player_message(message):
     return safe or "Hold on: say a little more about what you do."
 
 
+def unsupported_line(action, state):
+    """Kit's own words for a deed she needs more on (Nagatha, after 01dc0a6): the player's words
+    back, and what she needs. A bare reaction named outside its moment ('Shield.') is told it
+    waits for one, with nothing spent."""
+    words = re.sub(r'\s+', ' ', QUOTED_SPEECH.sub(' ', str(action or ''))).strip(' .,;!?')
+    words = re.sub(r'^I\s+', '', words)
+    bare = words.casefold()
+    for entry in (kit_reactions.current(state).get('reactions') or ()):
+        name = str(entry.get('name') or '')
+        if name and bare in (name.casefold(), f'cast {name.casefold()}', f'i cast {name.casefold()}'):
+            return (f"{name}'s a reaction, and nothing's swinging at you this second. Keep it in your back "
+                    "pocket; I'll stop the moment something earns it. Nothing spent.")
+    if not words:
+        return PLAYER_SAFE_UNSUPPORTED
+    return (f'"{words[0].upper() + words[1:]}": I love it, but show me. What does that look like, where are you '
+            "and what are your hands doing? Give me that and I'll make the call. Nothing's moved yet.")
+
+
 def clause_ruling(steps):
     """A message holding a deed the engine cannot read with confidence (#101 review at 5dd307f):
     one pending ruling for Kit's call, nothing in the message committed. Its clause record marks
@@ -4916,7 +4938,8 @@ def clause_ruling(steps):
 def pending_ruling_result(exc):
     """The host-facing result of a PendingRuling: shown to the player, nothing committed.
     ``message`` is the engine's; ``player_message`` is the one Kit may relay."""
-    result = {'stage': 'pending_ruling', 'message': str(exc), 'player_message': player_message(str(exc)),
+    result = {'stage': 'pending_ruling', 'message': str(exc),
+              'player_message': getattr(exc, 'player_line', None) or player_message(str(exc)),
               'committed': False}
     if getattr(exc, 'host_error', None):
         result['host_error'] = exc.host_error
