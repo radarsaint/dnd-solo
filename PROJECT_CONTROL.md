@@ -4,7 +4,9 @@
 **Last runtime truth audit:** `main @ e3a5e9908357441051df24dac8086d8d4c7f26f5`  
 **Sibling repo:** `radarsaint/bfdm-corpus`
 
-Read `COORDINATION.md` before substantial cross-agent work.
+For substantial project work, start with `PROJECT_BOOTSTRAP.md`. It routes to the durable mental model, agent/tool map, this current-state control surface, recent context changes, and the owning issue/PR.
+
+This file is the **current runtime-state layer**, not the complete project memory.
 
 This file is deliberately short and rewritable. Git history, issues, PRs, and `docs/collab/BOARD.md` preserve history.
 
@@ -124,7 +126,8 @@ Do not resolve these by guessing from open-PR age.
 
 Fresh agents are at particular risk of being misled by surfaces that still look current:
 
-- **Project KRABS v0.1** — historical pinned project material. Live `dnd-solo/main` contains **KRABS v0.2.2**, which explicitly supersedes v0.1, PR #44's v0.2 draft, and v0.2.1.
+- **KRABS authority** — live `dnd-solo/main` contains **KRABS v0.2.2**, the current canonical long-term Kit Reference Architecture & Behavioral Specification. It supersedes KRABS v0.1, PR #44's v0.2 draft, and v0.2.1. The stale item is the old Project attachment that still presents v0.1 as canonical; do not generalize that into “KRABS is historical” or “KRABS is old-era.”
+- **Legacy ChatGPT Project attachments** — `docs/KIT_PROJECT_START_HERE.md` names the ten audited filenames and their verified homes. They do not outrank live `main`, including when they are still attached. The generalized Restartable Role Runtime proposed in one of them is not current architecture.
 - **In-repo `corpus/bfdm/` and `corpus/brendon/`** — removed on draft PR #114 (`retire/in-repo-corpus-mirror`). `main` still contains the obsolete mirror until this branch lands. Canonical BFDM authority is `radarsaint/bfdm-corpus`. Do not recreate the mirror.
 - **Append-only collaboration board** — historical decision provenance, not the current work queue. Board-split drafts #107 and #109 are not adopted; a second live board would compete with this file.
 - **Old open PRs** — open status does not mean active/canonical. #5, #11, #23, #36, #43, and #44 are particularly easy to mistake for current direction. #67 is an older mirror-retirement draft, superseded by the follow-on above.
@@ -133,7 +136,7 @@ Fresh agents are at particular risk of being misled by surfaces that still look 
 
 ## Documentation state
 
-This coordination branch refreshes the primary human/agent entry points: `README.md`, `START_HERE.md`, `AGENTS.md`, `docs/WHAT_WE_ARE_BUILDING.md`, `state/project-status.md`, and the collaboration protocol.
+The merged coordination refresh (dnd-solo #113, now on `main`) refreshed the primary human/agent entry points: `README.md`, `START_HERE.md`, `AGENTS.md`, `docs/WHAT_WE_ARE_BUILDING.md`, `state/project-status.md`, and the collaboration protocol. #117 (context-status checker) and bfdm-corpus #39 are also on main. They are not proposed side-branch drafts.
 
 Older runtime architecture documents and historical Area 6c wording may still describe prior slices. Treat them as reference/history unless current control or executable code confirms the claim.
 
