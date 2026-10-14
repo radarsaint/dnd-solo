@@ -2,41 +2,42 @@
   "schema": "kit_project_gardener_state/v1",
   "purpose": "RESUMABILITY_CURSOR_NOT_KNOWLEDGE_STORE",
   "canonical_location": "radarsaint/dnd-solo/coordination/context_state.json",
-  "state_revision": 20,
+  "state_revision": 21,
   "semantic_brain": {
     "repo": "radarsaint/dnd-solo",
     "path": "docs/PROJECT_UNDERSTANDING.md",
     "last_semantic_commit": "f42eff46971792c18d8d7213f739791670025a72",
-    "last_reviewed_on": "2026-10-13"
+    "last_reviewed_on": "2026-10-14"
   },
   "checkpoint": {
     "reviewed_against_main": {
-      "radarsaint/dnd-solo": "980f8d57c490dc6a851ff2adc4200f945833007d",
+      "radarsaint/dnd-solo": "ae7c3582d345c6aa223963ce678cac9eb95d885c",
       "radarsaint/bfdm-corpus": "6795362e967e89230086afc28c04450cc7d0cce4"
     },
     "context_inbox": {
       "repo": "radarsaint/dnd-solo",
       "issue": 115,
       "issue_state_at_checkpoint": "open",
-      "last_fully_reconciled_comment_id": 6157550419,
-      "comment_count_at_checkpoint": 12
+      "last_fully_reconciled_comment_id": 6158450658,
+      "comment_count_at_checkpoint": 13
     }
   },
   "last_completed_pass": {
     "kind": "BOUNDED_SEMANTIC_RECONCILIATION",
-    "completed_on": "2026-10-13",
-    "scope": "Reviewed #115 comment 6157550419 (architecture change: Kit-declared combat_acts, word-matching parser ends). PENDING REVIEW on draft #122. Main default path unchanged.",
-    "result": "Reject: do not update Brain to claim the word-matching combat parser has ended or that Kit declares combat_acts. Those are not on main. #101 trimmed on branch (d0e533e); #122 is first slice draft. Main act parsing remains the regex path. #101 and #122 stay pending. G5 and G6 stay open.",
+    "completed_on": "2026-10-14",
+    "scope": "Reviewed #115 comment 6158450658 (plan for main-side combat/engine issues, pending separate PR after #101). #101 merged to kit-monster-initiative, not main.",
+    "result": "Unresolved/pending: no Brain update. Combat checkpoints from #101 are not on main. The plan items (extra monster attacks on damage paste, passive DC, roll matching, distance tracking, pending rolls, etc.) are not fixed. #122 remains draft. G5 and G6 stay open.",
     "resulting_brain_commit": "f42eff46971792c18d8d7213f739791670025a72",
-    "reconciled_comment_id": 6157550419
+    "reconciled_comment_id": 6158450658
   },
   "active_pass": null,
   "unresolved": [
     "Issue #118 G5 is unmet.",
     "ChatGPT Project source membership remains a manual Project-UI change. G6 stays open.",
     "Legacy paid play route removal is pending with Skippy.",
-    "PR #101 combat checkpoints reaction model is pending review and unmerged; reconcile its semantic claims only after merge.",
-    "PR #122 Kit-declared combat_acts is draft; word-matching parser ends only after it lands. Main default path unchanged."
+    "PR #101 combat checkpoints merged to kit-monster-initiative (head 23b464f4) but not to main; semantic claims remain pending until on main.",
+    "PR #122 Kit-declared combat_acts is draft; word-matching parser ends only after it lands. Main default path unchanged.",
+    "#115 comment 6158450658 plan for post-#101 combat fixes is pending; no fixes on main."
   ],
   "needs_review": [],
   "checkpoint_rules": {
