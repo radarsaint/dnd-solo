@@ -1,0 +1,44 @@
+rb|I feint left, then stab the ogre with my rapier, 16 to hit, 5 piercing.
+rb|I duck under the club and stab the ogre in the thigh, 16 to hit, 5 piercing.
+rb|I spit at the ogre's feet, then stab it, 16 to hit, 5 piercing.
+rb|Uncanny Dodge. Then I stab it, 16 to hit, 5 piercing, and back off 5 feet.
+rb|I stab the ogre twice, 16 and 18 to hit, 5 and 6 piercing.
+rb|I attack with my rapier and my off-hand dagger: 16 to hit 5 piercing, 15 to hit 3 piercing.
+rb|I stab the ogre, 16 to hit, 5 piercing, then bonus action off-hand dagger, 15 to hit, 3 piercing.
+rb|I back off 10 feet and throw my dagger at it, 15 to hit, 4 piercing.
+rb|I back off 10 feet and stab it, 16 to hit, 5 piercing.
+rb|I yell "For the crown!" and charge the ogre, rapier first, 16 to hit, 5 piercing.
+rb|I kick the ogre, 12 to hit, 2 bludgeoning.
+rb|I punch the ogre, 12 to hit, 2 bludgeoning.
+rb|I cut the ogre with my rapier; then I step back 5 feet; then I grin.
+rb|I Uncanny Dodge, I Uncanny Dodge.
+rb|What's the ogre's AC?
+rb|How many hit points does the ogre have left?
+rb|Can I see if the ogre is hurt?
+rb|I stab the ogre with my sword, 16 to hit, 5 piercing.
+rb|I shove the ogre off the bridge, Athletics 17.
+rb|I hide behind the post.
+rb|I use Cunning Action to hide.
+rb|I ready an attack for when the ogre comes close.
+rb|I drink a healing potion.
+rb|I stab the ogre, 16 to hit, 5 piercing, and it staggers back.
+rb|I stab the ogre, 16 to hit, 5 piercing, and it dies.
+rb|I stab the ogre. It goes down.
+wl|I Hellish Rebuke the imp (Avrae: !cast hellish rebuke -t imp -l 1), 11 fire, then knife the slinger, 16 to hit, 3 piercing.
+wl|I blast the imp, 17 to hit, 6 force, and then I step back 10 feet.
+wl|I step back 10 feet, then throw my dagger at the imp, 15 to hit, 3 piercing.
+wl|I hex the imp and blast it with Eldritch Blast, 17 to hit, 6 force.
+wl|I blast it, 17 to hit, 6 force.
+wl|I blast the imp, 17 to hit, 6 force; then blast it again, 15 to hit, 5 force.
+wl|I kick the kiln door at the imp.
+wl|I stab the slinger with my dagger, 16 to hit, 3 piercing, then bonus action off-hand dagger at it, 14 to hit, 2 piercing.
+wz|Fire Bolt the imp, 17 to hit, 7 fire; it bursts into ash.
+wz|Fire Bolt it, 17 to hit, 7 fire.
+wz|I Fire Bolt the slinger and then the imp, 17 to hit 7 fire, 15 to hit 6 fire.
+wz|I cast Shield (Avrae: !cast shield).
+wz|I cast Burning Hands at both of them (Avrae: !cast burning hands), 9 fire, DC 13.
+wz|I cast Sleep on them (Avrae: !cast sleep).
+wz|Fire Bolt the imp, 17 to hit, 7 fire. Then I run for the door.
+wz|I hurl a dagger at the slinger, 14 to hit, 3 piercing.
+wz|Absorb Elements (Avrae: !cast absorb elements -l 1) and Absorb Elements again (Avrae: !cast absorb elements -l 1).
+wz|Is there a DC for the kiln? What's hidden inside it?

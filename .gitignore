@@ -22,3 +22,6 @@ assets/handouts/*
 !assets/handouts/index.json
 *.sqlite
 *.sqlite-*
+
+# playtest snapshots hold licensed rooms; never commit
+tests/fixtures/declared/snaps/
