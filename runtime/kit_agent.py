@@ -802,6 +802,10 @@ class RoomAdjudicator:
             return result
         finally:
             self.choice = None
+        if any(e.get('type') == 'move' and e.get('exit') == move.get('exit') for e in more.events):
+            # A second mention of the same door ('shoves the door open ... steps through the door')
+            # is the one entry, not a walk back out: only a different exit is a second move.
+            return result
         changed = [e for e in more.events if e.get('type') not in ('beat',)]
         if not changed and (more.offers or {}).get('handles'):
             # Hands on a watched feature in the new area ('...and grab the orb'): Kit's declared
@@ -3874,7 +3878,12 @@ def prepare_turn(runtime, adjudicator, action, use_memory=True, one_pass=False, 
         resolution = adjudicator.resolve(action, revision, state)
     if resolution.kind == INTERSTITIAL_KIND:
         raise EngineInterstitial(revision, resolution)
-    return prepare_inputs(runtime, revision, state, action, resolution, use_memory, one_pass)
+    revision, body, planning_input = prepare_inputs(runtime, revision, state, action, resolution, use_memory,
+                                                    one_pass)
+    if (choice or {}).get('react') in REWIND_REACTIONS:
+        # A reroll answered the window: Kit's rewind is told before what the new roll brings.
+        body['rewind'] = True
+    return revision, body, planning_input
 
 
 def interstitial_of(events):
@@ -4225,6 +4234,7 @@ REFUSED_ATTEMPTS_SHOWN = 3
 # Kinds whose accepted event is printed after the performance: on an exit the NPCs'
 # reaction happens as the player leaves, so it must read before the departure line.
 EVENT_AFTER_PERFORMANCE_KINDS = ('exit', FLOURISH_KIND)
+REWIND_REACTIONS = ('chronal_shift', 'silvery_barbs')  # rerolls: time hiccups before the new outcome
 
 
 def check_table_narration(segments, public_view, configs):
@@ -4595,7 +4605,7 @@ def checked_record(body, plan, speech, performance_variant, source=None, degrade
         kit_brief.check_raised(body['story_due'], source, {'area': body['story_area']}, spoken)
     if ask:
         kit_agenda.check_ask_spoken(speech['segments'], ask)
-    elif body['kind'] in EVENT_AFTER_PERFORMANCE_KINDS and not _entering(source, body):
+    elif (body['kind'] in EVENT_AFTER_PERFORMANCE_KINDS or body.get('rewind')) and not _entering(source, body):
         # The room reacts while the player is still there; then they are gone. The departure
         # line never follows Kit's closing remark (watchroom T6): it goes before her handoff.
         lines = spoken.split('\n')
