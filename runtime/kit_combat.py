@@ -396,12 +396,32 @@ _CLAUSE_OPEN = re.compile(r"[.;!?]\s*|,?\s+(?:and\s+)?then\b\s*|,?\s+and\b\s*", 
 _CLAUSE_CLOSE = re.compile(r"[.;!?]|,|\s+(?:and\s+)?then\b|\s+and\b", re.I)
 
 
+_ORDINAL_WORDS = {'first': 1, 'second': 2, 'third': 3, 'fourth': 4, 'fifth': 5, 'sixth': 6, 'seventh': 7,
+                  'eighth': 8, 'ninth': 9}
+_ORD = r"([1-9])(?:st|nd|rd|th)|(first|second|third|fourth|fifth|sixth|seventh|eighth|ninth)"
+_AVRAE_LEVEL = re.compile(r"!cast\b[^\n)]*?\s-l\s*([1-9])", re.I)
+_SAID_LEVEL = re.compile(
+    # 'upcast to 2nd', 'upcast it to 3rd level'
+    r"\bup-?cast(?:\s+it)?\s+(?:to|at)\s+(?:" + _ORD + r")(?:[- ]level)?\b|"
+    # '2nd level', '2nd-level Magic Missile', 'at third level' (not '3rd level of the tower')
+    r"\b(?:" + _ORD + r")[- ]level\b(?!\s+of\b)|"
+    # 'level 2', 'Magic Missile, level 2', 'a level 2 slot' (not 'level 2 of the tower')
+    r"\b(?:level|lvl)\s+([1-9])\b(?!\s+of\b)", re.I)
+
+
 def cast_level(text):
-    """The slot level the player's Avrae cast used: '!cast absorb elements -l 2', 'at 2nd level',
-    'level 2 slot'; None when the message does not say."""
-    found = re.search(r"!cast\b[^\n)]*?\s-l\s*(\d)|\bat\s+(\d)(?:st|nd|rd|th)[- ]level\b|\b(?:level|lvl)\s+(\d)\s+slot\b|"
-                      r"\b(\d)(?:st|nd|rd|th)[- ]level\s+slot\b", text or '', re.I)
-    return int(next(g for g in found.groups() if g)) if found else None
+    """The slot level the player's Avrae cast used: '!cast absorb elements -l 2' (authoritative when
+    his words also name one), or his own phrasing anywhere in the clause: '2nd level', '2nd-level
+    Magic Missile', 'level 2', 'upcast to 2nd'. None when the message does not say; other numbers
+    ('the 2nd dart', 'level 2 of the tower') are not a level."""
+    avrae = _AVRAE_LEVEL.search(text or '')
+    if avrae:
+        return int(avrae.group(1))
+    found = _SAID_LEVEL.search(text or '')
+    if not found:
+        return None
+    value = next(g for g in found.groups() if g)
+    return int(value) if value.isdigit() else _ORDINAL_WORDS[value.casefold()]
 
 
 def split_clause(action, names):
@@ -2609,6 +2629,7 @@ class Fight:
         if total is None and spell in SPELL_AUTO and damage and pending and pending.get('needs') == 'damage' and \
                 pending.get('weapon') == weapon:
             # The damage line of an auto-hit spell already cast (and paid for): it lands, no second slot.
+            self.lines.append(f'Your {spell.title()} hits the {self.label(pending["target"])}.')
             self.apply_damage(pending['target'], damage, dtype)
             self.fight['pending'] = None
             return True
