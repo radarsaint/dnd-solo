@@ -317,6 +317,11 @@ def escape_bonus(stats):
     return max(int(athletics or 0), int(acrobatics or 0))
 
 
+def absorb_dice(slot_level):
+    """SRD Absorb Elements: the extra damage is 1d6 per slot level (1d6 at 1st, 2d6 at 2nd, ...)."""
+    return f'{max(1, int(slot_level or 1))}d6'
+
+
 def initial_scene():
     return {'table': 'upright', 'pot': 'on_table', 'ring': 'on_table', 'pc_took': [], 'grappled': None,
             'grovelling': None, 'provocations': 0, 'act': 'holding', 'cracked_by': None}
@@ -1121,6 +1126,7 @@ class Fight:
         self.fight['reaction_used'] = True
         self.fight.pop('unprompted', None)
         self.resources, slot = kit_reactions.spend(self.resources, key, slot_level)
+        self.spent_slot = slot
         self.resources_changed = True
         self.trace.append(f'PC uses {key}' + (f' (level {slot} slot, cast in Avrae)' if slot else ''))
 
@@ -1189,9 +1195,10 @@ class Fight:
             back = dealt - dealt // 2
             self.fight['pc_damage'] = max(0, int(self.fight.get('pc_damage') or 0) - back)
             if effect == 'absorb_elements':
-                self.fight['absorb_bonus'] = {'type': event['type'], 'dice': '1d6', 'armed': True}
+                dice = absorb_dice(slot)
+                self.fight['absorb_bonus'] = {'type': event['type'], 'dice': dice, 'armed': True}
                 self.lines.append(f"Absorb Elements: resistance to the {event['type']}; your next melee hit "
-                                  f"adds 1d6 {event['type']}.")
+                                  f"adds {dice} {event['type']}.")
             else:
                 self.lines.append(f'Uncanny Dodge: you take half, {dealt // 2} instead of {dealt}.')
         elif effect in ('deflect_missiles', 'parry') or (self.declared_effect(react) or {}).get('type') == 'reduce_damage':
@@ -1852,9 +1859,10 @@ class Fight:
             self.lines.append(f"The {name} is rerolled: {total}, {'a hit' if hit else 'a miss'}.")
         elif effect == 'absorb_elements':
             dealt //= 2
-            self.fight['absorb_bonus'] = {'type': waiting['type'], 'dice': '1d6'}
+            dice = absorb_dice(getattr(self, 'spent_slot', None))
+            self.fight['absorb_bonus'] = {'type': waiting['type'], 'dice': dice}
             self.lines.append(f"Absorb Elements: resistance to the {waiting['type']}; your next melee hit "
-                              f"adds 1d6 {waiting['type']}.")
+                              f"adds {dice} {waiting['type']}.")
         elif effect == 'uncanny_dodge':
             dealt //= 2
             self.lines.append('Uncanny Dodge: you take half.')
