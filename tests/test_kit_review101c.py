@@ -1033,3 +1033,34 @@ class VoicedNothingHappens(unittest.TestCase):
         result = arena.act('I let it go and cast Hex on the slinger', react='decline')
         self.assertEqual(arena.fight['status'], 'over')
         self.assertIn('The fight is over before your held act comes up, so it does not happen.', result.public_event)
+
+
+class AbsorbUpcast(unittest.TestCase):
+    """Nagatha's playtest at 02e1c4f: an upcast Absorb Elements always said 1d6. SRD: 1d6 per
+    slot level (-l 2 is 2d6)."""
+
+    def sheet(self, **extra):
+        sheet = without_shield(wizard(**extra))
+        sheet['spells']['1'] = sheet['spells']['1'] + ['Absorb Elements']
+        return sheet
+
+    def test_declared_after_the_hit_scales_with_the_slot(self):
+        for level in (1, 2, 3):
+            with self.subTest(level=level):
+                arena = Arena(self, 'kiln', sheet=self.sheet(hp=60), roll=lambda: 10)
+                arena.act(KILN_OPEN)
+                result = arena.act(f'Absorb Elements (Avrae: !cast absorb elements -l {level})')
+                self.assertIn(f'your next melee hit adds {level}d6 fire', result.public_event)
+                self.assertEqual(arena.fight['absorb_bonus']['dice'], f'{level}d6')
+                self.assertEqual(arena.state['pc_resources']['slots'][str(level)]['used'], 1)
+
+    def test_taken_in_the_window_scales_with_the_slot(self):
+        for level in (1, 2, 3):
+            with self.subTest(level=level):
+                arena = Arena(self, 'kiln', sheet=self.sheet(hp=12), roll=lambda: 10)
+                arena.act(KILN_OPEN)
+                self.assertIn('absorb_elements', (arena.fight.get('awaiting') or {}).get('options', ()))
+                result = arena.act(f'Absorb Elements (Avrae: !cast absorb elements -l {level})',
+                                   react='absorb_elements', cast_in_avrae=True, slot_level=level)
+                self.assertIn(f'your next melee hit adds {level}d6 fire', result.public_event)
+                self.assertEqual(arena.fight['absorb_bonus']['dice'], f'{level}d6')
