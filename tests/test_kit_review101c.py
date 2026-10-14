@@ -1172,3 +1172,50 @@ class OneSlotPerCast(unittest.TestCase):
                     arena.act(damage)
                     self.assertEqual(self.used(arena), expected)
                     self.assertLess(arena.fight['hp']['imp'], arena.fight['max_hp']['imp'], 'the damage landed')
+
+
+class CastLevelPhrasings(unittest.TestCase):
+    """Nagatha at d60fbbf: the cast level in the player's own words, anywhere in the clause; Avrae's
+    -l N wins when both appear; unrelated numbers are not a level."""
+
+    def test_the_level_is_read_from_the_players_phrasing(self):
+        from runtime.kit_combat import cast_level
+        for text, level in (
+                ('Nik casts Magic Missile at the flameskull, 2nd level, all four darts at it.', 2),
+                ('Magic Missile, level 2', 2),
+                ('I upcast to 2nd', 2),
+                ('I upcast it to 3rd level', 3),
+                ('2nd-level Magic Missile at the imp', 2),
+                ('Magic Missile at third level', 3),
+                ('!cast magic missile -l 2', 2),
+                ('at 2nd level (!cast absorb elements -l 3)', 3),  # Avrae's cast is the truth
+                ('Magic Missile at 3rd level, all three darts (!cast magic missile -l 2)', 2),
+                ('a level 2 slot', 2)):
+            with self.subTest(text=text):
+                self.assertEqual(cast_level(text), level)
+
+    def test_unrelated_numbers_are_not_a_level(self):
+        from runtime.kit_combat import cast_level
+        for text in ('I cast Magic Missile at the imp on level 2 of the tower.',
+                     'the 2nd dart goes at the slinger',
+                     'I cast Magic Missile at the 2nd imp.',
+                     'I climb to the 3rd level of the tower and cast Magic Missile.',
+                     'Magic Missile damage: 4d4 (4, 1, 1, 4) + 4 = 14 force',
+                     'Initiative 14. I cast Magic Missile at the imp.'):
+            with self.subTest(text=text):
+                self.assertIsNone(cast_level(text))
+
+    def test_a_worded_upcast_spends_its_level(self):
+        arena = Arena(self, 'kiln', sheet=wizard(hp=60), roll=lambda: 10)
+        arena.act('Initiative 25. Nik casts Magic Missile at the ember imp, 2nd level, all four darts at it.')
+        slots = arena.state['pc_resources']['slots']
+        self.assertEqual((slots['1']['used'], slots['2']['used']), (0, 1))
+
+    def test_the_auto_hit_damage_line_still_says_it_hits(self):
+        # Main and de764f3 say 'Your Magic Missile hits the X.' on the damage line; d60fbbf dropped it.
+        arena = Arena(self, 'kiln', sheet=wizard(hp=60), roll=lambda: 10)
+        arena.act('Initiative 25. I cast Magic Missile at the ember imp (!cast magic missile).')
+        if arena.fight.get('awaiting'):
+            arena.act('No reaction.', react='decline')
+        result = arena.act('Magic Missile damage: 3d4 (3, 2, 4) + 3 = 12 force')
+        self.assertIn('Your Magic Missile hits the ember imp.', result.public_event)
