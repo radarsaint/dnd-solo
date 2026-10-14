@@ -1,0 +1,47 @@
+name: Visual bridge test
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "runtime/**"
+      - "tests/**"
+      - "assets/style/**"
+      - "docs/architecture/KIT_VISUAL_*.md"
+      - "docs/architecture/visual-asset-integration.md"
+      - "docs/architecture/ROOM_LOADER.md"
+      - "docs/CUSTOM_GPT_SETUP.md"
+      - "AGENTS.md"
+      - "START_HERE.md"
+      - ".github/workflows/visual-bridge.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Run runtime tests
+        run: python3 -m unittest discover -s tests -p 'test_*.py'
+      - name: Build commit-stamped mounted-Kit ZIP
+        shell: bash
+        run: |
+          short="$(git rev-parse --short HEAD)"
+          git archive --format=zip -o "dnd-solo-${short}.zip" HEAD
+          printf '%s\n' "$(git rev-parse HEAD)" > BUILD_COMMIT.txt
+          echo "ZIP=dnd-solo-${short}.zip" >> "$GITHUB_ENV"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mounted-kit-visual-bridge
+          path: |
+            ${{ env.ZIP }}
+            BUILD_COMMIT.txt
+          if-no-files-found: error

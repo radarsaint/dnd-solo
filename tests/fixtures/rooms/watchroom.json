@@ -5,69 +5,200 @@
   "starting_area": "landing",
   "areas": {
     "landing": {
-      "name": "Landing outside the watchroom", "called": "the landing", "outside": true,
+      "name": "Landing outside the watchroom",
+      "called": "the landing",
+      "outside": true,
       "tease": {
         "text": "Lamplight through the gap in the iron door, and someone inside humming the same four notes: a post that is awake and watching the stair.",
         "points_to": "challenge",
-        "heard": [{"actor": "warden", "sound": "a man humming four notes over and over; a chair creaks when he shifts"}]
+        "heard": [
+          {
+            "actor": "warden",
+            "sound": "a man humming four notes over and over; a chair creaks when he shifts"
+          }
+        ]
+      },
+      "visual": {
+        "public": [
+          "A narrow gray-stone landing at a turn in the stair.",
+          "Warm lamplight leaks through the gap of the heavy iron door."
+        ]
       }
     },
-    "watchroom": {"name": "Watchroom", "called": "the watchroom", "arrival": "A stranger reaches the watchroom."},
-    "stair_down": {"name": "Stair down", "called": "the foot of the stair", "outside": true, "beyond": true}
+    "watchroom": {
+      "name": "Watchroom",
+      "called": "the watchroom",
+      "arrival": "A stranger reaches the watchroom.",
+      "visual": {
+        "public": [
+          "A small stone guardroom lit by a brass oil lamp.",
+          "An arrow slit cuts the outer wall."
+        ]
+      }
+    },
+    "stair_down": {
+      "name": "Stair down",
+      "called": "the foot of the stair",
+      "outside": true,
+      "beyond": true
+    }
   },
   "exits": {
     "iron_door": {
-      "name": "the iron door", "areas": ["landing", "watchroom"], "secret": false,
-      "labels": {"landing": "An iron door, standing ajar.", "watchroom": "The iron door back to the landing."}
+      "name": "the iron door",
+      "areas": [
+        "landing",
+        "watchroom"
+      ],
+      "secret": false,
+      "labels": {
+        "landing": "An iron door, standing ajar.",
+        "watchroom": "The iron door back to the landing."
+      }
     },
     "stair": {
-      "name": "the stair down", "areas": ["landing", "stair_down"], "secret": false,
-      "labels": {"landing": "A stair winds down past the door.", "stair_down": "The stair back up to the landing."}
+      "name": "the stair down",
+      "areas": [
+        "landing",
+        "stair_down"
+      ],
+      "secret": false,
+      "labels": {
+        "landing": "A stair winds down past the door.",
+        "stair_down": "The stair back up to the landing."
+      }
     },
     "back_stair": {
-      "name": "the back stair", "areas": ["watchroom", "stair_down"], "secret": false,
-      "go_text": {"watchroom": "You take the back stair down."},
-      "labels": {"watchroom": "A back stair in the corner.", "stair_down": "The back stair up to the watchroom."}
+      "name": "the back stair",
+      "areas": [
+        "watchroom",
+        "stair_down"
+      ],
+      "secret": false,
+      "go_text": {
+        "watchroom": "You take the back stair down."
+      },
+      "labels": {
+        "watchroom": "A back stair in the corner.",
+        "stair_down": "The back stair up to the watchroom."
+      }
     }
   },
   "facts": {
-    "door_ajar": {"area": "landing", "visible": true, "text": "The iron door stands ajar; lamplight shows beyond it."},
-    "humming": {"area": "landing", "visible": true, "text": "Someone behind the door hums the same four notes over and over."},
+    "door_ajar": {
+      "area": "landing",
+      "visible": true,
+      "text": "The iron door stands ajar; lamplight shows beyond it."
+    },
+    "humming": {
+      "area": "landing",
+      "visible": true,
+      "text": "Someone behind the door hums the same four notes over and over."
+    },
     "chest": {
-      "area": "watchroom", "visible": true, "text": "A plain wooden chest sits under the arrow slit.",
+      "area": "watchroom",
+      "visible": true,
+      "text": "A plain wooden chest sits under the arrow slit.",
       "handling": {
-        "nouns": ["chest"], "holds": "chest_contents",
+        "nouns": [
+          "chest"
+        ],
+        "holds": "chest_contents",
         "look": "You lift the lid: a coil of rope and a sealed letter lie inside.",
         "enter": "The chest is too small to climb into.",
         "move": "The chest is bolted to the floor and will not shift."
       }
     },
-    "chest_contents": {"area": "watchroom", "visible": false, "text": "A coil of rope and a sealed letter are in the chest."},
+    "chest_contents": {
+      "area": "watchroom",
+      "visible": false,
+      "text": "A coil of rope and a sealed letter are in the chest."
+    },
     "bell": {
-      "area": "watchroom", "visible": true, "text": "A brass bell hangs by the arrow slit, its cord within the warden's reach.",
-      "alarm": {"responders": [{"who": "guards from the gatehouse below", "count": 2, "stat_block": {"srd": "Guard"}}],
-                "arrives_in_rounds": 2}
+      "area": "watchroom",
+      "visible": true,
+      "text": "A brass bell hangs by the arrow slit, its cord within the warden's reach.",
+      "alarm": {
+        "responders": [
+          {
+            "who": "guards from the gatehouse below",
+            "count": 2,
+            "stat_block": {
+              "srd": "Guard"
+            }
+          }
+        ],
+        "arrives_in_rounds": 2
+      }
     }
   },
   "actors": {
     "warden": {
-      "name": "Watch warden", "location": "watchroom", "status": "alive", "visible": true,
-      "motive": "Keep strangers off the stair.", "knowledge": ["Who is expected tonight."], "secrets": [],
-      "communication_profile": {"rhythm": "Short questions.", "humor": "None on duty."},
-      "guards": ["back_stair"], "armed": true,
-      "stat_block": {"srd": "Guard"}
+      "name": "Watch warden",
+      "location": "watchroom",
+      "status": "alive",
+      "visible": true,
+      "motive": "Keep strangers off the stair.",
+      "knowledge": [
+        "Who is expected tonight."
+      ],
+      "secrets": [],
+      "communication_profile": {
+        "rhythm": "Short questions.",
+        "humor": "None on duty."
+      },
+      "guards": [
+        "back_stair"
+      ],
+      "armed": true,
+      "stat_block": {
+        "srd": "Guard"
+      },
+      "visual": {
+        "public": [
+          "A weathered middle-aged human man with close-cropped gray hair and a broken nose.",
+          "He wears a brass-trimmed brown leather coat over a chain shirt.",
+          "A single sheathed sword hangs at his belt."
+        ],
+        "public_counts": {
+          "arms": 2,
+          "eyes": 2,
+          "swords": 1
+        }
+      }
     }
   },
   "story": {
     "watchroom": {
       "about": "A post that wants to know who you are before anything else happens.",
       "hooks": [
-        {"id": "challenge", "primary": true, "by": "warden", "within_beats": 2,
-         "text": "The warden challenges the stranger: who sent you, and where are you going?",
-         "delivered_when": {"said": {"by": ["warden"], "any": ["who sent you", "where are you going"], "challenge": true}},
-         "roots": ["warden"]}
+        {
+          "id": "challenge",
+          "primary": true,
+          "by": "warden",
+          "within_beats": 2,
+          "text": "The warden challenges the stranger: who sent you, and where are you going?",
+          "delivered_when": {
+            "said": {
+              "by": [
+                "warden"
+              ],
+              "any": [
+                "who sent you",
+                "where are you going"
+              ],
+              "challenge": true
+            }
+          },
+          "roots": [
+            "warden"
+          ]
+        }
       ],
-      "endings": ["The stranger answers and is let through.", "The stranger goes on by the back stair."]
+      "endings": [
+        "The stranger answers and is let through.",
+        "The stranger goes on by the back stair."
+      ]
     }
   },
   "resources": {}
