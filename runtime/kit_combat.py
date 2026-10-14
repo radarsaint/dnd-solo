@@ -1115,7 +1115,7 @@ class Fight:
     def start_pc_turn(self):
         """Shield ends and the reaction comes back at the start of the PC's turn; an Absorb Elements
         charge is live for this turn's first melee hit."""
-        for key in ('shield_up', 'reaction_used'):
+        for key in ('shield_up', 'reaction_used', 'spent_told'):
             self.fight.pop(key, None)
         if self.fight.get('absorb_bonus'):
             self.fight['absorb_bonus']['armed'] = True
@@ -1964,7 +1964,8 @@ class Fight:
                 continue
             if self._ANSWER_ONLY.match(part):
                 continue  # the answer itself ('No, let it hit.')
-            said.append(part)
+            if not part.rstrip(' .\'"\u201d)').endswith('?'):
+                said.append(part)  # a question asks Kit; it is no act for the fight's end to void
             act = parse(part, self.source, self.state)
             if act and (act.get('kind') != 'attack' or act.get('spell') or kit_rolls.attack_total(part) is not None
                         or name_target(part, self.source, self.state, self.hostiles())):
@@ -2686,7 +2687,10 @@ class Fight:
                 hits.append((key, dealt))
                 rows.append([key, saved, die, bonus])
             self.spend_own_slot(spell)
-            saver = next((row[0] for row in rows if row[1] and row[2] is not None), None)
+            # A reroll is worth a window only where failing changes the outcome: not where the half
+            # damage of the save already kills (Kit II playtest: 12 half on a rat with 7 hp).
+            saver = next((row[0] for row in rows if row[1] and row[2] is not None and
+                          not (half and damage // 2 >= int(self.fight['hp'].get(row[0], 0)))), None)
             options = self.fresh(self.options_for(['creature_succeeds']), 'normal') if saver else []
             if options:
                 # A creature the PC can see succeeded on a save against his spell: a reroll may answer it
@@ -2867,6 +2871,13 @@ class Fight:
                 self.options_for(triggers, fit=lambda r: self.turns_hit(r, die, total, ac, attack, missile, dealt,
                                                                          stakes, need_worth=False)),
                 stakes, dealt, attack.get('type'))
+            if not options and self.fight.get('reaction_used') and self.pc_can_react() and \
+                    self.fight.get('spent_told') != self.fight.get('round') and any(
+                        kit_reactions.matching(self.resources, trigger, False, lambda r: self.turns_hit(
+                            r, die, total, ac, attack, missile, dealt, stakes)) for trigger in triggers):
+                # A reaction would have answered this hit, but he used it already: say so once.
+                self.fight['spent_told'] = self.fight.get('round')
+                after.append('Your reaction is already spent this round, so nothing answers it.')
             if not options and eligible:
                 self.unprompted('hit', eligible, attacker=key, damage=dealt, type=attack.get('type'),
                                 name=attack['name'])
@@ -2941,7 +2952,10 @@ class Fight:
         if effect in ('uncanny_dodge',):
             return worth and (left is None or dealt // 2 < left)
         if effect in ('silvery_barbs', 'chronal_shift'):
-            return worth and not missile
+            # A reroll can undo the whole hit, so it is worth a prompt by what he has left, not his
+            # sheet maximum (Kit II playtest: 10 acid at 22 of 62 hp was skipped, legal but unsaid).
+            hurts = left is not None and dealt >= max(5, left // 4)
+            return (worth or (need_worth and hurts)) and not missile
         if effect in ('deflect_missiles',):
             return bool(RANGED.search(attack['name']) or attack.get('ranged')) and not missile
         if effect == 'parry':

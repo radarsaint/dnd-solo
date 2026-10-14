@@ -1064,3 +1064,76 @@ class AbsorbUpcast(unittest.TestCase):
                                    react='absorb_elements', cast_in_avrae=True, slot_level=level)
                 self.assertIn(f'your next melee hit adds {level}d6 fire', result.public_event)
                 self.assertEqual(arena.fight['absorb_bonus']['dice'], f'{level}d6')
+
+
+class KitTwoPlaytest(unittest.TestCase):
+    """Nagatha's Kit II playtest at e5e11bf: the merge blockers, each pinned before its fix."""
+
+    def test_two_mentions_of_one_door_are_one_entry(self):
+        # Snapshot b8 ('shoves the door open ... steps through the door'): on main he ends in the
+        # hall; the second mention walked him back out. Only a different exit is a second move.
+        arena = Arena(self, 'watchroom', sheet=wizard(), roll=lambda: 10)
+        result = arena.act('I shove the iron door open with my staff and step through the iron door into the room, '
+                           'light held high.')
+        self.assertEqual(arena.state['area'], 'watchroom')
+        self.assertEqual(result.public_event.count('You go through'), 1, result.public_event)
+
+    def test_a_question_after_the_kill_is_not_a_voided_act(self):
+        arena = Arena(self, 'kiln', sheet=warlock(hp=60), roll=lambda: 10)
+        arena.act(KILN_OPEN)
+        arena.act('I stab the imp with my dagger, 18 to hit, 20 piercing.')
+        result = arena.act("No, let it go. What's left standing, and did the slinger get away?", react='decline')
+        self.assertNotIn('held act', result.public_event)
+        self.assertNotIn('does not happen', result.public_event)
+
+    def test_no_reroll_window_when_half_damage_already_kills(self):
+        from test_kit_reactions import SYNTHETIC
+        from test_kit_combat_checkpoints import Camp, rolls
+        sheet = copy.deepcopy(SYNTHETIC)
+        sheet['spell_save_dc'] = 15
+        # The captain saves (18), but half of 70 is 35 against his 30: failing changes nothing.
+        camp = Camp(self, sheet=sheet, roll=rolls(3, 3, 18, 3, then=2))
+        camp.act('Initiative 25. I cast Fireball at the bandit captain, 70 fire damage.')
+        self.assertNotEqual((camp.fight.get('awaiting') or {}).get('trigger'), 'npc_save')
+        self.assertEqual(camp.fight['hp']['harl'], 0)
+
+    def chronurgist(self, hp):
+        sheet = without_shield(copy.deepcopy(NIK))
+        sheet['hp'] = hp
+        return sheet
+
+    def test_chronal_shift_is_offered_by_the_hit_points_he_has_left(self):
+        # 60 hp, 33 already taken: the imp's 7 is over a quarter of the 27 left. Legal and worth it,
+        # so it is prompted, not skipped in silence (the sheet maximum alone said it was small).
+        arena = Arena(self, 'kiln', sheet=self.chronurgist(60), roll=lambda: 10)
+        arena.act(KILN_OPEN)
+        for _ in range(2):
+            arena.act('I stab the kobold slinger with my dagger, 5 to hit, 3 piercing.')
+        self.assertEqual(arena.fight['pc_damage'], 33)
+        arena.act('I stab the kobold slinger with my dagger, 5 to hit, 3 piercing.')
+        self.assertEqual((arena.fight.get('awaiting') or {}).get('options'), ['chronal_shift'])
+
+    def test_the_player_hears_his_reaction_is_spent(self):
+        from test_kit_combat_checkpoints import Camp, OPEN, rolls
+        camp = Camp(self, roll=rolls(10, 2), sheet=dict(copy.deepcopy(NIK), hp=24))
+        camp.act(OPEN)
+        result = camp.act('Chronal Shift: reroll that.', react='chronal_shift')
+        self.assertIn('Your reaction is already spent this round', result.public_event)
+
+    def test_the_rewind_is_told_before_the_blows_that_follow(self):
+        from runtime.kit_agent import KitChatBridge
+        from test_kit_combat_checkpoints import Camp, OPEN, rolls
+        from test_kit_handoffs import answer, plan_for, voice
+        camp = Camp(self, roll=rolls(10, 2), sheet=dict(copy.deepcopy(NIK), hp=24))
+        bridge = KitChatBridge(camp.runtime, camp.adjudicator)
+        bridge.prepare(OPEN, 'h1', one_pass=True)
+        voice(bridge, 'h1')
+        packet = answer(bridge, 'h2', 'Chronal Shift: reroll that.', {'react': 'chronal_shift'})
+        plan = plan_for(packet, turn_mode='combat')
+        plan['public_brief'].update(reply_to='reroll that', scope='call')
+        rewind = 'Time hiccups. The scimitar swing never happens, and the steel goes wide past your ear.'
+        out = bridge.complete('h2', {'decision': plan, 'performance': {'segments': [
+            {'speaker': 'Narrator', 'text': rewind}]}})
+        lines = out['spoken'].split('\n')
+        self.assertEqual(lines[0], f'Narrator: {rewind}')
+        self.assertIn('hits you', lines[1])
