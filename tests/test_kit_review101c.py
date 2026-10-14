@@ -1137,3 +1137,38 @@ class KitTwoPlaytest(unittest.TestCase):
         lines = out['spoken'].split('\n')
         self.assertEqual(lines[0], f'Narrator: {rewind}')
         self.assertIn('hits you', lines[1])
+
+
+class OneSlotPerCast(unittest.TestCase):
+    """Nagatha's playtest at de764f3 (r29): an upcast spell whose damage comes on its own line spent a
+    level 1 slot on the cast and another on the damage. One slot, at the cast's level, once. The
+    state is built at runtime in the synthetic kiln (no playtest snapshot: those hold book rooms)."""
+
+    CASES = (
+        # (the cast, its separate damage line, the slots used after: {level: used})
+        ('Initiative 25. I cast Magic Missile at the ember imp at 2nd level (!cast magic missile -l 2).',
+         'Magic Missile damage: 4d4 (3, 2, 4, 1) + 4 = 14 force', {'1': 0, '2': 1, '3': 0}),
+        ('Initiative 25. I cast Magic Missile at the ember imp (!cast magic missile).',
+         'Magic Missile damage: 3d4 (3, 2, 4) + 3 = 12 force', {'1': 1, '2': 0, '3': 0}),
+        ('Initiative 25. I cast Witch Bolt at the ember imp at 2nd level (!cast witch bolt -l 2). 15 to hit.',
+         'Witch Bolt damage: 2d12 (5, 6) = 11 lightning', {'1': 0, '2': 1, '3': 0}),
+        ('Initiative 25. I cast Mind Spike at the ember imp at 3rd level (!cast mind spike -l 3).',
+         'Mind Spike damage: 4d8 (1, 2, 3, 4) = 10 psychic', {'1': 0, '2': 0, '3': 1}),
+    )
+
+    def used(self, arena):
+        return {level: slot['used'] for level, slot in arena.state['pc_resources']['slots'].items()}
+
+    def test_the_cast_level_is_spent_once_across_the_damage_line(self):
+        for cast, damage, expected in self.CASES:
+            for answer_window in (True, False):
+                with self.subTest(cast=cast, answer_window=answer_window):
+                    arena = Arena(self, 'kiln', sheet=wizard(hp=60), roll=lambda: 10)
+                    arena.act(cast)
+                    if answer_window and arena.fight.get('awaiting'):
+                        arena.act('No reaction.', react='decline')
+                    elif arena.fight.get('awaiting'):
+                        arena.act('No.', react='decline')
+                    arena.act(damage)
+                    self.assertEqual(self.used(arena), expected)
+                    self.assertLess(arena.fight['hp']['imp'], arena.fight['max_hp']['imp'], 'the damage landed')
