@@ -29,9 +29,12 @@ A fight, at a play-by-post table with Avrae (Brendon: Avrae is at every game):
 Deterministic Python; no model calls, no dice for the player.
 """
 import copy
+import os
+import json
 import hashlib
 import re
 
+from . import kit_reactions
 from . import kit_rolls
 from .state_context import require
 
@@ -81,6 +84,14 @@ COVERT = re.compile(r"\b(quietly|unnoticed|unseen|without (?:anyone|them) (?:see
                     r"(?:while|when|as)\s+(?:no ?one|no-one|nobody|they|the others|everyone(?: else)?|he|she|their "
                     r"(?:backs?|eyes?))(?:'s|'re|\s+(?:is|are|was|were))?\s+(?:not\s+)?(?:looking|watching|distracted|busy|"
                     r"turned|elsewhere|looking away|looks away|look away))\b")
+# Shield typed on his own turn, or after its window passed: a reaction spell with no trigger now.
+OWN_SHIELD = re.compile(r"!cast\s+shield\b|\bshield\s+(?:myself|me)\b|\b(?:cast|casts|casting|raise|raises|throw up|throws up)\s+(?:a\s+|my\s+)?shield\b"
+                        r"(?!\s+(?:bash|slam))")
+# Combat movement away from his foes ('I step back 30 feet', 'I fall back', 'I disengage').
+WITHDRAW = re.compile(r"\b(?:disengage|disengages|disengaging)\b|\b(?:step|steps|stepping|back|backs|backing|move|moves|"
+                      r"moving|fall|falls|falling|retreat|retreats|retreating|withdraw|withdraws|run|runs|running|"
+                      r"dash|dashes|dashing|hop|hops|scramble|scrambles)\b[^.!?]{0,40}?\b(?:away|back|off|clear|"
+                      r"out of (?:his |its |her |their )?reach|\d+\s*(?:feet|foot|ft))\b")
 WAIT = re.compile(r'\b(wait|waits|ready|readied|hold my action|hold (?:my )?ground|let them come|'
                   r'make the first move|stand my ground|on guard)\b')
 EVERYONE = re.compile(r'\b(middle of the (?:card )?table|the (?:card )?table|all of them|them all|everyone|'
@@ -97,6 +108,43 @@ GAZE = re.compile(r'\b(eye|eyes|gaze|look|attention|breath|drift|meaning|light)\
 NONLETHAL = re.compile(r'\b(knock (?:him|her|them|it) out|non-?lethal|pull (?:my|the) punch|to subdue)\b')
 
 ACTIVE_STATUSES = ('alive',)
+
+
+# -- checkpoints (PR-H): the engine stops where the player owns the next input -----------
+# Brendon's 691e834 harness: Nik (AC 14, Shield, slots) took 38 and dropped without being
+# offered Shield; a kill went straight on into enemy turns and flight. A checkpoint is
+# deterministic: the fight state records what waits (``awaiting``), the turn commits, and
+# the player's answer resumes it exactly where it stopped. It only stops when the player
+# owns something there; otherwise the round runs on as before.
+class Checkpoint(Exception):
+    """The fight stops here; ``fight['awaiting']`` says for what."""
+
+
+class Unclear(Exception):
+    """The answer to a checkpoint does not settle it; nothing is committed. ``code`` says why:
+    unclear (Kit could not read it), not_offered, not_available, needs_cast (a reaction spell is cast
+    in Avrae first), needs_roll (an attack waits on its roll), ranged_weapon (no opportunity attack
+    with a ranged weapon), needs_save (the roll call's save)."""
+    def __init__(self, message, code='unclear', ask=None):
+        super().__init__(message)
+        self.code = code
+        self.ask = ask
+
+
+class NeedsChoice(Exception):
+    """A reaction or flourish window is open and the reply has no structured choice yet: Kit reads
+    it (``react: <id>|decline|unclear``, ``flourish: describe|new_action|unclear``). The engine never
+    reads the player's words for intent."""
+    def __init__(self, waiting):
+        super().__init__(waiting.get('kind'))
+        self.waiting = waiting
+
+
+ELEMENTS = kit_reactions.ELEMENTS
+RANGED = re.compile(r'\b(bow|crossbow|longbow|shortbow|sling|dart|javelin|ray|bolt|blowgun|net)\b')
+# Window event families: a declined window is not offered again for the same family that round,
+# unless the stakes change (the hit would now drop the PC).
+FAMILIES = ('hit', 'leaves_reach', 'npc_save', 'npc_spell')
 
 
 # -- what a verb acts on (general guards; no room names) ---------------------------------
@@ -260,6 +308,20 @@ def config(source):
     return {**block, 'actors': {**known, **statted}}
 
 
+def escape_bonus(stats):
+    """A creature's bonus to resist a grapple: the better of its Athletics (``athletics``, else
+    the stat line's ``grapple``, Str with proficiency) and Acrobatics (``acrobatics``, else its
+    Dex modifier, ``initiative``)."""
+    athletics = stats.get('athletics', stats.get('grapple', 0))
+    acrobatics = stats.get('acrobatics', stats.get('initiative', 0))
+    return max(int(athletics or 0), int(acrobatics or 0))
+
+
+def absorb_dice(slot_level):
+    """SRD Absorb Elements: the extra damage is 1d6 per slot level (1d6 at 1st, 2d6 at 2nd, ...)."""
+    return f'{max(1, int(slot_level or 1))}d6'
+
+
 def initial_scene():
     return {'table': 'upright', 'pot': 'on_table', 'ring': 'on_table', 'pc_took': [], 'grappled': None,
             'grovelling': None, 'provocations': 0, 'act': 'holding', 'cracked_by': None}
@@ -330,7 +392,91 @@ def _creature_words(text):
                                                   r"neck|shoulder|head|chest|gut)\b", text))
 
 
-def parse(action, source, state):
+_CLAUSE_OPEN = re.compile(r"[.;!?]\s*|,?\s+(?:and\s+)?then\b\s*|,?\s+and\b\s*", re.I)
+_CLAUSE_CLOSE = re.compile(r"[.;!?]|,|\s+(?:and\s+)?then\b|\s+and\b", re.I)
+
+
+_ORDINAL_WORDS = {'first': 1, 'second': 2, 'third': 3, 'fourth': 4, 'fifth': 5, 'sixth': 6, 'seventh': 7,
+                  'eighth': 8, 'ninth': 9}
+_ORD = r"([1-9])(?:st|nd|rd|th)|(first|second|third|fourth|fifth|sixth|seventh|eighth|ninth)"
+_AVRAE_LEVEL = re.compile(r"!cast\b[^\n)]*?\s-l\s*([1-9])", re.I)
+_SAID_LEVEL = re.compile(
+    # 'upcast to 2nd', 'upcast it to 3rd level'
+    r"\bup-?cast(?:\s+it)?\s+(?:to|at)\s+(?:" + _ORD + r")(?:[- ]level)?\b|"
+    # '2nd level', '2nd-level Magic Missile', 'at third level' (not '3rd level of the tower')
+    r"\b(?:" + _ORD + r")[- ]level\b(?!\s+of\b)|"
+    # 'level 2', 'Magic Missile, level 2', 'a level 2 slot' (not 'level 2 of the tower')
+    r"\b(?:level|lvl)\s+([1-9])\b(?!\s+of\b)", re.I)
+
+
+def cast_level(text):
+    """The slot level the player's Avrae cast used: '!cast absorb elements -l 2' (authoritative when
+    his words also name one), or his own phrasing anywhere in the clause: '2nd level', '2nd-level
+    Magic Missile', 'level 2', 'upcast to 2nd'. None when the message does not say; other numbers
+    ('the 2nd dart', 'level 2 of the tower') are not a level."""
+    avrae = _AVRAE_LEVEL.search(text or '')
+    if avrae:
+        return int(avrae.group(1))
+    found = _SAID_LEVEL.search(text or '')
+    if not found:
+        return None
+    value = next(g for g in found.groups() if g)
+    return int(value) if value.isdigit() else _ORDINAL_WORDS[value.casefold()]
+
+
+def split_clause(action, names):
+    """(the clause naming the reaction, the rest of the message)."""
+    found = None
+    for n in names:
+        found = re.search(r'\b' + re.escape(n) + r'\b', action, re.I)
+        if found:
+            break
+    if not found:
+        return action, ''
+    # An Avrae aside ('(Avrae: !cast absorb elements -l 2)') and its '!' belong to the clause.
+    masked = re.sub(r'\([^)]*\)', lambda m: '_' * len(m.group(0)), action)
+    masked = re.sub(r'!(?=\w)', '_', masked)
+    start = 0
+    for m in _CLAUSE_OPEN.finditer(masked, 0, found.start()):
+        start = m.end()
+    close = _CLAUSE_CLOSE.search(masked, found.end())
+    end = close.end() if close else len(action)
+    return action[start:end], (action[:start] + ' ' + action[end:]).strip(' ,;')
+
+
+def late_reaction(text, source, state, here):
+    """'I Uncanny Dodge that hit', 'Hellish Rebuke on the imp': a reaction the last foes' turns
+    made legal without a prompt, named by the player."""
+    events = (state.get('combat') or {}).get('unprompted') or ()
+    resources = state.get('pc_resources') or {}
+    aimed = re.search(r"\s-t\s+([a-z][\w'-]*)", text)
+    named = (name_target(aimed.group(1), source, state, here) if aimed else None) or \
+        name_target(text, source, state, here)
+    for event in sorted(events, key=lambda e: e.get('attacker') != named):
+        for key in event['options']:
+            found = kit_reactions.entry(resources, key) or {}
+            names = {found.get('name', '').casefold(), key.replace('_', ' ')} - {''}
+            if any(re.search(r'\b' + re.escape(n) + r'\b', text) for n in names):
+                return {'kind': 'late_reaction', 'target': event.get('attacker'), 'react': key, 'event': event,
+                        'names': sorted(names, key=len, reverse=True),
+                        'avrae': bool(re.search(r'!cast|\bcasts\b', text))}
+    for found in resources.get('reactions') or ():
+        if found['id'] in ('shield', 'opportunity_attack'):
+            continue  # Shield on his turn is own_shield; an opportunity attack is just an attack
+        names = {found.get('name', '').casefold(), found['id'].replace('_', ' ')} - {''}
+        if any(re.search(r'\b' + re.escape(n) + r'\b', text) for n in names):
+            return {'kind': 'late_reaction', 'target': None, 'react': found['id'], 'event': None,
+                    'names': sorted(names, key=len, reverse=True),
+                    'avrae': bool(re.search(r'!cast|\bcasts\b', text))}
+    return None
+
+
+# The word-matching clause splitter and confidence gate (#101 review rounds) are off by default:
+# Brendon's decision (2026-10-13) ends the word-matching parser; Kit declares combat acts as
+# structured entries instead (the follow-up PR). Set KIT_COMBAT_CLAUSES=1 to exercise them.
+CLAUSE_PARSER = os.environ.get('KIT_COMBAT_CLAUSES') == '1'
+
+def _main_act(action, source, state):
     """What the player physically does, or None. A dict with ``kind`` (attack, grab,
     face, flip, take, wait), ``target`` (actor id or None), and the details each needs."""
     if not config(source) or state.get('area') != config(source).get('area', state.get('area')):
@@ -379,6 +525,367 @@ def parse(action, source, state):
                 'teeth': bool(TEETH.search(text)), 'wrist': bool(re.search(r'\b(wrist|hand|arm)\b', text))}
     if in_fight and WAIT.search(text):
         return {'kind': 'wait', 'target': None}
+    return None
+
+
+def main_parse(action, source, state):
+    """Main's act parsing (e94e9fd, _main_act, verbatim), with #101's reactions where main reads
+    no act: a reaction named after its moment, or Shield on his own turn. When main reads a
+    complete act, that act is the turn exactly as on main (Kit-declared acts will carry both)."""
+    first = _main_act(action, source, state)
+    if not config(source) or (state.get('combat') or {}).get('status') != 'running':
+        return first
+    # main's act stands, except two readings that only ever ask or idle: a rollless weapon
+    # 'attack' from a word like 'hit', and 'wait' from 'Wait, I cast Shield'.
+    if first and first.get('kind') != 'wait' and not (first.get('kind') == 'attack' and not first.get('spell') and
+                                                      kit_rolls.attack_total(action) is None):
+        return first
+    text = narration(action).casefold()
+    here = present(source, state)
+    react = late_reaction(text, source, state, here) or (
+        {'kind': 'own_shield', 'target': None, 'avrae': bool(re.search(r'!cast|casts shield!', text))}
+        if OWN_SHIELD.search(text) else None)
+    if not react:
+        return first
+    if (state.get('combat') or {}).get('awaiting'):
+        return react
+    step = {'start': 0, 'end': len(action), 'act': react, 'block': False, 'bound': None, 'text': action,
+            'label': 'that'}
+    return {'kind': 'multi', 'target': react.get('target'), 'steps': [step]}
+
+
+def parse(action, source, state):
+    """The player's act. By default main's act parsing (main_parse) plus #101's reactions; with
+    CLAUSE_PARSER, one clause (parse_one) or a ``multi`` of every clause in order."""
+    if not CLAUSE_PARSER:
+        return main_parse(action, source, state)
+    if (state.get('combat') or {}).get('status') == 'running' and not (state.get('combat') or {}).get('awaiting'):
+        steps = clauses(action, source, state)
+        if any(step['act'].get('kind') == 'ruling' for step in steps):
+            # A deed the engine cannot read with confidence: Kit's call, nothing committed (the
+            # existing pending-ruling flow), and the clauses after it wait with it.
+            return {'kind': 'ruling', 'target': None, 'steps': steps}
+        if steps:
+            first = next((s['act'] for s in steps if s['act'].get('target')), steps[0]['act'])
+            return {'kind': 'multi', 'target': first.get('target'), 'steps': steps}
+    return parse_one(action, source, state)
+
+
+_SPLIT = re.compile(r"\s*\n\s*|[.;!?]+\s*|,\s*(?:and\s+)?(?:then\s+)?|\s+(?:and\s+)?then\s+|\s+and\s+", re.I)
+_DETAIL = re.compile(r"^\W*(?:\(|\d|dc\s*\d|for\s+\d|total|avrae)|^\s*!\w|^\W*[A-Za-z']+\W*$|"
+                     r"^\W*(?:i\s+)?(?:pause|breathe|take a (?:deep |slow )?breath|steady (?:myself|now|my\w*)|"
+                     r"brace myself|grin|wink|nod|shrug|smile|laugh|sigh)\b", re.I)
+SHIELD_SELF = re.compile(r"\bshield\s+(?:myself|me)\b|\b(?:cast|casts|casting|raise|raises)\s+(?:a\s+|my\s+)?shield\b"
+                         r"(?!\s+(?:bash|slam))|!cast\s+shield\b")
+UNRESOLVED = "I couldn't tell what that would do in this fight"
+
+
+# An Avrae-shaped line: a command, a bold field, "X casts Y!" / "X attacks with Y!", or a
+# "Field: number" result line ("To Hit: 1d20 (11) + 7 = 18", "Hellish Rebuke: 12 fire").
+_AVRAE_SHAPED = re.compile(r"^\s*(?:!\w|\*\*|[\w' -]+ (?:casts|attacks with|uses) [^\n]*!\s*$|"
+                           r"(?:to hit|damage|dc|meta|effect|spell slots|[\w' -]+ save)\s*:|[\w' -]{2,40}:\s*`?\d)", re.I)
+_BLOCK_HEAD = re.compile(r"!cast\s+([a-z' ]+?)(?:\s+-\w|\s*$)|!a(?:ttack)?\s+([a-z' ]+?)(?:\s+-\w|\s*$)|"
+                         r"\bcasts\s+([a-z' ]+?)!|\battacks with (?:an? )?([a-z' ]+?)!|\*\*([a-z' ]+?)\*\*", re.I)
+
+
+def avrae_blocks(action):
+    """[(start, end)] of each pasted Avrae block: from its first Avrae-shaped line to its last.
+    A short name line between two of them (a target, 'Hollow-eyed ghoul') is inside; the lines
+    after the last one are the player's again (#101 review at 92b86a6)."""
+    lines, at = [], 0
+    for line in action.split('\n'):
+        lines.append((at, at + len(line), line))
+        at += len(line) + 1
+    shaped = [bool(_AVRAE_SHAPED.match(line)) for _, _, line in lines]
+    blocks, i = [], 0
+    while i < len(lines):
+        if not shaped[i]:
+            i += 1
+            continue
+        j = i
+        while True:
+            k = j + 1
+            while k < len(lines) and not shaped[k] and len(lines[k][2].split()) <= 4 and \
+                    not re.match(r"\s*(?:i|then|and)\b", lines[k][2], re.I):
+                k += 1
+            if k < len(lines) and shaped[k]:
+                j = k
+                continue
+            break
+        blocks.append((lines[i][0], lines[j][1]))
+        i = j + 1
+    return blocks
+
+
+def _pieces(action):
+    """(start, end, is_block) spans: Avrae blocks whole, the rest split at clause boundaries."""
+    masked = re.sub(r'\([^)]*\)', lambda m: '_' * len(m.group(0)), action)
+    masked = re.sub(r'!(?=\w)', '_', masked)
+    out, at = [], 0
+    regions = []
+    for b0, b1 in avrae_blocks(action):
+        regions.append((at, b0, False))
+        regions.append((b0, b1, True))
+        at = b1
+    regions.append((at, len(action), False))
+    for r0, r1, block in regions:
+        if block:
+            out.append((r0, r1, True))
+            continue
+        cut = r0
+        for m in _SPLIT.finditer(masked, r0, r1):
+            if m.end() > r1:
+                break
+            out.append((cut, m.start(), False))
+            cut = m.end()
+        out.append((cut, r1, False))
+    return [p for p in out if p[1] > p[0]]
+
+
+def clauses(action, source, state):
+    """Every clause of the message that is an act, a move or a reaction, in order, each with
+    the details after it (its rolls, its Avrae aside or pasted block, a trailing 'and the imp').
+    Waiting and breathing are flavor (details), never a clause of their own."""
+    resources = state.get('pc_resources') or {}
+    shield_known = any(r.get('id') == 'shield' for r in resources.get('reactions') or ())
+    steps, lead, last_named = [], None, None
+    here = present(source, state)
+    for start, end, block in _pieces(action):
+        piece = action[start:end].strip()
+        named_here = name_target(piece.casefold(), source, state, here)
+        if not re.search(r'[A-Za-z]', piece):
+            if steps:
+                steps[-1]['end'] = max(steps[-1]['end'], end)
+            continue
+        act = None
+        if block:
+            head = _BLOCK_HEAD.search(piece)
+            name = next((g for g in head.groups() if g), '').strip().casefold() if head else ''
+            own = re.match(r"\s*!(?:cast|a|attack)\b|\s*[\w' -]+ (?:casts|attacks with) ", piece, re.I)
+            prev = steps[-1]['text_so_far'] if steps else ''
+            if steps and (name and name in prev.casefold() or not own):
+                steps[-1]['end'] = max(steps[-1]['end'], end)  # the results of the clause before it
+                steps[-1]['text_so_far'] = action[steps[-1]['start']:steps[-1]['end']]
+                continue
+            act = parse_one(piece, source, state)
+        elif not _DETAIL.match(piece):
+            missing = missing_reaction(piece, resources)
+            if not missing and not shield_known and SHIELD_SELF.search(piece.casefold()):
+                missing = 'Shield'
+            if missing:
+                act = {'kind': 'missing_reaction', 'target': None, 'name': missing}
+            else:
+                act = parse_one(piece, source, state)
+                if not (act and act.get('kind') == 'late_reaction'):
+                    deed = confidence(piece, act, source, state, last_named)
+                    if deed == 'ruling':
+                        act = {'kind': 'ruling', 'target': None}
+                    elif deed == 'flavor':
+                        act = None
+        if act is None or act.get('kind') in (None, 'wait'):
+            last_named = named_here or last_named
+            if steps:
+                steps[-1]['end'] = max(steps[-1]['end'], end)
+                steps[-1]['text_so_far'] = action[steps[-1]['start']:steps[-1]['end']]
+            elif lead is None:
+                lead = start
+            continue
+        first = start if lead is None else lead
+        steps.append({'start': first, 'end': end, 'act': act, 'block': block, 'text_so_far': action[first:end],
+                      'bound': None if named_here else last_named})
+        lead = None
+        last_named = named_here or last_named
+    for step in steps:
+        step.pop('text_so_far', None)
+        step['text'] = action[step['start']:step['end']].strip(' ,;\n')
+        step['label'] = _label(step)
+    # Each clause re-read on its own text with its details (an attack's rolls ride after it).
+    for step in steps:
+        if step['act'].get('kind') not in ('missing_reaction', 'ruling'):
+            again = parse_one(step['text'], source, state)
+            if again and again.get('kind') == step['act'].get('kind'):
+                step['act'] = again
+        # 'it', 'him': the creature the clause before named ('step up to the imp and stab it').
+        if step.get('bound') and step['act'].get('target') and PRONOUN_IT.search(step['text'].casefold()) and \
+                not name_target(step['text'].casefold(), source, state, here):
+            step['act'] = {**step['act'], 'target': step['bound']}
+    return steps
+
+
+PRONOUN_IT = re.compile(r"\b(?:it|him|her|them)\b")
+# High confidence (#101 review at 5dd307f): the engine commits a known combat verb at a resolved
+# target, a move, a reaction. A deed on an object or the room is Kit's call; holding things,
+# looks, words and breath are flavor.
+_HEAD = re.compile(r"^\W*(?:(?:and|then|so|now)\s+)*(?:i\s+)?([a-z']+)\s*(.*)$", re.S)
+OBJECT_VERBS = frozenset('''push pushes pull pulls shove shoves yank yanks drag drags haul hauls kick kicks cut cuts slice
+slices open opens shut shuts close closes take takes pick picks lift lifts tip tips topple topples knock knocks
+throw throws toss tosses hurl hurls pump pumps light lights break breaks smash smashes pry prise climb climbs jump
+jumps set sets untie unties tie ties pour pours douse douses stamp stamps heave heaves upend upends'''.split())
+GRAPPLE_VERBS = frozenset('grab grabs grabbing grapple grapples seize seizes tackle tackles pin pins collar collars clamp'.split())
+FLAVOR_VERBS = frozenset('''grip grips hold holds clutch clutches squeeze squeezes tighten tightens look looks glance glances
+glare glares stare stares watch watches eye eyes say says shout shouts yell yells taunt taunts mutter mutters whisper
+whispers curse curses snarl snarls growl growls spit spits grit grits wipe wipes'''.split())
+_PREP = re.compile(r"\s(?:with|at|behind|into|onto|over|on|across|from|toward|towards|to|by)\b|[,;.]|\band\b|\bthen\b")
+THROWN = frozenset('dagger daggers handaxe javelin spear dart darts trident hammer'.split())
+
+
+def confidence(piece, act, source, state, last_named=None):
+    """'engine' (commit it), 'ruling' (Kit's call) or 'flavor' (no deed) for one clause."""
+    head = _HEAD.match(piece.casefold())
+    if not head or piece.strip().endswith('?'):
+        return 'engine' if act else 'flavor'
+    verb, rest = head.group(1), head.group(2)
+    obj = _PREP.split(' ' + rest, 1)[0].strip()
+    here = present(source, state)
+    who = name_target(obj, source, state, here)
+    heads = {n.split()[-1] for n in _names(source, who)} if who else set()
+    tail = re.sub(r"'s$", '', (obj.split() or [''])[-1])
+    creature = bool(who and (tail in heads or obj.split()[-1].endswith("'s")) or PRONOUN_IT.fullmatch(obj or '-') or
+                    re.fullmatch(r"(?:the |a )?(?:\w+ )?(?:foe|enemy|creature|monster)", obj or '-'))
+    if verb in FLAVOR_VERBS:
+        return 'flavor'
+    if verb in GRAPPLE_VERBS:
+        return 'engine' if creature and act and act.get('kind') == 'grab' else 'ruling'
+    if verb in ('close', 'closes') and re.match(r"(?:in|on|the (?:distance|gap))\b", rest):
+        return 'engine' if act else 'flavor'
+    if verb in ('throw', 'throws', 'toss', 'tosses', 'hurl', 'hurls'):
+        thrown = act and act.get('kind') == 'attack' and any(w in THROWN for w in obj.split())
+        return 'engine' if thrown else 'ruling'
+    if verb in ('cut', 'cuts', 'slice', 'slices') and (creature or not obj):
+        return 'engine' if act else 'ruling'
+    if verb in OBJECT_VERBS:
+        if re.match(r"past\b", rest):
+            return 'flavor'  # 'push past the pain'
+        return 'ruling'
+    if act and act.get('kind') == 'attack' and not act.get('spell'):
+        named = name_target(piece.casefold(), source, state, here) or re.search(r"\s-t\s", piece) or \
+            (last_named and PRONOUN_IT.search(piece.casefold()))
+        hostile = [k for k in here if (state.get('actors') or {}).get(k, {}).get('status') not in ('dead', 'unconscious')]
+        if obj and not creature and not named and not re.match(r"(?:my|it|him|her|them)\b", obj) and \
+                not re.match(r"\d", obj):
+            return 'ruling'  # a blow at a thing ('stab the barrel')
+        if not named and len(hostile) > 1 and not (state.get('combat') or {}).get('last_target'):
+            return 'ruling'  # who? more than one foe here, none named
+    return 'engine' if act else 'flavor'
+
+
+def _label(step):
+    act = step['act']
+    if act.get('kind') == 'missing_reaction':
+        return act['name']
+    if act.get('kind') == 'late_reaction':
+        names = act.get('names') or [act['react'].replace('_', ' ')]
+        again = ' again' if re.search(r'\bagain\b', step['text'], re.I) else ''
+        return names[0].title() + again
+    return f'"{step["text"][:80]}"'
+
+
+def missing_reaction(text, resources):
+    """A reaction the catalog knows, named in the clause, that is not on his sheet."""
+    have = {r['id'] for r in resources.get('reactions') or ()}
+    low = text.casefold()
+    for key, spec in kit_reactions.CATALOG.items():
+        if key in have or key in ('shield', 'opportunity_attack'):
+            continue
+        if re.search(r'\b' + re.escape(spec['name'].casefold()) + r'\b', low):
+            return spec['name']
+    return None
+
+
+def parse_one(action, source, state):
+    """What the player physically does, or None. A dict with ``kind`` (attack, grab,
+    face, flip, take, wait), ``target`` (actor id or None), and the details each needs."""
+    if not config(source) or state.get('area') != config(source).get('area', state.get('area')):
+        return None
+    text = narration(action).casefold()
+    here = present(source, state)
+    sc = scene(state)
+    aimed = re.search(r"\s-t\s+([a-z][\w'-]*)", text)  # Avrae's -t names the target
+    named = (name_target(aimed.group(1), source, state, here) if aimed else None) or \
+        name_target(text, source, state, here)
+    spell = _SPELL.search(text)
+    in_fight = bool((state.get('combat') or {}).get('status') in ('awaiting_initiative', 'running'))
+    late = late_reaction(text, source, state, here) if in_fight else None
+    if late:
+        return late
+    if in_fight and OWN_SHIELD.search(text):
+        return {'kind': 'own_shield', 'target': None, 'avrae': bool(re.search(r'!cast|casts shield!', text))}
+    away = WITHDRAW.search(text) if in_fight else None
+    if spell:
+        name = spell.group(1)
+        area = name in SPELL_SAVE and SPELL_SAVE[name][2]
+        return {'kind': 'attack', 'spell': name, 'weapon': name, 'area': bool(area),
+                'target': None if area else (named or _default_target(text, source, state, here)),
+                **({'move_first': {'disengage': bool(re.search(r'\bdisengag', text))}}
+                   if away and away.start() < spell.start() else {})}
+    actor_names = tuple(name for key in (state.get('actors') or {}) for name in _names(source, key))
+    attack = first_aimed_attack(text, actor_names)
+    weapon = re.search(r'\b(' + WEAPONS + r')\b', text)
+    if attack and attack.group(1) in ('stomp', 'stomps'):
+        target = named or sc.get('grovelling') or _default_target(text, source, state, here)
+        return {'kind': 'attack', 'weapon': 'stomp', 'target': target, 'area': False, 'unarmed': True}
+    hostile_target = named or (_creature_words(text) and not OBJECTS.search(text[attack.end():attack.end() + 30]
+                                                                             if attack else ''))
+    stated_attack = kit_rolls.attack_total(action) is not None and (weapon or in_fight or named)
+    if (attack and (hostile_target or stated_attack or in_fight) and
+            not (TABLE.search(text[attack.end():attack.end() + 25]) and not named)) or (not attack and stated_attack):
+        held = None if weapon or not re.search(r'\b(?:stab|stabs|slash|slashes|thrust|thrusts|cut|cuts)\b', text) \
+            else sheet_weapon(state)  # 'I stab' with no weapon named: the blade on his sheet
+        thrown = bool(weapon and re.search(r'\b(?:throw|throws|hurl|hurls|toss|tosses)\b', text) and
+                      (weapon.group(1) in THROWN or sheet_thrown(state, weapon.group(1))))
+        return {'kind': 'attack', 'weapon': weapon.group(1) if weapon else held or 'unarmed strike', 'thrown': thrown,
+                'target': named or _default_target(text, source, state, here), 'area': False,
+                'unarmed': not (weapon or held), 'nonlethal': bool(NONLETHAL.search(text))}
+    if FLIP.search(text) and TABLE.search(text):
+        return {'kind': 'flip', 'object': 'table', 'target': None}
+    if touched_face(text, pc_names(state)) and (named or _creature_words(text) or here):
+        return {'kind': 'face', 'target': named or _default_target(text, source, state, here),
+                'teeth': bool(TEETH.search(text))}
+    pcs = pc_names(state)
+    take, loot = taken_valuables(text, pcs)
+    if take and loot and table_scene(source):
+        what = 'ring' if re.search(r'\bring\b', text) and not re.search(r'\bcoins?|gold|pot|money|stacks?\b', text) \
+            else 'coins'
+        return {'kind': 'take', 'what': what, 'target': None, 'covert': bool(COVERT.search(text)),
+                'handful': bool(re.search(r'\b(handful|a few|some|fistful|a stack)\b', text))}
+    grab = GRAB.search(text)
+    # A grapple is aimed at a creature: what the verb takes ('the rope', 'my cloak') decides.
+    gripped = re.split(r"[,;.\n]|\band\b|\bthen\b", text[grab.end():])[0] if grab else ''
+    if grab and not (name_target(gripped, source, state, here) or _creature_words(gripped)):
+        grab = None
+    if grab and (named or _creature_words(text)) and here and not VALUABLES.search(text[grab.end():grab.end() + 30]) \
+            and not GAZE.search(text[grab.end():grab.end() + 20]):
+        return {'kind': 'grab', 'target': named or _default_target(text, source, state, here),
+                'teeth': bool(TEETH.search(text)), 'wrist': bool(re.search(r'\b(wrist|hand|arm)\b', text))}
+    if in_fight and APPROACH.search(text) and not attack:
+        return {'kind': 'approach', 'target': named or _default_target(text, source, state, here)}
+    if in_fight and WITHDRAW.search(text) and not attack:
+        return {'kind': 'withdraw', 'target': None, 'disengage': bool(re.search(r'\bdisengag', text))}
+    if in_fight and WAIT.search(text):
+        return {'kind': 'wait', 'target': None}
+    return None
+
+
+APPROACH = re.compile(r"\b(?:close (?:in|the (?:distance|gap))|closes in|step (?:up|in)|steps (?:up|in)|advance|advances|"
+                      r"charge|charges|rush|rushes|move (?:toward|towards|up to|back to|in on)|close on|press in)\b")
+
+
+def sheet_thrown(state, weapon):
+    """The sheet says this weapon has the thrown property."""
+    for item in ((state.get('player_sheet') or {}).get('weapons') or ()) + \
+            list((state.get('player_sheet') or {}).get('gear') or ()):
+        text = json.dumps(item).casefold() if not isinstance(item, str) else item.casefold()
+        if weapon in text and 'thrown' in text:
+            return True
+    return False
+
+
+def sheet_weapon(state):
+    """The first melee weapon on his sheet's gear, or None."""
+    for item in ((state.get('player_sheet') or {}).get('gear') or ()):
+        found = re.search(r'\b(' + WEAPONS + r')\b', str(item).casefold())
+        if found and not RANGED.search(found.group(1)):
+            return found.group(1)
     return None
 
 
@@ -496,8 +1003,9 @@ def _default_target(text, source, state, here):
 class Fight:
     """Resolve one physical act (or an initiative report) into public lines and events."""
 
-    def __init__(self, source, state, revision, action, check, roll=None):
+    def __init__(self, source, state, revision, action, check, roll=None, choice=None):
         self.source = source
+        self.choice = choice    # Kit's structured read of the reply to an open window (or None)
         self.config = config(source)
         self.state = state
         self.revision = revision
@@ -513,6 +1021,10 @@ class Fight:
         self.labels = labels(source)
         self.needs_roll = False  # the act is an attack still waiting on its Avrae roll
         self.sheet = state.get('player_sheet') or {}
+        self.kills = []          # who the PC's blows killed this turn (a flourish may follow)
+        self.flourish_of = None  # resumed from a flourish: whose death the player described
+        self.resources = kit_reactions.current(state)  # the PC's reaction inventory, slots, uses
+        self.resources_changed = not isinstance(state.get('pc_resources'), dict)
         self.conditions = pc_conditions(state)
         self.terms = condition_terms(state)
         self.conditions_changed = False
@@ -548,7 +1060,7 @@ class Fight:
         self.fight = {'status': 'awaiting_initiative', 'round': 1, 'order': [], 'next': 0,
                       'pc_initiative': None, 'surprised': list(self.surprised()), 'hp': hp, 'max_hp': dict(hp),
                       'pc_damage': 0, 'pending': None, 'opener_spent': False, 'started_by': started_by,
-                      'last_target': None}
+                      'last_target': None, 'engaged': []}
         self.trace.append(f'fight starts ({started_by}); surprised: {self.fight["surprised"] or "nobody"}')
         self.scene['pc_hidden'] = False  # the first blow gives the PC away
         return True
@@ -575,7 +1087,9 @@ class Fight:
         return started
 
     def pc_surprised_now(self):
-        return 'pc' in (self.fight.get('surprised') or ()) and self.fight.get('round') == 1
+        """Surprised and his first turn not yet over (SRD: no move, action, or reaction)."""
+        return 'pc' in (self.fight.get('surprised') or ()) and self.fight.get('round') == 1 and \
+            not self.fight.get('surprise_spent')
 
     def pc_can_react(self):
         """SRD surprise: a surprised PC takes no reaction until his first turn ends (round 1).
@@ -607,22 +1121,895 @@ class Fight:
         return [key for key in self.hostiles()] if self.scene.get('pc_hidden') else []
 
     def pc_ac(self):
-        return int(self.sheet.get('ac') or 10)
+        return int(self.sheet.get('ac') or 10) + (5 if (self.fight or {}).get('shield_up') else 0)
+
+    # -- checkpoints -------------------------------------------------------------------
+    def wait_for(self, kind, awaits, **detail):
+        """Record what the fight waits on and stop. The id names the deferred action."""
+        material = f"{self.revision}:{kind}:{self.fight.get('round')}:{sorted(detail.items())}".encode()
+        self.fight['awaiting'] = {'kind': kind, 'awaits': awaits,
+                                  'deferred_action_id': hashlib.sha256(material).hexdigest()[:12], **detail}
+        self.trace.append(f'checkpoint: {kind} ({awaits})')
+        raise Checkpoint()
+
+    def start_pc_turn(self):
+        """Shield ends and the reaction comes back at the start of the PC's turn; an Absorb Elements
+        charge is live for this turn's first melee hit."""
+        for key in ('shield_up', 'reaction_used', 'spent_told'):
+            self.fight.pop(key, None)
+        if self.fight.get('absorb_bonus'):
+            self.fight['absorb_bonus']['armed'] = True
+
+    def spend_reaction(self, key, slot_level=None):
+        """The reaction is used; its cost is paid from the session's inventory (a spell's slot is the
+        one the player's Avrae cast used, or the lowest free one at its level)."""
+        self.fight['reaction_used'] = True
+        self.fight.pop('unprompted', None)
+        self.resources, slot = kit_reactions.spend(self.resources, key, slot_level)
+        self.spent_slot = slot
+        self.resources_changed = True
+        self.trace.append(f'PC uses {key}' + (f' (level {slot} slot, cast in Avrae)' if slot else ''))
+
+    def unprompted(self, trigger, options, **event):
+        """A reaction this event made legal but not worth a prompt (#101 P2): the player may still
+        declare it, before his own act on his next turn."""
+        self.fight.setdefault('unprompted', []).append({'trigger': trigger, 'options': list(options), **event})
+        self.trace.append(f"{', '.join(options)} legal for {trigger} by {event.get('attacker')}, not prompted")
+
+    def pc_late_reaction(self, act):
+        """He declares a reaction he was not prompted for: it answers the event it was legal for
+        (the attacker he names, else the latest). The cost is paid; the round's reaction is the one
+        already past, so his own turn's reaction stays. True when it took effect; otherwise the
+        reason is said (alone: its own line; in a multi-clause message: "didn't happen because")."""
+        react = act['react']
+        found = kit_reactions.entry(self.resources, react) or {}
+        event = act['event']
+        name = found.get('name', react)
+        self.refused_because = None
+
+        def refuse(line, because):
+            self.refused_because = because
+            if not getattr(self, 'in_multi', False):
+                self.lines.append(line)
+            return False
+
+        late_ok = ('absorb_elements', 'uncanny_dodge', 'deflect_missiles', 'parry', 'hellish_rebuke')
+        avrae_cast = bool(re.search(r'!cast\s+' + re.escape(name.casefold()), self.action.casefold()))
+        if event is not None and found.get('effect') not in late_ok and \
+                (self.declared_effect(react) or {}).get('type') not in ('reduce_damage', 'deal_damage'):
+            # A reroll (Silvery Barbs) cannot be replayed after the hit has landed: said, nothing spent.
+            return refuse(f'That hit has already landed; {name} cannot change it now.',
+                          'that hit has already landed and it cannot change it now')
+        if event is None:
+            # Nothing it can answer now (the hit was not its kind, or the reaction is spent): no
+            # effect. Only a cast Avrae actually made is counted, at its -l level (else its own).
+            fizzled = self.avrae_fizzle(name)
+            if fizzled:
+                return refuse(f'{name} has nothing to answer right now, so it fizzles. {fizzled}',
+                              f'it has nothing to answer right now, so it fizzles. {fizzled}'[:-1])
+            return refuse(f'{name} has nothing to answer right now, so it does nothing.',
+                          'it has nothing to answer right now')
+        if not kit_reactions.payable(self.resources, found):
+            return refuse(f'{name} is not available: no slot or use left.', 'there is no slot or use left for it')
+        if found.get('kind') == 'spell' and not act.get('avrae'):
+            return refuse(f'Cast {name} in Avrae first (!cast {name.casefold()}), then say so.',
+                          f'it is cast in Avrae first (!cast {name.casefold()})')
+        effect = found.get('effect')
+        if effect == 'hellish_rebuke' and self.reaction_roll() is None:
+            return refuse(f"Roll {name}'s damage in Avrae ({found.get('dice', 'its roll')}), then say so.",
+                          f"its damage roll is missing ({found.get('dice', 'its roll')} in Avrae)")
+        level = cast_level(self.action) or (self.choice or {}).get('slot_level')
+        if level and found.get('kind') == 'spell':
+            slot = (self.resources.get('slots') or {}).get(str(level))
+            need = (found.get('cost') or {}).get('slot') or 1
+            if int(level) < int(need) or not slot or slot['used'] >= slot['max']:
+                return refuse(f'There is no level {level} slot left for {name} on the sheet.',
+                              f'there is no level {level} slot left for it')
+        # Only the event this reaction answers leaves the queue; the round's others stay his to answer.
+        queue = [e for e in (self.fight.get('unprompted') or []) if e is not event and e != event]
+        if queue:
+            self.fight['unprompted'] = queue
+        else:
+            self.fight.pop('unprompted', None)
+        self.resources, slot = kit_reactions.spend(self.resources, react, level)
+        self.resources_changed = True
+        self.trace.append(f"PC declares {react} for the unprompted {event['trigger']} by {event.get('attacker')}"
+                          + (f' (level {slot} slot)' if slot else ''))
+        dealt = int(event.get('damage') or 0)
+        if effect in ('absorb_elements', 'uncanny_dodge'):
+            back = dealt - dealt // 2
+            self.fight['pc_damage'] = max(0, int(self.fight.get('pc_damage') or 0) - back)
+            if effect == 'absorb_elements':
+                dice = absorb_dice(slot)
+                self.fight['absorb_bonus'] = {'type': event['type'], 'dice': dice, 'armed': True}
+                self.lines.append(f"Absorb Elements: resistance to the {event['type']}; your next melee hit "
+                                  f"adds {dice} {event['type']}.")
+            else:
+                self.lines.append(f'Uncanny Dodge: you take half, {dealt // 2} instead of {dealt}.')
+        elif effect in ('deflect_missiles', 'parry') or (self.declared_effect(react) or {}).get('type') == 'reduce_damage':
+            cut = min(dealt, int(self.reaction_roll() or 0))
+            self.fight['pc_damage'] = max(0, int(self.fight.get('pc_damage') or 0) - cut)
+            self.lines.append(f'{name}: {cut} less damage.')
+        else:
+            self.answer_attacker({'attacker': event.get('attacker'), 'trigger': event['trigger']}, react)
+        return True
+
+    MULTI_ACTIONS = ('attack', 'grab', 'face', 'flip', 'take', 'wait')
+
+    def run_clauses(self, act):
+        """A message of several clauses (#101 review at f3e880e), structurally: every clause in
+        order; a reaction clause resolves as a reaction, every other one goes to the act and move
+        parser. No clause is dropped: each resolves, or Kit says it didn't happen and why."""
+        steps = act['steps']
+        whole = self.action
+        acted = reacted = moved = bonus = False
+        first_weapon = None
+        self.in_multi = len(steps) > 1  # one clause alone keeps its own lines
+        try:
+            for index, step in enumerate(steps, 1):
+                self.action = step['text']
+                one = step['act']
+                kind = one.get('kind')
+                label = step['label']
+                before = len(self.lines)
+                because = None
+                if not self.fight or self.fight.get('status') != 'running':
+                    because = 'the fight is over'
+                elif self.fight.get('awaiting'):
+                    because = 'the fight is waiting on your answer first'
+                elif not self.pc_turn_now():
+                    because = 'it is not your turn'
+                elif kind == 'missing_reaction':
+                    because = 'it is not on your sheet'
+                    fizzled = self.avrae_fizzle(one['name'])
+                    if fizzled:
+                        because += f', so the cast fizzles. {fizzled[:-1]}'
+                elif kind == 'late_reaction':
+                    effect = (kit_reactions.entry(self.resources, one['react']) or {}).get('effect')
+                    if reacted:
+                        # Refused before any cast is asked for; one Avrae already made fizzles, counted.
+                        because = 'you have already used your reaction'
+                        fizzled = self.avrae_fizzle((kit_reactions.entry(self.resources, one['react']) or {})
+                                                    .get('name', one['react']))
+                        if fizzled:
+                            because += f', so the cast fizzles. {fizzled[:-1]}'
+                    elif acted and effect == 'absorb_elements' and one.get('event'):
+                        because = 'you have already acted, and the fire it answers came before your turn'
+                        fizzled = self.avrae_fizzle('Absorb Elements')
+                        if fizzled:
+                            because += f', so the cast fizzles. {fizzled[:-1]}'
+                    elif self.pc_late_reaction(one):
+                        reacted = True
+                    else:
+                        because = self.refused_because or 'it has nothing to answer'
+                elif kind == 'withdraw':
+                    self.pc_move_away(one)
+                    moved = True
+                elif kind == 'approach':
+                    self.pc_approach(one)
+                    moved = True
+                elif kind == 'own_shield':
+                    self.pc_own_shield(one)  # a cast with no trigger: said, never his action
+                elif kind == 'attack' and acted and not bonus and self.off_hand(step['text'], one, first_weapon):
+                    bonus = True  # two-weapon fighting: the off-hand light weapon, his bonus action
+                    if self.out_of_reach(one):
+                        because = f"the {self.label(one['target'])} is out of your reach now"
+                    else:
+                        self.pc_attack(one)
+                elif kind in self.MULTI_ACTIONS:
+                    if acted:
+                        because = 'you have already used your action this turn'
+                    elif kind == 'attack' and self.out_of_reach(one):
+                        because = f"the {self.label(one['target'])} is out of your reach now"
+                    elif kind == 'attack':
+                        if one.get('move_first'):
+                            self.pc_move_away(one['move_first'])
+                            moved = True
+                            if self.out_of_reach(one):
+                                because = f"the {self.label(one['target'])} is out of your reach now"
+                        if because is None:
+                            acted = self.pc_attack(one)
+                            first_weapon = one.get('weapon')
+                        if because is None and not acted:
+                            self.needs_roll = True
+                            return
+                    else:
+                        acted = True
+                        {'grab': self.pc_grab, 'face': self.pc_face, 'flip': self.pc_flip, 'take': self.pc_take,
+                         'wait': self.pc_wait, 'own_shield': self.pc_own_shield}[kind](one)
+                        if self.needs_roll:
+                            return
+                if because is None and len(self.lines) == before:
+                    because = None if one.get('flavor') else UNRESOLVED.replace("I couldn't tell", 'I could not tell')
+                if because and (self.in_multi or len(self.lines) == before):
+                    said = f"{label} didn't happen because {because}."
+                    if said not in self.lines:  # the same refusal is said once
+                        self.lines.append(said)
+                self.trace.append(f"clause {index}/{len(steps)}: {'refused' if because else 'resolved'} "
+                                  f"({step['text'][:60]})")
+                if self.fight.get('awaiting'):
+                    # A checkpoint opened (a window, a flourish): the clauses after it wait for his turn.
+                    rest = ' '.join(s['text'] for s in steps[index:])
+                    if rest:
+                        self.fight['declared_next'] = rest
+                        for later, s in enumerate(steps[index:], index + 1):
+                            self.trace.append(f'clause {later}/{len(steps)}: resolved (held for your turn: '
+                                              f"{s['text'][:60]})")
+                        self.lines.append('The rest waits for your next turn.')
+                    break
+        finally:
+            self.in_multi = False
+            self.action = whole
+        self.after_pc_action(acted or moved)  # moving ends his turn the way one move does
+
+    def avrae_fizzle(self, name):
+        """A reaction spell Avrae already cast that cannot take effect: Avrae spent the slot (at
+        its -l level, else the spell's own), so the engine counts it too. The sentence that says
+        so, or '' when Avrae did not cast it."""
+        if not re.search(r'!cast\s+' + re.escape(name.casefold()) + r'\b', self.action.casefold()):
+            return ''
+        spec = next((c for c in kit_reactions.CATALOG.values() if c['name'] == name), {})
+        if spec and spec.get('kind') != 'spell':
+            return ''
+        level = cast_level(self.action) or spec.get('level') or 1
+        slot = (self.resources.get('slots') or {}).get(str(level))
+        if not slot or slot['used'] >= slot['max']:
+            return ''
+        self.resources['slots'] = copy.deepcopy(self.resources['slots'])
+        self.resources['slots'][str(level)]['used'] += 1
+        self.resources_changed = True
+        self.trace.append(f'{name} cast in Avrae with nothing to do: level {level} slot counted')
+        return f'The level {level} slot Avrae spent is counted.'
+
+    LIGHT = ('dagger', 'shortsword', 'handaxe', 'scimitar', 'sickle', 'club', 'hammer', 'knife')
+
+    def off_hand(self, text, act, first_weapon):
+        """A two-weapon off-hand blow: named as such, a light melee weapon in each hand."""
+        return bool(re.search(r"\boff[- ]?hand\b|\bother hand\b|\bsecond (?:dagger|blade|knife)\b", text, re.I)) and \
+            str(act.get('weapon')) in self.LIGHT and str(first_weapon) in self.LIGHT and not act.get('spell')
+
+    def out_of_reach(self, act):
+        """A melee blow at a foe he has moved out of reach of (this turn's clauses, in order)."""
+        key = act.get('target')
+        weapon = str(act.get('weapon') or '')
+        if not key or act.get('spell') or act.get('area') or RANGED.search(weapon) or act.get('thrown'):
+            return False  # a thrown weapon (a dagger thrown, the sheet's thrown property) flies
+        return key in (self.fight.get('apart') or ()) and key not in (self.fight.get('engaged') or ())
+
+    def pc_approach(self, act):
+        key = act.get('target')
+        if key and self.active(key):
+            self.engage(key)
+            self.lines.append(f'You close on the {self.label(key)}.')
+        else:
+            self.lines.append('You move up.')
+
+    def engage(self, key):
+        engaged = self.fight.setdefault('engaged', [])
+        if key not in engaged:
+            engaged.append(key)
+        if key in (self.fight.get('apart') or ()):
+            self.fight['apart'] = [k for k in self.fight['apart'] if k != key]
+
+    def in_reach(self, key):
+        """Melee adjacency, tracked by default: whoever traded melee blows with the PC (either way)
+        this fight, plus anyone the room says starts in reach."""
+        if key in (self.fight.get('engaged') or ()):
+            return True
+        return key in (self.config.get('in_reach') or ()) and key not in (self.fight.get('apart') or ())
+
+    def declined(self, family, stakes):
+        """Kept for the window families: True only when every reaction this family could open was
+        declined this round at no lower stakes (per reaction now: see fresh)."""
+        return False
+
+    def decline(self, waiting):
+        """The player said no: each reaction offered is not offered again this round unless the
+        stakes rise (the hit would now drop him, or a new damage type for a typed reaction)."""
+        mark = self.fight.get('declined') or {}
+        if mark.get('round') != self.fight.get('round') or 'reactions' not in mark:
+            mark = {'round': self.fight.get('round'), 'reactions': {}}
+        for key in waiting.get('options') or ():
+            mark['reactions'][key] = {'stakes': waiting.get('stakes', 'normal'), 'damage': waiting.get('damage'),
+                                      'type': waiting.get('type')}
+        self.fight['declined'] = mark
+        self.trace.append(f"PC declines {', '.join(waiting.get('options') or ())} ({waiting['trigger']}); not offered "
+                          'again this round unless the stakes rise')
+
+    def fresh(self, options, stakes, damage=None, dtype=None):
+        """The options not declined this round, or declined at lower stakes than now."""
+        mark = self.fight.get('declined') or {}
+        if mark.get('round') != self.fight.get('round'):
+            return list(options)
+        out = []
+        for key in options:
+            before = (mark.get('reactions') or {}).get(key)
+            if before is None:
+                out.append(key)
+                continue
+            rose = (stakes == 'drop' and before.get('stakes') != 'drop') or \
+                (key == 'absorb_elements' and dtype is not None and before.get('type') is not None and
+                 dtype != before['type'])  # a new damage type matters only to a typed reaction
+            if rose:
+                out.append(key)
+        return out
+
+    def meaningful(self, dealt):
+        """A hit worth a window for a reaction that only trims it: a quarter of his hit points, or 5+."""
+        hp = int(self.pc_hp() or 0)
+        return dealt >= max(5, hp // 4) if hp else True
+
+    def break_contact(self, why):
+        """The PC is out of every foe's reach (he moved away): engagement ends, and a foe the room put
+        in reach is not either until blows are traded again."""
+        self.fight['engaged'] = []
+        self.fight['apart'] = sorted(set(self.fight.get('apart') or ()) | set(self.hostiles()))
+        self.trace.append(f'PC out of reach ({why})')
+
+    def pc_withdraw(self, why, provoke=True):
+        """Combat movement away from foes in his reach: each one still up may make an opportunity
+        attack (its first melee attack; the engine rolls the monsters' dice), then contact ends.
+        Disengage (or a teleport) provokes none."""
+        foes = [key for key in self.hostiles() if self.in_reach(key)]
+        if provoke and not self.pc_surprised_now():
+            for key in foes:
+                attack = next((a for a in self.stats(key).get('attacks') or ()
+                               if not a.get('ranged') and not RANGED.search(a['name']) and not a.get('spell')), None)
+                if not attack or self.fight.get('pc_down'):
+                    continue
+                die = self.die(f'oa:{key}:r{self.fight["round"]}')
+                total = die + attack['to_hit']
+                hit = die == 20 or (die != 1 and kit_rolls.meets_or_beats(total, self.pc_ac()))
+                dealt = attack['damage'] * (2 if die == 20 else 1)
+                self.trace.append(f'{key} opportunity attack as the PC leaves: d20 {die} + {attack["to_hit"]} = '
+                                  f'{total} vs AC {self.pc_ac()}: {"hit " + str(dealt) if hit else "miss"}')
+                if hit:
+                    self.lines.append(f"The {self.label(key)} lashes out as you go: {dealt} {attack['type']} damage.")
+                    self.lines.extend(self.hurt_pc(dealt, crit=die == 20))
+                else:
+                    self.lines.append(f'The {self.label(key)} swings as you go and misses.')
+        self.break_contact(why)
+
+    def options_for(self, triggers, fit=None):
+        """Reaction ids the event's trigger types open now (the inventory decides, any sheet)."""
+        out = []
+        for trigger in triggers:
+            for key in kit_reactions.matching(self.resources, trigger, self.fight.get('reaction_used'), fit):
+                if key not in out:
+                    out.append(key)
+        return out
+
+    def important(self, key):
+        """A kill worth a flourish: the leader, a foe the room marks important, or anyone who
+        raises a story hook (room data). Not every mook."""
+        if key == self.config.get('leader') or key in (self.config.get('important') or ()):
+            return True
+        for story in ((self.source or {}).get('story') or {}).values():
+            hooks = story.get('hooks') if isinstance(story, dict) else None
+            if any(isinstance(hook, dict) and hook.get('by') == key for hook in hooks or ()):
+                return True
+        return False
+
+    def resume(self):
+        """The player's answer to the checkpoint in ``fight['awaiting']``: finish what it
+        deferred, then run on until the PC's turn or the next checkpoint. A reaction or flourish
+        window takes Kit's structured read of the reply (``self.choice``); the engine only checks
+        that the choice is legal."""
+        waiting = self.fight['awaiting']
+        kind = waiting['kind']
+        try:
+            if kind == 'reaction_window':
+                react = self.legal_reaction(waiting)
+                self.fight['awaiting'] = None
+                if react == 'decline':
+                    self.decline(waiting)
+                    if (self.choice or {}).get('taken_as_no'):
+                        self.lines.append('No clear answer, so that is taken as a no.')
+                        self.trace.append('window asked twice without a clear answer: taken as a decline')
+                self.resolve_window(waiting, react)
+                self.route_rest(waiting, react)
+            elif kind == 'roll_call' and (waiting['save'] == 'death' or waiting.get('repeat')):
+                self.resume_save(waiting)  # his slot's own roll: the round runs on from there
+            elif kind == 'roll_call':
+                self.resume_save(waiting)
+                self.after_save(waiting)
+            elif kind == 'kit_call':
+                self.fight['awaiting'] = None
+                self.fight['vs_downed'] = self.default_vs_downed(waiting)
+                self.trace.append(f"no call on the downed PC: {self.fight['vs_downed']} (default)")
+                try:
+                    self.run_npcs()
+                except Checkpoint:
+                    pass
+                owed = self.fight.get('awaiting') or {}
+                if owed.get('kind') == 'roll_call' and owed.get('save') == 'death' and \
+                        save_total(self.action, 'death') is not None:
+                    # A death save counts only once it is owed (#97 review): this one was typed
+                    # before the foes' blows, which come first in the order.
+                    self.lines.append('That death save was rolled before those blows; roll it again now.')
+                    self.trace.append('early death save not counted: the foes act before his slot')
+            else:  # flourish_window: the player's description; outcomes stand as committed
+                read = (self.choice or {}).get('flourish')
+                if read is None:
+                    raise NeedsChoice(waiting)
+                if read != 'describe':
+                    raise Unclear('Kit could not tell a description from a new action.', 'unclear')
+                self.fight['awaiting'] = None
+                self.flourish_of = waiting.get('target')
+                self.trace.append(f"flourish: the player's description stands as how {waiting.get('target')} "
+                                  f"went {waiting.get('outcome', 'down')}; it changes no outcome")
+                if self.fight['status'] == 'running':
+                    self.advance_past_pc()
+                    self.run_npcs()
+        except Checkpoint:
+            pass
+        try:
+            self.declared_turn()
+        except Checkpoint:
+            pass
+        if self.fight.get('declared_next') and self.fight['status'] == 'running':
+            self.lines.append(f"Held for your turn: {self.fight['declared_next'][:160]}")
+        self.check_over()
+        self.finish()
+        if self.flourish_of and not self.public():
+            self.lines.append('It is over.')
+        return self.public(), self.events()
+
+    def pass_flourish(self):
+        """A new act instead of a description (Kit's read): the flourish is passed, the round runs on."""
+        try:
+            self.fight['awaiting'] = None
+            if self.fight['status'] == 'running':
+                self.advance_past_pc()
+                self.run_npcs()
+        except Checkpoint:
+            pass
+        self.finish()
+        return self.public(), self.events()
+
+    # -- reactions: the engine resolves the common SRD ones; Kit declares a closed effect for the rest --
+    ATTACKING = ('opportunity_attack', 'riposte', 'mage_slayer', 'sentinel')
+
+    def legal_reaction(self, waiting):
+        """Kit's ``react`` for this window, checked: offered, still available, a spell cast in Avrae
+        first (at a slot the PC has), an attack-making reaction rolled with a melee weapon, a rolled
+        effect with the player's own roll, and a Kit-declared effect one the sheet text allows."""
+        if self.choice is None or 'react' not in self.choice:
+            raise NeedsChoice(waiting)
+        react = self.choice['react']
+        if react == 'unclear':
+            # The bridge caps the asks (kit_agent.MAX_WINDOW_ASKS), then answers decline itself.
+            raise Unclear('Kit could not tell which reaction, if any, the player takes.', 'unclear')
+        if react == 'decline':
+            return react
+        if react not in waiting['options'] and react not in (waiting.get('eligible') or ()):
+            # Prompted or not: the worth-it threshold decides only whether Kit asks (#101 P2).
+            raise Unclear(f'{react} is not offered in this window (offered: {", ".join(waiting["options"])}).',
+                          'not_offered')
+        found = kit_reactions.entry(self.resources, react)
+        if not found or self.fight.get('reaction_used') or not kit_reactions.payable(self.resources, found):
+            raise Unclear(f'{react} is not available now (reaction spent, or no slot or use left).', 'not_available')
+        if found['kind'] == 'spell':
+            if not self.choice.get('cast_in_avrae'):
+                raise Unclear(f"{found['name']} is cast in Avrae first.", 'needs_cast',
+                              ask=f"!cast {found['name'].casefold()}")
+            level = self.choice.get('slot_level')
+            if level is not None:
+                slot = (self.resources.get('slots') or {}).get(str(level))
+                need = (found.get('cost') or {}).get('slot') or 1
+                if int(level) < int(need) or not slot or slot['used'] >= slot['max']:
+                    raise Unclear(f"There is no level {level} slot left for {found['name']} on the sheet.", 'no_slot',
+                                  ask='which slot level the cast used')
+        effect = found['effect']
+        if effect in self.ATTACKING:
+            if RANGED.search(narration(self.action).casefold()):
+                raise Unclear(f"{found['name']} is a melee attack; a ranged weapon cannot make one.", 'ranged_weapon')
+            if kit_rolls.attack_total(self.action) is None:
+                raise Unclear(f"{found['name']} waits on its Avrae attack roll, with damage.", 'needs_roll',
+                              ask='the attack roll and damage')
+        if effect == kit_reactions.KIT:
+            declared = (self.choice or {}).get('effect')
+            allowed = kit_reactions.allowed_effects(found)
+            if not declared:
+                raise Unclear(f"{found['name']}: declare its effect (react.effect), one of {', '.join(allowed)}.",
+                              'needs_effect')
+            if declared['type'] not in allowed:
+                raise Unclear(f"{found['name']}'s sheet text does not say it can {declared['type']} "
+                              f"(it allows {', '.join(allowed)}).", 'effect_not_on_sheet')
+            if declared['type'] in ('reduce_damage', 'deal_damage') and self.reaction_roll() is None:
+                raise Unclear(f"{found['name']} waits on its roll in Avrae.", 'needs_roll', ask='the roll')
+            if declared['type'] == 'succeed_save' and waiting['trigger'] != 'pc_save':
+                raise Unclear(f"{found['name']} turns a failed save; this window is not a save.", 'effect_not_on_sheet')
+        elif effect in kit_reactions.ROLLED and effect not in self.ATTACKING and self.reaction_roll() is None:
+            if not (effect == 'counterspell' and int(waiting.get('level') or 0) <= 3):
+                raise Unclear(f"{found['name']} waits on your roll in Avrae ({found.get('dice', 'its roll')}).",
+                              'needs_roll', ask=found.get('dice') or 'the roll')
+        if effect == 'counterspell' and int(waiting.get('level') or 0) > 3 and self.reaction_roll() is None:
+            raise Unclear(f"Counterspell against a level {waiting['level']} spell is an ability check: roll it in "
+                          'Avrae (your spellcasting ability).', 'needs_roll', ask='the spellcasting ability check')
+        if effect in ('succeed_save', 'add_to_save') and found.get('save_only') and \
+                found['save_only'] != waiting.get('save'):
+            raise Unclear(f"{found['name']} answers only {found['save_only'].title()} saves.", 'not_offered')
+        return react
+
+    def reaction_roll(self):
+        """The player's own roll for the reaction: Kit's react.roll (copied from the reply), else the
+        reply's Avrae total. Never rolled here."""
+        roll = (self.choice or {}).get('roll')
+        if roll is not None:
+            return int(roll)
+        posted = kit_rolls.damage_total(self.action)[0]
+        if posted:
+            return int(posted)
+        bare = re.search(r'(?:=|:|\btotal\b|\brolled?\b)\s*`?(\d{1,3})`?', self.action)
+        return int(bare.group(1)) if bare else None
+
+    def declared_effect(self, react):
+        found = kit_reactions.entry(self.resources, react) or {}
+        if found.get('effect') == kit_reactions.KIT:
+            return (self.choice or {}).get('effect') or {'type': 'none'}
+        return None
+
+    def resolve_window(self, waiting, react):
+        """Apply the reaction (or the decline) to the event the window holds, then run on."""
+        trigger = waiting['trigger']
+        if react != 'decline':
+            self.spend_reaction(react, (self.choice or {}).get('slot_level'))
+        if trigger == 'hit':
+            self.resume_hit(waiting, react)
+            self.npc_turn(waiting['attacker'], start=waiting['attack_index'] + 1)
+            self.step()
+            self.check_over()
+            self.run_npcs()
+        elif trigger in ('damaged', 'missed'):
+            self.answer_attacker(waiting, react)
+            self.npc_turn(waiting['attacker'], start=waiting['attack_index'] + 1)
+            self.step()
+            self.check_over()
+            self.run_npcs()
+        elif trigger == 'npc_spell':
+            countered = react != 'decline' and self.answer_spell(waiting, react)
+            index = waiting['attack_index']
+            if self.active(waiting['attacker']):
+                self.npc_turn(waiting['attacker'], start=index + 1 if countered else index,
+                              cast_answered=not countered)
+            self.step()
+            self.check_over()
+            self.run_npcs()
+        elif trigger == 'npc_save':
+            self.resume_spell_save(waiting, react)
+            if self.fight['status'] == 'awaiting_initiative':
+                self.fight['opener_spent'] = True  # the spell paused here was his opening blow
+            self.after_pc_action(True)
+        elif trigger == 'pc_save':
+            saved = self.answer_failed_save(waiting, react)
+            self.land_save(waiting['save_call'], saved, waiting['total'])
+            self.after_save(waiting['save_call'])
+        else:  # leaves_reach: an opportunity attack (Sentinel stops the foe too)
+            key = waiting['actor']
+            stays = False
+            if react != 'decline':
+                effect = (kit_reactions.entry(self.resources, react) or {}).get('effect')
+                if effect in self.ATTACKING:
+                    self.reaction_attack(key)
+                    stays = effect == 'sentinel'
+                    if stays and self.active(key):
+                        self.lines.append(f'Sentinel: the {self.label(key)} is stopped where it stands.')
+                else:
+                    self.apply_declared(react, waiting, key)
+            if self.active(key) and not stays:
+                self.flee(key)
+            self.step()
+            self.check_over()
+            self.run_npcs()
+
+    def reaction_attack(self, key):
+        """An attack-making reaction (the opportunity attack, Riposte, Mage Slayer, Sentinel): the
+        player's Avrae attack and damage, made with the melee weapon the reply names."""
+        weapon = re.search(r'\b(' + WEAPONS + r')\b', narration(self.action).casefold())
+        self.pc_attack({'kind': 'attack', 'target': key, 'area': False,
+                        'weapon': weapon.group(1) if weapon else 'attack', 'unarmed': not weapon})
+
+    def apply_declared(self, react, waiting, key=None):
+        """Kit's declared closed effect outside a hit (a foe leaving reach, a spell, a miss): the
+        engine applies what applies there and says it."""
+        found = kit_reactions.entry(self.resources, react) or {}
+        effect = self.declared_effect(react) or {'type': 'none'}
+        name = found.get('name', react)
+        if effect['type'] == 'deal_damage' and key and self.active(key):
+            self.reaction_damage(key, self.reaction_roll() or 0, effect.get('save'), found.get('type'), name)
+        elif effect['type'] == 'move':
+            feet = int(effect.get('feet') or 0)
+            if feet >= 5:
+                self.break_contact(f'{name}: {feet} feet')
+            self.lines.append(f'{name}: you move {feet} feet.')
+        elif effect['type'] == 'none':
+            self.lines.append(f'{name}: it changes nothing here.')
+        else:
+            self.lines.append(f'{name}: no effect on this.')
+        self.trace.append(f'{react}: Kit declared {effect}')
+
+    def reaction_damage(self, key, amount, save, dtype, name):
+        """Damage a reaction deals (the player's roll); a save named halves it on a success. The
+        PC is the attacker: the creature's save that ties his DC fails."""
+        dealt = int(amount)
+        if save:
+            dc = self.sheet.get('spell_save_dc') or _derived_save_dc(self.sheet) or 10
+            bonus = self.stats(key).get('saves', {}).get(save)
+            if bonus is None:
+                bonus = _mod(((self.state['actors'][key].get('stats') or {}).get('abilities') or {}).get(save, 10))
+            die = self.die(f'reaction_save:{key}:{name}:r{self.fight["round"]}')
+            saved = not kit_rolls.attacker_wins(int(dc), die + bonus)
+            dealt = dealt // 2 if saved else dealt
+            self.trace.append(f'{key} {save} save vs {name}: d20 {die} + {bonus} vs DC {dc}: '
+                              f'{"saved" if saved else "failed"}, {dealt}')
+        self.lines.append(f'{name}: {dealt} {dtype or ""} damage to the {self.label(key)}.'.replace('  ', ' '))
+        self.apply_damage(key, dealt, dtype)
+
+    def answer_attacker(self, waiting, react):
+        """After the hit landed (Hellish Rebuke) or after a melee miss (Riposte): the reaction answers
+        the attacker."""
+        if react == 'decline':
+            return
+        key = waiting['attacker']
+        found = kit_reactions.entry(self.resources, react) or {}
+        effect = found.get('effect')
+        if not self.active(key):
+            return
+        if effect == 'hellish_rebuke':
+            self.reaction_damage(key, self.reaction_roll() or 0, found.get('save', 'dex'), 'fire', found['name'])
+        elif effect in self.ATTACKING:
+            self.lines.append(f"{found['name']}: you strike back at the {self.label(key)}.")
+            self.reaction_attack(key)
+        else:
+            self.apply_declared(react, waiting, key)
+
+    def answer_spell(self, waiting, react):
+        """A creature casting a spell: True when the reaction stops it (Counterspell)."""
+        found = kit_reactions.entry(self.resources, react) or {}
+        effect = found.get('effect')
+        level = int(waiting.get('level') or 0)
+        if effect == 'counterspell':
+            if level <= 3:
+                self.lines.append(f"Counterspell: the {waiting['name']} fails.")  # SRD: 3rd or lower simply fails
+                return True
+            check = self.reaction_roll()
+            stopped = kit_rolls.meets_or_beats(check, 10 + level)  # the PC acts on the caster: meet or beat
+            self.trace.append(f'counterspell check {check} vs DC {10 + level}: {"stopped" if stopped else "failed"}')
+            self.lines.append(f"Counterspell: the {waiting['name']} " + ('fails.' if stopped else 'goes off anyway.'))
+            return stopped
+        if effect in self.ATTACKING:
+            self.lines.append(f"{found['name']}: you strike the {self.label(waiting['attacker'])} mid-cast.")
+            self.reaction_attack(waiting['attacker'])
+            return False
+        declared = self.declared_effect(react) or {'type': 'none'}
+        if declared['type'] == 'negate_hit':
+            self.lines.append(f"{found.get('name', react)}: the {waiting['name']} fails.")
+            return True
+        self.apply_declared(react, waiting, waiting['attacker'])
+        return False
+
+    def answer_failed_save(self, waiting, react):
+        """The PC failed a save and a reaction answers it (Ring of Evasion, Lucky Footwork, or Kit's
+        declared succeed_save): True when it now succeeds."""
+        if react == 'decline':
+            return False
+        found = kit_reactions.entry(self.resources, react) or {}
+        effect = found.get('effect')
+        declared = self.declared_effect(react) or {}
+        if effect == 'succeed_save' or declared.get('type') == 'succeed_save':
+            self.lines.append(f"{found.get('name', react)}: you succeed instead.")
+            return True
+        if effect == 'add_to_save':
+            total = int(waiting['total']) + int(self.reaction_roll() or 0)
+            saved = not kit_rolls.attacker_wins(waiting['dc'], total)
+            self.lines.append(f"{found['name']}: {total}, " + ('a success.' if saved else 'still a failure.'))
+            return saved
+        self.apply_declared(react, waiting)
+        return False
+
+    def resume_hit(self, waiting, react):
+        name = waiting['name']
+        dealt = waiting['damage']
+        die = waiting['die']
+        total = waiting['total']
+        found = (kit_reactions.entry(self.resources, react) or {}) if react != 'decline' else {}
+        effect = found.get('effect')
+        declared = self.declared_effect(react) if react != 'decline' else None
+        hit = True
+        if effect == 'shield':
+            self.fight['shield_up'] = True
+            hit = not waiting.get('magic_missile') and (die == 20 or kit_rolls.meets_or_beats(total, self.pc_ac()))
+            self.lines.append(f'Shield: the {name} ' + ('still gets through.' if hit else 'is turned.'))
+        elif effect in ('silvery_barbs', 'chronal_shift') or (declared or {}).get('type') in (
+                'force_reroll', 'impose_disadvantage'):
+            again = self.die(f"{react}:{waiting['attacker']}:r{self.fight['round']}:{waiting['attack_index']}")
+            low = effect == 'silvery_barbs' or (declared or {}).get('type') == 'impose_disadvantage'
+            new = min(die, again) if low else again
+            total = new + (total - die)
+            hit = new == 20 or (new != 1 and kit_rolls.meets_or_beats(total, self.pc_ac()))
+            dealt = waiting.get('base', dealt) * (2 if new == 20 else 1)
+            self.trace.append(f'{react}: reroll d20 {again}, uses {new}: {total} vs AC {self.pc_ac()}')
+            self.lines.append(f"The {name} is rerolled: {total}, {'a hit' if hit else 'a miss'}.")
+        elif effect == 'absorb_elements':
+            dealt //= 2
+            dice = absorb_dice(getattr(self, 'spent_slot', None))
+            self.fight['absorb_bonus'] = {'type': waiting['type'], 'dice': dice}
+            self.lines.append(f"Absorb Elements: resistance to the {waiting['type']}; your next melee hit "
+                              f"adds {dice} {waiting['type']}.")
+        elif effect == 'uncanny_dodge':
+            dealt //= 2
+            self.lines.append('Uncanny Dodge: you take half.')
+        elif effect in ('deflect_missiles', 'parry') or (declared or {}).get('type') == 'reduce_damage':
+            cut = int(self.reaction_roll() or 0)
+            before, dealt = dealt, max(0, dealt - cut)
+            self.trace.append(f'{react}: reduces {before} by {cut} (the player\'s roll) to {dealt}')
+            what = found.get('name', react)
+            self.lines.append(f'{what}: you catch it.' if not dealt and effect == 'deflect_missiles' else
+                              f'{what}: {before - dealt} less damage.')
+            if not dealt:
+                hit = False
+        elif (declared or {}).get('type') == 'negate_hit':
+            hit = False
+            self.lines.append(f"{found.get('name', react)}: the {name} misses.")
+        elif declared:
+            self.apply_declared(react, waiting, waiting['attacker'] if declared['type'] == 'deal_damage' else None)
+        self.trace.append(f"reaction {react}: {total} vs AC {self.pc_ac()}: {'hit' if hit else 'miss'}")
+        if not hit:
+            return
+        self.lines.append(f"The {name} hits you: {dealt} {waiting['type']} damage.")
+        self.lines.extend(self.hurt_pc(dealt, crit=bool(waiting.get('crit'))))
+        if self.fight.get('pc_down'):
+            return
+        self.after_damage(waiting['attacker'], waiting['attack_index'], waiting.get('ranged'), dealt)
+        if waiting.get('rider'):
+            # Reaction before damage, then the save the hit carries.
+            self.owe_save(waiting['attacker'], waiting['attack_index'], waiting['rider'])
+
+    def after_damage(self, key, index, ranged, dealt, before=None):
+        """The damage landed: a reaction that answers being damaged (Hellish Rebuke) opens now, after
+        it, never before (SRD trigger), and only while he is up with his reaction unused."""
+        if not dealt or not self.pc_can_react() or not self.active(key):
+            return
+        options = self.fresh(self.options_for(['creature_hits_you_within_range']), 'normal', dealt)
+        if options and not self.meaningful(dealt):
+            self.unprompted('damaged', options, attacker=key, damage=dealt)
+        if options and self.meaningful(dealt):
+            if before:
+                before()
+            self.wait_for('reaction_window', 'player_answer', trigger='damaged', options=options, attacker=key,
+                          attack_index=index, damage=dealt, triggers=['creature_hits_you_within_range'],
+                          stakes='normal')
+
+    def resume_spell_save(self, waiting, react):
+        """A creature saved against the PC's spell and the window let him answer it: the reroll (if
+        taken), then every target's damage lands as the spell resolved. The PC is the attacker: a
+        reroll that ties his DC fails (Brendon's save rule, kit_rolls.attacker_wins)."""
+        results = [list(r) for r in waiting['results']]
+        if react != 'decline':
+            effect = (kit_reactions.entry(self.resources, react) or {}).get('effect')
+            declared = self.declared_effect(react) or {}
+            for row in results:
+                key, saved, die, bonus = row[0], row[1], row[2], row[3]
+                if key != waiting['target'] or die is None:
+                    continue
+                if effect in ('silvery_barbs', 'chronal_shift') or declared.get('type') in (
+                        'force_reroll', 'impose_disadvantage'):
+                    again = self.die(f"{react}:save:{key}:r{self.fight['round']}")
+                    low = effect == 'silvery_barbs' or declared.get('type') == 'impose_disadvantage'
+                    new = min(die, again) if low else again
+                    row[1] = not kit_rolls.attacker_wins(int(waiting['dc']), new + bonus)
+                    self.trace.append(f'{react}: {key} rerolls the save, d20 {again}, uses {new}: '
+                                      f"{'saved' if row[1] else 'failed'}")
+                else:
+                    self.apply_declared(react, waiting, key)
+        damage, half = int(waiting['damage']), bool(waiting.get('half'))
+        for key, saved, *_ in results:
+            if self.active(key):
+                self.apply_damage(key, (damage // 2 if half else 0) if saved else damage, waiting.get('dtype'))
+        self.fight['pending'] = None
+
+    # -- the act that came with a window answer (#101 review P1-3): never dropped ----------
+    _CLAUSES = re.compile(r'\bthen\b|\n+|(?<=[.!?])\s+(?=[A-Z])')
+    _ANSWER_ONLY = re.compile(r"^\W*(?:no|nah|nope|yes|yeah|sure|ok(?:ay)?|pass|decline|skip|"
+                              r"(?:i )?let (?:it|him|her|them) (?:hit|land|go|through)|don'?t|not now)\b"
+                              r"(?:[\s,.!]*(?:let (?:it|him|her|them) (?:hit|land|go)|i take it|i'?ll take it))?\W*$", re.I)
+    _AVRAE_LINE = re.compile(r'^\s*(?:spell slots|an invisible barrier|\+5 ac|you |[^\w]*\d+d\d+|\*\*|meta|effect)',
+                             re.I)
+
+    def route_rest(self, waiting, react):
+        """Whatever else the player said with the answer ("Shield... then magic missile", a new act
+        read as a decline) is his act: on his turn now, else held for it, and he is told."""
+        if self.fight.get('declared_next'):
+            return
+        found = kit_reactions.entry(self.resources, react) or {}
+        names = [n for n in (found.get('name', ''), react.replace('_', ' ')) if n and react != 'decline']
+        attacking = found.get('effect') in self.ATTACKING
+        kept, said, skipped_attack = [], [], False
+        for part in self._CLAUSES.split(self.action):
+            part = (part or '').strip(' ,;')
+            if not part or self._AVRAE_LINE.match(part):
+                continue
+            low = part.casefold()
+            if any(n.casefold() in low for n in names) or '!cast' in low:
+                continue
+            if attacking and not skipped_attack and kit_rolls.attack_total(part) is not None:
+                skipped_attack = True  # the reaction's own attack
+                continue
+            if self._ANSWER_ONLY.match(part):
+                continue  # the answer itself ('No, let it hit.')
+            if not part.rstrip(' .\'"\u201d)').endswith('?'):
+                said.append(part)  # a question asks Kit; it is no act for the fight's end to void
+            act = parse(part, self.source, self.state)
+            if act and (act.get('kind') != 'attack' or act.get('spell') or kit_rolls.attack_total(part) is not None
+                        or name_target(part, self.source, self.state, self.hostiles())):
+                kept.append(part)
+        if not kept:
+            if said and self.fight.get('status') == 'over':
+                # An act said with the answer that the fight's end leaves nothing to do ('I let it
+                # go and cast Hex on the slinger'): voided out loud, like a held act.
+                self.trace.append(f'act with the window answer moot, the fight is over: {" ".join(said)[:120]}')
+                self.lines.append('The fight is over before your held act comes up, so it does not happen.')
+            return
+        rest = ' '.join(kept)
+        self.fight['declared_next'] = rest
+        self.trace.append(f'act with the window answer, held for his turn: {rest[:120]}')
+
+    def after_pc_action(self, acted):
+        """What follows the PC's act: the fight may end, a worthy kill hands the floor over (a
+        flourish), and the round runs on to the PC's next turn."""
+        self.check_over()
+        if self.fight and acted:
+            self.fight.pop('unprompted', None)  # an unprompted reaction is declared before his own act
+        if self.fight and acted and self.fight['status'] in ('running', 'over') and CLAUSE_PARSER:
+            # The flourish window is behind the same off-by-default flag (#101 review at d0e533e:
+            # by default it stalled the round). Off, the round runs on exactly as on main.
+            worthy = [(key, chosen) for key, chosen in self.kills
+                      if (self.status(key) == 'dead' or chosen) and
+                      (self.important(key) or self.fight['status'] == 'over')]
+            if worthy:
+                # The kill (or the knockout the player chose) is committed first; the player owns how
+                # it looks, never what happened.
+                key = worthy[-1][0]
+                self.wait_for('flourish_window', 'player_description', target=key, outcome=self.status(key),
+                              deferred='continue_round' if self.fight['status'] == 'running' else 'none')
+        if self.fight and (self.fight.get('absorb_bonus') or {}).get('armed') and acted:
+            self.fight.pop('absorb_bonus', None)  # only the PC's next turn
+        if self.fight and self.fight['status'] == 'running' and acted:
+            self.advance_past_pc()
+            self.run_npcs()
+        elif self.fight and self.fight['status'] == 'awaiting_initiative':
+            self.lines.append('Roll initiative.')
 
     def pc_hp(self):
         return self.sheet.get('hp')
 
     # -- the PC's act ----------------------------------------------------------------
     def resolve(self, act):
-        awaiting = (self.fight or {}).get('awaiting')
-        if awaiting and awaiting.get('kind') == 'kit_call':
+        try:
+            self._resolve(act)
+        except Checkpoint:
+            pass
+        try:
+            self.declared_turn()  # an act held for his turn runs once it comes (and nothing waits)
+        except Checkpoint:
+            pass
+        self.finish()
+        return self.public(), self.events()
+
+    def _resolve(self, act):
+        waiting = (self.fight or {}).get('awaiting')
+        if waiting and waiting.get('kind') == 'kit_call':
             # Kit's call on the downed PC's foes never came (a host that skipped it): the
             # creatures do what their stat line says (default: they keep attacking).
-            choice = self.default_vs_downed(awaiting)
+            choice = self.default_vs_downed(waiting)
             self.trace.append(f'no call on the downed PC: {choice} (default)')
             self.fight['awaiting'] = None
             self.fight['vs_downed'] = choice
-            self.run_npcs()
+            try:
+                self.run_npcs()
+            except Checkpoint:
+                pass  # what the round now waits on is read below
             awaiting = self.fight.get('awaiting')
             if awaiting and awaiting.get('kind') == 'roll_call' and awaiting.get('save') == 'death' and \
                     save_total(self.action, 'death') is not None:
@@ -631,16 +2018,44 @@ class Fight:
                 # a fresh roll at his slot.
                 self.lines.append('That death save was rolled before those blows; roll it again now.')
                 self.trace.append('early death save not counted: the foes act before his slot')
-                self.finish()
-                return self.public(), self.events()
-            if not (awaiting and awaiting.get('kind') == 'roll_call') or \
-                    save_total(self.action, awaiting['save']) is None:
-                self.finish()
-                return self.public(), self.events()
-        if awaiting and awaiting.get('kind') == 'roll_call':
-            return self.resume_save(awaiting, act)
+                return
+            if awaiting and not (awaiting.get('kind') == 'roll_call' and
+                                 save_total(self.action, awaiting['save']) is not None):
+                return
+            if awaiting:
+                self.resume_save(awaiting)
+                self.after_save(awaiting)
+                return
         init = kit_rolls.initiative(self.action)
         kind = (act or {}).get('kind')
+        waiting = (self.fight or {}).get('awaiting')
+        if waiting and waiting['kind'] == 'flourish_window':
+            # A new act instead of a description: the flourish is passed, the round runs on.
+            self.fight['awaiting'] = None
+            if self.fight['status'] == 'running':
+                self.advance_past_pc()
+                if kind and not self.pc_turn_now():
+                    # His action this turn was the kill: the new act is never dropped (#101 review
+                    # P1-3, D1). It waits for his next turn, and he is told so.
+                    self.fight['declared_next'] = self.action
+                    self.trace.append(f'new act with the flourish, held for his turn: {self.action[:120]}')
+                    self.lines.append('You have already acted this turn; that waits for your next turn.')
+                    self.run_npcs()
+                    return
+        if kind == 'multi':
+            if self.fight['status'] == 'running' and not self.pc_turn_now():
+                self.run_npcs()  # whoever acts before the PC in the order
+            self.run_clauses(act)
+            return
+        if kind == 'attack' and not self.hostiles() and not (self.fight and self.fight.get('status') != 'over'):
+            # Nobody here to fight (a lurker not yet shown is not a target): no fight starts, and
+            # the rest of the message (a feature disturbed) resolves on its own.
+            self.trace.append('attack at nobody: no fight')
+            target = (act or {}).get('target')
+            if self.fight or (target and target in self.state.get('actors', {}) and not self.active(target)):
+                # The fight is over, or its target is dead or gone: said, not echoed as table talk.
+                self.lines.append("There's nobody left to hit.")
+            return
         if kind == 'attack':
             self.ensure_fight('pc')
         if self.fight and self.fight['status'] == 'awaiting_initiative' and init is not None:
@@ -652,22 +2067,53 @@ class Fight:
             if self.fight['status'] == 'awaiting_initiative' and self.fight['opener_spent']:
                 self.lines.append('Your first blow is already struck; roll initiative before the next one.')
             else:
-                acted = self.pc_attack(act)
+                if act.get('move_first') and self.pc_turn_now():
+                    # 'I back away 30 feet and cast Fire Bolt': the move, then the attack (D5).
+                    self.pc_move_away(act['move_first'])
+                if self.out_of_reach(act):
+                    self.lines.append(f"Your {act.get('weapon') or 'blow'} didn't happen because the "
+                                      f"{self.label(act['target'])} is out of your reach now.")
+                    acted = True
+                else:
+                    acted = self.pc_attack(act)
                 self.needs_roll = not acted and init is None
                 if self.fight['status'] == 'awaiting_initiative' and acted:
                     self.fight['opener_spent'] = True
+        elif kind == 'late_reaction':
+            self.pc_late_reaction(act)
         elif kind:
             acted = True
             {'grab': self.pc_grab, 'face': self.pc_face, 'flip': self.pc_flip, 'take': self.pc_take,
-             'wait': self.pc_wait}[kind](act)
-        self.check_over()
-        if self.fight and self.fight['status'] == 'running' and acted:
-            self.advance_past_pc()
-            self.run_npcs()
-        elif self.fight and self.fight['status'] == 'awaiting_initiative':
-            self.lines.append('Roll initiative.')
-        self.finish()
-        return self.public(), self.events()
+             'wait': self.pc_wait, 'own_shield': self.pc_own_shield, 'withdraw': self.pc_move_away,
+             'approach': self.pc_approach}[kind](act)
+        self.after_pc_action(acted)
+
+    def pc_own_shield(self, act):
+        """Shield is a reaction to being hit (or targeted by magic missile). Cast on his own turn,
+        or after the hit it answers has landed, it has no trigger: it changes nothing, and the slot
+        Avrae spent is counted so the session matches Avrae."""
+        landed = int(self.fight.get('pc_damage') or 0) > 0
+        on_sheet = any(r.get('id') == 'shield' for r in self.resources.get('reactions') or ())
+        if not on_sheet:
+            self.lines.append("Shield didn't happen because it is not on your sheet.")
+            return
+        if act.get('avrae') and on_sheet and kit_reactions.free_slot(self.resources, 1):
+            self.resources, slot = kit_reactions.spend(self.resources, 'shield')
+            self.resources_changed = True
+            self.trace.append(f'PC casts Shield with no trigger (own turn): level {slot} slot counted, no effect')
+        if landed:
+            self.lines.append('That hit has already landed; Shield cannot undo it. It is a reaction to being '
+                              'hit, so it does nothing on your own turn.')
+        else:
+            self.lines.append('Shield is a reaction to being hit; cast on your own turn it does nothing.')
+
+    def pc_move_away(self, act):
+        """He moves out of his foes' reach on his turn: each foe in reach may take its opportunity
+        attack (none if he disengages), then engagement ends."""
+        foes = [key for key in self.hostiles() if self.in_reach(key)]
+        self.pc_withdraw('he moves away' + (' (Disengage)' if act.get('disengage') else ''),
+                         provoke=not act.get('disengage'))
+        self.lines.append('You fall back out of reach.' if foes else 'You move off.')
 
     def pc_wait(self, act):
         self.lines.append('You hold your ground and wait for them to come to you.')
@@ -733,6 +2179,7 @@ class Fight:
                 if self.pc_surprised_now():
                     self.lines.append('You are surprised and lose your first turn.')
                     self.trace.append('PC surprised: round 1 turn lost')
+                    self.fight['surprise_spent'] = True
                 elif not self.pc_slot_passes():
                     break
             elif self.fight.get('pc_down') and self.active(key) and self.fight.get('vs_downed') is None and \
@@ -742,9 +2189,11 @@ class Fight:
                 self.trace.append(f'the PC is down: Kit calls what {", ".join(foes)} do')
                 break
             elif self.active(key):
-                self.npc_turn(key)
+                self.npc_turn(key)  # may stop at a checkpoint (the order stays on this NPC)
             self.step()
             self.check_over()
+        if self.fight['status'] == 'running' and self.pc_turn_now():
+            self.start_pc_turn()
         if self.fight['status'] == 'over' and self.dying():
             self.ask_death_save()
 
@@ -911,7 +2360,10 @@ class Fight:
         if own_action and self.fight['status'] == 'running':
             if self.pc_turn_now():
                 self.advance_past_pc()
-                self.run_npcs()
+                try:
+                    self.run_npcs()
+                except Checkpoint:
+                    pass
         self.finish()
         return True
 
@@ -929,75 +2381,111 @@ class Fight:
             self.fight['ended'] = 'foes turned from the downed PC'
             self.trace.append('fight over: nobody fights a stable, downed PC')
         else:
-            self.run_npcs()
+            try:
+                self.run_npcs()
+            except Checkpoint:
+                pass
         self.finish()
         return self.public(), self.events()
 
     # -- a save the player rolls (a monster attack's rider) ---------------------------
-    def resume_save(self, awaiting, act=None):
-        """The player's save answers the roll call. Another queued save is asked next; else
-        the round goes on, and anything else he declared with it ('Con save 14, then I cast
-        magic missile') is his turn when it comes."""
-        total = save_total(self.action, awaiting['save'])
+    def owe_save(self, key, index, rider):
+        """Stop at a roll call: the player rolls his own save in Avrae (never shown the DC).
+        Order with a reaction window: the reaction first (before damage), then the save."""
+        self.lines.append(save_prompt({'save': rider['ability']}))
+        self.wait_for('roll_call', 'player_roll', trigger='save_rider', save=rider['ability'], dc=rider['dc'],
+                      damage=rider.get('damage', 0), type=rider.get('type', 'poison'), half=bool(rider.get('half')),
+                      at_zero=list(rider.get('at_zero') or ()), attacker=key, attack_index=index,
+                      **({'condition': rider['condition']} if rider.get('condition') else {}))
+
+    def resume_save(self, waiting):
+        """The player's save total answers the roll call; the rider's damage lands or not. Anything he
+        declared with it ('Con save 14, then I cast magic missile') waits for his turn (declared_next)."""
+        total = save_total(self.action, waiting['save'])
         if total is None:
-            self.lines.append(save_prompt(awaiting))
-            return self.public(), self.events()
-        if awaiting['save'] == 'death':
+            command = '!g ds' if waiting['save'] == 'death' else f"!save {waiting['save']}"
+            raise Unclear(f"{save_prompt(waiting)[:-1]} in Avrae first ({command}). "
+                          'No turn was committed.')
+        if waiting['save'] == 'death':
             return self.resume_death(total)
-        if awaiting.get('repeat'):
-            return self.resume_repeat(awaiting, total)
+        if waiting.get('repeat'):
+            return self.resume_repeat(waiting, total)
         # Brendon's save rule: the attacker meets or beats, so a save that ties the DC fails.
-        saved = not kit_rolls.attacker_wins(awaiting['dc'], total)
-        damage = int(awaiting['damage'])
-        dealt = (damage // 2 if awaiting.get('half') else 0) if saved else damage
-        self.trace.append(f"PC {awaiting['save']} save {total} vs DC {awaiting['dc']} "
-                          f"({attacker(awaiting)}): {'saved' if saved else 'failed'}, {dealt} {awaiting['type']}")
+        saved = not kit_rolls.attacker_wins(waiting['dc'], total)
         self.fight['awaiting'] = None
-        condition = awaiting.get('condition')
+        if not saved and self.pc_can_react():
+            # A failed save a reaction can answer (Ring of Evasion, Lucky Footwork: Dex saves).
+            options = self.fresh(self.options_for(
+                ['self_fails_save'], fit=lambda r: not r.get('save_only') or r['save_only'] == waiting['save']),
+                'normal')
+            if options:
+                self.lines.append(f"{save_prompt(waiting)[len('Roll a '):-1].capitalize()}: {total}, a failure.")
+                self.wait_for('reaction_window', 'player_answer', trigger='pc_save', options=options,
+                              save=waiting['save'], dc=waiting['dc'], total=total, save_call=dict(waiting),
+                              triggers=['self_fails_save'], stakes='normal',
+                              **({'attacker': attacker(waiting)} if attacker(waiting) else {}))
+        self.land_save(waiting, saved, total)
+
+    def land_save(self, waiting, saved, total):
+        """The save's outcome: the rider's damage and condition land, or not."""
+        damage = int(waiting['damage'])
+        dealt = (damage // 2 if waiting.get('half') else 0) if saved else damage
+        self.trace.append(f"PC {waiting['save']} save {total} vs DC {waiting['dc']} "
+                          f"({attacker(waiting)}): {'saved' if saved else 'failed'}, {dealt} {waiting['type']}")
+        condition = waiting.get('condition')
         immune = condition and any(str(word).casefold() in str(self.sheet.get('ancestry') or '').casefold()
                                    for word in condition.get('immune') or ())
         if condition and not saved and not immune:
             term = {'rounds': int(condition['rounds'])} if condition.get('rounds') else {}
             if condition.get('repeat') == 'end_of_turn':
-                term['save'] = {'ability': awaiting['save'], 'dc': int(awaiting['dc']), 'when': 'end_of_turn',
-                                **({'from': attacker(awaiting)} if attacker(awaiting) else {})}
+                term['save'] = {'ability': waiting['save'], 'dc': int(waiting['dc']), 'when': 'end_of_turn',
+                                **({'from': attacker(waiting)} if attacker(waiting) else {})}
             self.add_condition(condition['name'], term)
             self.lines.append(f"You are {condition['name']}.")
         elif condition:
             self.lines.append(f"You shake off the {condition['name'] if condition['name'] != 'paralyzed' else 'paralysis'}.")
         if not dealt and not condition:
-            self.lines.append(f"You shake off the {awaiting['type']}.")
+            self.lines.append(f"You shake off the {waiting['type']}.")
         elif dealt:
-            self.lines.append(f"You {'resist some of' if saved else 'fail to resist'} the {awaiting['type']}: "
-                              f"{dealt} {awaiting['type']} damage.")
+            self.lines.append(f"You {'resist some of' if saved else 'fail to resist'} the {waiting['type']}: "
+                              f"{dealt} {waiting['type']} damage.")
             # Conditions live on the PC, not the fight: they outlast it (runtime state).
-            self.lines.extend(self.hurt_pc(dealt, at_zero=awaiting.get('at_zero')))
-        # What he declared with the save waits for his turn (kept across further saves).
+            self.lines.extend(self.hurt_pc(dealt, at_zero=waiting.get('at_zero')))
         rest = after_save_clause(self.action) or self.fight.get('declared_next') or ''
         self.fight.pop('declared_next', None)
+        if rest:
+            self.fight['declared_next'] = rest
         queued = list(self.fight.get('saves_queued') or ())
         if queued and not self.fight.get('pc_down'):
+            # A save queued behind this one (a #97-era save): asked next, one at a time.
             self.fight['awaiting'] = queued.pop(0)
             self.fight['saves_queued'] = queued
             self.lines.append(save_prompt(self.fight['awaiting']))
-            if rest:
-                self.fight['declared_next'] = rest
-            return self.public(), self.events()
+            raise Checkpoint()
         self.fight.pop('saves_queued', None)
-        if self.fight['status'] == 'running':
-            self.run_npcs()
+
+    def after_save(self, waiting):
+        """The round runs on from the attack whose rider was saved against."""
+        who = attacker(waiting)  # #97-era prompts say "from", #101's "attacker"
+        if not self.fight.get('pc_down') and who and waiting.get('attack_index') is not None:
+            self.npc_turn(who, start=waiting['attack_index'] + 1)
+        self.step()
         self.check_over()
-        if rest and self.fight['status'] == 'running' and not self.fight.get('pc_down'):
-            if self.fight.get('awaiting'):
-                self.fight['declared_next'] = rest
-            elif self.pc_turn_now():
-                follow = parse(rest, self.source, self.state)
-                if follow:
-                    self.trace.append(f'his declared act after the save: {rest[:120]}')
-                    self.action = rest
-                    return self.resolve(follow)
-        self.finish()
-        return self.public(), self.events()
+        self.run_npcs()
+
+    def declared_turn(self):
+        """What the player declared with a save ('..., then I cast magic missile') is his act when
+        his turn comes and nothing else waits."""
+        rest = (self.fight or {}).get('declared_next')
+        if not rest or self.fight['status'] != 'running' or self.fight.get('pc_down') or \
+                self.fight.get('awaiting') or not self.pc_turn_now():
+            return
+        self.fight.pop('declared_next', None)
+        follow = parse(rest, self.source, self.state)
+        if follow:
+            self.trace.append(f'his declared act after the save: {rest[:120]}')
+            self.action = rest
+            self._resolve(follow)
 
     def resume_death(self, roll):
         """His death save (rolled in Avrae, reported): 10 or more succeeds (no attacker, so no
@@ -1008,8 +2496,7 @@ class Fight:
         if roll >= 20:
             self.revive(1, 'natural 20 on a death save')
             self.lines.append('Natural 20: you come to with 1 hit point.')
-            self.finish()
-            return self.public(), self.events()
+            return
         if roll <= 1:
             self.lines.extend(self.death_failures(2, 'natural 1 on a death save'))
         elif roll >= 10:
@@ -1026,15 +2513,13 @@ class Fight:
         else:
             self.lines.extend(self.death_failures(1, f'death save {roll}'))
         if self.fight.get('pc_dead'):
-            return self.public(), self.events()
+            return
         if self.fight['status'] == 'running':
             if self.pc_slot():
                 self.step()
             self.run_npcs()
         elif self.dying():
             self.ask_death_save()
-        self.finish()
-        return self.public(), self.events()
 
     def resume_repeat(self, awaiting, total):
         """The save he repeats at the end of his turn against a condition (the ghoul's
@@ -1051,8 +2536,6 @@ class Fight:
             if self.pc_slot():
                 self.step()
             self.run_npcs()
-        self.finish()
-        return self.public(), self.events()
 
     def check_over(self):
         if self.fight and self.fight['status'] != 'over' and not self.hostiles():
@@ -1077,16 +2560,19 @@ class Fight:
         if spell in SPELL_SAVE:
             dc = posted.get('dc') or self.sheet.get('spell_save_dc') or _derived_save_dc(self.sheet)
             if dc is None:
-                self.fight['pending'] = {'kind': 'attack', 'target': targets[0], 'weapon': weapon, 'needs': 'save_dc'}
+                self.fight['pending'] = {'kind': 'attack', 'target': targets[0], 'weapon': weapon, 'needs': 'save_dc',
+                                         **self.cast_slot(spell)}
                 self.lines.append(f'Your {spell.title()} needs your spell save DC from your sheet; say it and it lands.')
                 return False
             if not damage:
                 self.fight['pending'] = {'kind': 'attack', 'target': targets[0], 'weapon': weapon, 'needs': 'damage',
-                                         'spell': spell, 'area': act.get('area')}
+                                         'spell': spell, 'area': act.get('area'), **self.cast_slot(spell)}
                 self.lines.append(f'Roll the {spell.title()} damage in Avrae.')
                 return False
             ability, half, _ = SPELL_SAVE[spell]
-            hits = []
+            if self.fizzle_without_slot(spell):
+                return True
+            hits, rows = [], []
             # Avrae's own per-target results count when a target there is one of these NPCs.
             posted_targets = {}
             for name, result in (posted.get('targets') or {}).items():
@@ -1113,6 +2599,7 @@ class Fight:
                     self.trace.append(f'{key} {ability} save from Avrae: {result["save"][1]} '
                                       f'{"saved" if saved else "failed"}, {dealt} damage')
                     hits.append((key, dealt))
+                    rows.append([key, saved, None, None])
                     continue
                 bonus = self.stats(key).get('saves', {}).get(ability)
                 if bonus is None:
@@ -1123,6 +2610,21 @@ class Fight:
                 self.trace.append(f'{key} {ability} save d20 {die} + {bonus} vs DC {dc}: '
                                   f'{"saved" if saved else "failed"}, {dealt} damage')
                 hits.append((key, dealt))
+                rows.append([key, saved, die, bonus])
+            self.spend_own_slot(spell)
+            # A reroll is worth a window only where failing changes the outcome: not where the half
+            # damage of the save already kills (Kit II playtest: 12 half on a rat with 7 hp).
+            saver = next((row[0] for row in rows if row[1] and row[2] is not None and
+                          not (half and damage // 2 >= int(self.fight['hp'].get(row[0], 0)))), None)
+            options = self.fresh(self.options_for(['creature_succeeds']), 'normal') if saver else []
+            if options:
+                # A creature the PC can see succeeded on a save against his spell: a reroll may answer it
+                # (Silvery Barbs, Chronal Shift). The spell's damage waits on the answer.
+                self.lines.append(f'Your {spell.title()} {"bursts over them" if act.get("area") else "takes hold"}; '
+                                  f'the {self.label(saver)} resists it.')
+                self.wait_for('reaction_window', 'player_answer', trigger='npc_save', options=options, target=saver,
+                              results=rows, damage=damage, half=half, dtype=dtype, dc=int(dc), spell=spell,
+                              triggers=['creature_succeeds'], stakes='normal')
             self.lines.append(f'Your {spell.title()} {"bursts over the table" if act.get("area") else "takes hold"}.')
             for key, dealt in hits:
                 self.apply_damage(key, dealt, dtype)
@@ -1131,16 +2633,29 @@ class Fight:
         total = kit_rolls.attack_total(self.action)
         natural = next((roll.die for roll in kit_rolls.rolls(self.action) if roll.label == 'attack'), None)
         pending = self.fight.get('pending') if isinstance(self.fight.get('pending'), dict) else None
+        if total is None and spell in SPELL_AUTO and damage and pending and pending.get('needs') == 'damage' and \
+                pending.get('weapon') == weapon:
+            # The damage line of an auto-hit spell already cast (and paid for): it lands, no second slot.
+            self.lines.append(f'Your {spell.title()} hits the {self.label(pending["target"])}.')
+            self.apply_damage(pending['target'], damage, dtype)
+            self.fight['pending'] = None
+            return True
         if total is None and spell not in SPELL_AUTO:
             if pending and pending.get('needs') == 'damage' and damage:
                 self.apply_damage(pending['target'], damage, dtype)
                 self.fight['pending'] = None
                 return True
-            self.fight['pending'] = {'kind': 'attack', 'target': targets[0], 'weapon': weapon, 'needs': 'attack'}
+            self.fight['pending'] = {'kind': 'attack', 'target': targets[0], 'weapon': weapon, 'needs': 'attack',
+                                     **self.cast_slot(spell)}
             what = 'stomp' if weapon == 'stomp' else spell.title() if spell else weapon
             self.lines.append(f'Roll the attack for your {what} in Avrae, with its damage.')
             return False
         key = targets[0]
+        if spell and self.fizzle_without_slot(spell):
+            return True
+        if spell:
+            self.spend_own_slot(spell)
+        self.melee(key, weapon)  # melee blows engage (default, no room data needed)
         ac = self.stats(key)['ac']
         hit = spell in SPELL_AUTO or natural == 20 or (natural != 1 and kit_rolls.meets_or_beats(total, ac))
         self.trace.append(f'PC {weapon} vs {key}: {total} vs AC {ac}: {"hit" if hit else "miss"}')
@@ -1156,7 +2671,59 @@ class Fight:
         self.lines.append(f'Your {what} hits the {self.label(key)}.')
         self.apply_damage(key, damage, dtype, nonlethal=act.get('nonlethal'))
         self.fight['pending'] = None
+        bonus = self.fight.get('absorb_bonus') or {}
+        if bonus.get('armed') and not spell and not RANGED.search(str(weapon)):
+            # Absorb Elements: the first melee hit on the PC's next turn adds 1d6 of the absorbed type.
+            self.fight.pop('absorb_bonus', None)
+            if bonus['type'] not in self.action.casefold():
+                self.fight['pending'] = {'kind': 'attack', 'target': key, 'weapon': weapon, 'needs': 'damage',
+                                         'type': bonus['type'], 'absorb': True}
+                self.lines.append(f"Absorb Elements adds {bonus['dice']} {bonus['type']} to this hit: roll it in Avrae.")
+            self.trace.append(f"absorb elements: +{bonus['dice']} {bonus['type']} on this melee hit")
         return True
+
+    def cast_slot(self, spell):
+        """The slot level his Avrae cast named ('-l 2', 'at 2nd level'), in this message or kept from
+        the message that cast it (a separate damage line names none): {'slot_level': n} or {}."""
+        level = cast_level(self.action) if spell else None
+        pending = self.fight.get('pending') if isinstance(self.fight.get('pending'), dict) else {}
+        if level is None and spell and pending.get('weapon') == spell:
+            level = pending.get('slot_level')
+        return {'slot_level': level} if level else {}
+
+    def fizzle_without_slot(self, spell):
+        """A leveled spell he casts with no slot left by the count (at its level or higher) fizzles:
+        no effect, the action is still spent, and it is said. True when it fizzled."""
+        known = kit_reactions.spells(self.sheet).get(kit_reactions.ident(spell)) or {}
+        if not known.get('level'):
+            return False
+        named = self.cast_slot(spell).get('slot_level')
+        level = named if named and named >= int(known['level']) else known['level']
+        if kit_reactions.free_slot(self.resources, level) is not None:
+            return False
+        self.trace.append(f'{spell}: no level {level}+ slot left by the count, it fizzles')
+        self.lines.append(f'You have no level {level} slot left, so your {spell.title()} fizzles. '
+                          f'Your action is spent.')
+        self.fight['pending'] = None
+        return True
+
+    def spend_own_slot(self, spell):
+        """A leveled spell the PC cast on his turn uses a slot (his Avrae cast is the truth; the engine
+        keeps the session count from the sheet): the level the cast named when it is the spell's own or
+        higher, else the spell's level. An unknown level spends nothing and says so."""
+        known = kit_reactions.spells(self.sheet).get(kit_reactions.ident(spell)) or {}
+        if not known.get('level'):
+            self.trace.append(f'{spell}: no slot level on the sheet, none counted')
+            return
+        named = self.cast_slot(spell).get('slot_level')
+        level = named if named and named >= int(known['level']) else known['level']
+        self.resources, slot = kit_reactions.spend_slot(self.resources, level)
+        self.resources_changed = True
+        self.trace.append(f'{spell}: level {slot} slot used' if slot else f'{spell}: no slot left by the count')
+
+    def melee(self, key, weapon):
+        if weapon and not RANGED.search(str(weapon)) and weapon not in SPELLS:
+            self.engage(key)
 
     def apply_damage(self, key, amount, dtype=None, nonlethal=False):
         if amount <= 0:
@@ -1168,6 +2735,7 @@ class Fight:
         if hp[key] == 0:
             status = 'unconscious' if nonlethal else 'dead'
             self.statuses[key] = status
+            self.kills.append((key, bool(nonlethal)))  # (who, a knockout the player chose)
             self.lines.append(f'The {self.label(key)} goes down and does not get up.' if status == 'dead' else
                               f'The {self.label(key)} drops, out cold.')
         elif hp[key] <= self.fight['max_hp'][key] // 2:
@@ -1176,14 +2744,22 @@ class Fight:
             self.lines.append(f'The {self.label(key)} is hurt.')
         self.crack('fire' if dtype == 'fire' else 'blood', key)
 
-    def npc_turn(self, key):
+    def npc_turn(self, key, start=0, cast_answered=False):
+        """The NPC's attacks from ``start`` (a resumed turn after a reaction window). An attack the
+        stat block marks ``"spell": true`` is a spell cast first (Counterspell, Mage Slayer)."""
         stats = self.stats(key)
-        if key in self.fight.get('surprised', []) and self.fight['round'] == 1:
-            self.lines.append(f'The {self.label(key)} is still reeling.')
-            return
-        if self.should_retreat(key):
-            self.flee(key)
-            return
+        if start == 0:
+            if key in self.fight.get('surprised', []) and self.fight['round'] == 1:
+                self.lines.append(f'The {self.label(key)} is still reeling.')
+                return
+            if self.should_retreat(key):
+                options = self.opportunity_options(key)
+                if options:
+                    self.lines.append(f'The {self.label(key)} breaks away, leaving your reach.')
+                    self.wait_for('reaction_window', 'player_answer', trigger='leaves_reach', actor=key,
+                                  options=options, triggers=['foe_leaves_reach'], stakes='normal')
+                self.flee(key)
+                return
         if self.fight.get('pc_dead'):
             return
         down = bool(self.fight.get('pc_down'))
@@ -1192,54 +2768,172 @@ class Fight:
             self.trace.append(f'{key} turns away from the downed PC (Kit)')
             return
         helpless = down or any(c in ADVANTAGE_AGAINST for c in self.conditions)
+        attacks = stats.get('attacks') or []
+        if start >= len(attacks):
+            return
         hits, misses, after = [], 0, []
-        for index, attack in enumerate(stats.get('attacks') or []):
+        who = f'The {self.label(key)}'
+
+        def say_so_far(swings):
+            if hits:
+                self.say_hits(who, hits, swings)
+            self.lines.extend(after)
+            after.clear()
+
+        for index in range(start, len(attacks)):
+            attack = attacks[index]
+            if attack.get('spell') and not (cast_answered and index == start) and self.pc_can_react() \
+:
+                options = self.fresh(self.options_for(
+                    ['spell_cast_within_range'],
+                    fit=lambda r: r['effect'] != 'mage_slayer' or self.in_reach(key)), 'normal')
+                if options:
+                    say_so_far(2)
+                    self.lines.append(f"{who} begins casting: {attack['name']}.")
+                    self.wait_for('reaction_window', 'player_answer', trigger='npc_spell', options=options,
+                                  attacker=key, attack_index=index, name=attack['name'],
+                                  level=attack.get('level'), triggers=['spell_cast_within_range'], stakes='normal')
             die = self.die(f'npc:{key}:r{self.fight["round"]}:{index}')
             if helpless:
                 die = max(die, self.die(f'npc:{key}:r{self.fight["round"]}:{index}:advantage'))
             total = die + attack['to_hit']
-            hit = die == 20 or (die != 1 and kit_rolls.meets_or_beats(total, self.pc_ac()))
-            crit = die == 20 or (hit and not attack.get('ranged') and
-                                 (down or any(c in AUTO_CRIT for c in self.conditions)))
+            ac = self.pc_ac()
+            missile = bool(attack.get('auto_hit'))  # magic missile: no roll, Shield blocks it
+            hit = missile or die == 20 or (die != 1 and kit_rolls.meets_or_beats(total, ac))
+            ranged = bool(RANGED.search(attack['name']) or attack.get('ranged'))
+            crit = not missile and (die == 20 or (hit and not ranged and
+                                                  (down or any(c in AUTO_CRIT for c in self.conditions))))
             dealt = attack['damage'] * (2 if crit else 1)
             self.trace.append(f'{key} {attack["name"]}: d20 {die}{" (advantage)" if helpless else ""} + '
-                              f'{attack["to_hit"]} = {total} vs AC {self.pc_ac()}: '
+                              f'{attack["to_hit"]} = {total} vs AC {ac}: '
                               f'{("crit " if crit else "hit ") + str(dealt) if hit else "miss"}')
+            if not ranged:
+                self.engage(key)  # a melee attack on the PC: they are in each other's reach
             if not hit:
                 misses += 1
+                if not ranged and not missile and self.pc_can_react():
+                    # A melee miss: Riposte (or a reaction whose text answers one) opens after it.
+                    options = self.fresh(self.options_for(['missed_by_melee']), 'normal')
+                    if options:
+                        say_so_far(2)
+                        self.lines.append(f"{who}'s {attack['name']} misses you.")
+                        self.wait_for('reaction_window', 'player_answer', trigger='missed', options=options,
+                                      attacker=key, attack_index=index, triggers=['missed_by_melee'],
+                                      stakes='normal')
                 continue
+            stakes = 'drop' if self.pc_hp() is not None and not down and \
+                self.fight['pc_damage'] + dealt >= int(self.pc_hp()) else 'normal'
+            triggers = self.hit_triggers(attack, missile)
+            options = [] if not self.pc_can_react() else self.fresh(
+                self.options_for(triggers, fit=lambda r: self.turns_hit(r, die, total, ac, attack, missile, dealt,
+                                                                         stakes)),
+                stakes, dealt, attack.get('type'))
+            eligible = [] if not self.pc_can_react() else self.fresh(
+                self.options_for(triggers, fit=lambda r: self.turns_hit(r, die, total, ac, attack, missile, dealt,
+                                                                         stakes, need_worth=False)),
+                stakes, dealt, attack.get('type'))
+            if not options and self.fight.get('reaction_used') and self.pc_can_react() and \
+                    self.fight.get('spent_told') != self.fight.get('round') and any(
+                        kit_reactions.matching(self.resources, trigger, False, lambda r: self.turns_hit(
+                            r, die, total, ac, attack, missile, dealt, stakes)) for trigger in triggers):
+                # A reaction would have answered this hit, but he used it already: say so once.
+                self.fight['spent_told'] = self.fight.get('round')
+                after.append('Your reaction is already spent this round, so nothing answers it.')
+            if not options and eligible:
+                self.unprompted('hit', eligible, attacker=key, damage=dealt, type=attack.get('type'),
+                                name=attack['name'])
+            if options:
+                say_so_far(2)
+                self.lines.append(f"{who}'s {attack['name']} comes at you: {'it never misses' if missile else f'that is a {total}, a hit'}.")
+                self.wait_for('reaction_window', 'player_answer', trigger='hit', options=options, attacker=key,
+                              attack_index=index, die=die, total=total, damage=dealt, base=attack['damage'],
+                              eligible=[e for e in eligible if e not in options],
+                              type=attack.get('type'), name=attack['name'], triggers=triggers, stakes=stakes,
+                              crit=crit, ranged=ranged, **({'magic_missile': True} if missile else {}),
+                              **({'rider': attack['save']} if attack.get('save') else {}))
             hits.append((dealt, attack['type']))
             was_down = bool(self.fight.get('pc_down'))
             after.extend(self.hurt_pc(dealt, crit=crit))
             if self.fight.get('pc_dead') or (self.fight.get('pc_down') and not was_down):
                 break
-            rider = attack.get('save')
-            if rider and not was_down:
-                # The player rolls his own save (Avrae); the round waits on it. A second rider
-                # this turn waits its turn behind the first (each is asked, one at a time).
-                owed = {'kind': 'roll_call', 'awaits': 'player_roll', 'save': rider['ability'],
-                        'dc': rider['dc'], 'damage': rider.get('damage', 0), 'type': rider.get('type', 'poison'),
-                        'half': bool(rider.get('half')), 'at_zero': list(rider.get('at_zero') or ()),
-                        'from': key, **({'condition': rider['condition']} if rider.get('condition') else {})}
-                if self.fight.get('awaiting'):
-                    self.fight.setdefault('saves_queued', []).append(owed)
-                else:
-                    self.fight['awaiting'] = owed
-        who = f'The {self.label(key)}'
-        swings = len(stats.get('attacks') or [])
+            if not self.fight.get('pc_down'):
+                self.after_damage(key, index, ranged, dealt,
+                                  before=lambda: (say_so_far(1 if len(attacks) == 1 else 2), hits.clear()))
+            if attack.get('save') and not was_down:
+                say_so_far(1 if len(attacks) == 1 else 2)
+                hits.clear()
+                self.owe_save(key, index, attack['save'])
+        swings = len(attacks) - start
+        if start and not hits and not after:
+            self.lines.append(f"{who}'s other {'attack misses' if swings == 1 else 'attacks miss'}.")
+        else:
+            self.say_hits(who, hits, swings if not start else 2)
+        self.lines.extend(after)
+
+    def say_hits(self, who, hits, swings):
         if not hits:
             self.lines.append(f'{who} {"attacks and misses" if swings == 1 else "swings at you and misses every time"}.')
-        else:
-            count = {1: 'once', 2: 'twice'}.get(len(hits), f'{len(hits)} times')
-            by_type = {}
-            for dealt, dtype in hits:
-                by_type[dtype] = by_type.get(dtype, 0) + dealt
-            amounts = ' and '.join(f'{amount} {dtype}' for dtype, amount in by_type.items())
-            self.lines.append(f'{who} hits you {count}: {amounts} damage.' if swings > 1 else
-                              f'{who} hits you: {amounts} damage.')
-        self.lines.extend(after)
-        if not self.fight.get('pc_down') and attacker(self.fight.get('awaiting')) == key:
-            self.lines.append(save_prompt(self.fight['awaiting']))
+            return
+        count = {1: 'once', 2: 'twice'}.get(len(hits), f'{len(hits)} times')
+        by_type = {}
+        for dealt, dtype in hits:
+            by_type[dtype] = by_type.get(dtype, 0) + dealt
+        amounts = ' and '.join(f'{amount} {dtype}' for dtype, amount in by_type.items())
+        self.lines.append(f'{who} hits you {count}: {amounts} damage.' if swings > 1 else
+                          f'{who} hits you: {amounts} damage.')
+
+    def hit_triggers(self, attack, missile):
+        """The typed events one NPC hit is: an attack that hit (a creature succeeding on an attack
+        roll), elemental damage, a ranged weapon hit, being damaged by a creature in range."""
+        if missile:
+            return ['self_targeted_by_magic_missile']
+        # Being damaged (Hellish Rebuke) is its own window, after the damage lands (after_damage).
+        out = ['self_hit_by_attack', 'creature_succeeds']
+        if not (RANGED.search(attack['name']) or attack.get('ranged')):
+            out.append('damaged_by_melee')  # Parry
+        if attack.get('type') in ELEMENTS:
+            out.append('elemental_damage_taken')
+        if RANGED.search(attack['name']) or attack.get('ranged'):
+            out.append('self_hit_by_ranged_weapon')
+        return out
+
+    def turns_hit(self, entry, die, total, ac, attack, missile, dealt=0, stakes='normal', need_worth=True):
+        """Whether offering this reaction can change the outcome now (#101 review pacing): Shield only
+        when +5 AC turns it (never a natural 20) or it is a magic missile; a reroll only on a hit worth
+        one (it would drop him, or it is meaningful) and never a natural 20 Silvery Barbs cannot
+        undo; a halving reaction only when half no longer drops him and the hit matters."""
+        effect = entry['effect']
+        hp = int(self.pc_hp() or 0)
+        left = hp - int(self.fight.get('pc_damage') or 0) if hp else None
+        worth = not need_worth or stakes == 'drop' or self.meaningful(dealt)
+        if effect == 'shield':
+            return missile or (die != 20 and total < ac + 5)
+        if effect == 'absorb_elements':
+            return attack.get('type') in ELEMENTS and worth and (left is None or dealt // 2 < left or stakes != 'drop')
+        if effect in ('uncanny_dodge',):
+            return worth and (left is None or dealt // 2 < left)
+        if effect in ('silvery_barbs', 'chronal_shift'):
+            # A reroll can undo the whole hit, so it is worth a prompt by what he has left, not his
+            # sheet maximum (Kit II playtest: 10 acid at 22 of 62 hp was skipped, legal but unsaid).
+            hurts = left is not None and dealt >= max(5, left // 4)
+            return (worth or (need_worth and hurts)) and not missile
+        if effect in ('deflect_missiles',):
+            return bool(RANGED.search(attack['name']) or attack.get('ranged')) and not missile
+        if effect == 'parry':
+            return worth
+        return worth
+
+    def opportunity_options(self, key):
+        """The reactions a foe leaving the PC's reach opens (the opportunity attack, Sentinel...):
+        he is up, not surprised, his reaction unused, and the foe was in melee reach."""
+        if not self.pc_can_react() or not self.in_reach(key) or self.pc_hp() is None:
+            return []
+        return self.fresh(self.options_for(['foe_leaves_reach']), 'normal')
+
+    def can_opportunity(self, key):
+        """A foe leaving the PC's reach: the PC's reaction is unused and they are up."""
+        return (not self.fight.get('reaction_used') and self.pc_can_react() and
+                self.in_reach(key) and self.pc_hp() is not None)
 
     def should_retreat(self, key):
         rule = self.stats(key).get('retreat') or {}
@@ -1270,7 +2964,7 @@ class Fight:
         self.crack('flee', key)
 
     # -- other physical acts ---------------------------------------------------------------
-    def pc_grab(self, act):
+    def pc_grab_main(self, act):
         key = act['target']
         if not key:
             self.lines.append('There is nobody within reach to grab.')
@@ -1280,6 +2974,38 @@ class Fight:
         self.trace.append(f'grab {key}: {result}')
         self.scene['provocations'] += 1
         if not result['success']:
+            self.lines.append(f'The {self.label(key)} twists out of your grip.')
+            return
+        self.scene['grappled'] = key
+        where = 'by the wrist' if act.get('wrist') else 'by the collar'
+        self.lines.append(f'You have the {self.label(key)} {where}, and he cannot pull free.')
+        if act.get('teeth'):
+            self.crack('teeth', key)
+
+
+    def pc_grab(self, act):
+        if not CLAUSE_PARSER:
+            return self.pc_grab_main(act)
+        key = act['target']
+        if not key:
+            self.lines.append('There is nobody within reach to grab.')
+            return
+        # SRD contested grapple (Nagatha's ruling after 01dc0a6): his Athletics, rolled in Avrae,
+        # against the creature's better of Athletics and Acrobatics, rolled here. The actor wins
+        # ties. Without his roll nobody is held: the grab waits on it. Sizes are not modelled.
+        roll = kit_rolls.check_roll(self.action, 'athletics')
+        if roll is None or roll.label != 'athletics':
+            self.lines.append(f'Grabbing the {self.label(key)} is a contest: roll Athletics in Avrae '
+                              '(!check athletics) and tell me the total.')
+            self.needs_roll = True
+            return
+        die = self.die(f'escape:{key}')
+        bonus = escape_bonus(self.stats(key))
+        held = kit_rolls.meets_or_beats(roll.total, die + bonus)
+        self.trace.append(f'grab {key}: Athletics {roll.total} vs d20 {die} + {bonus} = {die + bonus}: '
+                          f'{"held" if held else "slips"}')
+        self.scene['provocations'] += 1
+        if not held:
             self.lines.append(f'The {self.label(key)} twists out of your grip.')
             return
         self.scene['grappled'] = key
@@ -1373,6 +3099,11 @@ class Fight:
 
     # -- output ---------------------------------------------------------------------
     def finish(self):
+        if self.fight and self.fight['status'] != 'running' and self.fight.get('declared_next'):
+            # The fight ended before his held act came up: say so rather than drop it silently.
+            held = self.fight.pop('declared_next')
+            self.trace.append(f'held act moot, the fight is over: {held[:120]}')
+            self.lines.append('The fight is over before your held act comes up, so it does not happen.')
         if self.fight and self.fight['status'] == 'running':
             order = self.fight['order']
             if order and self.pc_turn_now() and not self.fight.get('awaiting'):
@@ -1386,6 +3117,8 @@ class Fight:
         events = [{'type': 'scene_state', 'state': self.scene, 'evidence': evidence}]
         if self.fight:
             events.append({'type': 'combat_state', 'state': self.fight, 'evidence': evidence})
+        if self.resources_changed:
+            events.append({'type': 'pc_resources', 'resources': self.resources, 'evidence': evidence})
         if self.conditions_changed:
             events.append({'type': 'pc_conditions', 'conditions': list(self.conditions),
                            'terms': copy.deepcopy(self.terms), 'evidence': evidence})
@@ -1538,6 +3271,8 @@ def public_view(source, state):
                         'wounds': wounds, 'damage_you_took': current.get('pc_damage', 0)}
         if (current.get('awaiting') or {}).get('kind') == 'roll_call':
             out['fight']['roll_needed'] = save_prompt(current['awaiting'])[len('Roll a '):-1]
+        if current['status'] == 'running':
+            out['fight']['your_reaction'] = 'spent' if current.get('reaction_used') else 'available'
         if current.get('pc_dead'):
             out['fight']['you_are'] = 'dead'
         elif current.get('pc_down'):

@@ -26,7 +26,7 @@ import json
 from .state_context import InvalidChange, encode, require
 
 SESSION_KEYS = ('performance_variant', 'instructions', 'schema', 'performance_limits', 'host_retry')
-SESSION_PRIVATE_KEYS = ('personality_core',)
+SESSION_PRIVATE_KEYS = ('personality_core', 'available_reactions')
 ROOM_DM_KEYS = ('source_id', 'source_ref', 'map_ref', 'fixture_only', 'level_context', 'campaign_context',
                 'constraints', 'dm_only', 'missing_production_layers')
 FULL_EVERY = 8               # re-send both bodies at least every 8 prepared turns

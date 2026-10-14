@@ -21,7 +21,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 os.environ.pop('OPENAI_API_KEY', None)
 
-from runtime.kit_agent import PendingRuling, RoomAdjudicator  # noqa: E402
+from runtime.kit_agent import WindowAnswer, PendingRuling, RoomAdjudicator  # noqa: E402
 from runtime.state_context import InvalidChange, Runtime  # noqa: E402
 
 
@@ -88,7 +88,17 @@ def probe(scenario, fixture, sheets, seed, raise_toll=True):
             action = text + roll_text(line, sheet)
             revision, state = runtime.load()
             try:
-                result = adjudicator.resolve(action, revision, state)
+                try:
+                    result = adjudicator.resolve(action, revision, state)
+                except WindowAnswer:
+                    # A reaction window is open (#101): the scripted player lets it go (Kit's read:
+                    # decline), then his line resolves.
+                    declined = adjudicator.resolve('No.', revision, state, choice={'react': 'decline'})
+                    runtime.commit(f'probe-{index}-declined', revision, list(declined.events))
+                    out.append({'line': index + 1, 'action': '[declines the reaction window]',
+                                'kind': declined.kind, 'public': declined.public_event})
+                    revision, state = runtime.load()
+                    result = adjudicator.resolve(action, revision, state)
                 runtime.commit(f'probe-{index}', revision, list(result.events))
                 out.append({'line': index + 1, 'action': action, 'kind': result.kind,
                             'public': result.public_event})
