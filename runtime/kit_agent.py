@@ -798,8 +798,10 @@ class RoomAdjudicator:
                              '(combat_acts); nothing changed from the words alone.'}
         # If she declares nothing, the turn says what main says for this message (its pending
         # line), never a bare echo; her declaration replaces it at commit (declare).
-        return Resolution('physical_act', pending_ruling_result(exc)['player_message'], [event],
-                          offers={'combat_acts': {**offer, 'required': True}})
+        fallback = {'message': str(exc), 'attempt': bool(exc.attempt),
+                    'player_line': getattr(exc, 'player_line', None)}
+        return Resolution('feature_act', social_event(action), [event],
+                          offers={'combat_acts': {**offer, 'required': True, 'fallback': fallback}})
 
     def _offer_combat_acts(self, result, action, state):
         """On his turn in a running fight, offer combat_acts (runtime/kit_combat_acts.py): Kit
@@ -5105,16 +5107,36 @@ class KitChatBridge:
             except WindowAnswer as asked:
                 return self._window_answer(turn_id, action, asked, started, clock, stamps)
             except PendingRuling as exc:
-                kit_handoff.log_held(self.runtime, action, exc)  # telemetry: the input was held
-                if not exc.attempt:
-                    raise
-                # Record the refused attempt publicly so the next turn can refer to it.
-                recorded = self.runtime.record_refused_attempt(action, str(exc))
-                ruling = PendingRuling(f'{exc} The attempt is noted in the public history.', attempt=True)
-                ruling.recorded_revision = recorded
-                raise ruling from exc
+                self._held(action, exc)
         return self._stage(turn_id, revision, body, planning_input, one_pass, performance_variant, started, clock,
                            stamps)
+
+    def _held(self, action, exc):
+        """Main's pending ruling for a held input: logged, a refused attempt recorded in the public
+        history, raised to the host. Nothing else commits."""
+        kit_handoff.log_held(self.runtime, action, exc)  # telemetry: the input was held
+        if not exc.attempt:
+            raise exc
+        # Record the refused attempt publicly so the next turn can refer to it.
+        recorded = self.runtime.record_refused_attempt(action, str(exc))
+        ruling = PendingRuling(f'{exc} The attempt is noted in the public history.', attempt=True)
+        ruling.recorded_revision = recorded
+        raise ruling from exc
+
+    def _mains_if_undeclared(self, turn_id, pending, plan):
+        """#122: a message main's parser could not read was offered to Kit as combat_acts. If she
+        declares none (null or []), the turn is main's entirely: the staged turn is dropped and
+        main's pending ruling is raised exactly as prepare would have (_held). Nothing is synthesized."""
+        body = pending['body']
+        fallback = ((body.get('acts') or {}).get('combat_acts') or {}).get('fallback')
+        if not fallback or not isinstance(plan, dict) or 'combat_acts' not in plan or \
+                kit_acts.declared(plan, 'combat_acts') is not None:
+            return
+        self.runtime.discard_pending_kit_turn(turn_id)
+        exc = PendingRuling(fallback['message'], attempt=fallback['attempt'])
+        if fallback.get('player_line'):
+            exc.player_line = fallback['player_line']
+        self._held(body['action'], exc)
 
     def _stage(self, turn_id, revision, body, planning_input, one_pass, performance_variant, started, clock, stamps):
         """Stage a prepared turn and build its model packet."""
@@ -5329,6 +5351,7 @@ class KitChatBridge:
         body = pending['body']
         if body['host_mode'] != 'staged':
             raise HostSequenceError('Use complete for a one-pass turn', 'complete')
+        self._mains_if_undeclared(turn_id, pending, plan)
         revision, state = self.runtime.load()
         if revision != pending['revision']:
             raise StaleTurn(f"Expected revision {pending['revision']}; current is {revision}")
@@ -5536,6 +5559,7 @@ class KitChatBridge:
         if pending['body'].get('window_stage'):
             return self._complete_window(turn_id, pending, output)
         body, plan = pending['body'], output['decision']
+        self._mains_if_undeclared(turn_id, pending, plan)
         if body['host_mode'] != 'one_pass':
             raise HostSequenceError('Use decide and finish for a staged turn', 'decide')
         revision, state = self.runtime.load()

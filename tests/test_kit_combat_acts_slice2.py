@@ -137,36 +137,39 @@ class MovementAgainstSpeed(unittest.TestCase):
 
 class NothingDeclaredFallsBackToMain(unittest.TestCase):
     """Nagatha's playtest: with nothing declared, 'No reaction.', a bare Avrae roll line and 'Nik
-    backs off 30 feet down the hall.' were swallowed into a silent 'You declare:' echo. When Kit
-    declares nothing, the turn says what main says for that message; a message is never swallowed."""
+    backs off 30 feet down the hall.' were swallowed. When Kit declares nothing (null or []), the
+    turn is main's: its pending ruling, nothing synthesized (byte-for-byte on her snapshots in
+    test_kit_combat_acts_nodecl)."""
 
     MESSAGES = ('No reaction.', '1d20 (14) + 3 = `17`', 'Nik backs off 30 feet down the hall.')
 
-    def mains_line(self, arena, text):
+    def mains(self, arena, text):
         from unittest import mock
         from runtime.kit_agent import RoomAdjudicator, pending_ruling_result
-        revision, state = arena.runtime.load()
+        bridge = KitChatBridge(arena.runtime, arena.adjudicator)
         with mock.patch.object(RoomAdjudicator, '_declare_instead', return_value=None), \
                 self.assertRaises(PendingRuling) as caught:
-            arena.adjudicator.resolve(text, revision, state)
-        return pending_ruling_result(caught.exception)['player_message']
+            bridge.prepare(text, 'm', one_pass=True)
+        return pending_ruling_result(caught.exception)
 
-    def test_null_and_empty_say_mains_line_and_never_echo(self):
+    def test_null_and_empty_are_mains_pending_ruling(self):
+        from runtime.kit_agent import pending_ruling_result
         for declared in (None, []):
             for text in self.MESSAGES:
                 with self.subTest(text=text, declared=declared):
+                    expected = self.mains(kiln(self, warlock(hp=60, gear=['dagger'])), text)
                     arena = kiln(self, warlock(hp=60, gear=['dagger']))
-                    expected = self.mains_line(arena, text)
                     before = copy.deepcopy(arena.fight)
                     bridge = KitChatBridge(arena.runtime, arena.adjudicator)
                     packet = bridge.prepare(text, 'n', one_pass=True)
                     plan = plan_for(packet)
                     plan['combat_acts'] = declared
-                    result = bridge.complete('n', {'decision': plan, 'performance': {'segments': [
-                        {'speaker': 'Narrator', 'text': 'You hold.'}]}})
-                    self.assertIn(expected, result['spoken'])
-                    self.assertNotIn('You declare', result['spoken'])
-                    self.assertEqual((arena.fight['hp'], arena.fight['pc_damage']), (before['hp'], before['pc_damage']))
+                    with self.assertRaises(PendingRuling) as caught:
+                        bridge.complete('n', {'decision': plan, 'performance': {'segments': [
+                            {'speaker': 'Narrator', 'text': 'You hold.'}]}})
+                    self.assertEqual(pending_ruling_result(caught.exception), expected)
+                    self.assertNotIn('You declare', str(caught.exception))
+                    self.assertEqual(arena.fight, before)
 
     def test_a_declaration_still_replaces_it(self):
         arena = kiln(self, warlock(hp=60, gear=['dagger']))
