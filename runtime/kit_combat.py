@@ -2638,12 +2638,13 @@ class Fight:
         if spell in SPELL_SAVE:
             dc = posted.get('dc') or self.sheet.get('spell_save_dc') or _derived_save_dc(self.sheet)
             if dc is None:
-                self.fight['pending'] = {'kind': 'attack', 'target': targets[0], 'weapon': weapon, 'needs': 'save_dc'}
+                self.fight['pending'] = {'kind': 'attack', 'target': targets[0], 'weapon': weapon, 'needs': 'save_dc',
+                                         **self.cast_slot(spell)}
                 self.lines.append(f'Your {spell.title()} needs your spell save DC from your sheet; say it and it lands.')
                 return False
             if not damage:
                 self.fight['pending'] = {'kind': 'attack', 'target': targets[0], 'weapon': weapon, 'needs': 'damage',
-                                         'spell': spell, 'area': act.get('area')}
+                                         'spell': spell, 'area': act.get('area'), **self.cast_slot(spell)}
                 self.lines.append(f'Roll the {spell.title()} damage in Avrae.')
                 return False
             ability, half, _ = SPELL_SAVE[spell]
@@ -2708,12 +2709,19 @@ class Fight:
         total = kit_rolls.attack_total(self.action)
         natural = next((roll.die for roll in kit_rolls.rolls(self.action) if roll.label == 'attack'), None)
         pending = self.fight.get('pending') if isinstance(self.fight.get('pending'), dict) else None
+        if total is None and spell in SPELL_AUTO and damage and pending and pending.get('needs') == 'damage' and \
+                pending.get('weapon') == weapon:
+            # The damage line of an auto-hit spell already cast (and paid for): it lands, no second slot.
+            self.apply_damage(pending['target'], damage, dtype)
+            self.fight['pending'] = None
+            return True
         if total is None and spell not in SPELL_AUTO:
             if pending and pending.get('needs') == 'damage' and damage:
                 self.apply_damage(pending['target'], damage, dtype)
                 self.fight['pending'] = None
                 return True
-            self.fight['pending'] = {'kind': 'attack', 'target': targets[0], 'weapon': weapon, 'needs': 'attack'}
+            self.fight['pending'] = {'kind': 'attack', 'target': targets[0], 'weapon': weapon, 'needs': 'attack',
+                                     **self.cast_slot(spell)}
             what = 'stomp' if weapon == 'stomp' else spell.title() if spell else weapon
             self.lines.append(f'Roll the attack for your {what} in Avrae, with its damage.')
             return False
@@ -2747,14 +2755,26 @@ class Fight:
             self.trace.append(f"absorb elements: +{bonus['dice']} {bonus['type']} on this melee hit")
         return True
 
+    def cast_slot(self, spell):
+        """The slot level his Avrae cast named ('-l 2', 'at 2nd level'), in this message or kept from
+        the message that cast it (a separate damage line names none): {'slot_level': n} or {}."""
+        level = cast_level(self.action) if spell else None
+        pending = self.fight.get('pending') if isinstance(self.fight.get('pending'), dict) else {}
+        if level is None and spell and pending.get('weapon') == spell:
+            level = pending.get('slot_level')
+        return {'slot_level': level} if level else {}
+
     def spend_own_slot(self, spell):
         """A leveled spell the PC cast on his turn uses a slot (his Avrae cast is the truth; the engine
-        keeps the session count from the sheet). An unknown level spends nothing and says so."""
+        keeps the session count from the sheet): the level the cast named when it is the spell's own or
+        higher, else the spell's level. An unknown level spends nothing and says so."""
         known = kit_reactions.spells(self.sheet).get(kit_reactions.ident(spell)) or {}
         if not known.get('level'):
             self.trace.append(f'{spell}: no slot level on the sheet, none counted')
             return
-        self.resources, slot = kit_reactions.spend_slot(self.resources, known['level'])
+        named = self.cast_slot(spell).get('slot_level')
+        level = named if named and named >= int(known['level']) else known['level']
+        self.resources, slot = kit_reactions.spend_slot(self.resources, level)
         self.resources_changed = True
         self.trace.append(f'{spell}: level {slot} slot used' if slot else f'{spell}: no slot left by the count')
 
