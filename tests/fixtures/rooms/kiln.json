@@ -1,0 +1,140 @@
+{
+ "id": "synthetic-kiln-v1",
+ "fixture_only": true,
+ "_note": "Synthetic room (Nagatha #101 re-review, invented, not adventure content): an ember imp that spits fire at range and a kobold slinger, so fire and ranged hits open Absorb Elements and Deflect Missiles.",
+ "starting_area": "kiln",
+ "areas": {
+  "kiln": {
+   "name": "Kiln room",
+   "called": "the kiln room",
+   "arrival": "Someone steps in."
+  },
+  "out": {
+   "name": "Passage",
+   "called": "the passage",
+   "outside": true,
+   "beyond": true
+  }
+ },
+ "exits": {
+  "out": {
+   "name": "the passage",
+   "areas": [
+    "kiln",
+    "out"
+   ],
+   "secret": false,
+   "labels": {
+    "kiln": "A passage leads back the way you came.",
+    "out": "Back toward the room."
+   }
+  }
+ },
+ "facts": {
+  "kiln": {
+   "area": "kiln",
+   "visible": true,
+   "layer": "obvious",
+   "text": "A brick kiln glows orange against the far wall."
+  },
+  "shelves": {
+   "area": "kiln",
+   "visible": true,
+   "text": "Rows of unglazed pots crowd sagging plank shelves."
+  },
+  "soot": {
+   "area": "kiln",
+   "visible": true,
+   "text": "Handprints in soot climb the doorframe, far too small for a man."
+  }
+ },
+ "actors": {
+  "imp": {
+   "name": "Ember imp",
+   "location": "kiln",
+   "status": "alive",
+   "visible": true,
+   "pronoun": "it",
+   "motive": "Kill the intruder.",
+   "knowledge": [],
+   "secrets": [],
+   "communication_profile": {
+    "rhythm": "Hiss.",
+    "humor": "None."
+   },
+   "armed": true
+  },
+  "archer": {
+   "name": "Kobold slinger",
+   "location": "kiln",
+   "status": "alive",
+   "visible": true,
+   "pronoun": "it",
+   "motive": "Kill the intruder.",
+   "knowledge": [],
+   "secrets": [],
+   "communication_profile": {
+    "rhythm": "Hiss.",
+    "humor": "None."
+   },
+   "armed": true
+  }
+ },
+ "combat": {
+  "leader": "imp",
+  "underlings": [
+   "archer"
+  ],
+  "reach_order": [
+   "imp",
+   "archer"
+  ],
+  "actors": {
+   "imp": {
+    "ac": 13,
+    "hp": 18,
+    "initiative": 3,
+    "grapple": 0,
+    "saves": {},
+    "attacks": [
+     {
+      "name": "fire spit",
+      "verb": "spits",
+      "to_hit": 5,
+      "damage": 7,
+      "type": "fire",
+      "ranged": true
+     }
+    ]
+   },
+   "archer": {
+    "ac": 12,
+    "hp": 7,
+    "initiative": 2,
+    "grapple": 0,
+    "saves": {},
+    "attacks": [
+     {
+      "name": "sling",
+      "verb": "slings",
+      "to_hit": 5,
+      "damage": 4,
+      "type": "bludgeoning",
+      "ranged": true
+     }
+    ],
+    "retreat": {
+     "when": [
+      "leader_gone"
+     ],
+     "toward": "area_out",
+     "exit": "out",
+     "text": "The slinger scrambles for the passage."
+    }
+   }
+  },
+  "area": "kiln"
+ },
+ "story": {},
+ "resources": {}
+}

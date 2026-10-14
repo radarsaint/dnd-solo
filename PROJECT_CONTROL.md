@@ -1,6 +1,6 @@
 # Project Control — DM Kit runtime
 
-**Updated:** 2026-10-07  
+**Updated:** 2026-10-13  
 **Last runtime truth audit:** `main @ e3a5e9908357441051df24dac8086d8d4c7f26f5`  
 **Sibling repo:** `radarsaint/bfdm-corpus`
 
@@ -117,7 +117,6 @@ Important unresolved stack questions for Skippy include:
 - intended ordering/ownership of overlapping runtime PRs touching `kit_agent.py`;
 - whether visual PRs #111 and #112 are alternatives or a sequence;
 - whether the accepted outside-combat grab behavior is the current `pc_grab` implementation or the later board ruling;
-- retirement of the stale in-repo BFDM mirror (vehicle: draft PR #114, branch `retire/in-repo-corpus-mirror`, not drafts #67/#106/#108);
 - which pinned Kit build is actually mounted in external GPT/project environments.
 
 Do not resolve these by guessing from open-PR age.
@@ -128,10 +127,11 @@ Fresh agents are at particular risk of being misled by surfaces that still look 
 
 - **KRABS authority** — live `dnd-solo/main` contains **KRABS v0.2.2**, the current canonical long-term Kit Reference Architecture & Behavioral Specification. It supersedes KRABS v0.1, PR #44's v0.2 draft, and v0.2.1. The stale item is the old Project attachment that still presents v0.1 as canonical; do not generalize that into “KRABS is historical” or “KRABS is old-era.”
 - **Legacy ChatGPT Project attachments** — `docs/KIT_PROJECT_START_HERE.md` names the ten audited filenames and their verified homes. They do not outrank live `main`, including when they are still attached. The generalized Restartable Role Runtime proposed in one of them is not current architecture.
-- **In-repo `corpus/bfdm/` and `corpus/brendon/`** — obsolete mirror/bootstrap. Canonical BFDM authority is `radarsaint/bfdm-corpus`. Removal is draft PR #114 (`retire/in-repo-corpus-mirror`), not this docs refresh. Do not extend the mirror.
+- **No in-repo corpus mirror** — #114 merged as `c9ce777729b77610944314b544cad709becbfe2d` and removed `corpus/`. Canonical BFDM authority is `radarsaint/bfdm-corpus`. Do not recreate the mirror.
 - **Append-only collaboration board** — historical decision provenance, not the current work queue. Board-split drafts #107 and #109 are not adopted; a second live board would compete with this file.
-- **Old open PRs** — open status does not mean active/canonical. #5, #11, #23, #36, #43, and #44 are particularly easy to mistake for current direction. #67 is an older mirror-retirement draft, superseded by the follow-on above.
-- **Superseded cleanup drafts** — #105 and #110 are superseded by this control refresh. Unique leftovers kept here: ADR `0004-canonical-dm-personality-core.md` (the old filename collided with ADR 0001), HISTORICAL banners on the 0.2/0.3 runtime notes and the state-context handoff, and the fact that no committed room file contains `room_link`. #106 and #108 are superseded by draft PR #114 (`retire/in-repo-corpus-mirror`; #108 had the cleaner deletion scope, but a stale base). #107 and #109 are not adopted.
+- **Closed superseded PRs** — #5, #11, #23, #36, #38, #43, #44, and #35 are closed. Do not treat them as open or current direction. 87 stale branches were deleted.
+- **Salvaged historical files** — #121 merged as `a62bc0c70ead981f5175c632c71867d2fb2d91c4` and brought design notes, the Roanoke exporter, and a playtest onto main. They are repository history, not proof of player-facing quality.
+- **Legacy paid play route** — still present in `runtime/kit_agent.py`. Removal is scoped to Skippy and not done.
 - **Pinned ZIPs** — reproduce their commit only; they do not answer what current main does.
 
 ## Documentation state
@@ -156,7 +156,7 @@ Skippy/runtime work should consume verified research outputs only when their sco
 
 Use `bfdm-corpus main` for canonical BFDM source/research state.
 
-Do not use the in-repo corpus mirror as current research truth.
+Do not use an in-repo corpus mirror; there is none on main.
 
 Do not harden derived BFDM claims into runtime behavior merely because they are polished or cited. Active corpus integrity work may downgrade them.
 

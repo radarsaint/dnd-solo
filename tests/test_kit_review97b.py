@@ -24,6 +24,9 @@ from runtime import kit_acts, kit_combat, kit_rolls, kit_rooms, kit_triggers
 from runtime.kit_agent import KitChatBridge, PendingRuling, RoomAdjudicator
 from runtime.state_context import InvalidChange, Runtime
 from test_kit_agent import RecordingModel
+from test_kit_monster_initiative import Room as _InitiativeRoom
+
+decline_open = _InitiativeRoom.decline_open
 
 ROOT = Path(__file__).resolve().parents[1]
 CRYPT = ROOT / 'tests/fixtures/rooms/crypt.json'
@@ -69,10 +72,15 @@ class Room:
         return self.adjudicator.resolve(action, revision, state)
 
     def act(self, action, handles=None, downed=None):
-        """One player line; ``handles``/``downed``: Kit's declared acts, resolved as at commit."""
+        """One player line; ``handles``/``downed``: Kit's declared acts, resolved as at commit. A
+        reaction window open under the line is declined first (Kit's read of a plain 'no'), and a
+        flourish window is passed over for the new act: these tests are not about reactions (#101)."""
+        decline_open(self)
         revision, state = self.runtime.load()
+        waiting = (state.get('combat') or {}).get('awaiting') or {}
+        choice = {'flourish': 'new_action'} if waiting.get('kind') == 'flourish_window' else None
         try:
-            result = self.adjudicator.resolve(action, revision, state)
+            result = self.adjudicator.resolve(action, revision, state, choice=choice)
         except PendingRuling as exc:
             self.test.fail(f'{action!r} was refused: {exc}')
         events = list(result.events)
@@ -92,6 +100,13 @@ class Room:
             result = declared.__class__(declared.kind, f'{result.public_event} {declared.public_event}'.strip(),
                                         events, declared.handoff, result.offers)
         self.runtime.commit(f't{revision}', revision, events)
+        # A window the round opened is declined too, and its outcome joins this line's result.
+        said = [result.public_event]
+        while (self.fight.get('awaiting') or {}).get('kind') == 'reaction_window':
+            more = decline_open(self)
+            said.append(more.public_event)
+            result = more.__class__(more.kind, ' '.join(x for x in said if x), list(more.events),
+                                    more.handoff, more.offers)
         return result
 
     def wound(self, left):
@@ -123,6 +138,9 @@ def bridge_turn(room, action, handles=None, text='Cold stone, dust, and silence.
         plan['handles'] = handles
     elif not omit:
         plan['handles'] = {'target': 'none', 'act': 'none'}
+    if packet['input']['private'].get('reveal'):
+        # #101: a room entry the player's own act directs ('I step inside the arch'): no handoff owed.
+        plan['reveal_entry'] = {'mode': 'directed', 'relevant': []}
     try:
         return packet, bridge.complete(turn_id, {'decision': plan, 'performance': {
             'segments': [{'speaker': 'Narrator', 'text': text}]}})

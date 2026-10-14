@@ -137,6 +137,17 @@ def run(folder):
         record['brief']['heard'] = [f"{p['label']} ({p['heard']})" for p in made['present'] if p.get('heard')]
         record.update(snapshot(runtime))
         records.append(record)
+        # The scripted player declines every reaction the engine offers (PR-H checkpoints), so
+        # the chain's damage stays what the 6c walkthrough documents.
+        guard = 0
+        while ((runtime.load()[1].get('combat') or {}).get('awaiting') or {}).get('kind') == 'reaction_window' \
+                and guard < 8:
+            guard += 1
+            revision, state = runtime.load()
+            answer = adjudicator.resolve('No, let it hit.', revision, state, choice={'react': 'decline'})
+            runtime.commit(f't{number}r{guard}', revision, list(answer.events))
+            records.append({'line': 'No, let it hit.', 'kind': answer.kind, 'public': answer.public_event,
+                            **snapshot(runtime)})
     return records, runtime
 
 

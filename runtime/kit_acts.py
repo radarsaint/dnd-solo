@@ -6,8 +6,8 @@ is validated against what the engine offered, and only then does the engine act 
 cheap regex may put a ``hint`` in the offer so Kit can confirm it; a hint never fires a
 trigger or reveals anything by itself.
 
-Every field follows one pattern, so later fields (#101's ``react``) slot in beside
-``handles`` without a second schema style:
+Every field follows one pattern, so #101's ``react`` and ``flourish`` (Kit's read of a reply
+to an open reaction or flourish window) sit beside ``handles`` without a second schema style:
 
 * the offer: ``body['acts'][field]``, built by the engine at prepare (what may be declared
   this turn: ids, plus an optional hint), shown to Kit as ``acts.<field>`` in the packet;
@@ -122,6 +122,76 @@ def check_handles(value, offer):
                    'or a part listed with it.')
 
 
+# -- react / flourish: Kit's read of the player's reply to an open window (#101) ----------------
+# The offer is the open window (``body['acts']['react']`` = {'options': [reaction ids]},
+# ``body['acts']['flourish']`` = {'target': id}); the engine checks the declared choice is legal
+# (offered, still available) and never reads the reply's words itself.
+REACT_FIXED = ('decline', 'unclear')
+FLOURISH_READS = ('describe', 'new_action', 'unclear')
+# Kit's ruling for a reaction the engine does not resolve itself: one effect from a closed set,
+# checked against the reaction's own sheet text (kit_reactions.allowed_effects) and applied by the engine.
+EFFECT_SCHEMA = {'type': 'object', 'additionalProperties': False,
+                 'properties': {'type': {'type': 'string', 'enum': ['reduce_damage', 'negate_hit', 'impose_disadvantage',
+                                                                    'force_reroll', 'deal_damage', 'move',
+                                                                    'succeed_save', 'none']},
+                                'roll': {'type': ['integer', 'null']},
+                                'save': {'type': ['string', 'null']},
+                                'feet': {'type': ['integer', 'null']}},
+                 'required': ['type']}
+REACT_SCHEMA = {'type': 'object', 'additionalProperties': False,
+                'properties': {'choice': {'type': 'string'}, 'cast_in_avrae': {'type': 'boolean'},
+                               'slot_level': {'type': ['integer', 'null']},
+                               'roll': {'type': ['integer', 'null']},
+                               'effect': EFFECT_SCHEMA},
+                'required': ['choice']}
+FLOURISH_SCHEMA = {'type': 'string', 'enum': list(FLOURISH_READS)}
+# The window_answer packet's decision schema: one act field per window kind.
+WINDOW_SCHEMAS = {'react': REACT_SCHEMA, 'flourish': FLOURISH_SCHEMA}
+REACT_RULE = ('react {choice, cast_in_avrae, slot_level, roll, effect}: choice is an offered reaction id, decline, '
+              'or unclear (then ask, one short question). cast_in_avrae true only when the reply shows the spell cast '
+              'in Avrae; slot_level only when the reply names an upcast slot. roll: the number the player rolled for '
+              'the reaction in Avrae (Deflect Missiles, Parry, Hellish Rebuke damage, a Counterspell check), copied '
+              'from the reply, never made up. effect, only for a reaction marked "Kit declares the effect": one of '
+              'reduce_damage (roll), negate_hit, impose_disadvantage, force_reroll, deal_damage (roll, save), move '
+              '(feet), succeed_save, none, as its sheet text says; the engine applies it. Anything else he says with '
+              'the answer is resolved as his act after the window.')
+FLOURISH_RULE = ('flourish: describe (the reply describes the kill), new_action (the player does something '
+                 'else instead), or unclear (then ask, one short question).')
+
+
+def check_react(value, offer):
+    """{'react': id|decline|unclear, 'cast_in_avrae': bool, 'slot_level'?} for a legal read."""
+    require(offer, 'No reaction window is open: omit react.')
+    require(isinstance(value, dict) and 'choice' in value and set(value) <= set(REACT_SCHEMA['properties']),
+            'react is {choice, cast_in_avrae?, slot_level?, roll?, effect?}')
+    allowed = list(offer.get('options') or ()) + list(REACT_FIXED)
+    require(value['choice'] in allowed, f'react.choice must be one of {allowed}')
+    out = {'react': value['choice'], 'cast_in_avrae': value.get('cast_in_avrae') is True}
+    level = value.get('slot_level')
+    if level is not None:
+        require(type(level) is int and 1 <= level <= 9, 'react.slot_level is 1-9 or null')
+        out['slot_level'] = level
+    roll = value.get('roll')
+    if roll is not None:
+        require(type(roll) is int and 0 <= roll <= 200, 'react.roll is the Avrae total (0-200) or null')
+        out['roll'] = roll
+    effect = value.get('effect')
+    if effect is not None:
+        types = EFFECT_SCHEMA['properties']['type']['enum']
+        require(isinstance(effect, dict) and effect.get('type') in types and
+                set(effect) <= set(EFFECT_SCHEMA['properties']), f'react.effect.type is one of {types}')
+        out['effect'] = {k: v for k, v in effect.items() if v is not None}
+    return out
+
+
+def check_flourish(value, offer):
+    require(offer, 'No flourish window is open: omit flourish.')
+    require(value in FLOURISH_READS, f'flourish must be one of {", ".join(FLOURISH_READS)}')
+    return {'flourish': value}
+
+
+
+
 def check_downed(value, offer):
     """{act, foes} for Kit's call on foes acting while the PC is down."""
     require(isinstance(value, dict) and set(value) == {'act'} and value.get('act') in DOWNED_ACTS,
@@ -130,7 +200,8 @@ def check_downed(value, offer):
     return {'act': value['act'], 'foes': list(offer.get('foes') or ())}
 
 
-FIELDS = {'handles': check_handles, 'downed': check_downed}
+FIELDS = {'handles': check_handles, 'react': check_react, 'flourish': check_flourish,
+          'downed': check_downed}
 
 
 def check(plan, body):

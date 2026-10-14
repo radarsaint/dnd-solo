@@ -2,41 +2,40 @@
   "schema": "kit_project_gardener_state/v1",
   "purpose": "RESUMABILITY_CURSOR_NOT_KNOWLEDGE_STORE",
   "canonical_location": "radarsaint/dnd-solo/coordination/context_state.json",
-  "state_revision": 10,
+  "state_revision": 18,
   "semantic_brain": {
     "repo": "radarsaint/dnd-solo",
     "path": "docs/PROJECT_UNDERSTANDING.md",
-    "last_semantic_commit": "7e4c75e8445338ff051cebd1b2175bfacf15e413",
-    "last_reviewed_on": "2026-10-09"
+    "last_semantic_commit": "f42eff46971792c18d8d7213f739791670025a72",
+    "last_reviewed_on": "2026-10-13"
   },
   "checkpoint": {
     "reviewed_against_main": {
-      "radarsaint/dnd-solo": "7e4c75e8445338ff051cebd1b2175bfacf15e413",
+      "radarsaint/dnd-solo": "f42eff46971792c18d8d7213f739791670025a72",
       "radarsaint/bfdm-corpus": "6795362e967e89230086afc28c04450cc7d0cce4"
     },
     "context_inbox": {
       "repo": "radarsaint/dnd-solo",
       "issue": 115,
       "issue_state_at_checkpoint": "open",
-      "last_fully_reconciled_comment_id": 6065921827,
-      "comment_count_at_checkpoint": 3
+      "last_fully_reconciled_comment_id": 6154618488,
+      "comment_count_at_checkpoint": 10
     }
   },
   "last_completed_pass": {
     "kind": "BOUNDED_SEMANTIC_RECONCILIATION",
-    "completed_on": "2026-10-09",
-    "scope": "Reviewed dnd-solo commits after cf3547e9 through e12b97fc (#120), and bfdm-corpus 54a20938. No issue #115 comment id was greater than 6065921827.",
-    "result": "Accepted, narrow: 2608c275 and merge e12b97fc change only coordination/context_state.json relative to reviewed brain cf3547e9. The checker rule is on main. A fresh run reported REVIEWED_CURRENT / CHECKPOINT_ONLY for that pair and REVIEWED_CURRENT for bfdm 54a20938. Brain 7e4c75e8 records that G2 evidence. bfdm 6795362e records the same fact in PROJECT_CONTROL.md. Rejected: treating the checkpoint-only tip as an undecided semantic advance, and treating this pass as G5, G6, or player-quality acceptance. Unresolved: G5 and G6.",
-    "resulting_brain_commit": "7e4c75e8445338ff051cebd1b2175bfacf15e413",
-    "reconciled_comment_id": 6065921827
+    "completed_on": "2026-10-13",
+    "scope": "Reviewed #97 merge e94e9fdd / head 9ba4083 and #115 comment 6154618488 (round-7 sealed-feature refinement). Accepted. #101 delta remains deferred.",
+    "result": "Accepted: #97 is on main. Brain records structured handles, sealed features, player-rolled saves, house-rule ties. #101 remains open and unmerged. G5 and G6 stay open.",
+    "resulting_brain_commit": "f42eff46971792c18d8d7213f739791670025a72",
+    "reconciled_comment_id": 6154618488
   },
   "active_pass": null,
   "unresolved": [
-    "Issue #118 G5 is unmet: the cold-start transcript did not state the three unsynchronized merge-triggered runs, surviving brain 86e4adef, or checkpoint-only writes such as 4228be7c. Do not open a synthetic delta only to retry it.",
-    "A status-checker warning is not completion and does not accept a semantic delta.",
+    "Issue #118 G5 is unmet.",
     "ChatGPT Project source membership remains a manual Project-UI change. G6 stays open.",
-    "Do not keep editing merged coordination branches docs/coordination-refresh-2026-10-07, tooling/project-context-status-116, docs/cross-repo-coordination-2026-10-07, or tooling/checkpoint-only-sha-not-undecided.",
-    "Do not check issue #118 G5 or G6 from this pass."
+    "Legacy paid play route removal is pending with Skippy.",
+    "PR #101 combat checkpoints reaction model is pending review and unmerged; reconcile its semantic claims only after merge."
   ],
   "needs_review": [],
   "checkpoint_rules": {

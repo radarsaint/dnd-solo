@@ -73,9 +73,10 @@ Open these only when `AGENTS.md`, the GPT instructions, a runtime message, or th
 
 These are for building and testing Kit. During a game, don't open them, don't quote them, and don't use them as a source of facts, rooms, NPCs, or voice. Each top-level dev folder has a `README_FOR_GPT.md` that says the same.
 
+The old in-repo BFDM mirror is not in this branch. Canonical BFDM research is the radarsaint/bfdm-corpus repository. Do not recreate a corpus directory here.
+
 <!-- dev-only:begin -->
 - `docs/campaign/`: campaign DM layers for every level. Spoilers.
-- `corpus/`: obsolete in-repo mirror of older writing and a BFDM bootstrap. Not a play source and not current research. Canonical BFDM research is the `radarsaint/bfdm-corpus` repository.
 - `tests/` (except the runtime fixtures above): unit tests, `tests/playtests/` records, `tests/scenarios/` scripts
 - `docs/collab/`: the agent collaboration protocol and `docs/collab/BOARD.md`
 - `docs/architecture/` (except the reference files above): design specs and plans
