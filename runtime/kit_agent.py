@@ -796,7 +796,9 @@ class RoomAdjudicator:
         event = {'type': 'beat', 'tags': ['combat_declare'],
                  'evidence': f'Player declared: {action}. Resolution: Kit declares the combat acts '
                              '(combat_acts); nothing changed from the words alone.'}
-        return Resolution('feature_act', social_event(action), [event],
+        # If she declares nothing, the turn says what main says for this message (its pending
+        # line), never a bare echo; her declaration replaces it at commit (declare).
+        return Resolution('physical_act', pending_ruling_result(exc)['player_message'], [event],
                           offers={'combat_acts': {**offer, 'required': True}})
 
     def _offer_combat_acts(self, result, action, state):
