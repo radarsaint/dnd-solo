@@ -92,6 +92,7 @@ How do I make a character sheet for Kit?
 A ZIP uploaded to GPT Knowledge or a ChatGPT Project is a pinned build. It does not track GitHub after upload.
 
 - **GitHub `radarsaint/dnd-solo` `main` is the development source of truth.**
+- Every push to `main` publishes that commit's runtime zip on GitHub. The release tag is `runtime-<8-char sha>` and the asset is `dnd-solo-main-<8-char sha>.zip`: `git archive` of that commit with the prefix `dnd-solo-main/`. The zip is not committed into the tree. Publishing it does not make the zip the development source of truth, and it does not move a pinned GPT or Project file.
 - A commit-stamped Project ZIP such as `dnd-solo-main-c386ff45.zip` is a reproducible baseline for that commit, not "current Kit."
 - Use the pinned ZIP when reproducing or playing that build. Check GitHub `main` when discussing current development, recent fixes, open work, or when deciding whether a newer build should be pinned.
 - Prefer commit-stamped filenames for Project/Knowledge snapshots so two builds cannot be mistaken for one another.
@@ -100,9 +101,9 @@ A ZIP uploaded to GPT Knowledge or a ChatGPT Project is a pinned build. It does 
 
 ## Brendon's steps
 
-1. **Build the zip** from the branch you want friends to play, in the repository root:
+1. **Main already publishes the zip.** A push to `main` runs `.github/workflows/runtime-zip.yml` and attaches `dnd-solo-main-<8-char sha>.zip` to release `runtime-<sha>`. To build the same file for any commit:
    ```sh
-   git archive --format=zip -o dnd-solo-$(git rev-parse --short HEAD).zip HEAD
+   git archive --format=zip --prefix=dnd-solo-main/ -o dnd-solo-main-$(git rev-parse --short=8 HEAD).zip HEAD
    ```
    This includes only committed files, so no local `.sqlite` games or secrets go in. Record the full commit SHA beside the uploaded build. Rebuild and upload a new commit-stamped ZIP whenever you want friends on a newer version.
 2. Open ChatGPT → **Explore GPTs** → **Create** → the **Configure** tab.

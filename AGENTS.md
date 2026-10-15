@@ -20,6 +20,7 @@ The runtime owns game truth when a game is running. It does not create you.
 A ZIP attached to a ChatGPT Project, GPT Knowledge, conversation, Drive, or Library is a **pinned executable snapshot**, not evidence of the repository's current development state.
 
 - If its filename carries a commit (for example `dnd-solo-main-c386ff45.zip`), treat that commit as the snapshot identity.
+- Every `main` commit is also published as GitHub release `runtime-<8-char sha>`, asset `dnd-solo-main-<8-char sha>.zip`. That release is the same snapshot, not a newer source of truth.
 - If the task is to run or reproduce that snapshot, use the ZIP exactly as pinned.
 - If the task asks what Kit is **currently** doing, what has changed, or what should be developed next, inspect GitHub `radarsaint/dnd-solo` `main`. GitHub `main` is the development source of truth.
 - Never silently call an older Project ZIP "current Kit" merely because it is locally available.

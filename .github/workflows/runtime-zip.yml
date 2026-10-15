@@ -1,0 +1,46 @@
+# Publish the pinned runtime zip for every commit that lands on main.
+# The zip is a release asset, not a file in the tree.
+# Same bytes as: git archive --format=zip --prefix=dnd-solo-main/ HEAD
+
+name: runtime-zip
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: runtime-zip-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Archive this commit and attach it to a release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          short=$(git rev-parse --short=8 HEAD)
+          full=$(git rev-parse HEAD)
+          name="dnd-solo-main-${short}.zip"
+          tag="runtime-${short}"
+          git archive --format=zip --prefix=dnd-solo-main/ -o "$name" HEAD
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "release $tag already exists"
+            exit 0
+          fi
+          gh release create "$tag" "$name" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$full" \
+            --title "Runtime ${short}" \
+            --notes "Pinned runtime zip of ${full}. git archive of that commit, prefix dnd-solo-main/. This is the snapshot, not a newer source of truth than main."
