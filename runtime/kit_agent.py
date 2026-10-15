@@ -1,11 +1,11 @@
 """Kit play bridge: mount a conforming room file, adjudicate the turn, record a private decision, and check the public performance.
 
-Any conforming room file mounts through the room loader (runtime/kit_rooms.py).
-Area 6c is the default when start is given no --room. It is the richest authored
-regression room, not the definition of the engine. The model chooses and performs
-a DM move. Accepted turns may also commit checked model proposals (canon, claims,
-agenda, and related state). The model does not write storage except through those
-checked commits.
+Any conforming room file mounts through the room loader (runtime/kit_rooms.py) when a room
+is named. Player-facing start with no room does not mount one: it returns campaign entry
+(runtime/kit_campaign.py). Area 6c is a regression fixture, reached only with an explicit
+room and --regression on the CLI. The model chooses and performs a DM move. Accepted turns
+may also commit checked model proposals (canon, claims, agenda, and related state). The
+model does not write storage except through those checked commits.
 """
 import argparse
 import copy
@@ -38,6 +38,7 @@ from . import kit_router
 from . import kit_agenda, kit_plan, kit_threads, pc_sheet
 from . import kit_detail
 from . import kit_prices
+from . import kit_campaign
 from . import kit_rooms
 from . import kit_texture
 from . import kit_toll
@@ -53,9 +54,8 @@ from .state_context import (ASKED_EVENT_PREFIX, CONTEXT_BUDGET_BYTES, HostSequen
 from .state_context import HELD_KINDS as _HELD_KINDS
 
 
-# Legacy default when `start` is given no --room. Area 6c is the richest authored
-# room, kept so an unnamed start still has a file. It is not the definition of the
-# engine. Name a conforming room file with --room (runtime/kit_rooms.py).
+# Regression fixture. Not the player-facing default. The CLI mounts it only with
+# --room and --regression. Python callers that pass this path are engineering tests.
 DEFAULT_ROOM = PROJECT_ROOT / 'tests/fixtures/level_01_area_06c.json'
 
 
@@ -5479,20 +5479,23 @@ EXAMPLE_SHEET = PROJECT_ROOT / 'tests/fixtures/characters/example_pc.json'
 
 
 def start_session(db, sheet_path=None, runtime=None, room=None, area=None, manifests=False):
-    """The one bootstrap step for any AI hosting Kit (see AGENTS.md): create a fresh room
-    session, load the player's sheet (the generic example PC when none is given), and
-    stage the room's opening through the bridge. Returns the first prepare packet plus
-    the exact next command, so a new host cannot take a wrong first step."""
-    # Mount first: a room that cannot mount fails here, before any database is touched,
-    # with the host's error and Kit's plain table line (kit_rooms.RoomMountError).
-    source = kit_rooms.load_room(room or DEFAULT_ROOM)
+    """Bootstrap for a host.
+
+    No room: campaign entry or resume. Nothing is mounted, and the example character
+    is not loaded. A named room mounts that file. The example sheet fills in only when
+    the caller passed a room and no sheet (engineering path). The CLI does not use that
+    fill-in for player-facing starts.
+    """
+    if room is None:
+        return kit_campaign.campaign_entry(db, sheet_path)
+    source = kit_rooms.load_room(room)
     if area is not None and area not in source['areas']:
-        raise kit_rooms.RoomMountError(room or DEFAULT_ROOM, [f'no area {area!r} in this room'])
+        raise kit_rooms.RoomMountError(room, [f'no area {area!r} in this room'])
     own = runtime is None
     runtime = runtime or Runtime(db)
     try:
         try:
-            runtime.initialize(source, area or source['starting_area'], room_path=room or DEFAULT_ROOM)
+            runtime.initialize(source, area or source['starting_area'], room_path=room)
         except InvalidChange as exc:
             raise InvalidChange(f'{exc} Resume it with view and '
                                 'prepare, or pass a new --db to start fresh.') from exc
@@ -5505,6 +5508,7 @@ def start_session(db, sheet_path=None, runtime=None, room=None, area=None, manif
         return {
             'stage': 'started', 'db': str(db), 'character': loaded['character'],
             'sheet': str(path), 'example_sheet': not sheet_path,
+            'room_id': source.get('id'), 'room': str(room),
             'next_step': ('You are Kit. Write one JSON object {"decision", "performance"} that follows '
                           'prepared.instructions and prepared.schema, save it to a file, then run: '
                           f'python3 -m runtime.kit_agent complete --db {db} --turn-id {turn} '
@@ -5559,8 +5563,11 @@ def main():
     parser.add_argument('--db', default='kit.sqlite')
     parser.add_argument('--kind', choices=['short', 'long'], help='rest: a short or a long rest (slots and uses '
                                                                   'come back; re-sending the sheet does not)')
-    parser.add_argument('--room', help='start/init: a room file to mount (default: area 6c; see '
-                                       'docs/architecture/ROOM_LOADER.md)')
+    parser.add_argument('--room', help='start/init: a room file to mount. With no --room, start reports '
+                                       'campaign entry and does not open a room (runtime/kit_campaign.py).')
+    parser.add_argument('--regression', action='store_true',
+                        help='start/init: mount a stub or fixture_only room. Engineering only. '
+                             'Does nothing if --room is omitted.')
     parser.add_argument('--area', help='start: begin in this area of the room (default: its starting_area)')
     parser.add_argument('--model', help='Optional standalone Responses API model for play')
     parser.add_argument('--perception', type=int, help='Test character Wisdom (Perception) modifier')
@@ -5588,8 +5595,8 @@ def main():
     parser.add_argument('--ancestry', help='character: the player character\'s ancestry (e.g. Harengon)')
     parser.add_argument('--class-name', dest='class_name', help='character: class (optional)')
     parser.add_argument('--level', type=int, help='character: level (optional)')
-    parser.add_argument('--sheet', help='start/character: a character_sheet_v1 JSON file (any PC; see '
-                                        'runtime/pc_sheet.py). start defaults to the example PC')
+    parser.add_argument('--sheet', help='start/character: a character_sheet_v1 JSON file. '
+                                        'Player-facing start does not load a character until this is passed.')
     parser.add_argument('--held', help='character: comma list of what the PC holds now ("" for nothing)')
     parser.add_argument('--active', help='character: comma list of spells/conditions active now')
     parser.add_argument('--replaces', default='none', help='feedback: note id this feedback supersedes')
@@ -5611,6 +5618,15 @@ def main():
         return 0
     if args.command == 'start':
         try:
+            if args.room and not args.regression:
+                source = kit_rooms.load_room(args.room)
+                refusal = kit_campaign.player_room_refusal(args.room, source)
+                if refusal:
+                    print(json.dumps(refusal, ensure_ascii=False), file=sys.stderr)
+                    return 2
+                if not args.sheet:
+                    print(json.dumps(kit_campaign.need_character(args.room, source), ensure_ascii=False))
+                    return 0
             result = start_session(args.db, args.sheet, room=args.room, area=args.area, manifests=not args.full)
         except kit_rooms.RoomMountError as exc:
             print(json.dumps(exc.host_view(), ensure_ascii=False), file=sys.stderr)
@@ -5621,13 +5637,30 @@ def main():
         print(json.dumps(result, ensure_ascii=False,
                          **({'indent': 2} if args.pretty else {'separators': (',', ':')})))
         return 0
-    runtime = Runtime(args.db)
-    try:
-        if args.command == 'init':
-            source = kit_rooms.load_room(args.room or DEFAULT_ROOM)
+    if args.command == 'init':
+        if not args.room:
+            print(json.dumps(kit_campaign.campaign_entry(args.db, args.sheet), ensure_ascii=False))
+            return 0
+        try:
+            source = kit_rooms.load_room(args.room)
+        except kit_rooms.RoomMountError as exc:
+            print(json.dumps(exc.host_view(), ensure_ascii=False), file=sys.stderr)
+            return 2
+        if not args.regression:
+            refusal = kit_campaign.player_room_refusal(args.room, source)
+            if refusal:
+                print(json.dumps(refusal, ensure_ascii=False), file=sys.stderr)
+                return 2
+        runtime = Runtime(args.db)
+        try:
             runtime.initialize(source, source['starting_area'])
             print(json.dumps(runtime.player_view(), indent=2, ensure_ascii=False))
-        elif args.command == 'view':
+        finally:
+            runtime.close()
+        return 0
+    runtime = Runtime(args.db)
+    try:
+        if args.command == 'view':
             print(json.dumps(runtime.player_view(), indent=2, ensure_ascii=False))
         elif args.command == 'trace':
             print(json.dumps(runtime.recent_kit_turns(), indent=2, ensure_ascii=False))

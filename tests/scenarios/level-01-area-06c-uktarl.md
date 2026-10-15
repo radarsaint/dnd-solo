@@ -100,4 +100,4 @@ python -m runtime.state_context context --db /tmp/kit-06c.sqlite
 python -m runtime.state_context view --db /tmp/kit-06c.sqlite
 ```
 
-For model-driven play in a tool-enabled chat, initialize a fresh database with `python -m runtime.kit_agent init`, then host turns through `prepare`, `decide`, and `finish` as shown in the [play guide](../../docs/architecture/kit-06c-play-slice.md). The standalone API-backed `play` CLI is optional. Keep the private `trace` command out of the player's view until after blind scoring.
+For model-driven play in a tool-enabled chat, this fixture is engineering-only: `python -m runtime.kit_agent start --regression --room tests/fixtures/level_01_area_06c.json --db kit-06c.sqlite`, then complete the staged opening and host later turns through `prepare` and `complete` as shown in the [play guide](../../docs/architecture/kit-06c-play-slice.md). Do not use this command for a player who asked to play the campaign. The standalone API-backed `play` CLI is optional. Keep the private `trace` command out of the player's view until after blind scoring.

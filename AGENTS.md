@@ -29,11 +29,11 @@ A ZIP attached to a ChatGPT Project, GPT Knowledge, conversation, Drive, or Libr
 
 ## Rules
 
-1. **When the player wants to play, start with exactly one command.** From the repository root (Python 3.10+, no installs):
+1. **When the player wants to play, start with exactly one command and no room.** From the repository root (Python 3.10+, no installs):
    ```sh
-   python3 -m runtime.kit_agent start --db kit.sqlite --sheet <player-sheet.json>
+   python3 -m runtime.kit_agent start --db kit.sqlite
    ```
-   Leave out `--sheet` to play the generic example PC (`tests/fixtures/characters/example_pc.json`). `start` creates the room, loads the sheet, stages the opening, and prints the next command to run. If it says the database already holds a game, resume it with `prepare` (below) or start fresh with a new `--db` name. With no `--room`, `start` mounts area 6c (`tests/fixtures/level_01_area_06c.json`). That file is the legacy default and the richest authored room, not the definition of the engine. Pass `--room <file>` to mount another conforming room file. Loading a room file is not the same as turning untouched adventure text into a room.
+   With no `--room`, this does not open a room and does not load a character. It prints campaign entry, or resume if that database already holds a game. Follow `next_step`. The campaign is Dungeon of the Mad Mage. Its start is the Yawning Portal, then Level 1 Area 1. That start is not a room file in this build, so the answer is the blocker, not a scene. Do not pass `--room` unless `executable_starts` lists that path. Do not pass `--regression`. Do not load `tests/fixtures/characters/example_pc.json` unless the player explicitly asks for the example character. Area 6c (`tests/fixtures/level_01_area_06c.json`) is a historical regression fixture. It mounts only when someone names that file and passes `--regression`. It is not the campaign and not a fallback. Loading a room file is not the same as turning untouched adventure text into a room.
 2. **Every game turn goes through the KitChatBridge. No exceptions.**
    - Live chat (default): run `prepare --one-pass --db kit.sqlite --action "<the player's exact words>"`. Write one JSON object `{"decision": ..., "performance": ...}` that follows the packet's `instructions` and `schema` (sent once in `session_manifest`; later packets say `cached`: use that copy, echo both manifest hashes as `"manifest": {"session", "room"}`, and run `rehydrate --turn-id <id>` if the copy is gone; see docs/architecture/MANIFESTS.md). Save it to a file. Then run `complete --db kit.sqlite --turn-id <id> --input-file <file>`.
    - Staged (for evaluation): run `prepare`, then `decide` with the plan, then `finish` with the speech.

@@ -322,9 +322,7 @@ Removed (line numbers on *main* 6a2b7ed):
 | state_context.py:959 | `source['fixture_only']` required | optional |
 
 Left in, and why:
-- `DEFAULT_ROOM` = the 6c file (kit_agent.py:45): `start` with no `--room` still plays 6c, the
-  only full room; AGENTS.md (GPT's) documents that command. Changing the default is a call for
-  Brendon and GPT.
+- `DEFAULT_ROOM` still names the Area 6c file, but it is not the player-facing default. `start` with no `--room` returns campaign entry and mounts nothing (`runtime/kit_campaign.py`). The CLI mounts that file only with `--room` and `--regression`.
 - General-noun vocabulary in router and guard regexes ("dealer", "vampire", "fangs", "paint"):
   kit_combat.py:68, 111, 124, 312; kit_guards.py:386; kit_claims.py:489; kit_attitude.py:59;
   the card modules' "dealer". They are English words, not 6c ids, and fire only on matching

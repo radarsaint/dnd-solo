@@ -28,8 +28,13 @@ class StartSessionTests(unittest.TestCase):
         pc_sheet.check_sheet(sheet)
         self.assertNotEqual(sheet['name'], 'Nik')
 
-    def test_start_initializes_loads_example_sheet_and_stages_opening(self):
+    def test_start_without_a_room_does_not_open_the_fixture(self):
         result = kit_agent.start_session(self.db)
+        self.assertEqual(result['stage'], 'campaign_entry')
+        self.assertFalse(Path(self.db).exists())
+
+    def test_start_with_an_explicit_room_loads_the_example_sheet_and_stages_the_opening(self):
+        result = kit_agent.start_session(self.db, room=kit_agent.DEFAULT_ROOM)
         self.assertEqual(result['stage'], 'started')
         self.assertTrue(result['example_sheet'])
         self.assertEqual(result['character']['name'], 'Wren')
@@ -50,23 +55,23 @@ class StartSessionTests(unittest.TestCase):
         sheet['name'] = 'Pip'
         path = Path(self.tmp.name) / 'pip.json'
         path.write_text(json.dumps(sheet), encoding='utf-8')
-        result = kit_agent.start_session(self.db, str(path))
+        result = kit_agent.start_session(self.db, str(path), room=kit_agent.DEFAULT_ROOM)
         self.assertFalse(result['example_sheet'])
         self.assertEqual(result['character']['name'], 'Pip')
 
     def test_start_refuses_a_database_with_a_game(self):
-        kit_agent.start_session(self.db)
+        kit_agent.start_session(self.db, room=kit_agent.DEFAULT_ROOM)
         with self.assertRaisesRegex(InvalidChange, 'new --db'):
-            kit_agent.start_session(self.db)
+            kit_agent.start_session(self.db, room=kit_agent.DEFAULT_ROOM)
 
-    def test_cli_start_prints_the_first_packet(self):
+    def test_cli_start_without_a_room_does_not_print_an_opening(self):
         out = io.StringIO()
         with mock.patch.object(sys, 'argv', ['kit_agent', 'start', '--db', self.db]), \
                 contextlib.redirect_stdout(out):
             self.assertEqual(kit_agent.main(), 0)
         printed = json.loads(out.getvalue())
-        self.assertEqual(printed['stage'], 'started')
-        self.assertIn('turn_id', printed['prepared'])
+        self.assertEqual(printed['stage'], 'campaign_entry')
+        self.assertNotIn('prepared', printed)
 
 
 if __name__ == '__main__':

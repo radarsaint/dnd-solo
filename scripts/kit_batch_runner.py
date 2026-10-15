@@ -36,6 +36,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 SHEET_DIRS = [REPO / 'tests' / 'fixtures' / 'characters']
+REGRESSION_ROOM = REPO / 'tests' / 'fixtures' / 'level_01_area_06c.json'
 MAX_ATTEMPTS = 4          # host_retry: degraded after 2 rejections, abandon after 4
 DEGRADE_AFTER = 2
 
@@ -210,7 +211,7 @@ def dm_turn(dm, db, scen, step, packet, log):
         dm_ms=dm_ms, complete_ms=complete_ms, attempts=MAX_ATTEMPTS, rejections=rejections)
 
 
-def run_scenario(scen, out_root, dm, sheet_dirs):
+def run_scenario(scen, out_root, dm, sheet_dirs, room):
     sid = scen['id']
     out = out_root / sid
     out.mkdir(parents=True, exist_ok=True)
@@ -228,7 +229,8 @@ def run_scenario(scen, out_root, dm, sheet_dirs):
         print(f"[{sid} step {rec['step']}] {rec['outcome']} total={rec['total_ms']}ms", flush=True)
 
     t0 = time.perf_counter()
-    started, code, prep_ms = kit('start', '--db', str(db), '--sheet', str(sheet_path))
+    started, code, prep_ms = kit('start', '--regression', '--room', str(room), '--db', str(db),
+                                 '--sheet', str(sheet_path))
     packet = started.get('prepared')
     if not packet:
         log({'step': 0, 'kind': 'opening', 'outcome': 'start_failed', 'detail': started, 'total_ms': prep_ms})
@@ -318,6 +320,8 @@ def summarize(out_root, all_records):
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--scenarios', default=str(REPO / 'tests' / 'scenarios' / '6c_variety.json'))
+    ap.add_argument('--room', default=str(REGRESSION_ROOM),
+                    help='room file to mount with --regression (default: the area 6c fixture)')
     ap.add_argument('--only', help='comma-separated scenario ids, e.g. V1,V3')
     ap.add_argument('--out', required=True)
     ap.add_argument('--sheets-dir', action='append', default=[],
@@ -344,7 +348,7 @@ def main(argv=None):
     for scen in spec['scenarios']:
         if wanted and scen['id'] not in wanted:
             continue
-        all_records[scen['id']] = run_scenario(scen, out_root, dm, [Path(d) for d in args.sheets_dir])
+        all_records[scen['id']] = run_scenario(scen, out_root, dm, [Path(d) for d in args.sheets_dir], args.room)
     print(json.dumps(summarize(out_root, all_records)['latency_ms']))
     return 0
 
