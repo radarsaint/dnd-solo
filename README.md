@@ -2,7 +2,7 @@
 
 # D&D Solo Runtime
 
-> **If you're an AI, start here:** read [AGENTS.md](AGENTS.md). You are Kit, the DM, in every context. Outside a game, just talk as Kit: no command is needed, and nothing said there is game state. To play, run `python3 -m runtime.kit_agent start --db kit.sqlite` with no `--room` and follow the JSON. That command does not open a test room. Never run `play` (paid API).
+> **If you're an AI, start here:** read [AGENTS.md](AGENTS.md). You are Kit, the DM, in every context. Outside a game, just talk as Kit: no command is needed, and nothing said there is game state. Do not assume they came for Dungeon of the Mad Mage. To ask about that campaign, run `python3 -m runtime.kit_agent start --db kit.sqlite --campaign dotmm` and follow the JSON. Never run `play` (paid API).
 
 Canonical development repository for the D&D solo-DM project.
 

@@ -1,9 +1,9 @@
-"""Player-facing campaign entry.
+"""What Kit is available for, before any room is mounted.
 
-`start` with no room used to mount Area 6c and the example character. That room is a
-historical regression fixture. The campaign is Dungeon of the Mad Mage, and its start
-(the Yawning Portal, then Level 1 Area 1) is not a room file. This module reports that.
-It does not mount a room and it does not invent one.
+`start` with no room used to mount Area 6c. It must not. It also must not treat
+"I want to play" as a request for Dungeon of the Mad Mage. That adventure starts
+only when the player asks for it. Talk, debrief, and working on a scene or a
+character do not go through a room at all.
 """
 import json
 import sqlite3
@@ -15,74 +15,45 @@ from .state_context import PROJECT_ROOT
 # Outside rooms/ on purpose: a regression fixture, not a campaign start.
 REGRESSION_ROOM = 'tests/fixtures/level_01_area_06c.json'
 EXAMPLE_SHEET = 'tests/fixtures/characters/example_pc.json'
-CAMPAIGN_ID = 'dotmm'
-CAMPAIGN_TITLE = 'Dungeon of the Mad Mage'
-INTENDED_START = (
-    'The Yawning Portal in Waterdeep, then the winch descent to Level 1, Area 1. '
-    'docs/campaign/levels/LEVEL_00_GAME_SETUP.md describes that opening. '
-    'It is not a room file.')
-TABLE_LINE = (
-    "I can't start the campaign from this build. The adventure is Dungeon of the Mad Mage, "
-    "and it should open at the Yawning Portal, then the first room under the well. "
-    "That start isn't a playable room yet. I won't drop you into a test room instead.")
+MAD_MAGE_KEYS = ('dotmm', 'mad mage', 'mad-mage', 'dungeon of the mad mage')
+GREETING = (
+    "I'm Kit. I can talk with you, go over a game, work on a character or a scene, "
+    "or run a session once you tell me which one. I won't pick the adventure for you.")
+MAD_MAGE_LINE = (
+    "Dungeon of the Mad Mage isn't a playable room in this build. It should open at the "
+    "Yawning Portal, then the first room under the well. I won't put you in a test room instead.")
 NOT_A_CAMPAIGN_LINE = (
     "That isn't a campaign room. It's a test file, and I won't start the adventure there.")
 
 
-def campaign_entry(db, sheet_path=None, rooms_dir=None):
-    """What a host gets when the player asks to play and no room was named.
+def campaign_entry(db, sheet_path=None, rooms_dir=None, campaign=None):
+    """No room was named.
 
-    No database is created. A save that already holds a game is a resume, not a new start.
+    No campaign: a greeting. She does not open a game.
+    A named campaign: only that campaign, and only to say whether it can be played.
+    A save that already holds a game is a resume, not a new start.
     """
     saved = saved_game(db)
     if saved is not None:
-        return _resume(saved)
+        return _resume(saved, campaign)
     executable, blocked = inspect_rooms(rooms_dir or (PROJECT_ROOT / 'rooms'))
     blocked = _with_regression(blocked)
-    noted = str(sheet_path) if sheet_path else None
-    if executable:
-        stage_line = (
-            "There is a real start I can open, but I need your character first. "
-            "I won't pick a test room, and I won't invent who you are.")
-        nxt = (
-            'If more than one path is in executable_starts, ask the player which start they want. '
-            'Ask for a character sheet, or write character_sheet_v1 JSON from numbers they actually give you. '
-            f'Do not load {EXAMPLE_SHEET} unless they explicitly ask for the example character. '
-            'Then run start --db <db> --room <one path from executable_starts> --sheet <file>. '
-            'Never pass a path in do_not_start. Never pass --regression.')
-    else:
-        stage_line = TABLE_LINE
-        nxt = (
-            'Say table_line to the player in your own voice. Do not invent a tavern, a dungeon room, '
-            'or a character. Do not run start --room. Do not pass --regression. '
-            'Do not open any path in do_not_start. This build has no playable campaign room.')
+    if campaign is None:
+        return _greeting(sheet_path, executable, blocked)
+    if _is_mad_mage(campaign):
+        return _mad_mage(sheet_path, executable, blocked)
     return {
-        'stage': 'campaign_entry',
+        'stage': 'unknown_game',
         'committed': False,
         'opened_room': None,
         'character_loaded': False,
-        'sheet_noted': noted,
+        'sheet_noted': str(sheet_path) if sheet_path else None,
         'sheet_loaded': False,
-        'campaign': {
-            'id': CAMPAIGN_ID,
-            'title': CAMPAIGN_TITLE,
-            'intended_start': INTENDED_START,
-            'source_to_room': 'not_built',
-        },
-        'executable_starts': executable,
-        'do_not_start': blocked,
-        'blocker': None if executable else {
-            'code': 'no_executable_campaign_start',
-            'missing': [
-                'The Yawning Portal is a campaign-layer document, not a room file.',
-                'Level 1 Area 1, the first dungeon room after the descent, has no room file.',
-                'Source-to-room authoring is not built. Keyed adventure text is not turned into a playable room (PROJECT_CONTROL.md).',
-                'rooms/level_01_area_17a.json is a stub with placeholder facts. It is not the campaign.',
-                f'{REGRESSION_ROOM} is a historical regression fixture. It is not the campaign and not a fallback.',
-            ],
-        },
-        'table_line': stage_line,
-        'next_step': nxt,
+        'asked': campaign,
+        'table_line': "I don't have that as a game I can run. We can talk about it, or you can name something else.",
+        'next_step': (
+            'Say table_line. Do not invent a dungeon or a character. Do not pass --room. '
+            'Do not substitute Dungeon of the Mad Mage.'),
     }
 
 
@@ -103,8 +74,9 @@ def player_room_refusal(room, source):
         'why': kind,
         'table_line': NOT_A_CAMPAIGN_LINE,
         'next_step': (
-            'Run start with no --room and follow that campaign_entry. '
-            'Pass --regression with --room only when an engineering fixture was asked for by name.'),
+            'Do not mount this file. If the player did not name a game, say the greeting from start '
+            'with no --room and no --campaign. Pass --regression with --room only when an engineering '
+            'fixture was asked for by name.'),
     }
 
 
@@ -197,22 +169,128 @@ def saved_game(db):
         con.close()
 
 
-def _resume(saved):
+def _resume(saved, campaign):
     pending = saved.get('pending_turn')
     if pending:
-        nxt = (f'A turn is already waiting ({pending}). Complete that turn if you still have the decision. '
-               'Do not run start --room. Do not open a different room. Show the player only "spoken".')
+        nxt = (f'A turn is already waiting ({pending}). Continue only if the player wants this game. '
+               'Complete that turn if you still have the decision. Do not open a different room. '
+               'Show the player only "spoken".')
     else:
-        nxt = ('This save is the game. Do not run start --room. On the next in-fiction line, '
-               'prepare --one-pass and then complete. Show the player only "spoken".')
+        nxt = ('A save is present. Continue it only if the player wants this game. '
+               'On the next in-fiction line, prepare --one-pass and then complete. '
+               'Show the player only "spoken". Do not start Dungeon of the Mad Mage over it.')
+    line = "There's already a game in this save. We can pick it up if that's what you want. I won't start a second one over it."
+    if campaign and not _is_mad_mage(campaign):
+        line = "This save already has a game. I won't start another over it. Say if you want to continue this one."
+    elif _is_mad_mage(campaign):
+        line = "This save already has a game. I won't start Mad Mage over it. Say if you want to continue this one."
     return {
         'stage': 'resume',
         'committed': False,
         'opened_room': None,
         **saved,
-        'table_line': "We'll pick up the game you already have. I won't start a second one.",
+        'table_line': line,
         'next_step': nxt,
     }
+
+
+def _greeting(sheet_path, executable, blocked):
+    return {
+        'stage': 'greeting',
+        'committed': False,
+        'opened_room': None,
+        'character_loaded': False,
+        'sheet_noted': str(sheet_path) if sheet_path else None,
+        'sheet_loaded': False,
+        'for': [
+            'Talk, as herself. No room, no character sheet, no adventure assumed.',
+            'Go over a game, a ruling, or a scene that already happened.',
+            'Work on a character or a scene. That is talk and prep, not a running session.',
+            'Run a session only after the player names the game.',
+        ],
+        'executable_starts': executable,
+        'do_not_start': blocked,
+        'mad_mage': _mad_mage_facts(),
+        'table_line': GREETING,
+        'next_step': (
+            'Say table_line in your own voice if they have not already said what they want. '
+            'Do not mention Dungeon of the Mad Mage unless they did. '
+            'Do not pass --room. Do not pass --regression. Do not open do_not_start. '
+            'If they want to play and have not named a game, ask which one. '
+            'If they asked for Mad Mage, run start --campaign dotmm and say that table_line. '
+            'Talk, debrief, and design do not use the bridge.'),
+    }
+
+
+def _mad_mage(sheet_path, executable, blocked):
+    ready = [item for item in executable if _room_is_mad_mage(item)]
+    facts = _mad_mage_facts()
+    if ready:
+        return {
+            'stage': 'need_character' if not sheet_path else 'campaign_ready',
+            'committed': False,
+            'opened_room': None,
+            'character_loaded': False,
+            'sheet_noted': str(sheet_path) if sheet_path else None,
+            'sheet_loaded': False,
+            'asked': 'dotmm',
+            'executable_starts': ready,
+            'do_not_start': blocked,
+            'table_line': (
+                "Mad Mage can open, but I need your character first. I won't invent who you are."),
+            'next_step': (
+                'They asked for this campaign. Ask for a sheet if sheet_noted is null. '
+                'Then run start --room <one path from executable_starts> --sheet <file>. '
+                'Never pass a path in do_not_start.'),
+        }
+    return {
+        'stage': 'campaign_unavailable',
+        'committed': False,
+        'opened_room': None,
+        'character_loaded': False,
+        'sheet_noted': str(sheet_path) if sheet_path else None,
+        'sheet_loaded': False,
+        'asked': 'dotmm',
+        'campaign': facts,
+        'do_not_start': blocked,
+        'blocker': {
+            'code': 'mad_mage_not_executable',
+            'missing': facts['missing'],
+        },
+        'table_line': MAD_MAGE_LINE,
+        'next_step': (
+            'They asked for Dungeon of the Mad Mage. Say table_line. Do not invent the Yawning Portal '
+            'or a dungeon room. Do not pass --room. Do not pass --regression. Do not open do_not_start.'),
+    }
+
+
+def _mad_mage_facts():
+    return {
+        'id': 'dotmm',
+        'title': 'Dungeon of the Mad Mage',
+        'only_if_asked': True,
+        'status': 'not_executable',
+        'intended_start': (
+            'The Yawning Portal in Waterdeep, then the winch descent to Level 1, Area 1. '
+            'docs/campaign/levels/LEVEL_00_GAME_SETUP.md describes that opening. It is not a room file.'),
+        'source_to_room': 'not_built',
+        'missing': [
+            'The Yawning Portal is a campaign-layer document, not a room file.',
+            'Level 1 Area 1, the first dungeon room after the descent, has no room file.',
+            'Source-to-room authoring is not built. Keyed adventure text is not turned into a playable room (PROJECT_CONTROL.md).',
+            'rooms/level_01_area_17a.json is a stub with placeholder facts. It is not a campaign start.',
+            f'{REGRESSION_ROOM} is a historical regression fixture. It is not a fallback.',
+        ],
+    }
+
+
+def _is_mad_mage(campaign):
+    return str(campaign).strip().casefold() in MAD_MAGE_KEYS
+
+
+def _room_is_mad_mage(item):
+    room_id = str(item.get('room_id') or '').casefold()
+    return room_id.startswith('dotmm-') and 'stub' not in room_id and 'testbed' not in room_id
 
 
 def _with_regression(blocked):

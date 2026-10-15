@@ -25,26 +25,37 @@ class CampaignEntryTests(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
-    def test_no_room_does_not_launch_or_create_a_save(self):
+    def test_no_room_greets_and_does_not_assume_mad_mage(self):
         result = kit_agent.start_session(self.db)
-        self.assertEqual(result['stage'], 'campaign_entry')
+        self.assertEqual(result['stage'], 'greeting')
         self.assertFalse(result['committed'])
         self.assertIsNone(result['opened_room'])
         self.assertFalse(result['character_loaded'])
         self.assertEqual(result['executable_starts'], [])
-        self.assertEqual(result['blocker']['code'], 'no_executable_campaign_start')
-        self.assertEqual(result['campaign']['id'], 'dotmm')
-        self.assertFalse(Path(self.db).exists())
+        self.assertEqual(result['table_line'], kit_campaign.GREETING)
+        self.assertNotIn('yawning', result['table_line'].casefold())
+        self.assertNotIn('mad mage', result['table_line'].casefold())
         self.assertNotIn('6c', result['table_line'].casefold())
         self.assertNotIn('wren', result['table_line'].casefold())
-        self.assertIn('Yawning Portal', result['table_line'])
+        self.assertTrue(result['mad_mage']['only_if_asked'])
+        self.assertEqual(result['mad_mage']['status'], 'not_executable')
+        self.assertFalse(Path(self.db).exists())
         paths = [item['path'] for item in result['do_not_start']]
         self.assertIn(SIXC, paths)
         self.assertIn('rooms/level_01_area_17a.json', paths)
 
+    def test_mad_mage_is_reported_only_when_asked(self):
+        result = kit_agent.start_session(self.db, campaign='dotmm')
+        self.assertEqual(result['stage'], 'campaign_unavailable')
+        self.assertEqual(result['asked'], 'dotmm')
+        self.assertEqual(result['blocker']['code'], 'mad_mage_not_executable')
+        self.assertIn('Yawning Portal', result['table_line'])
+        self.assertNotIn('6c', result['table_line'].casefold())
+        self.assertFalse(Path(self.db).exists())
+
     def test_a_sheet_alone_still_does_not_open_a_room(self):
         result = kit_agent.start_session(self.db, str(kit_agent.EXAMPLE_SHEET))
-        self.assertEqual(result['stage'], 'campaign_entry')
+        self.assertEqual(result['stage'], 'greeting')
         self.assertFalse(result['sheet_loaded'])
         self.assertFalse(Path(self.db).exists())
 
@@ -68,13 +79,24 @@ class CampaignEntryTests(unittest.TestCase):
         self.assertIn('pending_turn', again)
         self.assertFalse(again['committed'])
 
-    def test_cli_without_a_room_prints_campaign_entry(self):
+    def test_cli_without_a_room_prints_a_greeting(self):
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
             code = _argv(['kit_agent', 'start', '--db', self.db])
         self.assertEqual(code, 0)
         printed = json.loads(out.getvalue())
-        self.assertEqual(printed['stage'], 'campaign_entry')
+        self.assertEqual(printed['stage'], 'greeting')
+        self.assertNotIn('mad mage', printed['table_line'].casefold())
+        self.assertFalse(Path(self.db).exists())
+
+    def test_cli_campaign_flag_is_the_mad_mage_request(self):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            code = _argv(['kit_agent', 'start', '--db', self.db, '--campaign', 'dotmm'])
+        self.assertEqual(code, 0)
+        printed = json.loads(out.getvalue())
+        self.assertEqual(printed['stage'], 'campaign_unavailable')
+        self.assertIn('Yawning Portal', printed['table_line'])
         self.assertFalse(Path(self.db).exists())
 
     def test_cli_refuses_the_fixture_without_regression(self):
@@ -110,7 +132,7 @@ class CampaignEntryTests(unittest.TestCase):
         with contextlib.redirect_stdout(out):
             code = _argv(['kit_agent', 'init', '--db', self.db])
         self.assertEqual(code, 0)
-        self.assertEqual(json.loads(out.getvalue())['stage'], 'campaign_entry')
+        self.assertEqual(json.loads(out.getvalue())['stage'], 'greeting')
         self.assertFalse(Path(self.db).exists())
 
     def test_one_real_room_is_offered_and_not_auto_opened(self):
@@ -126,13 +148,14 @@ class CampaignEntryTests(unittest.TestCase):
         }
         (folder / 'area_1.json').write_text(json.dumps(body), encoding='utf-8')
         report = kit_campaign.campaign_entry(self.db, rooms_dir=folder)
-        self.assertEqual(report['stage'], 'campaign_entry')
-        self.assertIsNone(report['blocker'])
+        self.assertEqual(report['stage'], 'greeting')
         self.assertEqual(len(report['executable_starts']), 1)
         self.assertEqual(report['executable_starts'][0]['room_id'], 'dotmm-level-01-area-01-test')
-        self.assertEqual(report['executable_starts'][0]['starting_area'], 'area_1')
-        self.assertNotIn('6c', report['table_line'].casefold())
+        self.assertNotIn('mad mage', report['table_line'].casefold())
         self.assertFalse(Path(self.db).exists())
+        asked = kit_campaign.campaign_entry(self.db, rooms_dir=folder, campaign='dotmm')
+        self.assertEqual(asked['stage'], 'need_character')
+        self.assertEqual(asked['executable_starts'][0]['room_id'], 'dotmm-level-01-area-01-test')
 
     def test_subprocess_start_matches_the_host_command(self):
         proc = subprocess.run(
@@ -140,7 +163,8 @@ class CampaignEntryTests(unittest.TestCase):
             cwd=ROOT, capture_output=True, text=True, check=False)
         self.assertEqual(proc.returncode, 0, proc.stderr)
         result = json.loads(proc.stdout)
-        self.assertEqual(result['stage'], 'campaign_entry')
+        self.assertEqual(result['stage'], 'greeting')
+        self.assertNotIn('mad mage', result['table_line'].casefold())
         self.assertEqual(result['executable_starts'], [])
         self.assertFalse(Path(self.db).exists())
 

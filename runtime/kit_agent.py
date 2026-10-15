@@ -1,8 +1,9 @@
 """Kit play bridge: mount a conforming room file, adjudicate the turn, record a private decision, and check the public performance.
 
 Any conforming room file mounts through the room loader (runtime/kit_rooms.py) when a room
-is named. Player-facing start with no room does not mount one: it returns campaign entry
-(runtime/kit_campaign.py). Area 6c is a regression fixture, reached only with an explicit
+is named. Player-facing start with no room does not mount one and does not assume a
+campaign (runtime/kit_campaign.py). Dungeon of the Mad Mage is opened only when the
+player asks for it. Area 6c is a regression fixture, reached only with an explicit
 room and --regression on the CLI. The model chooses and performs a DM move. Accepted turns
 may also commit checked model proposals (canon, claims, agenda, and related state). The
 model does not write storage except through those checked commits.
@@ -5478,16 +5479,16 @@ class KitChatBridge:
 EXAMPLE_SHEET = PROJECT_ROOT / 'tests/fixtures/characters/example_pc.json'
 
 
-def start_session(db, sheet_path=None, runtime=None, room=None, area=None, manifests=False):
+def start_session(db, sheet_path=None, runtime=None, room=None, area=None, manifests=False, campaign=None):
     """Bootstrap for a host.
 
-    No room: campaign entry or resume. Nothing is mounted, and the example character
-    is not loaded. A named room mounts that file. The example sheet fills in only when
-    the caller passed a room and no sheet (engineering path). The CLI does not use that
-    fill-in for player-facing starts.
+    No room and no campaign: a greeting. Nothing is mounted. Mad Mage is not assumed.
+    A named campaign reports that campaign only. A named room mounts that file.
+    The example sheet fills in only when the caller passed a room and no sheet
+    (engineering path). The CLI does not use that fill-in for player-facing starts.
     """
     if room is None:
-        return kit_campaign.campaign_entry(db, sheet_path)
+        return kit_campaign.campaign_entry(db, sheet_path, campaign=campaign)
     source = kit_rooms.load_room(room)
     if area is not None and area not in source['areas']:
         raise kit_rooms.RoomMountError(room, [f'no area {area!r} in this room'])
@@ -5564,10 +5565,13 @@ def main():
     parser.add_argument('--kind', choices=['short', 'long'], help='rest: a short or a long rest (slots and uses '
                                                                   'come back; re-sending the sheet does not)')
     parser.add_argument('--room', help='start/init: a room file to mount. With no --room, start reports '
-                                       'campaign entry and does not open a room (runtime/kit_campaign.py).')
+                                       'what Kit is available for and does not open a room (runtime/kit_campaign.py).')
     parser.add_argument('--regression', action='store_true',
                         help='start/init: mount a stub or fixture_only room. Engineering only. '
                              'Does nothing if --room is omitted.')
+    parser.add_argument('--campaign',
+                        help='start/init: a game the player asked for by name. '
+                             'Omit it unless they named one. "dotmm" is Dungeon of the Mad Mage.')
     parser.add_argument('--area', help='start: begin in this area of the room (default: its starting_area)')
     parser.add_argument('--model', help='Optional standalone Responses API model for play')
     parser.add_argument('--perception', type=int, help='Test character Wisdom (Perception) modifier')
@@ -5627,7 +5631,8 @@ def main():
                 if not args.sheet:
                     print(json.dumps(kit_campaign.need_character(args.room, source), ensure_ascii=False))
                     return 0
-            result = start_session(args.db, args.sheet, room=args.room, area=args.area, manifests=not args.full)
+            result = start_session(args.db, args.sheet, room=args.room, area=args.area,
+                                   manifests=not args.full, campaign=args.campaign)
         except kit_rooms.RoomMountError as exc:
             print(json.dumps(exc.host_view(), ensure_ascii=False), file=sys.stderr)
             return 2
@@ -5639,7 +5644,8 @@ def main():
         return 0
     if args.command == 'init':
         if not args.room:
-            print(json.dumps(kit_campaign.campaign_entry(args.db, args.sheet), ensure_ascii=False))
+            print(json.dumps(kit_campaign.campaign_entry(args.db, args.sheet, campaign=args.campaign),
+                             ensure_ascii=False))
             return 0
         try:
             source = kit_rooms.load_room(args.room)
