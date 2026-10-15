@@ -4,8 +4,8 @@
 **Status:** canonical on `dnd-solo/main` after Brendon-approved merges of #113 and #117 on 2026-10-08. It is no longer a proposed side-branch draft.  
 **Canonical location:** `radarsaint/dnd-solo/docs/PROJECT_UNDERSTANDING.md`  
 **Sibling repository:** `radarsaint/bfdm-corpus`  
-**Last substantive refresh:** 2026-10-14  
-**Context reviewed against:** `dnd-solo/main @ 5c251092101c0abecf86a0418304442e3407565b`; `bfdm-corpus/main @ 6795362e967e89230086afc28c04450cc7d0cce4`
+**Last substantive refresh:** 2026-10-15  
+**Context reviewed against:** `dnd-solo/main @ 5c0b133fcd5e9d5049fbb05e0b57a66f4132ebdf`; `bfdm-corpus/main @ 6795362e967e89230086afc28c04450cc7d0cce4`
 
 > This document is the project's current **semantic model**: what we are building, where we are, why we got here, what changed our thinking, how the major workstreams fit together, what we currently believe, what remains uncertain, and where the evidence points next.
 >
@@ -26,7 +26,7 @@ If those sources change the meaning of this document, this document should be **
 
 ## 1.1 What we are building
 
-The project is building **Kitiara ("Kit", "DM Kit")**, a persistent AI Dungeon Master and creative partner.
+The project is building **Kitiara ("Kit", "DM Kit")**, a persistent AI Dungeon Master and creative partner. Dungeon Master is her principal vocation, not her only job. Conversation, debrief, and creative work do not require a running game, and she does not open a game unless the player names one. Dungeon of the Mad Mage is one campaign she can be asked to run. Area 6c is not a silent start. That is current product intent. It is not yet what executable `main` does.
 
 **KRABS v0.2.2 (`docs/architecture/KRABS.md` on current `dnd-solo/main`) is the canonical long-term Kit Reference Architecture & Behavioral Specification.** It defines what Kit is supposed to become and the contracts implementations must satisfy. Current runtime code may implement only part of KRABS, and later evidence may justify revising KRABS itself, but the runtime does not supersede KRABS merely by evolving beyond an early prototype.
 
@@ -49,7 +49,7 @@ The hard requirement is therefore larger than "make an LLM good at narration." K
 
 The project is **past the stage where its main problem can honestly be described as missing machinery**.
 
-The current runtime is materially beyond the original Area 6c prototype. It has a generalized chat-hosted SQLite substrate, room loading, hidden-information projection, claims/knowers, agendas, attitudes, persistence, one-pass and staged execution, bounded procedures and combat, manifests, retry/idempotency support, and a large mechanical test surface.
+The current runtime is materially beyond the original Area 6c prototype. It has a generalized chat-hosted SQLite substrate, room loading, hidden-information projection, claims/knowers, agendas, attitudes, persistence, one-pass and staged execution, bounded procedures and combat, manifests, retry/idempotency support, and a large mechanical test surface. On `main` at `5c0b133f`, `start` with no room still loads `tests/fixtures/level_01_area_06c.json`. Treating Area 6c as a historical testbed does not mean the player-facing command has stopped mounting it.
 
 The research substrate has also advanced. BFDM PR #40 merged on 2026-10-08: the catalog now holds 195 BCS identities through BCS-000195, with 193 indexed source containers (BCS-000059 is context-only; BCS-000068 is an excerpt without a source container). Model-facing Discord retrieval exists, and the old Git LFS opacity problem should not be restarted. The remaining missing revisions, Rowing Oak imagery, Bodfish Google Site, partial Earthfall/Saturday Project histories, and known-source gaps remain explicit archival work dependent on source access. Accessible evidence is not semantically verified judgment research.
 
@@ -136,7 +136,7 @@ These are narrower than old blanket claims that combat, natural language, NPCs, 
 
 This lane is now disproportionately important because implementation has outrun evidence.
 
-The next valuable play evidence is not another proof that Area 6c can run. It is sustained current-build play in a materially different real room that crosses ordinary boundaries between exploration, social interaction, physical action, checks, NPC initiative, and combat where appropriate.
+The next valuable play evidence is not another proof that Area 6c can run. On current `main` the no-room start still opens that fixture. [PR #124](https://github.com/radarsaint/dnd-solo/pull/124) (`kit-campaign-entry` at `1ac91c55`) proposes a greeting that does not pick an adventure, and reports Dungeon of the Mad Mage only when the player asks for it. The pull request is open and unmerged. A fresh ChatGPT host has not consumed it. After that correction is on `main` and a host is actually using it, the evidence that matters is sustained play in a real room other than the fixture.
 
 The goal is to discover the **next quality ceiling**, not to rediscover already-known plumbing defects.
 
@@ -206,6 +206,8 @@ Live `dnd-solo/main` plus the current runtime code answer what the machinery cur
 
 `PROJECT_CONTROL.md` is the live orientation/control surface for that executable state. It is not a substitute for the semantic model in this document.
 
+A pinned zip is a snapshot of one commit, not a newer source of truth than `main`. From `5c0b133f` on, a push to `main` is supposed to publish that commit as GitHub release `runtime-<8-char sha>`, asset `dnd-solo-main-<8-char sha>.zip`. For `5c0b133f` the workflow run succeeded and the asset is uploaded. Its download count was 0 at this review, so a published asset is not a host that mounted it. A `runtime-*` release whose target commit is not on `main` is not current Kit. The workflow did not backfill every older `main` commit. `runtime-5c251092` is an earlier ancestor snapshot that was uploaded separately, also with download count 0.
+
 ### 2.2 Corpus/source/research truth
 
 Live `bfdm-corpus/main` plus that repo's control and research-status files answer what sources, indexes, and research claims currently exist.
@@ -242,5 +244,7 @@ Accessible evidence is not semantically verified judgment research. The forensic
 - Legacy paid play route removal is pending with Skippy.
 - PR #101 combat checkpoints reaction model is now on main via #123; remaining post-#101 combat/engine items (open-ask gate, public_event fallback, #122 Kit-declared acts) are still pending.
 - A live playtest of an ambush (Area 17a or similar) and a downed PC is still owed. Green tests do not prove player-facing quality.
+- Player-facing `start` on `main` still mounts Area 6c. PR #124's greeting, and Mad Mage only when asked, stay proposed until that pull request merges and a host actually uses the build.
+- The `5c0b133f` runtime zip is uploaded and had not been downloaded at review. Publication is not consumption.
 
 The rest of the original document continues with sections on historical context, resource identities, and earlier decision records. Those sections are unchanged by this reconciliation pass.
