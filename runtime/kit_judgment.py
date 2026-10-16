@@ -1,182 +1,218 @@
-"""Situational DM judgments for Kit's private decision input.
+"""Advisory BFDM judgments for the private decision input.
 
-``prepare_inputs`` calls ``for_turn`` with the player line. A match adds
-``dm_judgment`` to that private packet only. The performer never receives it.
-No match adds nothing: the research is not dumped into every turn.
+``prepare_inputs`` calls ``select`` with the room source, the live state, and the
+resolution kind. It does not read the player sentence. PR #122 is the combat-act
+parser; this module does not add another one.
 
-The cards are a curated subset of
-``research/longitudinal/bounded-judgment-tranche-2026-10-15`` in
-``radarsaint/bfdm-corpus``. Each card keeps its limit beside the advice.
-An empty ``later_judgments`` list is the slot for a later sourced judgment.
-Nothing in that list is inferred from the historical line, and a wish to
-add hindsight is not itself a later judgment.
+A card is attached only when ``_judgment`` on the source and the live sheet,
+claim holders, or resolution kind establish that record's situation. Otherwise
+the key is omitted. Every card is advisory. None of them overrule the state or
+the player's choice.
 
-No model calls.
+The text of the corpus stays in radarsaint/bfdm-corpus. This module pins the
+record ids, statuses, and evidence locators checked at ``CORPUS_COMMIT``.
+No network fetch.
 """
 
-RULE = ('Bounded historical judgments for this turn only. Use one only when the '
-        'player line is the situation it names. The limit travels with the advice. '
-        'These are not standing practices. Do not narrate the research, and do not '
-        'treat a later empty slot as an endorsement.')
+from . import kit_reactions
 
+CORPUS_REPO = 'radarsaint/bfdm-corpus'
+CORPUS_COMMIT = 'bf56ca4f9b0f4b410b37c5601a6e49b33627eecb'
+CORPUS_PATH = 'research/longitudinal/bounded-judgment-tranche-2026-10-15.jsonl'
 
-def _later(items):
-    """Sourced hindsight only. An empty list stays empty."""
-    out = []
-    for item in items or ():
-        if not item.get('source') or not item.get('text'):
-            continue
-        out.append({'source': item['source'], 'text': item['text'], 'status': item.get('status', 'UNPROVEN')})
-    return out
+RULE = ('Advisory historical records for a situation the live state already '
+        'establishes. They do not overrule that state or the player\'s choice, '
+        'and they are not standing practices. Do not narrate them.')
 
-
-# Order is the conflict order. An earlier match can suppress a later card.
-CARDS = (
-    {
-        'id': 'designed_constraint',
+# Status and evidence locators must match the pinned JSONL. The advisory is the
+# runtime wording and is not allowed to be stronger than that record.
+RECORDS = {
+    'BJ-001': {
         'status': 'VERIFIED_NARROW',
-        'when': ('spare bedroom', 'give me a house', 'my own house', 'housing exception',
-                 'meant to be vulnerable'),
-        'unless': (),
-        'suppresses': ('unplanned_repair',),
-        'advice': ('Decline a request that removes a constraint the situation was built to keep. '
-                   'Say what the constraint is for. Do not invent a private exception.'),
-        'limit': ('One Empire City refusal on 2021-07-10, message 863492563784040539. '
-                  'A spare bedroom was refused because home was meant to stay vulnerable, and one '
-                  'gift would be demanded by everyone. This does not forbid unplanned repair of '
-                  'destruction, and it is not a rule for every creative request.'),
-        'evidence': ('discord:863492563784040539',),
-        'later_judgments': (),
+        'evidence': ['discord:865565663296225280', 'discord:865565818481279018',
+                     'discord:865565932783796255', 'discord:865566464831258674',
+                     'discord:865567436970786836'],
+        'advisory': ('Unscheduled damage is in the room data and this turn is already a '
+                     'physical act. One 2021 exchange allowed an unplanned repair and waited '
+                     'for the player to carry it out. Do not write the outcome.'),
+        'does_not': 'It does not remove a designed constraint, and it does not decide success.',
     },
-    {
-        'id': 'prepared_fight_stands',
+    'BJ-002': {
+        'status': 'VERIFIED_NARROW',
+        'evidence': ['discord:863492563784040539'],
+        'advisory': ('A constraint is still in force and the room data already has an exception '
+                     'open. One 2021 refusal kept a designed vulnerability rather than grant a '
+                     'private exception. The player still chooses.'),
+        'does_not': 'It is not an automatic denial, and it does not fire because of wording.',
+    },
+    'BJ-003': {
+        'status': 'VERIFIED_NARROW',
+        'evidence': ['discord:744056939096571924'],
+        'advisory': ('The room data says this resolution already stood. One 2020 correction '
+                     'changed a resurrection rule going forward and left that night\'s '
+                     'resurrections in place.'),
+        'does_not': 'It is not a policy for every failed rule, and it does not erase the past.',
+    },
+    'BJ-004': {
         'status': 'NARROWED',
-        'when': ('topped up', 'not depleted', "we're full", 'ready for the fight'),
-        'unless': (),
-        'also': ('preplanned', 'prepared fight', 'the boss'),
-        'suppresses': ('party_mismatch',),
-        'advice': ('Do not cancel a prepared encounter because a simplistic rule says hard fights '
-                   'should be skipped. The table has said they are up for it. Play the fight, or ask '
-                   'one question if something else is actually wrong.'),
-        'limit': ('On 2020-08-21 Brendon guessed the party was depleted and said not to take them into '
-                  'the preplanned fight (746253583552479272). Players immediately said some were not '
-                  'depleted. His first read was not the table. The window does not show the encounter '
-                  'that was played. Cancelling on the guess would have been the wrong use of that moment.'),
-        'evidence': ('discord:746253583552479272', 'discord:746253875727564831'),
-        'later_judgments': (),
+        'evidence': ['discord:746253583552479272', 'discord:746253900490735686',
+                     'discord:746254025883779113', 'discord:746254092011175968',
+                     'discord:746254154774872094'],
+        'advisory_below': ('Live party resources are below the assumption written on this '
+                           'prepared encounter. In one 2020 window a depletion guess was '
+                           'corrected by the players, and the encounter that followed is not '
+                           'in the record.'),
+        'advisory_meets': ('Live party resources meet the assumption written on this prepared '
+                           'encounter. A depletion guess in one 2020 window was not the table. '
+                           'The encounter that followed is not in the record.'),
+        'does_not': 'It does not order the encounter played, skipped, or replaced.',
     },
-    {
-        'id': 'party_mismatch',
-        'status': 'NARROWED',
-        'when': ('depleted', 'out of spell slots', 'out of slots', 'too wiped for the boss'),
-        'unless': ('topped up', 'not depleted', "we're full"),
-        'also': ('preplanned', 'prepared fight', 'the boss'),
-        'suppresses': (),
-        'advice': ('The prepared encounter assumed a party you may not have. Say so, and offer a '
-                   'smaller danger or a non-fight only if they would find that satisfying. Do not '
-                   'announce that the scene has already been changed.'),
-        'limit': ('He reconsidered out loud, then offered mostly roleplay only if it was satisfying, '
-                  'or mobs instead of bosses (746253900490735686, 746254092011175968). Players corrected '
-                  'the depleted read and one asked for some kind of fight (746254154774872094). '
-                  'No delivered encounter is in the window. This is not a rule that every prepared '
-                  'fight yields to a tired party.'),
-        'evidence': ('discord:746253583552479272',),
-        'later_judgments': (),
-    },
-    {
-        'id': 'undisclosed_knowledge',
-        'status': 'VERIFIED_DRAFT_CORRECTION',
-        'when': ('mentioned tasha', 'clue they missed', 'never said', "didn't reveal", 'did not reveal'),
-        'unless': (),
-        'suppresses': (),
-        'advice': ('An NPC acts on what that NPC has seen or been told. Do not hand them a fact the '
-                   'players never revealed and the NPC was not there to learn.'),
-        'limit': ('BCS-000172. The draft had Neris infer that the party had mentioned Tasha. Brendon '
-                  'corrected it: "you are asuming they mentioned tasha. they didnt". The source is a '
-                  'partial workbench log, not a play transcript. It does not prove a replacement scene '
-                  'was run.'),
-        'evidence': ('bcs:BCS-000172',),
-        'later_judgments': (),
-    },
-    {
-        'id': 'nonretroactive_correction',
+    'BJ-005': {
         'status': 'VERIFIED_NARROW',
-        'when': ('undo last night', "take back the resurrection", 'once per day resurrection',
-                 'nerf what already happened'),
-        'unless': (),
-        'suppresses': (),
-        'advice': ('If a rule was a mistake, change it going forward. Do not erase a resolution that '
-                   'already stood.'),
-        'limit': ('One announcement, 744056939096571924, 2020-08-15. He called the once-per-day '
-                  'resurrection a balance mistake and said that night\'s resurrections still stood. '
-                  'That is not a policy for every failed house rule, and no later practice is in the message.'),
-        'evidence': ('discord:744056939096571924',),
-        'later_judgments': (),
+        'evidence': ['bcs:BCS-000172'],
+        'advisory': ('The room data names a fact this present NPC does not hold. One draft '
+                     'correction refused to give an NPC a name the players had not said. '
+                     'The log is not a play transcript.'),
+        'does_not': 'It does not prove a replacement scene was run, and it does not speak for the player.',
     },
-    {
-        'id': 'unplanned_repair',
-        'status': 'VERIFIED_NARROW',
-        'when': ('clear the rubble', 'help rebuild', 'repair the damage', 'rebuilding the',
-                 'fix what was destroyed'),
-        'unless': ('spare bedroom', 'give me a house', 'my own house', 'housing exception'),
-        'suppresses': (),
-        'advice': ('The player is offering to repair something the prep did not schedule. Let them try. '
-                   'Do not write their outcome, and do not pay them for work they have not done yet.'),
-        'limit': ('Empire City staff chat, 2021-07-16. A player asked to clear rubble at the money changer '
-                  '(865565663296225280). Brendon had not planned it, called the rebuilding healing, said yes, '
-                  'and then "just waiting for his post" (865566464831258674, 865567436970786836). '
-                  'A colleague later said the player posted without being prodded. This is not permission '
-                  'to remove a designed vulnerability, and it does not show what the fiction became.'),
-        'evidence': ('discord:865565818481279018', 'discord:865565932783796255'),
-        'later_judgments': (),
-    },
-)
+}
 
 
-def _hit(text, card):
-    if not any(phrase in text for phrase in card['when']):
-        return False
-    if any(phrase in text for phrase in card.get('unless', ())):
-        return False
-    also = card.get('also')
-    if also and not any(phrase in text for phrase in also):
-        return False
-    return True
-
-
-def for_turn(action, kind='play'):
-    """The private packet for this player line, or None when nothing applies."""
-    if kind == 'opening' or not isinstance(action, str) or not action.strip():
+def party_ready(sheet, assumes):
+    """True, False, or None when the sheet cannot establish the assumption."""
+    if not isinstance(sheet, dict) or not isinstance(assumes, dict) or not assumes:
         return None
-    text = action.casefold()
-    chosen = []
-    suppressed = set()
-    for card in CARDS:
-        if card['id'] in suppressed:
+    seen = False
+    ready = True
+    if 'min_hp' in assumes:
+        hp = sheet.get('hp')
+        if type(hp) is not int:
+            return None
+        seen = True
+        if hp < assumes['min_hp']:
+            ready = False
+    if 'min_slots_remaining' in assumes:
+        counted = kit_reactions.slots(sheet)
+        if not counted:
+            return None
+        remaining = sum(item['max'] - item['used'] for item in counted.values())
+        seen = True
+        if remaining < assumes['min_slots_remaining']:
+            ready = False
+    return ready if seen else None
+
+
+def _block(source):
+    block = (source or {}).get('_judgment')
+    return block if isinstance(block, dict) else {}
+
+
+def _view(record_id, relevance, advisory):
+    record = RECORDS[record_id]
+    return {
+        'id': record_id,
+        'record': record_id,
+        'status': record['status'],
+        'relevance': relevance,
+        'binding': False,
+        'advisory': advisory,
+        'does_not': record['does_not'],
+        'evidence': list(record['evidence']),
+        'corpus_commit': CORPUS_COMMIT,
+        'corpus_path': CORPUS_PATH,
+    }
+
+
+def select(source, state, kind='play'):
+    """The private advisory packet, or None. ``state`` and ``source`` decide. The
+    player sentence is not an argument."""
+    if kind == 'opening' or not isinstance(state, dict):
+        return None
+    block = _block(source)
+    if not block:
+        return None
+    area = state.get('area')
+    applied = []
+
+    for item in block.get('constraints') or ():
+        if not isinstance(item, dict) or item.get('area') != area or item.get('exception_open') is not True:
             continue
-        if not _hit(text, card):
+        waived = state.get('judgment_waived') or ()
+        if item.get('id') in waived:
             continue
-        chosen.append(card)
-        suppressed.update(card.get('suppresses') or ())
-    if not chosen:
+        applied.append(_view('BJ-002', 'constraint_exception_open', RECORDS['BJ-002']['advisory']))
+        break
+
+    for item in block.get('encounters') or ():
+        if not isinstance(item, dict) or item.get('area') != area or item.get('prepared') is not True:
+            continue
+        ready = party_ready(state.get('player_sheet'), item.get('assumes'))
+        if ready is False:
+            applied.append(_view('BJ-004', 'party_below_encounter_assumption',
+                                 RECORDS['BJ-004']['advisory_below']))
+        elif ready is True:
+            applied.append(_view('BJ-004', 'party_meets_encounter_assumption',
+                                 RECORDS['BJ-004']['advisory_meets']))
+        break
+
+    claims = (source or {}).get('claims') or {}
+    for item in block.get('unknown_to') or ():
+        if not isinstance(item, dict):
+            continue
+        actor, claim_id = item.get('actor'), item.get('claim')
+        claim = claims.get(claim_id) if isinstance(claims, dict) else None
+        holders = (claim or {}).get('holders') if isinstance(claim, dict) else None
+        if not actor or not isinstance(holders, dict) or not holders:
+            continue
+        if holders.get(actor) in ('knows', 'close', 'anchored'):
+            continue
+        present = ((state.get('actors') or {}).get(actor) or {}).get('location') == area
+        if not present:
+            continue
+        applied.append(_view('BJ-005', 'present_npc_does_not_hold_claim', RECORDS['BJ-005']['advisory']))
+        break
+
+    for item in block.get('settled') or ():
+        if isinstance(item, dict) and item.get('area') == area and item.get('standing') is True:
+            applied.append(_view('BJ-003', 'resolution_already_stood', RECORDS['BJ-003']['advisory']))
+            break
+
+    if kind == 'physical_act':
+        for item in block.get('damage') or ():
+            if isinstance(item, dict) and item.get('area') == area and item.get('scheduled') is False:
+                applied.append(_view('BJ-001', 'unscheduled_damage_and_physical_act',
+                                     RECORDS['BJ-001']['advisory']))
+                break
+
+    if not applied:
         return None
     return {
         'rule': RULE,
+        'binding': False,
         'not_a_standing_practice': True,
-        'applied': [_view(card) for card in chosen[:2]],
+        'corpus': {'repo': CORPUS_REPO, 'commit': CORPUS_COMMIT, 'path': CORPUS_PATH},
+        'applied': applied[:2],
     }
 
 
-def _view(card):
-    later = _later(card.get('later_judgments'))
-    view = {
-        'id': card['id'],
-        'status': card['status'],
-        'advice': card['advice'],
-        'limit': card['limit'],
-        'evidence': list(card['evidence']),
-        'later_judgments': later,
-    }
-    if later:
-        view['hindsight'] = later
-    return view
+def drift_against(jsonl_text):
+    """Differences between the pinned records and a corpus JSONL. Empty means no drift."""
+    import json
+    rows = {}
+    for line in jsonl_text.splitlines():
+        if not line.strip():
+            continue
+        row = json.loads(line)
+        if row.get('id'):
+            rows[row['id']] = row
+    errors = []
+    for record_id, card in RECORDS.items():
+        row = rows.get(record_id)
+        if not row:
+            errors.append(f'{record_id} missing from corpus')
+            continue
+        if row.get('status') != card['status']:
+            errors.append(f'{record_id} status {row.get("status")} != {card["status"]}')
+        if list(row.get('evidence') or []) != list(card['evidence']):
+            errors.append(f'{record_id} evidence drifted')
+    return errors

@@ -3733,9 +3733,9 @@ def prepare_inputs(runtime, revision, state, action, resolution, use_memory, one
     # ("Is the dealer cheating me?") must not be answered from the brief's secrets.
     if not table_talk:
         planning_input['story_brief'] = kit_brief.brief(source, post_event_state)
-    # Private, and only when this player line is one of the curated situations.
-    # Absent on every other turn. Never copied into the performer packet.
-    judgment = kit_judgment.for_turn(action, resolution.kind)
+    # Private, and only when live state establishes a pinned situation.
+    # The player sentence is not consulted. Never copied into the performer packet.
+    judgment = kit_judgment.select(source, post_event_state, resolution.kind)
     if judgment and not table_talk:
         planning_input['dm_judgment'] = judgment
     if kit_combat.config(source) and post_event_state.get('player_sheet'):

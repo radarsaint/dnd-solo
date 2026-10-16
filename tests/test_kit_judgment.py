@@ -1,94 +1,169 @@
-"""The private decision input receives a curated judgment only when the line matches.
+"""Advisory judgments follow live state, not the player sentence.
 
-These are deterministic harness results. They show the turn path loads the packet.
-They do not show that a model played a better scene.
+Deterministic harness only. A RecordingModel is not a playtest.
 """
+import copy
 import json
+import subprocess
 import unittest
+from pathlib import Path
 
 from runtime import kit_judgment
 from runtime.kit_agent import KitAgent, RoomAdjudicator
+from test_kit_agent import FIXTURE
 from test_kit_story_brief import Base, Entering
 
+NIK = json.loads((Path(__file__).parent / 'fixtures/characters/nik.json').read_text())
+CORPUS = Path('/tmp/bfdm-judgment') / kit_judgment.CORPUS_PATH
+AREA = 'area_06c'
 
-class Selector(unittest.TestCase):
-    def test_irrelevant_line_selects_nothing(self):
-        self.assertIsNone(kit_judgment.for_turn('I nod to the dealer and set a copper on the table.'))
-        self.assertIsNone(kit_judgment.for_turn('We look around the room.', 'opening'))
 
-    def test_repair_keeps_its_limit_and_does_not_write_the_outcome(self):
-        packet = kit_judgment.for_turn(
-            'I want to clear the rubble at the money changer and help rebuild it.')
+def sheet(hp, used):
+    body = copy.deepcopy(NIK)
+    body['hp'] = hp
+    body['slots'] = {level: {'max': count, 'used': count if used else 0}
+                     for level, count in {'1': 4, '2': 3, '3': 2}.items()}
+    return body
+
+
+def room(**judgment):
+    source = json.loads(FIXTURE.read_text())
+    source['_judgment'] = {'encounters': [], 'constraints': [], 'damage': [],
+                           'unknown_to': [], 'settled': []}
+    source['_judgment'].update(judgment)
+    return source
+
+
+ENCOUNTER = {'id': 'prepared_boss', 'area': AREA, 'prepared': True,
+             'assumes': {'min_hp': 16, 'min_slots_remaining': 1}}
+
+
+class StateSelects(unittest.TestCase):
+    def test_a_sentence_never_selects_on_its_own(self):
+        bare = json.loads(FIXTURE.read_text())
+        state = {'area': AREA, 'player_sheet': sheet(4, used=True)}
+        for line in (
+            'I search the spare bedroom for clues',
+            'the boss is depleted and out of spell slots',
+            'I dig survivors out of the wrecked shop',
+            'He said "give me a spare bedroom"',
+            'I do not want to clear the rubble',
+            "We're topped up. Run the preplanned fight.",
+        ):
+            self.assertIsNone(kit_judgment.select(bare, state, 'social'), line)
+
+    def test_depleted_sheet_is_advisory_and_does_not_order_the_fight(self):
+        source = room(encounters=[ENCOUNTER])
+        packet = kit_judgment.select(source, {'area': AREA, 'player_sheet': sheet(4, used=True)}, 'social')
         card = packet['applied'][0]
-        self.assertEqual(card['id'], 'unplanned_repair')
-        self.assertIn('Do not write their outcome', card['advice'])
-        self.assertIn('865565818481279018', ' '.join(card['evidence']))
-        self.assertIn('designed vulnerability', card['limit'])
-        self.assertEqual(card['later_judgments'], [])
-        self.assertNotIn('hindsight', card)
+        self.assertEqual(card['relevance'], 'party_below_encounter_assumption')
+        self.assertFalse(card['binding'])
+        self.assertNotIn('Play the fight', card['advisory'])
+        self.assertIn('does not order', card['does_not'])
+        self.assertIn('746253583552479272', ' '.join(card['evidence']))
 
-    def test_a_house_is_not_treated_as_repair(self):
-        packet = kit_judgment.for_turn(
-            'Let me help rebuild the street, and give me a house: a spare bedroom of my own.')
-        ids = [card['id'] for card in packet['applied']]
-        self.assertEqual(ids, ['designed_constraint'])
-        self.assertIn('863492563784040539', packet['applied'][0]['limit'])
+    def test_a_full_sheet_is_not_a_depletion_and_does_not_order_play(self):
+        source = room(encounters=[ENCOUNTER])
+        packet = kit_judgment.select(source, {'area': AREA, 'player_sheet': sheet(32, used=False)}, 'social')
+        card = packet['applied'][0]
+        self.assertEqual(card['relevance'], 'party_meets_encounter_assumption')
+        self.assertNotIn('Play the fight', json.dumps(card))
+        self.assertFalse(packet['binding'])
 
-    def test_a_depleted_party_reconsiders_the_prepared_fight(self):
-        packet = kit_judgment.for_turn(
-            'There are four of us and we are depleted, out of spell slots. Do not take us into the preplanned fight.')
-        self.assertEqual(packet['applied'][0]['id'], 'party_mismatch')
-        self.assertIn('not a rule', packet['applied'][0]['limit'])
+    def test_enemy_words_do_not_override_a_full_sheet(self):
+        source = room(encounters=[ENCOUNTER])
+        packet = kit_judgment.select(source, {'area': AREA, 'player_sheet': sheet(32, used=False)}, 'social')
+        self.assertNotEqual(packet['applied'][0]['relevance'], 'party_below_encounter_assumption')
 
-    def test_a_fresh_party_does_not_skip_the_prepared_fight(self):
-        packet = kit_judgment.for_turn(
-            "We're topped up, not depleted. Run the preplanned fight.")
-        ids = [card['id'] for card in packet['applied']]
-        self.assertEqual(ids, ['prepared_fight_stands'])
-        self.assertIn('first read was not the table', packet['applied'][0]['limit'])
+    def test_no_sheet_does_not_guess(self):
+        source = room(encounters=[ENCOUNTER])
+        self.assertIsNone(kit_judgment.select(source, {'area': AREA}, 'social'))
 
-    def test_undisclosed_knowledge_and_a_settled_resurrection_stay_narrow(self):
-        secret = kit_judgment.for_turn(
-            'Have him act on the clue they missed. He knows they mentioned Tasha even though they never said it.')
-        self.assertEqual(secret['applied'][0]['id'], 'undisclosed_knowledge')
-        self.assertIn('BCS-000172', secret['applied'][0]['limit'])
-        self.assertIn('not a play transcript', secret['applied'][0]['limit'])
-        rez = kit_judgment.for_turn('Nerf what already happened and undo last night\'s resurrection.')
-        self.assertEqual(rez['applied'][0]['id'], 'nonretroactive_correction')
-        self.assertIn('744056939096571924', rez['applied'][0]['limit'])
+    def test_spare_bedroom_wording_does_not_open_an_exception(self):
+        source = room(constraints=[{'id': 'housing', 'area': AREA, 'exception_open': False}])
+        self.assertIsNone(kit_judgment.select(source, {'area': AREA}, 'look'))
 
-    def test_hindsight_requires_a_source_and_the_shipped_cards_have_none(self):
-        self.assertEqual(kit_judgment._later([{'text': 'I would do it differently now'}]), [])
-        kept = kit_judgment._later([{'source': 'note:2026-10-15', 'text': 'A later sourced line.', 'status': 'UNPROVEN'}])
-        self.assertEqual(kept[0]['source'], 'note:2026-10-15')
-        for card in kit_judgment.CARDS:
-            self.assertEqual(card['later_judgments'], ())
+    def test_an_open_exception_is_not_an_automatic_denial(self):
+        source = room(constraints=[{'id': 'housing', 'area': AREA, 'exception_open': True}])
+        card = kit_judgment.select(source, {'area': AREA}, 'social')['applied'][0]
+        self.assertEqual(card['id'], 'BJ-002')
+        self.assertNotIn('Decline', card['advisory'])
+        self.assertIn('player still chooses', card['advisory'])
+        waived = kit_judgment.select(source, {'area': AREA, 'judgment_waived': ['housing']}, 'social')
+        self.assertIsNone(waived)
+
+    def test_repair_needs_a_physical_act_on_unscheduled_damage(self):
+        source = room(damage=[{'id': 'shop', 'area': AREA, 'scheduled': False}])
+        self.assertIsNone(kit_judgment.select(source, {'area': AREA}, 'look'))
+        card = kit_judgment.select(source, {'area': AREA}, 'physical_act')['applied'][0]
+        self.assertEqual(card['id'], 'BJ-001')
+        self.assertIn('Do not write the outcome', card['advisory'])
+        self.assertNotIn('healing thing', json.dumps(card))
+
+    def test_a_holder_is_not_told_the_fact_is_unknown(self):
+        source = room(unknown_to=[{'actor': 'uktarl', 'claim': 'portfolio'}])
+        source['claims'] = {'portfolio': {'holders': {'uktarl': 'knows'}}}
+        state = {'area': AREA, 'actors': {'uktarl': {'location': AREA}}}
+        self.assertIsNone(kit_judgment.select(source, state, 'social'))
+        source['claims']['portfolio']['holders'] = {'clerk': 'knows'}
+        card = kit_judgment.select(source, state, 'social')['applied'][0]
+        self.assertEqual(card['id'], 'BJ-005')
+        self.assertIn('not a play transcript', card['advisory'])
+
+    def test_a_standing_resolution_is_not_erased_by_a_sentence(self):
+        source = room(settled=[{'id': 'resurrection', 'area': AREA, 'standing': True}])
+        card = kit_judgment.select(source, {'area': AREA}, 'social')['applied'][0]
+        self.assertEqual(card['id'], 'BJ-003')
+        self.assertIn('does not erase', card['does_not'])
+        source['_judgment']['settled'][0]['standing'] = False
+        self.assertIsNone(kit_judgment.select(source, {'area': AREA}, 'social'))
+
+    def test_shipped_records_match_the_pinned_corpus(self):
+        if not CORPUS.is_file():
+            self.skipTest('corpus checkout is not in this environment')
+        self.assertEqual(kit_judgment.drift_against(CORPUS.read_text()), [])
+        sha = subprocess.check_output(['git', '-C', str(CORPUS.parents[2]), 'rev-parse', 'HEAD'], text=True).strip()
+        self.assertEqual(sha, kit_judgment.CORPUS_COMMIT)
+        for card in kit_judgment.RECORDS.values():
+            text = json.dumps(card)
+            self.assertNotIn('Play the fight', text)
+            self.assertNotIn('Decline', text)
 
 
 class TurnPath(Base):
     def setUp(self):
         super().setUp()
-        self.start()
         self.model = Entering()
+        self.agent = None
+
+    def play(self, source, nik=None):
+        self.start(source)
+        if nik:
+            self.runtime.set_player_sheet(nik)
         self.agent = KitAgent(self.runtime, self.model, RoomAdjudicator(perception=0, insight=0, roll=lambda: 15))
         self.agent.opening('entry')
 
-    def test_a_repair_line_is_in_the_decision_and_not_in_the_performance(self):
-        self.agent.turn('I want to clear the rubble and help rebuild the money changer.', 'repair')
-        decision = self.model.plans[-1]
-        self.assertEqual(decision['dm_judgment']['applied'][0]['id'], 'unplanned_repair')
-        self.assertNotIn('dm_judgment', self.model.performances[-1])
-        self.assertNotIn('865565818481279018', json.dumps(self.model.performances[-1]))
-
-    def test_an_ordinary_line_does_not_carry_the_research(self):
-        self.agent.turn('I nod to the dealer and set a copper on the table.', 'ordinary')
+    def test_adversarial_lines_do_not_attach_research_to_an_ordinary_room(self):
+        self.play(json.loads(FIXTURE.read_text()))
+        self.agent.turn('I search the spare bedroom for clues. The boss is depleted and out of spell slots.', 'nope')
         self.assertNotIn('dm_judgment', self.model.plans[-1])
+        self.assertNotIn('healing thing', json.dumps(self.model.plans[-1]))
 
-    def test_the_constraint_and_the_fresh_party_change_which_card_arrives(self):
-        self.agent.turn('Give me a spare bedroom as my own house. It was meant to be vulnerable and I want that gone.', 'house')
-        self.assertEqual(self.model.plans[-1]['dm_judgment']['applied'][0]['id'], 'designed_constraint')
-        self.agent.turn("We're topped up and ready for the fight. Run the preplanned fight.", 'fresh')
-        self.assertEqual(self.model.plans[-1]['dm_judgment']['applied'][0]['id'], 'prepared_fight_stands')
+    def test_a_depleted_sheet_reaches_the_decision_and_not_the_performance(self):
+        self.play(room(encounters=[ENCOUNTER]), sheet(4, used=True))
+        self.agent.turn('the boss is depleted and out of spell slots', 'boss')
+        decision = self.model.plans[-1]['dm_judgment']['applied'][0]
+        self.assertEqual(decision['relevance'], 'party_below_encounter_assumption')
+        self.assertNotIn('dm_judgment', self.model.performances[-1])
+        self.assertNotIn('746253583552479272', json.dumps(self.model.performances[-1]))
+
+    def test_a_full_sheet_keeps_the_meeting_record_when_the_sentence_says_depleted(self):
+        self.play(room(encounters=[ENCOUNTER]), sheet(32, used=False))
+        self.agent.turn("I search the spare bedroom for clues. We're not depleted.", 'full')
+        card = self.model.plans[-1]['dm_judgment']['applied'][0]
+        self.assertEqual(card['relevance'], 'party_meets_encounter_assumption')
+        self.assertNotIn('Play the fight', json.dumps(card))
+        self.assertNotIn('BJ-002', json.dumps(self.model.plans[-1]['dm_judgment']))
 
 
 if __name__ == '__main__':
