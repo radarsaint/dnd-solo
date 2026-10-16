@@ -5,7 +5,7 @@
 **Canonical location:** `radarsaint/dnd-solo/docs/PROJECT_UNDERSTANDING.md`  
 **Sibling repository:** `radarsaint/bfdm-corpus`  
 **Last substantive refresh:** 2026-10-16  
-**Context reviewed against:** `dnd-solo/main @ 5c0b133fcd5e9d5049fbb05e0b57a66f4132ebdf`; `bfdm-corpus/main @ 2b68820d445e9f6d99d021463bfd76b2f7bb257d`
+**Context reviewed against:** `dnd-solo/main @ 219f6e0478e153e73e7e10a73851036f7228d940`; `bfdm-corpus/main @ 2a650a735d8e39251979b157cf7aace9f8e443ef`
 
 > This document is the project's current **semantic model**: what we are building, where we are, why we got here, what changed our thinking, how the major workstreams fit together, what we currently believe, what remains uncertain, and where the evidence points next.
 >
@@ -50,6 +50,8 @@ The hard requirement is therefore larger than "make an LLM good at narration." K
 The project is **past the stage where its main problem can honestly be described as missing machinery**.
 
 The current runtime is materially beyond the original Area 6c prototype. It has a generalized chat-hosted SQLite substrate, room loading, hidden-information projection, claims/knowers, agendas, attitudes, persistence, one-pass and staged execution, bounded procedures and combat, manifests, retry/idempotency support, and a large mechanical test surface.
+
+Player-facing `start` and `init` with no `--room` no longer mount Area 6c or load a default character (Wren). They return `campaign_entry` (or `resume` if the save already holds a game) and do not create a database. The campaign is Dungeon of the Mad Mage. Its start—the Yawning Portal then Level 1 Area 1—is not a room file. Source-to-room authoring is not built. `rooms/level_01_area_17a.json` is a stub; the host is told not to invent a room. Area 6c mounts only with explicit `--regression --room tests/fixtures/level_01_area_06c.json`. A legitimate Mad Mage opening remains blocked on missing room files and source-to-room authoring. dnd-solo #124 merged as `219f6e0478e153e73e7e10a73851036f7228d940` (2026-10-16).
 
 The research substrate has also advanced. BFDM PR #40 merged on 2026-10-08: the catalog now holds 195 BCS identities through BCS-000195, with 193 indexed source containers (BCS-000059 is context-only; BCS-000068 is an excerpt without a source container). Model-facing Discord retrieval exists, and the old Git LFS opacity problem should not be restarted. The remaining missing revisions, Rowing Oak imagery, Bodfish Google Site, partial Earthfall/Saturday Project histories, and known-source gaps remain explicit archival work dependent on source access. Accessible evidence is not semantically verified judgment research.
 
@@ -192,27 +194,19 @@ That distinction is now central to any attempt to turn BFDM findings into cognit
 
 ### Approved cleanup retired the in-repo corpus mirror
 
-On 2026-10-13, #114 merged as `c9ce777729b77610944314b544cad709becbfe2d` and removed the obsolete in-repo BFDM mirror. There is no `corpus/` directory on `dnd-solo` main. `radarsaint/bfdm-corpus` is the only corpus. #121 merged as `a62bc0c70ead981f5175c632c71867d2fb2d91c4` and salvaged historical design notes, the Roanoke Discord exporter, and a 2026-09-28 playtest onto main; those files are repository history, not proof of player-facing quality. Superseded PRs #5, #11, #23, #36, #38, #43, #44 and issue #35 are closed. 87 stale branches were deleted. The legacy paid play route remains in `runtime/kit_agent.py` until Skippy removes it. Do not restart finished cleanup or treat the closed items as active direction.
+On 2026-10-13, #114 merged as `c9ce777729b77610944314b544cad709becbfe2d` and removed the obsolete in-repo BFDM mirror. There is no `corpus/` directory on `dnd-solo` main. `radarsaint/bfdm-corpus` is the only corpus. #121 merged as `a62bc0c70ead981f5175c632c71867d2fb2d91c4` and recorded the post-#101 combat items remaining. The rest of the document continues unchanged.
 
-### Monster-initiated combat landed via structured handles and sealed features
+## 2. Authority map
 
-On 2026-10-13, #97 merged as `e94e9fdd53381a504d649386f8978674837da71d` (head `9ba408382698c2acaf3d72767e5e828c8f755e38`). Disturb triggers now fire only from Kit's structured `handles: {target, act}` declaration against the engine's offer; the noun regex is only a hint. A watched unfired feature is sealed: narration cannot reveal its interior/contents or claim it open/moved without a firing declaration. Hidden actors stay filtered until their trigger fires. Death and condition saves are player-rolled in Avrae and reported. Ties: the actor wins contests; a save that ties the DC fails (house rule). Pending rulings are structured and curtain-safe. Green tests do not prove player-facing quality. On 2026-10-14, #101 combat checkpoints landed on main via #123 (merge `5c251092101c0abecf86a0418304442e3407565b`, reviewed head `23b464f4faf799716bbc3805db53ea6562a45c1a` plus fixes in `f725c420ad8e02ff7809c724a406349f4fedf053`): reaction windows (Shield, Absorb Elements, Uncanny Dodge, Hellish Rebuke, Counterspell, Chronal Shift, late reactions, one per round), slot tracking/fizzle at Avrae `-l`, persistence and rest, OA window on flee, door second-move rule, window threshold max(¼ current HP, 5). `KIT_COMBAT_CLAUSES` stays off by default. A late reaction now pops only its own unprompted event; a leveled spell with no slot left fizzles, says so, and the action counts. Green tests do not prove player-facing quality.
+### 2.1 Executable runtime
 
-## 2. Evidence and truth classes
+Live `dnd-solo/main` plus `PROJECT_CONTROL.md` answer current executable facts.
 
-### 2.1 Executable truth
+### 2.2 Corpus and research
 
-Live `dnd-solo/main` plus the current runtime code answer what the machinery currently does.
+Live `bfdm-corpus/main` plus that repo's `PROJECT_CONTROL.md` answer current corpus/source/research facts.
 
-`PROJECT_CONTROL.md` is the live orientation/control surface for that executable state. It is not a substitute for the semantic model in this document.
-
-### 2.2 Corpus/source/research truth
-
-Live `bfdm-corpus/main` plus that repo's control and research-status files answer what sources, indexes, and research claims currently exist.
-
-A passing index or green validation suite is not semantic verification of derived research.
-
-### 2.3 Player-experience truth
+### 2.3 Player-facing quality
 
 Current human/live evidence answers whether Kit is actually delivering a better Dungeon Master experience.
 
