@@ -2,33 +2,33 @@
   "schema": "kit_project_gardener_state/v1",
   "purpose": "RESUMABILITY_CURSOR_NOT_KNOWLEDGE_STORE",
   "canonical_location": "radarsaint/dnd-solo/coordination/context_state.json",
-  "state_revision": 22,
+  "state_revision": 23,
   "semantic_brain": {
     "repo": "radarsaint/dnd-solo",
     "path": "docs/PROJECT_UNDERSTANDING.md",
-    "last_semantic_commit": "0841f13c52a246a68b03cd2085e07940ad3e1290",
-    "last_reviewed_on": "2026-10-14"
+    "last_semantic_commit": "d2a9518ec64d6fd1b646478a3eba783de6fdf9c7",
+    "last_reviewed_on": "2026-10-16"
   },
   "checkpoint": {
     "reviewed_against_main": {
-      "radarsaint/dnd-solo": "0841f13c52a246a68b03cd2085e07940ad3e1290",
-      "radarsaint/bfdm-corpus": "6795362e967e89230086afc28c04450cc7d0cce4"
+      "radarsaint/dnd-solo": "d2a9518ec64d6fd1b646478a3eba783de6fdf9c7",
+      "radarsaint/bfdm-corpus": "2a650a735d8e39251979b157cf7aace9f8e443ef"
     },
     "context_inbox": {
       "repo": "radarsaint/dnd-solo",
       "issue": 115,
       "issue_state_at_checkpoint": "open",
-      "last_fully_reconciled_comment_id": 6179966879,
-      "comment_count_at_checkpoint": 15
+      "last_fully_reconciled_comment_id": 6202184874,
+      "comment_count_at_checkpoint": 16
     }
   },
   "last_completed_pass": {
     "kind": "BOUNDED_SEMANTIC_RECONCILIATION",
-    "completed_on": "2026-10-14",
-    "scope": "Reviewed #123 merge of #101 onto main (5c25109 / f725c42) and #115 comments 6174740116 (decision plan) and 6179966879 (merge record).",
-    "result": "Accept: #101 combat checkpoints now on main. Brain updated to record reaction windows, slot fizzle, late-reaction own-entry pop, KIT_COMBAT_CLAUSES off. Post-#101 items (open-ask gate, #122) remain pending. G5 and G6 stay open.",
-    "resulting_brain_commit": "0841f13c52a246a68b03cd2085e07940ad3e1290",
-    "reconciled_comment_id": 6179966879
+    "completed_on": "2026-10-16",
+    "scope": "Reviewed bfdm-corpus #38 merge (2b68820) and dnd-solo main advance to d2a9518; #115 comment 6202184874.",
+    "result": "Accept: #38 first-tranche integrity staging now on bfdm-corpus main. Brain and control texts updated to record limits (no corpus-wide, BDC-S3-004 broken prep, no transfer for reusable judgments). #115 6202184874 rejected/unresolved: proposed entry behavior on unmerged #124, not current main. G5/G6 and post-#101 items remain open.",
+    "resulting_brain_commit": "d2a9518ec64d6fd1b646478a3eba783de6fdf9c7",
+    "reconciled_comment_id": 6202184874
   },
   "active_pass": null,
   "unresolved": [
@@ -37,7 +37,8 @@
     "Legacy paid play route removal is pending with Skippy.",
     "Post-#101 combat/engine items (open-ask gate at RoomAdjudicator.resolve, public_event fallback after failed narration, #122 Kit-declared combat_acts) are still pending.",
     "PR #122 Kit-declared combat_acts is draft; word-matching parser ends only after it lands. Main default path unchanged.",
-    "#115 comment 6158450658 plan items beyond the two #101 fixes are not fixed on main."
+    "#115 comment 6158450658 plan items beyond the two #101 fixes are not fixed on main.",
+    "#115 comment 6202184874: Kit entry/greeting changes are on unmerged PR #124 only; do not treat as current main behavior."
   ],
   "needs_review": [],
   "checkpoint_rules": {
