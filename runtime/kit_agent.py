@@ -3136,6 +3136,10 @@ def check_public_content(text, public_view, player_action, leak_sets=(), phrases
         if phrase in text and phrase not in public and not player_named:
             raise InvalidChange('Public performance mentioned a private fact')
     kit_guards.check_paraphrased_leaks(text, public_view, player_action, leak_sets)
+    # Pinned research (record ids, evidence locators, the corpus pin) is private.
+    # The error names the guard, not the marker.
+    if kit_judgment.research_in_player_text(text, declared):
+        raise InvalidChange('Public performance mentioned private research')
 
 
 def check_brief_public(brief, public_view, player_action, leak_sets=(), phrases=None):

@@ -19,7 +19,8 @@ After that seed, ``select`` does not read those booleans. A ``judgment_state``
 event replaces ``state['judgment']``. A source flag that stays true does not
 reopen a closed exception, revive a resolution that no longer stands, or keep
 unscheduled damage unscheduled. Missing or malformed live lists do not fall
-back to the file.
+back to the file. The situational clause on BJ-001, BJ-002, and BJ-003 follows
+that live list. The historical sentence on each card stays the pinned record.
 
 ``prepared`` is static: the encounter is written as prepared. Whether the one
 player character meets its assumption is live hit points and spell slots.
@@ -57,7 +58,7 @@ RECORDS = {
         'evidence': ['discord:865565663296225280', 'discord:865565818481279018',
                      'discord:865565932783796255', 'discord:865566464831258674',
                      'discord:865567436970786836'],
-        'advisory': ('Unscheduled damage is in the room data and this turn is already a '
+        'advisory': ('Live state lists this damage as unscheduled, and this turn is already a '
                      'physical act. One 2021 exchange allowed an unplanned repair and waited '
                      'for the player to carry it out. Do not write the outcome.'),
         'does_not': 'It does not remove a designed constraint, and it does not decide success.',
@@ -65,15 +66,15 @@ RECORDS = {
     'BJ-002': {
         'status': 'VERIFIED_NARROW',
         'evidence': ['discord:863492563784040539'],
-        'advisory': ('A constraint is still in force and the room data already has an exception '
-                     'open. One 2021 refusal kept a designed vulnerability rather than grant a '
-                     'private exception. The player still chooses.'),
+        'advisory': ('Live state has this constraint\'s exception open. One 2021 refusal kept a '
+                     'designed vulnerability rather than grant a private exception. The player '
+                     'still chooses.'),
         'does_not': 'It is not an automatic denial, and it does not fire because of wording.',
     },
     'BJ-003': {
         'status': 'VERIFIED_NARROW',
         'evidence': ['discord:744056939096571924'],
-        'advisory': ('The room data says this resolution already stood. One 2020 correction '
+        'advisory': ('Live state says this resolution still stands. One 2020 correction '
                      'changed a resurrection rule going forward and left that night\'s '
                      'resurrections in place.'),
         'does_not': 'It is not a policy for every failed rule, and it does not erase the past.',
@@ -335,6 +336,31 @@ def select(source, state, kind='play'):
         'corpus': {'repo': CORPUS_REPO, 'commit': CORPUS_COMMIT, 'path': CORPUS_PATH},
         'applied': applied[:2],
     }
+
+
+def research_markers():
+    """Strings from the pin that are research, not the scene. Exact, so ordinary
+    narration is not caught. The historical sentence stays in the private card."""
+    markers = [CORPUS_COMMIT, 'bounded-judgment-tranche', 'VERIFIED_NARROW',
+               'Advisory historical records', 'not a standing practice']
+    for record_id, card in RECORDS.items():
+        markers.append(record_id)
+        markers.extend(card['evidence'])
+    return markers
+
+
+def research_in_player_text(text, player_action=''):
+    """A pinned research marker in ``text`` that the player did not already say.
+    None when the line is clean. The caller must not repeat the marker in an error."""
+    if not isinstance(text, str) or not text:
+        return None
+    said = player_action.casefold() if isinstance(player_action, str) else ''
+    folded = text.casefold()
+    for marker in research_markers():
+        needle = marker.casefold()
+        if needle and needle in folded and needle not in said:
+            return marker
+    return None
 
 
 def drift_against(jsonl_text):

@@ -6,6 +6,8 @@ decision handed to KitChatBridge is not a ChatGPT turn.
 The pin file is checked on every run. The live corpus checkout is a separate
 test: it executes when BFDM_CORPUS or /tmp/bfdm-judgment holds the pinned JSONL,
 and skipTest reports ``live corpus drift skipped`` when that checkout is absent.
+Set BFDM_JUDGMENT_REQUIRED=1 to make that absence a failure. The cross-repo
+workflow does. No paid API.
 """
 import copy
 import json
@@ -14,8 +16,8 @@ import subprocess
 import unittest
 from pathlib import Path
 
-from runtime import kit_judgment, kit_reactions, kit_rooms
-from runtime.kit_agent import KitAgent, KitChatBridge, RoomAdjudicator, start_session
+from runtime import kit_combat, kit_judgment, kit_reactions, kit_rooms
+from runtime.kit_agent import KitAgent, KitChatBridge, RoomAdjudicator, check_public_content, start_session
 from runtime.state_context import BOOKKEEPING_EVENTS, COMMIT_APPENDED_EVENTS, InvalidChange, Runtime
 from test_kit_agent import FIXTURE, RecordingModel
 from test_kit_story_brief import Base, Entering
@@ -136,6 +138,8 @@ class StateSelects(unittest.TestCase):
         self.assertEqual(card["id"], "BJ-002")
         self.assertNotIn("Decline", card["advisory"])
         self.assertIn("player still chooses", card["advisory"])
+        self.assertNotIn("room data", card["advisory"])
+        self.assertIn("Live state", card["advisory"])
         closed = {"area": AREA, "judgment": {"open": [], "standing": [], "unscheduled": []}}
         self.assertIsNone(kit_judgment.select(source, closed, "social"))
         self.assertIs(source["_judgment"]["constraints"][0]["exception_open"], True)
@@ -148,6 +152,7 @@ class StateSelects(unittest.TestCase):
         card = kit_judgment.select(source, live, "physical_act")["applied"][0]
         self.assertEqual(card["id"], "BJ-001")
         self.assertIn("Do not write the outcome", card["advisory"])
+        self.assertNotIn("room data", card["advisory"])
         self.assertNotIn("healing thing", json.dumps(card))
         done = {"area": AREA, "judgment": {"open": [], "standing": [], "unscheduled": []}}
         self.assertIsNone(kit_judgment.select(source, done, "physical_act"))
@@ -155,13 +160,15 @@ class StateSelects(unittest.TestCase):
 
     def test_a_holder_is_not_told_the_fact_is_unknown(self):
         source = room(unknown_to=[{"actor": "uktarl", "claim": "portfolio"}])
-        source["claims"] = {"portfolio": {"holders": {"uktarl": "knows"}}}
+        source["claims"] = {"portfolio": {"holders": {"uktarl": "knows"},
+                                 "text": "The vault word is silverlane"}}
         state = {"area": AREA, "actors": {"uktarl": {"location": AREA}}}
         self.assertIsNone(kit_judgment.select(source, state, "social"))
         source["claims"]["portfolio"]["holders"] = {"clerk": "knows"}
         card = kit_judgment.select(source, state, "social")["applied"][0]
         self.assertEqual(card["id"], "BJ-005")
         self.assertIn("not a play transcript", card["advisory"])
+        self.assertNotIn("silverlane", json.dumps(card))
 
     def test_standing_is_live_state_and_a_sentence_does_not_erase_it(self):
         source = room(settled=[{"id": "resurrection", "area": AREA, "standing": True}])
@@ -170,6 +177,8 @@ class StateSelects(unittest.TestCase):
         card = kit_judgment.select(source, stood, "social")["applied"][0]
         self.assertEqual(card["id"], "BJ-003")
         self.assertIn("does not erase", card["does_not"])
+        self.assertNotIn("room data", card["advisory"])
+        self.assertIn("Live state", card["advisory"])
         ended = {"area": AREA, "judgment": {"open": [], "standing": [], "unscheduled": []}}
         self.assertIsNone(kit_judgment.select(source, ended, "social"))
         self.assertIs(source["_judgment"]["settled"][0]["standing"], True)
@@ -220,6 +229,8 @@ class StateSelects(unittest.TestCase):
     def test_live_corpus_drift_matches_the_pin(self):
         root = corpus_root()
         if root is None:
+            if os.environ.get("BFDM_JUDGMENT_REQUIRED"):
+                self.fail("live corpus drift required: no checkout at $BFDM_CORPUS or /tmp/bfdm-judgment")
             self.skipTest("live corpus drift skipped: no checkout at $BFDM_CORPUS or /tmp/bfdm-judgment")
         pin = json.loads(PIN.read_text())
         jsonl = (root / kit_judgment.CORPUS_PATH).read_text()
@@ -237,45 +248,67 @@ class SameSheet(Base):
         nik = copy.deepcopy(NIK)
         self.start(room(encounters=[ENCOUNTER]))
         self.runtime.set_player_sheet(nik)
+        assumes = ENCOUNTER["assumes"]
         before = self.runtime.load()[1]
         self.assertEqual(before["player_sheet"]["hp"], 32)
         self.assertEqual(before["player_sheet"]["slots"], nik["slots"])
-        self.assertIs(kit_judgment.party_ready(before, ENCOUNTER["assumes"]), True)
+        self.assertIs(kit_judgment.party_ready(before, assumes), True)
         self.assertEqual(kit_judgment.select(self.runtime.source(), before, "social")["applied"][0]["relevance"],
                          "party_meets_encounter_assumption")
 
         revision, state = self.runtime.load()
-        original = copy.deepcopy(state["pc_resources"])
-        spent_slots = copy.deepcopy(original)
-        for slot in spent_slots["slots"].values():
-            slot["used"] = slot["max"]
+        spent_slots = copy.deepcopy(state["pc_resources"])
+        spent = 0
+        while True:
+            spent_slots, level = kit_reactions.spend_slot(spent_slots, 1)
+            if level is None:
+                break
+            spent += 1
+        self.assertEqual(spent, 9)
         self.runtime.commit("spend", revision, [{
             "type": "pc_resources", "resources": spent_slots,
-            "evidence": "Spell slots spent in play were recorded."}])
-        spent = self.runtime.load()[1]
-        self.assertEqual(spent["player_sheet"]["hp"], 32)
-        self.assertEqual(spent["player_sheet"]["slots"], {"1": 4, "2": 3, "3": 2})
-        self.assertEqual(sum(slot["max"] - slot["used"] for slot in spent["pc_resources"]["slots"].values()), 0)
-        self.assertIs(kit_judgment.party_ready(spent, ENCOUNTER["assumes"]), False)
-        self.assertEqual(kit_judgment.select(self.runtime.source(), spent, "social")["applied"][0]["relevance"],
+            "evidence": "Spell slots spent in the fight were recorded."}])
+        after_slots = self.runtime.load()[1]
+        self.assertEqual(after_slots["player_sheet"]["hp"], 32)
+        self.assertEqual(after_slots["player_sheet"]["slots"], {"1": 4, "2": 3, "3": 2})
+        self.assertEqual(sum(slot["max"] - slot["used"]
+                             for slot in after_slots["pc_resources"]["slots"].values()), 0)
+        self.assertIs(kit_judgment.party_ready(after_slots, assumes), False)
+        self.assertEqual(kit_judgment.select(self.runtime.source(), after_slots, "social")["applied"][0]["relevance"],
                          "party_below_encounter_assumption")
 
-        revision, _ = self.runtime.load()
+        revision, state = self.runtime.load()
+        restored = kit_reactions.rest(state["pc_resources"], state["player_sheet"], "long")
+        working = copy.deepcopy(state)
+        working["pc_resources"] = restored
+        working["combat"] = {"status": "running", "hp": {}, "order": [], "pc_damage": 0}
+        fight = kit_combat.Fight(self.runtime.source(), working, revision, "a blow lands", lambda *args: None)
+        self.assertEqual(fight.hurt_pc(20), [])
+        self.assertEqual(fight.fight["pc_damage"], 20)
         self.runtime.commit("damage", revision, [
-            {"type": "pc_resources", "resources": original,
-             "evidence": "The inventory was put back so the damage count can be read on its own."},
-            {"type": "combat_state",
-             "state": {"status": "over", "hp": {}, "order": [], "pc_damage": 20},
+            {"type": "pc_resources", "resources": restored,
+             "evidence": "The inventory was restored so the damage count can be read on its own."},
+            {"type": "combat_state", "state": fight.fight,
              "evidence": "Damage taken in the fight was recorded."}])
         hurt = self.runtime.load()[1]
         self.assertEqual(sum(slot["max"] - slot["used"] for slot in hurt["pc_resources"]["slots"].values()), 9)
         self.assertEqual(hurt["player_sheet"]["hp"] - hurt["combat"]["pc_damage"], 12)
-        self.assertIs(kit_judgment.party_ready(hurt, ENCOUNTER["assumes"]), False)
+        self.assertIs(kit_judgment.party_ready(hurt, assumes), False)
         below = kit_judgment.select(self.runtime.source(), hurt, "social")["applied"][0]
         self.assertEqual(below["relevance"], "party_below_encounter_assumption")
         self.assertNotIn("Play the fight", below["advisory"])
+        self.assertNotIn("room data", below["advisory"])
         self.assertEqual(nik["hp"], 32)
         self.assertEqual(nik["slots"], {"1": 4, "2": 3, "3": 2})
+
+    def test_research_markers_stay_out_of_player_facing_text(self):
+        with self.assertRaises(InvalidChange):
+            check_public_content("A note reads discord:746253583552479272.", {}, "I look at the post.")
+        with self.assertRaises(InvalidChange):
+            check_public_content("Apply BJ-002 here.", {}, "I look at the post.")
+        check_public_content("The post is weathered and the rope hangs still.", {}, "I look at the post.")
+        check_public_content("You already said discord:746253583552479272.", {},
+                             "discord:746253583552479272")
 
 
 class SeedAndRetire(Base):
