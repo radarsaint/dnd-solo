@@ -96,7 +96,8 @@ CANON_SLOT = re.compile(r'^[a-z0-9_:]+(/[a-z0-9_]+){1,3}$')
 # Events a Kit turn may add at commit, after the adjudicated batch it was prepared with:
 # the decision's canon entries, the oracle deal it consumed, and procedure state.
 # Host bookkeeping, not a turn taken in the room (kit_rooms.stage counts the others).
-BOOKKEEPING_EVENTS = ('player_sheet', 'player_character', 'player_note', 'pc_state', 'kit_plan', 'rest')
+BOOKKEEPING_EVENTS = ('player_sheet', 'player_character', 'player_note', 'pc_state', 'kit_plan', 'rest',
+                       'judgment_state')
 # A pending check's optional fields: a held exit, and room for the check-calling follow-up's
 # quiet DC adjustment for creative use of the scene (Brendon: about -2) with its reason. Not
 # applied anywhere yet.
@@ -266,7 +267,7 @@ class Runtime:
             require(actor['location'] in source['areas'], 'Unknown actor area')
         # DM prep is checked once, before play: the texture palette (roots, no prices, no
         # leaks) and every table procedure's config. Local import: both import this module.
-        from . import kit_agenda, kit_attitude, kit_cards, kit_claims, kit_toll
+        from . import kit_agenda, kit_attitude, kit_cards, kit_claims, kit_judgment, kit_toll
         # The texture palette is checked lazily, per area, the first time play draws on it
         # (kit_texture.area_palette): it never delays the first framing (ROOM_LOADER.md).
         kit_attitude.compile_attitudes(source)
@@ -285,6 +286,11 @@ class Runtime:
             'roll_seed': secrets.token_hex(16),
             'room': {'id': source.get('id'), 'path': str(room_path) if room_path else None, 'turns_in': {}},
         }
+        seeded = kit_judgment.initial_state(source)
+        if seeded:
+            # Authored exception/standing/scheduled flags, copied once. Later turns read
+            # state['judgment'] and a judgment_state event, not the file's booleans.
+            state['judgment'] = seeded
         self._observe(state, source)
         with self.db:
             self.db.execute('INSERT INTO source VALUES (1, ?)', (encode(source),))
@@ -961,6 +967,11 @@ class Runtime:
                 # Conditions are the PC's, not the fight's: they outlast it until they end by rule.
                 state['pc_conditions'] = list(dict.fromkeys(list(state.get('pc_conditions') or ()) +
                                                             list(event['state']['pc_conditions'])))
+        elif kind == 'judgment_state':
+            # Host bookkeeping (BOOKKEEPING_EVENTS), not a Kit-appended event: the model
+            # does not get to retire a judgment by declaring it.
+            from . import kit_judgment
+            state['judgment'] = kit_judgment.check_state(source, event.get('state'))
         elif kind == 'pc_state':
             from . import pc_sheet
             sheet = state.get('player_sheet')

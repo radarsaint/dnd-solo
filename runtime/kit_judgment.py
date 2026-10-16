@@ -4,10 +4,35 @@
 resolution kind. It does not read the player sentence. PR #122 is the combat-act
 parser; this module does not add another one.
 
-A card is attached only when ``_judgment`` on the source and the live sheet,
-claim holders, or resolution kind establish that record's situation. Otherwise
-the key is omitted. Every card is advisory. None of them overrule the state or
-the player's choice.
+``_judgment`` on the room source names situations: which constraint, encounter,
+claim, resolution, or damage this area can be about, and the encounter's written
+assumption. It is not the live condition.
+
+Three authored booleans are an initialize-time seed only, copied once into
+``state['judgment']`` by ``initial_state``:
+
+* ``exception_open`` seeds ``judgment.open``
+* ``standing`` seeds ``judgment.standing``
+* ``scheduled: false`` seeds ``judgment.unscheduled``
+
+After that seed, ``select`` does not read those booleans. A ``judgment_state``
+event replaces ``state['judgment']``. A source flag that stays true does not
+reopen a closed exception, revive a resolution that no longer stands, or keep
+unscheduled damage unscheduled. Missing or malformed live lists do not fall
+back to the file.
+
+``prepared`` is static: the encounter is written as prepared. Whether the one
+player character meets its assumption is live hit points and spell slots.
+``unknown_to`` is already live: present actors and claim holders.
+
+Solo scope: one player character. Sheet ``hp`` is the maximum. Damage taken is
+``state['combat']['pc_damage']``. Spell slots still available are
+``state['pc_resources']`` when that inventory's sheet digest matches. This does
+not invent the other people from a historical table.
+
+A card is attached only when the named situation and that live state agree.
+Otherwise the key is omitted. Every card is advisory. None of them overrule
+the state or the player's choice.
 
 The text of the corpus stays in radarsaint/bfdm-corpus. This module pins the
 record ids, statuses, and evidence locators checked at ``CORPUS_COMMIT``.
@@ -77,27 +102,140 @@ RECORDS = {
     },
 }
 
+JUDGMENT_KEYS = ('open', 'standing', 'unscheduled')
 
-def party_ready(sheet, assumes):
-    """True, False, or None when the sheet cannot establish the assumption."""
-    if not isinstance(sheet, dict) or not isinstance(assumes, dict) or not assumes:
+
+def _items(block, key):
+    return [item for item in (block.get(key) or ()) if isinstance(item, dict)]
+
+
+def _ident(item):
+    ident = item.get('id')
+    return ident if isinstance(ident, str) and ident else None
+
+
+def initial_state(source):
+    """The one seed copied at initialize, or None when no changing predicate is set.
+
+    Booleans on ``_judgment`` are not read again after this. ``prepared`` is not a
+    seed: an encounter stays a prepared encounter, and live resources decide the card.
+    """
+    block = _block(source)
+    open_ids = [_ident(item) for item in _items(block, 'constraints')
+                if item.get('exception_open') is True and _ident(item)]
+    standing = [_ident(item) for item in _items(block, 'settled')
+                if item.get('standing') is True and _ident(item)]
+    unscheduled = [_ident(item) for item in _items(block, 'damage')
+                   if item.get('scheduled') is False and _ident(item)]
+    if not (open_ids or standing or unscheduled):
+        return None
+    return {'open': list(dict.fromkeys(open_ids)),
+            'standing': list(dict.fromkeys(standing)),
+            'unscheduled': list(dict.fromkeys(unscheduled))}
+
+
+def check_state(source, body):
+    """The authoritative ``judgment_state`` body: the three lists, ids the room named."""
+    from .state_context import require
+    block = _block(source)
+    allowed = {
+        'open': {_ident(item) for item in _items(block, 'constraints')},
+        'standing': {_ident(item) for item in _items(block, 'settled')},
+        'unscheduled': {_ident(item) for item in _items(block, 'damage')},
+    }
+    require(isinstance(body, dict) and set(body) == set(JUDGMENT_KEYS),
+            'judgment_state needs open, standing, and unscheduled')
+    out = {}
+    for key in JUDGMENT_KEYS:
+        values = body.get(key)
+        require(isinstance(values, list) and all(isinstance(v, str) and v in allowed[key] for v in values),
+                f'judgment_state {key} must list ids named in _judgment')
+        out[key] = list(dict.fromkeys(values))
+    return out
+
+
+def _live_ids(state, key):
+    """Ids from persisted judgment state. Missing or malformed does not reread the file."""
+    body = state.get('judgment') if isinstance(state, dict) else None
+    if not isinstance(body, dict):
+        return ()
+    values = body.get(key)
+    if not isinstance(values, list) or not all(isinstance(item, str) for item in values):
+        return ()
+    return values
+
+
+def _current_hp(state, sheet):
+    """Sheet maximum minus combat damage. No fight means no damage has been recorded.
+    A fight without an integer ``pc_damage`` is ambiguous."""
+    hp = sheet.get('hp')
+    if type(hp) is not int:
+        return None
+    combat = state.get('combat')
+    if combat is None:
+        return hp
+    if not isinstance(combat, dict) or type(combat.get('pc_damage')) is not int:
+        return None
+    return hp - combat['pc_damage']
+
+
+def _slots_remaining(state, sheet):
+    """Spell slots still unused. The live inventory wins when its digest matches the sheet.
+    A digest mismatch is not rebuilt into a fresh unused pool. A sheet that already
+    encodes spent slots, with no inventory, is ambiguous."""
+    counted = kit_reactions.slots(sheet)
+    if not counted:
+        return None
+    held = state.get('pc_resources')
+    if held is None:
+        if any(item['used'] for item in counted.values()):
+            return None
+        return sum(item['max'] - item['used'] for item in counted.values())
+    if not isinstance(held, dict) or held.get('sheet') != kit_reactions._digest(sheet):
+        return None
+    live = held.get('slots')
+    if not isinstance(live, dict) or not live:
+        return None
+    remaining = 0
+    for slot in live.values():
+        if not isinstance(slot, dict) or type(slot.get('max')) is not int or type(slot.get('used')) is not int:
+            return None
+        if slot['used'] < 0 or slot['used'] > slot['max']:
+            return None
+        remaining += slot['max'] - slot['used']
+    return remaining
+
+
+def party_ready(state, assumes):
+    """True, False, or None.
+
+    Solo scope: the one loaded player character. ``hp`` on the sheet is the maximum;
+    damage is ``combat.pc_damage``; slots are ``pc_resources`` when that inventory
+    belongs to this sheet. Any missing or contradictory count is None. Other bodies
+    are not read, and a historical table is not simulated.
+    """
+    if not isinstance(state, dict) or not isinstance(assumes, dict) or not assumes:
+        return None
+    sheet = state.get('player_sheet')
+    if not isinstance(sheet, dict):
         return None
     seen = False
     ready = True
     if 'min_hp' in assumes:
-        hp = sheet.get('hp')
-        if type(hp) is not int:
+        hp = _current_hp(state, sheet)
+        need = assumes['min_hp']
+        if hp is None or type(need) is not int:
             return None
         seen = True
-        if hp < assumes['min_hp']:
+        if hp < need:
             ready = False
     if 'min_slots_remaining' in assumes:
-        counted = kit_reactions.slots(sheet)
-        if not counted:
+        remaining = _slots_remaining(state, sheet)
+        need = assumes['min_slots_remaining']
+        if remaining is None or type(need) is not int:
             return None
-        remaining = sum(item['max'] - item['used'] for item in counted.values())
         seen = True
-        if remaining < assumes['min_slots_remaining']:
+        if remaining < need:
             ready = False
     return ready if seen else None
 
@@ -123,6 +261,10 @@ def _view(record_id, relevance, advisory):
     }
 
 
+def _in_area(item, area):
+    return isinstance(item, dict) and item.get('area') == area and _ident(item)
+
+
 def select(source, state, kind='play'):
     """The private advisory packet, or None. ``state`` and ``source`` decide. The
     player sentence is not an argument."""
@@ -133,20 +275,20 @@ def select(source, state, kind='play'):
         return None
     area = state.get('area')
     applied = []
+    open_ids = _live_ids(state, 'open')
+    standing_ids = _live_ids(state, 'standing')
+    unscheduled_ids = _live_ids(state, 'unscheduled')
 
     for item in block.get('constraints') or ():
-        if not isinstance(item, dict) or item.get('area') != area or item.get('exception_open') is not True:
-            continue
-        waived = state.get('judgment_waived') or ()
-        if item.get('id') in waived:
-            continue
-        applied.append(_view('BJ-002', 'constraint_exception_open', RECORDS['BJ-002']['advisory']))
-        break
+        if _in_area(item, area) and item.get('id') in open_ids:
+            applied.append(_view('BJ-002', 'constraint_exception_open', RECORDS['BJ-002']['advisory']))
+            break
 
     for item in block.get('encounters') or ():
-        if not isinstance(item, dict) or item.get('area') != area or item.get('prepared') is not True:
+        # ``prepared`` names a written encounter. It does not turn off. Resources do.
+        if not _in_area(item, area) or item.get('prepared') is not True:
             continue
-        ready = party_ready(state.get('player_sheet'), item.get('assumes'))
+        ready = party_ready(state, item.get('assumes'))
         if ready is False:
             applied.append(_view('BJ-004', 'party_below_encounter_assumption',
                                  RECORDS['BJ-004']['advisory_below']))
@@ -173,13 +315,13 @@ def select(source, state, kind='play'):
         break
 
     for item in block.get('settled') or ():
-        if isinstance(item, dict) and item.get('area') == area and item.get('standing') is True:
+        if _in_area(item, area) and item.get('id') in standing_ids:
             applied.append(_view('BJ-003', 'resolution_already_stood', RECORDS['BJ-003']['advisory']))
             break
 
     if kind == 'physical_act':
         for item in block.get('damage') or ():
-            if isinstance(item, dict) and item.get('area') == area and item.get('scheduled') is False:
+            if _in_area(item, area) and item.get('id') in unscheduled_ids:
                 applied.append(_view('BJ-001', 'unscheduled_damage_and_physical_act',
                                      RECORDS['BJ-001']['advisory']))
                 break
