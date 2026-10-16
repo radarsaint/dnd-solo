@@ -44,7 +44,7 @@ Chaining is a loader capability. On the tree inspected for this control snapshot
 
 ## What is not proven
 
-- Area 6c remains the only richly authored room on current `main`.
+- Area 6c remains the only richly authored room on audited `main`. This branch proposes a different player-facing start, and that start is not on `main` until this PR merges: `start` with no `--room` and no `--campaign` greets and does not mount 6c. Dungeon of the Mad Mage is reported only when the player asks for it (`--campaign dotmm`), and it is not a playable room. `--regression --room tests/fixtures/level_01_area_06c.json` is the engineering path.
 - Mounting arbitrary rooms proves loader/general runtime mechanics, not generalized excellent DMing.
 - The watchroom is synthetic and 17a is sparse.
 - Natural-language routing still relies heavily on regex classification.

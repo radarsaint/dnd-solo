@@ -29,11 +29,12 @@ A ZIP attached to a ChatGPT Project, GPT Knowledge, conversation, Drive, or Libr
 
 ## Rules
 
-1. **When the player wants to play, start with exactly one command.** From the repository root (Python 3.10+, no installs):
+1. **Do not start a game until the player names one.** Hello, talk, debrief, and working on a character or a scene need no command. From the repository root (Python 3.10+, no installs), only when a save is being continued or a named game is being asked about:
    ```sh
-   python3 -m runtime.kit_agent start --db kit.sqlite --sheet <player-sheet.json>
+   python3 -m runtime.kit_agent start --db kit.sqlite
+   python3 -m runtime.kit_agent start --db kit.sqlite --campaign dotmm
    ```
-   Leave out `--sheet` to play the generic example PC (`tests/fixtures/characters/example_pc.json`). `start` creates the room, loads the sheet, stages the opening, and prints the next command to run. If it says the database already holds a game, resume it with `prepare` (below) or start fresh with a new `--db` name. With no `--room`, `start` mounts area 6c (`tests/fixtures/level_01_area_06c.json`). That file is the legacy default and the richest authored room, not the definition of the engine. Pass `--room <file>` to mount another conforming room file. Loading a room file is not the same as turning untouched adventure text into a room.
+   With no `--room` and no `--campaign`, `start` prints a greeting. It does not open a room, load a character, or assume Dungeon of the Mad Mage. Say `table_line` only if they have not said what they want. If they want to play and have not named a game, ask which one. Run `--campaign dotmm` only after they ask for Mad Mage, then say that `table_line`. Do not pass `--room` unless they chose a path in `executable_starts`. Do not pass `--regression`. Do not load `tests/fixtures/characters/example_pc.json` unless the player explicitly asks for the example character. Area 6c (`tests/fixtures/level_01_area_06c.json`) is a historical regression fixture. It mounts only when someone names that file and passes `--regression`. It is not a campaign and not a fallback. If the database already holds a game, the stage is `resume`: continue only if they want that game. Loading a room file is not the same as turning untouched adventure text into a room.
 2. **Every game turn goes through the KitChatBridge. No exceptions.**
    - Live chat (default): run `prepare --one-pass --db kit.sqlite --action "<the player's exact words>"`. Write one JSON object `{"decision": ..., "performance": ...}` that follows the packet's `instructions` and `schema` (sent once in `session_manifest`; later packets say `cached`: use that copy, echo both manifest hashes as `"manifest": {"session", "room"}`, and run `rehydrate --turn-id <id>` if the copy is gone; see docs/architecture/MANIFESTS.md). Save it to a file. Then run `complete --db kit.sqlite --turn-id <id> --input-file <file>`.
    - Staged (for evaluation): run `prepare`, then `decide` with the plan, then `finish` with the speech.

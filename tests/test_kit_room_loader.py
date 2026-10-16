@@ -211,8 +211,8 @@ class Mounting(unittest.TestCase):
         self.assertEqual((kit_rooms.stage(runtime.source(), state), kit_rooms.resolution(runtime.source(), state)),
                          ('resolution', 'bypassed'))
 
-    def test_6c_still_starts_by_default_and_reads_its_behaviour_from_its_file(self):
-        runtime, started = self.start(None)
+    def test_6c_when_named_reads_its_behaviour_from_its_file(self):
+        runtime, started = self.start(SIXC)
         self.assertEqual(runtime.source()['id'], 'dotmm-level-01-area-06c-testbed-v1')
         self.assertEqual(kit_rooms.stage(runtime.source(), runtime.load()[1]), 'first_look')
         result, _ = self.play(runtime, 'I look in the tub.')

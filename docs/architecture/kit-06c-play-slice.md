@@ -9,13 +9,12 @@ Ask the assistant to start Kit's area 6c room, then give Kit an action in ordina
 For live chat, the shorter one-pass procedure is an experiment. From the repository root:
 
 ```sh
-python3 -m runtime.kit_agent init --db kit-06c.sqlite
-python3 -m runtime.kit_agent prepare --opening --one-pass --db kit-06c.sqlite
+python3 -m runtime.kit_agent start --regression --room tests/fixtures/level_01_area_06c.json --db kit-06c.sqlite
 python3 -m runtime.kit_agent complete --db kit-06c.sqlite --turn-id ENTRY_ID --input-file /tmp/kit-entry.json
 python3 -m runtime.kit_agent prepare --one-pass --db kit-06c.sqlite --action 'I pull up a chair and ask the stakes.'
 ```
 
-`prepare --opening --one-pass` stages the **initial room introduction** before any player action. Its performance needs narration and a dealer utterance. Complete it using the returned entry ID and a combined JSON object, then show only its `spoken` field. It is saved as a scene-entry turn, so the first player response has its public words in history. An opening cannot be staged after a turn has committed. For a fresh room after an earlier turn, initialize a new test database; a previously initialized database retains its original fixture.
+That `start` is the engineering path for this fixture only. It is not what a player-facing host runs. `start` already stages the opening; use the `turn_id` it prints as ENTRY_ID. Do not run `prepare --opening` after it.
 
 For ordinary turns, `prepare --one-pass` returns a turn ID, private decision context, a separate player-visible performance base, instructions, and a combined JSON schema. The assistant writes a single object with `decision` and `performance` to a temporary file, then calls:
 
