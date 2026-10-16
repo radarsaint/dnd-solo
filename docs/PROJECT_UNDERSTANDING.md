@@ -148,7 +148,7 @@ The current research priority is trust: verify high-leverage derived claims agai
 
 PR #28 remains useful as a hypothesis map rather than a gold-label foundation. PR #38 is active forensic integrity work and demonstrates why semantic verification matters.
 
-Stage 3 precedent/minimal-cognition experiments should consume evidence whose lineage and confidence are explicit. Stage 4 heavier cognition architecture remains later.
+Stage 3 precedent/minimal-cognition experiments should consume evidence whose lineage and confidence are explicit. Stage 4 heavier cognition architecture remains later. A first private packet (`runtime/kit_judgment.py`) can attach one or two sourced judgments when the player line matches. That is consumption of a curated subset, not a cognition architecture, and not evidence that play got better.
 
 ### Project understanding and continuity
 

@@ -37,6 +37,7 @@ from . import kit_manifest
 from . import kit_router
 from . import kit_agenda, kit_plan, kit_threads, pc_sheet
 from . import kit_detail
+from . import kit_judgment
 from . import kit_prices
 from . import kit_rooms
 from . import kit_texture
@@ -3732,6 +3733,11 @@ def prepare_inputs(runtime, revision, state, action, resolution, use_memory, one
     # ("Is the dealer cheating me?") must not be answered from the brief's secrets.
     if not table_talk:
         planning_input['story_brief'] = kit_brief.brief(source, post_event_state)
+    # Private, and only when this player line is one of the curated situations.
+    # Absent on every other turn. Never copied into the performer packet.
+    judgment = kit_judgment.for_turn(action, resolution.kind)
+    if judgment and not table_talk:
+        planning_input['dm_judgment'] = judgment
     if kit_combat.config(source) and post_event_state.get('player_sheet'):
         # Session manifest (cached): what the PC's reactions are and cost, with no counts, so a spend
         # never busts the cache. What is left now (slots, uses) is live state like HP: the per-turn
