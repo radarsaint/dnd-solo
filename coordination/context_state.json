@@ -2,16 +2,16 @@
   "schema": "kit_project_gardener_state/v1",
   "purpose": "RESUMABILITY_CURSOR_NOT_KNOWLEDGE_STORE",
   "canonical_location": "radarsaint/dnd-solo/coordination/context_state.json",
-  "state_revision": 23,
+  "state_revision": 24,
   "semantic_brain": {
     "repo": "radarsaint/dnd-solo",
     "path": "docs/PROJECT_UNDERSTANDING.md",
-    "last_semantic_commit": "d2a9518ec64d6fd1b646478a3eba783de6fdf9c7",
+    "last_semantic_commit": "67e0707e004eebf7853d791c11315720103c1e08",
     "last_reviewed_on": "2026-10-16"
   },
   "checkpoint": {
     "reviewed_against_main": {
-      "radarsaint/dnd-solo": "d2a9518ec64d6fd1b646478a3eba783de6fdf9c7",
+      "radarsaint/dnd-solo": "67e0707e004eebf7853d791c11315720103c1e08",
       "radarsaint/bfdm-corpus": "2a650a735d8e39251979b157cf7aace9f8e443ef"
     },
     "context_inbox": {
@@ -25,9 +25,9 @@
   "last_completed_pass": {
     "kind": "BOUNDED_SEMANTIC_RECONCILIATION",
     "completed_on": "2026-10-16",
-    "scope": "Reviewed bfdm-corpus #38 merge (2b68820) and dnd-solo main advance to d2a9518; #115 comment 6202184874.",
-    "result": "Accept: #38 first-tranche integrity staging now on bfdm-corpus main. Brain and control texts updated to record limits (no corpus-wide, BDC-S3-004 broken prep, no transfer for reusable judgments). #115 6202184874 rejected/unresolved: proposed entry behavior on unmerged #124, not current main. G5/G6 and post-#101 items remain open.",
-    "resulting_brain_commit": "d2a9518ec64d6fd1b646478a3eba783de6fdf9c7",
+    "scope": "Reviewed dnd-solo #124 merge (219f6e0) and resulting main; no new #115 comments beyond 6202184874.",
+    "result": "Accept: player-facing start no longer opens Area 6c; returns campaign_entry; no executable Mad Mage room yet; source-to-room not built. Brain updated. #115 6202184874 now resolved by merge. G5/G6 and post-#101 items remain open. Legitimate Mad Mage opening still blocked.",
+    "resulting_brain_commit": "67e0707e004eebf7853d791c11315720103c1e08",
     "reconciled_comment_id": 6202184874
   },
   "active_pass": null,
@@ -38,7 +38,7 @@
     "Post-#101 combat/engine items (open-ask gate at RoomAdjudicator.resolve, public_event fallback after failed narration, #122 Kit-declared combat_acts) are still pending.",
     "PR #122 Kit-declared combat_acts is draft; word-matching parser ends only after it lands. Main default path unchanged.",
     "#115 comment 6158450658 plan items beyond the two #101 fixes are not fixed on main.",
-    "#115 comment 6202184874: Kit entry/greeting changes are on unmerged PR #124 only; do not treat as current main behavior."
+    "Legitimate Mad Mage opening remains blocked on missing room files and source-to-room authoring. No executable non-6c authored location."
   ],
   "needs_review": [],
   "checkpoint_rules": {
