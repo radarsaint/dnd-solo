@@ -2,17 +2,17 @@
   "schema": "kit_project_gardener_state/v1",
   "purpose": "RESUMABILITY_CURSOR_NOT_KNOWLEDGE_STORE",
   "canonical_location": "radarsaint/dnd-solo/coordination/context_state.json",
-  "state_revision": 24,
+  "state_revision": 25,
   "semantic_brain": {
     "repo": "radarsaint/dnd-solo",
     "path": "docs/PROJECT_UNDERSTANDING.md",
-    "last_semantic_commit": "67e0707e004eebf7853d791c11315720103c1e08",
-    "last_reviewed_on": "2026-10-16"
+    "last_semantic_commit": "0458d5aefa33dc791844de2755c81635de5b320a",
+    "last_reviewed_on": "2026-10-17"
   },
   "checkpoint": {
     "reviewed_against_main": {
-      "radarsaint/dnd-solo": "67e0707e004eebf7853d791c11315720103c1e08",
-      "radarsaint/bfdm-corpus": "2a650a735d8e39251979b157cf7aace9f8e443ef"
+      "radarsaint/dnd-solo": "0458d5aefa33dc791844de2755c81635de5b320a",
+      "radarsaint/bfdm-corpus": "abe036c5584b8ecbb2977128f8fef92728a0673d"
     },
     "context_inbox": {
       "repo": "radarsaint/dnd-solo",
@@ -24,10 +24,10 @@
   },
   "last_completed_pass": {
     "kind": "BOUNDED_SEMANTIC_RECONCILIATION",
-    "completed_on": "2026-10-16",
-    "scope": "Reviewed dnd-solo #124 merge (219f6e0) and resulting main; no new #115 comments beyond 6202184874.",
-    "result": "Accept: player-facing start no longer opens Area 6c; returns campaign_entry; no executable Mad Mage room yet; source-to-room not built. Brain updated. #115 6202184874 now resolved by merge. G5/G6 and post-#101 items remain open. Legitimate Mad Mage opening still blocked.",
-    "resulting_brain_commit": "67e0707e004eebf7853d791c11315720103c1e08",
+    "completed_on": "2026-10-17",
+    "scope": "Reviewed bfdm-corpus #41 merge (owner-attestation of 171 sources) and resulting mains; no new #115 comments beyond 6202184874.",
+    "result": "Accept: 171 previously UNKNOWN authorship containers are now BRENDON via owner_attestation attested 2026-10-09. Archival lineage remains distinct and unresolved. Brain updated on main. No new inbox comments. G5/G6 and other unresolved items remain open.",
+    "resulting_brain_commit": "0458d5aefa33dc791844de2755c81635de5b320a",
     "reconciled_comment_id": 6202184874
   },
   "active_pass": null,
