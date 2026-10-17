@@ -4,8 +4,8 @@
 **Status:** canonical on `dnd-solo/main` after Brendon-approved merges of #113 and #117 on 2026-10-08. It is no longer a proposed side-branch draft.  
 **Canonical location:** `radarsaint/dnd-solo/docs/PROJECT_UNDERSTANDING.md`  
 **Sibling repository:** `radarsaint/bfdm-corpus`  
-**Last substantive refresh:** 2026-10-16  
-**Context reviewed against:** `dnd-solo/main @ 219f6e0478e153e73e7e10a73851036f7228d940`; `bfdm-corpus/main @ 2a650a735d8e39251979b157cf7aace9f8e443ef`
+**Last substantive refresh:** 2026-10-17  
+**Context reviewed against:** `dnd-solo/main @ 93453a0b7cc04bfd69d7243b00dc60c0818ed740`; `bfdm-corpus/main @ abe036c5584b8ecbb2977128f8fef92728a0673d`
 
 > This document is the project's current **semantic model**: what we are building, where we are, why we got here, what changed our thinking, how the major workstreams fit together, what we currently believe, what remains uncertain, and where the evidence points next.
 >
@@ -223,6 +223,8 @@ This document answers what a competent collaborator should currently believe abo
 ## 3. Current BFDM state
 
 After PR #40, the catalog holds 195 BCS identities. The index has 193 source containers. BCS-000059 is context-only. BCS-000068 is an excerpt without a source container. Model-facing Discord retrieval exists. The old Git LFS opacity problem should not be restarted.
+
+On 2026-10-09 Brendon attested that the 171 source containers previously marked UNKNOWN authorship are his work. Those records are now authorship status BRENDON with basis owner_attestation (attested 2026-10-09). Creator and copyright owner are Brendon Faulkner. Archival lineage gaps remain unresolved and distinct from authorship status; they are not inferred as authorship. BCS-000182 and BCS-000183 retain their earlier document-statement bases. No source text, locators, hashes, or evidence-claim confidence was changed. See bfdm-corpus ingest/reports/2026-10-09-owner-attestation.md.
 
 Accessible evidence is not semantically verified judgment research. The first-tranche forensic integrity staging is now on main (PR #38, merge `2b68820d445e9f6d99d021463bfd76b2f7bb257d`). Citations and locators can still reconstruct incorrectly or support claims too broadly; BDC-S3-004 demonstrates a broken prep-evidence chain. No reusable judgment in the sample is verified for transfer.
 
