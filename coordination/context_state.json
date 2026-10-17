@@ -2,7 +2,7 @@
   "schema": "kit_project_gardener_state/v1",
   "purpose": "RESUMABILITY_CURSOR_NOT_KNOWLEDGE_STORE",
   "canonical_location": "radarsaint/dnd-solo/coordination/context_state.json",
-  "state_revision": 26,
+  "state_revision": 27,
   "semantic_brain": {
     "repo": "radarsaint/dnd-solo",
     "path": "docs/PROJECT_UNDERSTANDING.md",
@@ -11,8 +11,8 @@
   },
   "checkpoint": {
     "reviewed_against_main": {
-      "radarsaint/dnd-solo": "064dbdeee979629215d937763e6925114b0e2cf5",
-      "radarsaint/bfdm-corpus": "2b9afffec39f20e4e3f9e10ef8779081eee3d381"
+      "radarsaint/dnd-solo": "249a092eec4913ca6bb46faced056f55f5089df8",
+      "radarsaint/bfdm-corpus": "f5f6e4d48aed32e3f4ddfdf70cbdcd5fe6e27b2d"
     },
     "context_inbox": {
       "repo": "radarsaint/dnd-solo",
@@ -25,8 +25,8 @@
   "last_completed_pass": {
     "kind": "BOUNDED_SEMANTIC_RECONCILIATION",
     "completed_on": "2026-10-17",
-    "scope": "Reviewed bfdm-corpus #44 (integrity gate validates changed revision, fails closed without restamping) and #45 (records finished first-tranche review in current state) merges, plus resulting mains; no new #115 comments beyond 6202184874.",
-    "result": "Accept: #44 makes the integrity gate check out the revision under test and prove unchanged review passes while material changes fail closed without rewriting the ledger. #45 correctly records the first-tranche review as merged/reviewed on main. Brain already matched this model; no brain edit required. No new inbox comments. G5/G6 and other unresolved items remain open.",
+    "scope": "Reviewed bfdm-corpus #51 (catalog status alignment with owner attestation and reconciled files) merge, plus resulting mains; no new #115 comments beyond 6202184874.",
+    "result": "Accept: #51 corrects 28 attested containers from UNVERIFIED_AUTHORSHIP scope endings, 13 reconciled containers from DISCOVERED_NOT_INDEXED to RECONCILED_UNREVIEWED, and BCS-000021 review_status. Creator/copyright unchanged; passage text remains unverified; Season 3 judgments not restamped. Brain already reflects attestation and source presence; no brain edit required. No new inbox comments. G5/G6 and other unresolved items remain open.",
     "resulting_brain_commit": "0458d5aefa33dc791844de2755c81635de5b320a",
     "reconciled_comment_id": 6202184874
   },
