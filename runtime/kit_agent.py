@@ -5614,7 +5614,7 @@ class KitChatBridge:
             self._attempt(turn_id, output, host_stamps, clock, 'window_answered')
             return result
         if not result.get('already_committed'):
-            self._attempt(turn_id, output, host_stamps, clock, 'committed')
+            self._attempt(turn_id, output, host_stamps, clock, 'engine_line' if result.get('engine_line') else 'committed')
             result['timing'] = self.runtime.kit_timing(turn_id)
         return result
 
