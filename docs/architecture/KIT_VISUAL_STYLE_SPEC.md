@@ -266,16 +266,18 @@ Do not create a second canonical visual registry for style references. Style-cor
 
 ## 17. Implementation status
 
-This document establishes the behavioral contract. It does not claim that current `main` already:
+The visual-runtime test branch now includes the first bounded runtime path: `runtime/kit_visual.py` and the `kit_agent visual` command produce a player-safe `kit_visual_brief_v1` without changing game state. See [`KIT_VISUAL_RUNTIME.md`](KIT_VISUAL_RUNTIME.md).
 
-- routes art requests automatically;
-- retrieves a curated style-reference corpus;
-- selects art modes in code;
-- injects this specification into an image-generation call;
-- validates generated images against canon and reveal state;
-- stores generated image provenance.
+Still not automated:
 
-Those remain implementation work. The first engineering target should be the smallest path that makes a mid-campaign generated image inherit the house style without bypassing the existing authority and secrecy model.
+- existing canonical-asset resolution before generation;
+- binary BFDM reference retrieval from the private visual corpus;
+- automatic reference ranking/diversity memory;
+- image-tool invocation from Python (intentionally out of scope; Kit/the host model is the generator);
+- machine validation of the rendered pixels;
+- generated-image provenance storage.
+
+The current vertical slice is intentionally narrow: runtime truth -> safe visual brief -> host Kit art direction/generation -> visual QA.
 
 ## 18. Success criterion
 
