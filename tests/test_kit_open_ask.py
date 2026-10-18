@@ -3,8 +3,10 @@ the engine's sentence after one failed narration.
 
 (a) The open-ask gate at the top of RoomAdjudicator.resolve. A hit on his turn with no damage
     holds the turn: the monsters wait for the damage, and the next message (a bare Avrae damage
-    field, "4 piercing damage", a bare "4") is its answer. No damage in the message, or an explicit
-    cancel, yields the ask: the hit stands with no damage, it was his action, and the round runs on.
+    field, an unlabelled dice line "1d4 (4) + 2 = 6", "4 piercing damage", "I rolled a 6", a bare
+    "4") is its answer. No damage in the message, or a cancel aimed at the roll, yields the ask: the
+    hit stands with no damage, it was his action, and the round runs on. A question with no damage
+    in it is Kit's to answer and the ask stays open.
     A called check takes a bare roll first; a cancel calls it off.
 (b) A rejected narration commits the engine's public_event sentence (no retry).
 (c) A leveled spell with no slot left fizzles before any roll is asked for (Witch Bolt).
@@ -83,6 +85,84 @@ class HitWithNoDamageHoldsTheTurn(unittest.TestCase):
         table.act('Never mind the damage, 4 is too low anyway.')
         self.assertEqual(table.fight['hp']['cutthroat_a'], 11)
         self.assertIsNone(table.fight.get('pending'))
+
+
+class DamageAnswerFormats(unittest.TestCase):
+    """Nagatha's #127 review at 3a18e9b: the damage ask read only Avrae's labelled field, a stated
+    "N damage" or a lone number, so a bare Avrae dice line gave the ask with 0 damage; a question
+    yielded the damage and was held; a cancel word beat a stated amount. Dice pinned (NPC d20s 2)."""
+
+    def answered(self, words):
+        table = camp(self)
+        table.act(HIT)
+        result = table.act(words)
+        return table.fight, result
+
+    def assertLands(self, words, amount):
+        fight, result = self.answered(words)
+        self.assertEqual(fight['hp']['cutthroat_a'], 11 - amount, words)
+        self.assertIsNone(fight.get('pending'), words)
+        self.assertNotIn('No damage was rolled', result.public_event, words)
+        self.assertEqual((fight['round'], fight['order'][fight['next']]), (2, 'pc'), words)
+        return result
+
+    def test_an_unlabelled_avrae_dice_line_answers_with_its_total(self):
+        for words, amount in (('1d4 (4) + 2 = 6', 6), ('1d8 (5) = 5', 5), ('1d4 (2) = 2', 2),
+                              ('2d6 (3, 4) + 1 = `8`', 8), ('3d4 (1, 2, 3) [piercing] = 6', 6)):
+            with self.subTest(words=words):
+                self.assertLands(words, amount)
+
+    def test_numbers_that_are_no_roll_do_not_answer(self):
+        for words in ('I back off 30 feet.', 'I yell at the two of them.', 'Two more rounds of this?',
+                      'I look for the other one.'):
+            with self.subTest(words=words):
+                fight, result = self.answered(words)
+                self.assertEqual(fight['hp']['cutthroat_a'], 11, words)
+
+    def test_a_d20_line_is_no_damage(self):
+        fight, result = self.answered('1d20 (14) + 4 = 18')
+        self.assertEqual(fight['hp']['cutthroat_a'], 11)
+
+    def test_a_stated_roll_answers(self):
+        for words in ('I rolled a 6', 'Do I add my dex? 6', 'got a 6 on that', '6!', 'six', 'I rolled a six.'):
+            with self.subTest(words=words):
+                self.assertLands(words, 6)
+
+    def test_a_question_with_no_number_leaves_the_ask_open_for_kit(self):
+        for words in ('Wait, how many are left standing?', 'Which one did I hit?'):
+            with self.subTest(words=words):
+                fight, result = self.answered(words)
+                self.assertEqual(fight['pending']['needs'], 'damage', 'the ask stays open')
+                self.assertEqual(fight['hp']['cutthroat_a'], 11)
+                self.assertNotIn('declared_next', fight)
+                self.assertNotIn('No damage was rolled', result.public_event)
+                self.assertNotIn('swings at you', result.public_event, 'nobody acts')
+                self.assertEqual((fight['round'], fight['order'][fight['next']]), (1, 'pc'))
+                self.assertIn('damage', result.public_event)
+
+    def test_a_stated_amount_beats_a_loose_cancel_word(self):
+        for words in ('Scratch that, it was 6 damage.', 'Oops, 6 damage, never mind the earlier number',
+                      'Never mind, I rolled a 6'):
+            with self.subTest(words=words):
+                self.assertLands(words, 6)
+
+    def test_a_cancel_next_to_the_roll_still_cancels(self):
+        for words in ('Never mind the damage, 4 is too low anyway.', 'Skip the roll, 5.', 'Forget the damage.',
+                      'Never mind.'):
+            with self.subTest(words=words):
+                fight, result = self.answered(words)
+                self.assertEqual(fight['hp']['cutthroat_a'], 11)
+                self.assertIn('No damage was rolled', result.public_event)
+
+    def test_a_second_damage_line_is_said_to_be_ignored(self):
+        result = self.assertLands('Damage: 1d4 (2) + 2 = 4\nDamage: 1d4 (3) + 2 = 5', 4)
+        self.assertIn('Only the first damage roll counts (4)', result.public_event)
+        result = self.assertLands('1d4 (4) + 2 = 6 and 1d4 (1) + 2 = 3', 6)
+        self.assertIn('Only the first damage roll counts (6)', result.public_event)
+
+    def test_one_damage_line_says_nothing_extra(self):
+        result = self.assertLands('1d4 (4) + 2 = 6', 6)
+        self.assertNotIn('Only the first', result.public_event)
 
 
 class CalledCheckAnswersFirst(unittest.TestCase):

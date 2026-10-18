@@ -799,6 +799,20 @@ class RoomAdjudicator:
     _CANCEL_ASK = re.compile(r"\b(?:cancel|never\s*mind|forget\s+(?:it|that|about\s+it|the\s+(?:roll|damage|check))|"
                              r"scratch\s+that|skip\s+(?:it|that|the\s+(?:roll|damage|check))|no\s+roll)\b", re.I)
     _BARE_NUMBER = re.compile(r"\s*(?:i\s+)?(?:rolled|roll|got|deal|did|for)?\s*`?(\d{1,3})`?\s*[.!]?\s*", re.I)
+    # A cancel aimed at the roll itself ("never mind the damage", "skip the roll", "damage, forget
+    # it"): it cancels even with a number in the message. A loose one ("scratch that, it was 6
+    # damage") does not beat the amount the message states.
+    _CANCEL_THE_ROLL = re.compile(
+        r"\b(?:cancel|never\s*mind|forget(?:\s+about)?|scratch|skip|no|drop)\s+(?:the\s+|that\s+|my\s+|this\s+)?"
+        r"(?:damage\s+)?(?:roll|damage|dmg|check)\b|\b(?:roll|damage|dmg|check)\s*[,:;-]?\s*(?:cancel(?:led)?|"
+        r"never\s*mind|forget\s+(?:it|that)|scratch\s+that|skip\s+(?:it|that))\s*(?:[.!;,]|$)", re.I)
+    # The whole message a roll spelled out: "six", "I rolled a six", "got eleven".
+    _SPELLED_ROLL = re.compile(r"\s*(?:i\s+)?(?:rolled|roll|got|did|deal)?\s*(?:an?\s+)?([a-z]+(?:[\s-][a-z]+)?)\s*[.!]?\s*",
+                               re.I)
+    # A number standing alone in his words ("I rolled a 6", "Do I add my dex? 6"): not part of a
+    # word or a dice term, not a distance, coins, a count of rounds, an ordinal or a percentage.
+    _LONE_NUMBER = re.compile(r"(?<![\w.+-])(\d{1,3})(?![\w.]\w|\w)(?!\s*(?:ft\b|feet|foot|'|gp\b|gold|coins?|"
+                              r"sp\b|cp\b|pp\b|%|x\b|times|minutes?|rounds?|turns?|hours?|days?|of\b|more\b))", re.I)
 
     def _open_ask(self, action, revision, state):
         """(answer, state, yielded): ``answer`` is the Resolution of the open ask this message answers,
@@ -819,9 +833,14 @@ class RoomAdjudicator:
         pending = current.get('pending') if isinstance(current.get('pending'), dict) else {}
         if pending.get('needs') == 'damage' and pending.get('holds_turn') and not waiting and \
                 current.get('status') == 'running' and kit_combat.config(self.source):
-            amount = None if cancel else self._damage_answer(action)
+            amount, extra = self._damage_answer(action, state)
+            if amount and not self._CANCEL_THE_ROLL.search(narration):
+                return self._answer_damage(action, amount, revision, state, pending, extra), state, None
             if amount:
-                return self._answer_damage(action, amount, revision, state, pending), state, None
+                cancel = True
+            elif not cancel and '?' in narration:
+                # A question and no damage in it: Kit answers it, and the ask stays open.
+                return self._ask_stays_open(action, revision, state, pending), state, None
             return (None,) + self._yield_damage(action, revision, state, pending, cancel)
         if state.get('pending_check') and not waiting:
             check = state['pending_check']
@@ -838,32 +857,70 @@ class RoomAdjudicator:
                     return called, state, None
         return None, state, None
 
-    def _damage_answer(self, action):
-        """The damage a message reports for the open damage ask: an Avrae damage field, a stated
-        amount ("4 piercing damage"), or a bare number. None when it has none, or when it reports a
-        new to-hit or an initiative (a new attack, not the answer)."""
+    def _damage_answer(self, action, state):
+        """(amount, ignored) the message reports for the open damage ask: an Avrae damage field, a
+        stated amount ("4 piercing damage"), the total of a dice expression ("1d4 (4) + 2 = 6"), or a
+        number standing alone in words that are no new combat act ("I rolled a 6"). ``ignored``
+        counts further damage rolls in it (only the first counts). (None, 0) when it has none, or
+        when it reports a new to-hit or an initiative (a new attack, not the answer)."""
         text = action.translate(_TYPOGRAPHIC)
         try:
             if kit_rolls.attack_total(text) is not None or kit_rolls.initiative(text) is not None:
-                return None
+                return None, 0
+            found = kit_rolls.avrae(text)
             amount, _ = kit_rolls.damage_total(text)
         except InvalidChange:
-            return None
+            return None, 0
         if amount:
-            return amount
-        bare = self._BARE_NUMBER.fullmatch(QUOTED_SPEECH.sub(' ', text))
-        return int(bare.group(1)) if bare and int(bare.group(1)) > 0 else None
+            fields = [a for a, _, t in (found or {}).get('damage') or () if t is None]
+            return amount, max(len(fields) - 1, 0)
+        totals = [total for total in kit_rolls.dice_totals(text) if total > 0]
+        if totals:
+            return totals[0], len(totals) - 1
+        words = QUOTED_SPEECH.sub(' ', text)
+        bare = self._BARE_NUMBER.fullmatch(words)
+        if bare:
+            return (int(bare.group(1)), 0) if int(bare.group(1)) > 0 else (None, 0)
+        spelled = self._SPELLED_ROLL.fullmatch(words)
+        if spelled:
+            found = kit_rolls.number_words(spelled.group(1))
+            if len(found) == 1 and found[0][1:] == (0, len(spelled.group(1))) and found[0][0] > 0:
+                return found[0][0], 0  # "six", "I rolled a six"
+        numbers = [int(m.group(1)) for m in self._LONE_NUMBER.finditer(kit_rolls.without_dice(words))]
+        if len(numbers) != 1 or numbers[0] <= 0:
+            return None, 0
+        try:
+            act = kit_combat.parse(self._LONE_NUMBER.sub(' ', words), self.source, state)
+        except (PendingRuling, InvalidChange):
+            act = None
+        if act and act.get('kind') not in ('ruling', 'late_reaction'):
+            return None, 0  # a new deed with a number in it ("I move 2 squares and stab") is no answer
+        return numbers[0], 0
 
-    def _answer_damage(self, action, amount, revision, state, pending):
+    def _answer_damage(self, action, amount, revision, state, pending, ignored=0):
         """The damage roll his held hit was waiting on: it lands on that target, then his turn ends
-        and the round runs on."""
+        and the round runs on. A second damage roll in the message is said to be ignored."""
         text = action if kit_rolls.damage_total(action)[0] else f'{amount} damage'
         fight = self._fight(text, revision, state)
         act = {'kind': 'attack', 'target': pending['target'], 'weapon': pending.get('weapon'), 'area': False,
                **({'spell': pending['spell']} if pending.get('spell') else {})}
         fight.trace.append(f"open ask answered: {amount} damage for the {pending.get('weapon') or 'blow'}")
+        if ignored:
+            fight.lines.append(f'Only the first damage roll counts ({amount}); the other '
+                               + ('one is' if ignored == 1 else f'{ignored} are') + ' ignored.')
+            fight.trace.append(f'open ask: {ignored} further damage roll(s) in the message ignored')
         public, events = fight.resolve(act)
         return self._fight_resolution(fight, public, events, action, state)
+
+    def _ask_stays_open(self, action, revision, state, pending):
+        """A question while his hit waits on its damage: Kit's to answer. Nothing resolves, nobody
+        acts, the hit still waits on its damage roll."""
+        label = self._fight(action, revision, state).label(pending['target'])
+        return Resolution('social', f'{table_talk_event(action)} Your hit on the {label} still waits for '
+                                    'its damage roll.', [
+            {'type': 'beat', 'tags': ['table_talk', 'open_ask'],
+             'evidence': f'Question while the damage ask is open: {action}. Kit answers it; the hit on the '
+                         f'{label} still waits for its damage roll; nothing resolved.'}])
 
     def _yield_damage(self, action, revision, state, pending, cancel):
         """No damage in the message (or an explicit cancel): the ask yields. The hit stands with no
