@@ -150,7 +150,7 @@ The current research priority is trust: verify high-leverage derived claims agai
 
 PR #28 remains useful as a hypothesis map rather than a gold-label foundation. PR #38 merged to bfdm-corpus main as `2b68820d445e9f6d99d021463bfd76b2f7bb257d` (2026-10-16): first-tranche derived-research integrity staging for 20 Roanoke S3 cases. No corpus-wide semantic certification. BDC-S3-004 prep locators remain ORIGINAL_REPRESENTATION_UNAVAILABLE / SUPPORT_NOT_FOUND; Discord does not repair them. Several propositions are PARTIALLY_SUPPORTED or SCOPE_OVERCLAIMED. Reusable judgments in the tranche are not verified for transfer. The audit does not put claims into Kit.
 
-Stage 3 precedent/minimal-cognition experiments should consume evidence whose lineage and confidence are explicit. Stage 4 heavier cognition architecture remains later.
+Stage 3 precedent/minimal-cognition experiments should consume evidence whose lineage and confidence are explicit. Stage 4 heavier cognition architecture remains later. A private packet (`runtime/kit_judgment.py`) can attach an advisory record when live state establishes that situation. A player sentence does not. This is not a cognition architecture, and not evidence that play got better.
 
 ### Project understanding and continuity
 
