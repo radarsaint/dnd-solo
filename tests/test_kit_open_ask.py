@@ -6,7 +6,9 @@ the engine's sentence after one failed narration.
     field, an unlabelled dice line "1d4 (4) + 2 = 6", "4 piercing damage", "I rolled a 6", a bare
     "4") is its answer. No damage in the message, or a cancel aimed at the roll, yields the ask: the
     hit stands with no damage, it was his action, and the round runs on. A question with no damage
-    in it is Kit's to answer and the ask stays open.
+    in it is Kit's to answer and the ask stays open. A number is read as the damage only where it is
+    plainly the roll; a check, save, natural or bare d20, a question's number, or a bare number among
+    other words leaves the ask open (a missed answer only re-asks; a wrong one kills).
     A called check takes a bare roll first; a cancel calls it off.
 (b) A rejected narration commits the engine's public_event sentence (no retry).
 (c) A leveled spell with no slot left fizzles before any roll is asked for (Witch Bolt).
@@ -124,21 +126,92 @@ class DamageAnswerFormats(unittest.TestCase):
         self.assertEqual(fight['hp']['cutthroat_a'], 11)
 
     def test_a_stated_roll_answers(self):
-        for words in ('I rolled a 6', 'Do I add my dex? 6', 'got a 6 on that', '6!', 'six', 'I rolled a six.'):
+        for words in ('I rolled a 6', 'got a 6 on that', '6!', 'six', 'I rolled a six.', 'Six!',
+                      'I rolled a 1 on the die, 6 total', "It's 6.", 'damage 6'):
             with self.subTest(words=words):
                 self.assertLands(words, 6)
 
-    def test_a_question_with_no_number_leaves_the_ask_open_for_kit(self):
-        for words in ('Wait, how many are left standing?', 'Which one did I hit?'):
+    def assertStaysOpen(self, words):
+        fight, result = self.answered(words)
+        self.assertEqual(fight['hp']['cutthroat_a'], 11, words)
+        self.assertEqual((fight.get('pending') or {}).get('needs'), 'damage', f'{words}: the ask stays open')
+        self.assertNotIn('declared_next', fight)
+        self.assertNotIn('No damage was rolled', result.public_event)
+        self.assertNotIn('swings at you', result.public_event, 'nobody acts')
+        self.assertEqual((fight['round'], fight['order'][fight['next']]), (1, 'pc'))
+        self.assertIn('still waits for its damage roll', result.public_event)
+        return result
+
+    def assertYields(self, words):
+        fight, result = self.answered(words)
+        self.assertEqual(fight['hp']['cutthroat_a'], 11, words)
+        self.assertIn('No damage was rolled', result.public_event, words)
+        self.assertIsNone(fight.get('pending'), words)
+
+    def test_a_check_save_or_natural_roll_is_never_damage(self):
+        # Nagatha's re-review at 4e6b5ed (High): a missed answer only re-asks, a wrong one kills.
+        for words in ('**Perception**: 1d20 (12) + 4 = `16`', 'Stealth check 15', 'nat 20!', '1d20 (14) + 3 = 17',
+                      'Dex save 14', 'natural 1', 'Athletics: 12', 'I got a 15 on my wisdom saving throw'):
             with self.subTest(words=words):
-                fight, result = self.answered(words)
-                self.assertEqual(fight['pending']['needs'], 'damage', 'the ask stays open')
-                self.assertEqual(fight['hp']['cutthroat_a'], 11)
-                self.assertNotIn('declared_next', fight)
-                self.assertNotIn('No damage was rolled', result.public_event)
-                self.assertNotIn('swings at you', result.public_event, 'nobody acts')
-                self.assertEqual((fight['round'], fight['order'][fight['next']]), (1, 'pc'))
-                self.assertIn('damage', result.public_event)
+                self.assertStaysOpen(words)
+
+    def test_a_question_takes_only_an_explicit_roll(self):
+        # The re-review (High), against the first review's item 4: with a question in the message only a
+        # dice line or "N damage" answers; "Do I add my dex? 6" re-asks rather than guess.
+        for words in ('Is the cutthroat down to 5 hp?', 'Do I add 2 for dex?', 'Do I add my dex? 6',
+                      'Wait, how many are left standing?', 'Two more rounds of this?', 'I rolled a 6?'):
+            with self.subTest(words=words):
+                self.assertStaysOpen(words)
+        for words, amount in (('Is that 1d4 (4) + 2 = 6 enough?', 6), ('6 damage, is it down?', 6)):
+            with self.subTest(words=words):
+                self.assertLands(words, amount)
+
+    def test_a_deed_with_a_number_in_it_is_no_answer(self):
+        # The re-review (Medium): a lone number counts only in a message that is just the number, or
+        # right after rolled/got/damage/dmg. A deed yields the ask, as one with no number does.
+        for words in ('I attack goblin 2', 'I back off 2 squares', 'I want to retreat toward the wagon, 2 steps',
+                      'I drink 1 potion', 'I step back 10 feet', 'I grab the 3 gold pieces off the table',
+                      'I count 4 more bandits by the wagons', 'I shove the cutthroat 5 feet away',
+                      'I shout "6 of you against me? Fine!"', 'I have six darts left, I throw one at the captain',
+                      'I take the Dodge action', 'I got 3 gold off him'):
+            with self.subTest(words=words):
+                self.assertYields(words)
+
+    def test_a_bare_number_in_doubt_leaves_the_ask_open(self):
+        for words in ('Round 2: 6', 'Never mind the captain. 6.', 'no damage to the prisoner, 5', '4 or 5',
+                      'I rolled a 4 and a 2'):
+            with self.subTest(words=words):
+                self.assertStaysOpen(words)
+
+    def test_nagathas_33_cases(self):
+        """/tmp/rvw127/scratch_fp.py, every case: L n lands n, O stays open, Y yields (H: held too)."""
+        cases = {'1d4 (2) = 2': 2, '1d4 (4) + 2 = 6': 6, '**Damage (CRIT!)**: 2d4 (3, 1) + 2 = `6`': 6,
+                 'Damage: 1d4 (2) + 2 = 4\nDamage: 1d4 (3) + 2 = 5': 4, 'I rolled a 6': 6, 'six': 6,
+                 'Wait, how many are left standing?': 'O', 'Scratch that, it was 6 damage.': 6,
+                 'Do I add my dex? 6': 'O', '1d20 (14) + 3 = 17': 'O', '**Perception**: 1d20 (12) + 4 = `16`': 'O',
+                 'Stealth check 15': 'O', 'I step back 10 feet': 'Y', 'I back off 2 squares': 'Y',
+                 'I grab the 3 gold pieces off the table': 'Y', 'I count 4 more bandits by the wagons': 'Y',
+                 'Is the cutthroat down to 5 hp?': 'O', 'Do I add 2 for dex?': 'O', 'I attack goblin 2': 'Y',
+                 'I shove the cutthroat 5 feet away': 'Y', 'I shout "6 of you against me? Fine!"': 'Y',
+                 'I have six darts left, I throw one at the captain': 'Y', 'Six!': 6,
+                 'Cancel my concentration, 6 damage': 6, 'Never mind the captain. 6.': 'O',
+                 'no damage to the prisoner, 5': 'O', 'I drink 1 potion': 'Y', 'Round 2: 6': 'O',
+                 'I rolled a 1 on the die, 6 total': 6, 'nat 20!': 'O', 'I take the Dodge action': 'Y',
+                 'I cast Witch Bolt at the captain': 'H', 'I want to retreat toward the wagon, 2 steps': 'Y'}
+        self.assertEqual(len(cases), 33)
+        for words, outcome in cases.items():
+            with self.subTest(words=words):
+                if outcome == 'O':
+                    self.assertStaysOpen(words)
+                elif outcome == 'Y':
+                    self.assertYields(words)
+                elif outcome == 'H':  # yielded and held for his next turn (it sets its own ask then)
+                    fight, result = self.answered(words)
+                    self.assertEqual(fight['hp']['cutthroat_a'], 11)
+                    self.assertIn('No damage was rolled', result.public_event)
+                    self.assertIn('that waits for your next turn', result.public_event)
+                else:
+                    self.assertLands(words, outcome)
 
     def test_a_stated_amount_beats_a_loose_cancel_word(self):
         for words in ('Scratch that, it was 6 damage.', 'Oops, 6 damage, never mind the earlier number',
