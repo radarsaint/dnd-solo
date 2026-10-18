@@ -111,7 +111,7 @@ The risk named there is the real one. A chat host that trims the first turn will
 
 After the copies are stamped and the ids are closed, split `complete` the way speech retries already work. If the judgment checks pass and a carrier check fails, save the plan and return `retry_fields` naming the carrier. The host resubmits the same decision with those fields replaced. Today that path exists only after `save_kit_plan`, so a `reply_to` miss or a vague `kit_focus` discards the bid, the tactic, and the claim stance and asks for a new scene read.
 
-The second full write is where a turn picks up a contradiction: she answers a rejection by changing the story, not by fixing the quote. Keeping the judgment fixed is both faster and more coherent. Speech retries are capped so a live table does not wait on a loop: since Brendon's 2026-10-14 plan a performance gets one retry, and when the retry is rejected too the engine commits its own `public_event` sentence (`ENGINE_LINE_AFTER_REJECTIONS`), instead of degraded mode after two and abandon-and-prepare after four. The cap should apply to carrier retries too.
+The second full write is where a turn picks up a contradiction: she answers a rejection by changing the story, not by fixing the quote. Keeping the judgment fixed is both faster and more coherent. Speech retries are capped so a live table does not wait on a loop: since Brendon's 2026-10-14 plan, after one failed narration the engine commits its own `public_event` sentence (`ENGINE_LINE_AFTER_REJECTIONS = 1`), instead of degraded mode after two and abandon-and-prepare after four. The cap should apply to carrier retries too.
 
 ### 7. Three decision sizes, picked from the action
 

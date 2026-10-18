@@ -37,7 +37,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 SHEET_DIRS = [REPO / 'tests' / 'fixtures' / 'characters']
 REGRESSION_ROOM = REPO / 'tests' / 'fixtures' / 'level_01_area_06c.json'
-MAX_ATTEMPTS = 4          # host_retry: one retry, then the engine line commits (engine_line)
+MAX_ATTEMPTS = 4          # host_retry: a rejected performance commits the engine line (engine_line)
 DEGRADE_AFTER = 2
 
 DM_PREFACE = (

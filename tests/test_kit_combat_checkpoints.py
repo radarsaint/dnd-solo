@@ -17,6 +17,7 @@ from runtime import kit_combat
 from runtime import kit_reactions
 from runtime.kit_agent import KitChatBridge, PendingRuling, RoomAdjudicator, WindowAnswer
 from runtime.state_context import InvalidChange, Runtime
+from kit_policy import rejections_raise
 
 ROOT = Path(__file__).resolve().parents[1]
 CAMP = ROOT / 'tests' / 'fixtures' / 'rooms' / 'roadcamp.json'
@@ -546,6 +547,7 @@ class KitRaisedInterstitials(ShortBeat):
             self.warn('w2', [kit('That door will ring like a bell when it hits the wall. Still want to?',
                                  'kick the iron door')])
 
+    @rejections_raise  # validator probe (tests/kit_policy.py)
     def test_a_risk_confirm_must_ask(self):
         with self.assertRaisesRegex(InvalidChange, 'question'):
             self.warn('w3', [kit('Whoever is humming in there will hear that door hit the wall.', 'kick the iron door')])

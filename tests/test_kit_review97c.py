@@ -17,6 +17,7 @@ import unittest
 from runtime import kit_acts, kit_agent, kit_combat, kit_triggers
 from runtime.state_context import InvalidChange
 from test_kit_review97b import Room, bridge_turn, crypt, open_tomb
+from kit_policy import rejections_raise
 
 
 def belfry():
@@ -111,6 +112,7 @@ class NoneNeedsAReasonTests(unittest.TestCase):
         with self.assertRaises(InvalidChange):  # a reason goes only with none
             kit_acts.check({'handles': {'target': 'lid', 'act': 'push', 'reason': 'blocked'}}, offer)
 
+    @rejections_raise  # validator probe (tests/kit_policy.py)
     def test_none_with_a_reason_may_not_narrate_the_feature_moving(self):
         for line, text in (('I push the lid aside.', 'The lid grinds aside a hand-width.'),
                            ('I push it.', 'You push. It scrapes.'),
@@ -134,6 +136,7 @@ class NoneNeedsAReasonTests(unittest.TestCase):
                     text='The lid grinds aside.')
         self.assertEqual(room.state['triggers_fired'], ['tomb_opened'])
 
+    @rejections_raise  # validator probe (tests/kit_policy.py)
     def test_another_room_the_bell_rope(self):
         room = Room(self, source=belfry())
         with self.assertRaisesRegex(InvalidChange, 'moving or opening'):

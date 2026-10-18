@@ -124,10 +124,8 @@ class Resend(Layers):
         self.bridge.complete('open', output)
         later, out = self.wait('w1')
         flat = dict(out, performance={'segments': [{'speaker': 'Narrator', 'text': 'Dark.'}]})
-        # One rejection, then the rejected retry commits the engine line (Brendon's 2026-10-14 plan):
-        # that turn counts as the streak.
-        with self.assertRaises(InvalidChange):
-            self.bridge.complete('w1', flat)
+        # A rejected narration commits the engine line (Brendon's 2026-10-14 plan, Nagatha's #127
+        # review: after one failure); that turn counts as the streak.
         self.assertTrue(self.bridge.complete('w1', flat)['engine_line'])
         again, _ = self.wait('w2')
         self.assertIn('body', again['session_manifest'])

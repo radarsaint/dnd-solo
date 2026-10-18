@@ -16,6 +16,7 @@ from runtime import kit_agent, kit_brief, kit_guards, kit_toll
 from runtime.kit_agent import KitAgent, Resolution, RoomAdjudicator
 from runtime.state_context import InvalidChange, Runtime
 from test_kit_agent import FIXTURE, MIRROR, RecordingModel, exchange_speech, with_raised_hooks
+from kit_policy import rejections_raise
 
 SOURCE = json.loads(FIXTURE.read_text())
 FEASIBILITY = json.loads((Path(__file__).parent / 'fixtures/feasibility_room.json').read_text())
@@ -156,6 +157,7 @@ class LiveFailuresSurface(Base):
         with self.assertRaisesRegex(InvalidChange, 'Story hook overdue: the Dealer'):
             agent.turn(LIVE[2], 't3')
 
+    @rejections_raise  # validator probe (tests/kit_policy.py)
     def test_the_toll_and_the_acts_purpose_are_raised_in_character_within_n_beats(self):
         self.start()
         model = Entering()  # follows raise_now, as the instructions say

@@ -1,12 +1,12 @@
 """Brendon's plan (2026-10-14), step 2: answer the open ask before reading a new deed, and commit
-the engine's sentence after a failed narration and its one retry.
+the engine's sentence after one failed narration.
 
 (a) The open-ask gate at the top of RoomAdjudicator.resolve. A hit on his turn with no damage
     holds the turn: the monsters wait for the damage, and the next message (a bare Avrae damage
     field, "4 piercing damage", a bare "4") is its answer. No damage in the message, or an explicit
     cancel, yields the ask: the hit stands with no damage, it was his action, and the round runs on.
     A called check takes a bare roll first; a cancel calls it off.
-(b) A narration rejected twice on one turn commits the engine's public_event sentence.
+(b) A rejected narration commits the engine's public_event sentence (no retry).
 (c) A leveled spell with no slot left fizzles before any roll is asked for (Witch Bolt).
 
 Synthetic roadcamp room (tests/fixtures/rooms), never 6c, for every fight; every die pinned
@@ -135,51 +135,53 @@ class NoSlotFizzlesBeforeTheAsk(unittest.TestCase):
         self.assertNotIn('fizzles', result.public_event)
 
 
-class EngineLineAfterTheRetry(BridgeCase):
+class EngineLineAfterOneFailedNarration(BridgeCase):
     """The audit (kit_agent.py:2247 and :4759): rejected narrations walked to degraded mode, then
-    abandon and prepare again, each another model call. Now one retry, then the engine's line."""
+    abandon and prepare again, each another model call. Nagatha's #127 review: the engine's
+    sentence commits after ONE failed narration (ENGINE_LINE_AFTER_REJECTIONS = 1)."""
 
-    def test_the_first_rejection_is_a_retry_and_says_what_comes_next(self):
+    def test_the_default_is_one_failed_narration(self):
+        self.assertEqual(kit_agent.ENGINE_LINE_AFTER_REJECTIONS, 1)
+
+    def test_one_rejected_narration_commits_the_engine_sentence(self):
         self.staged(NIK_GREETING, 'once', reply_to='Whats going on here?')
-        with self.assertRaises(kit_agent.PerformanceRejected) as caught:
-            self.bridge.finish('once', NIK_REPLY)
-        self.assertEqual(caught.exception.guidance['next_step'], 'retry')
-        self.assertTrue(caught.exception.guidance['engine_line_next'])
-        self.assertIn(kit_agent.ENGINE_LINE_NOTE, str(caught.exception))
-
-    def test_the_rejected_retry_commits_the_engine_sentence(self):
-        self.staged(NIK_GREETING, 'twice', reply_to='Whats going on here?')
-        with self.assertRaises(kit_agent.PerformanceRejected):
-            self.bridge.finish('twice', NIK_REPLY)
-        result = self.bridge.finish('twice', NIK_REPLY)
+        result = self.bridge.finish('once', NIK_REPLY)
         self.assertTrue(result['engine_line'])
+        self.assertEqual(result['revision'], 1, 'committed, no retry asked for')
         record = self.runtime.recent_kit_turns()[-1]
         self.assertEqual(record['spoken'], f"Narrator: {record['public_event']}")
-        self.assertEqual(record['engine_line']['after_rejections'], 2)
-        self.assertEqual(result['revision'], 1, 'committed')
+        self.assertEqual(record['engine_line']['after_rejections'], 1)
+        self.assertIn('Exchange scope', record['engine_line']['last_rejection'], 'the real validator fired')
+        self.assertEqual(self.runtime.kit_timing('once')['rejected_attempts'], 1)
 
     def test_a_hard_check_failure_also_falls_back_to_the_engine_sentence(self):
         self.staged('I take a seat.', 'hard')
         leaky = {'segments': [{'speaker': 'Narrator', 'text': 'The doppelganger smiles.'},
                               {'speaker': 'Dealer', 'text': 'Sit.'}]}
-        with self.assertRaises(kit_agent.PerformanceRejected):
-            self.bridge.finish('hard', leaky)
         result = self.bridge.finish('hard', leaky)
         self.assertTrue(result['engine_line'])
         self.assertNotIn('doppelganger', result['spoken'].casefold())
+        self.assertIn('private fact', self.runtime.recent_kit_turns()[-1]['engine_line']['last_rejection'])
 
-    def test_the_api_turn_commits_the_engine_sentence_after_its_one_retry(self):
+    def test_a_resubmission_after_the_engine_line_returns_what_was_committed(self):
+        self.staged(NIK_GREETING, 'lost', reply_to='Whats going on here?')
+        first = self.bridge.finish('lost', NIK_REPLY)
+        again = self.bridge.finish('lost', {'segments': [{'speaker': 'Narrator',
+                                                          'text': first['spoken'][len('Narrator: '):]}]})
+        self.assertTrue(again.get('already_committed'))
+        self.assertEqual(again['revision'], first['revision'])
+
+    def test_the_api_turn_commits_the_engine_sentence_after_one_failed_narration(self):
         class AlwaysLeaky(RecordingModel):
             def plan(inner, payload):
                 return {**super().plan(payload), 'move': 'npc_reply', 'table_presence': 'quiet'}
 
             def perform(inner, payload, performance_variant='current'):
-                # A hard miss (a private fact): even the degraded retry is rejected.
                 return {'segments': [{'speaker': 'Narrator', 'text': 'The doppelganger smiles.'},
                                      {'speaker': 'Dealer', 'text': 'Sit.'}]}
 
-        result = KitAgent(self.runtime, AlwaysLeaky(), self.adjudicator).turn('I take a seat.', 'api-flat')
-        self.assertEqual(result['timing']['model_calls'], 1 + 2, 'one plan, a narration and its one retry')
+        result = KitAgent(self.runtime, AlwaysLeaky(), self.adjudicator).turn('I take a seat.', 'api-leak')
+        self.assertEqual(result['timing']['model_calls'], 1 + 1, 'one plan and one narration, no retry')
         self.assertTrue(result['timing']['engine_line'])
         self.assertEqual(result['spoken'], f"Narrator: {result['public_event']}")
 

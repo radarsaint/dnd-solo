@@ -2506,12 +2506,12 @@ def performance_limits(scope=None):
 DEGRADED_AFTER_REJECTIONS = 2
 ABANDON_SUGGEST_AFTER = 4
 API_PERFORMANCE_ATTEMPTS = 2
-# Brendon's plan (2026-10-14, step 2b): Kit's narration gets one retry. When the retry is rejected
-# too, the host does not loop on to degraded mode and abandon: the engine's own public_event
-# sentence commits as the turn (engine_line_record), and the table moves on. Every narration a
-# turn has had counts, on either path (bridge finish/complete, or the API turn).
-ENGINE_LINE_AFTER_REJECTIONS = 2
-ENGINE_LINE_NOTE = ('If the next narration for this turn is rejected too, the engine commits its own '
+# Brendon's plan (2026-10-14, step 2b; Nagatha's #127 review): after ONE failed narration the
+# engine's own public_event sentence commits as the turn (engine_line_record) instead of a retry,
+# degraded mode or abandon, and the table moves on. Every rejected output a turn has had counts,
+# on either path (bridge finish/complete, or the API turn).
+ENGINE_LINE_AFTER_REJECTIONS = 1
+ENGINE_LINE_NOTE = ('If the next narration for this turn is rejected, the engine commits its own '
                     'public_event sentence as the turn instead of another retry.')
 # What a decision establishes only by being voiced: dropped when the engine line commits instead.
 ENGINE_LINE_DROPS = ('claims', 'roll_call', 'agenda', 'open_threads', 'risk_confirm',
@@ -2521,9 +2521,9 @@ HOST_RETRY_NOTE = (
     'If finish or complete is rejected, nothing was committed and the decision stays fixed. Read '
     'message and retry_instruction, then submit a new performance for the same turn_id; for '
     'complete, resubmit the identical decision with the new performance. If decide is rejected, '
-    'fix the plan and call decide again. A performance gets one retry: when the retry is rejected '
-    'too, the engine commits its own public_event sentence as the turn (the result says '
-    'engine_line) and the table moves on; show its spoken text. A lost response is safe to retry: '
+    'fix the plan and call decide again. A rejected performance is not retried: the engine '
+    'commits its own public_event sentence as the turn (the result says engine_line) and the '
+    'table moves on; show its spoken text. A lost response is safe to retry: '
     'resubmitting an already committed turn returns the committed result.')
 
 DEGRADED_INSTRUCTION = (
@@ -4778,7 +4778,7 @@ def checked_record(body, plan, speech, performance_variant, source=None, degrade
 
 
 def engine_line_record(body, plan, performance_variant, rejected, rejections):
-    """The turn the engine commits when Kit's narration failed and its one retry failed too: the
+    """The turn the engine commits when Kit's narration failed (ENGINE_LINE_AFTER_REJECTIONS): the
     engine's public_event, spoken by the Narrator (plus a declared act's outcome). Nothing the
     decision would only establish by being voiced (a called check, claims said, agenda moves,
     canon detail) commits with it (turn_events drops ENGINE_LINE_DROPS); the adjudicated and
@@ -4860,7 +4860,7 @@ class KitAgent:
                 except InvalidChange as exc:
                     timing['rejections'].append(str(exc))
                     if len(timing['rejections']) >= ENGINE_LINE_AFTER_REJECTIONS:
-                        # The retry failed too: the engine's sentence is the turn (no third call).
+                        # The narration failed: the engine's sentence is the turn (no further call).
                         record = engine_line_record(body, plan, self.performance_variant, exc,
                                                     len(timing['rejections']))
                         timing['engine_line'] = True
@@ -5538,7 +5538,7 @@ class KitChatBridge:
         except InvalidChange as exc:
             rejected = self._log_rejection(turn_id, exc)
             if self._rejections(turn_id) >= ENGINE_LINE_AFTER_REJECTIONS:
-                # Its one retry failed too: the engine's sentence commits (no third narration).
+                # The narration failed: the engine's sentence commits (no further narration).
                 self.runtime.record_kit_timing(turn_id, engine_line=True)
                 return engine_line_record(body, plan, performance_variant, exc, self._rejections(turn_id))
             raise rejected from exc

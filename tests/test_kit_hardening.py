@@ -19,6 +19,7 @@ from runtime.kit_agent import (KitAgent, KitChatBridge, PendingRuling, RoomAdjud
 from runtime.state_context import (CONTEXT_BUDGET_BYTES, HostSequenceError, InvalidChange,
                                    PERSONALITY_CORE, Runtime, StaleTurn, encode)
 from test_kit_agent import FIXTURE, NIK_GREETING, NIK_FLAT_REPLY as NIK_REPLY, RecordingModel, exchange_speech
+from kit_policy import rejections_raise
 
 SOURCE = json.loads(FIXTURE.read_text())
 CARDS = SOURCE['public_performance']['actor_cards']
@@ -308,6 +309,7 @@ class ParaphraseLeakTests(BridgeCase):
                 self.leak(text)
         self.leak('The dealer fans the cards with a practiced flourish.')
 
+    @rejections_raise  # validator probe (tests/kit_policy.py)
     def test_kit_ruling_voice_is_checked_too(self):
         prepared, plan = self.one_pass('(OOC) Can I tell if the fangs are real just by asking?', 'kit-leak')
         plan.update(table_presence='brief', move='ruling', focus_actor='none')
@@ -389,6 +391,7 @@ class RetryCapTests(BridgeCase):
         self.staged(NIK_GREETING, 'fresh')
         self.assertEqual(self.bridge.finish('fresh', exchange_speech(1, kit=False))['revision'], 1)
 
+    @rejections_raise  # validator probe (tests/kit_policy.py)
     def test_api_path_makes_its_last_attempt_degraded(self):
         class AlwaysFlat(RecordingModel):
             def plan(inner, payload):
@@ -691,6 +694,7 @@ class CardPlayerIdentityTests(BridgeCase):
                       'defeat adventurers, they try to turn them against the Xanathar goblinoids.',
                       SOURCE['room_rules'])
 
+    @rejections_raise  # validator probe (tests/kit_policy.py)
     def test_focus_card_player_reaches_performer_by_label_only(self):
         prepared = self.bridge.prepare('I ask the player by the door what they think.', 'door')
         plan = self.quiet_plan(prepared['input'])

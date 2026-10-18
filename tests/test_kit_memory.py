@@ -14,6 +14,7 @@ from runtime.kit_agent import (KitAgent, KitChatBridge, MEMORY_LIMIT, RoomAdjudi
                                select_episodes)
 from runtime.state_context import InvalidChange, Runtime, STATE_SCHEMA_VERSION, encode
 from test_kit_agent import FIXTURE, KIT_CHOICE, QUIET_EXCHANGE_SPEECH, RecordingModel, exchange_speech, with_raised_hooks
+from kit_policy import rejections_raise
 
 NO_NOTE = {'note': 'none', 'evidence_turns': [], 'replaces': 'none'}
 COIN = 'I say, flipping my lucky silver coin onto the table: this coin never loses.'
@@ -179,6 +180,7 @@ class CallbackTests(MemoryTestCase):
                        'without re-quoting it at length'):
             self.assertIn(phrase, instructions)
 
+    @rejections_raise  # validator probe (tests/kit_policy.py)
     def test_performance_that_ignores_the_callback_is_rejected(self):
         self.play(COIN, 'coin', COIN_SPEECH)
         plan = self._callback_turn(COIN_LINE)
@@ -200,6 +202,7 @@ class CallbackTests(MemoryTestCase):
         plan['public_brief']['callback'] = 'being a doppelganger'
         self.bridge.decide('deal', plan)
 
+    @rejections_raise  # validator probe (tests/kit_policy.py)
     def test_one_pass_host_is_told_how_to_fill_and_use_callback(self):
         self.play(COIN, 'coin', COIN_SPEECH)
         prepared = self.bridge.prepare('Deal me in.', 'fast', one_pass=True)
