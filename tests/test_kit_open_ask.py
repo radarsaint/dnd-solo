@@ -183,6 +183,56 @@ class DamageAnswerFormats(unittest.TestCase):
             with self.subTest(words=words):
                 self.assertStaysOpen(words)
 
+    def test_an_explicit_damage_field_or_amount_beats_save_and_dc_words(self):
+        # Nagatha's review at c17dc15 (High): the never-damage words must not refuse a stated damage.
+        for words in ('Nik attacks with a Dagger!\nwagon-side cutthroat\n**Damage**: 1d4 (3) + 2 = `5`\n'
+                      'Effect: DC 12 save or prone',
+                      'Damage: 5 (they failed the save)', '5 damage, he failed his save',
+                      'Nik casts Thunderwave!\n**DC**: 13\nwagon-side cutthroat: **CON Save**: 1d20 (4) + 1 = `5`; '
+                      'Failure!\n**Damage**: 2d8 (3, 2) = `5`',
+                      '5 damage after his Dex check'):
+            with self.subTest(words=words):
+                self.assertLands(words, 5)
+        self.assertStaysOpen('**Perception**: 1d20 (12) + 4 = `16`')  # the d20 total stays excluded
+
+    def test_several_stated_amounts_apply_the_first_and_say_so(self):
+        # c17dc15 review (Medium): never 0 damage, held as a deed, with two rounds run.
+        for words in ('Dagger 5 damage, sneak attack 4 damage', 'Damage: 1d4 (3) + 2 = 5 Damage: 1d4 (1) + 2 = 3',
+                      '5 piercing damage and 2 fire damage'):
+            with self.subTest(words=words):
+                result = self.assertLands(words, 5)
+                self.assertIn('Only the first damage roll counts (5)', result.public_event)
+                self.assertNotIn('waits for your next turn', result.public_event)
+
+    def test_a_labelled_extra_field_in_the_block_is_the_same_hit(self):
+        for words in ('**Damage**: 1d4 (3) + 2 = `5`\n**Damage (Sneak Attack)**: 1d6 (4) = `4`',
+                      'Nik attacks with a Dagger!\n**Damage (CRIT!)**: 2d4 (3, 2) + 2 = `7`\n'
+                      '**Damage (Sneak Attack)**: 1d6 (2) = `2`'):
+            with self.subTest(words=words):
+                result = self.assertLands(words, 9)
+                self.assertNotIn('Only the first', result.public_event)
+
+    def test_filler_before_a_lone_number_still_counts(self):
+        for words in ('Lol okay. 5', 'ok 5', 'Haha alright, 5', 'Okay so I rolled 5', 'Rolled 5!', 'got 5 total'):
+            with self.subTest(words=words):
+                self.assertLands(words, 5)
+
+    def test_nagathas_c17_cases(self):
+        """/tmp/rvw127/scratch_c17.py, the cases the tests above do not already hold."""
+        for words in ('Nik attacks with a Dagger!\n**Damage**: 1d4 (3) + 2 = `5`', 'Nik casts Witch Bolt!\n**Damage**: 1d12 (5) = `5`',
+                      "that's 5", '5 piercing', 'Total 5.', 'Dagger damage 5'):
+            with self.subTest(words=words):
+                self.assertLands(words, 5)
+        for words in ('Nik stabs again, 5', 'Nik runs for the wagon', 'Running to the wagon, 2 moves'):
+            with self.subTest(words=words):
+                self.assertYields(words)
+        for words in ('Then I stab the captain', 'Stab the captain'):
+            with self.subTest(words=words):
+                fight, result = self.answered(words)
+                self.assertEqual(fight['hp']['cutthroat_a'], 11)
+                self.assertIn('that waits for your next turn', result.public_event)
+        self.assertStaysOpen('5, and I yell at the captain')
+
     def test_nagathas_33_cases(self):
         """/tmp/rvw127/scratch_fp.py, every case: L n lands n, O stays open, Y yields (H: held too)."""
         cases = {'1d4 (2) = 2': 2, '1d4 (4) + 2 = 6': 6, '**Damage (CRIT!)**: 2d4 (3, 1) + 2 = `6`': 6,

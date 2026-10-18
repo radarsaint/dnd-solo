@@ -824,7 +824,8 @@ class RoomAdjudicator:
                                r"(\d{1,3}|[a-z]+(?:-[a-z]+)?)\b(?![\w.]\w)" + _UNIT_AFTER, re.I)
     # Words a message that is just its number may carry ("It's 6.", "That's 6 points", "Six!").
     _FILLER = frozenset("i it its it's was is that thats that's ok okay so um uh just a an the for total points pts "
-                        "deal deals dealt did do roll rolled got yeah yes oh hmm me my and".split())
+                        "deal deals dealt did do roll rolled got yeah yes oh hmm me my and lol haha ha heh alright right "
+                        "sure well fine cool ah er erm huh wow welp yep yup k kk".split())
 
     def _open_ask(self, action, revision, state):
         """(answer, state, yielded): ``answer`` is the Resolution of the open ask this message answers,
@@ -845,11 +846,11 @@ class RoomAdjudicator:
         pending = current.get('pending') if isinstance(current.get('pending'), dict) else {}
         if pending.get('needs') == 'damage' and pending.get('holds_turn') and not waiting and \
                 current.get('status') == 'running' and kit_combat.config(self.source):
-            amount, extra, doubt = self._damage_answer(action)
+            amount, extra, doubt, kind = self._damage_answer(action)
             if self._CANCEL_THE_ROLL.search(narration):
                 cancel = True
             elif amount:
-                return self._answer_damage(action, amount, revision, state, pending, extra), state, None
+                return self._answer_damage(action, amount, revision, state, pending, extra, kind), state, None
             elif doubt or (not cancel and '?' in narration):
                 # A question, or a number that may be a roll but is not read as this damage: Kit
                 # answers it and the ask stays open (a missed answer only re-asks).
@@ -871,40 +872,54 @@ class RoomAdjudicator:
         return None, state, None
 
     def _damage_answer(self, action):
-        """(amount, ignored, doubt) for the open damage ask. ``amount`` is the damage the message
+        """(amount, ignored, doubt, kind) for the open damage ask. ``amount`` is the damage the message
         reports, read only where it is plainly the roll: an Avrae damage field, a stated amount
         ("4 piercing damage"), a dice expression's total ("1d4 (4) + 2 = 6", never a d20), a number
         named as the total or right after rolled/got/damage/dmg, or a message that is just the
         number ("6!", "six", "It's 6."). ``ignored`` counts further damage rolls (only the first
-        counts). ``doubt``: no amount, but a number that might be a roll (a bare d20 line, a check,
+        counts; a labelled extra field of the same Avrae block, "Damage (Sneak Attack)", adds to it).
+        An explicit damage field or "N damage" wins over save, DC and check words. ``doubt``: no amount, but a number that might be a roll (a bare d20 line, a check,
         save or natural, a question, a bare number among other words that are no deed): the ask
         stays open. A labelled to-hit or an initiative is a new attack: (None, 0, False). With a question in the message
         only a dice line or a stated "N damage" answers."""
-        text = action.translate(_TYPOGRAPHIC)
+        # Two damage fields run together on one line are two fields ("Damage: ... = 4 Damage: ... = 3").
+        text = re.sub(r'(?<=\S)[ \t]+(?=\**damage\b[^:\n]{0,30}:)', '\n', action.translate(_TYPOGRAPHIC), flags=re.I)
         words = QUOTED_SPEECH.sub(' ', text)
         plain = kit_rolls.without_dice(re.sub(r'[*`_~]+', '', words))
         numbers = [m for m in self._NUMBER.finditer(plain)]
         try:
+            stated = kit_rolls.damage(text)
             if kit_rolls.attack_total(text) is not None or kit_rolls.initiative(text) is not None:
                 # A labelled to-hit or initiative is a new attack (it yields and waits); a bare d20
-                # line could be that or a check, so the ask stays open.
-                said = re.search(r'\bto[- ]?hit\b|\battack|\binit(?:iative)?\b', words, re.I)
-                return None, 0, not said
+                # line could be that or a check, so the ask stays open. A stated damage with no to-hit
+                # label ("sneak attack 4 damage") is the damage, never a new deed.
+                said = re.search(r'\bto[- ]?hit\b|\binit(?:iative)?\b', words, re.I) or \
+                    (not stated and re.search(r'\battack', words, re.I))
+                if said or not stated:
+                    return None, 0, not said, None
             found = kit_rolls.avrae(text)
-            amount, _ = kit_rolls.damage_total(text)
+            amount, kind = kit_rolls.damage_total(text)
         except InvalidChange:
-            return None, 0, False
+            return None, 0, False, None
+        # An explicit damage field or "N damage" wins over save, DC and check words (Thunderwave's
+        # "CON Save" line, "he failed his save"); only then do those words mark a number as no damage.
+        if amount:
+            extra = self._extra_fields(text)
+            if extra is not None:
+                return extra[0], extra[1], False, kind
+            if found and found['damage']:
+                fields = [a for a, _, t in found['damage'] if t is None]
+                return amount, max(len(fields) - 1, 0), False, kind
+            first, first_kind = stated[0] if stated else (amount, kind)
+            return first, max(len(stated) - 1, 0), False, first_kind
         rolled = bool(numbers) or bool(re.search(r'\d', words))
         if rolled and self._NOT_DAMAGE.search(words):
-            return None, 0, True
-        if amount:
-            fields = [a for a, _, t in (found or {}).get('damage') or () if t is None]
-            return amount, max(len(fields) - 1, 0), False
+            return None, 0, True, None
         totals = [total for total in kit_rolls.dice_totals(text) if total > 0]
         if totals:
-            return totals[0], len(totals) - 1, False
+            return totals[0], len(totals) - 1, False, None
         if '?' in words:
-            return None, 0, rolled
+            return None, 0, rolled, None
         named = [int(m.group(1) or m.group(2)) for m in self._NAMED_TOTAL.finditer(plain)]
         rest = re.findall(r"[a-z']+", re.sub(r'\d+', ' ', plain.casefold()))
         spelled = [w for w in rest if self._spelled(w)]
@@ -914,15 +929,37 @@ class RoomAdjudicator:
                 if value:
                     named.append(value)
             if named and len(numbers) + len(spelled) > len(named):
-                return None, 0, True  # "I rolled a 4 and a 2": which one?
+                return None, 0, True, None  # "I rolled a 4 and a 2": which one?
         if named:
-            return (named[0], 0, False) if len(named) == 1 and named[0] > 0 else (None, 0, True)
+            return (named[0], 0, False, None) if len(named) == 1 and named[0] > 0 else (None, 0, True, None)
         if len(numbers) + len(spelled) == 1 and all(w in self._FILLER or self._spelled(w) for w in rest):
             value = int(numbers[0].group(1)) if numbers else self._spelled(spelled[0])
-            return (value, 0, False) if value > 0 else (None, 0, True)
+            return (value, 0, False, None) if value > 0 else (None, 0, True, None)
         if not numbers or self._deed(plain):
-            return None, 0, False  # no number, or a deed with a number in it: the ask yields as before
-        return None, 0, True
+            return None, 0, False, None  # no number, or a deed with a number in it: the ask yields as before
+        return None, 0, True, None
+
+    _DAMAGE_FIELD = re.compile(r'^\s*(?:[^:\n]{1,40}:\s*)?damage\s*(?:\(([^)\n]*)\))?\s*:\s*(.*)$', re.I | re.M)
+
+    def _extra_fields(self, text):
+        """(amount, ignored) when the Avrae output carries a labelled extra damage field
+        ("**Damage (Sneak Attack)**: 1d6 (4) = `4`"): it is the same hit, so it adds to the damage
+        field before it. Further unlabelled damage fields are further rolls (ignored, and said).
+        None when there is no labelled extra field (the plain reading stands)."""
+        mains, extras_of_first, seen_extra = [], 0, False
+        for label, value in self._DAMAGE_FIELD.findall(re.sub(r'[*`_~]+', '', text)):
+            total = re.search(r'=\s*(-?\d{1,3})\s*(?:\S.*)?$', value) or re.match(r'\s*(\d{1,3})\b', value)
+            if not total:
+                continue
+            if label and not re.fullmatch(r'\s*crit!?\s*', label, re.I):
+                seen_extra = True
+                if len(mains) <= 1:
+                    extras_of_first += int(total.group(1))
+            else:
+                mains.append(int(total.group(1)))
+        if not seen_extra:
+            return None
+        return (mains[0] if mains else 0) + extras_of_first, max(len(mains) - 1, 0)
 
     @staticmethod
     def _spelled(word):
@@ -943,10 +980,12 @@ class RoomAdjudicator:
         word = opened.group(1).casefold() if opened else ''
         return bool(word) and word not in self._NOT_A_DEED and not self._spelled(word)
 
-    def _answer_damage(self, action, amount, revision, state, pending, ignored=0):
+    def _answer_damage(self, action, amount, revision, state, pending, ignored=0, kind=None):
         """The damage roll his held hit was waiting on: it lands on that target, then his turn ends
         and the round runs on. A second damage roll in the message is said to be ignored."""
-        text = action if kit_rolls.damage_total(action)[0] else f'{amount} damage'
+        # The fight reads the amount read here, never the message again (a second roll in it, a
+        # run-together field, a labelled extra field): "N <type> damage".
+        text = f"{amount} {kind + ' ' if kind else ''}damage"
         fight = self._fight(text, revision, state)
         act = {'kind': 'attack', 'target': pending['target'], 'weapon': pending.get('weapon'), 'area': False,
                **({'spell': pending['spell']} if pending.get('spell') else {})}
