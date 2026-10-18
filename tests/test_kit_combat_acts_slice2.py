@@ -6,8 +6,8 @@ bridge, kiln, shrine; sheets: rogue, warlock, wizard. Dice pinned."""
 import copy
 import unittest
 
-from runtime.kit_agent import KitChatBridge, PendingRuling
-from runtime.state_context import InvalidChange
+from runtime.kit_agent import KitChatBridge, PendingRuling, pending_ruling_result
+from runtime.state_context import HostSequenceError, InvalidChange
 from test_kit_agent import RecordingModel
 from test_kit_combat_acts_retarget import A, kiln, shrine, ud_bridge, absorber
 from test_kit_review101c import Arena, KILN_OPEN, clause_log, rogue, warlock, without_shield, wizard
@@ -44,21 +44,32 @@ class DeclarationWinsOverAPendingRuling(unittest.TestCase):
         self.assertIn('fall back out of reach', result['spoken'])
         self.assertGreater(arena.fight['pc_damage'], before)
 
-    def test_she_must_answer_it(self):
+    def test_leaving_it_out_is_mains_turn(self):
+        # The #122 audit (2026-10-18): an omitted required key declares nothing, so the turn falls
+        # back to main's pending ruling like null and [] (test_kit_combat_acts_fallback), not a rejection.
         arena = kiln(self, warlock(hp=60, gear=['dagger']))
         bridge = KitChatBridge(arena.runtime, arena.adjudicator)
         packet = bridge.prepare('I back away 10 feet.', 'm', one_pass=True)
-        with self.assertRaisesRegex(InvalidChange, 'acts.combat_acts is offered'):
-            bridge.complete('m', {'decision': plan_for(packet), 'performance': {'segments': [
+        plan = plan_for(packet)
+        self.assertNotIn('combat_acts', plan)
+        with self.assertRaises(PendingRuling) as caught:
+            bridge.complete('m', {'decision': plan, 'performance': {'segments': [
                 {'speaker': 'Narrator', 'text': 'You step back.'}]}})
+        self.assertNotIsInstance(caught.exception, InvalidChange)
+        with self.assertRaises(HostSequenceError):
+            arena.runtime.pending_kit_turn('m')
 
     def test_an_object_act_she_declares_is_the_ruling_and_nothing_commits(self):
         arena = kiln(self, warlock(hp=60, gear=['dagger']))
         before = copy.deepcopy(arena.fight)
-        _, result = turn(arena, 'I push the kiln door shut, then stab the slinger, 16 to hit, 3 piercing.', [
-            A('object', 1, says='push the kiln door shut'),
-            A('attack', 2, target='archer', weapon='dagger', roll='16 to hit, 3 piercing')])
-        self.assertIn("needs the DM's call", result['spoken'])
+        turns = arena.runtime.recent_kit_turns(limit=5)
+        with self.assertRaises(PendingRuling) as caught:  # the #122 audit: raised, no beat committed
+            turn(arena, 'I push the kiln door shut, then stab the slinger, 16 to hit, 3 piercing.', [
+                A('object', 1, says='push the kiln door shut'),
+                A('attack', 2, target='archer', weapon='dagger', roll='16 to hit, 3 piercing')])
+        self.assertIn("needs the DM's call", pending_ruling_result(caught.exception)['player_message'])
+        self.assertEqual([c['outcome'] for c in caught.exception.clauses], ['ruling', 'waits'])
+        self.assertEqual(arena.runtime.recent_kit_turns(limit=5), turns)
         self.assertEqual(arena.fight['hp'], before['hp'])
         self.assertEqual(arena.fight['pc_damage'], before['pc_damage'])
 

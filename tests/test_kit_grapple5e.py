@@ -6,7 +6,7 @@ import copy
 import unittest
 
 from runtime import kit_combat
-from runtime.kit_agent import pending_ruling_result
+from runtime.kit_agent import PendingRuling, pending_ruling_result
 from test_kit_review101c import clause_parser, Arena, KILN_OPEN, rogue, ruling_of, without_shield, wizard
 
 
@@ -90,8 +90,10 @@ class KitVoicePending(unittest.TestCase):
     def test_hold_the_line_is_said_in_kits_voice(self):
         arena = bridge(self, rogue(), 10)
         before = copy.deepcopy(arena.fight)
-        result = self.declared(arena, 'I hold the line.', [{'kind': 'object', 'order': 1, 'says': 'hold the line'}])
-        said = result['public_event']
+        # The #122 audit: her ruling raises and commits nothing; its own line is what the player gets.
+        with self.assertRaises(PendingRuling) as caught:
+            self.declared(arena, 'I hold the line.', [{'kind': 'object', 'order': 1, 'says': 'hold the line'}])
+        said = pending_ruling_result(caught.exception)['player_message']
         self.assertIn('hold the line', said.casefold())
         self.assertNotIn("That one needs the DM's call. Say a little more", said)
         for word in ('slice', 'committed', 'ruling', 'engine'):

@@ -784,7 +784,8 @@ class RoomAdjudicator:
     def _declare_instead(self, exc, action, revision, state):
         """A deed main's parser could not read, on his turn in a running fight: nothing is
         resolved from the words; the turn offers combat_acts and Kit must declare it (her
-        declaration wins; an object or environment act she declares is the ruling)."""
+        declaration wins; an object or environment act she declares is the ruling). Declaring
+        none, or leaving the key out, hands the turn back to main (mains_if_undeclared)."""
         if is_ooc(action) or (self.choice or {}).get('combat_acts') is not None or \
                 not str(exc).startswith(self.UNREAD):
             return None
@@ -4394,6 +4395,19 @@ def _entering(source, body):
         _area_id(source, body.get('public_view')) in inside
 
 
+def mains_if_undeclared(body, plan):
+    """#122: main's pending ruling for a message offered to Kit as combat_acts when her decision
+    declares none: the key omitted, null or []. An omitted required key is no declaration, so it
+    falls back to main's routing like the others (not a rejection). None otherwise."""
+    fallback = ((body.get('acts') or {}).get('combat_acts') or {}).get('fallback')
+    if not fallback or not isinstance(plan, dict) or kit_acts.declared(plan, 'combat_acts') is not None:
+        return None
+    exc = PendingRuling(fallback['message'], attempt=fallback['attempt'])
+    if fallback.get('player_line'):
+        exc.player_line = fallback['player_line']
+    return exc
+
+
 def declare(runtime, adjudicator, body, plan):
     """``body`` plus the engine's outcome of the acts Kit declared (runtime/kit_acts.py): the
     handled feature's line, what it holds, the trigger it sets off; the downed PC's foes'
@@ -4410,15 +4424,11 @@ def declare(runtime, adjudicator, body, plan):
     if acts.get('combat_acts'):
         # Kit declared the turn's combat acts: they replace the engine's read of the words, on
         # the state before this turn, entry by entry (runtime/kit_combat_acts.py).
+        # A ruling she declared, or an Avrae ask, raises PendingRuling: nothing in the message
+        # commits, not even a beat. The bridge drops the staged turn and holds the input as main's
+        # prepare would (KitChatBridge._declared); the API path raises it as prepare_turn does.
         revision, before = runtime.load()
-        try:
-            fought = adjudicator.resolve(body['action'], revision, before, choice={'combat_acts': plan['combat_acts']})
-        except PendingRuling as exc:
-            # A ruling she declared, or an Avrae ask: said, and nothing in the message commits.
-            shown = pending_ruling_result(exc)
-            fought = Resolution('physical_act', shown['player_message'], [
-                {'type': 'beat', 'tags': ['combat_declare', 'pending'],
-                 'evidence': f"Player declared: {body['action']}. Resolution: {shown['message']}"}])
+        fought = adjudicator.resolve(body['action'], revision, before, choice={'combat_acts': plan['combat_acts']})
         body = {**body, 'events': list(fought.events), 'public_event': fought.public_event,
                 'kind': fought.kind, 'combat_acts': acts['combat_acts']}
         acts = {field: value for field, value in acts.items() if field != 'combat_acts'}
@@ -4760,6 +4770,9 @@ class KitAgent:
             plan = self.model.plan(planning_input)
             timing['model_calls'] += 1
             timing['plan_s'] = round(time.monotonic() - call_started, 3)
+            held = mains_if_undeclared(body, plan)
+            if held is not None:
+                raise held  # main's prepare_turn would have raised it
             # Checks use the full memory, as the bridge does; the packet's episodes are a
             # slimmed view (episode_views).
             check_decision(self.runtime, plan, kit_memory(self.runtime, self.runtime.load()[1],
@@ -4795,6 +4808,9 @@ class KitAgent:
             outcome = 'committed'
         except StaleTurn:
             outcome = 'stale'
+            raise
+        except PendingRuling:
+            outcome = 'held'  # main's pending ruling: nothing committed
             raise
         finally:
             timing['outcome'] = outcome
@@ -5126,17 +5142,13 @@ class KitChatBridge:
 
     def _mains_if_undeclared(self, turn_id, pending, plan):
         """#122: a message main's parser could not read was offered to Kit as combat_acts. If she
-        declares none (null or []), the turn is main's entirely: the staged turn is dropped and
+        declares none (the key omitted, null or []), the turn is main's entirely: the staged turn is dropped and
         main's pending ruling is raised exactly as prepare would have (_held). Nothing is synthesized."""
         body = pending['body']
-        fallback = ((body.get('acts') or {}).get('combat_acts') or {}).get('fallback')
-        if not fallback or not isinstance(plan, dict) or 'combat_acts' not in plan or \
-                kit_acts.declared(plan, 'combat_acts') is not None:
+        exc = mains_if_undeclared(body, plan)
+        if exc is None:
             return
         self.runtime.discard_pending_kit_turn(turn_id)
-        exc = PendingRuling(fallback['message'], attempt=fallback['attempt'])
-        if fallback.get('player_line'):
-            exc.player_line = fallback['player_line']
         self._held(body['action'], exc)
 
     def _stage(self, turn_id, revision, body, planning_input, one_pass, performance_variant, started, clock, stamps):
@@ -5380,7 +5392,7 @@ class KitChatBridge:
         if pending['plan'] is None:
             raise HostSequenceError('Complete private decision before performance: call decide '
                                     'with the private decision first, then finish.', 'decide')
-        body = self._declared(pending['body'], pending['plan'])
+        body = self._declared(turn_id, pending['body'], pending['plan'])
         self._check_degraded_allowed(turn_id, degraded)
         variant = (self.runtime.kit_timing(turn_id) or {}).get('performance_variant', 'current')
         record = self._checked_or_log(turn_id, body, pending['plan'], speech, variant, degraded)
@@ -5392,8 +5404,22 @@ class KitChatBridge:
             record, consume_pending=True)
         return self._committed_result(turn_id, revision, body, record, variant)
 
-    def _declared(self, body, plan):
-        return declare(self.runtime, self.adjudicator, body, plan)
+    def _declared(self, turn_id, body, plan):
+        """declare(), and for a declared act that needs a ruling or an Avrae roll, main's hold:
+        the staged turn dropped, the input held (_held), nothing committed."""
+        try:
+            return declare(self.runtime, self.adjudicator, body, plan)
+        except PendingRuling as exc:
+            self.runtime.discard_pending_kit_turn(turn_id)
+            shown = pending_ruling_result(exc)
+            try:
+                self._held(body['action'], exc)
+            except PendingRuling as held:
+                # Her ruling's own line and per-entry outcomes reach the player, not a generic one.
+                held.player_line = shown['player_message']
+                if getattr(exc, 'clauses', None):
+                    held.clauses = exc.clauses
+                raise
 
     def _committed_result(self, turn_id, revision, body, record, variant):
         handoff = (body.get('declared') or {}).get('handoff')
@@ -5577,7 +5603,7 @@ class KitChatBridge:
             except InvalidChange as exc:
                 raise self._log_rejection(turn_id, exc) from exc
         self.runtime.save_kit_plan(turn_id, revision, plan)
-        body = self._declared(body, plan)
+        body = self._declared(turn_id, body, plan)
         # Turns staged before variants reached one-pass ran the `current` instructions.
         variant = body.get('performance_variant', 'current')
         record = self._checked_or_log(turn_id, body, plan, output['performance'], variant, degraded)

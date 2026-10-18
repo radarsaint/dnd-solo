@@ -172,9 +172,19 @@ def to_act(entries, source, state):
                 found = reactions[key]
                 names = sorted({found.get('name', '').casefold(), key.replace('_', ' ')} - {''}, key=len, reverse=True)
                 events = [e for e in ((state.get('combat') or {}).get('unprompted') or ()) if key in e['options']]
-                event = next((e for e in events if e.get('attacker') == target), events[0] if events else None)
-                act = {'kind': 'late_reaction', 'target': (event or {}).get('attacker', target), 'react': key,
-                       'event': event, 'names': names, 'avrae': bool(re.search(r'!cast|\bcasts\b', text, re.I))}
+                # The event it answers is matched, never guessed: the named attacker's latest hit,
+                # else, unnamed, the latest when one foe hit him. Two foes and no name, or a named
+                # foe with no hit it could answer, is a refusal the engine voices; nothing at all to
+                # answer stays the engine's own fizzle (pc_late_reaction).
+                own = [e for e in events if e.get('attacker') == target] if target else events
+                event = own[-1] if own else None
+                if target and events and not own:
+                    refuse = f'there is no hit from the {str(labels.get(target, target)).lower()} for it to answer'
+                elif not target and len({e.get('attacker') for e in events}) > 1:
+                    refuse = 'more than one foe hit you since your turn: say whose hit it answers'
+                if not refuse:
+                    act = {'kind': 'late_reaction', 'target': (event or {}).get('attacker', target), 'react': key,
+                           'event': event, 'names': names, 'avrae': bool(re.search(r'!cast|\bcasts\b', text, re.I))}
                 text = text or ' '.join(names)
         elif kind == 'grapple':
             act = {'kind': 'grab', 'target': target, 'contest': True, 'teeth': False, 'wrist': False}
