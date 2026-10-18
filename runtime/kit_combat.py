@@ -1205,7 +1205,12 @@ class Fight:
             if int(level) < int(need) or not slot or slot['used'] >= slot['max']:
                 return refuse(f'There is no level {level} slot left for {name} on the sheet.',
                               f'there is no level {level} slot left for it')
-        self.fight.pop('unprompted', None)
+        # Only the event this reaction answers leaves the queue; the round's others stay his to answer.
+        queue = [e for e in (self.fight.get('unprompted') or []) if e is not event and e != event]
+        if queue:
+            self.fight['unprompted'] = queue
+        else:
+            self.fight.pop('unprompted', None)
         self.resources, slot = kit_reactions.spend(self.resources, react, level)
         self.resources_changed = True
         self.trace.append(f"PC declares {react} for the unprompted {event['trigger']} by {event.get('attacker')}"
@@ -2668,6 +2673,8 @@ class Fight:
                 self.lines.append(f'Roll the {spell.title()} damage in Avrae.')
                 return False
             ability, half, _ = SPELL_SAVE[spell]
+            if self.fizzle_without_slot(spell):
+                return True
             hits, rows = [], []
             # Avrae's own per-target results count when a target there is one of these NPCs.
             posted_targets = {}
@@ -2747,6 +2754,8 @@ class Fight:
             self.lines.append(f'Roll the attack for your {what} in Avrae, with its damage.')
             return False
         key = targets[0]
+        if spell and self.fizzle_without_slot(spell):
+            return True
         if spell:
             self.spend_own_slot(spell)
         self.melee(key, weapon)  # melee blows engage (default, no room data needed)
@@ -2784,6 +2793,22 @@ class Fight:
         if level is None and spell and pending.get('weapon') == spell:
             level = pending.get('slot_level')
         return {'slot_level': level} if level else {}
+
+    def fizzle_without_slot(self, spell):
+        """A leveled spell he casts with no slot left by the count (at its level or higher) fizzles:
+        no effect, the action is still spent, and it is said. True when it fizzled."""
+        known = kit_reactions.spells(self.sheet).get(kit_reactions.ident(spell)) or {}
+        if not known.get('level'):
+            return False
+        named = self.cast_slot(spell).get('slot_level')
+        level = named if named and named >= int(known['level']) else known['level']
+        if kit_reactions.free_slot(self.resources, level) is not None:
+            return False
+        self.trace.append(f'{spell}: no level {level}+ slot left by the count, it fizzles')
+        self.lines.append(f'You have no level {level} slot left, so your {spell.title()} fizzles. '
+                          f'Your action is spent.')
+        self.fight['pending'] = None
+        return True
 
     def spend_own_slot(self, spell):
         """A leveled spell the PC cast on his turn uses a slot (his Avrae cast is the truth; the engine

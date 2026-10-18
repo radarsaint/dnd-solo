@@ -2,40 +2,43 @@
   "schema": "kit_project_gardener_state/v1",
   "purpose": "RESUMABILITY_CURSOR_NOT_KNOWLEDGE_STORE",
   "canonical_location": "radarsaint/dnd-solo/coordination/context_state.json",
-  "state_revision": 18,
+  "state_revision": 27,
   "semantic_brain": {
     "repo": "radarsaint/dnd-solo",
     "path": "docs/PROJECT_UNDERSTANDING.md",
-    "last_semantic_commit": "f42eff46971792c18d8d7213f739791670025a72",
-    "last_reviewed_on": "2026-10-13"
+    "last_semantic_commit": "0458d5aefa33dc791844de2755c81635de5b320a",
+    "last_reviewed_on": "2026-10-17"
   },
   "checkpoint": {
     "reviewed_against_main": {
-      "radarsaint/dnd-solo": "f42eff46971792c18d8d7213f739791670025a72",
-      "radarsaint/bfdm-corpus": "6795362e967e89230086afc28c04450cc7d0cce4"
+      "radarsaint/dnd-solo": "249a092eec4913ca6bb46faced056f55f5089df8",
+      "radarsaint/bfdm-corpus": "f5f6e4d48aed32e3f4ddfdf70cbdcd5fe6e27b2d"
     },
     "context_inbox": {
       "repo": "radarsaint/dnd-solo",
       "issue": 115,
       "issue_state_at_checkpoint": "open",
-      "last_fully_reconciled_comment_id": 6154618488,
-      "comment_count_at_checkpoint": 10
+      "last_fully_reconciled_comment_id": 6202184874,
+      "comment_count_at_checkpoint": 16
     }
   },
   "last_completed_pass": {
     "kind": "BOUNDED_SEMANTIC_RECONCILIATION",
-    "completed_on": "2026-10-13",
-    "scope": "Reviewed #97 merge e94e9fdd / head 9ba4083 and #115 comment 6154618488 (round-7 sealed-feature refinement). Accepted. #101 delta remains deferred.",
-    "result": "Accepted: #97 is on main. Brain records structured handles, sealed features, player-rolled saves, house-rule ties. #101 remains open and unmerged. G5 and G6 stay open.",
-    "resulting_brain_commit": "f42eff46971792c18d8d7213f739791670025a72",
-    "reconciled_comment_id": 6154618488
+    "completed_on": "2026-10-17",
+    "scope": "Reviewed bfdm-corpus #51 (catalog status alignment with owner attestation and reconciled files) merge, plus resulting mains; no new #115 comments beyond 6202184874.",
+    "result": "Accept: #51 corrects 28 attested containers from UNVERIFIED_AUTHORSHIP scope endings, 13 reconciled containers from DISCOVERED_NOT_INDEXED to RECONCILED_UNREVIEWED, and BCS-000021 review_status. Creator/copyright unchanged; passage text remains unverified; Season 3 judgments not restamped. Brain already reflects attestation and source presence; no brain edit required. No new inbox comments. G5/G6 and other unresolved items remain open.",
+    "resulting_brain_commit": "0458d5aefa33dc791844de2755c81635de5b320a",
+    "reconciled_comment_id": 6202184874
   },
   "active_pass": null,
   "unresolved": [
     "Issue #118 G5 is unmet.",
     "ChatGPT Project source membership remains a manual Project-UI change. G6 stays open.",
     "Legacy paid play route removal is pending with Skippy.",
-    "PR #101 combat checkpoints reaction model is pending review and unmerged; reconcile its semantic claims only after merge."
+    "Post-#101 combat/engine items (open-ask gate at RoomAdjudicator.resolve, public_event fallback after failed narration, #122 Kit-declared combat_acts) are still pending.",
+    "PR #122 Kit-declared combat_acts is draft; word-matching parser ends only after it lands. Main default path unchanged.",
+    "#115 comment 6158450658 plan items beyond the two #101 fixes are not fixed on main.",
+    "Legitimate Mad Mage opening remains blocked on missing room files and source-to-room authoring. No executable non-6c authored location."
   ],
   "needs_review": [],
   "checkpoint_rules": {

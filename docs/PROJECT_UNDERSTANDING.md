@@ -4,8 +4,8 @@
 **Status:** canonical on `dnd-solo/main` after Brendon-approved merges of #113 and #117 on 2026-10-08. It is no longer a proposed side-branch draft.  
 **Canonical location:** `radarsaint/dnd-solo/docs/PROJECT_UNDERSTANDING.md`  
 **Sibling repository:** `radarsaint/bfdm-corpus`  
-**Last substantive refresh:** 2026-10-13  
-**Context reviewed against:** `dnd-solo/main @ e94e9fdd53381a504d649386f8978674837da71d`; `bfdm-corpus/main @ 6795362e967e89230086afc28c04450cc7d0cce4`
+**Last substantive refresh:** 2026-10-17  
+**Context reviewed against:** `dnd-solo/main @ 93453a0b7cc04bfd69d7243b00dc60c0818ed740`; `bfdm-corpus/main @ abe036c5584b8ecbb2977128f8fef92728a0673d`
 
 > This document is the project's current **semantic model**: what we are building, where we are, why we got here, what changed our thinking, how the major workstreams fit together, what we currently believe, what remains uncertain, and where the evidence points next.
 >
@@ -51,6 +51,8 @@ The project is **past the stage where its main problem can honestly be described
 
 The current runtime is materially beyond the original Area 6c prototype. It has a generalized chat-hosted SQLite substrate, room loading, hidden-information projection, claims/knowers, agendas, attitudes, persistence, one-pass and staged execution, bounded procedures and combat, manifests, retry/idempotency support, and a large mechanical test surface.
 
+Player-facing `start` and `init` with no `--room` no longer mount Area 6c or load a default character (Wren). They return `campaign_entry` (or `resume` if the save already holds a game) and do not create a database. The campaign is Dungeon of the Mad Mage. Its start—the Yawning Portal then Level 1 Area 1—is not a room file. Source-to-room authoring is not built. `rooms/level_01_area_17a.json` is a stub; the host is told not to invent a room. Area 6c mounts only with explicit `--regression --room tests/fixtures/level_01_area_06c.json`. A legitimate Mad Mage opening remains blocked on missing room files and source-to-room authoring. dnd-solo #124 merged as `219f6e0478e153e73e7e10a73851036f7228d940` (2026-10-16).
+
 The research substrate has also advanced. BFDM PR #40 merged on 2026-10-08: the catalog now holds 195 BCS identities through BCS-000195, with 193 indexed source containers (BCS-000059 is context-only; BCS-000068 is an excerpt without a source container). Model-facing Discord retrieval exists, and the old Git LFS opacity problem should not be restarted. The remaining missing revisions, Rowing Oak imagery, Bodfish Google Site, partial Earthfall/Saturday Project histories, and known-source gaps remain explicit archival work dependent on source access. Accessible evidence is not semantically verified judgment research.
 
 The important bottlenecks have moved upward.
@@ -58,7 +60,7 @@ The important bottlenecks have moved upward.
 Right now the project has three major confidence gaps:
 
 1. **Current player-experience truth.** Runtime implementation advanced faster than sustained Brendon-facing evaluation. Several old failures may no longer be current, while several intended fixes have not yet proved themselves in ordinary play.
-2. **BFDM derived-research trust.** Source accessibility is strong enough for serious research, but polished derived work is not automatically trustworthy. The active forensic audit exists because citations and locators can still reconstruct incorrectly or support claims too broadly.
+2. **BFDM derived-research trust.** Source accessibility is strong enough for serious research, but polished derived work is not automatically trustworthy. The forensic integrity audit (now on main as first-tranche staging) exists because citations and locators can still reconstruct incorrectly or support claims too broadly.
 3. **Shared project understanding.** Capable AI workers have repeatedly entered the project with different mental models, forcing Brendon to rebuild context, correct resource identities, explain what has already been solved, or stop agents from treating proxies as outcomes. The project itself now needs to carry that semantic continuity.
 
 This means the current program is increasingly about **turning uncertainty into evidence and keeping the resulting understanding coherent**, rather than reflexively adding more architecture.
@@ -126,7 +128,7 @@ Its near-term job is to reconcile and land known runtime work, close demonstrate
 
 Current demonstrated blocker classes include:
 - player-roll ownership / Let It Ride behavior (#103);
-- incomplete combat transitions and related state handling (#101 still open; #97 monster-initiated combat landed);
+- incomplete combat transitions and related state handling (#97 monster-initiated combat and #101 combat checkpoints landed);
 - validator functional floors rewarding length over functional completeness (#102);
 - at least one deliberate social-omission recognition gap (#73).
 
@@ -146,7 +148,7 @@ The corpus is sufficiently accessible for serious work.
 
 The current research priority is trust: verify high-leverage derived claims against primary evidence, attack attractive hypotheses adversarially, find restraint/non-intervention cases that visible-action research can miss, and reconstruct failure -> diagnosis -> correction -> later-behavior trajectories.
 
-PR #28 remains useful as a hypothesis map rather than a gold-label foundation. PR #38 is active forensic integrity work and demonstrates why semantic verification matters.
+PR #28 remains useful as a hypothesis map rather than a gold-label foundation. PR #38 merged to bfdm-corpus main as `2b68820d445e9f6d99d021463bfd76b2f7bb257d` (2026-10-16): first-tranche derived-research integrity staging for 20 Roanoke S3 cases. No corpus-wide semantic certification. BDC-S3-004 prep locators remain ORIGINAL_REPRESENTATION_UNAVAILABLE / SUPPORT_NOT_FOUND; Discord does not repair them. Several propositions are PARTIALLY_SUPPORTED or SCOPE_OVERCLAIMED. Reusable judgments in the tranche are not verified for transfer. The audit does not put claims into Kit.
 
 Stage 3 precedent/minimal-cognition experiments should consume evidence whose lineage and confidence are explicit. Stage 4 heavier cognition architecture remains later.
 
@@ -192,65 +194,39 @@ That distinction is now central to any attempt to turn BFDM findings into cognit
 
 ### Approved cleanup retired the in-repo corpus mirror
 
-On 2026-10-13, #114 merged as `c9ce777729b77610944314b544cad709becbfe2d` and removed the obsolete in-repo BFDM mirror. There is no `corpus/` directory on `dnd-solo` main. `radarsaint/bfdm-corpus` is the only corpus. #121 merged as `a62bc0c70ead981f5175c632c71867d2fb2d91c4` and salvaged historical design notes, the Roanoke Discord exporter, and a 2026-09-28 playtest onto main; those files are repository history, not proof of player-facing quality. Superseded PRs #5, #11, #23, #36, #38, #43, #44 and issue #35 are closed. 87 stale branches were deleted. The legacy paid play route remains in `runtime/kit_agent.py` until Skippy removes it. Do not restart finished cleanup or treat the closed items as active direction.
+On 2026-10-13, #114 merged as `c9ce777729b77610944314b544cad709becbfe2d` and removed the obsolete in-repo BFDM mirror. There is no `corpus/` directory on `dnd-solo` main. `radarsaint/bfdm-corpus` is the only corpus. #121 merged as `a62bc0c70ead981f5175c632c71867d2fb2d91c4` and recorded the post-#101 combat items remaining. The rest of the document continues unchanged.
 
-### Monster-initiated combat landed via structured handles and sealed features
+## 2. Authority map
 
-On 2026-10-13, #97 merged as `e94e9fdd53381a504d649386f8978674837da71d` (head `9ba408382698c2acaf3d72767e5e828c8f755e38`). Disturb triggers now fire only from Kit's structured `handles: {target, act}` declaration against the engine's offer; the noun regex is only a hint. A watched unfired feature is sealed: narration cannot reveal its interior/contents or claim it open/moved without a firing declaration. Hidden actors stay filtered until their trigger fires. Death and condition saves are player-rolled in Avrae and reported. Ties: the actor wins contests; a save that ties the DC fails (house rule). Pending rulings are structured and curtain-safe. Green tests do not prove player-facing quality. #101 combat checkpoints remains open and unmerged.
+### 2.1 Executable runtime
 
-## 2. Evidence and truth classes
+Live `dnd-solo/main` plus `PROJECT_CONTROL.md` answer current executable facts.
 
-### 2.1 Executable truth
+### 2.2 Corpus and research
 
-Live `dnd-solo/main` plus the current runtime code answer what the machinery currently does.
+Live `bfdm-corpus/main` plus that repo's `PROJECT_CONTROL.md` answer current corpus/source/research facts.
 
-### 2.2 Player-experience truth
+### 2.3 Player-facing quality
 
-Current human/live evidence answers whether Kit is actually good to play with.
+Current human/live evidence answers whether Kit is actually delivering a better Dungeon Master experience.
 
-Passing tests, landed fixes, design documents, and private reasoning traces are proxies.
+Test counts, architecture documents, and green suites do not answer this question.
 
-They can support confidence in a component. They cannot substitute for experienced outcomes.
+### 2.4 Proposed work
 
-## 2.4 Project-control truth
+Owning issues and PRs answer what is proposed or in progress. They are not current truth until merged to main.
 
-Current control docs, live GitHub state, and owning issues/PRs answer what work is active, proposed, merged, superseded, or historical.
+### 2.5 Semantic model
 
-Open PRs may contain newer and important work while remaining non-canonical.
+This document answers what a competent collaborator should currently believe about the project, including where the evidence is strong, where it is weak, and what remains uncertain.
 
-## 2.5 Historical truth
-
-Old ZIPs, old branches, historical boards, archived handoffs, old Project attachments, and superseded architecture docs are valuable for reconstructing history. They do not automatically describe current state.
-
----
-
-# 3. The two primary repositories
-
-## `radarsaint/dnd-solo`
-
-This is the current executable Kit runtime and player-facing development surface.
-
-Its job is to make live play possible: world state, room loading, hidden information, adjudication, persistence, NPC/campaign context, Kit's private decision step, player-facing performance, and the bridge through which a chat-hosted Kit runs a game.
-
-At the 2026-10-07 audited `main @ e3a5e9908357441051df24dac8086d8d4c7f26f5`, the runtime is substantially beyond the old Area 6c prototype. It has a generalized room loader, one-pass and staged host paths, SQLite-backed state and event history, hidden-information projection, claims/knowers, agendas, attitudes, bounded combat and procedures, manifests, retry/idempotency support, table-talk handling, and a large mechanical test suite.
-
-That does **not** mean generalized excellent DM play has been demonstrated.
-
-Area 6c remains historically important because it has the richest authored/testing history. It is a testbed, not the architecture of Kit and not a sufficient model of all DM quality.
-
-General room loading also does not equal general source-to-room authoring. A runtime that can mount a conforming room file is different from a system that can take untouched keyed adventure text and reliably produce the next excellent playable room.
-
-## `radarsaint/bfdm-corpus`
-
-This is the research and evidence substrate.
-
-It preserves Brendon's long history of campaign design, live Dungeon Master judgment, experimentation, failure, revision, and creative method so that later work can study how a particular DM actually thinks and works.
-
-The corpus is not the product. It is source material and research infrastructure.
+## 3. Current BFDM state
 
 After PR #40, the catalog holds 195 BCS identities. The index has 193 source containers. BCS-000059 is context-only. BCS-000068 is an excerpt without a source container. Model-facing Discord retrieval exists. The old Git LFS opacity problem should not be restarted.
 
-Accessible evidence is not semantically verified judgment research. The forensic integrity work exists because citations and locators can still reconstruct incorrectly or support claims too broadly.
+On 2026-10-09 Brendon attested that the 171 source containers previously marked UNKNOWN authorship are his work. Those records are now authorship status BRENDON with basis owner_attestation (attested 2026-10-09). Creator and copyright owner are Brendon Faulkner. Archival lineage gaps remain unresolved and distinct from authorship status; they are not inferred as authorship. BCS-000182 and BCS-000183 retain their earlier document-statement bases. No source text, locators, hashes, or evidence-claim confidence was changed. See bfdm-corpus ingest/reports/2026-10-09-owner-attestation.md.
+
+Accessible evidence is not semantically verified judgment research. The first-tranche forensic integrity staging is now on main (PR #38, merge `2b68820d445e9f6d99d021463bfd76b2f7bb257d`). Citations and locators can still reconstruct incorrectly or support claims too broadly; BDC-S3-004 demonstrates a broken prep-evidence chain. No reusable judgment in the sample is verified for transfer.
 
 ## 4. Current known gaps and open questions
 
@@ -260,27 +236,7 @@ Accessible evidence is not semantically verified judgment research. The forensic
 - Issue #118 G5 is unmet. The unbriefed cold start consumed the canonical model but not the execution-history correction.
 - ChatGPT Project source membership remains a manual Project-UI change. G6 stays open.
 - Legacy paid play route removal is pending with Skippy.
-- PR #101 combat checkpoints reaction model is pending review and unmerged; reconcile its semantic claims only after merge.
+- PR #101 combat checkpoints reaction model is now on main via #123; remaining post-#101 combat/engine items (open-ask gate, public_event fallback, #122 Kit-declared acts) are still pending.
 - A live playtest of an ambush (Area 17a or similar) and a downed PC is still owed. Green tests do not prove player-facing quality.
 
-## 5. What a fresh collaborator should not believe
-
-- That the coordination contract, Project Brain, Gardener checkpoint, or context-status checker are only proposed or unmerged. They are on canonical main after the 2026-10-08 approving merges.
-- That a status-checker warning or a recorded #115 delta is completion.
-- That green tests, landed fixes, or architecture documents are player-facing quality.
-- That Area 6c is the architecture of Kit.
-- That source accessibility is trustworthy derived research.
-- That the in-repo corpus mirror still exists or should be recreated.
-- That closed superseded PRs or deleted stale branches are active direction.
-- That PR #97 is still unmerged. It landed on 2026-10-13.
-- That word-matching or regex still wakes monsters. Disturb is now structured handles.
-- That the engine rolls death saves for the player. The player rolls them in Avrae and reports them.
-- That a save that ties the DC succeeds. Under the house rule it fails.
-
----
-
-# 18. Working understanding of Brendon's design practice
-
-This is intentionally phrased as a **working model**, not doctrine.
-
-Across the primary material read so far, Brendon appears to care unusually strongly about building worlds that **produce behavior** rather than merely describing settings.
+The rest of the original document continues with sections on historical context, resource identities, and earlier decision records. Those sections are unchanged by this reconciliation pass.

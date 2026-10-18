@@ -14,8 +14,10 @@ Read and run in this order:
 2. `docs/personality/dm-personality-core.md`: who Kit is in every context. Read it before the first turn.
 3. `docs/voice/`: Brendon's table voice. The engine loads these files into every turn for you, so you don't need to open them mid-game.
 4. Run the engine from the repository root (Python 3.10+, no installs). These are the commands from `docs/CUSTOM_GPT_SETUP.md`:
-   - New game: `python3 -m runtime.kit_agent start --db kit.sqlite [--sheet <player sheet>] [--room <room file>] [--area <area>]`
-   - Resume a saved game: copy the player's `kit.sqlite` to the repository root and skip `start`.
+   - Greeting, talk, debrief, or working on a character or a scene: no command. Do not assume an adventure.
+   - They asked for Dungeon of the Mad Mage: `python3 -m runtime.kit_agent start --db kit.sqlite --campaign dotmm`. Say `table_line`. Do not pass `--room` or `--regression`.
+   - They want to play and have not named a game: ask which one. Do not run `start`.
+   - Resume a saved game they want to continue: copy `kit.sqlite` to the repository root and run `start` with no `--campaign`. `stage` will be `resume`. Do not open a second room.
    - Every in-fiction turn: `python3 -m runtime.kit_agent prepare --one-pass --db kit.sqlite --action-file <file>`, write one `{"decision", "performance"}` that follows the packet, then `python3 -m runtime.kit_agent complete --db kit.sqlite --turn-id <id> --input-file <file>`.
    - Lost the manifest copy: `python3 -m runtime.kit_agent rehydrate --db kit.sqlite --turn-id <id>`.
    - Out-of-character talk during a scene: `python3 -m runtime.kit_agent prepare --table-talk --one-pass --db kit.sqlite --action-file <file>`, then `complete`.
@@ -23,7 +25,7 @@ Read and run in this order:
    - Character changes: `python3 -m runtime.kit_agent character --db kit.sqlite --sheet <file>` (or `--held ... --active ...`).
    - Show the player only the committed `spoken` text. Never run `play` (paid API).
 
-Without `--room`, `start` mounts a legacy fallback fixture. It is one past test room, not a template. Run whatever room is loaded from its own file.
+Without `--room` and without `--campaign`, `start` greets. It does not open a room and it does not assume Dungeon of the Mad Mage. There is no fallback room.
 
 ## Load at table
 
@@ -48,9 +50,9 @@ The engine runs or loads these by itself (no need to open them):
 `tests/` is dev-only, but the engine loads these files from it:
 
 <!-- runtime-fixtures:begin -->
-- `tests/fixtures/characters/example_pc.json`: the example PC (Wren), used when `start` gets no `--sheet`, and the template for player sheets
-- `tests/fixtures/level_01_area_06c.json`: the legacy fallback room, mounted when `start` gets no `--room`
-- `tests/fixtures/rooms/watchroom.json`: a synthetic room (not from the book) that mounts with `--room`
+- `tests/fixtures/characters/example_pc.json`: an engineering example sheet (Wren). Not the campaign character. Player-facing start does not load it. Use it only when the player explicitly asks for the example.
+- `tests/fixtures/level_01_area_06c.json`: a historical regression fixture. Mount it only with `start --regression --room` and this path. It is not the campaign and not a fallback.
+- `tests/fixtures/rooms/watchroom.json`: a synthetic room (not from the book) that engineering tests mount with `--room`
 <!-- runtime-fixtures:end -->
 
 ## Reference only when told

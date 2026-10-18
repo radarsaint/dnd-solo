@@ -1219,3 +1219,45 @@ class CastLevelPhrasings(unittest.TestCase):
             arena.act('No reaction.', react='decline')
         result = arena.act('Magic Missile damage: 3d4 (3, 2, 4) + 3 = 12 force')
         self.assertIn('Your Magic Missile hits the ember imp.', result.public_event)
+
+
+class LateReactionPopsOnlyItsOwnEvent(unittest.TestCase):
+    """Brendon's plan (2026-10-14): a late reaction answers one unprompted event; the others the
+    round made legal stay in the queue until he takes his own turn. Dice pinned (all 10s)."""
+
+    def test_rebuking_the_imp_leaves_the_sling_hit_queued(self):
+        arena = Arena(self, 'kiln', sheet=warlock(), roll=lambda: 10)  # imp and sling both hit AC 13
+        arena.act('Initiative 25. I stab the kobold slinger with my dagger, 5 to hit, 3 piercing.')
+        before = arena.fight['unprompted']
+        self.assertEqual(len(before), 2, 'the fire spit and the sling stone, neither prompted')
+        result = arena.act('Hellish Rebuke on the ember imp! (Avrae: !cast hellish rebuke) 2d10 = 12 fire')
+        self.assertIn('Hellish Rebuke: 12 fire damage to the ember imp.', result.public_event)
+        left = arena.fight.get('unprompted') or []
+        self.assertEqual(len(left), 1, 'only the answered event leaves the queue')
+        self.assertNotEqual(left[0].get('attacker'), 'imp')
+
+
+class NoSlotLeftFizzles(unittest.TestCase):
+    """Brendon's plan (2026-10-14): a leveled spell cast with no slot left by the count fizzles: it
+    has no effect, the turn is still spent, and it says so. Dice pinned (all 10s)."""
+
+    CASTS = (
+        'Initiative 25. I cast Magic Missile at the ember imp (!cast magic missile) 3d4 (3, 2, 4) + 3 = 12 force',
+        'Initiative 25. I cast Mind Spike at the ember imp at 2nd level (!cast mind spike -l 2). 3d8 (5, 8, 7) = 20 psychic',
+    )
+
+    def test_a_cast_with_every_slot_spent_fizzles_and_counts(self):
+        for cast in self.CASTS:
+            with self.subTest(cast=cast):
+                arena = Arena(self, 'kiln', sheet=wizard(hp=60), roll=lambda: 10)
+                revision, state = arena.runtime.load()
+                resources = copy.deepcopy(state['pc_resources'])
+                for slot in resources['slots'].values():
+                    slot['used'] = slot['max']
+                arena.runtime.commit('spent', revision, [{'type': 'pc_resources', 'resources': resources, 'evidence': 'every slot spent (test setup)'}])
+                full = {k: s['used'] for k, s in arena.state['pc_resources']['slots'].items()}
+                result = arena.act(cast)
+                self.assertIn('fizzles', result.public_event)
+                self.assertEqual(arena.fight['hp']['imp'], arena.fight['max_hp']['imp'], 'no effect')
+                self.assertEqual({k: s['used'] for k, s in arena.state['pc_resources']['slots'].items()}, full)
+                self.assertFalse((arena.fight.get('pending') or {}).get('needs'), 'no roll asked for')
