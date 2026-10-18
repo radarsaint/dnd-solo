@@ -3,6 +3,7 @@ import io
 import json
 import tempfile
 import unittest
+import unittest.mock
 from pathlib import Path
 from unittest.mock import patch
 
@@ -252,6 +253,7 @@ class KitAgentTests(unittest.TestCase):
         self.assertNotIn('area 14b', public)
         self.assertEqual(self.runtime.load()[0], 1)
 
+    @unittest.mock.patch.object(kit_agent, 'ENGINE_LINE_AFTER_REJECTIONS', 99)  # validator probe: rejections loop (see test_kit_open_ask)
     def test_private_fact_in_performance_rolls_back_kit_and_world(self):
         self.model.leak = True
         before = self.runtime.load()
@@ -325,6 +327,7 @@ class KitAgentTests(unittest.TestCase):
         self.assertEqual(self.runtime.recent_kit_turns()[0]['public_event'],
                          'You find nothing you can be sure of.')
 
+    @unittest.mock.patch.object(kit_agent, 'ENGINE_LINE_AFTER_REJECTIONS', 99)  # validator probe: rejections loop (see test_kit_open_ask)
     def test_model_failure_does_not_reroll_same_uncommitted_check(self):
         bad = KitAgent(self.runtime, RecordingModel(leak=True),
                        RoomAdjudicator(perception=0))
@@ -537,6 +540,7 @@ class KitAgentTests(unittest.TestCase):
         bridge.prepare('Hello. What is this game?', turn_id='reply')
         self.assertEqual(self.runtime.load()[0], 1)
 
+    @unittest.mock.patch.object(kit_agent, 'ENGINE_LINE_AFTER_REJECTIONS', 99)  # validator probe: rejections loop (see test_kit_open_ask)
     def test_opening_requires_visible_scene_and_rejects_private_reveal(self):
         bridge = KitChatBridge(self.runtime)
         prepared = bridge.prepare(opening=True, turn_id='bad-entry')
@@ -776,6 +780,7 @@ class ChatBridgeCarrierTests(unittest.TestCase):
             self.bridge.finish('staged', NIK_FLAT_REPLY)
         self.assertEqual(self.bridge.finish('staged', QUIET_EXCHANGE_SPEECH)['revision'], 1)
 
+    @unittest.mock.patch.object(kit_agent, 'ENGINE_LINE_AFTER_REJECTIONS', 99)  # validator probe: rejections loop (see test_kit_open_ask)
     def test_one_pass_bridge_carries_and_checks_focus_fields(self):
         prepared = self.bridge.prepare(NIK_GREETING, 'fast', one_pass=True)
         self.assert_host_is_told_how_to_fill_the_carrier(
@@ -1083,6 +1088,7 @@ class BridgeVoiceVariantTests(unittest.TestCase):
         with self.assertRaises(InvalidChange):
             self.runtime.commit_kit_turn('v1', 0, events, {**record, 'performance_variant': 'current'})
 
+    @unittest.mock.patch.object(kit_agent, 'ENGINE_LINE_AFTER_REJECTIONS', 99)  # validator probe: rejections loop (see test_kit_open_ask)
     def test_kit_voice_faces_exactly_the_same_validators(self):
         outcomes = {}
         for variant in kit_agent.PERFORMANCE_VARIANTS:

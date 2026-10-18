@@ -5,6 +5,7 @@ turn that ignores it."""
 import json
 import tempfile
 import unittest
+import unittest.mock
 from pathlib import Path
 
 from runtime import kit_agent, kit_voice
@@ -355,6 +356,7 @@ class HardeningGuardTests(VoiceTestCase):
             with self.subTest(reason=reason), self.assertRaisesRegex(InvalidChange, reason):
                 self.guarded({'segments': [{'speaker': 'Kit', 'text': kit_line, 'reacts_to': 'take in the whole room'}] + dealer}, plan)
 
+    @unittest.mock.patch.object(kit_agent, 'ENGINE_LINE_AFTER_REJECTIONS', 99)  # validator probe: rejections loop (see test_kit_open_ask)
     def test_voice_style_floors_soften_in_degraded_mode_but_presence_does_not(self):
         prepared = self.bridge.prepare(BORED, 'degrade')
         plan = self.plan(prepared['input'], brief={'mirror': TIGHT}, move='npc_reply', table_presence='quiet',

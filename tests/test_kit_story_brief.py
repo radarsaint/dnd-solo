@@ -9,6 +9,7 @@ import copy
 import json
 import tempfile
 import unittest
+import unittest.mock
 from pathlib import Path
 
 from runtime import kit_agent, kit_brief, kit_guards, kit_toll
@@ -142,6 +143,7 @@ class EnteringTheRoom(Base):
 class LiveFailuresSurface(Base):
     """Replay of the live run: the toll and the act's purpose surface within N beats."""
 
+    @unittest.mock.patch.object(kit_agent, 'ENGINE_LINE_AFTER_REJECTIONS', 99)  # validator probe: rejections loop (see test_kit_open_ask)
     def test_a_performer_that_lets_the_toll_slide_is_rejected_by_the_hooks_beat(self):
         self.start()
         model = IgnoresHooks()
@@ -244,6 +246,7 @@ class ReviewFixes(Base):
                             all('passage' not in r['raises'] and 'dangerous' not in r['raises'] for r in p['raise_now'])
                             for p in model.performances))
 
+    @unittest.mock.patch.object(kit_agent, 'ENGINE_LINE_AFTER_REJECTIONS', 99)  # validator probe: rejections loop (see test_kit_open_ask)
     def test_a_degraded_performance_carrying_the_hook_commits(self):
         self.start()
         for _ in range(3):

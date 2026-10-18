@@ -722,6 +722,29 @@ class RoomAdjudicator:
         'describe'|'new_action'|'unclear'}); the engine checks it is legal and never reads intent."""
         self.last_said = last_said or ''
         self.choice = choice
+        # The open-ask gate: an ask the engine left open (a reaction window, the damage of a hit on
+        # his turn, a called check) takes this message as its answer before anything reads it as a
+        # new deed. A message with no answer in it, or an explicit cancel, yields the ask.
+        answered, state, yielded = self._open_ask(action, revision, state)
+        if answered is not None:
+            return self._offer_downed(answered)
+        if yielded is not None and yielded.get('final') is not None:
+            return self._offer_downed(yielded['final'])
+        try:
+            result = self._resolve_open(action, revision, state, addressed, choice)
+        except PendingRuling:
+            if yielded is None or not yielded['resolution'].public_event:
+                raise
+            # The yield itself is a committed turn (the round ran on); the rest of the words had
+            # no ruling of their own, so they add nothing (Kit voices them).
+            return self._offer_downed(yielded['resolution'])
+        if yielded is not None:
+            first = yielded['resolution']
+            result = dataclasses.replace(result, public_event=f'{first.public_event} {result.public_event}'.strip(),
+                                         events=list(first.events) + list(result.events))
+        return result
+
+    def _resolve_open(self, action, revision, state, addressed, choice):
         try:
             result = self._also_bet(self._resolve(action, revision, state, addressed), action, revision, state)
         except PendingRuling as exc:
@@ -772,6 +795,105 @@ class RoomAdjudicator:
             result = self._also_after_entry(result, action, revision, state)
         return self._offer_downed(result)
 
+    # An explicit cancel of the open ask ("forget the damage", "never mind the roll").
+    _CANCEL_ASK = re.compile(r"\b(?:cancel|never\s*mind|forget\s+(?:it|that|about\s+it|the\s+(?:roll|damage|check))|"
+                             r"scratch\s+that|skip\s+(?:it|that|the\s+(?:roll|damage|check))|no\s+roll)\b", re.I)
+    _BARE_NUMBER = re.compile(r"\s*(?:i\s+)?(?:rolled|roll|got|deal|did|for)?\s*`?(\d{1,3})`?\s*[.!]?\s*", re.I)
+
+    def _open_ask(self, action, revision, state):
+        """(answer, state, yielded): ``answer`` is the Resolution of the open ask this message answers,
+        else None. A yielded ask comes back as {'resolution', 'final'}: the yield's own Resolution,
+        to put before the message's own, and ``final`` when nothing else may resolve this turn; then
+        ``state`` is the state after the yield, for the message to resolve on."""
+        if not isinstance(action, str) or not action.strip() or is_ooc(action) or not self.source:
+            return None, state, None
+        narration = QUOTED_SPEECH.sub(' ', action.translate(_TYPOGRAPHIC))
+        cancel = bool(self._CANCEL_ASK.search(narration))
+        current = state.get('combat') or {}
+        waiting = current.get('awaiting') or {}
+        if waiting.get('kind') == 'reaction_window' and kit_combat.config(self.source):
+            # The window's answer is Kit's structured read (choice); the engine checks it is legal.
+            resumed = self._resume_checkpoint(action, revision, state)
+            if resumed:
+                return resumed, state, None
+        pending = current.get('pending') if isinstance(current.get('pending'), dict) else {}
+        if pending.get('needs') == 'damage' and pending.get('holds_turn') and not waiting and \
+                current.get('status') == 'running' and kit_combat.config(self.source):
+            amount = None if cancel else self._damage_answer(action)
+            if amount:
+                return self._answer_damage(action, amount, revision, state, pending), state, None
+            return (None,) + self._yield_damage(action, revision, state, pending, cancel)
+        if state.get('pending_check') and not waiting:
+            check = state['pending_check']
+            if cancel and not check.get('held'):
+                after = copy.deepcopy(state)
+                after.pop('pending_check', None)
+                clear = {'type': 'pending_check', 'check': None,
+                         'evidence': f"The player called off the {check['skill']} check called on turn "
+                                     f"{check['called_turn']}."}
+                return None, after, {'resolution': Resolution('called_check', '', [clear]), 'final': None}
+            if not cancel:
+                called = self._resolve_called(action, revision, state)
+                if called:
+                    return called, state, None
+        return None, state, None
+
+    def _damage_answer(self, action):
+        """The damage a message reports for the open damage ask: an Avrae damage field, a stated
+        amount ("4 piercing damage"), or a bare number. None when it has none, or when it reports a
+        new to-hit or an initiative (a new attack, not the answer)."""
+        text = action.translate(_TYPOGRAPHIC)
+        try:
+            if kit_rolls.attack_total(text) is not None or kit_rolls.initiative(text) is not None:
+                return None
+            amount, _ = kit_rolls.damage_total(text)
+        except InvalidChange:
+            return None
+        if amount:
+            return amount
+        bare = self._BARE_NUMBER.fullmatch(QUOTED_SPEECH.sub(' ', text))
+        return int(bare.group(1)) if bare and int(bare.group(1)) > 0 else None
+
+    def _answer_damage(self, action, amount, revision, state, pending):
+        """The damage roll his held hit was waiting on: it lands on that target, then his turn ends
+        and the round runs on."""
+        text = action if kit_rolls.damage_total(action)[0] else f'{amount} damage'
+        fight = self._fight(text, revision, state)
+        act = {'kind': 'attack', 'target': pending['target'], 'weapon': pending.get('weapon'), 'area': False,
+               **({'spell': pending['spell']} if pending.get('spell') else {})}
+        fight.trace.append(f"open ask answered: {amount} damage for the {pending.get('weapon') or 'blow'}")
+        public, events = fight.resolve(act)
+        return self._fight_resolution(fight, public, events, action, state)
+
+    def _yield_damage(self, action, revision, state, pending, cancel):
+        """No damage in the message (or an explicit cancel): the ask yields. The hit stands with no
+        damage and was his action, so his turn ends and the round runs on. A new combat act in the
+        message waits for his next turn (and he is told); anything else resolves after the round."""
+        fight = self._fight(action, revision, state)
+        fight.fight['pending'] = None
+        fight.lines.append(f"No damage was rolled, so your hit on the {fight.label(pending['target'])} does none.")
+        fight.trace.append('open damage ask yielded: ' + ('the player cancelled it' if cancel else 'no damage in the message'))
+        try:
+            act = kit_combat.parse(action, self.source, state)
+        except (PendingRuling, InvalidChange):
+            act = None
+        held = bool(act) and act.get('kind') not in ('ruling', 'late_reaction')
+        if held:
+            fight.fight['declared_next'] = action
+            fight.lines.append('You have already acted this turn; that waits for your next turn.')
+            fight.trace.append(f'new act with the yielded damage ask, held for his turn: {action[:120]}')
+        fight.advance_past_pc()
+        public, events = fight.resolve(None)
+        resolution = self._fight_resolution(fight, public, events, action, state)
+        after = copy.deepcopy(state)
+        for event in resolution.events:
+            if event.get('type') == 'combat_state':
+                after['combat'] = copy.deepcopy(event['state'])
+        # Held, or the round stopped at a checkpoint (its answer is the next message): this turn is
+        # the yield alone. Otherwise the message's own words resolve after the round.
+        final = resolution if held or (after.get('combat') or {}).get('awaiting') else None
+        return after, {'resolution': resolution, 'final': final}
+
     def _offer_downed(self, result):
         """The fight now waits on Kit's call (foes acting while the PC is down): offer it."""
         fight = next((e['state'] for e in reversed(result.events) if e.get('type') == 'combat_state'), None)
@@ -795,6 +917,7 @@ class RoomAdjudicator:
             return result
         rest = parts[1].strip(' .')
         after = copy.deepcopy(state)
+        after.pop('pending_check', None)  # the rest of the message is no answer to a called check
         edge = (self.source.get('exits') or {}).get(move.get('exit')) or {}
         after['area'] = next((a for a in edge.get('areas') or () if a != state.get('area')), after.get('area'))
         try:
@@ -2383,15 +2506,24 @@ def performance_limits(scope=None):
 DEGRADED_AFTER_REJECTIONS = 2
 ABANDON_SUGGEST_AFTER = 4
 API_PERFORMANCE_ATTEMPTS = 2
+# Brendon's plan (2026-10-14, step 2b): Kit's narration gets one retry. When the retry is rejected
+# too, the host does not loop on to degraded mode and abandon: the engine's own public_event
+# sentence commits as the turn (engine_line_record), and the table moves on. Every narration a
+# turn has had counts, on either path (bridge finish/complete, or the API turn).
+ENGINE_LINE_AFTER_REJECTIONS = 2
+ENGINE_LINE_NOTE = ('If the next narration for this turn is rejected too, the engine commits its own '
+                    'public_event sentence as the turn instead of another retry.')
+# What a decision establishes only by being voiced: dropped when the engine line commits instead.
+ENGINE_LINE_DROPS = ('claims', 'roll_call', 'agenda', 'open_threads', 'risk_confirm',
+                     'pc_state', 'detail', 'plan')
 
 HOST_RETRY_NOTE = (
     'If finish or complete is rejected, nothing was committed and the decision stays fixed. Read '
     'message and retry_instruction, then submit a new performance for the same turn_id; for '
     'complete, resubmit the identical decision with the new performance. If decide is rejected, '
-    f'fix the plan and call decide again. After {DEGRADED_AFTER_REJECTIONS} rejections the '
-    'rejection offers degraded mode (resubmit with --degraded): style floors become warnings, '
-    f'secrecy and player agency still apply. After {ABANDON_SUGGEST_AFTER}, run abandon for the '
-    'turn_id and prepare the action again with a new turn_id. A lost response is safe to retry: '
+    'fix the plan and call decide again. A performance gets one retry: when the retry is rejected '
+    'too, the engine commits its own public_event sentence as the turn (the result says '
+    'engine_line) and the table moves on; show its spoken text. A lost response is safe to retry: '
     'resubmitting an already committed turn returns the committed result.')
 
 DEGRADED_INSTRUCTION = (
@@ -3307,6 +3439,11 @@ def threshold_exit(events):
 def turn_events(runtime, body, plan, turn_id, record=None):
     """The adjudicated events plus what the decision establishes: its canon entries, the
     oracle deal it consumed, and the starting state of a table procedure it declares."""
+    if record and record.get('engine_line'):
+        # The engine's sentence committed in place of Kit's narration: only what the engine
+        # resolved commits; a held description it did not deliver stays owed.
+        plan = {key: value for key, value in plan.items() if key not in ENGINE_LINE_DROPS}
+        body = {**body, 'held_description': None}
     if plan.get('ask_player'):
         # A question to the player: the action is not resolved and nothing mechanical
         # commits; one rhythm beat keeps the pacing record honest.
@@ -4640,6 +4777,32 @@ def checked_record(body, plan, speech, performance_variant, source=None, degrade
     return record
 
 
+def engine_line_record(body, plan, performance_variant, rejected, rejections):
+    """The turn the engine commits when Kit's narration failed and its one retry failed too: the
+    engine's public_event, spoken by the Narrator (plus a declared act's outcome). Nothing the
+    decision would only establish by being voiced (a called check, claims said, agenda moves,
+    canon detail) commits with it (turn_events drops ENGINE_LINE_DROPS); the adjudicated and
+    declared events do. The trace stays the decision as decided (the commit checks it)."""
+    ask = plan.get('ask_player')
+    if ask:
+        # An ask resolves nothing: the engine's line is the checked question itself.
+        public_event, spoken, declared = f"{ASKED_EVENT_PREFIX}{ask['question']}", f"Kit: {ask['question']}", None
+    else:
+        public_event = body['public_event']
+        spoken = f'Narrator: {public_event}'
+        declared = body.get('declared')
+    if declared and declared.get('public'):
+        spoken = f"{spoken}\nNarrator: {declared['public']}"
+        public_event = f"{public_event} {declared['public']}".strip()
+    record = {'player_input': body['action'], 'public_event': public_event, 'trace': plan, 'spoken': spoken,
+              'performance_variant': performance_variant,
+              'engine_line': {'after_rejections': int(rejections), 'last_rejection': str(rejected)[:500]}}
+    if declared:
+        record['declared'] = {'acts': declared['acts'], 'kind': declared['kind'],
+                              **({'handoff': declared['handoff']} if declared.get('handoff') else {})}
+    return record
+
+
 class KitAgent:
     def __init__(self, runtime, model, adjudicator=None, performance_variant='current'):
         self.runtime = runtime
@@ -4696,6 +4859,12 @@ class KitAgent:
                     break
                 except InvalidChange as exc:
                     timing['rejections'].append(str(exc))
+                    if len(timing['rejections']) >= ENGINE_LINE_AFTER_REJECTIONS:
+                        # The retry failed too: the engine's sentence is the turn (no third call).
+                        record = engine_line_record(body, plan, self.performance_variant, exc,
+                                                    len(timing['rejections']))
+                        timing['engine_line'] = True
+                        break
                     if last:
                         raise
                     performance_payload['retry_instruction'] = retry_instruction(exc)
@@ -5042,8 +5211,9 @@ class KitChatBridge:
                 planning_input['compute'] = body['compute']
         self.runtime.stage_kit_turn(turn_id, revision, body)
         # Wall clock, not monotonic: stages may run in separate processes.
+        # A fresh prepare starts the rejection count over (an abandoned turn prepared again).
         self.runtime.record_kit_timing(turn_id, mode=body['host_mode'], prepared_at=time.time(),
-                                       prepare_started_at=started,
+                                       prepare_started_at=started, rejected_attempts=0,
                                        **({'performance_variant': performance_variant}
                                           if one_pass else {}))
         if stamps:
@@ -5297,6 +5467,8 @@ class KitChatBridge:
         result.update({key: record[key] for key in ('turn_role', 'interstitial') if key in record})
         if record.get('degraded'):
             result.update(degraded=True, soft_warnings=record['soft_warnings'])
+        if record.get('engine_line'):
+            result.update(engine_line=True, rejected_attempts=record['engine_line']['after_rejections'])
         kit_handoff.log_turn(self.runtime, turn_id, body['action'], body['kind'], body, record.get('trace'), record,
                              by_player=body['kind'] != 'opening' and not body.get('table_talk'))
         return result
@@ -5335,7 +5507,7 @@ class KitChatBridge:
         """The host's options after a rejection, by how many this turn has had."""
         count = self._rejections(turn_id)
         guidance = {'rejected_attempts': count, 'degraded_available': count >= DEGRADED_AFTER_REJECTIONS,
-                    'next_step': 'retry'}
+                    'next_step': 'retry', 'engine_line_next': count + 1 >= ENGINE_LINE_AFTER_REJECTIONS}
         if count >= DEGRADED_AFTER_REJECTIONS:
             guidance.update(next_step='retry_degraded', degraded_instruction=DEGRADED_INSTRUCTION)
         if count >= ABANDON_SUGGEST_AFTER:
@@ -5349,6 +5521,8 @@ class KitChatBridge:
             last_rejection=str(exc))
         guidance = self.guidance(turn_id)
         message = str(exc)
+        if guidance.get('engine_line_next'):
+            message += ' ' + ENGINE_LINE_NOTE
         if guidance.get('abandon_instruction'):
             message += ' ' + ABANDON_INSTRUCTION
         elif guidance['degraded_available']:
@@ -5362,7 +5536,12 @@ class KitChatBridge:
         except StaleTurn:
             raise
         except InvalidChange as exc:
-            raise self._log_rejection(turn_id, exc) from exc
+            rejected = self._log_rejection(turn_id, exc)
+            if self._rejections(turn_id) >= ENGINE_LINE_AFTER_REJECTIONS:
+                # Its one retry failed too: the engine's sentence commits (no third narration).
+                self.runtime.record_kit_timing(turn_id, engine_line=True)
+                return engine_line_record(body, plan, performance_variant, exc, self._rejections(turn_id))
+            raise rejected from exc
 
     def _finish_timing(self, turn_id, record=None):
         timing = self.runtime.kit_timing(turn_id) or {}

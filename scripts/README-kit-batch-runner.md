@@ -3,7 +3,7 @@
 `scripts/kit_batch_runner.py` plays the **player** from a script and hands every **Kit** turn to a DM model through the same bridge a chat host uses (`start`, then `prepare --one-pass` and `complete`). Each scenario gets a fresh `kit.sqlite`. Nobody has to paste lines into ChatGPT.
 
 - Never runs `play`. Strips `OPENAI_API_KEY` from every child process and never reads it.
-- The engine's own checks decide everything. A rejected submission is retried the way `host_retry` says: degraded mode after 2 rejections, abandon after 4. The runner records each rejection rather than hiding it.
+- The engine's own checks decide everything. A rejected submission is retried the way `host_retry` says: one retry; when the retry is rejected too, the engine commits its own `public_event` sentence (`engine_line` in the result). The runner records each rejection rather than hiding it.
 - Records per turn: the player line, what the engine read it as (`action_kind`, or the stall message), the spoken result, rejections, and wall-clock `prepare_ms`, `dm_ms`, `complete_ms`, and `total_ms`.
 
 ## Scenarios
