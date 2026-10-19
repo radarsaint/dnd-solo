@@ -82,7 +82,9 @@ class MapToSheet(Intake):
         self.assertEqual(sheet['proficiencies']['armor'], ['Light Armor'])
         self.assertEqual(sheet['spells'], {'cantrips': ['Minor Illusion'], '1': ['Disguise Self', 'Charm Person']})
         self.assertEqual(sheet['slots'], {'1': 2})
-        self.assertEqual(sheet['features'][:2], ['Sneak Attack', 'Cunning Action'])
+        self.assertEqual(sheet['features'][:2], ['Sneak Attack', 'Cunning Action (1/short rest)'])
+        self.assertEqual(sheet['attacks'], [{'name': 'Shortsword', 'attack_bonus': 5, 'damage': '1d6+3 Piercing',
+                                             'notes': 'Finesse'}])
         self.assertEqual(sheet['subclass'], 'Thief')
         self.assertEqual([e['name'] for e in sheet['equipment']], ['Shortsword', "Thieves' Tools", 'Rope'])
 

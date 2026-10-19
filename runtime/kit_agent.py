@@ -29,6 +29,7 @@ from . import kit_cards
 from . import kit_reactions
 from . import kit_save
 from . import kit_resume
+from . import sheet_intake
 from . import kit_combat
 from . import kit_rolls
 from . import kit_triggers
@@ -5550,6 +5551,41 @@ def persona_text(folder=None):
     return '\n\n'.join(parts) + '\n'
 
 
+def import_sheet(db, pdf, out=None, master_sheet=None):
+    """import-sheet: read a sheet PDF; with a game in db, load it when it is time (P5): no sheet yet,
+    a level-up, or a long rest since the last load. Otherwise the file is written and waits."""
+    from datetime import datetime, timezone
+    from .kit_campaign import saved_game
+    target = out or (Path(db).resolve().parent / (Path(pdf).stem + '.sheet.json'))
+    result = sheet_intake.import_pdf(pdf, out=target)
+    if result['stage'] != 'sheet_imported' or saved_game(db) is None:
+        return result
+    sheet = json.loads(Path(result['sheet_file']).read_text(encoding='utf-8'))
+    runtime = Runtime(db)
+    try:
+        _, state = runtime.load()
+        current = state.get('player_sheet')
+        record = state.get('sheet_import') or {}
+        if not current:
+            at = 'start'
+        elif sheet['level'] > int(current.get('level') or 0):
+            at = 'level_up'
+        elif int(state.get('long_rests') or 0) > int(record.get('long_rests') or 0):
+            at = 'long_rest'
+        else:
+            return {**result, 'stage': 'not_now', 'loaded': False,
+                    'table_line': "Let's swap your sheet in at your next long rest or level-up.",
+                    'next_step': ('The sheet was read and written to sheet_file but not loaded: a sheet comes in at '
+                                  'a level-up or at most once per long rest. Say table_line once. If the player '
+                                  'changed something by hand that matters now, take their word for it.')}
+        intake = {'kind': 'pdf', 'at': at, 'named_by_player': master_sheet or record.get('named_by_player'),
+                  'imported_at': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')}
+        loaded = runtime.set_player_sheet(sheet, intake=intake)
+    finally:
+        runtime.close()
+    return {**result, 'stage': 'sheet_loaded', 'loaded': True, 'at': at, 'character': loaded['character']}
+
+
 def _cli_stamps(items):
     out = {}
     for item in items or ():
@@ -5565,7 +5601,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('command', choices=['start', 'init', 'view', 'prepare', 'decide', 'finish', 'complete',
                                             'abandon', 'feedback', 'character', 'notes', 'play', 'trace',
-                                            'timing', 'persona', 'stamp', 'rehydrate', 'rest', 'save'])
+                                            'timing', 'persona', 'stamp', 'rehydrate', 'rest', 'save',
+                                            'import-sheet'])
     parser.add_argument('--db', default='kit.sqlite')
     parser.add_argument('--out', help='save: where to write the player-safe ZIP '
                                       '(default saves/<player>/<campaign>/ next to --db)')
@@ -5575,6 +5612,9 @@ def main():
                         help='save: one journal per campaign (default) or per character; it sticks')
     parser.add_argument('--save', help="start: resume from the player's save ZIP or folder (kit_agent save). "
                                        'Mounts the room it stopped in, fresh, with campaign.json applied.')
+    parser.add_argument('--pdf', help='import-sheet: a character sheet PDF (a D&D Beyond export reads exactly)')
+    parser.add_argument('--master-sheet', dest='master_sheet',
+                        help="import-sheet/save: what the player named as their master sheet")
     parser.add_argument('--player', help='save: the player folder name under saves/ (default "player")')
     parser.add_argument('--kind', choices=['short', 'long'], help='rest: a short or a long rest (slots and uses '
                                                                   'come back; re-sending the sheet does not)')
@@ -5674,6 +5714,16 @@ def main():
         print(json.dumps(result, ensure_ascii=False,
                          **({'indent': 2} if args.pretty else {'separators': (',', ':')})))
         return 0
+    if args.command == 'import-sheet':
+        if not args.pdf:
+            parser.error('import-sheet requires --pdf')
+        try:
+            result = import_sheet(args.db, args.pdf, args.out, args.master_sheet)
+        except (sheet_intake.IntakeError, InvalidChange, OSError) as exc:
+            print(json.dumps({'stage': 'rejected', 'message': str(exc)}, ensure_ascii=False), file=sys.stderr)
+            return 2
+        print(json.dumps(result, ensure_ascii=False))
+        return 0
     if args.command == 'save':
         # The player-safe export. kit.sqlite itself is runtime-only and is never offered.
         try:
@@ -5736,7 +5786,12 @@ def main():
         elif args.command == 'rest':
             if args.kind not in ('short', 'long'):
                 parser.error('rest requires --kind short or --kind long')
-            print(json.dumps(runtime.rest(args.kind), indent=2, ensure_ascii=False))
+            rested = runtime.rest(args.kind)
+            if args.kind == 'long':
+                rested['offer_sheet'] = 'Want to drop in a fresh sheet PDF?'
+                rested['next_step'] = ('Offer offer_sheet once, in your own voice. If they upload one: '
+                                       f'import-sheet --db {args.db} --pdf <file>.')
+            print(json.dumps(rested, indent=2, ensure_ascii=False))
         elif args.command == 'notes':
             print(json.dumps(runtime.player_notes(), indent=2, ensure_ascii=False))
         elif args.command == 'character' and args.sheet:

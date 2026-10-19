@@ -21,6 +21,7 @@ FIELDS = {
     'Passive1': '14', 'Passive2': '14', 'Passive3': '15',
     'Init': '+3', 'AC': '14', 'MaxHP': '21', 'Speed': '25 ft. (Walking)',
     'CP': '3', 'SP': '0', 'EP': '0', 'GP': '42', 'PP': '1',
+    'Wpn Name': 'Shortsword', 'Wpn1 AtkBonus': '+5', 'Wpn1 Damage': '1d6+3 Piercing', 'Wpn Notes 1': 'Finesse',
     'Eq Name0': 'Shortsword', 'Eq Qty0': '1', 'Eq Name1': "Thieves' Tools", 'Eq Qty1': '1',
     'Eq Name2': 'Rope', 'Eq Qty2': '2', 'Eq Name3': '',
     'spellHeader0': '=== CANTRIPS ===', 'spellName0': 'Minor Illusion',
@@ -29,7 +30,7 @@ FIELDS = {
 }
 HEX_FIELDS = {
     'FeaturesTraits1': '=== ROGUE FEATURES === \n\n* Sneak Attack \u2022 PHB 96 \nOnce per turn, extra damage.\n\n'
-                       '* Cunning Action \u2022 PHB 96 \n\n* Rogue Subclass \u2022 PHB 97 \n   | Thief\n',
+                       '* Cunning Action \u2022 PHB 96 \n   | 1 / Short Rest \u2022 Special \n\n* Rogue Subclass \u2022 PHB 97 \n   | Thief\n',
     'ProficienciesLang': '=== ARMOR === \nLight Armor \n\n=== WEAPONS === \nSimple Weapons, Shortswords \n\n'
                          "=== TOOLS === \nThieves' Tools \n\n=== LANGUAGES === \nCommon, Halfling",
 }

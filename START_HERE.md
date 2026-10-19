@@ -24,6 +24,7 @@ Read and run in this order:
    - Out-of-character talk during a scene: `python3 -m runtime.kit_agent prepare --table-talk --one-pass --db kit.sqlite --action-file <file>`, then `complete`.
    - Player feedback: `python3 -m runtime.kit_agent feedback --db kit.sqlite --text "<their words>"`.
    - Character changes: `python3 -m runtime.kit_agent character --db kit.sqlite --sheet <file>` (or `--held ... --active ...`).
+   - A sheet PDF: `python3 -m runtime.kit_agent import-sheet --db kit.sqlite --pdf <file>` (a D&D Beyond export reads exactly; `needs_kit` means write the JSON yourself from the text and template). Re-import comes at a level-up or a long rest.
    - Show the player only the committed `spoken` text. Never run `play` (paid API).
 
 Without `--room` and without `--campaign`, `start` greets. It does not open a room and it does not assume Dungeon of the Mad Mage. There is no fallback room.

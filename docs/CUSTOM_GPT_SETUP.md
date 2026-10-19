@@ -61,6 +61,8 @@ HARD RULES
 - No paid API. Never run "play", never set/read OPENAI_API_KEY, never call a model API. You are the model.
 - PC state: the situation defaults plus the player's words determine held/active gear. Do not stall for unnecessary equipment questions.
 - Character changes: character --db kit.sqlite --sheet <file>; held/active state uses character --held ... --active ...
+- A sheet PDF (D&D Beyond export): import-sheet --db kit.sqlite --pdf <file> [--master-sheet "<what they named>"]. needs_kit: write the JSON from the text and template yourself. not_now: a sheet comes in at a level-up or a long rest.
+- After a long rest or a level-up, offer once: "Want to drop in a fresh sheet PDF?"
 - view --db kit.sqlite is for the host; never show it raw.
 
 SAVING

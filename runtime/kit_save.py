@@ -29,7 +29,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 CAMPAIGN_SCHEMA = 'kit_campaign_v1'
-EXPORT_PHASE = 'p4'
+EXPORT_PHASE = 'p5'
 ZIP_STAMP = (2026, 1, 1, 0, 0, 0)  # fixed member times
 JOURNAL_MODES = ('campaign', 'character')
 RECAP_MAX_WORDS = 120
@@ -199,8 +199,10 @@ def collect(runtime):
         'journal_mode': 'campaign',
         'pcs': [pc_id],
         'pc': {'id': pc_id, **{k: pc[k] for k in ('name', 'ancestry', 'class', 'level') if k in pc}},
-        'sheet_source': {'kind': 'json' if sheet else 'other', 'named_by_player': None,
-                         'imported_at': None, 'at': None},
+        'sheet_source': {**{'kind': 'json' if sheet else 'other', 'named_by_player': None,
+                            'imported_at': None, 'at': None},
+                         **{k: v for k, v in (state.get('sheet_import') or {}).items()
+                            if k in ('kind', 'named_by_player', 'imported_at', 'at')}},
         'location': {'room_id': room_id, 'area': view['area'], **provenance},
         'rooms': [{'room_id': r['room_id'], 'status': r['status'], 'areas': r['areas'],
                    **({'carry': r['carry']} if r['status'] != 'current' and r.get('carry') else {})} for r in rooms],
