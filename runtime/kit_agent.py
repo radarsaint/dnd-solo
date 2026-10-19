@@ -4572,16 +4572,32 @@ def hidden_actor_words(source, state, body=None):
     return sorted(nouns) + sorted(runs)
 
 
+def _proper_name_words(name):
+    """The words of a personal name ("Vex", "Orrin Tallow"), which no look shows, as opposed to a
+    descriptive label ("Watch warden"), which a look that sees the person may use. A label is a
+    capitalised first word followed by lowercase words; every capitalised word of a name counts."""
+    words = re.findall(r"[A-Za-z][A-Za-z'-]+", str(name or ''))
+    if len(words) > 1 and words[0][0].isupper() and all(w[0].islower() for w in words[1:]):
+        return set()
+    return {w.casefold() for w in words if w[0].isupper() and w.casefold() not in _HIDDEN_STOP and len(w) > 2}
+
+
 def threshold_hidden_words(source, state, exit_key, body=None):
     """What would show the inside of the next area on a look or listen through ``exit_key``
-    (tease-only, kit_brief.THRESHOLD_RULE; Nagatha's clean-host review: 8c committed "Inside, Vex
-    the vampire deals cards to two bandits in costume."). Single words: each live actor's there
-    head noun (its name's last word, its stat block's creature, its id's parts, its dm_identity).
-    Three-word runs (two or more content words): their secrets and knowledge, the truth of every
-    claim rooted there (a fact there, an actor there, a holder there) with its subject words, and
-    the text of every fact there the PC has not found. Words the tease, what is heard through the
-    way, the public view or the player's own words already give do not count. [] when the turn is
-    no threshold look."""
+    (Nagatha's clean-host review: 8c committed "Inside, Vex the vampire deals cards to two bandits in
+    costume."). Words and three-word runs (two or more content words), for the area through the way:
+
+    - always hidden: each live actor's secrets, motive and knowledge, its dm_identity, a personal name
+      (not a descriptive label like "Watch warden") and the name of an actor a hidden claim is about
+      (``actor:X/name``), the truth and subject words of every claim
+      rooted there that is not public and not yet established, and every fact there that is not
+      visible and not found;
+    - also hidden on a plain look (tease-only, kit_brief.THRESHOLD_RULE), but not when a held
+      description of the place is delivered on the check called on the look: who is there (each
+      actor's name head noun, stat block creature, id) and the visible facts there.
+
+    Words the tease, what is heard through the way, the public view or the player's own words already
+    give do not count. [] when the turn is no threshold look."""
     source, state = source or {}, state or {}
     edge = (source.get('exits') or {}).get(exit_key) or {}
     area = state.get('area')
@@ -4590,12 +4606,14 @@ def threshold_hidden_words(source, state, exit_key, body=None):
     other = next((a for a in edge['areas'] if a != area), None)
     if not other or other == area:
         return []
+    seen_inside = bool((body or {}).get('held_description'))
     view = kit_brief.threshold_view(source, state, exit_key) or {}
     seen = ' '.join(_word_list(' '.join([view.get('tease') or '', *(h.get('heard') or '' for h in view.get('heard') or ())]))
                     + _word_list(json.dumps((body or {}).get('public_view') or {}))
                     + _word_list((body or {}).get('action') or ''))
     live = state.get('actors') or {}
-    there = [key for key, spec in (source.get('actors') or {}).items()
+    specs = source.get('actors') or {}
+    there = [key for key, spec in specs.items()
              if (live.get(key) or {}).get('location', spec.get('location')) == other and
              (live.get(key) or {}).get('status', spec.get('status')) not in ('dead', 'fled')]
     nouns, runs = set(), set()
@@ -4605,34 +4623,51 @@ def threshold_hidden_words(source, state, exit_key, body=None):
         if words:
             nouns.add(words[-1])
 
+    def all_words(text):
+        nouns.update(w for w in _word_list(text or '') if w not in _HIDDEN_STOP and len(w) > 2)
+
     def run_of(text):
-        words = _word_list(text or '')
+        words = _word_list(text if isinstance(text, str) else json.dumps(text))
         for i in range(len(words) - 2):
             chunk = words[i:i + 3]
             if sum(w not in _HIDDEN_STOP for w in chunk) >= 2:
                 runs.add(' '.join(chunk))
     for key in there:
-        spec = (source.get('actors') or {}).get(key) or {}
-        head(spec.get('name'))
-        head(str((spec.get('stat_block') or {}).get('srd') or '') if isinstance(spec.get('stat_block'), dict) else '')
-        head(spec.get('dm_identity') if isinstance(spec.get('dm_identity'), str) else '')
-        head(' '.join(part for part in key.split('_') if len(part) > 2))
-        for text in list(spec.get('secrets') or ()) + list(spec.get('knowledge') or ()):
-            run_of(text if isinstance(text, str) else json.dumps(text))
+        spec = specs.get(key) or {}
+        if isinstance(spec.get('dm_identity'), str):
+            head(spec['dm_identity'])
+        for text in [spec.get('motive') or '', *(spec.get('secrets') or ()), *(spec.get('knowledge') or ())]:
+            run_of(text)
+        nouns.update(_proper_name_words(spec.get('name')))
+        if not seen_inside:
+            head(spec.get('name'))
+            block = spec.get('stat_block') if isinstance(spec.get('stat_block'), dict) else {}
+            head(str(block.get('srd') or block.get('_srd') or ''))
+            head(' '.join(part for part in key.split('_') if len(part) > 2))
     facts = source.get('facts') or {}
     known = set(state.get('known_facts') or ())
     for key, fact in facts.items():
-        if isinstance(fact, dict) and fact.get('area') == other and key not in known:
+        if isinstance(fact, dict) and fact.get('area') == other and key not in known and \
+                (not fact.get('visible') or not seen_inside):
             run_of(fact.get('text'))
+    established = kit_claims.established_claims(state)
     for key, claim in (source.get('claims') or {}).items():
-        if key.startswith('_') or not isinstance(claim, dict):
+        if key.startswith('_') or not isinstance(claim, dict) or claim.get('exposure') == 'public':
+            continue
+        if claim.get('exposure') == 'perceivable' and seen_inside:
+            continue
+        if str(claim.get('about') or '').strip().casefold() in established:
             continue
         roots = [root.split(':', 1)[-1] for root in claim.get('roots') or ()]
-        rooted = any((facts.get(root) or {}).get('area') == other or root in there for root in roots) or \
-            any(holder in there for holder in claim.get('holders') or ())
-        if rooted:
-            run_of(claim.get('truth'))
-            nouns.update(w.casefold() for w in claim.get('subject_words') or () if len(w) > 2)
+        if not (any((facts.get(root) or {}).get('area') == other or root in there for root in roots) or
+                any(holder in there for holder in claim.get('holders') or ())):
+            continue
+        run_of(claim.get('truth') or '')
+        nouns.update(w.casefold() for w in claim.get('subject_words') or () if len(w) > 2)
+        about = str(claim.get('about') or '')
+        subject, _, facet = about.partition('/')
+        if subject.startswith('actor:') and facet.strip().casefold() == 'name':
+            all_words((specs.get(subject[6:]) or {}).get('name'))
     nouns = {n for n in nouns if not re.search(r'\b' + re.escape(n) + r'(?:s|es)?\b', seen)}
     runs = {r for r in runs if r not in seen}
     return sorted(nouns) + sorted(runs)

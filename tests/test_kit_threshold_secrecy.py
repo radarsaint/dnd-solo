@@ -23,6 +23,7 @@ def secret_watchroom(test):
     warden = source['actors']['warden']
     warden['secrets'] = ['He sold the back stair key to the smugglers below.']
     warden['stat_block'] = {**(warden.get('stat_block') or {}), 'srd': 'Veteran'}
+    warden['motive'] = 'Wants the bell rung before the relief climbs up at dawn.'
     source['claims'] = {'warden_true': {
         'about': 'actor:warden/identity', 'truth': 'The warden is a deserter wearing a stolen uniform.',
         'source': 'kit', 'roots': ['actor:warden'], 'exposure': 'hidden', 'dc': 14,
@@ -40,6 +41,7 @@ LEAKS = {
     'a true identity (stat block)': 'Inside, a grizzled veteran bends over his ledger with a spear at hand.',
     'a hidden claim': 'Inside, a deserter in a stolen uniform hums the same four notes and waits.',
     'an actor secret': 'Inside sits the man who sold the back stair key to the smugglers below.',
+    'a motive': 'Inside, a man waits for the bell rung before the relief climbs up at dawn.',
     'unfound contents': 'Inside, a coil of rope and a sealed letter lie in the chest under the slit.',
 }
 
@@ -79,6 +81,38 @@ class ThresholdLookIsTeaseOnly(Stalls):
         for word in ('warden', 'veteran', 'deserter', 'stolen uniform', 'sealed letter'):
             self.assertIn(word, flat)
         self.assertNotIn('humming', flat, 'the tease and what is heard are public')
+
+    def test_a_check_on_the_look_may_show_who_is_seen_but_not_what_they_hide(self):
+        # The held description delivered on the check called on a look (the watchroom replay's T2)
+        # describes the place as seen; true identity, secrets, motive and hidden claims stay hidden.
+        state = self.runtime.load()[1]
+        flat = ' | '.join(kit_agent.threshold_hidden_words(
+            self.runtime.source(), state, 'iron_door',
+            {'public_view': {}, 'action': 'Stealth check', 'held_description': {'scope': 'feature'}}))
+        for word in ('deserter', 'stolen uniform', 'back stair key', 'relief climbs'):
+            self.assertIn(word, flat)
+        for word in ('warden', 'veteran'):
+            self.assertNotIn(word, flat.split(' | '))
+
+    def test_a_hidden_name_claim_hides_the_name(self):
+        source = json.loads(Path(WATCH).read_text())
+        source['actors']['warden']['name'] = 'Orrin Tallow'
+        source['claims'] = {'warden_name': {
+            'about': 'actor:warden/name', 'truth': 'The warden is called Orrin Tallow.', 'source': 'kit',
+            'roots': ['actor:warden'], 'exposure': 'hidden', 'dc': 14, 'pc_check': 'insight',
+            'pc_access': 'roll', 'holders': {'warden': 'knows'}, 'subject_words': ['orrin']}}
+        words = kit_agent.threshold_hidden_words(source, self.runtime.load()[1], 'iron_door',
+                                                 {'held_description': {'scope': 'feature'}})
+        self.assertIn('orrin', words)
+        self.assertIn('tallow', words)
+
+    def test_a_personal_name_is_never_seen_through_a_way(self):
+        source = json.loads(Path(WATCH).read_text())
+        source['actors']['warden']['name'] = 'Brannoch'
+        held = {'held_description': {'scope': 'feature'}}
+        self.assertIn('brannoch', kit_agent.threshold_hidden_words(source, self.runtime.load()[1], 'iron_door', held))
+        self.assertEqual(kit_agent._proper_name_words('Watch warden'), set())
+        self.assertEqual(kit_agent._proper_name_words('Orrin Tallow'), {'orrin', 'tallow'})
 
     def test_inside_the_room_the_same_narration_is_fine(self):
         self.go_in()
