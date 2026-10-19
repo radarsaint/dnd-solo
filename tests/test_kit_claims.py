@@ -12,8 +12,9 @@ from runtime import kit_agent, kit_claims, kit_guards, pc_sheet
 from runtime.kit_agent import PendingRuling, RoomAdjudicator
 from runtime.state_context import InvalidChange, Runtime
 from test_kit_agent import FIXTURE, RecordingModel
+import fixture_sheets
 
-NIK = json.loads((Path(__file__).parent / 'fixtures/characters/nik.json').read_text())
+NIK = fixture_sheets.sheet(Path(__file__).parent / 'fixtures/characters/nik.json')
 SOURCE = json.loads(FIXTURE.read_text())
 
 

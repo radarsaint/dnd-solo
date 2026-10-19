@@ -20,9 +20,10 @@ from runtime import kit_cards, kit_twenty_one
 from runtime.kit_agent import RoomAdjudicator
 from runtime.state_context import Runtime
 from test_kit_agent import FIXTURE
+import fixture_sheets
 
 SOURCE = json.loads(FIXTURE.read_text())
-NIK = json.loads((Path(__file__).parent / 'fixtures/characters/nik.json').read_text())
+NIK = fixture_sheets.sheet(Path(__file__).parent / 'fixtures/characters/nik.json')
 
 
 class Base(unittest.TestCase):

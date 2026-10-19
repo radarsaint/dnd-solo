@@ -17,10 +17,11 @@ from runtime import kit_combat
 from runtime import kit_reactions
 from runtime.kit_agent import KitChatBridge, PendingRuling, RoomAdjudicator, WindowAnswer
 from runtime.state_context import InvalidChange, Runtime
+import fixture_sheets
 
 ROOT = Path(__file__).resolve().parents[1]
 CAMP = ROOT / 'tests' / 'fixtures' / 'rooms' / 'roadcamp.json'
-NIK = json.loads((ROOT / 'tests' / 'fixtures' / 'characters' / 'nik.json').read_text())
+NIK = fixture_sheets.sheet(ROOT / 'tests' / 'fixtures' / 'characters' / 'nik.json')
 OPEN = 'Initiative 25. I stab the wagon-side cutthroat with my dagger, 18 to hit, 20 piercing.'
 KILL_CAPTAIN = 'Initiative 25. I stab the bandit captain with my dagger, 18 to hit, 30 piercing.'
 

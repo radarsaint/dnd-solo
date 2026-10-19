@@ -11,10 +11,11 @@ from unittest import mock
 from runtime import kit_combat, kit_voice
 from runtime.kit_agent import PendingRuling, RoomAdjudicator
 from runtime.state_context import Runtime
+import fixture_sheets
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / 'tests' / 'fixtures' / 'level_01_area_06c.json'
-NIK = ROOT / 'tests' / 'fixtures' / 'characters' / 'nik.json'
+NIK = fixture_sheets.path(ROOT / 'tests' / 'fixtures' / 'characters' / 'nik.json')
 NUMBERS_KIT_KEEPS = ('AC', 'DC', 'hit points', ' hp', 'd20')
 
 
