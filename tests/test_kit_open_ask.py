@@ -732,6 +732,8 @@ class E486Reprobe(AskHelpers, unittest.TestCase):
         self.assertHeld('bugbear takes 5', table=named_camp(self, gricks), hit=stab('Grick 1'))
         bugs = {'harl': 'Bugbear 2', 'cutthroat_a': 'Twitchy bugbear', 'cutthroat_b': 'Bugbear 3'}
         self.assertHeld('Bandit 3: 5', table=named_camp(self, bugs), hit=stab('Twitchy bugbear'))
+        fives = {'harl': 'Bandit 6', 'cutthroat_a': 'Bandit 5', 'cutthroat_b': 'Bandit 7'}
+        self.assertHeld('Bandit 3: 5', table=named_camp(self, fives), hit=stab('Bandit 5'))
         bandits = {'harl': 'Bandit 3', 'cutthroat_a': 'Bandit', 'cutthroat_b': 'Bandit 12'}
         self.assertLands('5 to the bandit', 5, table=named_camp(self, bandits), hit=stab('Bandit'))
 

@@ -958,6 +958,8 @@ class RoomAdjudicator:
         plain = kit_rolls.without_dice(QUOTED_SPEECH.sub(' ', action))
         opened = self._DEED_OPEN.match(plain)
         word = opened.group(1).casefold() if opened else ''
+        if re.match(r"^\W*(?:the\s+)?[a-z][\w' -]{0,40}?\s+(?:takes?|took|gets?|got|is|was|for)\s+(?:it\W+)?\d", plain, re.I):
+            return False  # 'bugbear takes 5': a damage report on some name, not a deed
         if not self._deed(plain) or len(word) < 3 or word in self._NOT_A_VERB or \
                 re.match(r'[\w-]*\s*[:\d#]', plain[opened.end(1):] if opened else ''):
             return False
@@ -1038,6 +1040,11 @@ class RoomAdjudicator:
         foes = [key for key in (fight.get('hp') or {}) if key != 'pc']
         groups = self._foe_groups(plain, foes, target)
         missing = kit_names.missing_numbered(plain, self.source, foes)
+        if not missing and not groups:
+            # 'Bandit 3: 5' where no foe is called anything like Bandit: a numbered label of no foe here.
+            label = re.match(r"^\s*((?:[a-z][\w'-]*\s+){1,3}#?\d{1,3})\s*[:=]", plain, re.I)
+            if label and not self._RIDER_LABEL.match(plain):
+                missing = (label.group(1).strip(), None)
         if not groups and not missing:
             return plain, None
         out = plain
@@ -1290,8 +1297,17 @@ class RoomAdjudicator:
         foes = [key for key in (fight.get('hp') or {}) if key != 'pc']
         text = self._DICE_TERMS.sub(' ', (clean + '\n' + '\n'.join(whos)).casefold())
         groups = self._foe_groups(text, foes, target)
-        if any(target in keys for _, _, keys in groups):
+        if any(target in keys for _, _, keys in groups) and not any(
+                kit_names.missing_numbered(w, self.source, foes) for w in whos):
             return None
+        for who in whos:
+            gone = kit_names.missing_numbered(who, self.source, foes)
+            if gone:  # 'Bandit 3: 5' among Bandit 5 and Bandit 6
+                return self._name_reason([], target, gone)
+            # 'Bandit 3: 5' and no foe called anything like it: a numbered name of no foe here.
+            if re.fullmatch(r"\s*(?:[a-z][\w'-]*\s+){1,3}#?\d{1,3}\s*", who, re.I) and \
+                    not self._foe_groups(who.casefold(), foes, target):
+                return self._name_reason([], target, (who.strip(), None))
         reason = self._name_reason(groups, target, kit_names.missing_numbered(text, self.source, foes))
         return reason.replace('That names', 'That damage names', 1) if reason else None
 
