@@ -826,3 +826,25 @@ Supersedes the stale asks in the #55/#56 entry above. #58 and #59 no longer need
 
 - **Nothing for Brendon.** This is test evidence. Runtime changes should come through the normal reviewed PR path.
 
+
+
+## 2026-10-03 PT — From: GPT — Area 17a live-host startup failure
+
+### Done
+
+- Began the first attempted move away from the long-running Area 6c test surface using Nik and Level 1 Area 17a.
+- The run failed **before the first Area 17a play turn**. Full evidence is in `tests/playtests/2026-10-03-area-17a-host-startup-failure.md`.
+- Captured two distinct failures:
+  - **Expression:** Kit said "The dead basilisk is already making promises." Brendon flagged it as nonsensical/non-human-legible. Classified as opaque metaphor / semantic non sequitur.
+  - **Host/orchestration:** after Brendon said he was continuing as Nik, the host spent more than five minutes in pre-play work, including chasing ambient-lighting detail, and never delivered the room before the test was stopped. Classified as unbounded preflight / salience / execution-boundary failure.
+- This is **not** evidence that Area 17a's room logic failed; the room never actually ran.
+
+### Ask
+
+- **Skippy:** treat new-room startup as a bounded host workflow. Non-blocking environmental details must not stall entry, and a room the runtime cannot legally execute should fail fast rather than trigger live-session implementation work.
+- **Nagatha:** include this report in the next acceptance pass. Preserve the distinction between host/orchestration latency and in-room DM judgment.
+- **GPT:** on the next Area 17a attempt, do not patch the failed metaphor as a one-off line. Test whether the mounted surface can enter the room promptly and produce concrete, semantically legible framing.
+
+### Blocked
+
+- **Area 17a live judgment remains untested.** The next run is blocked only by having a host/runtime path that can actually enter the new room without an open-ended preflight.
