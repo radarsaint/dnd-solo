@@ -269,11 +269,15 @@ class CleanHostTests(unittest.TestCase):
             runtime_root = repo / 'dnd-solo-main'
             self.assertTrue((runtime_root / 'runtime/kit_pack.py').is_file())
             python = shutil.which('python3') or sys.executable
+            # The real host upload folders (/mnt/data, ...) may hold a real pack: never read them here.
+            uploads = tmp / 'no-uploads'
+            uploads.mkdir()
+            isolated = ['--upload-dir', str(uploads)]
             for argv in (['--pack', str(data / 'kit-rooms-test.zip')], ['--pack', str(data)]):
                 db = tmp / f'kit-{len(argv[1])}.sqlite'
                 proc = subprocess.run(
                     ['env', '-i', python, '-m', 'runtime.kit_agent', 'start', '--db', str(db), *argv,
-                     '--sheet', NIK],
+                     '--sheet', NIK, *isolated],
                     cwd=runtime_root, capture_output=True, text=True, check=False)
                 self.assertEqual(proc.returncode, 0, proc.stderr)
                 out = json.loads(proc.stdout)
@@ -284,7 +288,7 @@ class CleanHostTests(unittest.TestCase):
             # lobby, which lists the pack's rooms; picking one mounts it.
             zip_pack(build_pack(tmp / 'src2'), runtime_root / 'kit-rooms-cwd.zip')
             proc = subprocess.run(
-                ['env', '-i', python, '-m', 'runtime.kit_agent', 'start', '--db', str(tmp / 'lobby.sqlite')],
+                ['env', '-i', python, '-m', 'runtime.kit_agent', 'start', '--db', str(tmp / 'lobby.sqlite'), *isolated],
                 cwd=runtime_root, capture_output=True, text=True, check=False)
             self.assertEqual(proc.returncode, 0, proc.stderr)
             lobby = json.loads(proc.stdout)
@@ -294,13 +298,13 @@ class CleanHostTests(unittest.TestCase):
             self.assertIn(NIK, [s['path'] for s in lobby['available']['character_sheets']])
             proc = subprocess.run(
                 ['env', '-i', python, '-m', 'runtime.kit_agent', 'start', '--db', str(tmp / 'lobby.sqlite'),
-                 '--room', lobby['available']['packs'][0]['rooms'][1], '--sheet', NIK],
+                 '--room', lobby['available']['packs'][0]['rooms'][1], '--sheet', NIK, *isolated],
                 cwd=runtime_root, capture_output=True, text=True, check=False)
             self.assertEqual(proc.returncode, 0, proc.stderr)
             self.assertEqual(json.loads(proc.stdout)['room_id'], 'synthetic-pack-kiln')
             proc = subprocess.run(
                 ['env', '-i', python, '-m', 'runtime.kit_agent', 'start', '--db', str(tmp / 'cwd.sqlite'),
-                 '--campaign', 'dotmm', '--sheet', NIK],
+                 '--campaign', 'dotmm', '--sheet', NIK, *isolated],
                 cwd=runtime_root, capture_output=True, text=True, check=False)
             self.assertEqual(proc.returncode, 0, proc.stderr)
             self.assertEqual(json.loads(proc.stdout)['room_id'], 'synthetic-pack-watchroom')
@@ -350,3 +354,108 @@ class SetupDocTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class PackReviewFixes(unittest.TestCase):
+    """Nagatha's clean-host review of #128: a folder pack followed a symlink out of the pack (it
+    read /etc/passwd); the tests read the real upload folders and cwd; the ambiguous line; the
+    Claude setup; spoiler-free room labels in the lobby."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.dir = Path(self.tmp.name)
+        self.db = str(self.dir / 'kit.sqlite')
+        self.empty = self.dir / 'nothing-here'
+        self.empty.mkdir()
+
+    def test_a_room_symlinked_out_of_the_pack_is_refused(self):
+        outside = self.dir / 'outside'
+        outside.mkdir()
+        (outside / 'secret.json').write_text(json.dumps(_room('kiln.json', id='synthetic-pack-kiln')))
+        for how in ('file', 'folder'):
+            with self.subTest(how=how):
+                pack = build_pack(self.dir / how)
+                if how == 'file':
+                    (pack / 'rooms/kiln.json').unlink()
+                    (pack / 'rooms/kiln.json').symlink_to(outside / 'secret.json')
+                else:
+                    shutil.rmtree(pack / 'rooms')
+                    (pack / 'rooms').symlink_to(outside)
+                    (outside / 'watchroom.json').write_text(json.dumps(_room('watchroom.json', id='synthetic-pack-watchroom')))
+                    (outside / 'kiln.json').write_text(json.dumps(_room('kiln.json', id='synthetic-pack-kiln')))
+                with self.assertRaises(kit_pack.PackError) as caught:
+                    kit_pack.open_pack(pack, self.db)
+                self.assertEqual(caught.exception.error, 'pack_invalid')
+                self.assertIn('outside the pack', str(caught.exception))
+        pack = build_pack(self.dir / 'etc')
+        (pack / 'rooms/kiln.json').unlink()
+        (pack / 'rooms/kiln.json').symlink_to('/etc/passwd')
+        code, out = _cli(['start', '--db', self.db, '--pack', str(pack), '--room', 'kiln', '--sheet', NIK],
+                         cwd=self.empty)
+        self.assertEqual(code, 2)
+        self.assertEqual(out['error'], 'pack_invalid')
+        self.assertNotIn('root:', json.dumps(out))
+
+    def test_a_symlink_that_stays_inside_the_pack_is_fine(self):
+        pack = build_pack(self.dir)
+        (pack / 'rooms/kiln-link.json').symlink_to(pack / 'rooms/kiln.json')
+        manifest = json.loads((pack / 'manifest.json').read_text())
+        manifest['rooms'][1]['path'] = 'rooms/kiln-link.json'
+        (pack / 'manifest.json').write_text(json.dumps(manifest))
+        self.assertEqual(kit_pack.open_pack(pack, self.db).find('synthetic-pack-kiln').name, 'kiln.json')
+
+    def test_the_discovery_roots_are_injectable(self):
+        uploads = self.dir / 'uploads'
+        uploads.mkdir()
+        build_pack(uploads, 'upload-rooms')
+        with patch.object(kit_pack, 'SEARCH_ROOTS', [self.empty]):
+            self.assertEqual(kit_pack.search_dirs(), [self.empty.resolve()])
+        with patch.object(kit_pack, 'SEARCH_ROOTS', [uploads]):
+            self.assertEqual([p['pack'] for p in kit_pack.listing()], ['upload-rooms'])
+        # The CLI's --upload-dir replaces the host upload folders (cwd and the repo root stay).
+        here = self.dir / 'here'
+        build_pack(here, 'cwd-rooms')
+        for dirs, want in (([str(self.empty)], 'cwd-rooms'), ([str(uploads)], None)):
+            argv = ['start', '--db', str(self.dir / f'kit-{len(dirs)}-{want}.sqlite'), '--campaign', 'dotmm',
+                    '--sheet', NIK]
+            for folder in dirs:
+                argv += ['--upload-dir', folder]
+            with patch.object(kit_pack, 'PROJECT_ROOT', self.empty), patch.object(Path, 'cwd', lambda: here):
+                code, out = _cli(argv)
+            if want:
+                self.assertEqual(code, 0, out)
+                self.assertEqual(out['pack']['pack'], want)
+            else:
+                self.assertEqual(out['error'], 'pack_ambiguous')
+        self.assertEqual(kit_pack.UPLOAD_DIRS, ('/mnt/data', '/mnt/user-data/uploads', '/mnt/user-data'),
+                         'the flag applies to its own command only')
+
+    def test_the_ambiguous_line_says_two_packs_and_asks_which(self):
+        build_pack(self.dir, 'kit-rooms')
+        build_pack(self.dir, 'other-rooms')
+        code, out = _cli(['start', '--db', self.db, '--campaign', 'dotmm', '--sheet', NIK], cwd=self.dir)
+        self.assertEqual(out['error'], 'pack_ambiguous')
+        self.assertEqual(out['table_line'], 'Two rooms packs are attached: kit-rooms and other-rooms. Which one should I open?')
+        self.assertNotIn('improvise', out['table_line'])
+
+    def test_lobby_rooms_carry_only_spoiler_free_labels(self):
+        pack = build_pack(self.dir)
+        manifest = json.loads((pack / 'manifest.json').read_text())
+        manifest['rooms'][0].update(level=1, area='8c', summary='The dealer is secretly a vampire.')
+        manifest['rooms'][1].update(summary='A kiln that hides a body.')
+        (pack / 'manifest.json').write_text(json.dumps(manifest))
+        (listed,) = kit_pack.listing([self.dir])
+        self.assertEqual(listed['rooms'], ['synthetic-pack-watchroom', 'synthetic-pack-kiln'])
+        self.assertEqual(listed['room_labels'], {'synthetic-pack-watchroom': 'Level 1, area 8c'})
+        text = json.dumps(listed)
+        for spoiler in ('vampire', 'body', 'social', 'hazard'):
+            self.assertNotIn(spoiler, text)
+
+    def test_the_claude_setup_says_attach_in_chat_and_project_zips_are_unverified(self):
+        doc = (ROOT / 'docs/CUSTOM_GPT_SETUP.md').read_text(encoding='utf-8')
+        section = doc[doc.index('## Claude Projects'):doc.index('## Hosts with a real shell')]
+        self.assertIn('attach the ZIPs in the chat', section)
+        self.assertIn('/mnt/user-data/uploads', section)
+        self.assertIn('unverified', section.casefold())
+        self.assertIn('Project knowledge', section)

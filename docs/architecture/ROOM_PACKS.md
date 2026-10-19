@@ -58,7 +58,15 @@ resolves to the same relative path, then the same file name, next to the room it
 2. Otherwise `start` looks, in order, in the working directory, the repository root, `/mnt/data`
    (ChatGPT), `/mnt/user-data/uploads` and `/mnt/user-data` (Claude). In each folder it checks the folder
    itself, its direct subfolders, and its `*.zip` files. Folders named `.something` are skipped.
-3. One pack: used. None: no pack. Two packs with different names: `pack_ambiguous`, pass `--pack`.
+3. One pack: used. None: no pack. Two packs with different names: `pack_ambiguous`. Its `table_line`
+   says how many packs are attached, names them, and asks the player which one; then pass `--pack`.
+4. `--upload-dir DIR` (repeatable) replaces the host upload folders for that command; the working
+   directory and the repository root are still searched. In-process, `kit_pack.SEARCH_ROOTS` replaces
+   every root (the tests use it so a host's real pack never changes their results).
+
+Every room path must resolve inside the pack: a room file or folder that is a symlink to somewhere
+outside the pack root (`/etc/passwd`, a sibling folder) makes the pack `pack_invalid`. A symlink that
+stays inside the pack is fine. ZIP entries outside the ZIP's folder are refused the same way.
 
 No environment variables and no host-only paths or tools. A ZIP unzips next to the save, under
 `.kit-packs/<zip name>-<sha256[:8]>/`, so the room paths a save records keep working; re-running start
@@ -68,7 +76,7 @@ reuses that copy.
 
 | Command | Result |
 |---|---|
-| `start` (no save) | The lobby (`stage: lobby`): `available.packs` lists each attached pack (name, `path` for `--pack`, first room, room ids), with saved games and character sheets. Opens nothing. |
+| `start` (no save) | The lobby (`stage: lobby`): `available.packs` lists each attached pack (name, `path` for `--pack`, first room, room ids, and `room_labels`: "Level 1, area 8c" from the manifest's `level` and `area` only, never a summary, a kind or a room's own names, since those can spoil it), with saved games and character sheets. Opens nothing. |
 | `start` on a save | `resume`. A pack never starts over a running game. |
 | `start --campaign dotmm --sheet F` | Mounts `first_room` (`stage: started`, `pack` in the result). |
 | `start --pack P --sheet F` | Mounts that pack's `first_room`. |

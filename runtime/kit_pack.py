@@ -22,6 +22,7 @@ its direct subfolders, and its *.zip files. A ZIP and the folder it was unzipped
 Two different packs is an error that asks for --pack. A ZIP is unzipped next to the save, under
 .kit-packs/, so the room paths in the save still work after the next start.
 """
+import contextlib
 import hashlib
 import json
 import os
@@ -35,6 +36,9 @@ MANIFEST = 'manifest.json'
 UPLOAD_DIRS = ('/mnt/data', '/mnt/user-data/uploads', '/mnt/user-data')
 CACHE_DIR = '.kit-packs'
 DEFAULT_CAMPAIGN = 'dotmm'
+# Discovery roots. None: the working dir, the repo root and UPLOAD_DIRS. A list replaces them all
+# (tests isolate discovery with it; the CLI's --upload-dir replaces UPLOAD_DIRS only).
+SEARCH_ROOTS = None
 
 
 class PackError(Exception):
@@ -47,8 +51,10 @@ class PackError(Exception):
     def host_view(self):
         return {'stage': 'rejected', 'committed': False, 'error': self.error, 'message': str(self),
                 **self.details,
-                'table_line': "I can't open those rooms. The attached rooms pack isn't usable, so I won't improvise one.",
-                'next_step': 'Say table_line. Do not invent a room. Tell the host what message says.'}
+                'table_line': getattr(self, 'table_line', None) or
+                "I can't open those rooms. The attached rooms pack isn't usable, so I won't improvise one.",
+                'next_step': getattr(self, 'next_step', None) or
+                'Say table_line. Do not invent a room. Tell the host what message says.'}
 
 
 class Pack:
@@ -67,7 +73,7 @@ class Pack:
         return [entry for entry in self.manifest['rooms']]
 
     def path(self, rel):
-        return (self.root / rel).resolve()
+        return _inside(self.root, rel)
 
     def first_room(self):
         return self.path(self.manifest['first_room'])
@@ -95,10 +101,25 @@ class Pack:
                 'rooms': self.room_ids()}
 
 
+@contextlib.contextmanager
+def uploads(folders):
+    """Use these folders as the host upload folders while the block runs (the CLI's --upload-dir);
+    None or empty keeps UPLOAD_DIRS."""
+    global UPLOAD_DIRS
+    saved = UPLOAD_DIRS
+    if folders:
+        UPLOAD_DIRS = tuple(str(f) for f in folders)
+    try:
+        yield
+    finally:
+        UPLOAD_DIRS = saved
+
+
 def search_dirs():
     """Where start looks for a pack when --pack is not given, in order."""
     out = []
-    for folder in (Path.cwd(), PROJECT_ROOT, *map(Path, UPLOAD_DIRS)):
+    roots = SEARCH_ROOTS if SEARCH_ROOTS is not None else (Path.cwd(), PROJECT_ROOT, *map(Path, UPLOAD_DIRS))
+    for folder in map(Path, roots):
         try:
             folder = folder.resolve()
         except OSError:
@@ -108,7 +129,7 @@ def search_dirs():
     return out
 
 
-def _manifest_problems(manifest, has):
+def _manifest_problems(manifest, has, inside=None):
     """Problems with a manifest. ``has(rel)`` says whether a file exists in the pack."""
     problems = []
     if not isinstance(manifest, dict):
@@ -128,12 +149,33 @@ def _manifest_problems(manifest, has):
         paths.append(rel)
         if not has(rel):
             problems.append(f'rooms[{i}].path {rel!r} is not in the pack')
+        elif inside is not None and not inside(rel):
+            problems.append(f'rooms[{i}].path {rel!r} resolves outside the pack (a symlink); refused')
     first = manifest.get('first_room')
     if not isinstance(first, str) or not _safe(first):
         problems.append('first_room must be a relative path inside the pack')
     elif first not in paths:
         problems.append(f'first_room {first!r} is not one of rooms[].path')
     return problems
+
+
+def _inside(root, rel):
+    """The real path of ``rel`` under ``root``, or a PackError when it resolves outside the pack
+    (a symlink to /etc/passwd, a symlinked rooms folder pointing elsewhere)."""
+    real_root = Path(os.path.realpath(root))
+    real = Path(os.path.realpath(Path(root) / rel))
+    if real != real_root and real_root not in real.parents:
+        raise PackError('pack_invalid', f'The rooms pack at {root} has a room outside the pack: {rel!r}.',
+                        pack_path=str(root), problems=[f'{rel!r} resolves outside the pack'])
+    return real
+
+
+def _is_inside(root, rel):
+    try:
+        _inside(root, rel)
+        return True
+    except PackError:
+        return False
 
 
 def _safe(rel):
@@ -256,16 +298,28 @@ def open_pack(path, db):
             raise _ambiguous(found)
         return open_pack(found[0][1], db)
     manifest = _read_json(path / MANIFEST)
-    problems = _manifest_problems(manifest, lambda rel: (path / rel).is_file())
+    problems = _manifest_problems(manifest, lambda rel: (path / rel).is_file(), lambda rel: _is_inside(path, rel))
     if problems:
+        if any('outside the pack' in p for p in problems):
+            problems = [p for p in problems if 'outside the pack' in p] + [p for p in problems if 'outside the pack' not in p]
         raise PackError('pack_invalid', f'The rooms pack at {origin} has problems: ' + '; '.join(problems),
                         pack_path=str(origin), problems=problems)
     return Pack(path.resolve(), manifest, origin)
 
 
+_COUNT_WORDS = ('No', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten')
+
+
 def _ambiguous(found):
-    return PackError('pack_ambiguous', 'More than one rooms pack is attached. Pass --pack with the one to use.',
-                     packs=[{'pack': m.get('pack'), 'path': str(p)} for _, p, m in found])
+    names = [str(m.get('pack') or p.stem) for _, p, m in found]
+    count = _COUNT_WORDS[len(names)] if len(names) < len(_COUNT_WORDS) else str(len(names))
+    listed = names[0] if len(names) == 1 else ', '.join(names[:-1]) + ' and ' + names[-1]
+    error = PackError('pack_ambiguous', 'More than one rooms pack is attached. Pass --pack with the one to use.',
+                      packs=[{'pack': m.get('pack'), 'path': str(p)} for _, p, m in found])
+    error.table_line = f'{count} rooms packs are attached: {listed}. Which one should I open?'
+    error.next_step = ("Say table_line and wait for the player's answer. Then run start again with --pack and "
+                       "that pack's path (packs[].path). Do not pick one yourself.")
+    return error
 
 
 def resolve(db, explicit=None):
@@ -290,6 +344,18 @@ def same_campaign(asked, campaign):
     return a == b or (a in MAD_MAGE_KEYS and b in MAD_MAGE_KEYS)
 
 
+def room_labels(rooms):
+    """Spoiler-free labels for the lobby: only the book's level and area numbers ("Level 1, area 8c").
+    Never a summary, a kind or the room's own area names: those can give the room away."""
+    labels = {}
+    for entry in rooms:
+        level, area = entry.get('level'), entry.get('area')
+        if type(level) is int and isinstance(area, (str, int)) and str(area).strip() and \
+                len(str(area)) <= 8 and str(area).replace('-', '').isalnum():
+            labels[entry.get('room_id') or PurePosixPath(entry['path']).stem] = f'Level {level}, area {area}'
+    return labels
+
+
 def listing(folders=None):
     """Every attached pack, for the lobby: name, the path to pass to --pack, first room, room ids.
     Read from the manifests only; nothing is unzipped and no summary is shown."""
@@ -301,5 +367,5 @@ def listing(folders=None):
                       if e['path'] == manifest.get('first_room')), None)
         out.append({'pack': str(manifest.get('pack') or path.stem), 'path': str(path), 'kind': kind,
                     'campaign': str(manifest.get('campaign') or DEFAULT_CAMPAIGN),
-                    'first_room': first, 'rooms': ids})
+                    'first_room': first, 'rooms': ids, 'room_labels': room_labels(rooms)})
     return out

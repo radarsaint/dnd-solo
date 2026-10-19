@@ -144,7 +144,9 @@ A Project works for your own sessions. Add a **commit-stamped** runtime ZIP and 
 
 ## Claude Projects and other hosts with a Python sandbox
 
-The same setup works on any host that runs Python 3.10+ on attached files: attach the runtime ZIP, `dm-personality-core.md`, and the rooms pack ZIP, and use section 3 as the project instructions. Where the instructions say `/mnt/data`, use the host's upload folder (Claude: `/mnt/user-data/uploads`). Nothing in the runtime depends on one host: no host-only paths, tools, or environment variables, and `tests/test_kit_room_pack.py` starts a pack room from the release ZIP with `env -i python3`.
+The same setup works on any host that runs Python 3.10+ on attached files. Use section 3 as the project instructions. On Claude, attach the ZIPs in the chat: the runtime ZIP, `dm-personality-core.md`, and the rooms pack ZIP. Files attached in a chat appear under `/mnt/user-data/uploads`, which `start` searches. Where the instructions say `/mnt/data`, use that folder.
+
+Mounting ZIPs from Project knowledge is unverified: we have not confirmed that a Claude Project exposes its knowledge files to the sandbox as files `start` can open. Until it is verified, attach the ZIPs in the chat even when they are also in the Project. Nothing in the runtime depends on one host: no host-only paths, tools, or environment variables, and `tests/test_kit_room_pack.py` starts a pack room from the release ZIP with `env -i python3`.
 
 ## Hosts with a real shell (Codex, Claude Code, Cursor, etc.)
 

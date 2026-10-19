@@ -10,7 +10,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from runtime import kit_agent, kit_campaign
+from runtime import kit_agent, kit_campaign, kit_pack
 from runtime.state_context import PROJECT_ROOT, Runtime
 
 ROOT = PROJECT_ROOT
@@ -21,6 +21,13 @@ class CampaignEntryTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.db = str(Path(self.tmp.name) / 'kit.sqlite')
+        # Never the host's real upload folders or cwd: a host with a real pack attached must not
+        # change these results (Nagatha's clean-host review of #128).
+        nowhere = Path(self.tmp.name) / 'no-packs'
+        nowhere.mkdir()
+        isolate = patch.object(kit_pack, 'SEARCH_ROOTS', [nowhere])
+        isolate.start()
+        self.addCleanup(isolate.stop)
 
     def tearDown(self):
         self.tmp.cleanup()
@@ -159,7 +166,8 @@ class CampaignEntryTests(unittest.TestCase):
 
     def test_subprocess_start_matches_the_host_command(self):
         proc = subprocess.run(
-            [sys.executable, '-m', 'runtime.kit_agent', 'start', '--db', self.db],
+            [sys.executable, '-m', 'runtime.kit_agent', 'start', '--db', self.db,
+             '--upload-dir', str(Path(self.tmp.name) / 'no-packs')],
             cwd=ROOT, capture_output=True, text=True, check=False)
         self.assertEqual(proc.returncode, 0, proc.stderr)
         result = json.loads(proc.stdout)

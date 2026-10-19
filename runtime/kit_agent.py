@@ -5612,6 +5612,10 @@ def main():
     parser.add_argument('--pack', help='start: a private rooms pack (a ZIP, its folder, or its manifest.json). '
                                        'Without it, start looks for one in the working dir, the repo root, and '
                                        '/mnt/data, /mnt/user-data/uploads, /mnt/user-data (runtime/kit_pack.py).')
+    parser.add_argument('--upload-dir', action='append', dest='upload_dirs',
+                        help='start: look for a rooms pack in this folder instead of the host upload folders '
+                             '(/mnt/data, /mnt/user-data/uploads, /mnt/user-data); repeatable. The working dir '
+                             'and the repo root are still searched.')
     parser.add_argument('--area', help='start: begin in this area of the room (default: its starting_area)')
     parser.add_argument('--model', help='Optional standalone Responses API model for play')
     parser.add_argument('--perception', type=int, help='Test character Wisdom (Perception) modifier')
@@ -5656,6 +5660,12 @@ def main():
     parser.add_argument('--pretty', action='store_true',
                         help='prepare/decide/finish/complete: indent the JSON for reading (default compact)')
     args = parser.parse_args()
+    # --upload-dir replaces the host upload folders for this command only (kit_pack.uploads).
+    with kit_pack.uploads(getattr(args, 'upload_dirs', None)):
+        return _dispatch(parser, args)
+
+
+def _dispatch(parser, args):
     if args.command == 'persona':
         # Kit before any game: the persona text the bridge uses, with no database or scene.
         sys.stdout.write(persona_text())
