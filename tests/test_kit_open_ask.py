@@ -197,7 +197,8 @@ class DamageAnswerFormats(unittest.TestCase):
 
     def test_several_stated_amounts_apply_the_first_and_say_so(self):
         # c17dc15 review (Medium): never 0 damage, held as a deed, with two rounds run.
-        for words in ('Dagger 5 damage, sneak attack 4 damage', 'Damage: 1d4 (3) + 2 = 5 Damage: 1d4 (1) + 2 = 3',
+        # A same-hit rider ('sneak attack 4 damage') sums instead: NeverForfeitStatedDamage.
+        for words in ('5 damage, then 4 damage', 'Damage: 1d4 (3) + 2 = 5 Damage: 1d4 (1) + 2 = 3',
                       '5 piercing damage and 2 fire damage'):
             with self.subTest(words=words):
                 result = self.assertLands(words, 5)
@@ -446,7 +447,7 @@ class NumberedFoesDamage(unittest.TestCase):
                 fight, result = self.answered(words)
                 self.assertEqual(fight['hp']['cutthroat_a'], 11, words)
                 self.assertEqual((fight.get('pending') or {}).get('needs'), 'damage', words)
-                self.assertRegex(result.public_event, r'names the bandit [13], but your hit was on the bandit 2')
+                self.assertRegex(result.public_event, r'names Bandit [13], but your hit was on Bandit 2')
         for words in ('4 damage to Bandit 2', 'Bandit 2 takes 4 damage', '4 damage to the bandit'):
             with self.subTest(words=words):
                 fight, _ = self.answered(words)
@@ -539,3 +540,112 @@ class EngineLineAfterOneFailedNarration(BridgeCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+def named_camp(test, names):
+    """Roadcamp with its foes relabelled (synthetic; every die pinned)."""
+    import json
+    import tempfile
+    from pathlib import Path
+    from unittest import mock
+    import test_kit_combat_checkpoints as checkpoints
+    source = json.loads(checkpoints.CAMP.read_text())
+    for key, name in names.items():
+        source['actors'][key]['name'] = name
+    temp = tempfile.TemporaryDirectory()
+    test.addCleanup(temp.cleanup)
+    path = Path(temp.name) / 'named.json'
+    path.write_text(json.dumps(source))
+    with mock.patch.object(checkpoints, 'CAMP', path):
+        return Camp(test, roll=lambda: 2, sheet=without_shield(NIK))
+
+
+class NeverForfeitStatedDamage(unittest.TestCase):
+    """Nagatha's #127 re-probe at 3f6f0de: a missed answer only re-asks, a wrong one kills monsters,
+    and a lost damage roll is also wrong. A correction, a number with the target's name, or a
+    number word with 'damage' is the answer or held, never forfeited."""
+
+    def answered(self, words, table=None, target='cutthroat_a', hit=HIT):
+        table = table or camp(self)
+        table.act(hit)
+        self.assertEqual(table.fight['pending']['target'], target)
+        return table, table.act(words)
+
+    def assertLands(self, words, amount, **kw):
+        table, result = self.answered(words, **kw)
+        fight = table.fight
+        target = kw.get('target', 'cutthroat_a')
+        self.assertEqual(fight['hp'][target], 11 - amount, f'{words}: {result.public_event}')
+        self.assertIsNone(fight.get('pending'), words)
+        self.assertNotIn('No damage was rolled', result.public_event, words)
+        self.assertEqual((fight['round'], fight['order'][fight['next']]), (2, 'pc'), words)
+        return result
+
+    def assertHeld(self, words, **kw):
+        table, result = self.answered(words, **kw)
+        fight = table.fight
+        self.assertEqual(fight['hp'][kw.get('target', 'cutthroat_a')], 11, words)
+        self.assertEqual((fight.get('pending') or {}).get('needs'), 'damage', f'{words}: {result.public_event}')
+        self.assertNotIn('No damage was rolled', result.public_event, words)
+        self.assertEqual(fight['round'], 1, words)
+        return result
+
+    def test_a_correction_during_the_ask_lands_its_amount(self):
+        for words in ('Actually it was 6 not 5 lol', 'Actually it was 6', 'actually 6 not 5', 'correction: 6',
+                      'oh wait 6 not 5', '6 not 5', 'Scratch that, it was 6 damage.', 'Oops, 6.', 'wait, six',
+                      'my bad, it was 6'):
+            with self.subTest(words=words):
+                self.assertLands(words, 6)
+
+    def test_a_correction_with_no_clear_amount_is_held_never_forfeited(self):
+        for words in ('Actually wait', 'actually it was 6 or 7', 'oops'):
+            with self.subTest(words=words):
+                self.assertHeld(words)
+
+    def test_a_correction_after_the_damage_landed_is_a_graceful_reply(self):
+        table = camp(self)
+        table.act(HIT)
+        table.act('5')
+        self.assertEqual(table.fight['hp']['cutthroat_a'], 6)
+        for words in ('Actually it was 6 not 5', 'correction: 6', 'oh wait 6 not 5'):
+            with self.subTest(words=words):
+                result = table.act(words)
+                self.assertEqual(table.fight['hp']['cutthroat_a'], 6, 'never silently re-applied')
+                self.assertIn('already landed', result.public_event)
+
+    def test_the_targets_own_name_and_a_number_land(self):
+        for words, amount in (('6 to the cutthroat', 6), ('cutthroat 3', 3), ('wagon-side cutthroat takes 6', 6),
+                              ('6 to the wagon-side cutthroat', 6)):
+            with self.subTest(words=words):
+                self.assertLands(words, amount)
+
+    def test_a_numbered_targets_name_never_counts_as_the_damage(self):
+        for words, amount in (('Bandit 2 takes 6', 6), ('3 to bandit 2', 3), ('6 to bandit 2', 6),
+                              ('bandit 2 6', 6), ('2 to bandit 2', 2)):
+            with self.subTest(words=words):
+                self.assertLands(words, amount, table=numbered_camp(self), hit=NUMBERED_HIT)
+
+    def test_the_targets_name_alone_or_another_foe_holds_the_ask(self):
+        self.assertHeld('bandit 2', table=numbered_camp(self), hit=NUMBERED_HIT)
+        result = self.assertHeld('3 to bandit 3', table=numbered_camp(self), hit=NUMBERED_HIT)
+        self.assertIn('Bandit 3', result.public_event)
+
+    def test_a_foe_named_with_a_number_word_is_never_damage(self):
+        names = {'harl': 'Seven', 'cutthroat_b': 'Six-Fingered Jack'}
+        for words, amount in (('Six damage', 6), ('seven damage', 7), ('six', 6), ('6', 6)):
+            with self.subTest(words=words):
+                self.assertLands(words, amount, table=named_camp(self, names))
+        self.assertHeld('Seven', table=named_camp(self, names))
+
+    def test_a_same_hit_rider_in_prose_sums(self):
+        for words, amount in (('Dagger 5 damage, sneak attack 4 damage', 9),
+                              ('5 piercing damage and 3 from sneak attack', 8)):
+            with self.subTest(words=words):
+                self.assertLands(words, amount)
+        result = self.assertLands('5 damage, then 4 damage', 5)
+        self.assertIn('Only the first damage roll counts', result.public_event)
+
+    def test_a_numbered_foe_reads_as_a_name_in_the_line(self):
+        table, result = self.answered('3', table=numbered_camp(self), hit=NUMBERED_HIT)
+        self.assertIn('Bandit 2 is hurt', result.public_event)
+        self.assertNotIn('The bandit 2', result.public_event)
