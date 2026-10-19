@@ -53,6 +53,7 @@ from .state_context import (ASKED_EVENT_PREFIX, CONTEXT_BUDGET_BYTES, HostSequen
                             StaleTurn, VOICE_MAX_BYTES, load_voice, personality_core_text,
                             check_player_note_text, encode, require)
 from .state_context import HELD_KINDS as _HELD_KINDS
+from .state_context import unperceived
 
 
 # Regression fixture. Not the player-facing default. The CLI mounts it only with
@@ -1502,7 +1503,8 @@ class RoomAdjudicator:
 
     def _present_actors(self, state):
         return {key: actor for key, actor in (state.get('actors') or {}).items()
-                if actor.get('location') == state['area'] and actor.get('status') not in ('fled', 'dead', 'hidden')}
+                if actor.get('location') == state['area'] and actor.get('status') not in ('fled', 'dead', 'hidden')
+                and not unperceived({**((self.source or {}).get('actors') or {}).get(key, {}), **actor})}
 
     BLOCKERS_UNABLE = ('asleep', 'unconscious', 'restrained', 'bound', 'paralyzed', 'stunned')
 
@@ -4170,7 +4172,8 @@ def turn_speakers(runtime, body):
     heard = {key: sound for key, sound in {**kit_brief.heard_here(source, before),
                                            **kit_brief.heard_here(source, after)}.items()
              if where(key) not in areas}
-    hidden = {key for key, actor in (after.get('actors') or {}).items() if actor.get('status') == 'hidden'}
+    hidden = {key for key, actor in (after.get('actors') or {}).items()
+              if unperceived({**((source.get('actors') or {}).get(key) or {}), **actor})}
     here = [label for key, label in labels.items()
             if key not in heard and key not in hidden and where(key) in areas | {None}]
     out = {'speakers': list(dict.fromkeys(NON_NPC_SPEAKERS + tuple(here)))}
@@ -4547,9 +4550,9 @@ def hidden_actor_words(source, state, body=None):
                     _word_list((body or {}).get('action') or ''))
     nouns, runs = set(), set()
     for key, actor in (state.get('actors') or {}).items():
-        if actor.get('status') != 'hidden':
-            continue
         spec = ((source.get('actors') or {}).get(key) or {})
+        if not unperceived({**spec, **actor}):
+            continue  # protected: any alive creature the PC cannot perceive, whatever marks it
         names = [spec.get('name') or actor.get('name') or '', str((spec.get('stat_block') or {}).get('srd') or ''),
                  ' '.join(part for part in key.split('_') if len(part) > 2)]
         for name in names:
