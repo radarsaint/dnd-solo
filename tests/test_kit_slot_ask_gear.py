@@ -215,7 +215,8 @@ class AuditAcrossSheets(unittest.TestCase):
     """(2) The audit reads any sheet: class training, multiclassing, feats, explicit lists, attunement."""
 
     EXPECTED = {'nik': ['shield_proficiency'], 'brannoc_fighter': [], 'ilsa_cleric': [],
-                'mirel_sorcerer': ['armor_proficiency'], 'tamsin_bard': ['attunement_limit'], 'example_pc': []}
+                'mirel_sorcerer': ['armor_proficiency'], 'tamsin_bard': ['attunement_limit'], 'example_pc': [],
+                'pell_wizard': ['unverified_proficiency']}
 
     def test_every_fixture_sheet(self):
         for path in sorted(SHEETS.glob('*.json')):
@@ -228,7 +229,8 @@ class AuditAcrossSheets(unittest.TestCase):
         nik = sheet('nik')
         self.assertEqual(kit_gear.audit(dict(nik, **{'class': 'Wizard 4 / Fighter 1'})), [], 'multiclass fighter: shields')
         self.assertEqual(kit_gear.audit(dict(nik, features=nik['features'] + ['Moderately Armored'])), [])
-        self.assertEqual(kit_gear.audit(dict(nik, armor_proficiencies=['shields'])), [])
+        self.assertEqual([i['issue'] for i in kit_gear.audit(dict(nik, armor_proficiencies=['shields']))],
+                         ['unverified_proficiency'], 'a listed training with no source is asked about, not trusted')
         wren = sheet('example_pc')
         self.assertEqual([i['issue'] for i in kit_gear.audit(dict(wren, gear=wren['gear'] + ['shield']))],
                          ['shield_proficiency'], 'a rogue has no shield training')

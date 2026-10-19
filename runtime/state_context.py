@@ -874,6 +874,10 @@ class Runtime:
         elif kind == 'player_sheet':
             from . import pc_sheet
             sheet = pc_sheet.check_sheet(event.get('sheet'))
+            from . import kit_gear
+            notes = kit_gear.sheet_notes(state.get('player_sheet'), sheet)
+            if notes:  # hand edits (gold, HP, XP, ammo) are accepted and only noted
+                state['sheet_notes'] = (list(state.get('sheet_notes') or []) + notes)[-24:]
             state['player_sheet'] = copy.deepcopy(sheet)
             state['player_character'] = pc_sheet.identity(sheet)
             from . import kit_reactions
@@ -887,6 +891,9 @@ class Runtime:
         elif kind == 'gear_state':
             from . import kit_gear
             kit_gear.apply_event(state, event)
+        elif kind == 'homebrew_ruling':
+            from . import kit_gear
+            kit_gear.apply_ruling(state, event)
         elif kind == 'pc_resources':
             from . import kit_reactions
             state['pc_resources'] = copy.deepcopy(kit_reactions.check(event.get('resources')))

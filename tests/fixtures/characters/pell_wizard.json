@@ -1,0 +1,94 @@
+{
+  "schema": "character_sheet_v1",
+  "_note": "Synthetic test sheet (stats only, not anyone's character): a level-5 Harengon Sage wizard with Magic Initiate, War Caster and an Ability Score Improvement who lists shield training that nothing on the sheet grants (proficiency source verification).",
+  "name": "Pell",
+  "ancestry": "Harengon",
+  "class": "Wizard (Abjuration)",
+  "level": 5,
+  "background": "Sage",
+  "abilities": {
+    "str": 8,
+    "dex": 14,
+    "con": 14,
+    "int": 18,
+    "wis": 12,
+    "cha": 10
+  },
+  "proficiency_bonus": 3,
+  "skills": {
+    "acrobatics": 2,
+    "animal_handling": 1,
+    "arcana": 7,
+    "athletics": -1,
+    "deception": 0,
+    "history": 7,
+    "insight": 1,
+    "intimidation": 4,
+    "investigation": 0,
+    "medicine": 1,
+    "nature": 0,
+    "perception": 1,
+    "performance": 4,
+    "persuasion": 0,
+    "religion": 0,
+    "sleight_of_hand": 2,
+    "stealth": 2,
+    "survival": 1
+  },
+  "passives": {
+    "perception": 11,
+    "insight": 11,
+    "investigation": 10
+  },
+  "ac": 14,
+  "hp": 32,
+  "speed_ft": 30,
+  "spell_save_dc": 15,
+  "spell_attack": 7,
+  "gold_gp": 120,
+  "features": [
+    "Arcane Recovery",
+    "Arcane Ward",
+    "Magic Initiate (Wizard)",
+    "War Caster",
+    "Ability Score Improvement"
+  ],
+  "gear": [
+    "shield",
+    "quarterstaff",
+    "spellbook",
+    "component pouch"
+  ],
+  "spells": {
+    "cantrips": [
+      "Fire Bolt",
+      "Mage Hand",
+      "Light"
+    ],
+    "1": [
+      "Magic Missile",
+      "Shield",
+      "Mage Armor"
+    ],
+    "2": [
+      "Misty Step"
+    ],
+    "3": [
+      "Counterspell"
+    ]
+  },
+  "slots": {
+    "1": 4,
+    "2": 3,
+    "3": 2
+  },
+  "armor_proficiencies": [
+    "Shields"
+  ],
+  "weapon_proficiencies": [
+    "Simple Weapons"
+  ],
+  "tool_proficiencies": [
+    "Calligrapher's Supplies"
+  ]
+}
