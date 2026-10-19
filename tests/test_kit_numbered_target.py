@@ -106,6 +106,10 @@ class SharedNamesAndPerception(unittest.TestCase):
             with self.subTest(words=words):
                 self.assertIn('Which one: Giant rat 1, Giant rat 5 or Giant rat 6?', self.asks(words))
 
+    def test_a_foe_whose_whole_label_is_the_word_is_that_foe(self):
+        names = {'harl': 'Bandit 3', 'cutthroat_a': 'Bandit', 'cutthroat_b': 'Bandit 12'}
+        self.assertEqual(self.target('I stab the Bandit with my dagger, 18 to hit.', names), 'cutthroat_a')
+
     def test_a_lone_rat_is_the_rat(self):
         self.assertEqual(self.target('I stab the rat with my dagger, 18 to hit.', ONE_RAT), 'cutthroat_a')
 
