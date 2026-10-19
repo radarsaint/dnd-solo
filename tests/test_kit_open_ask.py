@@ -477,7 +477,8 @@ class RiderRules(unittest.TestCase):
                       '**Damage (Sneak Attack)**: 2d6 (3, 4) = `7`'):
             with self.subTest(words=words):
                 result = self.assertStaysOpen(words)
-                self.assertIn("is extra damage on the hit, not the hit's own damage roll", result.public_event)
+                # e486b18 re-probe: the reply invites the main roll ("Got Hex 4. What's the dagger's damage?").
+                self.assertIn("What's the dagger's damage?", result.public_event)
 
 
 class EngineLineAfterOneFailedNarration(BridgeCase):
@@ -581,7 +582,8 @@ class AskHelpers:
     def assertHeld(self, words, **kw):
         table, result = self.answered(words, **kw)
         fight = table.fight
-        self.assertEqual(fight['hp'][kw.get('target', 'cutthroat_a')], 11, words)
+        target = kw.get('target', 'cutthroat_a')
+        self.assertEqual(fight['hp'][target], fight['max_hp'][target], words)
         self.assertEqual((fight.get('pending') or {}).get('needs'), 'damage', f'{words}: {result.public_event}')
         self.assertNotIn('No damage was rolled', result.public_event, words)
         self.assertEqual(fight['round'], 1, words)
@@ -716,6 +718,14 @@ class E486Reprobe(AskHelpers, unittest.TestCase):
         for words in ('Hex 4 necrotic', '**Hex**: 1d6 (4) = `4`'):
             with self.subTest(words=words):
                 self.assertIn("Got Hex 4. What's the dagger's damage?", self.assertHeld(words).public_event)
+
+    def test_a_number_word_in_the_targets_name_is_still_the_amount(self):
+        names = {'harl': 'Seven', 'cutthroat_a': 'Six-Fingered Jack', 'cutthroat_b': 'Bandit scout'}
+        for words, amount in (('Six damage', 6), ('Jack takes 6', 6)):
+            with self.subTest(words=words):
+                self.assertLands(words, amount, table=named_camp(self, names), hit=stab('Six-Fingered Jack'))
+        said = self.assertHeld('captain 3').public_event
+        self.assertIn('names the bandit captain', said)
 
     def test_an_ambiguous_name_says_so(self):
         names = {'harl': 'Hobgoblin', 'cutthroat_a': 'Goblin 2', 'cutthroat_b': 'Goblin 3'}

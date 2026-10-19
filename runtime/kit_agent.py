@@ -27,7 +27,7 @@ from . import kit_attitude
 from . import kit_brief
 from . import kit_cards
 from . import kit_reactions
-from . import kit_combat
+from . import kit_combat, kit_names
 from . import kit_rolls
 from . import kit_triggers
 from . import kit_reveal
@@ -846,6 +846,9 @@ class RoomAdjudicator:
         pending = current.get('pending') if isinstance(current.get('pending'), dict) else {}
         if pending.get('needs') == 'damage' and pending.get('holds_turn') and not waiting and \
                 current.get('status') == 'running' and kit_combat.config(self.source):
+            both = self._two_asks(action, revision, state, pending)
+            if both:
+                return both, state, None
             amount, extra, doubt, kind = self._damage_answer(action, state, pending)
             if self._CANCEL_THE_ROLL.search(narration):
                 cancel = True
@@ -857,6 +860,10 @@ class RoomAdjudicator:
                 # A question, or a number that may be a roll but is not read as this damage: Kit
                 # answers it and the ask stays open (a missed answer only re-asks).
                 return self._ask_stays_open(action, revision, state, pending, doubt), state, None
+            if not cancel and self._has_number(narration) and not self._strong_deed(action, state):
+                # Fail-safe (Nagatha's e486b18 re-probe): a number that is no deed is the answer or
+                # held, never forfeited ('b2 6', 'not 5', 'bandit 12 takes 5').
+                return self._ask_stays_open(action, revision, state, pending, True), state, None
             return (None,) + self._yield_damage(action, revision, state, pending, cancel)
         if not pending and not waiting and current.get('status') == 'running' and kit_combat.config(self.source):
             late = self._late_correction(action, revision, state, current)
@@ -873,23 +880,91 @@ class RoomAdjudicator:
                 return None, after, {'resolution': Resolution('called_check', '', [clear]), 'final': None}
             if not cancel:
                 called = self._resolve_called(action, revision, state)
+                corrected, was = self._corrected_text(action)
+                if not called and (was or corrected != action) and '\n' not in action.strip():
+                    # 'actually 6', 'oops, 16', '16 not 6': a correction answers the called check.
+                    called = self._resolve_called(corrected.strip(' ,.;!'), revision, state)
                 if called:
                     return called, state, None
         return None, state, None
 
+    def _two_asks(self, action, revision, state, pending):
+        """A held damage ask and a called check at once (Nagatha's e486b18 re-probe). A roll that
+        names the check ('Perception 16', a d20 line) answers the check and the damage still waits;
+        a stated damage answers the damage; a number that could be either holds both."""
+        check = state.get('pending_check') or {}
+        if not check or check.get('held') or is_ooc(action):
+            return None
+        text = QUOTED_SPEECH.sub(' ', action.translate(_TYPOGRAPHIC))
+        explicit_damage = bool(re.search(r'\b(?:damage|dmg)\b', text, re.I) or kit_rolls.damage(text) or
+                               (kit_rolls.dice_totals(text) and not re.search(r'(?<![a-z])d20\b', text, re.I)) or
+                               self._PROSE_RIDER.search(text) or self._RIDER.search(text))
+        skill = check['skill'].replace('_', ' ')
+        names_check = bool(re.search(rf'\b{re.escape(skill)}\b|\bchecks?\b|(?<![a-z])d20\b|\bnat(?:ural)?\b',
+                                     text, re.I) or kit_rolls.stated_skill(text))
+        if explicit_damage and not names_check:
+            return None
+        if names_check and not explicit_damage:
+            corrected, _ = self._corrected_text(action)
+            called = self._resolve_called(action, revision, state) or \
+                self._resolve_called(corrected.strip(' ,.;!'), revision, state)
+            if called:
+                return called
+        if not self._has_number(kit_rolls.without_dice(text)) and not names_check:
+            return None
+        label = self._fight(action, revision, state).label(pending['target'])
+        line = (f"Two rolls are open: your hit's damage on the {label} and the {skill} check. Say which this "
+                f"is ('6 damage' or '{skill.capitalize()} 16').")
+        line = kit_combat.proper_numbered(line, kit_combat.labels(self.source).values())
+        return Resolution('social', f'{table_talk_event(action)} {line}', [
+            {'type': 'beat', 'tags': ['table_talk', 'open_ask', 'two_asks'],
+             'evidence': f'Roll with two asks open: {action}. {line} Nothing resolved.'}])
+
     # A correction (Nagatha's #127 re-probe at 3f6f0de): during an open ask it is the answer or held,
     # never a forfeit; after the damage landed it gets a graceful reply, never a silent re-apply.
     _CORRECTION = re.compile(r"\b(?:actually|correction|wait|oops|whoops|my\s+bad|sorry|i\s+meant?|"
-                             r"hold\s+on|scratch\s+that|typo|mistyped|misread)\b", re.I)
+                             r"hold\s+on|scratch\s+that|typo|mistyped|misread|make\s+(?:it|that))\b", re.I)
     _CORRECTION_LEAD = re.compile(r"^\W*(?:(?:oh|ah|uh|um|erm?|no|nope|wait|actually|correction|oops|whoops|"
-                                  r"my\s+bad|sorry|i\s+meant?|hold\s+on|scratch\s+that|typo|lol)\b\W*)+", re.I)
+                                  r"my\s+bad|sorry|i\s+meant?|hold\s+on|scratch\s+that|typo|lol|ugh|argh|hmm+|ok|okay|"
+                                  r"make\s+(?:it|that))\b\W*)+", re.I)
     # "6 not 5", "6, not 5", "6 instead of 5": the first is the amount.
-    _NOT_THAT = re.compile(r"(?<![\w.])(\d{1,3}|[a-z]+)(\s*,?\s*)(?:not|instead\s+of|rather\s+than)\s+(?:a\s+|an\s+)?"
-                           r"(\d{1,3}|[a-z]+)\b", re.I)
+    _NOT_THAT = re.compile(r"(?<![\w.])(\d{1,3}|[a-z]+)([\s,.;!(]*)(?:not|instead\s+of|rather\s+than)\s+(?:a\s+|an\s+)?"
+                           r"(\d{1,3}|[a-z]+)\b[.!)]*", re.I)
     # Words that join a target's name to its damage ("6 to bandit 2", "Bandit 2 takes 6").
     _TARGET_GLUE = re.compile(r"\b(?:to|on|at|for|against|into|takes?|took|hits?|is|was|gets?|got)\b", re.I)
     _DAMAGE_WORDS = frozenset("damage dmg points pts hp acid bludgeoning cold fire force lightning necrotic "
                               "piercing poison psychic radiant slashing thunder".split())
+
+    def _has_number(self, text):
+        plain = kit_rolls.without_dice(text)
+        return bool(re.search(r'\d', plain)) or any(self._spelled(w) for w in re.findall(r'[a-z]+', plain.casefold()))
+
+    _I_DO = re.compile(r"^\W*(?:(?:ok|okay|so|then|now|and|first)\W+)*i\s+(?!(?:rolled|roll|meant?|mean|think|"
+                       r"guess|said|typed)\b)[a-z']+", re.I)
+    _NOT_A_VERB = frozenset("not make made ugh argh hmm oops wait actually correction sorry total result dmg damage "
+                            "roll rolled it its that this".split())
+
+    def _strong_deed(self, action, state):
+        """A plain deed: 'I <verb> ...', or words the combat parser reads as an act. Only such a
+        message yields the open ask when it carries a number."""
+        if self._I_DO.match(QUOTED_SPEECH.sub(' ', action)):
+            return True
+        try:
+            act = kit_combat.parse(action, self.source, state)
+        except (PendingRuling, InvalidChange):
+            return True
+        if act and act.get('kind') not in ('ruling', 'late_reaction'):
+            return True
+        plain = kit_rolls.without_dice(QUOTED_SPEECH.sub(' ', action))
+        opened = self._DEED_OPEN.match(plain)
+        word = opened.group(1).casefold() if opened else ''
+        if not self._deed(plain) or len(word) < 3 or word in self._NOT_A_VERB or \
+                re.match(r'[\w-]*\s*[:\d#]', plain[opened.end(1):] if opened else ''):
+            return False
+        fight = (state or {}).get('combat') or {}
+        foes = [k for k in (fight.get('hp') or {}) if k != 'pc']
+        return not any(word in kit_names.names(self.source, k) or
+                       word in kit_combat.labels(self.source).get(k, k).casefold().split() for k in foes)
 
     def _corrected_text(self, text):
         """(text, corrected): the correction preamble dropped and "X not Y" read as X."""
@@ -908,60 +983,75 @@ class RoomAdjudicator:
             return text, corrected  # an Avrae block reads as pasted
         return swapped, corrected
 
-    def _foe_spans(self, text, foes, target=None):
-        """[(key, start, end)] where the words name a foe (see _named_foes). A number-word name right
-        before 'damage' ("seven damage" with a foe named Seven) is the amount, not the foe."""
-        found = []
+    def _foe_groups(self, text, foes, target=None):
+        """[(start, end, keys)]: each place the words name a foe and every foe that name fits, from
+        the one shared name-set (runtime/kit_names.py: 'rat 3' is Giant rat 3's, 'rat' is every
+        rat's, a bare number nobody's). A number-word name right before 'damage' ("seven damage"
+        with a foe named Seven) is the amount, not the foe. The held hit's target is also named by
+        any word of its label ('6 to the cutthroat') where no other name sits."""
         low = text.casefold()
-        for key in foes:
-            names = set(kit_combat._names(self.source, key))
-            if key == target:
-                # The held hit's target: any word of its label names it ('6 to the cutthroat' when the
-                # hit was on the wagon-side cutthroat), unless another foe's longer name holds the word.
-                label = kit_combat.labels(self.source).get(key, key).casefold()
-                names |= {w for w in re.split(r'[\s-]+', label) if len(w) > 2 and w.isalpha() and w != 'the'}
-            for name in names:
-                if not re.search(r'[a-z]', name):
-                    continue  # '6', '2': a bare number names nobody
-                for match in re.finditer(rf'(?<![\w-]){re.escape(name)}(?![\w-])', low):
-                    if self._spelled(name) and re.match(r'\s+(?:[a-z]+\s+)?(?:damage|dmg)\b', low[match.end():]):
-                        continue
-                    found.append((key, match.start(), match.end()))
-        return [(key, start, end) for key, start, end in found
-                if not any(other != key and o_start <= start and end <= o_end and (o_end - o_start) > (end - start)
-                           for other, o_start, o_end in found)]
+        found = [(s, e, keys) for s, e, keys in kit_names.groups(low, self.source, foes)
+                 if not (self._spelled(low[s:e]) and re.match(r'\s+(?:[a-z]+\s+)?(?:damage|dmg)\b', low[e:]))]
+        if target in foes:
+            label = kit_combat.labels(self.source).get(target, target).casefold()
+            for word in {w for w in re.split(r'[\s-]+', label)
+                         if len(w) > 2 and w.isalpha() and w != 'the' and not self._spelled(w)}:
+                for match in re.finditer(rf'(?<![\w-]){re.escape(word)}(?![\w-])', low):
+                    if not any(s <= match.start() and match.end() <= e for s, e, _ in found):
+                        found.append((match.start(), match.end(), {target}))
+        return sorted(found, key=lambda g: g[0])
+
+    def _foe_spans(self, text, foes, target=None):
+        return [(key, s, e) for s, e, keys in self._foe_groups(text, foes, target) for key in keys]
+
+    def _say_foes(self, keys, article=True):
+        labels = kit_combat.labels(self.source)
+        if len(keys) == 1:
+            key = next(iter(keys))
+            return kit_combat.proper_numbered(f"{'the ' if article else ''}{labels.get(key, key).lower()}",
+                                              labels.values())
+        return kit_names.shown(self.source, keys)
+
+    def _name_reason(self, groups, target, missing=None):
+        """Why named foes keep the ask open, or None: another foe, a name several foes (not the
+        target) share, or a numbered foe not in this fight."""
+        mine = self._say_foes({target})
+        if missing:
+            return f"There's no {missing[0]} in this fight; your hit was on {mine}."
+        others = [keys for _, _, keys in groups if target not in keys]
+        if not others:
+            return None
+        keys = others[0]
+        if len(keys) == 1:
+            return f'That names {self._say_foes(keys)}, but your hit was on {mine}.'
+        return f'That name could be {self._say_foes(keys)}; your hit was on {mine}. Say which.'
 
     def _without_target(self, plain, state, pending):
-        """(plain, held_reason): the held target's own name (its number too) and the words joining it
-        to the damage taken out, so 'Bandit 2 takes 6' reads as 6. Another foe named with a number
-        leaves the ask open and says why; a name with no number left is held, never a forfeit."""
+        """(plain, held_reason): the held target's own names (its number too) and the words joining
+        them to the damage taken out, so 'Bandit 2 takes 6' and 'rat 6 takes it, 6' read as 6.
+        Another foe, a name only other foes share, or a numbered foe not here leaves the ask open and
+        says why; a name with no number left is held, never a forfeit."""
         target = (pending or {}).get('target')
         fight = (state or {}).get('combat') or {}
         if not target or not self.source:
             return plain, None
         foes = [key for key in (fight.get('hp') or {}) if key != 'pc']
-        spans = self._foe_spans(plain, foes, target)
-        if not spans:
+        groups = self._foe_groups(plain, foes, target)
+        missing = kit_names.missing_numbered(plain, self.source, foes)
+        if not groups and not missing:
             return plain, None
-        labels = kit_combat.labels(self.source)
-        others = sorted({key for key, _, _ in spans if key != target})
-        merged = []
-        for _, start, end in sorted(spans, key=lambda s: s[1]):
-            if merged and start <= merged[-1][1]:
-                merged[-1][1] = max(merged[-1][1], end)
-            else:
-                merged.append([start, end])
         out = plain
-        for start, end in reversed(merged):
+        for start, end, _ in sorted(groups, key=lambda g: -g[0]):
             out = out[:start] + ' ' + out[end:]
+        if missing:
+            out = re.sub(r'[a-z][\w-]*[\s-]*#?\d{1,3}', ' ', out, count=1, flags=re.I) if not groups else out
         out = re.sub(r'\bthe\b', ' ', self._TARGET_GLUE.sub(' ', out), flags=re.I)
-        if self._deed(out):
+        if self._deed(out) and not missing:
             return plain, None  # "Stab the captain": a deed, read as before
         left = self._NUMBER.search(out) or any(self._spelled(w) for w in re.findall(r"[a-z]+", out.casefold()))
-        if others:
-            shown = kit_combat.proper_numbered(f'the {labels.get(others[0], others[0]).lower()}', labels.values())
-            mine = kit_combat.proper_numbered(f'the {labels.get(target, target).lower()}', labels.values())
-            return out, f'That names {shown}, but your hit was on {mine}.'
+        reason = self._name_reason(groups, target, missing)
+        if reason:
+            return out, reason
         if not left:
             return out, 'That names your target but no damage.'
         return out, None
@@ -1051,10 +1141,17 @@ class RoomAdjudicator:
                         r"(?:\bplus\b|\+|\b(?:extra|additional|bonus)\b)?\s*(\d{1,3})(?:\s+[a-z]+)?(?:\s+(?:damage|dmg))?"
                         r"\s+from\s+([a-z][a-z' -]*)", re.I)
 
+    # The closed list of same-hit riders (Nagatha's e486b18 re-probe: any other label, 'Dagger:',
+    # 'Result:', 'Total:', 'Dmg:', 'Piercing:', is the hit's own roll, never a rider).
+    _RIDER_NAMES = (r"sneak\s+attack|hex|hunter'?s\s+mark|(?:improved\s+)?divine\s+smite|"
+                    r"(?:thunderous|searing|wrathful|branding|blinding|staggering|banishing|shining|eldritch)?\s*smite|"
+                    r"divine\s+favou?r|colossus\s+slayer|favou?red\s+foe|dread\s+ambusher|"
+                    r"superiority(?:\s+die)?|booming\s+blade|green[- ]flame(?:\s+blade)?|elemental\s+weapon|"
+                    r"spirit\s+shroud|zealous\s+presence|divine\s+strike|blessed\s+strikes|primal\s+strike|"
+                    r"giant\s+killer|planar\s+warrior|gathered\s+swarm|psionic\s+strike|crimson\s+rite")
+    _RIDER_LABEL = re.compile(r"\s*(?:" + _RIDER_NAMES + r")\s*(?:\([^)]*\))?\s*", re.I)
     # A same-hit rider named in prose: "sneak attack 4 damage", "smite: 9 radiant".
-    _PROSE_RIDER = re.compile(r"\b(sneak\s+attack|hex|hunter'?s\s+mark|divine\s+smite|smite|colossus\s+slayer|"
-                              r"favou?red\s+foe|dread\s+ambusher|superiority(?:\s+die)?|booming\s+blade|"
-                              r"green[- ]flame(?:\s+blade)?)\s*[:=-]?\s*(?:for\s+|of\s+)?(\d{1,3})(?:\s+[a-z]+)?"
+    _PROSE_RIDER = re.compile(r"\b(" + _RIDER_NAMES + r")\s*[:=-]?\s*(?:for\s+|of\s+)?(\d{1,3})(?:\s+[a-z]+)?"
                               r"(?:\s+(?:damage|dmg))?\b", re.I)
 
     @staticmethod
@@ -1118,9 +1215,28 @@ class RoomAdjudicator:
                 more, stray = self._riders(rest)
                 riders += more if len(mains) == 1 else []
                 left += stray
-            elif re.match(r'damage\s*\(', label, re.I) or \
-                    (not self._NOT_RIDER.search(label) and kit_rolls.dice_totals(value) and
-                     not re.search(r'(?<![a-z])d20\b', value, re.I)):
+            elif not (re.match(r'damage\s*\(', label, re.I) or self._RIDER_LABEL.fullmatch(label)) and (
+                    re.search(r'(?<![a-z])d20\b', value, re.I) or self._NOT_RIDER.search(label) or \
+                    re.search(r'\b(?:round|turn|note)\b', label, re.I) or \
+                    self._NOT_DAMAGE.search(label)):
+                continue
+            elif not (re.match(r'damage\s*\(', label, re.I) or self._RIDER_LABEL.fullmatch(label)):
+                # A one-line labelled roll ('Dagger: 1d4 (4) + 2 = 6', 'Result: ... = 6', 'Dmg: 6') is
+                # the hit's own damage; after a main roll, a Result or Total restates it.
+                total, rest = self._field_total(value)
+                plain_value = kit_rolls.dice_totals(value) or re.fullmatch(
+                    r"\s*`?-?\d{1,3}`?\s*(?:[a-z]+\s*)?(?:damage|dmg)?\s*[.!]?\s*", value, re.I)
+                if total is None or not plain_value:
+                    continue
+                if not mains:
+                    mains.append(total)
+                    whos.append(label)  # 'Giant rat 3: 6' names who took it
+                    more, stray = self._riders(rest)
+                    riders += more
+                    left += stray
+                elif not re.fullmatch(r'\s*(?:total|result)\s*', label, re.I):
+                    left += 1
+            else:
                 total, rest = self._field_total(value)
                 if total is not None and len(mains) <= 1:
                     name = re.sub(r'^damage\s*\(\s*|\s*\)$', '', label, flags=re.I).strip()
@@ -1142,8 +1258,11 @@ class RoomAdjudicator:
                 # Nagatha's 79196b5 review (Low): a rider alone is not the hit's damage. The ask stays
                 # open rather than land the rider as the whole hit (a missed answer only re-asks).
                 shown = named[0] if named else 'extra'
-                return None, 0, (f"That {shown} roll is extra damage on the hit, not the hit's own damage "
-                                 "roll. Send the hit's Damage roll (with the extra roll, if you like).")
+                shown = shown[:1].upper() + shown[1:]
+                amount = next((a for n, a in more + field_riders if n == named[0]), None) if named else None
+                weapon = (pending or {}).get('weapon') or 'hit'
+                return None, 0, (f"Got {shown}{f' {amount}' if amount is not None else ''}. What's the "
+                                 f"{weapon}'s damage? Send it and the {shown} roll counts with it.")
             if not stated:
                 return None
             mains, riders = stated, riders + [r for r in more if r not in riders]
@@ -1169,14 +1288,12 @@ class RoomAdjudicator:
         if not target or not self.source:
             return None
         foes = [key for key in (fight.get('hp') or {}) if key != 'pc']
-        named = self._named_foes((clean + '\n' + '\n'.join(whos)).casefold(), foes)
-        if not named or target in named:
+        text = self._DICE_TERMS.sub(' ', (clean + '\n' + '\n'.join(whos)).casefold())
+        groups = self._foe_groups(text, foes, target)
+        if any(target in keys for _, _, keys in groups):
             return None
-        labels = kit_combat.labels(self.source)
-        other = sorted(named)[0]
-        return kit_combat.proper_numbered(
-            f'That damage names the {labels.get(other, other).lower()}, but your hit was on the '
-            f'{labels.get(target, target).lower()}.', labels.values())
+        reason = self._name_reason(groups, target, kit_names.missing_numbered(text, self.source, foes))
+        return reason.replace('That names', 'That damage names', 1) if reason else None
 
     # Dice terms in a roll line: '1d6 (6)', '2d4 (3, 1)', '[piercing]', '= 6', '+ 2'.
     _DICE_TERMS = re.compile(r'\b\d*d\d+\b(?:\s*\([^)]*\))?|\[[^\]]*\]|[=+-]\s*-?\d+\b|\(\s*\d+(?:\s*,\s*\d+)*\s*\)', re.I)
@@ -1250,7 +1367,9 @@ class RoomAdjudicator:
             return None
         led = self._CORRECTION_LEAD.match(text)
         rest, _ = self._corrected_text(text)
-        if not (led and self._CORRECTION.search(led.group(0))) and rest == text:
+        lone = re.fullmatch(r"\s*(?:it\s+was\s+|it'?s\s+|that'?s\s+)?\d{1,3}\s*(?:damage|dmg)?\s*[.!]*\s*", text, re.I)
+        if not (led and self._CORRECTION.search(led.group(0))) and rest == text and \
+                not (lone and current.get('last_damage')):
             return None  # a correction opens the message ("actually...", "oh wait...") or says "6 not 5"
         plain = kit_rolls.without_dice(rest)
         if self._deed(plain) or not (self._NUMBER.search(plain) or
@@ -2112,7 +2231,8 @@ class RoomAdjudicator:
         skill, text = pending['skill'], action.translate(_TYPOGRAPHIC).strip()
         if pending.get('exit'):
             skill = kit_rolls.stated_skill(text) if kit_rolls.stated_skill(text) in ('athletics', 'acrobatics') else skill
-        bare = re.fullmatch(r'(?:i\s+)?(?:rolled|roll|got)?\s*(?:an?\s+)?(\d{1,2})\s*[.!]?', text, re.I)
+        bare = re.fullmatch(r"(?:it\s+was\s+|it'?s\s+|that\s+was\s+|that'?s\s+)?(?:i\s+)?(?:rolled|roll|got)?\s*"
+                            r"(?:an?\s+)?(\d{1,2})\s*[.!]?", text, re.I)
         stated = [roll for roll in kit_rolls.rolls(text) if roll.label not in ('attack', 'initiative')]
         rest = re.sub(r"\b(?:i|rolled|roll|got|a|an|check|for|my|it's|that's|that|is|" +
                       skill.replace('_', r'\s+') + r")\b|[\W\d_]+", ' ', kit_rolls.without_rolls(text).casefold())
