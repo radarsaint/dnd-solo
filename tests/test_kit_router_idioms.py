@@ -13,8 +13,9 @@ from runtime import kit_combat
 from runtime.kit_agent import KitChatBridge, PendingRuling, RoomAdjudicator, room_intent, social_event
 from runtime.state_context import Runtime
 from test_kit_agent import FIXTURE
+import fixture_sheets
 
-NIK = Path(__file__).parent / 'fixtures/characters/nik.json'
+NIK = fixture_sheets.path(Path(__file__).parent / 'fixtures/characters/nik.json')
 
 
 class SixCRouting(unittest.TestCase):
