@@ -91,6 +91,15 @@ class ACorrectedDecisionCanCommit(OpeningFriction):
         # The first decision still works.
         self.assertIn('spoken', self.bridge.complete(turn, {'decision': plan, 'performance': landing()}))
 
+    def test_what_the_engine_acts_on_stays_fixed(self):
+        turn, plan = self.opening()
+        self.reject(turn, plan, {'segments': [{'speaker': 'Kit', 'text': 'Well then.'}]})
+        other = next(mode for mode in kit_agent.kit_voice.TURN_MODES if mode != plan['turn_mode'])
+        message = self.reject(turn, {**plan, 'turn_mode': other})
+        self.assertIn('already fixed', message)
+        self.assertIn('turn_mode', message)
+        self.assertIn('public_brief', message)  # names what may be corrected
+
     def test_abandoning_the_opening_says_to_prepare_the_opening_again(self):
         turn, plan = self.opening()
         plan['public_brief']['kit_focus'] = 'Make the scene feel tense and interesting.'
