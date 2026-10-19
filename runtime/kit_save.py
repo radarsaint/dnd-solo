@@ -29,7 +29,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 CAMPAIGN_SCHEMA = 'kit_campaign_v1'
-EXPORT_PHASE = 'p2'
+EXPORT_PHASE = 'p3'
 ZIP_STAMP = (2026, 1, 1, 0, 0, 0)  # fixed member times
 JOURNAL_MODES = ('campaign', 'character')
 RECAP_MAX_WORDS = 120
@@ -230,6 +230,8 @@ def journal_md(campaign, written=None):
                 log.append(f'  {edit["file"]} edited by player{": " + edit["note"] if edit.get("note") else ""}.')
     state = {k: campaign.get(k) for k in ('schema', 'journal_mode', 'pcs', 'location', 'source_hashes')}
     state['revision'] = campaign['export']['revision']
+    state['player'] = campaign['export'].get('player')
+    state['campaign'] = campaign['export'].get('campaign')
     state['written'] = written or {}
     lines = [
         f'# Journal: {who}', '',
@@ -384,7 +386,8 @@ def save(db, out=None, player=None, campaign=None, journal_mode=None, recap=None
         noticed.append('campaign.json')
     result = merge(record, before['campaign'], edited_campaign, journal_mode)
     result['export'] = {**record['export'], **({'revision': result['export']['revision']}
-                                               if result is before['campaign'] else {})}
+                                               if result is before['campaign'] else {}),
+                        'player': player_id, 'campaign': campaign_id}
     if sheet and sheet.get('gold_gp') is not None:
         result['gold_gp'] = sheet['gold_gp']
     if recap:

@@ -96,7 +96,8 @@ CANON_SLOT = re.compile(r'^[a-z0-9_:]+(/[a-z0-9_]+){1,3}$')
 # Events a Kit turn may add at commit, after the adjudicated batch it was prepared with:
 # the decision's canon entries, the oracle deal it consumed, and procedure state.
 # Host bookkeeping, not a turn taken in the room (kit_rooms.stage counts the others).
-BOOKKEEPING_EVENTS = ('player_sheet', 'player_character', 'player_note', 'pc_state', 'kit_plan', 'rest')
+BOOKKEEPING_EVENTS = ('player_sheet', 'player_character', 'player_note', 'pc_state', 'kit_plan', 'rest',
+                      'campaign_restore')
 # A pending check's optional fields: a held exit, and room for the check-calling follow-up's
 # quiet DC adjustment for creative use of the scene (Brendon: about -2) with its reason. Not
 # applied anywhere yet.
@@ -666,6 +667,14 @@ class Runtime:
         next_revision = self.commit(f'sheet-{digest}', revision, [event])
         return {'revision': next_revision, 'character': pc_sheet.identity(sheet)}
 
+    def restore_campaign(self, log, carried):
+        """Apply a player save's public record (kit_resume) before the room's opening."""
+        revision, _ = self.load()
+        event = {'type': 'campaign_restore', 'log': log, 'carried': carried,
+                 'evidence': "The host resumed from the player's save."}
+        digest = hashlib.sha256(f'{revision}:{encode(event)}'.encode()).hexdigest()[:16]
+        return self.commit(f'restore-{digest}', revision, [event])
+
     def rest(self, kind):
         """The PC finished a short or long rest (host bookkeeping, like the sheet): the reaction
         inventory's uses come back (short: short-rest uses; long: everything, slots included)."""
@@ -995,6 +1004,26 @@ class Runtime:
                     'Procedure state needs public and private halves')
             require(len(encode(body).encode()) <= 6000, 'Procedure state exceeds size limit')
             state.setdefault('procedures', {})[key] = copy.deepcopy(body)
+        elif kind == 'campaign_restore':
+            # Resume from the player's save (kit_resume): the public record of rooms left and
+            # what the PC carries. Only lists of short public strings; nothing of a room's secrets.
+            log, carried = event.get('log'), event.get('carried')
+            def names(value, limit=60):
+                return isinstance(value, list) and len(value) <= limit and all(
+                    isinstance(v, str) and len(v) <= 400 for v in value)
+            rooms = (log or {}).get('rooms') if isinstance(log, dict) else None
+            require(isinstance(rooms, list) and len(rooms) <= 200 and all(
+                isinstance(r, dict) and isinstance(r.get('room_id'), str) and
+                r.get('status') in ('left', 'bypassed') and names(r.get('areas')) and
+                names(r.get('learned'), 200) and names(r.get('took')) and
+                isinstance(r.get('npcs_met'), list) and all(
+                    isinstance(n, dict) and isinstance(n.get('name'), str) and isinstance(n.get('status'), str)
+                    for n in r['npcs_met']) for r in rooms), 'campaign_restore needs log.rooms of public records')
+            require(isinstance(carried, list) and len(carried) <= 60 and all(
+                isinstance(c, dict) and isinstance(c.get('item'), str) for c in carried),
+                'campaign_restore carried lists {item, from}')
+            state['campaign_log'] = copy.deepcopy(log)
+            state['carried'] = copy.deepcopy(carried)
         elif kind == 'beat':
             tags = event.get('tags')
             require(isinstance(tags, list) and all(isinstance(t, str) for t in tags), 'Invalid beat tags')
