@@ -1,4 +1,4 @@
-# Player save (campaign-record design P1 to P3)
+# Player save (campaign-record design P1 to P4)
 
 `kit.sqlite` is the live runtime database. It is **runtime-only**: the `source` table holds the
 whole room file (hidden facts, DCs, claims, secret actors and exits, and for book rooms the
@@ -102,3 +102,20 @@ python3 -m runtime.kit_agent start --save <save ZIP or folder> [--room FILE] [--
 - The greeting (`start` with no room) lists saves it finds (`saves`: player, campaign, PC,
   room, area, last session and recap, open threads) and carries `new_campaign.ask`, starting with
   the journal-mode question.
+
+## P4: cross-room carry
+
+- **Live room change.** `pc_resources` (spell slots and limited uses, with what is spent) is now a
+  session key, so it follows the PC into the next room instead of being rebuilt full from the
+  sheet. When the sheet changes on the way out (HP or gold folded), the inventory is rebuilt with
+  `carry_spent`, so spent stays spent until a rest. Conditions, loot (`carried`) and the room
+  archive already travelled.
+- **campaign.json** adds `pc_state` (`slots` and `uses` spent, `conditions`) and, for every room
+  left, `rooms[].carry`: ids of the areas visited, facts and exits the player knows, the met
+  actors' statuses, and the room's public resources. Only what the player already knows.
+- **Resume.** The restore event applies `pc_state` to the rebuilt inventory and keeps each room's
+  `carry` in `campaign_log`.
+- **Going back to a room left before a resume** (no archive in the new sqlite): the room mounts
+  from its file and `apply_carry` puts back what the player knew and did: visited areas, known
+  facts and exits, met actors' statuses (the warden stays dead), resources. Actors and secrets
+  the player never met stay as the room file has them.

@@ -130,10 +130,12 @@ def _restore(campaign, current_id):
                       'learned': [f['text'] for f in campaign.get('learned') or ()
                                   if isinstance(f, dict) and f.get('room_id') == rid and isinstance(f.get('text'), str)],
                       'took': [i['item'] for i in campaign.get('loot') or ()
-                               if isinstance(i, dict) and i.get('room_id') == rid and isinstance(i.get('item'), str)]})
+                               if isinstance(i, dict) and i.get('room_id') == rid and isinstance(i.get('item'), str)],
+                      **({'carry': room['carry']} if isinstance(room.get('carry'), dict) else {})})
     carried = [{'item': i['item'], 'from': i['room_id']} for i in campaign.get('loot') or ()
                if isinstance(i, dict) and isinstance(i.get('item'), str) and i.get('room_id') != current_id]
-    return {'log': {'rooms': rooms}, 'carried': carried}
+    pc = campaign.get('pc_state') if isinstance(campaign.get('pc_state'), dict) else None
+    return {'log': {'rooms': rooms}, 'carried': carried, **({'pc_state': pc} if pc else {})}
 
 
 def resume(db, save_path, room=None, sheet=None, search=None, manifests=False):

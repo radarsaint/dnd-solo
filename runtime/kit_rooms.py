@@ -52,7 +52,7 @@ STAGES = ('approach', 'first_look', 'explore', 'resolution')
 # and is archived when the PC leaves it (state_context.Runtime.mount_room).
 SESSION_KEYS = ('schema_version', 'kit', 'player_character', 'player_sheet', 'pc_state', 'roll_seed',
                 'elapsed_seconds', 'rooms', 'carried', 'scene_id', 'scenes_closed', 'memory_trimmed',
-                'pc_conditions', 'pc_condition_terms', 'campaign_log')
+                'pc_conditions', 'pc_condition_terms', 'campaign_log', 'pc_resources')
 
 
 class RoomMountError(InvalidChange):
@@ -596,10 +596,15 @@ def mounted_state(old_source, state, new_source, area, ref):
     new['kit'] = {**kit, 'episodes': [], 'current_appraisal': None, 'player_notes': notes}
     if sheet is not None:
         new['player_sheet'] = sheet
+        if state.get('pc_resources'):
+            # Spent slots and uses stay spent across a room change; only a rest gives them back.
+            from . import kit_reactions
+            new['pc_resources'] = kit_reactions.carry_spent(kit_reactions.build(sheet), state['pc_resources'])
     new['carried'] = carried
     archived = rooms.pop(new_source.get('id'), None)
     if archived:
         back = copy.deepcopy(archived['state'])
+        back.pop('pc_resources', None)  # an older archive's copy: the session's slots are current
         kept = back.pop('kit', None) or {}
         new.update(back)
         new['kit'] = {**new['kit'], 'episodes': kept.get('episodes') or [],
@@ -610,6 +615,8 @@ def mounted_state(old_source, state, new_source, area, ref):
         new.update(visited=[], known_facts=[], known_exits=[], actors=copy.deepcopy(new_source['actors']),
                    resources=copy.deepcopy(new_source.get('resources') or {}), rhythm=[],
                    room=initial_room(new_source, ref))
+        from . import kit_save  # a room left before a resume: its public status from the save
+        kit_save.apply_carry(new, new_source, kit_save.carry_for(state, new_source.get('id')))
     new['area'] = area
     new['room'] = {k: v for k, v in (new.get('room') or {}).items() if k != 'came_by'}  # came from another room
     if area not in new['visited']:

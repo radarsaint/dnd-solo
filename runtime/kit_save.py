@@ -29,7 +29,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 CAMPAIGN_SCHEMA = 'kit_campaign_v1'
-EXPORT_PHASE = 'p3'
+EXPORT_PHASE = 'p4'
 ZIP_STAMP = (2026, 1, 1, 0, 0, 0)  # fixed member times
 JOURNAL_MODES = ('campaign', 'character')
 RECAP_MAX_WORDS = 120
@@ -69,9 +69,73 @@ def room_record(source, state, status):
            for a in (state.get('actors') or {}).values()
            if a.get('visible') and a.get('location') in visited]
     took = _room_totals(state)[1]
+    exits = source.get('exits') or {}
+    carry = {  # P4: ids of what the player already knows, so a room left can be found as left
+        'visited': visited,
+        'known_facts': [k for k in state.get('known_facts') or () if k in facts],
+        'known_exits': [k for k in state.get('known_exits') or () if k in exits],
+        'actors': {k: a['status'] for k, a in (state.get('actors') or {}).items()
+                   if a.get('visible') and a.get('location') in visited},
+        'resources': {k: v for k, v in (state.get('resources') or {}).items() if type(v) is int},
+    }
     return {'room_id': source.get('id'), 'status': status,
             'areas': [areas[a]['name'] for a in visited],
-            'npcs_met': met, 'learned': learned, 'took': list(took)}
+            'npcs_met': met, 'learned': learned, 'took': list(took), 'carry': carry}
+
+
+ACTOR_STATUSES = ('alive', 'unconscious', 'dead', 'fled')
+
+
+def check_carry(carry):
+    """A room's carry record: ids and statuses only."""
+    from .state_context import require
+    if carry is None:
+        return
+    ids = lambda v: isinstance(v, list) and len(v) <= 200 and all(isinstance(i, str) and len(i) <= 120 for i in v)
+    require(isinstance(carry, dict) and set(carry) <= {'visited', 'known_facts', 'known_exits', 'actors', 'resources'},
+            'carry is {visited, known_facts, known_exits, actors, resources}')
+    for key in ('visited', 'known_facts', 'known_exits'):
+        require(key not in carry or ids(carry[key]), f'carry.{key} lists ids')
+    require(isinstance(carry.get('actors', {}), dict) and all(
+        isinstance(k, str) and v in ACTOR_STATUSES for k, v in carry.get('actors', {}).items()),
+        'carry.actors maps actor id to alive, unconscious, dead or fled')
+    require(isinstance(carry.get('resources', {}), dict) and all(
+        isinstance(k, str) and type(v) is int and v >= 0 for k, v in carry.get('resources', {}).items()),
+        'carry.resources maps a resource to a count')
+
+
+def carry_for(state, room_id):
+    for record in (state.get('campaign_log') or {}).get('rooms') or ():
+        if record.get('room_id') == room_id:
+            return record.get('carry')
+    return None
+
+
+def apply_carry(new, source, carry):
+    """A room mounted fresh that the player left before: what they knew and did stays.
+    Only ids the room file still has; secrets the player never learned stay as written."""
+    if not carry:
+        return
+    areas, facts, exits = source.get('areas') or {}, source.get('facts') or {}, source.get('exits') or {}
+    for key, pool in (('visited', areas), ('known_facts', facts), ('known_exits', exits)):
+        for item in carry.get(key) or ():
+            if item in pool and item not in new[key]:
+                new[key].append(item)
+    for key, status in (carry.get('actors') or {}).items():
+        if key in new['actors'] and status in ACTOR_STATUSES:
+            new['actors'][key]['status'] = status
+    for key, value in (carry.get('resources') or {}).items():
+        if key in new['resources'] and type(value) is int:
+            new['resources'][key] = value
+
+
+def pc_state(state):
+    """What the PC carries besides the sheet: spent slots and uses, and conditions."""
+    from . import kit_reactions
+    res = kit_reactions.current(state) if state.get('player_sheet') else {}
+    return {'slots': {k: v.get('used', 0) for k, v in (res.get('slots') or {}).items()},
+            'uses': {k: v.get('used', 0) for k, v in (res.get('uses') or {}).items()},
+            'conditions': list(state.get('pc_conditions') or ())}
 
 
 def fold_room_exit(old_source, state, new_state):
@@ -138,7 +202,9 @@ def collect(runtime):
         'sheet_source': {'kind': 'json' if sheet else 'other', 'named_by_player': None,
                          'imported_at': None, 'at': None},
         'location': {'room_id': room_id, 'area': view['area'], **provenance},
-        'rooms': [{'room_id': r['room_id'], 'status': r['status'], 'areas': r['areas']} for r in rooms],
+        'rooms': [{'room_id': r['room_id'], 'status': r['status'], 'areas': r['areas'],
+                   **({'carry': r['carry']} if r['status'] != 'current' and r.get('carry') else {})} for r in rooms],
+        'pc_state': pc_state(state),
         'npcs_met': [{**n, 'room_id': r['room_id']} for r in rooms for n in r['npcs_met']],
         'learned': [{'text': t, 'room_id': r['room_id']} for r in rooms for t in r['learned']],
         'loot': [{'item': c['item'], 'room_id': c.get('from')} for c in carried],
