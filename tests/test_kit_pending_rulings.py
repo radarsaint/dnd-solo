@@ -14,10 +14,11 @@ from runtime import kit_rooms
 from runtime.kit_agent import UNSUPPORTED_RULING, KitChatBridge, PendingRuling, RoomAdjudicator
 from runtime.state_context import Runtime
 from test_kit_monster_initiative import Room
+import fixture_sheets
 
 ROOT = Path(__file__).resolve().parents[1]
 CRYPT = ROOT / 'tests' / 'fixtures' / 'rooms' / 'crypt.json'
-NIK = ROOT / 'tests' / 'fixtures' / 'characters' / 'nik.json'
+NIK = fixture_sheets.path(ROOT / 'tests' / 'fixtures' / 'characters' / 'nik.json')
 
 
 def crypt_bridge(test, start='vestibule'):

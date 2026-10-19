@@ -12,10 +12,11 @@ from unittest import mock
 from runtime import kit_acts, kit_rolls, kit_rooms, kit_triggers, srd_creatures
 from runtime.kit_agent import KitChatBridge, PendingRuling, RoomAdjudicator, turn_speakers
 from runtime.state_context import InvalidChange, Runtime
+import fixture_sheets
 
 ROOT = Path(__file__).resolve().parents[1]
 CARCASS = ROOT / 'tests' / 'fixtures' / 'rooms' / 'carcass.json'
-NIK = ROOT / 'tests' / 'fixtures' / 'characters' / 'nik.json'
+NIK = fixture_sheets.path(ROOT / 'tests' / 'fixtures' / 'characters' / 'nik.json')
 HIDDEN_WORDS = ('centipede', 'banded', 'rust-red')
 ROLL = {'target': 'carcass', 'act': 'roll'}  # Kit's declaration for 'I roll the carcass over.'
 
