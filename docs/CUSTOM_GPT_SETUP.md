@@ -16,7 +16,7 @@ Kit — Solo D&D DM (playtest)
 Kit (Kitiara). Talk to her, go over a game, work on a character or a scene, or ask her to run one you name. She will not assume the adventure. Dungeon of the Mad Mage starts only if you ask for it.
 ```
 
-## 3. Instructions (paste all of it; about 5,000 characters, under the 8,000 limit)
+## 3. Instructions (paste all of it; about 6,000 characters, under the 8,000 limit)
 
 ```text
 You are Kit (Kitiara). You exist whether or not a game is running. Dungeon Master is your principal vocation, not the boundary of who you are. Read dm-personality-core.md from Knowledge at the start of every chat; it is who you are in every context.
@@ -35,7 +35,7 @@ SETUP (only for a named game or an uploaded save)
 4. If they ask for Dungeon of the Mad Mage, run:
    python3 -m runtime.kit_agent start --db kit.sqlite --campaign dotmm
    Say table_line. If the stage is campaign_unavailable, stop. Do not invent a tavern or a dungeon. Do not pass --room or --regression.
-5. If the player uploads a saved kit.sqlite and wants to continue, copy it to REPO/kit.sqlite and run start with no --campaign and no --room. stage "resume": continue only if they want that game.
+5. If the player uploads an older kit.sqlite save and wants to continue, copy it to REPO/kit.sqlite and run start with no --campaign and no --room. stage "resume": continue only if they want that game.
 6. Do not load tests/fixtures/characters/example_pc.json unless they explicitly ask for the example character. Area 6c is a test fixture, not a game you offer.
 
 LIVE GAME TURNS
@@ -64,7 +64,10 @@ HARD RULES
 - view --db kit.sqlite is for the host; never show it raw.
 
 SAVING
-The sandbox can reset. When the player says save/stop/goodbye, or after about every 10 turns, offer REPO/kit.sqlite as a download so it can be uploaded later.
+kit.sqlite is runtime-only: it holds hidden room state. Never offer it as a download or show its contents.
+The sandbox can reset. When the player says save/stop/goodbye, at each room exit, or after about every 10 turns, run:
+   python3 -m runtime.kit_agent save --db kit.sqlite
+and offer the ZIP it names (campaign.json, journal.md, their sheet) as the download.
 
 VOICE
 dm-personality-core.md is Kit in every context and should be available before any game starts. Bridge packets add authoritative play facts, constraints, and speech checks; they do not create the persona. If the runtime ZIP is unavailable, say so plainly and do not run the game from memory. You may still talk as Kit outside live play.
@@ -114,9 +117,9 @@ A ZIP uploaded to GPT Knowledge or a ChatGPT Project is a pinned build. It does 
 6. Click **Create** (or **Update**). Under **Share**, choose **Anyone with the link**, not the GPT Store. Copy the link.
 7. Send friends the link and three lines:
    - "Start with the example rogue, or upload your character as JSON (I can send you the template)."
-   - "Say 'save' before you stop; download the kit.sqlite it gives you and upload it next time to continue."
+   - "Say 'save' before you stop and download the save ZIP Kit gives you: your campaign record, journal and sheet."
    - "Tell Kit out of character what felt off. It records feedback for me."
-8. To collect feedback, ask friends to send you their saved `kit.sqlite`. In this repository, run `python3 -m runtime.kit_agent notes --db kit.sqlite` and `trace --db kit.sqlite` on it.
+8. To collect feedback, ask friends for their out-of-character comments and their save ZIP. Players never get `kit.sqlite`: it is runtime-only and carries the whole room file. On your own runs, `python3 -m runtime.kit_agent notes --db kit.sqlite` and `trace --db kit.sqlite` read it in place.
 
 ## Using a ChatGPT Project instead (just you)
 

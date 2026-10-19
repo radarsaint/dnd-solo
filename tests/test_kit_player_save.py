@@ -44,6 +44,16 @@ def strings(node):
             yield from strings(value)
 
 
+def keys(node):
+    if isinstance(node, dict):
+        for key, value in node.items():
+            yield key
+            yield from keys(value)
+    elif isinstance(node, list):
+        for value in node:
+            yield from keys(value)
+
+
 def dcs(node):
     if isinstance(node, dict):
         for key, value in node.items():
@@ -120,14 +130,21 @@ class SaveTests(unittest.TestCase):
         finally:
             runtime.close()
         secret = {s for s in strings(source) if len(s) >= MIN_LEN and s not in public}
-        return secret, set(dcs(source)), raw
+        return secret, set(dcs(source)), raw, public
 
     def assert_nothing_hidden(self, db, files):
-        secret, room_dcs, raw = self.hidden(db)
+        secret, room_dcs, raw, public = self.hidden(db)
         self.assertTrue(secret)
-        for name, text in files.items():
-            self.assertNotIn(raw, text, name)
-            self.assertNotIn('SQLite format 3', text, name)
+        # A hidden string that is only a piece of something public ("the watchroom" in the
+        # area name, "investigation" as a sheet skill) is not a leak: blank the public text first.
+        sheet = json.loads(NIK.read_text(encoding='utf-8'))
+        allowed = sorted(public | set(strings(sheet)) | set(keys(sheet)), key=len, reverse=True)
+        for name, full in files.items():
+            text = full
+            for item in allowed:
+                text = text.replace(item, '\u2591')
+            self.assertNotIn(raw, full, name)
+            self.assertNotIn('SQLite format 3', full, name)
             for item in secret:
                 self.assertNotIn(item, text, f'{name} leaks {item!r}')
             if name.endswith('campaign.json') or name.endswith('journal.md'):
@@ -262,3 +279,23 @@ class CleanHostSaveTest(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class HostDocsTests(unittest.TestCase):
+    def instructions(self):
+        text = (ROOT / 'docs' / 'CUSTOM_GPT_SETUP.md').read_text(encoding='utf-8')
+        return re.search(r'## 3\. Instructions.*?```text\n(.*?)```', text, re.S).group(1)
+
+    def test_gpt_instructions_save_the_zip_and_keep_sqlite_runtime_only(self):
+        block = self.instructions()
+        self.assertLess(len(block), 8000)
+        self.assertIn('kit_agent save --db kit.sqlite', block)
+        self.assertIn('runtime-only', block)
+        self.assertNotIn('offer REPO/kit.sqlite', block)
+
+    def test_readme_agents_start_here_mark_sqlite_runtime_only(self):
+        for name in ('README.md', 'AGENTS.md', 'START_HERE.md'):
+            text = (ROOT / name).read_text(encoding='utf-8')
+            self.assertIn('runtime-only', text, name)
+            self.assertIn('kit_agent save', text, name)
+        self.assertIn('saves/', (ROOT / '.gitignore').read_text(encoding='utf-8'))
