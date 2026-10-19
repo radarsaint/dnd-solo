@@ -164,6 +164,32 @@ FEAT_GRANTS = {
     'skilled': {'tools': {'any'}}, 'crafter': {'tools': {'artisan'}}, 'musician': {'tools': {'instrument'}},
     'tavern brawler': {'weapons': {'improvised'}},
 }
+# Subclass grants (Nagatha's 59ce12a review, F7): (class, a word of the subclass) -> grant. SRD 5.1
+# (Life Domain) and the published 2014/2024 subclasses; a grant in any of them counts.
+ONE_HANDED_MELEE = ('battleaxe', 'flail', 'longsword', 'morningstar', 'rapier', 'scimitar', 'shortsword',
+                    'trident', 'war pick', 'warhammer', 'whip')
+SUBCLASS_GRANTS = {
+    ('cleric', 'life'): {'armor': {'heavy'}},
+    ('cleric', 'nature'): {'armor': {'heavy'}},
+    ('cleric', 'tempest'): {'armor': {'heavy'}, 'weapons': {'martial'}},
+    ('cleric', 'war'): {'armor': {'heavy'}, 'weapons': {'martial'}},
+    ('cleric', 'forge'): {'armor': {'heavy'}},
+    ('cleric', 'order'): {'armor': {'heavy'}},
+    ('cleric', 'twilight'): {'armor': {'heavy'}, 'weapons': {'martial'}},
+    ('cleric', 'death'): {'weapons': {'martial'}},
+    ('bard', 'valor'): {'armor': {'medium', 'shield'}, 'weapons': {'martial'}},
+    ('bard', 'swords'): {'armor': {'medium'}, 'weapons': {'scimitar'}},
+    ('warlock', 'hexblade'): {'armor': {'medium', 'shield'}, 'weapons': {'martial'}},
+    ('wizard', 'bladesinging'): {'armor': {'light'}, 'weapons': {'onehanded'}},
+    ('wizard', 'bladesinger'): {'armor': {'light'}, 'weapons': {'onehanded'}},
+    ('artificer', 'armorer'): {'armor': {'heavy'}},
+    ('artificer', 'battle smith'): {'weapons': {'martial'}},
+    ('rogue', 'assassin'): {'tools': {'disguise kit', "poisoner's kit"}},
+    ('rogue', 'mastermind'): {'tools': {'disguise kit', 'forgery kit', 'gaming'}},
+}
+# 2024 class options a sheet lists as a feature: Divine Order (Protector), Primal Order (Warden).
+OPTION_GRANTS = {('cleric', 'protector'): {'armor': {'heavy'}, 'weapons': {'martial'}},
+                 ('druid', 'warden'): {'armor': {'medium'}, 'weapons': {'martial'}}}
 KINDS = ('armor', 'weapons', 'tools')
 CLAIM_KEYS = {'armor': ('armor_proficiencies',), 'weapons': ('weapon_proficiencies',), 'tools': ('tool_proficiencies',)}
 CLAIM_WORDS = {'armor': {'light': 'light armor training', 'medium': 'medium armor training',
@@ -200,6 +226,19 @@ def classes(sheet):
         if word in CLASS_ARMOR and word not in found:
             found.append(word)
     return found
+
+
+def subclasses(sheet):
+    """[(class, subclass text)] from 'Cleric (Life)', 'Fighter 1 / Cleric (Life Domain) 3', or a
+    sheet's own ``subclass`` (the first class)."""
+    text = str((sheet or {}).get('class') or '').casefold()
+    out = [(m.group(1), m.group(2).strip()) for m in re.finditer(r'([a-z]+)\s*(?:\d+\s*)?\(([^)]*)\)', text)
+           if m.group(1) in CLASS_ARMOR]
+    extra = (sheet or {}).get('subclass')
+    found = classes(sheet)
+    if extra and found:
+        out.append((found[0], str(extra).casefold()))
+    return out
 
 
 def proficiencies(sheet, rulings=None):
@@ -305,6 +344,15 @@ def sources(sheet):
     for name, table in SPECIES_GRANTS.items():
         if re.search(r'\b' + re.escape(name) + r'\b', ancestry) and not (name == 'elf' and 'half-elf' in ancestry):
             grant(f'{name.title()} species', table)
+    for klass, sub in subclasses(sheet):
+        for (owner, word), table in SUBCLASS_GRANTS.items():
+            if owner == klass and re.search(r'\b' + re.escape(word) + r'\b', sub):
+                grant(f'{klass.title()} ({sub.title()}) subclass', table)
+    for text in _texts(sheet, 'features', 'feats'):
+        for (owner, word), table in OPTION_GRANTS.items():
+            if owner in found and re.search(r'\b' + word + r'\b', text) and (
+                    text.startswith(word) or 'order' in text):
+                grant(f'{owner.title()} {word.title()} option', table)
     background = _norm((sheet or {}).get('background'))
     for name, table in BACKGROUND_GRANTS.items():
         if re.fullmatch(re.escape(name) + r'( background)?', background):
@@ -351,6 +399,8 @@ def _sourced(kind, claim, granted):
             return granted['simple']
         if claim in MARTIAL_WEAPONS and 'martial' in granted:
             return granted['martial']
+        if claim in ONE_HANDED_MELEE and 'onehanded' in granted:
+            return granted['onehanded']
     if kind == 'tools':
         category = _tool_category(claim)
         if category and category in granted:
@@ -447,21 +497,6 @@ def audit(sheet, rulings=None):
 
 
 # -- state: state['gear'] = {'in_use': {item id: bool}, 'clarify': [...], 'audits': n} ------------
-def before_audit(sheet):
-    """A copy of the sheet without the gear its audit flags, for fixtures and replays recorded
-    before the audit existed. Only items the audit names are dropped; nothing is chosen by name."""
-    flagged = {entry['item'] for entry in audit(sheet) if entry.get('item')}
-    out = copy.deepcopy(sheet or {})
-    for key in GEAR_KEYS:
-        value = out.get(key)
-        if isinstance(value, list):
-            out[key] = [entry for entry in value
-                        if ident(entry.get('name') if isinstance(entry, dict) else entry) not in flagged]
-        elif value and ident(value.get('name') if isinstance(value, dict) else value) in flagged:
-            out.pop(key)
-    return out
-
-
 def gear(state):
     return copy.deepcopy((state or {}).get('gear') or {'in_use': {}, 'clarify': [], 'audits': 0})
 
@@ -477,7 +512,12 @@ def run_audit(state, why):
     for issue in audit(_with_use(sheet, body), state.get('homebrew_rulings')):
         if issue['id'] not in known:
             body['clarify'].append({**issue, 'status': 'pending', 'found': why})
-    body['clarify'] = body['clarify'][-12:]
+    # Never drop an entry the sheet still raises (an answered one would come back as new and be
+    # asked again: Nagatha's 59ce12a review, F10); only old ones for gear no longer there go.
+    current = {issue['id'] for issue in audit(_with_use(sheet, body), state.get('homebrew_rulings'))}
+    keep = [e for e in body['clarify'] if e['id'] in current or e['status'] in OPEN]
+    gone = [e for e in body['clarify'] if not (e['id'] in current or e['status'] in OPEN)][-12:]
+    body['clarify'] = [e for e in body['clarify'] if any(e is k for k in keep + gone)]
     body['audits'] = int(body.get('audits') or 0) + 1
     state['gear'] = body
     return state
@@ -521,13 +561,37 @@ def stowed_names(state):
     return [item['name'] for item in items(sheet) if recorded.get(item['id']) is False]
 
 
+OPEN = ('pending', 'raised')
+
+
+def open_question(state, item):
+    """The clarification still open (pending or raised) on this item: its own gear question, or
+    the source question on a training claim that covers it. None when nothing is open."""
+    for entry in gear(state)['clarify']:
+        if entry.get('status') not in OPEN:
+            continue
+        if entry.get('item') == item['id'] or (entry.get('issue') == 'unverified_proficiency' and
+                                               entry.get('kind') == 'armor' and entry.get('claim') == item['type']):
+            return entry
+    return None
+
+
+def asked_and_answered(state, item):
+    """Brendon's ruling (2026-10-19): ask first, then the rules as written. A penalty applies only
+    once the player has said the item is in use (his answer to Kit's question, or readying it in so
+    many words) and no question on it is still open. Never from the sheet alone."""
+    recorded = ((state or {}).get('gear') or {}).get('in_use') or {}
+    return recorded.get(item['id']) is True and open_question(state, item) is None
+
+
 def penalties(state, fight=None):
     """{'gear': [names], 'no_casting': bool, 'str_dex_disadvantage': bool}: non-proficient armor or
-    shield in use now (SRD), for any sheet."""
+    shield in use now (SRD), for any sheet, once asked and answered (asked_and_answered)."""
     sheet = (state or {}).get('player_sheet') or {}
     trained = proficiencies(sheet, (state or {}).get('homebrew_rulings'))
     names = [item['name'] for item in items(sheet)
-             if item['type'] and in_use(state, item, fight) and not _proficient(item, trained)]
+             if item['type'] and in_use(state, item, fight) and not _proficient(item, trained)
+             and asked_and_answered(state, item)]
     return {'gear': names, 'no_casting': bool(names), 'str_dex_disadvantage': bool(names)}
 
 
@@ -609,6 +673,21 @@ def read_swap(text, state):
     return None
 
 
+def after_swap(text):
+    """The part of the message after its swap clause ('I drop my shield and cast Magic Missile at
+    the imp' -> 'cast Magic Missile at the imp'), or ''."""
+    words = str(text or '')
+    swap = re.search(r'(?i)\b(?:' + _OFF + '|' + _ON + r')\b', words)
+    if not swap:
+        return ''
+    tail = words[swap.end():]
+    cut = re.search(r'(?i)\s*(?:[,;]|\.(?=\s|$)|\band\s+then\b|\bthen\b|\band\b)\s*', tail)
+    if not cut:
+        return ''
+    rest = tail[cut.end():].strip()
+    return ('I ' + rest) if rest and not re.match(r'(?i)(?:i|nik|he|she)\b', rest) else rest
+
+
 def change_event(state, item, in_use_now, why_text, answer=None):
     """The gear_state event: the item's in-use state, and the clarification it answers."""
     return {'type': 'gear_state', 'item': item, 'in_use': bool(in_use_now),
@@ -635,6 +714,12 @@ def apply_event(state, event):
         for entry in body['clarify']:
             if entry['id'] == event['answers']:
                 entry.update(status='answered', answer=entry.get('answer') or str(event.get('evidence'))[:120])
+    for heard in event.get('heard') or ():
+        # The player's reply after Kit asked was read as his answer once (kit_agent
+        # RoomAdjudicator._question_answer); later refusals are refusals again.
+        for entry in body['clarify']:
+            if entry['id'] == heard:
+                entry['heard'] = True
     if event.get('raised'):
         entry = next((e for e in body['clarify'] if e['id'] == event['raised']), None)
         require(entry is not None, 'gear_state raises a clarification that is not pending')
@@ -652,6 +737,16 @@ def pending(state):
 def raised(state):
     """Clarifications Kit raised that the player has not answered yet."""
     return [e for e in gear(state)['clarify'] if e['status'] == 'raised']
+
+
+def awaiting_answer(state):
+    """Raised clarifications whose answer has not been heard yet: the next reply that is not an act
+    the engine resolves is the answer, quoted or not."""
+    return [e for e in raised(state) if not e.get('heard')]
+
+
+def heard_event(ids, why_text):
+    return {'type': 'gear_state', 'heard': list(ids), 'evidence': why_text[:300]}
 
 
 def clarify_view(entry):
