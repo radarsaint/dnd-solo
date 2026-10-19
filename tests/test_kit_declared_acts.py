@@ -10,6 +10,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+import kit_due  # noqa: E402
 from runtime import kit_acts, kit_claims, kit_combat, kit_rolls, kit_rooms, kit_triggers
 from runtime.kit_agent import ONE_PASS_SCHEMA, KitChatBridge, PendingRuling, RoomAdjudicator, start_session
 from runtime.state_context import InvalidChange, Runtime
@@ -193,7 +194,7 @@ class DeclaredHandlesTests(unittest.TestCase):
                                                            for f in known])
                 result = room.act(action, handles)
                 self.assertEqual(room.state['triggers_fired'], ['carcass_disturbed'])
-                self.assertTrue(result.public_event.endswith('Roll initiative.'))
+                self.assertTrue(result.public_event.endswith(kit_due.INITIATIVE))
 
     def test_lifting_a_part_is_the_parts_handling_not_the_whole_carcass_moving(self):
         room = Room(self)
@@ -237,7 +238,7 @@ class DeclaredHandlesTests(unittest.TestCase):
         result = room.act('I barge down the stair and kick the carcass.', {'target': 'carcass', 'act': 'kick'})
         self.assertEqual(room.state['area'], 'hall')
         self.assertEqual(room.state['triggers_fired'], ['carcass_disturbed'])
-        self.assertIn('Roll initiative.', result.public_event)
+        self.assertRegex(result.public_event, kit_due.INITIATIVE_RE)
 
     def test_the_family_shares_one_schema_style(self):
         decision = ONE_PASS_SCHEMA['properties']['decision']['properties']
@@ -262,6 +263,7 @@ class BridgeTests(unittest.TestCase):
             plan['handles'] = handles
         speech = {'segments': [{'speaker': 'Narrator', 'text': 'You kneel by the grey claw and work your fingers '
                                                                'under the stiff talons.'}]}
+        speech['segments'] = kit_due.asked(packet, speech['segments'])
         return packet, bridge, bridge.complete(turn_id, {'decision': plan, 'performance': speech})
 
     def test_a_declared_pry_commits_the_ambush_after_kits_line_and_logs_the_handoff(self):
@@ -271,7 +273,7 @@ class BridgeTests(unittest.TestCase):
         self.assertTrue(any(line.startswith('acts.handles:') for line in packet['first_try']))
         lines = result['spoken'].split('\n')
         self.assertTrue(lines[0].startswith('Narrator: You kneel'))
-        self.assertTrue(lines[-1].endswith('Roll initiative.'))
+        self.assertTrue([line for line in lines if line.startswith('Narrator:')][-1].endswith(kit_due.INITIATIVE))
         self.assertEqual(room.state['triggers_fired'], ['carcass_disturbed'])
         self.assertIn('orb', room.state['known_facts'])
         self.assertEqual(result['timing']['handoff']['trigger'], 'carcass_disturbed')

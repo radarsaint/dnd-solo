@@ -23,6 +23,7 @@ from runtime import kit_acts, kit_combat, kit_gear, kit_rolls
 from runtime.kit_agent import (KitChatBridge, PendingRuling, RoomAdjudicator, WindowAnswer, check_window_answer,
                                check_window_voice, prepare_turn, window_view)
 from runtime.state_context import InvalidChange
+from test_kit_gear_answers import answered
 from test_kit_review101c import Arena
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -36,9 +37,16 @@ def sheet(name, **extra):
 
 
 def stowed(arena, item):
-    """The player's answer to the audit, recorded as game state: the item is put away."""
-    revision, state = arena.runtime.load()
-    arena.runtime.commit(f'stow-{item}', revision, [kit_gear.change_event(state, item, False, f'The player stows the {item} (test setup).')])
+    """The player puts the item away, in play (the act path): the audit's question is settled."""
+    arena.act('I take off my chain shirt.' if item == 'chain_shirt' else 'I put my shield away.')
+    assert kit_gear.gear(arena.state)['in_use'][item] is False, item
+    return arena
+
+
+def held(test, arena, item):
+    """He tells Kit the item is in use (her question, his answer, through the bridge): the
+    rules as written apply from then on (Brendon: ask first)."""
+    return answered(test, arena, item, 'held')
 
 
 def spend(arena, *levels):
@@ -100,9 +108,14 @@ class SlotAsk(unittest.TestCase):
         arena.act(MM)
         result = arena.act('Yes, second level.', upcast='yes')
         self.assertIsNone(arena.fight.get('awaiting'))
-        self.assertEqual(used(arena), {'1': 4, '2': 1, '3': 0})
-        self.assertEqual(arena.fight['hp']['imp'], 18 - 12)
         self.assertIn('Magic Missile', result.public_event)
+        # The 1st-level roll in the first message is not the 2nd-level spell (Nagatha, 59ce12a):
+        # he rolls it at 2nd level, and that roll lands.
+        self.assertEqual(arena.fight['hp']['imp'], 18)
+        self.assertIn('!cast magic missile -l 2', result.public_event)
+        arena.act('Magic Missile: 4d4 (3, 2, 4, 1) + 4 = 14 force')
+        self.assertEqual(used(arena), {'1': 4, '2': 1, '3': 0})
+        self.assertEqual(arena.fight['hp']['imp'], 18 - 14)
 
     def test_yes_with_a_named_higher_slot_spends_that_one(self):
         arena = self.arena('mirel_sorcerer', 'chain_shirt')
@@ -320,6 +333,7 @@ class Enforcement(unittest.TestCase):
                                               'To Hit: 1d20 (15) + 7 = 22\nDamage: 2d10 (5, 5) = 10 fire')):
             with self.subTest(sheet=name, cast=cast[:40]):
                 arena = Arena(self, 'kiln', sheet=sheet(name, hp=60), roll=lambda: 2)
+                held(self, arena, {'nik': 'sentinel_shield'}.get(name, 'chain_shirt'))
                 before = used(arena)
                 result = arena.act(cast)
                 self.assertIn('cannot cast', result.public_event)
@@ -334,7 +348,7 @@ class Enforcement(unittest.TestCase):
         self.assertEqual(arena.fight['hp']['imp'], 6)
 
     def test_no_shield_spell_window_while_casting_is_barred(self):
-        arena = Arena(self, 'kiln', sheet=sheet('nik', hp=60), roll=lambda: 10)  # the imp hits
+        arena = held(self, Arena(self, 'kiln', sheet=sheet('nik', hp=60), roll=lambda: 10), 'sentinel_shield')  # the imp hits
         arena.act('Initiative 25. I stab the kobold slinger with my dagger. To Hit: 2d20kl1 (3, 12) + 5 = 8. 3 piercing')
         self.assertIsNone((arena.fight.get('awaiting') or {}).get('options'), 'Shield is a spell: not offered')
         stowed_arena = Arena(self, 'kiln', sheet=sheet('nik', hp=60), roll=lambda: 10)
@@ -343,7 +357,7 @@ class Enforcement(unittest.TestCase):
         self.assertEqual(stowed_arena.fight['awaiting']['options'], ['shield'])
 
     def test_a_weapon_attack_is_rolled_with_disadvantage(self):
-        arena = Arena(self, 'kiln', sheet=sheet('nik', hp=60), roll=lambda: 2)
+        arena = held(self, Arena(self, 'kiln', sheet=sheet('nik', hp=60), roll=lambda: 2), 'sentinel_shield')
         result = arena.act('Initiative 25. I stab the kobold slinger with my dagger, 15 to hit, 3 piercing.')
         self.assertIn('with disadvantage', result.public_event)
         self.assertIn('Sentinel Shield', result.public_event)
@@ -361,6 +375,8 @@ class Enforcement(unittest.TestCase):
                                 ('brannoc_fighter', False)):
             with self.subTest(sheet=name):
                 arena = Arena(self, 'kiln', sheet=sheet(name))
+                if penalised:
+                    held(self, arena, {'nik': 'sentinel_shield'}.get(name, 'chain_shirt'))
                 dice = itertools.cycle([15, 4])
                 adjudicator = RoomAdjudicator(roll=lambda: next(dice), source=arena.runtime.source())
                 state = arena.state
@@ -372,7 +388,9 @@ class Enforcement(unittest.TestCase):
                 self.assertNotEqual(wis.get('die'), None)
 
     def test_a_dex_save_is_called_with_disadvantage(self):
-        state = {'player_sheet': sheet('nik'), 'combat': {'status': 'running'}}
+        arena = Arena(self, 'kiln', sheet=sheet('nik'))
+        self.assertNotIn('disadvantage', kit_combat.save_prompt({'save': 'dex'}, arena.state), 'not before he answers')
+        state = dict(held(self, arena, 'sentinel_shield').state, combat={'status': 'running'})
         self.assertIn('with disadvantage', kit_combat.save_prompt({'save': 'dex'}, state))
         self.assertNotIn('disadvantage', kit_combat.save_prompt({'save': 'wis'}, state))
         self.assertNotIn('disadvantage', kit_combat.save_prompt({'save': 'dex'}, {'player_sheet': sheet('ilsa_cleric')}))
@@ -447,16 +465,21 @@ class InitiativeAdvantage(unittest.TestCase):
 
     def test_modes(self):
         sentinel = ['chain mail', {'name': 'Sentinel Shield'}, 'longsword']
-        self.assertEqual(kit_gear.roll_mode(self.state('nik'), 'dex', 'initiative', fight=True)[0], 'normal')
-        self.assertIn('cancel', kit_gear.initiative_prompt(self.state('nik')))
+        # Before he answers, the sheet alone sets no penalty (Brendon: ask first): the shield's
+        # own advantage stands. Once he says it is on his arm, the untrained disadvantage cancels it.
+        self.assertEqual(kit_gear.roll_mode(self.state('nik'), 'dex', 'initiative', fight=True)[0], 'advantage')
+        nik = held(self, Arena(self, 'kiln', sheet=sheet('nik')), 'sentinel_shield').state
+        self.assertEqual(kit_gear.roll_mode(nik, 'dex', 'initiative', fight=True)[0], 'normal')
+        self.assertIn('cancel', kit_gear.initiative_prompt(nik))
         self.assertEqual(kit_gear.roll_mode(self.state('brannoc_fighter', gear=sentinel), 'dex', 'initiative',
                                             fight=True)[0], 'advantage')
         self.assertIn('with advantage', kit_gear.initiative_prompt(self.state('brannoc_fighter', gear=sentinel)))
         stowed_state = self.state('brannoc_fighter', gear=sentinel)
         kit_gear.apply_event(stowed_state, kit_gear.change_event(stowed_state, 'sentinel_shield', False, 'stowed'))
         self.assertEqual(kit_gear.initiative_prompt(stowed_state), 'Roll initiative.')
-        self.assertEqual(kit_gear.initiative_prompt(self.state('mirel_sorcerer'))[:40],
-                         'Roll initiative with disadvantage (the c')
+        self.assertEqual(kit_gear.initiative_prompt(self.state('mirel_sorcerer')), 'Roll initiative.')
+        mirel = held(self, Arena(self, 'kiln', sheet=sheet('mirel_sorcerer')), 'chain_shirt').state
+        self.assertEqual(kit_gear.initiative_prompt(mirel)[:40], 'Roll initiative with disadvantage (the c')
         self.assertEqual(kit_gear.initiative_prompt(self.state('ilsa_cleric')), 'Roll initiative.')
 
     def test_perception_advantage_from_a_shield_goes_when_it_is_stowed(self):

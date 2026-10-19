@@ -9,14 +9,14 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+import kit_due  # noqa: E402
 from runtime import kit_acts, kit_rolls, kit_rooms, kit_triggers, srd_creatures
 from runtime.kit_agent import KitChatBridge, PendingRuling, RoomAdjudicator, turn_speakers
 from runtime.state_context import InvalidChange, Runtime
-import fixture_sheets
 
 ROOT = Path(__file__).resolve().parents[1]
 CARCASS = ROOT / 'tests' / 'fixtures' / 'rooms' / 'carcass.json'
-NIK = fixture_sheets.path(ROOT / 'tests' / 'fixtures' / 'characters' / 'nik.json')
+NIK = ROOT / 'tests' / 'fixtures' / 'characters' / 'nik.json'
 HIDDEN_WORDS = ('centipede', 'banded', 'rust-red')
 ROLL = {'target': 'carcass', 'act': 'roll'}  # Kit's declaration for 'I roll the carcass over.'
 
@@ -183,7 +183,7 @@ class MonsterInitiativeTests(unittest.TestCase):
                 result = room.act(action, {'target': 'carcass', 'act': act})
                 self.assertEqual(result.kind, 'combat_round')
                 self.assertIn('Two giant centipedes boil out', result.public_event)
-                self.assertTrue(result.public_event.endswith('Roll initiative.'))
+                self.assertTrue(result.public_event.endswith(kit_due.INITIATIVE))
                 state = room.state
                 self.assertEqual(state['combat']['status'], 'awaiting_initiative')
                 self.assertEqual(state['combat']['started_by'], 'trigger:carcass_disturbed')
@@ -389,7 +389,7 @@ class DisturbByPartOrItemTests(unittest.TestCase):
                 result = room.act(action, handles)
                 self.assertEqual(self.fired(room), ['carcass_disturbed'])
                 self.assertEqual(result.kind, 'combat_round')
-                self.assertTrue(result.public_event.endswith('Roll initiative.'))
+                self.assertTrue(result.public_event.endswith(kit_due.INITIATIVE))
 
     def test_taking_the_item_shows_it(self):
         room = Room(self)

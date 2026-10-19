@@ -8,13 +8,13 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import kit_due  # noqa: E402
 from runtime import kit_agent, kit_claims, kit_guards, pc_sheet
 from runtime.kit_agent import PendingRuling, RoomAdjudicator
 from runtime.state_context import InvalidChange, Runtime
 from test_kit_agent import FIXTURE, RecordingModel
-import fixture_sheets
 
-NIK = fixture_sheets.sheet(Path(__file__).parent / 'fixtures/characters/nik.json')
+NIK = json.loads((Path(__file__).parent / 'fixtures/characters/nik.json').read_text())
 SOURCE = json.loads(FIXTURE.read_text())
 
 
@@ -362,6 +362,7 @@ class PlayTests(unittest.TestCase):
             {'speaker': 'Kit', 'text': 'An appraisal before a wager. You came prepared.',
              'reacts_to': 'appraise the silver ring'},
         ]}
+        speech['segments'] = kit_due.asked(packet, speech['segments'])
         output = {'decision': plan, 'performance': speech}
         result = bridge.complete(packet['turn_id'], output)
         self.assertIn('twenty-five gold', result['spoken'])

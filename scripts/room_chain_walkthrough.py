@@ -21,21 +21,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from runtime import kit_brief, kit_gear, kit_rooms  # noqa: E402
+from runtime import kit_brief, kit_rooms  # noqa: E402
 from runtime.kit_agent import KitChatBridge, PendingRuling, RoomAdjudicator, start_session  # noqa: E402
 from runtime.state_context import Runtime  # noqa: E402
 
 SHEET = ROOT / 'tests/fixtures/characters/nik.json'
-
-
-def sheet_before_audit():
-    """Nik's sheet without the gear its equipment audit flags (runtime.kit_gear.before_audit):
-    this walk was written before the audit existed. tests/test_kit_slot_ask_gear.py covers the
-    sheet as it is."""
-    out = Path(tempfile.gettempdir()) / 'dnd-solo-sheets-before-audit' / SHEET.name
-    out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(json.dumps(kit_gear.before_audit(json.loads(SHEET.read_text())), indent=2))
-    return out
 SEED = 'room-chain-0'
 LINES = [
     ('6c', "I'll play a hand. Ten gold."),
@@ -106,7 +96,7 @@ def run(folder):
     first = build_chain(folder)
     db = Path(folder) / 'chain.sqlite'
     started = time.perf_counter()
-    started_packet = start_session(db, sheet_before_audit(), room=first)
+    started_packet = start_session(db, SHEET, room=first)
     records = [{'line': '[start --room 6c]', 'kind': 'start', 'public': started_packet['prepared'].get('turn_id') and
                 'Opening packet staged.', 'ms_to_first_packet': round((time.perf_counter() - started) * 1000, 1),
                 **snapshot(Runtime(db))}]

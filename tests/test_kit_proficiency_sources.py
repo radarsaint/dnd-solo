@@ -16,6 +16,7 @@ from pathlib import Path
 from runtime import kit_acts, kit_gear, kit_rooms
 from runtime.kit_agent import prepare_turn
 from runtime.state_context import InvalidChange, Runtime
+from test_kit_gear_answers import Table, answered
 from test_kit_review101c import Arena
 
 SHEETS = Path(__file__).resolve().parent / 'fixtures' / 'characters'
@@ -80,9 +81,12 @@ class Sources(unittest.TestCase):
         pell = sheet('pell_wizard')
         self.assertNotIn('shield', kit_gear.proficiencies(pell))
         arena = Arena(self, 'kiln', sheet=pell)
+        entry, = kit_gear.gear(arena.state)['clarify']
+        self.assertEqual((entry['id'], entry['status']), (SHIELD, 'pending'), 'not trusted: asked about')
+        # Ask first, then the rules as written (Brendon): the sheet alone sets no penalty.
         penalties = kit_gear.penalties(arena.state, fight=True)
-        self.assertTrue(penalties['no_casting'])
-        self.assertTrue(penalties['str_dex_disadvantage'])
+        self.assertFalse(penalties['no_casting'])
+        self.assertFalse(penalties['str_dex_disadvantage'])
 
 
 class Negotiation(unittest.TestCase):
@@ -99,8 +103,9 @@ class Negotiation(unittest.TestCase):
                                              'usually carry one.'}])
         with self.assertRaises(InvalidChange):
             kit_gear.check_spoken_clarify(ask, [{'speaker': 'Kit', 'text': 'The kiln ticks as it cools.'}])
-        revision, _ = arena.runtime.load()
-        arena.runtime.commit('raised', revision, [kit_gear.raised_event(ask['id'], 't1')])
+        self.table = Table(self, None, arena=arena)
+        self.table.raise_question()  # Kit asks it at the table (the bridge)
+        self.assertEqual([e['status'] for e in kit_gear.gear(arena.state)['clarify']], ['raised'])
         return arena
 
     def answer(self, arena, line, ruling):
@@ -108,10 +113,10 @@ class Negotiation(unittest.TestCase):
         self.assertNotIn('gear_clarify', planning, 'asked once')
         self.assertEqual(body['acts']['ruling']['ids'], [SHIELD])
         self.assertIn('ruling', planning['acts'])
-        decl = kit_acts.check({'ruling': ruling}, body)['ruling']
-        revision, state = arena.runtime.load()
-        result = arena.adjudicator.declared_acts({'ruling': decl}, line, revision, state)
-        arena.runtime.commit('ruled', revision, list(result.events))
+        kit_acts.check({'ruling': ruling}, body)
+        kit = ('Nice story, but that is not training. Rules as written, then.' if ruling['verdict'] == 'declined'
+               else 'Good enough for me, that counts.')
+        self.table.turn(line, kit, {'ruling': ruling})
         return arena.state
 
     def test_granted(self):
@@ -156,15 +161,18 @@ class Negotiation(unittest.TestCase):
         ruling, = state['homebrew_rulings']
         self.assertEqual(ruling['verdict'], 'declined')
         self.assertIn('cannot cast spells', ruling['rule'])
+        # Then (once) whether it is on his arm: stowing it is how he casts again. Until he
+        # answers that, nothing is enforced (ask first).
+        due = kit_gear.pending(state)
+        self.assertEqual((due['issue'], due['item']), ('shield_proficiency', 'shield'))
+        self.assertEqual(kit_gear.penalties(state, fight=True)['gear'], [])
+        state = answered(self, arena, 'shield', 'held').state
         penalties = kit_gear.penalties(state, fight=True)
         self.assertEqual(penalties['gear'], ['shield'])
         self.assertTrue(penalties['no_casting'])
         self.assertEqual(kit_gear.roll_mode(state, 'dex')[0], 'disadvantage')
         self.assertEqual(kit_gear.roll_mode(state, 'str')[0], 'disadvantage')
         self.assertEqual(kit_gear.roll_mode(state, 'int')[0], 'normal')
-        # Then (once) whether it is on his arm: stowing it is how he casts again.
-        due = kit_gear.pending(state)
-        self.assertEqual((due['issue'], due['item']), ('shield_proficiency', 'shield'))
 
     def test_declined_then_drop_and_cast_is_the_swap_only(self):
         arena = self.raised()
@@ -214,11 +222,17 @@ class HandEdits(unittest.TestCase):
                 self.assertEqual({n['field'] for n in state['sheet_notes']}, {'gold_gp', 'hp', 'xp'})
 
     def test_a_proficiency_written_in_by_hand_is_asked_about(self):
-        arena = Arena(self, 'kiln', sheet=sheet('ilsa_cleric'))
-        arena.runtime.set_player_sheet(sheet('ilsa_cleric', armor_proficiencies=['Light', 'Medium', 'Shields',
-                                                                                   'Heavy']))
+        heavy = ['Light', 'Medium', 'Shields', 'Heavy']
+        # A Knowledge cleric has no heavy armor training: written in by hand, it is asked about.
+        knowledge = {'class': 'Cleric (Knowledge)', 'features': ['Channel Divinity', 'Blessings of Knowledge']}
+        arena = Arena(self, 'kiln', sheet=sheet('ilsa_cleric', **knowledge))
+        arena.runtime.set_player_sheet(sheet('ilsa_cleric', armor_proficiencies=heavy, **knowledge))
         clarify = kit_gear.gear(arena.state)['clarify']
-        self.assertEqual([c['id'] for c in clarify], ['proficiency:armor:heavy'], 'a Life cleric 2014 aside, unsourced')
+        self.assertEqual([c['id'] for c in clarify], ['proficiency:armor:heavy'], 'unsourced for this build')
+        # Ilsa is a Life cleric: the domain grants heavy armor (SRD 5.1), so the same edit is sourced.
+        arena = Arena(self, 'kiln', sheet=sheet('ilsa_cleric'))
+        arena.runtime.set_player_sheet(sheet('ilsa_cleric', armor_proficiencies=heavy))
+        self.assertEqual(kit_gear.gear(arena.state)['clarify'], [], 'Life Domain: heavy armor')
 
 
 if __name__ == '__main__':

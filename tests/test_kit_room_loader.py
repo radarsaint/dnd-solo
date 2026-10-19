@@ -23,12 +23,11 @@ from runtime import kit_agent, kit_brief, kit_rooms  # noqa: E402
 from runtime.kit_agent import KitChatBridge, PendingRuling, RoomAdjudicator, start_session  # noqa: E402
 from runtime.state_context import Runtime  # noqa: E402
 import room_chain_walkthrough as chain  # noqa: E402
-import fixture_sheets
 
 STUB = 'rooms/level_01_area_17a.json'
 WATCH = 'tests/fixtures/rooms/watchroom.json'
 SIXC = 'tests/fixtures/level_01_area_06c.json'
-NIK = fixture_sheets.path(ROOT / 'tests/fixtures/characters/nik.json')
+NIK = ROOT / 'tests/fixtures/characters/nik.json'
 FIRST_FRAMING_MS = 500  # generous: measured ~5-40 ms on the box; a regression guard, not a benchmark
 
 

@@ -11,6 +11,7 @@ import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
 
+import kit_due  # noqa: E402
 from runtime import kit_handoff, kit_reveal, kit_rooms
 from runtime.kit_agent import KitChatBridge, PendingRuling, WindowAnswer
 from runtime.state_context import InvalidChange
@@ -61,7 +62,8 @@ class Reveal(unittest.TestCase):
         bridge = KitChatBridge(room.runtime, room.adjudicator)
         return room, bridge, bridge.prepare(opening=True, one_pass=True, turn_id='open')
 
-    def enter(self, room, bridge, packet, segments):
+    def enter(self, room, bridge, packet, segments, ask=True):
+        segments = kit_due.asked(packet, segments) if ask else segments
         return bridge.complete('open', {'decision': plan_for(packet), 'performance': {'segments': segments}})
 
     def test_room_entry_gets_the_obvious_layer_and_holds_the_rest(self):
@@ -75,11 +77,11 @@ class Reveal(unittest.TestCase):
         room, bridge, packet = self.opening()
         with self.assertRaisesRegex(InvalidChange, 'handing the floor back'):
             self.enter(room, bridge, packet, [{'speaker': 'Narrator', 'text': CARCASS_LOOK},
-                                              {'speaker': 'Narrator', 'text': CARCASS_MORE}])
+                                              {'speaker': 'Narrator', 'text': CARCASS_MORE}], ask=False)
         result = self.enter(room, bridge, packet, [{'speaker': 'Narrator', 'text': CARCASS_LOOK},
                                                    {'speaker': 'Narrator', 'text': CARCASS_MORE},
                                                    kit_line(KIT_HANDOFF)])
-        self.assertTrue(result['spoken'].endswith('Kit: So. What draws you in first?'))
+        self.assertIn('Kit: So. What draws you in first?', result['spoken'])
 
     def test_pouring_out_the_held_layer_is_refused(self):
         source = carcass()
@@ -159,10 +161,11 @@ class RevealFixes(unittest.TestCase):
         plan['public_brief']['scope'] = 'call'
         speech = {'segments': [{'speaker': 'Narrator', 'text': 'You step into the hall, set your shoulder to '
                                                                'the grey carcass and heave it over.'}]}
+        speech['segments'] = kit_due.asked(packet, speech['segments'])
         result = bridge.complete('in', {'decision': plan, 'performance': speech})
         self.assertEqual(room.state['triggers_fired'], ['carcass_disturbed'])
         self.assertEqual(room.state['area'], 'hall')
-        self.assertTrue(result['spoken'].rstrip().endswith('Roll initiative.'))
+        self.assertTrue(result['spoken'].rstrip().endswith(kit_due.INITIATIVE))
 
     def test_kit_marks_a_directed_entry_and_no_handoff_is_needed(self):
         source = carcass()
@@ -284,7 +287,7 @@ class BargingIn(ShortBeat):
         packet = self.bridge.prepare('I go through the iron door.', 'in', one_pass=True)
         plan = self.plan_for(packet, table_presence='brief')
         plan['public_brief'].update(reply_to='go through the iron door', scope='feature')
-        self.bridge.complete('in', {'decision': plan, 'performance': {'segments': [
+        self.bridge.complete('in', {'decision': plan, 'performance': {'segments': kit_due.asked(packet, [
             {'speaker': 'Narrator', 'text': 'Lamplight pools on a scarred table where a warden in a dented helm '
                                             'hums over a ledger, a plain wooden chest under the arrow slit behind '
                                             'him, his spear propped within easy reach of his hand.'},
@@ -292,7 +295,7 @@ class BargingIn(ShortBeat):
                                             'long moment the only thing moving in the room is the lamp flame, '
                                             'bending a little in the draught you let in, throwing his shadow '
                                             'long across the boards toward your boots.'},
-            kit_line('So. What draws you in first?', 'go through the iron door')]}})
+            kit_line('So. What draws you in first?', 'go through the iron door')])}})
         lines = trace(self.runtime)
         self.assertEqual(lines[0]['handoff']['type'], 'stall_check')
         answer = lines[-1]['answers']
@@ -321,7 +324,7 @@ class SplitActions(unittest.TestCase):
         room = Room(self)
         result = room.act('I roll the carcass over and stab whatever comes out with my dagger, 18 to hit, 4 piercing.',
                           ROLL)
-        self.assertTrue(result.public_event.endswith('Roll initiative.'))
+        self.assertTrue(result.public_event.endswith(kit_due.INITIATIVE))
         self.assertEqual(room.state['combat']['status'], 'awaiting_initiative')
         self.assertEqual(room.state['combat']['hp'], room.state['combat']['max_hp'], 'nothing was there to stab')
 

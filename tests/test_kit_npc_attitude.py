@@ -17,10 +17,9 @@ from runtime import kit_agent, kit_attitude, kit_brief, kit_cards, kit_twenty_on
 from runtime.kit_agent import RoomAdjudicator
 from runtime.state_context import InvalidChange, Runtime
 from test_kit_agent import FIXTURE
-import fixture_sheets
 
 SOURCE = json.loads(FIXTURE.read_text())
-NIK = fixture_sheets.sheet(Path(__file__).parent / 'fixtures/characters/nik.json')
+NIK = json.loads((Path(__file__).parent / 'fixtures/characters/nik.json').read_text())
 FEASIBILITY = json.loads((Path(__file__).parent / 'fixtures/feasibility_room.json').read_text())
 GANG = ('uktarl', 'bandit_a', 'bandit_b', 'doppelganger')
 T10 = "Nik reads the pricks on the top card and stands on fourteen: I'll stand."

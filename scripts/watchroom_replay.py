@@ -20,22 +20,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from runtime import kit_detail, kit_gear  # noqa: E402
+from runtime import kit_detail  # noqa: E402
 from runtime.kit_agent import KitChatBridge, PendingRuling, RoomAdjudicator, start_session  # noqa: E402
 from runtime.state_context import InvalidChange, Runtime  # noqa: E402
 
 ROOM = 'tests/fixtures/rooms/watchroom.json'
 NIK = ROOT / 'tests/fixtures/characters/nik.json'
-
-
-def sheet_before_audit():
-    """Nik's sheet without the gear its equipment audit flags (runtime.kit_gear.before_audit):
-    this walk was written before the audit existed. tests/test_kit_slot_ask_gear.py covers the
-    sheet as it is."""
-    out = Path(tempfile.gettempdir()) / 'dnd-solo-sheets-before-audit' / NIK.name
-    out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(json.dumps(kit_gear.before_audit(json.loads(NIK.read_text())), indent=2))
-    return out
 
 # Kit's live decisions ran long: every free-text field was a sentence or two.
 LONG = ('Nik is on the landing outside the watchroom, careful and quiet, and the warden inside is awake, '
@@ -311,7 +301,7 @@ def combat_window_leg():
     folder = Path(tempfile.mkdtemp())
     runtime = Runtime(folder / 'camp.sqlite')
     runtime.initialize(json.loads(CAMP.read_text()), 'camp')
-    runtime.set_player_sheet(kit_gear.before_audit(json.loads(NIK.read_text())))
+    runtime.set_player_sheet(json.loads(NIK.read_text()))
     bridge = KitChatBridge(runtime, RoomAdjudicator(roll=lambda: 10, source=runtime.source()))
     trips, seconds, engine_ms, stages = 0, 0.0, 0.0, []
     for index, (line, output) in enumerate(WINDOW_LEG):
@@ -336,7 +326,7 @@ def run(out=None, turns=None, manifests=False):
     folder = Path(tempfile.mkdtemp())
     db = folder / 'replay.sqlite'
     t = time.perf_counter()
-    started = start_session(db, sheet_before_audit(), room=ROOM, manifests=manifests)
+    started = start_session(db, NIK, room=ROOM, manifests=manifests)
     start_ms = (time.perf_counter() - t) * 1000
     runtime = Runtime(db)
     bridge = KitChatBridge(runtime, RoomAdjudicator(roll=lambda: 10, npc_roll=lambda: 10), manifests=manifests)

@@ -11,14 +11,14 @@ from contextlib import redirect_stdout
 from pathlib import Path
 from unittest import mock
 
+import kit_due  # noqa: E402
 from runtime import kit_combat, kit_reactions
 from runtime.kit_agent import KitChatBridge, PendingRuling, RoomAdjudicator
 from runtime.state_context import Runtime
-import fixture_sheets
 
 ROOT = Path(__file__).resolve().parents[1]
 ROOMS = ROOT / 'tests' / 'fixtures' / 'rooms'
-NIK = fixture_sheets.sheet(ROOT / 'tests' / 'fixtures' / 'characters' / 'nik.json')
+NIK = json.loads((ROOT / 'tests' / 'fixtures' / 'characters' / 'nik.json').read_text())
 
 
 def clause_parser(cls):
@@ -1133,8 +1133,8 @@ class KitTwoPlaytest(unittest.TestCase):
         plan = plan_for(packet, turn_mode='combat')
         plan['public_brief'].update(reply_to='reroll that', scope='call')
         rewind = 'Time hiccups. The scimitar swing never happens, and the steel goes wide past your ear.'
-        out = bridge.complete('h2', {'decision': plan, 'performance': {'segments': [
-            {'speaker': 'Narrator', 'text': rewind}]}})
+        out = bridge.complete('h2', {'decision': plan, 'performance': {'segments': kit_due.asked(packet, [
+            {'speaker': 'Narrator', 'text': rewind}])}})
         lines = out['spoken'].split('\n')
         self.assertEqual(lines[0], f'Narrator: {rewind}')
         self.assertIn('hits you', lines[1])

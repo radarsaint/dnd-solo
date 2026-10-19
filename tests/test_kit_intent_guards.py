@@ -21,11 +21,10 @@ from runtime import kit_cards, kit_combat, kit_rolls, kit_twenty_one
 from runtime.kit_agent import RoomAdjudicator, card_procedure
 from runtime.state_context import Runtime
 from test_kit_agent import FIXTURE
-import fixture_sheets
 
 SOURCE = json.loads(FIXTURE.read_text())
 SEED = 's18'
-NIK = fixture_sheets.sheet(Path(__file__).parent / 'fixtures/characters/nik.json')
+NIK = json.loads((Path(__file__).parent / 'fixtures/characters/nik.json').read_text())
 
 T2 = ('Nik takes the chair and sets a single copper on the table. "I count well enough. Twenty-one." '
       'He nods at the silver ring by the dealer\'s stack. "Someone lose that, or is it the pot?" While the '

@@ -20,19 +20,19 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+import kit_due  # noqa: E402
 from runtime import kit_acts, kit_combat, kit_rolls, kit_rooms, kit_triggers
 from runtime.kit_agent import KitChatBridge, PendingRuling, RoomAdjudicator
 from runtime.state_context import InvalidChange, Runtime
 from test_kit_agent import RecordingModel
 from test_kit_monster_initiative import Room as _InitiativeRoom
-import fixture_sheets
 
 decline_open = _InitiativeRoom.decline_open
 
 ROOT = Path(__file__).resolve().parents[1]
 CRYPT = ROOT / 'tests/fixtures/rooms/crypt.json'
 CARCASS = ROOT / 'tests/fixtures/rooms/carcass.json'
-SHEETS = {'nik': fixture_sheets.path(ROOT / 'tests/fixtures/characters/nik.json'),
+SHEETS = {'nik': ROOT / 'tests/fixtures/characters/nik.json',
           'wren': ROOT / 'tests/fixtures/characters/example_pc.json',
           'ilsevel': ROOT / 'tests/fixtures/pc_sheets/ilsevel.json'}
 
@@ -144,7 +144,7 @@ def bridge_turn(room, action, handles=None, text='Cold stone, dust, and silence.
         plan['reveal_entry'] = {'mode': 'directed', 'relevant': []}
     try:
         return packet, bridge.complete(turn_id, {'decision': plan, 'performance': {
-            'segments': [{'speaker': 'Narrator', 'text': text}]}})
+            'segments': kit_due.asked(packet, [{'speaker': 'Narrator', 'text': text}])}})
     except InvalidChange:
         bridge.abandon(turn_id)
         raise
@@ -169,7 +169,7 @@ class AnyPhysicalTurnOffersTests(unittest.TestCase):
         room.act('I look at the sarcophagus.')
         result = room.act('I push it open.', {'target': 'sarcophagus', 'act': 'push'})
         self.assertEqual(room.state['triggers_fired'], ['tomb_opened'])
-        self.assertIn('Roll initiative.', result.public_event)
+        self.assertRegex(result.public_event, kit_due.INITIATIVE_RE)
 
     def test_speech_questions_and_table_talk_carry_no_offer(self):
         for line in ('"Is anyone in there?"', 'What is carved on the sarcophagus?', 'OOC: how do death saves work?'):

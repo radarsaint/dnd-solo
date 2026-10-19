@@ -8,14 +8,14 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+import kit_due  # noqa: E402
 from runtime import kit_combat, kit_voice
 from runtime.kit_agent import PendingRuling, RoomAdjudicator
 from runtime.state_context import Runtime
-import fixture_sheets
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / 'tests' / 'fixtures' / 'level_01_area_06c.json'
-NIK = fixture_sheets.path(ROOT / 'tests' / 'fixtures' / 'characters' / 'nik.json')
+NIK = ROOT / 'tests' / 'fixtures' / 'characters' / 'nik.json'
 NUMBERS_KIT_KEEPS = ('AC', 'DC', 'hit points', ' hp', 'd20')
 
 
@@ -76,7 +76,7 @@ class PhysicalActTests(unittest.TestCase):
         self.assertEqual(result.kind, 'combat_round')
         self.assertEqual(room.state['combat']['started_by'], 'npcs')
         self.assertEqual(room.state['combat']['status'], 'awaiting_initiative')
-        self.assertIn('Roll initiative.', result.public_event)
+        self.assertRegex(result.public_event, kit_due.INITIATIVE_RE)
         self.assertIn('table coins', room.state['scene']['pc_took'][0])
 
     def test_the_players_own_things_and_glances_are_not_physical_acts(self):
@@ -104,7 +104,7 @@ class FightTests(unittest.TestCase):
         fight = room.state['combat']
         self.assertEqual((fight['status'], fight['opener_spent']), ('awaiting_initiative', True))
         self.assertEqual(fight['hp']['bandit_a'], fight['max_hp']['bandit_a'] - 4)
-        self.assertTrue(opener.public_event.endswith('Roll initiative.'))
+        self.assertTrue(opener.public_event.endswith(kit_due.INITIATIVE))
         # Avrae's real format: the total counts, never the die alone.
         order = room.act('Initiative: 1d20 (3) + 2 = 5')
         fight = room.state['combat']

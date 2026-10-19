@@ -4,6 +4,7 @@ watchroom fixture (or the 17a stub), never 6c. Dice pinned; no model."""
 import json
 import unittest
 
+import kit_due  # noqa: E402
 from runtime import kit_agent, kit_brief, kit_rooms
 from runtime.kit_agent import KitChatBridge, PendingRuling, RoomAdjudicator
 from runtime.state_context import InvalidChange, encode
@@ -202,9 +203,9 @@ class S5ACheckRequestIsKitsCall(Stalls):
         packet = self.bridge.prepare('Can I make a check?', 'no', one_pass=True)
         plan = self.plan_for(packet, move='ruling', table_presence='brief')
         plan['public_brief'].update(reply_to='Can I make a check', scope='call')
-        self.bridge.complete('no', {'decision': plan, 'performance': {'segments': [
+        self.bridge.complete('no', {'decision': plan, 'performance': {'segments': kit_due.asked(packet, [
             {'speaker': 'Kit', 'text': 'No roll needed: you hear him humming plainly from here.',
-             'reacts_to': 'Can I make a check'}]}})
+             'reacts_to': 'Can I make a check'}])}})
         self.assertNotIn('pending_check', self.runtime.load()[1])
 
 
@@ -274,12 +275,12 @@ class S8EngineLineNeverAfterTheHandoff(Stalls):
         packet = self.bridge.prepare('I go through the iron door.', 'in', one_pass=True)
         plan = self.plan_for(packet, move='npc_reply', focus_actor='warden', table_presence='brief')
         plan['improv_read'].update(actor_ref='warden', actor_basis='motive')
-        result = self.bridge.complete('in', {'decision': plan, 'performance': {'segments': [
+        result = self.bridge.complete('in', {'decision': plan, 'performance': {'segments': kit_due.asked(packet, [
             {'speaker': 'Narrator', 'text': NARRATION},
             {'speaker': 'Watch warden', 'text': 'Hold there. Who sent you?'},
-            {'speaker': 'Kit', 'text': 'Your move.', 'reacts_to': 'Hold there'}]}})
+            {'speaker': 'Kit', 'text': 'Your move.', 'reacts_to': 'Hold there'}])}})
         lines = result['spoken'].splitlines()
-        self.assertEqual(lines[-1], 'Kit: Your move.')
+        self.assertTrue(lines[-1].startswith('Kit: Your move.'), lines[-1])
         self.assertTrue(lines[0].startswith('Narrator: You go through the iron door'))
 
     def test_a_leaving_line_never_follows_kit(self):
@@ -287,11 +288,11 @@ class S8EngineLineNeverAfterTheHandoff(Stalls):
         packet = self.bridge.prepare('I go back through the iron door.', 'out', one_pass=True)
         plan = self.plan_for(packet, move='npc_reply', focus_actor='warden', table_presence='brief')
         plan['improv_read'].update(actor_ref='warden', actor_basis='motive')
-        result = self.bridge.complete('out', {'decision': plan, 'performance': {'segments': [
+        result = self.bridge.complete('out', {'decision': plan, 'performance': {'segments': kit_due.asked(packet, [
             {'speaker': 'Narrator', 'text': NARRATION},
             {'speaker': 'Watch warden', 'text': 'And stay out. Who sent you?'},
-            {'speaker': 'Kit', 'text': 'Out you go.', 'reacts_to': 'And stay out'}]}})
-        self.assertEqual(result['spoken'].splitlines()[-1], 'Kit: Out you go.')
+            {'speaker': 'Kit', 'text': 'Out you go.', 'reacts_to': 'And stay out'}])}})
+        self.assertTrue(result['spoken'].splitlines()[-1].startswith('Kit: Out you go.'))
 
 
 PAID = {'segments': [

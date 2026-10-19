@@ -18,6 +18,7 @@ acts in a fight. Nothing here saves an event directly.
    1st-level slot asks for the upcast.
 9/10  A new act given as the slot-ask answer; spell-name capitals; drop-and-cast out of a fight.
 """
+import itertools
 import json
 import sys
 import unittest
@@ -33,9 +34,24 @@ import watchroom_replay as wr  # noqa: E402
 
 SHEETS = ROOT / 'tests' / 'fixtures' / 'characters'
 SHIELD = 'proficiency:armor:shield'
+TABLES = itertools.count(1)
 NARRATION = ('The kiln ticks as it cools. Soot coats the vaulted brick above. A cracked bellows leans on the wall. '
              'Shards of fired clay crunch underfoot. Heat still breathes from the mouth of the oven. A shelf of pots '
              'sits half finished. Ash lies thick along the floor. A draft stirs it into small grey spirals.')
+NARRATIONS = (NARRATION,
+              'Embers wink in the grate and go dark one by one. The floor gives back the day\'s heat through your '
+              'boots. A crack runs up the far wall like a frozen bolt of lightning. Something small skitters '
+              'behind the stacked pots. The smell of scorched clay hangs on everything. Light comes in thin and '
+              'orange from the vent above. A potter\'s wheel stands still, its treadle worn bright. Dust hangs in '
+              'the slant of light.',
+              'The oven mouth glows a dull red, patient as a held breath. Old soot streaks the brick in long black '
+              'tongues. A bucket of grey slip has dried to a crust. Two clay jars lean together like gossips. The '
+              'air tastes of iron and smoke. Somewhere water drips onto hot stone and hisses. Footprints in the ash '
+              'lead nowhere useful. The quiet presses in.',
+              'A chimney draws the last warm air upward with a low moan. Broken tiles lie fanned across the floor. '
+              'Tongs hang from a nail, black with use. A row of unfired bowls waits on a plank. The walls sweat a '
+              'little in the heat. A shutter knocks once against its frame and stops. The light flickers on the '
+              'glaze of a lone cup. Everything here is half made.')
 MM = 'Initiative 25. I cast Magic Missile at the ember imp (!cast magic missile) 3d4 (3, 2, 4) + 3 = 12 force'
 
 
@@ -52,21 +68,24 @@ def used(arena):
 class Table:
     """A kiln session driven through KitChatBridge, Kit's lines scripted, every die pinned."""
 
-    def __init__(self, test, name, roll=lambda: 2, hp=60, **extra):
-        self.arena = Arena(test, 'kiln', sheet=sheet(name, hp=hp, **extra), roll=roll)
+    def __init__(self, test, name, roll=lambda: 2, hp=60, arena=None, **extra):
+        self.arena = arena or Arena(test, 'kiln', sheet=sheet(name, hp=hp, **extra), roll=roll)
         self.bridge = KitChatBridge(self.arena.runtime, self.arena.adjudicator)
         self.count = 0
+        self.prefix = f't{next(TABLES)}-'
+        self.arena.table = self  # one table per session: its lines never repeat
 
     def prepare(self, line):
         self.count += 1
-        turn = f't{self.count}'
+        turn = f'{self.prefix}{self.count}'
         return turn, self.bridge.prepare(line, turn, one_pass=True)
 
     def output(self, packet, line, kit, acts=None):
-        decision = wr.kit_decision(packet, {'speech': [('Narrator', NARRATION), ('Kit', kit)]})
+        narration = NARRATIONS[(self.count - 1) % len(NARRATIONS)]
+        decision = wr.kit_decision(packet, {'speech': [('Narrator', narration), ('Kit', kit)]})
         decision.update(acts or {})
         return {'decision': decision, 'performance': {'segments': [
-            {'speaker': 'Narrator', 'text': NARRATION},
+            {'speaker': 'Narrator', 'text': narration},
             {'speaker': 'Kit', 'text': kit, 'reacts_to': ' '.join(line.split()[:4])}]}}
 
     def turn(self, line, kit, acts=None):
@@ -84,6 +103,19 @@ class Table:
     @property
     def state(self):
         return self.arena.state
+
+
+def answered(test, arena, item, state):
+    """The player answers Kit's equipment question at the table (bridge, scripted Kit): the item is
+    held or stowed. Kit raises the due question, he answers, she records it."""
+    table = getattr(arena, 'table', None) or Table(test, None, arena=arena)
+    table.raise_question()
+    test.assertIn(item, [e['item'] for e in kit_gear.raised(arena.state)], 'his item is the one asked about')
+    table.turn('I keep it on.' if state == 'held' else 'I put it away.', 'Noted, then.',
+               {'gear': {'item': item, 'state': state}})
+    test.assertIs(kit_gear.gear(arena.state)['in_use'][item], state == 'held')
+    test.assertFalse(kit_gear.open_question(arena.state, item))
+    return arena
 
 
 class BridgeCommits(unittest.TestCase):
@@ -364,6 +396,19 @@ class RoughEdges(unittest.TestCase):
         self.assertEqual(arena.fight['hp']['imp'], hp - 10, result.public_event)
         self.assertIsNone(arena.fight.get('awaiting'))
         self.assertEqual(used(arena)['2'], 0)
+
+    def test_a_no_that_carries_the_roll_for_another_act_is_that_act(self):
+        for read in ('no', 'new_action'):
+            with self.subTest(upcast=read):
+                arena = self.slot_asked()
+                hp = arena.fight['hp']['imp']
+                arena.act('Nah, I Fire Bolt it instead. To Hit: 1d20 (18) + 7 = 25 Damage: 2d10 (5, 5) = 10 fire',
+                          upcast=read)
+                self.assertEqual(arena.fight['hp']['imp'], hp - 10)
+                self.assertEqual(used(arena)['2'], 0)
+        arena = self.slot_asked()
+        result = arena.act('No, never mind.', upcast='no')
+        self.assertIn('Nothing is cast', result.public_event, 'a plain no is still a no')
 
     def test_spell_names_keep_their_apostrophes_lower(self):
         table = Table(self, 'nik')
