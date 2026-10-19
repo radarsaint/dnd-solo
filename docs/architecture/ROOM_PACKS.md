@@ -68,7 +68,7 @@ reuses that copy.
 
 | Command | Result |
 |---|---|
-| `start` (no save) | Greeting, as without a pack, plus `pack` (name, room ids, first room). Opens nothing. |
+| `start` (no save) | The lobby (`stage: lobby`): `available.packs` lists each attached pack (name, `path` for `--pack`, first room, room ids), with saved games and character sheets. Opens nothing. |
 | `start` on a save | `resume`. A pack never starts over a running game. |
 | `start --campaign dotmm --sheet F` | Mounts `first_room` (`stage: started`, `pack` in the result). |
 | `start --pack P --sheet F` | Mounts that pack's `first_room`. |

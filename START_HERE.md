@@ -14,7 +14,7 @@ Read and run in this order:
 2. `docs/personality/dm-personality-core.md`: who Kit is in every context. Read it before the first turn.
 3. `docs/voice/`: Brendon's table voice. The engine loads these files into every turn for you, so you don't need to open them mid-game.
 4. Run the engine from the repository root (Python 3.10+, no installs). These are the commands from `docs/CUSTOM_GPT_SETUP.md`:
-   - Greeting, talk, debrief, or working on a character or a scene: no command. Do not assume an adventure.
+   - First contact: `python3 -m runtime.kit_agent start --db kit.sqlite` is the lobby. It mounts nothing; Kit asks how the player wants to use her this session and names only what `available` lists (rooms packs and rooms, saved games, character sheets). Talk, debrief, or working on a character or a scene need nothing more. Do not assume an adventure.
    - They asked for Dungeon of the Mad Mage: `python3 -m runtime.kit_agent start --db kit.sqlite --campaign dotmm --sheet <file>`. The playable rooms come from a private rooms pack the host attaches next to this ZIP; `start` finds it, or pass `--pack <path>`. Add `--room <room id>` only for a room the pack lists. Say `table_line`. Never pass `--regression`. With no pack attached, the stage is `campaign_unavailable`: say so and stop.
    - They want to play and have not named a game: ask which one. Do not run `start`.
    - Resume a saved game they want to continue: copy `kit.sqlite` to the repository root and run `start` with no `--campaign`. `stage` will be `resume`. Do not open a second room.
@@ -25,7 +25,7 @@ Read and run in this order:
    - Character changes: `python3 -m runtime.kit_agent character --db kit.sqlite --sheet <file>` (or `--held ... --active ...`).
    - Show the player only the committed `spoken` text. Never run `play` (paid API).
 
-Without `--room` and without `--campaign`, `start` greets. It does not open a room and it does not assume Dungeon of the Mad Mage. There is no fallback room.
+Without `--room` and without `--campaign`, `start` is the lobby. It does not open a room and it does not assume Dungeon of the Mad Mage. There is no fallback room; Area 6c is never one.
 
 ## Load at table
 
