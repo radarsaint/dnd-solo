@@ -846,9 +846,11 @@ class RoomAdjudicator:
         pending = current.get('pending') if isinstance(current.get('pending'), dict) else {}
         if pending.get('needs') == 'damage' and pending.get('holds_turn') and not waiting and \
                 current.get('status') == 'running' and kit_combat.config(self.source):
-            amount, extra, doubt, kind = self._damage_answer(action)
+            amount, extra, doubt, kind = self._damage_answer(action, state, pending)
             if self._CANCEL_THE_ROLL.search(narration):
                 cancel = True
+            elif amount == 0:
+                return self._zero_damage(action, revision, state, pending), state, None
             elif amount:
                 return self._answer_damage(action, amount, revision, state, pending, extra, kind), state, None
             elif doubt or (not cancel and '?' in narration):
@@ -871,7 +873,7 @@ class RoomAdjudicator:
                     return called, state, None
         return None, state, None
 
-    def _damage_answer(self, action):
+    def _damage_answer(self, action, state=None, pending=None):
         """(amount, ignored, doubt, kind) for the open damage ask. ``amount`` is the damage the message
         reports, read only where it is plainly the roll: an Avrae damage field, a stated amount
         ("4 piercing damage"), a dice expression's total ("1d4 (4) + 2 = 6", never a d20), a number
@@ -898,26 +900,22 @@ class RoomAdjudicator:
                 if said or not stated:
                     return None, 0, not said, None
             found = kit_rolls.avrae(text)
-            amount, kind = kit_rolls.damage_total(text)
+            kind = kit_rolls.damage_total(text)[1]
         except InvalidChange:
             return None, 0, False, None
         # An explicit damage field or "N damage" wins over save, DC and check words (Thunderwave's
         # "CON Save" line, "he failed his save"); only then do those words mark a number as no damage.
-        if amount:
-            extra = self._extra_fields(text)
-            if extra is not None:
-                return extra[0], extra[1], False, kind
-            if found and found['damage']:
-                fields = [a for a, _, t in found['damage'] if t is None]
-                return amount, max(len(fields) - 1, 0), False, kind
-            first, first_kind = stated[0] if stated else (amount, kind)
-            return first, max(len(stated) - 1, 0), False, first_kind
+        read = self._stated_damage(words, found, state, pending)
+        if read is not None:
+            return read + (kind,)
         rolled = bool(numbers) or bool(re.search(r'\d', words))
         if rolled and self._NOT_DAMAGE.search(words):
             return None, 0, True, None
-        totals = [total for total in kit_rolls.dice_totals(text) if total > 0]
+        totals = kit_rolls.dice_totals(text)
         if totals:
-            return totals[0], len(totals) - 1, False, None
+            return max(totals[0], 0), len(totals) - 1, False, None
+        if re.fullmatch(r'\s*-\s*\d{1,3}\s*[.!]?\s*', plain):
+            return 0, 0, False, None  # a negative total is a roll of 0
         if '?' in words:
             return None, 0, rolled, None
         named = [int(m.group(1) or m.group(2)) for m in self._NAMED_TOTAL.finditer(plain)]
@@ -931,35 +929,108 @@ class RoomAdjudicator:
             if named and len(numbers) + len(spelled) > len(named):
                 return None, 0, True, None  # "I rolled a 4 and a 2": which one?
         if named:
-            return (named[0], 0, False, None) if len(named) == 1 and named[0] > 0 else (None, 0, True, None)
+            return (named[0], 0, False, None) if len(named) == 1 else (None, 0, True, None)
         if len(numbers) + len(spelled) == 1 and all(w in self._FILLER or self._spelled(w) for w in rest):
             value = int(numbers[0].group(1)) if numbers else self._spelled(spelled[0])
-            return (value, 0, False, None) if value > 0 else (None, 0, True, None)
+            return value, 0, False, None
         if not numbers or self._deed(plain):
             return None, 0, False, None  # no number, or a deed with a number in it: the ask yields as before
         return None, 0, True, None
 
-    _DAMAGE_FIELD = re.compile(r'^\s*(?:[^:\n]{1,40}:\s*)?damage\s*(?:\(([^)\n]*)\))?\s*:\s*(.*)$', re.I | re.M)
+    # "Damage: ...", "wagon-side cutthroat: CON Save: ...", "Hex: 1d6 (4) = 4": (who, label, value).
+    _FIELD_LINE = re.compile(r'^\s*(?:(?P<who>[^:\n]{1,40}?):\s*)?(?P<label>[^:\n]{1,40}?)\s*:\s*(?P<value>.+)$')
+    _MAIN_DAMAGE = re.compile(r'damage(?:\s*\(\s*crit!?\s*\))?', re.I)
+    # A field that is never extra damage on the hit, whatever its dice.
+    _NOT_RIDER = re.compile(r'\b(?:to[- ]?hit|hit|dc|save|check|init(?:iative)?|effect|heal(?:ing)?|temp|meta|attack|'
+                            r'roll|advantage|ac|hp|level|slot|duration|range)\b', re.I)
+    # A named rider on the damage line: "plus 4 damage from hex", "+ 4 necrotic from Hex", "extra 2 damage".
+    _RIDER = re.compile(r"(?:\bplus\b|\+|\b(?:extra|additional|bonus)\b)\s*(\d{1,3})(?:\s+[a-z]+)?\s+(?:damage|dmg)\b"
+                        r"(?:\s+from\s+[a-z][a-z' -]*)?|"
+                        r"(?:\bplus\b|\+|\b(?:extra|additional|bonus)\b)?\s*(\d{1,3})(?:\s+[a-z]+)?(?:\s+(?:damage|dmg))?"
+                        r"\s+from\s+[a-z][a-z' -]*", re.I)
 
-    def _extra_fields(self, text):
-        """(amount, ignored) when the Avrae output carries a labelled extra damage field
-        ("**Damage (Sneak Attack)**: 1d6 (4) = `4`"): it is the same hit, so it adds to the damage
-        field before it. Further unlabelled damage fields are further rolls (ignored, and said).
-        None when there is no labelled extra field (the plain reading stands)."""
-        mains, extras_of_first, seen_extra = [], 0, False
-        for label, value in self._DAMAGE_FIELD.findall(re.sub(r'[*`_~]+', '', text)):
-            total = re.search(r'=\s*(-?\d{1,3})\s*(?:\S.*)?$', value) or re.match(r'\s*(\d{1,3})\b', value)
-            if not total:
+    @staticmethod
+    def _field_total(value):
+        """(total, the rest of the field) of a damage field's value, or (None, '')."""
+        found = re.search(r'=\s*(-?\d{1,3})\b', value) or re.match(r'\s*(-?\d{1,3})\b(?!\s*d\d)', value)
+        return (int(found.group(1)), value[found.end():]) if found else (None, '')
+
+    def _riders(self, text):
+        """(rider amounts, other numbers left) in the words after a damage roll."""
+        riders = [int(m.group(1) or m.group(2)) for m in self._RIDER.finditer(text)]
+        left = re.findall(r'(?<![\w.])\d{1,3}\b', self._RIDER.sub(' ', text))
+        return riders, len(left)
+
+    def _stated_damage(self, words, found, state, pending):
+        """(amount, ignored, doubt) when the message states its damage explicitly, else None.
+
+        Main damage: an Avrae Damage (or Damage (CRIT!)) field, else a stated "N damage". The same
+        hit's riders add to the first main roll: a labelled extra field of the block ("Damage (Sneak
+        Attack)", "Hex", "Hunter's Mark", any non-d20 dice field that is not a to-hit, DC, save,
+        check or effect) and a named rider on the damage line ("plus 4 damage from hex"). Further main
+        rolls, and stray numbers after the total, are ignored and said. A roll of 0 or less is 0.
+        ``doubt`` (a reason) instead when the roll names another target than the held hit's, or
+        says it missed: the ask stays open."""
+        clean = re.sub(r'[*`_~]+', '', words)
+        mains, riders, left, whos = [], [], 0, []
+        for line in clean.split('\n'):
+            field = self._FIELD_LINE.match(line)
+            if not field:
                 continue
-            if label and not re.fullmatch(r'\s*crit!?\s*', label, re.I):
-                seen_extra = True
-                if len(mains) <= 1:
-                    extras_of_first += int(total.group(1))
+            label, value = field.group('label').strip(), field.group('value')
+            if self._MAIN_DAMAGE.fullmatch(label):
+                total, rest = self._field_total(value)
+                if total is None:
+                    continue
+                mains.append(total)
+                if field.group('who'):
+                    whos.append(field.group('who'))
+                more, stray = self._riders(rest)
+                riders += more if len(mains) == 1 else []
+                left += stray
+            elif re.match(r'damage\s*\(', label, re.I) or \
+                    (not self._NOT_RIDER.search(label) and kit_rolls.dice_totals(value) and
+                     not re.search(r'(?<![a-z])d20\b', value, re.I)):
+                total, _ = self._field_total(value)
+                if total is not None and len(mains) <= 1:
+                    riders.append(total)
+        if not mains:
+            stated = [amount for amount, _ in kit_rolls.damage(words)]
+            more, _ = self._riders(kit_rolls.without_dice(clean))
+            # A rider stated as "N damage" is also in the stated list: it is not a further roll.
+            for amount in more:
+                if amount in stated[1:]:
+                    del stated[stated.index(amount, 1)]
+            if stated:
+                mains, riders = stated, riders + more
+            elif more or riders:
+                both = more + riders
+                mains, riders = both[:1], both[1:]
             else:
-                mains.append(int(total.group(1)))
-        if not seen_extra:
+                return None
+        whos += [t for _, _, t in (found or {}).get('damage') or () if t]
+        reason = self._other_target(clean, whos, state, pending)
+        if reason:
+            return None, 0, reason
+        if re.search(r'\bmiss(?:es|ed)?\b\s*!', clean, re.I):
+            return None, 0, 'That roll says it missed.'
+        return max(mains[0] + sum(riders), 0), len(mains) - 1 + left, False
+
+    def _other_target(self, clean, whos, state, pending):
+        """The reason the damage is not this hit's: it names a foe other than the held target."""
+        fight = (state or {}).get('combat') or {}
+        target = (pending or {}).get('target')
+        if not target or not self.source:
             return None
-        return (mains[0] if mains else 0) + extras_of_first, max(len(mains) - 1, 0)
+        foes = [key for key in (fight.get('hp') or {}) if key != 'pc']
+        text = (clean + ' ' + ' '.join(whos)).casefold()
+        named = {key for key in foes if kit_combat.name_target(text, self.source, state, [key])}
+        if not named or target in named:
+            return None
+        labels = kit_combat.labels(self.source)
+        other = sorted(named)[0]
+        return (f'That damage names the {labels.get(other, other).lower()}, but your hit was on the '
+                f'{labels.get(target, target).lower()}.')
 
     @staticmethod
     def _spelled(word):
@@ -1001,12 +1072,25 @@ class RoomAdjudicator:
         """A question while his hit waits on its damage, or a number not read as that damage:
         Kit's to answer. Nothing resolves, nobody acts, the hit still waits on its damage roll."""
         label = self._fight(action, revision, state).label(pending['target'])
-        said = (' That is not read as the damage roll.' if doubt else '')
+        said = f' {doubt}' if isinstance(doubt, str) else ' That is not read as the damage roll.' if doubt else ''
+
         return Resolution('social', f'{table_talk_event(action)}{said} Your hit on the {label} still waits for '
                                     'its damage roll.', [
             {'type': 'beat', 'tags': ['table_talk', 'open_ask'],
              'evidence': f'Question while the damage ask is open: {action}. Kit answers it; the hit on the '
                          f'{label} still waits for its damage roll; nothing resolved.'}])
+
+    def _zero_damage(self, action, revision, state, pending):
+        """His damage roll came to 0 (or less): that is the answer. The hit does no damage, his turn
+        ends and the round runs on."""
+        fight = self._fight(action, revision, state)
+        fight.fight['pending'] = None
+        fight.lines.append(f"Your damage roll came to 0, so your hit on the {fight.label(pending['target'])} "
+                           'does no damage.')
+        fight.trace.append('open ask answered: the damage roll came to 0')
+        fight.advance_past_pc()
+        public, events = fight.resolve(None)
+        return self._fight_resolution(fight, public, events, action, state)
 
     def _yield_damage(self, action, revision, state, pending, cancel):
         """No damage in the message (or an explicit cancel): the ask yields. The hit stands with no

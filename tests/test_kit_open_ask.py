@@ -233,6 +233,65 @@ class DamageAnswerFormats(unittest.TestCase):
                 self.assertIn('that waits for your next turn', result.public_event)
         self.assertStaysOpen('5, and I yell at the captain')
 
+    def test_hex_hunters_mark_and_any_labelled_rider_field_sum_with_the_damage(self):
+        # Nagatha's e3fc5a7 round (2): a labelled extra-damage field of the same Avrae block is the same hit.
+        for words, amount in (('Nik attacks with a Dagger!\n**Damage**: 1d4 (3) + 2 = `5`\n**Hex**: 1d6 (4) [necrotic] = `4`', 9),
+                              ("Nik attacks with a Dagger!\n**Damage**: 1d4 (3) + 2 = `5`\n**Hunter's Mark**: 1d6 (2) = `2`", 7),
+                              ('**Damage**: 1d4 (3) + 2 = `5`\n**Divine Smite**: 2d8 (1, 2) [radiant] = `3`', 8)):
+            with self.subTest(words=words):
+                result = self.assertLands(words, amount)
+                self.assertNotIn('Only the first', result.public_event)
+
+    def test_a_named_rider_on_the_damage_line_sums(self):
+        # (3): never 4 silently.
+        for words in ('Damage: 1d4 (3) + 2 = 5, plus 4 damage from hex', '5 damage plus 4 necrotic from Hex',
+                      '5 piercing damage, plus 4 damage from hunters mark'):
+            with self.subTest(words=words):
+                result = self.assertLands(words, 9)
+                self.assertNotIn('Only the first', result.public_event)
+
+    def test_a_stray_number_after_the_damage_is_said_to_be_ignored(self):
+        result = self.assertLands('Damage: 1d4 (3) + 2 = 5 (and my earlier roll was 6)', 5)
+        self.assertIn('Only the first damage roll counts (5)', result.public_event)
+
+    def test_damage_naming_another_target_leaves_the_ask_open_and_says_why(self):
+        # (4): it never lands on the held target.
+        for words in ('Nik attacks with a Dagger!\nbandit captain\n**Damage**: 1d4 (3) + 2 = `5`',
+                      '5 damage to the bandit captain', 'Damage: 5 on the fire-side cutthroat'):
+            with self.subTest(words=words):
+                fight, result = self.answered(words)
+                self.assertEqual((fight['hp']['cutthroat_a'], fight['hp']['harl'], fight['hp']['cutthroat_b']),
+                                 (11, 30, 11), words)
+                result = self.assertStaysOpen(words)
+                self.assertIn('your hit was on the wagon-side cutthroat', result.public_event)
+        self.assertLands('5 damage to the wagon-side cutthroat', 5)
+        self.assertLands('Nik attacks with a Dagger!\nwagon-side cutthroat\n**Damage**: 1d4 (3) + 2 = `5`', 5)
+
+    def test_a_roll_of_zero_says_so(self):
+        # (5): a total of 0 (or less) is the answer, not "No damage was rolled".
+        for words in ('Damage: 1d4 (1) - 1 = 0', 'Damage: 1d4 (1) - 3 = -2', '1d4 (1) - 1 = 0', '0', '0 damage', '-2'):
+            with self.subTest(words=words):
+                fight, result = self.answered(words)
+                self.assertEqual(fight['hp']['cutthroat_a'], 11)
+                self.assertIsNone(fight.get('pending'))
+                self.assertNotIn('No damage was rolled', result.public_event)
+                self.assertIn('Your damage roll came to 0, so your hit on the wagon-side cutthroat does no damage.',
+                              result.public_event)
+                self.assertEqual((fight['round'], fight['order'][fight['next']]), (2, 'pc'), 'it was the answer')
+
+    def test_nagathas_e3_cases(self):
+        """/tmp/rvw127/scratch_e3.py: those the tests above do not hold."""
+        self.assertLands('**Damage (CRIT!)**: 2d4 (3, 1) + 2 = `6`', 6)
+        result = self.assertLands('Nik attacks with a Dagger!\n**Damage (CRIT!)**: 2d4 (3, 1) + 2 = `6`\n**Damage**: 1d6 (4) = `4`', 6)
+        self.assertIn('Only the first damage roll counts (6)', result.public_event)
+        self.assertLands('Nik attacks with a Dagger!\n**Damage**: 1d4 (3) + 2 [piercing] + 1d6 (2) [necrotic] = `7`', 7)
+        result = self.assertStaysOpen('Nik attacks with a Dagger!\n**Miss!**\n**Damage**: 1d4 (3) + 2 = `5`')
+        self.assertIn('says it missed', result.public_event)
+        fight, result = self.answered('Nik attacks with a Dagger!\nwagon-side cutthroat\n**To Hit**: 1d20 (3) + 5 = `8`; '
+                                      'Miss!\n**Damage**: 1d4 (3) + 2 = `5`')
+        self.assertEqual(fight['hp']['cutthroat_a'], 11)
+        self.assertIn('that waits for your next turn', result.public_event)
+
     def test_nagathas_33_cases(self):
         """/tmp/rvw127/scratch_fp.py, every case: L n lands n, O stays open, Y yields (H: held too)."""
         cases = {'1d4 (2) = 2': 2, '1d4 (4) + 2 = 6': 6, '**Damage (CRIT!)**: 2d4 (3, 1) + 2 = `6`': 6,
