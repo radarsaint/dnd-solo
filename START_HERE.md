@@ -17,7 +17,8 @@ Read and run in this order:
    - Greeting, talk, debrief, or working on a character or a scene: no command. Do not assume an adventure.
    - They asked for Dungeon of the Mad Mage: `python3 -m runtime.kit_agent start --db kit.sqlite --campaign dotmm`. Say `table_line`. Do not pass `--room` or `--regression`.
    - They want to play and have not named a game: ask which one. Do not run `start`.
-   - Resume a saved game they want to continue: copy `kit.sqlite` to the repository root and run `start` with no `--campaign`. `stage` will be `resume`. Do not open a second room.
+   - Resume a saved game they want to continue: `python3 -m runtime.kit_agent start --save <their save ZIP>` (add `--room <file>` if its room is not attached). `stage` will be `resumed_from_save`; the room restarts with their record applied. A live `kit.sqlite` already in the sandbox continues as `stage: resume`. Do not open a second room.
+   - Save: `python3 -m runtime.kit_agent save --db kit.sqlite` on "save", on stop and at each room exit. Offer the ZIP it names. `kit.sqlite` is runtime-only (it holds hidden room state): never offer it or show it.
    - Every in-fiction turn: `python3 -m runtime.kit_agent prepare --one-pass --db kit.sqlite --action-file <file>`, write one `{"decision", "performance"}` that follows the packet, then `python3 -m runtime.kit_agent complete --db kit.sqlite --turn-id <id> --input-file <file>`.
    - Lost the manifest copy: `python3 -m runtime.kit_agent rehydrate --db kit.sqlite --turn-id <id>`.
    - Out-of-character talk during a scene: `python3 -m runtime.kit_agent prepare --table-talk --one-pass --db kit.sqlite --action-file <file>`, then `complete`.

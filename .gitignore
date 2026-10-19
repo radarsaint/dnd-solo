@@ -22,3 +22,6 @@ assets/handouts/*
 !assets/handouts/index.json
 *.sqlite
 *.sqlite-*
+
+# Player save folders written by `kit_agent save` (never committed).
+saves/

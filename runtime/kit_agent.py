@@ -27,6 +27,8 @@ from . import kit_attitude
 from . import kit_brief
 from . import kit_cards
 from . import kit_reactions
+from . import kit_save
+from . import kit_resume
 from . import kit_combat
 from . import kit_rolls
 from . import kit_triggers
@@ -5479,7 +5481,8 @@ class KitChatBridge:
 EXAMPLE_SHEET = PROJECT_ROOT / 'tests/fixtures/characters/example_pc.json'
 
 
-def start_session(db, sheet_path=None, runtime=None, room=None, area=None, manifests=False, campaign=None):
+def start_session(db, sheet_path=None, runtime=None, room=None, area=None, manifests=False, campaign=None,
+                  restore=None):
     """Bootstrap for a host.
 
     No room and no campaign: a greeting. Nothing is mounted. Mad Mage is not assumed.
@@ -5503,6 +5506,8 @@ def start_session(db, sheet_path=None, runtime=None, room=None, area=None, manif
         path = Path(sheet_path) if sheet_path else EXAMPLE_SHEET
         sheet = json.loads(path.read_text(encoding='utf-8'))
         loaded = runtime.set_player_sheet(sheet)
+        if restore:  # resume from the player's save (runtime/kit_resume.py)
+            runtime.restore_campaign(restore['log'], restore['carried'])
         prepared = KitChatBridge(runtime, RoomAdjudicator(), manifests=manifests).prepare(
             opening=True, one_pass=True)
         turn = prepared['turn_id']
@@ -5560,8 +5565,17 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('command', choices=['start', 'init', 'view', 'prepare', 'decide', 'finish', 'complete',
                                             'abandon', 'feedback', 'character', 'notes', 'play', 'trace',
-                                            'timing', 'persona', 'stamp', 'rehydrate', 'rest'])
+                                            'timing', 'persona', 'stamp', 'rehydrate', 'rest', 'save'])
     parser.add_argument('--db', default='kit.sqlite')
+    parser.add_argument('--out', help='save: where to write the player-safe ZIP '
+                                      '(default saves/<player>/<campaign>/ next to --db)')
+    parser.add_argument('--recap-file', dest='recap_file',
+                        help="save: Kit's recap for the journal (her voice, at most 120 words, public only)")
+    parser.add_argument('--journal-mode', dest='journal_mode', choices=['campaign', 'character'],
+                        help='save: one journal per campaign (default) or per character; it sticks')
+    parser.add_argument('--save', help="start: resume from the player's save ZIP or folder (kit_agent save). "
+                                       'Mounts the room it stopped in, fresh, with campaign.json applied.')
+    parser.add_argument('--player', help='save: the player folder name under saves/ (default "player")')
     parser.add_argument('--kind', choices=['short', 'long'], help='rest: a short or a long rest (slots and uses '
                                                                   'come back; re-sending the sheet does not)')
     parser.add_argument('--room', help='start/init: a room file to mount. With no --room, start reports '
@@ -5620,6 +5634,24 @@ def main():
         # Kit before any game: the persona text the bridge uses, with no database or scene.
         sys.stdout.write(persona_text())
         return 0
+    if args.command == 'start' and args.save:
+        # Resume from the player's save ZIP or folder; kit.sqlite never travels.
+        try:
+            if args.room and not args.regression:
+                refusal = kit_campaign.player_room_refusal(args.room, kit_rooms.load_room(args.room))
+                if refusal:
+                    print(json.dumps(refusal, ensure_ascii=False), file=sys.stderr)
+                    return 2
+            result = kit_resume.resume(args.db, args.save, room=args.room, sheet=args.sheet,
+                                       manifests=not args.full)
+        except kit_rooms.RoomMountError as exc:
+            print(json.dumps(exc.host_view(), ensure_ascii=False), file=sys.stderr)
+            return 2
+        except (InvalidChange, PendingRuling, OSError, ValueError) as exc:
+            print(json.dumps({'stage': 'rejected', 'message': str(exc)}, ensure_ascii=False), file=sys.stderr)
+            return 2
+        print(json.dumps(result, ensure_ascii=False, **({'indent': 2} if args.pretty else {'separators': (',', ':')})))
+        return 0
     if args.command == 'start':
         try:
             if args.room and not args.regression:
@@ -5641,6 +5673,17 @@ def main():
             return 2
         print(json.dumps(result, ensure_ascii=False,
                          **({'indent': 2} if args.pretty else {'separators': (',', ':')})))
+        return 0
+    if args.command == 'save':
+        # The player-safe export. kit.sqlite itself is runtime-only and is never offered.
+        try:
+            recap = Path(args.recap_file).read_text(encoding='utf-8') if args.recap_file else None
+            result = kit_save.save(args.db, out=args.out, player=args.player, campaign=args.campaign,
+                                   journal_mode=args.journal_mode, recap=recap)
+        except (kit_save.SaveError, OSError) as exc:
+            print(json.dumps({'stage': 'rejected', 'message': str(exc)}, ensure_ascii=False), file=sys.stderr)
+            return 2
+        print(json.dumps(result, ensure_ascii=False))
         return 0
     if args.command == 'init':
         if not args.room:

@@ -52,7 +52,7 @@ STAGES = ('approach', 'first_look', 'explore', 'resolution')
 # and is archived when the PC leaves it (state_context.Runtime.mount_room).
 SESSION_KEYS = ('schema_version', 'kit', 'player_character', 'player_sheet', 'pc_state', 'roll_seed',
                 'elapsed_seconds', 'rooms', 'carried', 'scene_id', 'scenes_closed', 'memory_trimmed',
-                'pc_conditions', 'pc_condition_terms')
+                'pc_conditions', 'pc_condition_terms', 'campaign_log')
 
 
 class RoomMountError(InvalidChange):
@@ -615,4 +615,6 @@ def mounted_state(old_source, state, new_source, area, ref):
     if area not in new['visited']:
         new['visited'].append(area)
     new['rooms'] = rooms
+    from . import kit_save  # local: kit_save reads this module
+    kit_save.fold_room_exit(old_source, state, new)  # the room file is gone once the next one mounts
     return new
