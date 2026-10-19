@@ -16,6 +16,7 @@ from runtime.kit_agent import KitChatBridge
 from runtime.state_context import InvalidChange
 from test_kit_review97b import Room, bridge_turn, crypt
 from test_kit_review97c import belfry
+from kit_policy import rejections_raise
 
 NONE = {'target': 'none', 'act': 'none', 'reason': 'too_heavy'}
 OTHER = {'target': 'none', 'act': 'none', 'reason': 'not_the_feature'}
@@ -66,6 +67,7 @@ def room_of(test, name):
 
 
 class SealedFeatureTests(unittest.TestCase):
+    @rejections_raise  # validator probe (tests/kit_policy.py)
     def test_every_slip_is_refused_and_nothing_fires(self):
         for name, (line, slips) in SLIPS.items():
             for text in slips:

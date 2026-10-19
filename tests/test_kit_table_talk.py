@@ -15,6 +15,7 @@ from runtime import kit_agent, kit_guards
 from runtime.kit_agent import KitChatBridge, RoomAdjudicator, table_talk_event
 from runtime.state_context import InvalidChange, Runtime
 from test_kit_agent import FIXTURE, RecordingModel
+from kit_policy import rejections_raise
 
 # Brendon's ordinary (O1-O6) and debrief (D1-D5) lines from the persona-continuity eval's
 # routing pre-check (radarsaint/bfdm-corpus 6337f81): 10 of 11 were read as the PC speaking.
@@ -80,6 +81,7 @@ class BrendonsLinesAreTableTalk(TableTalkCase):
         with self.assertRaises(kit_agent.PendingRuling):
             self.bridge.prepare(STOP, 'stop')
 
+    @rejections_raise  # validator probe (tests/kit_policy.py)
     def test_a_table_talk_turn_commits_as_kit_answering(self):
         line = BRENDON_LINES[4]
         prepared = self.bridge.prepare(line, 'annoyed', table_talk=True)
@@ -97,6 +99,7 @@ class BrendonsLinesAreTableTalk(TableTalkCase):
         state = self.runtime.load()[1]
         self.assertFalse(state.get('refused_attempts'))
 
+    @rejections_raise  # validator probe (tests/kit_policy.py)
     def test_hidden_facts_still_cannot_leak_in_table_talk(self):
         prepared = self.bridge.prepare('Kit, real talk: is this guy cheating?', 'cheat', table_talk=True)
         plan = self.meta_plan(prepared['input'])

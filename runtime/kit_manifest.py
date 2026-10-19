@@ -87,8 +87,10 @@ def plan_sends(recent):
     held = {'session': set(), 'room': set()}
     for row in list(recent)[-FULL_EVERY:]:
         record = row.get('manifest') or {}
-        rejected = sum(1 for a in row.get('attempts') or () if a.get('outcome') == 'rejected')
-        if rejected >= REJECT_STREAK:
+        attempts = row.get('attempts') or ()
+        rejected = sum(1 for a in attempts if a.get('outcome') == 'rejected')
+        # A turn the engine line closed (its narration rejected) counts as the streak by itself.
+        if rejected >= REJECT_STREAK or any(a.get('outcome') == 'engine_line' for a in attempts):
             held = {'session': set(), 'room': set()}
             continue
         for layer in ('session', 'room'):
