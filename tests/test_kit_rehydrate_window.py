@@ -53,12 +53,16 @@ class RehydrateAfterAWindowAnswer(unittest.TestCase):
         self.assertEqual(full['packet']['turn_id'], 'p1')
         self.assertIn('private', full['packet']['input'])
 
-    def test_an_abandoned_turn_has_nothing_to_rehydrate(self):
+    def test_an_abandoned_turn_has_no_packet_to_rehydrate(self):
         camp, bridge, packet = self.answered(manifests=True)
         bridge.abandon('h3')
-        with self.assertRaisesRegex(InvalidChange, 'h3'):
-            bridge.rehydrate('h3')
+        self.assertNotIn('packet', bridge.rehydrate('h3'))  # its manifests still come back
 
+    def test_an_unlayered_turn_without_a_packet_is_refused(self):
+        camp, bridge, packet = self.answered(manifests=False)
+        bridge.abandon('h3')
+        with self.assertRaisesRegex(InvalidChange, 'nothing to rehydrate'):
+            bridge.rehydrate('h3')
 
 if __name__ == '__main__':
     unittest.main()
