@@ -58,7 +58,7 @@ DOWNED_SCHEMA = {'type': 'object', 'additionalProperties': False,
                  'properties': {'act': {'type': 'string', 'enum': list(DOWNED_ACTS)}}, 'required': ['act']}
 # The decision schema's act fields (PLAN_SCHEMA properties). Each is required only on a turn
 # that offers it (check), so the schema keeps them optional.
-SCHEMAS = {'handles': HANDLES_SCHEMA, 'downed': DOWNED_SCHEMA}
+SCHEMAS = {'handles': HANDLES_SCHEMA, 'downed': DOWNED_SCHEMA}  # gear joins below (GEAR_SCHEMA)
 
 HANDLES_RULE = ('Answer handles every turn it is offered. {target, act} only when the PC physically '
                 'manipulates a listed thing this turn (pries, lifts, pushes, takes, climbs, opens, stabs it; '
@@ -91,6 +91,8 @@ def declared(plan, field):
     """The raw declaration, or None when it says none."""
     value = (plan or {}).get(field)
     if value in (None, NONE):
+        return None
+    if field == 'gear' and isinstance(value, dict) and str(value.get('state')).casefold() == NONE:
         return None
     if field == 'handles' and _is_none(value):
         return None
@@ -145,8 +147,15 @@ REACT_SCHEMA = {'type': 'object', 'additionalProperties': False,
                                'effect': EFFECT_SCHEMA},
                 'required': ['choice']}
 FLOURISH_SCHEMA = {'type': 'string', 'enum': list(FLOURISH_READS)}
+# The slot ask (Brendon, 2026-10-19): no slot at the spell's level, a higher one free. Kit reads
+# the reply: yes (at the offered level, or a free higher one the player names), no, or unclear.
+UPCAST_READS = ('yes', 'no', 'unclear')
+UPCAST_SCHEMA = {'type': 'object', 'additionalProperties': False,
+                 'properties': {'choice': {'type': 'string', 'enum': list(UPCAST_READS)},
+                                'slot_level': {'type': ['integer', 'null']}},
+                 'required': ['choice']}
 # The window_answer packet's decision schema: one act field per window kind.
-WINDOW_SCHEMAS = {'react': REACT_SCHEMA, 'flourish': FLOURISH_SCHEMA}
+WINDOW_SCHEMAS = {'react': REACT_SCHEMA, 'flourish': FLOURISH_SCHEMA, 'upcast': UPCAST_SCHEMA}
 REACT_RULE = ('react {choice, cast_in_avrae, slot_level, roll, effect}: choice is an offered reaction id, decline, '
               'or unclear (then ask, one short question). cast_in_avrae true only when the reply shows the spell cast '
               'in Avrae; slot_level only when the reply names an upcast slot. roll: the number the player rolled for '
@@ -157,6 +166,9 @@ REACT_RULE = ('react {choice, cast_in_avrae, slot_level, roll, effect}: choice i
               'the answer is resolved as his act after the window.')
 FLOURISH_RULE = ('flourish: describe (the reply describes the kill), new_action (the player does something '
                  'else instead), or unclear (then ask, one short question).')
+UPCAST_RULE = ('upcast {choice, slot_level}: yes (he casts it with the offered higher slot; slot_level only when '
+               'he names another free higher level), no (he does not cast it: nothing is spent), or unclear (then '
+               'ask, one short question).')
 
 
 def check_react(value, offer):
@@ -184,6 +196,45 @@ def check_react(value, offer):
     return out
 
 
+def check_upcast(value, offer):
+    """{'upcast': yes|no|unclear, 'slot_level'?} for a legal read of the slot ask."""
+    require(offer, 'No slot ask is open: omit upcast.')
+    require(isinstance(value, dict) and value.get('choice') in UPCAST_READS and set(value) <= {'choice', 'slot_level'},
+            'upcast is {choice: yes|no|unclear, slot_level?}')
+    out = {'upcast': value['choice']}
+    level = value.get('slot_level')
+    if level is not None:
+        free = list(offer.get('free') or [offer.get('level')])
+        require(value['choice'] == 'yes' and type(level) is int and level in free,
+                f'upcast.slot_level is a free higher slot ({", ".join(str(n) for n in free)}) with yes, or null')
+        if level != offer.get('level'):
+            out['slot_level'] = level
+    return out
+
+
+# -- gear: the player's answer to an equipment clarification Kit raised (runtime/kit_gear.py) ----
+GEAR_STATES = ('held', 'stowed', 'none')
+GEAR_SCHEMA = {'type': 'object', 'additionalProperties': False,
+               'properties': {'item': {'type': 'string'}, 'state': {'type': 'string', 'enum': list(GEAR_STATES)}},
+               'required': ['item', 'state']}
+GEAR_RULE = ('gear {item, state}: only when the player answers the equipment question you raised (acts.gear): '
+             'held (he keeps it in use: on his arm, worn) or stowed (he puts it away). Not answered this turn: '
+             '{"item": "none", "state": "none"}. Never answer it for him.')
+
+
+def check_gear(value, offer):
+    """{'item', 'in_use'} for the player's answer to a raised equipment clarification."""
+    require(offer, 'No equipment question is open: omit gear.')
+    require(isinstance(value, dict) and set(value) == {'item', 'state'} and value.get('state') in GEAR_STATES[:2],
+            'gear is {item, state: held|stowed}, or {"item": "none", "state": "none"}')
+    require(value['item'] in (offer.get('items') or ()), f"gear.item is one of {', '.join(offer.get('items') or ())}")
+    return {'item': value['item'], 'in_use': value['state'] == 'held'}
+
+
+SCHEMAS['gear'] = GEAR_SCHEMA
+RULES['gear'] = GEAR_RULE
+
+
 def check_flourish(value, offer):
     require(offer, 'No flourish window is open: omit flourish.')
     require(value in FLOURISH_READS, f'flourish must be one of {", ".join(FLOURISH_READS)}')
@@ -201,7 +252,9 @@ def check_downed(value, offer):
 
 
 FIELDS = {'handles': check_handles, 'react': check_react, 'flourish': check_flourish,
-          'downed': check_downed}
+          'downed': check_downed, 'upcast': check_upcast, 'gear': check_gear}
+# Offered, but Kit may leave it out (the player's reply may not answer it this turn).
+OPTIONAL_FIELDS = ('gear',)
 
 
 def check(plan, body):
@@ -212,7 +265,7 @@ def check(plan, body):
     asked = bool((plan or {}).get('ask_player'))
     out = {}
     for field, checker in FIELDS.items():
-        if offers.get(field) and not asked:
+        if offers.get(field) and not asked and field not in OPTIONAL_FIELDS:
             require(field in (plan or {}),
                     f'acts.{field} is offered this turn: answer it'
                     + (' ({target, act}, or {"target": "none", "act": "none", "reason": ...} when his hands go on nothing '
@@ -238,6 +291,9 @@ def model_view(offers):
             view['handles'] = {'targets': offer['targets'], **({'hint': offer['hint']} if offer.get('hint') else {})}
         elif field == 'downed' and offer:
             view['downed'] = {'foes': list(offer.get('names') or offer.get('foes') or ())}
+        elif field == 'gear' and offer:
+            view['gear'] = {'items': list(offer.get('items') or ()), 'names': list(offer.get('names') or ()),
+                            'rule': GEAR_RULE}
     return view
 
 

@@ -417,3 +417,18 @@ def damage_total(action):
         return amount, kind
     items = damage(action)
     return (sum(a for a, _ in items), next((k for _, k in items if k), None)) if items else (0, None)
+
+
+_DIS = re.compile(r'\b\d*d20kl1\b|\b2d20\s*(?:kl|keep lowest)|\bdisadvantage\b|(?:^|\s)-?dis\b|\bwith dis\b')
+_ADV = re.compile(r'\b\d*d20kh1\b|\b2d20\s*(?:kh|keep highest)|\badvantage\b|(?:^|\s)-?adv\b')
+
+
+def roll_mode(action):
+    """'disadvantage' | 'advantage' | 'normal': how the reported d20 was rolled, from Avrae's dice
+    (``2d20kl1`` / ``2d20kh1``) or the player's own words ("with disadvantage", ``!a dagger dis``)."""
+    text = _clean(action)
+    if _DIS.search(text):
+        return 'disadvantage'
+    if _ADV.search(text):
+        return 'advantage'
+    return 'normal'

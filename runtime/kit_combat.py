@@ -34,7 +34,7 @@ import json
 import hashlib
 import re
 
-from . import kit_reactions
+from . import kit_gear, kit_reactions
 from . import kit_rolls
 from .state_context import require
 
@@ -315,6 +315,11 @@ def escape_bonus(stats):
     athletics = stats.get('athletics', stats.get('grapple', 0))
     acrobatics = stats.get('acrobatics', stats.get('initiative', 0))
     return max(int(athletics or 0), int(acrobatics or 0))
+
+
+def ordinal(n):
+    n = int(n)
+    return f"{n}{'th' if 10 <= n % 100 <= 20 else {1: 'st', 2: 'nd', 3: 'rd'}.get(n % 10, 'th')}"
 
 
 def absorb_dice(slot_level):
@@ -1028,6 +1033,8 @@ class Fight:
         self.conditions = pc_conditions(state)
         self.terms = condition_terms(state)
         self.conditions_changed = False
+        self.gear_events = []     # gear_state events: a shield readied or stowed (runtime/kit_gear.py)
+        self.confirmed_slot = None  # the slot level the player said yes to (a slot ask)
 
     # -- helpers ---------------------------------------------------------------------
     def label(self, key):
@@ -1083,7 +1090,7 @@ class Fight:
         if trigger.get('reveal'):
             self.lines.append(trigger['reveal'])
         if self.fight['status'] == 'awaiting_initiative':
-            self.lines.append('Roll initiative.')
+            self.lines.append(kit_gear.initiative_prompt(self.gear_now()))
         return started
 
     def pc_surprised_now(self):
@@ -1121,7 +1128,109 @@ class Fight:
         return [key for key in self.hostiles()] if self.scene.get('pc_hidden') else []
 
     def pc_ac(self):
-        return int(self.sheet.get('ac') or 10) + (5 if (self.fight or {}).get('shield_up') else 0)
+        """The sheet's AC (it counts the shield it lists), less a listed shield he has stowed
+        (runtime/kit_gear.py), plus the Shield spell."""
+        return int(self.sheet.get('ac') or 10) - kit_gear.shield_ac(self.state, fight=True) + \
+            (5 if (self.fight or {}).get('shield_up') else 0)
+
+    # -- gear in use (Brendon, 2026-10-19: the SRD while untrained armor or a shield is in use) ---
+    def gear_now(self):
+        state = dict(self.state)
+        if self.gear_events:
+            state = copy.deepcopy(self.state)
+            for event in self.gear_events:
+                kit_gear.apply_event(state, event)
+        return state
+
+    def casting_barred(self, name):
+        """True (and said) when untrained armor or a shield in use bars spellcasting (SRD)."""
+        if not kit_gear.penalties(self.gear_now(), fight=True)['no_casting']:
+            return False
+        reason = kit_gear.why(self.gear_now(), fight=True)
+        self.trace.append(f'{name}: no spellcasting with {reason}')
+        self.lines.append(f"You cannot cast {str(name).title()} while using {reason}: the rules say no "
+                          f"spellcasting in armor or with a shield you are not proficient with. Readying or "
+                          f"stowing a shield takes your action.")
+        return True
+
+    def str_dex_disadvantage(self):
+        """The reason Strength and Dexterity rolls have disadvantage now, or ''."""
+        state = self.gear_now()
+        return kit_gear.why(state, fight=True) if kit_gear.penalties(state, fight=True)['str_dex_disadvantage'] else ''
+
+    def pc_gear(self, act):
+        """He readies or stows a shield (or armor) in the fight: it takes his action (Brendon's
+        ruling; SRD: donning or doffing a shield is an action), every time, so a drop-cast-ready
+        costs three turns. Anything else in the same message waits: the action is spent."""
+        item = next((i for i in kit_gear.items(self.sheet) if i['id'] == act['item']), None)
+        if item is None:
+            return False
+        if kit_gear.in_use(self.gear_now(), item, fight=True) == bool(act['in_use']):
+            self.lines.append(f"The {item['name']} is already {'in hand' if act['in_use'] else 'put away'}.")
+            return False
+        if item['type'] != 'shield':
+            self.lines.append(f"Getting in or out of the {item['name']} takes minutes, not a moment in a fight.")
+            return False
+        self.gear_events.append(kit_gear.change_event(
+            self.state, item['id'], act['in_use'],
+            f"Player declared: {self.action[:200]}. He {'readies' if act['in_use'] else 'stows'} the {item['name']} "
+            'in the fight: it takes his action.'))
+        self.trace.append(f"PC {'readies' if act['in_use'] else 'stows'} {item['id']}: his action")
+        verb = 'Readying' if act['in_use'] else 'Stowing'
+        self.lines.append(f"{verb} the {item['name']} takes your action this turn"
+                          + (', so nothing else you said happens this turn.' if act.get('more') else '.'))
+        return True
+
+    # -- the slot ask (Brendon, 2026-10-19) --------------------------------------------------
+    def slot_gate(self, spell, act):
+        """Before a leveled spell resolves (or asks for its roll): its slot. A free slot at the level
+        cast (the spell's own, or -l N) goes ahead. None there and a higher one free: ask, spend
+        nothing (a checkpoint the player answers). No slot at all: it fizzles. True when it fizzled."""
+        known = kit_reactions.spells(self.sheet).get(kit_reactions.ident(spell)) or {}
+        if not known.get('level') or self.confirmed_slot:
+            return False
+        named = self.cast_slot(spell).get('slot_level')
+        level = int(named) if named and int(named) >= int(known['level']) else int(known['level'])
+        slot = (self.resources.get('slots') or {}).get(str(level))
+        if slot and slot['used'] < slot['max']:
+            return False
+        higher = [int(k) for k, v in sorted((self.resources.get('slots') or {}).items(), key=lambda kv: int(kv[0]))
+                  if int(k) > level and v['used'] < v['max']]
+        if not higher:
+            return self.fizzle_without_slot(spell)
+        offer = higher[0]
+        self.trace.append(f'{spell}: no level {level} slot left; asks before casting it at level {offer}')
+        self.lines.append(f'You have no {ordinal(level)}-level slot left for {spell.title()}. A spell can be cast '
+                          f'with a higher-level slot, as if at that level; your next free slot is {ordinal(offer)} '
+                          f'level. Cast it at {ordinal(offer)} level?')
+        self.wait_for('slot_ask', 'player_answer', spell=spell, spell_level=int(known['level']), level=offer,
+                      free=higher, act=json.loads(json.dumps(act, default=str)), action=self.action[:1000])
+
+    def resume_slot_ask(self, waiting):
+        """Kit's read of his answer: yes spends the offered slot (or the free higher one he names)
+        and the cast resolves from the message that made it; no spends nothing, and his turn is still
+        his. Kit's read only (``upcast``); the engine never guesses at a yes."""
+        read = (self.choice or {}).get('upcast')
+        if read is None:
+            raise NeedsChoice(waiting)
+        if read == 'unclear':
+            raise Unclear('Kit could not tell whether the player casts it with the higher slot.', 'unclear')
+        level = int((self.choice or {}).get('slot_level') or waiting['level'])
+        if read == 'yes' and level not in waiting.get('free', [waiting['level']]):
+            raise Unclear(f"There is no free level {level} slot for {waiting['spell'].title()} (free: "
+                          f"{', '.join(str(n) for n in waiting.get('free') or ())}).", 'not_available')
+        self.fight['awaiting'] = None
+        if read != 'yes':
+            self.trace.append(f"slot ask for {waiting['spell']}: no; nothing cast, no slot spent")
+            self.lines.append(f"Nothing is cast and no slot is spent. "
+                              + ('No clear answer, so that is taken as a no. ' if (self.choice or {}).get('taken_as_no') else '')
+                              + 'Your turn is still yours.')
+            return
+        self.trace.append(f"slot ask for {waiting['spell']}: yes, level {level}")
+        self.confirmed_slot = level
+        self.action = waiting.get('action') or self.action
+        acted = self.pc_attack(waiting['act'])
+        self.after_pc_action(acted)
 
     # -- checkpoints -------------------------------------------------------------------
     def wait_for(self, kind, awaits, **detail):
@@ -1191,6 +1300,10 @@ class Fight:
                           'it has nothing to answer right now')
         if not kit_reactions.payable(self.resources, found):
             return refuse(f'{name} is not available: no slot or use left.', 'there is no slot or use left for it')
+        if found.get('kind') == 'spell' and kit_gear.penalties(self.gear_now(), fight=True)['no_casting']:
+            reason = kit_gear.why(self.gear_now(), fight=True)
+            return refuse(f'You cannot cast {name} while using {reason}: no spellcasting (SRD).',
+                          f'{reason} bars spellcasting')
         if found.get('kind') == 'spell' and not act.get('avrae'):
             return refuse(f'Cast {name} in Avrae first (!cast {name.casefold()}), then say so.',
                           f'it is cast in Avrae first (!cast {name.casefold()})')
@@ -1473,6 +1586,11 @@ class Fight:
     def options_for(self, triggers, fit=None):
         """Reaction ids the event's trigger types open now (the inventory decides, any sheet)."""
         out = []
+        barred = kit_gear.penalties(self.gear_now(), fight=True)['no_casting']
+        if barred:
+            # Untrained armor or a shield in use: no spellcasting (SRD), so no spell reaction.
+            inner = fit
+            fit = lambda entry: entry.get('kind') != 'spell' and (inner is None or inner(entry))  # noqa: E731
         for trigger in triggers:
             for key in kit_reactions.matching(self.resources, trigger, self.fight.get('reaction_used'), fit):
                 if key not in out:
@@ -1508,6 +1626,8 @@ class Fight:
                         self.trace.append('window asked twice without a clear answer: taken as a decline')
                 self.resolve_window(waiting, react)
                 self.route_rest(waiting, react)
+            elif kind == 'slot_ask':
+                self.resume_slot_ask(waiting)
             elif kind == 'roll_call' and (waiting['save'] == 'death' or waiting.get('repeat')):
                 self.resume_save(waiting)  # his slot's own roll: the round runs on from there
             elif kind == 'roll_call':
@@ -1589,6 +1709,9 @@ class Fight:
         found = kit_reactions.entry(self.resources, react)
         if not found or self.fight.get('reaction_used') or not kit_reactions.payable(self.resources, found):
             raise Unclear(f'{react} is not available now (reaction spent, or no slot or use left).', 'not_available')
+        if found['kind'] == 'spell' and kit_gear.penalties(self.gear_now(), fight=True)['no_casting']:
+            raise Unclear(f"{found['name']} is a spell, and {kit_gear.why(self.gear_now(), fight=True)} bars "
+                          'spellcasting.', 'not_available')
         if found['kind'] == 'spell':
             if not self.choice.get('cast_in_avrae'):
                 raise Unclear(f"{found['name']} is cast in Avrae first.", 'needs_cast',
@@ -1979,7 +2102,7 @@ class Fight:
             self.advance_past_pc()
             self.run_npcs()
         elif self.fight and self.fight['status'] == 'awaiting_initiative':
-            self.lines.append('Roll initiative.')
+            self.lines.append(kit_gear.initiative_prompt(self.gear_now()))
 
     def pc_hp(self):
         return self.sheet.get('hp')
@@ -2085,7 +2208,9 @@ class Fight:
             acted = True
             {'grab': self.pc_grab, 'face': self.pc_face, 'flip': self.pc_flip, 'take': self.pc_take,
              'wait': self.pc_wait, 'own_shield': self.pc_own_shield, 'withdraw': self.pc_move_away,
-             'approach': self.pc_approach}[kind](act)
+             'approach': self.pc_approach}[kind](act) if kind != 'gear' else None
+            if kind == 'gear':
+                acted = self.pc_gear(act)
         self.after_pc_action(acted)
 
     def pc_own_shield(self, act):
@@ -2096,6 +2221,8 @@ class Fight:
         on_sheet = any(r.get('id') == 'shield' for r in self.resources.get('reactions') or ())
         if not on_sheet:
             self.lines.append("Shield didn't happen because it is not on your sheet.")
+            return
+        if self.casting_barred('shield'):
             return
         if act.get('avrae') and on_sheet and kit_reactions.free_slot(self.resources, 1):
             self.resources, slot = kit_reactions.spend(self.resources, 'shield')
@@ -2392,8 +2519,10 @@ class Fight:
     def owe_save(self, key, index, rider):
         """Stop at a roll call: the player rolls his own save in Avrae (never shown the DC).
         Order with a reaction window: the reaction first (before damage), then the save."""
-        self.lines.append(save_prompt({'save': rider['ability']}))
+        self.lines.append(save_prompt({'save': rider['ability']}, self.gear_now()))
+        dis = rider['ability'] in ('str', 'dex') and bool(self.str_dex_disadvantage())
         self.wait_for('roll_call', 'player_roll', trigger='save_rider', save=rider['ability'], dc=rider['dc'],
+                      **({'disadvantage': True} if dis else {}),
                       damage=rider.get('damage', 0), type=rider.get('type', 'poison'), half=bool(rider.get('half')),
                       at_zero=list(rider.get('at_zero') or ()), attacker=key, attack_index=index,
                       **({'condition': rider['condition']} if rider.get('condition') else {}))
@@ -2408,6 +2537,11 @@ class Fight:
                           'No turn was committed.')
         if waiting['save'] == 'death':
             return self.resume_death(total)
+        if waiting.get('disadvantage') and kit_rolls.roll_mode(self.action) != 'disadvantage':
+            raise Unclear(f"Roll that {ABILITY_NAMES.get(waiting['save'], waiting['save'])} save with disadvantage "
+                          f"(!save {waiting['save']} dis): {self.str_dex_disadvantage() or 'untrained gear'} gives "
+                          'disadvantage on Strength and Dexterity saves. No turn was committed.', 'needs_roll',
+                          ask=f"!save {waiting['save']} dis")
         if waiting.get('repeat'):
             return self.resume_repeat(waiting, total)
         # Brendon's save rule: the attacker meets or beats, so a save that ties the DC fails.
@@ -2557,6 +2691,19 @@ class Fight:
             self.lines.append('There is nobody there to hit.')
             return True
         self.fight['last_target'] = targets[0]
+        if spell:
+            if self.casting_barred(spell):
+                return False  # nothing happened: no slot, no action
+            if self.slot_gate(spell, act):
+                return True   # fizzled: no slot at any level
+        else:
+            barred = self.str_dex_disadvantage()
+            if barred and kit_rolls.attack_total(self.action) is not None and \
+                    kit_rolls.roll_mode(self.action) != 'disadvantage':
+                self.trace.append(f'{weapon} attack not rolled with disadvantage ({barred})')
+                self.lines.append(f'Roll that attack with disadvantage (!a {weapon} dis): {barred} gives '
+                                  'disadvantage on Strength and Dexterity attack rolls.')
+                return False
         if spell in SPELL_SAVE:
             dc = posted.get('dc') or self.sheet.get('spell_save_dc') or _derived_save_dc(self.sheet)
             if dc is None:
@@ -2648,7 +2795,9 @@ class Fight:
             self.fight['pending'] = {'kind': 'attack', 'target': targets[0], 'weapon': weapon, 'needs': 'attack',
                                      **self.cast_slot(spell)}
             what = 'stomp' if weapon == 'stomp' else spell.title() if spell else weapon
-            self.lines.append(f'Roll the attack for your {what} in Avrae, with its damage.')
+            self.lines.append(f'Roll the attack for your {what} in Avrae, with its damage'
+                              + (f', with disadvantage ({self.str_dex_disadvantage()})' if not spell and
+                                 self.str_dex_disadvantage() else '') + '.')
             return False
         key = targets[0]
         if spell and self.fizzle_without_slot(spell):
@@ -2685,7 +2834,7 @@ class Fight:
     def cast_slot(self, spell):
         """The slot level his Avrae cast named ('-l 2', 'at 2nd level'), in this message or kept from
         the message that cast it (a separate damage line names none): {'slot_level': n} or {}."""
-        level = cast_level(self.action) if spell else None
+        level = (self.confirmed_slot or cast_level(self.action)) if spell else None
         pending = self.fight.get('pending') if isinstance(self.fight.get('pending'), dict) else {}
         if level is None and spell and pending.get('weapon') == spell:
             level = pending.get('slot_level')
@@ -3119,6 +3268,7 @@ class Fight:
             events.append({'type': 'combat_state', 'state': self.fight, 'evidence': evidence})
         if self.resources_changed:
             events.append({'type': 'pc_resources', 'resources': self.resources, 'evidence': evidence})
+        events.extend(self.gear_events)
         if self.conditions_changed:
             events.append({'type': 'pc_conditions', 'conditions': list(self.conditions),
                            'terms': copy.deepcopy(self.terms), 'evidence': evidence})
@@ -3156,8 +3306,14 @@ def after_save_clause(action):
     return rest if re.search(r'\b(?:i|nik|he|she|they)\b', rest, re.I) or re.match(r'(?i)(?:cast|attack|stab|hit|run|move)\b', rest) else ''
 
 
-def save_prompt(awaiting):
-    """The roll call for a save the player owes (never the DC)."""
+def save_prompt(awaiting, state=None):
+    """The roll call for a save the player owes (never the DC). With ``state``: a Strength or
+    Dexterity save while untrained armor or a shield is in use is called with disadvantage."""
+    if state is not None and awaiting['save'] in ('str', 'dex') and not awaiting.get('repeat'):
+        mode, reason = kit_gear.roll_mode(state, awaiting['save'], fight=True)
+        if mode == 'disadvantage':
+            return (f"Roll a {ABILITY_NAMES.get(awaiting['save'], awaiting['save'])} saving throw with "
+                    f"disadvantage ({reason}).")
     if awaiting['save'] == 'death':
         return 'Roll a death saving throw.'
     if awaiting.get('repeat'):
