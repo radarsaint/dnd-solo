@@ -2738,8 +2738,70 @@ API_PERFORMANCE_ATTEMPTS = 2
 # degraded mode or abandon, and the table moves on. Every rejected output a turn has had counts,
 # on either path (bridge finish/complete, or the API turn).
 ENGINE_LINE_AFTER_REJECTIONS = 1
+# Nagatha's e3fc5a7 playtest (5 of 17 turns went to engine text over small style misses): a
+# narration that fails only on style or fidelity keeps STYLE_RETRIES more tries before the engine
+# line; a secrecy failure (hidden information spoken) or an agency failure (the narration acting
+# for the player) commits the engine line at once. Each validator has a kind (VALIDATOR_KINDS);
+# an unlisted one, and every structural require in check_speech, is style.
+STYLE_RETRIES = 1
+VALIDATOR_KINDS = {
+    # secrecy: hidden information stays hidden
+    'check_public_content': 'secrecy', 'check_paraphrased_leaks': 'secrecy',
+    'check_public_numbers': 'secrecy', 'check_hidden_actors': 'secrecy', 'check_sealed': 'secrecy',
+    'kit_reveal.check_spoken': 'secrecy',
+    # agency: the player decides what their character does, says, thinks and feels
+    'check_player_agency': 'agency', 'check_player_identity': 'agency',
+    # style and fidelity: retried once
+    'check_npc_meta': 'style', 'check_claimed_numbers': 'style', 'check_toll_exchange': 'style',
+    'check_no_refreshment': 'style', 'check_clarification_shape': 'style', 'check_clean_deal': 'style',
+    'check_stake_offers': 'style', 'check_table_narration': 'style', 'check_kit_asides': 'style',
+    'check_detail_performance': 'style', 'kit_interstitial.check_spoken': 'style',
+    'check_not_canned': 'style', 'check_voice_presence': 'style', 'check_scope': 'style',
+    'check_padding': 'style', 'check_npc_voices': 'style', 'check_npc_repetition': 'style',
+    'check_kit_tics': 'style', 'check_callback_used': 'style', 'check_voice_style': 'style',
+    'check_detail_answer': 'style', 'check_carriers_spoken': 'style', 'check_held_delivered': 'style',
+    'check_raised': 'style', 'check_ask_spoken': 'style',
+}
+ENGINE_LINE_AT_ONCE = frozenset({'secrecy', 'agency'})
+
+
+def validator_kind(check):
+    """The kind of one validator (VALIDATOR_KINDS), by module-qualified name, then bare name."""
+    name = getattr(check, '__name__', '')
+    module = (getattr(check, '__module__', '') or '').rsplit('.', 1)[-1]
+    return VALIDATOR_KINDS.get(f'{module}.{name}') or VALIDATOR_KINDS.get(name) or 'style'
+
+
+def failure_kinds(exc):
+    """What a rejected narration failed on: a set of style / secrecy / agency."""
+    return set(getattr(exc, 'kinds', None) or ()) or {'style'}
+
+
+def kinded(check, *args, **kwargs):
+    """Run one validator; a failure carries the validator's kind."""
+    try:
+        return check(*args, **kwargs)
+    except InvalidChange as exc:
+        if not getattr(exc, 'kinds', None):
+            exc.kinds = {validator_kind(check)}
+        raise
+
+
+def engine_line_due(rejections, exc):
+    """Whether this rejection (the turn's rejections-th) commits the engine line."""
+    if failure_kinds(exc) & ENGINE_LINE_AT_ONCE:
+        return rejections >= ENGINE_LINE_AFTER_REJECTIONS
+    return rejections >= ENGINE_LINE_AFTER_REJECTIONS + STYLE_RETRIES
+
+
+def _full_stop(text):
+    text = str(text).rstrip()
+    return text if not text or text[-1] in '.!?' else text + '.'
+
+
 ENGINE_LINE_NOTE = ('If the next narration for this turn is rejected, the engine commits its own '
-                    'public_event sentence as the turn instead of another retry.')
+                    'public_event sentence as the turn instead of another retry. A narration that '
+                    'speaks hidden information or acts for the player commits it at once.')
 # What a decision establishes only by being voiced: dropped when the engine line commits instead.
 ENGINE_LINE_DROPS = ('claims', 'roll_call', 'agenda', 'open_threads', 'risk_confirm',
                      'pc_state', 'detail', 'plan')
@@ -2748,9 +2810,10 @@ HOST_RETRY_NOTE = (
     'If finish or complete is rejected, nothing was committed and the decision stays fixed. Read '
     'message and retry_instruction, then submit a new performance for the same turn_id; for '
     'complete, resubmit the identical decision with the new performance. If decide is rejected, '
-    'fix the plan and call decide again. A rejected performance is not retried: the engine '
-    'commits its own public_event sentence as the turn (the result says engine_line) and the '
-    'table moves on; show its spoken text. A lost response is safe to retry: '
+    'fix the plan and call decide again. A performance rejected only on style gets one retry; '
+    'a second rejection, or one that speaks hidden information or acts for the player, is not '
+    'retried: the engine commits its own fallback line as the turn (the result says engine_line '
+    'and last_rejection) and the table moves on; show its spoken text. A lost response is safe to retry: '
     'resubmitting an already committed turn returns the committed result.')
 
 DEGRADED_INSTRUCTION = (
@@ -3538,10 +3601,10 @@ def check_speech(speech, plan, public_view, player_action, action_kind=None, gua
     require(plan['table_presence'] != 'brief' or kit_count <= 1, 'Brief Kit took over the scene')
     require(plan['table_presence'] != 'present' or kit_count >= 1, 'Present Kit did not speak')
     if plan['public_brief']['scope'] == 'call':  # a short beat: Kit's reaction is the turn
-        kit_guards.check_not_canned(segments)
+        kinded(kit_guards.check_not_canned, segments)
     speakers = guards.get('speakers')
     focus = focus_speaker(plan, speakers)
-    kit_voice.check_voice_presence(segments, plan, focus_speakers(plan, speakers))
+    kinded(kit_voice.check_voice_presence, segments, plan, focus_speakers(plan, speakers))
     require(plan['move'] != 'kit_comment_then_npc' or
             (kit_count >= 1 and any(is_npc_speaker(segment['speaker']) for segment in segments)),
             'Chosen Kit and NPC move was not performed')
@@ -3562,12 +3625,14 @@ def check_speech(speech, plan, public_view, player_action, action_kind=None, gua
     # Every check runs and every failure is reported at once (6c baseline item 5: one error
     # per retry cost the model a retry per problem).
     hard_problems = []
+    kinds = set()
 
     def hard(check, *args, **kwargs):
         try:
             check(*args, **kwargs)
         except InvalidChange as exc:
             hard_problems.append(str(exc))
+            kinds.add(validator_kind(check))
     # HARD: secrets (literal and paraphrased), the player's agency, NPC table talk, and
     # a clarification that really asks something.
     hard(check_public_content, spoken, public_view, player_action, phrases=guards.get('leak_phrases'))
@@ -3627,7 +3692,9 @@ def check_speech(speech, plan, public_view, player_action, action_kind=None, gua
             warnings.append(str(exc))
     problems = hard_problems + ([] if degraded else warnings)
     if problems:
-        raise InvalidChange(all_problems(problems))
+        failed = InvalidChange(all_problems(problems))
+        failed.kinds = kinds | ({'style'} if warnings and not degraded else set())
+        raise failed
     return (spoken, warnings) if degraded else spoken
 
 
@@ -4958,18 +5025,18 @@ def checked_record(body, plan, speech, performance_variant, source=None, degrade
                           guards=guard_context(source, body), degraded=degraded,
                           public_event=public_event)
     spoken, warnings = result if degraded else (result, [])
-    check_hidden_actors(spoken, body.get('hidden_actors'))
-    kit_agenda.check_carriers_spoken(spoken, plan)
-    check_held_delivered(body.get('held_description'), spoken)
+    kinded(check_hidden_actors, spoken, body.get('hidden_actors'))
+    kinded(kit_agenda.check_carriers_spoken, spoken, plan)
+    kinded(check_held_delivered, body.get('held_description'), spoken)
     if not ask and not stall_check(plan, body['kind']):
-        kit_reveal.check_spoken(body.get('progressive_reveal'), speech['segments'], source, plan,
-                                action=body.get('action') or '')
-    check_sealed(spoken, body.get('sealed'))  # after the held layer, so its errors come first
+        kinded(kit_reveal.check_spoken, body.get('progressive_reveal'), speech['segments'], source, plan,
+               action=body.get('action') or '')
+    kinded(check_sealed, spoken, body.get('sealed'))  # after the held layer, so its errors come first
     if body.get('story_due') and not ask:
         # An undelivered primary hook is overdue: its NPC raises it now (runtime/kit_brief.py).
-        kit_brief.check_raised(body['story_due'], source, {'area': body['story_area']}, spoken)
+        kinded(kit_brief.check_raised, body['story_due'], source, {'area': body['story_area']}, spoken)
     if ask:
-        kit_agenda.check_ask_spoken(speech['segments'], ask)
+        kinded(kit_agenda.check_ask_spoken, speech['segments'], ask)
     elif (body['kind'] in EVENT_AFTER_PERFORMANCE_KINDS or body.get('rewind')) and not _entering(source, body):
         # The room reacts while the player is still there; then they are gone. The departure
         # line never follows Kit's closing remark (watchroom T6): it goes before her handoff.
@@ -5016,18 +5083,152 @@ def engine_line_record(body, plan, performance_variant, rejected, rejections):
         public_event, spoken, declared = f"{ASKED_EVENT_PREFIX}{ask['question']}", f"Kit: {ask['question']}", None
     else:
         public_event = body['public_event']
-        spoken = f'Narrator: {public_event}'
+        spoken = public_fallback(body) or f'Narrator: {public_event}'
         declared = body.get('declared')
     if declared and declared.get('public'):
         spoken = f"{spoken}\nNarrator: {declared['public']}"
         public_event = f"{public_event} {declared['public']}".strip()
     record = {'player_input': body['action'], 'public_event': public_event, 'trace': plan, 'spoken': spoken,
               'performance_variant': performance_variant,
-              'engine_line': {'after_rejections': int(rejections), 'last_rejection': str(rejected)[:500]}}
+              'engine_line': {'after_rejections': int(rejections), 'last_rejection': str(rejected)[:500],
+                              'kinds': sorted(failure_kinds(rejected))}}
     if declared:
         record['declared'] = {'acts': declared['acts'], 'kind': declared['kind'],
                               **({'handoff': declared['handoff']} if declared.get('handoff') else {})}
     return record
+
+
+# The engine line's public fallbacks (Nagatha's e3fc5a7 playtest: the opening came out as 'The
+# newcomer arrives: Dark hallway.' and a table-talk turn echoed the player's question unanswered).
+# Built only from the turn's public view (what the player can already see: the area, its known
+# facts, visible actors, known exits, the fight's public board), then put through the secrecy
+# checks; anything that fails falls back to the plain engine sentence.
+_COUNTS = ('no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten')
+_ASK_EXITS = re.compile(r"\b(exits?|ways?(?: out| on)?|doors?|leave|leaving|paths?|go next|get out|routes?)\b", re.I)
+_ASK_STANDING = re.compile(r"\b(standing|still up|alive|left|remaining|down|hurt|wounded|how bad|enem(?:y|ies)|foes?)\b", re.I)
+_ASK_WHO = re.compile(r"\b(who(?:'s| is| else)?|anyone|anybody|people)\b", re.I)
+_ASK_TURN = re.compile(r"\b(whose turn|my turn|turn order|order|initiative|who goes|goes next|round)\b", re.I)
+_TALK_ECHO = re.compile(r'^"(?P<q>.*)"(?P<rest>\s+[^"]*)?$', re.S)
+_STOP = frozenset('what where which there here this that with does have about from into your they them '
+                  'their then than these those room place kit wait before after still just know tell'.split())
+
+
+def _count(n, noun, plural=None):
+    word = _COUNTS[n] if n < len(_COUNTS) else 'many'
+    return f"{word} {noun if n == 1 else (plural or noun + 's')}"
+
+
+def _names(items):
+    items = list(items)
+    return items[0] if len(items) == 1 else ', '.join(items[:-1]) + ' and ' + items[-1]
+
+
+def _exits_line(view):
+    exits = view.get('exits') or []
+    if not exits:
+        return 'No way out that you know of yet.'
+    lines = ' '.join(_full_stop(e['description']) for e in exits)
+    return f"{_count(len(exits), 'way out', 'ways out').capitalize()} that you know of: {lines}"
+
+
+def _standing_line(view):
+    fight = view.get('fight') or {}
+    wounds = fight.get('wounds') or {}
+    if wounds:
+        up = [(name, state) for name, state in wounds.items() if state not in ('down', 'fled')]
+        if not up:
+            return 'Nobody on the other side is still standing.'
+        return (f"{_count(len(up), 'still standing', 'still standing').capitalize()}: "
+                f"{_names(f'{name} ({state})' for name, state in up)}.")
+    actors = [a['name'] for a in view.get('actors') or () if a.get('status') not in ('dead', 'down', 'fled')]
+    return _who_line({'actors': [{'name': n} for n in actors]})
+
+
+def _who_line(view):
+    actors = [a['name'] for a in view.get('actors') or ()]
+    if not actors:
+        return 'Nobody else is here that you can see.'
+    return f"{_count(len(actors), 'other', 'others').capitalize()} here that you can see: {_names(actors)}."
+
+
+def _turn_line(view):
+    fight = view.get('fight') or {}
+    if not fight or fight.get('status') != 'running':
+        return 'No fight is running, so there is no turn order.'
+    whose = fight.get('whose_turn')
+    rounds = fight.get('round')
+    lead = "It's your turn" if whose == 'you' else f"It's {whose}'s turn"
+    if isinstance(rounds, int) and 0 < rounds < len(_COUNTS):
+        lead += f', round {_COUNTS[rounds]}'
+    return f"{lead}. The order: {_names(fight.get('order') or ['you'])}."
+
+
+def _fact_lines(view, question):
+    words = {w for w in re.findall(r"[a-z]{4,}", question.casefold()) if w not in _STOP}
+    stems = {w[:5] for w in words}
+    return [fact for fact in view.get('known_facts_here') or ()
+            if stems & {w[:5] for w in re.findall(r"[a-z]{4,}", fact.casefold())}]
+
+
+def table_talk_answer(view, question):
+    """Kit's plain answer to an out-of-character question, from the public view only."""
+    parts = []
+    turn = _ASK_TURN.search(question)
+    if turn and ((view.get('fight') or {}).get('status') == 'running' or
+                 re.search(r'turn|initiative', turn.group(0), re.I)):
+        parts.append(_turn_line(view))
+    if _ASK_STANDING.search(question):
+        parts.append(_standing_line(view))
+    elif _ASK_WHO.search(question):
+        parts.append(_who_line(view))
+    if _ASK_EXITS.search(question):
+        parts.append(_exits_line(view))
+    if not parts:
+        facts = _fact_lines(view, question)
+        parts.extend(facts)
+    if not parts:
+        # No topic matched: what is on the table, in brief.
+        parts.append(f"Here's what you have: you're in {view.get('area') or 'this place'}.")
+        parts.extend((view.get('known_facts_here') or ())[:3])
+        parts.append(_standing_line(view) if view.get('fight') else _who_line(view))
+        parts.append(_exits_line(view))
+    return ' '.join(_full_stop(part) for part in parts)
+
+
+def opening_frame(view, public_event):
+    """The room's opening from public state: its arrival line (or its name), what can be seen,
+    who is here, and the ways on."""
+    area = view.get('area') or ''
+    lead = public_event if public_event and not public_event.startswith('The newcomer arrives') else f'{area}.'
+    parts = [lead, *(view.get('known_facts_here') or ())]
+    actors = [a['name'] for a in view.get('actors') or ()]
+    if actors:
+        parts.append(f"{_names(actors)} {'is' if len(actors) == 1 else 'are'} here.")
+    parts.extend(e['description'] for e in view.get('exits') or ())
+    return ' '.join(_full_stop(part) for part in parts if part)
+
+
+def public_fallback(body):
+    """The engine line's spoken text for an opening or a table-talk turn, or None. Secrecy-
+    checked; a fallback that would speak anything hidden is dropped for the plain sentence."""
+    view = body.get('public_view') or {}
+    event = body.get('public_event') or ''
+    if body.get('kind') == 'opening':
+        spoken = f'Narrator: {opening_frame(view, event)}'
+    elif body.get('table_talk') or event.startswith(TABLE_TALK_PREFIX):
+        echo = _TALK_ECHO.match(event[len(TABLE_TALK_PREFIX):]) if event.startswith(TABLE_TALK_PREFIX) else None
+        question = echo.group('q') if echo else (body.get('action') or '')
+        rest = (echo.group('rest') or '').strip() if echo else ''
+        spoken = f"Kit: {' '.join(part for part in (table_talk_answer(view, question), rest) if part)}"
+    else:
+        return None
+    try:
+        check_public_content(spoken, view, body.get('action'))
+        check_hidden_actors(spoken, body.get('hidden_actors'))
+        check_sealed(spoken, body.get('sealed'))
+    except InvalidChange:
+        return None
+    return spoken
 
 
 class KitAgent:
@@ -5086,8 +5287,8 @@ class KitAgent:
                     break
                 except InvalidChange as exc:
                     timing['rejections'].append(str(exc))
-                    if len(timing['rejections']) >= ENGINE_LINE_AFTER_REJECTIONS:
-                        # The narration failed: the engine's sentence is the turn (no further call).
+                    if engine_line_due(len(timing['rejections']), exc):
+                        # The narration failed: the engine's line is the turn (no further call).
                         record = engine_line_record(body, plan, self.performance_variant, exc,
                                                     len(timing['rejections']))
                         timing['engine_line'] = True
@@ -5108,9 +5309,13 @@ class KitAgent:
             timing['outcome'] = outcome
             timing['received_to_done_s'] = round(time.monotonic() - started, 3)
             self.runtime.record_kit_timing(turn_id, **timing)
-        return {'revision': next_revision, 'turn_id': turn_id,
-                'public_event': body['public_event'], 'spoken': record['spoken'],
-                'timing': self.runtime.kit_timing(turn_id)}
+        result = {'revision': next_revision, 'turn_id': turn_id,
+                  'public_event': body['public_event'], 'spoken': record['spoken'],
+                  'timing': self.runtime.kit_timing(turn_id)}
+        if record.get('engine_line'):
+            result.update(engine_line=True, last_rejection=record['engine_line']['last_rejection'],
+                          rejection_kinds=record['engine_line']['kinds'])
+        return result
 
 
 class PerformanceRejected(InvalidChange):
@@ -5695,7 +5900,9 @@ class KitChatBridge:
         if record.get('degraded'):
             result.update(degraded=True, soft_warnings=record['soft_warnings'])
         if record.get('engine_line'):
-            result.update(engine_line=True, rejected_attempts=record['engine_line']['after_rejections'])
+            result.update(engine_line=True, rejected_attempts=record['engine_line']['after_rejections'],
+                          last_rejection=record['engine_line']['last_rejection'],
+                          rejection_kinds=record['engine_line']['kinds'])
         kit_handoff.log_turn(self.runtime, turn_id, body['action'], body['kind'], body, record.get('trace'), record,
                              by_player=body['kind'] != 'opening' and not body.get('table_talk'))
         return result
@@ -5734,7 +5941,8 @@ class KitChatBridge:
         """The host's options after a rejection, by how many this turn has had."""
         count = self._rejections(turn_id)
         guidance = {'rejected_attempts': count, 'degraded_available': count >= DEGRADED_AFTER_REJECTIONS,
-                    'next_step': 'retry', 'engine_line_next': count + 1 >= ENGINE_LINE_AFTER_REJECTIONS}
+                    'next_step': 'retry',
+                    'engine_line_next': count + 1 >= ENGINE_LINE_AFTER_REJECTIONS + STYLE_RETRIES}
         if count >= DEGRADED_AFTER_REJECTIONS:
             guidance.update(next_step='retry_degraded', degraded_instruction=DEGRADED_INSTRUCTION)
         if count >= ABANDON_SUGGEST_AFTER:
@@ -5747,7 +5955,7 @@ class KitChatBridge:
             turn_id, rejected_attempts=prior.get('rejected_attempts', 0) + 1,
             last_rejection=str(exc))
         guidance = self.guidance(turn_id)
-        message = str(exc)
+        message = _full_stop(exc)
         if guidance.get('engine_line_next'):
             message += ' ' + ENGINE_LINE_NOTE
         if guidance.get('abandon_instruction'):
@@ -5764,8 +5972,9 @@ class KitChatBridge:
             raise
         except InvalidChange as exc:
             rejected = self._log_rejection(turn_id, exc)
-            if self._rejections(turn_id) >= ENGINE_LINE_AFTER_REJECTIONS:
-                # The narration failed: the engine's sentence commits (no further narration).
+            if engine_line_due(self._rejections(turn_id), exc):
+                # The narration failed (a style miss twice, or a secret or the player's agency
+                # once): the engine's line commits (no further narration).
                 self.runtime.record_kit_timing(turn_id, engine_line=True)
                 return engine_line_record(body, plan, performance_variant, exc, self._rejections(turn_id))
             raise rejected from exc

@@ -5,7 +5,7 @@ import json
 import unittest
 
 from runtime import kit_manifest
-from runtime.kit_agent import KitChatBridge, RoomAdjudicator
+from runtime.kit_agent import KitChatBridge, PerformanceRejected, RoomAdjudicator
 from runtime.state_context import InvalidChange
 from test_kit_watchroom_stalls import Stalls, landing
 
@@ -125,7 +125,9 @@ class Resend(Layers):
         later, out = self.wait('w1')
         flat = dict(out, performance={'segments': [{'speaker': 'Narrator', 'text': 'Dark.'}]})
         # A rejected narration commits the engine line (Brendon's 2026-10-14 plan, Nagatha's #127
-        # review: after one failure); that turn counts as the streak.
+        # review); a style miss gets one retry first (e3fc5a7 playtest). That turn counts as the streak.
+        with self.assertRaises(PerformanceRejected):
+            self.bridge.complete('w1', flat)
         self.assertTrue(self.bridge.complete('w1', flat)['engine_line'])
         again, _ = self.wait('w2')
         self.assertIn('body', again['session_manifest'])

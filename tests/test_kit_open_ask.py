@@ -400,21 +400,26 @@ class NoSlotFizzlesBeforeTheAsk(unittest.TestCase):
 class EngineLineAfterOneFailedNarration(BridgeCase):
     """The audit (kit_agent.py:2247 and :4759): rejected narrations walked to degraded mode, then
     abandon and prepare again, each another model call. Nagatha's #127 review: the engine's
-    sentence commits after ONE failed narration (ENGINE_LINE_AFTER_REJECTIONS = 1)."""
+    sentence commits after ONE failed narration (ENGINE_LINE_AFTER_REJECTIONS = 1). Nagatha's
+    e3fc5a7 playtest: a style-only miss keeps one retry (STYLE_RETRIES = 1); secrecy and agency
+    failures still commit at once (tests/test_kit_engine_line_policy.py)."""
 
     def test_the_default_is_one_failed_narration(self):
         self.assertEqual(kit_agent.ENGINE_LINE_AFTER_REJECTIONS, 1)
 
-    def test_one_rejected_narration_commits_the_engine_sentence(self):
+    def test_a_style_miss_commits_the_engine_sentence_on_its_second_failure(self):
         self.staged(NIK_GREETING, 'once', reply_to='Whats going on here?')
+        with self.assertRaises(kit_agent.PerformanceRejected):
+            self.bridge.finish('once', NIK_REPLY)
         result = self.bridge.finish('once', NIK_REPLY)
         self.assertTrue(result['engine_line'])
-        self.assertEqual(result['revision'], 1, 'committed, no retry asked for')
+        self.assertEqual(result['revision'], 1, 'committed, no further retry asked for')
         record = self.runtime.recent_kit_turns()[-1]
         self.assertEqual(record['spoken'], f"Narrator: {record['public_event']}")
-        self.assertEqual(record['engine_line']['after_rejections'], 1)
+        self.assertEqual(record['engine_line']['after_rejections'], 2)
+        self.assertEqual(record['engine_line']['kinds'], ['style'])
         self.assertIn('Exchange scope', record['engine_line']['last_rejection'], 'the real validator fired')
-        self.assertEqual(self.runtime.kit_timing('once')['rejected_attempts'], 1)
+        self.assertEqual(self.runtime.kit_timing('once')['rejected_attempts'], 2)
 
     def test_a_hard_check_failure_also_falls_back_to_the_engine_sentence(self):
         self.staged('I take a seat.', 'hard')
@@ -427,6 +432,8 @@ class EngineLineAfterOneFailedNarration(BridgeCase):
 
     def test_a_resubmission_after_the_engine_line_returns_what_was_committed(self):
         self.staged(NIK_GREETING, 'lost', reply_to='Whats going on here?')
+        with self.assertRaises(kit_agent.PerformanceRejected):
+            self.bridge.finish('lost', NIK_REPLY)
         first = self.bridge.finish('lost', NIK_REPLY)
         again = self.bridge.finish('lost', {'segments': [{'speaker': 'Narrator',
                                                           'text': first['spoken'][len('Narrator: '):]}]})
