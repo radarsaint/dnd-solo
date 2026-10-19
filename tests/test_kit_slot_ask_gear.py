@@ -13,6 +13,7 @@
 General, never a special case: every fixture sheet in tests/fixtures/characters is checked, and
 the slot ask runs on a wizard, a cleric and a sorcerer."""
 import copy
+import itertools
 import json
 import unittest
 from pathlib import Path
@@ -128,7 +129,7 @@ class SlotAsk(unittest.TestCase):
         arena.act('Yes.', upcast='yes')
         self.assertEqual(used(arena)['2'], 0, 'nothing spent before the roll')
         self.assertEqual(arena.fight['pending'].get('slot_level'), 2)
-        arena.act('Guiding Bolt: To Hit: 1d20 (15) + 6 = 21. Damage: 5d6 (3, 3, 3, 3, 2) = 14 radiant')
+        arena.act('Guiding Bolt: To Hit: 1d20 (15) + 6 = 21\nDamage: 5d6 (3, 3, 3, 3, 2) = 14 radiant')
         self.assertEqual(used(arena), {'1': 4, '2': 1, '3': 0})
         self.assertEqual(arena.fight['hp']['imp'], 18 - 14)
 
@@ -149,7 +150,7 @@ class SlotAsk(unittest.TestCase):
     def test_a_free_slot_at_its_own_level_is_spent_without_asking(self):
         arena = Arena(self, 'kiln', sheet=sheet('ilsa_cleric', hp=60), roll=lambda: 2)
         arena.act('Initiative 25. I cast Guiding Bolt at the ember imp (!cast guiding bolt). '
-                  'To Hit: 1d20 (15) + 6 = 21. Damage: 4d6 (3, 3, 3, 3) = 12 radiant')
+                  'To Hit: 1d20 (15) + 6 = 21\nDamage: 4d6 (3, 3, 3, 3) = 12 radiant')
         self.assertIsNone(arena.fight.get('awaiting'))
         self.assertEqual(used(arena), {'1': 1, '2': 0, '3': 0})
 
@@ -314,7 +315,7 @@ class Enforcement(unittest.TestCase):
     def test_no_spellcasting_in_non_proficient_gear(self):
         for name, cast in (('nik', MM), ('mirel_sorcerer', MM),
                            ('mirel_sorcerer', 'Initiative 25. I cast Fire Bolt at the ember imp. '
-                                              'To Hit: 1d20 (15) + 7 = 22. Damage: 2d10 (5, 5) = 10 fire')):
+                                              'To Hit: 1d20 (15) + 7 = 22\nDamage: 2d10 (5, 5) = 10 fire')):
             with self.subTest(sheet=name, cast=cast[:40]):
                 arena = Arena(self, 'kiln', sheet=sheet(name, hp=60), roll=lambda: 2)
                 before = used(arena)
@@ -327,7 +328,7 @@ class Enforcement(unittest.TestCase):
     def test_proficient_gear_casts_freely(self):
         arena = Arena(self, 'kiln', sheet=sheet('ilsa_cleric', hp=60), roll=lambda: 2)
         arena.act('Initiative 25. I cast Guiding Bolt at the ember imp (!cast guiding bolt). '
-                  'To Hit: 1d20 (15) + 6 = 21. Damage: 4d6 (3, 3, 3, 3) = 12 radiant')
+                  'To Hit: 1d20 (15) + 6 = 21\nDamage: 4d6 (3, 3, 3, 3) = 12 radiant')
         self.assertEqual(arena.fight['hp']['imp'], 6)
 
     def test_no_shield_spell_window_while_casting_is_barred(self):
@@ -341,9 +342,10 @@ class Enforcement(unittest.TestCase):
 
     def test_a_weapon_attack_is_rolled_with_disadvantage(self):
         arena = Arena(self, 'kiln', sheet=sheet('nik', hp=60), roll=lambda: 2)
-        result = arena.held('Initiative 25. I stab the kobold slinger with my dagger, 15 to hit, 3 piercing.')
-        self.assertIn('disadvantage', str(result))
-        self.assertIn('Sentinel Shield', str(result))
+        result = arena.act('Initiative 25. I stab the kobold slinger with my dagger, 15 to hit, 3 piercing.')
+        self.assertIn('with disadvantage', result.public_event)
+        self.assertIn('Sentinel Shield', result.public_event)
+        self.assertEqual(arena.fight['hp']['archer'], 7, 'a straight roll is not taken')
         arena.act('Initiative 25. I stab the kobold slinger with my dagger. To Hit: 2d20kl1 (3, 12) + 5 = 8. 3 piercing')
         self.assertEqual(arena.fight['hp']['archer'], 7, 'the disadvantage roll stands: a miss')
 
@@ -357,7 +359,7 @@ class Enforcement(unittest.TestCase):
                                 ('brannoc_fighter', False)):
             with self.subTest(sheet=name):
                 arena = Arena(self, 'kiln', sheet=sheet(name))
-                dice = iter([15, 4])
+                dice = itertools.cycle([15, 4])
                 adjudicator = RoomAdjudicator(roll=lambda: next(dice), source=arena.runtime.source())
                 state = arena.state
                 result = adjudicator._check('athletics', 30, state, 1, 'physical:test', 'I heave at it.')
