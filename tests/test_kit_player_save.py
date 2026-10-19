@@ -22,7 +22,7 @@ import unittest.mock
 import zipfile
 from pathlib import Path
 
-from runtime import kit_agent, kit_save
+from runtime import kit_agent, kit_rooms, kit_save
 from runtime.state_context import Runtime
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -126,6 +126,10 @@ class SaveTests(unittest.TestCase):
         try:
             source, (_, state) = runtime.source(), runtime.load()
             public = set(strings(runtime.player_view())) | {source['id']}
+            # What the player learned anywhere in the room is theirs (P2 exports it).
+            public |= {source['facts'][k]['text'] for k in kit_rooms.known_fact_ids(source, state)
+                       if k in source['facts']}
+            public |= {source['areas'][a]['name'] for a in state.get('visited') or () if a in source['areas']}
             raw = runtime.db.execute('SELECT body FROM source').fetchone()[0]
         finally:
             runtime.close()
