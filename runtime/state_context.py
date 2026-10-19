@@ -151,6 +151,23 @@ def current_scene(state):
     return (state or {}).get('scene_id') or FIRST_SCENE
 
 
+# What marks a creature the PC cannot currently perceive. The room schema has two: "status":
+# "hidden" (left only by a trigger) and "visible": false. A flag or condition of these names
+# marks it the same (Nagatha's #127 review: a not-visible alive creature was not protected).
+UNPERCEIVED_FLAGS = ('hidden', 'invisible', 'concealed', 'unseen')
+GONE_STATUSES = ('dead', 'fled', 'destroyed')
+
+
+def unperceived(actor):
+    """True for a creature that is still there (not dead or fled) but that the PC cannot
+    currently perceive, whatever field marks it."""
+    if not isinstance(actor, dict) or actor.get('status') in GONE_STATUSES:
+        return False
+    conditions = {str(c).casefold() for c in actor.get('conditions') or ()}
+    return (actor.get('status') == 'hidden' or actor.get('visible') is False or
+            any(actor.get(flag) is True for flag in UNPERCEIVED_FLAGS) or bool(conditions & set(UNPERCEIVED_FLAGS)))
+
+
 def canon_in_scope(state):
     """Canon entries that apply here: this location's, present actors', campaign-wide, and this
     scene's own (a scene-scoped entry is valid only in the scene that made it, KRABS §8: a
@@ -1067,7 +1084,8 @@ class Runtime:
                                  if source['facts'][k]['area'] == state['area']],
             'exits': exits,
             'actors': [{'name': a['name'], 'status': a['status']} for a in state['actors'].values()
-                       if a['location'] == state['area'] and a['visible'] and a['status'] != 'fled'],
+                       if a['location'] == state['area'] and a['visible'] and a['status'] != 'fled'
+                       and not unperceived(a)],
             'resources': state['resources'], 'elapsed_seconds': state['elapsed_seconds'],
             **({'your_character': dict(state['player_character'])} if state.get('player_character') else {}),
         }
