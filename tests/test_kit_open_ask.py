@@ -727,6 +727,14 @@ class E486Reprobe(AskHelpers, unittest.TestCase):
         said = self.assertHeld('captain 3').public_event
         self.assertIn('names the bandit captain', said)
 
+    def test_a_name_of_no_foe_here_holds(self):
+        gricks = {'harl': 'Grick 2', 'cutthroat_a': 'Grick 1', 'cutthroat_b': 'Grick 3'}
+        self.assertHeld('bugbear takes 5', table=named_camp(self, gricks), hit=stab('Grick 1'))
+        bugs = {'harl': 'Bugbear 2', 'cutthroat_a': 'Twitchy bugbear', 'cutthroat_b': 'Bugbear 3'}
+        self.assertHeld('Bandit 3: 5', table=named_camp(self, bugs), hit=stab('Twitchy bugbear'))
+        bandits = {'harl': 'Bandit 3', 'cutthroat_a': 'Bandit', 'cutthroat_b': 'Bandit 12'}
+        self.assertLands('5 to the bandit', 5, table=named_camp(self, bandits), hit=stab('Bandit'))
+
     def test_an_ambiguous_name_says_so(self):
         names = {'harl': 'Hobgoblin', 'cutthroat_a': 'Goblin 2', 'cutthroat_b': 'Goblin 3'}
         said = self.assertHeld('6 to the goblin', table=named_camp(self, names), hit=stab('Hobgoblin'),
