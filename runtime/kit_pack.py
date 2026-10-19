@@ -288,3 +288,18 @@ def same_campaign(asked, campaign):
     from .kit_campaign import MAD_MAGE_KEYS
     a, b = str(asked).strip().casefold(), str(campaign).strip().casefold()
     return a == b or (a in MAD_MAGE_KEYS and b in MAD_MAGE_KEYS)
+
+
+def listing(folders=None):
+    """Every attached pack, for the lobby: name, the path to pass to --pack, first room, room ids.
+    Read from the manifests only; nothing is unzipped and no summary is shown."""
+    out = []
+    for kind, path, manifest in _distinct(candidates(search_dirs() if folders is None else folders)):
+        rooms = [e for e in manifest.get('rooms') or [] if isinstance(e, dict) and isinstance(e.get('path'), str)]
+        ids = [e.get('room_id') or PurePosixPath(e['path']).stem for e in rooms]
+        first = next((e.get('room_id') or PurePosixPath(e['path']).stem for e in rooms
+                      if e['path'] == manifest.get('first_room')), None)
+        out.append({'pack': str(manifest.get('pack') or path.stem), 'path': str(path), 'kind': kind,
+                    'campaign': str(manifest.get('campaign') or DEFAULT_CAMPAIGN),
+                    'first_room': first, 'rooms': ids})
+    return out

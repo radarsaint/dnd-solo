@@ -29,7 +29,8 @@ NOT_A_CAMPAIGN_LINE = (
 def campaign_entry(db, sheet_path=None, rooms_dir=None, campaign=None):
     """No room was named.
 
-    No campaign: a greeting. She does not open a game.
+    No campaign: the lobby. She greets, asks how the player wants to use her this session,
+    and lists what really exists to play with. She does not open a game.
     A named campaign: only that campaign, and only to say whether it can be played.
     A save that already holds a game is a resume, not a new start.
     """
@@ -39,7 +40,7 @@ def campaign_entry(db, sheet_path=None, rooms_dir=None, campaign=None):
     executable, blocked = inspect_rooms(rooms_dir or (PROJECT_ROOT / 'rooms'))
     blocked = _with_regression(blocked)
     if campaign is None:
-        return _greeting(sheet_path, executable, blocked)
+        return _lobby(db, sheet_path, executable, blocked)
     if _is_mad_mage(campaign):
         return _mad_mage(sheet_path, executable, blocked)
     return {
@@ -194,9 +195,107 @@ def _resume(saved, campaign):
     }
 
 
-def _greeting(sheet_path, executable, blocked):
+TEST_ROOMS = 'tests/fixtures/rooms'
+SHEET_SCHEMA = 'character_sheet_v1'
+
+
+def _rel(path):
+    try:
+        return Path(path).resolve().relative_to(PROJECT_ROOT.resolve()).as_posix()
+    except ValueError:
+        return str(path)
+
+
+def _sheet_entry(path):
+    try:
+        sheet = json.loads(Path(path).read_text(encoding='utf-8'))
+    except (OSError, ValueError, UnicodeDecodeError):
+        return None
+    if not isinstance(sheet, dict) or sheet.get('schema') != SHEET_SCHEMA or not sheet.get('name'):
+        return None
+    entry = {'path': _rel(path), 'name': sheet['name']}
+    for key in ('class', 'level', 'ancestry'):
+        if sheet.get(key) is not None:
+            entry[key] = sheet[key]
+    entry['example_only_if_asked'] = _rel(path) == EXAMPLE_SHEET
+    return entry
+
+
+def lobby_inventory(db=None, folders=None):
+    """What really exists for this session: attached rooms packs, saved games, character sheets,
+    and synthetic test rooms. Never a guess and never Area 6c."""
+    from . import kit_pack
+    folders = kit_pack.search_dirs() if folders is None else list(folders)
+    sheets, seen = [], set()
+    for folder in [PROJECT_ROOT / 'tests/fixtures/characters', *folders]:
+        for path in sorted(Path(folder).glob('*.json')) if Path(folder).is_dir() else ():
+            entry = _sheet_entry(path)
+            if entry and path.resolve() not in seen:
+                seen.add(path.resolve())
+                sheets.append(entry)
+    saves, seen = [], set()
+    own = Path(db).resolve() if db else None
+    for folder in folders:
+        for path in sorted(Path(folder).glob('*.sqlite')):
+            if path.resolve() in seen or path.resolve() == own:
+                continue
+            seen.add(path.resolve())
+            game = saved_game(path)
+            if game:
+                saves.append({'path': str(path), 'room_id': game['room_id'], 'character': game['character'],
+                              'revision': game['revision']})
+    tests = []
+    for path in sorted((PROJECT_ROOT / TEST_ROOMS).glob('*.json')):
+        try:
+            source = kit_rooms.load_room(path)
+        except kit_rooms.RoomMountError:
+            continue
+        tests.append({'path': _rel(path), 'room_id': source.get('id')})
+    return {'packs': kit_pack.listing(folders), 'saved_games': saves, 'character_sheets': sheets,
+            'test_rooms': tests}
+
+
+def lobby_line(available):
+    """Kit's lobby line. It names only what the inventory holds."""
+    packs, saves = available['packs'], available['saved_games']
+    sheets = [s['name'] for s in available['character_sheets'] if not s['example_only_if_asked']]
+    have = []
+    if packs:
+        rooms = sum(len(p['rooms']) for p in packs)
+        have.append(f"{'a rooms pack' if len(packs) == 1 else f'{len(packs)} rooms packs'} with "
+                    f"{rooms} room{'s' if rooms != 1 else ''}")
+    if saves:
+        have.append(f"{'a saved game' if len(saves) == 1 else f'{len(saves)} saved games'}")
+    if sheets:
+        have.append('character sheets for ' + ', '.join(sheets) if len(sheets) > 1
+                    else f'a character sheet for {sheets[0]}')
+    line = "I'm Kit. How do you want to use me this session? "
+    line += ("We can play, talk design or debrief a game, or do a test run. "
+             if not saves else "We can play, pick up a saved game, talk design or debrief a game, or do a test run. ")
+    if have:
+        line += 'Here I have ' + '; '.join(have) + '. '
+    else:
+        line += 'There are no rooms attached yet, so playing needs a rooms pack first. '
+    return line + "I won't pick the adventure for you."
+
+
+def _lobby(db, sheet_path, executable, blocked):
+    available = lobby_inventory(db)
+    pack_hint = ('--room <room id from available.packs[].rooms>' if len(available['packs']) == 1 else
+                 '--pack <available.packs[].path> --room <room id>') if available['packs'] else '--pack <path to a rooms pack>'
+    choices = [{'choice': 'play', 'needs': ['a room from an attached rooms pack', 'a character sheet'],
+                'command': f'start --db kit.sqlite {pack_hint} --sheet <available.character_sheets[].path>',
+                'ready': bool(available['packs'] or executable)}]
+    if available['saved_games']:
+        choices.append({'choice': 'resume', 'needs': ['a saved game'],
+                        'command': ('copy the save (available.saved_games[].path) to kit.sqlite, then start '
+                                    '--db kit.sqlite with no --room, --pack or --campaign')})
+    choices.append({'choice': 'talk', 'needs': [], 'command': None,
+                    'about': 'Design, a character or a scene, or a debrief of a game. No command, no room.'})
+    choices.append({'choice': 'test_run', 'needs': ['a synthetic test room', 'a character sheet'],
+                    'command': 'start --db kit.sqlite --regression --room <available.test_rooms[].path> --sheet <sheet>'})
     return {
-        'stage': 'greeting',
+        'stage': 'lobby',
         'committed': False,
         'opened_room': None,
         'character_loaded': False,
@@ -208,17 +307,19 @@ def _greeting(sheet_path, executable, blocked):
             'Work on a character or a scene. That is talk and prep, not a running session.',
             'Run a session only after the player names the game.',
         ],
+        'choices': choices,
+        'available': available,
         'executable_starts': executable,
         'do_not_start': blocked,
         'mad_mage': _mad_mage_facts(),
-        'table_line': GREETING,
+        'table_line': lobby_line(available),
         'next_step': (
-            'Say table_line in your own voice if they have not already said what they want. '
-            'Do not mention Dungeon of the Mad Mage unless they did. '
-            'Do not pass --room. Do not pass --regression. Do not open do_not_start. '
-            'If they want to play and have not named a game, ask which one. '
-            'If they asked for Mad Mage, run start --campaign dotmm and say that table_line. '
-            'Talk, debrief, and design do not use the bridge.'),
+            'Say table_line in your own voice if they have not already said what they want. List only what '
+            'is in available; never invent a room, a pack, a save, or a character. Do not offer a sheet marked '
+            'example_only_if_asked unless they ask for the example. '
+            'Do not mention Dungeon of the Mad Mage unless they did. Mount nothing until they choose: '
+            'play runs the play command with a room and a sheet they picked; resume continues their save; '
+            'talk needs no command; a test run uses only available.test_rooms. Never open do_not_start.'),
     }
 
 

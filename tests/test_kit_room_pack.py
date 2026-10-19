@@ -334,6 +334,14 @@ class SetupDocTests(unittest.TestCase):
         self.assertIn(NIK, step)
         self.assertTrue((ROOT / NIK).is_file())
 
+    def test_first_contact_goes_to_the_lobby(self):
+        self.assertIn('lobby', self.instructions)
+        self.assertIn('python3 -m runtime.kit_agent start --db kit.sqlite\n', self.instructions)
+        self.assertNotIn('Do not start tools or ask for a character sheet just because someone says hello',
+                         self.instructions)
+        for doc in ('AGENTS.md', 'START_HERE.md'):
+            self.assertIn('lobby', (ROOT / doc).read_text(encoding='utf-8'), doc)
+
     def test_start_here_lists_the_pack_doc_and_module(self):
         text = (ROOT / 'START_HERE.md').read_text(encoding='utf-8')
         self.assertIn('docs/architecture/ROOM_PACKS.md', text)

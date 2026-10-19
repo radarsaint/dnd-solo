@@ -5557,7 +5557,7 @@ def _pack_start(args):
     if not args.room and kit_campaign.saved_game(args.db) is not None:
         return None, None, kit_campaign.campaign_entry(args.db, args.sheet, campaign=args.campaign)
     pack = None
-    if args.pack or not named_file:
+    if args.pack or (args.room and not named_file) or args.campaign:
         pack = kit_pack.resolve(args.db, args.pack)
     if args.room:
         if pack is None:
@@ -5574,9 +5574,6 @@ def _pack_start(args):
     result = kit_campaign.campaign_entry(args.db, args.sheet, campaign=args.campaign)
     if pack is not None:
         result['pack'] = pack.summary()
-        if result.get('stage') == 'greeting':
-            result['next_step'] += (' A private rooms pack is attached (pack). Only if they ask for its campaign, '
-                                    f'run start --campaign {pack.campaign} --sheet <file>.')
     elif result.get('stage') == 'campaign_unavailable':
         result['pack'] = kit_pack.not_found()
         result['next_step'] += (' No private rooms pack is attached. If the host has one, attach it (a ZIP or '
