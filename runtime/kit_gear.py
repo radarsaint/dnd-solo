@@ -88,6 +88,94 @@ RULE_SHIELD = ('SRD: holding a shield you are not proficient with gives disadvan
                'Readying or stowing a shield takes your action.')
 RULE_ATTUNE = 'SRD: a creature can be attuned to no more than three magic items at a time.'
 RULE_ATTUNE_BY = 'SRD: an item that requires attunement by a {who} can only be attuned by one.'
+# -- proficiency sources (Brendon, 2026-10-19): a claimed proficiency needs a source ----------
+# A sheet's own armor/weapon/tool lists are claims. Each is checked against what its class,
+# species, background and feats grant (SRD 5.1 and the 2024 rules: a grant in either counts).
+# A claim nothing grants is UNVERIFIED and not trusted until Kit, asking in the fiction, rules
+# on the player's answer (state['homebrew_rulings']). Choice grants ("one artisan's tools") are
+# kept as a category: a claim in that category is sourced. An unknown build verifies nothing
+# and asks nothing (never guessed).
+SIMPLE_WEAPONS = ('club', 'dagger', 'greatclub', 'handaxe', 'javelin', 'light hammer', 'mace', 'quarterstaff',
+                  'sickle', 'spear', 'light crossbow', 'dart', 'shortbow', 'sling')
+MARTIAL_WEAPONS = ('battleaxe', 'flail', 'glaive', 'greataxe', 'greatsword', 'halberd', 'lance', 'longsword',
+                   'maul', 'morningstar', 'pike', 'rapier', 'scimitar', 'shortsword', 'trident', 'war pick',
+                   'warhammer', 'whip', 'blowgun', 'hand crossbow', 'heavy crossbow', 'longbow', 'net')
+ARTISAN_TOOLS = ("alchemist's supplies", "brewer's supplies", "calligrapher's supplies", "carpenter's tools",
+                 "cartographer's tools", "cobbler's tools", "cook's utensils", "glassblower's tools",
+                 "jeweler's tools", "leatherworker's tools", "mason's tools", "painter's supplies",
+                 "potter's tools", "smith's tools", "tinker's tools", "weaver's tools", "woodcarver's tools")
+INSTRUMENTS = ('bagpipes', 'drum', 'dulcimer', 'flute', 'horn', 'lute', 'lyre', 'pan flute', 'shawm', 'viol')
+GAMING_SETS = ('dice set', 'dice', 'dragonchess set', 'playing card set', 'playing cards', 'three-dragon ante set')
+# Grant = {'armor': categories, 'weapons': 'simple'|'martial'|weapon names, 'tools': tool names or
+# 'artisan'|'instrument'|'gaming'|'any' for a choice}.
+CLASS_GRANTS = {
+    'barbarian': {'weapons': {'simple', 'martial'}},
+    'bard': {'weapons': {'simple', 'hand crossbow', 'longsword', 'rapier', 'shortsword'}, 'tools': {'instrument'}},
+    'cleric': {'weapons': {'simple'}},
+    'druid': {'weapons': {'simple', 'club', 'dagger', 'dart', 'javelin', 'mace', 'quarterstaff', 'scimitar', 'sickle',
+                          'sling', 'spear'}, 'tools': {"herbalism kit"}},
+    'fighter': {'weapons': {'simple', 'martial'}},
+    'monk': {'weapons': {'simple', 'shortsword', 'martial-light'}, 'tools': {'artisan', 'instrument'}},
+    'paladin': {'weapons': {'simple', 'martial'}},
+    'ranger': {'weapons': {'simple', 'martial'}},
+    'rogue': {'weapons': {'simple', 'hand crossbow', 'longsword', 'rapier', 'shortsword', 'scimitar', 'whip'},
+              'tools': {"thieves' tools"}},
+    'sorcerer': {'weapons': {'simple', 'dagger', 'dart', 'sling', 'quarterstaff', 'light crossbow'}},
+    'warlock': {'weapons': {'simple'}},
+    'wizard': {'weapons': {'simple', 'dagger', 'dart', 'sling', 'quarterstaff', 'light crossbow'}},
+    'artificer': {'weapons': {'simple'}, 'tools': {"thieves' tools", "tinker's tools", 'artisan'}},
+}
+MULTICLASS_GRANTS = {
+    'barbarian': {'weapons': {'simple', 'martial'}}, 'bard': {'tools': {'instrument'}},
+    'fighter': {'weapons': {'simple', 'martial'}}, 'monk': {'weapons': {'simple', 'shortsword'}},
+    'paladin': {'weapons': {'simple', 'martial'}}, 'ranger': {'weapons': {'simple', 'martial'}},
+    'rogue': {'tools': {"thieves' tools"}}, 'warlock': {'weapons': {'simple'}},
+    'artificer': {'tools': {"thieves' tools", "tinker's tools"}},
+}
+SPECIES_GRANTS = {
+    'dwarf': {'weapons': {'battleaxe', 'handaxe', 'light hammer', 'warhammer'},
+              'tools': {"smith's tools", "brewer's supplies", "mason's tools"}},
+    'mountain dwarf': {'armor': {'light', 'medium'}},
+    'elf': {'weapons': {'longsword', 'shortsword', 'shortbow', 'longbow'}},
+    'drow': {'weapons': {'rapier', 'shortsword', 'hand crossbow'}},
+    'githyanki': {'armor': {'light', 'medium'}, 'weapons': {'shortsword', 'longsword', 'greatsword'}},
+    'hobgoblin': {'armor': {'light'}, 'weapons': {'martial'}},
+    'tortle': {'tools': {"herbalism kit"}},
+}
+BACKGROUND_GRANTS = {
+    'acolyte': {'tools': {"calligrapher's supplies"}}, 'artisan': {'tools': {'artisan'}},
+    'charlatan': {'tools': {'disguise kit', 'forgery kit'}}, 'criminal': {'tools': {"thieves' tools", 'gaming'}},
+    'entertainer': {'tools': {'disguise kit', 'instrument'}}, 'farmer': {'tools': {"carpenter's tools"}},
+    'folk hero': {'tools': {'artisan', 'vehicles (land)'}}, 'guard': {'tools': {'gaming'}},
+    'guide': {'tools': {"cartographer's tools"}}, 'guild artisan': {'tools': {'artisan'}},
+    'hermit': {'tools': {'herbalism kit'}}, 'merchant': {'tools': {"navigator's tools"}},
+    'noble': {'tools': {'gaming'}}, 'outlander': {'tools': {'instrument'}},
+    'sage': {'tools': {"calligrapher's supplies"}}, 'sailor': {'tools': {"navigator's tools", 'vehicles (water)'}},
+    'scribe': {'tools': {"calligrapher's supplies"}}, 'soldier': {'tools': {'gaming', 'vehicles (land)'}},
+    'urchin': {'tools': {'disguise kit', "thieves' tools"}}, 'wayfarer': {'tools': {"thieves' tools"}},
+}
+# Feats that grant training. War Caster, Magic Initiate and an Ability Score Improvement grant
+# none: War Caster lets you perform somatic components with weapons or a shield in hand, it is
+# not shield training.
+FEAT_GRANTS = {
+    'lightly armored': {'armor': {'light'}}, 'moderately armored': {'armor': {'medium', 'shield'}},
+    'heavily armored': {'armor': {'heavy'}}, 'shield master': {}, 'weapon master': {'weapons': {'any'}},
+    'martial weapon training': {'weapons': {'simple', 'martial'}}, 'martial adept': {'tools': {'artisan'}},
+    'skilled': {'tools': {'any'}}, 'crafter': {'tools': {'artisan'}}, 'musician': {'tools': {'instrument'}},
+    'tavern brawler': {'weapons': {'improvised'}},
+}
+KINDS = ('armor', 'weapons', 'tools')
+CLAIM_KEYS = {'armor': ('armor_proficiencies',), 'weapons': ('weapon_proficiencies',), 'tools': ('tool_proficiencies',)}
+CLAIM_WORDS = {'armor': {'light': 'light armor training', 'medium': 'medium armor training',
+                         'heavy': 'heavy armor training', 'shield': 'shield training'}}
+RULE_SOURCE = ('Rules as written: a proficiency comes from your class, species, background or a feat. Nothing on '
+               'this sheet grants {claim}, so without a source you have no proficiency: {without}')
+WITHOUT = {'armor': RULE_ARMOR[len('SRD: '):], 'shield': RULE_SHIELD[len('SRD: '):],
+           'weapons': 'you do not add your proficiency bonus to attack rolls with it.',
+           'tools': 'you do not add your proficiency bonus to ability checks made with it.'}
+WAR_CASTER_NOTE = ' War Caster covers somatic components with a shield in hand; it grants no proficiency.'
+RULINGS = ('granted', 'granted_with_cost', 'declined')
+
 CLARIFY_RULE = (
     'Equipment clarification (gear_clarify): the engine found gear on the sheet that does not fit the rules. '
     'Raise it once, now, in your own voice, as an in-fiction clarifying question at a natural point in this '
@@ -114,36 +202,17 @@ def classes(sheet):
     return found
 
 
-def proficiencies(sheet):
-    """The armor categories (light, medium, heavy, shield) the sheet is trained in, or None when
-    the sheet gives no way to tell (an unknown class and no explicit list): never guessed."""
-    sheet = sheet or {}
-    explicit = sheet.get('armor_proficiencies')
-    if explicit is None and isinstance(sheet.get('proficiencies'), dict):
-        explicit = sheet['proficiencies'].get('armor')
-    out = set()
-    if explicit is not None:
-        for word in explicit if isinstance(explicit, (list, tuple)) else [explicit]:
-            word = str(word).casefold()
-            if 'all' in word:
-                out |= {'light', 'medium', 'heavy'}
-            out |= {cat for cat in CATEGORIES if cat in word}
-        return out
-    found = classes(sheet)
-    if not found:
+def proficiencies(sheet, rulings=None):
+    """The armor categories (light, medium, heavy, shield) the sheet is trained in: what its class,
+    species, background and feats grant, plus a claim a homebrew ruling granted. A claim the sheet
+    lists with no source is not trusted. None when the build is unknown: never guessed."""
+    granted = sources(sheet)
+    if granted is None:
         return None
-    out |= CLASS_ARMOR[found[0]]
-    for extra in found[1:]:
-        out |= MULTICLASS_ARMOR[extra]
-    texts = [str(f.get('name') if isinstance(f, dict) else f).casefold()
-             for f in list(sheet.get('features') or ()) + list(sheet.get('feats') or ())]
-    for feat, cats in FEAT_ARMOR.items():
-        if any(feat in text for text in texts):
-            out |= cats
-    ancestry = str(sheet.get('ancestry') or '').casefold()
-    for name, cats in ANCESTRY_ARMOR.items():
-        if name in ancestry:
-            out |= cats
+    out = {cat for cat in granted['armor'] if cat in CATEGORIES}
+    for c in verify(sheet, rulings) or ():
+        if c['kind'] == 'armor' and c['ruling'] and c['ruling']['verdict'] in RULINGS[:2]:
+            out.add(c['claim'])
     return out
 
 
@@ -184,16 +253,174 @@ def items(sheet):
     return out
 
 
+def _texts(sheet, *keys):
+    out = []
+    for key in keys:
+        value = (sheet or {}).get(key)
+        for entry in value if isinstance(value, list) else [value] if value else ():
+            out.append(_norm(entry.get('name') if isinstance(entry, dict) else entry))
+    return out
+
+
+def _armor_words(word):
+    word = _norm(word)
+    if 'all armor' in word:
+        return {'light', 'medium', 'heavy'}
+    return {cat for cat in CATEGORIES if re.search(r'\b' + cat + r's?\b', word)}
+
+
+def _weapon_word(word):
+    word = re.sub(r'\bweapons?\b', '', _norm(word)).strip()
+    return re.sub(r'(?<=[a-rt-z])s$', '', word)
+
+
+def _tool_category(tool):
+    if tool in ARTISAN_TOOLS or re.search(r"(supplies|tools|utensils)$", tool) and tool not in (
+            "thieves' tools", "navigator's tools"):
+        return 'artisan'
+    if any(tool.startswith(i) or tool == i + 's' for i in INSTRUMENTS):
+        return 'instrument'
+    if any(g in tool for g in ('dice', 'card', 'dragonchess', 'three-dragon')):
+        return 'gaming'
+    return None
+
+
+def sources(sheet):
+    """{kind: {granted: [source label]}} from class, species, background and feats; None when the
+    build is unknown (no known class)."""
+    found = classes(sheet)
+    if not found:
+        return None
+    out = {kind: {} for kind in KINDS}
+
+    def grant(label, table):
+        for kind in KINDS:
+            for what in table.get(kind, ()):
+                out[kind].setdefault(what, []).append(label)
+
+    grant(f'{found[0].title()} class', dict(CLASS_GRANTS.get(found[0], {}), armor=CLASS_ARMOR[found[0]]))
+    for extra in found[1:]:
+        grant(f'{extra.title()} multiclass', dict(MULTICLASS_GRANTS.get(extra, {}), armor=MULTICLASS_ARMOR[extra]))
+    ancestry = _norm((sheet or {}).get('ancestry') or (sheet or {}).get('species') or (sheet or {}).get('race'))
+    for name, table in SPECIES_GRANTS.items():
+        if re.search(r'\b' + re.escape(name) + r'\b', ancestry) and not (name == 'elf' and 'half-elf' in ancestry):
+            grant(f'{name.title()} species', table)
+    background = _norm((sheet or {}).get('background'))
+    for name, table in BACKGROUND_GRANTS.items():
+        if re.fullmatch(re.escape(name) + r'( background)?', background):
+            grant(f'{name.title()} background', table)
+    for text in _texts(sheet, 'features', 'feats'):
+        for name, table in FEAT_GRANTS.items():
+            if text.startswith(name):
+                grant(f'{name.title()} feat', table)
+    return out
+
+
+def claims(sheet):
+    """{kind: [claim]} the sheet lists itself: armor categories, weapons ('simple', 'martial' or a
+    weapon), tools."""
+    sheet = sheet or {}
+    nested = sheet.get('proficiencies') if isinstance(sheet.get('proficiencies'), dict) else {}
+    out = {}
+    for kind in KINDS:
+        raw = []
+        for key in CLAIM_KEYS[kind]:
+            value = sheet.get(key)
+            raw += value if isinstance(value, list) else [value] if value else []
+        value = nested.get(kind) or nested.get(kind.rstrip('s'))
+        raw += value if isinstance(value, list) else [value] if value else []
+        words = []
+        for word in raw:
+            if kind == 'armor':
+                words += sorted(_armor_words(word))
+            elif kind == 'weapons':
+                words.append(_weapon_word(word))
+            else:
+                words.append(_norm(word))
+        out[kind] = list(dict.fromkeys(w for w in words if w))
+    return out
+
+
+def _sourced(kind, claim, granted):
+    if claim in granted:
+        return granted[claim]
+    if kind == 'weapons':
+        if 'any' in granted:
+            return granted['any']
+        if claim in SIMPLE_WEAPONS and 'simple' in granted:
+            return granted['simple']
+        if claim in MARTIAL_WEAPONS and 'martial' in granted:
+            return granted['martial']
+    if kind == 'tools':
+        category = _tool_category(claim)
+        if category and category in granted:
+            return granted[category]
+        if 'any' in granted:
+            return granted['any']
+    return None
+
+
+def ruling_for(rulings, claim_id):
+    """The latest homebrew ruling on this claim, or None."""
+    return next((r for r in reversed(list(rulings or ())) if r.get('claim_id') == claim_id), None)
+
+
+def claim_id(kind, claim):
+    return f'proficiency:{kind}:{ident(claim)}'
+
+
+def verify(sheet, rulings=None):
+    """[{kind, claim, id, sources, ruling}] for every claim on the sheet; sources [] = unverified.
+    None when the build is unknown."""
+    granted = sources(sheet)
+    if granted is None:
+        return None
+    out = []
+    for kind, listed in claims(sheet).items():
+        for claim in listed:
+            cid = claim_id(kind, claim)
+            out.append({'kind': kind, 'claim': claim, 'id': cid, 'sources': _sourced(kind, claim, granted[kind]) or [],
+                        'ruling': ruling_for(rulings, cid)})
+    return out
+
+
+def unverified(sheet, rulings=None):
+    """Claims with no source and no ruling granting them."""
+    return [c for c in verify(sheet, rulings) or () if not c['sources']
+            and not (c['ruling'] and c['ruling']['verdict'] in RULINGS[:2])]
+
+
+def claim_label(kind, claim):
+    return CLAIM_WORDS.get(kind, {}).get(claim) or (
+        f'{claim} weapon training' if claim in ('simple', 'martial') else f'training with {claim}' if kind == 'weapons'
+        else f'proficiency with {claim}')
+
+
+def _claim_issue(sheet, c):
+    label = claim_label(c['kind'], c['claim'])
+    without = WITHOUT['shield'] if c['claim'] == 'shield' else WITHOUT[c['kind']]
+    war_caster = c['claim'] == 'shield' and any(t.startswith('war caster') for t in _texts(sheet, 'features', 'feats'))
+    return {'id': c['id'], 'item': None, 'name': label, 'issue': 'unverified_proficiency', 'kind': c['kind'],
+            'claim': c['claim'],
+            'rule': RULE_SOURCE.format(claim=label, without=without) + (WAR_CASTER_NOTE if war_caster else ''),
+            'ask': f"Your sheet says {label}. Where's that from?"}
+
+
 def _proficient(item, trained):
     return trained is None or item['proficient_anyway'] or item['type'] in trained
 
 
-def audit(sheet):
-    """The sheet's mismatches, for any build: [{id, item, issue, rule, ask}] (empty: nothing to ask)."""
-    trained = proficiencies(sheet)
-    found = []
+def audit(sheet, rulings=None):
+    """The sheet's mismatches, for any build: [{id, item, issue, rule, ask}] (empty: nothing to ask).
+    A claimed proficiency with no source is asked about first (where is that from?); the gear
+    question for that category waits on it, and a ruling (any verdict) is never asked again."""
+    trained = proficiencies(sheet, rulings)
+    found = [_claim_issue(sheet, c) for c in verify(sheet, rulings) or ()
+             if not c['sources'] and not c['ruling']]
+    claimed = {c['claim'] for c in verify(sheet, rulings) or () if c['kind'] == 'armor' and not c['sources']
+               and not c['ruling']}
     for item in items(sheet):
-        if item['type'] and item['equipped'] and not _proficient(item, trained):
+        if item['type'] and item['equipped'] and not _proficient(item, trained) and item['type'] not in claimed:
             shield = item['type'] == 'shield'
             found.append({'id': f"{'shield' if shield else 'armor'}_proficiency:{item['id']}", 'item': item['id'],
                           'name': item['name'], 'issue': 'shield_proficiency' if shield else 'armor_proficiency',
@@ -247,7 +474,7 @@ def run_audit(state, why):
         return state
     body = gear(state)
     known = {entry['id'] for entry in body['clarify']}
-    for issue in audit(_with_use(sheet, body)):
+    for issue in audit(_with_use(sheet, body), state.get('homebrew_rulings')):
         if issue['id'] not in known:
             body['clarify'].append({**issue, 'status': 'pending', 'found': why})
     body['clarify'] = body['clarify'][-12:]
@@ -298,7 +525,7 @@ def penalties(state, fight=None):
     """{'gear': [names], 'no_casting': bool, 'str_dex_disadvantage': bool}: non-proficient armor or
     shield in use now (SRD), for any sheet."""
     sheet = (state or {}).get('player_sheet') or {}
-    trained = proficiencies(sheet)
+    trained = proficiencies(sheet, (state or {}).get('homebrew_rulings'))
     names = [item['name'] for item in items(sheet)
              if item['type'] and in_use(state, item, fight) and not _proficient(item, trained)]
     return {'gear': names, 'no_casting': bool(names), 'str_dex_disadvantage': bool(names)}
@@ -455,3 +682,61 @@ def check_spoken_clarify(entry, segments):
     require(named and '?' in text,
             f"gear_clarify is due this turn: ask about the {name} in your own voice, as an in-fiction "
             f"question that names it and states the rule ({entry['rule']}). For example: {entry['ask']}")
+
+
+# -- homebrew rulings: Kit's call on where a claimed proficiency came from ----------------------
+# state['homebrew_rulings'] is a campaign-level record (generic, for the campaign record to pick
+# up as homebrew): it travels with the character across rooms and sessions, so a claim ruled on
+# once is never asked about again.
+RULING_LIMIT = 50
+# Sheet fields a player edits by hand between sessions: accepted as they are and only noted.
+NOTED_FIELDS = ('gold_gp', 'gp', 'gold', 'hp', 'max_hp', 'temp_hp', 'xp', 'experience', 'ammo', 'ammunition',
+                'arrows', 'bolts')
+
+
+def ruling_offer(state):
+    """The ``ruling`` act offer while a raised source question waits on the player's answer."""
+    open_ = [e for e in raised(state) if e.get('issue') == 'unverified_proficiency']
+    if not open_:
+        return None
+    return {'ids': [e['id'] for e in open_], 'names': [e['name'] for e in open_],
+            'rules': {e['id']: e['rule'] for e in open_}}
+
+
+def ruling_event(state, decl, turn=None, evidence=''):
+    """The homebrew_ruling event for Kit's call on a raised source question."""
+    entry = next(e for e in gear(state)['clarify'] if e['id'] == decl['id'])
+    ruling = {'claim_id': entry['id'], 'kind': 'proficiency', 'subject': entry.get('kind'),
+              'claim': entry.get('claim'), 'label': entry['name'], 'verdict': decl['verdict'],
+              'source': decl.get('source') or None, 'cost': decl.get('cost') or None,
+              'rule': entry['rule'], 'ruled_by': 'kit', 'turn': str(turn or ''),
+              'scene': str(state.get('scene_id') or ''), 'room': str((state.get('room') or {}).get('id') or '')}
+    return {'type': 'homebrew_ruling', 'ruling': ruling, 'evidence': str(evidence)[:300]}
+
+
+def apply_ruling(state, event):
+    """state after a homebrew_ruling: the ruling on record, its question answered, the audit re-run."""
+    ruling = dict(event.get('ruling') or {})
+    require(ruling.get('verdict') in RULINGS and ruling.get('claim_id'), 'homebrew_ruling needs claim_id and verdict')
+    require(ruling['verdict'] == 'declined' or str(ruling.get('source') or '').strip(),
+            'A granted ruling names the source the player gave')
+    require(ruling['verdict'] != 'granted_with_cost' or str(ruling.get('cost') or '').strip(),
+            'granted_with_cost names the cost or condition')
+    rulings = list(state.get('homebrew_rulings') or [])
+    require(not ruling_for(rulings, ruling['claim_id']), 'That claim is already ruled on')
+    ruling['id'] = f"hb-{len(rulings) + 1}"
+    state['homebrew_rulings'] = (rulings + [ruling])[-RULING_LIMIT:]
+    body = gear(state)
+    for entry in body['clarify']:
+        if entry['id'] == ruling['claim_id']:
+            entry.update(status='answered', answer=ruling['verdict'])
+    state['gear'] = body
+    return run_audit(state, 'homebrew ruling')  # declined: the gear question for it comes due
+
+
+def sheet_notes(old, new):
+    """Hand edits between two loads of the same character (gold, HP, XP, ammo): accepted, noted."""
+    if not old or not new or old.get('name') != new.get('name'):
+        return []
+    return [{'field': key, 'from': old.get(key), 'to': new.get(key)} for key in NOTED_FIELDS
+            if (key in old or key in new) and old.get(key) != new.get(key)]

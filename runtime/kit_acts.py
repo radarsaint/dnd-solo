@@ -94,6 +94,8 @@ def declared(plan, field):
         return None
     if field == 'gear' and isinstance(value, dict) and str(value.get('state')).casefold() == NONE:
         return None
+    if field == 'ruling' and isinstance(value, dict) and str(value.get('verdict')).casefold() == NONE:
+        return None
     if field == 'handles' and _is_none(value):
         return None
     if isinstance(value, dict) and set(value) == {'target', 'act'} and \
@@ -234,6 +236,40 @@ def check_gear(value, offer):
 SCHEMAS['gear'] = GEAR_SCHEMA
 RULES['gear'] = GEAR_RULE
 
+# -- ruling: Kit's call on where a claimed proficiency came from (runtime/kit_gear.py) ------------
+RULING_VERDICTS = ('granted', 'granted_with_cost', 'declined', 'none')
+RULING_SCHEMA = {'type': 'object', 'additionalProperties': False,
+                 'properties': {'id': {'type': 'string'}, 'verdict': {'type': 'string', 'enum': list(RULING_VERDICTS)},
+                                'source': {'type': ['string', 'null']}, 'cost': {'type': ['string', 'null']}},
+                 'required': ['id', 'verdict']}
+RULING_RULE = ('ruling {id, verdict, source, cost}: only when the player answers your question about where a '
+               'proficiency came from (acts.ruling). You are the DM: a backstory, a trainer or a trade-off he '
+               'pitches can earn it. granted (source: what he said it came from), granted_with_cost (source, and '
+               'cost: the cost or condition you set), or declined (no legitimate source: say the rule as written, '
+               'acts.ruling.rules). Not answered this turn: {"id": "none", "verdict": "none"}. Never rule before he '
+               'answers.')
+
+
+def check_ruling(value, offer):
+    """{id, verdict, source?, cost?} for Kit's call on a raised source question."""
+    require(offer, 'No proficiency question is open: omit ruling.')
+    require(isinstance(value, dict) and value.get('verdict') in RULING_VERDICTS[:3] and
+            set(value) <= {'id', 'verdict', 'source', 'cost'},
+            'ruling is {id, verdict: granted|granted_with_cost|declined, source, cost}, or {"id": "none", "verdict": "none"}')
+    require(value['id'] in (offer.get('ids') or ()), f"ruling.id is one of {', '.join(offer.get('ids') or ())}")
+    source, cost = str(value.get('source') or '').strip(), str(value.get('cost') or '').strip()
+    if value['verdict'] != 'declined':
+        require(len(source.split()) >= 2, 'A granted ruling says where it came from (ruling.source, his answer)')
+    if value['verdict'] == 'granted_with_cost':
+        require(cost, 'granted_with_cost names the cost or condition (ruling.cost)')
+    return {'id': value['id'], 'verdict': value['verdict'],
+            **({'source': source[:200]} if source and value['verdict'] != 'declined' else {}),
+            **({'cost': cost[:200]} if cost and value['verdict'] == 'granted_with_cost' else {})}
+
+
+SCHEMAS['ruling'] = RULING_SCHEMA
+RULES['ruling'] = RULING_RULE
+
 
 def check_flourish(value, offer):
     require(offer, 'No flourish window is open: omit flourish.')
@@ -252,9 +288,9 @@ def check_downed(value, offer):
 
 
 FIELDS = {'handles': check_handles, 'react': check_react, 'flourish': check_flourish,
-          'downed': check_downed, 'upcast': check_upcast, 'gear': check_gear}
+          'downed': check_downed, 'upcast': check_upcast, 'gear': check_gear, 'ruling': check_ruling}
 # Offered, but Kit may leave it out (the player's reply may not answer it this turn).
-OPTIONAL_FIELDS = ('gear',)
+OPTIONAL_FIELDS = ('gear', 'ruling')
 
 
 def check(plan, body):
@@ -291,6 +327,9 @@ def model_view(offers):
             view['handles'] = {'targets': offer['targets'], **({'hint': offer['hint']} if offer.get('hint') else {})}
         elif field == 'downed' and offer:
             view['downed'] = {'foes': list(offer.get('names') or offer.get('foes') or ())}
+        elif field == 'ruling' and offer:
+            view['ruling'] = {'ids': list(offer.get('ids') or ()), 'names': list(offer.get('names') or ()),
+                              'rules': dict(offer.get('rules') or {}), 'rule': RULING_RULE}
         elif field == 'gear' and offer:
             view['gear'] = {'items': list(offer.get('items') or ()), 'names': list(offer.get('names') or ()),
                             'rule': GEAR_RULE}

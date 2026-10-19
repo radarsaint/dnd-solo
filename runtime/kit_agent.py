@@ -858,7 +858,7 @@ class RoomAdjudicator:
             if not acts.get(field):
                 continue
             step = {'handles': self.declared_handling, 'downed': self.declared_downed,
-                    'gear': self.declared_gear}[field](acts[field], action, revision, state)
+                    'gear': self.declared_gear, 'ruling': self.declared_ruling}[field](acts[field], action, revision, state)
             if result is None:
                 result = step
             else:
@@ -889,6 +889,14 @@ class RoomAdjudicator:
         event = kit_gear.change_event(state, item['id'], decl['in_use'],
                                       f'Player declared: {action[:200]}. Kit read his answer: he {how}.',
                                       answer=entry['id'] if entry else None)
+        return Resolution('physical_act', '', [event])
+
+    def declared_ruling(self, decl, action, revision, state):
+        # Kit's call on where a claimed proficiency came from (kit_acts.ruling), recorded as a homebrew
+        # ruling (state['homebrew_rulings']). Granted, the engine trusts it; declined, the rules as
+        # written apply (no proficiency: kit_gear.penalties).
+        event = kit_gear.ruling_event(state, decl, evidence=f'Player answered: {action[:200]}. Kit ruled: '
+                                                             f"{decl['verdict'].replace('_', ' ')}.")
         return Resolution('physical_act', '', [event])
 
     def declared_downed(self, decl, action, revision, state):
@@ -3858,6 +3866,9 @@ def prepare_inputs(runtime, revision, state, action, resolution, use_memory, one
     gear_offer = None if table_talk else kit_gear.answer_offer(post_event_state)
     if gear_offer:
         offers['gear'] = gear_offer  # the answer to the equipment question Kit raised
+    ruling_offer = None if table_talk else kit_gear.ruling_offer(post_event_state)
+    if ruling_offer:
+        offers['ruling'] = ruling_offer  # her call on the source the player gives for a proficiency
     due_gear = kit_gear.pending(post_event_state)
     if due_gear and not table_talk and resolution.kind not in (FLOURISH_KIND, INTERSTITIAL_KIND, 'opening') and \
             not (post_event_state.get('combat') or {}).get('awaiting'):
@@ -4449,7 +4460,7 @@ def declare(runtime, adjudicator, body, plan):
     result = adjudicator.declared_acts(acts, body['action'], revision, after)
     final = runtime.preview_state(revision, list(body['events']) + list(result.events))
     shown = {field: ({k: v for k, v in value.items() if v} if field == 'handles' else
-                     dict(value) if field == 'gear' else {'act': value['act']})
+                     dict(value) if field in ('gear', 'ruling') else {'act': value['act']})
              for field, value in acts.items()}
     return {**body, 'hidden_actors': hidden_actor_words(runtime.source(), final, body),
             'declared': {'acts': shown, 'events': list(result.events), 'public': result.public_event,
