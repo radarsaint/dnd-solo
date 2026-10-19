@@ -30,7 +30,7 @@ class StartSessionTests(unittest.TestCase):
 
     def test_start_without_a_room_does_not_open_the_fixture(self):
         result = kit_agent.start_session(self.db)
-        self.assertEqual(result['stage'], 'greeting')
+        self.assertEqual(result['stage'], 'lobby')
         self.assertFalse(Path(self.db).exists())
 
     def test_start_with_an_explicit_room_loads_the_example_sheet_and_stages_the_opening(self):
@@ -70,7 +70,7 @@ class StartSessionTests(unittest.TestCase):
                 contextlib.redirect_stdout(out):
             self.assertEqual(kit_agent.main(), 0)
         printed = json.loads(out.getvalue())
-        self.assertEqual(printed['stage'], 'greeting')
+        self.assertEqual(printed['stage'], 'lobby')
         self.assertNotIn('prepared', printed)
 
 

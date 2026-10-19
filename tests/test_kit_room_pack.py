@@ -206,9 +206,9 @@ class RoomPackTests(unittest.TestCase):
         build_pack(self.dir)
         code, out = _cli(['start', '--db', self.db], cwd=self.dir)
         self.assertEqual(code, 0, out)
-        self.assertEqual(out['stage'], 'greeting')
-        self.assertEqual(out['pack']['first_room'], 'synthetic-pack-watchroom')
-        self.assertNotIn('summary', json.dumps(out['pack']))
+        self.assertEqual(out['stage'], 'lobby')
+        self.assertEqual(out['available']['packs'][0]['first_room'], 'synthetic-pack-watchroom')
+        self.assertNotIn('summary', json.dumps(out['available']))
         self.assertFalse(Path(self.db).exists())
 
     def test_room_link_to_a_sibling_in_the_pack_resolves(self):
@@ -280,8 +280,24 @@ class CleanHostTests(unittest.TestCase):
                 self.assertEqual(out['stage'], 'started', out)
                 self.assertEqual(out['room_id'], 'synthetic-pack-watchroom')
                 self.assertTrue(out['prepared']['turn_id'])
-            # And a pack dropped in the working dir is found with no flag at all.
+            # And a pack dropped in the working dir is found with no flag at all: bare start is the
+            # lobby, which lists the pack's rooms; picking one mounts it.
             zip_pack(build_pack(tmp / 'src2'), runtime_root / 'kit-rooms-cwd.zip')
+            proc = subprocess.run(
+                ['env', '-i', python, '-m', 'runtime.kit_agent', 'start', '--db', str(tmp / 'lobby.sqlite')],
+                cwd=runtime_root, capture_output=True, text=True, check=False)
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            lobby = json.loads(proc.stdout)
+            self.assertEqual(lobby['stage'], 'lobby')
+            self.assertFalse((tmp / 'lobby.sqlite').exists())
+            self.assertEqual(lobby['available']['packs'][0]['rooms'], ['synthetic-pack-watchroom', 'synthetic-pack-kiln'])
+            self.assertIn(NIK, [s['path'] for s in lobby['available']['character_sheets']])
+            proc = subprocess.run(
+                ['env', '-i', python, '-m', 'runtime.kit_agent', 'start', '--db', str(tmp / 'lobby.sqlite'),
+                 '--room', lobby['available']['packs'][0]['rooms'][1], '--sheet', NIK],
+                cwd=runtime_root, capture_output=True, text=True, check=False)
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            self.assertEqual(json.loads(proc.stdout)['room_id'], 'synthetic-pack-kiln')
             proc = subprocess.run(
                 ['env', '-i', python, '-m', 'runtime.kit_agent', 'start', '--db', str(tmp / 'cwd.sqlite'),
                  '--campaign', 'dotmm', '--sheet', NIK],
