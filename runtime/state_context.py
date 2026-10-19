@@ -214,9 +214,12 @@ def upgrade_state(state):
     return state
 
 
-def check_player_note_text(text):
-    require(isinstance(text, str) and 0 < len(text.strip()) <= PLAYER_NOTE_MAX_CHARS,
-            f'A player note must be 1–{PLAYER_NOTE_MAX_CHARS} characters')
+def check_player_note_text(text, field='note'):
+    size = len(text.strip()) if isinstance(text, str) else None
+    require(isinstance(text, str) and 0 < size <= PLAYER_NOTE_MAX_CHARS,
+            f'A player note must be 1–{PLAYER_NOTE_MAX_CHARS} characters: {field} has '
+            f'{"no text" if size is None else size}. Write one observed pattern in a sentence. Example: '
+            '"note": "Tests NPCs with direct questions before trusting them."')
     require(re.search(_SCORE_PATTERN, text.casefold()) is None,
             'A player note records observed behavior or feedback, not a score or meter')
 

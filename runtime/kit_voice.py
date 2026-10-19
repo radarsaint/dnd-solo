@@ -46,6 +46,7 @@ MIRROR_MAX_CHARS = 200
 NPC_NOTICE_MAX_CHARS = 160
 # mirror: "<energy> energy, <length>, <humor> humor: <how Kit answers>"
 MIRROR_FORMAT = '<low|steady|high> energy, <tight|standard|roomy>, <no|dry|playful> humor: <how>'
+MIRROR_EXAMPLE = 'steady energy, standard, dry humor: meet the even pace and let the answer land.'
 MIRROR_PATTERN = re.compile(
     r'^\s*(?P<energy>low|steady|high) energy\s*,\s*(?P<length>tight|standard|roomy)\s*,\s*'
     r'(?P<humor>no|dry|playful) humor\s*[:;,.\u2014\u2013-]+\s*(?P<how>.*)$', re.I | re.S)
@@ -173,8 +174,11 @@ def check_mirror(mirror, mood_read, turn_mode):
     require(len(mirror.strip()) <= MIRROR_MAX_CHARS, f'mirror exceeds {MIRROR_MAX_CHARS} characters')
     require(not re.search(r'["\u201c\u201d]', mirror), 'mirror is direction, not quoted dialogue')
     parsed = parse_mirror(mirror)
-    require(parsed is not None, f'mirror must read "{MIRROR_FORMAT}"')
-    require(len(parsed['how'].split()) >= 3, 'mirror must say how Kit answers the mood in a few words')
+    require(parsed is not None, f'mirror must read "{MIRROR_FORMAT}": public_brief.mirror is {mirror!r}. '
+            f'Example: "mirror": "{MIRROR_EXAMPLE}"')
+    require(len(parsed['how'].split()) >= 3,
+            'mirror must say how Kit answers the mood in a few words: public_brief.mirror needs three or '
+            f'more words after the colon, in the form "{MIRROR_FORMAT}". Example: "mirror": "{MIRROR_EXAMPLE}"')
     if mood_read in MOMENTUM_MOODS:
         require(parsed['length'] == 'tight',
                 f'A {mood_read} player gets momentum, not more words: mirror length must be tight')

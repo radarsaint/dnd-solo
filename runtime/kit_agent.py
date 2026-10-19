@@ -9,6 +9,7 @@ may also commit checked model proposals (canon, claims, agenda, and related stat
 model does not write storage except through those checked commits.
 """
 import argparse
+import contextlib
 import copy
 import dataclasses
 import hashlib
@@ -2796,124 +2797,228 @@ def supported_procedures(source):
     return kit_cards.offered(source)
 
 
+class DecisionProblems:
+    """Collects every problem in one decision so the host fixes them in one correction (a fresh
+    host's opening took seven attempts when each rejection named one). Each ``part`` is one
+    independent check; a check that cannot run because an earlier problem left its field missing
+    or malformed is skipped, since that problem is already named."""
+
+    def __init__(self):
+        self.messages = []
+
+    @contextlib.contextmanager
+    def part(self):
+        try:
+            yield
+        except StaleTurn:
+            raise
+        except InvalidChange as exc:
+            if str(exc) not in self.messages:
+                self.messages.append(str(exc))
+        except (KeyError, TypeError, AttributeError, IndexError):
+            if not self.messages:
+                raise
+
+    def raise_any(self):
+        if len(self.messages) == 1:
+            raise InvalidChange(self.messages[0])
+        if self.messages:
+            raise InvalidChange(
+                f'{len(self.messages)} problems in this decision; fix them all in one correction: ' +
+                ' '.join(f'({n}) {message}' for n, message in enumerate(self.messages, 1)))
+
+
+def _example_value(key):
+    """One valid value for a decision key, for the incomplete-decision message."""
+    examples = {
+        'goal': 'roleplay', 'memory_refs': [], 'move': 'world_description', 'focus_actor': 'none',
+        'table_presence': 'quiet', 'player_mood': {'read': 'neutral', 'cue': 'none'},
+        'player_note': {'note': 'none', 'evidence_turns': [], 'replaces': 'none'},
+        'appraisal': {'label': 'interest', 'intensity': 1, 'cause': 'what in this turn moved Kit',
+                      'goal_effect': 'advances', 'target': 'player'},
+        'improv_read': {'player_bid': '...', 'story_anchor': 'scene', 'story_basis': 'scene_state',
+                        'actor_ref': 'none', 'actor_basis': 'none', 'connection': '...', 'kit_choice': '...'},
+    }
+    if key in examples:
+        return json.dumps(examples[key], ensure_ascii=False)
+    enum = ((PLAN_SCHEMA['properties'].get(key) or {}).get('enum'))
+    if enum:
+        return json.dumps(enum[0]) + ' (one of: ' + ', '.join(enum) + ')'
+    if key == 'public_brief':
+        return '{...} (' + BRIEF_SHAPE + ')'
+    return '...'
+
+
+def check_plan_keys(plan):
+    require(isinstance(plan, dict), 'Incomplete private decision: the decision must be a JSON object '
+            'with the keys ' + ', '.join(PLAN_SCHEMA['required']) + '.')
+    required = set(PLAN_SCHEMA['required'])
+    missing = sorted(required - set(plan))
+    unknown = sorted(set(plan) - required - set(OPTIONAL_PLAN_KEYS))
+    parts = ([f'missing: {", ".join(missing)}'] if missing else []) + \
+            ([f'not allowed: {", ".join(unknown)}'] if unknown else [])
+    require(not parts, 'Incomplete private decision (' + '; '.join(parts) + '). Required keys: ' +
+            ', '.join(PLAN_SCHEMA['required']) + '; optional: ' + ', '.join(OPTIONAL_PLAN_KEYS) + '. Example: ' +
+            ', '.join(f'"{key}": {_example_value(key)}' for key in (missing or PLAN_SCHEMA['required'][:2])))
+
+
 def check_plan(plan, episodes, public_event, action_kind=None, candidates=None, player_action=None,
                player_notes=(), committed_turn_ids=(), source=None, state=None, established='',
-               oracle=None, claims_packet=None, table_talk=False):
-    require(isinstance(plan, dict) and set(plan) - set(OPTIONAL_PLAN_KEYS) == set(PLAN_SCHEMA['required']),
-            'Incomplete private decision')
+               oracle=None, claims_packet=None, table_talk=False, problems=None):
+    """Every check of a private decision. With ``problems`` (a DecisionProblems), problems are
+    collected there for the caller to raise; otherwise all of them are raised here, together."""
+    own = problems is None
+    problems = problems or DecisionProblems()
+    part = problems.part
+    if not isinstance(plan, dict):
+        check_plan_keys(plan)
+    with part():
+        check_plan_keys(plan)
     plan.setdefault('detail', copy.deepcopy(kit_detail.NO_DETAIL))  # no detail this turn
-    if 'claims' in plan:
-        kit_claims.check_claims(plan['claims'], claims_packet, source or {}, state or {})
-    if plan.get('salience'):
-        kit_agenda.check_salience(plan['salience'], source or {}, state or {})
-    if plan.get('pc_state'):
-        kit_agenda.check_pc_state(plan['pc_state'])
-    if plan.get('roll_call'):
-        # A state the player declares this turn counts for this turn's roll.
-        kit_agenda.check_roll_call(plan['roll_call'], source or {},
-                                   kit_agenda.with_pc_state(state or {}, plan.get('pc_state'),
-                                                            fight=plan.get('turn_mode') == 'combat'))
+    with part():
+        if 'claims' in plan:
+            kit_claims.check_claims(plan['claims'], claims_packet, source or {}, state or {})
+    with part():
+        if plan.get('salience'):
+            kit_agenda.check_salience(plan['salience'], source or {}, state or {})
+    with part():
+        if plan.get('pc_state'):
+            kit_agenda.check_pc_state(plan['pc_state'])
+    with part():
+        if plan.get('roll_call'):
+            # A state the player declares this turn counts for this turn's roll.
+            kit_agenda.check_roll_call(plan['roll_call'], source or {},
+                                       kit_agenda.with_pc_state(state or {}, plan.get('pc_state'),
+                                                                fight=plan.get('turn_mode') == 'combat'))
     plan.setdefault('observed_event', public_event)  # the engine's event, unless Kit copied it
-    for key in ('observed_event', 'goal'):
-        require(isinstance(plan[key], str) and plan[key].strip(), f'Missing {key}')
-    require(plan['observed_event'] == public_event, 'Private decision changed the accepted event')
-    appraisal = plan['appraisal']
-    require(plan['goal'] in PLAN_SCHEMA['properties']['goal']['enum'], 'Unknown Kit goal')
-    require(isinstance(appraisal, dict) and set(appraisal) ==
-            {'label', 'intensity', 'cause', 'goal_effect', 'target'},
-            'Invalid appraisal')
-    if isinstance(appraisal, dict) and appraisal_label(appraisal.get('label')):
-        appraisal['label'] = appraisal_label(appraisal['label'])
-    require(appraisal['label'] in APPRAISAL_LABELS,
-            'Invalid appraisal label (use a common emotion: ' + ', '.join(APPRAISAL_LABELS[1:]) + ')')
-    require(type(appraisal['intensity']) is int and 0 <= appraisal['intensity'] <= 3,
-            'Invalid appraisal intensity')
-    require(isinstance(appraisal['cause'], str) and appraisal['cause'].strip()
-            and len(appraisal['cause']) <= 500,
-            'Appraisal must have a cause')
-    bound = CARD_EVENT_MAX_CHARS if str(action_kind or '').startswith(LONG_EVENT_KINDS) else EVENT_MAX_CHARS
-    require(len(plan['observed_event']) <= bound, 'Decision exceeds event bound')
-    require(appraisal['goal_effect'] in ('advances', 'threatens', 'neutral') and
-            appraisal['target'] in ('player', 'npc', 'scene', 'kit'),
-            'Invalid goal effect or appraisal target')
-    require((appraisal['label'] == 'none') == (appraisal['intensity'] == 0),
-            'Neutral appraisal must have zero intensity')
-    ids = {episode['turn_id'] for episode in episodes}
-    require(isinstance(plan['memory_refs'], list) and
-            len(plan['memory_refs']) <= 8 and
-            all(isinstance(ref, str) and ref in ids for ref in plan['memory_refs']),
-            'Unknown or invalid memory reference')
+    with part():
+        for key in ('observed_event', 'goal'):
+            require(isinstance(plan[key], str) and plan[key].strip(), f'Missing {key}')
+        require(plan['observed_event'] == public_event, 'Private decision changed the accepted event')
+        bound = CARD_EVENT_MAX_CHARS if str(action_kind or '').startswith(LONG_EVENT_KINDS) else EVENT_MAX_CHARS
+        require(len(plan['observed_event']) <= bound, 'Decision exceeds event bound')
+    with part():
+        require(plan['goal'] in PLAN_SCHEMA['properties']['goal']['enum'], 'Unknown Kit goal')
+    with part():
+        appraisal = plan['appraisal']
+        require(isinstance(appraisal, dict) and set(appraisal) ==
+                {'label', 'intensity', 'cause', 'goal_effect', 'target'},
+                'Invalid appraisal')
+        if isinstance(appraisal, dict) and appraisal_label(appraisal.get('label')):
+            appraisal['label'] = appraisal_label(appraisal['label'])
+        require(appraisal['label'] in APPRAISAL_LABELS,
+                'Invalid appraisal label (use a common emotion: ' + ', '.join(APPRAISAL_LABELS[1:]) + ')')
+        require(type(appraisal['intensity']) is int and 0 <= appraisal['intensity'] <= 3,
+                'Invalid appraisal intensity')
+        require(isinstance(appraisal['cause'], str) and appraisal['cause'].strip()
+                and len(appraisal['cause']) <= 500,
+                'Appraisal must have a cause')
+        require(appraisal['goal_effect'] in ('advances', 'threatens', 'neutral') and
+                appraisal['target'] in ('player', 'npc', 'scene', 'kit'),
+                'Invalid goal effect or appraisal target')
+        require((appraisal['label'] == 'none') == (appraisal['intensity'] == 0),
+                'Neutral appraisal must have zero intensity')
+    with part():
+        ids = {episode['turn_id'] for episode in episodes}
+        require(isinstance(plan['memory_refs'], list) and
+                len(plan['memory_refs']) <= 8 and
+                all(isinstance(ref, str) and ref in ids for ref in plan['memory_refs']),
+                'Unknown or invalid memory reference')
     require(candidates is not None, 'Scene discernment candidates required')
-    settle_story_read(plan['improv_read'], candidates)
-    check_improv_read(plan['improv_read'], candidates)
+    with part():
+        settle_story_read(plan['improv_read'], candidates)
+        check_improv_read(plan['improv_read'], candidates)
     for field in ('move', 'table_presence', 'tone'):
-        require(plan[field] in PLAN_SCHEMA['properties'][field]['enum'], f'Invalid {field}')
-    focus = plan['focus_actor']
-    require(isinstance(focus, str) and focus.strip(), 'Invalid focus_actor')
-    if focus not in ('none', 'other'):
-        actors = (state or {}).get('actors')
-        if actors is not None:
-            actor = actors.get(focus) or {}
-            require(actor and actor.get('location') == (state or {}).get('area') and
-                    actor.get('status') not in ('fled', 'dead'),
-                    f'focus_actor {focus!r} is not an actor present here; use a present actor id or none')
-    require(plan['move'] != 'kit_comment_then_npc' or plan['table_presence'] != 'quiet',
-            'Chosen move conflicts with quiet table presence')
-    stall = stall_check(plan, action_kind)
-    require(action_kind != 'opening' or plan['move'] == 'world_description' or
-            (stall and plan['move'] == 'ruling'),
-            'Room entry needs a world description (or, as a stall, a ruling that only calls a check)')
-    if plan['move'] in ('npc_reply', 'kit_comment_then_npc'):
-        require(focus_actor_id(plan) is not None, 'NPC move needs a selected actor')
-        require(plan['improv_read']['actor_ref'] == focus_actor_id(plan),
-                'NPC move disagrees with selected actor')
-    brief = plan['public_brief']
-    problems = brief_problems(brief)
-    require(not problems, 'Invalid public performance brief (' + '; '.join(problems) + '). ' + BRIEF_SHAPE)
-    if action_kind == 'opening':
-        # Room entry has no player words: reply_to is none by default (watchroom T0 rejected it).
-        brief['reply_to'] = 'none'
-    check_reply_to(brief['reply_to'], player_action, action_kind)
-    scope = brief['scope']
-    require(scope in PLAN_SCHEMA['properties']['public_brief']['properties']['scope']['enum'],
-            'Invalid brief scope')
-    require(action_kind != 'opening' or scope == 'feature' or stall_check(plan, action_kind),
-            'Room entry needs feature scope (or call scope with roll_call: a stall check)')
-    require(scope != 'call' or plan['move'] in CALL_MOVES or plan['focus_actor'] == 'none',
-            'Call scope is only for a ruling, a clarification, or a turn with no focus actor')
-    focus = brief['kit_focus'].strip()
-    require(len(focus) <= KIT_FOCUS_MAX_CHARS,
-            f'kit_focus exceeds {KIT_FOCUS_MAX_CHARS} characters')
-    require(not re.search(r'["“”]', focus), 'kit_focus is direction, not quoted dialogue')
-    private_texts = (plan['improv_read']['kit_choice'], appraisal['cause'])
-    require(all(_normalized(text) not in _normalized(focus) for text in private_texts
-                if len(text.strip()) >= 20),
-            'kit_focus copies private kit_choice or appraisal text; restate it as public direction')
-    kit_guards.check_focus_specific(focus)
-    kit_guards.check_direction_not_diction(brief)
-    kit_guards.check_ruling_dodge(plan, action_kind, player_action, table_talk)
-    for field in brief:
-        if field in BRIEF_QUOTE_FIELDS:
-            continue
-        require(all(_normalized(note['note']) not in _normalized(brief[field])
-                    for note in player_notes if len(note['note'].strip()) >= 20),
-                f'public_brief {field} copies a private player note; restate its effect as '
-                'public direction in kit_focus')
-    check_callback(brief['callback'], plan['memory_refs'], episodes)
-    check_player_note(plan['player_note'], player_notes, committed_turn_ids)
-    kit_voice.check_voice_plan(plan, action_kind, player_action, table_talk or is_ooc(player_action),
-                               player_notes, has_history=bool(committed_turn_ids))
-    kit_detail.check_detail(plan['detail'], player_action, action_kind, source, state,
-                            supported_procedures(source), established=established,
-                            owners=[key for key in candidates['actor_bases'] if key != 'none'],
-                            oracle=oracle)
-    if plan.get('pc_oddity'):
-        kit_agenda.check_pc_oddity(plan['pc_oddity'], plan, state or {})
-    if plan.get('ask_player'):
-        kit_agenda.check_ask_player(plan['ask_player'], plan, state or {})
-    kit_interstitial.check_plan(plan, state or {})
-    if 'plan' in plan:
-        kit_plan.check_plan_block(plan['plan'], source or {}, state or {})
+        with part():
+            require(plan[field] in PLAN_SCHEMA['properties'][field]['enum'], f'Invalid {field}')
+    with part():
+        focus_actor = plan['focus_actor']
+        require(isinstance(focus_actor, str) and focus_actor.strip(), 'Invalid focus_actor')
+        if focus_actor not in ('none', 'other'):
+            actors = (state or {}).get('actors')
+            if actors is not None:
+                actor = actors.get(focus_actor) or {}
+                require(actor and actor.get('location') == (state or {}).get('area') and
+                        actor.get('status') not in ('fled', 'dead'),
+                        f'focus_actor {focus_actor!r} is not an actor present here; use a present actor id or none')
+    with part():
+        require(plan['move'] != 'kit_comment_then_npc' or plan['table_presence'] != 'quiet',
+                'Chosen move conflicts with quiet table presence')
+    with part():
+        stall = stall_check(plan, action_kind)
+        require(action_kind != 'opening' or plan['move'] == 'world_description' or
+                (stall and plan['move'] == 'ruling'),
+                'Room entry needs a world description (or, as a stall, a ruling that only calls a check)')
+    with part():
+        if plan['move'] in ('npc_reply', 'kit_comment_then_npc'):
+            require(focus_actor_id(plan) is not None, 'NPC move needs a selected actor')
+            require(plan['improv_read']['actor_ref'] == focus_actor_id(plan),
+                    'NPC move disagrees with selected actor')
+    brief = plan.get('public_brief')
+    with part():
+        problems_found = brief_problems(brief)
+        require(not problems_found, 'Invalid public performance brief (' + '; '.join(problems_found) + '). ' + BRIEF_SHAPE)
+    with part():
+        if action_kind == 'opening':
+            # Room entry has no player words: reply_to is none by default (watchroom T0 rejected it).
+            brief['reply_to'] = 'none'
+        check_reply_to(brief['reply_to'], player_action, action_kind)
+    with part():
+        scope = brief['scope']
+        require(scope in PLAN_SCHEMA['properties']['public_brief']['properties']['scope']['enum'],
+                'Invalid brief scope')
+        require(action_kind != 'opening' or scope == 'feature' or stall_check(plan, action_kind),
+                'Room entry needs feature scope (or call scope with roll_call: a stall check)')
+        require(scope != 'call' or plan['move'] in CALL_MOVES or plan['focus_actor'] == 'none',
+                'Call scope is only for a ruling, a clarification, or a turn with no focus actor')
+    with part():
+        focus = brief['kit_focus'].strip()
+        require(len(focus) <= KIT_FOCUS_MAX_CHARS,
+                f'kit_focus exceeds {KIT_FOCUS_MAX_CHARS} characters')
+        require(not re.search(r'["“”]', focus), 'kit_focus is direction, not quoted dialogue')
+        private_texts = (plan['improv_read']['kit_choice'], plan['appraisal']['cause'])
+        require(all(_normalized(text) not in _normalized(focus) for text in private_texts
+                    if isinstance(text, str) and len(text.strip()) >= 20),
+                'kit_focus copies private kit_choice or appraisal text; restate it as public direction')
+    with part():
+        kit_guards.check_focus_specific(brief['kit_focus'].strip())
+    with part():
+        kit_guards.check_direction_not_diction(brief)
+    with part():
+        kit_guards.check_ruling_dodge(plan, action_kind, player_action, table_talk)
+    with part():
+        for field in brief:
+            if field in BRIEF_QUOTE_FIELDS:
+                continue
+            require(all(_normalized(note['note']) not in _normalized(brief[field])
+                        for note in player_notes if len(note['note'].strip()) >= 20),
+                    f'public_brief {field} copies a private player note; restate its effect as '
+                    'public direction in kit_focus')
+    with part():
+        check_callback(brief['callback'], plan['memory_refs'], episodes)
+    with part():
+        check_player_note(plan['player_note'], player_notes, committed_turn_ids)
+    with part():
+        kit_voice.check_voice_plan(plan, action_kind, player_action, table_talk or is_ooc(player_action),
+                                   player_notes, has_history=bool(committed_turn_ids))
+    with part():
+        kit_detail.check_detail(plan['detail'], player_action, action_kind, source, state,
+                                supported_procedures(source), established=established,
+                                owners=[key for key in candidates['actor_bases'] if key != 'none'],
+                                oracle=oracle)
+    with part():
+        if plan.get('pc_oddity'):
+            kit_agenda.check_pc_oddity(plan['pc_oddity'], plan, state or {})
+    with part():
+        if plan.get('ask_player'):
+            kit_agenda.check_ask_player(plan['ask_player'], plan, state or {})
+    with part():
+        kit_interstitial.check_plan(plan, state or {})
+    with part():
+        if 'plan' in plan:
+            kit_plan.check_plan_block(plan['plan'], source or {}, state or {})
+    if own:
+        problems.raise_any()
 
 
 def is_ooc(player_action):
@@ -2991,15 +3096,24 @@ def check_player_note(note, player_notes, committed_turn_ids):
         require(note['evidence_turns'] == [] and note['replaces'].strip().casefold() == 'none',
                 'An empty player_note has no evidence and replaces nothing. ' + PLAYER_NOTE_SHAPE)
         return
-    check_player_note_text(note['note'])
+    check_player_note_text(note['note'], 'player_note.note')
     allowed = set(committed_turn_ids) | {THIS_TURN}
     require(0 < len(note['evidence_turns']) <= PLAYER_NOTE_MAX_EVIDENCE and
             all(isinstance(ref, str) and ref in allowed for ref in note['evidence_turns']),
             f'player_note must cite 1–{PLAYER_NOTE_MAX_EVIDENCE} committed turn IDs or this_turn '
-            'as evidence')
+            f'as evidence: player_note.evidence_turns is {note["evidence_turns"]!r}'
+            + (f' (committed: {", ".join(list(committed_turn_ids)[-5:])})' if committed_turn_ids else
+               ' (no turn is committed yet)')
+            + '. Example: "evidence_turns": ["this_turn"]')
     if note['replaces'].strip().casefold() != 'none':
         old = next((item for item in player_notes if item['id'] == note['replaces']), None)
-        require(old is not None, 'player_note replaces an unknown note')
+        require(old is not None,
+                f'player_note replaces an unknown note: player_note.replaces is {note["replaces"]!r}, which '
+                'names no saved note' + (f' (saved: {", ".join(item["id"] for item in player_notes)})'
+                                         if player_notes else ' (none is saved yet)') +
+                '. When the note replaces nothing, or nothing is new, send "replaces": "none". Example: '
+                '{"note": "Tests NPCs with direct questions before trusting them.", '
+                '"evidence_turns": ["this_turn"], "replaces": "none"}')
         require(old['source'] == 'observed', 'Only new feedback can replace the player\'s own feedback')
 
 
@@ -3674,27 +3788,38 @@ def check_decision(runtime, plan, memory, body):
     if (body.get('compute') or {}).get('tier') == 'routine':
         kit_router.fill_routine(plan, kit_voice.mode_hint(body['kind'], is_ooc(body.get('action') or ''))
                                 or 'description')
+    problems = DecisionProblems()
     check_plan(plan, memory['episodes'], body['public_event'], body['kind'],
                body['discernment_candidates'], body['action'],
                player_notes=memory['player_notes'],
                committed_turn_ids=runtime.committed_kit_turn_ids(),
                source=source, state=scene,
                established=established_text(runtime, body), oracle=body.get('detail_oracle'),
-               claims_packet=body.get('claims_here'), table_talk=bool(body.get('table_talk')))
-    check_brief_public(plan['public_brief'], body['public_view'], body['action'],
-                       kit_guards.leak_sets(source), kit_guards.leak_phrases(source))
-    check_procedure_start(plan, body, runtime.load()[1])
-    check_short_beat(plan, body, runtime.load()[1])
-    kit_acts.check(plan, body)  # a declared act names only what this turn offered
-    if plan.get('open_threads') is not None:
-        kit_threads.check(plan['open_threads'], runtime.load()[1])
-    if not plan.get('ask_player'):  # a question to the player moves no agenda
-        kit_agenda.check_agenda(plan.get('agenda'), body.get('agenda_here'), source, scene,
-                                kit_agenda.oddity_reactors(plan.get('pc_oddity'), source))
-    # A public invention reaches the performer and the player: same leak checks as the brief.
-    for item in kit_detail.public_inventions(plan['detail']):
-        check_brief_public({'invention': item['fact']}, body['public_view'], body['action'],
+               claims_packet=body.get('claims_here'), table_talk=bool(body.get('table_talk')),
+               problems=problems)
+    part = problems.part
+    with part():
+        check_brief_public(plan['public_brief'], body['public_view'], body['action'],
                            kit_guards.leak_sets(source), kit_guards.leak_phrases(source))
+    with part():
+        check_procedure_start(plan, body, runtime.load()[1])
+    with part():
+        check_short_beat(plan, body, runtime.load()[1])
+    with part():
+        kit_acts.check(plan, body)  # a declared act names only what this turn offered
+    with part():
+        if plan.get('open_threads') is not None:
+            kit_threads.check(plan['open_threads'], runtime.load()[1])
+    with part():
+        if not plan.get('ask_player'):  # a question to the player moves no agenda
+            kit_agenda.check_agenda(plan.get('agenda'), body.get('agenda_here'), source, scene,
+                                    kit_agenda.oddity_reactors(plan.get('pc_oddity'), source))
+    with part():
+        # A public invention reaches the performer and the player: same leak checks as the brief.
+        for item in kit_detail.public_inventions(plan['detail']):
+            check_brief_public({'invention': item['fact']}, body['public_view'], body['action'],
+                               kit_guards.leak_sets(source), kit_guards.leak_phrases(source))
+    problems.raise_any()
 
 
 def player_named(runtime, action):
