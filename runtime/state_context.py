@@ -104,11 +104,14 @@ PENDING_CHECK_OPTIONAL = {'exit', 'dc_adjust', 'reason', 'threshold', 'held'}
 # A heavy turn Kit opened on a check call holds its description for the roll (kit_agent.STALL_KINDS).
 HELD_KINDS = ('opening', 'exit', 'threshold_look')
 # What the engine's outcome of a declared act may add (runtime/kit_acts.py: handles).
+# gear_state: the player's answer to the equipment question (held or stowed); homebrew_ruling:
+# Kit's call on where a claimed proficiency came from (runtime/kit_gear.py).
 DECLARED_EVENTS = ('beat', 'reveal_fact', 'trigger_fired', 'scene_state', 'combat_state', 'actor_status',
-                   'pc_conditions')
+                   'pc_conditions', 'gear_state', 'homebrew_ruling')
 COMMIT_APPENDED_EVENTS = ('canon_entry', 'oracle_draw', 'procedure_state', 'claim_said', 'agenda_turn',
                           'pc_state', 'kit_plan', 'toll_state', 'story_beat', 'threshold_crossed',
-                          'attitude_shift', 'pending_check', 'open_threads', 'risk_warned')
+                          'attitude_shift', 'pending_check', 'open_threads', 'risk_warned',
+                          'gear_state')  # gear_state: Kit raised the equipment question in voice
 # A turn whose decision asks the player a question resolves nothing: its only event is a
 # rhythm beat tagged 'asked' whose evidence is the question.
 ASKED_EVENT_PREFIX = 'Kit asks before resolving: '
