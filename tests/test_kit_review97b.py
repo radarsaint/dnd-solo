@@ -25,13 +25,14 @@ from runtime.kit_agent import KitChatBridge, PendingRuling, RoomAdjudicator
 from runtime.state_context import InvalidChange, Runtime
 from test_kit_agent import RecordingModel
 from test_kit_monster_initiative import Room as _InitiativeRoom
+import fixture_sheets
 
 decline_open = _InitiativeRoom.decline_open
 
 ROOT = Path(__file__).resolve().parents[1]
 CRYPT = ROOT / 'tests/fixtures/rooms/crypt.json'
 CARCASS = ROOT / 'tests/fixtures/rooms/carcass.json'
-SHEETS = {'nik': ROOT / 'tests/fixtures/characters/nik.json',
+SHEETS = {'nik': fixture_sheets.path(ROOT / 'tests/fixtures/characters/nik.json'),
           'wren': ROOT / 'tests/fixtures/characters/example_pc.json',
           'ilsevel': ROOT / 'tests/fixtures/pc_sheets/ilsevel.json'}
 

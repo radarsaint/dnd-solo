@@ -14,10 +14,11 @@ from unittest import mock
 from runtime import kit_combat, kit_reactions
 from runtime.kit_agent import KitChatBridge, PendingRuling, RoomAdjudicator
 from runtime.state_context import Runtime
+import fixture_sheets
 
 ROOT = Path(__file__).resolve().parents[1]
 ROOMS = ROOT / 'tests' / 'fixtures' / 'rooms'
-NIK = json.loads((ROOT / 'tests' / 'fixtures' / 'characters' / 'nik.json').read_text())
+NIK = fixture_sheets.sheet(ROOT / 'tests' / 'fixtures' / 'characters' / 'nik.json')
 
 
 def clause_parser(cls):
