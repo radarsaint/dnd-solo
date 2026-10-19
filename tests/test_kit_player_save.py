@@ -152,8 +152,10 @@ class SaveTests(unittest.TestCase):
             for item in secret:
                 self.assertNotIn(item, text, f'{name} leaks {item!r}')
             if name.endswith('campaign.json') or name.endswith('journal.md'):
-                self.assertNotRegex(text, r'(?i)\bdc\b', name)
-                self.assertNotIn('claim', text.lower(), name)
+                # On the unblanked text, hashes removed: blanking can put word edges inside a hex digest.
+                plain = re.sub(r'\b[0-9a-f]{64}\b', '', full)
+                self.assertNotRegex(plain, r'(?i)\bdc\b', name)
+                self.assertNotIn('claim', plain.lower(), name)
             if name.endswith('sheet.md'):
                 sheet_dc = json.loads(NIK.read_text(encoding='utf-8')).get('spell_save_dc')
                 for dc in re.findall(r'(?i)\bdc\s*(\d+)', text):
