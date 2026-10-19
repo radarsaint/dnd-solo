@@ -183,6 +183,15 @@ class AnswerRouting(unittest.TestCase):
                    {'ruling': {'id': SHIELD, 'verdict': 'granted', 'source': 'his uncle taught him'}})
         self.assertEqual(table.state['homebrew_rulings'][0]['source'], 'his uncle taught him')
 
+    def test_the_reply_is_heard_once_then_refusals_are_refusals_again(self):
+        table = Table(self, 'pell_wizard')
+        table.raise_question()
+        table.turn('I just have it.', 'Hm. I will think on that one.')
+        entry, = kit_gear.gear(table.state)['clarify']
+        self.assertEqual((entry['status'], entry.get('heard')), ('raised', True), 'still hers to rule on')
+        with self.assertRaises(PendingRuling):
+            prepare_turn(table.arena.runtime, table.arena.adjudicator, 'I just have it.')
+
     def test_the_gear_question_answer_is_not_refused_either(self):
         table = Table(self, 'nik')
         table.raise_question()
