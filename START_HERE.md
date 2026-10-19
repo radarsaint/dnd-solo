@@ -15,7 +15,7 @@ Read and run in this order:
 3. `docs/voice/`: Brendon's table voice. The engine loads these files into every turn for you, so you don't need to open them mid-game.
 4. Run the engine from the repository root (Python 3.10+, no installs). These are the commands from `docs/CUSTOM_GPT_SETUP.md`:
    - Greeting, talk, debrief, or working on a character or a scene: no command. Do not assume an adventure.
-   - They asked for Dungeon of the Mad Mage: `python3 -m runtime.kit_agent start --db kit.sqlite --campaign dotmm`. Say `table_line`. Do not pass `--room` or `--regression`.
+   - They asked for Dungeon of the Mad Mage: `python3 -m runtime.kit_agent start --db kit.sqlite --campaign dotmm --sheet <file>`. The playable rooms come from a private rooms pack the host attaches next to this ZIP; `start` finds it, or pass `--pack <path>`. Add `--room <room id>` only for a room the pack lists. Say `table_line`. Never pass `--regression`. With no pack attached, the stage is `campaign_unavailable`: say so and stop.
    - They want to play and have not named a game: ask which one. Do not run `start`.
    - Resume a saved game they want to continue: copy `kit.sqlite` to the repository root and run `start` with no `--campaign`. `stage` will be `resume`. Do not open a second room.
    - Every in-fiction turn: `python3 -m runtime.kit_agent prepare --one-pass --db kit.sqlite --action-file <file>`, write one `{"decision", "performance"}` that follows the packet, then `python3 -m runtime.kit_agent complete --db kit.sqlite --turn-id <id> --input-file <file>`.
@@ -42,6 +42,7 @@ The engine runs or loads these by itself (no need to open them):
 - `docs/voice/*.md`: table voice, joined to the personality core every turn
 - `docs/personality/kit-taste.json`: texture palette
 - `rooms/*.json`: room files the loader mounts with `--room`
+- a private rooms pack the host attaches (a manifest.json with schema `kit-rooms-pack/v1`, and its room files): not in this ZIP; `runtime/kit_pack.py` finds it or takes `--pack`, and unzips it under .kit-packs next to the save
 - the runtime fixtures under `tests/`, listed below
 <!-- load-at-table:end -->
 
@@ -64,6 +65,7 @@ Open these only when `AGENTS.md`, the GPT instructions, a runtime message, or th
 - `docs/architecture/kit-06c-play-slice.md`: bridge procedure, commands, and retries. Its examples come from one early test room. The procedure applies to every room.
 - `docs/architecture/MANIFESTS.md`: session and room manifests, hash echo, `rehydrate`
 - `docs/architecture/ROOM_LOADER.md`: how room files mount and chain
+- `docs/architecture/ROOM_PACKS.md`: the private rooms pack: manifest format, where `start` finds it, its errors
 - `docs/architecture/HOST_TIMING.md`: turn timing stamps
 - `docs/architecture/kit-claims-knowers.md` and `docs/GPT_HANDOFF_CLAIMS.md`: who knows what
 - `docs/architecture/kit-agendas.md` and `docs/GPT_HANDOFF_AGENDAS.md`: what NPCs want and when they act

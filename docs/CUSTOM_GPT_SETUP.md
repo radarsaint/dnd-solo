@@ -16,7 +16,7 @@ Kit — Solo D&D DM (playtest)
 Kit (Kitiara). Talk to her, go over a game, work on a character or a scene, or ask her to run one you name. She will not assume the adventure. Dungeon of the Mad Mage starts only if you ask for it.
 ```
 
-## 3. Instructions (paste all of it; about 5,000 characters, under the 8,000 limit)
+## 3. Instructions (paste all of it; about 6,300 characters, under the 8,000 limit)
 
 ```text
 You are Kit (Kitiara). You exist whether or not a game is running. Dungeon Master is your principal vocation, not the boundary of who you are. Read dm-personality-core.md from Knowledge at the start of every chat; it is who you are in every context.
@@ -33,9 +33,9 @@ SETUP (only for a named game or an uploaded save)
 2. Hello, talk, debrief, and working on a character or a scene: do not run start. Answer as Kit. Do not mention Dungeon of the Mad Mage unless they did. If they have not said what they want, say you can talk, go over a game, work on a character or a scene, or run a session once they tell you which one. You will not pick the adventure.
 3. If they want to play and have not named a game, ask which one. Do not run start yet.
 4. If they ask for Dungeon of the Mad Mage, run:
-   python3 -m runtime.kit_agent start --db kit.sqlite --campaign dotmm
-   Say table_line. If the stage is campaign_unavailable, stop. Do not invent a tavern or a dungeon. Do not pass --room or --regression.
-5. If the player uploads a saved kit.sqlite and wants to continue, copy it to REPO/kit.sqlite and run start with no --campaign and no --room. stage "resume": continue only if they want that game.
+   python3 -m runtime.kit_agent start --db kit.sqlite --campaign dotmm --sheet <their sheet>
+   The playable rooms come from a private rooms pack attached as Knowledge (a ZIP whose manifest.json says kit-rooms-pack/v1, often kit-rooms-*.zip). start finds it in /mnt/data by itself; if it does not, add --pack <path to that ZIP>. To open a room they name, add --room <room id or file name from the pack's rooms list>. With no sheet, stage is need_character: ask who they play and run it again with --sheet. Say table_line. If the stage is campaign_unavailable, no pack is attached: say so and stop. Do not invent a tavern or a dungeon. Never pass --regression. --room is only for a room from the attached pack.
+5. If the player uploads a saved kit.sqlite and wants to continue, copy it to REPO/kit.sqlite and run start with no --campaign, no --pack and no --room. stage "resume": continue only if they want that game.
 6. Do not load tests/fixtures/characters/example_pc.json unless they explicitly ask for the example character. Area 6c is a test fixture, not a game you offer.
 
 LIVE GAME TURNS
@@ -85,7 +85,7 @@ I have a saved game. Let's continue.
 ## 5. Settings
 
 - **Capabilities:** turn on **Code Interpreter & Data Analysis** (required). Turn off Web Search, Image Generation and Canvas. They aren't needed, and they invite improvising.
-- **Knowledge:** upload the commit-stamped runtime ZIP and upload `docs/personality/dm-personality-core.md` as its own Knowledge file. The standalone core is required so Kit exists before the sandbox/runtime starts. Optionally also upload `AGENTS.md` and `tests/fixtures/characters/example_pc.json`.
+- **Knowledge:** upload the commit-stamped runtime ZIP and upload `docs/personality/dm-personality-core.md` as its own Knowledge file. The standalone core is required so Kit exists before the sandbox/runtime starts. To play Mad Mage, also upload the private rooms pack ZIP (see "The private rooms pack" below). Optionally also upload `AGENTS.md` and `tests/fixtures/characters/example_pc.json`.
 - **Actions:** none.
 
 ## Versioned build rule
@@ -109,8 +109,8 @@ A ZIP uploaded to GPT Knowledge or a ChatGPT Project is a pinned build. It does 
    This includes only committed files, so no local `.sqlite` games or secrets go in. Record the full commit SHA beside the uploaded build. Rebuild and upload a new commit-stamped ZIP whenever you want friends on a newer version.
 2. Open ChatGPT → **Explore GPTs** → **Create** → the **Configure** tab.
 3. Paste in the Name, Description, Instructions and Conversation starters from sections 1–4 above.
-4. Under **Knowledge**, upload the commit-stamped runtime ZIP **and** `docs/personality/dm-personality-core.md` as a standalone file. Under **Capabilities**, set the options in section 5.
-5. Test it in the **Preview** pane: click "Start a new game with the example character". Kit should describe the room without showing JSON. If you see a Python error about the zip, delete it in Knowledge and upload it again.
+4. Under **Knowledge**, upload the commit-stamped runtime ZIP **and** `docs/personality/dm-personality-core.md` as a standalone file, plus the private rooms pack ZIP to play Mad Mage. Under **Capabilities**, set the options in section 5.
+5. Test it in the **Preview** pane. Say "I want to play Dungeon of the Mad Mage. I'm playing Nik, the sheet is tests/fixtures/characters/nik.json in the runtime ZIP." Kit should open the pack's first room and describe it without showing JSON. That runs `start --db kit.sqlite --campaign dotmm --sheet tests/fixtures/characters/nik.json`. If she says the adventure isn't playable in this build, the rooms pack isn't attached (stage `campaign_unavailable`, `pack.found` false); upload it under Knowledge. If you see a Python error about a zip, delete it in Knowledge and upload it again.
 6. Click **Create** (or **Update**). Under **Share**, choose **Anyone with the link**, not the GPT Store. Copy the link.
 7. Send friends the link and three lines:
    - "Start with the example rogue, or upload your character as JSON (I can send you the template)."
@@ -118,10 +118,32 @@ A ZIP uploaded to GPT Knowledge or a ChatGPT Project is a pinned build. It does 
    - "Tell Kit out of character what felt off. It records feedback for me."
 8. To collect feedback, ask friends to send you their saved `kit.sqlite`. In this repository, run `python3 -m runtime.kit_agent notes --db kit.sqlite` and `trace --db kit.sqlite` on it.
 
+## The private rooms pack
+
+Playable Mad Mage rooms are adapted from the book, so they can't be in this public repo. They travel as a **private rooms pack**: a ZIP (or folder) you keep in private storage and attach to the host as Knowledge or Project files next to the runtime ZIP. Never commit a pack to this repo; `.gitignore` ignores `kit-rooms*` and `.kit-packs/` to make that harder. The format, discovery rules and errors are in [docs/architecture/ROOM_PACKS.md](architecture/ROOM_PACKS.md). In short:
+
+```json
+{
+  "schema": "kit-rooms-pack/v1",
+  "pack": "kit-rooms-2026-10-19",
+  "private": true,
+  "first_room": "rooms/level_01_area_08c.json",
+  "rooms": [
+    {"path": "rooms/level_01_area_08c.json", "room_id": "level_01_area_08c", "level": 1, "area": "8c", "kind": "social", "summary": "..."}
+  ]
+}
+```
+
+The ZIP holds `kit-rooms/manifest.json` and `kit-rooms/rooms/*.json` (the manifest at the ZIP's top or one folder down). `start` uses a pack named by `--pack <path>`, or else finds one in the working directory, the repository root, `/mnt/data` (ChatGPT), or `/mnt/user-data/uploads` and `/mnt/user-data` (Claude). With a pack, `start --campaign dotmm` (or `start --pack <path>`) mounts its `first_room`; `--room <room_id or file name>` mounts another room from it.
+
 ## Using a ChatGPT Project instead (just you)
 
-A Project works for your own sessions. Add a **commit-stamped** runtime ZIP and add `docs/personality/dm-personality-core.md` as a separate Project source. The ZIP is the pinned executable baseline; it does **not** become the development source of truth. GitHub `radarsaint/dnd-solo` `main` remains authoritative for current development. Paste section 3 into the Project's **Instructions** so ordinary conversation, debrief, and live play all use the same Kit. Projects aren't a simple way to hand Kit to friends outside your workspace, so use the GPT link for that.
+A Project works for your own sessions. Add a **commit-stamped** runtime ZIP and add `docs/personality/dm-personality-core.md` as a separate Project source, plus the rooms pack ZIP to play Mad Mage. The ZIP is the pinned executable baseline; it does **not** become the development source of truth. GitHub `radarsaint/dnd-solo` `main` remains authoritative for current development. Paste section 3 into the Project's **Instructions** so ordinary conversation, debrief, and live play all use the same Kit. Projects aren't a simple way to hand Kit to friends outside your workspace, so use the GPT link for that.
+
+## Claude Projects and other hosts with a Python sandbox
+
+The same setup works on any host that runs Python 3.10+ on attached files: attach the runtime ZIP, `dm-personality-core.md`, and the rooms pack ZIP, and use section 3 as the project instructions. Where the instructions say `/mnt/data`, use the host's upload folder (Claude: `/mnt/user-data/uploads`). Nothing in the runtime depends on one host: no host-only paths, tools, or environment variables, and `tests/test_kit_room_pack.py` starts a pack room from the release ZIP with `env -i python3`.
 
 ## Hosts with a real shell (Codex, Claude Code, Cursor, etc.)
 
-No setup is needed. Open the repository, and the agent reads [AGENTS.md](../AGENTS.md). Talk, debrief, and design need no command. Run `python3 -m runtime.kit_agent start --db kit.sqlite --campaign dotmm` only when they ask for Mad Mage. A save they want to continue uses `start` with no `--campaign`.
+No setup is needed. Open the repository, and the agent reads [AGENTS.md](../AGENTS.md). Talk, debrief, and design need no command. Run `python3 -m runtime.kit_agent start --db kit.sqlite --campaign dotmm --sheet <file>` only when they ask for Mad Mage; put the rooms pack in the working directory or pass `--pack <path>`. A save they want to continue uses `start` with no `--campaign`.
