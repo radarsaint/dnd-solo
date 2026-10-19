@@ -17,10 +17,12 @@ from test_kit_combat_checkpoints import NIK, Camp, without_shield
 RATS = {'harl': 'Giant rat 6', 'cutthroat_a': 'Giant rat 1', 'cutthroat_b': 'Giant rat 5'}
 
 
-def rat_camp(test, names=RATS):
+def rat_camp(test, names=RATS, marks=None):
     source = json.loads(checkpoints.CAMP.read_text())
     for key, name in names.items():
         source['actors'][key]['name'] = name
+    for key, mark in (marks or {}).items():
+        source['actors'][key].update(mark)
     temp = tempfile.TemporaryDirectory()
     test.addCleanup(temp.cleanup)
     path = Path(temp.name) / 'rats.json'
@@ -62,6 +64,71 @@ class NumberedTargets(unittest.TestCase):
         table = rat_camp(self, {**RATS, 'cutthroat_b': 'Fire-side cutthroat'})
         table.act('Initiative 25. I stab the cutthroat with my dagger, 18 to hit.')
         self.assertEqual(table.fight['pending']['target'], 'cutthroat_b')
+
+
+
+ONE_TO_THREE = {'harl': 'Giant rat 1', 'cutthroat_a': 'Giant rat 2', 'cutthroat_b': 'Giant rat 3'}
+ONE_RAT = {'harl': 'Bandit captain', 'cutthroat_a': 'Giant rat 3', 'cutthroat_b': 'Fire-side cutthroat'}
+I = 'Initiative 25. '
+
+
+class SharedNamesAndPerception(unittest.TestCase):
+    """Nagatha's re-probe at ef92808. High: 'the rat' never asked and hit the first actor (with one
+    rat beside a captain, the captain); a missing number ('rat 3', 'Rat 2') picked someone. High (trial
+    merge with #131): an unperceived rat could be targeted, then its damage raised KeyError. Medium:
+    the 'Which one' list named unperceived rats. Low: a dead numbered foe and a missing number."""
+
+    def target(self, words, names=RATS, marks=None):
+        table = rat_camp(self, names, marks)
+        table.act(I + words)
+        return table.fight['pending']['target']
+
+    def asks(self, words, names=RATS, marks=None):
+        table = rat_camp(self, names, marks)
+        exc = table.held(I + words)
+        self.assertFalse(table.state.get('combat'), 'nothing committed')
+        return str(exc)
+
+    def test_one_name_set(self):
+        from runtime import kit_names
+        table = rat_camp(self, ONE_TO_THREE)
+        found = kit_names.names(table.runtime.source(), 'cutthroat_b')
+        self.assertTrue({'giant rat 3', 'rat 3', 'rat'} <= found, found)
+        self.assertNotIn('3', found, 'a bare number is never a name')
+
+    def test_the_shared_head_noun_asks_which_one(self):
+        for words in ('I stab the rat with my dagger, 18 to hit.', 'I fire bolt the rat, 18 to hit.'):
+            with self.subTest(words=words):
+                self.assertIn('Which one: Giant rat 1, Giant rat 5 or Giant rat 6?', self.asks(words))
+
+    def test_a_lone_rat_is_the_rat(self):
+        self.assertEqual(self.target('I stab the rat with my dagger, 18 to hit.', ONE_RAT), 'cutthroat_a')
+
+    def test_an_ordinal_names_the_numbered_foe(self):
+        self.assertEqual(self.target('I stab the third rat with my dagger, 18 to hit.', ONE_TO_THREE), 'cutthroat_b')
+        self.assertIn('Which one', self.asks('I stab the third rat with my dagger, 18 to hit.'))
+
+    def test_a_numbered_foe_not_here_says_so(self):
+        for words, names, shown in (('I stab rat 3 with my dagger, 18 to hit.', RATS, 'Giant rat 3'),
+                                    ('I stab Rat 2 with my dagger, 18 to hit.', RATS, 'Giant rat 2'),
+                                    ('I stab giant rat 1 with my dagger, 18 to hit.', ONE_RAT, 'Giant rat 1')):
+            with self.subTest(words=words):
+                self.assertIn(f"There's no {shown} here", self.asks(words, names))
+
+    def test_an_unperceived_foe_is_no_target_and_not_offered(self):
+        for mark in ({'visible': False}, {'conditions': ['invisible']}):
+            with self.subTest(mark=mark):
+                marks = {'cutthroat_b': mark}
+                self.assertIn("There's no Giant rat 3 here that you can see",
+                              self.asks('I stab giant rat 3 with my dagger, 18 to hit.', ONE_TO_THREE, marks))
+                said = self.asks('I stab the giant rat with my dagger, 18 to hit.', ONE_TO_THREE, marks)
+                self.assertIn('Which one: Giant rat 1 or Giant rat 2?', said)
+                self.assertNotIn('Giant rat 3', said)
+
+    def test_a_dead_numbered_foe_is_down(self):
+        table = rat_camp(self, ONE_TO_THREE)
+        table.act(I + 'I stab giant rat 2 with my dagger, 18 to hit, 20 damage.')
+        self.assertIn('Giant rat 2 is already down', str(table.held('I stab giant rat 2 with my dagger, 18 to hit.')))
 
 
 if __name__ == '__main__':
