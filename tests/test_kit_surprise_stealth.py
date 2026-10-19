@@ -10,15 +10,22 @@ a flat dc stands in only for an ambusher whose Stealth is unknown.
 Synthetic: the carcass fixture, centipedes given Stealth -4. Dice pinned."""
 import unittest
 
-from runtime import kit_triggers
+from runtime import kit_triggers, srd_creatures
 from test_kit_monster_initiative import ROLL, Room, carcass
+
+
+def inline(stealth=None):
+    """The SRD giant centipede written inline, with the given Stealth (None: unknown)."""
+    block = srd_creatures.stat_block({'srd': 'Giant Centipede'})
+    block.pop('stealth', None)
+    return {**block, **({'stealth': stealth} if stealth is not None else {})}
 
 
 def clumsy(dc=15, stealth=-4):
     source = carcass()
     source['triggers'][0]['surprise'] = {'dc': dc}
     for key in ('centipede_a', 'centipede_b'):
-        source['actors'][key]['stat_block']['stealth'] = stealth
+        source['actors'][key]['stat_block'] = inline(stealth)
     return source
 
 
@@ -44,17 +51,16 @@ class StealthAgainstPassivePerception(unittest.TestCase):
 
     def test_one_noticed_ambusher_means_no_surprise(self):
         source = clumsy()
-        source['actors']['centipede_a']['stat_block']['stealth'] = 10  # 20 + 10 beats 14
+        source['actors']['centipede_a']['stat_block'] = inline(10)  # 20 + 10 beats 14
         room = self.fire(source, npc_roll=20)  # centipede_b: 20 - 4 = 16 also beats 14
         self.assertIn('pc', room.state['combat']['surprised'])
-        source['actors']['centipede_b']['stat_block']['stealth'] = -10  # 20 - 10 = 10 < 14
+        source['actors']['centipede_b']['stat_block'] = inline(-10)  # 20 - 10 = 10 < 14
         room = self.fire(source, npc_roll=20)
         self.assertNotIn('pc', room.state['combat']['surprised'])
 
     def test_the_flat_dc_stands_in_only_for_an_unknown_stealth(self):
-        source = carcass()
-        source['triggers'][0]['surprise'] = {'dc': 15}
-        room = self.fire(source, npc_roll=1)  # no stealth on the stat block: DC 15 >= 14
+        source = clumsy(dc=15, stealth=None)
+        room = self.fire(source, npc_roll=1)  # no Stealth on the stat block: DC 15 >= 14
         self.assertIn('pc', room.state['combat']['surprised'])
 
     def test_the_trace_names_each_stealth_and_the_passive(self):
