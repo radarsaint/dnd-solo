@@ -2385,9 +2385,10 @@ ABANDON_SUGGEST_AFTER = 4
 API_PERFORMANCE_ATTEMPTS = 2
 
 HOST_RETRY_NOTE = (
-    'If finish or complete is rejected, nothing was committed and the decision stays fixed. Read '
-    'message and retry_instruction, then submit a new performance for the same turn_id; for '
-    'complete, resubmit the identical decision with the new performance. If decide is rejected, '
+    'If finish or complete is rejected, nothing was committed. Read message and '
+    'retry_instruction, then submit a new performance for the same turn_id; for complete, resubmit '
+    'the decision with the new performance, correcting the fields the message names (its acts, '
+    'rolls, and claims stay as first sent). If decide is rejected, '
     f'fix the plan and call decide again. After {DEGRADED_AFTER_REJECTIONS} rejections the '
     'rejection offers degraded mode (resubmit with --degraded): style floors become warnings, '
     f'secrecy and player agency still apply. After {ABANDON_SUGGEST_AFTER}, run abandon for the '
@@ -2404,6 +2405,30 @@ DEGRADED_INSTRUCTION = (
 ABANDON_INSTRUCTION = (
     'This turn keeps failing. Run abandon for this turn_id (nothing is committed), then prepare '
     'the same player action again with a new turn_id and a simpler decision.')
+
+# The decision fields a corrected resubmission may change on a pending one-pass turn: how Kit
+# reads and presents the turn. Everything else (acts, rolls, claims, agenda, PC state, the
+# turn mode) is what the engine acts on and stays as first saved.
+REPLACEABLE_PLAN_KEYS = ('goal', 'appraisal', 'memory_refs', 'improv_read', 'move', 'public_brief',
+                         'focus_actor', 'table_presence', 'tone', 'player_note', 'player_mood')
+
+
+def corrected_decision(saved, plan):
+    """``plan`` with every engine-facing key taken from ``saved``. A different value for one is
+    refused, naming the keys that may change."""
+    if not isinstance(plan, dict):
+        return plan
+    changed = sorted(key for key in set(saved) | set(plan)
+                     if key not in REPLACEABLE_PLAN_KEYS and key in plan and plan[key] != saved.get(key))
+    require(not changed, 'Private decision already fixed for this turn: ' + ', '.join(changed) +
+            ' cannot change after an attempt. Resubmit with those as before (or leave them out); only '
+            + ', '.join(REPLACEABLE_PLAN_KEYS) + ' may be corrected.')
+    return {**{key: value for key, value in saved.items() if key not in REPLACEABLE_PLAN_KEYS}, **plan}
+
+
+OPENING_REPREPARE = (
+    'This is the room entry: prepare it again with prepare --opening --one-pass --db <db> (no '
+    'action), then complete the new turn_id. Do not start the room over.')
 
 PRIVATE_INSTRUCTIONS = (
     'You are Kit’s private decision stage, using the supplied canonical personality. '
@@ -2843,9 +2868,8 @@ def check_plan(plan, episodes, public_event, action_kind=None, candidates=None, 
         require(plan['improv_read']['actor_ref'] == focus_actor_id(plan),
                 'NPC move disagrees with selected actor')
     brief = plan['public_brief']
-    require(isinstance(brief, dict) and set(brief) - set(LEGACY_BRIEF_FIELDS) == set(BRIEF_FIELDS) and
-            all(isinstance(brief[key], str) and 0 < len(brief[key].strip()) <= 240
-                for key in brief), 'Invalid public performance brief')
+    problems = brief_problems(brief)
+    require(not problems, 'Invalid public performance brief (' + '; '.join(problems) + '). ' + BRIEF_SHAPE)
     if action_kind == 'opening':
         # Room entry has no player words: reply_to is none by default (watchroom T0 rejected it).
         brief['reply_to'] = 'none'
@@ -2959,12 +2983,13 @@ def check_callback(callback, memory_refs, episodes):
 def check_player_note(note, player_notes, committed_turn_ids):
     """A private note is an observed pattern with evidence, never a score."""
     require(isinstance(note, dict) and set(note) == {'note', 'evidence_turns', 'replaces'},
-            'Invalid player_note')
+            'Invalid player_note: it needs exactly note, evidence_turns, and replaces. ' + PLAYER_NOTE_SHAPE)
     require(isinstance(note['note'], str) and isinstance(note['replaces'], str) and
-            isinstance(note['evidence_turns'], list), 'Invalid player_note')
+            isinstance(note['evidence_turns'], list),
+            'Invalid player_note: note and replaces are strings, evidence_turns a list. ' + PLAYER_NOTE_SHAPE)
     if note['note'].strip().casefold() == 'none':
         require(note['evidence_turns'] == [] and note['replaces'].strip().casefold() == 'none',
-                'An empty player_note has no evidence and replaces nothing')
+                'An empty player_note has no evidence and replaces nothing. ' + PLAYER_NOTE_SHAPE)
         return
     check_player_note_text(note['note'])
     allowed = set(committed_turn_ids) | {THIS_TURN}
@@ -2976,6 +3001,42 @@ def check_player_note(note, player_notes, committed_turn_ids):
         old = next((item for item in player_notes if item['id'] == note['replaces']), None)
         require(old is not None, 'player_note replaces an unknown note')
         require(old['source'] == 'observed', 'Only new feedback can replace the player\'s own feedback')
+
+
+PLAYER_NOTE_SHAPE = (
+    'With nothing new to note (always on the room entry, before the player has spoken), send exactly '
+    '{"note": "none", "evidence_turns": [], "replaces": "none"}. A real note is one observed pattern, e.g. '
+    '{"note": "Tests NPCs with direct questions before trusting them.", "evidence_turns": ["this_turn"], '
+    '"replaces": "none"}.')
+BRIEF_SHAPE = (
+    'public_brief is an object with exactly these string fields, each 1-240 characters: '
+    + ', '.join(BRIEF_FIELDS) + ' (objective, visible_cue, player_opening are optional). Use "none" for '
+    'reply_to on the room entry and for callback or npc_notice when nothing applies; scope is one of '
+    'feature, exchange, call (the room entry uses feature). Example: {"tactic": "The warden keeps humming and lets the visitor '
+    'speak first.", "reply_to": "none", "scope": "feature", "kit_focus": "Let the humming behind the iron '
+    'door carry the beat; hold back the stair.", "callback": "none", "mirror": "steady energy, standard, '
+    'dry humor: meet the visitor\u2019s even pace.", "npc_notice": "none"}.')
+
+
+def brief_problems(brief):
+    """Each way a public_brief is malformed, by field, so the host fixes all of them in one retry."""
+    if not isinstance(brief, dict):
+        return ['public_brief must be an object']
+    keys = set(brief) - set(LEGACY_BRIEF_FIELDS)
+    problems = []
+    missing = [key for key in BRIEF_FIELDS if key not in brief]
+    if missing:
+        problems.append('missing: ' + ', '.join(missing))
+    extra = sorted(keys - set(BRIEF_FIELDS))
+    if extra:
+        problems.append('not allowed: ' + ', '.join(extra))
+    for label, bad in (('not a string', [k for k in brief if not isinstance(brief[k], str)]),
+                       ('empty', [k for k in brief if isinstance(brief[k], str) and not brief[k].strip()]),
+                       ('over 240 characters', [k for k in brief if isinstance(brief[k], str)
+                                                and len(brief[k].strip()) > 240])):
+        if bad:
+            problems.append(f'{label}: ' + ', '.join(bad))
+    return problems
 
 
 def check_callback_used(segments, plan):
@@ -3195,10 +3256,15 @@ def check_speech(speech, plan, public_view, player_action, action_kind=None, gua
     require(focus is None or speakers is None or plan['move'] not in ('npc_reply', 'kit_comment_then_npc') or
             any(segment['speaker'] == focus for segment in segments),
             f'Selected focus actor ({focus}) did not speak')
+    # An actor only heard through the way in (not in direct contact yet) may call through it but
+    # need not: on room entry the first line is owed only by a focus actor in the PC's area.
+    heard_only = focus is not None and focus in guards.get('heard_only', ())
     require(action_kind != 'opening' or
             (any(segment['speaker'] == 'Narrator' for segment in segments) and
-             (focus is None or speakers is None or any(segment['speaker'] == focus for segment in segments))),
-            'Room entry needs narration and the focus actor\'s first line')
+             (focus is None or speakers is None or heard_only or
+              any(segment['speaker'] == focus for segment in segments))),
+            'Room entry needs narration and the focus actor\'s first line' +
+            (f' (add a segment with speaker "{focus}")' if focus else ''))
     spoken = '\n'.join(f"{segment['speaker']}: {segment['text'].strip()}" for segment in segments)
     # Every check runs and every failure is reported at once (6c baseline item 5: one error
     # per retry cost the model a retry per problem).
@@ -4266,7 +4332,12 @@ def guard_context(source, body):
         if name in facts and key in toll_view:
             backed = kit_toll.amounts({key: toll_view[key]})
             facts[name] = {**facts[name], 'allowed_amounts': sorted(set(facts[name]['allowed_amounts']) | backed)}
-    here = [toll for key, toll in tolls.items() if toll['area'] == _area_id(source, view)]
+    area = _area_id(source, view)
+    here = [toll for key, toll in tolls.items() if toll['area'] == area]
+    tease = ((((source or {}).get('areas') or {}).get(area) or {}).get('tease') or {})
+    labels = actor_speakers(source)
+    heard_only = tuple(labels.get(item.get('actor'), item.get('actor')) for item in tease.get('heard') or ()
+                       if (((source or {}).get('actors') or {}).get(item.get('actor')) or {}).get('location') != area)
     carriable = ('toll', 'tolls', 'passage') if any(kit_cards.can_carry(configs.get(key), 'toll')
                                                     for key in procedures) else ()
     return {'leak_sets': kit_guards.leak_sets(source),
@@ -4283,7 +4354,7 @@ def guard_context(source, body):
             'dealer_cheated': bool((body.get('scene_facts') or {}).get('dealer_cheated')),
             'declared_procedures': tuple(procedures),
             'voice_contracts': {name: card.get('voice_contract') or {} for name, card in cards.items()},
-            'speakers': actor_speakers(source), 'labels': speech_speakers(source),
+            'speakers': labels, 'labels': speech_speakers(source), 'heard_only': heard_only,
             # The actor word floor is room data: only a card with speech_floor true asks for it
             # (6c's dealer). Every other voice may be terse (watchroom: a guard of short questions).
             'brief_speakers': tuple(name for name in dict.fromkeys(list(actor_speakers(source).values()) + list(cards))
@@ -5350,7 +5421,9 @@ class KitChatBridge:
         guidance = self.guidance(turn_id)
         message = str(exc)
         if guidance.get('abandon_instruction'):
-            message += ' ' + ABANDON_INSTRUCTION
+            if self._is_opening(turn_id):
+                guidance['abandon_instruction'] = ABANDON_INSTRUCTION + ' ' + OPENING_REPREPARE
+            message += ' ' + guidance['abandon_instruction']
         elif guidance['degraded_available']:
             message += ' ' + DEGRADED_INSTRUCTION
         return PerformanceRejected(message, guidance)
@@ -5380,11 +5453,20 @@ class KitChatBridge:
 
     def abandon(self, turn_id):
         """Drop an uncommitted pending turn so the host can prepare the action again,
-        e.g. when a fixed decision keeps producing rejected performances."""
+        e.g. when a fixed decision keeps producing rejected performances. The room entry is
+        prepared again as the room entry; the room never has to restart."""
+        opening = self._is_opening(turn_id)
         self.runtime.discard_pending_kit_turn(turn_id)
         self.runtime.record_kit_timing(turn_id, outcome='abandoned', abandoned_at=time.time())
         return {'stage': 'abandoned', 'turn_id': turn_id, 'committed': False,
-                'next_step': 'prepare the same player action again with a new turn_id'}
+                'next_step': (OPENING_REPREPARE if opening else
+                              'prepare the same player action again with a new turn_id')}
+
+    def _is_opening(self, turn_id):
+        try:
+            return self.runtime.pending_kit_turn(turn_id)['body'].get('kind') == 'opening'
+        except InvalidChange:
+            return False
 
     def feedback(self, text, evidence_turns=None, replaces='none'):
         """Record the player's out-of-character comment for Kit's next private decision.
@@ -5455,7 +5537,13 @@ class KitChatBridge:
         if revision != pending['revision']:
             raise StaleTurn(f"Expected revision {pending['revision']}; current is {revision}")
         self._check_degraded_allowed(turn_id, degraded)
-        if pending['plan'] is None:
+        # A failed attempt does not lock the presentation: a corrected decision faces every check
+        # again and replaces it (opening friction: complete refused the fix, only a restart
+        # recovered). What the engine acts on (declared acts, rolls, claims, agenda, state) stays
+        # fixed; left out, it carries over from the saved decision.
+        if pending['plan'] is not None and encode(pending['plan']) != encode(plan):
+            plan = corrected_decision(pending['plan'], plan)
+        if pending['plan'] is None or encode(pending['plan']) != encode(plan):
             try:
                 check_decision(self.runtime, plan,
                                kit_memory(self.runtime, state, body['action'], body['use_memory']),
@@ -5464,7 +5552,7 @@ class KitChatBridge:
                 raise
             except InvalidChange as exc:
                 raise self._log_rejection(turn_id, exc) from exc
-        self.runtime.save_kit_plan(turn_id, revision, plan)
+        self.runtime.save_kit_plan(turn_id, revision, plan, replace=True)
         body = self._declared(body, plan)
         # Turns staged before variants reached one-pass ran the `current` instructions.
         variant = body.get('performance_variant', 'current')

@@ -421,7 +421,9 @@ class Runtime:
                               (turn_id,)).fetchone()
         return {**json.loads(row[0]), 'revision': row[1]} if row else None
 
-    def save_kit_plan(self, turn_id, expected_revision, plan):
+    def save_kit_plan(self, turn_id, expected_revision, plan, replace=False):
+        """Fix the private decision for a pending turn. ``replace``: a corrected decision that
+        passed every check replaces one an earlier, rejected attempt saved (one-pass only)."""
         serialized = encode(plan)
         require(len(serialized.encode()) <= 12000, 'Private Kit decision exceeds size limit')
         self.db.execute('BEGIN IMMEDIATE')
@@ -432,8 +434,9 @@ class Runtime:
             row = self.db.execute('SELECT revision, plan FROM kit_pending WHERE turn_id=?',
                                   (turn_id,)).fetchone()
             require(row is not None and row[0] == expected_revision, 'No matching pending Kit turn')
-            require(row[1] is None or row[1] == serialized, 'Private decision already fixed for this turn')
-            if row[1] is None:
+            require(replace or row[1] is None or row[1] == serialized,
+                    'Private decision already fixed for this turn')
+            if row[1] != serialized:
                 self.db.execute('UPDATE kit_pending SET plan=? WHERE turn_id=?',
                                 (serialized, turn_id))
             self.db.commit()

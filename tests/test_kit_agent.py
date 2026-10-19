@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from runtime import kit_agent, kit_claims, kit_detail, kit_guards
+from runtime import kit_agent, kit_claims, kit_detail, kit_guards, kit_voice
 from runtime.kit_agent import (EVENT_MAX_CHARS, EXCHANGE_MIN_ACTOR_WORDS, KitAgent, KitChatBridge,
                                OpenAIResponsesModel, PendingRuling, RoomAdjudicator,
                                check_public_content, room_intent, social_event)
@@ -492,8 +492,11 @@ class KitAgentTests(unittest.TestCase):
             bridge.complete('quick-guarded', {'decision': plan, 'performance': bad})
         self.assertEqual(self.runtime.load()[0], 0)
         self.assertEqual(self.runtime.pending_kit_turn('quick-guarded')['plan'], plan)
-        with self.assertRaisesRegex(InvalidChange, 'already fixed'):
-            bridge.complete('quick-guarded', {'decision': {**plan, 'tone': 'warm'},
+        # The engine-facing part of the decision stays fixed (presentation fields may be corrected:
+        # tests/test_kit_opening_friction.py).
+        other = next(mode for mode in kit_voice.TURN_MODES if mode != plan['turn_mode'])
+        with self.assertRaisesRegex(InvalidChange, 'already fixed.*turn_mode'):
+            bridge.complete('quick-guarded', {'decision': {**plan, 'turn_mode': other},
                                               'performance': self.model.perform({})})
         self.assertEqual(bridge.complete('quick-guarded', {
             'decision': plan, 'performance': self.model.perform({})})['revision'], 1)
