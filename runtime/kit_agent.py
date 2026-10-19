@@ -39,7 +39,7 @@ from . import kit_router
 from . import kit_agenda, kit_plan, kit_threads, pc_sheet
 from . import kit_detail
 from . import kit_prices
-from . import kit_campaign
+from . import kit_campaign, kit_pack
 from . import kit_rooms
 from . import kit_texture
 from . import kit_toll
@@ -5545,6 +5545,46 @@ def persona_text(folder=None):
     return '\n\n'.join(parts) + '\n'
 
 
+def _pack_start(args):
+    """(room to mount or None, the pack or None, a result to print instead of starting, or None).
+
+    A private rooms pack (runtime/kit_pack.py) supplies playable rooms the public repo can't
+    hold. --pack names one; otherwise start finds one in the working dir, the repo root, or the
+    usual upload folders. With a pack: --room names a room in it (id, file name, or manifest
+    path), and --pack alone or the pack's campaign (default dotmm) mounts its first_room.
+    A save that already holds a game is still a resume; a pack never starts over it."""
+    named_file = bool(args.room) and kit_rooms.room_path(args.room).is_file()
+    if not args.room and kit_campaign.saved_game(args.db) is not None:
+        return None, None, kit_campaign.campaign_entry(args.db, args.sheet, campaign=args.campaign)
+    pack = None
+    if args.pack or not named_file:
+        pack = kit_pack.resolve(args.db, args.pack)
+    if args.room:
+        if pack is None:
+            return args.room, None, None
+        found = pack.find(args.room)
+        if found is not None:
+            return str(found), pack, None
+        if named_file:
+            return args.room, None, None
+        raise kit_pack.PackError('room_not_in_pack', f'The rooms pack {pack.name!r} has no room {args.room!r}.',
+                                 room=args.room, rooms=pack.room_ids(), pack=pack.summary())
+    if pack is not None and (args.pack or (args.campaign and kit_pack.same_campaign(args.campaign, pack.campaign))):
+        return str(pack.first_room()), pack, None
+    result = kit_campaign.campaign_entry(args.db, args.sheet, campaign=args.campaign)
+    if pack is not None:
+        result['pack'] = pack.summary()
+        if result.get('stage') == 'greeting':
+            result['next_step'] += (' A private rooms pack is attached (pack). Only if they ask for its campaign, '
+                                    f'run start --campaign {pack.campaign} --sheet <file>.')
+    elif result.get('stage') == 'campaign_unavailable':
+        result['pack'] = kit_pack.not_found()
+        result['next_step'] += (' No private rooms pack is attached. If the host has one, attach it (a ZIP or '
+                                'folder with a kit-rooms-pack/v1 manifest.json) and run this start again, '
+                                'or pass --pack <path>.')
+    return None, pack, result
+
+
 def _cli_stamps(items):
     out = {}
     for item in items or ():
@@ -5572,6 +5612,9 @@ def main():
     parser.add_argument('--campaign',
                         help='start/init: a game the player asked for by name. '
                              'Omit it unless they named one. "dotmm" is Dungeon of the Mad Mage.')
+    parser.add_argument('--pack', help='start: a private rooms pack (a ZIP, its folder, or its manifest.json). '
+                                       'Without it, start looks for one in the working dir, the repo root, and '
+                                       '/mnt/data, /mnt/user-data/uploads, /mnt/user-data (runtime/kit_pack.py).')
     parser.add_argument('--area', help='start: begin in this area of the room (default: its starting_area)')
     parser.add_argument('--model', help='Optional standalone Responses API model for play')
     parser.add_argument('--perception', type=int, help='Test character Wisdom (Perception) modifier')
@@ -5622,17 +5665,34 @@ def main():
         return 0
     if args.command == 'start':
         try:
-            if args.room and not args.regression:
-                source = kit_rooms.load_room(args.room)
-                refusal = kit_campaign.player_room_refusal(args.room, source)
+            try:
+                room, pack, early = _pack_start(args)
+            except kit_pack.PackError as exc:
+                print(json.dumps(exc.host_view(), ensure_ascii=False), file=sys.stderr)
+                return 2
+            if early is not None:
+                print(json.dumps(early, ensure_ascii=False))
+                return 0
+            if room and not args.regression:
+                source = kit_rooms.load_room(room)
+                refusal = kit_campaign.player_room_refusal(room, source)
                 if refusal:
                     print(json.dumps(refusal, ensure_ascii=False), file=sys.stderr)
                     return 2
                 if not args.sheet:
-                    print(json.dumps(kit_campaign.need_character(args.room, source), ensure_ascii=False))
+                    asked = kit_campaign.need_character(room, source)
+                    if pack is not None:
+                        asked['pack'] = pack.summary()
+                        asked['next_step'] = ('Do not start until a sheet is given. Then run the same start '
+                                              'command again and add --sheet <file>. Do not offer '
+                                              f'{kit_campaign.EXAMPLE_SHEET} unless the player explicitly '
+                                              'asks for the example character.')
+                    print(json.dumps(asked, ensure_ascii=False))
                     return 0
-            result = start_session(args.db, args.sheet, room=args.room, area=args.area,
+            result = start_session(args.db, args.sheet, room=room, area=args.area,
                                    manifests=not args.full, campaign=args.campaign)
+            if pack is not None:
+                result['pack'] = pack.summary()
         except kit_rooms.RoomMountError as exc:
             print(json.dumps(exc.host_view(), ensure_ascii=False), file=sys.stderr)
             return 2

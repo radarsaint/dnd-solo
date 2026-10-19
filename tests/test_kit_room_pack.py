@@ -9,6 +9,7 @@ import contextlib
 import io
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -95,7 +96,7 @@ class RoomPackTests(unittest.TestCase):
         self.assertEqual(out['stage'], 'started')
         self.assertEqual(out['room_id'], 'synthetic-pack-watchroom')
         self.assertEqual(out['pack']['pack'], 'kit-rooms')
-        self.assertEqual(out['character'], 'Nik')
+        self.assertEqual(out['character']['name'], 'Nik')
 
     def test_explicit_pack_zip_mounts_and_a_named_room_is_found_by_id(self):
         zpath = zip_pack(build_pack(self.dir / 'src'), self.dir / 'kit-rooms-test.zip')
@@ -227,10 +228,13 @@ class RoomPackTests(unittest.TestCase):
                     source = json.loads(runtime.db.execute('SELECT body FROM source WHERE id=1').fetchone()[0])
                 finally:
                     runtime.close()
-                linked = source['areas']['stair_down']['room_link']
-                new_source, new_state = kit_rooms.arrive(source, state, linked)
-                self.assertEqual(new_source['id'], 'synthetic-pack-kiln')
-                self.assertEqual(Path(new_state['room']['path']).resolve(), (pack / 'rooms/kiln.json').resolve())
+                # Starting at the linked area mounts the next room in the same commit.
+                self.assertEqual(source['id'], 'synthetic-pack-kiln')
+                self.assertEqual(Path(state['room']['path']).resolve(), (pack / 'rooms/kiln.json').resolve())
+
+    def test_link_ref_keeps_a_link_that_exists_as_written(self):
+        self.assertEqual(kit_rooms.link_ref({'room': 'tests/fixtures/rooms/kiln.json', 'area': 'kiln'},
+                                            str(self.dir / 'x.json')), 'tests/fixtures/rooms/kiln.json')
 
 
 def _release_zip(target):
@@ -284,6 +288,40 @@ class CleanHostTests(unittest.TestCase):
                 cwd=runtime_root, capture_output=True, text=True, check=False)
             self.assertEqual(proc.returncode, 0, proc.stderr)
             self.assertEqual(json.loads(proc.stdout)['room_id'], 'synthetic-pack-watchroom')
+
+
+class SetupDocTests(unittest.TestCase):
+    """docs/CUSTOM_GPT_SETUP.md is followed literally by people and by hosts."""
+
+    def setUp(self):
+        self.doc = (ROOT / 'docs/CUSTOM_GPT_SETUP.md').read_text(encoding='utf-8')
+        start = self.doc.index('```text', self.doc.index('## 3. Instructions'))
+        self.instructions = self.doc[start + len('```text'):self.doc.index('```', start + 7)]
+
+    def test_instructions_fit_the_gpt_limit(self):
+        self.assertLess(len(self.instructions), 8000)
+
+    def test_instructions_allow_a_pack_room_and_still_forbid_regression(self):
+        self.assertIn('--pack', self.instructions)
+        self.assertIn('--room', self.instructions)
+        self.assertNotIn('Do not pass --room or --regression', self.instructions)
+        self.assertIn('--regression', self.instructions)
+        self.assertIn('kit-rooms-pack/v1', self.doc)
+
+    def test_every_repo_path_the_setup_names_exists(self):
+        for path in re.findall(r'(?<![\w/.<-])((?:tests|docs|runtime)/[A-Za-z0-9_./-]+\.(?:json|md|py))', self.doc):
+            self.assertTrue((ROOT / path).exists(), path)
+
+    def test_the_preview_test_uses_a_character_in_the_repo(self):
+        step = self.doc[self.doc.index('5. Test it'):self.doc.index('6. Click')]
+        self.assertNotIn('the example character', step)
+        self.assertIn(NIK, step)
+        self.assertTrue((ROOT / NIK).is_file())
+
+    def test_start_here_lists_the_pack_doc_and_module(self):
+        text = (ROOT / 'START_HERE.md').read_text(encoding='utf-8')
+        self.assertIn('docs/architecture/ROOM_PACKS.md', text)
+        self.assertIn('--pack', text)
 
 
 if __name__ == '__main__':
