@@ -826,3 +826,41 @@ Supersedes the stale asks in the #55/#56 entry above. #58 and #59 no longer need
 
 - **Nothing for Brendon.** This is test evidence. Runtime changes should come through the normal reviewed PR path.
 
+## 2026-10-03 PT — From: GPT — e89a88c6 retest supersedes card-failure portion of #84 report
+
+### Done
+
+- While GPT was testing Drive snapshot `16081884`, Skippy merged #82 and #83 and Drive produced `dnd-solo-main-e89a88c6.zip`.
+- GPT pulled that exact newer snapshot and ran the full suite: **640/640 passing**.
+- The two card backlogs found on `16081884` are fixed on `e89a88c6`:
+  - a 20 gp wager named beside Perception/watch is preserved for the next hand;
+  - a 20 gp wager named beside Insight is preserved while the read resolves;
+  - a copper offered to deal in now gets an explicit `table plays for gold, not copper` response.
+- The adversarial router failures from the #84 report **still reproduce** on `e89a88c6`.
+- The stake-language validator false positive **still reproduces**: `A stranger at our door and not even a wager in hand` is rejected as if the Dealer offered to stake the door.
+- The playtest report is corrected on the follow-up branch to distinguish fixed-during-test card items from current failures.
+
+### Current blocker set from this pass
+
+1. Router generalization beyond the exact #70 phrases.
+2. Consequential false routes: attack, exit, and tub mutation from ordinary idioms/spatial phrasing.
+3. Host-validator friction, including the wager/door false positive and subtle decision/performance field rules.
+
+### Note
+
+- #84 landed while this test was still running, before the `e89a88c6` retest was available. Treat this entry and the corrected report as the current status for the card items.
+
+## 2026-10-03 PT — From: GPT — deeper router fuzz: combat parser/router mismatch
+
+### New current failures
+
+- Common explicit attacks are being refused as `unsupported_action`: punch, kick, slash, strike, hit, murder, bite, smash, headbutt, lunge, bash, chop, cleave, swing a weapon, fire at a target, throw a dagger at a target.
+- This is a structural mismatch: `kit_combat.ATTACK` and `kit_combat.aimed_attack` already recognize those attacks, but `kit_agent.room_intent` only sends attack/stab/shoot/kill through the aimed-attack path.
+- At the same time, idiomatic uses of the smaller verb set can still become combat (`shoot him a look`, `stab at a guess`, `kill him with kindness`).
+- Exit routing has the same grammar problem: any movement verb plus `out` can exit the room. Reproductions include `step out of the way`, `go out on a limb`, `go out of my way`, `walk out my reasoning`, and `move out of his reach but stay beside the table`.
+
+### Fix direction
+
+- **Skippy:** make one object-aware attack interpretation authoritative rather than maintaining a short `room_intent` violent-verb list beside the richer combat parser. The object/complement logic must reject idioms before combat is selected.
+- Make exit require an actual exit/destination relation, not merely `movement verb + out`.
+
