@@ -11,6 +11,7 @@ from runtime import kit_agent, kit_guards, kit_toll, kit_twenty_one
 from runtime.kit_agent import RoomAdjudicator
 from runtime.state_context import InvalidChange, Runtime
 from test_kit_voice import HardeningGuardTests, SHOWTIME_SPEECH, VoiceTestCase
+import fixture_sheets
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / 'tests' / 'fixtures' / 'level_01_area_06c.json'
@@ -25,7 +26,7 @@ class Room:
         test.addCleanup(self.runtime.close)
         with mock.patch('runtime.state_context.secrets.token_hex', return_value=f'{seed:032x}'):
             self.runtime.initialize(json.loads(FIXTURE.read_text()), 'area_06c')
-        self.runtime.set_player_sheet(json.loads((SHEETS / sheet).read_text()))
+        self.runtime.set_player_sheet(fixture_sheets.sheet(SHEETS / sheet))
         if toll:
             revision, state = self.runtime.load()
             events = []

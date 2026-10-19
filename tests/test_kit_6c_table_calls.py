@@ -13,9 +13,10 @@ from runtime import kit_agent, kit_cards, kit_guards, kit_toll, kit_twenty_one
 from runtime.kit_agent import RoomAdjudicator
 from runtime.state_context import InvalidChange, Runtime
 from test_kit_agent import FIXTURE, RecordingModel
+import fixture_sheets
 
 SOURCE = json.loads(FIXTURE.read_text())
-NIK = json.loads((Path(__file__).parent / 'fixtures/characters/nik.json').read_text())
+NIK = fixture_sheets.sheet(Path(__file__).parent / 'fixtures/characters/nik.json')
 NUMBERS = r'\bDC\b|\bvs\.?\s*\d|\(\w+ \d+\)|[+-]\d+\b|\bd20\b|\bpassive \w+ \d+'
 ACTORS = ('uktarl', 'bandit_a', 'bandit_b', 'doppelganger')
 

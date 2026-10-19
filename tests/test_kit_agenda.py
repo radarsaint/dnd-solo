@@ -13,8 +13,9 @@ from runtime import kit_agenda, kit_agent, kit_cards, kit_detail, pc_sheet
 from runtime.kit_agent import RoomAdjudicator, room_intent
 from runtime.state_context import InvalidChange, Runtime
 from test_kit_agent import FIXTURE, RecordingModel
+import fixture_sheets
 
-NIK = json.loads((Path(__file__).parent / 'fixtures/characters/nik.json').read_text())
+NIK = fixture_sheets.sheet(Path(__file__).parent / 'fixtures/characters/nik.json')
 SIXC = json.loads(FIXTURE.read_text())
 
 
