@@ -97,6 +97,14 @@ def groups(text, source, candidates):
     # A span inside a longer span at the same place is the longer one's.
     kept = {(s, e): keys for (s, e), keys in out.items()
             if not any(o_s <= s and e <= o_e and (o_s, o_e) != (s, e) for o_s, o_e in out)}
+    low = (text or '').casefold()
+    label_of = _labels(source)
+    for (s, e), keys in kept.items():
+        # A foe whose whole label is the words ('Bandit' beside Bandit 3 and Bandit 12) is that foe.
+        said = re.sub(r'[\s-]+', ' ', low[s:e])
+        exact = {k for k in keys if re.sub(r'[\s-]+', ' ', label_of.get(k, k).casefold()) == said}
+        if len(keys) > 1 and len(exact) == 1:
+            kept[(s, e)] = exact
     return [(s, e, keys) for (s, e), keys in sorted(kept.items())]
 
 
