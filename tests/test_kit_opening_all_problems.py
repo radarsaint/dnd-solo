@@ -112,6 +112,15 @@ class EveryProblemAtOnce(OpeningFriction):
         self.assertIn('kit_focus is too generic', message)
 
 
+class HostRetryNote(OpeningFriction):
+    def test_the_note_keeps_both_branches_wording(self):
+        note = kit_agent.HOST_RETRY_NOTE
+        self.assertIn('correcting the fields the message names', note)  # #129
+        self.assertIn('lists every problem at once', note)
+        self.assertIn('the engine commits its own fallback line as the turn', note)  # #127
+        self.assertNotIn('--degraded', note)
+
+
 if __name__ == '__main__':
     import unittest
     unittest.main()
