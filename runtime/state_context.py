@@ -96,7 +96,8 @@ CANON_SLOT = re.compile(r'^[a-z0-9_:]+(/[a-z0-9_]+){1,3}$')
 # Events a Kit turn may add at commit, after the adjudicated batch it was prepared with:
 # the decision's canon entries, the oracle deal it consumed, and procedure state.
 # Host bookkeeping, not a turn taken in the room (kit_rooms.stage counts the others).
-BOOKKEEPING_EVENTS = ('player_sheet', 'player_character', 'player_note', 'pc_state', 'kit_plan', 'rest')
+BOOKKEEPING_EVENTS = ('player_sheet', 'player_character', 'player_note', 'pc_state', 'kit_plan', 'rest',
+                      'campaign_restore')
 # A pending check's optional fields: a held exit, and room for the check-calling follow-up's
 # quiet DC adjustment for creative use of the scene (Brendon: about -2) with its reason. Not
 # applied anywhere yet.
@@ -654,17 +655,27 @@ class Runtime:
         next_revision = self.commit(f'character-{digest}', revision, [event])
         return {'revision': next_revision, 'character': character}
 
-    def set_player_sheet(self, sheet):
+    def set_player_sheet(self, sheet, intake=None):
         """Load the player character's sheet (runtime/pc_sheet.py, any class or
         ancestry). It also sets the public identity, like set_player_character."""
         from . import pc_sheet
         pc_sheet.check_sheet(sheet)
         revision, _ = self.load()
         event = {'type': 'player_sheet', 'sheet': sheet,
+                 **({'intake': intake} if intake else {}),
                  'evidence': 'The host loaded the player character\'s sheet.'}
         digest = hashlib.sha256(f'{revision}:{encode(event)}'.encode()).hexdigest()[:16]
         next_revision = self.commit(f'sheet-{digest}', revision, [event])
         return {'revision': next_revision, 'character': pc_sheet.identity(sheet)}
+
+    def restore_campaign(self, log, carried, pc_state=None):
+        """Apply a player save's public record (kit_resume) before the room's opening."""
+        revision, _ = self.load()
+        event = {'type': 'campaign_restore', 'log': log, 'carried': carried,
+                 **({'pc_state': pc_state} if pc_state is not None else {}),
+                 'evidence': "The host resumed from the player's save."}
+        digest = hashlib.sha256(f'{revision}:{encode(event)}'.encode()).hexdigest()[:16]
+        return self.commit(f'restore-{digest}', revision, [event])
 
     def rest(self, kind):
         """The PC finished a short or long rest (host bookkeeping, like the sheet): the reaction
@@ -880,6 +891,11 @@ class Runtime:
             # The reaction inventory, slots and uses, rebuilt from the sheet; what was spent since the
             # last rest stays spent (re-sending or editing the sheet is not a rest: #101 review D7).
             state['pc_resources'] = kit_reactions.carry_spent(kit_reactions.build(sheet), state.get('pc_resources'))
+            # Where this sheet came from and when (P5): re-import waits for a level-up or a long rest.
+            intake = event.get('intake') or {'kind': 'json'}
+            require(isinstance(intake, dict) and all(isinstance(v, (str, type(None))) for v in intake.values()),
+                    'player_sheet intake is {kind, at, named_by_player, imported_at}')
+            state['sheet_import'] = {**copy.deepcopy(intake), 'long_rests': state.get('long_rests', 0)}
         elif kind == 'pc_resources':
             from . import kit_reactions
             state['pc_resources'] = copy.deepcopy(kit_reactions.check(event.get('resources')))
@@ -888,6 +904,8 @@ class Runtime:
             require(event.get('kind') in ('short', 'long'), 'A rest is short or long')
             state['pc_resources'] = kit_reactions.rest(kit_reactions.current(state), state.get('player_sheet') or {},
                                                        event['kind'])
+            if event['kind'] == 'long':
+                state['long_rests'] = int(state.get('long_rests') or 0) + 1
         elif kind == 'claim_said':
             from . import kit_claims
             said = event.get('said')
@@ -995,6 +1013,40 @@ class Runtime:
                     'Procedure state needs public and private halves')
             require(len(encode(body).encode()) <= 6000, 'Procedure state exceeds size limit')
             state.setdefault('procedures', {})[key] = copy.deepcopy(body)
+        elif kind == 'campaign_restore':
+            # Resume from the player's save (kit_resume): the public record of rooms left and
+            # what the PC carries. Only lists of short public strings; nothing of a room's secrets.
+            log, carried = event.get('log'), event.get('carried')
+            def names(value, limit=60):
+                return isinstance(value, list) and len(value) <= limit and all(
+                    isinstance(v, str) and len(v) <= 400 for v in value)
+            rooms = (log or {}).get('rooms') if isinstance(log, dict) else None
+            require(isinstance(rooms, list) and len(rooms) <= 200 and all(
+                isinstance(r, dict) and isinstance(r.get('room_id'), str) and
+                r.get('status') in ('left', 'bypassed') and names(r.get('areas')) and
+                names(r.get('learned'), 200) and names(r.get('took')) and
+                isinstance(r.get('npcs_met'), list) and all(
+                    isinstance(n, dict) and isinstance(n.get('name'), str) and isinstance(n.get('status'), str)
+                    for n in r['npcs_met']) for r in rooms), 'campaign_restore needs log.rooms of public records')
+            require(isinstance(carried, list) and len(carried) <= 60 and all(
+                isinstance(c, dict) and isinstance(c.get('item'), str) for c in carried),
+                'campaign_restore carried lists {item, from}')
+            from . import kit_save, kit_reactions
+            for record in rooms:
+                kit_save.check_carry(record.get('carry'))
+            pc = event.get('pc_state')
+            if pc is not None:
+                counts = lambda v: isinstance(v, dict) and all(
+                    isinstance(k, str) and type(n) is int and n >= 0 for k, n in v.items())
+                require(isinstance(pc, dict) and counts(pc.get('slots', {})) and counts(pc.get('uses', {}))
+                        and names(pc.get('conditions', [])), 'campaign_restore pc_state is {slots, uses, conditions}')
+                spent = {'slots': {k: {'used': n} for k, n in pc.get('slots', {}).items()},
+                         'uses': {k: {'used': n} for k, n in pc.get('uses', {}).items()}}
+                state['pc_resources'] = kit_reactions.carry_spent(kit_reactions.current(state), spent)
+                if pc.get('conditions'):
+                    state['pc_conditions'] = list(dict.fromkeys(pc['conditions']))
+            state['campaign_log'] = copy.deepcopy(log)
+            state['carried'] = copy.deepcopy(carried)
         elif kind == 'beat':
             tags = event.get('tags')
             require(isinstance(tags, list) and all(isinstance(t, str) for t in tags), 'Invalid beat tags')
