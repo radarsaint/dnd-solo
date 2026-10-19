@@ -69,5 +69,51 @@ class UnperceivedActors(unittest.TestCase):
         self.assertIn('stalker', words)
 
 
+def merged(room, key):
+    return {**room.runtime.source()['actors'][key], **room.state['actors'][key]}
+
+
+class RevealAndPresence(unittest.TestCase):
+    """Nagatha's #131 review at 788c6e1. Medium: a trigger's reveal reset only status and visible,
+    so an invisible flag or condition kept the creature protected while it fought the PC. Low: the
+    present-actor list, the turn's speakers and the fight's roster read only status 'hidden'."""
+
+    def test_the_reveal_clears_every_hiding_marker(self):
+        cases = {'invisible flag': {'invisible': True}, 'invisible condition': {'conditions': ['invisible', 'prone']},
+                 'every flag': {'hidden': True, 'concealed': True, 'unseen': True, 'conditions': ['Hidden']}}
+        for label, marks in cases.items():
+            with self.subTest(marks=label):
+                source = crypt()
+                source['actors']['ghoul'].update(marks)
+                room = Room(self, source=source)
+                _, result = bridge_turn(room, 'I push the lid aside.', {'target': 'lid', 'act': 'push'},
+                                        text='You push the lid and a grey ghoul lunges out at you.')
+                self.assertEqual(room.state['triggers_fired'], ['tomb_opened'])
+                self.assertIn('ghoul', result['spoken'], 'Kit may name the creature fighting him')
+                self.assertFalse(state_context.unperceived(merged(room, 'ghoul')), merged(room, 'ghoul'))
+                self.assertIn('ghoul', room.state['combat']['hp'], 'the revealed creature fights')
+                if 'prone' in str(marks):
+                    self.assertIn('prone', merged(room, 'ghoul')['conditions'], 'other conditions stay')
+
+    def test_an_alive_unseen_creature_is_not_present_or_a_speaker(self):
+        room = Room(self, source=with_stalker(visible=False))
+        self.assertNotIn('stalker', room.adjudicator._present_actors(room.state))
+        speakers = kit_agent.turn_speakers(room.runtime, {})['speakers']
+        self.assertNotIn('Invisible stalker', speakers)
+        seen = Room(self, source=with_stalker())
+        self.assertIn('stalker', seen.adjudicator._present_actors(seen.state))
+        self.assertIn('Invisible stalker', kit_agent.turn_speakers(seen.runtime, {})['speakers'])
+
+    def test_an_alive_unseen_creature_is_not_in_the_fight(self):
+        source = crypt()
+        source['actors']['skeleton'].update(status='alive', visible=False)
+        room = Room(self, source=source)
+        room.act('I look at the sarcophagus.')
+        room.act('I push it open.', {'target': 'sarcophagus', 'act': 'push'})
+        hp = room.state['combat']['hp']
+        self.assertIn('ghoul', hp)
+        self.assertNotIn('skeleton', hp, 'a creature he cannot perceive is not on the roster')
+
+
 if __name__ == '__main__':
     unittest.main()
