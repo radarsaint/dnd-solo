@@ -560,10 +560,7 @@ def named_camp(test, names):
         return Camp(test, roll=lambda: 2, sheet=without_shield(NIK))
 
 
-class NeverForfeitStatedDamage(unittest.TestCase):
-    """Nagatha's #127 re-probe at 3f6f0de: a missed answer only re-asks, a wrong one kills monsters,
-    and a lost damage roll is also wrong. A correction, a number with the target's name, or a
-    number word with 'damage' is the answer or held, never forfeited."""
+class AskHelpers:
 
     def answered(self, words, table=None, target='cutthroat_a', hit=HIT):
         table = table or camp(self)
@@ -589,6 +586,13 @@ class NeverForfeitStatedDamage(unittest.TestCase):
         self.assertNotIn('No damage was rolled', result.public_event, words)
         self.assertEqual(fight['round'], 1, words)
         return result
+
+
+
+class NeverForfeitStatedDamage(AskHelpers, unittest.TestCase):
+    """Nagatha's #127 re-probe at 3f6f0de: a missed answer only re-asks, a wrong one kills monsters,
+    and a lost damage roll is also wrong. A correction, a number with the target's name, or a
+    number word with 'damage' is the answer or held, never forfeited."""
 
     def test_a_correction_during_the_ask_lands_its_amount(self):
         for words in ('Actually it was 6 not 5 lol', 'Actually it was 6', 'actually 6 not 5', 'correction: 6',
@@ -649,3 +653,132 @@ class NeverForfeitStatedDamage(unittest.TestCase):
         table, result = self.answered('3', table=numbered_camp(self), hit=NUMBERED_HIT)
         self.assertIn('Bandit 2 is hurt', result.public_event)
         self.assertNotIn('The bandit 2', result.public_event)
+
+
+RATS_1_6_3 = {'harl': 'Giant rat 1', 'cutthroat_a': 'Giant rat 6', 'cutthroat_b': 'Giant rat 3'}
+
+
+def stab(label):
+    return f'Initiative 25. I stab the {label} with my dagger, 18 to hit.'
+
+
+def call_check(table, skill='perception'):
+    """Kit calls a check (her roll_call), as the bridge commits it."""
+    revision, _ = table.runtime.load()
+    plan = {'roll_call': {'skill': skill, 'mode': 'normal', 'target': 'none',
+                          'cause': {'kind': 'position', 'ref': 'none', 'roots': []}}}
+    table.runtime.commit('t-call', revision, kit_agent.turn_events(
+        table.runtime, {'events': [{'type': 'beat', 'tags': ['call'], 'evidence': 'Call.'}]}, plan, 't-call'))
+
+
+class E486Reprobe(AskHelpers, unittest.TestCase):
+    """Nagatha's re-probe at e486b18 (pinned dice, synthetic roadcamp copies)."""
+
+    def rats(self):
+        return dict(table=named_camp(self, RATS_1_6_3), hit=stab('Giant rat 6'))
+
+    def test_short_forms_of_a_numbered_name_are_names_never_damage(self):
+        for words in ('rat 6', 'the rat 6', 'giant rat 6'):
+            with self.subTest(words=words):
+                self.assertIn('names your target but no damage', self.assertHeld(words, **self.rats()).public_event)
+        for words in ('rat 3', 'rat 1', 'giant rat 3 takes 6'):
+            with self.subTest(words=words):
+                self.assertRegex(self.assertHeld(words, **self.rats()).public_event, r'names Giant rat [13], but')
+        for words, amount in (('rat 6 takes 6', 6), ('6 to rat 6', 6), ('3 to rat 6', 3), ('rat 6 takes it, 6', 6),
+                              ('Giant rat 6: 6', 6)):
+            with self.subTest(words=words):
+                self.assertLands(words, amount, **self.rats())
+
+    def test_a_number_that_is_no_deed_never_forfeits(self):
+        for words in ('Make it 6', 'oops, make that 6', 'Ugh, 6. Not 5.', 'Dagger: 6', '6 (not 5)'):
+            with self.subTest(words=words):
+                self.assertLands(words, 6)
+        for words in ('not 5', 'b2 6'):
+            with self.subTest(words=words):
+                self.assertHeld(words)
+        for words in ('Bandit-3 takes 5', 'bandit 12 takes 5'):
+            with self.subTest(words=words):
+                self.assertHeld(words, table=numbered_camp(self), hit=NUMBERED_HIT)
+        said = self.assertHeld('bandit 12 takes 5', table=numbered_camp(self), hit=NUMBERED_HIT).public_event
+        self.assertIn('no Bandit 12', said)
+
+    def test_a_one_line_labelled_roll_is_the_main_damage(self):
+        for words in ('Dagger: 1d4 (4) + 2 = 6', '**Result**: 1d4 (4) + 2 = `6`', 'Total: 1d4 (4) + 2 = 6',
+                      'Dmg: 1d4 (4) + 2 = 6', 'Piercing: 1d4 (4) + 2 = 6', 'dagger dmg: 1d4 (4) + 2 = 6',
+                      '**Dagger**: 1d4 (4) + 2 = `6`'):
+            with self.subTest(words=words):
+                self.assertLands(words, 6)
+        for words in ('Perception: 16', 'Round 2: 6'):
+            with self.subTest(words=words):
+                self.assertHeld(words)
+
+    def test_a_rider_alone_invites_the_main_roll(self):
+        for words in ('Hex 4 necrotic', '**Hex**: 1d6 (4) = `4`'):
+            with self.subTest(words=words):
+                self.assertIn("Got Hex 4. What's the dagger's damage?", self.assertHeld(words).public_event)
+
+    def test_an_ambiguous_name_says_so(self):
+        names = {'harl': 'Hobgoblin', 'cutthroat_a': 'Goblin 2', 'cutthroat_b': 'Goblin 3'}
+        said = self.assertHeld('6 to the goblin', table=named_camp(self, names), hit=stab('Hobgoblin'),
+                               target='harl').public_event
+        self.assertIn('could be Goblin 2 or Goblin 3', said)
+
+    def test_a_bare_number_after_the_damage_landed_says_it_landed(self):
+        table = camp(self)
+        table.act(HIT)
+        table.act('5')
+        result = table.act('6')
+        self.assertIn('already landed', result.public_event)
+        self.assertEqual(table.fight['hp']['cutthroat_a'], 6)
+
+
+class TwoOpenAsks(unittest.TestCase):
+    """A held damage ask and a called Perception check at once: each roll answers its own ask, and
+    a roll that could be either holds both (never lands damage and clears the check)."""
+
+    def both(self):
+        table = camp(self)
+        table.act(HIT)
+        call_check(table)
+        self.assertEqual(table.state['pending_check']['skill'], 'perception')
+        return table
+
+    def test_a_named_check_roll_answers_the_check_and_the_damage_waits(self):
+        table = self.both()
+        table.act('Perception 16')
+        self.assertIsNone(table.state.get('pending_check'))
+        self.assertEqual(table.fight['pending']['needs'], 'damage')
+        self.assertEqual(table.fight['hp']['cutthroat_a'], 11)
+
+    def test_a_roll_that_could_be_either_holds_both(self):
+        for words in ('16 not 6', '6', 'actually 6'):
+            with self.subTest(words=words):
+                table = self.both()
+                result = table.act(words)
+                self.assertEqual(table.fight['hp']['cutthroat_a'], 11, words)
+                self.assertEqual(table.fight['pending']['needs'], 'damage', words)
+                self.assertEqual((table.state.get('pending_check') or {}).get('skill'), 'perception', words)
+                self.assertIn('Two rolls are open', result.public_event)
+
+    def test_a_stated_damage_answers_the_damage(self):
+        table = self.both()
+        table.act('6 damage')
+        self.assertEqual(table.fight['hp']['cutthroat_a'], 5)
+
+
+class CalledCheckCorrections(unittest.TestCase):
+    """On main: a correction on a called check was refused, and a refused attempt cleared the call."""
+
+    def test_a_correction_answers_the_called_check(self):
+        for words in ('actually 6', 'oops, 16', '16 not 6', 'Actually it was 16 not 6'):
+            with self.subTest(words=words):
+                table = camp(self)
+                call_check(table)
+                table.act(words)
+                self.assertIsNone(table.state.get('pending_check'), words)
+
+    def test_a_refused_attempt_never_clears_an_open_ask(self):
+        table = camp(self)
+        call_check(table)
+        table.runtime.record_refused_attempt('I do something odd.', 'needs a ruling')
+        self.assertEqual(table.state['pending_check']['skill'], 'perception')
