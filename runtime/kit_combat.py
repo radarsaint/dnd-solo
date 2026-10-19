@@ -375,6 +375,15 @@ def _names(source, key):
     return {n for n in names if n and n not in ('pale man',)}
 
 
+def proper_numbered(text, names):
+    """A numbered foe reads as a name, not a noun ('Bandit 1 is hurt', never 'The bandit 1 is hurt'):
+    Nagatha's #127 re-probe at 3f6f0de (Low)."""
+    for name in sorted({n for n in names if n and re.search(r'\s\d+$', n)}, key=len, reverse=True):
+        shown = name[:1].upper() + name[1:]
+        text = re.sub(rf'(?<![\w-])(?:the\s+)?{re.escape(name)}(?![\w-])', shown, text, flags=re.I)
+    return text
+
+
 def name_target(text, source, state, candidates):
     """The actor the words name, among ``candidates``, or None."""
     best = None
@@ -3133,7 +3142,7 @@ class Fight:
                 self.lines.append('Your turn.')
 
     def public(self):
-        return ' '.join(line for line in self.lines if line).strip()
+        return proper_numbered(' '.join(line for line in self.lines if line).strip(), self.labels.values())
 
     def events(self):
         evidence = f'Player declared: {self.action[:300]}. ' + ('; '.join(self.trace) or 'physical act') + '.'

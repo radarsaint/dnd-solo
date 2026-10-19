@@ -858,6 +858,10 @@ class RoomAdjudicator:
                 # answers it and the ask stays open (a missed answer only re-asks).
                 return self._ask_stays_open(action, revision, state, pending, doubt), state, None
             return (None,) + self._yield_damage(action, revision, state, pending, cancel)
+        if not pending and not waiting and current.get('status') == 'running' and kit_combat.config(self.source):
+            late = self._late_correction(action, revision, state, current)
+            if late:
+                return late, state, None
         if state.get('pending_check') and not waiting:
             check = state['pending_check']
             if cancel and not check.get('held'):
@@ -873,6 +877,95 @@ class RoomAdjudicator:
                     return called, state, None
         return None, state, None
 
+    # A correction (Nagatha's #127 re-probe at 3f6f0de): during an open ask it is the answer or held,
+    # never a forfeit; after the damage landed it gets a graceful reply, never a silent re-apply.
+    _CORRECTION = re.compile(r"\b(?:actually|correction|wait|oops|whoops|my\s+bad|sorry|i\s+meant?|"
+                             r"hold\s+on|scratch\s+that|typo|mistyped|misread)\b", re.I)
+    _CORRECTION_LEAD = re.compile(r"^\W*(?:(?:oh|ah|uh|um|erm?|no|nope|wait|actually|correction|oops|whoops|"
+                                  r"my\s+bad|sorry|i\s+meant?|hold\s+on|scratch\s+that|typo|lol)\b\W*)+", re.I)
+    # "6 not 5", "6, not 5", "6 instead of 5": the first is the amount.
+    _NOT_THAT = re.compile(r"(?<![\w.])(\d{1,3}|[a-z]+)(\s*,?\s*)(?:not|instead\s+of|rather\s+than)\s+(?:a\s+|an\s+)?"
+                           r"(\d{1,3}|[a-z]+)\b", re.I)
+    # Words that join a target's name to its damage ("6 to bandit 2", "Bandit 2 takes 6").
+    _TARGET_GLUE = re.compile(r"\b(?:to|on|at|for|against|into|takes?|took|hits?|is|was|gets?|got)\b", re.I)
+    _DAMAGE_WORDS = frozenset("damage dmg points pts hp acid bludgeoning cold fire force lightning necrotic "
+                              "piercing poison psychic radiant slashing thunder".split())
+
+    def _corrected_text(self, text):
+        """(text, corrected): the correction preamble dropped and "X not Y" read as X."""
+        corrected = bool(self._CORRECTION.search(text))
+        stripped = self._CORRECTION_LEAD.sub('', text)
+
+        def first(m):
+            a, b = m.group(1), m.group(3)
+            if (a.isdigit() or self._spelled(a)) and (b.isdigit() or self._spelled(b)):
+                return a
+            return m.group(0)
+        swapped = self._NOT_THAT.sub(first, stripped)
+        if swapped != stripped:
+            corrected = True
+        if '\n' in text.strip():
+            return text, corrected  # an Avrae block reads as pasted
+        return swapped, corrected
+
+    def _foe_spans(self, text, foes, target=None):
+        """[(key, start, end)] where the words name a foe (see _named_foes). A number-word name right
+        before 'damage' ("seven damage" with a foe named Seven) is the amount, not the foe."""
+        found = []
+        low = text.casefold()
+        for key in foes:
+            names = set(kit_combat._names(self.source, key))
+            if key == target:
+                # The held hit's target: any word of its label names it ('6 to the cutthroat' when the
+                # hit was on the wagon-side cutthroat), unless another foe's longer name holds the word.
+                label = kit_combat.labels(self.source).get(key, key).casefold()
+                names |= {w for w in re.split(r'[\s-]+', label) if len(w) > 2 and w.isalpha() and w != 'the'}
+            for name in names:
+                if not re.search(r'[a-z]', name):
+                    continue  # '6', '2': a bare number names nobody
+                for match in re.finditer(rf'(?<![\w-]){re.escape(name)}(?![\w-])', low):
+                    if self._spelled(name) and re.match(r'\s+(?:[a-z]+\s+)?(?:damage|dmg)\b', low[match.end():]):
+                        continue
+                    found.append((key, match.start(), match.end()))
+        return [(key, start, end) for key, start, end in found
+                if not any(other != key and o_start <= start and end <= o_end and (o_end - o_start) > (end - start)
+                           for other, o_start, o_end in found)]
+
+    def _without_target(self, plain, state, pending):
+        """(plain, held_reason): the held target's own name (its number too) and the words joining it
+        to the damage taken out, so 'Bandit 2 takes 6' reads as 6. Another foe named with a number
+        leaves the ask open and says why; a name with no number left is held, never a forfeit."""
+        target = (pending or {}).get('target')
+        fight = (state or {}).get('combat') or {}
+        if not target or not self.source:
+            return plain, None
+        foes = [key for key in (fight.get('hp') or {}) if key != 'pc']
+        spans = self._foe_spans(plain, foes, target)
+        if not spans:
+            return plain, None
+        labels = kit_combat.labels(self.source)
+        others = sorted({key for key, _, _ in spans if key != target})
+        merged = []
+        for _, start, end in sorted(spans, key=lambda s: s[1]):
+            if merged and start <= merged[-1][1]:
+                merged[-1][1] = max(merged[-1][1], end)
+            else:
+                merged.append([start, end])
+        out = plain
+        for start, end in reversed(merged):
+            out = out[:start] + ' ' + out[end:]
+        out = re.sub(r'\bthe\b', ' ', self._TARGET_GLUE.sub(' ', out), flags=re.I)
+        if self._deed(out):
+            return plain, None  # "Stab the captain": a deed, read as before
+        left = self._NUMBER.search(out) or any(self._spelled(w) for w in re.findall(r"[a-z]+", out.casefold()))
+        if others:
+            shown = kit_combat.proper_numbered(f'the {labels.get(others[0], others[0]).lower()}', labels.values())
+            mine = kit_combat.proper_numbered(f'the {labels.get(target, target).lower()}', labels.values())
+            return out, f'That names {shown}, but your hit was on {mine}.'
+        if not left:
+            return out, 'That names your target but no damage.'
+        return out, None
+
     def _damage_answer(self, action, state=None, pending=None):
         """(amount, ignored, doubt, kind) for the open damage ask. ``amount`` is the damage the message
         reports, read only where it is plainly the roll: an Avrae damage field, a stated amount
@@ -886,6 +979,7 @@ class RoomAdjudicator:
         only a dice line or a stated "N damage" answers."""
         # Two damage fields run together on one line are two fields ("Damage: ... = 4 Damage: ... = 3").
         text = re.sub(r'(?<=\S)[ \t]+(?=\**damage\b[^:\n]{0,30}:)', '\n', action.translate(_TYPOGRAPHIC), flags=re.I)
+        text, corrected = self._corrected_text(text)
         words = QUOTED_SPEECH.sub(' ', text)
         plain = kit_rolls.without_dice(re.sub(r'[*`_~]+', '', words))
         numbers = [m for m in self._NUMBER.finditer(plain)]
@@ -908,6 +1002,11 @@ class RoomAdjudicator:
         read = self._stated_damage(words, found, state, pending)
         if read is not None:
             return read + (kind,)
+        if '\n' not in text.strip():
+            plain, held = self._without_target(plain, state, pending)
+            if held:
+                return None, 0, held, None
+            numbers = [m for m in self._NUMBER.finditer(plain)]
         rolled = bool(numbers) or bool(re.search(r'\d', words))
         if rolled and self._NOT_DAMAGE.search(words):
             return None, 0, True, None
@@ -930,10 +1029,13 @@ class RoomAdjudicator:
                 return None, 0, True, None  # "I rolled a 4 and a 2": which one?
         if named:
             return (named[0], 0, False, None) if len(named) == 1 else (None, 0, True, None)
-        if len(numbers) + len(spelled) == 1 and all(w in self._FILLER or self._spelled(w) for w in rest):
+        if len(numbers) + len(spelled) == 1 and \
+                all(w in self._FILLER or w in self._DAMAGE_WORDS or self._spelled(w) for w in rest):
             value = int(numbers[0].group(1)) if numbers else self._spelled(spelled[0])
             return value, 0, False, None
-        if not numbers or self._deed(plain):
+        if corrected and not self._deed(plain):
+            return None, 0, True, None  # a correction is never a forfeit: held
+        if not (numbers or spelled) or self._deed(plain):
             return None, 0, False, None  # no number, or a deed with a number in it: the ask yields as before
         return None, 0, True, None
 
@@ -949,6 +1051,12 @@ class RoomAdjudicator:
                         r"(?:\bplus\b|\+|\b(?:extra|additional|bonus)\b)?\s*(\d{1,3})(?:\s+[a-z]+)?(?:\s+(?:damage|dmg))?"
                         r"\s+from\s+([a-z][a-z' -]*)", re.I)
 
+    # A same-hit rider named in prose: "sneak attack 4 damage", "smite: 9 radiant".
+    _PROSE_RIDER = re.compile(r"\b(sneak\s+attack|hex|hunter'?s\s+mark|divine\s+smite|smite|colossus\s+slayer|"
+                              r"favou?red\s+foe|dread\s+ambusher|superiority(?:\s+die)?|booming\s+blade|"
+                              r"green[- ]flame(?:\s+blade)?)\s*[:=-]?\s*(?:for\s+|of\s+)?(\d{1,3})(?:\s+[a-z]+)?"
+                              r"(?:\s+(?:damage|dmg))?\b", re.I)
+
     @staticmethod
     def _field_total(value):
         """(total, the rest of the field) of a damage field's value, or (None, '')."""
@@ -959,7 +1067,9 @@ class RoomAdjudicator:
         """([(rider name or None, amount)], other numbers left) in the words after a damage roll."""
         riders = [((m.group(2) or m.group(4) or '').strip() or None, int(m.group(1) or m.group(3)))
                   for m in self._RIDER.finditer(text)]
-        left = re.findall(r'(?<![\w.])\d{1,3}\b', self._RIDER.sub(' ', text))
+        rest = self._RIDER.sub(' ', text)
+        riders += [(m.group(1), int(m.group(2))) for m in self._PROSE_RIDER.finditer(rest)]
+        left = re.findall(r'(?<![\w.])\d{1,3}\b', self._PROSE_RIDER.sub(' ', rest))
         return riders, len(left)
 
     @staticmethod
@@ -1064,8 +1174,9 @@ class RoomAdjudicator:
             return None
         labels = kit_combat.labels(self.source)
         other = sorted(named)[0]
-        return (f'That damage names the {labels.get(other, other).lower()}, but your hit was on the '
-                f'{labels.get(target, target).lower()}.')
+        return kit_combat.proper_numbered(
+            f'That damage names the {labels.get(other, other).lower()}, but your hit was on the '
+            f'{labels.get(target, target).lower()}.', labels.values())
 
     # Dice terms in a roll line: '1d6 (6)', '2d4 (3, 1)', '[piercing]', '= 6', '+ 2'.
     _DICE_TERMS = re.compile(r'\b\d*d\d+\b(?:\s*\([^)]*\))?|\[[^\]]*\]|[=+-]\s*-?\d+\b|\(\s*\d+(?:\s*,\s*\d+)*\s*\)', re.I)
@@ -1076,18 +1187,7 @@ class RoomAdjudicator:
         where a word of it appears, and a number in a name only right after that word ('Bandit 2' typed
         out still names Bandit 2). Where one foe's name sits inside a longer match of another ('bandit'
         in 'bandit 3'), only the longer one counts."""
-        text = self._DICE_TERMS.sub(' ', text)
-        found = []
-        for key in foes:
-            for name in kit_combat._names(self.source, key):
-                if not re.search(r'[a-z]', name):
-                    continue  # '6', '2': a bare number names nobody
-                for match in re.finditer(rf'(?<![\w-]){re.escape(name)}(?![\w-])', text):
-                    found.append((key, match.start(), match.end()))
-        kept = {key for key, start, end in found
-                if not any(other != key and o_start <= start and end <= o_end and (o_end - o_start) > (end - start)
-                           for other, o_start, o_end in found)}
-        return kept
+        return {key for key, _, _ in self._foe_spans(self._DICE_TERMS.sub(' ', text), foes)}
 
     @staticmethod
     def _spelled(word):
@@ -1118,6 +1218,7 @@ class RoomAdjudicator:
         act = {'kind': 'attack', 'target': pending['target'], 'weapon': pending.get('weapon'), 'area': False,
                **({'spell': pending['spell']} if pending.get('spell') else {})}
         fight.trace.append(f"open ask answered: {amount} damage for the {pending.get('weapon') or 'blow'}")
+        fight.fight['last_damage'] = {'target': pending['target'], 'amount': amount, 'round': fight.fight.get('round')}
         if isinstance(ignored, str):
             fight.lines.append(ignored)  # riders that do not stack, and any further roll
             fight.trace.append(f'open ask: {ignored}')
@@ -1131,14 +1232,42 @@ class RoomAdjudicator:
     def _ask_stays_open(self, action, revision, state, pending, doubt=False):
         """A question while his hit waits on its damage, or a number not read as that damage:
         Kit's to answer. Nothing resolves, nobody acts, the hit still waits on its damage roll."""
-        label = self._fight(action, revision, state).label(pending['target'])
+        fight = self._fight(action, revision, state)
+        label = fight.label(pending['target'])
         said = f' {doubt}' if isinstance(doubt, str) else ' That is not read as the damage roll.' if doubt else ''
-
-        return Resolution('social', f'{table_talk_event(action)}{said} Your hit on the {label} still waits for '
-                                    'its damage roll.', [
+        waits = kit_combat.proper_numbered(f'Your hit on the {label} still waits for its damage roll.',
+                                           fight.labels.values())
+        return Resolution('social', f'{table_talk_event(action)}{said} {waits}', [
             {'type': 'beat', 'tags': ['table_talk', 'open_ask'],
              'evidence': f'Question while the damage ask is open: {action}. Kit answers it; the hit on the '
                          f'{label} still waits for its damage roll; nothing resolved.'}])
+
+    def _late_correction(self, action, revision, state, current):
+        """A correction to a damage roll that already landed ("actually it was 6 not 5"): a graceful
+        reply, never a silent re-apply (Nagatha's #127 re-probe at 3f6f0de). Kit may adjust by ruling."""
+        text = QUOTED_SPEECH.sub(' ', action.translate(_TYPOGRAPHIC))
+        if '\n' in text.strip() or re.search(r'\bto[- ]?hit\b|\binit(?:iative)?\b', text, re.I):
+            return None
+        led = self._CORRECTION_LEAD.match(text)
+        rest, _ = self._corrected_text(text)
+        if not (led and self._CORRECTION.search(led.group(0))) and rest == text:
+            return None  # a correction opens the message ("actually...", "oh wait...") or says "6 not 5"
+        plain = kit_rolls.without_dice(rest)
+        if self._deed(plain) or not (self._NUMBER.search(plain) or
+                                     any(self._spelled(w) for w in re.findall(r'[a-z]+', plain.casefold()))):
+            return None
+        last = current.get('last_damage') or {}
+        labels = kit_combat.labels(self.source)
+        if last.get('target'):
+            what = kit_combat.proper_numbered(
+                f"Your {last.get('amount')} damage on the {labels.get(last['target'], last['target']).lower()} "
+                'already landed', labels.values())
+        else:
+            what = 'That damage already landed'
+        line = f'{what}; it is not applied again. Kit can adjust it by ruling if the roll was wrong.'
+        return Resolution('social', f'{table_talk_event(action)} {line}', [
+            {'type': 'beat', 'tags': ['table_talk', 'late_correction'],
+             'evidence': f'Correction after the damage landed: {action}. {line} Nothing resolved.'}])
 
     def _zero_damage(self, action, revision, state, pending):
         """His damage roll came to 0 (or less): that is the answer. The hit does no damage, his turn
