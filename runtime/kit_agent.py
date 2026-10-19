@@ -726,16 +726,20 @@ class RoomAdjudicator:
         try:
             result = self._also_bet(self._resolve(action, revision, state, addressed), action, revision, state)
         except PendingRuling as exc:
+            answer = self._question_answer(action, state)
             # A physical act the engine has no ruling for, where a known feature a room trigger
             # watches is in reach ('I climb onto the carcass', 'I push it open', 'I heave the
             # stone slab aside'), is Kit's ruling, not a refusal: she declares handles or none.
             near = str(exc).startswith(UNSUPPORTED_RULING) and not is_ooc(action) and \
                 (self.source or {}).get('triggers') and kit_triggers.disturb_targets(self.source, state)
-            if not near:
+            if answer is not None:
+                result = answer
+            elif not near:
                 raise
-            # Not hands-on ('I take a step toward the claw'): Kit's to voice, nothing to
-            # declare (no offer; #97 review P1-E).
-            result = self._feature_act(action, self._handles_offer(action, state, None))
+            else:
+                # Not hands-on ('I take a step toward the claw'): Kit's to voice, nothing to
+                # declare (no offer; #97 review P1-E).
+                result = self._feature_act(action, self._handles_offer(action, state, None))
         waiting = (state.get('combat') or {}).get('awaiting') or {}
         if waiting.get('kind') == 'flourish_window' and (choice or {}).get('flourish') == 'new_action' and \
                 not any(e.get('type') == 'combat_state' for e in result.events):
@@ -772,6 +776,21 @@ class RoomAdjudicator:
         if result.kind == 'exit' and choice is None:
             result = self._also_after_entry(result, action, revision, state)
         return self._offer_downed(result)
+
+    def _question_answer(self, action, state):
+        """Kit's equipment or proficiency question is open (kit_gear.raised): the reply is his
+        answer, quoted or not ('A shield-maiden drilled me.', 'I just have it.'), never a refused
+        physical act (Nagatha's 59ce12a review, F2). Kit reads it (acts.ruling / acts.gear, offered
+        in prepare_inputs). None when no question is open or a fight waits on a window."""
+        open_ = kit_gear.awaiting_answer(state)
+        if not open_ or (state.get('combat') or {}).get('awaiting'):
+            return None
+        # Heard once: a later reply the engine cannot resolve is refused as usual (the question
+        # stays raised, and Kit may still rule on it when he answers it).
+        return Resolution('social', social_event(action), [
+            {'type': 'beat', 'tags': ['gear_answer'],
+             'evidence': f"Player answered Kit's open question: {action[:300]}"},
+            kit_gear.heard_event([e['id'] for e in open_], f"Player answered: {action[:200]}")])
 
     def _offer_downed(self, result):
         """The fight now waits on Kit's call (foes acting while the PC is down): offer it."""
@@ -1367,6 +1386,12 @@ class RoomAdjudicator:
         choice = getattr(self, 'choice', None) or {}
         if waiting['kind'] == 'flourish_window' and choice.get('flourish') == 'new_action':
             return None  # Kit read a new act, not a description: it resolves as that act
+        if waiting['kind'] == 'slot_ask' and (choice.get('upcast') == 'new_action' or (
+                choice.get('upcast') == 'no' and kit_combat._rolled(action)
+                and waiting.get('spell', '').casefold() not in action.casefold())):
+            # A no that carries an Avrae roll for something else ("Nah, I Fire Bolt it
+            # instead" + the roll) is that act: the dice say so, not a reading of intent.
+            return self._instead_of_upcast(action, revision, state, waiting)
         fight = self._fight(action, revision, state)
         fight.choice = getattr(self, 'choice', None)
         try:
@@ -1378,6 +1403,21 @@ class RoomAdjudicator:
             ruling.code, ruling.ask = exc.code, exc.ask
             raise ruling from exc
         return self._fight_resolution(fight, public, events, action, state)
+
+    def _instead_of_upcast(self, action, revision, state, waiting):
+        """Kit read a new act as the answer to the slot ask ('Nah, I Fire Bolt it instead', with
+        its roll): the ask closes with nothing spent and that act is his turn (Nagatha's 59ce12a
+        review, F9). The fight is resolved from the state with the ask closed."""
+        cleared = copy.deepcopy(state)
+        cleared['combat']['awaiting'] = None
+        self.choice = None
+        result = self._resolve(action, revision, cleared)
+        if not any(e.get('type') == 'combat_state' for e in result.events):
+            result = dataclasses.replace(result, events=[{
+                'type': 'combat_state', 'state': cleared['combat'],
+                'evidence': f"Player declared: {action[:200]}. Kit read a new act: the slot ask for "
+                            f"{waiting.get('spell')} closes, nothing spent."}] + list(result.events))
+        return result
 
     def _fight_resolution(self, fight, public, events, action, state):
         events = list(events) + [{'type': 'reveal_fact', 'fact': fact,
@@ -1463,7 +1503,7 @@ class RoomAdjudicator:
         """The PC readies or stows a listed armor or shield. In a running fight it is his act
         (kit_combat.Fight.pc_gear: the action, every swap); out of one it is simply recorded."""
         fighting = (state.get('combat') or {}).get('status') == 'running' and kit_combat.config(self.source)
-        rest = re.sub(r'(?i)\b(?:i\s+)?(?:' + kit_gear._OFF + '|' + kit_gear._ON + r')\b[^,.;!]*', '', action)
+        rest = kit_gear.after_swap(action)
         more = bool(re.search(r'\b(?:cast|attack|stab|hit|shoot|swing|strike|grab|run|move)\w*\b', rest, re.I))
         if fighting:
             fight = self._fight(action, revision, state)
@@ -1477,8 +1517,22 @@ class RoomAdjudicator:
             ('stows' if item['type'] == 'shield' else 'takes off')
         event = kit_gear.change_event(state, item['id'], swap['in_use'],
                                       f'Player declared: {action[:200]}. He {verb} the {item["name"]}.')
-        return Resolution('physical_act', f"You {verb.replace('readies', 'ready').replace('stows', 'stow').replace('puts', 'put').replace('takes', 'take')} the {item['name']}.",
-                          [event])
+        said = f"You {verb.replace('readies', 'ready').replace('stows', 'stow').replace('puts', 'put').replace('takes', 'take')} the {item['name']}."
+        if not more:
+            return Resolution('physical_act', said, [event])
+        # Out of a fight a swap costs no action, so the rest of the message ('...and cast Magic
+        # Missile at the imp') still happens, after it (Nagatha's 59ce12a review, F10): never
+        # silently dropped. What the engine cannot resolve is said, not lost.
+        after = copy.deepcopy(state)
+        kit_gear.apply_event(after, event)
+        try:
+            then = self._resolve(rest, revision, after)
+        except PendingRuling as exc:
+            reason = str(exc).replace('No turn was committed.', '').strip()
+            return Resolution('physical_act', f'{said} The rest of what you said did not happen yet: {reason}'.strip(),
+                              [event])
+        return dataclasses.replace(then, public_event=f'{said} {then.public_event}'.strip(),
+                                   events=[event] + list(then.events))
 
     def _resolve_physical(self, action, revision, state):
         act = kit_combat.parse(action, self.source, state)
@@ -2450,6 +2504,10 @@ def performance_limits(scope=None):
 # performer calls and treats the last one as degraded.
 DEGRADED_AFTER_REJECTIONS = 2
 ABANDON_SUGGEST_AFTER = 4
+# The equipment question's must-say check (kit_gear.check_spoken_clarify) is style, never a
+# hard reject: it fails a turn once (a retry), then the engine carries the question. The kind
+# matches #127's VALIDATOR_KINDS ('style'), so it joins that policy when #127 lands.
+GEAR_CLARIFY_KIND = 'style'
 API_PERFORMANCE_ATTEMPTS = 2
 
 HOST_RETRY_NOTE = (
@@ -3294,7 +3352,8 @@ def check_speech(speech, plan, public_view, player_action, action_kind=None, gua
     hard(check_claimed_numbers, segments, plan, guards, player_action, game_terms)
     # HARD: numbers stay in the ledger; no bonus reminders unless asked (call 4).
     hard(kit_guards.check_public_numbers, segments, rules_question=bool(is_ooc(player_action or '') or
-                                                                        RULES_NOUNS.search(player_action or '')))
+                                                                        RULES_NOUNS.search(player_action or '') or
+                                                                        guards.get('rule_due')))
     # HARD: the toll is an NPC's demand and a real exchange (call 6); no refreshment here (call 3).
     hard(kit_guards.check_toll_exchange, segments, guards.get('toll_amount'), guards.get('toll_raised', True))
     if guards.get('no_refreshment'):
@@ -3870,10 +3929,12 @@ def prepare_inputs(runtime, revision, state, action, resolution, use_memory, one
     if ruling_offer:
         offers['ruling'] = ruling_offer  # her call on the source the player gives for a proficiency
     due_gear = kit_gear.pending(post_event_state)
-    if due_gear and not table_talk and resolution.kind not in (FLOURISH_KIND, INTERSTITIAL_KIND, 'opening') and \
+    if due_gear and not table_talk and resolution.kind not in (FLOURISH_KIND, INTERSTITIAL_KIND) and \
             not (post_event_state.get('combat') or {}).get('awaiting'):
         # Private: an equipment mismatch the audit found (runtime/kit_gear.py). Kit raises it once,
-        # in voice, now; a window, table talk or the room entry is never the moment.
+        # in voice, now: at session start (the room entry) or the first turn after, before any
+        # fight bites (Brendon: ask first, then the rules as written; no penalty applies until he
+        # answers: kit_gear.asked_and_answered). A window or table talk is never the moment.
         body['gear_clarify'] = due_gear['id']
         body['gear_clarify_entry'] = kit_gear.clarify_view(due_gear)
         planning_input['gear_clarify'] = kit_gear.clarify_view(due_gear)
@@ -4041,10 +4102,18 @@ def window_view(source, state, waiting):
                       'effect': 'engine' if found.get('effect') in kit_reactions.EFFECTS else 'kit_adjudicates'}
             if found.get('kind') == 'spell':
                 option['avrae'] = f"!cast {found['name'].casefold()}"
+                up = kit_combat.upcast_level(resources, found)
+                if up:
+                    # No slot at its own level: say the higher slot it takes (never taken silently).
+                    need = (found.get('cost') or {}).get('slot')
+                    option.update(avrae=f"!cast {found['name'].casefold()} -l {up}", slot_level=up,
+                                  note=f"No {kit_combat.ordinal(need)}-level slot is left: casting it takes a "
+                                       f"{kit_combat.ordinal(up)}-level slot. Ask whether they cast it at "
+                                       f"{kit_combat.ordinal(up)} level.")
             if found.get('effect') == 'opportunity_attack':
                 option['needs'] = 'a melee attack roll with damage (Avrae); no ranged weapon'
             if found.get('note'):
-                option['note'] = found['note']
+                option['note'] = f"{found['note']} {option['note']}" if option.get('note') else found['note']
             options.append(option)
         out['options'] = options
         if waiting.get('stakes') == 'drop':
@@ -4057,7 +4126,7 @@ def window_view(source, state, waiting):
             out['with'] = 'disadvantage: untrained armor or a shield in use (SRD)'
     elif waiting['kind'] == 'slot_ask':
         spell = str(waiting.get('spell') or '')
-        out.update(spell=spell.title(), spell_level=waiting.get('spell_level'), level=waiting.get('level'),
+        out.update(spell=kit_combat.spell_title(spell), spell_level=waiting.get('spell_level'), level=waiting.get('level'),
                    free=list(waiting.get('free') or ()),
                    rule=(f"No {kit_combat.ordinal(waiting.get('spell_level') or 1)}-level slot is left. A spell can be "
                          'cast with a higher-level slot, as if at that level (SRD); nothing is spent until they say.'),
@@ -4400,7 +4469,12 @@ def guard_context(source, body):
                                     if (cards.get(name) or {}).get('speech_floor') is not True),
             'public_history': body.get('public_history', []),
             'raisers': tuple(item['by'] for item in body.get('story_due') or ()),
-            'table_talk': bool(body.get('table_talk'))}
+            'table_talk': bool(body.get('table_talk')),
+            # Kit states the rule as written when she raises the equipment question or rules on
+            # the answer (runtime/kit_gear.py: CLARIFY_RULE, kit_acts.RULING_RULE): saying what
+            # untrained gear costs is the rule she was told to say, not a bonus reminder.
+            'rule_due': bool(body.get('gear_clarify_entry') or (body.get('acts') or {}).get('ruling') or
+                             (body.get('acts') or {}).get('gear'))}
 
 
 def _area_id(source, view):
@@ -4693,10 +4767,11 @@ def check_hidden_actors(spoken, words):
                                 "engine's outcome brings it out.")
 
 
-def checked_record(body, plan, speech, performance_variant, source=None, degraded=False):
+def checked_record(body, plan, speech, performance_variant, source=None, degraded=False, retried=False):
     """Validate a performance. Every variant faces the same checks; the record names
     which performer instructions ran so play reviews can tell the variants apart. A
-    degraded record says so and keeps the soft warnings it was accepted with."""
+    degraded record says so and keeps the soft warnings it was accepted with. ``retried``:
+    this turn already had a rejected attempt (a style miss gets one retry: GEAR_CLARIFY_KIND)."""
     check_variant(performance_variant)
     ask = plan.get('ask_player')
     # An ask_player turn resolves nothing: its public event is the question, not the result.
@@ -4712,16 +4787,23 @@ def checked_record(body, plan, speech, performance_variant, source=None, degrade
         kit_reveal.check_spoken(body.get('progressive_reveal'), speech['segments'], source, plan,
                                 action=body.get('action') or '')
     check_sealed(spoken, body.get('sealed'))  # after the held layer, so its errors come first
-    gear_unraised = None
-    if body.get('gear_clarify_entry') and not ask:
-        # The equipment question is due this turn (runtime/kit_gear.py). Degraded, it waits for
-        # the next turn instead of stalling this one.
+    carried = None
+    # A Kit-raised interstitial (a roll call, a narrowing question, a risk warning) is a short call
+    # with its own one question: the equipment question waits for the next turn, as for a window.
+    gear_due = (bool(body.get('gear_clarify_entry')) and not ask and not kit_interstitial.kit_kind(plan)
+                and plan.get('move') != 'ask_clarification')
+    if gear_due:
+        # The equipment question is due this turn (runtime/kit_gear.py). A style check, never a
+        # hard reject (Nagatha's 59ce12a review, F6): a miss gets one retry; on the retry, in
+        # degraded mode, or on a quiet turn the engine carries the question as Kit's closing line.
         try:
             kit_gear.check_spoken_clarify(body['gear_clarify_entry'], speech['segments'])
         except InvalidChange as exc:
-            if not degraded:
+            if not (degraded or retried or plan.get('table_presence') == 'quiet'):
+                exc.kinds = {GEAR_CLARIFY_KIND}  # #127's validator kinds: style (one retry)
                 raise
-            gear_unraised = str(exc)
+            carried = f"{body['gear_clarify_entry']['ask']}"
+            warnings = list(warnings) + [f'gear_clarify carried by the engine: {exc}']
     if body.get('story_due') and not ask:
         # An undelivered primary hook is overdue: its NPC raises it now (runtime/kit_brief.py).
         kit_brief.check_raised(body['story_due'], source, {'area': body['story_area']}, spoken)
@@ -4744,16 +4826,20 @@ def checked_record(body, plan, speech, performance_variant, source=None, degrade
         # a fight it starts ends the turn on the roll call ("Roll initiative.").
         spoken = f"{spoken}\nNarrator: {declared['public']}"
         public_event = f"{public_event} {declared['public']}".strip()
+    if carried:
+        spoken = f"{spoken}\nKit: {carried}"
     record = {'player_input': body['action'], 'public_event': public_event,
               'trace': plan, 'spoken': spoken, 'performance_variant': performance_variant}
-    if body.get('gear_clarify') and not ask and not gear_unraised:
-        record['gear_raised'] = body['gear_clarify']
+    if body.get('gear_clarify') and gear_due:
+        record['gear_raised'] = body['gear_clarify']  # said by Kit, or carried by the engine
+        if carried:
+            record['gear_carried'] = True
     asides = [{'text': segment['text'], 'reacts_to': segment['reacts_to']}
               for segment in speech['segments'] if segment['speaker'] == 'Kit']
     if asides:
         record['kit_reacts_to'] = asides
     if warnings:
-        record.update(degraded=True, soft_warnings=warnings)
+        record.update(degraded=True, soft_warnings=warnings) if degraded else record.update(soft_warnings=warnings)
     if declared:
         record['declared'] = {'acts': declared['acts'], 'kind': declared['kind'],
                               **({'handoff': declared['handoff']} if declared.get('handoff') else {})}
@@ -4815,7 +4901,7 @@ class KitAgent:
                     # The last attempt is degraded: style misses become warnings so the
                     # table is not stalled; hard checks still reject.
                     record = checked_record(body, plan, speech, self.performance_variant, source,
-                                            degraded=last and attempt > 0)
+                                            degraded=last and attempt > 0, retried=attempt > 0)
                     break
                 except InvalidChange as exc:
                     timing['rejections'].append(str(exc))
@@ -5482,7 +5568,7 @@ class KitChatBridge:
     def _checked_or_log(self, turn_id, body, plan, speech, performance_variant, degraded=False):
         try:
             return checked_record(body, plan, speech, performance_variant, self.runtime.source(),
-                                  degraded=degraded)
+                                  degraded=degraded, retried=self._rejections(turn_id) > 0)
         except StaleTurn:
             raise
         except InvalidChange as exc:
