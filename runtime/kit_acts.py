@@ -151,7 +151,7 @@ REACT_SCHEMA = {'type': 'object', 'additionalProperties': False,
 FLOURISH_SCHEMA = {'type': 'string', 'enum': list(FLOURISH_READS)}
 # The slot ask (Brendon, 2026-10-19): no slot at the spell's level, a higher one free. Kit reads
 # the reply: yes (at the offered level, or a free higher one the player names), no, or unclear.
-UPCAST_READS = ('yes', 'no', 'unclear')
+UPCAST_READS = ('yes', 'no', 'new_action', 'unclear')
 UPCAST_SCHEMA = {'type': 'object', 'additionalProperties': False,
                  'properties': {'choice': {'type': 'string', 'enum': list(UPCAST_READS)},
                                 'slot_level': {'type': ['integer', 'null']}},
@@ -169,8 +169,9 @@ REACT_RULE = ('react {choice, cast_in_avrae, slot_level, roll, effect}: choice i
 FLOURISH_RULE = ('flourish: describe (the reply describes the kill), new_action (the player does something '
                  'else instead), or unclear (then ask, one short question).')
 UPCAST_RULE = ('upcast {choice, slot_level}: yes (he casts it with the offered higher slot; slot_level only when '
-               'he names another free higher level), no (he does not cast it: nothing is spent), or unclear (then '
-               'ask, one short question).')
+               'he names another free higher level), no (he does not cast it: nothing is spent), new_action (he does '
+               'something else instead, e.g. "Nah, I Fire Bolt it": nothing is spent and that act resolves as his '
+               'turn), or unclear (then ask, one short question).')
 
 
 def check_react(value, offer):

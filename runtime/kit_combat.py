@@ -317,6 +317,30 @@ def escape_bonus(stats):
     return max(int(athletics or 0), int(acrobatics or 0))
 
 
+def _rolled(text):
+    """True when the message reports a damage or attack roll."""
+    return bool(kit_rolls.damage_total(text)[0]) or kit_rolls.attack_total(text) is not None
+
+
+def spell_title(name):
+    """A spell's name in title case that keeps an apostrophe's letter low: "Dragon's Breath",
+    never "Dragon'S Breath" (str.title)."""
+    return ' '.join(word[:1].upper() + word[1:] for word in str(name or '').split(' '))
+
+
+def upcast_level(resources, entry):
+    """For a spell reaction with no slot left at its own level: the next free higher slot level
+    (int); None when its own level has a slot (no upcast) or it costs no slot."""
+    need = (entry.get('cost') or {}).get('slot')
+    if not need:
+        return None
+    own = (resources.get('slots') or {}).get(str(need))
+    if own and own['used'] < own['max']:
+        return None
+    free = kit_reactions.free_slot(resources, int(need) + 1)
+    return int(free) if free else None
+
+
 def ordinal(n):
     n = int(n)
     return f"{n}{'th' if 10 <= n % 100 <= 20 else {1: 'st', 2: 'nd', 3: 'rd'}.get(n % 10, 'th')}"
@@ -497,6 +521,12 @@ def _main_act(action, source, state):
         area = name in SPELL_SAVE and SPELL_SAVE[name][2]
         return {'kind': 'attack', 'spell': name, 'weapon': name, 'area': bool(area),
                 'target': None if area else (named or _default_target(text, source, state, here))}
+    other = unmodelled_spell(text, state) if (in_fight or named) else None
+    if other:
+        # A leveled spell on his sheet the fight does not model (Color Spray, Slow): its slot is
+        # still paid, or asked about (Nagatha's 59ce12a review, F8); its effect is Kit's call.
+        return {'kind': 'attack', 'spell': other, 'weapon': other, 'area': False, 'unmodelled': True,
+                'target': named or _default_target(text, source, state, here)}
     actor_names = tuple(name for key in (state.get('actors') or {}) for name in _names(source, key))
     attack = first_aimed_attack(text, actor_names)
     weapon = re.search(r'\b(' + WEAPONS + r')\b', text)
@@ -530,6 +560,24 @@ def _main_act(action, source, state):
                 'teeth': bool(TEETH.search(text)), 'wrist': bool(re.search(r'\b(wrist|hand|arm)\b', text))}
     if in_fight and WAIT.search(text):
         return {'kind': 'wait', 'target': None}
+    return None
+
+
+def unmodelled_spell(text, state):
+    """The leveled spell on the sheet that this message casts ('I cast Color Spray', '!cast slow')
+    when the fight does not model it, or None. A reaction spell (Shield, Counterspell...) is the
+    reaction inventory's, never this."""
+    sheet = (state or {}).get('player_sheet') or {}
+    reactions = {str(r.get('name') or r.get('id') or '').casefold()
+                 for r in ((state or {}).get('pc_resources') or {}).get('reactions') or ()}
+    known = sorted(((str(v.get('name') or k).casefold(), v) for k, v in kit_reactions.spells(sheet).items()),
+                   key=lambda kv: len(kv[0]), reverse=True)
+    for name, info in known:
+        if not info.get('level') or name in SPELLS or name in reactions or name == 'shield':
+            continue
+        if re.search(r"\b(?:cast|casts|casting)\s+(?:a\s+|my\s+)?" + re.escape(name) + r"\b|!cast\s+" +
+                     re.escape(name) + r"\b", text):
+            return name
     return None
 
 
@@ -1148,7 +1196,7 @@ class Fight:
             return False
         reason = kit_gear.why(self.gear_now(), fight=True)
         self.trace.append(f'{name}: no spellcasting with {reason}')
-        self.lines.append(f"You cannot cast {str(name).title()} while using {reason}: the rules say no "
+        self.lines.append(f"You cannot cast {spell_title(name)} while using {reason}: the rules say no "
                           f"spellcasting in armor or with a shield you are not proficient with. Readying or "
                           f"stowing a shield takes your action.")
         return True
@@ -1200,7 +1248,7 @@ class Fight:
             return self.fizzle_without_slot(spell)
         offer = higher[0]
         self.trace.append(f'{spell}: no level {level} slot left; asks before casting it at level {offer}')
-        self.lines.append(f'You have no {ordinal(level)}-level slot left for {spell.title()}. A spell can be cast '
+        self.lines.append(f'You have no {ordinal(level)}-level slot left for {spell_title(spell)}. A spell can be cast '
                           f'with a higher-level slot, as if at that level; your next free slot is {ordinal(offer)} '
                           f'level. Cast it at {ordinal(offer)} level?')
         self.wait_for('slot_ask', 'player_answer', spell=spell, spell_level=int(known['level']), level=offer,
@@ -1217,7 +1265,7 @@ class Fight:
             raise Unclear('Kit could not tell whether the player casts it with the higher slot.', 'unclear')
         level = int((self.choice or {}).get('slot_level') or waiting['level'])
         if read == 'yes' and level not in waiting.get('free', [waiting['level']]):
-            raise Unclear(f"There is no free level {level} slot for {waiting['spell'].title()} (free: "
+            raise Unclear(f"There is no free level {level} slot for {spell_title(waiting['spell'])} (free: "
                           f"{', '.join(str(n) for n in waiting.get('free') or ())}).", 'not_available')
         self.fight['awaiting'] = None
         if read != 'yes':
@@ -1226,10 +1274,39 @@ class Fight:
                               + ('No clear answer, so that is taken as a no. ' if (self.choice or {}).get('taken_as_no') else '')
                               + 'Your turn is still yours.')
             return
+        answer = self.action
+        named = cast_level(answer)
+        if not (self.choice or {}).get('slot_level') and named and int(named) in waiting.get('free', [waiting['level']]):
+            level = int(named)  # the answer's own Avrae cast names the level ('!cast magic missile -l 3')
         self.trace.append(f"slot ask for {waiting['spell']}: yes, level {level}")
         self.confirmed_slot = level
-        self.action = waiting.get('action') or self.action
+        original = waiting.get('action') or answer
+        spell, spell_level = waiting['spell'], int(waiting.get('spell_level') or 1)
+        reroll = False
+        if _rolled(answer):
+            # The answer carries the upcast roll ('Yes. !cast magic missile -l 2: ... = 14 force'):
+            # that roll is the spell (Nagatha's 59ce12a review, F4).
+            self.action = answer
+        elif _rolled(original) and level > spell_level:
+            # The first message's roll was for the lower level (3 darts, not 4): it is not applied
+            # at the upcast level. The cast goes ahead on the slot; its roll is asked for again.
+            self.trace.append(f'{spell}: the level {spell_level} roll in the first message is not used at level {level}')
+            self.action = f'I cast {spell} (!cast {spell} -l {level})'
+            reroll = True
+        else:
+            self.action = original
+        before = len(self.lines)
         acted = self.pc_attack(waiting['act'])
+        if reroll:
+            asks = [i for i in range(before, len(self.lines)) if 'in Avrae' in self.lines[i]]
+            hint = (f"Roll it at {ordinal(level)} level in Avrae (!cast {spell} -l {level}): the "
+                    f"{ordinal(spell_level)}-level roll in your first message does not count at {ordinal(level)} level.")
+            if asks and 'Roll damage in Avrae.' in self.lines[asks[-1]]:
+                self.lines[asks[-1]] = self.lines[asks[-1]].replace('Roll damage in Avrae.', hint)
+            elif asks:
+                self.lines[asks[-1]] = f'{self.lines[asks[-1]]} {hint}'
+            else:
+                self.lines.append(hint)
         self.after_pc_action(acted)
 
     # -- checkpoints -------------------------------------------------------------------
@@ -1723,6 +1800,19 @@ class Fight:
                 if int(level) < int(need) or not slot or slot['used'] >= slot['max']:
                     raise Unclear(f"There is no level {level} slot left for {found['name']} on the sheet.", 'no_slot',
                                   ask='which slot level the cast used')
+            else:
+                # No slot left at the spell's own level: a higher one casts it, but only when he
+                # says so (the slot ask, for a reaction too; Nagatha's 59ce12a review, F8).
+                up = upcast_level(self.resources, found)
+                named = cast_level(self.action)
+                if up and named and int(named) >= up and kit_reactions.free_slot(self.resources, named) == str(named):
+                    self.choice = {**self.choice, 'slot_level': int(named)}
+                elif up:
+                    need = int((found.get('cost') or {}).get('slot') or 1)
+                    command = f"!cast {found['name'].casefold()} -l {up}"
+                    raise Unclear(f"No {ordinal(need)}-level slot is left for {found['name']}: a {ordinal(up)}-level "
+                                  f"slot can cast it. Cast it at {ordinal(up)} level? ({command})", 'needs_cast',
+                                  ask=command)
         effect = found['effect']
         if effect in self.ATTACKING:
             if RANGED.search(narration(self.action).casefold()):
@@ -2691,11 +2781,18 @@ class Fight:
             self.lines.append('There is nobody there to hit.')
             return True
         self.fight['last_target'] = targets[0]
-        if spell:
+        pending = self.fight.get('pending') if isinstance(self.fight.get('pending'), dict) else None
+        # The damage line of a spell already cast and paid for (its slot spent, or a yes to the slot
+        # ask) is not a new cast: no second slot gate (Nagatha's 59ce12a review, #127 merge note).
+        paid = bool(spell and damage and pending and pending.get('needs') == 'damage' and
+                    pending.get('weapon') == weapon and kit_rolls.attack_total(self.action) is None)
+        if spell and not paid:
             if self.casting_barred(spell):
                 return False  # nothing happened: no slot, no action
             if self.slot_gate(spell, act):
                 return True   # fizzled: no slot at any level
+            if act.get('unmodelled'):
+                return self.pc_cast_unmodelled(spell, targets[0])
         else:
             barred = self.str_dex_disadvantage()
             if barred and kit_rolls.attack_total(self.action) is not None and \
@@ -2709,12 +2806,12 @@ class Fight:
             if dc is None:
                 self.fight['pending'] = {'kind': 'attack', 'target': targets[0], 'weapon': weapon, 'needs': 'save_dc',
                                          **self.cast_slot(spell)}
-                self.lines.append(f'Your {spell.title()} needs your spell save DC from your sheet; say it and it lands.')
+                self.lines.append(f'Your {spell_title(spell)} needs your spell save DC from your sheet; say it and it lands.')
                 return False
             if not damage:
                 self.fight['pending'] = {'kind': 'attack', 'target': targets[0], 'weapon': weapon, 'needs': 'damage',
                                          'spell': spell, 'area': act.get('area'), **self.cast_slot(spell)}
-                self.lines.append(f'Roll the {spell.title()} damage in Avrae.')
+                self.lines.append(f'Roll the {spell_title(spell)} damage in Avrae.')
                 return False
             ability, half, _ = SPELL_SAVE[spell]
             if self.fizzle_without_slot(spell):
@@ -2767,12 +2864,12 @@ class Fight:
             if options:
                 # A creature the PC can see succeeded on a save against his spell: a reroll may answer it
                 # (Silvery Barbs, Chronal Shift). The spell's damage waits on the answer.
-                self.lines.append(f'Your {spell.title()} {"bursts over them" if act.get("area") else "takes hold"}; '
+                self.lines.append(f'Your {spell_title(spell)} {"bursts over them" if act.get("area") else "takes hold"}; '
                                   f'the {self.label(saver)} resists it.')
                 self.wait_for('reaction_window', 'player_answer', trigger='npc_save', options=options, target=saver,
                               results=rows, damage=damage, half=half, dtype=dtype, dc=int(dc), spell=spell,
                               triggers=['creature_succeeds'], stakes='normal')
-            self.lines.append(f'Your {spell.title()} {"bursts over the table" if act.get("area") else "takes hold"}.')
+            self.lines.append(f'Your {spell_title(spell)} {"bursts over the table" if act.get("area") else "takes hold"}.')
             for key, dealt in hits:
                 self.apply_damage(key, dealt, dtype)
             self.fight['pending'] = None
@@ -2783,7 +2880,7 @@ class Fight:
         if total is None and spell in SPELL_AUTO and damage and pending and pending.get('needs') == 'damage' and \
                 pending.get('weapon') == weapon:
             # The damage line of an auto-hit spell already cast (and paid for): it lands, no second slot.
-            self.lines.append(f'Your {spell.title()} hits the {self.label(pending["target"])}.')
+            self.lines.append(f'Your {spell_title(spell)} hits the {self.label(pending["target"])}.')
             self.apply_damage(pending['target'], damage, dtype)
             self.fight['pending'] = None
             return True
@@ -2794,7 +2891,7 @@ class Fight:
                 return True
             self.fight['pending'] = {'kind': 'attack', 'target': targets[0], 'weapon': weapon, 'needs': 'attack',
                                      **self.cast_slot(spell)}
-            what = 'stomp' if weapon == 'stomp' else spell.title() if spell else weapon
+            what = 'stomp' if weapon == 'stomp' else spell_title(spell) if spell else weapon
             self.lines.append(f'Roll the attack for your {what} in Avrae, with its damage'
                               + (f', with disadvantage ({self.str_dex_disadvantage()})' if not spell and
                                  self.str_dex_disadvantage() else '') + '.')
@@ -2808,7 +2905,7 @@ class Fight:
         ac = self.stats(key)['ac']
         hit = spell in SPELL_AUTO or natural == 20 or (natural != 1 and kit_rolls.meets_or_beats(total, ac))
         self.trace.append(f'PC {weapon} vs {key}: {total} vs AC {ac}: {"hit" if hit else "miss"}')
-        what = 'stomp' if weapon == 'stomp' else spell.title() if spell else weapon
+        what = 'stomp' if weapon == 'stomp' else spell_title(spell) if spell else weapon
         if not hit:
             self.lines.append(f'Your {what} misses the {self.label(key)}.')
             self.fight['pending'] = None
@@ -2831,6 +2928,24 @@ class Fight:
             self.trace.append(f"absorb elements: +{bonus['dice']} {bonus['type']} on this melee hit")
         return True
 
+    def pc_cast_unmodelled(self, spell, key):
+        """A leveled spell the fight does not model: the slot is spent (its own level, the one his
+        Avrae cast named, or the one he said yes to), the action is his, and the effect is Kit's
+        to rule on from his Avrae result. Nothing is applied to the target here."""
+        if self.fizzle_without_slot(spell):
+            return True
+        before = copy.deepcopy(self.resources.get('slots') or {})
+        self.spend_own_slot(spell)
+        level = next((k for k, v in (self.resources.get('slots') or {}).items()
+                      if v['used'] > (before.get(k) or {}).get('used', 0)), None)
+        self.trace.append(f'{spell}: not modelled in the fight; level {level} slot spent, effect is Kit\'s call')
+        self.lines.append(f"You cast {spell_title(spell)} at the {self.label(key)}"
+                          + (f" with a {ordinal(level)}-level slot" if level else '') +
+                          ". The engine does not track its effect in this fight: that is Kit's call, from your "
+                          "Avrae result.")
+        self.fight['pending'] = None
+        return True
+
     def cast_slot(self, spell):
         """The slot level his Avrae cast named ('-l 2', 'at 2nd level'), in this message or kept from
         the message that cast it (a separate damage line names none): {'slot_level': n} or {}."""
@@ -2851,7 +2966,7 @@ class Fight:
         if kit_reactions.free_slot(self.resources, level) is not None:
             return False
         self.trace.append(f'{spell}: no level {level}+ slot left by the count, it fizzles')
-        self.lines.append(f'You have no level {level} slot left, so your {spell.title()} fizzles. '
+        self.lines.append(f'You have no level {level} slot left, so your {spell_title(spell)} fizzles. '
                           f'Your action is spent.')
         self.fight['pending'] = None
         return True
