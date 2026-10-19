@@ -179,6 +179,8 @@ def _resume(saved, campaign):
         nxt = ('A save is present. Continue it only if the player wants this game. '
                'On the next in-fiction line, prepare --one-pass and then complete. '
                'Show the player only "spoken". Do not start Dungeon of the Mad Mage over it.')
+    nxt += (' kit.sqlite is runtime-only: never offer it to the player. To give them a save, run '
+            'save --db <this db> and offer the ZIP it names.')
     line = "There's already a game in this save. We can pick it up if that's what you want. I won't start a second one over it."
     if campaign and not _is_mad_mage(campaign):
         line = "This save already has a game. I won't start another over it. Say if you want to continue this one."

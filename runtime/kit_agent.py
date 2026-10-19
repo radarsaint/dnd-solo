@@ -27,6 +27,7 @@ from . import kit_attitude
 from . import kit_brief
 from . import kit_cards
 from . import kit_reactions
+from . import kit_save
 from . import kit_combat
 from . import kit_rolls
 from . import kit_triggers
@@ -5560,8 +5561,15 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('command', choices=['start', 'init', 'view', 'prepare', 'decide', 'finish', 'complete',
                                             'abandon', 'feedback', 'character', 'notes', 'play', 'trace',
-                                            'timing', 'persona', 'stamp', 'rehydrate', 'rest'])
+                                            'timing', 'persona', 'stamp', 'rehydrate', 'rest', 'save'])
     parser.add_argument('--db', default='kit.sqlite')
+    parser.add_argument('--out', help='save: where to write the player-safe ZIP '
+                                      '(default saves/<player>/<campaign>/ next to --db)')
+    parser.add_argument('--recap-file', dest='recap_file',
+                        help="save: Kit's recap for the journal (her voice, at most 120 words, public only)")
+    parser.add_argument('--journal-mode', dest='journal_mode', choices=['campaign', 'character'],
+                        help='save: one journal per campaign (default) or per character; it sticks')
+    parser.add_argument('--player', help='save: the player folder name under saves/ (default "player")')
     parser.add_argument('--kind', choices=['short', 'long'], help='rest: a short or a long rest (slots and uses '
                                                                   'come back; re-sending the sheet does not)')
     parser.add_argument('--room', help='start/init: a room file to mount. With no --room, start reports '
@@ -5641,6 +5649,17 @@ def main():
             return 2
         print(json.dumps(result, ensure_ascii=False,
                          **({'indent': 2} if args.pretty else {'separators': (',', ':')})))
+        return 0
+    if args.command == 'save':
+        # The player-safe export. kit.sqlite itself is runtime-only and is never offered.
+        try:
+            recap = Path(args.recap_file).read_text(encoding='utf-8') if args.recap_file else None
+            result = kit_save.save(args.db, out=args.out, player=args.player, campaign=args.campaign,
+                                   journal_mode=args.journal_mode, recap=recap)
+        except (kit_save.SaveError, OSError) as exc:
+            print(json.dumps({'stage': 'rejected', 'message': str(exc)}, ensure_ascii=False), file=sys.stderr)
+            return 2
+        print(json.dumps(result, ensure_ascii=False))
         return 0
     if args.command == 'init':
         if not args.room:
