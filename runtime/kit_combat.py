@@ -34,6 +34,7 @@ import json
 import hashlib
 import re
 
+from . import kit_names
 from . import kit_reactions
 from . import kit_rolls
 from .state_context import require
@@ -385,14 +386,42 @@ def proper_numbered(text, names):
 
 
 def name_target(text, source, state, candidates):
-    """The actor the words name, among ``candidates``, or None."""
-    best = None
-    for key in candidates:
-        for name in _names(source, key):
-            found = re.search(rf"\b{re.escape(name)}\b", text)
-            if found and (best is None or found.start() < best[1]):
-                best = (key, found.start())
-    return best[0] if best else None
+    """The actor the words name, among ``candidates``, or None (runtime/kit_names.py: one name-set
+    for every reader). The earliest name wins; at one place, the longest (an exact numbered name,
+    'giant rat 5', beats the shared 'giant'). A name several candidates share names none of them."""
+    return kit_names.resolve(text, source, candidates)[0]
+
+
+def ambiguous_target(text, source, state, candidates):
+    """The candidates an unnumbered shared name could mean ('the rat' with three rats), when the
+    words name no one foe; else []. Kit asks which one rather than guess."""
+    key, tied = kit_names.resolve(text, source, candidates)
+    return [] if key else tied
+
+
+def ask_which(text, source, state, candidates):
+    """Raise Kit's question when an attack's target is not one foe the PC can perceive here: a
+    numbered foe not among them (down, or not here), or a name several of them share."""
+    from .kit_agent import PendingRuling  # local: kit_agent imports this module
+    missing = kit_names.missing_numbered(text, source, candidates)
+    if missing:
+        shown, key = missing
+        actor = (state.get('actors') or {}).get(key) or {}
+        if key and actor.get('status') in ('dead', 'unconscious', 'destroyed') and \
+                kit_names.perceivable(source, state, key):
+            raise PendingRuling(f'{shown} is already down. Name the one you attack. No turn was committed.')
+        raise PendingRuling(f"There's no {shown} here that you can see. Name the one you attack. "
+                            'No turn was committed.')
+    tied = ambiguous_target(text, source, state, candidates)
+    if len(tied) > 1:
+        raise PendingRuling(f'Which one: {kit_names.shown(source, tied)}? Name the one you attack. '
+                            'No turn was committed.')
+
+
+def targetable(source, state):
+    """Actor ids here the PC can act on: present and perceivable (an unseen creature is Kit's
+    ruling, never a target the words pick)."""
+    return [key for key in present(source, state) if kit_names.perceivable(source, state, key)]
 
 
 def _creature_words(text):
@@ -491,7 +520,7 @@ def _main_act(action, source, state):
     if not config(source) or state.get('area') != config(source).get('area', state.get('area')):
         return None
     text = narration(action).casefold()
-    here = present(source, state)
+    here = targetable(source, state)
     sc = scene(state)
     named = name_target(text, source, state, here)
     spell = _SPELL.search(text)
@@ -499,6 +528,8 @@ def _main_act(action, source, state):
     if spell:
         name = spell.group(1)
         area = name in SPELL_SAVE and SPELL_SAVE[name][2]
+        if not area:
+            ask_which(text, source, state, here)
         return {'kind': 'attack', 'spell': name, 'weapon': name, 'area': bool(area),
                 'target': None if area else (named or _default_target(text, source, state, here))}
     actor_names = tuple(name for key in (state.get('actors') or {}) for name in _names(source, key))
@@ -512,6 +543,7 @@ def _main_act(action, source, state):
     stated_attack = kit_rolls.attack_total(action) is not None and (weapon or in_fight or named)
     if (attack and (hostile_target or stated_attack or in_fight) and
             not (TABLE.search(text[attack.end():attack.end() + 25]) and not named)) or (not attack and stated_attack):
+        ask_which(text, source, state, here)
         return {'kind': 'attack', 'weapon': weapon.group(1) if weapon else 'unarmed strike',
                 'target': named or _default_target(text, source, state, here), 'area': False,
                 'unarmed': not weapon, 'nonlethal': bool(NONLETHAL.search(text))}
@@ -807,7 +839,7 @@ def parse_one(action, source, state):
     if not config(source) or state.get('area') != config(source).get('area', state.get('area')):
         return None
     text = narration(action).casefold()
-    here = present(source, state)
+    here = targetable(source, state)
     sc = scene(state)
     aimed = re.search(r"\s-t\s+([a-z][\w'-]*)", text)  # Avrae's -t names the target
     named = (name_target(aimed.group(1), source, state, here) if aimed else None) or \
@@ -823,6 +855,8 @@ def parse_one(action, source, state):
     if spell:
         name = spell.group(1)
         area = name in SPELL_SAVE and SPELL_SAVE[name][2]
+        if not area:
+            ask_which(text, source, state, here)
         return {'kind': 'attack', 'spell': name, 'weapon': name, 'area': bool(area),
                 'target': None if area else (named or _default_target(text, source, state, here)),
                 **({'move_first': {'disengage': bool(re.search(r'\bdisengag', text))}}
@@ -842,6 +876,7 @@ def parse_one(action, source, state):
             else sheet_weapon(state)  # 'I stab' with no weapon named: the blade on his sheet
         thrown = bool(weapon and re.search(r'\b(?:throw|throws|hurl|hurls|toss|tosses)\b', text) and
                       (weapon.group(1) in THROWN or sheet_thrown(state, weapon.group(1))))
+        ask_which(text, source, state, here)
         return {'kind': 'attack', 'weapon': weapon.group(1) if weapon else held or 'unarmed strike', 'thrown': thrown,
                 'target': named or _default_target(text, source, state, here), 'area': False,
                 'unarmed': not (weapon or held), 'nonlethal': bool(NONLETHAL.search(text))}
