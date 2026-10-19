@@ -375,15 +375,61 @@ def _names(source, key):
     return {n for n in names if n and n not in ('pale man',)}
 
 
-def name_target(text, source, state, candidates):
-    """The actor the words name, among ``candidates``, or None."""
-    best = None
+def _name_matches(text, source, candidates):
+    """[(key, start, end)] for each name of a candidate in the words. A bare number names nobody
+    ('18 to hit' never names a foe whose label ends in 18); where one foe's name sits inside a
+    longer match of another's ('giant' inside 'giant rat 5'), only the longer one counts."""
+    found = []
     for key in candidates:
-        for name in _names(source, key):
-            found = re.search(rf"\b{re.escape(name)}\b", text)
-            if found and (best is None or found.start() < best[1]):
-                best = (key, found.start())
-    return best[0] if best else None
+        names = set(_names(source, key))
+        words = labels(source).get(key, key).casefold().split()
+        if len(words) > 2 and words[-1].isdigit():
+            names.add(' '.join(words[-2:]))  # 'rat 5' for 'giant rat 5'
+        for name in names:
+            if not re.search(r'[a-z]', name):
+                continue
+            for match in re.finditer(rf"\b{re.escape(name)}\b(?!\s*\d)" if not re.search(r'\d$', name)
+                                     else rf"\b{re.escape(name)}\b", text):
+                found.append((key, match.start(), match.end()))
+    return [(key, start, end) for key, start, end in found
+            if not any(o_start <= start and end <= o_end and (o_end - o_start) > (end - start)
+                       for other, o_start, o_end in found if other != key)]
+
+
+def name_target(text, source, state, candidates):
+    """The actor the words name, among ``candidates``, or None. The earliest name wins; at one
+    place, the longest (an exact numbered name, 'giant rat 5', beats the shared 'giant'). A name
+    several candidates share at the same place names none of them (see ambiguous_target)."""
+    found = _name_matches(text, source, candidates)
+    if not found:
+        return None
+    first = min(start for _, start, _ in found)
+    longest = max(end for _, start, end in found if start == first)
+    keys = {key for key, start, end in found if start == first and end == longest}
+    return next(iter(keys)) if len(keys) == 1 else None
+
+
+def ambiguous_target(text, source, state, candidates):
+    """The candidates an unnumbered shared name could mean ('the giant rat' with three rats), when
+    the words name no one foe; else []. Kit asks which one rather than guess."""
+    found = _name_matches(text, source, candidates)
+    if not found or name_target(text, source, state, candidates):
+        return []
+    first = min(start for _, start, _ in found)
+    longest = max(end for _, start, end in found if start == first)
+    return [key for key in candidates if any(k == key and s == first and e == longest for k, s, e in found)]
+
+
+def ask_which(text, source, state, candidates):
+    """Raise Kit's question when an attack's target is an unnumbered name several foes share."""
+    tied = ambiguous_target(text, source, state, candidates)
+    if len(tied) > 1:
+        from .kit_agent import PendingRuling  # local: kit_agent imports this module
+        names = labels(source)
+        shown = sorted(names.get(k, k) for k in tied)
+        exc = PendingRuling(f"Which one: {', '.join(shown[:-1])} or {shown[-1]}? Name the one you attack. "
+                            'No turn was committed.')
+        raise exc
 
 
 def _creature_words(text):
@@ -490,6 +536,8 @@ def _main_act(action, source, state):
     if spell:
         name = spell.group(1)
         area = name in SPELL_SAVE and SPELL_SAVE[name][2]
+        if not named and not area:
+            ask_which(text, source, state, here)
         return {'kind': 'attack', 'spell': name, 'weapon': name, 'area': bool(area),
                 'target': None if area else (named or _default_target(text, source, state, here))}
     actor_names = tuple(name for key in (state.get('actors') or {}) for name in _names(source, key))
@@ -503,6 +551,8 @@ def _main_act(action, source, state):
     stated_attack = kit_rolls.attack_total(action) is not None and (weapon or in_fight or named)
     if (attack and (hostile_target or stated_attack or in_fight) and
             not (TABLE.search(text[attack.end():attack.end() + 25]) and not named)) or (not attack and stated_attack):
+        if not named:
+            ask_which(text, source, state, here)
         return {'kind': 'attack', 'weapon': weapon.group(1) if weapon else 'unarmed strike',
                 'target': named or _default_target(text, source, state, here), 'area': False,
                 'unarmed': not weapon, 'nonlethal': bool(NONLETHAL.search(text))}
@@ -814,6 +864,8 @@ def parse_one(action, source, state):
     if spell:
         name = spell.group(1)
         area = name in SPELL_SAVE and SPELL_SAVE[name][2]
+        if not named and not area:
+            ask_which(text, source, state, here)
         return {'kind': 'attack', 'spell': name, 'weapon': name, 'area': bool(area),
                 'target': None if area else (named or _default_target(text, source, state, here)),
                 **({'move_first': {'disengage': bool(re.search(r'\bdisengag', text))}}
@@ -833,6 +885,8 @@ def parse_one(action, source, state):
             else sheet_weapon(state)  # 'I stab' with no weapon named: the blade on his sheet
         thrown = bool(weapon and re.search(r'\b(?:throw|throws|hurl|hurls|toss|tosses)\b', text) and
                       (weapon.group(1) in THROWN or sheet_thrown(state, weapon.group(1))))
+        if not named:
+            ask_which(text, source, state, here)
         return {'kind': 'attack', 'weapon': weapon.group(1) if weapon else held or 'unarmed strike', 'thrown': thrown,
                 'target': named or _default_target(text, source, state, here), 'area': False,
                 'unarmed': not (weapon or held), 'nonlethal': bool(NONLETHAL.search(text))}
