@@ -945,9 +945,9 @@ class RoomAdjudicator:
                             r'roll|advantage|ac|hp|level|slot|duration|range)\b', re.I)
     # A named rider on the damage line: "plus 4 damage from hex", "+ 4 necrotic from Hex", "extra 2 damage".
     _RIDER = re.compile(r"(?:\bplus\b|\+|\b(?:extra|additional|bonus)\b)\s*(\d{1,3})(?:\s+[a-z]+)?\s+(?:damage|dmg)\b"
-                        r"(?:\s+from\s+[a-z][a-z' -]*)?|"
+                        r"(?:\s+from\s+([a-z][a-z' -]*))?|"
                         r"(?:\bplus\b|\+|\b(?:extra|additional|bonus)\b)?\s*(\d{1,3})(?:\s+[a-z]+)?(?:\s+(?:damage|dmg))?"
-                        r"\s+from\s+[a-z][a-z' -]*", re.I)
+                        r"\s+from\s+([a-z][a-z' -]*)", re.I)
 
     @staticmethod
     def _field_total(value):
@@ -956,10 +956,30 @@ class RoomAdjudicator:
         return (int(found.group(1)), value[found.end():]) if found else (None, '')
 
     def _riders(self, text):
-        """(rider amounts, other numbers left) in the words after a damage roll."""
-        riders = [int(m.group(1) or m.group(2)) for m in self._RIDER.finditer(text)]
+        """([(rider name or None, amount)], other numbers left) in the words after a damage roll."""
+        riders = [((m.group(2) or m.group(4) or '').strip() or None, int(m.group(1) or m.group(3)))
+                  for m in self._RIDER.finditer(text)]
         left = re.findall(r'(?<![\w.])\d{1,3}\b', self._RIDER.sub(' ', text))
         return riders, len(left)
+
+    @staticmethod
+    def _rider_key(name):
+        return re.sub(r"[^a-z]", '', (name or '').casefold()) or None
+
+    def _sum_riders(self, riders):
+        """(total, notes) of a hit's riders. A rider of one name counts once (Hex and Hunter's Mark
+        do not stack on one hit): the first counts, any other of its name is said to be ignored."""
+        seen, total, notes = {}, 0, []
+        for name, amount in riders:
+            key = self._rider_key(name)
+            if key and key in seen:
+                shown = seen[key][0]
+                notes.append(f"{shown} doesn't stack: one {shown} roll counts ({seen[key][1]}); the other is ignored.")
+                continue
+            if key:
+                seen[key] = (name[:1].upper() + name[1:], amount)
+            total += amount
+        return total, notes
 
     def _stated_damage(self, words, found, state, pending):
         """(amount, ignored, doubt) when the message states its damage explicitly, else None.
@@ -972,7 +992,7 @@ class RoomAdjudicator:
         ``doubt`` (a reason) instead when the roll names another target than the held hit's, or
         says it missed: the ask stays open."""
         clean = re.sub(r'[*`_~]+', '', words)
-        mains, riders, left, whos = [], [], 0, []
+        mains, riders, left, whos, field_riders = [], [], 0, [], []
         for line in clean.split('\n'):
             field = self._FIELD_LINE.match(line)
             if not field:
@@ -991,30 +1011,46 @@ class RoomAdjudicator:
             elif re.match(r'damage\s*\(', label, re.I) or \
                     (not self._NOT_RIDER.search(label) and kit_rolls.dice_totals(value) and
                      not re.search(r'(?<![a-z])d20\b', value, re.I)):
-                total, _ = self._field_total(value)
+                total, rest = self._field_total(value)
                 if total is not None and len(mains) <= 1:
-                    riders.append(total)
+                    name = re.sub(r'^damage\s*\(\s*|\s*\)$', '', label, flags=re.I).strip()
+                    riders.append((name, total))
+                    field_riders.append((name, total))
+                    more, stray = self._riders(rest)
+                    riders += more
+                    left += stray
         if not mains:
             stated = [amount for amount, _ in kit_rolls.damage(words)]
             more, _ = self._riders(kit_rolls.without_dice(clean))
-            # A rider stated as "N damage" is also in the stated list: it is not a further roll.
-            for amount in more:
-                if amount in stated[1:]:
-                    del stated[stated.index(amount, 1)]
-            if stated:
-                mains, riders = stated, riders + more
-            elif more or riders:
-                both = more + riders
-                mains, riders = both[:1], both[1:]
-            else:
+            # A rider (a labelled extra field, or "N damage from X") is also in the stated list: it
+            # is not the hit's own roll.
+            for _, amount in more + field_riders:
+                if amount in stated:
+                    del stated[stated.index(amount)]
+            named = [name for name, _ in more + field_riders if name]
+            if not stated and (more or riders):
+                # Nagatha's 79196b5 review (Low): a rider alone is not the hit's damage. The ask stays
+                # open rather than land the rider as the whole hit (a missed answer only re-asks).
+                shown = named[0] if named else 'extra'
+                return None, 0, (f"That {shown} roll is extra damage on the hit, not the hit's own damage "
+                                 "roll. Send the hit's Damage roll (with the extra roll, if you like).")
+            if not stated:
                 return None
+            mains, riders = stated, riders + [r for r in more if r not in riders]
         whos += [t for _, _, t in (found or {}).get('damage') or () if t]
         reason = self._other_target(clean, whos, state, pending)
         if reason:
             return None, 0, reason
         if re.search(r'\bmiss(?:es|ed)?\b\s*!', clean, re.I):
             return None, 0, 'That roll says it missed.'
-        return max(mains[0] + sum(riders), 0), len(mains) - 1 + left, False
+        extra, notes = self._sum_riders(riders)
+        ignored = len(mains) - 1 + left
+        if notes:
+            amount = max(mains[0] + extra, 0)
+            ignored = ' '.join(notes + ([f'Only the first damage roll counts ({amount}); the other '
+                                         + ('one is' if ignored == 1 else f'{ignored} are') + ' ignored.']
+                                        if ignored else []))
+        return max(mains[0] + extra, 0), ignored, False
 
     def _other_target(self, clean, whos, state, pending):
         """The reason the damage is not this hit's: it names a foe other than the held target."""
@@ -1023,14 +1059,35 @@ class RoomAdjudicator:
         if not target or not self.source:
             return None
         foes = [key for key in (fight.get('hp') or {}) if key != 'pc']
-        text = (clean + ' ' + ' '.join(whos)).casefold()
-        named = {key for key in foes if kit_combat.name_target(text, self.source, state, [key])}
+        named = self._named_foes((clean + '\n' + '\n'.join(whos)).casefold(), foes)
         if not named or target in named:
             return None
         labels = kit_combat.labels(self.source)
         other = sorted(named)[0]
         return (f'That damage names the {labels.get(other, other).lower()}, but your hit was on the '
                 f'{labels.get(target, target).lower()}.')
+
+    # Dice terms in a roll line: '1d6 (6)', '2d4 (3, 1)', '[piercing]', '= 6', '+ 2'.
+    _DICE_TERMS = re.compile(r'\b\d*d\d+\b(?:\s*\([^)]*\))?|\[[^\]]*\]|[=+-]\s*-?\d+\b|\(\s*\d+(?:\s*,\s*\d+)*\s*\)', re.I)
+
+    def _named_foes(self, text, foes):
+        """The foes the words name (Nagatha's 79196b5 review: a bare number is no foe's name, so
+        '**Damage**: 1d6 (6) = `6`' never names 'giant rat 6'). Dice terms go first; a name counts only
+        where a word of it appears, and a number in a name only right after that word ('Bandit 2' typed
+        out still names Bandit 2). Where one foe's name sits inside a longer match of another ('bandit'
+        in 'bandit 3'), only the longer one counts."""
+        text = self._DICE_TERMS.sub(' ', text)
+        found = []
+        for key in foes:
+            for name in kit_combat._names(self.source, key):
+                if not re.search(r'[a-z]', name):
+                    continue  # '6', '2': a bare number names nobody
+                for match in re.finditer(rf'(?<![\w-]){re.escape(name)}(?![\w-])', text):
+                    found.append((key, match.start(), match.end()))
+        kept = {key for key, start, end in found
+                if not any(other != key and o_start <= start and end <= o_end and (o_end - o_start) > (end - start)
+                           for other, o_start, o_end in found)}
+        return kept
 
     @staticmethod
     def _spelled(word):
@@ -1061,7 +1118,10 @@ class RoomAdjudicator:
         act = {'kind': 'attack', 'target': pending['target'], 'weapon': pending.get('weapon'), 'area': False,
                **({'spell': pending['spell']} if pending.get('spell') else {})}
         fight.trace.append(f"open ask answered: {amount} damage for the {pending.get('weapon') or 'blow'}")
-        if ignored:
+        if isinstance(ignored, str):
+            fight.lines.append(ignored)  # riders that do not stack, and any further roll
+            fight.trace.append(f'open ask: {ignored}')
+        elif ignored:
             fight.lines.append(f'Only the first damage roll counts ({amount}); the other '
                                + ('one is' if ignored == 1 else f'{ignored} are') + ' ignored.')
             fight.trace.append(f'open ask: {ignored} further damage roll(s) in the message ignored')
@@ -5013,6 +5073,40 @@ def check_hidden_actors(spoken, words):
                                 "engine's outcome brings it out.")
 
 
+def check_secrecy_and_agency_first(body, speech, guards):
+    """The secrecy and agency validators, run before any style or structural check (Nagatha's
+    79196b5 review): a narration that leaks or acts for the player is rejected as such even when
+    its shape or style also fails, so the engine line commits at once. Reads whatever segments are
+    well formed; the full checks follow in check_speech and checked_record."""
+    segments = [segment for segment in ((speech or {}).get('segments') or [] if isinstance(speech, dict) else [])
+                if isinstance(segment, dict) and isinstance(segment.get('speaker'), str) and
+                isinstance(segment.get('text'), str) and segment['text'].strip()]
+    if not segments:
+        return
+    view, action = body.get('public_view') or {}, body.get('action')
+    spoken = '\n'.join(f"{segment['speaker']}: {segment['text'].strip()}" for segment in segments)
+    problems, kinds = [], set()
+
+    def run(check, *args, **kwargs):
+        try:
+            check(*args, **kwargs)
+        except InvalidChange as exc:
+            problems.append(str(exc))
+            kinds.add(validator_kind(check))
+    run(check_public_content, spoken, view, action, phrases=guards.get('leak_phrases'))
+    for segment in segments:
+        run(kit_guards.check_paraphrased_leaks, segment['text'], view, action,
+            guards.get('leak_sets', ()), labels=guards.get('labels', ()))
+    run(kit_guards.check_player_agency, segments)
+    run(kit_guards.check_player_identity, segments, view.get('your_character'))
+    run(check_hidden_actors, spoken, body.get('hidden_actors'))
+    run(check_sealed, spoken, body.get('sealed'))
+    if problems:
+        failed = InvalidChange(all_problems(problems))
+        failed.kinds = kinds
+        raise failed
+
+
 def checked_record(body, plan, speech, performance_variant, source=None, degraded=False):
     """Validate a performance. Every variant faces the same checks; the record names
     which performer instructions ran so play reviews can tell the variants apart. A
@@ -5021,6 +5115,7 @@ def checked_record(body, plan, speech, performance_variant, source=None, degrade
     ask = plan.get('ask_player')
     # An ask_player turn resolves nothing: its public event is the question, not the result.
     public_event = f"{ASKED_EVENT_PREFIX}{ask['question']}" if ask else body['public_event']
+    check_secrecy_and_agency_first(body, speech, guard_context(source, body))
     result = check_speech(speech, plan, body['public_view'], body['action'], body['kind'],
                           guards=guard_context(source, body), degraded=degraded,
                           public_event=public_event)
@@ -5108,6 +5203,8 @@ _ASK_EXITS = re.compile(r"\b(exits?|ways?(?: out| on)?|doors?|leave|leaving|path
 _ASK_STANDING = re.compile(r"\b(standing|still up|alive|left|remaining|down|hurt|wounded|how bad|enem(?:y|ies)|foes?)\b", re.I)
 _ASK_WHO = re.compile(r"\b(who(?:'s| is| else)?|anyone|anybody|people)\b", re.I)
 _ASK_TURN = re.compile(r"\b(whose turn|my turn|turn order|order|initiative|who goes|goes next|round)\b", re.I)
+_IS_QUESTION = re.compile(r"\?|^\W*(?:(?:wait|ok(?:ay)?|so|and|but|hey|kit|um+)\W+)*(?:how|what|who|whose|where|which|"
+                          r"when|why|is|are|was|were|do|does|did|can|could|will|would|should|have|has|any)\b", re.I)
 _TALK_ECHO = re.compile(r'^"(?P<q>.*)"(?P<rest>\s+[^"]*)?$', re.S)
 _STOP = frozenset('what where which there here this that with does have about from into your they them '
                   'their then than these those room place kit wait before after still just know tell'.split())
@@ -5127,8 +5224,19 @@ def _exits_line(view):
     exits = view.get('exits') or []
     if not exits:
         return 'No way out that you know of yet.'
-    lines = ' '.join(_full_stop(e['description']) for e in exits)
-    return f"{_count(len(exits), 'way out', 'ways out').capitalize()} that you know of: {lines}"
+    lines = '; '.join(_after_colon(e['description'].strip().rstrip('.!?')) for e in exits)
+    return f"{_count(len(exits), 'way out', 'ways out').capitalize()} that you know of: {lines}."
+
+
+_LOWER_AFTER_COLON = frozenset('a an the this that these those some there it its one two three four five six '
+                               'seven eight nine ten north south east west up down'.split())
+
+
+def _after_colon(text):
+    """A sentence continued after a colon: an article or common opener goes lowercase ('of: an iron
+    door'); a name keeps its capital."""
+    first = text.split(' ', 1)[0]
+    return text[:1].lower() + text[1:] if first.casefold() in _LOWER_AFTER_COLON else text
 
 
 def _standing_line(view):
@@ -5138,8 +5246,14 @@ def _standing_line(view):
         up = [(name, state) for name, state in wounds.items() if state not in ('down', 'fled')]
         if not up:
             return 'Nobody on the other side is still standing.'
-        return (f"{_count(len(up), 'still standing', 'still standing').capitalize()}: "
-                f"{_names(f'{name} ({state})' for name, state in up)}.")
+        by_state = {}
+        for name, state in up:
+            by_state.setdefault(state, []).append(name)
+        lead = _count(len(up), 'still standing', 'still standing').capitalize()
+        if len(by_state) == 1:
+            ((state, names),) = by_state.items()
+            return f"{lead}, {'all ' if len(names) > 1 else ''}{state}: {_names(names)}."
+        return f"{lead}; " + '; '.join(f"{state}: {_names(names)}" for state, names in by_state.items()) + '.'
     actors = [a['name'] for a in view.get('actors') or () if a.get('status') not in ('dead', 'down', 'fled')]
     return _who_line({'actors': [{'name': n} for n in actors]})
 
@@ -5171,7 +5285,10 @@ def _fact_lines(view, question):
 
 
 def table_talk_answer(view, question):
-    """Kit's plain answer to an out-of-character question, from the public view only."""
+    """Kit's plain answer to an out-of-character question, from the public view only; None when
+    it is no question (a correction, a remark) or asks about nothing the public view holds."""
+    if not _IS_QUESTION.search(question or ''):
+        return None
     parts = []
     turn = _ASK_TURN.search(question)
     if turn and ((view.get('fight') or {}).get('status') == 'running' or
@@ -5184,15 +5301,9 @@ def table_talk_answer(view, question):
     if _ASK_EXITS.search(question):
         parts.append(_exits_line(view))
     if not parts:
-        facts = _fact_lines(view, question)
-        parts.extend(facts)
-    if not parts:
-        # No topic matched: what is on the table, in brief.
-        parts.append(f"Here's what you have: you're in {view.get('area') or 'this place'}.")
-        parts.extend((view.get('known_facts_here') or ())[:3])
-        parts.append(_standing_line(view) if view.get('fight') else _who_line(view))
-        parts.append(_exits_line(view))
-    return ' '.join(_full_stop(part) for part in parts)
+        parts.extend(_fact_lines(view, question))
+    # Nagatha's 79196b5 review: only the topic asked; no topic, no answer (the engine's own line).
+    return ' '.join(_full_stop(part) for part in parts) or None
 
 
 def opening_frame(view, public_event):
@@ -5219,7 +5330,10 @@ def public_fallback(body):
         echo = _TALK_ECHO.match(event[len(TABLE_TALK_PREFIX):]) if event.startswith(TABLE_TALK_PREFIX) else None
         question = echo.group('q') if echo else (body.get('action') or '')
         rest = (echo.group('rest') or '').strip() if echo else ''
-        spoken = f"Kit: {' '.join(part for part in (table_talk_answer(view, question), rest) if part)}"
+        answer = table_talk_answer(view, question)
+        if not answer:
+            return None
+        spoken = f"Kit: {' '.join(part for part in (answer, rest) if part)}"
     else:
         return None
     try:
@@ -5927,6 +6041,9 @@ class KitChatBridge:
                     'committed spoken text (see trace) and move on.', 'prepare_new_turn') from exc
             raise
 
+    def _performance_rejections(self, turn_id):
+        return (self.runtime.kit_timing(turn_id) or {}).get('performance_rejections', 0)
+
     def _rejections(self, turn_id):
         return (self.runtime.kit_timing(turn_id) or {}).get('rejected_attempts', 0)
 
@@ -5942,17 +6059,21 @@ class KitChatBridge:
         count = self._rejections(turn_id)
         guidance = {'rejected_attempts': count, 'degraded_available': count >= DEGRADED_AFTER_REJECTIONS,
                     'next_step': 'retry',
-                    'engine_line_next': count + 1 >= ENGINE_LINE_AFTER_REJECTIONS + STYLE_RETRIES}
+                    'engine_line_next': (self._performance_rejections(turn_id) + 1 >=
+                                         ENGINE_LINE_AFTER_REJECTIONS + STYLE_RETRIES)}
         if count >= DEGRADED_AFTER_REJECTIONS:
             guidance.update(next_step='retry_degraded', degraded_instruction=DEGRADED_INSTRUCTION)
         if count >= ABANDON_SUGGEST_AFTER:
             guidance.update(next_step='abandon_and_prepare_again', abandon_instruction=ABANDON_INSTRUCTION)
         return guidance
 
-    def _log_rejection(self, turn_id, exc):
+    def _log_rejection(self, turn_id, exc, performance=False):
         prior = self.runtime.kit_timing(turn_id) or {}
+        # Only a rejected narration spends the style retry (Nagatha's 79196b5 review); a rejected
+        # decision still counts toward degraded mode and abandon.
         self.runtime.record_kit_timing(
             turn_id, rejected_attempts=prior.get('rejected_attempts', 0) + 1,
+            performance_rejections=prior.get('performance_rejections', 0) + bool(performance),
             last_rejection=str(exc))
         guidance = self.guidance(turn_id)
         message = _full_stop(exc)
@@ -5971,8 +6092,8 @@ class KitChatBridge:
         except StaleTurn:
             raise
         except InvalidChange as exc:
-            rejected = self._log_rejection(turn_id, exc)
-            if engine_line_due(self._rejections(turn_id), exc):
+            rejected = self._log_rejection(turn_id, exc, performance=True)
+            if engine_line_due(self._performance_rejections(turn_id), exc):
                 # The narration failed (a style miss twice, or a secret or the player's agency
                 # once): the engine's line commits (no further narration).
                 self.runtime.record_kit_timing(turn_id, engine_line=True)

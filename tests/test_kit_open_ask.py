@@ -397,6 +397,88 @@ class NoSlotFizzlesBeforeTheAsk(unittest.TestCase):
         self.assertNotIn('fizzles', result.public_event)
 
 
+def numbered_camp(test):
+    """Roadcamp with its foes relabelled Bandit 1-3 (every pack room numbers its foes)."""
+    import json
+    import tempfile
+    from pathlib import Path
+    from unittest import mock
+    import test_kit_combat_checkpoints as checkpoints
+    source = json.loads(checkpoints.CAMP.read_text())
+    for number, key in enumerate(('harl', 'cutthroat_a', 'cutthroat_b'), 1):
+        source['actors'][key]['name'] = f'Bandit {number}'
+    temp = tempfile.TemporaryDirectory()
+    test.addCleanup(temp.cleanup)
+    path = Path(temp.name) / 'numbered.json'
+    path.write_text(json.dumps(source))
+    with mock.patch.object(checkpoints, 'CAMP', path):
+        return Camp(test, roll=lambda: 2, sheet=without_shield(NIK))
+
+
+NUMBERED_HIT = 'Initiative 25. I stab Bandit 2 with my dagger, 18 to hit.'  # cutthroat_a, AC 12
+
+
+class NumberedFoesDamage(unittest.TestCase):
+    """Nagatha's #127 review at 79196b5 (High): a bare number read as a numbered foe ('**Damage**:
+    1d6 (6) = `6`' named 'giant rat 6'), so a hit on a numbered pack could never be answered.
+    A foe is named only by a word of its name; dice terms and bare numbers never name one."""
+
+    def answered(self, words):
+        table = numbered_camp(self)
+        table.act(NUMBERED_HIT)
+        self.assertEqual(table.fight['pending']['target'], 'cutthroat_a')
+        result = table.act(words)
+        return table.fight, result
+
+    def test_a_number_in_the_roll_names_no_foe(self):
+        for words, amount in (('2 piercing', 2), ('3 piercing damage', 3), ('**Damage**: 1d6 (3) = `3`', 3),
+                              ('Damage: 1d4 (1) + 2 = 3', 3), ('1d4 (1) = 1', 1), ('1', 1), ('I rolled a 3', 3),
+                              ('Nik attacks with a Dagger!\n**Damage**: 1d4 (1) + 2 = `3`\n**Hex**: 1d6 (1) = `1`', 4)):
+            with self.subTest(words=words):
+                fight, result = self.answered(words)
+                self.assertEqual(fight['hp']['cutthroat_a'], 11 - amount, result.public_event)
+                self.assertIsNone(fight.get('pending'), words)
+                self.assertNotIn('names the', result.public_event)
+
+    def test_a_typed_out_numbered_foe_still_names_it(self):
+        for words in ('4 damage to Bandit 3', 'Bandit 1 takes 4 damage', 'Damage: 4 on bandit 3'):
+            with self.subTest(words=words):
+                fight, result = self.answered(words)
+                self.assertEqual(fight['hp']['cutthroat_a'], 11, words)
+                self.assertEqual((fight.get('pending') or {}).get('needs'), 'damage', words)
+                self.assertRegex(result.public_event, r'names the bandit [13], but your hit was on the bandit 2')
+        for words in ('4 damage to Bandit 2', 'Bandit 2 takes 4 damage', '4 damage to the bandit'):
+            with self.subTest(words=words):
+                fight, _ = self.answered(words)
+                self.assertEqual(fight['hp']['cutthroat_a'], 7, words)
+
+
+class RiderRules(unittest.TestCase):
+    """Nagatha's #127 review at 79196b5 (Low): riders of one name do not stack, and a rider alone
+    is not the hit's damage."""
+
+    answered = DamageAnswerFormats.answered
+    assertLands = DamageAnswerFormats.assertLands
+    assertStaysOpen = DamageAnswerFormats.assertStaysOpen
+
+    def test_a_same_named_rider_counts_once_and_the_other_is_said(self):
+        for words in ('**Damage**: 1d4 (3) + 2 = `5`\n**Hex**: 1d6 (4) = `4`\n**Hex**: 1d6 (6) = `6`',
+                      'Damage: 1d4 (3) + 2 = 5, plus 4 damage from hex, plus 6 damage from hex',
+                      '**Damage**: 1d4 (3) + 2 = `5`\n**Hex**: 1d6 (4) = `4`, plus 6 damage from Hex'):
+            with self.subTest(words=words):
+                result = self.assertLands(words, 9)
+                self.assertIn("Hex doesn't stack: one Hex roll counts (4); the other is ignored.", result.public_event)
+        result = self.assertLands("**Damage**: 1d4 (3) + 2 = `5`\n**Hex**: 1d6 (4) = `4`\n**Hunter's Mark**: 1d6 (1) = `1`", 10)
+        self.assertNotIn('stack', result.public_event)
+
+    def test_a_rider_alone_leaves_the_ask_open(self):
+        for words in ('**Hex**: 1d6 (4) [necrotic] = `4`', "Hunter's Mark: 1d6 (3) = 3", 'plus 4 damage from hex',
+                      '**Damage (Sneak Attack)**: 2d6 (3, 4) = `7`'):
+            with self.subTest(words=words):
+                result = self.assertStaysOpen(words)
+                self.assertIn("is extra damage on the hit, not the hit's own damage roll", result.public_event)
+
+
 class EngineLineAfterOneFailedNarration(BridgeCase):
     """The audit (kit_agent.py:2247 and :4759): rejected narrations walked to degraded mode, then
     abandon and prepare again, each another model call. Nagatha's #127 review: the engine's

@@ -42,7 +42,7 @@ class ValidatorKinds(unittest.TestCase):
         for fn in (kit_agent.check_speech, kit_agent.checked_record):
             for module, name in re.findall(r'\b(?:(kit_\w+)\.)?(check_\w+)', inspect.getsource(fn)):
                 called.add((module, name))
-        called -= {('', 'check_variant'), ('', 'check_speech')}
+        called -= {('', 'check_variant'), ('', 'check_speech'), ('', 'check_secrecy_and_agency_first')}
         kinds = kit_agent.VALIDATOR_KINDS
         missing = sorted(f'{module}.{name}' for module, name in called
                          if f'{module}.{name}' not in kinds and name not in kinds)
@@ -206,3 +206,72 @@ class TableTalkFallback(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class ReviewAt79196b5(unittest.TestCase):
+    """Nagatha's #127 review at 79196b5: (1) table talk that is no question gets the engine's own
+    line, and an answer keeps to the topic asked; (2) only performance rejections count toward the
+    style retry; (3) secrecy and agency run before style, so a mixed failure commits at once; the
+    'of: An' capitalisation."""
+
+    def test_a_correction_gets_the_engines_own_line_not_the_board(self):
+        for words in ('No wait, that 5 was for the captain', '5, and I yell at the captain'):
+            with self.subTest(words=words):
+                spoken = TableTalkFallback.talk(self, words, mid_ask=True)
+                self.assertTrue(spoken.startswith('Narrator: '), spoken)
+                self.assertNotIn('unhurt', spoken)
+                self.assertNotIn('way out', spoken)
+                self.assertIn('Table talk to Kit', spoken, 'the engine line')
+                self.assertIn('still waits for its damage roll', spoken)
+
+    def test_a_question_on_no_known_topic_gets_the_engines_own_line(self):
+        spoken = TableTalkFallback.talk(self, "What's your favourite colour?")
+        self.assertTrue(spoken.startswith('Narrator: '), spoken)
+        self.assertNotIn('way out', spoken)
+
+    def test_a_big_pack_is_grouped_by_its_wound_state(self):
+        wounds = {f'Giant rat {n}': 'unhurt' for n in range(1, 11)}
+        wounds['Giant rat 4'] = 'hurt'
+        view = {'fight': {'status': 'running', 'wounds': wounds}}
+        answer = kit_agent.table_talk_answer(view, 'How many are still standing?')
+        self.assertEqual(answer.count('unhurt'), 1, answer)
+        self.assertIn('Ten still standing', answer)
+        self.assertIn('hurt: Giant rat 4', answer)
+
+    def test_an_exit_line_after_a_colon_is_not_capitalised(self):
+        view = {'exits': [{'description': 'An iron door stands shut.'}, {'description': 'The road runs on.'}]}
+        answer = kit_agent.table_talk_answer(view, 'How many exits are there?')
+        self.assertIn('Two ways out that you know of: an iron door stands shut; the road runs on.', answer)
+
+    def test_a_decision_rejection_does_not_spend_the_style_retry(self):
+        runtime, adjudicator = room(self)
+        bridge = KitChatBridge(runtime, adjudicator)
+        prepared = bridge.prepare(opening=True, one_pass=True, turn_id='open')
+        plan = RecordingModel().plan(prepared['input']['private'])
+        with self.assertRaises(PerformanceRejected) as caught:  # 'uktarl' is not in this room
+            bridge.complete('open', {'decision': plan, 'performance': CAMP_FLAT})
+        self.assertFalse(caught.exception.guidance['engine_line_next'])
+        plan.update(move='world_description', table_presence='quiet', focus_actor='none')
+        plan['improv_read'].update(actor_ref='none', actor_basis='none')
+        plan['public_brief'].update(scope='feature', reply_to='none', mirror=MIRROR)
+        with self.assertRaises(PerformanceRejected) as caught:
+            bridge.complete('open', {'decision': plan, 'performance': CAMP_FLAT})
+        self.assertTrue(caught.exception.guidance['engine_line_next'])
+        result = bridge.complete('open', {'decision': plan, 'performance': CAMP_FLAT})
+        self.assertTrue(result['engine_line'])
+        self.assertEqual(result['rejected_attempts'], 3, 'all rejections are still counted')
+
+
+class SecrecyBeforeStyle(BridgeCase):
+    def test_a_leak_in_a_malformed_narration_commits_at_once(self):
+        self.staged('I take a seat.', 'mixed')
+        result = self.bridge.finish('mixed', {'segments': [{'speaker': 'Nobody', 'text': 'The doppelganger smiles.'}]})
+        self.assertTrue(result['engine_line'])
+        self.assertIn('secrecy', result['rejection_kinds'])
+
+    def test_acting_for_the_player_in_a_narration_missing_its_move_commits_at_once(self):
+        self.staged('I take a seat.', 'pushy')
+        result = self.bridge.finish('pushy', {'segments': [{'speaker': 'Narrator',
+                                                            'text': 'You decide to sit down at the table.'}]})
+        self.assertTrue(result['engine_line'])
+        self.assertIn('agency', result['rejection_kinds'])
