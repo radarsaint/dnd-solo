@@ -168,6 +168,21 @@ def unperceived(actor):
             any(actor.get(flag) is True for flag in UNPERCEIVED_FLAGS) or bool(conditions & set(UNPERCEIVED_FLAGS)))
 
 
+def reveal_actor(actor, spec=None):
+    """Clear every hiding marker unperceived() reads, in place on the state's actor (Nagatha's #131
+    review: a reveal that left an invisible flag or condition kept a creature fighting the PC
+    protected). The room spec's own marks are overridden in the state; other conditions stay."""
+    if actor.get('status') == 'hidden':
+        actor['status'] = 'alive'
+    actor['visible'] = True
+    for flag in UNPERCEIVED_FLAGS:
+        if flag in actor or (spec or {}).get(flag) is not None:
+            actor[flag] = False
+    conditions = actor.get('conditions', (spec or {}).get('conditions'))
+    if conditions:
+        actor['conditions'] = [c for c in conditions if str(c).casefold() not in UNPERCEIVED_FLAGS]
+
+
 def canon_in_scope(state):
     """Canon entries that apply here: this location's, present actors', campaign-wide, and this
     scene's own (a scene-scoped entry is valid only in the scene that made it, KRABS §8: a
