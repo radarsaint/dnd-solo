@@ -438,7 +438,8 @@ class Runtime:
                                   (turn_id,)).fetchone()
             require(row is not None and row[0] == expected_revision, 'No matching pending Kit turn')
             require(replace or row[1] is None or row[1] == serialized,
-                    'Private decision already fixed for this turn')
+                    'Private decision already fixed for this turn. The same decision with only a new '
+                    'performance is accepted and commits; a changed decision is not.')
             if row[1] != serialized:
                 self.db.execute('UPDATE kit_pending SET plan=? WHERE turn_id=?',
                                 (serialized, turn_id))

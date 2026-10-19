@@ -2871,7 +2871,9 @@ HOST_RETRY_NOTE = (
     'If finish or complete is rejected, nothing was committed. Read message and '
     'retry_instruction (a decision rejection lists every problem at once), then submit a new '
     'performance for the same turn_id; for complete, resubmit the decision with the new performance, '
-    'correcting the fields the message names (its acts, rolls, and claims stay as first sent). If '
+    'correcting the fields the message names (its acts, rolls, and claims stay as first sent). The '
+    'same decision with only a new performance is accepted and commits (a key left out, or sent as '
+    'the engine filled it, counts as the same). If '
     'decide is rejected, fix the plan and call decide again. A performance rejected only on style gets '
     'one retry; a second rejection, or one that speaks hidden information or acts for the player, is not '
     'retried: the engine commits its own fallback line as the turn (the result says engine_line '
@@ -2896,17 +2898,42 @@ REPLACEABLE_PLAN_KEYS = ('goal', 'appraisal', 'memory_refs', 'improv_read', 'mov
                          'focus_actor', 'table_presence', 'tone', 'player_note', 'player_mood')
 
 
+# The values a decision key may be left out as: sent empty, it is the same decision.
+LEFT_OUT_VALUES = (None, False, '', 'none', [], {})
+
+
+def _same_value(saved, plan, key):
+    """A key matches when both sides hold the same value, or one side leaves it out and the
+    other holds a left-out value (the engine fills these when left out)."""
+    if key in saved and key in plan:
+        return plan[key] == saved[key]
+    value = plan[key] if key in plan else saved.get(key)
+    return any(value == empty and type(value) is type(empty) for empty in LEFT_OUT_VALUES)
+
+
+def same_decision(saved, plan):
+    """``plan`` resends the decision already fixed for the turn: every key the resend sends
+    matches the saved one. A key left out carries over (the engine filled it the first time)."""
+    if not isinstance(saved, dict) or not isinstance(plan, dict):
+        return False
+    return all(_same_value(saved, plan, key) for key in plan)
+
+
+SAME_DECISION_ACCEPTED = ('The same decision with only a new performance is accepted and commits.')
+
+
 def corrected_decision(saved, plan):
     """``plan`` with every engine-facing key taken from ``saved``. A different value for one is
     refused, naming the keys that may change."""
     if not isinstance(plan, dict):
         return plan
     changed = sorted(key for key in set(saved) | set(plan)
-                     if key not in REPLACEABLE_PLAN_KEYS and key in plan and plan[key] != saved.get(key))
+                     if key not in REPLACEABLE_PLAN_KEYS and key in plan and not _same_value(saved, plan, key))
     require(not changed, 'Private decision already fixed for this turn: ' + ', '.join(changed) +
             ' cannot change after an attempt. Resubmit with those as before (or leave them out); only '
-            + ', '.join(REPLACEABLE_PLAN_KEYS) + ' may be corrected.')
-    return {**{key: value for key, value in saved.items() if key not in REPLACEABLE_PLAN_KEYS}, **plan}
+            + ', '.join(REPLACEABLE_PLAN_KEYS) + ' may be corrected. ' + SAME_DECISION_ACCEPTED)
+    return {**{key: value for key, value in saved.items() if key not in REPLACEABLE_PLAN_KEYS},
+            **{key: value for key, value in plan.items() if key in REPLACEABLE_PLAN_KEYS or key in saved}}
 
 
 OPENING_REPREPARE = (
@@ -6160,10 +6187,13 @@ class KitChatBridge:
         if revision != pending['revision']:
             raise StaleTurn(f"Expected revision {pending['revision']}; current is {revision}")
         check_variant(performance_variant)
-        check_decision(self.runtime, plan,
-                       kit_memory(self.runtime, state, body['action'], body['use_memory']), body)
+        if same_decision(pending['plan'], plan):
+            plan = pending['plan']  # the decision already fixed, sent again: keep it as saved
+        else:
+            check_decision(self.runtime, plan,
+                           kit_memory(self.runtime, state, body['action'], body['use_memory']), body)
+            self.runtime.save_kit_plan(turn_id, revision, plan)
         payload = performance_input(self.runtime, body, plan)
-        self.runtime.save_kit_plan(turn_id, revision, plan)
         # finish records the variant of the latest packet issued for this turn.
         self.runtime.record_kit_timing(turn_id, decided_at=time.time(),
                                        performance_variant=performance_variant)
@@ -6226,7 +6256,7 @@ class KitChatBridge:
             committed = self.runtime.committed_kit_turn(turn_id)
             spoken = _spoken_lines(speech)
             if (committed and spoken and committed['spoken'].endswith(spoken) and
-                    (decision is None or committed['trace'] == decision)):
+                    (decision is None or same_decision(committed['trace'], decision))):
                 return {'already_committed': True, 'revision': committed['revision'],
                         'turn_id': turn_id, 'public_event': committed['public_event'],
                         'spoken': committed['spoken'],
@@ -6402,7 +6432,11 @@ class KitChatBridge:
         # again and replaces it (opening friction: complete refused the fix, only a restart
         # recovered). What the engine acts on (declared acts, rolls, claims, agenda, state) stays
         # fixed; left out, it carries over from the saved decision.
-        if pending['plan'] is not None and encode(pending['plan']) != encode(plan):
+        # The decision already fixed, sent again with a new performance: it commits as saved
+        # (rooms-pack build: a resend was refused as already fixed; only abandon recovered).
+        if same_decision(pending['plan'], plan):
+            plan = pending['plan']
+        elif pending['plan'] is not None:
             plan = corrected_decision(pending['plan'], plan)
         if pending['plan'] is None or encode(pending['plan']) != encode(plan):
             try:
