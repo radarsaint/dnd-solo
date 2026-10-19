@@ -4,7 +4,7 @@ reply all read names here (Nagatha's re-probe of #127 at e486b18 and #135 at ef9
 A numbered label ("Giant rat 3") is named by its full label, by its head noun and number ("rat 3",
 "rat-3", "rat #3") and by its bare head noun ("rat"), which every rat shares, so it names none of
 them alone. A bare number is never a name. A name with no number does not match where a number
-follows it ("rat" inside "rat 3", "bandit" inside "bandit 12"). Where one foe's name sits inside a
+follows it when the actor is numbered ("rat" inside "rat 3"). Where one foe's name sits inside a
 longer match of another's, only the longer one counts.
 
 Also here, so a branch without the unperceived-actor PR carries the same rule: ``unperceived``
@@ -65,21 +65,25 @@ def names(source, key):
     return {n for n in out if n}
 
 
-def _pattern(name):
+def _pattern(name, numbered_actor=False):
+    """A name's pattern. A numbered actor's unnumbered name ('rat', 'giant') does not match where a
+    number follows ('rat 3' is Giant rat 3's, not every rat's)."""
     parts = [re.escape(p) for p in re.split(r'[\s-]+', name) if p]
     if parts and parts[-1].isdigit():
         body = r'[\s-]+'.join(parts[:-1]) + r'[\s-]*#?' + parts[-1]
         return rf'(?<![\w-]){body}(?![\w-])'
-    return rf'(?<![\w-]){r"[\s-]+".join(parts)}(?![\w-])(?![\s-]*#?\d)'
+    return rf'(?<![\w-]){r"[\s-]+".join(parts)}(?![\w-])' + (r'(?![\s-]*#?\d)' if numbered_actor else '')
 
 
 def spans(text, source, candidates):
     """[(key, start, end)] where the words name a candidate."""
     low = (text or '').casefold()
     found = []
+    label_of = _labels(source)
     for key in candidates:
+        is_numbered = bool(numbered(label_of.get(key, key)))
         for name in names(source, key):
-            for match in re.finditer(_pattern(name), low):
+            for match in re.finditer(_pattern(name, is_numbered), low):
                 found.append((key, match.start(), match.end()))
     return [(key, s, e) for key, s, e in found
             if not any(o_s <= s and e <= o_e and (o_e - o_s) > (e - s) for other, o_s, o_e in found if other != key)]

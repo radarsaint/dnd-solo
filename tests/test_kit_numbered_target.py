@@ -95,6 +95,11 @@ class SharedNamesAndPerception(unittest.TestCase):
         found = kit_names.names(table.runtime.source(), 'cutthroat_b')
         self.assertTrue({'giant rat 3', 'rat 3', 'rat'} <= found, found)
         self.assertNotIn('3', found, 'a bare number is never a name')
+        source = table.runtime.source()
+        self.assertEqual(kit_names.resolve('rat 3', source, list(ONE_TO_THREE)), ('cutthroat_b', []))
+        captain = rat_camp(self, ONE_RAT).runtime.source()
+        self.assertEqual(kit_names.resolve('captain 3', captain, ['harl', 'cutthroat_a']), ('harl', []),
+                         "an unnumbered foe's name still names it before a number")
 
     def test_the_shared_head_noun_asks_which_one(self):
         for words in ('I stab the rat with my dagger, 18 to hit.', 'I fire bolt the rat, 18 to hit.'):
