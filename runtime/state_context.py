@@ -880,6 +880,13 @@ class Runtime:
             # The reaction inventory, slots and uses, rebuilt from the sheet; what was spent since the
             # last rest stays spent (re-sending or editing the sheet is not a rest: #101 review D7).
             state['pc_resources'] = kit_reactions.carry_spent(kit_reactions.build(sheet), state.get('pc_resources'))
+            from . import kit_gear
+            # Session start (and every sheet edit): the gear on the sheet against its training and
+            # attunement; each new mismatch is a pending clarification (Brendon, 2026-10-19).
+            kit_gear.run_audit(state, 'sheet loaded')
+        elif kind == 'gear_state':
+            from . import kit_gear
+            kit_gear.apply_event(state, event)
         elif kind == 'pc_resources':
             from . import kit_reactions
             state['pc_resources'] = copy.deepcopy(kit_reactions.check(event.get('resources')))
@@ -888,6 +895,8 @@ class Runtime:
             require(event.get('kind') in ('short', 'long'), 'A rest is short or long')
             state['pc_resources'] = kit_reactions.rest(kit_reactions.current(state), state.get('player_sheet') or {},
                                                        event['kind'])
+            from . import kit_gear
+            kit_gear.run_audit(state, f"{event['kind']} rest")  # after every rest (Brendon, 2026-10-19)
         elif kind == 'claim_said':
             from . import kit_claims
             said = event.get('said')

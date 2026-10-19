@@ -329,7 +329,10 @@ def _pool(sheet, pool):
 
 
 def _digest(sheet):
-    return hashlib.sha256(json.dumps(sheet or {}, sort_keys=True).encode()).hexdigest()[:12]
+    # What is held, equipped or active right now (pc_state) is not the sheet's inventory: a
+    # pc_state change must not rebuild the inventory and refill what was spent.
+    body = {k: v for k, v in (sheet or {}).items() if k not in ('held', 'equipped', 'active')}
+    return hashlib.sha256(json.dumps(body, sort_keys=True).encode()).hexdigest()[:12]
 
 
 def current(state):

@@ -136,8 +136,15 @@ def situated(sheet, situation):
 
 
 def sheet_now(state, fight=False):
-    """The loaded sheet with its in-force lists settled by the player's word, else the situation."""
-    return situated((state or {}).get('player_sheet'), situation_of(state, fight))
+    """The loaded sheet with its in-force lists settled by the player's word, else the situation.
+    Gear the player put away (runtime/kit_gear.py: a stowed shield) is neither held nor equipped."""
+    now = situated((state or {}).get('player_sheet'), situation_of(state, fight))
+    from . import kit_gear
+    away = {name.casefold() for name in kit_gear.stowed_names(state)}
+    if now and away:
+        now = {**now, **{key: [v for v in now.get(key, []) if v.strip().casefold() not in away]
+                         for key in ('held', 'equipped')}}
+    return now
 
 
 def settled_by(sheet, name):
