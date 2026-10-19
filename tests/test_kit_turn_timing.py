@@ -10,6 +10,7 @@ from runtime import kit_agent
 from runtime.kit_agent import KitChatBridge, RoomAdjudicator, turn_latency
 from runtime.state_context import InvalidChange
 from test_kit_room_review import ROOT, WATCH, Base
+from kit_policy import rejections_raise
 
 LANDING = {'segments': [
     {'speaker': 'Narrator', 'text': 'Lamplight leaks through the gap in the iron door and lays a thin bright stripe '
@@ -33,6 +34,7 @@ class HostStampedTiming(Base):
         plan['public_brief'].update({'reply_to': 'none', 'scope': 'feature', **brief})
         return plan
 
+    @rejections_raise  # validator probe (tests/kit_policy.py)
     def test_every_segment_of_the_turn_is_recorded(self):
         packet = self.bridge.prepare(opening=True, one_pass=True, host_stamps={'received_at': 1000.0})
         turn = packet['turn_id']

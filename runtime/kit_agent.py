@@ -27,7 +27,7 @@ from . import kit_attitude
 from . import kit_brief
 from . import kit_cards
 from . import kit_reactions
-from . import kit_combat
+from . import kit_combat, kit_names
 from . import kit_rolls
 from . import kit_triggers
 from . import kit_reveal
@@ -722,6 +722,29 @@ class RoomAdjudicator:
         'describe'|'new_action'|'unclear'}); the engine checks it is legal and never reads intent."""
         self.last_said = last_said or ''
         self.choice = choice
+        # The open-ask gate: an ask the engine left open (a reaction window, the damage of a hit on
+        # his turn, a called check) takes this message as its answer before anything reads it as a
+        # new deed. A message with no answer in it, or an explicit cancel, yields the ask.
+        answered, state, yielded = self._open_ask(action, revision, state)
+        if answered is not None:
+            return self._offer_downed(answered)
+        if yielded is not None and yielded.get('final') is not None:
+            return self._offer_downed(yielded['final'])
+        try:
+            result = self._resolve_open(action, revision, state, addressed, choice)
+        except PendingRuling:
+            if yielded is None or not yielded['resolution'].public_event:
+                raise
+            # The yield itself is a committed turn (the round ran on); the rest of the words had
+            # no ruling of their own, so they add nothing (Kit voices them).
+            return self._offer_downed(yielded['resolution'])
+        if yielded is not None:
+            first = yielded['resolution']
+            result = dataclasses.replace(result, public_event=f'{first.public_event} {result.public_event}'.strip(),
+                                         events=list(first.events) + list(result.events))
+        return result
+
+    def _resolve_open(self, action, revision, state, addressed, choice):
         try:
             result = self._also_bet(self._resolve(action, revision, state, addressed), action, revision, state)
         except PendingRuling as exc:
@@ -772,6 +795,656 @@ class RoomAdjudicator:
             result = self._also_after_entry(result, action, revision, state)
         return self._offer_downed(result)
 
+    # An explicit cancel of the open ask ("forget the damage", "never mind the roll").
+    _CANCEL_ASK = re.compile(r"\b(?:cancel|never\s*mind|forget\s+(?:it|that|about\s+it|the\s+(?:roll|damage|check))|"
+                             r"scratch\s+that|skip\s+(?:it|that|the\s+(?:roll|damage|check))|no\s+roll)\b", re.I)
+    # A cancel aimed at the roll itself ("never mind the damage", "skip the roll", "damage, forget
+    # it"): it cancels even with a number in the message. A loose one ("scratch that, it was 6
+    # damage") does not beat the amount the message states, and "no damage to the prisoner" is
+    # about someone else, not the roll.
+    _CANCEL_THE_ROLL = re.compile(
+        r"\b(?:cancel|never\s*mind|forget(?:\s+about)?|scratch|skip|no|drop)\s+(?:the\s+|that\s+|my\s+|this\s+)?"
+        r"(?:damage\s+)?(?:roll|damage|dmg|check)\b(?!\s+(?:to|on|for|against|from)\b)|"
+        r"\b(?:roll|damage|dmg|check)\s*[,:;-]?\s*(?:cancel(?:led)?|"
+        r"never\s*mind|forget\s+(?:it|that)|scratch\s+that|skip\s+(?:it|that))\s*(?:[.!;,]|$)", re.I)
+    # Never damage (Nagatha's #127 re-review): a d20, a check, save or skill, an ability, a natural.
+    # A message with one of these and a number re-asks: a missed answer only re-asks, a wrong one kills.
+    _NOT_DAMAGE = re.compile(
+        r"(?<![a-z])d20\b|\bnat(?:ural)?\b|\bchecks?\b|\bsav(?:e|es|ing)\b|\bthrows?\b|\bto[- ]?hit\b|\binit\b|"
+        r"\b(?:" + '|'.join(pc_sheet.ABILITIES) + r")\b|\b(?:strength|dexterity|constitution|intelligence|wisdom|"
+        r"charisma)\b|\b" + _SKILL_NAMES + r"\b", re.I)
+    # A number that is a count, a distance, coins or a time, not a roll.
+    _UNIT_AFTER = (r"(?!\s*(?:ft\b|feet|foot|'|squares?|steps?|paces?|yards?|gp\b|gold|coins?|sp\b|cp\b|pp\b|%|"
+                   r"x\b|times|minutes?|rounds?|turns?|hours?|days?|of\b|more\b|potions?|arrows?|bolts?|darts?))")
+    _NUMBER = re.compile(r"(?<![\w.+-])(\d{1,3})(?![\w.]\w|\w)" + _UNIT_AFTER, re.I)
+    # The number the message names as its roll: "6 total", "a total of 6", "rolled a 6", "got 6",
+    # "damage 6", "dmg: 6".
+    _NAMED_TOTAL = re.compile(r"(?<![\w.+-])(\d{1,3})\s+total\b|\btotal(?:\s+(?:of|is|was))?\s*[:=]?\s*(\d{1,3})\b", re.I)
+    _AFTER_ROLLED = re.compile(r"\b(?:rolled|rolls|got|damage|dmg)\b\s*(?:(?:a|an|me|is|was|of)\s+)?[:=]?\s*`?"
+                               r"(\d{1,3}|[a-z]+(?:-[a-z]+)?)\b(?![\w.]\w)" + _UNIT_AFTER, re.I)
+    # Words a message that is just its number may carry ("It's 6.", "That's 6 points", "Six!").
+    _FILLER = frozenset("i it its it's was is that thats that's ok okay so um uh just a an the for total points pts "
+                        "deal deals dealt did do roll rolled got yeah yes oh hmm me my and lol haha ha heh alright right "
+                        "sure well fine cool ah er erm huh wow welp yep yup k kk".split())
+
+    def _open_ask(self, action, revision, state):
+        """(answer, state, yielded): ``answer`` is the Resolution of the open ask this message answers,
+        else None. A yielded ask comes back as {'resolution', 'final'}: the yield's own Resolution,
+        to put before the message's own, and ``final`` when nothing else may resolve this turn; then
+        ``state`` is the state after the yield, for the message to resolve on."""
+        if not isinstance(action, str) or not action.strip() or is_ooc(action) or not self.source:
+            return None, state, None
+        narration = QUOTED_SPEECH.sub(' ', action.translate(_TYPOGRAPHIC))
+        cancel = bool(self._CANCEL_ASK.search(narration))
+        current = state.get('combat') or {}
+        waiting = current.get('awaiting') or {}
+        if waiting.get('kind') == 'reaction_window' and kit_combat.config(self.source):
+            # The window's answer is Kit's structured read (choice); the engine checks it is legal.
+            resumed = self._resume_checkpoint(action, revision, state)
+            if resumed:
+                return resumed, state, None
+        pending = current.get('pending') if isinstance(current.get('pending'), dict) else {}
+        if pending.get('needs') == 'damage' and pending.get('holds_turn') and not waiting and \
+                current.get('status') == 'running' and kit_combat.config(self.source):
+            both = self._two_asks(action, revision, state, pending)
+            if both:
+                return both, state, None
+            amount, extra, doubt, kind = self._damage_answer(action, state, pending)
+            if self._CANCEL_THE_ROLL.search(narration):
+                cancel = True
+            elif amount == 0:
+                return self._zero_damage(action, revision, state, pending), state, None
+            elif amount:
+                return self._answer_damage(action, amount, revision, state, pending, extra, kind), state, None
+            elif doubt or (not cancel and '?' in narration):
+                # A question, or a number that may be a roll but is not read as this damage: Kit
+                # answers it and the ask stays open (a missed answer only re-asks).
+                return self._ask_stays_open(action, revision, state, pending, doubt), state, None
+            if not cancel and self._has_number(narration) and not self._strong_deed(action, state):
+                # Fail-safe (Nagatha's e486b18 re-probe): a number that is no deed is the answer or
+                # held, never forfeited ('b2 6', 'not 5', 'bandit 12 takes 5').
+                return self._ask_stays_open(action, revision, state, pending, True), state, None
+            return (None,) + self._yield_damage(action, revision, state, pending, cancel)
+        if not pending and not waiting and current.get('status') == 'running' and kit_combat.config(self.source):
+            late = self._late_correction(action, revision, state, current)
+            if late:
+                return late, state, None
+        if state.get('pending_check') and not waiting:
+            check = state['pending_check']
+            if cancel and not check.get('held'):
+                after = copy.deepcopy(state)
+                after.pop('pending_check', None)
+                clear = {'type': 'pending_check', 'check': None,
+                         'evidence': f"The player called off the {check['skill']} check called on turn "
+                                     f"{check['called_turn']}."}
+                return None, after, {'resolution': Resolution('called_check', '', [clear]), 'final': None}
+            if not cancel:
+                called = self._resolve_called(action, revision, state)
+                corrected, was = self._corrected_text(action)
+                if not called and (was or corrected != action) and '\n' not in action.strip():
+                    # 'actually 6', 'oops, 16', '16 not 6': a correction answers the called check.
+                    called = self._resolve_called(corrected.strip(' ,.;!'), revision, state)
+                if called:
+                    return called, state, None
+        return None, state, None
+
+    def _two_asks(self, action, revision, state, pending):
+        """A held damage ask and a called check at once (Nagatha's e486b18 re-probe). A roll that
+        names the check ('Perception 16', a d20 line) answers the check and the damage still waits;
+        a stated damage answers the damage; a number that could be either holds both."""
+        check = state.get('pending_check') or {}
+        if not check or check.get('held') or is_ooc(action):
+            return None
+        text = QUOTED_SPEECH.sub(' ', action.translate(_TYPOGRAPHIC))
+        explicit_damage = bool(re.search(r'\b(?:damage|dmg)\b', text, re.I) or kit_rolls.damage(text) or
+                               (kit_rolls.dice_totals(text) and not re.search(r'(?<![a-z])d20\b', text, re.I)) or
+                               self._PROSE_RIDER.search(text) or self._RIDER.search(text))
+        skill = check['skill'].replace('_', ' ')
+        names_check = bool(re.search(rf'\b{re.escape(skill)}\b|\bchecks?\b|(?<![a-z])d20\b|\bnat(?:ural)?\b',
+                                     text, re.I) or kit_rolls.stated_skill(text))
+        if explicit_damage and not names_check:
+            return None
+        if names_check and not explicit_damage:
+            corrected, _ = self._corrected_text(action)
+            called = self._resolve_called(action, revision, state) or \
+                self._resolve_called(corrected.strip(' ,.;!'), revision, state)
+            if called:
+                return called
+        if not self._has_number(kit_rolls.without_dice(text)) and not names_check:
+            return None
+        label = self._fight(action, revision, state).label(pending['target'])
+        line = (f"Two rolls are open: your hit's damage on the {label} and the {skill} check. Say which this "
+                f"is ('6 damage' or '{skill.capitalize()} 16').")
+        line = kit_combat.proper_numbered(line, kit_combat.labels(self.source).values())
+        return Resolution('social', f'{table_talk_event(action)} {line}', [
+            {'type': 'beat', 'tags': ['table_talk', 'open_ask', 'two_asks'],
+             'evidence': f'Roll with two asks open: {action}. {line} Nothing resolved.'}])
+
+    # A correction (Nagatha's #127 re-probe at 3f6f0de): during an open ask it is the answer or held,
+    # never a forfeit; after the damage landed it gets a graceful reply, never a silent re-apply.
+    _CORRECTION = re.compile(r"\b(?:actually|correction|wait|oops|whoops|my\s+bad|sorry|i\s+meant?|"
+                             r"hold\s+on|scratch\s+that|typo|mistyped|misread|make\s+(?:it|that))\b", re.I)
+    _CORRECTION_LEAD = re.compile(r"^\W*(?:(?:oh|ah|uh|um|erm?|no|nope|wait|actually|correction|oops|whoops|"
+                                  r"my\s+bad|sorry|i\s+meant?|hold\s+on|scratch\s+that|typo|lol|ugh|argh|hmm+|ok|okay|"
+                                  r"make\s+(?:it|that))\b\W*)+", re.I)
+    # "6 not 5", "6, not 5", "6 instead of 5": the first is the amount.
+    _NOT_THAT = re.compile(r"(?<![\w.])(\d{1,3}|[a-z]+)([\s,.;!(]*)(?:not|instead\s+of|rather\s+than)\s+(?:a\s+|an\s+)?"
+                           r"(\d{1,3}|[a-z]+)\b[.!)]*", re.I)
+    # Words that join a target's name to its damage ("6 to bandit 2", "Bandit 2 takes 6").
+    _TARGET_GLUE = re.compile(r"\b(?:to|on|at|for|against|into|takes?|took|hits?|is|was|gets?|got)\b", re.I)
+    _DAMAGE_WORDS = frozenset("damage dmg points pts hp acid bludgeoning cold fire force lightning necrotic "
+                              "piercing poison psychic radiant slashing thunder".split())
+
+    def _has_number(self, text):
+        plain = kit_rolls.without_dice(text)
+        return bool(re.search(r'\d', plain)) or any(self._spelled(w) for w in re.findall(r'[a-z]+', plain.casefold()))
+
+    _I_DO = re.compile(r"^\W*(?:(?:ok|okay|so|then|now|and|first)\W+)*i\s+(?!(?:rolled|roll|meant?|mean|think|"
+                       r"guess|said|typed)\b)[a-z']+", re.I)
+    _NOT_A_VERB = frozenset("not make made ugh argh hmm oops wait actually correction sorry total result dmg damage "
+                            "roll rolled it its that this".split())
+
+    def _strong_deed(self, action, state):
+        """A plain deed: 'I <verb> ...', or words the combat parser reads as an act. Only such a
+        message yields the open ask when it carries a number."""
+        if self._I_DO.match(QUOTED_SPEECH.sub(' ', action)):
+            return True
+        try:
+            act = kit_combat.parse(action, self.source, state)
+        except (PendingRuling, InvalidChange):
+            return True
+        if act and act.get('kind') not in ('ruling', 'late_reaction'):
+            return True
+        plain = kit_rolls.without_dice(QUOTED_SPEECH.sub(' ', action))
+        opened = self._DEED_OPEN.match(plain)
+        word = opened.group(1).casefold() if opened else ''
+        if re.match(r"^\W*(?:the\s+)?[a-z][\w' -]{0,40}?\s+(?:takes?|took|gets?|got|is|was|for)\s+(?:it\W+)?\d", plain, re.I):
+            return False  # 'bugbear takes 5': a damage report on some name, not a deed
+        if not self._deed(plain) or len(word) < 3 or word in self._NOT_A_VERB or \
+                re.match(r'[\w-]*\s*[:\d#]', plain[opened.end(1):] if opened else ''):
+            return False
+        fight = (state or {}).get('combat') or {}
+        foes = [k for k in (fight.get('hp') or {}) if k != 'pc']
+        return not any(word in kit_names.names(self.source, k) or
+                       word in kit_combat.labels(self.source).get(k, k).casefold().split() for k in foes)
+
+    def _corrected_text(self, text):
+        """(text, corrected): the correction preamble dropped and "X not Y" read as X."""
+        corrected = bool(self._CORRECTION.search(text))
+        stripped = self._CORRECTION_LEAD.sub('', text)
+
+        def first(m):
+            a, b = m.group(1), m.group(3)
+            if (a.isdigit() or self._spelled(a)) and (b.isdigit() or self._spelled(b)):
+                return a
+            return m.group(0)
+        swapped = self._NOT_THAT.sub(first, stripped)
+        if swapped != stripped:
+            corrected = True
+        if '\n' in text.strip():
+            return text, corrected  # an Avrae block reads as pasted
+        return swapped, corrected
+
+    def _foe_groups(self, text, foes, target=None):
+        """[(start, end, keys)]: each place the words name a foe and every foe that name fits, from
+        the one shared name-set (runtime/kit_names.py: 'rat 3' is Giant rat 3's, 'rat' is every
+        rat's, a bare number nobody's). A number-word name right before 'damage' ("seven damage"
+        with a foe named Seven) is the amount, not the foe. The held hit's target is also named by
+        any word of its label ('6 to the cutthroat') where no other name sits."""
+        low = text.casefold()
+        found = [(s, e, keys) for s, e, keys in kit_names.groups(low, self.source, foes)
+                 if not (self._spelled(low[s:e]) and re.match(r'\s+(?:[a-z]+\s+)?(?:damage|dmg)\b', low[e:]))]
+        if target in foes:
+            label = kit_combat.labels(self.source).get(target, target).casefold()
+            for word in {w for w in re.split(r'[\s-]+', label)
+                         if len(w) > 2 and w.isalpha() and w != 'the' and not self._spelled(w)}:
+                for match in re.finditer(rf'(?<![\w-]){re.escape(word)}(?![\w-])', low):
+                    if not any(s <= match.start() and match.end() <= e for s, e, _ in found):
+                        found.append((match.start(), match.end(), {target}))
+        return sorted(found, key=lambda g: g[0])
+
+    def _foe_spans(self, text, foes, target=None):
+        return [(key, s, e) for s, e, keys in self._foe_groups(text, foes, target) for key in keys]
+
+    def _say_foes(self, keys, article=True):
+        labels = kit_combat.labels(self.source)
+        if len(keys) == 1:
+            key = next(iter(keys))
+            return kit_combat.proper_numbered(f"{'the ' if article else ''}{labels.get(key, key).lower()}",
+                                              labels.values())
+        return kit_names.shown(self.source, keys)
+
+    def _name_reason(self, groups, target, missing=None):
+        """Why named foes keep the ask open, or None: another foe, a name several foes (not the
+        target) share, or a numbered foe not in this fight."""
+        mine = self._say_foes({target})
+        if missing:
+            return f"There's no {missing[0]} in this fight; your hit was on {mine}."
+        others = [keys for _, _, keys in groups if target not in keys]
+        if not others:
+            return None
+        keys = others[0]
+        if len(keys) == 1:
+            return f'That names {self._say_foes(keys)}, but your hit was on {mine}.'
+        return f'That name could be {self._say_foes(keys)}; your hit was on {mine}. Say which.'
+
+    def _without_target(self, plain, state, pending):
+        """(plain, held_reason): the held target's own names (its number too) and the words joining
+        them to the damage taken out, so 'Bandit 2 takes 6' and 'rat 6 takes it, 6' read as 6.
+        Another foe, a name only other foes share, or a numbered foe not here leaves the ask open and
+        says why; a name with no number left is held, never a forfeit."""
+        target = (pending or {}).get('target')
+        fight = (state or {}).get('combat') or {}
+        if not target or not self.source:
+            return plain, None
+        foes = [key for key in (fight.get('hp') or {}) if key != 'pc']
+        groups = self._foe_groups(plain, foes, target)
+        missing = kit_names.missing_numbered(plain, self.source, foes)
+        if not missing and not groups:
+            # 'Bandit 3: 5' where no foe is called anything like Bandit: a numbered label of no foe here.
+            label = re.match(r"^\s*((?:[a-z][\w'-]*\s+){1,3}#?\d{1,3})\s*[:=]", plain, re.I)
+            if label and not self._RIDER_LABEL.match(plain):
+                missing = (label.group(1).strip(), None)
+        if not groups and not missing:
+            return plain, None
+        out = plain
+        for start, end, _ in sorted(groups, key=lambda g: -g[0]):
+            out = out[:start] + ' ' + out[end:]
+        if missing:
+            out = re.sub(r'[a-z][\w-]*[\s-]*#?\d{1,3}', ' ', out, count=1, flags=re.I) if not groups else out
+        out = re.sub(r'\bthe\b', ' ', self._TARGET_GLUE.sub(' ', out), flags=re.I)
+        if self._deed(out) and not missing:
+            return plain, None  # "Stab the captain": a deed, read as before
+        left = self._NUMBER.search(out) or any(self._spelled(w) for w in re.findall(r"[a-z]+", out.casefold()))
+        reason = self._name_reason(groups, target, missing)
+        if reason:
+            return out, reason
+        if not left:
+            return out, 'That names your target but no damage.'
+        return out, None
+
+    def _damage_answer(self, action, state=None, pending=None):
+        """(amount, ignored, doubt, kind) for the open damage ask. ``amount`` is the damage the message
+        reports, read only where it is plainly the roll: an Avrae damage field, a stated amount
+        ("4 piercing damage"), a dice expression's total ("1d4 (4) + 2 = 6", never a d20), a number
+        named as the total or right after rolled/got/damage/dmg, or a message that is just the
+        number ("6!", "six", "It's 6."). ``ignored`` counts further damage rolls (only the first
+        counts; a labelled extra field of the same Avrae block, "Damage (Sneak Attack)", adds to it).
+        An explicit damage field or "N damage" wins over save, DC and check words. ``doubt``: no amount, but a number that might be a roll (a bare d20 line, a check,
+        save or natural, a question, a bare number among other words that are no deed): the ask
+        stays open. A labelled to-hit or an initiative is a new attack: (None, 0, False). With a question in the message
+        only a dice line or a stated "N damage" answers."""
+        # Two damage fields run together on one line are two fields ("Damage: ... = 4 Damage: ... = 3").
+        text = re.sub(r'(?<=\S)[ \t]+(?=\**damage\b[^:\n]{0,30}:)', '\n', action.translate(_TYPOGRAPHIC), flags=re.I)
+        text, corrected = self._corrected_text(text)
+        words = QUOTED_SPEECH.sub(' ', text)
+        plain = kit_rolls.without_dice(re.sub(r'[*`_~]+', '', words))
+        numbers = [m for m in self._NUMBER.finditer(plain)]
+        try:
+            stated = kit_rolls.damage(text)
+            if kit_rolls.attack_total(text) is not None or kit_rolls.initiative(text) is not None:
+                # A labelled to-hit or initiative is a new attack (it yields and waits); a bare d20
+                # line could be that or a check, so the ask stays open. A stated damage with no to-hit
+                # label ("sneak attack 4 damage") is the damage, never a new deed.
+                said = re.search(r'\bto[- ]?hit\b|\binit(?:iative)?\b', words, re.I) or \
+                    (not stated and re.search(r'\battack', words, re.I))
+                if said or not stated:
+                    return None, 0, not said, None
+            found = kit_rolls.avrae(text)
+            kind = kit_rolls.damage_total(text)[1]
+        except InvalidChange:
+            return None, 0, False, None
+        # An explicit damage field or "N damage" wins over save, DC and check words (Thunderwave's
+        # "CON Save" line, "he failed his save"); only then do those words mark a number as no damage.
+        read = self._stated_damage(words, found, state, pending)
+        if read is not None:
+            return read + (kind,)
+        if '\n' not in text.strip():
+            plain, held = self._without_target(plain, state, pending)
+            if held:
+                return None, 0, held, None
+            numbers = [m for m in self._NUMBER.finditer(plain)]
+        rolled = bool(numbers) or bool(re.search(r'\d', words))
+        if rolled and self._NOT_DAMAGE.search(words):
+            return None, 0, True, None
+        totals = kit_rolls.dice_totals(text)
+        if totals:
+            return max(totals[0], 0), len(totals) - 1, False, None
+        if re.fullmatch(r'\s*-\s*\d{1,3}\s*[.!]?\s*', plain):
+            return 0, 0, False, None  # a negative total is a roll of 0
+        if '?' in words:
+            return None, 0, rolled, None
+        named = [int(m.group(1) or m.group(2)) for m in self._NAMED_TOTAL.finditer(plain)]
+        rest = re.findall(r"[a-z']+", re.sub(r'\d+', ' ', plain.casefold()))
+        spelled = [w for w in rest if self._spelled(w)]
+        if not named:
+            for m in self._AFTER_ROLLED.finditer(plain):
+                value = int(m.group(1)) if m.group(1).isdigit() else self._spelled(m.group(1))
+                if value:
+                    named.append(value)
+            if named and len(numbers) + len(spelled) > len(named):
+                return None, 0, True, None  # "I rolled a 4 and a 2": which one?
+        if named:
+            return (named[0], 0, False, None) if len(named) == 1 else (None, 0, True, None)
+        if len(numbers) + len(spelled) == 1 and \
+                all(w in self._FILLER or w in self._DAMAGE_WORDS or self._spelled(w) for w in rest):
+            value = int(numbers[0].group(1)) if numbers else self._spelled(spelled[0])
+            return value, 0, False, None
+        if corrected and not self._deed(plain):
+            return None, 0, True, None  # a correction is never a forfeit: held
+        if not (numbers or spelled) or self._deed(plain):
+            return None, 0, False, None  # no number, or a deed with a number in it: the ask yields as before
+        return None, 0, True, None
+
+    # "Damage: ...", "wagon-side cutthroat: CON Save: ...", "Hex: 1d6 (4) = 4": (who, label, value).
+    _FIELD_LINE = re.compile(r'^\s*(?:(?P<who>[^:\n]{1,40}?):\s*)?(?P<label>[^:\n]{1,40}?)\s*:\s*(?P<value>.+)$')
+    _MAIN_DAMAGE = re.compile(r'damage(?:\s*\(\s*crit!?\s*\))?', re.I)
+    # A field that is never extra damage on the hit, whatever its dice.
+    _NOT_RIDER = re.compile(r'\b(?:to[- ]?hit|hit|dc|save|check|init(?:iative)?|effect|heal(?:ing)?|temp|meta|attack|'
+                            r'roll|advantage|ac|hp|level|slot|duration|range)\b', re.I)
+    # A named rider on the damage line: "plus 4 damage from hex", "+ 4 necrotic from Hex", "extra 2 damage".
+    _RIDER = re.compile(r"(?:\bplus\b|\+|\b(?:extra|additional|bonus)\b)\s*(\d{1,3})(?:\s+[a-z]+)?\s+(?:damage|dmg)\b"
+                        r"(?:\s+from\s+([a-z][a-z' -]*))?|"
+                        r"(?:\bplus\b|\+|\b(?:extra|additional|bonus)\b)?\s*(\d{1,3})(?:\s+[a-z]+)?(?:\s+(?:damage|dmg))?"
+                        r"\s+from\s+([a-z][a-z' -]*)", re.I)
+
+    # The closed list of same-hit riders (Nagatha's e486b18 re-probe: any other label, 'Dagger:',
+    # 'Result:', 'Total:', 'Dmg:', 'Piercing:', is the hit's own roll, never a rider).
+    _RIDER_NAMES = (r"sneak\s+attack|hex|hunter'?s\s+mark|(?:improved\s+)?divine\s+smite|"
+                    r"(?:thunderous|searing|wrathful|branding|blinding|staggering|banishing|shining|eldritch)?\s*smite|"
+                    r"divine\s+favou?r|colossus\s+slayer|favou?red\s+foe|dread\s+ambusher|"
+                    r"superiority(?:\s+die)?|booming\s+blade|green[- ]flame(?:\s+blade)?|elemental\s+weapon|"
+                    r"spirit\s+shroud|zealous\s+presence|divine\s+strike|blessed\s+strikes|primal\s+strike|"
+                    r"giant\s+killer|planar\s+warrior|gathered\s+swarm|psionic\s+strike|crimson\s+rite")
+    _RIDER_LABEL = re.compile(r"\s*(?:" + _RIDER_NAMES + r")\s*(?:\([^)]*\))?\s*", re.I)
+    # A same-hit rider named in prose: "sneak attack 4 damage", "smite: 9 radiant".
+    _PROSE_RIDER = re.compile(r"\b(" + _RIDER_NAMES + r")\s*[:=-]?\s*(?:for\s+|of\s+)?(\d{1,3})(?:\s+[a-z]+)?"
+                              r"(?:\s+(?:damage|dmg))?\b", re.I)
+
+    @staticmethod
+    def _field_total(value):
+        """(total, the rest of the field) of a damage field's value, or (None, '')."""
+        found = re.search(r'=\s*(-?\d{1,3})\b', value) or re.match(r'\s*(-?\d{1,3})\b(?!\s*d\d)', value)
+        return (int(found.group(1)), value[found.end():]) if found else (None, '')
+
+    def _riders(self, text):
+        """([(rider name or None, amount)], other numbers left) in the words after a damage roll."""
+        riders = [((m.group(2) or m.group(4) or '').strip() or None, int(m.group(1) or m.group(3)))
+                  for m in self._RIDER.finditer(text)]
+        rest = self._RIDER.sub(' ', text)
+        riders += [(m.group(1), int(m.group(2))) for m in self._PROSE_RIDER.finditer(rest)]
+        left = re.findall(r'(?<![\w.])\d{1,3}\b', self._PROSE_RIDER.sub(' ', rest))
+        return riders, len(left)
+
+    @staticmethod
+    def _rider_key(name):
+        return re.sub(r"[^a-z]", '', (name or '').casefold()) or None
+
+    def _sum_riders(self, riders):
+        """(total, notes) of a hit's riders. A rider of one name counts once (Hex and Hunter's Mark
+        do not stack on one hit): the first counts, any other of its name is said to be ignored."""
+        seen, total, notes = {}, 0, []
+        for name, amount in riders:
+            key = self._rider_key(name)
+            if key and key in seen:
+                shown = seen[key][0]
+                notes.append(f"{shown} doesn't stack: one {shown} roll counts ({seen[key][1]}); the other is ignored.")
+                continue
+            if key:
+                seen[key] = (name[:1].upper() + name[1:], amount)
+            total += amount
+        return total, notes
+
+    def _stated_damage(self, words, found, state, pending):
+        """(amount, ignored, doubt) when the message states its damage explicitly, else None.
+
+        Main damage: an Avrae Damage (or Damage (CRIT!)) field, else a stated "N damage". The same
+        hit's riders add to the first main roll: a labelled extra field of the block ("Damage (Sneak
+        Attack)", "Hex", "Hunter's Mark", any non-d20 dice field that is not a to-hit, DC, save,
+        check or effect) and a named rider on the damage line ("plus 4 damage from hex"). Further main
+        rolls, and stray numbers after the total, are ignored and said. A roll of 0 or less is 0.
+        ``doubt`` (a reason) instead when the roll names another target than the held hit's, or
+        says it missed: the ask stays open."""
+        clean = re.sub(r'[*`_~]+', '', words)
+        mains, riders, left, whos, field_riders = [], [], 0, [], []
+        for line in clean.split('\n'):
+            field = self._FIELD_LINE.match(line)
+            if not field:
+                continue
+            label, value = field.group('label').strip(), field.group('value')
+            if self._MAIN_DAMAGE.fullmatch(label):
+                total, rest = self._field_total(value)
+                if total is None:
+                    continue
+                mains.append(total)
+                if field.group('who'):
+                    whos.append(field.group('who'))
+                more, stray = self._riders(rest)
+                riders += more if len(mains) == 1 else []
+                left += stray
+            elif not (re.match(r'damage\s*\(', label, re.I) or self._RIDER_LABEL.fullmatch(label)) and (
+                    re.search(r'(?<![a-z])d20\b', value, re.I) or self._NOT_RIDER.search(label) or \
+                    re.search(r'\b(?:round|turn|note)\b', label, re.I) or \
+                    self._NOT_DAMAGE.search(label)):
+                continue
+            elif not (re.match(r'damage\s*\(', label, re.I) or self._RIDER_LABEL.fullmatch(label)):
+                # A one-line labelled roll ('Dagger: 1d4 (4) + 2 = 6', 'Result: ... = 6', 'Dmg: 6') is
+                # the hit's own damage; after a main roll, a Result or Total restates it.
+                total, rest = self._field_total(value)
+                plain_value = kit_rolls.dice_totals(value) or re.fullmatch(
+                    r"\s*`?-?\d{1,3}`?\s*(?:[a-z]+\s*)?(?:damage|dmg)?\s*[.!]?\s*", value, re.I)
+                if total is None or not plain_value:
+                    continue
+                if not mains:
+                    mains.append(total)
+                    whos.append(label)  # 'Giant rat 3: 6' names who took it
+                    more, stray = self._riders(rest)
+                    riders += more
+                    left += stray
+                elif not re.fullmatch(r'\s*(?:total|result)\s*', label, re.I):
+                    left += 1
+            else:
+                total, rest = self._field_total(value)
+                if total is not None and len(mains) <= 1:
+                    name = re.sub(r'^damage\s*\(\s*|\s*\)$', '', label, flags=re.I).strip()
+                    riders.append((name, total))
+                    field_riders.append((name, total))
+                    more, stray = self._riders(rest)
+                    riders += more
+                    left += stray
+        if not mains:
+            stated = [amount for amount, _ in kit_rolls.damage(words)]
+            more, _ = self._riders(kit_rolls.without_dice(clean))
+            # A rider (a labelled extra field, or "N damage from X") is also in the stated list: it
+            # is not the hit's own roll.
+            for _, amount in more + field_riders:
+                if amount in stated:
+                    del stated[stated.index(amount)]
+            named = [name for name, _ in more + field_riders if name]
+            if not stated and (more or riders):
+                # Nagatha's 79196b5 review (Low): a rider alone is not the hit's damage. The ask stays
+                # open rather than land the rider as the whole hit (a missed answer only re-asks).
+                shown = named[0] if named else 'extra'
+                shown = shown[:1].upper() + shown[1:]
+                amount = next((a for n, a in more + field_riders if n == named[0]), None) if named else None
+                weapon = (pending or {}).get('weapon') or 'hit'
+                return None, 0, (f"Got {shown}{f' {amount}' if amount is not None else ''}. What's the "
+                                 f"{weapon}'s damage? Send it and the {shown} roll counts with it.")
+            if not stated:
+                return None
+            mains, riders = stated, riders + [r for r in more if r not in riders]
+        whos += [t for _, _, t in (found or {}).get('damage') or () if t]
+        reason = self._other_target(clean, whos, state, pending)
+        if reason:
+            return None, 0, reason
+        if re.search(r'\bmiss(?:es|ed)?\b\s*!', clean, re.I):
+            return None, 0, 'That roll says it missed.'
+        extra, notes = self._sum_riders(riders)
+        ignored = len(mains) - 1 + left
+        if notes:
+            amount = max(mains[0] + extra, 0)
+            ignored = ' '.join(notes + ([f'Only the first damage roll counts ({amount}); the other '
+                                         + ('one is' if ignored == 1 else f'{ignored} are') + ' ignored.']
+                                        if ignored else []))
+        return max(mains[0] + extra, 0), ignored, False
+
+    def _other_target(self, clean, whos, state, pending):
+        """The reason the damage is not this hit's: it names a foe other than the held target."""
+        fight = (state or {}).get('combat') or {}
+        target = (pending or {}).get('target')
+        if not target or not self.source:
+            return None
+        foes = [key for key in (fight.get('hp') or {}) if key != 'pc']
+        text = self._DICE_TERMS.sub(' ', (clean + '\n' + '\n'.join(whos)).casefold())
+        groups = self._foe_groups(text, foes, target)
+        if any(target in keys for _, _, keys in groups) and not any(
+                kit_names.missing_numbered(w, self.source, foes) for w in whos):
+            return None
+        for who in whos:
+            gone = kit_names.missing_numbered(who, self.source, foes)
+            if gone:  # 'Bandit 3: 5' among Bandit 5 and Bandit 6
+                return self._name_reason([], target, gone)
+            # 'Bandit 3: 5' and no foe called anything like it: a numbered name of no foe here.
+            if re.fullmatch(r"\s*(?:[a-z][\w'-]*\s+){1,3}#?\d{1,3}\s*", who, re.I) and \
+                    not self._foe_groups(who.casefold(), foes, target):
+                return self._name_reason([], target, (who.strip(), None))
+        reason = self._name_reason(groups, target, kit_names.missing_numbered(text, self.source, foes))
+        return reason.replace('That names', 'That damage names', 1) if reason else None
+
+    # Dice terms in a roll line: '1d6 (6)', '2d4 (3, 1)', '[piercing]', '= 6', '+ 2'.
+    _DICE_TERMS = re.compile(r'\b\d*d\d+\b(?:\s*\([^)]*\))?|\[[^\]]*\]|[=+-]\s*-?\d+\b|\(\s*\d+(?:\s*,\s*\d+)*\s*\)', re.I)
+
+    def _named_foes(self, text, foes):
+        """The foes the words name (Nagatha's 79196b5 review: a bare number is no foe's name, so
+        '**Damage**: 1d6 (6) = `6`' never names 'giant rat 6'). Dice terms go first; a name counts only
+        where a word of it appears, and a number in a name only right after that word ('Bandit 2' typed
+        out still names Bandit 2). Where one foe's name sits inside a longer match of another ('bandit'
+        in 'bandit 3'), only the longer one counts."""
+        return {key for key, _, _ in self._foe_spans(self._DICE_TERMS.sub(' ', text), foes)}
+
+    @staticmethod
+    def _spelled(word):
+        found = kit_rolls.number_words(word)
+        return found[0][0] if len(found) == 1 and found[0][1:] == (0, len(word)) and \
+            not word.isdigit() and word.casefold() not in ('a', 'an') else None
+
+    # A deed: the message opens on his own verb ("I back off", "I want to retreat", "drink it"),
+    # not on a roll, a cancel or table words ("Round 2: 6", "Never mind the captain. 6.").
+    _DEED_OPEN = re.compile(r"^\W*(?:(?:ok|okay|so|then|now|and|first)\W+)*(?:i\s+(?:(?:want|try|going|am going|"
+                            r"will|'ll|’ll)\s+(?:to\s+)?)?)?([a-z]+)", re.I)
+    _NOT_A_DEED = frozenset("round turn total damage dmg roll rolled rolls got it it's its that that's thats nat natural no "
+                            "never cancel scratch oops ok okay wait hmm um uh yeah yes plus the a an so for and "
+                            "or my".split())
+
+    def _deed(self, text):
+        opened = self._DEED_OPEN.match(text)
+        word = opened.group(1).casefold() if opened else ''
+        return bool(word) and word not in self._NOT_A_DEED and not self._spelled(word)
+
+    def _answer_damage(self, action, amount, revision, state, pending, ignored=0, kind=None):
+        """The damage roll his held hit was waiting on: it lands on that target, then his turn ends
+        and the round runs on. A second damage roll in the message is said to be ignored."""
+        # The fight reads the amount read here, never the message again (a second roll in it, a
+        # run-together field, a labelled extra field): "N <type> damage".
+        text = f"{amount} {kind + ' ' if kind else ''}damage"
+        fight = self._fight(text, revision, state)
+        act = {'kind': 'attack', 'target': pending['target'], 'weapon': pending.get('weapon'), 'area': False,
+               **({'spell': pending['spell']} if pending.get('spell') else {})}
+        fight.trace.append(f"open ask answered: {amount} damage for the {pending.get('weapon') or 'blow'}")
+        fight.fight['last_damage'] = {'target': pending['target'], 'amount': amount, 'round': fight.fight.get('round')}
+        if isinstance(ignored, str):
+            fight.lines.append(ignored)  # riders that do not stack, and any further roll
+            fight.trace.append(f'open ask: {ignored}')
+        elif ignored:
+            fight.lines.append(f'Only the first damage roll counts ({amount}); the other '
+                               + ('one is' if ignored == 1 else f'{ignored} are') + ' ignored.')
+            fight.trace.append(f'open ask: {ignored} further damage roll(s) in the message ignored')
+        public, events = fight.resolve(act)
+        return self._fight_resolution(fight, public, events, action, state)
+
+    def _ask_stays_open(self, action, revision, state, pending, doubt=False):
+        """A question while his hit waits on its damage, or a number not read as that damage:
+        Kit's to answer. Nothing resolves, nobody acts, the hit still waits on its damage roll."""
+        fight = self._fight(action, revision, state)
+        label = fight.label(pending['target'])
+        said = f' {doubt}' if isinstance(doubt, str) else ' That is not read as the damage roll.' if doubt else ''
+        waits = kit_combat.proper_numbered(f'Your hit on the {label} still waits for its damage roll.',
+                                           fight.labels.values())
+        return Resolution('social', f'{table_talk_event(action)}{said} {waits}', [
+            {'type': 'beat', 'tags': ['table_talk', 'open_ask'],
+             'evidence': f'Question while the damage ask is open: {action}. Kit answers it; the hit on the '
+                         f'{label} still waits for its damage roll; nothing resolved.'}])
+
+    def _late_correction(self, action, revision, state, current):
+        """A correction to a damage roll that already landed ("actually it was 6 not 5"): a graceful
+        reply, never a silent re-apply (Nagatha's #127 re-probe at 3f6f0de). Kit may adjust by ruling."""
+        text = QUOTED_SPEECH.sub(' ', action.translate(_TYPOGRAPHIC))
+        if '\n' in text.strip() or re.search(r'\bto[- ]?hit\b|\binit(?:iative)?\b', text, re.I):
+            return None
+        led = self._CORRECTION_LEAD.match(text)
+        rest, _ = self._corrected_text(text)
+        lone = re.fullmatch(r"\s*(?:it\s+was\s+|it'?s\s+|that'?s\s+)?\d{1,3}\s*(?:damage|dmg)?\s*[.!]*\s*", text, re.I)
+        if not (led and self._CORRECTION.search(led.group(0))) and rest == text and \
+                not (lone and current.get('last_damage')):
+            return None  # a correction opens the message ("actually...", "oh wait...") or says "6 not 5"
+        plain = kit_rolls.without_dice(rest)
+        if self._deed(plain) or not (self._NUMBER.search(plain) or
+                                     any(self._spelled(w) for w in re.findall(r'[a-z]+', plain.casefold()))):
+            return None
+        last = current.get('last_damage') or {}
+        labels = kit_combat.labels(self.source)
+        if last.get('target'):
+            what = kit_combat.proper_numbered(
+                f"Your {last.get('amount')} damage on the {labels.get(last['target'], last['target']).lower()} "
+                'already landed', labels.values())
+        else:
+            what = 'That damage already landed'
+        line = f'{what}; it is not applied again. Kit can adjust it by ruling if the roll was wrong.'
+        return Resolution('social', f'{table_talk_event(action)} {line}', [
+            {'type': 'beat', 'tags': ['table_talk', 'late_correction'],
+             'evidence': f'Correction after the damage landed: {action}. {line} Nothing resolved.'}])
+
+    def _zero_damage(self, action, revision, state, pending):
+        """His damage roll came to 0 (or less): that is the answer. The hit does no damage, his turn
+        ends and the round runs on."""
+        fight = self._fight(action, revision, state)
+        fight.fight['pending'] = None
+        fight.lines.append(f"Your damage roll came to 0, so your hit on the {fight.label(pending['target'])} "
+                           'does no damage.')
+        fight.trace.append('open ask answered: the damage roll came to 0')
+        fight.advance_past_pc()
+        public, events = fight.resolve(None)
+        return self._fight_resolution(fight, public, events, action, state)
+
+    def _yield_damage(self, action, revision, state, pending, cancel):
+        """No damage in the message (or an explicit cancel): the ask yields. The hit stands with no
+        damage and was his action, so his turn ends and the round runs on. A new combat act in the
+        message waits for his next turn (and he is told); anything else resolves after the round."""
+        fight = self._fight(action, revision, state)
+        fight.fight['pending'] = None
+        fight.lines.append(f"No damage was rolled, so your hit on the {fight.label(pending['target'])} does none.")
+        fight.trace.append('open damage ask yielded: ' + ('the player cancelled it' if cancel else 'no damage in the message'))
+        try:
+            act = kit_combat.parse(action, self.source, state)
+        except (PendingRuling, InvalidChange):
+            act = None
+        held = bool(act) and act.get('kind') not in ('ruling', 'late_reaction')
+        if held:
+            fight.fight['declared_next'] = action
+            fight.lines.append('You have already acted this turn; that waits for your next turn.')
+            fight.trace.append(f'new act with the yielded damage ask, held for his turn: {action[:120]}')
+        fight.advance_past_pc()
+        public, events = fight.resolve(None)
+        resolution = self._fight_resolution(fight, public, events, action, state)
+        after = copy.deepcopy(state)
+        for event in resolution.events:
+            if event.get('type') == 'combat_state':
+                after['combat'] = copy.deepcopy(event['state'])
+        # Held, or the round stopped at a checkpoint (its answer is the next message): this turn is
+        # the yield alone. Otherwise the message's own words resolve after the round.
+        final = resolution if held or (after.get('combat') or {}).get('awaiting') else None
+        return after, {'resolution': resolution, 'final': final}
+
     def _offer_downed(self, result):
         """The fight now waits on Kit's call (foes acting while the PC is down): offer it."""
         fight = next((e['state'] for e in reversed(result.events) if e.get('type') == 'combat_state'), None)
@@ -795,6 +1468,7 @@ class RoomAdjudicator:
             return result
         rest = parts[1].strip(' .')
         after = copy.deepcopy(state)
+        after.pop('pending_check', None)  # the rest of the message is no answer to a called check
         edge = (self.source.get('exits') or {}).get(move.get('exit')) or {}
         after['area'] = next((a for a in edge.get('areas') or () if a != state.get('area')), after.get('area'))
         try:
@@ -1573,7 +2247,8 @@ class RoomAdjudicator:
         skill, text = pending['skill'], action.translate(_TYPOGRAPHIC).strip()
         if pending.get('exit'):
             skill = kit_rolls.stated_skill(text) if kit_rolls.stated_skill(text) in ('athletics', 'acrobatics') else skill
-        bare = re.fullmatch(r'(?:i\s+)?(?:rolled|roll|got)?\s*(?:an?\s+)?(\d{1,2})\s*[.!]?', text, re.I)
+        bare = re.fullmatch(r"(?:it\s+was\s+|it'?s\s+|that\s+was\s+|that'?s\s+)?(?:i\s+)?(?:rolled|roll|got)?\s*"
+                            r"(?:an?\s+)?(\d{1,2})\s*[.!]?", text, re.I)
         stated = [roll for roll in kit_rolls.rolls(text) if roll.label not in ('attack', 'initiative')]
         rest = re.sub(r"\b(?:i|rolled|roll|got|a|an|check|for|my|it's|that's|that|is|" +
                       skill.replace('_', r'\s+') + r")\b|[\W\d_]+", ' ', kit_rolls.without_rolls(text).casefold())
@@ -2383,15 +3058,87 @@ def performance_limits(scope=None):
 DEGRADED_AFTER_REJECTIONS = 2
 ABANDON_SUGGEST_AFTER = 4
 API_PERFORMANCE_ATTEMPTS = 2
+# Brendon's plan (2026-10-14, step 2b; Nagatha's #127 review): after ONE failed narration the
+# engine's own public_event sentence commits as the turn (engine_line_record) instead of a retry,
+# degraded mode or abandon, and the table moves on. Every rejected output a turn has had counts,
+# on either path (bridge finish/complete, or the API turn).
+ENGINE_LINE_AFTER_REJECTIONS = 1
+# Nagatha's e3fc5a7 playtest (5 of 17 turns went to engine text over small style misses): a
+# narration that fails only on style or fidelity keeps STYLE_RETRIES more tries before the engine
+# line; a secrecy failure (hidden information spoken) or an agency failure (the narration acting
+# for the player) commits the engine line at once. Each validator has a kind (VALIDATOR_KINDS);
+# an unlisted one, and every structural require in check_speech, is style.
+STYLE_RETRIES = 1
+VALIDATOR_KINDS = {
+    # secrecy: hidden information stays hidden
+    'check_public_content': 'secrecy', 'check_paraphrased_leaks': 'secrecy',
+    'check_public_numbers': 'secrecy', 'check_hidden_actors': 'secrecy', 'check_sealed': 'secrecy',
+    'kit_reveal.check_spoken': 'secrecy',
+    # agency: the player decides what their character does, says, thinks and feels
+    'check_player_agency': 'agency', 'check_player_identity': 'agency',
+    # style and fidelity: retried once
+    'check_npc_meta': 'style', 'check_claimed_numbers': 'style', 'check_toll_exchange': 'style',
+    'check_no_refreshment': 'style', 'check_clarification_shape': 'style', 'check_clean_deal': 'style',
+    'check_stake_offers': 'style', 'check_table_narration': 'style', 'check_kit_asides': 'style',
+    'check_detail_performance': 'style', 'kit_interstitial.check_spoken': 'style',
+    'check_not_canned': 'style', 'check_voice_presence': 'style', 'check_scope': 'style',
+    'check_padding': 'style', 'check_npc_voices': 'style', 'check_npc_repetition': 'style',
+    'check_kit_tics': 'style', 'check_callback_used': 'style', 'check_voice_style': 'style',
+    'check_detail_answer': 'style', 'check_carriers_spoken': 'style', 'check_held_delivered': 'style',
+    'check_raised': 'style', 'check_ask_spoken': 'style',
+}
+ENGINE_LINE_AT_ONCE = frozenset({'secrecy', 'agency'})
+
+
+def validator_kind(check):
+    """The kind of one validator (VALIDATOR_KINDS), by module-qualified name, then bare name."""
+    name = getattr(check, '__name__', '')
+    module = (getattr(check, '__module__', '') or '').rsplit('.', 1)[-1]
+    return VALIDATOR_KINDS.get(f'{module}.{name}') or VALIDATOR_KINDS.get(name) or 'style'
+
+
+def failure_kinds(exc):
+    """What a rejected narration failed on: a set of style / secrecy / agency."""
+    return set(getattr(exc, 'kinds', None) or ()) or {'style'}
+
+
+def kinded(check, *args, **kwargs):
+    """Run one validator; a failure carries the validator's kind."""
+    try:
+        return check(*args, **kwargs)
+    except InvalidChange as exc:
+        if not getattr(exc, 'kinds', None):
+            exc.kinds = {validator_kind(check)}
+        raise
+
+
+def engine_line_due(rejections, exc):
+    """Whether this rejection (the turn's rejections-th) commits the engine line."""
+    if failure_kinds(exc) & ENGINE_LINE_AT_ONCE:
+        return rejections >= ENGINE_LINE_AFTER_REJECTIONS
+    return rejections >= ENGINE_LINE_AFTER_REJECTIONS + STYLE_RETRIES
+
+
+def _full_stop(text):
+    text = str(text).rstrip()
+    return text if not text or text[-1] in '.!?' else text + '.'
+
+
+ENGINE_LINE_NOTE = ('If the next narration for this turn is rejected, the engine commits its own '
+                    'public_event sentence as the turn instead of another retry. A narration that '
+                    'speaks hidden information or acts for the player commits it at once.')
+# What a decision establishes only by being voiced: dropped when the engine line commits instead.
+ENGINE_LINE_DROPS = ('claims', 'roll_call', 'agenda', 'open_threads', 'risk_confirm',
+                     'pc_state', 'detail', 'plan')
 
 HOST_RETRY_NOTE = (
     'If finish or complete is rejected, nothing was committed and the decision stays fixed. Read '
     'message and retry_instruction, then submit a new performance for the same turn_id; for '
     'complete, resubmit the identical decision with the new performance. If decide is rejected, '
-    f'fix the plan and call decide again. After {DEGRADED_AFTER_REJECTIONS} rejections the '
-    'rejection offers degraded mode (resubmit with --degraded): style floors become warnings, '
-    f'secrecy and player agency still apply. After {ABANDON_SUGGEST_AFTER}, run abandon for the '
-    'turn_id and prepare the action again with a new turn_id. A lost response is safe to retry: '
+    'fix the plan and call decide again. A performance rejected only on style gets one retry; '
+    'a second rejection, or one that speaks hidden information or acts for the player, is not '
+    'retried: the engine commits its own fallback line as the turn (the result says engine_line '
+    'and last_rejection) and the table moves on; show its spoken text. A lost response is safe to retry: '
     'resubmitting an already committed turn returns the committed result.')
 
 DEGRADED_INSTRUCTION = (
@@ -3179,10 +3926,10 @@ def check_speech(speech, plan, public_view, player_action, action_kind=None, gua
     require(plan['table_presence'] != 'brief' or kit_count <= 1, 'Brief Kit took over the scene')
     require(plan['table_presence'] != 'present' or kit_count >= 1, 'Present Kit did not speak')
     if plan['public_brief']['scope'] == 'call':  # a short beat: Kit's reaction is the turn
-        kit_guards.check_not_canned(segments)
+        kinded(kit_guards.check_not_canned, segments)
     speakers = guards.get('speakers')
     focus = focus_speaker(plan, speakers)
-    kit_voice.check_voice_presence(segments, plan, focus_speakers(plan, speakers))
+    kinded(kit_voice.check_voice_presence, segments, plan, focus_speakers(plan, speakers))
     require(plan['move'] != 'kit_comment_then_npc' or
             (kit_count >= 1 and any(is_npc_speaker(segment['speaker']) for segment in segments)),
             'Chosen Kit and NPC move was not performed')
@@ -3203,12 +3950,14 @@ def check_speech(speech, plan, public_view, player_action, action_kind=None, gua
     # Every check runs and every failure is reported at once (6c baseline item 5: one error
     # per retry cost the model a retry per problem).
     hard_problems = []
+    kinds = set()
 
     def hard(check, *args, **kwargs):
         try:
             check(*args, **kwargs)
         except InvalidChange as exc:
             hard_problems.append(str(exc))
+            kinds.add(validator_kind(check))
     # HARD: secrets (literal and paraphrased), the player's agency, NPC table talk, and
     # a clarification that really asks something.
     hard(check_public_content, spoken, public_view, player_action, phrases=guards.get('leak_phrases'))
@@ -3268,7 +4017,9 @@ def check_speech(speech, plan, public_view, player_action, action_kind=None, gua
             warnings.append(str(exc))
     problems = hard_problems + ([] if degraded else warnings)
     if problems:
-        raise InvalidChange(all_problems(problems))
+        failed = InvalidChange(all_problems(problems))
+        failed.kinds = kinds | ({'style'} if warnings and not degraded else set())
+        raise failed
     return (spoken, warnings) if degraded else spoken
 
 
@@ -3307,6 +4058,11 @@ def threshold_exit(events):
 def turn_events(runtime, body, plan, turn_id, record=None):
     """The adjudicated events plus what the decision establishes: its canon entries, the
     oracle deal it consumed, and the starting state of a table procedure it declares."""
+    if record and record.get('engine_line'):
+        # The engine's sentence committed in place of Kit's narration: only what the engine
+        # resolved commits; a held description it did not deliver stays owed.
+        plan = {key: value for key, value in plan.items() if key not in ENGINE_LINE_DROPS}
+        body = {**body, 'held_description': None}
     if plan.get('ask_player'):
         # A question to the player: the action is not resolved and nothing mechanical
         # commits; one rhythm beat keeps the pacing record honest.
@@ -4582,6 +5338,40 @@ def check_hidden_actors(spoken, words):
                                 "engine's outcome brings it out.")
 
 
+def check_secrecy_and_agency_first(body, speech, guards):
+    """The secrecy and agency validators, run before any style or structural check (Nagatha's
+    79196b5 review): a narration that leaks or acts for the player is rejected as such even when
+    its shape or style also fails, so the engine line commits at once. Reads whatever segments are
+    well formed; the full checks follow in check_speech and checked_record."""
+    segments = [segment for segment in ((speech or {}).get('segments') or [] if isinstance(speech, dict) else [])
+                if isinstance(segment, dict) and isinstance(segment.get('speaker'), str) and
+                isinstance(segment.get('text'), str) and segment['text'].strip()]
+    if not segments:
+        return
+    view, action = body.get('public_view') or {}, body.get('action')
+    spoken = '\n'.join(f"{segment['speaker']}: {segment['text'].strip()}" for segment in segments)
+    problems, kinds = [], set()
+
+    def run(check, *args, **kwargs):
+        try:
+            check(*args, **kwargs)
+        except InvalidChange as exc:
+            problems.append(str(exc))
+            kinds.add(validator_kind(check))
+    run(check_public_content, spoken, view, action, phrases=guards.get('leak_phrases'))
+    for segment in segments:
+        run(kit_guards.check_paraphrased_leaks, segment['text'], view, action,
+            guards.get('leak_sets', ()), labels=guards.get('labels', ()))
+    run(kit_guards.check_player_agency, segments)
+    run(kit_guards.check_player_identity, segments, view.get('your_character'))
+    run(check_hidden_actors, spoken, body.get('hidden_actors'))
+    run(check_sealed, spoken, body.get('sealed'))
+    if problems:
+        failed = InvalidChange(all_problems(problems))
+        failed.kinds = kinds
+        raise failed
+
+
 def checked_record(body, plan, speech, performance_variant, source=None, degraded=False):
     """Validate a performance. Every variant faces the same checks; the record names
     which performer instructions ran so play reviews can tell the variants apart. A
@@ -4590,22 +5380,23 @@ def checked_record(body, plan, speech, performance_variant, source=None, degrade
     ask = plan.get('ask_player')
     # An ask_player turn resolves nothing: its public event is the question, not the result.
     public_event = f"{ASKED_EVENT_PREFIX}{ask['question']}" if ask else body['public_event']
+    check_secrecy_and_agency_first(body, speech, guard_context(source, body))
     result = check_speech(speech, plan, body['public_view'], body['action'], body['kind'],
                           guards=guard_context(source, body), degraded=degraded,
                           public_event=public_event)
     spoken, warnings = result if degraded else (result, [])
-    check_hidden_actors(spoken, body.get('hidden_actors'))
-    kit_agenda.check_carriers_spoken(spoken, plan)
-    check_held_delivered(body.get('held_description'), spoken)
+    kinded(check_hidden_actors, spoken, body.get('hidden_actors'))
+    kinded(kit_agenda.check_carriers_spoken, spoken, plan)
+    kinded(check_held_delivered, body.get('held_description'), spoken)
     if not ask and not stall_check(plan, body['kind']):
-        kit_reveal.check_spoken(body.get('progressive_reveal'), speech['segments'], source, plan,
-                                action=body.get('action') or '')
-    check_sealed(spoken, body.get('sealed'))  # after the held layer, so its errors come first
+        kinded(kit_reveal.check_spoken, body.get('progressive_reveal'), speech['segments'], source, plan,
+               action=body.get('action') or '')
+    kinded(check_sealed, spoken, body.get('sealed'))  # after the held layer, so its errors come first
     if body.get('story_due') and not ask:
         # An undelivered primary hook is overdue: its NPC raises it now (runtime/kit_brief.py).
-        kit_brief.check_raised(body['story_due'], source, {'area': body['story_area']}, spoken)
+        kinded(kit_brief.check_raised, body['story_due'], source, {'area': body['story_area']}, spoken)
     if ask:
-        kit_agenda.check_ask_spoken(speech['segments'], ask)
+        kinded(kit_agenda.check_ask_spoken, speech['segments'], ask)
     elif (body['kind'] in EVENT_AFTER_PERFORMANCE_KINDS or body.get('rewind')) and not _entering(source, body):
         # The room reacts while the player is still there; then they are gone. The departure
         # line never follows Kit's closing remark (watchroom T6): it goes before her handoff.
@@ -4638,6 +5429,185 @@ def checked_record(body, plan, speech, performance_variant, source=None, degrade
     if note:
         record['over_ceiling'] = note  # advisory: the turn commits; reviews count it
     return record
+
+
+def engine_line_record(body, plan, performance_variant, rejected, rejections):
+    """The turn the engine commits when Kit's narration failed (ENGINE_LINE_AFTER_REJECTIONS): the
+    engine's public_event, spoken by the Narrator (plus a declared act's outcome). Nothing the
+    decision would only establish by being voiced (a called check, claims said, agenda moves,
+    canon detail) commits with it (turn_events drops ENGINE_LINE_DROPS); the adjudicated and
+    declared events do. The trace stays the decision as decided (the commit checks it)."""
+    ask = plan.get('ask_player')
+    if ask:
+        # An ask resolves nothing: the engine's line is the checked question itself.
+        public_event, spoken, declared = f"{ASKED_EVENT_PREFIX}{ask['question']}", f"Kit: {ask['question']}", None
+    else:
+        public_event = body['public_event']
+        spoken = public_fallback(body) or f'Narrator: {public_event}'
+        declared = body.get('declared')
+    if declared and declared.get('public'):
+        spoken = f"{spoken}\nNarrator: {declared['public']}"
+        public_event = f"{public_event} {declared['public']}".strip()
+    record = {'player_input': body['action'], 'public_event': public_event, 'trace': plan, 'spoken': spoken,
+              'performance_variant': performance_variant,
+              'engine_line': {'after_rejections': int(rejections), 'last_rejection': str(rejected)[:500],
+                              'kinds': sorted(failure_kinds(rejected))}}
+    if declared:
+        record['declared'] = {'acts': declared['acts'], 'kind': declared['kind'],
+                              **({'handoff': declared['handoff']} if declared.get('handoff') else {})}
+    return record
+
+
+# The engine line's public fallbacks (Nagatha's e3fc5a7 playtest: the opening came out as 'The
+# newcomer arrives: Dark hallway.' and a table-talk turn echoed the player's question unanswered).
+# Built only from the turn's public view (what the player can already see: the area, its known
+# facts, visible actors, known exits, the fight's public board), then put through the secrecy
+# checks; anything that fails falls back to the plain engine sentence.
+_COUNTS = ('no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten')
+_ASK_EXITS = re.compile(r"\b(exits?|ways?(?: out| on)?|doors?|leave|leaving|paths?|go next|get out|routes?)\b", re.I)
+_ASK_STANDING = re.compile(r"\b(standing|still up|alive|left|remaining|down|hurt|wounded|how bad|enem(?:y|ies)|foes?)\b", re.I)
+_ASK_WHO = re.compile(r"\b(who(?:'s| is| else)?|anyone|anybody|people)\b", re.I)
+_ASK_TURN = re.compile(r"\b(whose turn|my turn|turn order|order|initiative|who goes|goes next|round)\b", re.I)
+_IS_QUESTION = re.compile(r"\?|^\W*(?:(?:wait|ok(?:ay)?|so|and|but|hey|kit|um+)\W+)*(?:how|what|who|whose|where|which|"
+                          r"when|why|is|are|was|were|do|does|did|can|could|will|would|should|have|has|any)\b", re.I)
+_TALK_ECHO = re.compile(r'^"(?P<q>.*)"(?P<rest>\s+[^"]*)?$', re.S)
+_STOP = frozenset('what where which there here this that with does have about from into your they them '
+                  'their then than these those room place kit wait before after still just know tell'.split())
+
+
+def _count(n, noun, plural=None):
+    word = _COUNTS[n] if n < len(_COUNTS) else 'many'
+    return f"{word} {noun if n == 1 else (plural or noun + 's')}"
+
+
+def _names(items):
+    items = list(items)
+    return items[0] if len(items) == 1 else ', '.join(items[:-1]) + ' and ' + items[-1]
+
+
+def _exits_line(view):
+    exits = view.get('exits') or []
+    if not exits:
+        return 'No way out that you know of yet.'
+    lines = '; '.join(_after_colon(e['description'].strip().rstrip('.!?')) for e in exits)
+    return f"{_count(len(exits), 'way out', 'ways out').capitalize()} that you know of: {lines}."
+
+
+_LOWER_AFTER_COLON = frozenset('a an the this that these those some there it its one two three four five six '
+                               'seven eight nine ten north south east west up down'.split())
+
+
+def _after_colon(text):
+    """A sentence continued after a colon: an article or common opener goes lowercase ('of: an iron
+    door'); a name keeps its capital."""
+    first = text.split(' ', 1)[0]
+    return text[:1].lower() + text[1:] if first.casefold() in _LOWER_AFTER_COLON else text
+
+
+def _standing_line(view):
+    fight = view.get('fight') or {}
+    wounds = fight.get('wounds') or {}
+    if wounds:
+        up = [(name, state) for name, state in wounds.items() if state not in ('down', 'fled')]
+        if not up:
+            return 'Nobody on the other side is still standing.'
+        by_state = {}
+        for name, state in up:
+            by_state.setdefault(state, []).append(name)
+        lead = _count(len(up), 'still standing', 'still standing').capitalize()
+        if len(by_state) == 1:
+            ((state, names),) = by_state.items()
+            return f"{lead}, {'all ' if len(names) > 1 else ''}{state}: {_names(names)}."
+        return f"{lead}; " + '; '.join(f"{state}: {_names(names)}" for state, names in by_state.items()) + '.'
+    actors = [a['name'] for a in view.get('actors') or () if a.get('status') not in ('dead', 'down', 'fled')]
+    return _who_line({'actors': [{'name': n} for n in actors]})
+
+
+def _who_line(view):
+    actors = [a['name'] for a in view.get('actors') or ()]
+    if not actors:
+        return 'Nobody else is here that you can see.'
+    return f"{_count(len(actors), 'other', 'others').capitalize()} here that you can see: {_names(actors)}."
+
+
+def _turn_line(view):
+    fight = view.get('fight') or {}
+    if not fight or fight.get('status') != 'running':
+        return 'No fight is running, so there is no turn order.'
+    whose = fight.get('whose_turn')
+    rounds = fight.get('round')
+    lead = "It's your turn" if whose == 'you' else f"It's {whose}'s turn"
+    if isinstance(rounds, int) and 0 < rounds < len(_COUNTS):
+        lead += f', round {_COUNTS[rounds]}'
+    return f"{lead}. The order: {_names(fight.get('order') or ['you'])}."
+
+
+def _fact_lines(view, question):
+    words = {w for w in re.findall(r"[a-z]{4,}", question.casefold()) if w not in _STOP}
+    stems = {w[:5] for w in words}
+    return [fact for fact in view.get('known_facts_here') or ()
+            if stems & {w[:5] for w in re.findall(r"[a-z]{4,}", fact.casefold())}]
+
+
+def table_talk_answer(view, question):
+    """Kit's plain answer to an out-of-character question, from the public view only; None when
+    it is no question (a correction, a remark) or asks about nothing the public view holds."""
+    if not _IS_QUESTION.search(question or ''):
+        return None
+    parts = []
+    turn = _ASK_TURN.search(question)
+    if turn and ((view.get('fight') or {}).get('status') == 'running' or
+                 re.search(r'turn|initiative', turn.group(0), re.I)):
+        parts.append(_turn_line(view))
+    if _ASK_STANDING.search(question):
+        parts.append(_standing_line(view))
+    elif _ASK_WHO.search(question):
+        parts.append(_who_line(view))
+    if _ASK_EXITS.search(question):
+        parts.append(_exits_line(view))
+    if not parts:
+        parts.extend(_fact_lines(view, question))
+    # Nagatha's 79196b5 review: only the topic asked; no topic, no answer (the engine's own line).
+    return ' '.join(_full_stop(part) for part in parts) or None
+
+
+def opening_frame(view, public_event):
+    """The room's opening from public state: its arrival line (or its name), what can be seen,
+    who is here, and the ways on."""
+    area = view.get('area') or ''
+    lead = public_event if public_event and not public_event.startswith('The newcomer arrives') else f'{area}.'
+    parts = [lead, *(view.get('known_facts_here') or ())]
+    actors = [a['name'] for a in view.get('actors') or ()]
+    if actors:
+        parts.append(f"{_names(actors)} {'is' if len(actors) == 1 else 'are'} here.")
+    parts.extend(e['description'] for e in view.get('exits') or ())
+    return ' '.join(_full_stop(part) for part in parts if part)
+
+
+def public_fallback(body):
+    """The engine line's spoken text for an opening or a table-talk turn, or None. Secrecy-
+    checked; a fallback that would speak anything hidden is dropped for the plain sentence."""
+    view = body.get('public_view') or {}
+    event = body.get('public_event') or ''
+    if body.get('kind') == 'opening':
+        spoken = f'Narrator: {opening_frame(view, event)}'
+    elif body.get('table_talk') or event.startswith(TABLE_TALK_PREFIX):
+        echo = _TALK_ECHO.match(event[len(TABLE_TALK_PREFIX):]) if event.startswith(TABLE_TALK_PREFIX) else None
+        question = echo.group('q') if echo else (body.get('action') or '')
+        rest = (echo.group('rest') or '').strip() if echo else ''
+        answer = table_talk_answer(view, question)
+        if not answer:
+            return None
+        spoken = f"Kit: {' '.join(part for part in (answer, rest) if part)}"
+    else:
+        return None
+    try:
+        check_public_content(spoken, view, body.get('action'))
+        check_hidden_actors(spoken, body.get('hidden_actors'))
+        check_sealed(spoken, body.get('sealed'))
+    except InvalidChange:
+        return None
+    return spoken
 
 
 class KitAgent:
@@ -4696,6 +5666,12 @@ class KitAgent:
                     break
                 except InvalidChange as exc:
                     timing['rejections'].append(str(exc))
+                    if engine_line_due(len(timing['rejections']), exc):
+                        # The narration failed: the engine's line is the turn (no further call).
+                        record = engine_line_record(body, plan, self.performance_variant, exc,
+                                                    len(timing['rejections']))
+                        timing['engine_line'] = True
+                        break
                     if last:
                         raise
                     performance_payload['retry_instruction'] = retry_instruction(exc)
@@ -4712,9 +5688,13 @@ class KitAgent:
             timing['outcome'] = outcome
             timing['received_to_done_s'] = round(time.monotonic() - started, 3)
             self.runtime.record_kit_timing(turn_id, **timing)
-        return {'revision': next_revision, 'turn_id': turn_id,
-                'public_event': body['public_event'], 'spoken': record['spoken'],
-                'timing': self.runtime.kit_timing(turn_id)}
+        result = {'revision': next_revision, 'turn_id': turn_id,
+                  'public_event': body['public_event'], 'spoken': record['spoken'],
+                  'timing': self.runtime.kit_timing(turn_id)}
+        if record.get('engine_line'):
+            result.update(engine_line=True, last_rejection=record['engine_line']['last_rejection'],
+                          rejection_kinds=record['engine_line']['kinds'])
+        return result
 
 
 class PerformanceRejected(InvalidChange):
@@ -5042,8 +6022,9 @@ class KitChatBridge:
                 planning_input['compute'] = body['compute']
         self.runtime.stage_kit_turn(turn_id, revision, body)
         # Wall clock, not monotonic: stages may run in separate processes.
+        # A fresh prepare starts the rejection count over (an abandoned turn prepared again).
         self.runtime.record_kit_timing(turn_id, mode=body['host_mode'], prepared_at=time.time(),
-                                       prepare_started_at=started,
+                                       prepare_started_at=started, rejected_attempts=0,
                                        **({'performance_variant': performance_variant}
                                           if one_pass else {}))
         if stamps:
@@ -5297,6 +6278,10 @@ class KitChatBridge:
         result.update({key: record[key] for key in ('turn_role', 'interstitial') if key in record})
         if record.get('degraded'):
             result.update(degraded=True, soft_warnings=record['soft_warnings'])
+        if record.get('engine_line'):
+            result.update(engine_line=True, rejected_attempts=record['engine_line']['after_rejections'],
+                          last_rejection=record['engine_line']['last_rejection'],
+                          rejection_kinds=record['engine_line']['kinds'])
         kit_handoff.log_turn(self.runtime, turn_id, body['action'], body['kind'], body, record.get('trace'), record,
                              by_player=body['kind'] != 'opening' and not body.get('table_talk'))
         return result
@@ -5321,6 +6306,9 @@ class KitChatBridge:
                     'committed spoken text (see trace) and move on.', 'prepare_new_turn') from exc
             raise
 
+    def _performance_rejections(self, turn_id):
+        return (self.runtime.kit_timing(turn_id) or {}).get('performance_rejections', 0)
+
     def _rejections(self, turn_id):
         return (self.runtime.kit_timing(turn_id) or {}).get('rejected_attempts', 0)
 
@@ -5335,20 +6323,27 @@ class KitChatBridge:
         """The host's options after a rejection, by how many this turn has had."""
         count = self._rejections(turn_id)
         guidance = {'rejected_attempts': count, 'degraded_available': count >= DEGRADED_AFTER_REJECTIONS,
-                    'next_step': 'retry'}
+                    'next_step': 'retry',
+                    'engine_line_next': (self._performance_rejections(turn_id) + 1 >=
+                                         ENGINE_LINE_AFTER_REJECTIONS + STYLE_RETRIES)}
         if count >= DEGRADED_AFTER_REJECTIONS:
             guidance.update(next_step='retry_degraded', degraded_instruction=DEGRADED_INSTRUCTION)
         if count >= ABANDON_SUGGEST_AFTER:
             guidance.update(next_step='abandon_and_prepare_again', abandon_instruction=ABANDON_INSTRUCTION)
         return guidance
 
-    def _log_rejection(self, turn_id, exc):
+    def _log_rejection(self, turn_id, exc, performance=False):
         prior = self.runtime.kit_timing(turn_id) or {}
+        # Only a rejected narration spends the style retry (Nagatha's 79196b5 review); a rejected
+        # decision still counts toward degraded mode and abandon.
         self.runtime.record_kit_timing(
             turn_id, rejected_attempts=prior.get('rejected_attempts', 0) + 1,
+            performance_rejections=prior.get('performance_rejections', 0) + bool(performance),
             last_rejection=str(exc))
         guidance = self.guidance(turn_id)
-        message = str(exc)
+        message = _full_stop(exc)
+        if guidance.get('engine_line_next'):
+            message += ' ' + ENGINE_LINE_NOTE
         if guidance.get('abandon_instruction'):
             message += ' ' + ABANDON_INSTRUCTION
         elif guidance['degraded_available']:
@@ -5362,7 +6357,13 @@ class KitChatBridge:
         except StaleTurn:
             raise
         except InvalidChange as exc:
-            raise self._log_rejection(turn_id, exc) from exc
+            rejected = self._log_rejection(turn_id, exc, performance=True)
+            if engine_line_due(self._performance_rejections(turn_id), exc):
+                # The narration failed (a style miss twice, or a secret or the player's agency
+                # once): the engine's line commits (no further narration).
+                self.runtime.record_kit_timing(turn_id, engine_line=True)
+                return engine_line_record(body, plan, performance_variant, exc, self._rejections(turn_id))
+            raise rejected from exc
 
     def _finish_timing(self, turn_id, record=None):
         timing = self.runtime.kit_timing(turn_id) or {}
@@ -5435,7 +6436,7 @@ class KitChatBridge:
             self._attempt(turn_id, output, host_stamps, clock, 'window_answered')
             return result
         if not result.get('already_committed'):
-            self._attempt(turn_id, output, host_stamps, clock, 'committed')
+            self._attempt(turn_id, output, host_stamps, clock, 'engine_line' if result.get('engine_line') else 'committed')
             result['timing'] = self.runtime.kit_timing(turn_id)
         return result
 

@@ -34,6 +34,7 @@ import json
 import hashlib
 import re
 
+from . import kit_names
 from . import kit_reactions
 from . import kit_rolls
 from .state_context import require
@@ -375,15 +376,52 @@ def _names(source, key):
     return {n for n in names if n and n not in ('pale man',)}
 
 
+def proper_numbered(text, names):
+    """A numbered foe reads as a name, not a noun ('Bandit 1 is hurt', never 'The bandit 1 is hurt'):
+    Nagatha's #127 re-probe at 3f6f0de (Low)."""
+    for name in sorted({n for n in names if n and re.search(r'\s\d+$', n)}, key=len, reverse=True):
+        shown = name[:1].upper() + name[1:]
+        text = re.sub(rf'(?<![\w-])(?:the\s+)?{re.escape(name)}(?![\w-])', shown, text, flags=re.I)
+    return text
+
+
 def name_target(text, source, state, candidates):
-    """The actor the words name, among ``candidates``, or None."""
-    best = None
-    for key in candidates:
-        for name in _names(source, key):
-            found = re.search(rf"\b{re.escape(name)}\b", text)
-            if found and (best is None or found.start() < best[1]):
-                best = (key, found.start())
-    return best[0] if best else None
+    """The actor the words name, among ``candidates``, or None (runtime/kit_names.py: one name-set
+    for every reader). The earliest name wins; at one place, the longest (an exact numbered name,
+    'giant rat 5', beats the shared 'giant'). A name several candidates share names none of them."""
+    return kit_names.resolve(text, source, candidates)[0]
+
+
+def ambiguous_target(text, source, state, candidates):
+    """The candidates an unnumbered shared name could mean ('the rat' with three rats), when the
+    words name no one foe; else []. Kit asks which one rather than guess."""
+    key, tied = kit_names.resolve(text, source, candidates)
+    return [] if key else tied
+
+
+def ask_which(text, source, state, candidates):
+    """Raise Kit's question when an attack's target is not one foe the PC can perceive here: a
+    numbered foe not among them (down, or not here), or a name several of them share."""
+    from .kit_agent import PendingRuling  # local: kit_agent imports this module
+    missing = kit_names.missing_numbered(text, source, candidates)
+    if missing:
+        shown, key = missing
+        actor = (state.get('actors') or {}).get(key) or {}
+        if key and actor.get('status') in ('dead', 'unconscious', 'destroyed') and \
+                kit_names.perceivable(source, state, key):
+            raise PendingRuling(f'{shown} is already down. Name the one you attack. No turn was committed.')
+        raise PendingRuling(f"There's no {shown} here that you can see. Name the one you attack. "
+                            'No turn was committed.')
+    tied = ambiguous_target(text, source, state, candidates)
+    if len(tied) > 1:
+        raise PendingRuling(f'Which one: {kit_names.shown(source, tied)}? Name the one you attack. '
+                            'No turn was committed.')
+
+
+def targetable(source, state):
+    """Actor ids here the PC can act on: present and perceivable (an unseen creature is Kit's
+    ruling, never a target the words pick)."""
+    return [key for key in present(source, state) if kit_names.perceivable(source, state, key)]
 
 
 def _creature_words(text):
@@ -482,7 +520,7 @@ def _main_act(action, source, state):
     if not config(source) or state.get('area') != config(source).get('area', state.get('area')):
         return None
     text = narration(action).casefold()
-    here = present(source, state)
+    here = targetable(source, state)
     sc = scene(state)
     named = name_target(text, source, state, here)
     spell = _SPELL.search(text)
@@ -490,6 +528,8 @@ def _main_act(action, source, state):
     if spell:
         name = spell.group(1)
         area = name in SPELL_SAVE and SPELL_SAVE[name][2]
+        if not area:
+            ask_which(text, source, state, here)
         return {'kind': 'attack', 'spell': name, 'weapon': name, 'area': bool(area),
                 'target': None if area else (named or _default_target(text, source, state, here))}
     actor_names = tuple(name for key in (state.get('actors') or {}) for name in _names(source, key))
@@ -503,6 +543,7 @@ def _main_act(action, source, state):
     stated_attack = kit_rolls.attack_total(action) is not None and (weapon or in_fight or named)
     if (attack and (hostile_target or stated_attack or in_fight) and
             not (TABLE.search(text[attack.end():attack.end() + 25]) and not named)) or (not attack and stated_attack):
+        ask_which(text, source, state, here)
         return {'kind': 'attack', 'weapon': weapon.group(1) if weapon else 'unarmed strike',
                 'target': named or _default_target(text, source, state, here), 'area': False,
                 'unarmed': not weapon, 'nonlethal': bool(NONLETHAL.search(text))}
@@ -798,7 +839,7 @@ def parse_one(action, source, state):
     if not config(source) or state.get('area') != config(source).get('area', state.get('area')):
         return None
     text = narration(action).casefold()
-    here = present(source, state)
+    here = targetable(source, state)
     sc = scene(state)
     aimed = re.search(r"\s-t\s+([a-z][\w'-]*)", text)  # Avrae's -t names the target
     named = (name_target(aimed.group(1), source, state, here) if aimed else None) or \
@@ -814,6 +855,8 @@ def parse_one(action, source, state):
     if spell:
         name = spell.group(1)
         area = name in SPELL_SAVE and SPELL_SAVE[name][2]
+        if not area:
+            ask_which(text, source, state, here)
         return {'kind': 'attack', 'spell': name, 'weapon': name, 'area': bool(area),
                 'target': None if area else (named or _default_target(text, source, state, here)),
                 **({'move_first': {'disengage': bool(re.search(r'\bdisengag', text))}}
@@ -833,6 +876,7 @@ def parse_one(action, source, state):
             else sheet_weapon(state)  # 'I stab' with no weapon named: the blade on his sheet
         thrown = bool(weapon and re.search(r'\b(?:throw|throws|hurl|hurls|toss|tosses)\b', text) and
                       (weapon.group(1) in THROWN or sheet_thrown(state, weapon.group(1))))
+        ask_which(text, source, state, here)
         return {'kind': 'attack', 'weapon': weapon.group(1) if weapon else held or 'unarmed strike', 'thrown': thrown,
                 'target': named or _default_target(text, source, state, here), 'area': False,
                 'unarmed': not (weapon or held), 'nonlethal': bool(NONLETHAL.search(text))}
@@ -1020,6 +1064,7 @@ class Fight:
         self.trace = []
         self.labels = labels(source)
         self.needs_roll = False  # the act is an attack still waiting on its Avrae roll
+        self.damage_owed = False  # his blow hit on his turn and waits on its damage roll: the turn holds
         self.sheet = state.get('player_sheet') or {}
         self.kills = []          # who the PC's blows killed this turn (a flourish may follow)
         self.flourish_of = None  # resumed from a flourish: whose death the player described
@@ -2076,7 +2121,7 @@ class Fight:
                     acted = True
                 else:
                     acted = self.pc_attack(act)
-                self.needs_roll = not acted and init is None
+                self.needs_roll = not acted and init is None and not self.damage_owed
                 if self.fight['status'] == 'awaiting_initiative' and acted:
                     self.fight['opener_spent'] = True
         elif kind == 'late_reaction':
@@ -2557,6 +2602,14 @@ class Fight:
             self.lines.append('There is nobody there to hit.')
             return True
         self.fight['last_target'] = targets[0]
+        pending = self.fight.get('pending') if isinstance(self.fight.get('pending'), dict) else None
+        follow_up = bool(pending and pending.get('needs') == 'damage' and pending.get('weapon') == weapon and damage
+                         and kit_rolls.attack_total(self.action) is None)
+        if spell and not follow_up and self.fizzle_without_slot(spell):
+            # No slot left by the count: it fizzles before any roll is asked for (Witch Bolt with no
+            # slot left never gets "roll the attack"). The damage line of a spell already cast and
+            # paid for is not a new cast. Which slot a cast takes (the next free one up) is unchanged.
+            return True
         if spell in SPELL_SAVE:
             dc = posted.get('dc') or self.sheet.get('spell_save_dc') or _derived_save_dc(self.sheet)
             if dc is None:
@@ -2632,7 +2685,6 @@ class Fight:
             return True
         total = kit_rolls.attack_total(self.action)
         natural = next((roll.die for roll in kit_rolls.rolls(self.action) if roll.label == 'attack'), None)
-        pending = self.fight.get('pending') if isinstance(self.fight.get('pending'), dict) else None
         if total is None and spell in SPELL_AUTO and damage and pending and pending.get('needs') == 'damage' and \
                 pending.get('weapon') == weapon:
             # The damage line of an auto-hit spell already cast (and paid for): it lands, no second slot.
@@ -2665,9 +2717,10 @@ class Fight:
             self.fight['pending'] = None
             return True
         if not damage:
-            self.fight['pending'] = {'kind': 'attack', 'target': key, 'weapon': weapon, 'needs': 'damage'}
+            self.fight['pending'] = {'kind': 'attack', 'target': key, 'weapon': weapon, 'needs': 'damage',
+                                     **({'spell': spell} if spell else {})}
             self.lines.append(f'Your {what} hits the {self.label(key)}. Roll damage in Avrae.')
-            return True
+            return not self.hold_for_damage(key)
         self.lines.append(f'Your {what} hits the {self.label(key)}.')
         self.apply_damage(key, damage, dtype, nonlethal=act.get('nonlethal'))
         self.fight['pending'] = None
@@ -2679,7 +2732,21 @@ class Fight:
                 self.fight['pending'] = {'kind': 'attack', 'target': key, 'weapon': weapon, 'needs': 'damage',
                                          'type': bonus['type'], 'absorb': True}
                 self.lines.append(f"Absorb Elements adds {bonus['dice']} {bonus['type']} to this hit: roll it in Avrae.")
+                self.trace.append(f"absorb elements: +{bonus['dice']} {bonus['type']} on this melee hit")
+                return not self.hold_for_damage(key)
             self.trace.append(f"absorb elements: +{bonus['dice']} {bonus['type']} on this melee hit")
+        return True
+
+    def hold_for_damage(self, key):
+        """His blow hit on his own turn and its damage is not rolled yet: the turn holds for it (the
+        monsters wait for the damage; the open-ask gate in RoomAdjudicator.resolve takes the next
+        message as the answer). True when it holds. Before initiative, or on an attack made off his
+        turn (a reaction), nothing holds, as before."""
+        if self.fight['status'] != 'running' or not self.pc_turn_now() or not self.active(key):
+            return False
+        self.fight['pending']['holds_turn'] = True
+        self.damage_owed = True
+        self.trace.append(f'hit on {key}: his turn holds for the damage roll')
         return True
 
     def cast_slot(self, spell):
@@ -3110,7 +3177,7 @@ class Fight:
                 self.lines.append('Your turn.')
 
     def public(self):
-        return ' '.join(line for line in self.lines if line).strip()
+        return proper_numbered(' '.join(line for line in self.lines if line).strip(), self.labels.values())
 
     def events(self):
         evidence = f'Player declared: {self.action[:300]}. ' + ('; '.join(self.trace) or 'physical act') + '.'

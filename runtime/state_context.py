@@ -97,6 +97,16 @@ CANON_SLOT = re.compile(r'^[a-z0-9_:]+(/[a-z0-9_]+){1,3}$')
 # the decision's canon entries, the oracle deal it consumed, and procedure state.
 # Host bookkeeping, not a turn taken in the room (kit_rooms.stage counts the others).
 BOOKKEEPING_EVENTS = ('player_sheet', 'player_character', 'player_note', 'pc_state', 'kit_plan', 'rest')
+# Events that never spend an open ask (Nagatha's e486b18 re-probe: a refused attempt, or a roll
+# held while two asks are open, silently cleared the called check).
+KEEPS_OPEN_ASK_TAGS = ('open_ask', 'late_correction', 'two_asks')
+
+
+def keeps_open_asks(event):
+    return event.get('type') == 'refused_attempt' or (
+        event.get('type') == 'beat' and bool(set(event.get('tags') or ()) & set(KEEPS_OPEN_ASK_TAGS)))
+
+
 # A pending check's optional fields: a held exit, and room for the check-calling follow-up's
 # quiet DC adjustment for creative use of the scene (Brendon: about -2) with its reason. Not
 # applied anywhere yet.
@@ -487,7 +497,8 @@ class Runtime:
             elif any(event.get('type') not in BOOKKEEPING_EVENTS for event in events):
                 room.setdefault('turns_in', {})[acted_in] = room.get('turns_in', {}).get(acted_in, 0) + 1
             if not any(event.get('type') == 'pending_check' for event in events) and \
-                    any(event.get('type') not in BOOKKEEPING_EVENTS for event in events):
+                    any(event.get('type') not in BOOKKEEPING_EVENTS and not keeps_open_asks(event)
+                        for event in events):
                 held = (state.get('pending_check') or {}).get('held')
                 if not (held and held.get('area', acted_in) == state['area']):
                     # A called check lasts one player turn. A held description is an obligation:

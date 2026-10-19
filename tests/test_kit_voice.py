@@ -5,6 +5,7 @@ turn that ignores it."""
 import json
 import tempfile
 import unittest
+import unittest.mock
 from pathlib import Path
 
 from runtime import kit_agent, kit_voice
@@ -12,6 +13,7 @@ from runtime.kit_agent import KitAgent, KitChatBridge, RoomAdjudicator, check_sp
 from runtime.state_context import InvalidChange, Runtime
 from test_kit_agent import (EXCHANGE_SPEECH, FIXTURE, MIRROR, NIK_GREETING, QUIET_EXCHANGE_SPEECH,
                             RecordingModel, exchange_speech)
+from kit_policy import rejections_raise
 
 OOC = "(OOC) Kit, quick rules question: what do I roll to tell if they're really vampires?"
 PACING_CUE = 'pacing: replies shrank from forty words to three'
@@ -101,6 +103,7 @@ class MoodMirrorTests(VoiceTestCase):
         self.assertEqual((read['mode_hint'], read['out_of_character'], read['player_words']), (None, False, 14))
         self.assertNotIn('table_read', json.dumps(prepared['input']['public']))
 
+    @rejections_raise  # validator probe (tests/kit_policy.py)
     def test_mirror_reaches_the_performer_and_the_mood_read_does_not(self):
         self.first_turn()
         prepared = self.bridge.prepare(BORED, 'bored')
@@ -189,6 +192,7 @@ class TurnModeTests(VoiceTestCase):
         opening = self.bridge.prepare(turn_id='open', opening=True)
         self.assertEqual(opening['input']['table_read']['mode_hint'], 'description')
 
+    @rejections_raise  # validator probe (tests/kit_policy.py)
     def test_mode_must_agree_with_what_code_detects(self):
         prepared = self.bridge.prepare(OOC, 'ooc')
         plan = self.plan(prepared['input'], move='ruling', focus_actor='none', table_presence='present',
@@ -211,6 +215,7 @@ class TurnModeTests(VoiceTestCase):
         with self.assertRaisesRegex(InvalidChange, 'room action is a description'):
             self.bridge.decide('tub', {**tub_plan, 'turn_mode': 'banter'})
 
+    @rejections_raise  # validator probe (tests/kit_policy.py)
     def test_combat_mode_is_tense_and_punchy(self):
         prepared = self.bridge.prepare(THREAT, 'threat')
         plan = self.plan(prepared['input'], turn_mode='combat', move='npc_reply', table_presence='quiet',
@@ -229,6 +234,7 @@ class TurnModeTests(VoiceTestCase):
 
 
 class ShowtimeTests(VoiceTestCase):
+    @rejections_raise  # validator probe (tests/kit_policy.py)
     def test_showtime_gives_kit_the_stage_and_counts_her_narration(self):
         prepared = self.bridge.prepare('I stop and take in the whole room before anyone speaks.', 'show')
         self.assertIn('showtime', prepared['schema']['properties']['table_presence']['enum'])
@@ -281,6 +287,7 @@ class NpcNoticeTests(VoiceTestCase):
         saved = self.runtime.recent_kit_turns()[-1]['trace']['public_brief']['npc_notice']
         self.assertEqual(saved, self.NOTICE)
 
+    @rejections_raise  # validator probe (tests/kit_policy.py)
     def test_npc_notice_is_grounded_in_the_fiction_and_the_actor_speaks(self):
         self.first_turn()
         note = self.bridge.feedback('Honestly I am bored of the dealer stalling.')['note']
@@ -355,6 +362,7 @@ class HardeningGuardTests(VoiceTestCase):
             with self.subTest(reason=reason), self.assertRaisesRegex(InvalidChange, reason):
                 self.guarded({'segments': [{'speaker': 'Kit', 'text': kit_line, 'reacts_to': 'take in the whole room'}] + dealer}, plan)
 
+    @unittest.mock.patch.object(kit_agent, 'ENGINE_LINE_AFTER_REJECTIONS', 99)  # validator probe: rejections loop (see test_kit_open_ask)
     def test_voice_style_floors_soften_in_degraded_mode_but_presence_does_not(self):
         prepared = self.bridge.prepare(BORED, 'degrade')
         plan = self.plan(prepared['input'], brief={'mirror': TIGHT}, move='npc_reply', table_presence='quiet',
@@ -371,6 +379,7 @@ class HardeningGuardTests(VoiceTestCase):
 
 
 class CompatibilityTests(VoiceTestCase):
+    @rejections_raise  # validator probe (tests/kit_policy.py)
     def test_both_variants_face_the_same_voice_checks(self):
         for variant in ('current', 'kit_expression_v1'):
             with self.subTest(variant=variant):
