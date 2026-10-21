@@ -9,6 +9,7 @@
   "coordination_contract": "COORDINATION.md",
   "handoff_template": "coordination/HANDOFF_TEMPLATE.md",
   "live_operation_entrypoints": [
+    "LOAD_KIT.md",
     "START_HERE.md",
     "AGENTS.md"
   ],

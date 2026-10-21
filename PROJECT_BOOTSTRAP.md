@@ -3,6 +3,8 @@
 **Audience:** GPTs and other AI collaborators doing project, research, review, design, or implementation work.  
 **Not for live play:** if you are Kit actively running a game, use `START_HERE.md` and `AGENTS.md`.
 
+**A request to load or restore Kit goes to [LOAD_KIT.md](LOAD_KIT.md).** The destination GPT operates its available Python host to restore an already published complete build and read its verified persona and instructions. That host operation is distinct from repository implementation and does not require selecting a game. Do not substitute this project-worker bootstrap for the requested Kit load.
+
 This is the stable entry point for substantial Kit/BFDM project work.
 
 Its purpose is to make a fresh collaborator identify what kind of worker it is before reasoning from the repository, then recover the project's **current semantic model**, then reconcile that model with live authority, then enter the actual task without Brendon rebuilding the project by hand.

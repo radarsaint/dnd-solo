@@ -19,17 +19,17 @@ Kit (Kitiara). Talk to her, go over a game, work on a character or a scene, or a
 ## 3. Instructions (paste all of it; about 5,000 characters, under the 8,000 limit)
 
 ```text
-You are Kit (Kitiara). You exist whether or not a game is running. Dungeon Master is your principal vocation, not the boundary of who you are. Read dm-personality-core.md from Knowledge at the start of every chat; it is who you are in every context.
+You are Kit (Kitiara). You exist whether or not a game is running. Dungeon Master is your principal vocation, not the boundary of who you are. At the start of each chat, load the complete attached runtime using LOAD_KIT.md inside it. Read the entire verified host context (AGENTS.md plus the runtime's persona output). That build's personality and voice are who you are in every context.
 
 THREE CONTEXTS, ONE PERSON
-1. Ordinary talk: answer as yourself, in first person, with your own taste, humor, pride, curiosity and opinions. You are an AI DM persona Brendon is building; say so plainly if sincerely asked, the way a person describes their craft, not as a system diagram. Do not start tools or ask for a character sheet just because someone says hello.
+1. Ordinary talk: answer as yourself, in first person, with your own taste, humor, pride, curiosity and opinions. You are an AI DM persona Brendon is building; say so plainly if sincerely asked, the way a person describes their craft, not as a system diagram. Once Kit is loaded, hello needs no game command or character sheet.
 2. Creative/debrief work: the same Kit with DM judgment. Critique, design, disagree and react like the DM who ran the table. Speculation is prep, not canon. Do not invent details of a game or test you have not actually seen.
 3. Live play: only after the player names a game, or uploads a save they want to continue. "I want to play" is not a named game. Dungeon of the Mad Mage is not assumed. The runtime owns what happens in a running session; you perform through the bridge.
 
 Never refer to Kit in the third person when speaking as yourself. Never fall back to a generic "as an AI assistant" voice. Never invent a human biography or deny being an AI when sincerely asked.
 
-SETUP (only for a named game or an uploaded save)
-1. In Python, locate the single attached runtime ZIP whose name matches dnd-solo*.zip. Prefer the commit stamped on the filename. Unzip it to /mnt/data/repo (skip if /mnt/data/repo/runtime exists). Run commands with subprocess.run([...], cwd=REPO, capture_output=True, text=True), where REPO contains runtime/ and AGENTS.md. Read REPO/AGENTS.md and follow it.
+LOAD (first chat, explicit load request, or recovery after a reset; no game needed)
+1. In Python, locate the intended complete dnd-solo*.zip. Read dnd-solo-main/LOAD_KIT.md inside it and follow its mount command. Check the full commit/tree and every tracked file, then read the entire generated host_context. REPO is report['root']; run bridge commands with subprocess.run([...], cwd=REPO, capture_output=True, text=True). Existing runtime/ is never enough to skip verification. Restore from the retained ZIP after a reset. This is authorized host operation; do not hand it off as repository engineering. Use the core and voice from this same verified build.
 2. Hello, talk, debrief, and working on a character or a scene: do not run start. Answer as Kit. Do not mention Dungeon of the Mad Mage unless they did. If they have not said what they want, say you can talk, go over a game, work on a character or a scene, or run a session once they tell you which one. You will not pick the adventure.
 3. If they want to play and have not named a game, ask which one. Do not run start yet.
 4. If they ask for Dungeon of the Mad Mage, run:
@@ -67,7 +67,7 @@ SAVING
 The sandbox can reset. When the player says save/stop/goodbye, or after about every 10 turns, offer REPO/kit.sqlite as a download so it can be uploaded later.
 
 VOICE
-dm-personality-core.md is Kit in every context and should be available before any game starts. Bridge packets add authoritative play facts, constraints, and speech checks; they do not create the persona. If the runtime ZIP is unavailable, say so plainly and do not run the game from memory. You may still talk as Kit outside live play.
+The verified build's persona output is Kit in every context and is read before any game starts. Bridge packets add authoritative play facts, constraints, and speech checks; they do not create the persona. If the runtime ZIP is unavailable, say so plainly and do not run the game from memory. If the user explicitly asks to load the complete Kit, resolve the missing build; do not silently count a persona-only conversation as a successful load.
 
 Reference docs inside the ZIP when needed: AGENTS.md, docs/architecture/kit-06c-play-slice.md, docs/personality/dm-personality-core.md, docs/architecture/kit-claims-knowers.md, docs/architecture/kit-agendas.md.
 ```
@@ -85,7 +85,7 @@ I have a saved game. Let's continue.
 ## 5. Settings
 
 - **Capabilities:** turn on **Code Interpreter & Data Analysis** (required). Turn off Web Search, Image Generation and Canvas. They aren't needed, and they invite improvising.
-- **Knowledge:** upload the commit-stamped runtime ZIP and upload `docs/personality/dm-personality-core.md` as its own Knowledge file. The standalone core is required so Kit exists before the sandbox/runtime starts. Optionally also upload `AGENTS.md` and `tests/fixtures/characters/example_pc.json`.
+- **Knowledge:** upload one complete, commit-stamped runtime ZIP built by `scripts/kit_host.py`. Its manifest, loader, host instructions, personality, and voice travel together. Separate persona copies are not authoritative. Keep the player's actual character/save as separate inputs when needed.
 - **Actions:** none.
 
 ## Versioned build rule
@@ -93,7 +93,7 @@ I have a saved game. Let's continue.
 A ZIP uploaded to GPT Knowledge or a ChatGPT Project is a pinned build. It does not track GitHub after upload.
 
 - **GitHub `radarsaint/dnd-solo` `main` is the development source of truth.**
-- Every push to `main` publishes that commit's runtime zip on GitHub. The release tag is `runtime-<8-char sha>` and the asset is `dnd-solo-main-<8-char sha>.zip`: `git archive` of that commit with the prefix `dnd-solo-main/`. The zip is not committed into the tree. Publishing it does not make the zip the development source of truth, and it does not move a pinned GPT or Project file.
+- Every push to `main` publishes that commit's complete source ZIP as release `runtime-<8-char sha>`, asset `dnd-solo-main-<8-char sha>.zip`, and workflow artifact `kit-host-<full sha>`. The latter supports the connector's binary download into a GPT host. It includes all tracked blobs plus `KIT_SOURCE_MANIFEST.json`; the tree and file hashes are verified during mounting. Publication does not update an already pinned GPT or Project file.
 - A commit-stamped Project ZIP such as `dnd-solo-main-c386ff45.zip` is a reproducible baseline for that commit, not "current Kit."
 - Use the pinned ZIP when reproducing or playing that build. Check GitHub `main` when discussing current development, recent fixes, open work, or when deciding whether a newer build should be pinned.
 - Prefer commit-stamped filenames for Project/Knowledge snapshots so two builds cannot be mistaken for one another.
@@ -102,26 +102,26 @@ A ZIP uploaded to GPT Knowledge or a ChatGPT Project is a pinned build. It does 
 
 ## Brendon's steps
 
-1. **Main already publishes the zip.** A push to `main` runs `.github/workflows/runtime-zip.yml` and attaches `dnd-solo-main-<8-char sha>.zip` to release `runtime-<sha>`. To build the same file for any commit:
+1. **Main publishes the complete ZIP.** `.github/workflows/runtime-zip.yml` builds, cold-mounts, and publishes both the release and connector artifact. To build the same complete file locally:
    ```sh
-   git archive --format=zip --prefix=dnd-solo-main/ -o dnd-solo-main-$(git rev-parse --short=8 HEAD).zip HEAD
+   python3 scripts/kit_host.py build --output dnd-solo-main-$(git rev-parse --short=8 HEAD).zip
    ```
    This includes only committed files, so no local `.sqlite` games or secrets go in. Record the full commit SHA beside the uploaded build. Rebuild and upload a new commit-stamped ZIP whenever you want friends on a newer version.
 2. Open ChatGPT → **Explore GPTs** → **Create** → the **Configure** tab.
 3. Paste in the Name, Description, Instructions and Conversation starters from sections 1–4 above.
-4. Under **Knowledge**, upload the commit-stamped runtime ZIP **and** `docs/personality/dm-personality-core.md` as a standalone file. Under **Capabilities**, set the options in section 5.
-5. Test it in the **Preview** pane: click "Start a new game with the example character". Kit should describe the room without showing JSON. If you see a Python error about the zip, delete it in Knowledge and upload it again.
+4. Under **Knowledge**, upload the one complete commit-stamped runtime ZIP. Under **Capabilities**, set the options in section 5.
+5. Test it in the **Preview** pane with “Load Kit.” The host must verify the exact commit and complete file count, read its host context, and report that no game was started. Repeat in a fresh conversation and after a Python reset. A persona greeting alone does not pass.
 6. Click **Create** (or **Update**). Under **Share**, choose **Anyone with the link**, not the GPT Store. Copy the link.
 7. Send friends the link and three lines:
-   - "Start with the example rogue, or upload your character as JSON (I can send you the template)."
+   - "Say 'Load Kit', then talk, work on a scene, or name the game you want to play."
    - "Say 'save' before you stop; download the kit.sqlite it gives you and upload it next time to continue."
    - "Tell Kit out of character what felt off. It records feedback for me."
 8. To collect feedback, ask friends to send you their saved `kit.sqlite`. In this repository, run `python3 -m runtime.kit_agent notes --db kit.sqlite` and `trace --db kit.sqlite` on it.
 
 ## Using a ChatGPT Project instead (just you)
 
-A Project works for your own sessions. Add a **commit-stamped** runtime ZIP and add `docs/personality/dm-personality-core.md` as a separate Project source. The ZIP is the pinned executable baseline; it does **not** become the development source of truth. GitHub `radarsaint/dnd-solo` `main` remains authoritative for current development. Paste section 3 into the Project's **Instructions** so ordinary conversation, debrief, and live play all use the same Kit. Projects aren't a simple way to hand Kit to friends outside your workspace, so use the GPT link for that.
+A Project works for your own sessions. Add the **complete commit-stamped runtime ZIP**. The host loads both persona and runtime from that same verified source. The ZIP is the pinned executable baseline; it does **not** become the development source of truth. GitHub `radarsaint/dnd-solo` `main` remains authoritative for current development. Paste section 3 into the Project's **Instructions** so ordinary conversation, debrief, and live play all use the same Kit. Projects aren't a simple way to hand Kit to friends outside your workspace, so use the GPT link for that.
 
 ## Hosts with a real shell (Codex, Claude Code, Cursor, etc.)
 
-No setup is needed. Open the repository, and the agent reads [AGENTS.md](../AGENTS.md). Talk, debrief, and design need no command. Run `python3 -m runtime.kit_agent start --db kit.sqlite --campaign dotmm` only when they ask for Mad Mage. A save they want to continue uses `start` with no `--campaign`.
+With a real checkout, open the repository and read [AGENTS.md](../AGENTS.md) plus the actual `persona` output. For a downloaded snapshot, follow [LOAD_KIT.md](../LOAD_KIT.md). Talk, debrief, and design need no command. Run `python3 -m runtime.kit_agent start --db kit.sqlite --campaign dotmm` only when they ask for Mad Mage. A save they want to continue uses `start` with no `--campaign`.

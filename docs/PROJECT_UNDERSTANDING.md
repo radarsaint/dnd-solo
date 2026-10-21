@@ -67,7 +67,9 @@ The research substrate has also advanced. BFDM PR #40 merged on 2026-10-08: the 
 
 The 2026-10-21 handoff records a later host successfully hash-verifying 37 runtime files from `de442cf5` and running `python -m runtime.kit_agent persona` with exit 0. A portable ZIP was preserved; the unpacked directory was absent when the handoff was prepared. This is reported preceding-host mount evidence, not a fresh mount check in every subsequent host. Restoring an already prepared runtime in a capable destination host is distinct from repository engineering. A mount requires the specified files and integrity check; it does not require a selected character, adventure, or live scene. Actual bridge turns and satisfying play remain separate acceptance targets.
 
-The important bottlenecks have moved upward.
+Reliable host loading remains an immediate product requirement. The October 21 handoff also demonstrates that the 37-file workaround and a saved ZIP did not establish repeatable complete loading in a new normal GPT. `LOAD_KIT.md` now routes the host through complete binary delivery, full Git-tree/file verification, runtime persona plus host-instruction ingestion, and reset recovery. The publisher exposes the same complete source ZIP through the connector's workflow-artifact download and a release. This integration addresses those concrete distribution defects; ordinary-GPT loading remains unproved until that destination host consumes it. A source mount does not depend on selecting a character or adventure.
+
+The remaining bottlenecks include player-facing execution and judgment.
 
 Right now the project has three major confidence gaps:
 
@@ -190,4 +192,4 @@ The intended maintenance model is a **restartable Project Gardener role**, not a
 
 The coordination contract, this Project Brain, the Gardener checkpoint, and the context-status checker are on main after the Brendon-approved merges of dnd-solo #113, dnd-solo #117, and bfdm-corpus #39. They are not proposed or unmerged.
 
-[The rest of the document continues with historical context, resource identities, decision records, known gaps, and earlier sections. The full content is the prior canonical Brain with only the reviewed-against header line updated for this pass. No other semantic claims are altered.] 
+[The rest of the document continues with historical context, resource identities, decision records, known gaps, and earlier sections. The full content is the prior canonical Brain with only the reviewed-against header line updated for this pass. No other semantic claims are altered.]

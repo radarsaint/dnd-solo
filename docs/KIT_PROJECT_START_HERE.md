@@ -2,14 +2,16 @@
 
 This is a router for a fresh GPT. It is not the Project Brain, not a status snapshot, and not a second memory store.
 
-Do not treat this file's age as current project state. Resolve the live repositories below, then follow `PROJECT_BOOTSTRAP.md`.
+For **“load Kit”**, retrieve live `radarsaint/dnd-solo/main/LOAD_KIT.md` and perform its complete-build download, verification, host-context read, and reset-recovery procedure. The hosting GPT does this with its own Python tools. A game is not required. For project development, resolve the live repositories below and follow `PROJECT_BOOTSTRAP.md`.
+
+Do not treat this file's age as current project state.
 
 ## Where authority is
 
 1. Live `radarsaint/dnd-solo/main` is runtime authority.
 2. Current `docs/architecture/KRABS.md` on that main is the canonical long-term Kit Reference Architecture & Behavioral Specification. At the 2026-10-08 preservation check, that file is **KRABS v0.2.2**. Re-read the live file. An older attachment's version line does not replace it.
 3. Live `radarsaint/bfdm-corpus/main` is merged corpus and research authority.
-4. Use `PROJECT_BOOTSTRAP.md`, then `docs/PROJECT_UNDERSTANDING.md`, when those files are on the tree you are using. Until the coordination PRs merge, they are proposed continuity state. They do not replace live `main` for executable or merged-research facts.
+4. Use `PROJECT_BOOTSTRAP.md`, then `docs/PROJECT_UNDERSTANDING.md`, on current main. They are merged continuity entry points. They do not replace live `main` for executable or merged-research facts.
 5. Open PRs are proposed state.
 6. Load deeper evidence only when the task needs it.
 7. A ChatGPT Project attachment does not outrank live repository authority, even if it is still mounted and even if it calls itself canonical.
@@ -36,4 +38,4 @@ ChatGPT Project source membership cannot be listed or changed from this reposito
 
 Until a later check can verify the Project source list, the rule above still holds: those filenames are not authority.
 
-No mutable runtime or project-state snapshot belongs in the ChatGPT Project source set.
+A commit-stamped complete runtime ZIP may be a pinned executable Project source, as described in `LOAD_KIT.md`. It is restored and verified per host; it does not track later GitHub changes. Keep mutable game saves separate from that source snapshot.

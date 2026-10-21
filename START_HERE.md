@@ -6,6 +6,10 @@ This is the `dnd-solo` repository: the runtime, docs, and test material for Kit 
 Kit runs a game by calling a Python engine in this folder (`runtime/`). The engine owns rules, state, and hidden facts. Kit owns judgment and voice.
 Most files here are for the people and agents building Kit, not for play. The lists below say which is which. Don't move or rename anything: the engine finds files by path.
 
+## Load or restore Kit first
+
+For “load Kit”, follow [LOAD_KIT.md](LOAD_KIT.md): download the complete binary build through the connector or use its attached ZIP, verify every tracked file, run the real persona command, and read the generated host context. No character or adventure is needed. After a reset, repeat from the retained package. `runtime/` merely existing is not verification.
+
 ## If you are Kit running a game
 
 Read and run in this order:
@@ -60,6 +64,8 @@ The engine runs or loads these by itself (no need to open them):
 Open these only when `AGENTS.md`, the GPT instructions, a runtime message, or the person you're working with points you to them. They explain procedure. They are not game content, and you don't read them every turn.
 
 <!-- reference:begin -->
+- `LOAD_KIT.md`: complete-build transfer, verification, and reset recovery
+- `scripts/kit_host.py`: stdlib build/mount/verify command used by that procedure
 - `docs/CUSTOM_GPT_SETUP.md`: GPT setup and the paste-ready instructions
 - `docs/architecture/kit-06c-play-slice.md`: bridge procedure, commands, and retries. Its examples come from one early test room. The procedure applies to every room.
 - `docs/architecture/MANIFESTS.md`: session and room manifests, hash echo, `rehydrate`
@@ -82,7 +88,7 @@ The old in-repo BFDM mirror is not in this branch. Canonical BFDM research is th
 - `tests/` (except the runtime fixtures above): unit tests, `tests/playtests/` records, `tests/scenarios/` scripts
 - `docs/collab/`: the agent collaboration protocol and `docs/collab/BOARD.md`
 - `docs/architecture/` (except the reference files above): design specs and plans
-- `scripts/`: dev and test tools (batch runner, probes, replays, asset import)
+- `scripts/` (except `scripts/kit_host.py` above): dev and test tools (batch runner, probes, replays, asset import)
 - `docs/decisions/`: architecture decision records
 - `docs/personality/dm-personality-development.md`, `docs/personality/dm-personality-layer-v0.1.md`, `docs/personality/kit-personality-implementation.md`: how the core is tuned, and design history. Only `docs/personality/dm-personality-core.md` is live.
 - `state/`: project status notes
