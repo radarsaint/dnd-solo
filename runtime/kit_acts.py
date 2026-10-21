@@ -58,7 +58,14 @@ DOWNED_SCHEMA = {'type': 'object', 'additionalProperties': False,
                  'properties': {'act': {'type': 'string', 'enum': list(DOWNED_ACTS)}}, 'required': ['act']}
 # The decision schema's act fields (PLAN_SCHEMA properties). Each is required only on a turn
 # that offers it (check), so the schema keeps them optional.
-SCHEMAS = {'handles': HANDLES_SCHEMA, 'downed': DOWNED_SCHEMA}
+def _combat_acts_schema():
+    from . import kit_combat_acts
+    return kit_combat_acts.SCHEMA
+
+
+SCHEMAS = {'handles': HANDLES_SCHEMA, 'downed': DOWNED_SCHEMA, 'combat_acts': _combat_acts_schema()}
+# Offered fields Kit may leave out: the engine's own read stands (combat_acts, #122).
+OPTIONAL_FIELDS = ('combat_acts',)
 
 HANDLES_RULE = ('Answer handles every turn it is offered. {target, act} only when the PC physically '
                 'manipulates a listed thing this turn (pries, lifts, pushes, takes, climbs, opens, stabs it; '
@@ -70,7 +77,12 @@ HANDLES_RULE = ('Answer handles every turn it is offered. {target, act} only whe
 DOWNED_RULE = ('The PC is down at 0 hit points and acts.downed.foes act before his next turn. Your call, by '
                'what they want: {"act": "attack"} (a hit on him is a critical hit: two failed death saves) or '
                '{"act": "turn_away"} (they leave him be).')
-RULES = {'handles': HANDLES_RULE, 'downed': DOWNED_RULE}
+def _combat_acts_rule():
+    from . import kit_combat_acts
+    return kit_combat_acts.RULE
+
+
+RULES = {'handles': HANDLES_RULE, 'downed': DOWNED_RULE, 'combat_acts': _combat_acts_rule()}
 
 
 def _is_none(value):
@@ -90,7 +102,7 @@ def none_reason(plan):
 def declared(plan, field):
     """The raw declaration, or None when it says none."""
     value = (plan or {}).get(field)
-    if value in (None, NONE):
+    if value in (None, NONE) or (field == 'combat_acts' and value == []):
         return None
     if field == 'handles' and _is_none(value):
         return None
@@ -200,8 +212,15 @@ def check_downed(value, offer):
     return {'act': value['act'], 'foes': list(offer.get('foes') or ())}
 
 
+def check_combat_acts(value, offer):
+    """Kit's declared combat acts this turn (runtime/kit_combat_acts.py): shape and ids checked
+    against the offer; the rules are the engine's at resolve."""
+    from . import kit_combat_acts
+    return kit_combat_acts.check(value, offer)
+
+
 FIELDS = {'handles': check_handles, 'react': check_react, 'flourish': check_flourish,
-          'downed': check_downed}
+          'downed': check_downed, 'combat_acts': check_combat_acts}
 
 
 def check(plan, body):
@@ -212,11 +231,14 @@ def check(plan, body):
     asked = bool((plan or {}).get('ask_player'))
     out = {}
     for field, checker in FIELDS.items():
-        if offers.get(field) and not asked:
+        if offers.get(field) and not asked and (field not in OPTIONAL_FIELDS or offers[field].get('required')):
             require(field in (plan or {}),
                     f'acts.{field} is offered this turn: answer it'
                     + (' ({target, act}, or {"target": "none", "act": "none", "reason": ...} when his hands go on nothing '
-                       'listed).' if field == 'handles' else ' ({"act": "attack"} or {"act": "turn_away"}).'))
+                       'listed).' if field == 'handles' else
+                       ': the engine did not read this message, so declare every act in it (an object or '
+                       'environment act as kind object).' if field == 'combat_acts' else
+                       ' ({"act": "attack"} or {"act": "turn_away"}).'))
         value = declared(plan, field)
         if value is None:
             if field == 'handles' and offers.get(field) and not asked and \
@@ -236,6 +258,8 @@ def model_view(offers):
     for field, offer in (offers or {}).items():
         if field == 'handles' and offer:
             view['handles'] = {'targets': offer['targets'], **({'hint': offer['hint']} if offer.get('hint') else {})}
+        elif field == 'combat_acts' and offer:
+            view['combat_acts'] = {key: list(offer.get(key) or ()) for key in ('targets', 'weapons', 'spells', 'reactions')}
         elif field == 'downed' and offer:
             view['downed'] = {'foes': list(offer.get('names') or offer.get('foes') or ())}
     return view

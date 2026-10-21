@@ -1,0 +1,640 @@
+ord#1 [rb] 'I attack the ogre with my rapier, 16 to hit, 5 piercing.'
+   -> Your rapier hits the bridge ogre. The bridge ogre is hurt. The bridge ogre breaks away, leaving your reach.
+   clauses=['resolved'] hp={'ogre': 54} pc_damage=13
+ord#2 [rb] 'Rapier at the ogre: 17 to hit, 6 damage.'
+   -> Your rapier hits the bridge ogre. The bridge ogre is hurt. The bridge ogre breaks away, leaving your reach.
+   clauses=['resolved'] hp={'ogre': 53} pc_damage=13
+ord#3 [rb] 'I lunge at the bridge ogre with my rapier. 18 to hit, 7 piercing.'
+   -> Your rapier hits the bridge ogre. The bridge ogre is hurt. The bridge ogre breaks away, leaving your reach.
+   clauses=['resolved'] hp={'ogre': 52} pc_damage=13
+ord#4 [rb] "I thrust my rapier into the ogre's gut, 16 to hit, 5 piercing."
+   -> Your rapier hits the bridge ogre. The bridge ogre is hurt. The bridge ogre breaks away, leaving your reach.
+   clauses=['resolved'] hp={'ogre': 54} pc_damage=13
+ord#5 [rb] 'I slash at the ogre, 16 to hit, 5 piercing.'
+   -> Your rapier hits the bridge ogre. The bridge ogre is hurt. The bridge ogre breaks away, leaving your reach.
+   clauses=['resolved'] hp={'ogre': 54} pc_damage=13
+ord#6 [rb] 'I swing my rapier at the ogre — 16 to hit, 5 damage.'
+   -> Your rapier hits the bridge ogre. The bridge ogre is hurt. The bridge ogre breaks away, leaving your reach.
+   clauses=['resolved'] hp={'ogre': 54} pc_damage=13
+ord#7 [rb] 'I hit the ogre with my rapier, 16 to hit, 5 piercing.'
+   -> Your rapier hits the bridge ogre. The bridge ogre is hurt. The bridge ogre breaks away, leaving your reach.
+   clauses=['resolved'] hp={'ogre': 54} pc_damage=13
+ord#8 [rb] 'I strike at the ogre with my rapier (16 to hit, 5 piercing).'
+   -> Your rapier hits the bridge ogre. The bridge ogre is hurt. The bridge ogre breaks away, leaving your reach.
+   clauses=['resolved'] hp={'ogre': 54} pc_damage=13
+ord#9 [rb] 'Attacking the ogre with my rapier. 16 to hit and 5 piercing damage.'
+   -> Your rapier hits the bridge ogre. The bridge ogre is hurt. The bridge ogre breaks away, leaving your reach.
+   clauses=['resolved'] hp={'ogre': 54} pc_damage=13
+ord#10 [rb] 'I stab at him with my rapier, 16 to hit, 5 piercing.'
+   -> Your rapier hits the bridge ogre. The bridge ogre is hurt. The bridge ogre breaks away, leaving your reach.
+   clauses=['resolved'] hp={'ogre': 54} pc_damage=13
+ord#11 [rb] "I go for the ogre's knee with my rapier, 16 to hit, 5 piercing."
+   -> Your rapier hits the bridge ogre. The bridge ogre is hurt. The bridge ogre breaks away, leaving your reach.
+   clauses=['resolved'] hp={'ogre': 54} pc_damage=13
+ord#12 [rb] 'I attack the ogre. 16 to hit, 5 piercing.'
+   -> Your rapier hits the bridge ogre. The bridge ogre is hurt. The bridge ogre breaks away, leaving your reach.
+   clauses=['resolved'] hp={'ogre': 54} pc_damage=13
+ord#13 [rb] 'I throw a dagger at the ogre, 15 to hit, 4 piercing.'
+   -> Your dagger hits the bridge ogre. The bridge ogre is hurt. The bridge ogre breaks away, leaving your reach.
+   clauses=['resolved'] hp={'ogre': 55} pc_damage=13
+ord#14 [rb] 'I hurl my dagger at the bridge ogre: 15 to hit, 4 damage.'
+   -> Your dagger hits the bridge ogre. The bridge ogre is hurt. The bridge ogre breaks away, leaving your reach.
+   clauses=['resolved'] hp={'ogre': 55} pc_damage=13
+ord#15 [rb] 'I shoot the ogre with my shortbow, 15 to hit, 6 piercing.'
+   -> Your shortbow hits the bridge ogre. The bridge ogre is hurt. The bridge ogre breaks away, leaving your reach.
+   clauses=['resolved'] hp={'ogre': 53} pc_damage=13
+ord#16 [rb] 'I back away 15 feet.'
+   -> The bridge ogre lashes out as you go: 13 bludgeoning damage. You fall back out of reach. The bridge ogre hits you: 13 bludgeoning damage. Your turn.
+   clauses=['resolved'] hp={'ogre': 59} pc_damage=39
+ord#17 [rb] 'I retreat 10 feet along the bridge.'
+   -> The bridge ogre lashes out as you go: 13 bludgeoning damage. You fall back out of reach. The bridge ogre hits you: 13 bludgeoning damage. Your turn.
+   clauses=['resolved'] hp={'ogre': 59} pc_damage=39
+ord#18 [rb] 'I move 10 feet back.'
+   -> The bridge ogre lashes out as you go: 13 bludgeoning damage. You fall back out of reach. The bridge ogre hits you: 13 bludgeoning damage. Your turn.
+   clauses=['resolved'] hp={'ogre': 59} pc_damage=39
+ord#19 [rb] 'I fall back.'
+   -> The bridge ogre lashes out as you go: 13 bludgeoning damage. You fall back out of reach. The bridge ogre hits you: 13 bludgeoning damage. Your turn.
+   clauses=['resolved'] hp={'ogre': 59} pc_damage=39
+ord#20 [rb] 'I disengage.'
+   -> You fall back out of reach. The bridge ogre hits you: 13 bludgeoning damage. Your turn.
+   clauses=['resolved'] hp={'ogre': 59} pc_damage=26
+ord#21 [rb] 'I dodge.'
+   -> You take the Dodge action: attacks against you have disadvantage until your next turn. The bridge ogre hits you: 13 bludgeoning damage. Your turn.
+   clauses=['resolved'] hp={'ogre': 59} pc_damage=26
+ord#22 [rb] 'I take the Dodge action.'
+   -> You take the Dodge action: attacks against you have disadvantage until your next turn. The bridge ogre hits you: 13 bludgeoning damage. Your turn.
+   clauses=['resolved'] hp={'ogre': 59} pc_damage=26
+ord#23 [rb] 'I Dash to the far end of the bridge.'
+   -> You Dash, covering double ground this turn. The bridge ogre hits you: 13 bludgeoning damage. Your turn.
+   clauses=['resolved'] hp={'ogre': 59} pc_damage=26
+ord#24 [rb] 'I use Uncanny Dodge on that hit.'
+   -> Uncanny Dodge: you take half, 6 instead of 13. Your turn.
+   clauses=['resolved'] hp={'ogre': 59} pc_damage=6
+ord#25 [rb] 'Uncanny Dodge!'
+   -> Uncanny Dodge: you take half, 6 instead of 13. Your turn.
+   clauses=['resolved'] hp={'ogre': 59} pc_damage=6
+ord#26 [rb] "I'll use my reaction for Uncanny Dodge, then stab the ogre, 16 to hit, 5 piercing."
+   -> Uncanny Dodge: you take half, 6 instead of 13. Your rapier hits the bridge ogre. The bridge ogre is hurt. The bridge ogre breaks away, leaving your reach.
+   clauses=['resolved', 'resolved'] hp={'ogre': 54} pc_damage=6
+ord#27 [rb] 'I stab the ogre, 16 to hit, 5 piercing, then use Cunning Action to disengage and back off 10 feet.'
+   -> Your rapier hits the bridge ogre. The bridge ogre is hurt. You fall back out of reach. You move off. The ogre lumbers off the far end. Nobody is left in the room to fight you.
+   clauses=['resolved', 'resolved', 'resolved'] hp={'ogre': 54} pc_damage=13
+ord#28 [rb] 'With a snarl I drive my rapier at the ogre, 16 to hit, 5 piercing.'
+   -> Your rapier hits the bridge ogre. The bridge ogre is hurt. The bridge ogre breaks away, leaving your reach.
+   clauses=['resolved'] hp={'ogre': 54} pc_damage=13
+ord#29 [rb] '"Die, brute!" I stab the ogre with my rapier, 16 to hit, 5 piercing.'
+   -> Your rapier hits the bridge ogre. The bridge ogre is hurt. The bridge ogre breaks away, leaving your reach.
+   clauses=['resolved'] hp={'ogre': 54} pc_damage=13
+ord#30 [rb] '!a rapier -t ogre\nNik attacks with a Rapier!\nTo Hit: 1d20 (12) + 7 = 19\nDamage: 1d8 (4) + 4 = 8 piercing\nAnd I sidestep 5 feet.'
+   -> Your rapier hits the bridge ogre. The bridge ogre is hurt. The bridge ogre lashes out as you go: 13 bludgeoning damage. You fall back out of reach. The ogre lumbers off the far end. Nobody is left in the room to fight you.
+   clauses=['resolved', 'resolved'] hp={'ogre': 51} pc_damage=26
+ord#31 [wl] 'I cast Eldritch Blast at the imp, 17 to hit, 6 force.'
+   -> Your Eldritch Blast hits the ember imp. The ember imp is hurt. The ember imp hits you: 7 fire damage. The kobold slinger hits you: 4 bludgeoning damage. Your turn.
+   clauses=['resolved'] hp={'archer': 7, 'imp': 12} pc_damage=22
+ord#32 [wl] 'Eldritch Blast the slinger, 15 to hit, 7 force.'
+   -> Your Eldritch Blast hits the kobold slinger. The kobold slinger goes down and does not get up. The ember imp hits you: 7 fire damage. Your turn.
+   clauses=['resolved'] hp={'archer': 0, 'imp': 18} pc_damage=18
+ord#33 [wl] 'I blast the imp with eldritch blast: 16 to hit, 8 force damage.'
+   -> Your Eldritch Blast hits the ember imp. The ember imp is hurt. The ember imp hits you: 7 fire damage. The kobold slinger hits you: 4 bludgeoning damage. Your turn.
+   clauses=['resolved'] hp={'archer': 7, 'imp': 10} pc_damage=22
+ord#34 [wl] '!cast eldritch blast -t imp\nEldritch Blast: 1d20 (10) + 5 = 15 to hit\nDamage: 1d10 (6) = 6 force'
+   -> Your Eldritch Blast hits the ember imp. The ember imp is hurt. The ember imp hits you: 7 fire damage. The kobold slinger hits you: 4 bludgeoning damage. Your turn.
+   clauses=['resolved'] hp={'archer': 7, 'imp': 12} pc_damage=22
+ord#35 [wl] 'I attack the slinger with my dagger, 16 to hit, 3 piercing.'
+   -> Your dagger hits the kobold slinger. The kobold slinger is hurt. The ember imp hits you: 7 fire damage. The kobold slinger hits you: 4 bludgeoning damage. Your turn.
+   clauses=['resolved'] hp={'archer': 4, 'imp': 18} pc_damage=22
+ord#36 [wl] 'I knife the kobold slinger, 16 to hit, 3 piercing.'
+   -> Your dagger hits the kobold slinger. The kobold slinger is hurt. The ember imp hits you: 7 fire damage. The kobold slinger hits you: 4 bludgeoning damage. Your turn.
+   clauses=['resolved'] hp={'archer': 4, 'imp': 18} pc_damage=22
+ord#37 [wl] 'I cast Hellish Rebuke on the imp (Avrae: !cast hellish rebuke -t imp -l 1), 11 fire.'
+   -> Hellish Rebuke: 11 fire damage to the ember imp. The ember imp is badly hurt. Your turn.
+   clauses=['resolved'] hp={'archer': 7, 'imp': 7} pc_damage=11
+ord#38 [wl] 'Hellish Rebuke on the imp, 2d10 = 11 fire. (!cast hellish rebuke -t imp)'
+   -> Hellish Rebuke: 11 fire damage to the ember imp. The ember imp is badly hurt. Your turn.
+   clauses=['resolved'] hp={'archer': 7, 'imp': 7} pc_damage=11
+ord#39 [wl] 'I move away from the kiln, 15 feet.'
+   -> You fall back out of reach. The ember imp hits you: 7 fire damage. The kobold slinger hits you: 4 bludgeoning damage. Your turn.
+   clauses=['resolved'] hp={'archer': 7, 'imp': 18} pc_damage=22
+ord#40 [wl] 'I step 5 feet left and blast the slinger with Eldritch Blast, 17 to hit, 6 force.'
+   -> You fall back out of reach. Your Eldritch Blast hits the kobold slinger. The kobold slinger is badly hurt. The ember imp hits you: 7 fire damage. The kobold slinger hits you: 4 bludgeoning damage. Your turn.
+   clauses=['resolved', 'resolved'] hp={'archer': 1, 'imp': 18} pc_damage=22
+ord#41 [wz] 'I cast Fire Bolt at the slinger, 17 to hit, 8 fire.'
+   -> Your Fire Bolt hits the kobold slinger. The kobold slinger goes down and does not get up. The ember imp hits you: 7 fire damage. Your turn.
+   clauses=['resolved'] hp={'archer': 0, 'imp': 18} pc_damage=18
+ord#42 [wz] 'Fire Bolt on the kobold, 17 to hit, 8 fire.'
+   -> Your Fire Bolt hits the kobold slinger. The kobold slinger goes down and does not get up. The ember imp hits you: 7 fire damage. Your turn.
+   clauses=['resolved'] hp={'archer': 0, 'imp': 18} pc_damage=18
+ord#43 [wz] 'I fling a Fire Bolt at the imp! 17 to hit, 7 fire.'
+   -> Your Fire Bolt hits the ember imp. The ember imp is hurt. The ember imp hits you: 7 fire damage. The kobold slinger hits you: 4 bludgeoning damage. Your turn.
+   clauses=['resolved'] hp={'archer': 7, 'imp': 11} pc_damage=22
+ord#44 [wz] 'I cast Magic Missile at the slinger (Avrae: !cast magic missile -t slinger), 10 force.'
+   -> Your Magic Missile hits the kobold slinger. The kobold slinger goes down and does not get up. The ember imp hits you: 7 fire damage. Your turn.
+   clauses=['resolved'] hp={'archer': 0, 'imp': 18} pc_damage=18
+ord#45 [wz] 'I cast Ray of Frost at the imp, 16 to hit, 5 cold.'
+   -> The Ray Of Frost at the ember imp didn't happen because Ray Of Frost is not on your sheet. Your turn.
+   clauses=['refused'] hp={'archer': 7, 'imp': 18} pc_damage=11
+ord#46 [wz] 'I stab the imp with my dagger, 15 to hit, 3 piercing.'
+   -> Your dagger hits the ember imp. The ember imp is hurt. The ember imp hits you: 7 fire damage. The kobold slinger hits you: 4 bludgeoning damage. Your turn.
+   clauses=['resolved'] hp={'archer': 7, 'imp': 15} pc_damage=22
+ord#47 [wz] 'I cast Absorb Elements (Avrae: !cast absorb elements -l 1).'
+   -> Absorb Elements: resistance to the fire; your next melee hit adds 1d6 fire. Your turn.
+   clauses=['resolved'] hp={'archer': 7, 'imp': 18} pc_damage=7
+ord#48 [wz] 'Absorb Elements on that fire spit (!cast absorb elements -l 1), then I step back and Fire Bolt the imp, 17 to hit, 7 fire.'
+   -> Absorb Elements: resistance to the fire; your next melee hit adds 1d6 fire. You fall back out of reach. Your Fire Bolt hits the ember imp. The ember imp is hurt. The ember imp hits you: 7 fire damage. The kobold slinger hits you: 4 bludgeoning damage. Your turn.
+   clauses=['resolved', 'resolved', 'resolved'] hp={'archer': 7, 'imp': 11} pc_damage=18
+ord#49 [wz] 'I retreat behind the kiln.'
+   -> You fall back out of reach. The ember imp hits you: 7 fire damage. The kobold slinger hits you: 4 bludgeoning damage. Your turn.
+   clauses=['resolved'] hp={'archer': 7, 'imp': 18} pc_damage=22
+ord#50 [wz] 'I take the Dodge action and back away 10 feet.'
+   -> You take the Dodge action: attacks against you have disadvantage until your next turn. You fall back out of reach. The ember imp hits you: 7 fire damage. The kobold slinger hits you: 4 bludgeoning damage. Your turn.
+   clauses=['resolved', 'resolved'] hp={'archer': 7, 'imp': 18} pc_damage=22
+fz#1 [rb] 'I feint left, then stab the ogre with my rapier, 16 to hit, 5 piercing.'
+   -> Your rapier hits the bridge ogre. The bridge ogre is hurt. The bridge ogre breaks away, leaving your reach.
+   clauses=['resolved'] hp={'ogre': 54} pc_damage=13
+fz#2 [rb] 'I duck under the club and stab the ogre in the thigh, 16 to hit, 5 piercing.'
+   -> Your rapier hits the bridge ogre. The bridge ogre is hurt. The bridge ogre breaks away, leaving your reach.
+   clauses=['resolved'] hp={'ogre': 54} pc_damage=13
+fz#3 [rb] "I spit at the ogre's feet, then stab it, 16 to hit, 5 piercing."
+   -> Your rapier hits the bridge ogre. The bridge ogre is hurt. The bridge ogre breaks away, leaving your reach.
+   clauses=['resolved'] hp={'ogre': 54} pc_damage=13
+fz#4 [rb] 'Uncanny Dodge. Then I stab it, 16 to hit, 5 piercing, and back off 5 feet.'
+   -> Uncanny Dodge: you take half, 6 instead of 13. Your rapier hits the bridge ogre. The bridge ogre is hurt. The bridge ogre lashes out as you go: 13 bludgeoning damage. You fall back out of reach. The ogre lumbers off the far end. Nobody is left in the room to fight you.
+   clauses=['resolved', 'resolved', 'resolved'] hp={'ogre': 54} pc_damage=19
+fz#5 [rb] 'I stab the ogre twice, 16 and 18 to hit, 5 and 6 piercing.'
+   -> Your rapier hits the bridge ogre. The bridge ogre is hurt. The rapier at the bridge ogre didn't happen because you have already used your action this turn. The bridge ogre breaks away, leaving your reach.
+   clauses=['resolved', 'refused'] hp={'ogre': 54} pc_damage=13
+fz#6 [rb] 'I attack with my rapier and my off-hand dagger: 16 to hit 5 piercing, 15 to hit 3 piercing.'
+   -> Your rapier hits the bridge ogre. The bridge ogre is hurt. The dagger at the bridge ogre didn't happen because an off-hand attack follows an attack with a light weapon, and is made with another light weapon. The bridge ogre breaks away, leaving your reach.
+   clauses=['resolved', 'refused'] hp={'ogre': 54} pc_damage=13
+fz#7 [rb] 'I stab the ogre, 16 to hit, 5 piercing, then bonus action off-hand dagger, 15 to hit, 3 piercing.'
+   -> Your rapier hits the bridge ogre. The bridge ogre is hurt. The dagger at the bridge ogre didn't happen because an off-hand attack follows an attack with a light weapon, and is made with another light weapon. The bridge ogre breaks away, leaving your reach.
+   clauses=['resolved', 'refused'] hp={'ogre': 54} pc_damage=13
+fz#8 [rb] 'I back off 10 feet and throw my dagger at it, 15 to hit, 4 piercing.'
+   -> The bridge ogre lashes out as you go: 13 bludgeoning damage. You fall back out of reach. Your dagger hits the bridge ogre. The bridge ogre is hurt. The bridge ogre breaks away, leaving your reach.
+   clauses=['resolved', 'resolved'] hp={'ogre': 55} pc_damage=26
+fz#9 [rb] 'I back off 10 feet and stab it, 16 to hit, 5 piercing.'
+   -> The bridge ogre lashes out as you go: 13 bludgeoning damage. You fall back out of reach. The rapier at the bridge ogre didn't happen because the bridge ogre is out of your reach now. The bridge ogre hits you: 13 bludgeoning damage. Your turn.
+   clauses=['resolved', 'refused'] hp={'ogre': 59} pc_damage=39
+fz#10 [rb] 'I yell "For the crown!" and charge the ogre, rapier first, 16 to hit, 5 piercing.'
+   -> You close on the bridge ogre. Your rapier hits the bridge ogre. The bridge ogre is hurt. The bridge ogre breaks away, leaving your reach.
+   clauses=['resolved', 'resolved'] hp={'ogre': 54} pc_damage=13
+fz#11 [rb] 'I kick the ogre, 12 to hit, 2 bludgeoning.'
+   -> Your unarmed strike hits the bridge ogre. The bridge ogre is hurt. The bridge ogre breaks away, leaving your reach.
+   clauses=['resolved'] hp={'ogre': 57} pc_damage=13
+fz#12 [rb] 'I punch the ogre, 12 to hit, 2 bludgeoning.'
+   -> Your unarmed strike hits the bridge ogre. The bridge ogre is hurt. The bridge ogre breaks away, leaving your reach.
+   clauses=['resolved'] hp={'ogre': 57} pc_damage=13
+fz#13 [rb] 'I cut the ogre with my rapier; then I step back 5 feet; then I grin.'
+   -> ASK Roll the attack for your rapier in Avrae, with its damage. Your turn. No turn was committed.
+fz#14 [rb] 'I Uncanny Dodge, I Uncanny Dodge.'
+   -> Uncanny Dodge: you take half, 6 instead of 13. The Uncanny Dodge didn't happen because you have already used your reaction. Your turn.
+   clauses=['resolved', 'refused'] hp={'ogre': 59} pc_damage=6
+fz#15 [rb] "What's the ogre's AC?"
+   -> no combat_acts (Kit answers or narrates)
+fz#16 [rb] 'How many hit points does the ogre have left?'
+   -> no combat_acts (Kit answers or narrates)
+fz#17 [rb] 'Can I see if the ogre is hurt?'
+   -> no combat_acts (Kit answers or narrates)
+fz#18 [rb] 'I stab the ogre with my sword, 16 to hit, 5 piercing.'
+   -> The sword at the bridge ogre didn't happen because there is no sword on your sheet. Your turn.
+   clauses=['refused'] hp={'ogre': 59} pc_damage=13
+fz#19 [rb] 'I shove the ogre off the bridge, Athletics 17.'
+   -> The shove at the bridge ogre didn't happen because shoving is the DM's call for now: say how you go about it. Your turn.
+   clauses=['refused'] hp={'ogre': 59} pc_damage=13
+fz#20 [rb] 'I hide behind the post.'
+   -> ASK Hiding is a Stealth check: roll it in Avrae (!check stealth) and tell me the total. Your turn. No turn was committed.
+fz#21 [rb] 'I use Cunning Action to hide.'
+   -> ASK Hiding is a Stealth check: roll it in Avrae (!check stealth) and tell me the total. Your turn. No turn was committed.
+fz#22 [rb] 'I ready an attack for when the ogre comes close.'
+   -> RULING "ready an attack for when the ogre comes close" needs the DM's call. Say how you go about it, or try it another way; nothing else in that message has happened y
+   clauses=['ruling']
+fz#23 [rb] 'I drink a healing potion.'
+   -> ASK Roll the healing in Avrae and say how much (e.g. "potion of healing: 7"). No turn was committed.
+fz#24 [rb] 'I stab the ogre, 16 to hit, 5 piercing, and it staggers back.'
+   -> Your rapier hits the bridge ogre. The bridge ogre is hurt. The bridge ogre breaks away, leaving your reach.
+   clauses=['resolved'] hp={'ogre': 54} pc_damage=13
+fz#25 [rb] 'I stab the ogre, 16 to hit, 5 piercing, and it dies.'
+   -> Your rapier hits the bridge ogre. The bridge ogre is hurt. The bridge ogre breaks away, leaving your reach.
+   clauses=['resolved'] hp={'ogre': 54} pc_damage=13
+fz#26 [rb] 'I stab the ogre. It goes down.'
+   -> ASK Roll the attack for your rapier in Avrae, with its damage. Your turn. No turn was committed.
+fz#27 [wl] 'I Hellish Rebuke the imp (Avrae: !cast hellish rebuke -t imp -l 1), 11 fire, then knife the slinger, 16 to hit, 3 piercing.'
+   -> Hellish Rebuke: 11 fire damage to the ember imp. The ember imp is badly hurt. Your dagger hits the kobold slinger. The kobold slinger is hurt. The ember imp hits you: 7 fire damage. The kobold slinger hits you: 4 bludgeoning damage. Your turn.
+   clauses=['resolved', 'resolved'] hp={'archer': 4, 'imp': 7} pc_damage=22
+fz#28 [wl] 'I blast the imp, 17 to hit, 6 force, and then I step back 10 feet.'
+   -> Your Eldritch Blast hits the ember imp. The ember imp is hurt. You fall back out of reach. The ember imp hits you: 7 fire damage. The kobold slinger hits you: 4 bludgeoning damage. Your turn.
+   clauses=['resolved', 'resolved'] hp={'archer': 7, 'imp': 12} pc_damage=22
+fz#29 [wl] 'I step back 10 feet, then throw my dagger at the imp, 15 to hit, 3 piercing.'
+   -> You fall back out of reach. Your dagger hits the ember imp. The ember imp is hurt. The ember imp hits you: 7 fire damage. The kobold slinger hits you: 4 bludgeoning damage. Your turn.
+   clauses=['resolved', 'resolved'] hp={'archer': 7, 'imp': 15} pc_damage=22
+fz#30 [wl] 'I hex the imp and blast it with Eldritch Blast, 17 to hit, 6 force.'
+   -> ASK Roll the attack for your Hex in Avrae, with its damage. Your turn. No turn was committed.
+fz#31 [wl] 'I blast it, 17 to hit, 6 force.'
+   -> Your Eldritch Blast hits the ember imp. The ember imp is hurt. The ember imp hits you: 7 fire damage. The kobold slinger hits you: 4 bludgeoning damage. Your turn.
+   clauses=['resolved'] hp={'archer': 7, 'imp': 12} pc_damage=22
+fz#32 [wl] 'I blast the imp, 17 to hit, 6 force; then blast it again, 15 to hit, 5 force.'
+   -> Your Eldritch Blast hits the ember imp. The ember imp is hurt. The Eldritch Blast at the ember imp didn't happen because you have already used your action this turn. The ember imp hits you: 7 fire damage. The kobold slinger hits you: 4 bludgeoning damage. Your turn.
+   clauses=['resolved', 'refused'] hp={'archer': 7, 'imp': 12} pc_damage=22
+fz#33 [wl] 'I kick the kiln door at the imp.'
+   -> RULING "kick the kiln door at the imp" needs the DM's call. Say how you go about it, or try it another way; nothing else in that message has happened yet.
+   clauses=['ruling']
+fz#34 [wl] 'I stab the slinger with my dagger, 16 to hit, 3 piercing, then bonus action off-hand dagger at it, 14 to hit, 2 piercing.'
+   -> Your dagger hits the kobold slinger. The kobold slinger is hurt. Your dagger hits the kobold slinger. The kobold slinger is badly hurt. The ember imp hits you: 7 fire damage. The kobold slinger hits you: 4 bludgeoning damage. Your turn.
+   clauses=['resolved', 'resolved'] hp={'archer': 2, 'imp': 18} pc_damage=22
+fz#35 [wz] 'Fire Bolt the imp, 17 to hit, 7 fire; it bursts into ash.'
+   -> Your Fire Bolt hits the ember imp. The ember imp is hurt. The ember imp hits you: 7 fire damage. The kobold slinger hits you: 4 bludgeoning damage. Your turn.
+   clauses=['resolved'] hp={'archer': 7, 'imp': 11} pc_damage=22
+fz#36 [wz] 'Fire Bolt it, 17 to hit, 7 fire.'
+   -> Your Fire Bolt hits the ember imp. The ember imp is hurt. The ember imp hits you: 7 fire damage. The kobold slinger hits you: 4 bludgeoning damage. Your turn.
+   clauses=['resolved'] hp={'archer': 7, 'imp': 11} pc_damage=22
+fz#37 [wz] 'I Fire Bolt the slinger and then the imp, 17 to hit 7 fire, 15 to hit 6 fire.'
+   -> Your Fire Bolt hits the kobold slinger. The kobold slinger goes down and does not get up. The Fire Bolt at the ember imp didn't happen because you have already used your action this turn. The ember imp hits you: 7 fire damage. Your turn.
+   clauses=['resolved', 'refused'] hp={'archer': 0, 'imp': 18} pc_damage=18
+fz#38 [wz] 'I cast Shield (Avrae: !cast shield).'
+   -> The Shield didn't happen because it is not on your sheet, so the cast fizzles. The level 1 slot Avrae spent is counted. Your turn.
+   clauses=['refused'] hp={'archer': 7, 'imp': 18} pc_damage=11
+fz#39 [wz] 'I cast Burning Hands at both of them (Avrae: !cast burning hands), 9 fire, DC 13.'
+   -> The Burning Hands didn't happen because Burning Hands is not on your sheet. Your turn.
+   clauses=['refused'] hp={'archer': 7, 'imp': 18} pc_damage=11
+fz#40 [wz] 'I cast Sleep on them (Avrae: !cast sleep).'
+   -> The Sleep didn't happen because Sleep is not on your sheet. Your turn.
+   clauses=['refused'] hp={'archer': 7, 'imp': 18} pc_damage=11
+fz#41 [wz] 'Fire Bolt the imp, 17 to hit, 7 fire. Then I run for the door.'
+   -> Your Fire Bolt hits the ember imp. The ember imp is hurt. The dash didn't happen because you have already used your action this turn. The ember imp hits you: 7 fire damage. The kobold slinger hits you: 4 bludgeoning damage. Your turn.
+   clauses=['resolved', 'refused'] hp={'archer': 7, 'imp': 11} pc_damage=22
+fz#42 [wz] 'I hurl a dagger at the slinger, 14 to hit, 3 piercing.'
+   -> Your dagger hits the kobold slinger. The kobold slinger is hurt. The ember imp hits you: 7 fire damage. The kobold slinger hits you: 4 bludgeoning damage. Your turn.
+   clauses=['resolved'] hp={'archer': 4, 'imp': 18} pc_damage=22
+fz#43 [wz] 'Absorb Elements (Avrae: !cast absorb elements -l 1) and Absorb Elements again (Avrae: !cast absorb elements -l 1).'
+   -> Absorb Elements: resistance to the fire; your next melee hit adds 1d6 fire. The Absorb Elements didn't happen because you have already used your reaction, so the cast fizzles. The level 1 slot Avrae spent is counted. Your turn.
+   clauses=['resolved', 'refused'] hp={'archer': 7, 'imp': 18} pc_damage=7
+fz#44 [wz] "Is there a DC for the kiln? What's hidden inside it?"
+   -> no combat_acts (Kit answers or narrates)
+g#1 [wz] 'I grab the kobold slinger. Athletics 12.'
+   -> You have the kobold slinger by the collar, and he cannot pull free. The ember imp hits you: 7 fire damage. The kobold slinger hits you: 4 bludgeoning damage. Your turn.
+   clauses=['resolved'] hp={'archer': 7, 'imp': 18} pc_damage=22
+g#2 [wz] 'I grab the kobold slinger. Athletics 11.'
+   -> The kobold slinger twists out of your grip. The ember imp hits you: 7 fire damage. The kobold slinger hits you: 4 bludgeoning damage. Your turn.
+   clauses=['resolved'] hp={'archer': 7, 'imp': 18} pc_damage=22
+g#3 [wz] 'I grapple the kobold slinger, Athletics 14.'
+   -> You have the kobold slinger by the collar, and he cannot pull free. The ember imp hits you: 7 fire damage. The kobold slinger hits you: 4 bludgeoning damage. Your turn.
+   clauses=['resolved'] hp={'archer': 7, 'imp': 18} pc_damage=22
+g#4 [wz] 'I seize the slinger by the collar, Athletics 15.'
+   -> You have the kobold slinger by the collar, and he cannot pull free. The ember imp hits you: 7 fire damage. The kobold slinger hits you: 4 bludgeoning damage. Your turn.
+   clauses=['resolved'] hp={'archer': 7, 'imp': 18} pc_damage=22
+g#5 [wz] 'I grab the slinger.\n!check athletics\nVex makes an Athletics check!\n1d20 (9) + 3 = `12`'
+   -> You have the kobold slinger by the collar, and he cannot pull free. The ember imp hits you: 7 fire damage. The kobold slinger hits you: 4 bludgeoning damage. Your turn.
+   clauses=['resolved'] hp={'archer': 7, 'imp': 18} pc_damage=22
+g#6 [wz] 'I grab the slinger, Athletics 13, then stab the imp with my dagger, 15 to hit, 3 piercing.'
+   -> You have the kobold slinger by the collar, and he cannot pull free. The dagger at the ember imp didn't happen because you have already used your action this turn. The ember imp hits you: 7 fire damage. The kobold slinger hits you: 4 bludgeoning damage. Your turn.
+   clauses=['resolved', 'refused'] hp={'archer': 7, 'imp': 18} pc_damage=22
+g#7 [wz] 'I grab the imp, Athletics 20.'
+   -> You have the ember imp by the collar, and he cannot pull free. The ember imp hits you: 7 fire damage. The kobold slinger hits you: 4 bludgeoning damage. Your turn.
+   clauses=['resolved'] hp={'archer': 7, 'imp': 18} pc_damage=22
+g#8 [wz] 'I try to grab the kobold slinger. I rolled 14 on Athletics.'
+   -> You have the kobold slinger by the collar, and he cannot pull free. The ember imp hits you: 7 fire damage. The kobold slinger hits you: 4 bludgeoning damage. Your turn.
+   clauses=['resolved'] hp={'archer': 7, 'imp': 18} pc_damage=22
+g#9 [rb] 'I grab the bridge ogre, Athletics 16.'
+   -> You have the bridge ogre by the collar, and he cannot pull free. The bridge ogre hits you: 13 bludgeoning damage. Your turn.
+   clauses=['resolved'] hp={'ogre': 59} pc_damage=26
+g#10 [rb] 'I grab the bridge ogre, Athletics 15.'
+   -> The bridge ogre twists out of your grip. The bridge ogre hits you: 13 bludgeoning damage. Your turn.
+   clauses=['resolved'] hp={'ogre': 59} pc_damage=26
+g#11 [rb] 'I grab the ogre.'
+   -> ASK Grabbing the bridge ogre is a contest: roll Athletics in Avrae (!check athletics) and tell me the total. Your turn. No turn was committed.
+g#12 [rb] 'I grab the bridge ogre, Athletics 16, and back off 10 feet.'
+   -> You have the bridge ogre by the collar, and he cannot pull free. The bridge ogre lashes out as you go: 13 bludgeoning damage. You fall back out of reach. The bridge ogre hits you: 13 bludgeoning damage. Your turn.
+   clauses=['resolved', 'resolved'] hp={'ogre': 59} pc_damage=39
+g#13 [rb] 'I wrestle the ogre, Athletics 18.'
+   -> You have the bridge ogre by the collar, and he cannot pull free. The bridge ogre hits you: 13 bludgeoning damage. Your turn.
+   clauses=['resolved'] hp={'ogre': 59} pc_damage=26
+rv5d#1 [rb] 'I hold the rail with my free hand and stab the bridge ogre with my rapier, 16 to hit, 5 piercing.'
+   -> Your rapier hits the bridge ogre. The bridge ogre is hurt. The bridge ogre breaks away, leaving your reach.
+   clauses=['resolved'] hp={'ogre': 54} pc_damage=13
+rv5d#2 [rb] 'I grip my rapier tighter, then stab the bridge ogre, 16 to hit, 5 piercing.'
+   -> Your rapier hits the bridge ogre. The bridge ogre is hurt. The bridge ogre breaks away, leaving your reach.
+   clauses=['resolved'] hp={'ogre': 54} pc_damage=13
+rv5d#3 [rb] "I hold the ogre's gaze, and stab it with my rapier, 16 to hit, 5 piercing."
+   -> Your rapier hits the bridge ogre. The bridge ogre is hurt. The bridge ogre breaks away, leaving your reach.
+   clauses=['resolved'] hp={'ogre': 54} pc_damage=13
+rv5d#4 [rb] 'I shove the ogre.'
+   -> The shove at the bridge ogre didn't happen because shoving is the DM's call for now: say how you go about it. Your turn.
+   clauses=['refused'] hp={'ogre': 59} pc_damage=13
+rv5d#5 [rb] "I grab the bridge ogre's arm."
+   -> ASK Grabbing the bridge ogre is a contest: roll Athletics in Avrae (!check athletics) and tell me the total. Your turn. No turn was committed.
+rv5d#6 [rb] 'I grab the rope, then stab the bridge ogre with my rapier, 16 to hit, 5 piercing.'
+   -> Your rapier hits the bridge ogre. The bridge ogre is hurt. The bridge ogre breaks away, leaving your reach.
+   clauses=['resolved'] hp={'ogre': 54} pc_damage=13
+rv5d#7 [rb] 'I push the rope aside and stab the bridge ogre with my rapier, 16 to hit, 5 piercing.'
+   -> Your rapier hits the bridge ogre. The bridge ogre is hurt. The bridge ogre breaks away, leaving your reach.
+   clauses=['resolved'] hp={'ogre': 54} pc_damage=13
+rv5d#8 [rb] 'I back off 10 feet, then close in and stab the bridge ogre with my rapier, 16 to hit, 5 piercing.'
+   -> The bridge ogre lashes out as you go: 13 bludgeoning damage. You fall back out of reach. You close on the bridge ogre. Your rapier hits the bridge ogre. The bridge ogre is hurt. The bridge ogre breaks away, leaving your reach.
+   clauses=['resolved', 'resolved', 'resolved'] hp={'ogre': 54} pc_damage=26
+rv5d#9 [rb] 'I step back 5 feet, then throw a dagger at the bridge ogre, 15 to hit, 4 piercing.'
+   -> The bridge ogre lashes out as you go: 13 bludgeoning damage. You fall back out of reach. Your dagger hits the bridge ogre. The bridge ogre is hurt. The bridge ogre breaks away, leaving your reach.
+   clauses=['resolved', 'resolved'] hp={'ogre': 55} pc_damage=26
+rv5d#10 [rb] 'I step back 5 feet and stab the bridge ogre with my rapier, 16 to hit, 5 piercing.'
+   -> The bridge ogre lashes out as you go: 13 bludgeoning damage. You fall back out of reach. The rapier at the bridge ogre didn't happen because the bridge ogre is out of your reach now. The bridge ogre hits you: 13 bludgeoning damage. Your turn.
+   clauses=['resolved', 'refused'] hp={'ogre': 59} pc_damage=39
+rv5d#11 [rb] 'I charge the bridge ogre and stab it with my rapier, 16 to hit, 5 piercing.'
+   -> You close on the bridge ogre. Your rapier hits the bridge ogre. The bridge ogre is hurt. The bridge ogre breaks away, leaving your reach.
+   clauses=['resolved', 'resolved'] hp={'ogre': 54} pc_damage=13
+rv5d#12 [rb] 'I pause, breathe, steady myself, then stab the bridge ogre with my rapier, 16 to hit, 5 piercing.'
+   -> Your rapier hits the bridge ogre. The bridge ogre is hurt. The bridge ogre breaks away, leaving your reach.
+   clauses=['resolved'] hp={'ogre': 54} pc_damage=13
+rv5d#13 [rb] 'I grin.'
+   -> no combat_acts (Kit answers or narrates)
+rv5d#14 [rb] 'I wait.'
+   -> no combat_acts (Kit answers or narrates)
+rv5d#15 [rb] 'I steady myself, grin, and back off 10 feet.'
+   -> The bridge ogre lashes out as you go: 13 bludgeoning damage. You fall back out of reach. The bridge ogre hits you: 13 bludgeoning damage. Your turn.
+   clauses=['resolved'] hp={'ogre': 59} pc_damage=39
+rv5d#16 [rb] '"Come on then, big fellow, come and get me," I taunt, and I stab the bridge ogre with my rapier, 16 to hit, 5 piercing.'
+   -> Your rapier hits the bridge ogre. The bridge ogre is hurt. The bridge ogre breaks away, leaving your reach.
+   clauses=['resolved'] hp={'ogre': 54} pc_damage=13
+rv5d#17 [rb] '"Wait," I say, "wait, let\'s talk."'
+   -> no combat_acts (Kit answers or narrates)
+rv5d#18 [rb] 'I stab the bridge ogre with my rapier, 9 to hit, 5 piercing.'
+   -> Your rapier misses the bridge ogre. The bridge ogre hits you: 13 bludgeoning damage. Your turn.
+   clauses=['resolved'] hp={'ogre': 59} pc_damage=26
+rv5d#19 [rb] 'I stab the bridge ogre with my rapier, 15 to hit, 5 piercing.'
+   -> Your rapier hits the bridge ogre. The bridge ogre is hurt. The bridge ogre breaks away, leaving your reach.
+   clauses=['resolved'] hp={'ogre': 54} pc_damage=13
+rv5d#20 [rb] 'Nik attacks with a Rapier!\nTo Hit: 1d20 (2) + 7 = 9\nMiss!\nthen I back off 10 feet.'
+   -> Your rapier misses the bridge ogre. The bridge ogre lashes out as you go: 13 bludgeoning damage. You fall back out of reach. The bridge ogre hits you: 13 bludgeoning damage. Your turn.
+   clauses=['resolved', 'resolved'] hp={'ogre': 59} pc_damage=39
+rv5d#21 [rb] '!a rapier -t ogre\nNik attacks with a Rapier!\nTo Hit: 1d20 (15) + 7 = 22\nDamage: 1d8 (6) + 4 = 10 piercing'
+   -> Your rapier hits the bridge ogre. The bridge ogre is hurt. The bridge ogre breaks away, leaving your reach.
+   clauses=['resolved'] hp={'ogre': 49} pc_damage=13
+rv5d#22 [rb] 'Nik attacks with a Rapier!\nTo Hit: 1d20 (15) + 7 = 22\nDamage: 10 piercing\nI grin at the ogre, "Smell that, lump?"'
+   -> Your rapier hits the bridge ogre. The bridge ogre is hurt. The bridge ogre breaks away, leaving your reach.
+   clauses=['resolved'] hp={'ogre': 49} pc_damage=13
+rv5d#23 [rb] 'I stab the ogre with my rapier, 16 to hit, 5 piercing, and with the same breath I step back 5 feet.'
+   -> Your rapier hits the bridge ogre. The bridge ogre is hurt. The bridge ogre lashes out as you go: 13 bludgeoning damage. You fall back out of reach. The ogre lumbers off the far end. Nobody is left in the room to fight you.
+   clauses=['resolved', 'resolved'] hp={'ogre': 54} pc_damage=26
+rv5d#24 [rb] 'Uncanny Dodge, then I back off 10 feet and throw a dagger at the bridge ogre, 15 to hit, 4 piercing.'
+   -> Uncanny Dodge: you take half, 6 instead of 13. The bridge ogre lashes out as you go: 13 bludgeoning damage. You fall back out of reach. Your dagger hits the bridge ogre. The bridge ogre is hurt. The bridge ogre breaks away, leaving your reach.
+   clauses=['resolved', 'resolved', 'resolved'] hp={'ogre': 55} pc_damage=19
+rv5d#25 [rb] 'I hold my breath, grip the rope, and look down.'
+   -> no combat_acts (Kit answers or narrates)
+rv5d#26 [rb] 'I hold the line.'
+   -> RULING "hold the line" needs the DM's call. Say how you go about it, or try it another way; nothing else in that message has happened yet.
+   clauses=['ruling']
+rv5d#27 [rb] 'I push past the pain and stab the bridge ogre with my rapier, 16 to hit, 5 piercing.'
+   -> Your rapier hits the bridge ogre. The bridge ogre is hurt. The bridge ogre breaks away, leaving your reach.
+   clauses=['resolved'] hp={'ogre': 54} pc_damage=13
+rv5d#28 [rb] 'I hold my rapier out, point first, and wait for it.'
+   -> RULING "hold my rapier out, point first, and wait for it" needs the DM's call. Say how you go about it, or try it another way; nothing else in that message has happene
+   clauses=['ruling']
+rv5d#29 [rb] 'I stab the ogre, 16 to hit, 5 piercing, then Uncanny Dodge, then grin, then back off 5 feet.'
+   -> Your rapier hits the bridge ogre. The bridge ogre is hurt. Uncanny Dodge: you take half, 6 instead of 13. The bridge ogre lashes out as you go: 13 bludgeoning damage. You fall back out of reach. The ogre lumbers off the far end. Nobody is left in the room to fight you.
+   clauses=['resolved', 'resolved', 'resolved'] hp={'ogre': 54} pc_damage=19
+rv5d#30 [rb] 'Steady. I stab the bridge ogre with my rapier, 16 to hit, 5 piercing. Then I wait.'
+   -> Your rapier hits the bridge ogre. The bridge ogre is hurt. The bridge ogre breaks away, leaving your reach.
+   clauses=['resolved'] hp={'ogre': 54} pc_damage=13
+rv5d#31 [rb] 'I disengage and back off 10 feet.'
+   -> You fall back out of reach. You move off. The bridge ogre hits you: 13 bludgeoning damage. Your turn.
+   clauses=['resolved', 'resolved'] hp={'ogre': 59} pc_damage=26
+rv5d#32 [rb] 'I dash back across the bridge.'
+   -> You Dash, covering double ground this turn. The bridge ogre lashes out as you go: 13 bludgeoning damage. You fall back out of reach. The bridge ogre hits you: 13 bludgeoning damage. Your turn.
+   clauses=['resolved', 'resolved'] hp={'ogre': 59} pc_damage=39
+rv5d#33 [rb] 'I stab the bridge ogre with my rapier, 20 to hit, 9 piercing; I stab the bridge ogre with my rapier, 20 to hit, 9 piercing.'
+   -> Your rapier hits the bridge ogre. The bridge ogre is hurt. The rapier at the bridge ogre didn't happen because you have already used your action this turn. The bridge ogre breaks away, leaving your reach.
+   clauses=['resolved', 'refused'] hp={'ogre': 50} pc_damage=13
+rv5d#34 [rb] "What's the DC to cut the ropes?"
+   -> no combat_acts (Kit answers or narrates)
+rv5d#35 [rb] 'I study the ogre, looking for a weak spot.'
+   -> no combat_acts (Kit answers or narrates)
+rv5d#36 [rb] 'I cut the bridge rope behind the ogre.'
+   -> RULING "cut the bridge rope behind the ogre" needs the DM's call. Say how you go about it, or try it another way; nothing else in that message has happened yet.
+   clauses=['ruling']
+rv5d#37 [wl] 'I hold my pact blade steady, and Hellish Rebuke the imp (Avrae: !cast hellish rebuke -t imp -l 1), 10 fire.'
+   -> Hellish Rebuke: 10 fire damage to the ember imp. The ember imp is badly hurt. Your turn.
+   clauses=['resolved'] hp={'archer': 7, 'imp': 8} pc_damage=11
+rv5d#38 [wl] '!cast hellish rebuke -t imp -l 1\nHellish Rebuke: 10 fire\nthen I stab the kobold slinger with my dagger, 16 to hit, 3 piercing.'
+   -> Hellish Rebuke: 10 fire damage to the ember imp. The ember imp is badly hurt. Your dagger hits the kobold slinger. The kobold slinger is hurt. The ember imp hits you: 7 fire damage. The kobold slinger hits you: 4 bludgeoning damage. Your turn.
+   clauses=['resolved', 'resolved'] hp={'archer': 4, 'imp': 8} pc_damage=22
+rv5d#39 [wl] 'I stab the kobold slinger with my dagger, 16 to hit, 3 piercing.\n!cast hellish rebuke -t slinger -l 1\nHellish Rebuke: 8 fire'
+   -> Your dagger hits the kobold slinger. The kobold slinger is hurt. Hellish Rebuke: 8 fire damage to the kobold slinger. The kobold slinger goes down and does not get up. The ember imp hits you: 7 fire damage. Your turn.
+   clauses=['resolved', 'resolved'] hp={'archer': 0, 'imp': 18} pc_damage=18
+rv5d#40 [wl] 'I push the kiln door shut, then stab the kobold slinger with my dagger, 16 to hit, 3 piercing.'
+   -> RULING "push the kiln door shut" needs the DM's call. Say how you go about it, or try it another way; nothing else in that message has happened yet.
+   clauses=['ruling', 'waits']
+rv5d#41 [wl] 'I push the door.'
+   -> RULING "push the door" needs the DM's call. Say how you go about it, or try it another way; nothing else in that message has happened yet.
+   clauses=['ruling']
+rv5d#42 [wl] 'I shove the ember imp into the kiln.'
+   -> The shove at the ember imp didn't happen because shoving is the DM's call for now: say how you go about it. Your turn.
+   clauses=['refused'] hp={'archer': 7, 'imp': 18} pc_damage=11
+rv5d#43 [wl] 'I grip the dagger, grit my teeth, and stab the ember imp, 16 to hit, 3 piercing.'
+   -> Your dagger hits the ember imp. The ember imp is hurt. The ember imp hits you: 7 fire damage. The kobold slinger hits you: 4 bludgeoning damage. Your turn.
+   clauses=['resolved'] hp={'archer': 7, 'imp': 15} pc_damage=22
+rv5d#44 [wl] 'I step back 10 feet, then stab the ember imp with my dagger, 16 to hit, 3 piercing.'
+   -> You fall back out of reach. The dagger at the ember imp didn't happen because the ember imp is out of your reach now. The ember imp hits you: 7 fire damage. The kobold slinger hits you: 4 bludgeoning damage. Your turn.
+   clauses=['resolved', 'refused'] hp={'archer': 7, 'imp': 18} pc_damage=22
+rv5d#45 [wl] 'I step back 10 feet, then cast Eldritch Blast at the ember imp, 17 to hit, 6 force.'
+   -> You fall back out of reach. Your Eldritch Blast hits the ember imp. The ember imp is hurt. The ember imp hits you: 7 fire damage. The kobold slinger hits you: 4 bludgeoning damage. Your turn.
+   clauses=['resolved', 'resolved'] hp={'archer': 7, 'imp': 12} pc_damage=22
+rv5d#46 [wl] 'I Uncanny Dodge (Avrae: !cast uncanny dodge), then stab the imp, 16 to hit, 3 piercing.'
+   -> The Uncanny Dodge didn't happen because it is not on your sheet. Your dagger hits the ember imp. The ember imp is hurt. The ember imp hits you: 7 fire damage. The kobold slinger hits you: 4 bludgeoning damage. Your turn.
+   clauses=['refused', 'resolved'] hp={'archer': 7, 'imp': 15} pc_damage=22
+rv5d#47 [wl] 'Hellish Rebuke the slinger (Avrae: !cast hellish rebuke -t slinger -l 1), 9 fire, then Hellish Rebuke the imp (Avrae: !cast hellish rebuke -t imp -l 1), 11 fire.'
+   -> Hellish Rebuke: 9 fire damage to the kobold slinger. The kobold slinger goes down and does not get up. The Hellish Rebuke at the ember imp didn't happen because you have already used your reaction, so the cast fizzles. The level 1 slot Avrae spent is counted. Your turn.
+   clauses=['resolved', 'refused'] hp={'archer': 0, 'imp': 18} pc_damage=11
+rv5d#48 [wl] "I wait, watching the imp's flames, then grin."
+   -> no combat_acts (Kit answers or narrates)
+rv5d#49 [wl] 'I take the bellows, hold them up, and pump them at the imp.'
+   -> RULING "take the bellows, hold them up, and pump them at the imp" needs the DM's call. Say how you go about it, or try it another way; nothing else in that message has
+   clauses=['ruling']
+rv5d#50 [wl] 'I hold my ground.'
+   -> RULING "hold my ground" needs the DM's call. Say how you go about it, or try it another way; nothing else in that message has happened yet.
+   clauses=['ruling']
+rv5d#51 [wz] 'Shield.'
+   -> The Shield didn't happen because it is not on your sheet. Your turn.
+   clauses=['refused'] hp={'archer': 7, 'imp': 18} pc_damage=11
+rv5d#52 [wz] 'Fire Bolt the imp, 14 to hit, 6 fire.'
+   -> Your Fire Bolt hits the ember imp. The ember imp is hurt. The ember imp hits you: 7 fire damage. The kobold slinger hits you: 4 bludgeoning damage. Your turn.
+   clauses=['resolved'] hp={'archer': 7, 'imp': 12} pc_damage=22
+rv5d#53 [wz] 'Fire Bolt the imp, 9 to hit, 6 fire.'
+   -> Your Fire Bolt misses the ember imp. The ember imp hits you: 7 fire damage. The kobold slinger hits you: 4 bludgeoning damage. Your turn.
+   clauses=['resolved'] hp={'archer': 7, 'imp': 18} pc_damage=22
+rv5d#54 [wz] 'Absorb Elements (Avrae: !cast absorb elements -l 1), then I back away 10 feet, breathing hard, and Fire Bolt the imp, 17 to hit, 7 fire.'
+   -> Absorb Elements: resistance to the fire; your next melee hit adds 1d6 fire. You fall back out of reach. Your Fire Bolt hits the ember imp. The ember imp is hurt. The ember imp hits you: 7 fire damage. The kobold slinger hits you: 4 bludgeoning damage. Your turn.
+   clauses=['resolved', 'resolved', 'resolved'] hp={'archer': 7, 'imp': 11} pc_damage=18
+rv5d#55 [wz] 'I cast Absorb Elements at 2nd level, then Fire Bolt the imp, 17 to hit, 7 fire.'
+   -> The Absorb Elements didn't happen because it is cast in Avrae first (!cast absorb elements). Your Fire Bolt hits the ember imp. The ember imp is hurt. The ember imp hits you: 7 fire damage. The kobold slinger hits you: 4 bludgeoning damage. Your turn.
+   clauses=['refused', 'resolved'] hp={'archer': 7, 'imp': 11} pc_damage=22
+rv5d#56 [wz] '!cast absorb elements -l 1\nthen Fire Bolt the slinger, 19 to hit, 8 fire.'
+   -> Absorb Elements: resistance to the fire; your next melee hit adds 1d6 fire. Your Fire Bolt hits the kobold slinger. The kobold slinger goes down and does not get up. The ember imp hits you: 7 fire damage. Your turn.
+   clauses=['resolved', 'resolved'] hp={'archer': 0, 'imp': 18} pc_damage=14
+rv5d#57 [wz] 'I hold my staff high, mutter, and Fire Bolt the imp, 17 to hit, 7 fire.'
+   -> Your Fire Bolt hits the ember imp. The ember imp is hurt. The ember imp hits you: 7 fire damage. The kobold slinger hits you: 4 bludgeoning damage. Your turn.
+   clauses=['resolved'] hp={'archer': 7, 'imp': 11} pc_damage=22
+rv5d#58 [wz] 'I push the shelf over onto the slinger.'
+   -> RULING "push the shelf over onto the slinger" needs the DM's call. Say how you go about it, or try it another way; nothing else in that message has happened yet.
+   clauses=['ruling']
+rv5d#59 [wz] 'I grab the kobold slinger.'
+   -> ASK Grabbing the kobold slinger is a contest: roll Athletics in Avrae (!check athletics) and tell me the total. Your turn. No turn was committed.
+rv5d#60 [wz] "I grip the slinger's sling and yank it away."
+   -> RULING "grip the slinger's sling and yank it away" needs the DM's call. Say how you go about it, or try it another way; nothing else in that message has happened yet.
+   clauses=['ruling']
+rv5d#61 [wz] 'I step up to the imp and stab it with my dagger, 15 to hit, 3 piercing.'
+   -> You close on the ember imp. Your dagger hits the ember imp. The ember imp is hurt. The ember imp hits you: 7 fire damage. The kobold slinger hits you: 4 bludgeoning damage. Your turn.
+   clauses=['resolved', 'resolved'] hp={'archer': 7, 'imp': 15} pc_damage=22
+rv5d#62 [wz] 'Fire Bolt the imp, 17 to hit, 7 fire, and Absorb Elements (Avrae: !cast absorb elements -l 1).'
+   -> Your Fire Bolt hits the ember imp. The ember imp is hurt. The Absorb Elements didn't happen because you have already acted, and the fire it answers came before your turn, so the cast fizzles. The level 1 slot Avrae spent is counted. The ember imp hits you: 7 fire damage. The kobold slinger hits you: 4 bludgeoning damage. Your turn.
+   clauses=['resolved', 'refused'] hp={'archer': 7, 'imp': 11} pc_damage=22
+rv5d#63 [wz] "I look at the slinger's pouch. What's in it?"
+   -> no combat_acts (Kit answers or narrates)
+rv5d#64 [wz] 'Is the kiln trapped? What DC do I need?'
+   -> no combat_acts (Kit answers or narrates)
+rv92#1 [rb] 'I stab the bridge ogre with my rapier, 18 to hit, 7 piercing; then I back off 10 feet.'
+   -> Your rapier hits the bridge ogre. The bridge ogre is hurt. The bridge ogre lashes out as you go: 13 bludgeoning damage. You fall back out of reach. The ogre lumbers off the far end. Nobody is left in the room to fight you.
+   clauses=['resolved', 'resolved'] hp={'ogre': 52} pc_damage=26
+rv92#2 [rb] 'I stab the bridge ogre with my rapier, 18 to hit, 7 piercing, and then I stab it again, 17 to hit, 6 piercing.'
+   -> Your rapier hits the bridge ogre. The bridge ogre is hurt. The rapier at the bridge ogre didn't happen because you have already used your action this turn. The bridge ogre breaks away, leaving your reach.
+   clauses=['resolved', 'refused'] hp={'ogre': 52} pc_damage=13
+rv92#3 [rb] 'I stab the bridge ogre with my rapier, 18 to hit, 7 piercing. I stab the bridge ogre again with my rapier, 19 to hit, 8 piercing.'
+   -> Your rapier hits the bridge ogre. The bridge ogre is hurt. The rapier at the bridge ogre didn't happen because you have already used your action this turn. The bridge ogre breaks away, leaving your reach.
+   clauses=['resolved', 'refused'] hp={'ogre': 52} pc_damage=13
+rv92#4 [rb] '"Salt and pepper, you great lump," I snarl, and I stab the bridge ogre with my rapier, 18 to hit, 7 piercing.'
+   -> Your rapier hits the bridge ogre. The bridge ogre is hurt. The bridge ogre breaks away, leaving your reach.
+   clauses=['resolved'] hp={'ogre': 52} pc_damage=13
+rv92#5 [rb] 'I grip the rope, heart pounding, and glare at the ogre.'
+   -> no combat_acts (Kit answers or narrates)
+rv92#6 [rb] 'I glance down at the gorge, the wind tugging my cloak, and mutter a prayer to the Lady of Salt and Sorrow.'
+   -> no combat_acts (Kit answers or narrates)
+rv92#7 [rb] '"You smell like wet dog, cheese, and regret," I tell the ogre, grinning.'
+   -> no combat_acts (Kit answers or narrates)
+rv92#8 [rb] 'I wipe my brow, then laugh, and say, "Is that all you\'ve got?"'
+   -> no combat_acts (Kit answers or narrates)
+rv92#9 [rb] 'Uncanny Dodge that hit, and then, steady now, I stab the bridge ogre with my rapier, 18 to hit, 7 piercing.'
+   -> Uncanny Dodge: you take half, 6 instead of 13. Your rapier hits the bridge ogre. The bridge ogre is hurt. The bridge ogre breaks away, leaving your reach.
+   clauses=['resolved', 'resolved'] hp={'ogre': 52} pc_damage=6
+rv92#10 [rb] 'I stab the bridge ogre with my rapier (Avrae: !a rapier -t ogre) 18 to hit, 7 piercing, then Uncanny Dodge that hit.'
+   -> Your rapier hits the bridge ogre. The bridge ogre is hurt. Uncanny Dodge: you take half, 6 instead of 13. The bridge ogre breaks away, leaving your reach.
+   clauses=['resolved', 'resolved'] hp={'ogre': 52} pc_damage=6
+rv92#11 [rb] 'I stab the bridge ogre with my rapier.\n**Rapier**: 1d20+7 = 18 to hit; 7 piercing\nthen I back off 10 feet.'
+   -> Your rapier hits the bridge ogre. The bridge ogre is hurt. The bridge ogre lashes out as you go: 13 bludgeoning damage. You fall back out of reach. The ogre lumbers off the far end. Nobody is left in the room to fight you.
+   clauses=['resolved', 'resolved'] hp={'ogre': 52} pc_damage=26
+rv92#12 [rb] 'Nik attacks with a Rapier!\nTo Hit: 1d20 (11) + 7 = 18\nDamage: 7 piercing\nand I Uncanny Dodge that hit.'
+   -> Your rapier hits the bridge ogre. The bridge ogre is hurt. Uncanny Dodge: you take half, 6 instead of 13. The bridge ogre breaks away, leaving your reach.
+   clauses=['resolved', 'resolved'] hp={'ogre': 52} pc_damage=6
+rv92#13 [rb] 'I Uncanny Dodge that greatclub hit; I step back 5 feet; I stab the bridge ogre with my rapier, 18 to hit, 7 piercing.'
+   -> Uncanny Dodge: you take half, 6 instead of 13. The bridge ogre lashes out as you go: 13 bludgeoning damage. You fall back out of reach. The rapier at the bridge ogre didn't happen because the bridge ogre is out of your reach now. The bridge ogre hits you: 13 bludgeoning damage. Your turn.
+   clauses=['resolved', 'resolved', 'refused'] hp={'ogre': 59} pc_damage=32
+rv92#14 [rb] 'I Uncanny Dodge that hit, and I stab, and I stab, and I back off.'
+   -> ASK Uncanny Dodge: you take half, 6 instead of 13. Roll the attack for your rapier in Avrae, with its damage. Your turn. No turn was committed.
+rv92#15 [rb] 'While the ogre roars, I stab the bridge ogre with my rapier, 18 to hit, 7 piercing, then wink at it.'
+   -> Your rapier hits the bridge ogre. The bridge ogre is hurt. The bridge ogre breaks away, leaving your reach.
+   clauses=['resolved'] hp={'ogre': 52} pc_damage=13
+rv92#16 [rb] 'I stab the bridge ogre with my rapier, 18 to hit, 7 piercing, twisting the blade, grinning, and shouting "for Roanoke!"'
+   -> Your rapier hits the bridge ogre. The bridge ogre is hurt. The bridge ogre breaks away, leaving your reach.
+   clauses=['resolved'] hp={'ogre': 52} pc_damage=13
+rv92#17 [rb] 'I stab the bridge ogre with my rapier, 18 to hit, 7 piercing and then and then I back off.'
+   -> Your rapier hits the bridge ogre. The bridge ogre is hurt. The bridge ogre lashes out as you go: 13 bludgeoning damage. You fall back out of reach. The ogre lumbers off the far end. Nobody is left in the room to fight you.
+   clauses=['resolved', 'resolved'] hp={'ogre': 52} pc_damage=26
+rv92#18 [rb] 'I stab the bridge ogre with my rapier, 18 to hit, 7 piercing... then... Uncanny Dodge?'
+   -> Your rapier hits the bridge ogre. The bridge ogre is hurt. Uncanny Dodge: you take half, 6 instead of 13. The bridge ogre breaks away, leaving your reach.
+   clauses=['resolved', 'resolved'] hp={'ogre': 52} pc_damage=6
+rv92#19 [rb] 'I stab the bridge ogre with my rapier, 18 to hit, 7 piercing — and Uncanny Dodge that hit — then back off 10 feet.'
+   -> Your rapier hits the bridge ogre. The bridge ogre is hurt. Uncanny Dodge: you take half, 6 instead of 13. The bridge ogre lashes out as you go: 13 bludgeoning damage. You fall back out of reach. The ogre lumbers off the far end. Nobody is left in the room to fight you.
+   clauses=['resolved', 'resolved', 'resolved'] hp={'ogre': 52} pc_damage=19
+rv92#20 [rb] 'Uncanny Dodge! Then I stab the bridge ogre with my rapier, 18 to hit, 7 piercing; and then I yell, "Bread and butter!"'
+   -> Uncanny Dodge: you take half, 6 instead of 13. Your rapier hits the bridge ogre. The bridge ogre is hurt. The bridge ogre breaks away, leaving your reach.
+   clauses=['resolved', 'resolved'] hp={'ogre': 52} pc_damage=6
+rv92#21 [rb] 'I shove the bridge ogre, and I stab it with my rapier, 18 to hit, 7 piercing.'
+   -> The shove at the bridge ogre didn't happen because shoving is the DM's call for now: say how you go about it. Your rapier hits the bridge ogre. The bridge ogre is hurt. The bridge ogre breaks away, leaving your reach.
+   clauses=['refused', 'resolved'] hp={'ogre': 52} pc_damage=13
+rv92#22 [rb] 'I back off 10 feet, then I back off another 10 feet.'
+   -> The bridge ogre lashes out as you go: 13 bludgeoning damage. You fall back out of reach. You move off. The bridge ogre hits you: 13 bludgeoning damage. Your turn.
+   clauses=['resolved', 'resolved'] hp={'ogre': 59} pc_damage=39
+rv92#23 [rb] 'I hold my ground, sword up, and wait.'
+   -> RULING "hold my ground, sword up, and wait" needs the DM's call. Say how you go about it, or try it another way; nothing else in that message has happened yet.
+   clauses=['ruling']
+rv92#24 [rb] 'I wait, and then I stab the bridge ogre with my rapier, 18 to hit, 7 piercing.'
+   -> Your rapier hits the bridge ogre. The bridge ogre is hurt. The bridge ogre breaks away, leaving your reach.
+   clauses=['resolved'] hp={'ogre': 52} pc_damage=13
+rv92#25 [rb] 'I Shield myself and stab the bridge ogre with my rapier, 18 to hit, 7 piercing.'
+   -> The Shield didn't happen because it is not on your sheet. Your rapier hits the bridge ogre. The bridge ogre is hurt. The bridge ogre breaks away, leaving your reach.
+   clauses=['refused', 'resolved'] hp={'ogre': 52} pc_damage=13
+rv92#26 [rb] 'I Hellish Rebuke the ogre, then I stab the bridge ogre with my rapier, 18 to hit, 7 piercing.'
+   -> The Hellish Rebuke at the bridge ogre didn't happen because it is not on your sheet. Your rapier hits the bridge ogre. The bridge ogre is hurt. The bridge ogre breaks away, leaving your reach.
+   clauses=['refused', 'resolved'] hp={'ogre': 52} pc_damage=13
+rv92#27 [rb] 'I stab the bridge ogre with my rapier, 18 to hit, 7 piercing, and Uncanny Dodge that hit, and Uncanny Dodge again.'
+   -> Your rapier hits the bridge ogre. The bridge ogre is hurt. Uncanny Dodge: you take half, 6 instead of 13. The Uncanny Dodge didn't happen because you have already used your reaction. The bridge ogre breaks away, leaving your reach.
+   clauses=['resolved', 'resolved', 'refused'] hp={'ogre': 52} pc_damage=6
+rv92#28 [rb] 'I take a deep breath, the planks creaking, ropes swaying, and stab the bridge ogre with my rapier, 18 to hit, 7 piercing.'
+   -> Your rapier hits the bridge ogre. The bridge ogre is hurt. The bridge ogre breaks away, leaving your reach.
+   clauses=['resolved'] hp={'ogre': 52} pc_damage=13
+rv92#29 [rb] 'I check the knots and the planks, then back off 10 feet.'
+   -> RULING "check the knots and the planks" needs the DM's call. Say how you go about it, or try it another way; nothing else in that message has happened yet.
+   clauses=['ruling', 'waits']
+rv92#30 [rb] '"Steady, steady," I whisper, and then I wait.'
+   -> no combat_acts (Kit answers or narrates)
+rv92#31 [wl] 'I cast Hellish Rebuke on the ember imp (Avrae: !cast hellish rebuke -t imp -l 1), 12 fire, then I stab the kobold slinger with my dagger, 18 to hit, 3 piercing.'
+   -> Hellish Rebuke: 12 fire damage to the ember imp. The ember imp is badly hurt. Your dagger hits the kobold slinger. The kobold slinger is hurt. The ember imp hits you: 7 fire damage. The kobold slinger hits you: 4 bludgeoning damage. Your turn.
+   clauses=['resolved', 'resolved'] hp={'archer': 4, 'imp': 6} pc_damage=22
+rv92#32 [wl] 'Hellish Rebuke the imp, 12 fire (Avrae: !cast hellish rebuke -l 2), and I stab the kobold slinger with my dagger, 18 to hit, 3 piercing.'
+   -> The Hellish Rebuke at the ember imp didn't happen because there is no level 2 slot left for it. Your dagger hits the kobold slinger. The kobold slinger is hurt. The ember imp hits you: 7 fire damage. The kobold slinger hits you: 4 bludgeoning damage. Your turn.
+   clauses=['refused', 'resolved'] hp={'archer': 4, 'imp': 18} pc_damage=22
+rv92#33 [wl] 'I stab the kobold slinger with my dagger, 18 to hit, 3 piercing, and stab the ember imp with my dagger, 19 to hit, 4 piercing.'
+   -> Your dagger hits the kobold slinger. The kobold slinger is hurt. The dagger at the ember imp didn't happen because you have already used your action this turn. The ember imp hits you: 7 fire damage. The kobold slinger hits you: 4 bludgeoning damage. Your turn.
+   clauses=['resolved', 'refused'] hp={'archer': 4, 'imp': 18} pc_damage=22
+rv92#34 [wl] 'Hellish Rebuke the imp, 12 fire, then I stab the kobold slinger with my dagger, 18 to hit, 3 piercing.'
+   -> The Hellish Rebuke at the ember imp didn't happen because it is cast in Avrae first (!cast hellish rebuke). Your dagger hits the kobold slinger. The kobold slinger is hurt. The ember imp hits you: 7 fire damage. The kobold slinger hits you: 4 bludgeoning damage. Your turn.
+   clauses=['refused', 'resolved'] hp={'archer': 4, 'imp': 18} pc_damage=22
+rv92#35 [wl] 'I cast Hellish Rebuke on the imp at 2nd level, 15 fire, then stab the slinger with my dagger, 18 to hit, 3 piercing.'
+   -> The Hellish Rebuke at the ember imp didn't happen because it is cast in Avrae first (!cast hellish rebuke). Your dagger hits the kobold slinger. The kobold slinger is hurt. The ember imp hits you: 7 fire damage. The kobold slinger hits you: 4 bludgeoning damage. Your turn.
+   clauses=['refused', 'resolved'] hp={'archer': 4, 'imp': 18} pc_damage=22
+rv92#36 [wl] 'I curse the imp, spit, and say "Brimstone and ash take you", then Hellish Rebuke it (Avrae: !cast hellish rebuke -l 1), 12 fire.'
+   -> Hellish Rebuke: 12 fire damage to the ember imp. The ember imp is badly hurt. Your turn.
+   clauses=['resolved'] hp={'archer': 7, 'imp': 6} pc_damage=11
+rv92#37 [wl] 'I stab the kobold slinger with my dagger, 18 to hit, 3 piercing.\n!cast hellish rebuke -t imp -l 1\nHellish Rebuke: 12 fire\nthen I back away 10 feet.'
+   -> Your dagger hits the kobold slinger. The kobold slinger is hurt. Hellish Rebuke: 12 fire damage to the ember imp. The ember imp is badly hurt. You fall back out of reach. The ember imp hits you: 7 fire damage. The kobold slinger hits you: 4 bludgeoning damage. Your turn.
+   clauses=['resolved', 'resolved', 'resolved'] hp={'archer': 4, 'imp': 6} pc_damage=22
+rv92#38 [wl] "The kiln's heat, the smoke, the shards underfoot: I take it all in, then stab the kobold slinger with my dagger, 18 to hit, 3 piercing."
+   -> Your dagger hits the kobold slinger. The kobold slinger is hurt. The ember imp hits you: 7 fire damage. The kobold slinger hits you: 4 bludgeoning damage. Your turn.
+   clauses=['resolved'] hp={'archer': 4, 'imp': 18} pc_damage=22
+rv92#39 [wl] 'I stab the kobold slinger with my dagger, 18 to hit, 3 piercing, and Uncanny Dodge.'
+   -> Your dagger hits the kobold slinger. The kobold slinger is hurt. The Uncanny Dodge didn't happen because it is not on your sheet. The ember imp hits you: 7 fire damage. The kobold slinger hits you: 4 bludgeoning damage. Your turn.
+   clauses=['resolved', 'refused'] hp={'archer': 4, 'imp': 18} pc_damage=22
+rv92#40 [wl] 'I Hellish Rebuke the imp, Hellish Rebuke the slinger, then stab the slinger with my dagger, 18 to hit, 3 piercing.'
+   -> The Hellish Rebuke at the ember imp didn't happen because it is cast in Avrae first (!cast hellish rebuke). The Hellish Rebuke at the kobold slinger didn't happen because it is cast in Avrae first (!cast hellish rebuke). Your dagger hits the kobold slinger. The kobold slinger is hurt. The ember imp hits you: 7 fire damage. The kobold slinger hits you: 4 bludgeoning damage. Your turn.
+   clauses=['refused', 'refused', 'resolved'] hp={'archer': 4, 'imp': 18} pc_damage=22
+rv92#41 [wz] 'Absorb Elements (Avrae: !cast absorb elements -l 2), then Fire Bolt the kobold slinger, 19 to hit, 8 fire.'
+   -> Absorb Elements: resistance to the fire; your next melee hit adds 1d6 fire. Your Fire Bolt hits the kobold slinger. The kobold slinger goes down and does not get up. The ember imp hits you: 7 fire damage. Your turn.
+   clauses=['resolved', 'resolved'] hp={'archer': 0, 'imp': 18} pc_damage=14
+rv92#42 [wz] 'Absorb Elements, then Fire Bolt the kobold slinger, 19 to hit, 8 fire.'
+   -> The Absorb Elements didn't happen because it is cast in Avrae first (!cast absorb elements). Your Fire Bolt hits the kobold slinger. The kobold slinger goes down and does not get up. The ember imp hits you: 7 fire damage. Your turn.
+   clauses=['refused', 'resolved'] hp={'archer': 0, 'imp': 18} pc_damage=18
+rv92#43 [wz] 'Fire Bolt the kobold slinger, 19 to hit, 8 fire, and Fire Bolt the ember imp, 18 to hit, 7 fire.'
+   -> Your Fire Bolt hits the kobold slinger. The kobold slinger goes down and does not get up. The Fire Bolt at the ember imp didn't happen because you have already used your action this turn. The ember imp hits you: 7 fire damage. Your turn.
+   clauses=['resolved', 'refused'] hp={'archer': 0, 'imp': 18} pc_damage=18
+rv92#44 [wz] 'I cast Absorb Elements at 3rd level (Avrae: !cast absorb elements -l 3), and then Fire Bolt the ember imp, 18 to hit, 7 fire.'
+   -> Absorb Elements: resistance to the fire; your next melee hit adds 1d6 fire. Your Fire Bolt hits the ember imp. The ember imp is hurt. The ember imp hits you: 7 fire damage. The kobold slinger hits you: 4 bludgeoning damage. Your turn.
+   clauses=['resolved', 'resolved'] hp={'archer': 7, 'imp': 11} pc_damage=18
+rv92#45 [wz] 'I mutter about pots and pans, kiln and clay, then Fire Bolt the kobold slinger, 19 to hit, 8 fire.'
+   -> Your Fire Bolt hits the kobold slinger. The kobold slinger goes down and does not get up. The ember imp hits you: 7 fire damage. Your turn.
+   clauses=['resolved'] hp={'archer': 0, 'imp': 18} pc_damage=18
+rv92#46 [wz] 'Absorb Elements (Avrae: !cast absorb elements -l 1), Absorb Elements (Avrae: !cast absorb elements -l 1), Fire Bolt the slinger, 19 to hit, 8 fire.'
+   -> Absorb Elements: resistance to the fire; your next melee hit adds 1d6 fire. The Absorb Elements didn't happen because you have already used your reaction, so the cast fizzles. The level 1 slot Avrae spent is counted. Your Fire Bolt hits the kobold slinger. The kobold slinger goes down and does not get up. The ember imp hits you: 7 fire damage. Your turn.
+   clauses=['resolved', 'refused', 'resolved'] hp={'archer': 0, 'imp': 18} pc_damage=14
+rv92#47 [wz] 'I Shield (Avrae: !cast shield), then Fire Bolt the kobold slinger, 19 to hit, 8 fire.'
+   -> The Shield didn't happen because it is not on your sheet, so the cast fizzles. The level 1 slot Avrae spent is counted. Your Fire Bolt hits the kobold slinger. The kobold slinger goes down and does not get up. The ember imp hits you: 7 fire damage. Your turn.
+   clauses=['refused', 'resolved'] hp={'archer': 0, 'imp': 18} pc_damage=18
+rv92#48 [wz] 'Fire Bolt the slinger, 19 to hit, 8 fire, then I back away 10 feet, then Absorb Elements (Avrae: !cast absorb elements -l 1).'
+   -> Your Fire Bolt hits the kobold slinger. The kobold slinger goes down and does not get up. You move off. The Absorb Elements didn't happen because you have already acted, and the fire it answers came before your turn, so the cast fizzles. The level 1 slot Avrae spent is counted. The ember imp hits you: 7 fire damage. Your turn.
+   clauses=['resolved', 'resolved', 'refused'] hp={'archer': 0, 'imp': 18} pc_damage=18
+rv92#49 [wz] 'I stab the kobold slinger with my dagger, 18 to hit, 3 piercing, and with my off-hand, salt and iron, I stab the ember imp, 15 to hit, 2 piercing.'
+   -> Your dagger hits the kobold slinger. The kobold slinger is hurt. Your dagger hits the ember imp. The ember imp is hurt. The ember imp hits you: 7 fire damage. The kobold slinger hits you: 4 bludgeoning damage. Your turn.
+   clauses=['resolved', 'resolved'] hp={'archer': 4, 'imp': 16} pc_damage=22
+rv92#50 [wz] 'I look at the kiln and the shelves, then Fire Bolt the slinger, 19 to hit, 8 fire.'
+   -> Your Fire Bolt hits the kobold slinger. The kobold slinger goes down and does not get up. The ember imp hits you: 7 fire damage. Your turn.
+   clauses=['resolved'] hp={'archer': 0, 'imp': 18} pc_damage=18
+rv92#51 [wz] '"Fire and clay," I say, "fire and clay," as I back away 10 feet.'
+   -> You fall back out of reach. The ember imp hits you: 7 fire damage. The kobold slinger hits you: 4 bludgeoning damage. Your turn.
+   clauses=['resolved'] hp={'archer': 7, 'imp': 18} pc_damage=22
+rv92#52 [wz] 'I study the imp, then the slinger, then the door.'
+   -> no combat_acts (Kit answers or narrates)

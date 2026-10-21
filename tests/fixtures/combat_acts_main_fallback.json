@@ -1,0 +1,345 @@
+{
+ "cases": {
+  "avrae damage (wizard, shrine)": {
+   "after": {
+    "actors": {
+     "adept": {
+      "armed": true,
+      "communication_profile": {
+       "humor": "None.",
+       "rhythm": "Hiss."
+      },
+      "knowledge": [],
+      "location": "shrine",
+      "motive": "Kill the intruder.",
+      "name": "Cult adept",
+      "pronoun": "she",
+      "secrets": [],
+      "status": "alive",
+      "visible": true
+     }
+    },
+    "combat": {
+     "engaged": [
+      "adept"
+     ],
+     "hp": {
+      "adept": 22
+     },
+     "last_target": "adept",
+     "max_hp": {
+      "adept": 22
+     },
+     "next": 0,
+     "opener_spent": false,
+     "order": [
+      "pc",
+      "adept"
+     ],
+     "pc_damage": 10,
+     "pc_initiative": 25,
+     "pending": null,
+     "round": 2,
+     "started_by": "pc",
+     "status": "running",
+     "surprised": []
+    },
+    "refused_attempts": [
+     {
+      "action": "3d8 (5, 8, 7) = 20 psychic",
+      "revision": 3,
+      "ruling": "This physical action needs a room/rules ruling beyond the test slice. No turn was committed."
+     }
+    ],
+    "revision": 3
+   },
+   "die": 10,
+   "room": "shrine",
+   "ruling": {
+    "attempt_recorded": true,
+    "committed": false,
+    "message": "This physical action needs a room/rules ruling beyond the test slice. No turn was committed. The attempt is noted in the public history.",
+    "player_message": "That one needs the DM's call. Say a little more about how you go about it, or try it another way.",
+    "revision": 3,
+    "stage": "pending_ruling"
+   },
+   "sheet": "wizard",
+   "text": "3d8 (5, 8, 7) = 20 psychic"
+  },
+  "backs off (rogue, kiln)": {
+   "after": {
+    "actors": {
+     "archer": {
+      "armed": true,
+      "communication_profile": {
+       "humor": "None.",
+       "rhythm": "Hiss."
+      },
+      "knowledge": [],
+      "location": "kiln",
+      "motive": "Kill the intruder.",
+      "name": "Kobold slinger",
+      "pronoun": "it",
+      "secrets": [],
+      "status": "alive",
+      "visible": true
+     },
+     "imp": {
+      "armed": true,
+      "communication_profile": {
+       "humor": "None.",
+       "rhythm": "Hiss."
+      },
+      "knowledge": [],
+      "location": "kiln",
+      "motive": "Kill the intruder.",
+      "name": "Ember imp",
+      "pronoun": "it",
+      "secrets": [],
+      "status": "alive",
+      "visible": true
+     }
+    },
+    "combat": {
+     "engaged": [
+      "archer"
+     ],
+     "hp": {
+      "archer": 7,
+      "imp": 18
+     },
+     "last_target": "archer",
+     "max_hp": {
+      "archer": 7,
+      "imp": 18
+     },
+     "next": 0,
+     "opener_spent": false,
+     "order": [
+      "pc",
+      "imp",
+      "archer"
+     ],
+     "pc_damage": 11,
+     "pc_initiative": 25,
+     "pending": null,
+     "round": 2,
+     "started_by": "pc",
+     "status": "running",
+     "surprised": [],
+     "unprompted": [
+      {
+       "attacker": "imp",
+       "damage": 7,
+       "name": "fire spit",
+       "options": [
+        "uncanny_dodge"
+       ],
+       "trigger": "hit",
+       "type": "fire"
+      },
+      {
+       "attacker": "archer",
+       "damage": 4,
+       "name": "sling",
+       "options": [
+        "uncanny_dodge"
+       ],
+       "trigger": "hit",
+       "type": "bludgeoning"
+      }
+     ]
+    },
+    "refused_attempts": [
+     {
+      "action": "Sorrel backs off 30 feet down the hall.",
+      "revision": 3,
+      "ruling": "This physical action needs a room/rules ruling beyond the test slice. No turn was committed."
+     }
+    ],
+    "revision": 3
+   },
+   "die": 10,
+   "room": "kiln",
+   "ruling": {
+    "attempt_recorded": true,
+    "committed": false,
+    "message": "This physical action needs a room/rules ruling beyond the test slice. No turn was committed. The attempt is noted in the public history.",
+    "player_message": "That one needs the DM's call. Say a little more about how you go about it, or try it another way.",
+    "revision": 3,
+    "stage": "pending_ruling"
+   },
+   "sheet": "rogue",
+   "text": "Sorrel backs off 30 feet down the hall."
+  },
+  "no reaction (warlock, kiln)": {
+   "after": {
+    "actors": {
+     "archer": {
+      "armed": true,
+      "communication_profile": {
+       "humor": "None.",
+       "rhythm": "Hiss."
+      },
+      "knowledge": [],
+      "location": "kiln",
+      "motive": "Kill the intruder.",
+      "name": "Kobold slinger",
+      "pronoun": "it",
+      "secrets": [],
+      "status": "alive",
+      "visible": true
+     },
+     "imp": {
+      "armed": true,
+      "communication_profile": {
+       "humor": "None.",
+       "rhythm": "Hiss."
+      },
+      "knowledge": [],
+      "location": "kiln",
+      "motive": "Kill the intruder.",
+      "name": "Ember imp",
+      "pronoun": "it",
+      "secrets": [],
+      "status": "alive",
+      "visible": true
+     }
+    },
+    "combat": {
+     "engaged": [
+      "archer"
+     ],
+     "hp": {
+      "archer": 7,
+      "imp": 18
+     },
+     "last_target": "archer",
+     "max_hp": {
+      "archer": 7,
+      "imp": 18
+     },
+     "next": 0,
+     "opener_spent": false,
+     "order": [
+      "pc",
+      "imp",
+      "archer"
+     ],
+     "pc_damage": 11,
+     "pc_initiative": 25,
+     "pending": null,
+     "round": 2,
+     "started_by": "pc",
+     "status": "running",
+     "surprised": [],
+     "unprompted": [
+      {
+       "attacker": "imp",
+       "damage": 7,
+       "options": [
+        "hellish_rebuke"
+       ],
+       "trigger": "damaged"
+      },
+      {
+       "attacker": "archer",
+       "damage": 4,
+       "options": [
+        "hellish_rebuke"
+       ],
+       "trigger": "damaged"
+      }
+     ]
+    },
+    "refused_attempts": [
+     {
+      "action": "No reaction.",
+      "revision": 3,
+      "ruling": "This physical action needs a room/rules ruling beyond the test slice. No turn was committed."
+     }
+    ],
+    "revision": 3
+   },
+   "die": 10,
+   "room": "kiln",
+   "ruling": {
+    "attempt_recorded": true,
+    "committed": false,
+    "message": "This physical action needs a room/rules ruling beyond the test slice. No turn was committed. The attempt is noted in the public history.",
+    "player_message": "That one needs the DM's call. Say a little more about how you go about it, or try it another way.",
+    "revision": 3,
+    "stage": "pending_ruling"
+   },
+   "sheet": "warlock",
+   "text": "No reaction."
+  },
+  "no reaction again (rogue, shrine)": {
+   "after": {
+    "actors": {
+     "adept": {
+      "armed": true,
+      "communication_profile": {
+       "humor": "None.",
+       "rhythm": "Hiss."
+      },
+      "knowledge": [],
+      "location": "shrine",
+      "motive": "Kill the intruder.",
+      "name": "Cult adept",
+      "pronoun": "she",
+      "secrets": [],
+      "status": "alive",
+      "visible": true
+     }
+    },
+    "combat": {
+     "engaged": [
+      "adept"
+     ],
+     "hp": {
+      "adept": 22
+     },
+     "last_target": "adept",
+     "max_hp": {
+      "adept": 22
+     },
+     "next": 0,
+     "opener_spent": false,
+     "order": [
+      "pc",
+      "adept"
+     ],
+     "pc_damage": 10,
+     "pc_initiative": 25,
+     "pending": null,
+     "round": 2,
+     "started_by": "pc",
+     "status": "running",
+     "surprised": []
+    },
+    "refused_attempts": [
+     {
+      "action": "No reaction.",
+      "revision": 3,
+      "ruling": "This physical action needs a room/rules ruling beyond the test slice. No turn was committed."
+     }
+    ],
+    "revision": 3
+   },
+   "die": 10,
+   "room": "shrine",
+   "ruling": {
+    "attempt_recorded": true,
+    "committed": false,
+    "message": "This physical action needs a room/rules ruling beyond the test slice. No turn was committed. The attempt is noted in the public history.",
+    "player_message": "That one needs the DM's call. Say a little more about how you go about it, or try it another way.",
+    "revision": 3,
+    "stage": "pending_ruling"
+   },
+   "sheet": "rogue",
+   "text": "No reaction."
+  }
+ },
+ "main_sha": "de442cf"
+}

@@ -1,0 +1,52 @@
+rb|I stab the bridge ogre with my rapier, 18 to hit, 7 piercing; then I back off 10 feet.
+rb|I stab the bridge ogre with my rapier, 18 to hit, 7 piercing, and then I stab it again, 17 to hit, 6 piercing.
+rb|I stab the bridge ogre with my rapier, 18 to hit, 7 piercing. I stab the bridge ogre again with my rapier, 19 to hit, 8 piercing.
+rb|"Salt and pepper, you great lump," I snarl, and I stab the bridge ogre with my rapier, 18 to hit, 7 piercing.
+rb|I grip the rope, heart pounding, and glare at the ogre.
+rb|I glance down at the gorge, the wind tugging my cloak, and mutter a prayer to the Lady of Salt and Sorrow.
+rb|"You smell like wet dog, cheese, and regret," I tell the ogre, grinning.
+rb|I wipe my brow, then laugh, and say, "Is that all you've got?"
+rb|Uncanny Dodge that hit, and then, steady now, I stab the bridge ogre with my rapier, 18 to hit, 7 piercing.
+rb|I stab the bridge ogre with my rapier (Avrae: !a rapier -t ogre) 18 to hit, 7 piercing, then Uncanny Dodge that hit.
+rb|I stab the bridge ogre with my rapier.\n**Rapier**: 1d20+7 = 18 to hit; 7 piercing\nthen I back off 10 feet.
+rb|Nik attacks with a Rapier!\nTo Hit: 1d20 (11) + 7 = 18\nDamage: 7 piercing\nand I Uncanny Dodge that hit.
+rb|I Uncanny Dodge that greatclub hit; I step back 5 feet; I stab the bridge ogre with my rapier, 18 to hit, 7 piercing.
+rb|I Uncanny Dodge that hit, and I stab, and I stab, and I back off.
+rb|While the ogre roars, I stab the bridge ogre with my rapier, 18 to hit, 7 piercing, then wink at it.
+rb|I stab the bridge ogre with my rapier, 18 to hit, 7 piercing, twisting the blade, grinning, and shouting "for Roanoke!"
+rb|I stab the bridge ogre with my rapier, 18 to hit, 7 piercing and then and then I back off.
+rb|I stab the bridge ogre with my rapier, 18 to hit, 7 piercing... then... Uncanny Dodge?
+rb|I stab the bridge ogre with my rapier, 18 to hit, 7 piercing — and Uncanny Dodge that hit — then back off 10 feet.
+rb|Uncanny Dodge! Then I stab the bridge ogre with my rapier, 18 to hit, 7 piercing; and then I yell, "Bread and butter!"
+rb|I shove the bridge ogre, and I stab it with my rapier, 18 to hit, 7 piercing.
+rb|I back off 10 feet, then I back off another 10 feet.
+rb|I hold my ground, sword up, and wait.
+rb|I wait, and then I stab the bridge ogre with my rapier, 18 to hit, 7 piercing.
+rb|I Shield myself and stab the bridge ogre with my rapier, 18 to hit, 7 piercing.
+rb|I Hellish Rebuke the ogre, then I stab the bridge ogre with my rapier, 18 to hit, 7 piercing.
+rb|I stab the bridge ogre with my rapier, 18 to hit, 7 piercing, and Uncanny Dodge that hit, and Uncanny Dodge again.
+rb|I take a deep breath, the planks creaking, ropes swaying, and stab the bridge ogre with my rapier, 18 to hit, 7 piercing.
+rb|I check the knots and the planks, then back off 10 feet.
+rb|"Steady, steady," I whisper, and then I wait.
+wl|I cast Hellish Rebuke on the ember imp (Avrae: !cast hellish rebuke -t imp -l 1), 12 fire, then I stab the kobold slinger with my dagger, 18 to hit, 3 piercing.
+wl|Hellish Rebuke the imp, 12 fire (Avrae: !cast hellish rebuke -l 2), and I stab the kobold slinger with my dagger, 18 to hit, 3 piercing.
+wl|I stab the kobold slinger with my dagger, 18 to hit, 3 piercing, and stab the ember imp with my dagger, 19 to hit, 4 piercing.
+wl|Hellish Rebuke the imp, 12 fire, then I stab the kobold slinger with my dagger, 18 to hit, 3 piercing.
+wl|I cast Hellish Rebuke on the imp at 2nd level, 15 fire, then stab the slinger with my dagger, 18 to hit, 3 piercing.
+wl|I curse the imp, spit, and say "Brimstone and ash take you", then Hellish Rebuke it (Avrae: !cast hellish rebuke -l 1), 12 fire.
+wl|I stab the kobold slinger with my dagger, 18 to hit, 3 piercing.\n!cast hellish rebuke -t imp -l 1\nHellish Rebuke: 12 fire\nthen I back away 10 feet.
+wl|The kiln's heat, the smoke, the shards underfoot: I take it all in, then stab the kobold slinger with my dagger, 18 to hit, 3 piercing.
+wl|I stab the kobold slinger with my dagger, 18 to hit, 3 piercing, and Uncanny Dodge.
+wl|I Hellish Rebuke the imp, Hellish Rebuke the slinger, then stab the slinger with my dagger, 18 to hit, 3 piercing.
+wz|Absorb Elements (Avrae: !cast absorb elements -l 2), then Fire Bolt the kobold slinger, 19 to hit, 8 fire.
+wz|Absorb Elements, then Fire Bolt the kobold slinger, 19 to hit, 8 fire.
+wz|Fire Bolt the kobold slinger, 19 to hit, 8 fire, and Fire Bolt the ember imp, 18 to hit, 7 fire.
+wz|I cast Absorb Elements at 3rd level (Avrae: !cast absorb elements -l 3), and then Fire Bolt the ember imp, 18 to hit, 7 fire.
+wz|I mutter about pots and pans, kiln and clay, then Fire Bolt the kobold slinger, 19 to hit, 8 fire.
+wz|Absorb Elements (Avrae: !cast absorb elements -l 1), Absorb Elements (Avrae: !cast absorb elements -l 1), Fire Bolt the slinger, 19 to hit, 8 fire.
+wz|I Shield (Avrae: !cast shield), then Fire Bolt the kobold slinger, 19 to hit, 8 fire.
+wz|Fire Bolt the slinger, 19 to hit, 8 fire, then I back away 10 feet, then Absorb Elements (Avrae: !cast absorb elements -l 1).
+wz|I stab the kobold slinger with my dagger, 18 to hit, 3 piercing, and with my off-hand, salt and iron, I stab the ember imp, 15 to hit, 2 piercing.
+wz|I look at the kiln and the shelves, then Fire Bolt the slinger, 19 to hit, 8 fire.
+wz|"Fire and clay," I say, "fire and clay," as I back away 10 feet.
+wz|I study the imp, then the slinger, then the door.
