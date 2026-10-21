@@ -2,16 +2,16 @@
   "schema": "kit_project_gardener_state/v1",
   "purpose": "RESUMABILITY_CURSOR_NOT_KNOWLEDGE_STORE",
   "canonical_location": "radarsaint/dnd-solo/coordination/context_state.json",
-  "state_revision": 28,
+  "state_revision": 29,
   "semantic_brain": {
     "repo": "radarsaint/dnd-solo",
     "path": "docs/PROJECT_UNDERSTANDING.md",
-    "last_semantic_commit": "0493a73d012da88626494838be64f9467676b7ea",
+    "last_semantic_commit": "d159240504d2726a9451cb440a0bfc8662d9166c",
     "last_reviewed_on": "2026-10-21"
   },
   "checkpoint": {
     "reviewed_against_main": {
-      "radarsaint/dnd-solo": "0493a73d012da88626494838be64f9467676b7ea",
+      "radarsaint/dnd-solo": "d159240504d2726a9451cb440a0bfc8662d9166c",
       "radarsaint/bfdm-corpus": "f5f6e4d48aed32e3f4ddfdf70cbdcd5fe6e27b2d"
     },
     "context_inbox": {
@@ -19,15 +19,15 @@
       "issue": 115,
       "issue_state_at_checkpoint": "open",
       "last_fully_reconciled_comment_id": 6202184874,
-      "comment_count_at_checkpoint": 17
+      "comment_count_at_checkpoint": 18
     }
   },
   "last_completed_pass": {
     "kind": "BOUNDED_SEMANTIC_RECONCILIATION",
     "completed_on": "2026-10-21",
-    "scope": "Reviewed dnd-solo #142 North Star merge into persona and Project Brain (main 545c9cc3 then header update), plus resulting main. #115 comment 6266120288 is pending draft, not reconciled as truth.",
-    "result": "Accept: #142 carries the October 21 North Star developmental handoff into the personality core and Project Brain. Satisfaction governs creative and interpersonal judgment. Behavioral probes exist but are NOT RUN; application remains unproved. Work assignment clarification accepted. Header Context reviewed against updated to live SHAs. No bfdm-corpus change. Pending #115 DM Kit rulings (spell slot ask, equipment misuse, unsourced proficiency) remain unresolved until their draft PR lands on main.",
-    "resulting_brain_commit": "0493a73d012da88626494838be64f9467676b7ea",
+    "scope": "Reviewed dnd-solo #143 complete Kit host-loading merge (main d7f071f5 then header update to d1592405). #115 comment 6266120288 remains pending draft, not reconciled as truth.",
+    "result": "Accept: #143 makes LOAD_KIT.md the host entry for complete binary delivery, full Git-tree/file verification, persona/host-context ingestion, and reset recovery. Publisher supplies the same ZIP via workflow artifact and release. Ordinary-GPT loading and actual reset recovery remain unproved until a fresh destination GPT consumes it. Header Context reviewed against updated to live main. No bfdm-corpus change. Pending #115 DM Kit rulings remain unresolved until their draft PR lands on main.",
+    "resulting_brain_commit": "d159240504d2726a9451cb440a0bfc8662d9166c",
     "reconciled_comment_id": 6202184874
   },
   "active_pass": null,
@@ -39,7 +39,8 @@
     "PR #122 Kit-declared combat_acts is draft; word-matching parser ends only after it lands. Main default path unchanged.",
     "#115 comment 6158450658 plan items beyond the two #101 fixes are not fixed on main.",
     "Legitimate Mad Mage opening remains blocked on missing room files and source-to-room authoring. No executable non-6c authored location.",
-    "#115 comment 6266120288 (2026-10-19 DM Kit rulings on spell slots, equipment misuse, unsourced proficiencies) is PENDING REVIEW; draft PR in progress, nothing merged. Not reconciled as live truth."
+    "#115 comment 6266120288 (2026-10-19 DM Kit rulings on spell slots, equipment misuse, unsourced proficiencies) is PENDING REVIEW; draft PR in progress, nothing merged. Not reconciled as live truth.",
+    "Ordinary-GPT complete load and reset recovery via LOAD_KIT.md remains unproved. Work-host and CI checks do not certify the destination host."
   ],
   "needs_review": [],
   "checkpoint_rules": {
