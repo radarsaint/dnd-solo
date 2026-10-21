@@ -17,6 +17,7 @@ from runtime import kit_agent
 from runtime.state_context import InvalidChange
 from test_kit_review97b import Room, bridge_turn
 from test_kit_review97c import belfry
+from kit_policy import rejections_raise
 
 
 def well():
@@ -72,6 +73,7 @@ class OfferFollowsTheRoomTests(unittest.TestCase):
 class NothingMovesWithoutAFiringTests(unittest.TestCase):
     NONE = {'target': 'none', 'act': 'none', 'reason': 'too_heavy'}
 
+    @rejections_raise  # validator probe (tests/kit_policy.py)
     def test_movement_in_any_clause_is_rejected_on_a_none_turn(self):
         for source, line in ((None, 'I push the lid aside.'), (well(), 'I crank the winch.')):
             for text in SLIPS:
@@ -89,6 +91,7 @@ class NothingMovesWithoutAFiringTests(unittest.TestCase):
                 with self.subTest(line=line, text=text):
                     bridge_turn(Room(self, source=source), line, self.NONE, text=text)
 
+    @rejections_raise  # validator probe (tests/kit_policy.py)
     def test_the_check_runs_without_an_offer_too(self):
         room = Room(self)
         with self.assertRaisesRegex(InvalidChange, 'moving or opening'):

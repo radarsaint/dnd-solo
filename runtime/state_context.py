@@ -214,9 +214,12 @@ def upgrade_state(state):
     return state
 
 
-def check_player_note_text(text):
-    require(isinstance(text, str) and 0 < len(text.strip()) <= PLAYER_NOTE_MAX_CHARS,
-            f'A player note must be 1–{PLAYER_NOTE_MAX_CHARS} characters')
+def check_player_note_text(text, field='note'):
+    size = len(text.strip()) if isinstance(text, str) else None
+    require(isinstance(text, str) and 0 < size <= PLAYER_NOTE_MAX_CHARS,
+            f'A player note must be 1–{PLAYER_NOTE_MAX_CHARS} characters: {field} has '
+            f'{"no text" if size is None else size}. Write one observed pattern in a sentence. Example: '
+            '"note": "Tests NPCs with direct questions before trusting them."')
     require(re.search(_SCORE_PATTERN, text.casefold()) is None,
             'A player note records observed behavior or feedback, not a score or meter')
 
@@ -421,7 +424,9 @@ class Runtime:
                               (turn_id,)).fetchone()
         return {**json.loads(row[0]), 'revision': row[1]} if row else None
 
-    def save_kit_plan(self, turn_id, expected_revision, plan):
+    def save_kit_plan(self, turn_id, expected_revision, plan, replace=False):
+        """Fix the private decision for a pending turn. ``replace``: a corrected decision that
+        passed every check replaces one an earlier, rejected attempt saved (one-pass only)."""
         serialized = encode(plan)
         require(len(serialized.encode()) <= 12000, 'Private Kit decision exceeds size limit')
         self.db.execute('BEGIN IMMEDIATE')
@@ -432,8 +437,10 @@ class Runtime:
             row = self.db.execute('SELECT revision, plan FROM kit_pending WHERE turn_id=?',
                                   (turn_id,)).fetchone()
             require(row is not None and row[0] == expected_revision, 'No matching pending Kit turn')
-            require(row[1] is None or row[1] == serialized, 'Private decision already fixed for this turn')
-            if row[1] is None:
+            require(replace or row[1] is None or row[1] == serialized,
+                    'Private decision already fixed for this turn. The same decision with only a new '
+                    'performance is accepted and commits; a changed decision is not.')
+            if row[1] != serialized:
                 self.db.execute('UPDATE kit_pending SET plan=? WHERE turn_id=?',
                                 (serialized, turn_id))
             self.db.commit()

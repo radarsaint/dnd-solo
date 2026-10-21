@@ -9,6 +9,7 @@ import io
 import json
 import tempfile
 import unittest
+import unittest.mock
 from pathlib import Path
 from unittest.mock import patch
 
@@ -18,6 +19,7 @@ from runtime.kit_agent import (KitAgent, KitChatBridge, PendingRuling, RoomAdjud
 from runtime.state_context import (CONTEXT_BUDGET_BYTES, HostSequenceError, InvalidChange,
                                    PERSONALITY_CORE, Runtime, StaleTurn, encode)
 from test_kit_agent import FIXTURE, NIK_GREETING, NIK_FLAT_REPLY as NIK_REPLY, RecordingModel, exchange_speech
+from kit_policy import rejections_raise
 
 SOURCE = json.loads(FIXTURE.read_text())
 CARDS = SOURCE['public_performance']['actor_cards']
@@ -280,6 +282,7 @@ class RulingDodgeTests(BridgeCase):
         result = self.bridge.finish('rules', {'segments': [seg('Kit', 'Wisdom (Insight), yes. Go ahead.', 'roll Insight on the dealer')]})
         self.assertEqual(result['revision'], 1)
 
+    @unittest.mock.patch.object(kit_agent, 'ENGINE_LINE_AFTER_REJECTIONS', 99)  # validator probe: rejections loop (see test_kit_open_ask)
     def test_clarification_must_ask_and_cannot_hide_an_npc_reply(self):
         prepared = self.bridge.prepare('I say: do the thing with the cards.', 'clarify')
         self.bridge.decide('clarify', self.dodge(prepared, move='ask_clarification'))
@@ -306,6 +309,7 @@ class ParaphraseLeakTests(BridgeCase):
                 self.leak(text)
         self.leak('The dealer fans the cards with a practiced flourish.')
 
+    @rejections_raise  # validator probe (tests/kit_policy.py)
     def test_kit_ruling_voice_is_checked_too(self):
         prepared, plan = self.one_pass('(OOC) Can I tell if the fangs are real just by asking?', 'kit-leak')
         plan.update(table_presence='brief', move='ruling', focus_actor='none')
@@ -344,6 +348,7 @@ class ParaphraseLeakTests(BridgeCase):
 class RetryCapTests(BridgeCase):
     """(g7) Retries are capped; the host gets a degraded-but-valid path, then abandon."""
 
+    @unittest.mock.patch.object(kit_agent, 'ENGINE_LINE_AFTER_REJECTIONS', 99)  # validator probe: rejections loop (see test_kit_open_ask)
     def test_degraded_path_unlocks_after_the_cap_and_records_warnings(self):
         self.staged(NIK_GREETING, 'stuck', reply_to='Whats going on here?')
         with self.assertRaises(HostSequenceError):
@@ -360,6 +365,7 @@ class RetryCapTests(BridgeCase):
         self.assertTrue(record['degraded'])
         self.assertTrue(self.runtime.kit_timing('stuck')['degraded'])
 
+    @unittest.mock.patch.object(kit_agent, 'ENGINE_LINE_AFTER_REJECTIONS', 99)  # validator probe: rejections loop (see test_kit_open_ask)
     def test_degraded_mode_never_relaxes_hard_checks(self):
         self.staged('I take a seat.', 'hard')
         leaky = {'segments': [seg('Narrator', 'The doppelganger smiles.'), seg('Dealer', 'Sit.')]}
@@ -372,6 +378,7 @@ class RetryCapTests(BridgeCase):
         with self.assertRaisesRegex(InvalidChange, 'Player agency'):
             self.bridge.finish('hard', agency, degraded=True)
 
+    @unittest.mock.patch.object(kit_agent, 'ENGINE_LINE_AFTER_REJECTIONS', 99)  # validator probe: rejections loop (see test_kit_open_ask)
     def test_abandon_is_offered_and_frees_the_action_for_a_fresh_decision(self):
         self.staged(NIK_GREETING, 'doomed', reply_to='Whats going on here?')
         for _ in range(kit_agent.ABANDON_SUGGEST_AFTER):
@@ -384,6 +391,7 @@ class RetryCapTests(BridgeCase):
         self.staged(NIK_GREETING, 'fresh')
         self.assertEqual(self.bridge.finish('fresh', exchange_speech(1, kit=False))['revision'], 1)
 
+    @rejections_raise  # validator probe (tests/kit_policy.py)
     def test_api_path_makes_its_last_attempt_degraded(self):
         class AlwaysFlat(RecordingModel):
             def plan(inner, payload):
@@ -397,6 +405,7 @@ class RetryCapTests(BridgeCase):
         self.assertTrue(result['timing']['degraded'])
         self.assertTrue(self.runtime.recent_kit_turns()[-1]['degraded'])
 
+    @unittest.mock.patch.object(kit_agent, 'ENGINE_LINE_AFTER_REJECTIONS', 99)  # validator probe: rejections loop (see test_kit_open_ask)
     def test_cli_rejection_carries_the_options(self):
         self.staged(NIK_GREETING, 'cli', reply_to='Whats going on here?')
         temp = Path(tempfile.mkdtemp())
@@ -685,6 +694,7 @@ class CardPlayerIdentityTests(BridgeCase):
                       'defeat adventurers, they try to turn them against the Xanathar goblinoids.',
                       SOURCE['room_rules'])
 
+    @rejections_raise  # validator probe (tests/kit_policy.py)
     def test_focus_card_player_reaches_performer_by_label_only(self):
         prepared = self.bridge.prepare('I ask the player by the door what they think.', 'door')
         plan = self.quiet_plan(prepared['input'])

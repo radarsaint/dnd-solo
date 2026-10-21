@@ -69,6 +69,9 @@ def check_improv_read(read, candidates):
     actor = read['actor_ref']
     require(isinstance(actor, str) and actor in candidates['actor_bases'],
             'Actor is not available in this scene')
-    require(isinstance(read['actor_basis'], str) and
-            read['actor_basis'] in candidates['actor_bases'][actor],
-            'Actor basis is not established for this actor')
+    bases = list(candidates['actor_bases'][actor])
+    require(isinstance(read['actor_basis'], str) and read['actor_basis'] in bases,
+            f'Actor basis is not established for this actor: improv_read.actor_basis is '
+            f'{read["actor_basis"]!r}; for actor_ref {actor!r} it must be one of: {", ".join(bases)}. '
+            f'Example: "actor_ref": "{actor}", "actor_basis": "{bases[0] if bases else "none"}"'
+            + ('' if actor == 'none' else ' (with no actor in focus: "actor_ref": "none", "actor_basis": "none")'))
