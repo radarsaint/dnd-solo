@@ -4,8 +4,10 @@
 **Status:** canonical on `dnd-solo/main` after Brendon-approved merges of #113 and #117 on 2026-10-08. It is no longer a proposed side-branch draft.  
 **Canonical location:** `radarsaint/dnd-solo/docs/PROJECT_UNDERSTANDING.md`  
 **Sibling repository:** `radarsaint/bfdm-corpus`  
-**Last substantive refresh:** 2026-10-17  
+**Last substantive refresh:** 2026-10-21  
 **Context reviewed against:** `dnd-solo/main @ 93453a0b7cc04bfd69d7243b00dc60c0818ed740`; `bfdm-corpus/main @ abe036c5584b8ecbb2977128f8fef92728a0673d`
+
+**2026-10-21 bounded update:** Brendon's mount-to-North-Star developmental handoff and explicit assignment of its repository integration to ChatGPT Work. Runtime/corpus audits retain the boundaries recorded below; this update does not re-certify them.
 
 > This document is the project's current **semantic model**: what we are building, where we are, why we got here, what changed our thinking, how the major workstreams fit together, what we currently believe, what remains uncertain, and where the evidence points next.
 >
@@ -41,6 +43,14 @@ BFDM research is not the product.
 
 **Kit is the product. The total experienced game is the acceptance layer.**
 
+The governing creative purpose is to pursue the most satisfying story that can honestly emerge from the world Kit creates and the people who inhabit it. Brendon's 2026-10-21 addition is exact:
+
+> I must build a world worthy of the people in it. And I must sew the people to the world while loving both enough to support what they become.
+
+Satisfaction must organize competing judgments across turns, sessions, and arcs. Momentary enjoyment, emotional intensity, coherent mechanics, worldbuilding, and social harmony are contributing considerations. A particular world must merit attention; actual people and their choices must become part of its history. Supporting what they become includes allowing beloved prep, expected payoffs, and relationships to change. It does not authorize revising facts or taking player agency to protect a preferred story.
+
+The operational distillation lives in [the personality core](personality/dm-personality-core.md), which the runtime already reads. The [full developmental handoff](personality/2026-10-21-mount-to-north-star-handoff.md) preserves evidence, attribution, failures, and unresolved questions. [North Star judgment probes](../tests/scenarios/north-star-judgment.md) specify how to challenge application. These are director-established requirements with application still unproved.
+
 Longer term, the project aims at a Kit capable of carrying persistent, asynchronous, multiplayer campaigns under Brendon's direction at a scale comparable to the historical Roanoke productions, without requiring Brendon or volunteer human DMs to provide the continuous runtime.
 
 The hard requirement is therefore larger than "make an LLM good at narration." Kit has to combine persistent world truth, source grounding, adjudication, differentiated NPC/faction state, campaign continuity, DM judgment, personality, presentation, restraint, long-horizon consequences, and director intent into one coherent Dungeon Master experience.
@@ -54,6 +64,8 @@ The current runtime is materially beyond the original Area 6c prototype. It has 
 Player-facing `start` and `init` with no `--room` no longer mount Area 6c or load a default character (Wren). They return `campaign_entry` (or `resume` if the save already holds a game) and do not create a database. The campaign is Dungeon of the Mad Mage. Its start—the Yawning Portal then Level 1 Area 1—is not a room file. Source-to-room authoring is not built. `rooms/level_01_area_17a.json` is a stub; the host is told not to invent a room. Area 6c mounts only with explicit `--regression --room tests/fixtures/level_01_area_06c.json`. A legitimate Mad Mage opening remains blocked on missing room files and source-to-room authoring. dnd-solo #124 merged as `219f6e0478e153e73e7e10a73851036f7228d940` (2026-10-16).
 
 The research substrate has also advanced. BFDM PR #40 merged on 2026-10-08: the catalog now holds 195 BCS identities through BCS-000195, with 193 indexed source containers (BCS-000059 is context-only; BCS-000068 is an excerpt without a source container). Model-facing Discord retrieval exists, and the old Git LFS opacity problem should not be restarted. The remaining missing revisions, Rowing Oak imagery, Bodfish Google Site, partial Earthfall/Saturday Project histories, and known-source gaps remain explicit archival work dependent on source access. Accessible evidence is not semantically verified judgment research.
+
+The 2026-10-21 handoff records a later host successfully hash-verifying 37 runtime files from `de442cf5` and running `python -m runtime.kit_agent persona` with exit 0. A portable ZIP was preserved; the unpacked directory was absent when the handoff was prepared. This is reported preceding-host mount evidence, not a fresh mount check in every subsequent host. Restoring an already prepared runtime in a capable destination host is distinct from repository engineering. A mount requires the specified files and integrity check; it does not require a selected character, adventure, or live scene. Actual bridge turns and satisfying play remain separate acceptance targets.
 
 The important bottlenecks have moved upward.
 
@@ -95,6 +107,14 @@ This thread exposed the same failure at the project-management layer: a bootstra
 
 The response is the current Project Brain design: the project should preserve not only state and evidence, but also the **best current semantic understanding of what that state means**.
 
+### Creative and interpersonal judgment exposed by the North Star dialogue
+
+The October 21 persona-and-judgment dialogue exposed failures that mechanical coverage cannot settle. Bracken Quay met a play-design checklist but lacked a discriminating reason to create that particular world. Bell Sea supplied generative detail while closely echoing Brendon's immediately preceding Lost Colony explanation. Repeated answers to why DMs run games promoted the latest correction into a universal goal. The sadness probe initially produced authored pathos rather than recognition of emotion as a signal between real participants.
+
+The revised model requires creative selection, human-group perception, and judgment over time. Players bring attachment, ego, humor, disagreement, anger, generosity, and vulnerability into play. Their relationships are part of the medium. Kit must distinguish an opening for mutual support from a moment needing direct table intervention, and she must preserve room for honest conflict as well as connection. The same visible emotion can call for different choices in different contexts.
+
+The handoff is an interpretive record of that conversation. Its reference to historical Roanoke cases is not a new semantic audit of BFDM research; retired Project attachments cited there do not regain current authority. Its observations do not establish that any prior or updated core has acquired the missing skills. The next evidence must be choices in counterexamples, consequences across later turns, and eventually current-build play.
+
 ## 1.4 Current strategic model
 
 The project should now be understood as four linked questions:
@@ -115,6 +135,8 @@ A fifth supporting question has now become explicit:
 
 **Can every serious collaborator start from the same evolving mental model of the project?**  
 If not, the project repeatedly pays a tax in contradictory plans, duplicated work, stale assumptions, and Brendon having to act as manual memory.
+
+A genuine ChatGPT Work session must not inherit the ordinary-GPT execution boundary merely because both use GitHub connectors. Brendon explicitly assigned this research, semantic reconciliation, personality-document work, and GitHub delivery to Work on 2026-10-21. Work should complete such an assigned workflow with available tools; Grok Build remains the default mechanical executor and Skippy retains runtime ownership. [The resource map](../coordination/AGENTS_AND_TOOLS.md) preserves that distinction.
 
 No single agent or chat should be the memory substrate. Nagatha remains valuable for PM/review/acceptance reconciliation, Skippy remains central to runtime engineering, Grok Build is a shell/repository execution resource, ordinary GPTs perform substantial reasoning/research/synthesis, and ChatGPT Work is reserved for work where its autonomous multi-source capability materially matters. The project itself must carry the continuity between them.
 
@@ -230,6 +252,7 @@ Accessible evidence is not semantically verified judgment research. The first-tr
 
 ## 4. Current known gaps and open questions
 
+- The North Star is now explicit, but independent creative selection, human-group judgment, and long-horizon satisfaction remain unproved. The October 21 dialogue is developmental evidence, not bridge-backed play. The next evaluation must test conflicting values and later consequences rather than recognition of the motto.
 - Player-experience truth is the largest remaining confidence gap. Runtime and research have advanced faster than sustained current-build evaluation with Brendon.
 - BFDM derived-research trust is the second gap. Source accessibility is strong; polished derived claims still need adversarial verification against primary evidence.
 - Shared project understanding is the third gap. This Brain and the Gardener process exist to close it. A status-checker warning is not completion.
