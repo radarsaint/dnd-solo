@@ -10,7 +10,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from runtime import kit_agent, kit_campaign
+from runtime import kit_agent, kit_campaign, kit_pack
 from runtime.state_context import PROJECT_ROOT, Runtime
 
 ROOT = PROJECT_ROOT
@@ -21,18 +21,25 @@ class CampaignEntryTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.db = str(Path(self.tmp.name) / 'kit.sqlite')
+        # Never the host's real upload folders or cwd: a host with a real pack attached must not
+        # change these results (Nagatha's clean-host review of #128).
+        nowhere = Path(self.tmp.name) / 'no-packs'
+        nowhere.mkdir()
+        isolate = patch.object(kit_pack, 'SEARCH_ROOTS', [nowhere])
+        isolate.start()
+        self.addCleanup(isolate.stop)
 
     def tearDown(self):
         self.tmp.cleanup()
 
     def test_no_room_greets_and_does_not_assume_mad_mage(self):
         result = kit_agent.start_session(self.db)
-        self.assertEqual(result['stage'], 'greeting')
+        self.assertEqual(result['stage'], 'lobby')
         self.assertFalse(result['committed'])
         self.assertIsNone(result['opened_room'])
         self.assertFalse(result['character_loaded'])
         self.assertEqual(result['executable_starts'], [])
-        self.assertEqual(result['table_line'], kit_campaign.GREETING)
+        self.assertTrue(result['table_line'].startswith("I'm Kit."))
         self.assertNotIn('yawning', result['table_line'].casefold())
         self.assertNotIn('mad mage', result['table_line'].casefold())
         self.assertNotIn('6c', result['table_line'].casefold())
@@ -55,7 +62,7 @@ class CampaignEntryTests(unittest.TestCase):
 
     def test_a_sheet_alone_still_does_not_open_a_room(self):
         result = kit_agent.start_session(self.db, str(kit_agent.EXAMPLE_SHEET))
-        self.assertEqual(result['stage'], 'greeting')
+        self.assertEqual(result['stage'], 'lobby')
         self.assertFalse(result['sheet_loaded'])
         self.assertFalse(Path(self.db).exists())
 
@@ -85,7 +92,7 @@ class CampaignEntryTests(unittest.TestCase):
             code = _argv(['kit_agent', 'start', '--db', self.db])
         self.assertEqual(code, 0)
         printed = json.loads(out.getvalue())
-        self.assertEqual(printed['stage'], 'greeting')
+        self.assertEqual(printed['stage'], 'lobby')
         self.assertNotIn('mad mage', printed['table_line'].casefold())
         self.assertFalse(Path(self.db).exists())
 
@@ -132,7 +139,7 @@ class CampaignEntryTests(unittest.TestCase):
         with contextlib.redirect_stdout(out):
             code = _argv(['kit_agent', 'init', '--db', self.db])
         self.assertEqual(code, 0)
-        self.assertEqual(json.loads(out.getvalue())['stage'], 'greeting')
+        self.assertEqual(json.loads(out.getvalue())['stage'], 'lobby')
         self.assertFalse(Path(self.db).exists())
 
     def test_one_real_room_is_offered_and_not_auto_opened(self):
@@ -148,7 +155,7 @@ class CampaignEntryTests(unittest.TestCase):
         }
         (folder / 'area_1.json').write_text(json.dumps(body), encoding='utf-8')
         report = kit_campaign.campaign_entry(self.db, rooms_dir=folder)
-        self.assertEqual(report['stage'], 'greeting')
+        self.assertEqual(report['stage'], 'lobby')
         self.assertEqual(len(report['executable_starts']), 1)
         self.assertEqual(report['executable_starts'][0]['room_id'], 'dotmm-level-01-area-01-test')
         self.assertNotIn('mad mage', report['table_line'].casefold())
@@ -159,11 +166,12 @@ class CampaignEntryTests(unittest.TestCase):
 
     def test_subprocess_start_matches_the_host_command(self):
         proc = subprocess.run(
-            [sys.executable, '-m', 'runtime.kit_agent', 'start', '--db', self.db],
+            [sys.executable, '-m', 'runtime.kit_agent', 'start', '--db', self.db,
+             '--upload-dir', str(Path(self.tmp.name) / 'no-packs')],
             cwd=ROOT, capture_output=True, text=True, check=False)
         self.assertEqual(proc.returncode, 0, proc.stderr)
         result = json.loads(proc.stdout)
-        self.assertEqual(result['stage'], 'greeting')
+        self.assertEqual(result['stage'], 'lobby')
         self.assertNotIn('mad mage', result['table_line'].casefold())
         self.assertEqual(result['executable_starts'], [])
         self.assertFalse(Path(self.db).exists())

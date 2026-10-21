@@ -407,11 +407,27 @@ def load_room(ref):
         raise RoomMountError(ref, [f'malformed room data ({type(exc).__name__}: {exc})']) from None
 
 
-def load_link(link):
+def link_ref(link, from_ref=None):
+    """Where a ``room_link`` points. As written, if that file exists; otherwise, for a room
+    mounted from outside the repo (a private rooms pack, runtime/kit_pack.py), the same
+    relative path or file name next to the room it leaves. A pack built on one machine may
+    name that machine's absolute paths; another host has only the pack's own copy."""
+    ref = link['room']
+    if room_path(ref).is_file() or not from_ref:
+        return ref
+    here = room_path(from_ref).parent
+    for candidate in ((here / ref) if not Path(ref).is_absolute() else None, here / Path(ref).name):
+        if candidate is not None and candidate.is_file():
+            return str(candidate)
+    return ref
+
+
+def load_link(link, from_ref=None):
     """The room an area's ``room_link`` leads to, checked down to its arrival area."""
-    source = load_room(link['room'])
+    ref = link_ref(link, from_ref)
+    source = load_room(ref)
     if link['area'] not in source['areas']:
-        raise RoomMountError(link['room'], [f"room_link area {link['area']!r} is not one of its areas"])
+        raise RoomMountError(ref, [f"room_link area {link['area']!r} is not one of its areas"])
     return source
 
 
@@ -423,14 +439,15 @@ def arrive(old_source, state, link):
     """(the linked room, the state on arrival in it): the room loaded and checked, the room
     left archived, the arrival area observed, and the new room's context within its caps."""
     from .state_context import Runtime
-    source = load_link(link)
+    ref = link_ref(link, (state.get('room') or {}).get('path'))
+    source = load_link({**link, 'room': ref})
     seen = ((state.get('rooms') or {}).get(source.get('id')) or {}).get('state', {}).get('room', {}).get('path')
-    if source.get('id') == old_source.get('id') or seen and _same_file(seen, link['room']) is False:
+    if source.get('id') == old_source.get('id') or seen and _same_file(seen, ref) is False:
         # Room ids key the archive: a second file with the same id would overwrite a room left.
-        raise RoomMountError(link['room'], [f"room id {source.get('id')!r} is already used by another room file"])
-    new = mounted_state(old_source, state, source, link['area'], link['room'])
+        raise RoomMountError(ref, [f"room id {source.get('id')!r} is already used by another room file"])
+    new = mounted_state(old_source, state, source, link['area'], ref)
     Runtime._observe(new, source)
-    check_context(source, new, ref=link['room'])
+    check_context(source, new, ref=ref)
     return source, new
 
 

@@ -22,3 +22,9 @@ assets/handouts/*
 !assets/handouts/index.json
 *.sqlite
 *.sqlite-*
+
+# Private rooms packs (adventure-derived; never commit them to this public repo) and the
+# copies start unzips next to a save (runtime/kit_pack.py, docs/architecture/ROOM_PACKS.md).
+.kit-packs/
+kit-rooms*/
+kit-rooms*.zip
