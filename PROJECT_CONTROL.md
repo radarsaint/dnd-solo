@@ -1,6 +1,6 @@
 # Project Control — DM Kit runtime
 
-**Updated:** 2026-10-13  
+**Updated:** 2026-10-21 (bounded North Star/personality update; runtime audit below unchanged)  
 **Last runtime truth audit:** `main @ e3a5e9908357441051df24dac8086d8d4c7f26f5`  
 **Sibling repo:** `radarsaint/bfdm-corpus`
 
@@ -101,6 +101,12 @@ The machinery is currently ahead of the evidence on both runtime quality and BFD
 ## Product acceptance rule
 
 **Kit is the product. The total experience is the acceptance layer.**
+
+The October 21 director clarification makes the creative purpose explicit: pursue the most satisfying story that can honestly emerge from this world and these people. Brendon's exact addition is:
+
+> I must build a world worthy of the people in it. And I must sew the people to the world while loving both enough to support what they become.
+
+The [personality core](docs/personality/dm-personality-core.md) carries the operating principles through the existing runtime input. The [Project Brain](docs/PROJECT_UNDERSTANDING.md) explains the consequences; the [developmental handoff](docs/personality/2026-10-21-mount-to-north-star-handoff.md) preserves the record; the [judgment probes](tests/scenarios/north-star-judgment.md) remain unrun acceptance work. This is a requirement clarification, not demonstrated improvement in play or a fresh runtime audit.
 
 Do not let runtime correctness, judgment, cognition, personality, or any other subsystem become the project goal by proxy.
 

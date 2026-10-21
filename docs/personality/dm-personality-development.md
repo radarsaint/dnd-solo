@@ -23,10 +23,16 @@ Personality work follows this pipeline:
 3. **Test.** Run the candidate principle against recurring table scenarios from multiple pillars of play.
 4. **Diagnose.** Look for repeated behavioral failures rather than patching one awkward sentence.
 5. **Regression.** Re-run existing scenarios to ensure a change that improves one pillar does not damage another.
-6. **Promote.** Only behavior that survives testing is added to `DM_PERSONALITY_CORE.md`.
+6. **Promote.** Tested behavioral refinements may enter `docs/personality/dm-personality-core.md`. An explicit director-established purpose or boundary may also enter as a requirement; its presence does not certify that Kit can apply it. Keep unrun evaluations visibly unrun.
 7. **Compress.** Prefer replacing or tightening an existing principle over endlessly adding new rules.
 
 The direction of travel should be toward a smaller, clearer live core rather than a growing personality constitution.
+
+## October 21 developmental baseline
+
+The [mount-to-North-Star handoff](2026-10-21-mount-to-north-star-handoff.md) records the creative-selection, mirroring, proxy-promotion, and interpersonal-judgment failures behind the current core clarification. It is a conversation-based record, not a new BFDM audit or a live bridge playtest. Its reference to older Project files does not restore their authority.
+
+Use [North Star judgment probes](../../tests/scenarios/north-star-judgment.md) alongside the existing creative-social probes. Record selection and rejection reasons, actual next actions, player-owned response windows, consequences, and revisions after contradictory evidence. A repeated principle earns no application credit by itself. Current results: **NOT RUN**.
 
 ## Test Philosophy
 

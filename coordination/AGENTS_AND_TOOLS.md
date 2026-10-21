@@ -106,6 +106,8 @@ At the end of substantial work, they should push durable new understanding into 
 **Constraint:** scarce/valuable resource; do not spend it on routine substrate busywork already handled elsewhere.  
 **Not:** permanent project owner, Nagatha, Skippy, or a generic synonym for GPT.
 
+**Execution clarification (Brendon, 2026-10-21):** an actual ChatGPT Work session can directly complete explicitly assigned research, evaluation, semantic reconciliation, personality-document editing, and GitHub delivery when its available tools support the workflow. Do not apply the ordinary-GPT execution boundary above to Work or hand its assigned work away solely because durable edits live in Git. Grok Build remains the default for mechanical implementation and Skippy retains runtime-engineering ownership; explicit task assignment can choose the executor.
+
 ### Numbered/special-purpose GPT threads
 
 Examples: GPT 1, GPT 2, GPT 3 from the October 7 audit set.
