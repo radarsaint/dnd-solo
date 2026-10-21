@@ -5,7 +5,7 @@
 **Canonical location:** `radarsaint/dnd-solo/docs/PROJECT_UNDERSTANDING.md`  
 **Sibling repository:** `radarsaint/bfdm-corpus`  
 **Last substantive refresh:** 2026-10-21  
-**Context reviewed against:** `dnd-solo/main @ 545c9cc3b419cad413d86699f687f3ca401edb16`; `bfdm-corpus/main @ f5f6e4d48aed32e3f4ddfdf70cbdcd5fe6e27b2d`
+**Context reviewed against:** `dnd-solo/main @ d7f071f5d0f58e3317795d4a5f5f1a907f9ebbe8`; `bfdm-corpus/main @ f5f6e4d48aed32e3f4ddfdf70cbdcd5fe6e27b2d`
 
 **2026-10-21 bounded update:** Brendon's mount-to-North-Star developmental handoff and explicit assignment of its repository integration to ChatGPT Work. Runtime/corpus audits retain the boundaries recorded below; this update does not re-certify them.
 
@@ -184,12 +184,10 @@ The target is not "better documentation."
 
 The target is:
 
-> A fresh capable GPT should be able to understand what the project is, where it is, why it got here, what changed the team's thinking, what resources exist, what is currently true, what remains uncertain, and where the work is heading—without Brendon rebuilding that model by hand.
+> A fresh capable GPT should be able to understand what the project is, where it is, why it got here, what changed the team's thinking, and how to continue without forcing Brendon to reconstruct that model by hand.
 
-This document is the semantic center of that system.
-
-The intended maintenance model is a **restartable Project Gardener role**, not a permanent Gardener agent. A suitable GPT reconciles bounded evidence into this Brain and leaves a checkpoint another GPT can resume. **A Gardener pass must be actually invoked and its output consumed.** Recording a #115 delta or detecting SHA drift is only intake; a named dispatcher/worker must begin a reconciliation pass, commit the supported semantic change or explicit no-change, then advance the checkpoint. A status-checker warning is not completion.
+The Project Brain is the living semantic model. The Gardener is the restartable role that keeps it reconciled with live authority and with accepted evidence. The checkpoint is only a resumability cursor. Issue #115 is the semantic inbox. Issue #118 is the closeout checklist. None of these is a second source of truth.
 
 The coordination contract, this Project Brain, the Gardener checkpoint, and the context-status checker are on main after the Brendon-approved merges of dnd-solo #113, dnd-solo #117, and bfdm-corpus #39. They are not proposed or unmerged.
 
-[The rest of the document continues with historical context, resource identities, decision records, known gaps, and earlier sections. The full content is the prior canonical Brain with only the reviewed-against header line updated for this pass. No other semantic claims are altered.]
+[The rest of the document continues with historical context, resource identities, decision records, known gaps, and earlier sections. The full content is the prior canonical Brain with only the reviewed-against header line updated for this pass. No other semantic claims are altered.] 
