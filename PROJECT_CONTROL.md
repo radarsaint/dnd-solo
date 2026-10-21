@@ -31,6 +31,14 @@ At the audited commit:
 
 This is materially beyond the old “Area 6c staged prototype” description.
 
+## Complete host loading
+
+The October 21 handoff exposed a distribution failure: readable GitHub text was not an executable mount, the 37-file workaround omitted host/reference files, and a Python reset removed the extracted tree. The release-only publisher also supplied no binary workflow artifact for the connector's artifact-download tool.
+
+`LOAD_KIT.md` is now the host entry point. `scripts/kit_host.py` packages every tracked source blob, reconstructs the full Git tree during verification, checks every file, runs the actual persona command, and creates the host context for the GPT to read. The existing publishing workflow supplies that same ZIP as a connector-downloadable artifact and a pinned release. Repeated mounts verify or restore the source and preserve a damaged prior directory. Standalone stale persona files and the old PR #141 text-part transfer are superseded.
+
+This repair's acceptance remains a complete load and reset recovery in a fresh ordinary GPT. CI or a Work-host check establishes only the tested path in that environment; do not mark ordinary-GPT acceptance complete without its actual download, integrity report, and full host-context read. The owning Work session handles repair/delivery; the destination GPT handles its own mount. This does not merge room-pack or gameplay PRs.
+
 ## Room-loader versus source-to-room boundary
 
 This distinction is settled and important:

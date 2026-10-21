@@ -1,46 +1,77 @@
-# Publish the pinned runtime zip for every commit that lands on main.
-# The zip is a release asset, not a file in the tree.
-# Same bytes as: git archive --format=zip --prefix=dnd-solo-main/ HEAD
-
+# Publish the same complete source bundle through release and connector downloads.
 name: runtime-zip
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
+  pull_request:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: runtime-zip-${{ github.sha }}
+  group: runtime-zip-${{ github.event.pull_request.head.sha || github.sha }}
   cancel-in-progress: false
 
 jobs:
-  publish:
+  build:
     runs-on: ubuntu-latest
+    outputs:
+      commit: ${{ steps.bundle.outputs.commit }}
+      short: ${{ steps.bundle.outputs.short }}
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 1
-
-      - name: Archive this commit and attach it to a release
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Test the host loader
+        run: python3 -m unittest discover -s tests -p 'test_kit_host.py'
+      - name: Build and cold-mount the entire source tree
+        id: bundle
         run: |
           set -euo pipefail
-          short=$(git rev-parse --short=8 HEAD)
           full=$(git rev-parse HEAD)
+          short=$(git rev-parse --short=8 HEAD)
           name="dnd-solo-main-${short}.zip"
-          tag="runtime-${short}"
-          git archive --format=zip --prefix=dnd-solo-main/ -o "$name" HEAD
+          python3 scripts/kit_host.py build --output "dist/$name"
+          python3 scripts/kit_host.py mount --archive "dist/$name" \
+            --destination "$RUNNER_TEMP/kit-mount" --expected-commit "$full" \
+            --expected-tree "$(git rev-parse 'HEAD^{tree}')"
+          echo "commit=$full" >> "$GITHUB_OUTPUT"
+          echo "short=$short" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kit-host-${{ steps.bundle.outputs.commit }}
+          path: dist/dnd-solo-main-${{ steps.bundle.outputs.short }}.zip
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 90
+
+  publish:
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: kit-host-${{ needs.build.outputs.commit }}
+      - name: Attach the verified build to its pinned release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FULL: ${{ needs.build.outputs.commit }}
+          SHORT: ${{ needs.build.outputs.short }}
+        run: |
+          set -euo pipefail
+          name="dnd-solo-main-${SHORT}.zip"
+          tag="runtime-${SHORT}"
           if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            echo "release $tag already exists"
+            echo "release $tag already exists; connector artifact was still rebuilt"
             exit 0
           fi
           gh release create "$tag" "$name" \
-            --repo "$GITHUB_REPOSITORY" \
-            --target "$full" \
-            --title "Runtime ${short}" \
-            --notes "Pinned runtime zip of ${full}. git archive of that commit, prefix dnd-solo-main/. This is the snapshot, not a newer source of truth than main."
+            --repo "$GITHUB_REPOSITORY" --target "$FULL" \
+            --title "Runtime ${SHORT}" \
+            --notes "Complete source snapshot of ${FULL}, with Git-tree and per-file integrity manifest. Connected GPTs can download the identical ZIP from workflow artifact kit-host-${FULL}; follow LOAD_KIT.md. A published build is not evidence that a destination GPT has loaded it."
