@@ -236,6 +236,9 @@ class Runtime:
                 turn_id TEXT PRIMARY KEY, revision INTEGER NOT NULL,
                 body TEXT NOT NULL, plan TEXT
             );
+            -- The latest model packet issued for a pending turn, in full, so a host that lost it
+            -- can get it back (rehydrate). Rows for turns no longer pending are dropped.
+            CREATE TABLE IF NOT EXISTS kit_packets (turn_id TEXT PRIMARY KEY, body TEXT NOT NULL);
             -- Timing telemetry is deliberately outside turns/ledger/kit_turns: it never
             -- enters a turn digest, so an identical retry stays idempotent.
             CREATE TABLE IF NOT EXISTS kit_telemetry (
@@ -407,6 +410,20 @@ class Runtime:
                 'Call prepare first and use the turn_id it returns.', 'prepare')
         return {'revision': row[0], 'body': json.loads(row[1]),
                 'plan': json.loads(row[2]) if row[2] is not None else None}
+
+    def save_kit_packet(self, turn_id, packet):
+        """Keep the full packet issued for a pending turn (replacing an earlier one for it)."""
+        with self.db:
+            self.db.execute('DELETE FROM kit_packets WHERE turn_id NOT IN (SELECT turn_id FROM kit_pending)')
+            self.db.execute('INSERT OR REPLACE INTO kit_packets(turn_id, body) VALUES (?, ?)',
+                            (turn_id, encode(packet)))
+
+    def kit_packet(self, turn_id):
+        """The full packet last issued for a turn that is still pending, or None."""
+        if self.db.execute('SELECT 1 FROM kit_pending WHERE turn_id=?', (turn_id,)).fetchone() is None:
+            return None
+        row = self.db.execute('SELECT body FROM kit_packets WHERE turn_id=?', (turn_id,)).fetchone()
+        return json.loads(row[0]) if row else None
 
     def discard_pending_kit_turn(self, turn_id):
         """Drop an uncommitted staged turn (nothing in the world or ledger changes)."""

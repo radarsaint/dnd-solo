@@ -5073,6 +5073,8 @@ class KitChatBridge:
         if withheld:
             packet['input'] = kit_reveal.withhold(packet['input'], withheld)
         manifest = {}
+        if one_pass:
+            self.runtime.save_kit_packet(turn_id, packet)  # in full, for rehydrate
         if one_pass and self.manifests:
             packet, manifest = self._layer(turn_id, packet)
         # Runtime time and packet size, from the bridge's own clock (docs/architecture/HOST_TIMING.md).
@@ -5194,6 +5196,9 @@ class KitChatBridge:
         packet = self._stage(turn_id, revision, prepared, planning_input, True,
                              check_variant(DEFAULT_BRIDGE_VARIANT), started, clock, None)
         packet['window_answered'] = choice
+        stored = self.runtime.kit_packet(turn_id)
+        if stored is not None:  # rehydrate returns the packet exactly as answered
+            self.runtime.save_kit_packet(turn_id, {**stored, 'window_answered': choice})
         return packet
 
     def _window_asks(self, deferred_action_id):
@@ -5218,10 +5223,17 @@ class KitChatBridge:
                          'room_manifest': room, 'full_packet_bytes': _bytes(packet)}
 
     def rehydrate(self, turn_id):
-        """Both manifest bodies for a layered turn, in full (the host lost a copy)."""
+        """What the host lost, in full: both manifest bodies for a layered turn and, while the turn
+        is pending, its whole one-pass packet (``packet``), including the one a window answer
+        returns (Nagatha's clean-host review: that packet could not be recovered)."""
         timing = self.runtime.kit_timing(turn_id) or {}
         record = timing.get('manifest')
-        require(record is not None, f'Turn {turn_id!r} was not sent in layers; nothing to rehydrate')
+        packet = self.runtime.kit_packet(turn_id)
+        if record is None:
+            require(packet is not None,
+                    f'Turn {turn_id!r} has no pending one-pass packet and was not sent in layers; nothing to '
+                    'rehydrate. Prepare the action again with a new turn_id.')
+            return {'turn_id': turn_id, 'packet': packet}
         variant = timing.get('performance_variant') or DEFAULT_BRIDGE_VARIANT
         session = {'performance_variant': variant, 'instructions': one_pass_instructions(variant),
                    'schema': ONE_PASS_SCHEMA, 'performance_limits': performance_limits(),
@@ -5236,7 +5248,8 @@ class KitChatBridge:
         return {'turn_id': turn_id,
                 'session_manifest': {'hash': hashes['session'], 'body': session},
                 'room_manifest': {'hash': hashes['room'], 'body': room},
-                'manifest_rule': kit_manifest.MANIFEST_RULE}
+                'manifest_rule': kit_manifest.MANIFEST_RULE,
+                **({'packet': packet} if packet is not None else {})}
 
     @_stale_guided
     def decide(self, turn_id, plan, performance_variant=DEFAULT_BRIDGE_VARIANT):
