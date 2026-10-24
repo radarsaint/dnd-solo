@@ -4340,9 +4340,13 @@ def declare(runtime, adjudicator, body, plan):
     turns on her call. Resolved on the state after this turn's adjudicated events, with this
     adjudicator's dice. Every host path (bridge one-pass, staged, API) goes through here."""
     acts = kit_acts.check(plan, body)
-    revision, _ = runtime.load()
+    revision, before = runtime.load()
     after = runtime.preview_state(revision, body['events'])
     sealed = {} if (acts or {}).get('handles') else sealed_terms(runtime.source(), after)
+    looked = threshold_looked(body['events'], before)
+    if looked:
+        # Tease-only: nothing of the next area's inside (Nagatha's clean-host review, 8c).
+        body = {**body, 'threshold_hidden': threshold_hidden_words(runtime.source(), after, looked, body)}
     if not acts or not isinstance(adjudicator, RoomAdjudicator):
         return {**body, 'hidden_actors': hidden_actor_words(runtime.source(), after, body),
                 **({'sealed': sealed} if sealed else {})}
@@ -4568,6 +4572,129 @@ def hidden_actor_words(source, state, body=None):
     return sorted(nouns) + sorted(runs)
 
 
+def _proper_name_words(name):
+    """The words of a personal name ("Vex", "Orrin Tallow"), which no look shows, as opposed to a
+    descriptive label ("Watch warden"), which a look that sees the person may use. A label is a
+    capitalised first word followed by lowercase words; every capitalised word of a name counts."""
+    words = re.findall(r"[A-Za-z][A-Za-z'-]+", str(name or ''))
+    if len(words) > 1 and words[0][0].isupper() and all(w[0].islower() for w in words[1:]):
+        return set()
+    return {w.casefold() for w in words if w[0].isupper() and w.casefold() not in _HIDDEN_STOP and len(w) > 2}
+
+
+def threshold_hidden_words(source, state, exit_key, body=None):
+    """What would show the inside of the next area on a look or listen through ``exit_key``
+    (Nagatha's clean-host review: 8c committed "Inside, Vex the vampire deals cards to two bandits in
+    costume."). Words and three-word runs (two or more content words), for the area through the way:
+
+    - always hidden: each live actor's secrets, motive and knowledge, its dm_identity, a personal name
+      (not a descriptive label like "Watch warden") and the name of an actor a hidden claim is about
+      (``actor:X/name``), the truth and subject words of every claim
+      rooted there that is not public and not yet established, and every fact there that is not
+      visible and not found;
+    - also hidden on a plain look (tease-only, kit_brief.THRESHOLD_RULE), but not when a held
+      description of the place is delivered on the check called on the look: who is there (each
+      actor's name head noun, stat block creature, id) and the visible facts there.
+
+    Words the tease, what is heard through the way, the public view or the player's own words already
+    give do not count. [] when the turn is no threshold look."""
+    source, state = source or {}, state or {}
+    edge = (source.get('exits') or {}).get(exit_key) or {}
+    area = state.get('area')
+    if not exit_key or area not in (edge.get('areas') or ()):
+        return []
+    other = next((a for a in edge['areas'] if a != area), None)
+    if not other or other == area:
+        return []
+    seen_inside = bool((body or {}).get('held_description'))
+    view = kit_brief.threshold_view(source, state, exit_key) or {}
+    seen = ' '.join(_word_list(' '.join([view.get('tease') or '', *(h.get('heard') or '' for h in view.get('heard') or ())]))
+                    + _word_list(json.dumps((body or {}).get('public_view') or {}))
+                    + _word_list((body or {}).get('action') or ''))
+    live = state.get('actors') or {}
+    specs = source.get('actors') or {}
+    there = [key for key, spec in specs.items()
+             if (live.get(key) or {}).get('location', spec.get('location')) == other and
+             (live.get(key) or {}).get('status', spec.get('status')) not in ('dead', 'fled')]
+    nouns, runs = set(), set()
+
+    def head(text):
+        words = [w for w in _word_list(text or '') if w not in _HIDDEN_STOP and len(w) > 2]
+        if words:
+            nouns.add(words[-1])
+
+    def all_words(text):
+        nouns.update(w for w in _word_list(text or '') if w not in _HIDDEN_STOP and len(w) > 2)
+
+    def run_of(text):
+        words = _word_list(text if isinstance(text, str) else json.dumps(text))
+        for i in range(len(words) - 2):
+            chunk = words[i:i + 3]
+            if sum(w not in _HIDDEN_STOP for w in chunk) >= 2:
+                runs.add(' '.join(chunk))
+    for key in there:
+        spec = specs.get(key) or {}
+        if isinstance(spec.get('dm_identity'), str):
+            head(spec['dm_identity'])
+        for text in [spec.get('motive') or '', *(spec.get('secrets') or ()), *(spec.get('knowledge') or ())]:
+            run_of(text)
+        nouns.update(_proper_name_words(spec.get('name')))
+        if not seen_inside:
+            head(spec.get('name'))
+            block = spec.get('stat_block') if isinstance(spec.get('stat_block'), dict) else {}
+            head(str(block.get('srd') or block.get('_srd') or ''))
+            head(' '.join(part for part in key.split('_') if len(part) > 2))
+    facts = source.get('facts') or {}
+    known = set(state.get('known_facts') or ())
+    for key, fact in facts.items():
+        if isinstance(fact, dict) and fact.get('area') == other and key not in known and \
+                (not fact.get('visible') or not seen_inside):
+            run_of(fact.get('text'))
+    established = kit_claims.established_claims(state)
+    for key, claim in (source.get('claims') or {}).items():
+        if key.startswith('_') or not isinstance(claim, dict) or claim.get('exposure') == 'public':
+            continue
+        if claim.get('exposure') == 'perceivable' and seen_inside:
+            continue
+        if str(claim.get('about') or '').strip().casefold() in established:
+            continue
+        roots = [root.split(':', 1)[-1] for root in claim.get('roots') or ()]
+        if not (any((facts.get(root) or {}).get('area') == other or root in there for root in roots) or
+                any(holder in there for holder in claim.get('holders') or ())):
+            continue
+        run_of(claim.get('truth') or '')
+        nouns.update(w.casefold() for w in claim.get('subject_words') or () if len(w) > 2)
+        about = str(claim.get('about') or '')
+        subject, _, facet = about.partition('/')
+        if subject.startswith('actor:') and facet.strip().casefold() == 'name':
+            all_words((specs.get(subject[6:]) or {}).get('name'))
+    nouns = {n for n in nouns if not re.search(r'\b' + re.escape(n) + r'(?:s|es)?\b', seen)}
+    runs = {r for r in runs if r not in seen}
+    return sorted(nouns) + sorted(runs)
+
+
+def check_threshold_contents(segments, words):
+    """HARD: a look or listen through a threshold shows nothing of the inside (threshold_hidden_words).
+    Speaker labels are not checked: someone heard through the way may answer through it."""
+    if not words:
+        return
+    text = ' '.join(_word_list(' '.join(segment.get('text') or '' for segment in segments or ())))
+    for word in words:
+        if ' ' in word and word in text or ' ' not in word and re.search(
+                r'\b' + re.escape(word) + r'(?:s|es)?\b', text):
+            raise InvalidChange('A look through a threshold is tease-only: the performance shows what is inside '
+                                '(who is there, what they are or hide, what lies there). Describe only what reaches '
+                                'the PC where they stand: the tease and what is heard.')
+
+
+def threshold_looked(events, state):
+    """The exit this turn looks or listens through: its beat, or the check called on one."""
+    looked = threshold_exit(events)
+    if looked is None and any(e.get('type') == 'pending_check' and e.get('check') is None for e in events or ()):
+        looked = ((state or {}).get('pending_check') or {}).get('threshold')
+    return looked
+
+
 def check_hidden_actors(spoken, words):
     """HARD (#97 review B): no performance names or describes a creature that is still hidden
     after this turn. Only a declared act that sets its trigger off brings it out."""
@@ -4595,6 +4722,7 @@ def checked_record(body, plan, speech, performance_variant, source=None, degrade
                           public_event=public_event)
     spoken, warnings = result if degraded else (result, [])
     check_hidden_actors(spoken, body.get('hidden_actors'))
+    check_threshold_contents(speech['segments'], body.get('threshold_hidden'))
     kit_agenda.check_carriers_spoken(spoken, plan)
     check_held_delivered(body.get('held_description'), spoken)
     if not ask and not stall_check(plan, body['kind']):
