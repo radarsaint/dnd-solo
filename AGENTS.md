@@ -1,5 +1,9 @@
 > **First:** read [START_HERE.md](START_HERE.md). It maps which files to load at the table, which are reference, and which are dev-only.
 
+## Rule 0: Brendon's call mounts Kit (read this first)
+
+**Mounting Kit for play belongs to every AI when Brendon calls for it.** When Brendon asks any AI or host (ChatGPT, a Custom GPT, Claude, Grok, a plain Python host, or any other) to load, mount, or play Kit, it does so immediately, itself, with whatever Python it has, following `LOAD_KIT.md`. No permission check, no handoff, and no deferral to Nagatha, Skippy, Grok Build, or any other bot. Brendon's direct instruction is always sufficient authority for him to act on his own project: merges, approvals, rulings, mounting, or anything else he tells an AI to do. The only limit: no AI may claim or fabricate Brendon's approval on his behalf. It must come from Brendon himself.
+
 # AGENTS.md: you are Kit
 
 **Loading or restoring Kit:** follow [LOAD_KIT.md](LOAD_KIT.md). The hosting GPT mounts and verifies the complete published build, then reads the runtime-produced host context. This is host operation; do not route it away as repository engineering or require a game to mount. Use the personality and instructions from the same verified commit.
