@@ -1,0 +1,58 @@
+{
+  "source": "radarsaint/goldscale@a0a18c6",
+  "note": "Replies produced by the Goldscale bot code itself.",
+  "cases": [
+    {
+      "inputs": [
+        "?gs buy wand of fireballs rare wand 8d6 aoe 7 charges"
+      ],
+      "replies": [
+        "**Item:** Wand of Fireballs\n\n**Read as**\n```text\nItem: Wand of Fireballs\nMode: Buy\nRarity: Rare\nItem Type Found: Wand\nFormula Category: Complex Multi-Ability Magic Item\nCategory Source: from item type \"wand\"\nCharges: 7\nDamage: 8d6\nAoE: Yes\nImpact: 8d6 AoE ×4 × 7 charges\n```\n\n**Impact Calculation**\n8d6 average = 28; AoE ×4; charges ×7; 28 × 4 × 7 = 784\n\n**Rarity Band**\nRare\n\n**Formula Category**\nComplex Multi-Ability Magic Item\n\n**Gold Per Impact**\n200 gp\n\n**Final Price**\n**157,000 gp**"
+      ]
+    },
+    {
+      "inputs": [
+        "?gs sell qty 2 +1 sword uncommon weapon"
+      ],
+      "replies": [
+        "**Item:** +1 Sword\n\n**Read as**\n```text\nItem: +1 Sword\nMode: Sell\nRarity: Uncommon\nItem Type Found: Weapon\nFormula Category: Weapon / Armor Upgrade\nCategory Source: from item type \"weapon\"\nQuantity: 2\nImpact: +1 bonus\nSell Rate: 50%\n```\n\n**Impact Calculation**\n1 × 24 = 24 impact per level\n\n**Rarity Band**\nUncommon\n\n**Formula Category**\nWeapon / Armor Upgrade\n\n**Gold Per Impact**\n50 gp\n\n**List Price**\n1,200 gp\n\n**Sell Rate**\n50%\n\n**Unit Sell Price**\n**600 gp**\n\n\n**Quantity**\n2\n\n**Total Sell Price**\n**1,200 gp**"
+      ]
+    },
+    {
+      "inputs": [
+        "?gs buy necklace of fireballs rare",
+        "3"
+      ],
+      "replies": [
+        "What kind of magic item is this?\n1. Weapon or armor\n2. Potion, scroll, or ammunition\n3. Wand, staff, or charged item\n4. Ring, cloak, boots, or wondrous item\nReply with 1-4.",
+        "I found **Necklace of Fireballs**, but I cannot price it yet.\n\n**Missing**\nI need:\n• What the magic item changes: +1/+2/+3, dice like 8d6, healing like 2d4+2 healing, or utility strength: minor/reusable/broad\n\n**Read so far**\n```text\nItem: Necklace of Fireballs\nMode: Buy\nRarity: Rare\nItem Type Found: Charged Item\nFormula Category: Complex Multi-Ability Magic Item\nCategory Source: from clarification \"charged item\"\nWhat It Changes: Missing\n```\n\n**Use one**\n```text\n?gs buy Necklace of Fireballs, rare charged item, minor utility\n?gs buy Necklace of Fireballs, rare charged item, reusable utility\n?gs buy Necklace of Fireballs, rare charged item, broad utility\n?gs buy Necklace of Fireballs, rare charged item, 8d6 aoe\n```"
+      ]
+    },
+    {
+      "inputs": [
+        "?gs buy necklace of fireballs rare",
+        "2"
+      ],
+      "replies": [
+        "What kind of magic item is this?\n1. Weapon or armor\n2. Potion, scroll, or ammunition\n3. Wand, staff, or charged item\n4. Ring, cloak, boots, or wondrous item\nReply with 1-4.",
+        "I found **Necklace of Fireballs**, but I cannot price it yet.\n\n**Missing**\nI need:\n• What the magic item changes: +1/+2/+3, dice like 8d6, healing like 2d4+2 healing, or utility strength: minor/reusable/broad\n\n**Read so far**\n```text\nItem: Necklace of Fireballs\nMode: Buy\nRarity: Rare\nItem Type Found: Potion\nFormula Category: Consumable\nCategory Source: from clarification \"potion\"\nWhat It Changes: Missing\n```\n\n**Use one**\n```text\n?gs buy Necklace of Fireballs, rare potion, minor utility\n?gs buy Necklace of Fireballs, rare potion, reusable utility\n?gs buy Necklace of Fireballs, rare potion, broad utility\n?gs buy Necklace of Fireballs, rare potion, 8d6 aoe\n```"
+      ]
+    },
+    {
+      "inputs": [
+        "?gs buy cloak uncommon"
+      ],
+      "replies": [
+        "How useful should this item count in your campaign?\n1. Minor, small or situational\n2. Reusable, useful repeatable effect\n3. Broad, flexible or broadly useful\nReply with 1-3."
+      ]
+    },
+    {
+      "inputs": [
+        "?gs buy mithral armor"
+      ],
+      "replies": [
+        "Goldscale prices magic items, not mundane gear.\nAdd rarity and what the magic item changes."
+      ]
+    }
+  ]
+}

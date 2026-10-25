@@ -5479,7 +5479,8 @@ class KitChatBridge:
 EXAMPLE_SHEET = PROJECT_ROOT / 'tests/fixtures/characters/example_pc.json'
 
 
-def start_session(db, sheet_path=None, runtime=None, room=None, area=None, manifests=False, campaign=None):
+def start_session(db, sheet_path=None, runtime=None, room=None, area=None, manifests=False, campaign=None,
+                  intent=None, table=None, modules=None):
     """Bootstrap for a host.
 
     No room and no campaign: a greeting. Nothing is mounted. Mad Mage is not assumed.
@@ -5488,7 +5489,7 @@ def start_session(db, sheet_path=None, runtime=None, room=None, area=None, manif
     (engineering path). The CLI does not use that fill-in for player-facing starts.
     """
     if room is None:
-        return kit_campaign.campaign_entry(db, sheet_path, campaign=campaign)
+        return kit_campaign.campaign_entry(db, sheet_path, rooms_dir=modules, campaign=campaign, intent=intent, table=table)
     source = kit_rooms.load_room(room)
     if area is not None and area not in source['areas']:
         raise kit_rooms.RoomMountError(room, [f'no area {area!r} in this room'])
@@ -5572,6 +5573,13 @@ def main():
     parser.add_argument('--campaign',
                         help='start/init: a game the player asked for by name. '
                              'Omit it unless they named one. "dotmm" is Dungeon of the Mad Mage.')
+    parser.add_argument('--intent', choices=kit_campaign.INTENTS,
+                        help='start: the player chose play (Kit DMs) or build (DM assistant) at the greeting')
+    parser.add_argument('--table', choices=kit_campaign.TABLE_MODES,
+                        help='start: solo (one player) or shared (several players taking turns); '
+                             'recorded in the save')
+    parser.add_argument('--modules', help='start: a folder of module/room files the player attached '
+                                          '(default: rooms/). Only loadable, non-stub files are offered.')
     parser.add_argument('--area', help='start: begin in this area of the room (default: its starting_area)')
     parser.add_argument('--model', help='Optional standalone Responses API model for play')
     parser.add_argument('--perception', type=int, help='Test character Wisdom (Perception) modifier')
@@ -5632,7 +5640,11 @@ def main():
                     print(json.dumps(kit_campaign.need_character(args.room, source), ensure_ascii=False))
                     return 0
             result = start_session(args.db, args.sheet, room=args.room, area=args.area,
-                                   manifests=not args.full, campaign=args.campaign)
+                                   manifests=not args.full, campaign=args.campaign,
+                                   intent=args.intent, table=args.table, modules=args.modules)
+            if args.room and args.table and isinstance(result, dict):
+                kit_campaign.record_table_mode(args.db, args.table)
+                result['table_mode'] = args.table
         except kit_rooms.RoomMountError as exc:
             print(json.dumps(exc.host_view(), ensure_ascii=False), file=sys.stderr)
             return 2

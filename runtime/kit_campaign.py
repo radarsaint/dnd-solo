@@ -17,8 +17,17 @@ REGRESSION_ROOM = 'tests/fixtures/level_01_area_06c.json'
 EXAMPLE_SHEET = 'tests/fixtures/characters/example_pc.json'
 MAD_MAGE_KEYS = ('dotmm', 'mad mage', 'mad-mage', 'dungeon of the mad mage')
 GREETING = (
-    "I'm Kit. I can talk with you, go over a game, work on a character or a scene, "
-    "or run a session once you tell me which one. I won't pick the adventure for you.")
+    "I'm Kit. Pull up a chair. Are we playing tonight, or building? "
+    "Play, and I run the table. Build, and I'm your DM's assistant.")
+PLAY_NEEDS_LINE = "Then let's play. I need {need} before I can run anything, and I won't make {it} up."
+TABLE_LINE = ("Is it just you, or a shared table, with a few of you taking turns telling me what you do?")
+BUILD_LINE = ("Build it is. Throw me a scene, an NPC, a ruling, or an item to price. "
+              "Prices come from Goldscale's formula, not my guesswork.")
+TABLE_MODES = ('solo', 'shared')
+INTENTS = ('play', 'build')
+SHARED_NOTE = ('Shared table is recorded, but turn-taking is basic for now: the host prefixes each '
+               'line with the speaker\'s name and Kit answers in the order lines arrive. '
+               'No initiative-style turn order outside combat yet.')
 MAD_MAGE_LINE = (
     "Dungeon of the Mad Mage isn't a playable room in this build. It should open at the "
     "Yawning Portal, then the first room under the well. I won't put you in a test room instead.")
@@ -26,7 +35,7 @@ NOT_A_CAMPAIGN_LINE = (
     "That isn't a campaign room. It's a test file, and I won't start the adventure there.")
 
 
-def campaign_entry(db, sheet_path=None, rooms_dir=None, campaign=None):
+def campaign_entry(db, sheet_path=None, rooms_dir=None, campaign=None, intent=None, table=None):
     """No room was named.
 
     No campaign: a greeting. She does not open a game.
@@ -38,6 +47,10 @@ def campaign_entry(db, sheet_path=None, rooms_dir=None, campaign=None):
         return _resume(saved, campaign)
     executable, blocked = inspect_rooms(rooms_dir or (PROJECT_ROOT / 'rooms'))
     blocked = _with_regression(blocked)
+    if campaign is None and intent == 'build':
+        return _build(sheet_path)
+    if campaign is None and intent == 'play':
+        return _play(db, sheet_path, executable, blocked, table)
     if campaign is None:
         return _greeting(sheet_path, executable, blocked)
     if _is_mad_mage(campaign):
@@ -208,18 +221,102 @@ def _greeting(sheet_path, executable, blocked):
             'Work on a character or a scene. That is talk and prep, not a running session.',
             'Run a session only after the player names the game.',
         ],
+        'choices': list(INTENTS),
         'executable_starts': executable,
         'do_not_start': blocked,
         'mad_mage': _mad_mage_facts(),
         'table_line': GREETING,
         'next_step': (
-            'Say table_line in your own voice if they have not already said what they want. '
+            'Say table_line in your own voice if they have not already said what they want: play or build. '
+            'Play: run start --intent play [--sheet <file>]. Build: run start --intent build. '
             'Do not mention Dungeon of the Mad Mage unless they did. '
             'Do not pass --room. Do not pass --regression. Do not open do_not_start. '
             'If they want to play and have not named a game, ask which one. '
             'If they asked for Mad Mage, run start --campaign dotmm and say that table_line. '
             'Talk, debrief, and design do not use the bridge.'),
     }
+
+
+def _sheet_real(sheet_path):
+    return bool(sheet_path) and Path(sheet_path).is_file()
+
+
+def _play(db, sheet_path, executable, blocked, table):
+    """Play: a real module and a real character, then solo or shared table. Lists only what exists."""
+    has_sheet = _sheet_real(sheet_path)
+    base = {
+        'committed': False, 'opened_room': None, 'intent': 'play', 'character_loaded': False,
+        'sheet_noted': str(sheet_path) if has_sheet else None, 'sheet_loaded': False,
+        'modules_available': executable, 'do_not_start': blocked,
+    }
+    need = []
+    if not executable:
+        need.append('a module')
+    if not has_sheet:
+        need.append('your character')
+    if need:
+        return {**base, 'stage': 'need_module' if not executable else 'need_character', 'missing': need,
+                'table_line': PLAY_NEEDS_LINE.format(need=' and '.join(need), it='either' if len(need) > 1 else 'it'),
+                'next_step': (
+                    'Say table_line. List only modules_available (it may be empty) and only a sheet the '
+                    'player actually gave. Ask them to attach what is missing. Never offer do_not_start, '
+                    'the example sheet, or an adventure they did not name.')}
+    if table not in TABLE_MODES:
+        return {**base, 'stage': 'ask_table', 'table_modes': list(TABLE_MODES), 'table_line': TABLE_LINE,
+                'next_step': ('Ask which module from modules_available if there is more than one, then '
+                              'say table_line. Rerun start --intent play --sheet <file> --table solo|shared.')}
+    record_table_mode(db, table)
+    return {**base, 'stage': 'ready', 'table_mode': table,
+            **({'table_note': SHARED_NOTE} if table == 'shared' else {}),
+            'table_line': ("Just you and me, then." if table == 'solo'
+                           else "Shared table. Tell me who's speaking and I'll take you in turn."),
+            'next_step': ('Run start --room <a path from modules_available> --sheet <file> --table '
+                          f'{table}. Then prepare --opening. Show the player only "spoken".')}
+
+
+def _build(sheet_path):
+    """Build: DM-assistant mode. No room, no game state."""
+    return {
+        'stage': 'build', 'intent': 'build', 'committed': False, 'opened_room': None,
+        'character_loaded': False, 'sheet_noted': str(sheet_path) if _sheet_real(sheet_path) else None,
+        'tools': {
+            'design_talk': 'Scenes, NPCs, encounters, rulings, homebrew: talk, no bridge command.',
+            'price_item': ('python -m runtime.kit_appraise "<item description>" (Goldscale formula; '
+                           'answer its questions with --answer "<reply>"; --formula shows the math).'),
+        },
+        'table_line': BUILD_LINE,
+        'next_step': ('Say table_line in your own voice. For a price, run the price_item tool and give '
+                      'the Final Price with its impact math. Do not open a room.'),
+    }
+
+
+def record_table_mode(db, mode):
+    """Persist the table mode (solo or shared) in the save, beside the game."""
+    if mode not in TABLE_MODES:
+        raise ValueError(f'table mode must be one of {TABLE_MODES}')
+    con = sqlite3.connect(str(db))
+    try:
+        con.execute('CREATE TABLE IF NOT EXISTS kit_table (id INTEGER PRIMARY KEY CHECK (id = 1), mode TEXT NOT NULL)')
+        con.execute('INSERT INTO kit_table (id, mode) VALUES (1, ?) ON CONFLICT(id) DO UPDATE SET mode=excluded.mode',
+                    (mode,))
+        con.commit()
+    finally:
+        con.close()
+
+
+def table_mode(db):
+    """The recorded table mode, or None."""
+    path = Path(db)
+    if not path.is_file():
+        return None
+    con = sqlite3.connect(f'file:{path}?mode=ro', uri=True)
+    try:
+        row = con.execute('SELECT mode FROM kit_table WHERE id = 1').fetchone()
+        return row[0] if row else None
+    except sqlite3.Error:
+        return None
+    finally:
+        con.close()
 
 
 def _mad_mage(sheet_path, executable, blocked):

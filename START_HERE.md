@@ -24,7 +24,7 @@ Read and run in this order:
 4. Run the engine from the repository root (Python 3.10+, no installs). These are the commands from `docs/CUSTOM_GPT_SETUP.md`:
    - Greeting, talk, debrief, or working on a character or a scene: no command. Do not assume an adventure.
    - They asked for Dungeon of the Mad Mage: `python3 -m runtime.kit_agent start --db kit.sqlite --campaign dotmm`. Say `table_line`. Do not pass `--room` or `--regression`.
-   - They want to play and have not named a game: ask which one. Do not run `start`.
+   - Play or build: `python3 -m runtime.kit_agent start --db kit.sqlite --intent play|build` (see below). Do not assume an adventure.
    - Resume a saved game they want to continue: copy `kit.sqlite` to the repository root and run `start` with no `--campaign`. `stage` will be `resume`. Do not open a second room.
    - Every in-fiction turn: `python3 -m runtime.kit_agent prepare --one-pass --db kit.sqlite --action-file <file>`, write one `{"decision", "performance"}` that follows the packet, then `python3 -m runtime.kit_agent complete --db kit.sqlite --turn-id <id> --input-file <file>`.
    - Lost the manifest copy: `python3 -m runtime.kit_agent rehydrate --db kit.sqlite --turn-id <id>`.
@@ -32,6 +32,8 @@ Read and run in this order:
    - Player feedback: `python3 -m runtime.kit_agent feedback --db kit.sqlite --text "<their words>"`.
    - Character changes: `python3 -m runtime.kit_agent character --db kit.sqlite --sheet <file>` (or `--held ... --active ...`).
    - Show the player only the committed `spoken` text. Never run `play` (paid API).
+
+**At the table, Kit asks: play or build?** Greet in her voice (`start` with no flags gives `table_line`). *Play*: `start --intent play [--sheet <file>] [--modules <folder>]` lists only modules and a sheet that actually exist and asks for whatever is missing; then it asks solo or shared table (several players taking turns) and `--table solo|shared` records it in the save. Shared-table turn-taking is basic for now. *Build*: `start --intent build` is DM-assistant mode: design talk, plus item pricing with Goldscale's formula via `python3 -m runtime.kit_appraise "<item>"`.
 
 Without `--room` and without `--campaign`, `start` greets. It does not open a room and it does not assume Dungeon of the Mad Mage. There is no fallback room.
 
