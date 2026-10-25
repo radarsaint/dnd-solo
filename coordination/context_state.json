@@ -2,16 +2,16 @@
   "schema": "kit_project_gardener_state/v1",
   "purpose": "RESUMABILITY_CURSOR_NOT_KNOWLEDGE_STORE",
   "canonical_location": "radarsaint/dnd-solo/coordination/context_state.json",
-  "state_revision": 29,
+  "state_revision": 30,
   "semantic_brain": {
     "repo": "radarsaint/dnd-solo",
     "path": "docs/PROJECT_UNDERSTANDING.md",
-    "last_semantic_commit": "d159240504d2726a9451cb440a0bfc8662d9166c",
-    "last_reviewed_on": "2026-10-21"
+    "last_semantic_commit": "a6cee53c3aa69e870b063bd94837e61a748dd744",
+    "last_reviewed_on": "2026-10-25"
   },
   "checkpoint": {
     "reviewed_against_main": {
-      "radarsaint/dnd-solo": "d159240504d2726a9451cb440a0bfc8662d9166c",
+      "radarsaint/dnd-solo": "a6cee53c3aa69e870b063bd94837e61a748dd744",
       "radarsaint/bfdm-corpus": "f5f6e4d48aed32e3f4ddfdf70cbdcd5fe6e27b2d"
     },
     "context_inbox": {
@@ -24,10 +24,10 @@
   },
   "last_completed_pass": {
     "kind": "BOUNDED_SEMANTIC_RECONCILIATION",
-    "completed_on": "2026-10-21",
-    "scope": "Reviewed dnd-solo #143 complete Kit host-loading merge (main d7f071f5 then header update to d1592405). #115 comment 6266120288 remains pending draft, not reconciled as truth.",
-    "result": "Accept: #143 makes LOAD_KIT.md the host entry for complete binary delivery, full Git-tree/file verification, persona/host-context ingestion, and reset recovery. Publisher supplies the same ZIP via workflow artifact and release. Ordinary-GPT loading and actual reset recovery remain unproved until a fresh destination GPT consumes it. Header Context reviewed against updated to live main. No bfdm-corpus change. Pending #115 DM Kit rulings remain unresolved until their draft PR lands on main.",
-    "resulting_brain_commit": "d159240504d2726a9451cb440a0bfc8662d9166c",
+    "completed_on": "2026-10-25",
+    "scope": "Reviewed dnd-solo #144 Rule 0 Brendon-direct-authority mount merge (main 8a6ee05). #115 comment 6266120288 remains pending draft.",
+    "result": "Accept: #144 puts Rule 0 at the top of entry files. Any AI mounts Kit immediately on Brendon's direct call with no permission check or deferral. ZIP-only offline mount works via KIT_SOURCE_MANIFEST.json. Ordinary-GPT hand-off rules yield to direct instruction. Brain records the change. No bfdm-corpus change. Pending #115 DM Kit rulings remain unresolved.",
+    "resulting_brain_commit": "a6cee53c3aa69e870b063bd94837e61a748dd744",
     "reconciled_comment_id": 6202184874
   },
   "active_pass": null,
