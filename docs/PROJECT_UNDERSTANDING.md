@@ -4,8 +4,8 @@
 **Status:** canonical on `dnd-solo/main` after Brendon-approved merges of #113 and #117 on 2026-10-08. It is no longer a proposed side-branch draft.  
 **Canonical location:** `radarsaint/dnd-solo/docs/PROJECT_UNDERSTANDING.md`  
 **Sibling repository:** `radarsaint/bfdm-corpus`  
-**Last substantive refresh:** 2026-10-21  
-**Context reviewed against:** `dnd-solo/main @ d7f071f5d0f58e3317795d4a5f5f1a907f9ebbe8`; `bfdm-corpus/main @ f5f6e4d48aed32e3f4ddfdf70cbdcd5fe6e27b2d`
+**Last substantive refresh:** 2026-10-25  
+**Context reviewed against:** `dnd-solo/main @ 8a6ee05ccbca4c7ed315555eb585f093a501c771`; `bfdm-corpus/main @ f5f6e4d48aed32e3f4ddfdf70cbdcd5fe6e27b2d`
 
 **2026-10-21 bounded update:** Brendon's mount-to-North-Star developmental handoff and explicit assignment of its repository integration to ChatGPT Work. Runtime/corpus audits retain the boundaries recorded below; this update does not re-certify them.
 
@@ -68,6 +68,7 @@ The research substrate has also advanced. BFDM PR #40 merged on 2026-10-08: the 
 The 2026-10-21 handoff records a later host successfully hash-verifying 37 runtime files from `de442cf5` and running `python -m runtime.kit_agent persona` with exit 0. A portable ZIP was preserved; the unpacked directory was absent when the handoff was prepared. This is reported preceding-host mount evidence, not a fresh mount check in every subsequent host. Restoring an already prepared runtime in a capable destination host is distinct from repository engineering. A mount requires the specified files and integrity check; it does not require a selected character, adventure, or live scene. Actual bridge turns and satisfying play remain separate acceptance targets.
 
 Reliable host loading remains an immediate product requirement. The October 21 handoff also demonstrates that the 37-file workaround and a saved ZIP did not establish repeatable complete loading in a new normal GPT. `LOAD_KIT.md` now routes the host through complete binary delivery, full Git-tree/file verification, runtime persona plus host-instruction ingestion, and reset recovery. The publisher exposes the same complete source ZIP through the connector's workflow-artifact download and a release. This integration addresses those concrete distribution defects; ordinary-GPT loading remains unproved until that destination host consumes it. A source mount does not depend on selecting a character or adventure.
+On 2026-10-25, dnd-solo #144 merged Rule 0 into the top of AGENTS.md, START_HERE.md, PROJECT_BOOTSTRAP.md and LOAD_KIT.md: any AI or host mounts Kit for play immediately when Brendon asks, with no permission check and no deferral to Nagatha, Skippy, Grok Build or any other bot. Brendon's direct instruction is always enough; no AI may fake his approval. Ordinary-GPT hand-off rules in PROJECT_BOOTSTRAP.md, COORDINATION.md and coordination/AGENTS_AND_TOOLS.md now yield to it. The attached ZIP alone is enough to mount; the mount snippet reads the commit and tree from KIT_SOURCE_MANIFEST.json when there is no GitHub (previously failed offline with NameError). Tested: test_kit_host passes, and the ZIP cold-mounts with PATH emptied (no git, stdlib only). Ordinary-GPT complete load remains unproved until a fresh destination host consumes it.
 
 The remaining bottlenecks include player-facing execution and judgment.
 
@@ -184,10 +185,4 @@ The target is not "better documentation."
 
 The target is:
 
-> A fresh capable GPT should be able to understand what the project is, where it is, why it got here, what changed the team's thinking, and how to continue without forcing Brendon to reconstruct that model by hand.
-
-The Project Brain is the living semantic model. The Gardener is the restartable role that keeps it reconciled with live authority and with accepted evidence. The checkpoint is only a resumability cursor. Issue #115 is the semantic inbox. Issue #118 is the closeout checklist. None of these is a second source of truth.
-
-The coordination contract, this Project Brain, the Gardener checkpoint, and the context-status checker are on main after the Brendon-approved merges of dnd-solo #113, dnd-solo #117, and bfdm-corpus #39. They are not proposed or unmerged.
-
-[The rest of the document continues with historical context, resource identities, decision records, known gaps, and earlier sections. The full content is the prior canonical Brain with only the reviewed-against header line updated for this pass. No other semantic claims are altered.] 
+> A fresh capable GPT should be able to understand what the project is, where it is, why it got here, what changed the team's thinking
