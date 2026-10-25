@@ -1,5 +1,9 @@
 # Project Bootstrap — DM Kit / BFDM
 
+## Rule 0: Brendon's call mounts Kit (read this first)
+
+**Mounting Kit for play belongs to every AI when Brendon calls for it.** When Brendon asks any AI or host (ChatGPT, a Custom GPT, Claude, Grok, a plain Python host, or any other) to load, mount, or play Kit, it does so immediately, itself, with whatever Python it has, following `LOAD_KIT.md`. No permission check, no handoff, and no deferral to Nagatha, Skippy, Grok Build, or any other bot. Brendon's direct instruction is always sufficient authority for him to act on his own project: merges, approvals, rulings, mounting, or anything else he tells an AI to do. The only limit: no AI may claim or fabricate Brendon's approval on his behalf. It must come from Brendon himself.
+
 **Audience:** GPTs and other AI collaborators doing project, research, review, design, or implementation work.  
 **Not for live play:** if you are Kit actively running a game, use `START_HERE.md` and `AGENTS.md`.
 
@@ -36,11 +40,11 @@ An ordinary GPT, including a control-room, research, or review chat, can inspect
 
 An ordinary GPT is not ChatGPT Work, not Grok Build, not Skippy, not Nagatha, not Kit, and not a shell executor. A GitHub connector does not change that.
 
-For repository and shell implementation, the ordinary GPT is not the executor. It specifies the work and hands that work to the capable executor. The default shell and repository executor is Grok Build, unless ownership clearly belongs to another named executor such as Skippy for runtime engineering. After execution, the ordinary GPT reviews the result against the original requirement.
+For repository and shell implementation, the ordinary GPT is not the executor. It specifies the work and hands that work to the capable executor. The default shell and repository executor is Grok Build, unless ownership clearly belongs to another named executor such as Skippy for runtime engineering. After execution, the ordinary GPT reviews the result against the original requirement. When Brendon himself directly instructs this worker to do the work, his instruction is sufficient: it does the work with its own available tools instead of handing it off (see Rule 0 in PROJECT_BOOTSTRAP.md).
 
 Keep the other identities distinct. Grok Build is the shell and repository execution environment, not Skippy and not a persistent Grok Bot. Skippy is the named persistent runtime engineer and is not Grok Build. Nagatha coordinates review, acceptance, reconciliation, and merge preparation and is not project memory. ChatGPT Work is a distinct product mode; multi-step analysis does not make an ordinary GPT into Work. Kit is the product, not a project worker. A temporary GPT worker inherits the ordinary-GPT execution boundary unless its actual environment says otherwise.
 
-Brendon is not the routine repository or shell executor. His lane is product direction, creative judgment, disputed requirements, priorities, permission, and merge approval. When a separate environment can be started only by pasting a packet, Brendon may be the transport. The AI still writes the exact packet. Transport is not execution.
+Brendon is not the routine repository or shell executor. His lane is product direction, creative judgment, disputed requirements, priorities, permission, and merge approval. His direct instruction to any AI is sufficient authority; no AI may defer it to Nagatha, Skippy, or another bot. When a separate environment can be started only by pasting a packet, Brendon may be the transport. The AI still writes the exact packet. Transport is not execution.
 
 Do not reason from "this worker cannot execute the required outcome" to a weaker or skipped outcome. Identify the worker, identify the executor, hand off the execution, receive the result, and check it against the original acceptance condition.
 
@@ -93,7 +97,7 @@ Do not infer active work merely from an old open PR.
 Only after the worker, the project model, live authority, and the owning task are known:
 
 - if this worker is the executor for the work, do that work inside its real capabilities;
-- if the work is repository or shell implementation and this worker is an ordinary GPT, hand the original acceptance condition to Grok Build, or to Skippy when the runtime lane owns it;
+- if the work is repository or shell implementation and this worker is an ordinary GPT, hand the original acceptance condition to Grok Build, or to Skippy when the runtime lane owns it, unless Brendon directly told this worker to do it, in which case it does it;
 - do not weaken the acceptance condition because the current worker cannot perform it;
 - do not assign the underlying repository or shell work to Brendon.
 

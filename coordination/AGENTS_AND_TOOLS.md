@@ -23,7 +23,7 @@ It does **not** mean "should Grok Build take ownership of the project?"
 
 An ordinary GPT, including a control-room, research, or review chat, inspects, reasons, specifies, prepares an execution packet, and reviews returned work. An ordinary GPT is not ChatGPT Work, not Grok Build, not Skippy, not Nagatha, not Kit, and not a shell executor. A GitHub connector does not make it one of those.
 
-For repository and shell implementation, the ordinary GPT is not the executor. The default shell and repository executor is Grok Build. Skippy remains the runtime-engineering owner in his lane and is not Grok Build. Nagatha is not project memory. Kit is the product, not a project worker.
+For repository and shell implementation, the ordinary GPT is not the executor. The default shell and repository executor is Grok Build. Skippy remains the runtime-engineering owner in his lane and is not Grok Build. Nagatha is not project memory. Kit is the product, not a project worker. When Brendon himself directly instructs this worker to do the work, his instruction is sufficient: it does the work with its own available tools instead of handing it off (see Rule 0 in PROJECT_BOOTSTRAP.md).
 
 Brendon is not the routine repository or shell executor. He may transport a packet into a separate environment such as Grok Build. Transport is not execution. The AI writes the exact packet.
 
@@ -95,7 +95,7 @@ When a GPT concludes that Grok Build is useful, it should normally give Brendon 
 
 These GPTs are a major project reasoning surface. They must bootstrap from project context instead of requiring Brendon to retell the project.
 
-An ordinary GPT is not the repository or shell executor, including when a GitHub connector can read or write. It specifies that work, hands it to Grok Build or to the named owner, and reviews the returned result. It must not weaken the acceptance condition to fit its own tools.
+An ordinary GPT is not the repository or shell executor, including when a GitHub connector can read or write. It specifies that work, hands it to Grok Build or to the named owner, and reviews the returned result. It must not weaken the acceptance condition to fit its own tools. When Brendon himself directly instructs this worker to do the work, his instruction is sufficient: it does the work with its own available tools instead of handing it off (see Rule 0 in PROJECT_BOOTSTRAP.md).
 
 At the end of substantial work, they should push durable new understanding into the canonical context surfaces or the context inbox (#115) rather than leaving it trapped in one conversation.
 
@@ -214,7 +214,8 @@ Uncertainty about whether Grok Build can reach a target is not a reason to disca
 Examples:
 - repository or shell implementation is required and the current worker is an ordinary GPT -> Grok Build is the default executor; Skippy owns runtime engineering in his lane;
 - the programmatic path is unknown -> route the capability investigation to Grok Build;
-- a GitHub connector can touch the repository -> that fact does not make the ordinary GPT the shell executor.
+- a GitHub connector can touch the repository -> that fact does not make the ordinary GPT the shell executor;
+- Brendon directly tells this AI to do it (mount Kit, merge, edit, rule) -> it does it with its own tools; no handoff or permission check.
 
 ### Action-state vocabulary
 

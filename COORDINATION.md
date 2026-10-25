@@ -71,7 +71,7 @@ For substantial project/research/implementation work, start at `dnd-solo/PROJECT
 
 The required path is deliberately small:
 
-0. **Identify the worker** before acting on the repository. Tool availability does not redefine worker identity. An ordinary GPT is not Grok Build, not ChatGPT Work, and not a shell executor. Repository and shell implementation goes to Grok Build unless a named owner such as Skippy has that lane. Brendon is not the routine repository executor.
+0. **Identify the worker** before acting on the repository. Tool availability does not redefine worker identity. An ordinary GPT is not Grok Build, not ChatGPT Work, and not a shell executor. Repository and shell implementation goes to Grok Build unless a named owner such as Skippy has that lane. Brendon is not the routine repository executor. When Brendon himself directly instructs this worker to do the work, his instruction is sufficient: it does the work with its own available tools instead of handing it off (see Rule 0 in PROJECT_BOOTSTRAP.md).
 1. **Project Brain** — read `docs/PROJECT_UNDERSTANDING.md` to acquire the current semantic model.
 2. **Live authority/current control** — reconcile state-sensitive claims against live GitHub and the relevant repo's `PROJECT_CONTROL.md`.
 3. **Owning task** — read the issue/PR or explicit user instruction that controls the work.
@@ -95,7 +95,7 @@ For a narrowly bounded task, load only the portions of deeper context that can m
 Ownership is a routing default, not a permanent monopoly. A current issue/PR can assign differently.
 
 - **Brendon:** product direction, high-value creative judgment, disputed requirements, merge approval.
-- **Nagatha:** PM/review/acceptance coordination, reconciliation of overlapping work, bundle preparation, and merge coordination. Nagatha helps keep Brendon out of routine implementation triage; this is a coordination role, not independent product authority.
+- **Nagatha:** PM/review/acceptance coordination, reconciliation of overlapping work, bundle preparation, and merge coordination. Nagatha helps keep Brendon out of routine implementation triage; this is a coordination role, not independent product authority. Nagatha is never the sole authority: any agent acts on Brendon's direct instruction without her sign-off.
 - **Skippy / Grok Bots:** runtime engineering, wiring, tests, PR-stack coordination, executable integration.
 - **Grok Build / shell-capable agents:** executable reconnaissance, repository surgery, deterministic rebuild/test work. Grok Build is not Skippy and is not a Grok Bot.
 - **GPT research/review workers:** bounded audits, evaluation, voice/taste/content research, synthesis, contradiction finding.
@@ -370,7 +370,7 @@ As of 2026-10-08 the invocation/consumption loop is **not yet proven**. Dnd-solo
 
 Worker identity comes before repository reasoning. Determine the worker from its product and execution environment. Tool availability does not redefine that identity.
 
-An ordinary GPT specifies, routes, and reviews repository and shell work. It is not that executor, even when a GitHub connector is present. Hand the original acceptance condition to Grok Build unless a named owner such as Skippy already owns the lane. Brendon may transport the packet. He is not the routine executor of the underlying work.
+An ordinary GPT specifies, routes, and reviews repository and shell work. It is not that executor, even when a GitHub connector is present. Hand the original acceptance condition to Grok Build unless a named owner such as Skippy already owns the lane. Brendon may transport the packet. He is not the routine executor of the underlying work. When Brendon himself directly instructs this worker to do the work, his instruction is sufficient: it does the work with its own available tools instead of handing it off (see Rule 0 in PROJECT_BOOTSTRAP.md).
 
 A worker's local tool limitations do **not** change the project's required outcome.
 
