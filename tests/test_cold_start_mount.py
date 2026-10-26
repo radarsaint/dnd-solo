@@ -37,7 +37,14 @@ class ColdStart(unittest.TestCase):
 
     def test_block_needs_only_the_url(self):
         self.assertIn('nothing beyond the repo URL', BLOCK)
-        self.assertIn('raw.githubusercontent.com/radarsaint/dnd-solo/main/KIT_PORTABLE.md', BLOCK)
+        self.assertIn('github.com/radarsaint/dnd-solo/blob/main/KIT_PORTABLE.md', BLOCK)
+        self.assertIn('GitHub app or connector', BLOCK)
+        self.assertIn('Attach the Kit ZIP for the full rules engine.', BLOCK)
+        self.assertIn('exactly one attempt with a 5-second timeout', BLOCK)
+
+    def test_no_package_install_route(self):
+        for text in (BLOCK, (ROOT / 'KIT_PORTABLE.md').read_text()):
+            self.assertIsNone(re.search(r'\bpip\b|pypi|container\.download|raw\.githubusercontent', text, re.I))
 
 if __name__ == '__main__':
     unittest.main()
