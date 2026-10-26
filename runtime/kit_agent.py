@@ -282,7 +282,7 @@ CHECK_REQUEST = _lazy.regex(
 CHECK_REQUEST_PREFIX = 'You ask for a check: '
 # 'Can I investigate the door?', 'Let me search the lid', 'Time to search the chest': asking
 # to search is a search.
-CHECK_ASK = re.compile(r"^\s*(?:can|could|may|might)\s+i\b|^\s*let\s+me\b|^\s*time\s+to\b|^\s*i(?:'d| would)\s+like\s+to\b")
+CHECK_ASK = _lazy.regex(r"^\s*(?:can|could|may|might)\s+i\b|^\s*let\s+me\b|^\s*time\s+to\b|^\s*i(?:'d| would)\s+like\s+to\b")
 SEARCH_PREFIX = 'You search: '
 ATTEMPT_PREFIX = 'You try: '
 DETECT_MAGIC_SECONDS = 600  # Detect Magic: concentration, up to 10 minutes
@@ -560,7 +560,7 @@ GOING_BACK = _lazy.regex(r"\b(?:back|return|returns|retrace[sd]?|retracing|the w
 
 
 # Moving, in any tense: "Nik steps through the iron door", "she went out" (watchroom playtest).
-MOVING = _lazy.regex(r"(?:make for|makes for|leave|leaves|leaving|left|go|goes|going|went|walk|walks|walked|walking|move|moves|"
+MOVING = _lazy.regex(r"\b(?:make for|makes for|leave|leaves|leaving|left|go|goes|going|went|walk|walks|walked|walking|move|moves|"
                     r"moved|moving|step|steps|stepped|stepping)\b")
 # Going in with no exit named: "I step in", "Nik goes inside". The exit chooser takes the
 # one exit from here that leads into the room.
@@ -625,15 +625,15 @@ SEARCH_INTENT = _lazy.regex(r"\b(?:search\w*|investigat\w*|examin\w*|inspect\w*|
 # An act on a thing in the room, declared by the PC ("I yank the manacles off the wall",
 # "Wait, before I roll, I pry the stone loose"): Kit rules it as an ordinary turn and may
 # call a check. It beats talk words around it ("wait") (#150 retest 3).
-OBJECT_ACT = re.compile(r"(?:^|[.!;,]\s*|\band\s+)i\s+(?:\w+ly\s+)?(?:yank|pull|rip|tear|wrench|pry|prise|lift|heave|push|"
+OBJECT_ACT = _lazy.regex(r"(?:^|[.!;,]\s*|\band\s+)i\s+(?:\w+ly\s+)?(?:yank|pull|rip|tear|wrench|pry|prise|lift|heave|push|"
                         r"drag|kick|twist|turn|pour|cut|tie|throw|toss|dig|scrape|wedge|jam|pound|hammer|unscrew|"
                         r"shake|rattle|tug|smash|break|force|climb|grab|pick up|scratch|wipe|rub|press|pull on)"
                         r"(?:s|ed|ing)?\b[^.!?]*?\b(?:the|a|an|some|this|that|those|these|its|each)\b")
 # A thing in the room the act is aimed at, not a person: an article and a noun.
-AIMED_AT_THING = re.compile(r"\b(?:the|a|an|this|that|those|these|each|every)\s+(?:\w+\s+){0,2}?\w{3,}")
+AIMED_AT_THING = _lazy.regex(r"\b(?:the|a|an|this|that|those|these|each|every)\s+(?:\w+\s+){0,2}?\w{3,}")
 # Refusals stay only for exploits and impossibilities (and attempts on a person, which
 # need the fight or social machinery): stealing, pocketing, killing everyone, wishing.
-EXPLOIT = re.compile(r"\b(?:steal|steals|stealing|pocket|pockets|pocketing|all (?:the )?(?:gold|treasure|loot)|"
+EXPLOIT = _lazy.regex(r"\b(?:steal|steals|stealing|pocket|pockets|pocketing|all (?:the )?(?:gold|treasure|loot)|"
                      r"every(?:thing|one)|instantly|automatically|infinite|wish|teleport\w*|fly|flies|levitat\w*|"
                      r"on fire|set fire|ablaze|kill\w*|dead|dies|falls dead)\b|"
                      r"\b(?:him|them|guard|warden|man|woman|dealer|orc|goblin|person|throat|neck|heart)\b")
@@ -656,12 +656,12 @@ def npc_addressed_player(spoken):
 
 # A clause the player negates ("I don't search the rubble", "not going in yet", "I won't
 # attack") says what does not happen: it is dropped before routing (#150 fuzz: negation).
-NEGATED = re.compile(r"\bwithout\s+(?:stepping|going|walking|moving)\s+(?:in|inside|through)\b|\b(?:i\s+)?(?:don't|dont|do not|won't|wont|will not|am not|i'm not|not)\s+"
+NEGATED = _lazy.regex(r"\bwithout\s+(?:stepping|going|walking|moving)\s+(?:in|inside|through)\b|\b(?:i\s+)?(?:don't|dont|do not|won't|wont|will not|am not|i'm not|not)\s+"
                      r"(?:going\s+(?:to\s+)?|gonna\s+|yet\s+)?(?!only\b|just\b)[a-z]+\b(?:\s+(?:in|through|out|inside|"
                      r"the\s+\w+|it|yet))*(?:\s+yet)?", re.I)
 # Plain looks the router missed (#150 fuzz): 'What do I see?', 'Lookin around', 'Describe
 # the floor', 'I eye the flagstones', 'I listen at the lid'.
-PLAIN_LOOK = re.compile(r"\bwhat\s+do\s+i\s+see\b|\blookin'?\b|^\s*describe\b|\bi\s+eye\b|"
+PLAIN_LOOK = _lazy.regex(r"\bwhat\s+do\s+i\s+see\b|\blookin'?\b|^\s*describe\b|\bi\s+eye\b|"
                         r"\blisten\w*\s+at\b|\bwhat\s+(?:does|do)\s+(?:the\s+)?[\w ]+\s+look\s+like\b|"
                         r"\b(?:i|and)\s*look\s+(?:at|over)\b")
 
@@ -1034,6 +1034,11 @@ class RoomAdjudicator:
             # A second mention of the same door ('shoves the door open ... steps through the door')
             # is the one entry, not a walk back out: only a different exit is a second move.
             return result
+        if more.kind == 'check_request':
+            # A search on entry ('step through and search the chest'): the move stands and the
+            # search is a bid for a check in the new room (#150 retest-2: a trap rides the check).
+            return dataclasses.replace(more, public_event=f'{result.public_event} {more.public_event}'.strip(),
+                                       events=list(result.events) + list(more.events))
         changed = [e for e in more.events if e.get('type') not in ('beat',)]
         declared = [e for e in more.events if e.get('type') == 'beat' and
                     {'simple_act', 'observe'} & set(e.get('tags') or ())]

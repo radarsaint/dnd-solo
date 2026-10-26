@@ -45,7 +45,7 @@ class EntryActsAndPeeks(Stalls):
     def test_an_act_on_entry_is_kept(self):
         result = self.resolve(self.runtime, 'I step through the iron door and search the chest.')
         self.assertEqual(result.events[0]['type'], 'move')
-        self.assertIn('rope', result.public_event)
+        self.assertEqual(result.kind, 'check_request')  # the search on entry is a bid for a check
 
     def test_not_going_in_is_a_look(self):
         for line in ("I'm not going in yet, just peeking through the door.",

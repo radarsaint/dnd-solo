@@ -124,7 +124,7 @@ LANDING = [
     ('Not stepping in, I peek through the keyhole.', LOOK),
     ('I go through the iron door and look around.', MOVE),
     ('I go in and knock on the chest.', MOVE),
-    ('I step through the iron door and search the chest.', LOOK),
+    ('I step through the iron door and search the chest.', CHECK),
     # Misfires pinned: a real entry with 'not' elsewhere, and a peek with no negation
     ("I go through the iron door, not waiting any longer.", MOVE),
     ('I peek through the gap in the door.', LOOK),
