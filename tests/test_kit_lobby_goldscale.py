@@ -8,7 +8,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from runtime import kit_appraise, kit_campaign
+from runtime import kit_appraise, kit_campaign, kit_chargen
 from runtime.goldscale.clarification import PendingAppraisals, continue_appraisal, start_appraisal
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -88,7 +88,8 @@ class LobbyTests(unittest.TestCase):
         out = self.entry()
         self.assertEqual(out['stage'], 'greeting')
         self.assertEqual(out['choices'], ['play', 'build'])
-        self.assertIn('playing', out['table_line'])
+        self.assertEqual(out['table_line'], kit_campaign.GREETING)
+        self.assertIn('rolling dice', out['table_line'])
         self.assertIn('building', out['table_line'])
         self.assertNotIn('Mad Mage', out['table_line'])
         self.assertIsNone(out['opened_room'])
@@ -97,6 +98,8 @@ class LobbyTests(unittest.TestCase):
         out = self.entry(intent='build')
         self.assertEqual(out['stage'], 'build')
         self.assertIn('kit_appraise', out['tools']['price_item'])
+        self.assertIn('kit_chargen', out['tools']['character_building'])
+        self.assertIn('core rules', out['table_line'])
         self.assertIsNone(out['opened_room'])
 
     def test_play_without_module_or_sheet_asks_for_both(self):
@@ -146,6 +149,57 @@ class LobbyTests(unittest.TestCase):
         self.assertEqual(json.loads(run.stdout)['table_mode'], 'shared')
         self.assertEqual(kit_campaign.table_mode(self.db), 'shared')
         self.assertEqual(kit_campaign.campaign_entry(self.db)['stage'], 'resume')
+
+
+class LineTests(unittest.TestCase):
+    def test_lines_are_short_and_in_voice_not_system_talk(self):
+        lines = [kit_campaign.GREETING, kit_campaign.TABLE_LINE, kit_campaign.SOLO_LINE, kit_campaign.SHARED_LINE,
+                 kit_campaign.BUILD_LINE, *kit_campaign.PLAY_NEEDS_LINES.values()]
+        for line in lines:
+            with self.subTest(line=line):
+                self.assertLess(len(line), 170)
+                for banned in ('Goldscale', 'formula', "won't make", 'guesswork', 'module and your character',
+                               'arena', 'DM assistant', "DM's assistant"):
+                    self.assertNotIn(banned, line)
+
+
+class NeverGuessChargenTests(unittest.TestCase):
+    def test_non_srd_options_ask_for_rules_or_sheet(self):
+        for text in ('help me build a Twilight cleric', 'build a battle master fighter',
+                     'create an Oath of Vengeance paladin', 'make a Hexblade warlock',
+                     'I want to make a character with the Eldritch Adept feat',
+                     "which feat should my rogue take from Tasha's",
+                     'build an Astral Elf from Monsters of the Multiverse',
+                     'make a level 5 wizard using the 2024 rules'):
+            with self.subTest(text=text):
+                out = kit_chargen.chargen(text)
+                self.assertEqual(out['stage'], 'chargen')
+                self.assertFalse(out['srd_only'])
+                self.assertTrue(out['never_guess'])
+                self.assertIn("won't guess", out['table_line'])
+                self.assertIn('paste me the exact rules', out['table_line'].lower())
+                self.assertIn('sheet', out['table_line'])
+
+    def test_srd_options_are_fine(self):
+        for text in ('build a fighter champion', 'make a level 3 wizard, school of evocation',
+                     "let's build a hill dwarf cleric with the life domain", 'build a 5th level human fighter'):
+            with self.subTest(text=text):
+                out = kit_chargen.chargen(text)
+                self.assertTrue(out['srd_only'], out)
+                self.assertTrue(out['never_guess'])
+
+    def test_named_option_appears_in_line(self):
+        self.assertIn('Twilight Cleric', kit_chargen.chargen('help me build a Twilight cleric')['table_line'])
+
+    def test_not_chargen(self):
+        for text in ("what's in this room", 'I attack the goblin', 'price a +1 sword'):
+            self.assertIsNone(kit_chargen.chargen(text))
+
+    def test_rule_is_in_persona_and_agents(self):
+        core = (ROOT / 'docs/personality/dm-personality-core.md').read_text(encoding='utf-8')
+        agents = (ROOT / 'AGENTS.md').read_text(encoding='utf-8')
+        self.assertIn('never guesses at character generation', core)
+        self.assertIn('Never guess at character generation', agents)
 
 
 if __name__ == '__main__':

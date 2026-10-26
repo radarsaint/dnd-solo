@@ -16,13 +16,17 @@ from .state_context import PROJECT_ROOT
 REGRESSION_ROOM = 'tests/fixtures/level_01_area_06c.json'
 EXAMPLE_SHEET = 'tests/fixtures/characters/example_pc.json'
 MAD_MAGE_KEYS = ('dotmm', 'mad mage', 'mad-mage', 'dungeon of the mad mage')
-GREETING = (
-    "I'm Kit. Pull up a chair. Are we playing tonight, or building? "
-    "Play, and I run the table. Build, and I'm your DM's assistant.")
-PLAY_NEEDS_LINE = "Then let's play. I need {need} before I can run anything, and I won't make {it} up."
-TABLE_LINE = ("Is it just you, or a shared table, with a few of you taking turns telling me what you do?")
-BUILD_LINE = ("Build it is. Throw me a scene, an NPC, a ruling, or an item to price. "
-              "Prices come from Goldscale's formula, not my guesswork.")
+GREETING = "Pull up a chair. Are we rolling dice tonight, or building something?"
+PLAY_NEEDS_LINES = {
+    ('a module', 'your character'): "Then hand me two things: the adventure, and whoever's walking into it.",
+    ('a module',): "Good. Now, what am I running? Hand me the module.",
+    ('your character',): "And who's walking in? Give me your sheet. I read those closely.",
+}
+TABLE_LINE = "Just you tonight, or a full table taking turns?"
+SOLO_LINE = "Just us, then. Settle in."
+SHARED_LINE = "A full table. Tell me who's talking and I'll get to everyone."
+BUILD_LINE = ("Building, then. Encounters, NPCs, rulings, what that loot's worth: that's my wheelhouse. "
+              "Character options past the core rules, hand me the text and I'll check it.")
 TABLE_MODES = ('solo', 'shared')
 INTENTS = ('play', 'build')
 SHARED_NOTE = ('Shared table is recorded, but turn-taking is basic for now: the host prefixes each '
@@ -256,7 +260,7 @@ def _play(db, sheet_path, executable, blocked, table):
         need.append('your character')
     if need:
         return {**base, 'stage': 'need_module' if not executable else 'need_character', 'missing': need,
-                'table_line': PLAY_NEEDS_LINE.format(need=' and '.join(need), it='either' if len(need) > 1 else 'it'),
+                'table_line': PLAY_NEEDS_LINES[tuple(need)],
                 'next_step': (
                     'Say table_line. List only modules_available (it may be empty) and only a sheet the '
                     'player actually gave. Ask them to attach what is missing. Never offer do_not_start, '
@@ -268,8 +272,7 @@ def _play(db, sheet_path, executable, blocked, table):
     record_table_mode(db, table)
     return {**base, 'stage': 'ready', 'table_mode': table,
             **({'table_note': SHARED_NOTE} if table == 'shared' else {}),
-            'table_line': ("Just you and me, then." if table == 'solo'
-                           else "Shared table. Tell me who's speaking and I'll take you in turn."),
+            'table_line': SOLO_LINE if table == 'solo' else SHARED_LINE,
             'next_step': ('Run start --room <a path from modules_available> --sheet <file> --table '
                           f'{table}. Then prepare --opening. Show the player only "spoken".')}
 
@@ -283,9 +286,11 @@ def _build(sheet_path):
             'design_talk': 'Scenes, NPCs, encounters, rulings, homebrew: talk, no bridge command.',
             'price_item': ('python -m runtime.kit_appraise "<item description>" (Goldscale formula; '
                            'answer its questions with --answer "<reply>"; --formula shows the math).'),
+            'character_building': ('python -m runtime.kit_chargen "<request>". Never guess: beyond SRD 5.1, '
+                                   'ask for the exact rules text or the finished sheet, then check it.'),
         },
         'table_line': BUILD_LINE,
-        'next_step': ('Say table_line in your own voice. For a price, run the price_item tool and give '
+        'next_step': ('Say table_line in your own voice. Never guess at character generation (runtime/kit_chargen.py). For a price, run the price_item tool and give '
                       'the Final Price with its impact math. Do not open a room.'),
     }
 
