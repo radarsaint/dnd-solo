@@ -1,4 +1,4 @@
-# Player save (P1 of the campaign-record design)
+# Player save (campaign-record design P1 and P2)
 
 `kit.sqlite` is the live runtime database. It is **runtime-only**: the `source` table holds the
 whole room file (hidden facts, DCs, claims, secret actors and exits, and for book rooms the
@@ -8,7 +8,8 @@ runtime and is never offered to a player.
 The player's save is a ZIP written by:
 
 ```sh
-python3 -m runtime.kit_agent save --db kit.sqlite [--player NAME] [--campaign NAME] [--out FILE]
+python3 -m runtime.kit_agent save --db kit.sqlite [--recap-file FILE] [--journal-mode campaign|character]
+                                  [--player NAME] [--campaign NAME] [--out FILE]
 ```
 
 It writes `saves/<player>/<campaign>/` next to the database (default player `player`; default
@@ -49,10 +50,38 @@ see, plus the room's DCs and the raw `source` body, and checks that none appears
 exported file. A clean-dir test builds the release ZIP, unzips it, and runs `start` then `save`
 under `env -i python3`.
 
+## P2: the ledger fold, journal, recap, hand edits
+
+- **Fold at room exit.** When the PC leaves a room for a linked one, `kit_rooms.mounted_state`
+  calls `kit_save.fold_room_exit`, which keeps that room's public record in the session key
+  `state['campaign_log']` (the room file itself is replaced once the next room mounts): area
+  names visited, visible actors met there, facts learned (`known_fact_ids`), and what the PC took.
+  Every `save` folds again: the rooms left plus the current one (`status: current`), with HP and
+  gold as if the room were left now (`fold_pc`). "On stop" is the host running `save`.
+- **campaign.json** now carries `rooms[].areas`, `npcs_met`, `learned`, `loot`, `gold_gp`,
+  `choices` (the player's own committed words, last 20, no table talk), `sessions` (one per
+  revision saved, with Kit's recap) and `edits`. `threads` stays empty: Kit's open-thread hints
+  are her private decision and are not exported. `debts` is player-kept for now.
+- **Journal modes.** `--journal-mode campaign` (default) writes `journal.md`; `character`
+  writes `characters/<pc>/journal.md`. The mode is stored in campaign.json and sticks.
+  Kit asks; she never picks. Until the player answers, `save` returns `ask_player`
+  (`journal_mode`) and `campaign` is only a placeholder (`journal_mode_chosen: false`).
+  Sections: Threads, People met, What you learned, Loot and coin, Debts, Session log (newest
+  first), then the `kit-state` block (revision, location, and the hashes of the JSON files this
+  save wrote).
+- **Recap.** `--recap-file`: Kit's voice, at most 120 words. Refused (and nothing written) if
+  it names a DC, an unrevealed fact, an unseen actor or a secret exit of the current room, or
+  fails the play-time public-text guards (`check_public_content` with the room's leak phrases
+  and keyword sets). Rooms already left are no longer loaded, so their literals cannot be checked.
+- **Hand edits (D6).** A JSON file whose hash differs from the one the last save wrote is a hand
+  edit. An edited sheet is taken as written (the player owns it). An edited campaign.json at the
+  same revision is taken as written; at a higher revision the runtime's record wins and the edit
+  is logged as superseded. Either way the journal says "edited by player" and `save` returns
+  `noticed` so Kit may mention it once, lightly. Never an accept prompt.
+
 ## Later phases
 
-P2 folds the ledger into `campaign.json` and renders the full journal with Kit's recap; P3
-resumes from the save ZIP. Until P3, an uploaded `kit.sqlite` from an older save still resumes.
+P3 resumes from the save ZIP. Until P3, an uploaded `kit.sqlite` from an older save still resumes.
 
 ## Imported adventures (#172, #174)
 

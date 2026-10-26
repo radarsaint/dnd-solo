@@ -6616,6 +6616,10 @@ def _main():
     parser.add_argument('--db', default='kit.sqlite')
     parser.add_argument('--out', help='save: where to write the player-safe ZIP '
                                       '(default saves/<player>/<campaign>/ next to --db)')
+    parser.add_argument('--recap-file', dest='recap_file',
+                        help="save: Kit's recap for the journal (her voice, at most 120 words, public only)")
+    parser.add_argument('--journal-mode', dest='journal_mode', choices=['campaign', 'character'],
+                        help='save: one journal per campaign (default) or per character; it sticks')
     parser.add_argument('--player', help='save: the player folder name under saves/ (default "player")')
     parser.add_argument('--kind', choices=['short', 'long'], help='rest: a short or a long rest (slots and uses '
                                                                   'come back; re-sending the sheet does not)')
@@ -6728,8 +6732,10 @@ def _main():
     if args.command == 'save':
         # The player-safe export. kit.sqlite itself is runtime-only and is never offered.
         try:
-            result = kit_save.save(args.db, out=args.out, player=args.player, campaign=args.campaign)
-        except kit_save.SaveError as exc:
+            recap = Path(args.recap_file).read_text(encoding='utf-8') if args.recap_file else None
+            result = kit_save.save(args.db, out=args.out, player=args.player, campaign=args.campaign,
+                                   journal_mode=args.journal_mode, recap=recap)
+        except (kit_save.SaveError, OSError) as exc:
             print(json.dumps({'stage': 'rejected', 'message': str(exc)}, ensure_ascii=False), file=sys.stderr)
             return 2
         print(json.dumps(result, ensure_ascii=False))
