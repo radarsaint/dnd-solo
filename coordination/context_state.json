@@ -2,16 +2,16 @@
   "schema": "kit_project_gardener_state/v1",
   "purpose": "RESUMABILITY_CURSOR_NOT_KNOWLEDGE_STORE",
   "canonical_location": "radarsaint/dnd-solo/coordination/context_state.json",
-  "state_revision": 37,
+  "state_revision": 38,
   "semantic_brain": {
     "repo": "radarsaint/dnd-solo",
     "path": "docs/PROJECT_UNDERSTANDING.md",
-    "last_semantic_commit": "5e0ec39e0dc98c68f47a01a5a4602d5804ba0a8d",
+    "last_semantic_commit": "2de1127f0daf937c64c76a086e151a8d4e9fea0e",
     "last_reviewed_on": "2026-10-26"
   },
   "checkpoint": {
     "reviewed_against_main": {
-      "radarsaint/dnd-solo": "5e0ec39e0dc98c68f47a01a5a4602d5804ba0a8d",
+      "radarsaint/dnd-solo": "2de1127f0daf937c64c76a086e151a8d4e9fea0e",
       "radarsaint/bfdm-corpus": "df47554633b20ba872bd8cd393c420bbef7140d1"
     },
     "context_inbox": {
@@ -25,9 +25,9 @@
   "last_completed_pass": {
     "kind": "BOUNDED_SEMANTIC_RECONCILIATION",
     "completed_on": "2026-10-26",
-    "scope": "Reviewed dnd-solo #168 merge (main e8905032, brain 5e0ec39e). #115 comment 6266120288 remains pending.",
-    "result": "Accept: #168 refines cold-start after live vanilla ChatGPT test. Order: attached ZIP (full), exactly one capped Python internet try (5s timeout for release ZIP, no retries/other tools), then KIT_PORTABLE.md via GitHub app/connector or github.com blob browsing (raw removed; explicit partial load with player notice to attach ZIP). Guard bans pip/PyPI/container.download/raw.githubusercontent. KIT_PORTABLE header matches. 1395 tests pass. Narrow: ordinary-GPT complete load unproved; portable remains partial fallback. Brain updated. Pending #115 DM Kit rulings remain unresolved.",
-    "resulting_brain_commit": "5e0ec39e0dc98c68f47a01a5a4602d5804ba0a8d",
+    "scope": "Reviewed dnd-solo #159 merge (main edba0534, brain 2de1127f). #115 comment 6266120288 remains pending.",
+    "result": "Accept: #159 adds model-free phrase fuzz, leak scanner and log replay (new files only, no runtime change). 458 player lines with outcomes, synthetic rooms, stubbed Kit, leak scan, known_failures tracking. Replaces most live playtest rounds for routing/leak checks. Full suite passes. Narrow: player-experience truth remains unproved. Brain updated. Pending #115 DM Kit rulings remain unresolved.",
+    "resulting_brain_commit": "2de1127f0daf937c64c76a086e151a8d4e9fea0e",
     "reconciled_comment_id": 6202184874
   },
   "active_pass": null,
