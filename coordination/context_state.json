@@ -2,16 +2,16 @@
   "schema": "kit_project_gardener_state/v1",
   "purpose": "RESUMABILITY_CURSOR_NOT_KNOWLEDGE_STORE",
   "canonical_location": "radarsaint/dnd-solo/coordination/context_state.json",
-  "state_revision": 42,
+  "state_revision": 45,
   "semantic_brain": {
     "repo": "radarsaint/dnd-solo",
     "path": "docs/PROJECT_UNDERSTANDING.md",
-    "last_semantic_commit": "4c30077bc7f2a080960b252e34cfe69fc0bffd24",
+    "last_semantic_commit": "10db3610a294ffc8c9775287dc8d5765970570d6",
     "last_reviewed_on": "2026-10-26"
   },
   "checkpoint": {
     "reviewed_against_main": {
-      "radarsaint/dnd-solo": "89da7168cba31fdb4b8073a716141095ae8605f4",
+      "radarsaint/dnd-solo": "10db3610a294ffc8c9775287dc8d5765970570d6",
       "radarsaint/bfdm-corpus": "df47554633b20ba872bd8cd393c420bbef7140d1"
     },
     "context_inbox": {
@@ -25,9 +25,9 @@
   "last_completed_pass": {
     "kind": "BOUNDED_SEMANTIC_RECONCILIATION",
     "completed_on": "2026-10-26",
-    "scope": "Reviewed dnd-solo #174 merge (main 89da7168, brain 4c30077). #115 comment 6266120288 remains pending.",
-    "result": "Accept: #174 makes sourced creatures in compiled adventure rooms into engine combatants (book stat block first, then SRD, else ask_player; player-visible only if named in read-aloud, else hidden until reveal trigger). Limitations noted (partial multiattack, unsupported features flagged, presence/reveal/stat-matching misfires possible). Synthetic fixture only. Brain corrected from 'no actors/combat'. Pending #115 DM Kit rulings remain unresolved.",
-    "resulting_brain_commit": "4c30077bc7f2a080960b252e34cfe69fc0bffd24",
+    "scope": "Reviewed dnd-solo #185 and #187 merges (main tip 8dcf8d8 before brain; brain 10db3610). #115 comment 6266120288 remains pending.",
+    "result": "Accept: #185 makes rehydrate return the pending one-pass packet (stored in kit_packets, with or without layers). #187 makes standing checks ride; the engine calls, never rolls, a PC's check. Brain updated. Pending #115 DM Kit rulings (spell slots, equipment, proficiencies) remain unresolved (draft PR, nothing merged).",
+    "resulting_brain_commit": "10db3610a294ffc8c9775287dc8d5765970570d6",
     "reconciled_comment_id": 6202184874
   },
   "active_pass": null,
