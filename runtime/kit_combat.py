@@ -34,10 +34,11 @@ import json
 import hashlib
 import re
 
-from . import _lazy
+from . import kit_names, _lazy
 from . import kit_party
 from . import kit_reactions
 from . import kit_rolls
+from . import state_context
 from .state_context import require
 
 QUOTED = _lazy.regex(r'"[^"]*"')
@@ -361,32 +362,59 @@ def labels(source):
     return actor_speakers(source)
 
 
-def _names(source, key):
+def _palette(source, key):
     actor = (source.get('actors') or {}).get(key) or {}
-    label = labels(source).get(key, key).casefold()
-    names = {label, label.replace('-', ' '), (actor.get('name') or '').casefold()}
-    first = label.split()[0] if label else ''
-    if first and first not in ('the', 'pale'):
-        names.add(first)  # "dealer", "door-side", "fresco-side", "fourth"
-    last = label.split()[-1] if label else ''
-    if last and all((labels(source).get(other, other).casefold().split() or [''])[-1] != last
-                    for other in (source.get('actors') or {}) if other != key):
-        names.add(last)  # the head noun when only this actor has it: "watch warden" -> "warden"
-    palette = (((source.get('texture_palette') or {}).get('areas') or {}).get(actor.get('location') or '', {})
-               .get('subjects', {}).get(f'actor:{key}')) or ()
-    names |= {n.casefold() for n in palette}
-    return {n for n in names if n and n not in ('pale man',)}
+    return (((source.get('texture_palette') or {}).get('areas') or {}).get(actor.get('location') or '', {})
+            .get('subjects', {}).get(f'actor:{key}')) or ()
+
+
+def _names(source, key):
+    return kit_names.names(source, key, labels(source), _palette(source, key))
+
+
+def _perceived(source, state, keys):
+    actors = state.get('actors') or {}
+    return [k for k in keys
+            if kit_names.perceivable({**((source.get('actors') or {}).get(k) or {}), **(actors.get(k) or {})})]
 
 
 def name_target(text, source, state, candidates):
-    """The actor the words name, among ``candidates``, or None."""
-    best = None
-    for key in candidates:
-        for name in _names(source, key):
-            found = re.search(rf"\b{re.escape(name)}\b", text)
-            if found and (best is None or found.start() < best[1]):
-                best = (key, found.start())
-    return best[0] if best else None
+    """The one creature the words name among ``candidates`` the PC can perceive, or None
+    (kit_names.resolve: a name several share names none of them)."""
+    key, _ = kit_names.resolve(text, source, _perceived(source, state, candidates), labels(source),
+                               lambda k: _palette(source, k),
+                               skip=[span for span, _ in kit_names.missing_numbered(
+                                   text, source, _in_area(state), _perceived(source, state, _in_area(state)),
+                                   labels(source))])
+    return key
+
+
+def _in_area(state):
+    return [k for k, a in (state.get('actors') or {}).items() if a.get('location') == state.get('area')]
+
+
+def target_ask(text, source, state, here):
+    """Why an attack names no single foe, as the question to put to the player, or None: a named foe
+    already down, a numbered foe not here, or a shared name that fits several ('Which one')."""
+    lab = labels(source)
+    seen = _perceived(source, state, here)
+    if not seen:
+        return None  # nobody left to hit: the engine's own line says so
+    down = _perceived(source, state, [k for k in _in_area(state) if k not in here])
+    missing = kit_names.missing_numbered(text, source, _in_area(state), seen + down, lab)
+    skip = [span for span, _ in missing]
+    key, _ = kit_names.resolve(text, source, down, lab,
+                               lambda k: _palette(source, k), skip=skip)
+    if key:
+        return f'{lab.get(key, key)} is already down. Name a foe still standing. No turn was committed.'
+    if missing:
+        return f"There's no {missing[0][1]} here that you can see. No turn was committed."
+    _, tied = kit_names.resolve(text, source, seen, lab, lambda k: _palette(source, k), skip=skip)
+    if tied:
+        shown = [lab.get(k, k) for k in tied]
+        return (f"Which one: {', '.join(shown[:-1])} or {shown[-1]}? Name the one you attack. "
+                'No turn was committed.')
+    return None
 
 
 def _creature_words(text):
@@ -493,6 +521,9 @@ def _main_act(action, source, state):
     if spell:
         name = spell.group(1)
         area = name in SPELL_SAVE and SPELL_SAVE[name][2]
+        ask = None if named or area else target_ask(text, source, state, here)
+        if ask:
+            return {'kind': 'ask_target', 'target': None, 'message': ask}
         return {'kind': 'attack', 'spell': name, 'weapon': name, 'area': bool(area),
                 'target': None if area else (named or _default_target(text, source, state, here))}
     actor_names = tuple(name for key in (state.get('actors') or {}) for name in _names(source, key))
@@ -506,6 +537,9 @@ def _main_act(action, source, state):
     stated_attack = kit_rolls.attack_total(action) is not None and (weapon or in_fight or named)
     if (attack and (hostile_target or stated_attack or in_fight) and
             not (TABLE.search(text[attack.end():attack.end() + 25]) and not named)) or (not attack and stated_attack):
+        ask = None if named else target_ask(text, source, state, here)
+        if ask:
+            return {'kind': 'ask_target', 'target': None, 'message': ask}
         return {'kind': 'attack', 'weapon': weapon.group(1) if weapon else 'unarmed strike',
                 'target': named or _default_target(text, source, state, here), 'area': False,
                 'unarmed': not weapon, 'nonlethal': bool(NONLETHAL.search(text))}
@@ -817,6 +851,9 @@ def parse_one(action, source, state):
     if spell:
         name = spell.group(1)
         area = name in SPELL_SAVE and SPELL_SAVE[name][2]
+        ask = None if named or area else target_ask(text, source, state, here)
+        if ask:
+            return {'kind': 'ask_target', 'target': None, 'message': ask}
         return {'kind': 'attack', 'spell': name, 'weapon': name, 'area': bool(area),
                 'target': None if area else (named or _default_target(text, source, state, here)),
                 **({'move_first': {'disengage': bool(re.search(r'\bdisengag', text))}}
@@ -832,6 +869,9 @@ def parse_one(action, source, state):
     stated_attack = kit_rolls.attack_total(action) is not None and (weapon or in_fight or named)
     if (attack and (hostile_target or stated_attack or in_fight) and
             not (TABLE.search(text[attack.end():attack.end() + 25]) and not named)) or (not attack and stated_attack):
+        ask = None if named else target_ask(text, source, state, here)
+        if ask:
+            return {'kind': 'ask_target', 'target': None, 'message': ask}
         held = None if weapon or not re.search(r'\b(?:stab|stabs|slash|slashes|thrust|thrusts|cut|cuts)\b', text) \
             else sheet_weapon(state)  # 'I stab' with no weapon named: the blade on his sheet
         thrown = bool(weapon and re.search(r'\b(?:throw|throws|hurl|hurls|toss|tosses)\b', text) and
@@ -1064,7 +1104,8 @@ class Fight:
         if self.fight and self.fight.get('status') != 'over':
             return False
         hp = {key: self.stats(key)['hp'] for key in self.config['actors']
-              if key in self.state['actors'] and self.state['actors'][key].get('status') != 'hidden'}
+              if key in self.state['actors'] and not state_context.unperceived(
+                  {**((self.source.get('actors') or {}).get(key) or {}), **self.state['actors'][key]})}
         self.fight = {'status': 'awaiting_initiative', 'round': 1, 'order': [], 'next': 0,
                       'pc_initiative': None, 'surprised': list(self.surprised()), 'hp': hp, 'max_hp': dict(hp),
                       'pc_damage': 0, 'pending': None, 'opener_spent': False, 'started_by': started_by,

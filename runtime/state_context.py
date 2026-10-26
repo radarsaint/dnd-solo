@@ -103,7 +103,12 @@ KEEPS_PENDING_CHECK = BOOKKEEPING_EVENTS + ('refused_attempt',)
 # A pending check's optional fields: a held exit, and room for the check-calling follow-up's
 # quiet DC adjustment for creative use of the scene (Brendon: about -2) with its reason. Not
 # applied anywhere yet.
-PENDING_CHECK_OPTIONAL = {'exit', 'dc_adjust', 'reason', 'threshold', 'held', 'dc'}
+PENDING_CHECK_OPTIONAL = {'exit', 'dc_adjust', 'reason', 'threshold', 'held', 'dc', 'action'}
+# ``action``: the act a check the engine itself called waits on (the act needs the PC's roll and
+# the engine never rolls for them); the player's roll resolves it (LET_IT_RIDE.md).
+# A standing check (Let It Ride): an established result that holds while the PC keeps at the same
+# endeavor, in state['standing_check']; the event with check None clears it.
+STANDING_CHECK_KEYS = {'skill', 'total', 'die', 'modifier', 'area', 'route', 'against', 'approach', 'since'}
 # A heavy turn Kit opened on a check call holds its description for the roll (kit_agent.STALL_KINDS).
 HELD_KINDS = ('opening', 'exit', 'threshold_look')
 # What the engine's outcome of a declared act may add (runtime/kit_acts.py: handles).
@@ -189,6 +194,40 @@ class HostSequenceError(InvalidChange):
         self.next_step = next_step
 
 
+HIDING_MARKS = ('hidden', 'invisible', 'concealed', 'unseen')
+GONE_STATUSES = ('dead', 'fled', 'destroyed')
+
+
+def unperceived(actor):
+    """True for a creature still there that the PC cannot perceive now, whatever marks it: the
+    room schema's status "hidden" (until a trigger) or "visible": false, or a hidden / invisible /
+    concealed / unseen flag set true, or a condition of those names. Pass the source actor merged
+    with its state. Dead, fled and destroyed creatures are not "there"."""
+    actor = actor or {}
+    if actor.get('status') in GONE_STATUSES:
+        return False
+    if actor.get('status') == 'hidden' or actor.get('visible') is False:
+        return True
+    if any(actor.get(mark) is True for mark in HIDING_MARKS):
+        return True
+    return any(str(c).casefold() in HIDING_MARKS for c in actor.get('conditions') or ())
+
+
+def reveal_actor(actor, spec=None):
+    """Clear every hiding marker on the state actor (a trigger's reveal): status hidden -> alive,
+    visible true, each hiding flag false (also those only the room spec carries), and the hiding
+    names dropped from conditions. Other conditions (prone) stay."""
+    merged = {**(spec or {}), **actor}
+    if actor.get('status') == 'hidden' or (spec or {}).get('status') == 'hidden' and 'status' not in actor:
+        actor['status'] = 'alive'
+    actor['visible'] = True
+    for mark in HIDING_MARKS:
+        if merged.get(mark):
+            actor[mark] = False
+    if merged.get('conditions'):
+        actor['conditions'] = [c for c in merged['conditions'] if str(c).casefold() not in HIDING_MARKS]
+
+
 def encode(value):
     return json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
 
@@ -246,6 +285,9 @@ class Runtime:
             );
             -- Timing telemetry is deliberately outside turns/ledger/kit_turns: it never
             -- enters a turn digest, so an identical retry stays idempotent.
+            -- The last full packet issued for a pending one-pass turn, for rehydrate (a host that
+            -- lost it, e.g. the one a window answer returns). Rows of finished turns are pruned.
+            CREATE TABLE IF NOT EXISTS kit_packets (turn_id TEXT PRIMARY KEY, body TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS kit_telemetry (
                 seq INTEGER PRIMARY KEY, turn_id TEXT NOT NULL UNIQUE, body TEXT NOT NULL
             );
@@ -461,6 +503,19 @@ class Runtime:
                 'Call prepare first and use the turn_id it returns.', 'prepare')
         return {'revision': row[0], 'body': json.loads(row[1]),
                 'plan': json.loads(row[2]) if row[2] is not None else None}
+
+    def save_kit_packet(self, turn_id, packet):
+        """Keep the full packet just issued for a pending turn, replacing an earlier one."""
+        with self.db:
+            self.db.execute('DELETE FROM kit_packets WHERE turn_id NOT IN (SELECT turn_id FROM kit_pending)')
+            self.db.execute('INSERT OR REPLACE INTO kit_packets(turn_id, body) VALUES (?, ?)',
+                            (turn_id, encode(packet)))
+
+    def kit_packet(self, turn_id):
+        """The full packet last issued for a turn that is still pending, else None."""
+        row = self.db.execute('SELECT p.body FROM kit_packets p JOIN kit_pending k USING (turn_id) '
+                              'WHERE p.turn_id=?', (turn_id,)).fetchone()
+        return json.loads(row[0]) if row else None
 
     def discard_pending_kit_turn(self, turn_id):
         """Drop an uncommitted staged turn (nothing in the world or ledger changes)."""
@@ -852,6 +907,8 @@ class Runtime:
             state['area'] = next(a for a in edge['areas'] if a != state['area'])
             state.setdefault('room', {'id': source.get('id'), 'path': None, 'turns_in': {}})['came_by'] = key
             state.pop('pc_position', None)  # a new area: no longer at the old doorway
+            if (state.get('standing_check') or {}).get('area') != state['area']:
+                state.pop('standing_check', None)  # a new area ends a standing attempt
             if state['area'] not in state['visited']:
                 state['visited'].append(state['area'])
             self._observe(state, source)
@@ -1025,9 +1082,11 @@ class Runtime:
                                                                check['held']['kind'] in HELD_KINDS)) and
                                       ('reason' not in check or (isinstance(check['reason'], str) and
                                                                  len(check['reason']) <= 200)) and
+                                      ('action' not in check or (isinstance(check['action'], str) and
+                                                                 0 < len(check['action']) <= 2000)) and
                                       pc_sheet.SKILLS.get(check['skill']) == check['ability'] and
                                       isinstance(check['target'], str) and isinstance(check['called_turn'], str)),
-                    'pending_check is {skill, ability, target, called_turn[, exit, threshold, held, dc_adjust, reason]} or None')
+                    'pending_check is {skill, ability, target, called_turn[, exit, threshold, held, dc, dc_adjust, reason, action]} or None')
             if check is None:
                 state.pop('pending_check', None)
             else:
@@ -1038,6 +1097,18 @@ class Runtime:
                     state['rhythm'].append({'tags': ['check_called'],
                                             'evidence': f"Kit called for {check['skill']}; waiting on the roll."})
                     state['rhythm'] = state['rhythm'][-12:]
+        elif kind == 'standing_check':
+            from . import pc_sheet
+            check = event.get('check')
+            require(check is None or (isinstance(check, dict) and set(check) == STANDING_CHECK_KEYS and
+                                      check['skill'] in pc_sheet.SKILLS and type(check['total']) is int and
+                                      check['area'] in source['areas'] and
+                                      isinstance(check['against'], dict) and isinstance(check['approach'], str)),
+                    'standing_check is {skill, total, die, modifier, area, route, against, approach, since} or None')
+            if check is None:
+                state.pop('standing_check', None)
+            else:
+                state['standing_check'] = copy.deepcopy(check)
         elif kind == 'risk_warned':
             from . import kit_interstitial
             kit_interstitial.apply(state, event)
@@ -1200,8 +1271,9 @@ class Runtime:
             'known_facts_here': [source['facts'][k]['text'] for k in state['known_facts']
                                  if source['facts'][k]['area'] == state['area']],
             'exits': exits,
-            'actors': [{'name': a['name'], 'status': a['status']} for a in state['actors'].values()
-                       if a['location'] == state['area'] and a['visible'] and a['status'] != 'fled'],
+            'actors': [{'name': a['name'], 'status': a['status']} for k, a in state['actors'].items()
+                       if a['location'] == state['area'] and a['visible'] and a['status'] != 'fled'
+                       and not unperceived({**(source['actors'].get(k) or {}), **a})],
             'resources': state['resources'], 'elapsed_seconds': state['elapsed_seconds'],
             **({'your_character': dict(state['player_character'])} if state.get('player_character') else {}),
             **({'your_position': f"at {source['exits'][state['pc_position']['at_exit']].get('name') or 'the doorway'}"}

@@ -2,16 +2,16 @@
   "schema": "kit_project_gardener_state/v1",
   "purpose": "RESUMABILITY_CURSOR_NOT_KNOWLEDGE_STORE",
   "canonical_location": "radarsaint/dnd-solo/coordination/context_state.json",
-  "state_revision": 41,
+  "state_revision": 45,
   "semantic_brain": {
     "repo": "radarsaint/dnd-solo",
     "path": "docs/PROJECT_UNDERSTANDING.md",
-    "last_semantic_commit": "bbbfa840ccd3a602247800ae27bbd976afc26203",
+    "last_semantic_commit": "10db3610a294ffc8c9775287dc8d5765970570d6",
     "last_reviewed_on": "2026-10-26"
   },
   "checkpoint": {
     "reviewed_against_main": {
-      "radarsaint/dnd-solo": "a3bfaab37082e9e28b462c45f9add3d3298e75da",
+      "radarsaint/dnd-solo": "10db3610a294ffc8c9775287dc8d5765970570d6",
       "radarsaint/bfdm-corpus": "df47554633b20ba872bd8cd393c420bbef7140d1"
     },
     "context_inbox": {
@@ -25,9 +25,9 @@
   "last_completed_pass": {
     "kind": "BOUNDED_SEMANTIC_RECONCILIATION",
     "completed_on": "2026-10-26",
-    "scope": "Reviewed dnd-solo #172 merge (main a3bfaab37, brain bbbfa840). #115 comment 6266120288 remains pending.",
-    "result": "Accept: #172 adds adventure ingestion first slice (deterministic import/index, JIT compile to validated room JSON with provenance, cache/precompile, readiness in status). Synthetic fixture, 1437 tests OK. Narrow: PDF extraction/read-aloud host-dependent; no actors/combat; exit naming generic; room-format expressiveness unknown. Mad Mage still blocked. Brain updated. Pending #115 DM Kit rulings remain unresolved.",
-    "resulting_brain_commit": "bbbfa840ccd3a602247800ae27bbd976afc26203",
+    "scope": "Reviewed dnd-solo #185 and #187 merges (main tip 8dcf8d8 before brain; brain 10db3610). #115 comment 6266120288 remains pending.",
+    "result": "Accept: #185 makes rehydrate return the pending one-pass packet (stored in kit_packets, with or without layers). #187 makes standing checks ride; the engine calls, never rolls, a PC's check. Brain updated. Pending #115 DM Kit rulings (spell slots, equipment, proficiencies) remain unresolved (draft PR, nothing merged).",
+    "resulting_brain_commit": "10db3610a294ffc8c9775287dc8d5765970570d6",
     "reconciled_comment_id": 6202184874
   },
   "active_pass": null,
