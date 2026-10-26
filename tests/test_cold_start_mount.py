@@ -42,6 +42,10 @@ class ColdStart(unittest.TestCase):
         self.assertIn('Attach the Kit ZIP for the full rules engine.', BLOCK)
         self.assertIn('exactly one attempt with a 5-second timeout', BLOCK)
 
+    def test_status_names_the_next_command(self):
+        self.assertIn('python3 -m runtime.kit_agent status --db kit.sqlite', BLOCK)
+        self.assertIn('next_command', BLOCK)
+
     def test_no_package_install_route(self):
         for text in (BLOCK, (ROOT / 'KIT_PORTABLE.md').read_text()):
             self.assertIsNone(re.search(r'\bpip\b|pypi|container\.download|raw\.githubusercontent', text, re.I))

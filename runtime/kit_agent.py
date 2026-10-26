@@ -53,6 +53,7 @@ from . import kit_triggers
 from . import kit_reveal
 from . import kit_handoff
 from . import kit_acts
+from . import kit_lifecycle
 from . import kit_claims
 from . import kit_manifest
 from . import kit_router
@@ -5535,6 +5536,9 @@ class KitChatBridge:
                 'A staged turn chooses its performance variant at decide')
         if one_pass:
             performance_variant = check_variant(performance_variant or DEFAULT_BRIDGE_VARIANT)
+        held = self._turn_waiting(turn_id, action)
+        if held is not None:
+            return held
         self.runtime.flush_queued_attempts()  # refused attempts held while a turn was waiting
         if opening:
             require(action is None and not table_talk, 'Room opening does not take a player action')
@@ -5561,6 +5565,19 @@ class KitChatBridge:
                 raise ruling from exc
         return self._stage(turn_id, revision, body, planning_input, one_pass, performance_variant, started, clock,
                            stamps)
+
+    def _turn_waiting(self, turn_id, action):
+        """Lifecycle guard (postmortem, opening + "Yes."): while a turn is prepared and waiting at
+        the current revision, prepare stages nothing and records nothing. It returns turn_pending
+        with the exact complete command. Re-preparing the waiting turn's own id is allowed."""
+        waiting = kit_lifecycle.state_of(self.runtime.db)
+        pending = waiting.get('pending_turn_id')
+        if pending is None or pending == turn_id:
+            return None
+        opening = waiting['state'] == 'ready'
+        if not opening and not kit_lifecycle.is_confirmation(action):
+            return None  # a new player action supersedes a waiting turn (#150 queue rules)
+        return kit_lifecycle.turn_pending(self.runtime.path, pending, opening, action)
 
     def _stage(self, turn_id, revision, body, planning_input, one_pass, performance_variant, started, clock, stamps):
         """Stage a prepared turn and build its model packet."""
@@ -6171,7 +6188,7 @@ def _lobby_question_delivery(args, result):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('command', choices=['start', 'init', 'view', 'prepare', 'decide', 'finish', 'complete',
+    parser.add_argument('command', choices=['start', 'init', 'status', 'view', 'prepare', 'decide', 'finish', 'complete',
                                             'abandon', 'feedback', 'character', 'notes', 'play', 'trace',
                                             'timing', 'persona', 'stamp', 'rehydrate', 'rest'])
     parser.add_argument('--db', default='kit.sqlite')
@@ -6242,6 +6259,10 @@ def main():
     if args.command == 'persona':
         # Kit before any game: the persona text the bridge uses, with no database or scene.
         sys.stdout.write(persona_text())
+        return 0
+    if args.command == 'status':
+        # Read-only: the lifecycle state from the save and the exact next command (kit_lifecycle).
+        print(json.dumps(kit_lifecycle.status(args.db), ensure_ascii=False))
         return 0
     if args.command == 'start' and args.question_delivered:
         done = kit_campaign.confirm_question_delivered(args.db, question_id=args.question_delivered)
