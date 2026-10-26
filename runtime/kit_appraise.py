@@ -205,6 +205,196 @@ def strip_question(text):
     return (mode + ' and '.join(parts)).strip()
 
 
+_CP = {'cp': 1, 'sp': 10, 'gp': 100}
+_SKIP_TOKENS = frozenset(
+    'a an the my your our his her their some of please pls hey hi ok okay'.split())
+_MAGIC_MARK = lazy_compile(
+    r"(?<![0-9d])\+[123]\b|\b(?:common|uncommon|rare|very rare|legendary|artifact|minor|reusable|broad)\b|\d+d\d+",
+    re.I)
+_CATALOG = None
+
+
+def _unknown(mode, quantity=1):
+    return {'item': 'unknown item', 'quantity': quantity, 'price': None, 'unit': None,
+            'source': 'unknown', 'mode': 'sell' if (mode or '').startswith('sell') else 'buy'}
+
+
+def _entry_tokens(name):
+    bare = re.sub(r'\([^)]*\)', ' ', (name or '').casefold())
+    head, _, qual = bare.partition(',')
+    return re.findall(r'[a-z0-9]+', head), re.findall(r'[a-z0-9]+', qual)
+
+
+def _catalog():
+    """SRD rows as (entry, head tokens, qualifier tokens) and the token set. Loaded once."""
+    global _CATALOG
+    if _CATALOG is None:
+        from . import kit_prices
+        rows = []
+        words = set()
+        for entry in kit_prices.srd_entries():
+            head, qual = _entry_tokens(entry['name'])
+            rows.append((entry, head, qual))
+            words.update(head)
+            words.update(qual)
+        _CATALOG = (rows, words)
+    return _CATALOG
+
+
+def _one_edit(left, right):
+    """True when left and right differ by one insertion, deletion, substitution, or transposition."""
+    if left == right:
+        return False
+    if abs(len(left) - len(right)) > 1:
+        return False
+    if len(left) == len(right):
+        diffs = [i for i, (a, b) in enumerate(zip(left, right)) if a != b]
+        if len(diffs) == 1:
+            return True
+        return (len(diffs) == 2 and diffs[1] == diffs[0] + 1
+                and left[diffs[0]] == right[diffs[1]] and left[diffs[1]] == right[diffs[0]])
+    if len(left) > len(right):
+        left, right = right, left
+    skip = 0
+    i = 0
+    for char in right:
+        if i < len(left) and left[i] == char:
+            i += 1
+        else:
+            skip += 1
+            if skip > 1:
+                return False
+    return True
+
+
+def _fold_token(token, words):
+    """Plural, or one unique misspelling, of a token that is actually in the price list.
+
+    Two catalog words one edit away is not a match: that would be a guess.
+    """
+    if token in words:
+        return token
+    folded = []
+    if len(token) > 3 and token.endswith('ies'):
+        folded.append(token[:-3] + 'y')
+    if len(token) > 4 and token.endswith('es'):
+        folded.append(token[:-2])
+    if len(token) > 3 and token.endswith('s'):
+        folded.append(token[:-1])
+    if token.endswith('y') and len(token) > 3:
+        folded.append(token[:-1] + 'ies')
+    folded.extend((token + 's', token + 'es'))
+    exact = list(dict.fromkeys(cand for cand in folded if cand in words))
+    if len(exact) == 1:
+        return exact[0]
+    if len(token) >= 4:
+        near = [word for word in words if len(word) >= 4 and _one_edit(token, word)]
+        if len(near) == 1:
+            return near[0]
+    return token
+
+
+def _query_tokens(name, words):
+    tokens = []
+    for token in re.findall(r'[a-z0-9]+', (name or '').casefold()):
+        if token in _SKIP_TOKENS or token.isdigit():
+            continue
+        tokens.append(_fold_token(token, words))
+    return tokens
+
+
+def match_catalog(name):
+    """The one SRD entry whose name is exactly these words, or None.
+
+    "torches" is Torch. "hempen rope" is the hempen rope. "rope" is both ropes,
+    so it is None: the caller says unknown item instead of picking one.
+    A word that is not in the list, and not one edit from exactly one listed word,
+    does not match a neighbor.
+    """
+    rows, words = _catalog()
+    wanted = _query_tokens(name, words)
+    if not wanted:
+        return None
+    wanted_set = set(wanted)
+    hits = [entry for entry, head, qual in rows if head and set(head + qual) == wanted_set]
+    if len(hits) == 1:
+        return hits[0]
+    return None
+
+
+def _bundle_price(entry, quantity):
+    """Listed price times quantity, in the largest whole coin the rate divides into.
+
+    Arrow is 1 gp per 20, so one arrow is 5 cp and a dozen is 6 sp. A rate that
+    does not divide into whole coins returns (None, None) rather than a rounded guess.
+    """
+    per = entry.get('per') or 1
+    copper = entry['amount'] * _CP[entry['unit']] * quantity
+    if copper % per:
+        return None, None
+    copper //= per
+    if copper % 100 == 0:
+        return copper // 100, 'gp'
+    if copper % 10 == 0:
+        return copper // 10, 'sp'
+    return copper, 'cp'
+
+
+def _looks_magic(name):
+    low = (name or '').casefold()
+    if any(known in low for known, _, _ in SRD_DEFAULTS):
+        return True
+    return bool(_MAGIC_MARK.search(name or ''))
+
+
+def _from_goldscale(line, quantity):
+    try:
+        got = price(line)
+    except ValueError:
+        data = parse_item_text(_command(line))
+        return {'item': data.item_name or 'unknown item', 'quantity': data.quantity or quantity,
+                'price': None, 'unit': 'gp', 'source': 'goldscale', 'mode': data.mode}
+    total = got['transaction_total'] if got['transaction_total'] is not None else got['final_price']
+    return {'item': got['item'], 'quantity': got['quantity'] or 1, 'price': total,
+            'unit': got['unit'], 'source': 'goldscale', 'mode': got['mode']}
+
+
+def _quote_clause(mode, cleaned):
+    parsed = parse_quantity(cleaned)
+    if parsed and parsed[0] > 1:
+        quantity, name = parsed
+    else:
+        quantity, name = 1, cleaned
+    name = name.strip()
+    if _looks_magic(name):
+        prefix = mode
+        counted = f'qty {quantity} {name}' if quantity > 1 else name
+        return _from_goldscale(f'{prefix}{counted}'.strip(), quantity)
+    hit = match_catalog(name)
+    if hit is None:
+        return _unknown(mode, quantity)
+    amount, unit = _bundle_price(hit, quantity)
+    return {'item': hit['name'], 'quantity': quantity, 'price': amount, 'unit': unit,
+            'source': 'srd', 'mode': 'sell' if mode.startswith('sell') else 'buy'}
+
+
+def read_items(text):
+    """One shop or appraisal line, as a list of item/quantity/price rows.
+
+    A name that is not one entry in the price data is "unknown item". Goldscale's
+    final price is used when the line is a magic item it can already price, so a
+    rephrase does not change that price. SRD gear uses the listed rate.
+    """
+    mode, frame = _frame(text)
+    if not frame:
+        return [_unknown(mode)]
+    rows = []
+    for piece in _split_clauses(frame):
+        cleaned = _one_clause(piece)
+        rows.append(_quote_clause(mode, cleaned) if cleaned else _unknown(mode))
+    return rows or [_unknown(mode)]
+
+
 def srd_defaults(text):
     """Fill in rarity/type and dice for a well-known SRD item the player only named."""
     low = text.casefold()
