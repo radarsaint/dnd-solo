@@ -2,16 +2,16 @@
   "schema": "kit_project_gardener_state/v1",
   "purpose": "RESUMABILITY_CURSOR_NOT_KNOWLEDGE_STORE",
   "canonical_location": "radarsaint/dnd-solo/coordination/context_state.json",
-  "state_revision": 45,
+  "state_revision": 46,
   "semantic_brain": {
     "repo": "radarsaint/dnd-solo",
     "path": "docs/PROJECT_UNDERSTANDING.md",
-    "last_semantic_commit": "10db3610a294ffc8c9775287dc8d5765970570d6",
+    "last_semantic_commit": "931e84837ee77ff6736abc9f9f2f5a1ea7a54f16",
     "last_reviewed_on": "2026-10-26"
   },
   "checkpoint": {
     "reviewed_against_main": {
-      "radarsaint/dnd-solo": "10db3610a294ffc8c9775287dc8d5765970570d6",
+      "radarsaint/dnd-solo": "931e84837ee77ff6736abc9f9f2f5a1ea7a54f16",
       "radarsaint/bfdm-corpus": "df47554633b20ba872bd8cd393c420bbef7140d1"
     },
     "context_inbox": {
@@ -25,9 +25,9 @@
   "last_completed_pass": {
     "kind": "BOUNDED_SEMANTIC_RECONCILIATION",
     "completed_on": "2026-10-26",
-    "scope": "Reviewed dnd-solo #185 and #187 merges (main tip 8dcf8d8 before brain; brain 10db3610). #115 comment 6266120288 remains pending.",
-    "result": "Accept: #185 makes rehydrate return the pending one-pass packet (stored in kit_packets, with or without layers). #187 makes standing checks ride; the engine calls, never rolls, a PC's check. Brain updated. Pending #115 DM Kit rulings (spell slots, equipment, proficiencies) remain unresolved (draft PR, nothing merged).",
-    "resulting_brain_commit": "10db3610a294ffc8c9775287dc8d5765970570d6",
+    "scope": "Reviewed dnd-solo #177 merge (latency instrumentation, opt-in compact; main tip cc92e0b before brain). #115 comment 6266120288 remains pending.",
+    "result": "Accept: #177 adds per-turn telemetry (opt-out, *.telemetry.jsonl) and opt-in compact packet (full default; drops persona and far facts; rehydrate full). Measures only; does not change play or engine guards. Brain updated with note. Pending #115 DM Kit rulings remain unresolved (draft PR, nothing merged).",
+    "resulting_brain_commit": "931e84837ee77ff6736abc9f9f2f5a1ea7a54f16",
     "reconciled_comment_id": 6202184874
   },
   "active_pass": null,
