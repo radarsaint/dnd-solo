@@ -224,6 +224,24 @@ def check_player_note_text(text):
             'A player note records observed behavior or feedback, not a score or meter')
 
 
+def is_mad_mage(source):
+    """A Dungeon of the Mad Mage room (its id starts with dotmm, as the area 6c regression fixture's does).
+    Only these may carry Mad Mage wording; Kit is a general DM."""
+    return str(source.get('id') or '').startswith('dotmm')
+
+
+def source_constraint(source):
+    """The packet's source line, named for the room's own adventure, never assumed to be Mad Mage."""
+    ref = source.get('source_ref')
+    if not ref:
+        return 'This synthetic fixture is not canon for any published adventure and is not a campaign save.'
+    if is_mad_mage(source):
+        return 'This is a conditional test snapshot grounded in the cited Mad Mage source, not a campaign save.'
+    title = str(ref).split(' / ')[0].strip()
+    return (f'This room is grounded in the cited adventure source ({title}); '
+            'do not add to it from other adventures.')
+
+
 class Runtime:
     def __init__(self, path):
         self.path = path  # the session dir is its parent (kit_handoff's trace lives there)
@@ -1232,13 +1250,11 @@ class Runtime:
                     'DM-only facts and actor secrets are private.',
                     'The source graph is immutable. Missing connections are not invented.',
                     'Writes require adjudication; this prototype does not check D&D legality.',
-                    ('This is a conditional test snapshot grounded in the cited Mad Mage source, '
-                     'not a campaign save.' if source.get('source_ref') else
-                     'This synthetic fixture is not Mad Mage canon and is not a campaign save.'),
+                    source_constraint(source),
                 ],
                 'missing_production_layers': ['rules resolver', 'source retrieval', 'level story state',
-                    'Halaster state', 'faction ticks', 'player model beyond evidence-cited notes',
-                    'character patterns'],
+                    *(['Halaster state'] if is_mad_mage(source) else []), 'faction ticks',
+                    'player model beyond evidence-cited notes', 'character patterns'],
             },
         }
         require(len(encode(packet).encode()) <= max_bytes, 'Context budget exceeded; narrow the source adapter')
