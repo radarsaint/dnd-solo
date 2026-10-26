@@ -2,17 +2,17 @@
   "schema": "kit_project_gardener_state/v1",
   "purpose": "RESUMABILITY_CURSOR_NOT_KNOWLEDGE_STORE",
   "canonical_location": "radarsaint/dnd-solo/coordination/context_state.json",
-  "state_revision": 48,
+  "state_revision": 49,
   "semantic_brain": {
     "repo": "radarsaint/dnd-solo",
     "path": "docs/PROJECT_UNDERSTANDING.md",
-    "last_semantic_commit": "931e84837ee77ff6736abc9f9f2f5a1ea7a54f16",
+    "last_semantic_commit": "f66dbbb63413c912a91e6bbef5a3bbcb9c78dc70",
     "last_reviewed_on": "2026-10-26"
   },
   "checkpoint": {
     "reviewed_against_main": {
-      "radarsaint/dnd-solo": "32b21e158b0589b911e38f3f7af05a7f195c6136",
-      "radarsaint/bfdm-corpus": "07ee8aba64c79d18b317f19a99644462f375b141"
+      "radarsaint/dnd-solo": "f66dbbb63413c912a91e6bbef5a3bbcb9c78dc70",
+      "radarsaint/bfdm-corpus": "c0092da47088b4719b315cdef93998c56c6d5e7f"
     },
     "context_inbox": {
       "repo": "radarsaint/dnd-solo",
@@ -25,9 +25,9 @@
   "last_completed_pass": {
     "kind": "BOUNDED_SEMANTIC_RECONCILIATION",
     "completed_on": "2026-10-26",
-    "scope": "Reviewed bfdm-corpus #33 merge (Prototype corpus-wide human-object index). Corrected false 'draft' claims in PROJECT_CONTROL.md. #115 comment 6266120288 remains pending. No brain edit required; no conflicting claim in PROJECT_UNDERSTANDING.md.",
-    "result": "Accept narrow: #33 lands the seed prototype on main (10 objects/15 assertions/5 relations). Derived projection only; not source truth; not corpus-wide inventory; KIT_CONSUMPTION=NOT_APPROVED. Expansion off scarce-work list. Control text updated. Pending #115 DM Kit rulings remain unresolved.",
-    "resulting_brain_commit": "931e84837ee77ff6736abc9f9f2f5a1ea7a54f16",
+    "scope": "Reviewed bfdm-corpus #55 merge (Restore the Worker 4 report). Full research text restored on main after stub. Status remains landed via #48, not certified, KIT_CONSUMPTION=NOT_APPROVED. #115 comment 6266120288 remains pending. Concurrent #53 queue grooming noted but not fully reconciled in this pass.",
+    "result": "Accept narrow: #55 restores the full Worker 4 cross-format research records on main. Research-only; no Kit consumption. Brain updated with note. Pending DM Kit rulings unresolved.",
+    "resulting_brain_commit": "f66dbbb63413c912a91e6bbef5a3bbcb9c78dc70",
     "reconciled_comment_id": 6202184874
   },
   "active_pass": null,
@@ -41,9 +41,12 @@
     "Legitimate Mad Mage opening remains blocked on missing room files. Adventure ingestion first slice is live for supplied text, but Mad Mage rooms unauthored and room-format expressiveness open.",
     "#115 comment 6266120288 (2026-10-19 DM Kit rulings on spell slots, equipment misuse, unsourced proficiencies) is PENDING REVIEW; draft PR in progress, nothing merged. Not reconciled as live truth.",
     "Ordinary-GPT complete load and reset recovery via LOAD_KIT.md remains unproved. Work-host and CI checks do not certify the destination host.",
-    "Goldscale vs older in-play pricing formula discrepancy (rounding, weapon bonus, inputs, charges) is open for Brendon; in-play shop left unchanged."
+    "Goldscale vs older in-play pricing formula discrepancy (rounding, weapon bonus, inputs, charges) is open for Brendon; in-play shop left unchanged.",
+    "bfdm-corpus main moved to #53 merge (c2a246c9...) during this pass; queue grooming not fully reconciled here."
   ],
-  "needs_review": [],
+  "needs_review": [
+    "bfdm-corpus #53 queue grooming (c2a246c9702e333903402c13164b36c312bdad63)"
+  ],
   "checkpoint_rules": {
     "sha_advance_means": "REVIEW_REQUIRED_NOT_AUTOMATIC_SEMANTIC_STALENESS",
     "advance_only_after": [
