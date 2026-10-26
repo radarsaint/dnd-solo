@@ -3793,6 +3793,7 @@ def check_speech(speech, plan, public_view, player_action, action_kind=None, gua
     # HARD: Kit reacts to what actually happened this turn; no procedure the runtime
     # cannot carry is stated as settled.
     hard(kit_voice.check_kit_asides, segments, player_action, public_event, action_kind)
+    hard(kit_voice.check_about_brendon, segments)  # never makes Brendon the punchline
     hard(kit_detail.check_detail_performance, segments, running, game_terms)
     # SOFT: style floors. Recorded as warnings, not rejections, in degraded mode.
     history = guards.get('public_history', ())
