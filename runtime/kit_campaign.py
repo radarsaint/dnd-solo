@@ -10,7 +10,7 @@ import shlex
 import sqlite3
 from pathlib import Path
 
-from . import kit_rooms
+from . import kit_chargen, kit_rooms, pc_sheet
 from .state_context import PROJECT_ROOT
 
 # Outside rooms/ on purpose: a regression fixture, not a campaign start.
@@ -126,6 +126,8 @@ def inspect_rooms(rooms_dir):
         return executable, blocked
     root = PROJECT_ROOT.resolve()
     for path in sorted(folder.rglob('*.json')):
+        if path.name.casefold() == 'manifest.json':
+            continue  # a pack's manifest describes the pack; it is not a room
         try:
             rel = path.resolve().relative_to(root).as_posix()
         except ValueError:
@@ -246,16 +248,40 @@ def _sheet_real(sheet_path):
     return bool(sheet_path) and Path(sheet_path).is_file()
 
 
+def lobby_sheet(sheet_path):
+    """Load and check the player's sheet in the lobby: real name and proficiency sources."""
+    try:
+        sheet = json.loads(Path(sheet_path).read_text(encoding='utf-8'))
+        pc_sheet.check_sheet(sheet)
+    except Exception as exc:  # noqa: BLE001 - a bad sheet is reported, never crashes the lobby
+        return {'sheet_loaded': False, 'sheet_problems': [str(exc)]}
+    return {'sheet_loaded': True, 'character_loaded': True,
+            'character': {'name': kit_chargen.character_name(sheet), 'sheet_title': sheet.get('name'),
+                          'ancestry': sheet.get('ancestry'), 'class': sheet.get('class'),
+                          'level': sheet.get('level')},
+            'proficiency_check': kit_chargen.proficiency_sources(sheet)}
+
+
 def _play(db, sheet_path, executable, blocked, table, modules=None):
     """Play: a real module and a real character, then solo or shared table. Lists only what exists."""
     has_sheet = _sheet_real(sheet_path)
+    # The player's table choice holds even while a module or sheet is still missing.
+    if table in TABLE_MODES:
+        record_table_mode(db, table)
+    table = table if table in TABLE_MODES else table_mode(db)
+    loaded = lobby_sheet(sheet_path) if has_sheet else {}
+    if loaded and not loaded['sheet_loaded']:
+        has_sheet = False
     # An attached module folder must ride along on every retry, or the rerun loses it.
     mods = f' --modules {shlex.quote(str(modules))}' if modules else ''
     base = {
         'committed': False, 'opened_room': None, 'intent': 'play', 'character_loaded': False,
         'sheet_noted': str(sheet_path) if has_sheet else None, 'sheet_loaded': False,
         'modules_available': executable, 'do_not_start': blocked,
+        **loaded, **({'table_mode': table} if table in TABLE_MODES else {}),
     }
+    if loaded.get('sheet_problems'):
+        base['sheet_noted'] = str(sheet_path)
     need = []
     if not executable:
         need.append('a module')
@@ -275,7 +301,6 @@ def _play(db, sheet_path, executable, blocked, table, modules=None):
                 'next_step': ('Ask which module from modules_available if there is more than one, then '
                               f'say table_line. Rerun start --intent play --sheet <file>{mods} --table solo|shared.'),
                 **({'modules': str(modules)} if modules else {})}
-    record_table_mode(db, table)
     return {**base, 'stage': 'ready', 'table_mode': table,
             **({'table_note': SHARED_NOTE} if table == 'shared' else {}),
             'table_line': SOLO_LINE if table == 'solo' else SHARED_LINE,

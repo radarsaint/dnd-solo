@@ -200,12 +200,131 @@ def chargen(text, sheet_given=False):
     return {**base, 'srd_only': True, 'unknown_options': [], 'needs': [], 'table_line': SRD_LINE}
 
 
+# Proficiency sources (fix: PR 145 playtest #5). Names only, from SRD 5.1 and SRD 5.2 class tables.
+_SIMPLE = ('club', 'dagger', 'greatclub', 'handaxe', 'javelin', 'light hammer', 'mace', 'quarterstaff',
+           'sickle', 'spear', 'light crossbow', 'dart', 'shortbow', 'sling')
+_ALL_ARMOR = ('light armor', 'medium armor', 'heavy armor')
+CLASS_PROFICIENCIES = {
+    'barbarian': (('light armor', 'medium armor', 'shields'), ('simple weapons', 'martial weapons'), ()),
+    'bard': (('light armor',), ('simple weapons', 'hand crossbow', 'longsword', 'rapier', 'shortsword'),
+             ('musical instrument',)),
+    'cleric': (('light armor', 'medium armor', 'shields'), ('simple weapons',), ()),
+    'druid': (('light armor', 'medium armor', 'shields'),
+              ('simple weapons', 'club', 'dagger', 'dart', 'javelin', 'mace', 'quarterstaff', 'scimitar',
+               'sickle', 'sling', 'spear'), ('herbalism kit',)),
+    'fighter': (_ALL_ARMOR + ('shields',), ('simple weapons', 'martial weapons'), ()),
+    'monk': ((), ('simple weapons', 'shortsword', 'martial weapons with the light property'),
+             ("artisan's tools", 'musical instrument')),
+    'paladin': (_ALL_ARMOR + ('shields',), ('simple weapons', 'martial weapons'), ()),
+    'ranger': (('light armor', 'medium armor', 'shields'), ('simple weapons', 'martial weapons'), ()),
+    'rogue': (('light armor',), ('simple weapons', 'hand crossbow', 'longsword', 'rapier', 'shortsword',
+                                 'martial weapons with the finesse or light property'), ("thieves' tools",)),
+    'sorcerer': ((), ('simple weapons', 'dagger', 'dart', 'sling', 'quarterstaff', 'light crossbow'), ()),
+    'warlock': (('light armor',), ('simple weapons',), ()),
+    'wizard': ((), ('simple weapons', 'dagger', 'dart', 'sling', 'quarterstaff', 'light crossbow'), ()),
+}
+SRD_FEAT_PROFICIENCIES = {
+    'lightly armored': ('light armor',),
+    'moderately armored': ('medium armor', 'shields'),
+    'heavily armored': ('heavy armor',),
+}
+PROF_KEYS = (('armor_proficiencies', 0), ('weapon_proficiencies', 1), ('tool_proficiencies', 2))
+UNSOURCED_LINE = ("One thing before we start, and I'm asking, not ruling: where did {name} pick up "
+                  "{prof}? I can't find it in the class, the people, the background, or the feats. "
+                  "If there's a story, pitch it and we'll settle it together.")
+
+
+def _fold(text):
+    s = (text or '').strip().casefold().replace('\u2019', "'")
+    s = re.sub(r'\s+', ' ', s)
+    return s[:-1] if s.endswith('s') and not s.endswith("ss") else s
+
+
+def _granted_by(prof, grants):
+    f = _fold(prof)
+    for g in grants:
+        gf = _fold(g)
+        if f == gf or f == gf.replace(' armor', '') or (gf == 'simple weapon' and f in _SIMPLE):
+            return True
+        if gf in ('shield',) and f in ('shield', 'shields'):
+            return True
+    return False
+
+
+def _classes(sheet):
+    found = [c for c in CLASS_PROFICIENCIES if re.search(rf'\b{c}\b', str(sheet.get('class', '')).casefold())]
+    return found
+
+
+def proficiency_sources(sheet):
+    """Check each armor, weapon, and tool proficiency against where it comes from.
+
+    Sources: the class table (SRD), SRD armor feats, the sheet's own text for its species,
+    background, features and feats, and any settled entry in `proficiency_sources`
+    ({name: "where it came from"}). Anything with no source is flagged for Kit to ask about
+    once, in the fiction. This never rules: it only reports. Skills are not checked here.
+    """
+    classes = _classes(sheet)
+    settled = {_fold(k): v for k, v in (sheet.get('proficiency_sources') or {}).items()}
+    feats = [str(f) for f in (sheet.get('feats') or [])]
+    texts = [str(t) for t in (sheet.get('features') or [])] + feats + [
+        str(sheet.get('background') or ''), str(sheet.get('ancestry') or '')]
+    checked, unsourced = [], []
+    for key, idx in PROF_KEYS:
+        for prof in sheet.get(key) or []:
+            source = None
+            if _fold(prof) in settled:
+                source = f'settled: {settled[_fold(prof)]}'
+            for c in classes:
+                if source is None and _granted_by(prof, CLASS_PROFICIENCIES[c][idx]):
+                    source = f'class: {c}'
+            for feat in feats:
+                grants = SRD_FEAT_PROFICIENCIES.get(_fold(feat), ())
+                if source is None and _granted_by(prof, grants):
+                    source = f'feat: {feat}'
+            for text in texts:
+                if source is None and _fold(prof) and _fold(prof) in _fold(text):
+                    source = f'sheet text: {text}'
+            entry = {'proficiency': prof, 'kind': key, 'source': source}
+            checked.append(entry)
+            if source is None:
+                unsourced.append(entry)
+    name = character_name(sheet)
+    out = {'stage': 'proficiency_check', 'checked': checked, 'unsourced': unsourced,
+           'classes_recognized': classes, 'auto_ruled': False, 'raise_once': True,
+           'next_step': ('Nothing is ruled here. For each unsourced entry, ask the player once, in the '
+                         'fiction, where it came from. Until it is settled, play it by the rules as written. '
+                         'Record a settled answer in the sheet under proficiency_sources; do not ask again.')}
+    if unsourced:
+        out['table_line'] = UNSOURCED_LINE.format(name=name, prof=unsourced[0]['proficiency'].lower())
+    if not classes:
+        out['note'] = 'Class not recognized from the SRD; class proficiencies could not be checked.'
+    return out
+
+
+_COPY = re.compile(r'^\s*(?:copy of\s+)+', re.I)
+_DUP = re.compile(r'\s*(?:\(\d+\)|-\s*copy|\bcopy\b)\s*$', re.I)
+
+
+def character_name(sheet):
+    """The character's real name, not a file title like 'Copy of Nik' or 'Nik (2)'."""
+    raw = str(sheet.get('character_name') or sheet.get('name') or '').strip()
+    name = _DUP.sub('', _COPY.sub('', raw)).strip()
+    return name or raw
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('text')
+    parser.add_argument('text', nargs='?', default='')
     parser.add_argument('--sheet', action='store_true', help='the player already gave a finished sheet')
+    parser.add_argument('--check-sheet', metavar='FILE',
+                        help='check a sheet file: each proficiency against its source (text is ignored)')
     args = parser.parse_args(argv)
-    out = chargen(args.text, args.sheet) or {'stage': 'not_chargen'}
+    if args.check_sheet:
+        with open(args.check_sheet, encoding='utf-8') as fh:
+            out = proficiency_sources(json.load(fh))
+    else:
+        out = chargen(args.text, args.sheet) or {'stage': 'not_chargen'}
     print(json.dumps(out, ensure_ascii=False))
     return 0
 
