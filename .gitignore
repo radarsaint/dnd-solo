@@ -26,3 +26,6 @@ kit_appraise.json
 
 # Private, player-supplied adventures (runtime/kit_adventure.py). Never commit.
 *.adventure/
+
+# Player save folders written by `kit_agent save` (never committed).
+saves/
