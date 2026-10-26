@@ -31,6 +31,10 @@ class PlayLoopRule(unittest.TestCase):
         t = (ROOT / 'KIT_PORTABLE.md').read_text()
         self.assertIn('Party companions aren\'t supported yet', t)
         self.assertIn("Don't write code or build an engine", t)
+        self.assertIn('only from adventure text the player actually pastes or uploads', t)
+        self.assertIn('Never invent rooms, NPCs or stat blocks', t)
+        self.assertIn('never improvise rooms', t)
+        self.assertNotIn('your own knowledge of the rules', t)
 
     def test_documented_flags_exist(self):
         h = subprocess.run([sys.executable, '-m', 'runtime.kit_agent', '--help'], cwd=ROOT,
