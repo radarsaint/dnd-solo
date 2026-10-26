@@ -121,6 +121,28 @@ FLOURISH_RULE = ('The player described their kill (player_description). It is ca
                  'room reacts. The accepted event (what the others then do) follows your narration.')
 
 
+class RollNeeded(Exception):
+    """The act needs the PC's own d20 and none was stated or pinned. Players roll in Avrae and
+    the engine never rolls for them (docs/architecture/LET_IT_RIDE.md): ``resolve`` calls the check
+    instead, the act waits in the pending check, and the player's roll resolves it. ``reason`` is
+    the public line naming what ended a standing result, if one did."""
+    def __init__(self, skill, target='none', reason=''):
+        super().__init__(f'{skill} roll needed')
+        self.skill, self.target, self.reason = skill, target, reason
+
+
+# Let It Ride: an established result stands while the PC keeps at the same endeavor. Acts that
+# keep at it (sneaking on, looking about, a check, a call); any other act ends the attempt.
+STANDING_KEEPS = ('stealth', 'threshold_look', 'observe', 'inspect_feature', 'check', 'called_check',
+                  'check_request', 'check_called', 'opening')
+STANDING_RULE = ('Let it ride: the PC is still at the same endeavor, so the standing result holds. Never '
+                 'reroll it or call it again unless circumstances materially change (new observers, a new '
+                 'area, a different approach, a complication); the engine calls that roll, the player rolls it.')
+# What the PC does differently from sneaking (the PC's own verbs; "openly", "loudly").
+DIFFERENT_APPROACH = re.compile(r'\b(?:run|running|sprint\w*|dash(?:es|ed|ing)?|rush(?:es|ed|ing)?|charg(?:e|es|ed|ing)|'
+                                r'hurr(?:y|ies|ied|ying)|loud\w*|openly|strid(?:e|es|ing)|stomp\w*)\b', re.I)
+
+
 @dataclass(frozen=True)
 class Resolution:
     kind: str
@@ -981,7 +1003,10 @@ class RoomAdjudicator:
         self.last_said = last_said or ''
         self.choice = choice
         try:
-            result = self._also_bet(self._resolve(action, revision, state, addressed), action, revision, state)
+            try:
+                result = self._also_bet(self._resolve(action, revision, state, addressed), action, revision, state)
+            except RollNeeded as needed:
+                result = self._call_roll(needed, action, revision, state)
         except PendingRuling as exc:
             # A physical act the engine has no ruling for, where a known feature a room trigger
             # watches is in reach ('I climb onto the carcass', 'I push it open', 'I heave the
@@ -997,6 +1022,13 @@ class RoomAdjudicator:
                 result = self._kit_ruling(action)
             else:
                 raise
+        if state.get('standing_check') and result.kind not in STANDING_KEEPS and \
+                not any(e.get('type') == 'standing_check' for e in result.events):
+            # The PC turned to something else (spoke up, fought, bet): the attempt is over.
+            result = dataclasses.replace(result, events=list(result.events) + [
+                {'type': 'standing_check', 'check': None,
+                 'evidence': f'The standing {state["standing_check"]["skill"]} result ends: the PC turned '
+                             f'to something else ({result.kind}).'}])
         waiting = (state.get('combat') or {}).get('awaiting') or {}
         if waiting.get('kind') == 'flourish_window' and (choice or {}).get('flourish') == 'new_action' and \
                 not any(e.get('type') == 'combat_state' for e in result.events):
@@ -1766,17 +1798,37 @@ class RoomAdjudicator:
     # -- general checks: any room, any PC -------------------------------------------
     def _die(self, state, revision, label, action, modifier=None, skill=None):
         """The player's own stated d20 (an Avrae total is worked back with ``modifier``, so
-        the bonus is never added twice), else a stable seeded roll (an uncommitted model
-        failure must not reroll the same attempted check)."""
+        the bonus is never added twice), else the host's pinned die (tests, replays). With
+        neither, nothing is rolled: players roll in Avrae, so the check is called (RollNeeded)."""
         supplied = kit_cards.supplied_roll(action, modifier, skill)
         if supplied:
             return supplied[0]
         if self.roll:
             return self.roll()
-        if 'roll_seed' not in state:
-            raise PendingRuling('This session predates stable checks; start a fresh database.')
-        material = f"{state['roll_seed']}:{revision}:{label}:{action.casefold()}".encode()
-        return int.from_bytes(hashlib.sha256(material).digest()[:8], 'big') % 20 + 1
+        if skill not in pc_sheet.SKILLS:
+            raise PendingRuling('Roll it in Avrae and tell me the total. No turn was committed.')
+        raise RollNeeded(skill)
+
+    def _call_roll(self, needed, action, revision, state):
+        """A check the act needs and the player has not rolled: call it and roll nothing. The act
+        waits in the pending check (``action``) and resolves when the player's roll comes in."""
+        name = needed.skill.replace('_', ' ').title()
+        public = (needed.reason + ' ' if needed.reason else '') + f'Roll {name} for it.'
+        check = {'skill': needed.skill, 'ability': pc_sheet.SKILLS[needed.skill], 'target': needed.target,
+                 'called_turn': f'revision {revision}', 'action': action[:2000]}
+        held = (state.get('pending_check') or {}).get('held')
+        if held:
+            check['held'] = copy.deepcopy(held)  # a held description stays owed
+        evidence = (f'Player declared: {action[:300]}. It needs the PC\'s {name} roll and none was stated, '
+                    'so no die was rolled for the PC; the check is called and the act waits for the roll.' +
+                    (f' A fresh roll because: {needed.reason}' if needed.reason else ''))
+        events = [{'type': 'beat', 'tags': ['check_called'], 'evidence': evidence},
+                  {'type': 'pending_check', 'check': check, 'evidence': evidence}]
+        if state.get('standing_check'):
+            events.append({'type': 'standing_check', 'check': None,
+                           'evidence': f'The standing {state["standing_check"]["skill"]} result ends: '
+                                       f'{needed.reason or "a new roll is called"}'})
+        return Resolution('check_called', public, events)
 
     def _pc_numbers(self, skill, state, action):
         """(modifier, passive) for the PC: a stated "d20 + modifier = total" wins, then a
@@ -1963,6 +2015,12 @@ class RoomAdjudicator:
         target, area = pending['target'], state.get('area')
         if pending.get('exit'):
             return self._resolve_held_exit(pending, roll_text, revision, state)
+        if pending.get('action'):
+            # The engine called this roll for an act: the roll resolves that act now.
+            calm = {k: v for k, v in state.items() if k not in ('pending_check', 'standing_check')}
+            result = self._resolve(f'{pending["action"]}\n{roll_text}', revision, calm)
+            extra = [] if any(e.get('type') == 'pending_check' for e in result.events) else [clear]
+            return Resolution(result.kind, result.public_event, list(result.events) + extra)
         if skill in SOCIAL_CHECK_SKILLS:
             # A called social check is resolved like a stated one, against the call's target,
             # and its outcome moves that NPC's attitude in state (watchroom playtest: a failed
@@ -2010,6 +2068,11 @@ class RoomAdjudicator:
             evidence += (f' DM only: {skill} cannot find the hidden {key} on {target}; it is found by '
                          f'{", ".join(sorted(kit_claims.claim_skills(claim)))}. This roll reveals nothing of it.')
         events = [{'type': 'beat', 'tags': tags, 'evidence': evidence}, clear]
+        if skill == 'stealth':
+            # A Stealth roll Kit called stands while the PC keeps sneaking (Let It Ride).
+            watchers = self._stealth_watchers(state)
+            if watchers and kit_rolls.meets_or_beats(die + modifier, max(watchers.values())):
+                events.append(self._standing_event(state, revision, die, modifier, watchers, evidence))
         offers = None
         if held:
             feature, fact_key = held
@@ -2147,8 +2210,7 @@ class RoomAdjudicator:
         """Stealth is the PC's roll against the best passive Perception among the people
         present ("passive Perception is an AC against being snuck up on"). Nobody present
         to notice: no roll."""
-        present = self._present_actors(state)
-        watchers = {key: kit_claims.npc_passive(actor, 'perception') for key, actor in present.items()}
+        watchers = self._stealth_watchers(state)
         words = room_words(self.source, state)
         leaving = bool(re.search(r'\b(door|out|leave|past)\b', narration, re.I) or any(
             re.search(r'\b' + re.escape(word) + r'\b', narration, re.I) for word, _ in words.exits))
@@ -2159,11 +2221,25 @@ class RoomAdjudicator:
             return Resolution('stealth', public, [exit_event] if leaving else
                               [{'type': 'beat', 'tags': ['stealth'], 'evidence': f'Player declared: {action}. Nobody present.'}])
         dc = max(watchers.values())
+        best = max(watchers, key=watchers.get)
         modifier, _ = self._pc_numbers('stealth', state, action)
-        die = self._die(state, revision, 'stealth', action, modifier, 'stealth')
-        total = die + modifier
-        evidence = (f'Player tried Stealth: d20 {die} + {modifier} = {total} vs best passive Perception {dc} '
-                    f'({", ".join(f"{k} {v}" for k, v in watchers.items())}).')
+        standing = state.get('standing_check') or {}
+        against = f'vs best passive Perception {dc} ({", ".join(f"{k} {v}" for k, v in watchers.items())})'
+        if standing.get('skill') == 'stealth' and not kit_cards.supplied_roll(action, modifier, 'stealth'):
+            change = self._stealth_change(standing, watchers, dc, narration, state)
+            if change:
+                raise RollNeeded('stealth', best, change)
+            die, total = standing['die'], standing['total']
+            evidence = (f'Player keeps at the same Stealth attempt: the established {total} stands '
+                        f'(let it ride; no new roll) {against}.')
+            record = []
+        else:
+            die = self._die(state, revision, 'stealth', action, modifier, 'stealth')
+            total = die + modifier
+            evidence = f'Player tried Stealth: d20 {die} + {modifier} = {total} {against}.'
+            record = [self._standing_event(state, revision, die, modifier, watchers, evidence)] \
+                if kit_rolls.meets_or_beats(total, dc) else \
+                [{'type': 'standing_check', 'check': None, 'evidence': evidence}] if state.get('standing_check') else []
         if kit_rolls.meets_or_beats(total, dc):  # the PC's Stealth vs their passive: his tie
             if leaving:
                 key = self._exit_taken(action, state)
@@ -2171,10 +2247,42 @@ class RoomAdjudicator:
             public = self._exit_text(key, state, 'unseen') if leaving else 'You move without drawing an eye.'
             beat = {'type': 'beat', 'tags': ['stealth'], 'evidence': evidence}
             return Resolution('stealth', public, ([dict(exit_event, evidence=evidence)] if leaving else
-                                                  self._hidden_events(state, True, evidence)) + [beat])
+                                                  self._hidden_events(state, True, evidence)) + [beat] +
+                              ([] if leaving else record))
         return Resolution('stealth', 'Eyes at the table turn your way before you get far.',
                           self._hidden_events(state, False, evidence) +
-                          [{'type': 'beat', 'tags': ['stealth', 'noticed'], 'evidence': evidence}])
+                          [{'type': 'beat', 'tags': ['stealth', 'noticed'], 'evidence': evidence}] + record)
+
+    def _stealth_watchers(self, state):
+        """Who here could notice the PC, with their passive Perception: present actors able to
+        perceive (a sleeping or unconscious guard watches nobody)."""
+        return {key: kit_claims.npc_passive(actor, 'perception')
+                for key, actor in self._present_actors(state).items()
+                if actor.get('status') not in self.BLOCKERS_UNABLE}
+
+    def _standing_event(self, state, revision, die, modifier, watchers, evidence):
+        """An established Stealth result: its total, its scope (this area) and what it beat."""
+        check = {'skill': 'stealth', 'total': die + modifier, 'die': die, 'modifier': modifier,
+                 'area': state['area'], 'route': state['area'], 'approach': 'stealth',
+                 'against': {'watchers': sorted(watchers), 'dc': max(watchers.values())},
+                 'since': f'revision {revision}'}
+        return {'type': 'standing_check', 'check': check,
+                'evidence': f'The Stealth result stands while the PC keeps at it. {evidence}'}
+
+    def _stealth_change(self, standing, watchers, dc, narration, state):
+        """The material change that ends a standing Stealth result, as a public line, or ''."""
+        if standing.get('area') != state.get('area'):
+            return 'This is a new area.'
+        new = [key for key in watchers if key not in standing['against']['watchers']]
+        if new:
+            labels = [actor_speakers(self.source).get(k) or state['actors'][k].get('name') or k for k in new]
+            return f'{" and ".join(labels)} {"is" if len(labels) == 1 else "are"} watching now.'
+        if DIFFERENT_APPROACH.search(narration):
+            return 'That is a different approach.'
+        if (state.get('combat') or {}).get('status') in ('awaiting_initiative', 'running') or \
+                dc > standing['against'].get('dc', dc):
+            return 'Things just got complicated.'
+        return ''
 
     def _exit_taken(self, action, state):
         """The known exit from here that the player means (docs/architecture/ROOM_LOADER.md,
@@ -2284,10 +2392,10 @@ class RoomAdjudicator:
         if supplied:
             die = supplied[0]
             modifier = supplied[1] if supplied[1] is not None else (modifier or 0)
+        elif self.roll:
+            die = self.roll()  # the host's pinned die (tests, replays)
         else:
-            require('roll_seed' in state, 'This session predates stable checks; start a fresh database.')
-            material = f"{state['roll_seed']}:{revision}:{claim_id}:{action.casefold()}".encode()
-            die = int.from_bytes(hashlib.sha256(material).digest()[:8], 'big') % 20 + 1
+            raise RollNeeded(skill, claim_id)  # the player rolls it in Avrae
         dc = kit_claims.claim_dc(claim, state.get('actors', {}),
                                   kit_claims.current_floor_level(self.source, state.get('area')))
         total = die + modifier
@@ -4194,6 +4302,17 @@ def prepare_inputs(runtime, revision, state, action, resolution, use_memory, one
     # ("Is the dealer cheating me?") must not be answered from the brief's secrets.
     if not table_talk:
         planning_input['story_brief'] = kit_brief.brief(source, post_event_state)
+    standing = post_event_state.get('standing_check')
+    if standing:
+        # Private: an established result that holds while the PC keeps at it (Let It Ride).
+        planning_input['standing_check'] = {
+            'skill': standing['skill'], 'total': standing['total'], 'area': standing['area'],
+            'against': standing['against']['watchers'], 'since': standing['since'], 'rule': STANDING_RULE}
+    if resolution.kind == 'check_called':
+        # Private: the engine called the PC's roll for this act; nothing is resolved yet.
+        planning_input['check_called'] = {
+            'rule': 'The act needs the player\'s roll and none was stated. Say the call in one short line '
+                    '(the skill named in the event); resolve nothing, describe no outcome. The player rolls in Avrae.'}
     if kit_combat.config(source) and post_event_state.get('player_sheet'):
         # Session manifest (cached): what the PC's reactions are and cost, with no counts, so a spend
         # never busts the cache. What is left now (slots, uses) is live state like HP: the per-turn
@@ -5481,6 +5600,12 @@ def first_try_lines(runtime, body, planning_input):
     if body.get('story_due'):
         lines.append('Due now: ' + ', '.join(f"{item.get('id')} (raised by {item.get('by')})"
                                              for item in body['story_due']) + ', in character, this turn.')
+    if planning_input.get('check_called'):
+        lines.append('The engine called the PC\'s roll for this act: say the call in one short line; no outcome yet.')
+    if planning_input.get('standing_check'):
+        held = planning_input['standing_check']
+        lines.append(f"A standing {held['skill']} {held['total']} holds while the PC keeps at it (let it ride): "
+                     'never call or roll it again unless circumstances change; the engine decides that.')
     if planning_input.get('check_request'):
         lines.append('The player asked for a check: call one in roll_call or decline. You pick the skill.')
     if planning_input.get('threshold_view'):

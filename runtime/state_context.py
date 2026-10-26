@@ -103,7 +103,12 @@ KEEPS_PENDING_CHECK = BOOKKEEPING_EVENTS + ('refused_attempt',)
 # A pending check's optional fields: a held exit, and room for the check-calling follow-up's
 # quiet DC adjustment for creative use of the scene (Brendon: about -2) with its reason. Not
 # applied anywhere yet.
-PENDING_CHECK_OPTIONAL = {'exit', 'dc_adjust', 'reason', 'threshold', 'held', 'dc'}
+PENDING_CHECK_OPTIONAL = {'exit', 'dc_adjust', 'reason', 'threshold', 'held', 'dc', 'action'}
+# ``action``: the act a check the engine itself called waits on (the act needs the PC's roll and
+# the engine never rolls for them); the player's roll resolves it (LET_IT_RIDE.md).
+# A standing check (Let It Ride): an established result that holds while the PC keeps at the same
+# endeavor, in state['standing_check']; the event with check None clears it.
+STANDING_CHECK_KEYS = {'skill', 'total', 'die', 'modifier', 'area', 'route', 'against', 'approach', 'since'}
 # A heavy turn Kit opened on a check call holds its description for the roll (kit_agent.STALL_KINDS).
 HELD_KINDS = ('opening', 'exit', 'threshold_look')
 # What the engine's outcome of a declared act may add (runtime/kit_acts.py: handles).
@@ -890,6 +895,8 @@ class Runtime:
             state['area'] = next(a for a in edge['areas'] if a != state['area'])
             state.setdefault('room', {'id': source.get('id'), 'path': None, 'turns_in': {}})['came_by'] = key
             state.pop('pc_position', None)  # a new area: no longer at the old doorway
+            if (state.get('standing_check') or {}).get('area') != state['area']:
+                state.pop('standing_check', None)  # a new area ends a standing attempt
             if state['area'] not in state['visited']:
                 state['visited'].append(state['area'])
             self._observe(state, source)
@@ -1063,9 +1070,11 @@ class Runtime:
                                                                check['held']['kind'] in HELD_KINDS)) and
                                       ('reason' not in check or (isinstance(check['reason'], str) and
                                                                  len(check['reason']) <= 200)) and
+                                      ('action' not in check or (isinstance(check['action'], str) and
+                                                                 0 < len(check['action']) <= 2000)) and
                                       pc_sheet.SKILLS.get(check['skill']) == check['ability'] and
                                       isinstance(check['target'], str) and isinstance(check['called_turn'], str)),
-                    'pending_check is {skill, ability, target, called_turn[, exit, threshold, held, dc_adjust, reason]} or None')
+                    'pending_check is {skill, ability, target, called_turn[, exit, threshold, held, dc, dc_adjust, reason, action]} or None')
             if check is None:
                 state.pop('pending_check', None)
             else:
@@ -1076,6 +1085,18 @@ class Runtime:
                     state['rhythm'].append({'tags': ['check_called'],
                                             'evidence': f"Kit called for {check['skill']}; waiting on the roll."})
                     state['rhythm'] = state['rhythm'][-12:]
+        elif kind == 'standing_check':
+            from . import pc_sheet
+            check = event.get('check')
+            require(check is None or (isinstance(check, dict) and set(check) == STANDING_CHECK_KEYS and
+                                      check['skill'] in pc_sheet.SKILLS and type(check['total']) is int and
+                                      check['area'] in source['areas'] and
+                                      isinstance(check['against'], dict) and isinstance(check['approach'], str)),
+                    'standing_check is {skill, total, die, modifier, area, route, against, approach, since} or None')
+            if check is None:
+                state.pop('standing_check', None)
+            else:
+                state['standing_check'] = copy.deepcopy(check)
         elif kind == 'risk_warned':
             from . import kit_interstitial
             kit_interstitial.apply(state, event)
