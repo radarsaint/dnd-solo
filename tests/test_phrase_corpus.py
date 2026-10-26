@@ -138,7 +138,7 @@ def outcome(case, line, turn='c'):
     except PendingRuling:
         return REFUSED
     public = packet['input']['public']
-    if public['accepted_public_event'].startswith('You go ahead: '):
+    if public['accepted_public_event'].startswith('You go ahead'):
         return ACT
     return _KINDS.get(public['action_kind'], public['action_kind'])
 

@@ -284,6 +284,7 @@ CHECK_REQUEST_PREFIX = 'You ask for a check: '
 # to search is a search.
 CHECK_ASK = _lazy.regex(r"^\s*(?:can|could|may|might)\s+i\b|^\s*let\s+me\b|^\s*time\s+to\b|^\s*i(?:'d| would)\s+like\s+to\b")
 SEARCH_PREFIX = 'You search: '
+SIMPLE_ACT_LINE = 'You go ahead.'
 ATTEMPT_PREFIX = 'You try: '
 DETECT_MAGIC_SECONDS = 600  # Detect Magic: concentration, up to 10 minutes
 # 'regular casting, no ritual', 'not as a ritual', 'without the ritual': a slotted casting
@@ -666,6 +667,42 @@ PLAIN_LOOK = _lazy.regex(r"\bwhat\s+do\s+i\s+see\b|\blookin'?\b|^\s*describe\b|\
                         r"\b(?:i|and)\s*look\s+(?:at|over)\b")
 
 
+_PASSAGE_WORDS = _lazy.regex(r"\b(?:door|doors|doorway|arch|archway|threshold|gate|passage|corridor|hall|"
+                            r"tunnel|stair|stairs|opening|gap|entrance|exit|room|chamber)\b")
+
+
+def _moves_through_exit(words, room):
+    """MOVE_THROUGH, but 'go through the goblin beds looking for…' (pr150d T14) is going
+    through a heap of things, not through a way out: only 'in/into/inside/out', 'enter', or
+    'through/past' a door, passage or named exit is movement."""
+    exit_words = {word for word, _ in (room.exits if room else ())}
+    for match in MOVE_THROUGH.finditer(words):
+        if not re.search(r'\b(?:through|past)\s*$', match.group(0)):
+            return True
+        after = ' '.join(words[match.end():].split()[:5])
+        if _PASSAGE_WORDS.search(after) or any(re.search(r'\b' + re.escape(w) + r's?\b', after) for w in exit_words):
+            return True
+        if not re.search(r'\b(?:the|a|an|these|those|this|that)\b', after):
+            return True  # 'I go through' with nothing named: the way on
+    return False
+
+
+def _acts_on_a_thing(words, room):
+    """A hands-on act aimed at something that is not a door or exit ('I push on the seam …,
+    then peek down the tunnel', pr150d T20): the act is the turn, the peek rides along."""
+    exit_words = {word for word, _ in (room.exits if room else ())}
+    for match in OBJECT_ACT.finditer(words):
+        noun = re.split(r'\b(?:to|on|at|against|into|of|with|for|so|and|but|then|,)\b|[,.;!?]',
+                        words[match.end():])[0].split()[:2]
+        if not noun or noun[0] in ('eye', 'eyes', 'ear', 'ears', 'face', 'cheek', 'hand', 'hands', 'palm'):
+            continue  # an eye to the crack: perceiving, not handling
+        aimed = ' '.join(noun)
+        if not THRESHOLD_GAP.search(aimed) and not _PASSAGE_WORDS.search(aimed) and \
+                not any(re.search(r'\b' + re.escape(w) + r's?\b', aimed) for w in exit_words):
+            return True
+    return False
+
+
 def room_intent(action, addressed=False, room=None):
     """Conservative routing; unrecognized text remains conversation or clarification.
 
@@ -700,10 +737,12 @@ def room_intent(action, addressed=False, room=None):
             re.search(r'\bcast\b', words) and re.search(r'\b(at|on|against|into)\s+(him|her|them|the|it|his)\b', words)
             and not re.search(r'\b(?:detect magic|light|identify|mending|prestidigitation|guidance)\b', words)):
         return 'combat'
-    if re.search(r'\b(cast|casts|casting)\b', words):
+    if re.search(r'\b(cast|casts|casting)\b', words) or re.search(r'\bdetect(?:s|ing)?\s+magic\b', words) and \
+            not re.match(r"\s*(?:is|does|do|can|could|would|will|what|how|has)\b", words) and '?' not in words:
+        # 'Detect Magic, not as a ritual' names the spell without 'cast' (#157, pr150d T7).
         return 'spell'  # a spell aimed at nobody (Detect Magic, Light...) is not combat
     early = asked_away(words)
-    if SEARCH_INTENT.search(early) and not addressed and not MOVE_THROUGH.search(early) and \
+    if SEARCH_INTENT.search(early) and not addressed and not _moves_through_exit(early, room) and \
             not GOING_IN.search(early) and not re.search(r'\b' + PHYSICAL_VERBS + r'\b', early) and \
             not OBJECT_ACT.search(early) or (SEARCH_INTENT.search(words) and not quoted and not addressed and
                                             CHECK_ASK.search(words)):
@@ -715,10 +754,11 @@ def room_intent(action, addressed=False, room=None):
     exit_named = bool(room.exits) and re.search(
         r'\b(?:' + '|'.join(re.escape(word) for word, _ in room.exits) + r')s?\b', words)
     if (THRESHOLD_LOOK.search(words) or PERCEIVING.search(words)) and NOT_ENTERING.search(words) and \
-            (THRESHOLD_GAP.search(words) or exit_named) and (room.exits or room.inward):
+            (THRESHOLD_GAP.search(words) or exit_named) and (room.exits or room.inward) and \
+            not _acts_on_a_thing(words, room):
         return 'threshold_look'
     if THRESHOLD_LOOK.search(words) and (THRESHOLD_GAP.search(words) or exit_named) and \
-            not MOVE_THROUGH.search(words) and (room.exits or room.inward):
+            not MOVE_THROUGH.search(words) and (room.exits or room.inward) and not _acts_on_a_thing(words, room):
         # Looking or listening through a gap, or down a named exit ('I peer down the stair
         # into the hall'), from where the PC stands: perception, not movement (#97 p2b).
         return 'threshold_look'
@@ -1367,7 +1407,8 @@ class RoomAdjudicator:
             event = {'type': 'beat', 'tags': ['observe', 'simple_act'],
                      'evidence': f'Player declared: {action}. Resolution: done as declared; no roll; '
                                  'nothing hidden is learned; nothing changes in the world.'}
-            return Resolution('observe', social_event(action).replace(SOCIAL_EVENT_PREFIX, 'You go ahead: ', 1), [event])
+            # A short neutral line, not the player's whole message read back (pr150d feel).
+            return Resolution('observe', SIMPLE_ACT_LINE, [event])
         if kind == 'unsupported_action':
             exc = PendingRuling(f'{UNSUPPORTED_RULING} No turn was committed.', attempt=True)
             exc.player_line = unsupported_line(action, state)
@@ -1830,6 +1871,8 @@ class RoomAdjudicator:
         words = QUOTED_SPEECH.sub(' ', action.translate(_TYPOGRAPHIC)).lower()
         named = re.search(r"\bcast(?:s|ing)?\s+(?:a\s+|an\s+|the\s+)?([a-z' -]+?)(?=\s+(?:as|on|at|into|over|while|and|then|to|with|for)\b|[.,;!?]|$)", words)
         spell = (named.group(1).strip() if named else 'a spell') or 'a spell'
+        if not named and re.search(r'\bdetect(?:s|ing)?\s+magic\b', words):
+            spell = 'detect magic'  # named without 'cast' (pr150d T7)
         ritual = bool(re.search(r'\britual\b', words)) and not NOT_RITUAL.search(words)
         events = [{'type': 'beat', 'tags': ['spell'] + (['ritual'] if ritual else []),
                    'evidence': f'Player declared: {action}. Resolution: {spell} is cast outside combat'
@@ -1878,7 +1921,7 @@ class RoomAdjudicator:
         public = detect_magic_line(auras)
         private = 'Detect Magic senses (DM only, place each aura but do not read out the fact): ' + '; '.join(
             f"{a['fact']}{' [' + a['school'] + ']' if a['school'] else ''} x{a['count']}"
-            f"{' at ' + a['where'] if a['where'] else ''}: {a['text']}" for a in auras)
+            f"{' at ' + re.sub(r'^at\s+', '', a['where']) if a['where'] else ''}: {a['text']}" for a in auras)
         return public, private
 
     def _resolve_called(self, action, revision, state):
@@ -1934,6 +1977,14 @@ class RoomAdjudicator:
         if len(found) == 1:
             result = self._resolve_check(roll_text, revision, state, *found[0])
             return Resolution(result.kind, result.public_event, list(result.events) + [clear])
+        # The called skill cannot reach the target's hidden claim (pr150d T3: Investigation on
+        # a Perception-only trap): Kit hears it privately, so she can say so or call again.
+        missed = [(key, claim) for key, claim in kit_claims.compile_claims(self.source or {}).items()
+                  if claim.get('exposure') == 'hidden' and key not in learned and
+                  (((self.source or {}).get('facts') or {}).get(claim.get('fact') or '') or {}).get('area') == area and
+                  target in (claim.get('concealer'), claim.get('fact'), key) and
+                  skill not in kit_claims.claim_skills(claim)] if not found else []
+        held = self._held_by(target, state) if skill in ('perception', 'investigation') else None
         modifier, _ = self._pc_numbers(skill, state, roll_text)
         die = self._die(state, revision, f'called:{pending["called_turn"]}:{skill}', roll_text, modifier, skill)
         evidence = (f'Player rolled the {skill} check Kit called on turn {pending["called_turn"]} '
@@ -1950,8 +2001,41 @@ class RoomAdjudicator:
                          '(ties go to the actor; a save that ties fails). Narrate the result, never the DC.')
         else:
             evidence += ' No DC was set and no room claim is here: Kit rules the result.'
-        return Resolution('called_check', f'You roll {skill.replace("_", " ").title()}: {total}.',
-                          [{'type': 'beat', 'tags': tags, 'evidence': evidence}, clear])
+        for key, claim in missed:
+            evidence += (f' DM only: {skill} cannot find the hidden {key} on {target}; it is found by '
+                         f'{", ".join(sorted(kit_claims.claim_skills(claim)))}. This roll reveals nothing of it.')
+        events = [{'type': 'beat', 'tags': tags, 'evidence': evidence}, clear]
+        offers = None
+        if held:
+            feature, fact_key = held
+            if 'pass' in tags:
+                # The searched feature holds an unfound thing (pr150d T15: the bed's potion): a
+                # success shows it, so the state knows it was found.
+                events.insert(1, {'type': 'reveal_fact', 'fact': fact_key,
+                                  'evidence': f'The {skill} check on the {feature} finds what it holds.'})
+            elif 'fail' not in tags:
+                # No DC: Kit rules it, and handles on the feature brings out what it holds.
+                events[0]['evidence'] += (f' DM only: the {feature} holds {fact_key}; if the roll finds it, '
+                                          f'declare handles on {feature} so the engine reveals it.')
+                parts = list(((self.source['facts'][feature].get('handling') or {}).get('parts')) or ())
+                offers = {'handles': {'targets': {feature: parts}}}
+        return Resolution('called_check', f'You roll {skill.replace("_", " ").title()}: {total}.', events,
+                          offers=offers)
+
+    def _held_by(self, target, state):
+        """(feature, held fact) when the called check's target is a feature here that holds a
+        fact not yet found, else None."""
+        facts = (self.source or {}).get('facts') or {}
+        feature = target if target in facts else None
+        if feature is None and target and target != 'none':
+            hit = room_words(self.source, state).feature_in(str(target).replace('_', ' ').casefold())
+            feature = hit[1] if hit else None
+        fact = facts.get(feature) or {}
+        held = (fact.get('handling') or {}).get('holds')
+        if not held or fact.get('area') != state.get('area') or held in (state.get('known_facts') or ()) or \
+                (facts.get(held) or {}).get('visible'):
+            return None
+        return feature, held
 
     def _resolve_check(self, action, revision, state, claim_id, claim):
         """An active look or read at one hidden claim, against that claim's single DC.
@@ -4070,6 +4154,13 @@ def prepare_inputs(runtime, revision, state, action, resolution, use_memory, one
         # Private: the called check's pass or fail against Kit's DC (never in the public half).
         planning_input['check_outcome'] = {'result': 'pass' if 'pass' in outcome['tags'] else 'fail',
                                            'evidence': outcome['evidence']}
+    elif resolution.kind == 'called_check':
+        # Private: a called roll with no DC, or one that cannot reach the claim, still tells
+        # Kit what the engine knows (pr150d T3/T15): which skill finds the claim, what the
+        # searched feature holds.
+        beat = next((e for e in resolution.events if e.get('type') == 'beat' and 'check' in (e.get('tags') or ())), None)
+        if beat and 'DM only' in beat.get('evidence', ''):
+            planning_input['check_outcome'] = {'result': 'kit_rules', 'evidence': beat['evidence']}
     oracle = detail_oracle(runtime, state, action, resolution.kind)
     if oracle:
         # Private: the slot, canon, texture, and a seeded deal for the detail decision.
@@ -4737,6 +4828,7 @@ def declare(runtime, adjudicator, body, plan):
     sealed = {} if (acts or {}).get('handles') else sealed_terms(runtime.source(), after)
     if not acts or not isinstance(adjudicator, RoomAdjudicator):
         return {**body, 'hidden_actors': hidden_actor_words(runtime.source(), after, body),
+                'hidden_facts': hidden_fact_words(runtime.source(), after, body),
                 **({'sealed': sealed} if sealed else {})}
     adjudicator.mount(runtime.source())
     result = adjudicator.declared_acts(acts, body['action'], revision, after)
@@ -4744,6 +4836,7 @@ def declare(runtime, adjudicator, body, plan):
     shown = {field: ({k: v for k, v in value.items() if v} if field == 'handles' else {'act': value['act']})
              for field, value in acts.items()}
     return {**body, 'hidden_actors': hidden_actor_words(runtime.source(), final, body),
+            'hidden_facts': hidden_fact_words(runtime.source(), final, body),
             'declared': {'acts': shown, 'events': list(result.events), 'public': result.public_event,
                          'kind': result.kind, 'handoff': result.handoff}}
 
@@ -4960,6 +5053,43 @@ def hidden_actor_words(source, state, body=None):
     return sorted(nouns) + sorted(runs)
 
 
+def hidden_fact_words(source, state, body=None):
+    """The three-content-word runs of every fact here still hidden once
+    this turn lands: its text and its magic object's description. Runs the player can see
+    (public view, a visible or found fact) or said himself do not count (pr150d T15: Kit
+    narrated the bed's unfound potion into the PC's hands and nothing caught it)."""
+    if not source:
+        return []
+    facts = source.get('facts') or {}
+    known = set(state.get('known_facts') or ())
+    shown = [json.dumps((body or {}).get('public_view') or {}), (body or {}).get('action') or '']
+    shown += [str(f.get('text') or '') for k, f in facts.items() if isinstance(f, dict) and (f.get('visible') or k in known)]
+    seen = ' '.join(' '.join(_word_list(text)) for text in shown)
+    runs = set()
+    for key, fact in facts.items():
+        if not isinstance(fact, dict) or fact.get('visible') or key in known or fact.get('area') != state.get('area'):
+            continue
+        for text in (fact.get('text'), (fact.get('magic_objects') or {}).get('what')):
+            words = _word_list(text)
+            for i in range(len(words) - 2):
+                run = words[i:i + 3]
+                if all(w not in _HIDDEN_STOP and len(w) > 2 for w in run):
+                    runs.add(' '.join(run))
+    return sorted(r for r in runs if r not in seen)
+
+
+def check_hidden_facts(spoken, runs):
+    """HARD (secrecy, pr150d T15): no performance describes a fact still hidden after this
+    turn. A found thing comes out through the engine (a passed check, declared handles),
+    which marks it revealed, so state and story agree."""
+    text = ' '.join(_word_list(spoken))
+    for run in runs or ():
+        if run in text:
+            raise InvalidChange('The performance describes something still hidden (not found yet). Only what '
+                                'the player can perceive: if the PC finds it, it comes out through a passed check '
+                                "or declared handles, and the engine marks it found.")
+
+
 def check_hidden_actors(spoken, words):
     """HARD (#97 review B): no performance names or describes a creature that is still hidden
     after this turn. Only a declared act that sets its trigger off brings it out."""
@@ -4987,6 +5117,7 @@ def checked_record(body, plan, speech, performance_variant, source=None, degrade
                           public_event=public_event)
     spoken, warnings = result if degraded else (result, [])
     check_hidden_actors(spoken, body.get('hidden_actors'))
+    check_hidden_facts(spoken, body.get('hidden_facts'))
     kit_agenda.check_carriers_spoken(spoken, plan)
     check_held_delivered(body.get('held_description'), spoken)
     if not ask and not stall_check(plan, body['kind']):
