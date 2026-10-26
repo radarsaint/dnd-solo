@@ -157,8 +157,168 @@ Order as the postmortem lists it (see the section 8 table above for detail):
 
 **From now on:** every lifecycle rule gets a **runtime check plus a test**, not just doc text. Doc text explains the rule; the runtime enforces it and returns the correct next command.
 
-## 7. Open items
+## 7. Synthesis with adventure-ingestion research
 
-- Adventure-ingestion research (how other AI DM systems ingest a player-supplied module) is pending.
-- When it returns, it and this postmortem will be synthesized into one ordered PR plan.
-- Restore the **[GAP]** sections of the postmortem from the original text.
+> **Preservation note:** This is Brendon's synthesis (after the research GPT read this postmortem), reproduced with light markdown cleanup only. About 2,200 characters in the middle (from the end of the "Adventure ingestion" subsection, starting at "There is one refinement fro…", through the start of the layered diagram in section 4) were not available when this doc was written. They are marked **[GAP]**. Nothing in a gap has been paraphrased or reconstructed.
+
+### Research recommendation (before the synthesis)
+
+> These are complementary techniques, not a proven end-to-end solution. My recommendation is to prototype architecture 1 using Kit's current JSON room contract and measure it against architecture 3 as a baseline. Full conversion is worth evaluating afterward if the lazy compiler's transition costs or global dependency failures prove unacceptable. That makes the next development decision evidence-driven, while keeping Kit's portability, source fidelity, and existing gameplay runtime intact. This is a research recommendation only. I have not implemented or tested a new ingestion pipeline in radarsaint/dnd-solo.
+
+In short: **architecture 1** = a global index of the module plus source-backed, just-in-time scene compilation into Kit's existing room JSON. Measure it against **architecture 3** as the baseline. Evaluate **full upfront conversion** later, only if transition costs or global-dependency failures demand it.
+
+### The synthesis
+
+The research and this postmortem fit together very well. More importantly, the postmortem changes what I think we should prioritize.
+
+My central conclusion: Kit's runtime is becoming capable, but the system responsible for turning that capability into an actual game is still incomplete.
+
+This playtest gives us enough evidence to stop treating several different problems as one.
+
+#### 1. What we now know
+
+| Component | Evidence | Assessment |
+| --------- | -------- | ---------- |
+| Runtime distribution | 310 files verified; persona command executed | Working in this host |
+| Core preparation | 20.36 ms | Fast |
+| PDF text extraction | Index generated in 2.2 seconds | Working for this PDF |
+| Adventure understanding | Only opening encounter compiled | Incomplete |
+| Character onboarding | Four sheets and roster created | Partially functional |
+| Companion simulation | Allied combat turns unsupported | Incomplete |
+| Turn lifecycle | One pending turn, zero commits | Failed |
+| Player experience | No opening narration | Failed |
+
+The critical insight is that none of the successful components guaranteed that the player could actually play.
+
+That changes how we should evaluate Kit.
+
+A valid mount, a successful preparation call, a generated character sheet, and an indexed adventure are intermediate achievements. The product succeeds when the player can enter the world, act, receive consequences, and continue.
+
+#### 2. I see three architectural problems
+
+##### A. Host orchestration
+
+This is the most immediate defect.
+
+The GPT was effectively acting as an integration engineer while simultaneously trying to be Kit's host.
+
+It had to interpret a large manifest, inspect the runtime, decide which commands to execute, and remember which stage of the transaction it was in.
+
+When you said "Yes," the system had a perfectly valid pending opening. The host failed to finish it.
+
+The solution I favor is an explicit host-facing lifecycle with a very small action vocabulary.
+
+Proposed Kit host lifecycle:
+
+- **Mount Kit** — verify runtime and establish session.
+- **Load adventure** — register its private source.
+- **Onboard player** — resolve character, companions, and choices.
+- **Ready** — prepare the opening and ask whether to begin.
+- **Begin** — complete the pending opening and deliver committed narration.
+- **Play** — process turns, update state, and continue.
+
+A host should not need to reason about which lifecycle operation to use whenever an obvious state transition occurs.
+
+And importantly, pending operations must survive interruptions.
+
+This is where I would spend the first engineering effort, because otherwise we cannot reliably test anything downstream.
+
+##### B. Adventure ingestion
+
+Our research identified a sensible solution: global indexing followed by source-backed, just-in-time scene compilation.
+
+The playtest gives us direct evidence supporting that approach.
+
+The original PDF was readable. Indexing was fast. The bottleneck was creating the executable material that Kit actually needs.
+
+We should distinguish:
+
+- **Source knowledge:** Kit can find information in the adventure.
+- **Executable understanding:** Kit has converted that information into locations, entities, mechanics, secrets, and dependencies she can operate.
+- **Campaign continuity:** Kit can move between locations while preserving source fidelity and changes produced by play.
+
+The current importer reaches the first stage and can produce part of the second.
+
+It does not yet provide the third.
+
+I would retain Kit's current room representation and add a source-backed compilation layer around it, rather than replace the room engine.
+
+There is one refinement fro **[GAP]** — remainder of this subsection, any further subsections of section 2, section 3, and the start of section 4 (paste from the original).
+
+#### 4. Proposed layering *(heading not available; the text resumes mid-diagram)*
+
+**[GAP]** — top of the layer diagram.
+
+- Deterministic lifecycle and intent routing
+- Private adventure layer — source, index, maps, dependencies, scene compilation
+- Game state layer — characters, companions, discoveries, combat, continuity
+- Kit's existing runtime and DM judgment — prepare → adjudicate → complete → commit
+- Player-facing narration and interaction
+
+This is a proposed synthesis, not a claim about Kit's currently implemented modules.
+
+Notice what I am deliberately preserving: Kit remains the DM. Her personality, judgment, world state, and encounter execution don't need to be reinvented to solve this specific problem.
+
+The adventure layer supplies authoritative material. The lifecycle layer ensures the work actually happens.
+
+#### 5. What I'd prioritize now
+
+I would organize the next development work around one end-to-end acceptance test, with three supporting improvements.
+
+| Priority | Work | Acceptance |
+| -------- | ---- | ---------- |
+| 1 | Repair pending-turn lifecycle | "Yes" results in committed opening narration |
+| 2 | Establish reusable adventure ingestion | Next location runs without manual host engineering |
+| 3 | Complete companion mechanics | Four-person party can resolve an encounter correctly |
+| 4 | Instrument the full experience | Latency and failures attributed to actual stages |
+
+These can be developed independently where appropriate, but all three functional capabilities are required before declaring this particular player journey successful.
+
+The acceptance test should be the same one that failed: mount Kit in an ordinary GPT session, supply a private published adventure, create the party, begin, play the encounter, and transition into the next location.
+
+Then reset Python and resume from saved state.
+
+That final recovery step matters because portability isn't just getting Kit into a host. It's being able to continue the campaign after the host session changes.
+
+#### 6. The larger lesson
+
+Something about this postmortem is particularly revealing.
+
+We have spent substantial effort ensuring Kit can be mounted, has a personality, understands adventures, models the world, remembers events, and adjudicates D&D.
+
+Those are necessary capabilities.
+
+But the player experienced a failed session because the connections between those capabilities were unreliable.
+
+That suggests a development principle I would adopt going forward:
+
+> Evaluate Kit at the boundary where the player experiences her, and use the failures there to determine which internal component actually needs work.
+
+This doesn't mean abandoning architectural research. The adventure-ingestion survey is still useful; in fact, this playtest supplies evidence about which architecture to pursue.
+
+It means we should stop promoting component readiness into product readiness.
+
+The first successful complete turn is therefore a more important immediate milestone than another sophisticated subsystem. The first successful room transition will be the next. A complete encounter with real companions, followed by successful session recovery, will establish substantially more.
+
+And there is one uncertainty I want to preserve: we don't yet know whether Kit's existing room format is expressive enough to represent arbitrary published adventures. The research suggests a compiler can adapt source material to it, but the current test only reached a single opening encounter. That question deserves testing before we commit to a generalized schema.
+
+My current synthesis is that we should keep the hybrid adventure architecture, repair the host lifecycle first, and test the entire experience without adding another layer of infrastructure until a demonstrated failure requires it.
+
+That gives us a concrete path from a mounted engine to a Dungeon Master somebody can actually sit down and play with.
+
+## 8. Agreed priority order and acceptance test
+
+This order **supersedes** the P0/P1/P2 ordering in section 4 for planning purposes.
+
+1. **Pending-turn lifecycle** — *in progress.* "Yes" to a pending opening yields committed opening narration.
+2. **Adventure ingestion** — prototype architecture 1 against architecture 3; the next location runs without manual host engineering.
+3. **Companion mechanics** — a four-person party resolves an encounter correctly.
+4. **End-to-end instrumentation** — latency and failures attributed to actual stages.
+
+**Acceptance test:** fresh ordinary GPT → mount Kit → supply a private published adventure → create the party → begin → play the encounter → transition to the next location → **reset Python and resume from saved state** with nothing lost.
+
+## 9. Open items and notes
+
+- **Redistribution rights:** check them before putting any official pregenerated characters in the repo.
+- **Room-format expressiveness is still open:** we don't yet know whether Kit's room format can express any published adventure. Test it before committing to a generalized schema.
+- Restore the **[GAP]** sections of the postmortem (section 2) and of the synthesis (section 7) from the original text.
