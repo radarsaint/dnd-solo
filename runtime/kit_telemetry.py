@@ -146,13 +146,38 @@ def record(db, *, command, turn_id=None, host=None, session_id=None, packet_mode
             'serialization_ms': None if serialization_ns is None else round(serialization_ns / 1e6, 3),
             'packet_bytes': None if data is None else len(data),
             'packet_sha256': None if data is None else hashlib.sha256(data).hexdigest(),
-            'tool_calls': (1 + sum(1 for r in rows if r.get('turn_id') == turn_id)) if turn_id else None,
+            'tool_calls': (1 + sum(1 for r in rows if r.get('turn_id') == turn_id and r.get('kind') != 'manual'))
+            if turn_id else None,
         })
         with path_for(db).open('a', encoding='utf-8') as fh:
             fh.write(json.dumps(out, ensure_ascii=False, separators=(',', ':')) + '\n')
         return out
     except Exception:  # noqa: BLE001 - telemetry must never break a turn
         return None
+
+
+CONDITIONS = ('A', 'B', 'C', 'D', 'E-C', 'E-D')  # docs/latency/experiment-protocol.md
+
+
+def note(db, *, turn_id=None, condition=None, host=None, run=None, session_id=None, **values):
+    """A hand-timed record (stopwatch or screen recording), marked ``kind: manual`` so it is
+    never mistaken for a Python measurement. Only the host-only fields given are set; the rest
+    stay null. Unlike CLI records this raises on a bad value or a failed write: the person
+    timing by hand should know their number was not kept."""
+    if condition is not None and condition not in CONDITIONS:
+        raise ValueError(f'condition must be one of {CONDITIONS}')
+    unknown = set(values) - set(HOST_ONLY)
+    if unknown:
+        raise ValueError(f'not a hand-timed field: {sorted(unknown)}')
+    rows = read(db)
+    out = dict.fromkeys(FIELDS)
+    out.update({'turn_id': turn_id, 'session_id': _session_id(rows, session_id),
+                'host': host or os.environ.get('KIT_HOST') or None, 'command': 'telemetry note'})
+    out.update({k: v for k, v in values.items() if v is not None})
+    out.update({'kind': 'manual', 'condition': condition, 'run': run})
+    with path_for(db).open('a', encoding='utf-8') as fh:
+        fh.write(json.dumps(out, ensure_ascii=False, separators=(',', ':')) + '\n')
+    return out
 
 
 def _p95(values):
@@ -170,7 +195,9 @@ def summarize(values):
 def report(db):
     """Medians and p95 per command and packet mode. Host-only fields are reported only as how
     many records carry a value (from Python, none do)."""
-    rows = read(db)
+    every = read(db)
+    rows = [r for r in every if r.get('kind') != 'manual']
+    manual = [r for r in every if r.get('kind') == 'manual']
     groups = {}
     for row in rows:
         groups.setdefault(f"{row.get('command')}|{row.get('packet_mode') or '-'}", []).append(row)
@@ -187,9 +214,21 @@ def report(db):
                        for key, group in sorted(groups.items())},
         'tool_calls_per_turn': summarize(turns.values()),
         'host_only_fields': {name: sum(1 for r in rows if r.get(name) is not None) for name in HOST_ONLY},
+        'manual_records': len(manual),
+        'manual_by_condition': {
+            cond: {'records': len(group), **{name: summarize(r.get(name) for r in group)
+                                             for name in HOST_ONLY if name != 'cache_hit'}}
+            for cond, group in sorted(_by_condition(manual).items())},
         'note': ('engine_ms and serialization_ms are Python only. Model, host and player-visible '
                  'time are not measured here; see docs/latency/experiment-protocol.md.'),
     }
+
+
+def _by_condition(rows):
+    groups = {}
+    for row in rows:
+        groups.setdefault(row.get('condition') or '-', []).append(row)
+    return groups
 
 
 def now_ns():

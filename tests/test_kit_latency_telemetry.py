@@ -207,3 +207,84 @@ class WatchroomCompact(Layers):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class HandTimedNotes(unittest.TestCase):
+    """telemetry note (ported from #176): hand-timed records, kept apart from Python's."""
+
+    def test_note_is_manual_and_kept_out_of_cli_stats(self):
+        with tempfile.TemporaryDirectory() as folder:
+            db = adventure_db(folder, 'note')
+            started = run('start', '--db', str(db), '--room', str(kit_adventure.room_file(db, '1')),
+                          '--sheet', str(NIK))
+            self.assertEqual(started.returncode, 0, started.stderr)
+            turn = json.loads(started.stdout)['prepared']['turn_id']
+            for i, ms in enumerate((4000, 5000, 9000), 1):
+                done = run('telemetry', 'note', '--db', str(db), '--turn-id', turn, '--condition', 'D',
+                           '--run', str(i), '--first-visible-ms', str(ms), '--cache-hit', 'yes',
+                           '--host', 'chatgpt')
+                self.assertEqual(done.returncode, 0, done.stderr)
+            row = json.loads(done.stdout)
+            self.assertEqual((row['kind'], row['command'], row['condition'], row['run'], row['host']),
+                             ('manual', 'telemetry note', 'D', 3, 'chatgpt'))
+            self.assertEqual((row['first_visible_ms'], row['cache_hit']), (9000.0, True))
+            for name in ('complete_ms', 'model_wait_ms', 'input_tokens', 'engine_ms', 'packet_bytes'):
+                self.assertIsNone(row[name], name)   # never guessed
+            rows = kit_telemetry.read(db)
+            self.assertEqual(len(rows), 4)
+            self.assertEqual(len({r['session_id'] for r in rows}), 1)
+            # A later CLI call on the same turn counts only real tool calls.
+            self.assertEqual(run('rehydrate', '--db', str(db), '--turn-id', turn).returncode, 0)
+            self.assertEqual(kit_telemetry.read(db)[-1]['tool_calls'], 2)
+            report = kit_telemetry.report(db)
+            self.assertEqual(report['manual_records'], 3)
+            self.assertNotIn('telemetry note|-', report['by_command'])
+            self.assertEqual(report['manual_by_condition']['D']['first_visible_ms'],
+                             {'n': 3, 'median': 5000.0, 'p95': 9000.0})
+            self.assertEqual(set(report['host_only_fields'].values()), {0})
+
+    def test_note_needs_a_value_and_a_known_condition(self):
+        with tempfile.TemporaryDirectory() as folder:
+            db = Path(folder) / 'x.sqlite'
+            self.assertNotEqual(run('telemetry', 'note', '--db', str(db), '--condition', 'D').returncode, 0)
+            self.assertNotEqual(run('telemetry', 'note', '--db', str(db), '--condition', 'Z',
+                                    '--complete-ms', '1').returncode, 0)
+            self.assertFalse(kit_telemetry.path_for(db).exists())
+            with self.assertRaises(ValueError):
+                kit_telemetry.note(db, engine_ms=3)
+
+
+class ReviewFindings(unittest.TestCase):
+    """Codex findings on #177."""
+
+    def test_unhandled_error_is_recorded_as_a_failure(self):
+        with tempfile.TemporaryDirectory() as folder:
+            db = adventure_db(folder, 'err')
+            self.assertEqual(run('start', '--db', str(db), '--room', str(kit_adventure.room_file(db, '1')),
+                                 '--sheet', str(NIK)).returncode, 0)
+            done = run('prepare', '--db', str(db), '--one-pass', '--action-file', str(Path(folder) / 'nope.txt'))
+            self.assertNotEqual(done.returncode, 0)
+            row = kit_telemetry.read(db)[-1]
+            self.assertEqual(row['command'], 'prepare')
+            self.assertNotEqual(row['exit_code'], 0)
+
+    def test_start_compact_on_resume_persists(self):
+        import sqlite3
+        with tempfile.TemporaryDirectory() as folder:
+            db = adventure_db(folder, 'resume')
+            self.assertEqual(run('start', '--db', str(db), '--room', str(kit_adventure.room_file(db, '1')),
+                                 '--sheet', str(NIK)).returncode, 0)
+            con = sqlite3.connect(db)
+            self.assertEqual(kit_telemetry.packet_mode(con), 'full')
+            con.close()
+            done = run('start', '--db', str(db), '--compact')
+            self.assertEqual(done.returncode, 0, done.stderr)
+            con = sqlite3.connect(db)
+            self.assertEqual(kit_telemetry.packet_mode(con), 'compact')
+            con.close()
+
+    def test_greeting_with_compact_creates_no_save(self):
+        with tempfile.TemporaryDirectory() as folder:
+            db = Path(folder) / 'fresh.sqlite'
+            self.assertEqual(run('start', '--db', str(db), '--compact').returncode, 0)
+            self.assertFalse(db.exists())

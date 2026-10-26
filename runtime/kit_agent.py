@@ -6089,7 +6089,10 @@ def start_session(db, sheet_path=None, runtime=None, room=None, area=None, manif
     (engineering path). The CLI does not use that fill-in for player-facing starts.
     """
     if room is None:
-        return kit_campaign.campaign_entry(db, sheet_path, rooms_dir=modules, campaign=campaign, intent=intent, table=table)
+        entry = kit_campaign.campaign_entry(db, sheet_path, rooms_dir=modules, campaign=campaign, intent=intent, table=table)
+        if compact and kit_campaign.saved_game(db) is not None:
+            kit_telemetry.set_packet_mode(db, 'compact')  # resuming a save: compact from here on
+        return entry
     source = kit_rooms.load_room(room)
     if area is not None and area not in source['areas']:
         raise kit_rooms.RoomMountError(room, [f'no area {area!r} in this room'])
@@ -6217,12 +6220,38 @@ def _dumps(result, **kwargs):
 
 
 def _telemetry_cli(argv):
-    """kit_agent telemetry report --db kit.sqlite: medians and p95 from the JSONL."""
+    """kit_agent telemetry report|note --db kit.sqlite.
+
+    report: medians and p95 from the JSONL. note: append one hand-timed record (kind manual),
+    e.g. ``telemetry note --db kit.sqlite --condition D --run 3 --first-visible-ms 4200``."""
     parser = argparse.ArgumentParser(prog='kit_agent telemetry')
-    parser.add_argument('action', choices=['report'])
+    parser.add_argument('action', choices=['report', 'note'])
     parser.add_argument('--db', default='kit.sqlite')
+    parser.add_argument('--turn-id', help='note: the turn this timing belongs to')
+    parser.add_argument('--condition', choices=kit_telemetry.CONDITIONS,
+                        help='note: the experiment condition (docs/latency/experiment-protocol.md)')
+    parser.add_argument('--run', type=int, help='note: the run number')
+    parser.add_argument('--host', help='note: the host timed (else KIT_HOST)')
+    parser.add_argument('--session-id', help='note: the session (else the last one in the file)')
+    for name in kit_telemetry.HOST_ONLY:
+        if name == 'cache_hit':
+            parser.add_argument('--cache-hit', dest=name, choices=['yes', 'no'])
+        elif name in ('input_tokens', 'output_tokens', 'retries'):
+            parser.add_argument('--' + name.replace('_', '-'), dest=name, type=int)
+        else:
+            parser.add_argument('--' + name.replace('_', '-'), dest=name, type=float)
     args = parser.parse_args(argv)
-    print(json.dumps(kit_telemetry.report(args.db), indent=2, ensure_ascii=False))
+    if args.action == 'report':
+        print(json.dumps(kit_telemetry.report(args.db), indent=2, ensure_ascii=False))
+        return 0
+    values = {name: getattr(args, name) for name in kit_telemetry.HOST_ONLY}
+    if values['cache_hit'] is not None:
+        values['cache_hit'] = values['cache_hit'] == 'yes'
+    if all(v is None for v in values.values()):
+        parser.error('note: give at least one measured value (e.g. --first-visible-ms)')
+    row = kit_telemetry.note(args.db, turn_id=args.turn_id, condition=args.condition, host=args.host,
+                             run=args.run, session_id=args.session_id, **values)
+    print(json.dumps(row, ensure_ascii=False))
     return 0
 
 
@@ -6272,6 +6301,9 @@ def main():
         return code
     except SystemExit as exc:
         code = exc.code
+        raise
+    except BaseException:
+        code = 1  # an unhandled error exits 1; never record it as a success
         raise
     finally:
         total = time.perf_counter_ns() - clock
