@@ -7,6 +7,7 @@ character do not go through a room at all.
 """
 import hashlib
 import json
+import re
 import shlex
 import sqlite3
 from pathlib import Path
@@ -328,8 +329,65 @@ def carry_question(db, turn_id):
     return pending
 
 
-def confirm_question_delivered(db, question_id=None, turn_id=None):
-    """Mark a pending question asked (by id, or by the committed turn that carried it). True if one moved."""
+# Words that name a kind of proficiency, not the item itself; they never identify the question.
+_GENERIC_TERMS = frozenset('supplies supply tools tool kit kits set sets proficiency proficiencies instrument '
+                           'instruments the a an of and with'.split())
+_ASK_SIGNAL = re.compile(r"\?|\b(?:where|how|why|pitch|tell me|story)\b", re.I)
+
+
+def _stem(word):
+    word = re.sub(r"(?:'s|’s|'|’)$", '', word.casefold())
+    return word[:max(5, len(word) - 3)] if len(word) > 5 else word
+
+
+def question_terms(key):
+    """Per unsourced item, the stems that must all appear for a reply to name it:
+    'Shield' -> ['shie'... ], "Calligrapher's Supplies" -> ['calligrap']."""
+    try:
+        _, profs = json.loads(key)
+    except (TypeError, ValueError):
+        return []
+    items = []
+    for prof in profs:
+        words = [w for w in re.findall(r"[a-z’']+", str(prof).casefold()) if w.strip("'’") not in _GENERIC_TERMS]
+        stems = [_stem(w) for w in words if len(w.strip("'’")) > 1]
+        if stems:
+            items.append(stems)
+    return items
+
+
+def question_asked_in(key, spoken):
+    """Host-agnostic check that a reply actually asks the lobby question: every unsourced item is
+    named (each of its key stems at a word start, so 'calligraphy' names calligrapher's supplies)
+    and the reply asks something (a question mark or an ask word). Wording is Kit's own."""
+    text = (spoken or '').casefold()
+    items = question_terms(key)
+    if not items or not _ASK_SIGNAL.search(text):
+        return False
+    return all(all(re.search(r'\b' + re.escape(stem), text) for stem in stems) for stems in items)
+
+
+def carried_question(db, turn_id):
+    """The pending question a given play turn carries ({'id','key','table_line'}) or None."""
+    if not turn_id:
+        return None
+    row = _read(db, 'SELECT id, key, table_line FROM kit_pending_question WHERE carried_turn = ?', (turn_id,))
+    return None if row is None else {'id': row[0], 'key': row[1], 'table_line': row[2]}
+
+
+def question_word_allowance(db, turn_id, spoken):
+    """Extra words a turn may spend asking its carried lobby question (exempt from the length caps):
+    the table line's length, but only when the reply really asks it."""
+    carried = carried_question(db, turn_id)
+    if not carried or not question_asked_in(carried['key'], spoken):
+        return 0
+    return len(re.findall(r"[A-Za-z0-9’']+", carried['table_line'] or '')) or 0
+
+
+def confirm_question_delivered(db, question_id=None, turn_id=None, spoken=None):
+    """Mark a pending question asked. By id: the host confirmed it showed table_line. By turn: the
+    committed turn that carried it, and only when its spoken reply actually asks it
+    (question_asked_in); otherwise it stays pending and rides the next turn. True if one moved."""
     if _read(db, "SELECT name FROM sqlite_master WHERE name = 'kit_pending_question'") is None:
         return False
     con = sqlite3.connect(str(db))
@@ -339,6 +397,8 @@ def confirm_question_delivered(db, question_id=None, turn_id=None):
         else:
             row = con.execute('SELECT id, key, kind FROM kit_pending_question WHERE carried_turn = ?',
                               (turn_id,)).fetchone()
+            if row is not None and not question_asked_in(row[1], spoken):
+                return False
         if row is None:
             return False
         con.execute('INSERT OR IGNORE INTO kit_asked (key, kind) VALUES (?, ?)', (row[1], row[2]))

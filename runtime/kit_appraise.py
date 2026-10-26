@@ -37,10 +37,12 @@ DEFAULT_STATE = 'kit_appraise.json'
 # "what's a potion of healing worth?", "sell a potion of healing", "what's the potion of healing's value?",
 # "how much could I sell a healing potion for?", "price of a +1 longsword, please".
 _FILLER = re.compile(r"^\s*(?:hey|hi|ok|okay|so|um|well|kit|goldscale)\b[,!]?\s*", re.I)
+_AUX = r"(?:is|are|was|were|do|does|did|would|will|could|can|should|might)"
+# A question word, then any auxiliary after it ("how much are 3 healing potions?", "what do two
+# potions of greater healing go for?"), stripped generally, never as a one-off phrase.
 _LEAD = re.compile(
-    r"^\s*(?:what(?:'s|s| is| are| does| do| would| will| might| should)?|how much(?: is| does| would| will| could| can|"
-    r" should| might)?|can you|could you|would you|will you|please|pls|i'?d like to|i want to|i wanna|"
-    r"i need to|let'?s|tell me|do you know|any idea|give me)\b[,]?\s*", re.I)
+    rf"^\s*(?:(?:what(?:'s|s|’s)?|how much|how many(?: gold| gp| coins?)?|which)(?:\s+{_AUX})?|can you|could you|would you|will you|"
+    r"please|pls|i'?d like to|i want to|i wanna|i need to|let'?s|tell me|do you know|any idea|give me)\b[,]?\s*", re.I)
 _SUBJ = re.compile(r"^\s*(?:i|we|you|me|us)\b\s*(?:(?:get|got|make|pay|be|charge)\b\s*)?(?:for\b\s*)?", re.I)
 _VERB = re.compile(r"^\s*(?:price(?:\s+check)?|appraise|value|cost|quote|be|get|for)\b\s*", re.I)
 _OF = re.compile(r"^\s*(?:the\s+)?(?:value|price|worth|cost|market price|going rate)\s+(?:of|for|on)\b\s*", re.I)
@@ -89,6 +91,31 @@ def canonical_names(text):
     return text
 
 
+_NUMBER_WORDS = {w: n for n, w in enumerate(
+    'zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen '
+    'sixteen seventeen eighteen nineteen twenty'.split())}
+_NUMBER_WORDS.update({'a': 1, 'an': 1, 'dozen': 12, 'pair': 2, 'couple': 2, 'brace': 2})
+_COUNT = re.compile(r"^(?:(\d+)|(?:a\s+|an\s+)?(dozen|pair|couple|brace)(?:\s+of)?|([a-z]+))\s+(?=[a-z+])", re.I)
+
+
+def leading_count(text):
+    """(count, rest) for a leading quantity: digits, one..twenty, a dozen, a pair/couple (of),
+    and a/an as 1. None when the text does not start with a count."""
+    m = _COUNT.match(text or '')
+    if not m:
+        return None
+    if m.group(1):
+        n = int(m.group(1))
+    else:
+        word = (m.group(2) or m.group(3)).lower()
+        if word not in _NUMBER_WORDS or word == 'zero':
+            return None
+        n = _NUMBER_WORDS[word]
+    if n < 1:
+        return None
+    return n, text[m.end():]
+
+
 def strip_question(text):
     """The item, without the phrasing around it, keeping buy/sell intent:
     "what's a potion of healing worth?" -> "potion of healing"; "sell a potion of healing" -> "sell potion of healing"."""
@@ -105,10 +132,15 @@ def strip_question(text):
         if t == before:
             break
     t = canonical_names(t.strip(" \t'\"")).strip()
-    # A leading count ("3 healing potions") becomes Goldscale's own quantity signal.
-    count = re.match(r'^(\d+)\s+(?=[a-z])', t, re.I)
-    if count and int(count.group(1)) > 1:
-        t = f'qty {count.group(1)} {t[count.end():]}'
+    # A leading count ("3 healing potions", "two potions of greater healing", "a dozen ...")
+    # becomes Goldscale's own quantity signal.
+    count = leading_count(t)
+    if count:
+        n, rest = count
+        if n > 1:
+            t = f'qty {n} {rest}'
+        else:
+            t = rest
     return mode + t if t else original
 
 

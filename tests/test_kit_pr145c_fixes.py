@@ -82,7 +82,7 @@ class PendingQuestionTests(unittest.TestCase):
         done = types.SimpleNamespace(command='complete', table_talk=False, db=self.db, turn_id='t1')
         kit_agent._lobby_question_delivery(done, {'committed': False})
         self.assertIsNotNone(kit_campaign.pending_question(self.db))
-        result = {'committed': True}
+        result = {'committed': True, 'spoken': "Where did Nik learn shield and calligrapher's supplies?"}
         kit_agent._lobby_question_delivery(done, result)
         self.assertTrue(result['lobby_question_delivered'])
         self.assertTrue(self.check()['already_asked'])

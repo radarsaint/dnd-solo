@@ -3056,9 +3056,10 @@ def check_scope(segments, plan, guards=None):
     performed_words = sum(_words(segment['text']) for segment in performed)
     if scope == 'call':
         total = sum(_words(segment['text']) for segment in segments)
-        require(len(segments) <= CALL_MAX_SEGMENTS and total <= CALL_MAX_WORDS,
+        cap = CALL_MAX_WORDS + kit_voice.allowance_for(segments)
+        require(len(segments) <= CALL_MAX_SEGMENTS and total <= cap,
                 f'Call scope ran long ({total} words in {len(segments)} segments; limit '
-                f'{CALL_MAX_WORDS} words in {CALL_MAX_SEGMENTS}). Answer directly and stop.')
+                f'{cap} words in {CALL_MAX_SEGMENTS}). Answer directly and stop.')
         return
     if scope == 'exchange':
         guards = guards or {}
@@ -5271,7 +5272,19 @@ class KitChatBridge:
                 'host_retry': HOST_RETRY_NOTE, 'input': payload}
 
     @_stale_guided
+    def _question_allowance(self, turn_id):
+        """Exempt the carried lobby question's words from the length caps for this turn."""
+        db = getattr(self.runtime, 'path', None)
+        if not db or not kit_campaign.carried_question(db, turn_id):
+            return kit_voice.question_allowance(None)
+        return kit_voice.question_allowance(
+            lambda spoken: kit_campaign.question_word_allowance(db, turn_id, spoken))
+
     def finish(self, turn_id, speech, degraded=False):
+        with self._question_allowance(turn_id):
+            return self._finish(turn_id, speech, degraded)
+
+    def _finish(self, turn_id, speech, degraded=False):
         pending = self._pending_or_replay(turn_id, speech=speech)
         if 'already_committed' in pending:
             return pending
@@ -5435,7 +5448,8 @@ class KitChatBridge:
             if isinstance(output, dict) and (record or 'manifest' in output):
                 kit_manifest.check_echo(output, record)
                 output = {key: value for key, value in output.items() if key != 'manifest'}
-            result = self._complete(turn_id, output, degraded)
+            with self._question_allowance(turn_id):
+                result = self._complete(turn_id, output, degraded)
         except InvalidChange:
             self._attempt(turn_id, output, host_stamps, clock, 'rejected')
             raise
@@ -5566,20 +5580,35 @@ def _cli_stamps(items):
     return out
 
 
+def _carry_lobby_question(db, packet, turn_id):
+    pending = kit_campaign.carry_question(db, turn_id)
+    if pending:
+        packet['lobby_question'] = {
+            'id': pending['id'], 'table_line': pending['table_line'],
+            'instruction': 'Not yet delivered from the lobby. Ask it in your own voice in this '
+                           "turn's spoken, out of character, before or after the scene. Name each item "
+                           'it asks about; its words do not count against the length caps. It is marked '
+                           'asked only when your committed reply actually asks it.'}
+
+
 def _lobby_question_delivery(args, result):
-    """A lobby question not yet confirmed delivered rides on the next play packet; the commit of
-    that turn confirms it (docs/architecture/LOBBY_QUESTIONS.md)."""
+    """A lobby question not yet confirmed delivered rides on the next play packet (prepare, or the
+    start --room opening); the commit of that turn confirms it only when the committed spoken
+    actually asks it (docs/architecture/LOBBY_QUESTIONS.md)."""
     try:
         if args.command == 'prepare' and not args.table_talk and result.get('turn_id'):
-            pending = kit_campaign.carry_question(args.db, result['turn_id'])
-            if pending:
-                result['lobby_question'] = {
-                    'id': pending['id'], 'table_line': pending['table_line'],
-                    'instruction': 'Not yet delivered from the lobby. Ask it in your own voice in this '
-                                   "turn's spoken, out of character, before or after the scene."}
+            _carry_lobby_question(args.db, result, result['turn_id'])
+        elif args.command == 'start' and isinstance(result.get('prepared'), dict) \
+                and result['prepared'].get('turn_id'):
+            _carry_lobby_question(args.db, result['prepared'], result['prepared']['turn_id'])
         elif args.command in ('complete', 'finish') and result.get('committed') is not False:
-            if kit_campaign.confirm_question_delivered(args.db, turn_id=args.turn_id):
+            if kit_campaign.confirm_question_delivered(args.db, turn_id=args.turn_id,
+                                                       spoken=result.get('spoken')):
                 result['lobby_question_delivered'] = True
+            elif kit_campaign.carried_question(args.db, args.turn_id):
+                result['lobby_question_delivered'] = False
+                result['lobby_question_note'] = ('The reply did not ask the lobby question; it stays '
+                                                 'pending and rides the next turn.')
     except Exception:  # noqa: BLE001 - bookkeeping must never break a turn
         pass
 
@@ -5679,6 +5708,8 @@ def main():
             if args.room and args.table and isinstance(result, dict):
                 kit_campaign.record_table_mode(args.db, args.table)
                 result['table_mode'] = args.table
+            if args.room and isinstance(result, dict):
+                _lobby_question_delivery(args, result)
         except kit_rooms.RoomMountError as exc:
             print(json.dumps(exc.host_view(), ensure_ascii=False), file=sys.stderr)
             return 2

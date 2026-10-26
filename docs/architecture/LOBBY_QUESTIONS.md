@@ -15,10 +15,21 @@ A pending question moves to asked on either positive delivery signal:
 1. **Host confirmation.** The lobby result carries `proficiency_check.question_id` and a
    `delivery` hint. After saying `table_line`, the host runs
    `python3 -m runtime.kit_agent start --db kit.sqlite --question-delivered <id>`.
-2. **A committed play turn that carried it.** While pending, every `prepare` (not table talk)
-   adds `lobby_question` to the packet, and Kit asks it in that turn's `spoken`. When that turn's
-   `complete`/`finish` commits, the result gains `lobby_question_delivered: true`. A committed
-   `spoken` is the one thing every host shows the player, so this works with no host support.
+2. **A committed play turn that carried it and actually asked it.** While pending, every
+   `prepare` (not table talk) adds `lobby_question` to the packet, and so does the opening packet
+   from `start --room` (`prepared.lobby_question`), so it rides the very first turn. Kit asks it in
+   that turn's `spoken`, in her own words. When that turn's `complete`/`finish` commits, the
+   runtime checks the committed `spoken` (`kit_campaign.question_asked_in`): every unsourced item
+   must be named by its key terms (word-start stems, generic words like "supplies" ignored, so
+   "calligraphy" names calligrapher's supplies) and the reply must ask something (a `?` or an ask
+   word). Only then does the result gain `lobby_question_delivered: true`. Otherwise it gains
+   `lobby_question_delivered: false` and the question stays pending for the next turn. A
+   committed `spoken` is the one thing every host shows the player, so this works with no host
+   support.
+
+**Length caps.** The question is not scene talk: on a turn that carries it and really asks it,
+the tight-mirror caps (110/150) and the 60-word call cap grow by the `table_line`'s word count
+(`kit_voice.question_allowance`). A turn that does not ask it gets no allowance.
 
 Until one of those happens, every lobby call raises the question again and every play packet
 carries it, so a dropped reply is always asked again. Why not "mark on the next call"? The next
