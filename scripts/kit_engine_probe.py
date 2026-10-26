@@ -19,10 +19,14 @@ from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-os.environ.pop('OPENAI_API_KEY', None)
 
-from runtime.kit_agent import WindowAnswer, PendingRuling, RoomAdjudicator  # noqa: E402
-from runtime.state_context import InvalidChange, Runtime  # noqa: E402
+
+def _load_engine():
+    """Drop a host API key, then import the engine. Importing this script does neither."""
+    os.environ.pop('OPENAI_API_KEY', None)
+    from runtime.kit_agent import WindowAnswer, PendingRuling, RoomAdjudicator  # noqa: E402
+    from runtime.state_context import InvalidChange, Runtime  # noqa: E402
+    return WindowAnswer, PendingRuling, RoomAdjudicator, InvalidChange, Runtime
 
 
 def roll_text(line, sheet):
@@ -59,6 +63,7 @@ def sheet_for(scenario, sheets):
 
 
 def probe(scenario, fixture, sheets, seed, raise_toll=True):
+    WindowAnswer, PendingRuling, RoomAdjudicator, InvalidChange, Runtime = _load_engine()
     source = json.loads(Path(fixture).read_text())
     with tempfile.TemporaryDirectory() as temp:
         runtime = Runtime(Path(temp) / 'probe.sqlite')
