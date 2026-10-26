@@ -576,6 +576,11 @@ SIMPLE_ACT = re.compile(r"\b(?:(?:hold|holds|holding|raise|raises|raising|lift|l
                         r"squat\w*|wait\w*|lean\w*|tap|taps|tapped|tapping|knock\w*|sweep\w*|brush\w*|wipe\w*|"
                         r"dust\w*|sniff\w*|nod\w*|shrug\w*|stand\w*|sit|sits|sat|back\s+up|backs\s+up|"
                         r"hop\w*|step\w*|walk\w*|pace\w*|circle\w*)\b")
+# A search, investigation or check is never a simple act, even with a step or a walk in it
+# ('I walk the wall and search it for seams'): it goes to Kit's call (#150 playtest).
+SEARCH_INTENT = re.compile(r"\b(?:search\w*|investigat\w*|examin\w*|inspect\w*|prob(?:e|es|ing)|"
+                           r"rummag\w*|scour\w*|check\w*\s+(?:\w+\s+){0,4}?for|check\w*\s+(?:the|it|that|behind|under|inside|around)\b|feel\w*\s+(?:\w+\s+){0,3}for|"
+                           r"(?:look|looks|looking)\s+for)\b")
 PHYSICAL_VERBS = r'(steal|pocket|grab|pick up|smash|break|hide|climb|force|open|disarm)'
 # A declared physical act: "I grab the ring", "I quickly open the door". When an NPC has
 # just asked the player something, only this shape still counts as physical; a verb
@@ -621,7 +626,8 @@ def room_intent(action, addressed=False, room=None):
                                                           QUOTED_SPEECH.sub(' ', text)) if word != 'I')
     if any(kit_combat.aimed_attack(words, verb, names) for verb in violent.finditer(words)) or \
             re.search(r'\b(initiative|fireball)\b', words) or (
-            re.search(r'\bcast\b', words) and re.search(r'\b(at|on|against|into)\s+(him|her|them|the|it|his)\b', words)):
+            re.search(r'\bcast\b', words) and re.search(r'\b(at|on|against|into)\s+(him|her|them|the|it|his)\b', words)
+            and not re.search(r'\b(?:detect magic|light|identify|mending|prestidigitation|guidance)\b', words)):
         return 'combat'
     if re.search(r'\b(cast|casts|casting)\b', words):
         return 'spell'  # a spell aimed at nobody (Detect Magic, Light...) is not combat
@@ -690,7 +696,7 @@ def room_intent(action, addressed=False, room=None):
         # same turn (PR 145 playtests: the whole message was read as speech).
         if PERCEIVING.search(declared):
             return 'observe'
-        if SIMPLE_ACT.search(declared):
+        if SIMPLE_ACT.search(declared) and not SEARCH_INTENT.search(declared):
             return 'simple_act'
     if quoted or door_business or '?' in words or SOCIAL_WORDS.search(words) or ADDRESS_WORDS.search(words) or \
             GESTURE.search(words) or violent.search(words):
@@ -703,7 +709,7 @@ def room_intent(action, addressed=False, room=None):
         # A look or listen with no physical verb is free perception, never a physical ruling
         # ('I peer ahead.', 'I listen.'): a pending ruling must not stall a plain look (#97 p2b).
         return 'observe'
-    if SIMPLE_ACT.search(words):
+    if SIMPLE_ACT.search(words) and not SEARCH_INTENT.search(words):
         return 'simple_act'
     return 'unsupported_action'
 
@@ -1622,11 +1628,35 @@ class RoomAdjudicator:
                    'evidence': f'Player declared: {action}. Resolution: {spell} is cast outside combat'
                                f'{" as a ritual (10 minutes, no slot spent)" if ritual else ""}; the engine resolves '
                                'no hidden fact from it, so describe only what the room plainly shows.'}]
+        sensed = None
+        if re.search(r'\bdetect(?:s|ing)?\s+magic\b', words):
+            sensed = self._detect_magic(state)
+            events[0]['tags'].append('detect_magic')
+            events[0]['evidence'] += ' ' + sensed[1]
         if ritual:
             events.append({'type': 'advance_time', 'seconds': RITUAL_EXTRA_SECONDS,
                            'evidence': f'Casting {spell} as a ritual takes 10 minutes.'})
-        return Resolution('spell_cast', f'You cast {spell}' + (' as a ritual, taking ten minutes.' if ritual else '.'),
-                          events)
+        public = f'You cast {spell}' + (' as a ritual, taking ten minutes.' if ritual else '.')
+        return Resolution('spell_cast', f'{public} {sensed[0]}' if sensed else public, events)
+
+    def _detect_magic(self, state):
+        """(public line, private evidence) for Detect Magic here (#150 playtest): every fact in
+        this area the room marks magical ("magic": true or a school name) is sensed as an aura
+        (school only, never the fact's text, in public); with none, the PC senses no magic."""
+        area = state.get('area')
+        found = [(key, fact) for key, fact in ((self.source or {}).get('facts') or {}).items()
+                 if isinstance(fact, dict) and fact.get('area') == area and fact.get('magic')]
+        if not found:
+            return ('Nothing within 30 feet carries a magical aura.',
+                    'Detect Magic: the room marks no magic here; tell the player plainly they sense none.')
+        schools = sorted({fact['magic'].strip().casefold() for _, fact in found if isinstance(fact['magic'], str)})
+        count = len(found)
+        public = (f"You sense {'a magical aura' if count == 1 else f'{count} magical auras'} within 30 feet"
+                  + (f" ({', '.join(schools)})" if schools else '') + '.')
+        private = 'Detect Magic senses (DM only, place each aura but do not read out the fact): ' + '; '.join(
+            f"{key}{' [' + fact['magic'] + ']' if isinstance(fact['magic'], str) else ''}: {fact.get('text', '')}"
+            for key, fact in found)
+        return public, private
 
     def _resolve_called(self, action, revision, state):
         """A bare roll ("Perception 22", "22", "I rolled a 22") answering the check Kit called
@@ -2850,8 +2880,12 @@ def supported_procedures(source):
 def check_plan(plan, episodes, public_event, action_kind=None, candidates=None, player_action=None,
                player_notes=(), committed_turn_ids=(), source=None, state=None, established='',
                oracle=None, claims_packet=None, table_talk=False):
-    require(isinstance(plan, dict) and set(plan) - set(OPTIONAL_PLAN_KEYS) == set(PLAN_SCHEMA['required']),
-            'Incomplete private decision')
+    require(isinstance(plan, dict), 'Incomplete private decision: the decision must be a JSON object')
+    missing = sorted(set(PLAN_SCHEMA['required']) - set(plan))
+    extra = sorted(set(plan) - set(PLAN_SCHEMA['required']) - set(OPTIONAL_PLAN_KEYS))
+    require(not missing and not extra, 'Incomplete private decision: ' + '; '.join(
+        part for part in (f"missing {', '.join(missing)}" if missing else '',
+                          f"unexpected {', '.join(extra)}" if extra else '') if part))
     plan.setdefault('detail', copy.deepcopy(kit_detail.NO_DETAIL))  # no detail this turn
     if 'claims' in plan:
         kit_claims.check_claims(plan['claims'], claims_packet, source or {}, state or {})

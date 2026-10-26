@@ -22,6 +22,7 @@ Nothing is trimmed: ``join(split(packet))`` is the full packet, byte for byte.
 import copy
 import hashlib
 import json
+import re
 
 from .state_context import InvalidChange, encode, require
 
@@ -107,12 +108,29 @@ def rejection_notice(recent, session_hash):
     attempts = [a for a in rows[-1].get('attempts') or () if a.get('outcome') == 'rejected']
     if len(attempts) < REJECT_STREAK:
         return None
-    reasons = [a['reason'] for a in attempts[-REJECT_STREAK:] if a.get('reason')]
+    reasons = _distinct_reasons(a.get('reason') for a in attempts)
     return {'rejections': len(attempts), 'reasons': reasons, 'session_hash': session_hash,
-            'note': ('Your last turn was refused this many times. Fix exactly what the reasons '
-                     'say, using the session_manifest you already hold (same hash). If you no '
-                     'longer have that body, run rehydrate for this turn_id (CLI: rehydrate '
+            'note': ('Your last turn needed several tries before it went through. Before you write '
+                     'this decision, check it against every reason below so the same thing is not '
+                     'refused again, using the session_manifest you already hold (same hash). If '
+                     'you no longer have that body, run rehydrate for this turn_id (CLI: rehydrate '
                      '--turn-id T) instead of guessing.')}
+
+
+# Host boilerplate the engine appends to many refusals; the notice keeps it once, not per reason.
+_BOILERPLATE = re.compile(r'\s*(?:No turn was committed\.|Resubmit[^.]*\.|Revise[^.]*and resubmit\.)\s*')
+
+
+def _distinct_reasons(raw):
+    """Every rejection reason, in order, without repeats or repeated boilerplate."""
+    out = []
+    for reason in raw:
+        if not reason:
+            continue
+        text = _BOILERPLATE.sub(' ', str(reason)).strip()
+        if text and text not in out:
+            out.append(text)
+    return out
 
 
 def check_echo(output, record):
