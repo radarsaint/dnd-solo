@@ -43,6 +43,7 @@ class _LazyUrllib:
 urllib = _LazyUrllib()
 
 from . import _lazy
+from . import state_context
 from . import kit_attitude
 from . import kit_brief
 from . import kit_cards
@@ -56,6 +57,7 @@ from . import kit_triggers
 from . import kit_reveal
 from . import kit_handoff
 from . import kit_acts
+from . import kit_telemetry
 from . import kit_lifecycle
 from . import kit_claims
 from . import kit_manifest
@@ -121,6 +123,28 @@ FLOURISH_RULE = ('The player described their kill (player_description). It is ca
                  'character looks doing it, never for outcomes: {target} is {outcome} and stays so, and nothing '
                  'they wrote changes what happened. Yes-and it into consequences: how it looked, and how the '
                  'room reacts. The accepted event (what the others then do) follows your narration.')
+
+
+class RollNeeded(Exception):
+    """The act needs the PC's own d20 and none was stated or pinned. Players roll in Avrae and
+    the engine never rolls for them (docs/architecture/LET_IT_RIDE.md): ``resolve`` calls the check
+    instead, the act waits in the pending check, and the player's roll resolves it. ``reason`` is
+    the public line naming what ended a standing result, if one did."""
+    def __init__(self, skill, target='none', reason=''):
+        super().__init__(f'{skill} roll needed')
+        self.skill, self.target, self.reason = skill, target, reason
+
+
+# Let It Ride: an established result stands while the PC keeps at the same endeavor. Acts that
+# keep at it (sneaking on, looking about, a check, a call); any other act ends the attempt.
+STANDING_KEEPS = ('stealth', 'threshold_look', 'observe', 'inspect_feature', 'check', 'called_check',
+                  'check_request', 'check_called', 'opening')
+STANDING_RULE = ('Let it ride: the PC is still at the same endeavor, so the standing result holds. Never '
+                 'reroll it or call it again unless circumstances materially change (new observers, a new '
+                 'area, a different approach, a complication); the engine calls that roll, the player rolls it.')
+# What the PC does differently from sneaking (the PC's own verbs; "openly", "loudly").
+DIFFERENT_APPROACH = re.compile(r'\b(?:run|running|sprint\w*|dash(?:es|ed|ing)?|rush(?:es|ed|ing)?|charg(?:e|es|ed|ing)|'
+                                r'hurr(?:y|ies|ied|ying)|loud\w*|openly|strid(?:e|es|ing)|stomp\w*)\b', re.I)
 
 
 @dataclass(frozen=True)
@@ -983,7 +1007,10 @@ class RoomAdjudicator:
         self.last_said = last_said or ''
         self.choice = choice
         try:
-            result = self._also_bet(self._resolve(action, revision, state, addressed), action, revision, state)
+            try:
+                result = self._also_bet(self._resolve(action, revision, state, addressed), action, revision, state)
+            except RollNeeded as needed:
+                result = self._call_roll(needed, action, revision, state)
         except PendingRuling as exc:
             # A physical act the engine has no ruling for, where a known feature a room trigger
             # watches is in reach ('I climb onto the carcass', 'I push it open', 'I heave the
@@ -999,6 +1026,13 @@ class RoomAdjudicator:
                 result = self._kit_ruling(action)
             else:
                 raise
+        if state.get('standing_check') and result.kind not in STANDING_KEEPS and \
+                not any(e.get('type') == 'standing_check' for e in result.events):
+            # The PC turned to something else (spoke up, fought, bet): the attempt is over.
+            result = dataclasses.replace(result, events=list(result.events) + [
+                {'type': 'standing_check', 'check': None,
+                 'evidence': f'The standing {state["standing_check"]["skill"]} result ends: the PC turned '
+                             f'to something else ({result.kind}).'}])
         waiting = (state.get('combat') or {}).get('awaiting') or {}
         if waiting.get('kind') == 'flourish_window' and (choice or {}).get('flourish') == 'new_action' and \
                 not any(e.get('type') == 'combat_state' for e in result.events):
@@ -1742,6 +1776,8 @@ class RoomAdjudicator:
             raise clause_ruling(act['steps'])
         if act and act['kind'] == 'ruling':
             act = None  # the room's own trigger handles it, as before
+        if act and act['kind'] == 'ask_target':
+            raise PendingRuling(act['message'], attempt=True)  # which foe: asked, never guessed
         current = state.get('combat') or {}
         fighting = current.get('status') in ('awaiting_initiative', 'running')
         owed = (current.get('awaiting') or {}).get('kind') in ('roll_call', 'kit_call')
@@ -1766,17 +1802,37 @@ class RoomAdjudicator:
     # -- general checks: any room, any PC -------------------------------------------
     def _die(self, state, revision, label, action, modifier=None, skill=None):
         """The player's own stated d20 (an Avrae total is worked back with ``modifier``, so
-        the bonus is never added twice), else a stable seeded roll (an uncommitted model
-        failure must not reroll the same attempted check)."""
+        the bonus is never added twice), else the host's pinned die (tests, replays). With
+        neither, nothing is rolled: players roll in Avrae, so the check is called (RollNeeded)."""
         supplied = kit_cards.supplied_roll(action, modifier, skill)
         if supplied:
             return supplied[0]
         if self.roll:
             return self.roll()
-        if 'roll_seed' not in state:
-            raise PendingRuling('This session predates stable checks; start a fresh database.')
-        material = f"{state['roll_seed']}:{revision}:{label}:{action.casefold()}".encode()
-        return int.from_bytes(hashlib.sha256(material).digest()[:8], 'big') % 20 + 1
+        if skill not in pc_sheet.SKILLS:
+            raise PendingRuling('Roll it in Avrae and tell me the total. No turn was committed.')
+        raise RollNeeded(skill)
+
+    def _call_roll(self, needed, action, revision, state):
+        """A check the act needs and the player has not rolled: call it and roll nothing. The act
+        waits in the pending check (``action``) and resolves when the player's roll comes in."""
+        name = needed.skill.replace('_', ' ').title()
+        public = (needed.reason + ' ' if needed.reason else '') + f'Roll {name} for it.'
+        check = {'skill': needed.skill, 'ability': pc_sheet.SKILLS[needed.skill], 'target': needed.target,
+                 'called_turn': f'revision {revision}', 'action': action[:2000]}
+        held = (state.get('pending_check') or {}).get('held')
+        if held:
+            check['held'] = copy.deepcopy(held)  # a held description stays owed
+        evidence = (f'Player declared: {action[:300]}. It needs the PC\'s {name} roll and none was stated, '
+                    'so no die was rolled for the PC; the check is called and the act waits for the roll.' +
+                    (f' A fresh roll because: {needed.reason}' if needed.reason else ''))
+        events = [{'type': 'beat', 'tags': ['check_called'], 'evidence': evidence},
+                  {'type': 'pending_check', 'check': check, 'evidence': evidence}]
+        if state.get('standing_check'):
+            events.append({'type': 'standing_check', 'check': None,
+                           'evidence': f'The standing {state["standing_check"]["skill"]} result ends: '
+                                       f'{needed.reason or "a new roll is called"}'})
+        return Resolution('check_called', public, events)
 
     def _pc_numbers(self, skill, state, action):
         """(modifier, passive) for the PC: a stated "d20 + modifier = total" wins, then a
@@ -1807,7 +1863,8 @@ class RoomAdjudicator:
 
     def _present_actors(self, state):
         return {key: actor for key, actor in (state.get('actors') or {}).items()
-                if actor.get('location') == state['area'] and actor.get('status') not in ('fled', 'dead', 'hidden')}
+                if actor.get('location') == state['area'] and actor.get('status') not in ('fled', 'dead', 'hidden')
+                and not state_context.unperceived({**((self.source.get('actors') or {}).get(key) or {}), **actor})}
 
     BLOCKERS_UNABLE = ('asleep', 'unconscious', 'restrained', 'bound', 'paralyzed', 'stunned')
 
@@ -1962,6 +2019,12 @@ class RoomAdjudicator:
         target, area = pending['target'], state.get('area')
         if pending.get('exit'):
             return self._resolve_held_exit(pending, roll_text, revision, state)
+        if pending.get('action'):
+            # The engine called this roll for an act: the roll resolves that act now.
+            calm = {k: v for k, v in state.items() if k not in ('pending_check', 'standing_check')}
+            result = self._resolve(f'{pending["action"]}\n{roll_text}', revision, calm)
+            extra = [] if any(e.get('type') == 'pending_check' for e in result.events) else [clear]
+            return Resolution(result.kind, result.public_event, list(result.events) + extra)
         if skill in SOCIAL_CHECK_SKILLS:
             # A called social check is resolved like a stated one, against the call's target,
             # and its outcome moves that NPC's attitude in state (watchroom playtest: a failed
@@ -2009,6 +2072,11 @@ class RoomAdjudicator:
             evidence += (f' DM only: {skill} cannot find the hidden {key} on {target}; it is found by '
                          f'{", ".join(sorted(kit_claims.claim_skills(claim)))}. This roll reveals nothing of it.')
         events = [{'type': 'beat', 'tags': tags, 'evidence': evidence}, clear]
+        if skill == 'stealth':
+            # A Stealth roll Kit called stands while the PC keeps sneaking (Let It Ride).
+            watchers = self._stealth_watchers(state)
+            if watchers and kit_rolls.meets_or_beats(die + modifier, max(watchers.values())):
+                events.append(self._standing_event(state, revision, die, modifier, watchers, evidence))
         offers = None
         if held:
             feature, fact_key = held
@@ -2146,8 +2214,7 @@ class RoomAdjudicator:
         """Stealth is the PC's roll against the best passive Perception among the people
         present ("passive Perception is an AC against being snuck up on"). Nobody present
         to notice: no roll."""
-        present = self._present_actors(state)
-        watchers = {key: kit_claims.npc_passive(actor, 'perception') for key, actor in present.items()}
+        watchers = self._stealth_watchers(state)
         words = room_words(self.source, state)
         leaving = bool(re.search(r'\b(door|out|leave|past)\b', narration, re.I) or any(
             re.search(r'\b' + re.escape(word) + r'\b', narration, re.I) for word, _ in words.exits))
@@ -2158,11 +2225,25 @@ class RoomAdjudicator:
             return Resolution('stealth', public, [exit_event] if leaving else
                               [{'type': 'beat', 'tags': ['stealth'], 'evidence': f'Player declared: {action}. Nobody present.'}])
         dc = max(watchers.values())
+        best = max(watchers, key=watchers.get)
         modifier, _ = self._pc_numbers('stealth', state, action)
-        die = self._die(state, revision, 'stealth', action, modifier, 'stealth')
-        total = die + modifier
-        evidence = (f'Player tried Stealth: d20 {die} + {modifier} = {total} vs best passive Perception {dc} '
-                    f'({", ".join(f"{k} {v}" for k, v in watchers.items())}).')
+        standing = state.get('standing_check') or {}
+        against = f'vs best passive Perception {dc} ({", ".join(f"{k} {v}" for k, v in watchers.items())})'
+        if standing.get('skill') == 'stealth' and not kit_cards.supplied_roll(action, modifier, 'stealth'):
+            change = self._stealth_change(standing, watchers, dc, narration, state)
+            if change:
+                raise RollNeeded('stealth', best, change)
+            die, total = standing['die'], standing['total']
+            evidence = (f'Player keeps at the same Stealth attempt: the established {total} stands '
+                        f'(let it ride; no new roll) {against}.')
+            record = []
+        else:
+            die = self._die(state, revision, 'stealth', action, modifier, 'stealth')
+            total = die + modifier
+            evidence = f'Player tried Stealth: d20 {die} + {modifier} = {total} {against}.'
+            record = [self._standing_event(state, revision, die, modifier, watchers, evidence)] \
+                if kit_rolls.meets_or_beats(total, dc) else \
+                [{'type': 'standing_check', 'check': None, 'evidence': evidence}] if state.get('standing_check') else []
         if kit_rolls.meets_or_beats(total, dc):  # the PC's Stealth vs their passive: his tie
             if leaving:
                 key = self._exit_taken(action, state)
@@ -2170,10 +2251,42 @@ class RoomAdjudicator:
             public = self._exit_text(key, state, 'unseen') if leaving else 'You move without drawing an eye.'
             beat = {'type': 'beat', 'tags': ['stealth'], 'evidence': evidence}
             return Resolution('stealth', public, ([dict(exit_event, evidence=evidence)] if leaving else
-                                                  self._hidden_events(state, True, evidence)) + [beat])
+                                                  self._hidden_events(state, True, evidence)) + [beat] +
+                              ([] if leaving else record))
         return Resolution('stealth', 'Eyes at the table turn your way before you get far.',
                           self._hidden_events(state, False, evidence) +
-                          [{'type': 'beat', 'tags': ['stealth', 'noticed'], 'evidence': evidence}])
+                          [{'type': 'beat', 'tags': ['stealth', 'noticed'], 'evidence': evidence}] + record)
+
+    def _stealth_watchers(self, state):
+        """Who here could notice the PC, with their passive Perception: present actors able to
+        perceive (a sleeping or unconscious guard watches nobody)."""
+        return {key: kit_claims.npc_passive(actor, 'perception')
+                for key, actor in self._present_actors(state).items()
+                if actor.get('status') not in self.BLOCKERS_UNABLE}
+
+    def _standing_event(self, state, revision, die, modifier, watchers, evidence):
+        """An established Stealth result: its total, its scope (this area) and what it beat."""
+        check = {'skill': 'stealth', 'total': die + modifier, 'die': die, 'modifier': modifier,
+                 'area': state['area'], 'route': state['area'], 'approach': 'stealth',
+                 'against': {'watchers': sorted(watchers), 'dc': max(watchers.values())},
+                 'since': f'revision {revision}'}
+        return {'type': 'standing_check', 'check': check,
+                'evidence': f'The Stealth result stands while the PC keeps at it. {evidence}'}
+
+    def _stealth_change(self, standing, watchers, dc, narration, state):
+        """The material change that ends a standing Stealth result, as a public line, or ''."""
+        if standing.get('area') != state.get('area'):
+            return 'This is a new area.'
+        new = [key for key in watchers if key not in standing['against']['watchers']]
+        if new:
+            labels = [actor_speakers(self.source).get(k) or state['actors'][k].get('name') or k for k in new]
+            return f'{" and ".join(labels)} {"is" if len(labels) == 1 else "are"} watching now.'
+        if DIFFERENT_APPROACH.search(narration):
+            return 'That is a different approach.'
+        if (state.get('combat') or {}).get('status') in ('awaiting_initiative', 'running') or \
+                dc > standing['against'].get('dc', dc):
+            return 'Things just got complicated.'
+        return ''
 
     def _exit_taken(self, action, state):
         """The known exit from here that the player means (docs/architecture/ROOM_LOADER.md,
@@ -2283,10 +2396,10 @@ class RoomAdjudicator:
         if supplied:
             die = supplied[0]
             modifier = supplied[1] if supplied[1] is not None else (modifier or 0)
+        elif self.roll:
+            die = self.roll()  # the host's pinned die (tests, replays)
         else:
-            require('roll_seed' in state, 'This session predates stable checks; start a fresh database.')
-            material = f"{state['roll_seed']}:{revision}:{claim_id}:{action.casefold()}".encode()
-            die = int.from_bytes(hashlib.sha256(material).digest()[:8], 'big') % 20 + 1
+            raise RollNeeded(skill, claim_id)  # the player rolls it in Avrae
         dc = kit_claims.claim_dc(claim, state.get('actors', {}),
                                   kit_claims.current_floor_level(self.source, state.get('area')))
         total = die + modifier
@@ -4193,6 +4306,17 @@ def prepare_inputs(runtime, revision, state, action, resolution, use_memory, one
     # ("Is the dealer cheating me?") must not be answered from the brief's secrets.
     if not table_talk:
         planning_input['story_brief'] = kit_brief.brief(source, post_event_state)
+    standing = post_event_state.get('standing_check')
+    if standing:
+        # Private: an established result that holds while the PC keeps at it (Let It Ride).
+        planning_input['standing_check'] = {
+            'skill': standing['skill'], 'total': standing['total'], 'area': standing['area'],
+            'against': standing['against']['watchers'], 'since': standing['since'], 'rule': STANDING_RULE}
+    if resolution.kind == 'check_called':
+        # Private: the engine called the PC's roll for this act; nothing is resolved yet.
+        planning_input['check_called'] = {
+            'rule': 'The act needs the player\'s roll and none was stated. Say the call in one short line '
+                    '(the skill named in the event); resolve nothing, describe no outcome. The player rolls in Avrae.'}
     if kit_combat.config(source) and post_event_state.get('player_sheet'):
         # Session manifest (cached): what the PC's reactions are and cost, with no counts, so a spend
         # never busts the cache. What is left now (slots, uses) is live state like HP: the per-turn
@@ -4642,7 +4766,8 @@ def turn_speakers(runtime, body):
     heard = {key: sound for key, sound in {**kit_brief.heard_here(source, before),
                                            **kit_brief.heard_here(source, after)}.items()
              if where(key) not in areas}
-    hidden = {key for key, actor in (after.get('actors') or {}).items() if actor.get('status') == 'hidden'}
+    hidden = {key for key, actor in (after.get('actors') or {}).items()
+              if state_context.unperceived({**((source.get('actors') or {}).get(key) or {}), **actor})}
     here = [label for key, label in labels.items()
             if key not in heard and key not in hidden and where(key) in areas | {None}]
     out = {'speakers': list(dict.fromkeys(NON_NPC_SPEAKERS + tuple(here)))}
@@ -4830,6 +4955,10 @@ def declare(runtime, adjudicator, body, plan):
     revision, _ = runtime.load()
     after = runtime.preview_state(revision, body['events'])
     sealed = {} if (acts or {}).get('handles') else sealed_terms(runtime.source(), after)
+    _, before = runtime.load()
+    looked = threshold_look(runtime.source(), before, body.get('events'))
+    if looked:
+        body = {**body, 'threshold_hidden': threshold_hidden_words(runtime.source(), after, looked, body)}
     if not acts or not isinstance(adjudicator, RoomAdjudicator):
         return {**body, 'hidden_actors': hidden_actor_words(runtime.source(), after, body),
                 'hidden_facts': hidden_fact_words(runtime.source(), after, body),
@@ -5036,9 +5165,9 @@ def hidden_actor_words(source, state, body=None):
                     _word_list((body or {}).get('action') or ''))
     nouns, runs = set(), set()
     for key, actor in (state.get('actors') or {}).items():
-        if actor.get('status') != 'hidden':
-            continue
         spec = ((source.get('actors') or {}).get(key) or {})
+        if not state_context.unperceived({**spec, **actor}):
+            continue
         names = [spec.get('name') or actor.get('name') or '', str((spec.get('stat_block') or {}).get('srd') or ''),
                  ' '.join(part for part in key.split('_') if len(part) > 2)]
         for name in names:
@@ -5055,6 +5184,127 @@ def hidden_actor_words(source, state, body=None):
     nouns = {n for n in nouns if not re.search(r'\b' + re.escape(n) + r'(?:s|es)?\b', seen)}
     runs = {r for r in runs if r not in seen}
     return sorted(nouns) + sorted(runs)
+
+
+def _proper_name_words(name, creature=''):
+    """The words of a personal name ("Vex", "Orrin Tallow"), which no look through a way shows, as
+    opposed to a descriptive label ("Watch warden": a capitalised first word, then lowercase words)
+    or a bare creature name (its stat block's own creature: "Bandit" for an SRD bandit)."""
+    words = re.findall(r"[A-Za-z][A-Za-z'-]+", str(name or ''))
+    if len(words) > 1 and words[0][0].isupper() and all(w[0].islower() for w in words[1:]):
+        return set()
+    kind = set(_word_list(creature))
+    return {w.casefold() for w in words
+            if w[0].isupper() and w.casefold() not in _HIDDEN_STOP and len(w) > 2 and w.casefold() not in kind}
+
+
+def _runs(text):
+    """Pairs of content words and three-word runs with two or more: what describes a thing."""
+    words = _word_list(text)
+    out = set()
+    for i in range(len(words)):
+        pair, three = words[i:i + 2], words[i:i + 3]
+        if len(pair) == 2 and all(w not in _HIDDEN_STOP and len(w) > 2 for w in pair):
+            out.add(' '.join(pair))
+        if len(three) == 3 and sum(w not in _HIDDEN_STOP and len(w) > 2 for w in three) >= 2:
+            out.add(' '.join(three))
+    return out
+
+
+def threshold_look(source, before, events):
+    """The exit a look or listen this turn went through (its beat, or the check called on it)."""
+    looked = threshold_exit(events)
+    if looked is None and any(e.get('type') == 'pending_check' and e.get('check') is None for e in events or ()):
+        looked = ((before or {}).get('pending_check') or {}).get('threshold')
+    return looked
+
+
+def threshold_hidden_words(source, state, exit_key, body=None):
+    """What would show the inside of the area through ``exit_key`` on a look or listen from here
+    (tease-only, kit_brief.THRESHOLD_RULE; Nagatha's clean-host review 8c). For that area:
+    always hidden: each live actor's secrets, motive, knowledge, dm_identity and personal name; the
+    name, truth and subject words of each claim rooted there that is hidden and not yet learned; each
+    fact there not visible and not found. Hidden on a plain look too, but shown when the held
+    description is delivered on the check called on the look: who is there (name head noun, stat
+    block creature, id) and the visible facts there. Words the tease, what is heard, the public view
+    or the player's own words give do not count. [] when the turn is no threshold look."""
+    source, state, body = source or {}, state or {}, body or {}
+    edge = (source.get('exits') or {}).get(exit_key) or {}
+    here = state.get('area')
+    if not exit_key or here not in edge.get('areas', ()):
+        return []
+    other = next((a for a in edge['areas'] if a != here), None)
+    if other is None:
+        return []
+    view = kit_brief.threshold_view(source, state, exit_key) or {}
+    shown_text = ' '.join([view.get('tease') or '', view.get('label') or '',
+                           ' '.join(h.get('heard') or '' for h in view.get('heard') or ()),
+                           json.dumps(body.get('public_view') or {}), body.get('action') or ''])
+    seen = ' '.join(_word_list(shown_text))
+    held = bool(body.get('held_description'))
+    words, runs = set(), set()
+    live = state.get('actors') or {}
+    inside = []
+    for key, spec in (source.get('actors') or {}).items():
+        actor = {**(spec or {}), **(live.get(key) or {})}
+        if actor.get('location') != other or actor.get('status') in ('dead', 'fled', 'destroyed'):
+            continue
+        inside.append(key)
+        creature = str((actor.get('stat_block') or {}).get('srd') or '')
+        for text in list(actor.get('secrets') or ()) + list(actor.get('knowledge') or ()) + \
+                [actor.get('motive') or '', actor.get('dm_identity') or '']:
+            runs |= _runs(text)
+        names = {(spec or {}).get('name') or '', (live.get(key) or {}).get('name') or ''} - {''}
+        for name in names:  # the room's name and the live one (both, when a turn renamed)
+            words |= _proper_name_words(name, creature)
+        if not held:
+            for name in (*names, creature, ' '.join(p for p in key.split('_') if len(p) > 2)):
+                found = [w for w in _word_list(name) if w not in _HIDDEN_STOP and len(w) > 2]
+                if found:
+                    words.add(found[-1])
+    learned = set(state.get('known_facts') or ()) | set((state.get('claims') or {}).get('learned') or ())
+    established = kit_claims.established_claims(state)
+    facts = source.get('facts') or {}
+    for cid, claim in (source.get('claims') or {}).items():
+        if not isinstance(claim, dict) or claim.get('exposure') != 'hidden' or cid in learned or \
+                str(claim.get('about') or '').strip().casefold() in established:
+            continue
+        roots = list(claim.get('roots') or ()) + [f'actor:{h}' for h in claim.get('holders') or ()]
+        there = any(r.startswith('actor:') and r[6:] in inside or
+                    (facts.get(r[5:] if r.startswith('fact:') else r) or {}).get('area') == other for r in roots)
+        if not there:
+            continue
+        runs |= _runs(claim.get('truth') or '')
+        words |= {w for w in _word_list(' '.join(claim.get('subject_words') or ())) if w not in _HIDDEN_STOP}
+        about = str(claim.get('about') or '')
+        if about.startswith('actor:') and about.endswith('/name'):
+            name = ((source.get('actors') or {}).get(about[6:-5]) or {}).get('name')
+            words |= {w for w in _word_list(name) if w not in _HIDDEN_STOP and len(w) > 2}
+    for key, fact in facts.items():
+        if not isinstance(fact, dict) or fact.get('area') != other:
+            continue
+        if not fact.get('visible') and key not in learned:
+            runs |= _runs(fact.get('text') or '')
+            runs |= _runs((fact.get('magic_objects') or {}).get('what') or '')
+        elif not held:
+            runs |= _runs(fact.get('text') or '')
+    words = {w for w in words if not re.search(r'\b' + re.escape(w) + r'(?:s|es)?\b', seen)}
+    runs = {r for r in runs if r not in seen}
+    return sorted(words) + sorted(runs)
+
+
+def check_threshold_contents(spoken, words):
+    """HARD (secrecy): a look or listen through a threshold shows only the tease, what is heard and
+    what the PC already perceives, never who or what is inside or what they hide."""
+    if not words:
+        return
+    text = ' '.join(_word_list(spoken))
+    for word in words:
+        if ' ' in word and word in text or ' ' not in word and re.search(
+                r'\b' + re.escape(word) + r'(?:s|es)?\b', text):
+            raise InvalidChange('Threshold look: the performance shows what lies inside the next area '
+                                f'("{word}"). Through a threshold, describe only the tease, what is heard, '
+                                'and what the PC already perceives.')
 
 
 def hidden_fact_words(source, state, body=None):
@@ -5122,6 +5372,8 @@ def checked_record(body, plan, speech, performance_variant, source=None, degrade
     spoken, warnings = result if degraded else (result, [])
     check_hidden_actors(spoken, body.get('hidden_actors'))
     check_hidden_facts(spoken, body.get('hidden_facts'))
+    check_threshold_contents(' '.join(seg.get('text') or '' for seg in speech.get('segments') or ()),
+                             body.get('threshold_hidden'))
     kit_agenda.check_carriers_spoken(spoken, plan)
     check_held_delivered(body.get('held_description'), spoken)
     if not ask and not stall_check(plan, body['kind']):
@@ -5352,6 +5604,12 @@ def first_try_lines(runtime, body, planning_input):
     if body.get('story_due'):
         lines.append('Due now: ' + ', '.join(f"{item.get('id')} (raised by {item.get('by')})"
                                              for item in body['story_due']) + ', in character, this turn.')
+    if planning_input.get('check_called'):
+        lines.append('The engine called the PC\'s roll for this act: say the call in one short line; no outcome yet.')
+    if planning_input.get('standing_check'):
+        held = planning_input['standing_check']
+        lines.append(f"A standing {held['skill']} {held['total']} holds while the PC keeps at it (let it ride): "
+                     'never call or roll it again unless circumstances change; the engine decides that.')
     if planning_input.get('check_request'):
         lines.append('The player asked for a check: call one in roll_call or decline. You pick the skill.')
     if planning_input.get('threshold_view'):
@@ -5508,12 +5766,15 @@ def window_scene(runtime, state):
 
 class KitChatBridge:
     """Host this model loop in an assistant chat, with no API credential in Python."""
-    def __init__(self, runtime, adjudicator=None, manifests=False):
+    def __init__(self, runtime, adjudicator=None, manifests=False, compact=None):
         """``manifests``: send one-pass packets in three layers (kit_manifest; the live CLI
-        does). Off by default, so staged evals and the Python API see the full packet."""
+        does). Off by default, so staged evals and the Python API see the full packet.
+        ``compact``: layered packets in compact mode (kit_telemetry); None reads the mode
+        recorded in the save (start --compact), which defaults to full."""
         self.runtime = runtime
         self.adjudicator = adjudicator or RoomAdjudicator()
         self.manifests = manifests
+        self.compact = (kit_telemetry.packet_mode(runtime.db) == 'compact') if compact is None else bool(compact)
 
     def try_prepare(self, *args, **kwargs):
         """prepare() for hosts: a pending ruling never crashes the turn. It comes back as a
@@ -5624,6 +5885,8 @@ class KitChatBridge:
         if withheld:
             packet['input'] = kit_reveal.withhold(packet['input'], withheld)
         manifest = {}
+        if one_pass:
+            self.runtime.save_kit_packet(turn_id, packet)  # in full, before layering, for rehydrate
         if one_pass and self.manifests:
             packet, manifest = self._layer(turn_id, packet)
         # Runtime time and packet size, from the bridge's own clock (docs/architecture/HOST_TIMING.md).
@@ -5745,6 +6008,9 @@ class KitChatBridge:
         packet = self._stage(turn_id, revision, prepared, planning_input, True,
                              check_variant(DEFAULT_BRIDGE_VARIANT), started, clock, None)
         packet['window_answered'] = choice
+        stored = self.runtime.kit_packet(turn_id)
+        if stored is not None:  # rehydrate gives back the packet exactly as the answer returned it
+            self.runtime.save_kit_packet(turn_id, {**stored, 'window_answered': choice})
         return packet
 
     def _window_asks(self, deferred_action_id):
@@ -5759,7 +6025,14 @@ class KitChatBridge:
         """SessionManifest, RoomManifest, TurnDelta (kit_manifest). A body the host was sent
         recently is replaced by its hash."""
         parts = kit_manifest.split(packet)
-        session, room, _ = parts
+        session, room, delta = parts
+        full_room = room
+        if self.compact:
+            area = (((delta.get('input') or {}).get('private') or {}).get('dm_context') or {}).get('scene', {}) \
+                .get('current_area')
+            session, room = kit_telemetry.compact_parts(session, room, area)
+            delta = {**delta, 'retrieval': kit_telemetry.RETRIEVAL}
+            parts = (session, room, delta)
         hashes = {'session': kit_manifest.digest(session), 'room': kit_manifest.digest(room)}
         recent = [row for row in self.runtime.recent_kit_timings(limit=50) if row['turn_id'] != turn_id]
         held = kit_manifest.plan_sends(recent, self.runtime.committed_kit_turn_ids())
@@ -5772,13 +6045,19 @@ class KitChatBridge:
                        **{k: v for k, v in layered.items()
                           if k not in ('session_manifest', 'room_manifest', 'manifest_rule')}}
         return layered, {'manifest': {**hashes, 'sent': [layer for layer in hashes if not cached[layer]]},
-                         'room_manifest': room, 'full_packet_bytes': _bytes(packet)}
+                         'room_manifest': full_room, 'full_packet_bytes': _bytes(packet),
+                         'packet_mode': 'compact' if self.compact else 'full'}
 
     def rehydrate(self, turn_id):
-        """Both manifest bodies for a layered turn, in full (the host lost a copy)."""
+        """What the host lost, in full: both manifest bodies for a layered turn and, while the turn
+        is pending, its whole one-pass packet as ``packet`` (also the one a window answer returns)."""
         timing = self.runtime.kit_timing(turn_id) or {}
         record = timing.get('manifest')
-        require(record is not None, f'Turn {turn_id!r} was not sent in layers; nothing to rehydrate')
+        packet = self.runtime.kit_packet(turn_id)
+        if record is None:
+            require(packet is not None, f'Turn {turn_id!r} has no pending one-pass packet and was not sent '
+                    'in layers; nothing to rehydrate. Prepare the action again with a new turn_id.')
+            return {'turn_id': turn_id, 'packet': packet}
         variant = timing.get('performance_variant') or DEFAULT_BRIDGE_VARIANT
         session = {'performance_variant': variant, 'instructions': one_pass_instructions(variant),
                    'schema': ONE_PASS_SCHEMA, 'performance_limits': performance_limits(),
@@ -5794,7 +6073,8 @@ class KitChatBridge:
         return {'turn_id': turn_id,
                 'session_manifest': {'hash': hashes['session'], 'body': session},
                 'room_manifest': {'hash': hashes['room'], 'body': room},
-                'manifest_rule': kit_manifest.MANIFEST_RULE}
+                'manifest_rule': kit_manifest.MANIFEST_RULE,
+                **({'packet': packet} if packet is not None else {})}
 
     @_stale_guided
     def decide(self, turn_id, plan, performance_variant=DEFAULT_BRIDGE_VARIANT):
@@ -6071,7 +6351,7 @@ EXAMPLE_SHEET = PROJECT_ROOT / 'tests/fixtures/characters/example_pc.json'
 
 
 def start_session(db, sheet_path=None, runtime=None, room=None, area=None, manifests=False, campaign=None,
-                  intent=None, table=None, modules=None, restore=None):
+                  intent=None, table=None, modules=None, restore=None, compact=False):
     """Bootstrap for a host.
 
     No room and no campaign: a greeting. Nothing is mounted. Mad Mage is not assumed.
@@ -6080,7 +6360,10 @@ def start_session(db, sheet_path=None, runtime=None, room=None, area=None, manif
     (engineering path). The CLI does not use that fill-in for player-facing starts.
     """
     if room is None:
-        return kit_campaign.campaign_entry(db, sheet_path, rooms_dir=modules, campaign=campaign, intent=intent, table=table)
+        entry = kit_campaign.campaign_entry(db, sheet_path, rooms_dir=modules, campaign=campaign, intent=intent, table=table)
+        if compact and kit_campaign.saved_game(db) is not None:
+            kit_telemetry.set_packet_mode(db, 'compact')  # resuming a save: compact from here on
+        return entry
     source = kit_rooms.load_room(room)
     if area is not None and area not in source['areas']:
         raise kit_rooms.RoomMountError(room, [f'no area {area!r} in this room'])
@@ -6105,6 +6388,8 @@ def start_session(db, sheet_path=None, runtime=None, room=None, area=None, manif
         loaded = runtime.set_player_sheet(sheet)
         if restore:  # resume from the player's save (runtime/kit_resume.py)
             runtime.restore_campaign(restore['log'], restore['carried'], restore.get('pc_state'))
+        if compact:
+            kit_telemetry.set_packet_mode(runtime.path, 'compact')
         prepared = KitChatBridge(runtime, RoomAdjudicator(), manifests=manifests).prepare(
             opening=True, one_pass=True)
         turn = prepared['turn_id']
@@ -6112,6 +6397,9 @@ def start_session(db, sheet_path=None, runtime=None, room=None, area=None, manif
             'stage': 'started', 'db': str(db), 'character': loaded['character'],
             'sheet': str(path), 'example_sheet': not sheet_path,
             'room_id': source.get('id'), 'room': str(room),
+            # The packet before next_step: next_step names this turn's id, and volatile text
+            # ahead of the stable session manifest would break a provider's prefix cache.
+            'prepared': prepared,
             'next_step': ('You are Kit. Write one JSON object {"decision", "performance"} that follows '
                           'prepared.instructions and prepared.schema, save it to a file, then run: '
                           f'python3 -m runtime.kit_agent complete --db {db} --turn-id {turn} '
@@ -6122,7 +6410,6 @@ def start_session(db, sheet_path=None, runtime=None, room=None, area=None, manif
                           + (' Add "manifest": {"session": <session_manifest.hash>, "room": <room_manifest.hash>} '
                              'to every output; a "cached" manifest is the copy you were sent earlier '
                              '(rehydrate --turn-id T if you lost it).' if manifests else '')),
-            'prepared': prepared,
         }
     finally:
         if own:
@@ -6243,7 +6530,136 @@ def _lobby_question_delivery(args, result):
         pass
 
 
+_EMIT = {}  # serialization time of the reply, for telemetry (set by _dumps)
+
+
+def _dumps(result, **kwargs):
+    """json.dumps for the CLI's play packets, timed for telemetry. Same output."""
+    clock = time.perf_counter_ns()
+    text = json.dumps(result, **kwargs)
+    _EMIT['serialization_ns'] = _EMIT.get('serialization_ns', 0) + time.perf_counter_ns() - clock
+    if isinstance(result, dict):
+        prepared = result.get('prepared')
+        _EMIT['turn_id'] = result.get('turn_id') or (prepared.get('turn_id') if isinstance(prepared, dict) else None)
+    return text
+
+
+def _telemetry_cli(argv):
+    """kit_agent telemetry report|note --db kit.sqlite.
+
+    report: medians and p95 from the JSONL. note: append one hand-timed record (kind manual),
+    e.g. ``telemetry note --db kit.sqlite --condition D --run 3 --first-visible-ms 4200``."""
+    parser = argparse.ArgumentParser(prog='kit_agent telemetry')
+    parser.add_argument('action', choices=['report', 'note'])
+    parser.add_argument('--db', default='kit.sqlite')
+    parser.add_argument('--turn-id', help='note: the turn this timing belongs to')
+    parser.add_argument('--condition', choices=kit_telemetry.CONDITIONS,
+                        help='note: the experiment condition (docs/latency/experiment-protocol.md)')
+    parser.add_argument('--run', type=int, help='note: the run number')
+    parser.add_argument('--host', help='note: the host timed (else KIT_HOST)')
+    parser.add_argument('--session-id', help='note: the session (else the last one in the file)')
+    for name in kit_telemetry.HOST_ONLY:
+        if name == 'cache_hit':
+            parser.add_argument('--cache-hit', dest=name, choices=['yes', 'no'])
+        elif name in ('input_tokens', 'output_tokens', 'retries'):
+            parser.add_argument('--' + name.replace('_', '-'), dest=name, type=int)
+        else:
+            parser.add_argument('--' + name.replace('_', '-'), dest=name, type=float)
+    args = parser.parse_args(argv)
+    if args.action == 'report':
+        print(json.dumps(kit_telemetry.report(args.db), indent=2, ensure_ascii=False))
+        return 0
+    values = {name: getattr(args, name) for name in kit_telemetry.HOST_ONLY}
+    if values['cache_hit'] is not None:
+        values['cache_hit'] = values['cache_hit'] == 'yes'
+    if all(v is None for v in values.values()):
+        parser.error('note: give at least one measured value (e.g. --first-visible-ms)')
+    row = kit_telemetry.note(args.db, turn_id=args.turn_id, condition=args.condition, host=args.host,
+                             run=args.run, session_id=args.session_id, **values)
+    print(json.dumps(row, ensure_ascii=False))
+    return 0
+
+
+def _telemetry_flags(argv):
+    """Pull --host and --session-id (telemetry only) out of argv; return (argv, host, session)."""
+    out, host, session, items = [], None, None, iter(argv)
+    for item in items:
+        if item in ('--host', '--session-id'):
+            value = next(items, None)
+            host, session = (value, session) if item == '--host' else (host, value)
+        elif item.startswith('--host='):
+            host = item.split('=', 1)[1]
+        elif item.startswith('--session-id='):
+            session = item.split('=', 1)[1]
+        else:
+            out.append(item)
+    return out, host, session
+
+
+def _argv_value(argv, name):
+    for i, item in enumerate(argv):
+        if item == name and i + 1 < len(argv):
+            return argv[i + 1]
+        if item.startswith(name + '='):
+            return item.split('=', 1)[1]
+    return None
+
+
 def main():
+    """The CLI, with one telemetry record per call (runtime/kit_telemetry.py). The reply on
+    stdout is byte for byte what _main prints; telemetry only appends to <db>.telemetry.jsonl."""
+    import contextlib
+    import io
+    if sys.argv[1:2] == ['telemetry']:
+        return _telemetry_cli(sys.argv[2:])
+    argv, host, session = _telemetry_flags(sys.argv[1:])
+    sys.argv[1:] = argv
+    if argv[:1] == ['play']:
+        return _main()  # interactive: never buffer what the player reads
+    _EMIT.clear()
+    buffer = io.StringIO()
+    clock = time.perf_counter_ns()
+    code = None
+    try:
+        with contextlib.redirect_stdout(buffer):
+            code = _main()
+        return code
+    except SystemExit as exc:
+        code = exc.code
+        raise
+    except BaseException:
+        code = 1  # an unhandled error exits 1; never record it as a success
+        raise
+    finally:
+        total = time.perf_counter_ns() - clock
+        text = buffer.getvalue()
+        sys.stdout.write(text)
+        sys.stdout.flush()
+        db = _argv_value(argv, '--db') or 'kit.sqlite'
+        command = ' '.join(argv[:2]) if argv[:1] == ['adventure'] else (argv[0] if argv else None)
+        if command not in (None, 'persona') and Path(db).is_file():
+            serial = _EMIT.get('serialization_ns')
+            mode = None
+            if command in ('start', 'prepare', 'rehydrate'):
+                try:
+                    import sqlite3
+                    con = sqlite3.connect(db)
+                    try:
+                        mode = 'compact' if '--compact' in argv else kit_telemetry.packet_mode(con)
+                        if '--full' in argv:
+                            mode = 'unlayered'
+                    finally:
+                        con.close()
+                except Exception:  # noqa: BLE001
+                    mode = None
+            kit_telemetry.record(
+                db, command=command, turn_id=_EMIT.get('turn_id') or _argv_value(argv, '--turn-id'),
+                host=host, session_id=session, packet_mode=mode,
+                exit_code=code if isinstance(code, int) else (0 if code is None else 2),
+                engine_ns=total - (serial or 0), serialization_ns=serial, packet=text)
+
+
+def _main():
     if sys.argv[1:2] == ['adventure']:
         # Adventure ingestion (runtime/kit_adventure.py): import, compile, status.
         from . import kit_adventure
@@ -6327,6 +6743,9 @@ def main():
     parser.add_argument('--full', action='store_true',
                         help='prepare --one-pass/start: send the whole packet, not the three layers '
                              '(docs/architecture/MANIFESTS.md)')
+    parser.add_argument('--compact', action='store_true',
+                        help='start: record compact packets for this save; prepare: this turn compact '
+                             '(docs/latency/experiment-protocol.md). Default: full')
     parser.add_argument('--pretty', action='store_true',
                         help='prepare/decide/finish/complete: indent the JSON for reading (default compact)')
     args = parser.parse_args()
@@ -6373,7 +6792,8 @@ def main():
                     return 0
             result = start_session(args.db, args.sheet, room=args.room, area=args.area,
                                    manifests=not args.full, campaign=args.campaign,
-                                   intent=args.intent, table=args.table, modules=args.modules)
+                                   intent=args.intent, table=args.table, modules=args.modules,
+                                   compact=args.compact)
             if args.room and args.table and isinstance(result, dict):
                 kit_campaign.record_table_mode(args.db, args.table)
                 result['table_mode'] = args.table
@@ -6385,8 +6805,8 @@ def main():
         except (InvalidChange, PendingRuling) as exc:
             print(json.dumps({'stage': 'rejected', 'message': str(exc)}, ensure_ascii=False), file=sys.stderr)
             return 2
-        print(json.dumps(result, ensure_ascii=False,
-                         **({'indent': 2} if args.pretty else {'separators': (',', ':')})))
+        print(_dumps(result, ensure_ascii=False,
+                     **({'indent': 2} if args.pretty else {'separators': (',', ':')})))
         return 0
     if args.command == 'import-sheet':
         if not args.pdf:
@@ -6444,7 +6864,7 @@ def main():
             if not args.turn_id:
                 parser.error('rehydrate requires --turn-id')
             try:
-                print(json.dumps(KitChatBridge(runtime).rehydrate(args.turn_id), ensure_ascii=False))
+                print(_dumps(KitChatBridge(runtime).rehydrate(args.turn_id), ensure_ascii=False))
             except InvalidChange as exc:
                 print(json.dumps({'stage': 'rejected', 'message': str(exc)}, ensure_ascii=False), file=sys.stderr)
                 return 2
@@ -6486,7 +6906,7 @@ def main():
         elif args.command in ('prepare', 'decide', 'finish', 'complete', 'abandon', 'feedback'):
             bridge = KitChatBridge(runtime, RoomAdjudicator(args.perception, args.insight,
                                                              sleight_of_hand=args.sleight_of_hand),
-                                   manifests=not args.full)
+                                   manifests=not args.full, compact=True if args.compact else None)
             try:
                 if args.command == 'abandon':
                     if not args.turn_id:
@@ -6549,8 +6969,8 @@ def main():
                 _lobby_question_delivery(args, result)
             # Compact by default: the chat host reads this whole packet every turn, and
             # indentation alone added about a quarter to its size. --pretty for people.
-            print(json.dumps(result, ensure_ascii=False,
-                             **({'indent': 2} if args.pretty else {'separators': (',', ':')})))
+            print(_dumps(result, ensure_ascii=False,
+                         **({'indent': 2} if args.pretty else {'separators': (',', ':')})))
         else:
             if not args.model:
                 parser.error('standalone play requires --model; for ChatGPT use prepare/decide/finish')
