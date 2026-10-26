@@ -337,13 +337,17 @@ ROLL_CALL_SCHEMA = {'type': 'object', 'additionalProperties': False, 'properties
               'required': ['kind', 'ref', 'roots']},
     # What the check is aimed at: a present actor id, a fact id here, or 'none'. The call is
     # kept until the player's next turn, so a bare roll ("Perception 22") answers it.
-    'target': _LINE},
+    'target': _LINE,
+    # Optional: the DC Kit sets for a check with no room claim behind it. Private: the engine
+    # tells Kit pass or fail when the roll comes in; the player never sees it.
+    'dc': {'type': 'integer', 'minimum': 1, 'maximum': 30}},
     'required': ['skill', 'mode', 'cause', 'target']}
-def check_roll_call(call, source, state):
+def check_roll_call(call, source, state, action=''):
     """Advantage or disadvantage cites a condition that is true in state right now; the
     target, when given, is someone present or something here."""
     from . import pc_sheet
-    require(isinstance(call, dict) and set(call) - {'target'} == {'skill', 'mode', 'cause'} and
+    require(isinstance(call, dict) and set(call) - {'target', 'dc'} == {'skill', 'mode', 'cause'} and
+            ('dc' not in call or (type(call['dc']) is int and 1 <= call['dc'] <= 30)) and
             call['mode'] in ROLL_MODES, 'roll_call needs skill, mode, cause, target')
     if 'target' in call:
         require(call['target'] in roll_targets(source, state),
@@ -357,7 +361,8 @@ def check_roll_call(call, source, state):
     sheet = state.get('player_sheet') or {}
     kind, ref = cause['kind'], cause['ref']
     if kind == 'item':
-        require(pc_sheet.condition_true(sheet, ref, 'held') or pc_sheet.condition_true(sheet, ref, 'equipped'),
+        require(pc_sheet.condition_true(sheet, ref, 'held') or pc_sheet.condition_true(sheet, ref, 'equipped')
+                or declared_held(action, ref),
                 f'{ref} is not held or equipped right now; owning it is not holding it')
     elif kind in ('spell', 'condition'):
         require(pc_sheet.condition_true(sheet, ref, 'active'), f'{ref} is not active right now')
@@ -367,6 +372,25 @@ def check_roll_call(call, source, state):
                 f'{ref} is not a feature on the loaded sheet')
     else:
         _roots(cause.get('roots'), source, f'{call["mode"].title()} from position', state)
+
+
+HOLD_WORDS = re.compile(r"\b(?:up|raised?|raising|ready|readied|readies|drawn|draws?|drew|drawing|hold|holds|holding|"
+                        r"held|grip|grips|gripping|wield|wields|wielding|brandish\w*|lift|lifts|lifting|"
+                        r"in (?:my|his|her|their) (?:hand|hands|grip)|on (?:my|his|her|their) arm|strap\w* on)\b")
+
+
+def declared_held(action, ref):
+    """The player's words this turn put this item in hand ('shield up', 'I raise my shield',
+    'staff ready'): it counts as held for this turn's roll (PR 145 playtest bug 6)."""
+    words = (action or '').casefold()
+    if not words or not ref:
+        return False
+    nouns = [w for w in re.findall(r"[a-z']+", ref.casefold()) if len(w) > 2 and w not in ('the', 'and', 'of')]
+    for clause in re.split(r'[.;!?]|\bbut\b', words):
+        if any(re.search(rf"\b{re.escape(n)}s?\b", clause) for n in nouns[-1:] or nouns) and HOLD_WORDS.search(clause) \
+                and not re.search(r"\b(?:down|away|aside|stow\w*|sling\w*|lower\w*|drop\w*|sheath\w*)\b", clause):
+            return True
+    return False
 
 
 def roll_targets(source, state):
@@ -393,7 +417,7 @@ def pending_check_event(call, turn_id):
     if skill is None:
         return None
     check = {'skill': skill, 'ability': pc_sheet.SKILLS[skill], 'target': call.get('target') or 'none',
-             'called_turn': turn_id}
+             'called_turn': turn_id, **({'dc': call['dc']} if type(call.get('dc')) is int else {})}
     return {'type': 'pending_check', 'check': check, 'evidence': f'Kit called for {skill} on turn {turn_id}.'}
 
 

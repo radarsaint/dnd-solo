@@ -280,7 +280,8 @@ class S8EngineLineNeverAfterTheHandoff(Stalls):
             {'speaker': 'Kit', 'text': 'Your move.', 'reacts_to': 'Hold there'}]}})
         lines = result['spoken'].splitlines()
         self.assertEqual(lines[-1], 'Kit: Your move.')
-        self.assertTrue(lines[0].startswith('Narrator: You go through the iron door'))
+        # The engine's entry echo is gone; Kit's own narration opens the turn.
+        self.assertFalse(any(line.startswith('Narrator: You go through') for line in lines))
 
     def test_a_leaving_line_never_follows_kit(self):
         self.go_in()

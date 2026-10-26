@@ -38,6 +38,7 @@ No model calls; deterministic Python (seeded dice).
 import hashlib
 import re
 
+from . import _lazy
 from . import kit_rolls
 from .state_context import require
 
@@ -51,12 +52,12 @@ TEXT_MAX = 200
 GONE = ('dead', 'fled', 'unconscious', 'defeated', 'gone', 'hidden')
 HISTORY = 4
 # Reading the marked backs, the pinpricks, or the next card on the deck.
-CARD_READ = re.compile(
+CARD_READ = _lazy.regex(
     r"\b(read|reads|reading|count|counts|counting|eyes?|eyeing|glance\w*|drift\w*|stud(?:y|ies|ying)|watch\w*|"
     r"peek\w*|check\w*)\b[^.?!\"]{0,60}\b(pricks?|pinpricks?|marks|markings|backs?|the top card|top card|"
     r"the next card|corner of)\b")
 # Saying it quietly, for one person: a private word is not a public scene.
-QUIET = re.compile(r"\b(quietly|quiet|low voice|low,|under (?:his|her|their|my) breath|whisper\w*|leans? in|"
+QUIET = _lazy.regex(r"\b(quietly|quiet|low voice|low,|under (?:his|her|their|my) breath|whisper\w*|leans? in|"
                    r"so only (?:he|she|they|the dealer) (?:can )?hears?|nobody else (?:needs to )?hears?|"
                    r"for (?:his|her|their) ears only|between us)\b")
 

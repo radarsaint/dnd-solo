@@ -802,7 +802,8 @@ class ExitOrderTests(BridgeCase):
         prepared, plan = self.one_pass('I walk out through the south door.', 'exit')
         result = self.bridge.complete('exit', {'decision': plan, 'performance': exchange_speech(4, kit=False)})
         lines = result['spoken'].splitlines()
-        self.assertTrue(lines[-1].startswith('Narrator: You go through the south door'))
+        # The departure line was an engine echo of the player's own move; it is no longer printed.
+        self.assertFalse(any(line.startswith('Narrator: You go through') for line in lines))
         self.assertTrue(lines[0].startswith('Narrator: The dealer flips'))
         self.assertIn('after them on an exit', kit_agent.PUBLIC_INSTRUCTIONS)
 
