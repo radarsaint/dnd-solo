@@ -110,3 +110,14 @@ Every timed run also passes or fails on correctness:
   lost the persona it read at load.
 
 A compact run that fails any of these counts as a failure for D, however fast it was.
+
+## Logging a hand-timed run
+
+Record each stopwatch or screen-recording measurement next to the save, so `telemetry report` shows it beside Python's numbers:
+
+```
+python3 -m runtime.kit_agent telemetry note --db kit.sqlite --condition D --run 3 \
+    --turn-id <turn_id> --host chatgpt --first-visible-ms 4200 --complete-ms 9100 --cache-hit yes
+```
+
+Notes are marked `kind: manual` and reported under `manual_by_condition`; they never count as tool calls or mix into the per-command stats. Only the values you give are set; the rest stay null.
