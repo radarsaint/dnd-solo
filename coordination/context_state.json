@@ -2,16 +2,16 @@
   "schema": "kit_project_gardener_state/v1",
   "purpose": "RESUMABILITY_CURSOR_NOT_KNOWLEDGE_STORE",
   "canonical_location": "radarsaint/dnd-solo/coordination/context_state.json",
-  "state_revision": 34,
+  "state_revision": 35,
   "semantic_brain": {
     "repo": "radarsaint/dnd-solo",
     "path": "docs/PROJECT_UNDERSTANDING.md",
-    "last_semantic_commit": "d5dda08a5b613556f27537aa06dd111554f8cae6",
+    "last_semantic_commit": "eb963024830542ade853bcaad8198158e9f3de3f",
     "last_reviewed_on": "2026-10-26"
   },
   "checkpoint": {
     "reviewed_against_main": {
-      "radarsaint/dnd-solo": "d5dda08a5b613556f27537aa06dd111554f8cae6",
+      "radarsaint/dnd-solo": "eb963024830542ade853bcaad8198158e9f3de3f",
       "radarsaint/bfdm-corpus": "df47554633b20ba872bd8cd393c420bbef7140d1"
     },
     "context_inbox": {
@@ -25,9 +25,9 @@
   "last_completed_pass": {
     "kind": "BOUNDED_SEMANTIC_RECONCILIATION",
     "completed_on": "2026-10-26",
-    "scope": "Reviewed dnd-solo #157 merge (main 8329f176, stacked on #150). #115 comment 6266120288 remains pending.",
-    "result": "Accept: #157 lands playtest bug fixes (entry-turn hidden facts, entry acts riding moves, doorway pc_position, declared_held shield, private pass/fail with house-rule ties, named incomplete decisions, no pure-echo lines, recap with raw dice, granted-shield AC, same-id room reload, dangling-tease RoomWarning) plus lazy startup for combat/chargen/toll/twenty-one and first-use phrase compilation. Narrow: mechanical; player-experience truth remains the gap. Corrected prior #150 note that entry bugs were still dropped. Brain updated. Pending #115 DM Kit rulings remain unresolved.",
-    "resulting_brain_commit": "d5dda08a5b613556f27537aa06dd111554f8cae6",
+    "scope": "Reviewed dnd-solo #166 merge (main 22b6ebe9). #115 comment 6266120288 remains pending.",
+    "result": "Accept: #166 lands explicit never-handoff for mounting. LOAD_KIT.md plain 3-step, exemptions in PROJECT_BOOTSTRAP step 0 / AGENTS_AND_TOOLS / Grok Build rule, CUSTOM_GPT_SETUP forbid, fallback for missing files or code tool, test guards. Closes routing conflict that let #144 Rule 0 be overridden by step-0 default-handoff language. Narrow: docs/host instructions; ordinary-GPT complete load remains unproved. Brain updated. Pending #115 DM Kit rulings remain unresolved.",
+    "resulting_brain_commit": "eb963024830542ade853bcaad8198158e9f3de3f",
     "reconciled_comment_id": 6202184874
   },
   "active_pass": null,
