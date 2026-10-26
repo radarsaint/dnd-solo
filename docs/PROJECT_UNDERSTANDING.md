@@ -121,4 +121,60 @@ The October 21 persona-and-judgment dialogue exposed failures that mechanical co
 
 The revised model requires creative selection, human-group perception, and judgment over time. Players bring attachment, ego, humor, disagreement, anger, generosity, and vulnerability into play. Their relationships are part of the medium. Kit must distinguish an opening for mutual support from a moment needing direct table intervention, and she must preserve room for honest conflict as well as connection. The same visible emotion can call for different choices in different contexts.
 
-The handoff records these as director-established requirements with application still unproved. They do not authorize revising facts or taking player agency to protect a preferred story.
+The handoff is an interpretive record of that conversation. Its reference to historical Roanoke cases is not a new semantic audit of BFDM research; retired Project attachments cited there do not regain current authority. Its observations do not establish that any prior or updated core has acquired the missing skills. The next evidence must be choices in counterexamples, consequences across later turns, and eventually current-build play.
+
+## 1.4 Current strategic model
+
+The project should now be understood as four linked questions:
+
+**Can the machinery support the work?**  
+This is primarily the `dnd-solo` runtime question. The answer is increasingly "yes, across a much broader surface than before," with concrete remaining gaps rather than a missing foundation.
+
+**Can we trust the research we want Kit to learn from?**  
+This is the BFDM evidence question. Source/substrate readiness is ahead of derived-research trust. High-leverage research can now be attempted, but polished derived conclusions still require independent evidence checks before they are treated as established.
+
+**Can we keep the shared understanding current?**  
+This is the Project Brain question. Capable workers need a living semantic model that is easier to correct than to rebuild, and that distinguishes live authority, proposed work, and player-facing evidence.
+
+**Does the experienced game satisfy?**  
+This is the acceptance question. Architecture, tests, source access, and research are intermediate. The product is the total game a player experiences.
+
+The current strategic posture is therefore evidence-first continuity: keep the runtime, the research, the understanding, and the player-facing evaluation from drifting into separate stories.
+
+---
+
+# 2. Major workstreams
+
+## 2.1 Runtime and player-facing Kit
+
+The solo-DM runtime is the near-term executable surface. It has advanced from a single-room prototype to a generalized chat-hosted substrate with persistence, hidden information, staged execution, and a large mechanical test surface. Player-facing quality remains the open gap: green tests and landed fixes do not yet prove satisfying play in ordinary sessions.
+
+Key recent merges on main include the lobby (#145), smaller session packets and rejection handling (#150), and main-branch playtest bug fixes plus lazy startup (#157). Mounting is now explicitly never handed off (#166).
+
+## 2.2 BFDM corpus and research
+
+The corpus holds 195 BCS identities. Physical archive completion for the high-priority pass is done. Derived-research trust remains the gap; forensic integrity work is the current priority there. Contrast families stay hypotheses.
+
+## 2.3 Project continuity
+
+The Project Brain, semantic inbox (#115), Gardener protocol, checkpoint (`coordination/context_state.json`), and context-status checker are on canonical main. They are not proposed. A merge that changes what a collaborator should believe requires a bounded Gardener pass that updates this document if needed, then advances the checkpoint only after the brain commit is on main.
+
+## 2.4 Remaining blockers
+
+- Issue #118 G5 is unmet.
+- ChatGPT Project source membership remains a manual Project-UI change. G6 stays open.
+- Legacy paid play route removal is pending with Skippy.
+- Post-#101 combat/engine items (open-ask gate at RoomAdjudicator.resolve, public_event fallback after failed narration, #122 Kit-declared combat_acts) are still pending.
+- PR #122 Kit-declared combat_acts is draft; word-matching parser ends only after it lands. Main default path unchanged.
+- #115 comment 6158450658 plan items beyond the two #101 fixes are not fixed on main.
+- Legitimate Mad Mage opening remains blocked on missing room files and source-to-room authoring. No executable non-6c authored location.
+- #115 comment 6266120288 (2026-10-19 DM Kit rulings on spell slots, equipment misuse, unsourced proficiencies) is PENDING REVIEW; draft PR in progress, nothing merged. Not reconciled as live truth.
+- Ordinary-GPT complete load and reset recovery via LOAD_KIT.md remains unproved. Work-host and CI checks do not certify the destination host.
+- Goldscale vs older in-play pricing formula discrepancy (rounding, weapon bonus, inputs, charges) is open for Brendon; in-play shop left unchanged.
+
+---
+
+A fresh capable GPT should be able to understand what the project is, where it is, why it got here, what changed the team's thinking, and what remains open, without Brendon having to reconstruct the project by hand.
+
+The Project Brain, coordination contract, Gardener checkpoint, and context-status checker are on canonical main after the approved merges. They are not proposed.
+
