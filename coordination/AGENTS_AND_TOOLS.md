@@ -195,6 +195,8 @@ Do not assume a named capability is available merely because another chat had it
 
 A worker's local tool boundary does **not** redefine the project's required outcome.
 
+**Not for mounting Kit.** Loading, mounting, or playing Kit is never routed; the host does it itself per `LOAD_KIT.md` (a ChatGPT code tool is enough). Do not produce a Grok Build or other handoff for it.
+
 When a task requires an action the current worker cannot perform directly:
 
 1. preserve the original acceptance condition exactly;
@@ -207,7 +209,7 @@ When a task requires an action the current worker cannot perform directly:
 
 ### Grok Build escalation rule
 
-For required repository/shell work, mechanical investigation, environment discovery, CI/build/test work, repository surgery, or a mutation whose programmatic path is unknown to the current GPT, **Grok Build is the default escalation resource** unless a more specific connected tool clearly owns the action.
+Mounting Kit is excluded from this rule. For required repository/shell work, mechanical investigation, environment discovery, CI/build/test work, repository surgery, or a mutation whose programmatic path is unknown to the current GPT, **Grok Build is the default escalation resource** unless a more specific connected tool clearly owns the action.
 
 Uncertainty about whether Grok Build can reach a target is not a reason to discard the requirement. Give Grok Build an inspection/execution task and require it to report what it actually can and cannot access.
 
