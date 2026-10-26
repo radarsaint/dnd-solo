@@ -13,6 +13,8 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 PERSONALITY_CORE = PROJECT_ROOT / 'docs/personality/dm-personality-core.md'
+# Brendon's Halaster and Mad Mage lines, verbatim, for Mad Mage rooms only (is_mad_mage).
+MAD_MAGE_ADDENDUM = PROJECT_ROOT / 'docs/personality/dm-personality-mad-mage.md'
 # Distilled voice files (docs/voice/*.md, not README.md) join the personality core every
 # turn, in file-name order, so both stages read them (the performer most). Whole files load
 # until VOICE_MAX_BYTES; any that do not fit are skipped and voice_warning says so. They
@@ -46,9 +48,12 @@ def load_voice(folder=None, max_bytes=None):
     return ''.join(parts), warning
 
 
-def personality_core_text(folder=None):
-    """The personality core plus the voice files that fit the cap."""
+def personality_core_text(folder=None, source=None):
+    """The personality core plus the voice files that fit the cap. A Mad Mage room (``source``
+    id starting dotmm) also gets the Mad Mage addendum after the core; no other room does."""
     core = PERSONALITY_CORE.read_text(encoding='utf-8')
+    if source is not None and is_mad_mage(source):
+        core = core.rstrip('\n') + '\n\n' + MAD_MAGE_ADDENDUM.read_text(encoding='utf-8')
     voice, _ = load_voice(folder)
     return core + VOICE_HEADING + voice if voice else core
 RHYTHM_EVIDENCE_MAX_CHARS = 600  # per recent_rhythm entry; 12 entries stay inside context()
@@ -1229,7 +1234,7 @@ class Runtime:
 
     def context(self, personality_core=None, max_bytes=CONTEXT_BUDGET_BYTES):
         if personality_core is None:
-            personality_core = personality_core_text()
+            personality_core = personality_core_text(source=self.source())
         revision, state = self.load()
         source, area = self.source(), state['area']
         packet = {
