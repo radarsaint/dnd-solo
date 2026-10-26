@@ -67,7 +67,9 @@ class StartHereTests(unittest.TestCase):
 
     def test_agents_and_readme_point_here_first(self):
         for doc in ('AGENTS.md', 'README.md'):
-            first = (ROOT / doc).read_text(encoding='utf-8').splitlines()[0]
+            text = (ROOT / doc).read_text(encoding='utf-8')
+            text = text.split('<!-- END COLD-START MOUNT BLOCK -->', 1)[-1]
+            first = text.strip().splitlines()[0]
             self.assertIn('(START_HERE.md)', first, doc)
 
 
