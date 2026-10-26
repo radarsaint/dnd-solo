@@ -1,0 +1,5 @@
+{"_note": "Original synthetic companion sheet for tests. Not from any published book.",
+ "name": "Tamsin", "class": "Rogue", "level": 3, "ac": 14, "hp": 21,
+ "abilities": {"str": 10, "dex": 16, "con": 12, "int": 12, "wis": 10, "cha": 13},
+ "attacks": [{"name": "rapier", "to_hit": 5, "damage": "1d8+3", "type": "piercing"},
+             {"name": "shortbow", "to_hit": 5, "damage": "1d6+3", "type": "piercing"}]}

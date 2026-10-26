@@ -101,7 +101,7 @@ CANON_SLOT = re.compile(r'^[a-z0-9_:]+(/[a-z0-9_]+){1,3}$')
 # Events a Kit turn may add at commit, after the adjudicated batch it was prepared with:
 # the decision's canon entries, the oracle deal it consumed, and procedure state.
 # Host bookkeeping, not a turn taken in the room (kit_rooms.stage counts the others).
-BOOKKEEPING_EVENTS = ('player_sheet', 'player_character', 'player_note', 'pc_state', 'kit_plan', 'rest',
+BOOKKEEPING_EVENTS = ('party_roster', 'player_sheet', 'player_character', 'player_note', 'pc_state', 'kit_plan', 'rest',
                       'campaign_restore')
 # A refused attempt changed nothing in the world, so it does not use up the check Kit just
 # called (PR 145 playtest: one refused line, then every roll was refused).
@@ -804,11 +804,24 @@ class Runtime:
         next_revision = self.commit(f'sheet-{digest}', revision, [event])
         return {'revision': next_revision, 'character': pc_sheet.identity(sheet)}
 
-    def restore_campaign(self, log, carried, pc_state=None):
+    def add_companion(self, key, sheet, role, policy):
+        """Put a companion on the party roster (runtime/kit_party.py): its sheet as the player
+        supplied it, its tactics role and spending policy. Returns what the sheet leaves to ask."""
+        from . import kit_party
+        kit_party.member(sheet, role, policy)
+        revision, _ = self.load()
+        event = {'type': 'party_roster', 'key': key, 'sheet': sheet, 'role': role, 'policy': policy,
+                 'evidence': 'The player supplied a companion sheet.'}
+        digest = hashlib.sha256(f'{revision}:{encode(event)}'.encode()).hexdigest()[:16]
+        next_revision = self.commit(f'party-{digest}', revision, [event])
+        return {'revision': next_revision, 'asks': self.load()[1]['party'][key]['asks']}
+
+    def restore_campaign(self, log, carried, pc_state=None, party=None):
         """Apply a player save's public record (kit_resume) before the room's opening."""
         revision, _ = self.load()
         event = {'type': 'campaign_restore', 'log': log, 'carried': carried,
                  **({'pc_state': pc_state} if pc_state is not None else {}),
+                 **({'party': party} if party else {}),
                  'evidence': "The host resumed from the player's save."}
         digest = hashlib.sha256(f'{revision}:{encode(event)}'.encode()).hexdigest()[:16]
         return self.commit(f'restore-{digest}', revision, [event])
@@ -1160,6 +1173,21 @@ class Runtime:
             from . import kit_combat
             kit_combat.check_scene(event.get('state'))
             state['scene'] = copy.deepcopy(event['state'])
+        elif kind == 'party_roster':
+            from . import kit_party
+            entry = kit_party.member(event.get('sheet'), event.get('role'), event.get('policy'))
+            key = event.get('key')
+            require(isinstance(key, str) and re.fullmatch(r'[a-z][a-z0-9_]{0,30}', key or '') and key != 'pc',
+                    'a companion key is a short lowercase id')
+            party = dict(state.get('party') or {})
+            party[key] = entry
+            kit_party.check_party(party)
+            state['party'] = party
+        elif kind == 'party_state':
+            from . import kit_party
+            kit_party.check_party(event.get('party'))
+            require(set(event['party']) == set(state.get('party') or {}), 'party_state changes no one on the roster')
+            state['party'] = copy.deepcopy(event['party'])
         elif kind == 'combat_state':
             from . import kit_combat
             kit_combat.check_fight(event.get('state'))
@@ -1239,6 +1267,16 @@ class Runtime:
                 state['pc_resources'] = kit_reactions.carry_spent(kit_reactions.current(state), spent)
                 if pc.get('conditions'):
                     state['pc_conditions'] = list(dict.fromkeys(pc['conditions']))
+            party = event.get('party')
+            if party is not None:  # companions on the roster when the player saved (kit_party)
+                from . import kit_party
+                kit_party.check_party(party)
+                require(all(isinstance(k, str) and re.fullmatch(r'[a-z][a-z0-9_]{0,30}', k) and
+                            isinstance(v.get('sheet'), dict) for k, v in party.items()),
+                        'campaign_restore party maps companion ids to roster entries')
+                for entry in party.values():
+                    kit_party.check_sheet(entry['sheet'])
+                state['party'] = copy.deepcopy(party)
             state['campaign_log'] = copy.deepcopy(log)
             state['carried'] = copy.deepcopy(carried)
         elif kind == 'beat':

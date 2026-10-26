@@ -1086,6 +1086,8 @@ class RoomAdjudicator:
         names = kit_combat.labels(self.source)
         offer = {'foes': list(awaiting.get('foes') or ()),
                  'names': [names.get(k, k) for k in awaiting.get('foes') or ()]}
+        if awaiting.get('companions'):
+            offer['companions'] = list(awaiting['companions'])
         return dataclasses.replace(result, offers={**(result.offers or {}), 'downed': offer})
 
     _ENTRY_THEN = re.compile(r"\b(?:and|then)\b|[,;]")
@@ -6388,7 +6390,8 @@ def start_session(db, sheet_path=None, runtime=None, room=None, area=None, manif
         sheet = json.loads(path.read_text(encoding='utf-8'))
         loaded = runtime.set_player_sheet(sheet)
         if restore:  # resume from the player's save (runtime/kit_resume.py)
-            runtime.restore_campaign(restore['log'], restore['carried'], restore.get('pc_state'))
+            runtime.restore_campaign(restore['log'], restore['carried'], restore.get('pc_state'),
+                                     restore.get('party'))
         if compact:
             kit_telemetry.set_packet_mode(runtime.path, 'compact')
         prepared = KitChatBridge(runtime, RoomAdjudicator(), manifests=manifests).prepare(

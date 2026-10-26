@@ -1,0 +1,7 @@
+{"_note": "Original synthetic companion sheet for tests. Not from any published book.",
+ "name": "Odile", "class": "Cleric", "level": 3, "ac": 16, "hp": 24,
+ "abilities": {"str": 12, "dex": 10, "con": 14, "int": 10, "wis": 16, "cha": 12},
+ "attacks": [{"name": "mace", "to_hit": 3, "damage": "1d6+1", "type": "bludgeoning"}],
+ "spell_attack": 5, "spell_save_dc": 13, "spell_ability": "wis",
+ "spells": {"cantrips": ["Sacred Flame"], "1": ["Cure Wounds", "Healing Word", "Guiding Bolt", "Bless"]},
+ "slots": {"1": 4, "2": 2}}

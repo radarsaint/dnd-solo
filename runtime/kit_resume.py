@@ -136,7 +136,9 @@ def _restore(campaign, current_id):
     carried = [{'item': i['item'], 'from': i['room_id']} for i in campaign.get('loot') or ()
                if isinstance(i, dict) and isinstance(i.get('item'), str) and i.get('room_id') != current_id]
     pc = campaign.get('pc_state') if isinstance(campaign.get('pc_state'), dict) else None
-    return {'log': {'rooms': rooms}, 'carried': carried, **({'pc_state': pc} if pc else {})}
+    party = campaign.get('party') if isinstance(campaign.get('party'), dict) and campaign.get('party') else None
+    return {'log': {'rooms': rooms}, 'carried': carried, **({'pc_state': pc} if pc else {}),
+            **({'party': party} if party else {})}
 
 
 ADVENTURE_ROOM = re.compile(r'^adv-([0-9a-f]{8})-(.+)$')

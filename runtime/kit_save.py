@@ -20,6 +20,7 @@ every save. Kit's recap is hers: <=120 words, checked like public text. Hand edi
 as written and noted, never arbitrated (docs/architecture/PLAYER_SAVE.md). Standard library only.
 """
 
+import copy
 import hashlib
 import json
 import re
@@ -211,6 +212,7 @@ def collect(runtime):
         'rooms': [{'room_id': r['room_id'], 'status': r['status'], 'areas': r['areas'],
                    **({'carry': r['carry']} if r['status'] != 'current' and r.get('carry') else {})} for r in rooms],
         'pc_state': pc_state(state),
+        **({'party': copy.deepcopy(state['party'])} if state.get('party') else {}),
         'npcs_met': [{**n, 'room_id': r['room_id']} for r in rooms for n in r['npcs_met']],
         'learned': [{'text': t, 'room_id': r['room_id']} for r in rooms for t in r['learned']],
         'loot': [{'item': c['item'], 'room_id': c.get('from')} for c in carried],

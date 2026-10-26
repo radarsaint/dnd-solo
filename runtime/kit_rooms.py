@@ -53,7 +53,7 @@ STAGES = ('approach', 'first_look', 'explore', 'resolution')
 SESSION_KEYS = ('schema_version', 'kit', 'player_character', 'player_sheet', 'pc_state', 'roll_seed',
                 'elapsed_seconds', 'rooms', 'carried', 'scene_id', 'scenes_closed', 'memory_trimmed',
                 'pc_conditions', 'pc_condition_terms', 'campaign_log', 'pc_resources',
-                'sheet_import', 'long_rests')
+                'sheet_import', 'long_rests', 'party')
 
 
 class RoomMountError(InvalidChange):

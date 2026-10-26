@@ -1,0 +1,6 @@
+{"_note": "Original synthetic companion sheet for tests. Not from any published book.",
+ "name": "Brannoc", "class": "Fighter", "level": 3, "ac": 18, "hp": 28,
+ "abilities": {"str": 16, "dex": 12, "con": 14, "int": 10, "wis": 11, "cha": 9},
+ "attacks": [{"name": "longsword", "to_hit": 5, "damage": "1d8+3", "type": "slashing"}],
+ "features": [{"name": "Second Wind", "uses": 1}],
+ "items": [{"name": "Potion of Healing", "count": 1}]}
