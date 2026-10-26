@@ -4,7 +4,7 @@
 **Status:** canonical on `dnd-solo/main` after Brendon-approved merges of #113 and #117 on 2026-10-08. It is no longer a proposed side-branch draft.  
 **Canonical location:** `radarsaint/dnd-solo/docs/PROJECT_UNDERSTANDING.md`  
 **Sibling repository:** `radarsaint/bfdm-corpus`  
-**Last substantive refresh:** 2026-10-26 (#150 and #157 merges)  
+**Last substantive refresh:** 2026-10-26 (#150, #157, and #166 merges)  
 **Context reviewed against:** `dnd-solo/main @ 8329f176acac8ea24c408bf4d1abbffef247192b`; `bfdm-corpus/main @ df47554633b20ba872bd8cd393c420bbef7140d1`
 
 **2026-10-21 bounded update:** Brendon's mount-to-North-Star developmental handoff and explicit assignment of its repository integration to ChatGPT Work. Runtime/corpus audits retain the boundaries recorded below; this update does not re-certify them.
@@ -72,6 +72,7 @@ On 2026-10-25, dnd-solo #144 merged Rule 0 into the top of AGENTS.md, START_HERE
 On 2026-10-26, dnd-solo #145 merged the Kit lobby: bare `start` greets and asks play or build (no room, no assumed adventure). Play intent lists only loadable non-stub/non-fixture modules and an existing sheet, asks for missing ones, then asks solo or shared table (recorded as kit_table). Shared turn-taking is host-prefixed speaker names for now. Build intent is DM-assistant mode with design talk and Goldscale item pricing (vendored from radarsaint/goldscale@a0a18c6 into runtime/goldscale/; kit_appraise.py gives exact replies including clarifying questions persisted across runs). Never-guess character generation is enforced in persona, AGENTS.md, and runtime/kit_chargen.py (SRD 5.1 names only; non-SRD options get the exact-rules-or-finished-sheet refusal). In-play shop pricing (runtime/pricing.py) is unchanged; Goldscale and the older formula differ on rounding, weapon bonus, inputs, and charges—open question for Brendon.
 On 2026-10-26, dnd-solo #150 merged smaller session packets (lossless `schema_notation` shorthand; session body 54.9 KB → 49.9 KB) and no full re-send on rejection streaks (`plan_sends` keeps session cached and adds `rejection_notice` with count, reasons up to 400 chars each, session_hash, rehydrate pointer; only rehydrate sends body early). Fixed rejection-causing bugs: refused attempt no longer clears pending check; Avrae roll with header or few words answers pending check; simple declared acts (step toward, crouch, hold light) happen as declared with no roll; mixed action+question runs the action (not read as speech); out-of-combat spells resolve (`spell_cast`, ritual +10 min game time); resubmit after fix-up accepted when host omits runtime-filled fields. Detect Magic senses each room fact marked magic (public: count and schools only; fact ids private to Kit). Intent precedence in docs/INTENT_PRECEDENCE.md (search beats simple act; etc.). Phrase corpus covers playtest misroutes. Median CLI times improved (start 104→93 ms). 1307 tests OK. These narrow transmission and adjudication friction; player-experience truth remains the gap.
 On 2026-10-26, dnd-solo #157 merged (stacked on #150): main-branch playtest bugs fixed and lazy startup. Hidden facts are available on the entry turn (dm_only rebuilt for arrival area). An act declared on entry rides with the move; a negated move plus look is threshold_look. Backing to a doorway sets pc_position {area, at_exit} (clears on move; shown in player view). "Shield up" / "I raise my shield" sets declared_held so item-cause advantage accepts it (sling/down/stow do not). Private pass/fail: roll_call takes optional dc (1–30); called roll gives Kit private check_outcome and pass/fail tag; DC never public; ties go to actor on a check, a save that ties the DC fails. Incomplete private decision rejection names its fields. Pure restatement engine echo lines removed (combat/trap/toll/declared outcomes keep lines). Recap keeps the call in the rhythm and raw stated roll (both dice). Sheet AC adds +2 when proficiency_sources grants Shield and a shield is held/equipped (ac_counts_shield if already counted). Safe mid-game room reload: start --room on running game with edited same-id room reloads in place (keeps known facts, actors, visits, memory); refuses different id, missing PC area, or waiting prepared turn. Dangling tease points_to (no hook/fact/actor/area) raises RoomWarning (rooms with hooks still refuse). Lazy-load kit_combat, kit_chargen, kit_toll, kit_twenty_one via runtime/_lazy.py; module-level phrase patterns compile on first use (shop untouched); kit_manifest.split copies only popped dicts. Import runtime.kit_agent 76→~40 ms; median start/prepare/complete improved. These are mechanical fixes from PR 145 playtests; player-facing quality remains unproved. #115 comment 6266120288 remains pending.
+On 2026-10-26, dnd-solo #166 merged: mounting is explicitly never handed off to another agent. LOAD_KIT.md now specifies a plain 3-step host mount (find the ZIP or files → run the stdlib mount in Python → greet "playing or building?"), with an explicit "Never hand mounting to another agent" rule and a fallback that names exactly what is missing then runs Kit from the files it has (never invents game facts). PROJECT_BOOTSTRAP step 0, the AGENTS_AND_TOOLS routing contract, and the Grok Build rule now exempt mounting. docs/CUSTOM_GPT_SETUP.md section 3 forbids the handoff and uses the same fallback. tests/test_mount_never_handoff.py guards the change. This closes the remaining routing conflict in which Rule 0 from #144 could still be overridden by step-0 "default handoff target" language that treated mounting as shell execution. Ordinary-GPT complete load remains unproved until a fresh destination host consumes the updated docs.
 
 The remaining bottlenecks include player-facing execution and judgment.
 
@@ -129,67 +130,49 @@ The project should now be understood as four linked questions:
 This is primarily the `dnd-solo` runtime question. The answer is increasingly "yes, across a much broader surface than before," with concrete remaining gaps rather than a missing foundation.
 
 **Can we trust the research we want Kit to learn from?**  
-This is the BFDM evidence question. Source/substrate readiness is ahead of derived-research trust. High-leverage claims need semantic verification before they become runtime doctrine.
+This is the BFDM evidence question. Source/substrate readiness is ahead of derived-research trust. High-leverage research can now be attempted, but polished derived conclusions still require independent evidence checks before they are treated as established.
 
-**Can Kit actually use and express what the project gives her?**  
-Private state, BFDM insight, source knowledge, and runtime capability only matter if they survive into good DM judgment and player-facing performance.
+**Can we keep the shared understanding current?**  
+This is the Project Brain question. Capable workers need a living semantic model that is easier to correct than to rebuild, and that distinguishes live authority, proposed work, and player-facing evidence.
 
-**Does the player actually experience a better Dungeon Master?**  
-This is the final acceptance question. It cannot be answered by tests, architecture, research quality, or internal reasoning alone.
+**Does the experienced game satisfy?**  
+This is the acceptance question. Architecture, tests, source access, and research are intermediate. The product is the total game a player experiences.
 
-A fifth supporting question has now become explicit:
+The current strategic posture is therefore evidence-first continuity: keep the runtime, the research, the understanding, and the player-facing evaluation from drifting into separate stories.
 
-**Can every serious collaborator start from the same evolving mental model of the project?**  
-If not, the project repeatedly pays a tax in contradictory plans, duplicated work, stale assumptions, and Brendon having to act as manual memory.
+---
 
-A genuine ChatGPT Work session must not inherit the ordinary-GPT execution boundary merely because both use GitHub connectors. Brendon explicitly assigned this research, semantic reconciliation, personality-document work, and GitHub delivery to Work on 2026-10-21. Work should complete such an assigned workflow with available tools; Grok Build remains the default mechanical executor and Skippy retains runtime ownership. [The resource map](../coordination/AGENTS_AND_TOOLS.md) preserves that distinction.
+# 2. Major workstreams
 
-No single agent or chat should be the memory substrate. Nagatha remains valuable for PM/review/acceptance reconciliation, Skippy remains central to runtime engineering, Grok Build is a shell/repository execution resource, ordinary GPTs perform substantial reasoning/research/synthesis, and ChatGPT Work is reserved for work where its autonomous multi-source capability materially matters. The project itself must carry the continuity between them.
+## 2.1 Runtime and player-facing Kit
 
-## 1.5 Current workstreams and how they depend on one another
+The solo-DM runtime is the near-term executable surface. It has advanced from a single-room prototype to a generalized chat-hosted substrate with persistence, hidden information, staged execution, and a large mechanical test surface. Player-facing quality remains the open gap: green tests and landed fixes do not yet prove satisfying play in ordinary sessions.
 
-### Runtime and integration
+Key recent merges on main include the lobby (#145), smaller session packets and rejection handling (#150), and main-branch playtest bug fixes plus lazy startup (#157). Mounting is now explicitly never handed off (#166).
 
-The runtime lane is no longer "build a DM engine from scratch."
+## 2.2 BFDM corpus and research
 
-Its near-term job is to reconcile and land known runtime work, close demonstrated blockers, avoid stale failure claims, and preserve enough instrumentation that later player-facing evaluation can tell us what actually happened.
+The corpus holds 195 BCS identities. Physical archive completion for the high-priority pass is done. Derived-research trust remains the gap; forensic integrity work is the current priority there. Contrast families stay hypotheses.
 
-Current demonstrated blocker classes include:
-- player-roll ownership / Let It Ride behavior (#103);
-- incomplete combat transitions and related state handling (#97 monster-initiated combat and #101 combat checkpoints landed);
-- validator functional floors rewarding length over functional completeness (#102);
-- at least one deliberate social-omission recognition gap (#73).
+## 2.3 Project continuity
 
-These are narrower than old blanket claims that combat, natural language, NPCs, or the whole runtime "do not work."
+The Project Brain, semantic inbox (#115), Gardener protocol, checkpoint (`coordination/context_state.json`), and context-status checker are on canonical main. They are not proposed. A merge that changes what a collaborator should believe requires a bounded Gardener pass that updates this document if needed, then advances the checkpoint only after the brain commit is on main.
 
-### Player-experience evaluation
+## 2.4 Remaining blockers
 
-This lane is now disproportionately important because implementation has outrun evidence.
+- Issue #118 G5 is unmet.
+- ChatGPT Project source membership remains a manual Project-UI change. G6 stays open.
+- Legacy paid play route removal is pending with Skippy.
+- Post-#101 combat/engine items (open-ask gate at RoomAdjudicator.resolve, public_event fallback after failed narration, #122 Kit-declared combat_acts) are still pending.
+- PR #122 Kit-declared combat_acts is draft; word-matching parser ends only after it lands. Main default path unchanged.
+- #115 comment 6158450658 plan items beyond the two #101 fixes are not fixed on main.
+- Legitimate Mad Mage opening remains blocked on missing room files and source-to-room authoring. No executable non-6c authored location.
+- #115 comment 6266120288 (2026-10-19 DM Kit rulings on spell slots, equipment misuse, unsourced proficiencies) is PENDING REVIEW; draft PR in progress, nothing merged. Not reconciled as live truth.
+- Ordinary-GPT complete load and reset recovery via LOAD_KIT.md remains unproved. Work-host and CI checks do not certify the destination host.
+- Goldscale vs older in-play pricing formula discrepancy (rounding, weapon bonus, inputs, charges) is open for Brendon; in-play shop left unchanged.
 
-The next valuable play evidence is not another proof that Area 6c can run. It is sustained current-build play in a materially different real room that crosses action, physical action, checks, NPC initiative, and combat where appropriate.
+---
 
-The goal is to discover the **next quality ceiling**, not to rediscover already-known plumbing defects.
-
-### BFDM integrity and research
-
-The corpus is sufficiently accessible for serious work.
-
-The current research priority is trust: verify high-leverage derived claims against primary evidence, attack attractive hypotheses adversarially, find restraint/non-intervention cases that visible-action research can miss, and reconstruct failure -> diagnosis -> correction -> later-behavior trajectories.
-
-PR #28 merged to bfdm-corpus main as a6a84d902a995e53b3ceb72bd535b909429493f9 (2026-10-26): Phase 2 decision contrast families plus Earthfall/Saturday cross-format tranche. Ten families grounded in existing S3/S4 cases, with bad-generalization tests and falsification targets. The tranche has zero BREAK but does not confirm the families or edit the v1 families file. Five Phase 2B hypotheses and five trajectories (some UNKNOWN endings). Landed derived research, not doctrine, not Kit-consumed, not precedent infrastructure. Remains a hypothesis map rather than a gold-label foundation.
-
-PR #38 merged to bfdm-corpus main as `2b68820d445e9f6d99d021463bfd76b2f7bb257d` (2026-10-16): first-tranche derived-research integrity staging for 20 Roanoke S3 cases. No corpus-wide semantic certification. BDC-S3-004 prep locators remain ORIGINAL_REPRESENTATION_UNAVAILABLE / SUPPORT_NOT_FOUND; Discord does not repair them. Several propositions are PARTIALLY_SUPPORTED or SCOPE_OVERCLAIMED. Reusable judgments in the tranche are not verified for transfer. The audit does not put claims into Kit.
-
-Stage 3 precedent/minimal-cognition experiments should consume evidence whose lineage and confidence are explicit. Stage 4 heavier cognition architecture remains later.
-
-### Project understanding and continuity
-
-This workstream exists because project knowledge was repeatedly trapped inside individual chats, stale Project files, branch-local handoffs, and agent-specific context windows.
-
-The target is not "better documentation."
-
-The target is:
-
-> A fresh capable GPT should be able to understand what the project is, where it is, why it got here, what changed the team's thinking, and what remains open, without Brendon having to reconstruct the project by hand.
+A fresh capable GPT should be able to understand what the project is, where it is, why it got here, what changed the team's thinking, and what remains open, without Brendon having to reconstruct the project by hand.
 
 The Project Brain, coordination contract, Gardener checkpoint, and context-status checker are on canonical main after the approved merges. They are not proposed.
