@@ -20,7 +20,7 @@ import sys
 from pathlib import Path
 
 from .kit_lazyre import compile as lazy_compile
-from .kit_text import leading_count
+from .kit_text import leading_count, parse_quantity
 from .goldscale import SOURCE
 from .goldscale.clarification import (PendingAppraisal, PendingAppraisals, apply_answer, cancel_appraisal,
                                       classify_question, clarification_question, invalid_choice_message,
@@ -109,11 +109,11 @@ def strip_question(text):
         if t == before:
             break
     t = canonical_names(t.strip(" \t'\"")).strip()
-    # A leading count ("3 healing potions", "two potions of greater healing", "a dozen ...")
-    # becomes Goldscale's own quantity signal.
-    count = leading_count(t)
-    if count:
-        n, rest = count
+    # The same grammar Goldscale uses: "3 torches", "three torches", "qty 3 torch",
+    # "a dozen arrows", "pair of daggers", "torches x3".
+    parsed = parse_quantity(t)
+    if parsed:
+        n, rest = parsed
         if n > 1:
             t = f'qty {n} {rest}'
         else:

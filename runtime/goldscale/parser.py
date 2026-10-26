@@ -1,8 +1,11 @@
-# Vendored verbatim from radarsaint/goldscale@a0a18c6 goldscale/parser.py (Brendon's Goldscale bot).
-# Only change: package imports made relative. Do not edit here; re-vendor from Goldscale.
+# Vendored from radarsaint/goldscale@a0a18c6 goldscale/parser.py (Brendon's Goldscale bot).
+# Package imports are relative. Quantity phrases go through runtime.kit_text so the shop
+# and Goldscale read "3 torches", "qty 3", and "torches x3" as the same count.
 import re
 from dataclasses import dataclass, field
 from typing import Optional
+
+from ..kit_text import parse_quantity
 
 
 # These are pricing controls, not item-description guesses.
@@ -392,13 +395,15 @@ def find_charges(text: str) -> Optional[int]:
 
 
 def find_quantity(text: str) -> Optional[int]:
-    lower = text.lower()
-    match = re.search(r"\b(?:quantity|qty|count)\s*[:=]?\s*(\d+)\b", lower)
-
-    if match:
-        return int(match.group(1))
-
-    return None
+    parsed = parse_quantity(text)
+    if not parsed:
+        return None
+    count, _rest = parsed
+    # "a cloak" is an article. A count of 1 is kept only for an explicit
+    # quantity/qty/count, which is what this function used to return.
+    if count == 1 and not re.search(r"\b(?:quantity|qty|count)\s*[:=]?\s*1\b", text or "", flags=re.IGNORECASE):
+        return None
+    return count
 
 
 def has_supplied_price_override(text: str) -> bool:
@@ -491,6 +496,9 @@ def item_name_before_pricing_signals(text: str) -> Optional[str]:
 
 
 def strip_leading_quantity_signal(text: str) -> str:
+    parsed = parse_quantity(text)
+    if parsed and find_quantity(text) is not None:
+        return parsed[1]
     return re.sub(r"^\s*(?:quantity|qty|count)\s*[:=]?\s*\d+\s+", "", text, flags=re.IGNORECASE)
 
 
@@ -809,6 +817,7 @@ def extract_item_name(text: str) -> Optional[str]:
 def remove_known_signals_for_name(text: str) -> str:
     cleaned = remove_old_prefix_accidents(text)
     _, cleaned = split_mode(cleaned)
+    cleaned = strip_leading_quantity_signal(cleaned)
 
     # Remove everything after common Avrae rule prose starts.
     cleaned = re.split(
