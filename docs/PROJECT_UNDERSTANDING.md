@@ -4,8 +4,8 @@
 **Status:** canonical on `dnd-solo/main` after Brendon-approved merges of #113 and #117 on 2026-10-08. It is no longer a proposed side-branch draft.  
 **Canonical location:** `radarsaint/dnd-solo/docs/PROJECT_UNDERSTANDING.md`  
 **Sibling repository:** `radarsaint/bfdm-corpus`  
-**Last substantive refresh:** 2026-10-26 (#150, #157, #166, and #167 merges)  
-**Context reviewed against:** `dnd-solo/main @ f02bf181907cd34c45db2b5caf43d5a8a1a74c51`; `bfdm-corpus/main @ df47554633b20ba872bd8cd393c420bbef7140d1`
+**Last substantive refresh:** 2026-10-26 (#150, #157, #166, #167, and #168 merges)  
+**Context reviewed against:** `dnd-solo/main @ e890503210f4c34f516d4702618c164af8f5f713`; `bfdm-corpus/main @ df47554633b20ba872bd8cd393c420bbef7140d1`
 
 **2026-10-21 bounded update:** Brendon's mount-to-North-Star developmental handoff and explicit assignment of its repository integration to ChatGPT Work. Runtime/corpus audits retain the boundaries recorded below; this update does not re-certify them.
 
@@ -74,6 +74,7 @@ On 2026-10-26, dnd-solo #150 merged smaller session packets (lossless `schema_no
 On 2026-10-26, dnd-solo #157 merged (stacked on #150): main-branch playtest bugs fixed and lazy startup. Hidden facts are available on the entry turn (dm_only rebuilt for arrival area). An act declared on entry rides with the move; a negated move plus look is threshold_look. Backing to a doorway sets pc_position {area, at_exit} (clears on move; shown in player view). "Shield up" / "I raise my shield" sets declared_held so item-cause advantage accepts it (sling/down/stow do not). Private pass/fail: roll_call takes optional dc (1–30); called roll gives Kit private check_outcome and pass/fail tag; DC never public; ties go to actor on a check, a save that ties the DC fails. Incomplete private decision rejection names its fields. Pure restatement engine echo lines removed (combat/trap/toll/declared outcomes keep lines). Recap keeps the call in the rhythm and raw stated roll (both dice). Sheet AC adds +2 when proficiency_sources grants Shield and a shield is held/equipped (ac_counts_shield if already counted). Safe mid-game room reload: start --room on running game with edited same-id room reloads in place (keeps known facts, actors, visits, memory); refuses different id, missing PC area, or waiting prepared turn. Dangling tease points_to (no hook/fact/actor/area) raises RoomWarning (rooms with hooks still refuse). Lazy-load kit_combat, kit_chargen, kit_toll, kit_twenty_one via runtime/_lazy.py; module-level phrase patterns compile on first use (shop untouched); kit_manifest.split copies only popped dicts. Import runtime.kit_agent 76→~40 ms; median start/prepare/complete improved. These are mechanical fixes from PR 145 playtests; player-facing quality remains unproved. #115 comment 6266120288 remains pending.
 On 2026-10-26, dnd-solo #166 merged: mounting is explicitly never handed off to another agent. LOAD_KIT.md now specifies a plain 3-step host mount (find the ZIP or files → run the stdlib mount in Python → greet "playing or building?"), with an explicit "Never hand mounting to another agent" rule and a fallback that names exactly what is missing then runs Kit from the files it has (never invents game facts). PROJECT_BOOTSTRAP step 0, the AGENTS_AND_TOOLS routing contract, and the Grok Build rule now exempt mounting. docs/CUSTOM_GPT_SETUP.md section 3 forbids the handoff and uses the same fallback. tests/test_mount_never_handoff.py guards the change. This closes the remaining routing conflict in which Rule 0 from #144 could still be overridden by step-0 "default handoff target" language that treated mounting as shell execution. Ordinary-GPT complete load remains unproved until a fresh destination host consumes the updated docs.
 On 2026-10-26, dnd-solo #167 merged: cold-start mount from the repo URL alone. README.md, START_HERE.md, AGENTS.md and LOAD_KIT.md open with the same "If you are an AI asked to mount Kit" block (source: scripts/cold_start_block.md). A fresh AI given only "mount Kit from github.com/radarsaint/dnd-solo" mounts itself with no handoff: 1. ZIP present → run LOAD_KIT (full); 2. Python has internet → one try to download the latest release asset then LOAD_KIT (full); 3. browsing only → read raw KIT_PORTABLE.md and run as a partial load, saying so, and pointing to the release ZIP for the full load; 4. greet "playing or building?". KIT_PORTABLE.md (~20 KB, generated from persona core and skills voice, campaign lines stripped) adds hard rules for play without the runtime (player rolls; DCs/bonuses hidden; ties to actor; save that ties fails; SRD prices with half-price selling; no guessing at chargen; voice rule). Precedence is the cold-start block, then LOAD_KIT, then everything else. Tests include test_cold_start_mount.py. Ordinary-GPT complete load remains unproved; the portable path is an explicit partial fallback. #115 comment 6266120288 remains pending.
+On 2026-10-26, dnd-solo #168 merged: cold-start refined after Brendon's live vanilla ChatGPT test. The order is now: 1. attached ZIP → full LOAD_KIT; 2. exactly one Python internet attempt with a 5-second timeout for the latest release ZIP asset (no retries, no other libraries, no download tool; on any failure continue); 3. read KIT_PORTABLE.md via connected GitHub app/connector if available, otherwise via browsing the github.com blob URL (raw URL removed); this is an explicit partial load—Kit says so and tells the player to attach the Kit ZIP for the full rules engine; 4. greet "playing or building?". A new guard bans pip, PyPI, container.download and raw.githubusercontent on the cold-start path. KIT_PORTABLE header matches the player line. 1,395 tests pass. Ordinary-GPT complete load remains unproved; the portable path is the partial fallback. #115 comment 6266120288 remains pending.
 
 The remaining bottlenecks include player-facing execution and judgment.
 
@@ -113,68 +114,4 @@ A document calling itself canonical is not necessarily current authority.
 
 This thread exposed the same failure at the project-management layer: a bootstrap file, context inbox, or freshness checker does not by itself mean a future GPT has inherited the project's real mental model.
 
-The response is the current Project Brain design: the project should preserve not only state and evidence, but also the **best current semantic understanding of what that state means**.
-
-### Creative and interpersonal judgment exposed by the North Star dialogue
-
-The October 21 persona-and-judgment dialogue exposed failures that mechanical coverage cannot settle. Bracken Quay met a play-design checklist but lacked a discriminating reason to create that particular world. Bell Sea supplied generative detail while closely echoing Brendon's immediately preceding Lost Colony explanation. Repeated answers to why DMs run games promoted the latest correction into a universal goal. The sadness probe initially produced authored pathos rather than recognition of emotion as a signal between real participants.
-
-The revised model requires creative selection, human-group perception, and judgment over time. Players bring attachment, ego, humor, disagreement, anger, generosity, and vulnerability into play. Their relationships are part of the medium. Kit must distinguish an opening for mutual support from a moment needing direct table intervention, and she must preserve room for honest conflict as well as connection. The same visible emotion can call for different choices in different contexts.
-
-The handoff is an interpretive record of that conversation. Its reference to historical Roanoke cases is not a new semantic audit of BFDM research; retired Project attachments cited there do not regain current authority. Its observations do not establish that any prior or updated core has acquired the missing skills. The next evidence must be choices in counterexamples, consequences across later turns, and eventually current-build play.
-
-## 1.4 Current strategic model
-
-The project should now be understood as four linked questions:
-
-**Can the machinery support the work?**  
-This is primarily the `dnd-solo` runtime question. The answer is increasingly "yes, across a much broader surface than before," with concrete remaining gaps rather than a missing foundation.
-
-**Can we trust the research we want Kit to learn from?**  
-This is the BFDM evidence question. Source/substrate readiness is ahead of derived-research trust. High-leverage research can now be attempted, but polished derived conclusions still require independent evidence checks before they are treated as established.
-
-**Can we keep the shared understanding current?**  
-This is the Project Brain question. Capable workers need a living semantic model that is easier to correct than to rebuild, and that distinguishes live authority, proposed work, and player-facing evidence.
-
-**Does the experienced game satisfy?**  
-This is the acceptance question. Architecture, tests, source access, and research are intermediate. The product is the total game a player experiences.
-
-The current strategic posture is therefore evidence-first continuity: keep the runtime, the research, the understanding, and the player-facing evaluation from drifting into separate stories.
-
----
-
-# 2. Major workstreams
-
-## 2.1 Runtime and player-facing Kit
-
-The solo-DM runtime is the near-term executable surface. It has advanced from a single-room prototype to a generalized chat-hosted substrate with persistence, hidden information, staged execution, and a large mechanical test surface. Player-facing quality remains the open gap: green tests and landed fixes do not yet prove satisfying play in ordinary sessions.
-
-Key recent merges on main include the lobby (#145), smaller session packets and rejection handling (#150), and main-branch playtest bug fixes plus lazy startup (#157). Mounting is now explicitly never handed off (#166).
-
-## 2.2 BFDM corpus and research
-
-The corpus holds 195 BCS identities. Physical archive completion for the high-priority pass is done. Derived-research trust remains the gap; forensic integrity work is the current priority there. Contrast families stay hypotheses.
-
-## 2.3 Project continuity
-
-The Project Brain, semantic inbox (#115), Gardener protocol, checkpoint (`coordination/context_state.json`), and context-status checker are on canonical main. They are not proposed. A merge that changes what a collaborator should believe requires a bounded Gardener pass that updates this document if needed, then advances the checkpoint only after the brain commit is on main.
-
-## 2.4 Remaining blockers
-
-- Issue #118 G5 is unmet.
-- ChatGPT Project source membership remains a manual Project-UI change. G6 stays open.
-- Legacy paid play route removal is pending with Skippy.
-- Post-#101 combat/engine items (open-ask gate at RoomAdjudicator.resolve, public_event fallback after failed narration, #122 Kit-declared combat_acts) are still pending.
-- PR #122 Kit-declared combat_acts is draft; word-matching parser ends only after it lands. Main default path unchanged.
-- #115 comment 6158450658 plan items beyond the two #101 fixes are not fixed on main.
-- Legitimate Mad Mage opening remains blocked on missing room files and source-to-room authoring. No executable non-6c authored location.
-- #115 comment 6266120288 (2026-10-19 DM Kit rulings on spell slots, equipment misuse, unsourced proficiencies) is PENDING REVIEW; draft PR in progress, nothing merged. Not reconciled as live truth.
-- Ordinary-GPT complete load and reset recovery via LOAD_KIT.md remains unproved. Work-host and CI checks do not certify the destination host.
-- Goldscale vs older in-play pricing formula discrepancy (rounding, weapon bonus, inputs, charges) is open for Brendon; in-play shop left unchanged.
-
----
-
-A fresh capable GPT should be able to understand what the project is, where it is, why it got here, what changed the team's thinking, and what remains open, without Brendon having to reconstruct the project by hand.
-
-The Project Brain, coordination contract, Gardener checkpoint, and context-status checker are on canonical main after the approved merges. They are not proposed.
-
+The response is the current Project Brain design: the project should preserve not only state and evidence, but also the shared understanding of what the evidence means and what remains uncertain.
