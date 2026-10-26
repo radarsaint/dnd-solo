@@ -1,0 +1,4143 @@
+[
+  {
+    "line": "3 torches",
+    "items": [
+      {
+        "item": "Torch",
+        "quantity": 3,
+        "price": 3,
+        "unit": "cp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "three torches",
+    "items": [
+      {
+        "item": "Torch",
+        "quantity": 3,
+        "price": 3,
+        "unit": "cp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "qty 3 torch",
+    "items": [
+      {
+        "item": "Torch",
+        "quantity": 3,
+        "price": 3,
+        "unit": "cp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "torches x3",
+    "items": [
+      {
+        "item": "Torch",
+        "quantity": 3,
+        "price": 3,
+        "unit": "cp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "how much for 3 torches?",
+    "items": [
+      {
+        "item": "Torch",
+        "quantity": 3,
+        "price": 3,
+        "unit": "cp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "what's a torch worth?",
+    "items": [
+      {
+        "item": "Torch",
+        "quantity": 1,
+        "price": 1,
+        "unit": "cp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "price check on the torches",
+    "items": [
+      {
+        "item": "Torch",
+        "quantity": 1,
+        "price": 1,
+        "unit": "cp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "can I sell my torch",
+    "items": [
+      {
+        "item": "Torch",
+        "quantity": 1,
+        "price": 0,
+        "unit": "cp",
+        "source": "srd",
+        "mode": "sell"
+      }
+    ]
+  },
+  {
+    "line": "a dozen torches",
+    "items": [
+      {
+        "item": "Torch",
+        "quantity": 12,
+        "price": 12,
+        "unit": "cp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "pair of torches",
+    "items": [
+      {
+        "item": "Torch",
+        "quantity": 2,
+        "price": 2,
+        "unit": "cp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "3 arrows",
+    "items": [
+      {
+        "item": "Arrow",
+        "quantity": 3,
+        "price": 15,
+        "unit": "cp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "three arrows",
+    "items": [
+      {
+        "item": "Arrow",
+        "quantity": 3,
+        "price": 15,
+        "unit": "cp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "qty 3 arrow",
+    "items": [
+      {
+        "item": "Arrow",
+        "quantity": 3,
+        "price": 15,
+        "unit": "cp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "arrows x3",
+    "items": [
+      {
+        "item": "Arrow",
+        "quantity": 3,
+        "price": 15,
+        "unit": "cp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "how much for 3 arrows?",
+    "items": [
+      {
+        "item": "Arrow",
+        "quantity": 3,
+        "price": 15,
+        "unit": "cp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "what's a arrow worth?",
+    "items": [
+      {
+        "item": "Arrow",
+        "quantity": 1,
+        "price": 5,
+        "unit": "cp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "price check on the arrows",
+    "items": [
+      {
+        "item": "Arrow",
+        "quantity": 1,
+        "price": 5,
+        "unit": "cp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "can I sell my arrow",
+    "items": [
+      {
+        "item": "Arrow",
+        "quantity": 1,
+        "price": 2,
+        "unit": "cp",
+        "source": "srd",
+        "mode": "sell"
+      }
+    ]
+  },
+  {
+    "line": "a dozen arrows",
+    "items": [
+      {
+        "item": "Arrow",
+        "quantity": 12,
+        "price": 6,
+        "unit": "sp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "pair of arrows",
+    "items": [
+      {
+        "item": "Arrow",
+        "quantity": 2,
+        "price": 1,
+        "unit": "sp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "3 daggers",
+    "items": [
+      {
+        "item": "Dagger",
+        "quantity": 3,
+        "price": 6,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "three daggers",
+    "items": [
+      {
+        "item": "Dagger",
+        "quantity": 3,
+        "price": 6,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "qty 3 dagger",
+    "items": [
+      {
+        "item": "Dagger",
+        "quantity": 3,
+        "price": 6,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "daggers x3",
+    "items": [
+      {
+        "item": "Dagger",
+        "quantity": 3,
+        "price": 6,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "how much for 3 daggers?",
+    "items": [
+      {
+        "item": "Dagger",
+        "quantity": 3,
+        "price": 6,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "what's a dagger worth?",
+    "items": [
+      {
+        "item": "Dagger",
+        "quantity": 1,
+        "price": 2,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "price check on the daggers",
+    "items": [
+      {
+        "item": "Dagger",
+        "quantity": 1,
+        "price": 2,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "can I sell my dagger",
+    "items": [
+      {
+        "item": "Dagger",
+        "quantity": 1,
+        "price": 1,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "sell"
+      }
+    ]
+  },
+  {
+    "line": "a dozen daggers",
+    "items": [
+      {
+        "item": "Dagger",
+        "quantity": 12,
+        "price": 24,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "pair of daggers",
+    "items": [
+      {
+        "item": "Dagger",
+        "quantity": 2,
+        "price": 4,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "3 backpacks",
+    "items": [
+      {
+        "item": "Backpack",
+        "quantity": 3,
+        "price": 6,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "three backpacks",
+    "items": [
+      {
+        "item": "Backpack",
+        "quantity": 3,
+        "price": 6,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "qty 3 backpack",
+    "items": [
+      {
+        "item": "Backpack",
+        "quantity": 3,
+        "price": 6,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "backpacks x3",
+    "items": [
+      {
+        "item": "Backpack",
+        "quantity": 3,
+        "price": 6,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "how much for 3 backpacks?",
+    "items": [
+      {
+        "item": "Backpack",
+        "quantity": 3,
+        "price": 6,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "what's a backpack worth?",
+    "items": [
+      {
+        "item": "Backpack",
+        "quantity": 1,
+        "price": 2,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "price check on the backpacks",
+    "items": [
+      {
+        "item": "Backpack",
+        "quantity": 1,
+        "price": 2,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "can I sell my backpack",
+    "items": [
+      {
+        "item": "Backpack",
+        "quantity": 1,
+        "price": 1,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "sell"
+      }
+    ]
+  },
+  {
+    "line": "a dozen backpacks",
+    "items": [
+      {
+        "item": "Backpack",
+        "quantity": 12,
+        "price": 24,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "pair of backpacks",
+    "items": [
+      {
+        "item": "Backpack",
+        "quantity": 2,
+        "price": 4,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "3 candles",
+    "items": [
+      {
+        "item": "Candle",
+        "quantity": 3,
+        "price": 3,
+        "unit": "cp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "three candles",
+    "items": [
+      {
+        "item": "Candle",
+        "quantity": 3,
+        "price": 3,
+        "unit": "cp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "qty 3 candle",
+    "items": [
+      {
+        "item": "Candle",
+        "quantity": 3,
+        "price": 3,
+        "unit": "cp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "candles x3",
+    "items": [
+      {
+        "item": "Candle",
+        "quantity": 3,
+        "price": 3,
+        "unit": "cp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "how much for 3 candles?",
+    "items": [
+      {
+        "item": "Candle",
+        "quantity": 3,
+        "price": 3,
+        "unit": "cp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "what's a candle worth?",
+    "items": [
+      {
+        "item": "Candle",
+        "quantity": 1,
+        "price": 1,
+        "unit": "cp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "price check on the candles",
+    "items": [
+      {
+        "item": "Candle",
+        "quantity": 1,
+        "price": 1,
+        "unit": "cp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "can I sell my candle",
+    "items": [
+      {
+        "item": "Candle",
+        "quantity": 1,
+        "price": 0,
+        "unit": "cp",
+        "source": "srd",
+        "mode": "sell"
+      }
+    ]
+  },
+  {
+    "line": "a dozen candles",
+    "items": [
+      {
+        "item": "Candle",
+        "quantity": 12,
+        "price": 12,
+        "unit": "cp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "pair of candles",
+    "items": [
+      {
+        "item": "Candle",
+        "quantity": 2,
+        "price": 2,
+        "unit": "cp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "3 crowbars",
+    "items": [
+      {
+        "item": "Crowbar",
+        "quantity": 3,
+        "price": 6,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "three crowbars",
+    "items": [
+      {
+        "item": "Crowbar",
+        "quantity": 3,
+        "price": 6,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "qty 3 crowbar",
+    "items": [
+      {
+        "item": "Crowbar",
+        "quantity": 3,
+        "price": 6,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "crowbars x3",
+    "items": [
+      {
+        "item": "Crowbar",
+        "quantity": 3,
+        "price": 6,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "how much for 3 crowbars?",
+    "items": [
+      {
+        "item": "Crowbar",
+        "quantity": 3,
+        "price": 6,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "what's a crowbar worth?",
+    "items": [
+      {
+        "item": "Crowbar",
+        "quantity": 1,
+        "price": 2,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "price check on the crowbars",
+    "items": [
+      {
+        "item": "Crowbar",
+        "quantity": 1,
+        "price": 2,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "can I sell my crowbar",
+    "items": [
+      {
+        "item": "Crowbar",
+        "quantity": 1,
+        "price": 1,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "sell"
+      }
+    ]
+  },
+  {
+    "line": "a dozen crowbars",
+    "items": [
+      {
+        "item": "Crowbar",
+        "quantity": 12,
+        "price": 24,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "pair of crowbars",
+    "items": [
+      {
+        "item": "Crowbar",
+        "quantity": 2,
+        "price": 4,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "3 pitons",
+    "items": [
+      {
+        "item": "Piton",
+        "quantity": 3,
+        "price": 15,
+        "unit": "cp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "three pitons",
+    "items": [
+      {
+        "item": "Piton",
+        "quantity": 3,
+        "price": 15,
+        "unit": "cp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "qty 3 piton",
+    "items": [
+      {
+        "item": "Piton",
+        "quantity": 3,
+        "price": 15,
+        "unit": "cp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "pitons x3",
+    "items": [
+      {
+        "item": "Piton",
+        "quantity": 3,
+        "price": 15,
+        "unit": "cp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "how much for 3 pitons?",
+    "items": [
+      {
+        "item": "Piton",
+        "quantity": 3,
+        "price": 15,
+        "unit": "cp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "what's a piton worth?",
+    "items": [
+      {
+        "item": "Piton",
+        "quantity": 1,
+        "price": 5,
+        "unit": "cp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "price check on the pitons",
+    "items": [
+      {
+        "item": "Piton",
+        "quantity": 1,
+        "price": 5,
+        "unit": "cp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "can I sell my piton",
+    "items": [
+      {
+        "item": "Piton",
+        "quantity": 1,
+        "price": 2,
+        "unit": "cp",
+        "source": "srd",
+        "mode": "sell"
+      }
+    ]
+  },
+  {
+    "line": "a dozen pitons",
+    "items": [
+      {
+        "item": "Piton",
+        "quantity": 12,
+        "price": 6,
+        "unit": "sp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "pair of pitons",
+    "items": [
+      {
+        "item": "Piton",
+        "quantity": 2,
+        "price": 1,
+        "unit": "sp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "3 longswords",
+    "items": [
+      {
+        "item": "Longsword",
+        "quantity": 3,
+        "price": 45,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "three longswords",
+    "items": [
+      {
+        "item": "Longsword",
+        "quantity": 3,
+        "price": 45,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "qty 3 longsword",
+    "items": [
+      {
+        "item": "Longsword",
+        "quantity": 3,
+        "price": 45,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "longswords x3",
+    "items": [
+      {
+        "item": "Longsword",
+        "quantity": 3,
+        "price": 45,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "how much for 3 longswords?",
+    "items": [
+      {
+        "item": "Longsword",
+        "quantity": 3,
+        "price": 45,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "what's a longsword worth?",
+    "items": [
+      {
+        "item": "Longsword",
+        "quantity": 1,
+        "price": 15,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "price check on the longswords",
+    "items": [
+      {
+        "item": "Longsword",
+        "quantity": 1,
+        "price": 15,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "can I sell my longsword",
+    "items": [
+      {
+        "item": "Longsword",
+        "quantity": 1,
+        "price": 75,
+        "unit": "sp",
+        "source": "srd",
+        "mode": "sell"
+      }
+    ]
+  },
+  {
+    "line": "a dozen longswords",
+    "items": [
+      {
+        "item": "Longsword",
+        "quantity": 12,
+        "price": 180,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "pair of longswords",
+    "items": [
+      {
+        "item": "Longsword",
+        "quantity": 2,
+        "price": 30,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "3 shortbows",
+    "items": [
+      {
+        "item": "Shortbow",
+        "quantity": 3,
+        "price": 75,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "three shortbows",
+    "items": [
+      {
+        "item": "Shortbow",
+        "quantity": 3,
+        "price": 75,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "qty 3 shortbow",
+    "items": [
+      {
+        "item": "Shortbow",
+        "quantity": 3,
+        "price": 75,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "shortbows x3",
+    "items": [
+      {
+        "item": "Shortbow",
+        "quantity": 3,
+        "price": 75,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "how much for 3 shortbows?",
+    "items": [
+      {
+        "item": "Shortbow",
+        "quantity": 3,
+        "price": 75,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "what's a shortbow worth?",
+    "items": [
+      {
+        "item": "Shortbow",
+        "quantity": 1,
+        "price": 25,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "price check on the shortbows",
+    "items": [
+      {
+        "item": "Shortbow",
+        "quantity": 1,
+        "price": 25,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "can I sell my shortbow",
+    "items": [
+      {
+        "item": "Shortbow",
+        "quantity": 1,
+        "price": 125,
+        "unit": "sp",
+        "source": "srd",
+        "mode": "sell"
+      }
+    ]
+  },
+  {
+    "line": "a dozen shortbows",
+    "items": [
+      {
+        "item": "Shortbow",
+        "quantity": 12,
+        "price": 300,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "pair of shortbows",
+    "items": [
+      {
+        "item": "Shortbow",
+        "quantity": 2,
+        "price": 50,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "3 clubs",
+    "items": [
+      {
+        "item": "Club",
+        "quantity": 3,
+        "price": 3,
+        "unit": "sp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "three clubs",
+    "items": [
+      {
+        "item": "Club",
+        "quantity": 3,
+        "price": 3,
+        "unit": "sp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "qty 3 club",
+    "items": [
+      {
+        "item": "Club",
+        "quantity": 3,
+        "price": 3,
+        "unit": "sp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "clubs x3",
+    "items": [
+      {
+        "item": "Club",
+        "quantity": 3,
+        "price": 3,
+        "unit": "sp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "how much for 3 clubs?",
+    "items": [
+      {
+        "item": "Club",
+        "quantity": 3,
+        "price": 3,
+        "unit": "sp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "what's a club worth?",
+    "items": [
+      {
+        "item": "Club",
+        "quantity": 1,
+        "price": 1,
+        "unit": "sp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "price check on the clubs",
+    "items": [
+      {
+        "item": "Club",
+        "quantity": 1,
+        "price": 1,
+        "unit": "sp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "can I sell my club",
+    "items": [
+      {
+        "item": "Club",
+        "quantity": 1,
+        "price": 5,
+        "unit": "cp",
+        "source": "srd",
+        "mode": "sell"
+      }
+    ]
+  },
+  {
+    "line": "a dozen clubs",
+    "items": [
+      {
+        "item": "Club",
+        "quantity": 12,
+        "price": 12,
+        "unit": "sp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "pair of clubs",
+    "items": [
+      {
+        "item": "Club",
+        "quantity": 2,
+        "price": 2,
+        "unit": "sp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "3 spears",
+    "items": [
+      {
+        "item": "Spear",
+        "quantity": 3,
+        "price": 3,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "three spears",
+    "items": [
+      {
+        "item": "Spear",
+        "quantity": 3,
+        "price": 3,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "qty 3 spear",
+    "items": [
+      {
+        "item": "Spear",
+        "quantity": 3,
+        "price": 3,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "spears x3",
+    "items": [
+      {
+        "item": "Spear",
+        "quantity": 3,
+        "price": 3,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "how much for 3 spears?",
+    "items": [
+      {
+        "item": "Spear",
+        "quantity": 3,
+        "price": 3,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "what's a spear worth?",
+    "items": [
+      {
+        "item": "Spear",
+        "quantity": 1,
+        "price": 1,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "price check on the spears",
+    "items": [
+      {
+        "item": "Spear",
+        "quantity": 1,
+        "price": 1,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "can I sell my spear",
+    "items": [
+      {
+        "item": "Spear",
+        "quantity": 1,
+        "price": 5,
+        "unit": "sp",
+        "source": "srd",
+        "mode": "sell"
+      }
+    ]
+  },
+  {
+    "line": "a dozen spears",
+    "items": [
+      {
+        "item": "Spear",
+        "quantity": 12,
+        "price": 12,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "pair of spears",
+    "items": [
+      {
+        "item": "Spear",
+        "quantity": 2,
+        "price": 2,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "3 maces",
+    "items": [
+      {
+        "item": "Mace",
+        "quantity": 3,
+        "price": 15,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "three maces",
+    "items": [
+      {
+        "item": "Mace",
+        "quantity": 3,
+        "price": 15,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "qty 3 mace",
+    "items": [
+      {
+        "item": "Mace",
+        "quantity": 3,
+        "price": 15,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "maces x3",
+    "items": [
+      {
+        "item": "Mace",
+        "quantity": 3,
+        "price": 15,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "how much for 3 maces?",
+    "items": [
+      {
+        "item": "Mace",
+        "quantity": 3,
+        "price": 15,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "what's a mace worth?",
+    "items": [
+      {
+        "item": "Mace",
+        "quantity": 1,
+        "price": 5,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "price check on the maces",
+    "items": [
+      {
+        "item": "Mace",
+        "quantity": 1,
+        "price": 5,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "can I sell my mace",
+    "items": [
+      {
+        "item": "Mace",
+        "quantity": 1,
+        "price": 25,
+        "unit": "sp",
+        "source": "srd",
+        "mode": "sell"
+      }
+    ]
+  },
+  {
+    "line": "a dozen maces",
+    "items": [
+      {
+        "item": "Mace",
+        "quantity": 12,
+        "price": 60,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "pair of maces",
+    "items": [
+      {
+        "item": "Mace",
+        "quantity": 2,
+        "price": 10,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "3 javelins",
+    "items": [
+      {
+        "item": "Javelin",
+        "quantity": 3,
+        "price": 15,
+        "unit": "sp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "three javelins",
+    "items": [
+      {
+        "item": "Javelin",
+        "quantity": 3,
+        "price": 15,
+        "unit": "sp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "qty 3 javelin",
+    "items": [
+      {
+        "item": "Javelin",
+        "quantity": 3,
+        "price": 15,
+        "unit": "sp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "javelins x3",
+    "items": [
+      {
+        "item": "Javelin",
+        "quantity": 3,
+        "price": 15,
+        "unit": "sp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "how much for 3 javelins?",
+    "items": [
+      {
+        "item": "Javelin",
+        "quantity": 3,
+        "price": 15,
+        "unit": "sp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "what's a javelin worth?",
+    "items": [
+      {
+        "item": "Javelin",
+        "quantity": 1,
+        "price": 5,
+        "unit": "sp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "price check on the javelins",
+    "items": [
+      {
+        "item": "Javelin",
+        "quantity": 1,
+        "price": 5,
+        "unit": "sp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "can I sell my javelin",
+    "items": [
+      {
+        "item": "Javelin",
+        "quantity": 1,
+        "price": 25,
+        "unit": "cp",
+        "source": "srd",
+        "mode": "sell"
+      }
+    ]
+  },
+  {
+    "line": "a dozen javelins",
+    "items": [
+      {
+        "item": "Javelin",
+        "quantity": 12,
+        "price": 6,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "pair of javelins",
+    "items": [
+      {
+        "item": "Javelin",
+        "quantity": 2,
+        "price": 1,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "3 darts",
+    "items": [
+      {
+        "item": "Dart",
+        "quantity": 3,
+        "price": 15,
+        "unit": "cp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "three darts",
+    "items": [
+      {
+        "item": "Dart",
+        "quantity": 3,
+        "price": 15,
+        "unit": "cp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "qty 3 dart",
+    "items": [
+      {
+        "item": "Dart",
+        "quantity": 3,
+        "price": 15,
+        "unit": "cp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "darts x3",
+    "items": [
+      {
+        "item": "Dart",
+        "quantity": 3,
+        "price": 15,
+        "unit": "cp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "how much for 3 darts?",
+    "items": [
+      {
+        "item": "Dart",
+        "quantity": 3,
+        "price": 15,
+        "unit": "cp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "what's a dart worth?",
+    "items": [
+      {
+        "item": "Dart",
+        "quantity": 1,
+        "price": 5,
+        "unit": "cp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "price check on the darts",
+    "items": [
+      {
+        "item": "Dart",
+        "quantity": 1,
+        "price": 5,
+        "unit": "cp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "can I sell my dart",
+    "items": [
+      {
+        "item": "Dart",
+        "quantity": 1,
+        "price": 2,
+        "unit": "cp",
+        "source": "srd",
+        "mode": "sell"
+      }
+    ]
+  },
+  {
+    "line": "a dozen darts",
+    "items": [
+      {
+        "item": "Dart",
+        "quantity": 12,
+        "price": 6,
+        "unit": "sp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "pair of darts",
+    "items": [
+      {
+        "item": "Dart",
+        "quantity": 2,
+        "price": 1,
+        "unit": "sp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "3 sickles",
+    "items": [
+      {
+        "item": "Sickle",
+        "quantity": 3,
+        "price": 3,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "three sickles",
+    "items": [
+      {
+        "item": "Sickle",
+        "quantity": 3,
+        "price": 3,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "qty 3 sickle",
+    "items": [
+      {
+        "item": "Sickle",
+        "quantity": 3,
+        "price": 3,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "sickles x3",
+    "items": [
+      {
+        "item": "Sickle",
+        "quantity": 3,
+        "price": 3,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "how much for 3 sickles?",
+    "items": [
+      {
+        "item": "Sickle",
+        "quantity": 3,
+        "price": 3,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "what's a sickle worth?",
+    "items": [
+      {
+        "item": "Sickle",
+        "quantity": 1,
+        "price": 1,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "price check on the sickles",
+    "items": [
+      {
+        "item": "Sickle",
+        "quantity": 1,
+        "price": 1,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "can I sell my sickle",
+    "items": [
+      {
+        "item": "Sickle",
+        "quantity": 1,
+        "price": 5,
+        "unit": "sp",
+        "source": "srd",
+        "mode": "sell"
+      }
+    ]
+  },
+  {
+    "line": "a dozen sickles",
+    "items": [
+      {
+        "item": "Sickle",
+        "quantity": 12,
+        "price": 12,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "pair of sickles",
+    "items": [
+      {
+        "item": "Sickle",
+        "quantity": 2,
+        "price": 2,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "3 blankets",
+    "items": [
+      {
+        "item": "Blanket",
+        "quantity": 3,
+        "price": 15,
+        "unit": "sp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "three blankets",
+    "items": [
+      {
+        "item": "Blanket",
+        "quantity": 3,
+        "price": 15,
+        "unit": "sp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "qty 3 blanket",
+    "items": [
+      {
+        "item": "Blanket",
+        "quantity": 3,
+        "price": 15,
+        "unit": "sp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "blankets x3",
+    "items": [
+      {
+        "item": "Blanket",
+        "quantity": 3,
+        "price": 15,
+        "unit": "sp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "how much for 3 blankets?",
+    "items": [
+      {
+        "item": "Blanket",
+        "quantity": 3,
+        "price": 15,
+        "unit": "sp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "what's a blanket worth?",
+    "items": [
+      {
+        "item": "Blanket",
+        "quantity": 1,
+        "price": 5,
+        "unit": "sp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "price check on the blankets",
+    "items": [
+      {
+        "item": "Blanket",
+        "quantity": 1,
+        "price": 5,
+        "unit": "sp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "can I sell my blanket",
+    "items": [
+      {
+        "item": "Blanket",
+        "quantity": 1,
+        "price": 25,
+        "unit": "cp",
+        "source": "srd",
+        "mode": "sell"
+      }
+    ]
+  },
+  {
+    "line": "a dozen blankets",
+    "items": [
+      {
+        "item": "Blanket",
+        "quantity": 12,
+        "price": 6,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "pair of blankets",
+    "items": [
+      {
+        "item": "Blanket",
+        "quantity": 2,
+        "price": 1,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "3 chests",
+    "items": [
+      {
+        "item": "Chest",
+        "quantity": 3,
+        "price": 15,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "three chests",
+    "items": [
+      {
+        "item": "Chest",
+        "quantity": 3,
+        "price": 15,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "qty 3 chest",
+    "items": [
+      {
+        "item": "Chest",
+        "quantity": 3,
+        "price": 15,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "chests x3",
+    "items": [
+      {
+        "item": "Chest",
+        "quantity": 3,
+        "price": 15,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "how much for 3 chests?",
+    "items": [
+      {
+        "item": "Chest",
+        "quantity": 3,
+        "price": 15,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "what's a chest worth?",
+    "items": [
+      {
+        "item": "Chest",
+        "quantity": 1,
+        "price": 5,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "price check on the chests",
+    "items": [
+      {
+        "item": "Chest",
+        "quantity": 1,
+        "price": 5,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "can I sell my chest",
+    "items": [
+      {
+        "item": "Chest",
+        "quantity": 1,
+        "price": 25,
+        "unit": "sp",
+        "source": "srd",
+        "mode": "sell"
+      }
+    ]
+  },
+  {
+    "line": "a dozen chests",
+    "items": [
+      {
+        "item": "Chest",
+        "quantity": 12,
+        "price": 60,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "pair of chests",
+    "items": [
+      {
+        "item": "Chest",
+        "quantity": 2,
+        "price": 10,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "3 rationses",
+    "items": [
+      {
+        "item": "Rations (1 day)",
+        "quantity": 3,
+        "price": 15,
+        "unit": "sp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "three rationses",
+    "items": [
+      {
+        "item": "Rations (1 day)",
+        "quantity": 3,
+        "price": 15,
+        "unit": "sp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "qty 3 rations",
+    "items": [
+      {
+        "item": "Rations (1 day)",
+        "quantity": 3,
+        "price": 15,
+        "unit": "sp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "rationses x3",
+    "items": [
+      {
+        "item": "Rations (1 day)",
+        "quantity": 3,
+        "price": 15,
+        "unit": "sp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "how much for 3 rationses?",
+    "items": [
+      {
+        "item": "Rations (1 day)",
+        "quantity": 3,
+        "price": 15,
+        "unit": "sp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "what's a rations worth?",
+    "items": [
+      {
+        "item": "Rations (1 day)",
+        "quantity": 1,
+        "price": 5,
+        "unit": "sp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "price check on the rationses",
+    "items": [
+      {
+        "item": "Rations (1 day)",
+        "quantity": 1,
+        "price": 5,
+        "unit": "sp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "can I sell my rations",
+    "items": [
+      {
+        "item": "Rations (1 day)",
+        "quantity": 1,
+        "price": 25,
+        "unit": "cp",
+        "source": "srd",
+        "mode": "sell"
+      }
+    ]
+  },
+  {
+    "line": "a dozen rationses",
+    "items": [
+      {
+        "item": "Rations (1 day)",
+        "quantity": 12,
+        "price": 6,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "pair of rationses",
+    "items": [
+      {
+        "item": "Rations (1 day)",
+        "quantity": 2,
+        "price": 1,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "3 tinderboxes",
+    "items": [
+      {
+        "item": "Tinderbox",
+        "quantity": 3,
+        "price": 15,
+        "unit": "sp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "three tinderboxes",
+    "items": [
+      {
+        "item": "Tinderbox",
+        "quantity": 3,
+        "price": 15,
+        "unit": "sp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "qty 3 tinderbox",
+    "items": [
+      {
+        "item": "Tinderbox",
+        "quantity": 3,
+        "price": 15,
+        "unit": "sp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "tinderboxes x3",
+    "items": [
+      {
+        "item": "Tinderbox",
+        "quantity": 3,
+        "price": 15,
+        "unit": "sp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "how much for 3 tinderboxes?",
+    "items": [
+      {
+        "item": "Tinderbox",
+        "quantity": 3,
+        "price": 15,
+        "unit": "sp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "what's a tinderbox worth?",
+    "items": [
+      {
+        "item": "Tinderbox",
+        "quantity": 1,
+        "price": 5,
+        "unit": "sp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "price check on the tinderboxes",
+    "items": [
+      {
+        "item": "Tinderbox",
+        "quantity": 1,
+        "price": 5,
+        "unit": "sp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "can I sell my tinderbox",
+    "items": [
+      {
+        "item": "Tinderbox",
+        "quantity": 1,
+        "price": 25,
+        "unit": "cp",
+        "source": "srd",
+        "mode": "sell"
+      }
+    ]
+  },
+  {
+    "line": "a dozen tinderboxes",
+    "items": [
+      {
+        "item": "Tinderbox",
+        "quantity": 12,
+        "price": 6,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "pair of tinderboxes",
+    "items": [
+      {
+        "item": "Tinderbox",
+        "quantity": 2,
+        "price": 1,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "3 hammers",
+    "items": [
+      {
+        "item": "Hammer",
+        "quantity": 3,
+        "price": 3,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "three hammers",
+    "items": [
+      {
+        "item": "Hammer",
+        "quantity": 3,
+        "price": 3,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "qty 3 hammer",
+    "items": [
+      {
+        "item": "Hammer",
+        "quantity": 3,
+        "price": 3,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "hammers x3",
+    "items": [
+      {
+        "item": "Hammer",
+        "quantity": 3,
+        "price": 3,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "how much for 3 hammers?",
+    "items": [
+      {
+        "item": "Hammer",
+        "quantity": 3,
+        "price": 3,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "what's a hammer worth?",
+    "items": [
+      {
+        "item": "Hammer",
+        "quantity": 1,
+        "price": 1,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "price check on the hammers",
+    "items": [
+      {
+        "item": "Hammer",
+        "quantity": 1,
+        "price": 1,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "can I sell my hammer",
+    "items": [
+      {
+        "item": "Hammer",
+        "quantity": 1,
+        "price": 5,
+        "unit": "sp",
+        "source": "srd",
+        "mode": "sell"
+      }
+    ]
+  },
+  {
+    "line": "a dozen hammers",
+    "items": [
+      {
+        "item": "Hammer",
+        "quantity": 12,
+        "price": 12,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "pair of hammers",
+    "items": [
+      {
+        "item": "Hammer",
+        "quantity": 2,
+        "price": 2,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "longsowrd",
+    "items": [
+      {
+        "item": "Longsword",
+        "quantity": 1,
+        "price": 15,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "troch",
+    "items": [
+      {
+        "item": "Torch",
+        "quantity": 1,
+        "price": 1,
+        "unit": "cp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "dager",
+    "items": [
+      {
+        "item": "Dagger",
+        "quantity": 1,
+        "price": 2,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "arrwo",
+    "items": [
+      {
+        "item": "Arrow",
+        "quantity": 1,
+        "price": 5,
+        "unit": "cp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "candel",
+    "items": [
+      {
+        "item": "Candle",
+        "quantity": 1,
+        "price": 1,
+        "unit": "cp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "sprar",
+    "items": [
+      {
+        "item": "Spear",
+        "quantity": 1,
+        "price": 1,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "javlin",
+    "items": [
+      {
+        "item": "Javelin",
+        "quantity": 1,
+        "price": 5,
+        "unit": "sp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "shrotbow",
+    "items": [
+      {
+        "item": "Shortbow",
+        "quantity": 1,
+        "price": 25,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "tinnderbox",
+    "items": [
+      {
+        "item": "Tinderbox",
+        "quantity": 1,
+        "price": 5,
+        "unit": "sp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "macee",
+    "items": [
+      {
+        "item": "Mace",
+        "quantity": 1,
+        "price": 5,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "sikcle",
+    "items": [
+      {
+        "item": "Sickle",
+        "quantity": 1,
+        "price": 1,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "blorbo",
+    "items": [
+      {
+        "item": "unknown item",
+        "quantity": 1,
+        "price": null,
+        "unit": null,
+        "source": "unknown",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "a sword",
+    "items": [
+      {
+        "item": "unknown item",
+        "quantity": 1,
+        "price": null,
+        "unit": null,
+        "source": "unknown",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "a rope",
+    "items": [
+      {
+        "item": "ambiguous item",
+        "quantity": 1,
+        "price": null,
+        "unit": null,
+        "source": "ambiguous",
+        "mode": "buy",
+        "choices": [
+          {
+            "item": "Rope, hempen (50 feet)",
+            "price": 1,
+            "unit": "gp"
+          },
+          {
+            "item": "Rope, silk (50 feet)",
+            "price": 10,
+            "unit": "gp"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "line": "flaming cheese",
+    "items": [
+      {
+        "item": "unknown item",
+        "quantity": 1,
+        "price": null,
+        "unit": null,
+        "source": "unknown",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "staff of the north wind",
+    "items": [
+      {
+        "item": "unknown item",
+        "quantity": 1,
+        "price": null,
+        "unit": null,
+        "source": "unknown",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "how much for a beholder?",
+    "items": [
+      {
+        "item": "unknown item",
+        "quantity": 1,
+        "price": null,
+        "unit": null,
+        "source": "unknown",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "two vorpal things",
+    "items": [
+      {
+        "item": "unknown item",
+        "quantity": 2,
+        "price": null,
+        "unit": null,
+        "source": "unknown",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "cheese x3",
+    "items": [
+      {
+        "item": "unknown item",
+        "quantity": 3,
+        "price": null,
+        "unit": null,
+        "source": "unknown",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "what's a lightsaber worth?",
+    "items": [
+      {
+        "item": "unknown item",
+        "quantity": 1,
+        "price": null,
+        "unit": null,
+        "source": "unknown",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "prise check on a waffle",
+    "items": [
+      {
+        "item": "unknown item",
+        "quantity": 1,
+        "price": null,
+        "unit": null,
+        "source": "unknown",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "hw much for a zorb?",
+    "items": [
+      {
+        "item": "unknown item",
+        "quantity": 1,
+        "price": null,
+        "unit": null,
+        "source": "unknown",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "pair of moons",
+    "items": [
+      {
+        "item": "unknown item",
+        "quantity": 2,
+        "price": null,
+        "unit": null,
+        "source": "unknown",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "the moon",
+    "items": [
+      {
+        "item": "unknown item",
+        "quantity": 1,
+        "price": null,
+        "unit": null,
+        "source": "unknown",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "qty 4 glorphs",
+    "items": [
+      {
+        "item": "unknown item",
+        "quantity": 4,
+        "price": null,
+        "unit": null,
+        "source": "unknown",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "torches of holding",
+    "items": [
+      {
+        "item": "unknown item",
+        "quantity": 1,
+        "price": null,
+        "unit": null,
+        "source": "unknown",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "a dozen widgets",
+    "items": [
+      {
+        "item": "unknown item",
+        "quantity": 12,
+        "price": null,
+        "unit": null,
+        "source": "unknown",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "price a rope and two torches",
+    "items": [
+      {
+        "item": "ambiguous item",
+        "quantity": 1,
+        "price": null,
+        "unit": null,
+        "source": "ambiguous",
+        "mode": "buy",
+        "choices": [
+          {
+            "item": "Rope, hempen (50 feet)",
+            "price": 1,
+            "unit": "gp"
+          },
+          {
+            "item": "Rope, silk (50 feet)",
+            "price": 10,
+            "unit": "gp"
+          }
+        ]
+      },
+      {
+        "item": "Torch",
+        "quantity": 2,
+        "price": 2,
+        "unit": "cp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "price a backpack and a dozen arrows",
+    "items": [
+      {
+        "item": "Backpack",
+        "quantity": 1,
+        "price": 2,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      },
+      {
+        "item": "Arrow",
+        "quantity": 12,
+        "price": 6,
+        "unit": "sp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "how much for a dagger and three torches?",
+    "items": [
+      {
+        "item": "Dagger",
+        "quantity": 1,
+        "price": 2,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      },
+      {
+        "item": "Torch",
+        "quantity": 3,
+        "price": 3,
+        "unit": "cp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "hempen rope and a longsword",
+    "items": [
+      {
+        "item": "Rope, hempen (50 feet)",
+        "quantity": 1,
+        "price": 1,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      },
+      {
+        "item": "Longsword",
+        "quantity": 1,
+        "price": 15,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "silk rope and 20 arrows",
+    "items": [
+      {
+        "item": "Rope, silk (50 feet)",
+        "quantity": 1,
+        "price": 10,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      },
+      {
+        "item": "Arrow",
+        "quantity": 20,
+        "price": 1,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "a candle and a torch",
+    "items": [
+      {
+        "item": "Candle",
+        "quantity": 1,
+        "price": 1,
+        "unit": "cp",
+        "source": "srd",
+        "mode": "buy"
+      },
+      {
+        "item": "Torch",
+        "quantity": 1,
+        "price": 1,
+        "unit": "cp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "can I sell my dagger and my backpack",
+    "items": [
+      {
+        "item": "Dagger",
+        "quantity": 1,
+        "price": 1,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "sell"
+      },
+      {
+        "item": "Backpack",
+        "quantity": 1,
+        "price": 1,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "sell"
+      }
+    ]
+  },
+  {
+    "line": "what's a crowbar and a piton worth?",
+    "items": [
+      {
+        "item": "Crowbar",
+        "quantity": 1,
+        "price": 2,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      },
+      {
+        "item": "Piton",
+        "quantity": 1,
+        "price": 5,
+        "unit": "cp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "price check on a spear and a mace",
+    "items": [
+      {
+        "item": "Spear",
+        "quantity": 1,
+        "price": 1,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      },
+      {
+        "item": "Mace",
+        "quantity": 1,
+        "price": 5,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "three javelins and a dozen arrows",
+    "items": [
+      {
+        "item": "Javelin",
+        "quantity": 3,
+        "price": 15,
+        "unit": "sp",
+        "source": "srd",
+        "mode": "buy"
+      },
+      {
+        "item": "Arrow",
+        "quantity": 12,
+        "price": 6,
+        "unit": "sp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "a rope, two torches",
+    "items": [
+      {
+        "item": "ambiguous item",
+        "quantity": 1,
+        "price": null,
+        "unit": null,
+        "source": "ambiguous",
+        "mode": "buy",
+        "choices": [
+          {
+            "item": "Rope, hempen (50 feet)",
+            "price": 1,
+            "unit": "gp"
+          },
+          {
+            "item": "Rope, silk (50 feet)",
+            "price": 10,
+            "unit": "gp"
+          }
+        ]
+      },
+      {
+        "item": "Torch",
+        "quantity": 2,
+        "price": 2,
+        "unit": "cp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "hw much for a troch and 3 dagers?",
+    "items": [
+      {
+        "item": "Torch",
+        "quantity": 1,
+        "price": 1,
+        "unit": "cp",
+        "source": "srd",
+        "mode": "buy"
+      },
+      {
+        "item": "unknown item",
+        "quantity": 3,
+        "price": null,
+        "unit": null,
+        "source": "unknown",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "what's a potion of healing worth?",
+    "items": [
+      {
+        "item": "Potion of Healing",
+        "quantity": 1,
+        "price": 70,
+        "unit": "gp",
+        "source": "goldscale",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "how much are 3 healing potions?",
+    "items": [
+      {
+        "item": "Potion of Healing",
+        "quantity": 3,
+        "price": 210,
+        "unit": "gp",
+        "source": "goldscale",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "sell a potion of healing",
+    "items": [
+      {
+        "item": "Potion of Healing",
+        "quantity": 1,
+        "price": 35,
+        "unit": "gp",
+        "source": "goldscale",
+        "mode": "sell"
+      }
+    ]
+  },
+  {
+    "line": "a dozen potions of healing",
+    "items": [
+      {
+        "item": "Potion of Healing",
+        "quantity": 12,
+        "price": 840,
+        "unit": "gp",
+        "source": "goldscale",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "potions of healing x3",
+    "items": [
+      {
+        "item": "Potion of Healing",
+        "quantity": 3,
+        "price": 210,
+        "unit": "gp",
+        "source": "goldscale",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "qty 3 potion of healing",
+    "items": [
+      {
+        "item": "Potion of Healing",
+        "quantity": 3,
+        "price": 210,
+        "unit": "gp",
+        "source": "goldscale",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "three potions of greater healing",
+    "items": [
+      {
+        "item": "Potion of Greater Healing",
+        "quantity": 3,
+        "price": 1275,
+        "unit": "gp",
+        "source": "goldscale",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "potion of greater healing",
+    "items": [
+      {
+        "item": "Potion of Greater Healing",
+        "quantity": 1,
+        "price": 425,
+        "unit": "gp",
+        "source": "goldscale",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "how much for a potion of superior healing?",
+    "items": [
+      {
+        "item": "Potion of Superior Healing",
+        "quantity": 1,
+        "price": 2200,
+        "unit": "gp",
+        "source": "goldscale",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "potion of supreme healing",
+    "items": [
+      {
+        "item": "Potion of Supreme Healing",
+        "quantity": 1,
+        "price": 9000,
+        "unit": "gp",
+        "source": "goldscale",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "healing potions x2",
+    "items": [
+      {
+        "item": "Potion of Healing",
+        "quantity": 2,
+        "price": 140,
+        "unit": "gp",
+        "source": "goldscale",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "+1 longsword uncommon weapon",
+    "items": [
+      {
+        "item": "+1 Longsword",
+        "quantity": 1,
+        "price": 1200,
+        "unit": "gp",
+        "source": "goldscale",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "longsword, +1 uncommon weapon",
+    "items": [
+      {
+        "item": "+1 Longsword",
+        "quantity": 1,
+        "price": 1200,
+        "unit": "gp",
+        "source": "goldscale",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "+1 sword uncommon weapon",
+    "items": [
+      {
+        "item": "+1 Sword",
+        "quantity": 1,
+        "price": 1200,
+        "unit": "gp",
+        "source": "goldscale",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "sell qty 2 +1 sword uncommon weapon",
+    "items": [
+      {
+        "item": "+1 Sword",
+        "quantity": 2,
+        "price": 1200,
+        "unit": "gp",
+        "source": "goldscale",
+        "mode": "sell"
+      }
+    ]
+  },
+  {
+    "line": "sell qty 2 +1 longsword uncommon weapon",
+    "items": [
+      {
+        "item": "+1 Longsword",
+        "quantity": 2,
+        "price": 1200,
+        "unit": "gp",
+        "source": "goldscale",
+        "mode": "sell"
+      }
+    ]
+  },
+  {
+    "line": "wand of fireballs rare wand 8d6 aoe 7 charges",
+    "items": [
+      {
+        "item": "Wand of Fireballs",
+        "quantity": 1,
+        "price": 157000,
+        "unit": "gp",
+        "source": "goldscale",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "price check on a wand of fireballs, rare wand, 8d6 aoe, 7 charges",
+    "items": [
+      {
+        "item": "Wand of Fireballs",
+        "quantity": 1,
+        "price": 157000,
+        "unit": "gp",
+        "source": "goldscale",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "cloak of protection uncommon cloak +1",
+    "items": [
+      {
+        "item": "Cloak of Protection",
+        "quantity": 1,
+        "price": 1400,
+        "unit": "gp",
+        "source": "goldscale",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "what's a cloak of protection uncommon cloak +1 worth?",
+    "items": [
+      {
+        "item": "Cloak of Protection",
+        "quantity": 1,
+        "price": 1400,
+        "unit": "gp",
+        "source": "goldscale",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "boots of striding very rare boots broad",
+    "items": [
+      {
+        "item": "Boots of Striding",
+        "quantity": 1,
+        "price": 3200,
+        "unit": "gp",
+        "source": "goldscale",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "sell +2 shield rare shield 25%",
+    "items": [
+      {
+        "item": "+2 Shield",
+        "quantity": 1,
+        "price": 1400,
+        "unit": "gp",
+        "source": "goldscale",
+        "mode": "sell"
+      }
+    ]
+  },
+  {
+    "line": "how much for a +1 longsword, uncommon weapon?",
+    "items": [
+      {
+        "item": "+1 Longsword",
+        "quantity": 1,
+        "price": 1200,
+        "unit": "gp",
+        "source": "goldscale",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "+1 longsword",
+    "items": [
+      {
+        "item": "+1 Longsword",
+        "quantity": 1,
+        "price": null,
+        "unit": "gp",
+        "source": "goldscale",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "longsword, +1",
+    "items": [
+      {
+        "item": "+1 Longsword",
+        "quantity": 1,
+        "price": null,
+        "unit": "gp",
+        "source": "goldscale",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "1 sling bullet",
+    "items": [
+      {
+        "item": "Sling bullet",
+        "quantity": 1,
+        "price": null,
+        "unit": null,
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "5 sling bullets",
+    "items": [
+      {
+        "item": "Sling bullet",
+        "quantity": 5,
+        "price": 1,
+        "unit": "cp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "7 charges",
+    "items": [
+      {
+        "item": "unknown item",
+        "quantity": 1,
+        "price": null,
+        "unit": null,
+        "source": "unknown",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "some rope",
+    "items": [
+      {
+        "item": "ambiguous item",
+        "quantity": 1,
+        "price": null,
+        "unit": null,
+        "source": "ambiguous",
+        "mode": "buy",
+        "choices": [
+          {
+            "item": "Rope, hempen (50 feet)",
+            "price": 1,
+            "unit": "gp"
+          },
+          {
+            "item": "Rope, silk (50 feet)",
+            "price": 10,
+            "unit": "gp"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "line": "sell my rope",
+    "items": [
+      {
+        "item": "ambiguous item",
+        "quantity": 1,
+        "price": null,
+        "unit": null,
+        "source": "ambiguous",
+        "mode": "sell",
+        "choices": [
+          {
+            "item": "Rope, hempen (50 feet)",
+            "price": 5,
+            "unit": "sp"
+          },
+          {
+            "item": "Rope, silk (50 feet)",
+            "price": 5,
+            "unit": "gp"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "line": "how much is a rope",
+    "items": [
+      {
+        "item": "ambiguous item",
+        "quantity": 1,
+        "price": null,
+        "unit": null,
+        "source": "ambiguous",
+        "mode": "buy",
+        "choices": [
+          {
+            "item": "Rope, hempen (50 feet)",
+            "price": 1,
+            "unit": "gp"
+          },
+          {
+            "item": "Rope, silk (50 feet)",
+            "price": 10,
+            "unit": "gp"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "line": "can i buy a lantern",
+    "items": [
+      {
+        "item": "ambiguous item",
+        "quantity": 1,
+        "price": null,
+        "unit": null,
+        "source": "ambiguous",
+        "mode": "buy",
+        "choices": [
+          {
+            "item": "Lantern, bullseye",
+            "price": 10,
+            "unit": "gp"
+          },
+          {
+            "item": "Lantern, hooded",
+            "price": 5,
+            "unit": "gp"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "line": "a lantern",
+    "items": [
+      {
+        "item": "ambiguous item",
+        "quantity": 1,
+        "price": null,
+        "unit": null,
+        "source": "ambiguous",
+        "mode": "buy",
+        "choices": [
+          {
+            "item": "Lantern, bullseye",
+            "price": 10,
+            "unit": "gp"
+          },
+          {
+            "item": "Lantern, hooded",
+            "price": 5,
+            "unit": "gp"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "line": "sell a lantern",
+    "items": [
+      {
+        "item": "ambiguous item",
+        "quantity": 1,
+        "price": null,
+        "unit": null,
+        "source": "ambiguous",
+        "mode": "sell",
+        "choices": [
+          {
+            "item": "Lantern, bullseye",
+            "price": 5,
+            "unit": "gp"
+          },
+          {
+            "item": "Lantern, hooded",
+            "price": 25,
+            "unit": "sp"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "line": "sell 5 torches",
+    "items": [
+      {
+        "item": "Torch",
+        "quantity": 5,
+        "price": 2,
+        "unit": "cp",
+        "source": "srd",
+        "mode": "sell"
+      }
+    ]
+  },
+  {
+    "line": "sell a torch",
+    "items": [
+      {
+        "item": "Torch",
+        "quantity": 1,
+        "price": 0,
+        "unit": "cp",
+        "source": "srd",
+        "mode": "sell"
+      }
+    ]
+  },
+  {
+    "line": "sell 2 torches",
+    "items": [
+      {
+        "item": "Torch",
+        "quantity": 2,
+        "price": 1,
+        "unit": "cp",
+        "source": "srd",
+        "mode": "sell"
+      }
+    ]
+  },
+  {
+    "line": "sell my longsword",
+    "items": [
+      {
+        "item": "Longsword",
+        "quantity": 1,
+        "price": 75,
+        "unit": "sp",
+        "source": "srd",
+        "mode": "sell"
+      }
+    ]
+  },
+  {
+    "line": "sell a dagger and a shield",
+    "items": [
+      {
+        "item": "Dagger",
+        "quantity": 1,
+        "price": 1,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "sell"
+      },
+      {
+        "item": "Shield",
+        "quantity": 1,
+        "price": 5,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "sell"
+      }
+    ]
+  },
+  {
+    "line": "sell 20 arrows",
+    "items": [
+      {
+        "item": "Arrow",
+        "quantity": 20,
+        "price": 5,
+        "unit": "sp",
+        "source": "srd",
+        "mode": "sell"
+      }
+    ]
+  },
+  {
+    "line": "sell my chain mail",
+    "items": [
+      {
+        "item": "Chain Mail",
+        "quantity": 1,
+        "price": 375,
+        "unit": "sp",
+        "source": "srd",
+        "mode": "sell"
+      }
+    ]
+  },
+  {
+    "line": "sell 3 potions of healing",
+    "items": [
+      {
+        "item": "Potion of Healing",
+        "quantity": 3,
+        "price": 105,
+        "unit": "gp",
+        "source": "goldscale",
+        "mode": "sell"
+      }
+    ]
+  },
+  {
+    "line": "sell potion of healing",
+    "items": [
+      {
+        "item": "Potion of Healing",
+        "quantity": 1,
+        "price": 35,
+        "unit": "gp",
+        "source": "goldscale",
+        "mode": "sell"
+      }
+    ]
+  },
+  {
+    "line": "sell +1 longsword uncommon weapon",
+    "items": [
+      {
+        "item": "+1 Longsword",
+        "quantity": 1,
+        "price": 600,
+        "unit": "gp",
+        "source": "goldscale",
+        "mode": "sell"
+      }
+    ]
+  },
+  {
+    "line": "sell +2 shield rare armor",
+    "items": [
+      {
+        "item": "+2 Shield",
+        "quantity": 1,
+        "price": 2900,
+        "unit": "gp",
+        "source": "goldscale",
+        "mode": "sell"
+      }
+    ]
+  },
+  {
+    "line": "sell qty 3 potion of greater healing",
+    "items": [
+      {
+        "item": "Potion of Greater Healing",
+        "quantity": 3,
+        "price": 600,
+        "unit": "gp",
+        "source": "goldscale",
+        "mode": "sell"
+      }
+    ]
+  },
+  {
+    "line": "i want to buy a shortbow and 20 arrows",
+    "items": [
+      {
+        "item": "Shortbow",
+        "quantity": 1,
+        "price": 25,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      },
+      {
+        "item": "Arrow",
+        "quantity": 20,
+        "price": 1,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "price a dagger and a shield",
+    "items": [
+      {
+        "item": "Dagger",
+        "quantity": 1,
+        "price": 2,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      },
+      {
+        "item": "Shield",
+        "quantity": 1,
+        "price": 10,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "a couple of daggers",
+    "items": [
+      {
+        "item": "Dagger",
+        "quantity": 2,
+        "price": 4,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "price check: crossbow bolts x20",
+    "items": [
+      {
+        "item": "Crossbow bolt",
+        "quantity": 20,
+        "price": 1,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "potion of healing x4",
+    "items": [
+      {
+        "item": "Potion of Healing",
+        "quantity": 4,
+        "price": 280,
+        "unit": "gp",
+        "source": "goldscale",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "2 healing potions",
+    "items": [
+      {
+        "item": "Potion of Healing",
+        "quantity": 2,
+        "price": 140,
+        "unit": "gp",
+        "source": "goldscale",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "buy 10 torches",
+    "items": [
+      {
+        "item": "Torch",
+        "quantity": 10,
+        "price": 1,
+        "unit": "sp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "hooded lantern",
+    "items": [
+      {
+        "item": "Lantern, hooded",
+        "quantity": 1,
+        "price": 5,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "riding horse",
+    "items": [
+      {
+        "item": "Horse, riding",
+        "quantity": 1,
+        "price": 75,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "caltrops",
+    "items": [
+      {
+        "item": "Caltrops",
+        "quantity": 1,
+        "price": 5,
+        "unit": "cp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "grappling hook",
+    "items": [
+      {
+        "item": "Grappling hook",
+        "quantity": 1,
+        "price": 2,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "healer's kit",
+    "items": [
+      {
+        "item": "Healer's Kit",
+        "quantity": 1,
+        "price": 5,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "thieves' tools",
+    "items": [
+      {
+        "item": "Thieves' Tools",
+        "quantity": 1,
+        "price": 25,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "+3 longsword very rare weapon",
+    "items": [
+      {
+        "item": "+3 Longsword",
+        "quantity": 1,
+        "price": 21500,
+        "unit": "gp",
+        "source": "goldscale",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "+2 shield rare armor",
+    "items": [
+      {
+        "item": "+2 Shield",
+        "quantity": 1,
+        "price": 5800,
+        "unit": "gp",
+        "source": "goldscale",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "qty 20 +1 arrow uncommon ammunition",
+    "items": [
+      {
+        "item": "+1 Arrow",
+        "quantity": 20,
+        "price": 14500,
+        "unit": "gp",
+        "source": "goldscale",
+        "mode": "buy"
+      }
+    ]
+  }
+]
