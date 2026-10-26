@@ -1,0 +1,471 @@
+{"id": "gesture_search-vault-001", "category": "gesture_search", "room": "vault", "line": "I walk the wall and search it for seams.", "expect": ["search"], "source": "pr150-log.md"}
+{"id": "gesture_search-library-002", "category": "gesture_search", "room": "library", "line": "I walk along the north wall, checking each frame for seams.", "expect": ["search"], "source": "pr150-log.md"}
+{"id": "gesture_search-vault-003", "category": "gesture_search", "room": "vault", "line": "I pace along the wall, feeling along the stone for any gaps.", "expect": ["search"], "source": "pr150-log.md"}
+{"id": "gesture_search-library-004", "category": "gesture_search", "room": "library", "line": "I step up to each shelf and examine the books.", "expect": ["search"], "source": "pr150-log.md"}
+{"id": "gesture_search-vault-005", "category": "gesture_search", "room": "vault", "line": "I run my fingers along the mortar lines, hunting for a hidden catch.", "expect": ["search"], "source": "pr150c-log.md"}
+{"id": "gesture_search-vault-006", "category": "gesture_search", "room": "vault", "line": "I go over the east wall inch by inch for anything odd.", "expect": ["search"], "source": "pr150c-log.md"}
+{"id": "ruling-vault-001", "category": "ruling", "room": "vault", "line": "I poke around in the rubble with my staff.", "expect": ["search", "ruling", "act", "look"], "source": "pr150c-log.md"}
+{"id": "search-library-001", "category": "search", "room": "library", "line": "I study the writing on the atlas closely.", "expect": ["look", "search"], "source": "pr150c-log.md"}
+{"id": "search-vault-002", "category": "search", "room": "vault", "line": "I sift through the rubble.", "expect": ["search"], "source": "pr150c-log.md"}
+{"id": "search-vault-003", "category": "search", "room": "vault", "line": "I check under the flagstones.", "expect": ["look", "search"], "source": "pr150c-log.md"}
+{"id": "move_local-vault-001", "category": "move_local", "room": "vault", "line": "I walk over to the brazier.", "expect": ["act", "ruling"], "source": "pr150c-log.md"}
+{"id": "look-vault-001", "category": "look", "room": "vault", "line": "I look behind the tapestry.", "expect": ["look", "search"], "source": "pr150c-log.md"}
+{"id": "look-vault-002", "category": "look", "room": "vault", "line": "I scan the room for anything out of place.", "expect": ["look", "search"], "source": "pr150c-log.md"}
+{"id": "interject-vault-001", "category": "interject", "room": "vault", "line": "Wait, before I roll, I yank the tapestry off the wall.", "expect": ["ruling", "act"], "source": "pr150c-log.md"}
+{"id": "act-vault-001", "category": "act", "room": "vault", "line": "I hold up my staff.", "expect": ["act", "ruling"], "source": "pr150c-log.md"}
+{"id": "spell-crypt-001", "category": "spell", "room": "crypt", "line": "I cast Detect Magic, regular casting, no ritual.", "expect": ["spell"], "ritual": false, "source": "pr150b-log.md"}
+{"id": "spell-crypt-002", "category": "spell", "room": "crypt", "line": "I cast detect magic, not as a ritual.", "expect": ["spell"], "ritual": false, "source": "pr150c-log.md"}
+{"id": "ritual-crypt-001", "category": "ritual", "room": "crypt", "line": "I cast Detect Magic as a ritual.", "expect": ["spell"], "ritual": true, "source": "pr145-log.md"}
+{"id": "leak-vault-001", "category": "leak", "room": "vault", "line": "I cast Detect Magic as a ritual.", "expect": ["spell"], "ritual": true, "source": "pr150c-log.md"}
+{"id": "leak-library-002", "category": "leak", "room": "library", "line": "I cast detect magic.", "expect": ["spell"], "ritual": false, "source": "pr150c-log.md"}
+{"id": "mixed-crypt-001", "category": "mixed", "room": "crypt", "line": "Looks over the chest. Does it glow?", "expect": ["look", "search"], "source": "pr145-log.md"}
+{"id": "mixed-crypt-002", "category": "mixed", "room": "crypt", "line": "Ooh. Okay, I hop up to the arch and lean in, not going in yet, just peeking. What is the thing on the floor?", "expect": ["look"], "source": "pr145-log.md"}
+{"id": "mixed-crypt-003", "category": "mixed", "room": "crypt", "line": "Okay okay. I tap the chest a couple times with the end of my staff, then I go look the sarcophagus over up close. Anything weird about it? Seams, writing, anything off?", "expect": ["look", "search"], "source": "pr145-log.md"}
+{"id": "look-crypt-003", "category": "look", "room": "crypt", "line": "I hop over to the arch and hold my light up so I can see the whole room from right here.", "expect": ["look", "act"], "source": "pr145-log.md"}
+{"id": "act-crypt-002", "category": "act", "room": "crypt", "line": "Fine, fine, closer. I hop in and sweep the cobwebs off it with the end of my staff.", "expect": ["act", "ruling"], "source": "pr145b-log.md"}
+{"id": "act-crypt-003", "category": "act", "room": "crypt", "line": "I just grab the chest real quick and tug it", "expect": ["act", "ruling", "look"], "source": "pr145d-log.md"}
+{"id": "mixed-crypt-004", "category": "mixed", "room": "crypt", "line": "I crouch and look the chest over. Is that a keyhole?", "expect": ["look", "search"], "source": "pr145d-log.md"}
+{"id": "roll-crypt-001", "category": "roll", "room": "crypt", "line": "I search the sarcophagus for seams. Investigation 1d20 (1) + 7 = 8", "expect": ["search", "roll"], "source": "pr145-log.md"}
+{"id": "roll-crypt-002", "category": "roll", "room": "crypt", "line": "I check the sarcophagus, investigation 8", "expect": ["search", "roll"], "source": "pr145-log.md"}
+{"id": "move-vault-001", "category": "move", "room": "vault", "line": "Nik pushes the door open and goes through into the cellar.", "expect": ["move"], "source": "pr145e-log.md"}
+{"id": "move-library-002", "category": "move", "room": "library", "line": "Nik walks back out through the double doors into the hall.", "expect": ["move"], "source": "pr145e-log.md"}
+{"id": "look-crypt-004", "category": "look", "room": "crypt", "line": "Nik holds his staff light at the arch and peers into the vestibule, staying in the nave. What does he see?", "expect": ["look"], "source": "pt-e486b18-log.md"}
+{"id": "look-crypt-005", "category": "look", "room": "crypt", "line": "Nik peeks through the arch from the frame without stepping in. What is beyond?", "expect": ["look"], "source": "pt-e486b18-log.md"}
+{"id": "act-vault-004", "category": "act", "room": "vault", "line": "Nik checks how hurt he is.", "expect": ["act", "look", "social", "ruling"], "source": "pt-e5e11bf-log.md"}
+{"id": "social-library-001", "category": "social", "room": "library", "line": "Waive the fee for me just this once and I will pay double on the way back.", "expect": ["social"], "source": "pt-b4c5578-log.md"}
+{"id": "social-library-002", "category": "social", "room": "library", "line": "You, the quiet one. Who is your boss?", "expect": ["social"], "source": "pt-b4c5578-log.md"}
+{"id": "act-library-005", "category": "act", "room": "library", "line": "Nik sighs, counts out ten gold pieces and sets them on the desk.", "expect": ["act", "social", "ruling"], "source": "pt-b4c5578-log.md"}
+{"id": "gesture_search-vault-007", "category": "gesture_search", "room": "vault", "line": "Nik steps in and prods the heap of rubble with his staff.", "expect": ["search", "ruling", "act", "look"], "source": "pt-79196b5-log.md"}
+{"id": "move-vault-003", "category": "move", "room": "vault", "line": "Standing to the side, Nik works the handle of the oak door with the end of his staff and pushes it open.", "expect": ["move", "act", "ruling"], "source": "pt-de764f3-log.md"}
+{"id": "gesture_search-vault-008", "category": "gesture_search", "room": "vault", "line": "He crosses the threshold and walks slowly toward the brazier, tapping the floor ahead, keeping to one wall.", "expect": ["act", "search"], "source": "pt-e3fc5a7-log.md"}
+{"id": "interject-vault-002", "category": "interject", "room": "vault", "line": "Hang on, before I roll: how many ways out does this room have?", "expect": ["social", "look"], "pending": ["investigation", "int", "tapestry"], "source": "pt-e3fc5a7-log.md"}
+{"id": "search-vault-004", "category": "search", "room": "vault", "line": "I search the east wall for a secret latch.", "expect": ["search"], "source": "paraphrase"}
+{"id": "search-vault-005", "category": "search", "room": "vault", "line": "I examine the oak door for seams.", "expect": ["search"], "source": "paraphrase"}
+{"id": "search-vault-006", "category": "search", "room": "vault", "line": "I inspect the floor for anything odd.", "expect": ["search"], "source": "paraphrase"}
+{"id": "search-vault-007", "category": "search", "room": "vault", "line": "I investigate the brazier for anything hidden.", "expect": ["search"], "source": "paraphrase"}
+{"id": "search-vault-008", "category": "search", "room": "vault", "line": "I check the flagstones for traps.", "expect": ["search"], "source": "paraphrase"}
+{"id": "search-vault-009", "category": "search", "room": "vault", "line": "I scour the floor inch by inch.", "expect": ["search"], "source": "paraphrase"}
+{"id": "search-vault-010", "category": "search", "room": "vault", "line": "I comb over the floor for anything odd.", "expect": ["search"], "source": "paraphrase"}
+{"id": "search-vault-011", "category": "search", "room": "vault", "line": "I rummage through the flagstones.", "expect": ["search"], "source": "paraphrase"}
+{"id": "search-vault-012", "category": "search", "room": "vault", "line": "I sift through the brazier for anything hidden.", "expect": ["search"], "source": "paraphrase"}
+{"id": "search-vault-013", "category": "search", "room": "vault", "line": "I go over the threshold inch by inch.", "expect": ["search"], "source": "paraphrase"}
+{"id": "search-vault-014", "category": "search", "room": "vault", "line": "I feel along the tapestry, looking for a catch.", "expect": ["search"], "source": "paraphrase"}
+{"id": "search-vault-015", "category": "search", "room": "vault", "line": "I run my hands over the threshold inch by inch.", "expect": ["search"], "source": "paraphrase"}
+{"id": "search-vault-016", "category": "search", "room": "vault", "line": "I pat down the brazier.", "expect": ["search", "ruling", "act", "look"], "source": "paraphrase"}
+{"id": "search-vault-017", "category": "search", "room": "vault", "line": "I probe the rubble for traps.", "expect": ["search"], "source": "paraphrase"}
+{"id": "search-vault-018", "category": "search", "room": "vault", "line": "I scrutinize the brazier carefully.", "expect": ["search"], "source": "paraphrase"}
+{"id": "search-vault-019", "category": "search", "room": "vault", "line": "I study the oak door, looking for a catch.", "expect": ["search"], "source": "paraphrase"}
+{"id": "search-vault-020", "category": "search", "room": "vault", "line": "I look closely at the threshold for anything odd.", "expect": ["search"], "source": "paraphrase"}
+{"id": "search-vault-021", "category": "search", "room": "vault", "line": "I carefully examine the rubble for anything odd.", "expect": ["search"], "source": "paraphrase"}
+{"id": "search-vault-022", "category": "search", "room": "vault", "line": "I thoroughly search the brazier for seams.", "expect": ["search"], "source": "paraphrase"}
+{"id": "search-vault-023", "category": "search", "room": "vault", "line": "I give a once-over to the rubble, looking for a catch.", "expect": ["search"], "source": "paraphrase"}
+{"id": "search-vault-024", "category": "search", "room": "vault", "line": "I poke at the threshold for seams.", "expect": ["search"], "source": "paraphrase"}
+{"id": "search-vault-025", "category": "search", "room": "vault", "line": "I test the floor for traps.", "expect": ["search"], "source": "paraphrase"}
+{"id": "search-vault-026", "category": "search", "room": "vault", "line": "I feel around the rubble, looking for a catch.", "expect": ["search"], "source": "paraphrase"}
+{"id": "search-vault-027", "category": "search", "room": "vault", "line": "I hunt around the rubble for hidden compartments.", "expect": ["search"], "source": "paraphrase"}
+{"id": "search-library-028", "category": "search", "room": "library", "line": "I search the drawers for anything hidden.", "expect": ["search"], "source": "paraphrase"}
+{"id": "search-library-029", "category": "search", "room": "library", "line": "I examine the bookcase for traps.", "expect": ["search"], "source": "paraphrase"}
+{"id": "search-library-030", "category": "search", "room": "library", "line": "I inspect the drawers carefully.", "expect": ["search"], "source": "paraphrase"}
+{"id": "search-library-031", "category": "search", "room": "library", "line": "I investigate the lectern, looking for a catch.", "expect": ["search"], "source": "paraphrase"}
+{"id": "search-library-032", "category": "search", "room": "library", "line": "I check the atlas for a secret latch.", "expect": ["search"], "source": "paraphrase"}
+{"id": "search-library-033", "category": "search", "room": "library", "line": "I scour the bookcase for traps.", "expect": ["search"], "source": "paraphrase"}
+{"id": "search-library-034", "category": "search", "room": "library", "line": "I comb over the north wall inch by inch.", "expect": ["search"], "source": "paraphrase"}
+{"id": "search-library-035", "category": "search", "room": "library", "line": "I rummage through the lectern for a secret latch.", "expect": ["search"], "source": "paraphrase"}
+{"id": "search-library-036", "category": "search", "room": "library", "line": "I sift through the lectern.", "expect": ["search"], "source": "paraphrase"}
+{"id": "search-library-037", "category": "search", "room": "library", "line": "I go over the bookcase for anything hidden.", "expect": ["search"], "source": "paraphrase"}
+{"id": "search-library-038", "category": "search", "room": "library", "line": "I feel along the drawers, looking for a catch.", "expect": ["search"], "source": "paraphrase"}
+{"id": "search-library-039", "category": "search", "room": "library", "line": "I run my hands over the double doors for a secret latch.", "expect": ["search"], "source": "paraphrase"}
+{"id": "search-library-040", "category": "search", "room": "library", "line": "I pat down the north wall for anything hidden.", "expect": ["search"], "source": "paraphrase"}
+{"id": "search-library-041", "category": "search", "room": "library", "line": "I probe the shelves, looking for a catch.", "expect": ["search"], "source": "paraphrase"}
+{"id": "search-library-042", "category": "search", "room": "library", "line": "I scrutinize the desk for traps.", "expect": ["search"], "source": "paraphrase"}
+{"id": "search-library-043", "category": "search", "room": "library", "line": "I study the double doors.", "expect": ["search", "ruling", "act", "look"], "source": "paraphrase"}
+{"id": "search-library-044", "category": "search", "room": "library", "line": "I look closely at the atlas for a secret latch.", "expect": ["search"], "source": "paraphrase"}
+{"id": "search-library-045", "category": "search", "room": "library", "line": "I carefully examine the north wall, looking for a catch.", "expect": ["search"], "source": "paraphrase"}
+{"id": "search-library-046", "category": "search", "room": "library", "line": "I thoroughly search the bookcase for a secret latch.", "expect": ["search"], "source": "paraphrase"}
+{"id": "search-library-047", "category": "search", "room": "library", "line": "I give a once-over to the desk inch by inch.", "expect": ["search"], "source": "paraphrase"}
+{"id": "search-library-048", "category": "search", "room": "library", "line": "I poke at the double doors for anything hidden.", "expect": ["search"], "source": "paraphrase"}
+{"id": "search-library-049", "category": "search", "room": "library", "line": "I test the bookcase carefully.", "expect": ["search", "ruling", "act", "look"], "source": "paraphrase"}
+{"id": "search-library-050", "category": "search", "room": "library", "line": "I feel around the double doors, looking for a catch.", "expect": ["search"], "source": "paraphrase"}
+{"id": "search-library-051", "category": "search", "room": "library", "line": "I hunt around the desk for seams.", "expect": ["search"], "source": "paraphrase"}
+{"id": "search-crypt-052", "category": "search", "room": "crypt", "line": "I search the vestments for anything odd.", "expect": ["search"], "source": "paraphrase"}
+{"id": "search-crypt-053", "category": "search", "room": "crypt", "line": "I examine the vestments carefully.", "expect": ["search"], "source": "paraphrase"}
+{"id": "search-crypt-054", "category": "search", "room": "crypt", "line": "I inspect the floor for anything hidden.", "expect": ["search"], "source": "paraphrase"}
+{"id": "search-crypt-055", "category": "search", "room": "crypt", "line": "I investigate the lid carefully.", "expect": ["search"], "source": "paraphrase"}
+{"id": "search-crypt-056", "category": "search", "room": "crypt", "line": "I check the wall for anything hidden.", "expect": ["search"], "source": "paraphrase"}
+{"id": "search-crypt-057", "category": "search", "room": "crypt", "line": "I scour the low arch inch by inch.", "expect": ["search"], "source": "paraphrase"}
+{"id": "search-crypt-058", "category": "search", "room": "crypt", "line": "I comb over the floor inch by inch.", "expect": ["search"], "source": "paraphrase"}
+{"id": "search-crypt-059", "category": "search", "room": "crypt", "line": "I rummage through the chest for anything hidden.", "expect": ["search"], "source": "paraphrase"}
+{"id": "search-crypt-060", "category": "search", "room": "crypt", "line": "I sift through the sarcophagus carefully.", "expect": ["search"], "source": "paraphrase"}
+{"id": "search-crypt-061", "category": "search", "room": "crypt", "line": "I go over the sarcophagus, looking for a catch.", "expect": ["search"], "source": "paraphrase"}
+{"id": "search-crypt-062", "category": "search", "room": "crypt", "line": "I feel along the sarcophagus for anything odd.", "expect": ["search"], "source": "paraphrase"}
+{"id": "search-crypt-063", "category": "search", "room": "crypt", "line": "I run my hands over the chest for anything odd.", "expect": ["search"], "source": "paraphrase"}
+{"id": "search-crypt-064", "category": "search", "room": "crypt", "line": "I pat down the sarcophagus for seams.", "expect": ["search"], "source": "paraphrase"}
+{"id": "search-crypt-065", "category": "search", "room": "crypt", "line": "I probe the flagstones for a secret latch.", "expect": ["search"], "source": "paraphrase"}
+{"id": "search-crypt-066", "category": "search", "room": "crypt", "line": "I scrutinize the chest for anything hidden.", "expect": ["search"], "source": "paraphrase"}
+{"id": "search-crypt-067", "category": "search", "room": "crypt", "line": "I study the lid for anything hidden.", "expect": ["search"], "source": "paraphrase"}
+{"id": "search-crypt-068", "category": "search", "room": "crypt", "line": "I look closely at the lid for anything hidden.", "expect": ["search"], "source": "paraphrase"}
+{"id": "search-crypt-069", "category": "search", "room": "crypt", "line": "I carefully examine the vestments, looking for a catch.", "expect": ["search"], "source": "paraphrase"}
+{"id": "search-crypt-070", "category": "search", "room": "crypt", "line": "I thoroughly search the flagstones for traps.", "expect": ["search"], "source": "paraphrase"}
+{"id": "search-crypt-071", "category": "search", "room": "crypt", "line": "I give a once-over to the chest for anything hidden.", "expect": ["search"], "source": "paraphrase"}
+{"id": "search-crypt-072", "category": "search", "room": "crypt", "line": "I poke at the vestments for anything odd.", "expect": ["search"], "source": "paraphrase"}
+{"id": "search-crypt-073", "category": "search", "room": "crypt", "line": "I test the low arch.", "expect": ["search", "ruling", "act", "look"], "source": "paraphrase"}
+{"id": "search-crypt-074", "category": "search", "room": "crypt", "line": "I feel around the vestments for anything odd.", "expect": ["search"], "source": "paraphrase"}
+{"id": "search-crypt-075", "category": "search", "room": "crypt", "line": "I hunt around the chest for traps.", "expect": ["search"], "source": "paraphrase"}
+{"id": "word_order-vault-001", "category": "word_order", "room": "vault", "line": "Searching the flagstones, I look for anything hidden.", "expect": ["search"], "source": "paraphrase"}
+{"id": "word_order-vault-002", "category": "word_order", "room": "vault", "line": "The floor - I search it.", "expect": ["search"], "source": "paraphrase"}
+{"id": "word_order-vault-003", "category": "word_order", "room": "vault", "line": "Let me search the tapestry.", "expect": ["search"], "source": "paraphrase"}
+{"id": "word_order-vault-004", "category": "word_order", "room": "vault", "line": "Could I search the flagstones?", "expect": ["search"], "source": "paraphrase"}
+{"id": "word_order-vault-005", "category": "word_order", "room": "vault", "line": "I want to search the east wall.", "expect": ["search"], "source": "paraphrase"}
+{"id": "word_order-vault-006", "category": "word_order", "room": "vault", "line": "Gonna search the tapestry real quick.", "expect": ["search"], "source": "paraphrase"}
+{"id": "word_order-vault-007", "category": "word_order", "room": "vault", "line": "Time to search the tapestry for traps.", "expect": ["search"], "source": "paraphrase"}
+{"id": "word_order-vault-008", "category": "word_order", "room": "vault", "line": "Checking the flagstones for traps.", "expect": ["search"], "source": "paraphrase"}
+{"id": "word_order-vault-009", "category": "word_order", "room": "vault", "line": "Nik searches the east wall.", "expect": ["search"], "source": "paraphrase"}
+{"id": "word_order-vault-010", "category": "word_order", "room": "vault", "line": "Nik examines the flagstones closely, looking for anything out of place.", "expect": ["search"], "source": "paraphrase"}
+{"id": "word_order-vault-011", "category": "word_order", "room": "vault", "line": "Over to the flagstones; I search it.", "expect": ["search"], "source": "paraphrase"}
+{"id": "word_order-vault-012", "category": "word_order", "room": "vault", "line": "I search around the tapestry.", "expect": ["search"], "source": "paraphrase"}
+{"id": "word_order-vault-013", "category": "word_order", "room": "vault", "line": "Is there anything hidden in the oak door? I search it.", "expect": ["search"], "source": "paraphrase"}
+{"id": "word_order-vault-014", "category": "word_order", "room": "vault", "line": "Can I investigate the oak door?", "expect": ["search"], "source": "paraphrase"}
+{"id": "word_order-vault-015", "category": "word_order", "room": "vault", "line": "I take a closer look at the threshold, searching for anything unusual.", "expect": ["search"], "source": "paraphrase"}
+{"id": "word_order-library-016", "category": "word_order", "room": "library", "line": "Searching the north wall, I look for anything hidden.", "expect": ["search"], "source": "paraphrase"}
+{"id": "word_order-library-017", "category": "word_order", "room": "library", "line": "The shelves - I search it.", "expect": ["search"], "source": "paraphrase"}
+{"id": "word_order-library-018", "category": "word_order", "room": "library", "line": "Let me search the desk.", "expect": ["search"], "source": "paraphrase"}
+{"id": "word_order-library-019", "category": "word_order", "room": "library", "line": "Could I search the atlas?", "expect": ["search"], "source": "paraphrase"}
+{"id": "word_order-library-020", "category": "word_order", "room": "library", "line": "I want to search the shelves.", "expect": ["search"], "source": "paraphrase"}
+{"id": "word_order-library-021", "category": "word_order", "room": "library", "line": "Gonna search the double doors real quick.", "expect": ["search"], "source": "paraphrase"}
+{"id": "word_order-library-022", "category": "word_order", "room": "library", "line": "Time to search the lectern for traps.", "expect": ["search"], "source": "paraphrase"}
+{"id": "word_order-library-023", "category": "word_order", "room": "library", "line": "Checking the desk for traps.", "expect": ["search"], "source": "paraphrase"}
+{"id": "word_order-library-024", "category": "word_order", "room": "library", "line": "Nik searches the lectern.", "expect": ["search"], "source": "paraphrase"}
+{"id": "word_order-library-025", "category": "word_order", "room": "library", "line": "Nik examines the atlas closely, looking for anything out of place.", "expect": ["search"], "source": "paraphrase"}
+{"id": "word_order-library-026", "category": "word_order", "room": "library", "line": "Over to the atlas; I search it.", "expect": ["search"], "source": "paraphrase"}
+{"id": "word_order-library-027", "category": "word_order", "room": "library", "line": "I search around the shelves.", "expect": ["search"], "source": "paraphrase"}
+{"id": "word_order-library-028", "category": "word_order", "room": "library", "line": "Is there anything hidden in the shelves? I search it.", "expect": ["search"], "source": "paraphrase"}
+{"id": "word_order-library-029", "category": "word_order", "room": "library", "line": "Can I investigate the bookcase?", "expect": ["search"], "source": "paraphrase"}
+{"id": "word_order-library-030", "category": "word_order", "room": "library", "line": "I take a closer look at the north wall, searching for anything unusual.", "expect": ["search"], "source": "paraphrase"}
+{"id": "word_order-crypt-031", "category": "word_order", "room": "crypt", "line": "Searching the lid, I look for anything hidden.", "expect": ["search"], "source": "paraphrase"}
+{"id": "word_order-crypt-032", "category": "word_order", "room": "crypt", "line": "The sarcophagus - I search it.", "expect": ["search"], "source": "paraphrase"}
+{"id": "word_order-crypt-033", "category": "word_order", "room": "crypt", "line": "Let me search the sarcophagus.", "expect": ["search"], "source": "paraphrase"}
+{"id": "word_order-crypt-034", "category": "word_order", "room": "crypt", "line": "Could I search the lid?", "expect": ["search"], "source": "paraphrase"}
+{"id": "word_order-crypt-035", "category": "word_order", "room": "crypt", "line": "I want to search the floor.", "expect": ["search"], "source": "paraphrase"}
+{"id": "word_order-crypt-036", "category": "word_order", "room": "crypt", "line": "Gonna search the floor real quick.", "expect": ["search"], "source": "paraphrase"}
+{"id": "word_order-crypt-037", "category": "word_order", "room": "crypt", "line": "Time to search the chest for traps.", "expect": ["search"], "source": "paraphrase"}
+{"id": "word_order-crypt-038", "category": "word_order", "room": "crypt", "line": "Checking the flagstones for traps.", "expect": ["search"], "source": "paraphrase"}
+{"id": "word_order-crypt-039", "category": "word_order", "room": "crypt", "line": "Nik searches the wall.", "expect": ["search"], "source": "paraphrase"}
+{"id": "word_order-crypt-040", "category": "word_order", "room": "crypt", "line": "Nik examines the low arch closely, looking for anything out of place.", "expect": ["search"], "source": "paraphrase"}
+{"id": "word_order-crypt-041", "category": "word_order", "room": "crypt", "line": "Over to the vestments; I search it.", "expect": ["search"], "source": "paraphrase"}
+{"id": "word_order-crypt-042", "category": "word_order", "room": "crypt", "line": "I search around the floor.", "expect": ["search"], "source": "paraphrase"}
+{"id": "word_order-crypt-043", "category": "word_order", "room": "crypt", "line": "Is there anything hidden in the vestments? I search it.", "expect": ["search"], "source": "paraphrase"}
+{"id": "word_order-crypt-044", "category": "word_order", "room": "crypt", "line": "Can I investigate the floor?", "expect": ["search"], "source": "paraphrase"}
+{"id": "word_order-crypt-045", "category": "word_order", "room": "crypt", "line": "I take a closer look at the lid, searching for anything unusual.", "expect": ["search"], "source": "paraphrase"}
+{"id": "gesture_search-vault-009", "category": "gesture_search", "room": "vault", "line": "I walk to the flagstones and search it.", "expect": ["search"], "source": "paraphrase"}
+{"id": "gesture_search-vault-010", "category": "gesture_search", "room": "vault", "line": "I kneel by the threshold and feel for gaps.", "expect": ["search"], "source": "paraphrase"}
+{"id": "gesture_search-vault-011", "category": "gesture_search", "room": "vault", "line": "I crouch and sift through the rubble.", "expect": ["search"], "source": "paraphrase"}
+{"id": "gesture_search-vault-012", "category": "gesture_search", "room": "vault", "line": "Stepping up to the oak door, I examine it.", "expect": ["search"], "source": "paraphrase"}
+{"id": "gesture_search-vault-013", "category": "gesture_search", "room": "vault", "line": "I head over to the oak door, checking it for traps.", "expect": ["search"], "source": "paraphrase"}
+{"id": "gesture_search-vault-014", "category": "gesture_search", "room": "vault", "line": "I run my fingers along the tapestry, hunting for a hidden catch.", "expect": ["search"], "source": "paraphrase"}
+{"id": "gesture_search-vault-015", "category": "gesture_search", "room": "vault", "line": "I go over the floor inch by inch.", "expect": ["search"], "source": "paraphrase"}
+{"id": "gesture_search-vault-016", "category": "gesture_search", "room": "vault", "line": "I lean in and inspect the floor.", "expect": ["search"], "source": "paraphrase"}
+{"id": "gesture_search-vault-017", "category": "gesture_search", "room": "vault", "line": "I tap along the threshold, listening for a hollow spot.", "expect": ["search"], "source": "paraphrase"}
+{"id": "gesture_search-vault-018", "category": "gesture_search", "room": "vault", "line": "I hold my light close and scrutinize the floor.", "expect": ["search"], "source": "paraphrase"}
+{"id": "gesture_search-vault-019", "category": "gesture_search", "room": "vault", "line": "I move along the flagstones, searching every inch.", "expect": ["search"], "source": "paraphrase"}
+{"id": "gesture_search-vault-020", "category": "gesture_search", "room": "vault", "line": "Dropping to one knee, I search the threshold.", "expect": ["search"], "source": "paraphrase"}
+{"id": "gesture_search-vault-021", "category": "gesture_search", "room": "vault", "line": "I approach the flagstones and investigate it for traps.", "expect": ["search"], "source": "paraphrase"}
+{"id": "gesture_search-vault-022", "category": "gesture_search", "room": "vault", "line": "I wander over and poke through the east wall for anything useful.", "expect": ["search"], "source": "paraphrase"}
+{"id": "gesture_search-vault-023", "category": "gesture_search", "room": "vault", "line": "I pace beside the rubble, feeling for a draft.", "expect": ["search"], "source": "paraphrase"}
+{"id": "gesture_search-library-024", "category": "gesture_search", "room": "library", "line": "I walk to the desk and search it.", "expect": ["search"], "source": "paraphrase"}
+{"id": "gesture_search-library-025", "category": "gesture_search", "room": "library", "line": "I kneel by the shelves and feel for gaps.", "expect": ["search"], "source": "paraphrase"}
+{"id": "gesture_search-library-026", "category": "gesture_search", "room": "library", "line": "I crouch and sift through the atlas.", "expect": ["search"], "source": "paraphrase"}
+{"id": "gesture_search-library-027", "category": "gesture_search", "room": "library", "line": "Stepping up to the north wall, I examine it.", "expect": ["search"], "source": "paraphrase"}
+{"id": "gesture_search-library-028", "category": "gesture_search", "room": "library", "line": "I head over to the desk, checking it for traps.", "expect": ["search"], "source": "paraphrase"}
+{"id": "gesture_search-library-029", "category": "gesture_search", "room": "library", "line": "I run my fingers along the atlas, hunting for a hidden catch.", "expect": ["search"], "source": "paraphrase"}
+{"id": "gesture_search-library-030", "category": "gesture_search", "room": "library", "line": "I go over the north wall inch by inch.", "expect": ["search"], "source": "paraphrase"}
+{"id": "gesture_search-library-031", "category": "gesture_search", "room": "library", "line": "I lean in and inspect the atlas.", "expect": ["search"], "source": "paraphrase"}
+{"id": "gesture_search-library-032", "category": "gesture_search", "room": "library", "line": "I tap along the north wall, listening for a hollow spot.", "expect": ["search"], "source": "paraphrase"}
+{"id": "gesture_search-library-033", "category": "gesture_search", "room": "library", "line": "I hold my light close and scrutinize the shelves.", "expect": ["search"], "source": "paraphrase"}
+{"id": "gesture_search-library-034", "category": "gesture_search", "room": "library", "line": "I move along the double doors, searching every inch.", "expect": ["search"], "source": "paraphrase"}
+{"id": "gesture_search-library-035", "category": "gesture_search", "room": "library", "line": "Dropping to one knee, I search the double doors.", "expect": ["search"], "source": "paraphrase"}
+{"id": "gesture_search-library-036", "category": "gesture_search", "room": "library", "line": "I approach the drawers and investigate it for traps.", "expect": ["search"], "source": "paraphrase"}
+{"id": "gesture_search-library-037", "category": "gesture_search", "room": "library", "line": "I wander over and poke through the north wall for anything useful.", "expect": ["search"], "source": "paraphrase"}
+{"id": "gesture_search-library-038", "category": "gesture_search", "room": "library", "line": "I pace beside the bookcase, feeling for a draft.", "expect": ["search"], "source": "paraphrase"}
+{"id": "gesture_search-crypt-039", "category": "gesture_search", "room": "crypt", "line": "I walk to the vestments and search it.", "expect": ["search"], "source": "paraphrase"}
+{"id": "gesture_search-crypt-040", "category": "gesture_search", "room": "crypt", "line": "I kneel by the sarcophagus and feel for gaps.", "expect": ["search"], "source": "paraphrase"}
+{"id": "gesture_search-crypt-041", "category": "gesture_search", "room": "crypt", "line": "I crouch and sift through the lid.", "expect": ["search"], "source": "paraphrase"}
+{"id": "gesture_search-crypt-042", "category": "gesture_search", "room": "crypt", "line": "Stepping up to the flagstones, I examine it.", "expect": ["search"], "source": "paraphrase"}
+{"id": "gesture_search-crypt-043", "category": "gesture_search", "room": "crypt", "line": "I head over to the chest, checking it for traps.", "expect": ["search"], "source": "paraphrase"}
+{"id": "gesture_search-crypt-044", "category": "gesture_search", "room": "crypt", "line": "I run my fingers along the chest, hunting for a hidden catch.", "expect": ["search"], "source": "paraphrase"}
+{"id": "gesture_search-crypt-045", "category": "gesture_search", "room": "crypt", "line": "I go over the sarcophagus inch by inch.", "expect": ["search"], "source": "paraphrase"}
+{"id": "gesture_search-crypt-046", "category": "gesture_search", "room": "crypt", "line": "I lean in and inspect the sarcophagus.", "expect": ["search"], "source": "paraphrase"}
+{"id": "gesture_search-crypt-047", "category": "gesture_search", "room": "crypt", "line": "I tap along the chest, listening for a hollow spot.", "expect": ["search"], "source": "paraphrase"}
+{"id": "gesture_search-crypt-048", "category": "gesture_search", "room": "crypt", "line": "I hold my light close and scrutinize the wall.", "expect": ["search"], "source": "paraphrase"}
+{"id": "gesture_search-crypt-049", "category": "gesture_search", "room": "crypt", "line": "I move along the floor, searching every inch.", "expect": ["search"], "source": "paraphrase"}
+{"id": "gesture_search-crypt-050", "category": "gesture_search", "room": "crypt", "line": "Dropping to one knee, I search the wall.", "expect": ["search"], "source": "paraphrase"}
+{"id": "gesture_search-crypt-051", "category": "gesture_search", "room": "crypt", "line": "I approach the chest and investigate it for traps.", "expect": ["search"], "source": "paraphrase"}
+{"id": "gesture_search-crypt-052", "category": "gesture_search", "room": "crypt", "line": "I wander over and poke through the low arch for anything useful.", "expect": ["search"], "source": "paraphrase"}
+{"id": "gesture_search-crypt-053", "category": "gesture_search", "room": "crypt", "line": "I pace beside the low arch, feeling for a draft.", "expect": ["search"], "source": "paraphrase"}
+{"id": "look-vault-006", "category": "look", "room": "vault", "line": "I look around.", "expect": ["look"], "source": "paraphrase"}
+{"id": "look-vault-007", "category": "look", "room": "vault", "line": "What do I see?", "expect": ["look"], "source": "paraphrase"}
+{"id": "look-vault-008", "category": "look", "room": "vault", "line": "I look at the brazier.", "expect": ["look"], "source": "paraphrase"}
+{"id": "look-vault-009", "category": "look", "room": "vault", "line": "I peer at the brazier.", "expect": ["look", "search"], "source": "paraphrase"}
+{"id": "look-vault-010", "category": "look", "room": "vault", "line": "I glance around the room.", "expect": ["look"], "source": "paraphrase"}
+{"id": "look-vault-011", "category": "look", "room": "vault", "line": "Lookin around", "expect": ["look"], "source": "paraphrase"}
+{"id": "look-vault-012", "category": "look", "room": "vault", "line": "What does the flagstones look like?", "expect": ["look"], "source": "paraphrase"}
+{"id": "look-vault-013", "category": "look", "room": "vault", "line": "I take in the room.", "expect": ["look"], "source": "paraphrase"}
+{"id": "look-vault-014", "category": "look", "room": "vault", "line": "Describe the floor.", "expect": ["look"], "source": "paraphrase"}
+{"id": "look-vault-015", "category": "look", "room": "vault", "line": "I eye the flagstones.", "expect": ["look", "search"], "source": "paraphrase"}
+{"id": "look-vault-016", "category": "look", "room": "vault", "line": "I look up at the ceiling.", "expect": ["look"], "source": "paraphrase"}
+{"id": "look-vault-017", "category": "look", "room": "vault", "line": "I gaze at the flagstones for a moment.", "expect": ["look"], "source": "paraphrase"}
+{"id": "look-library-018", "category": "look", "room": "library", "line": "I look around.", "expect": ["look"], "source": "paraphrase"}
+{"id": "look-library-019", "category": "look", "room": "library", "line": "What do I see?", "expect": ["look"], "source": "paraphrase"}
+{"id": "look-library-020", "category": "look", "room": "library", "line": "I look at the shelves.", "expect": ["look"], "source": "paraphrase"}
+{"id": "look-library-021", "category": "look", "room": "library", "line": "I peer at the desk.", "expect": ["look", "search"], "source": "paraphrase"}
+{"id": "look-library-022", "category": "look", "room": "library", "line": "I glance around the room.", "expect": ["look"], "source": "paraphrase"}
+{"id": "look-library-023", "category": "look", "room": "library", "line": "Lookin around", "expect": ["look"], "source": "paraphrase"}
+{"id": "look-library-024", "category": "look", "room": "library", "line": "What does the desk look like?", "expect": ["look"], "source": "paraphrase"}
+{"id": "look-library-025", "category": "look", "room": "library", "line": "I take in the room.", "expect": ["look"], "source": "paraphrase"}
+{"id": "look-library-026", "category": "look", "room": "library", "line": "Describe the drawers.", "expect": ["look"], "source": "paraphrase"}
+{"id": "look-library-027", "category": "look", "room": "library", "line": "I eye the double doors.", "expect": ["look", "search"], "source": "paraphrase"}
+{"id": "look-library-028", "category": "look", "room": "library", "line": "I look up at the ceiling.", "expect": ["look"], "source": "paraphrase"}
+{"id": "look-library-029", "category": "look", "room": "library", "line": "I gaze at the desk for a moment.", "expect": ["look"], "source": "paraphrase"}
+{"id": "look-crypt-030", "category": "look", "room": "crypt", "line": "I look around.", "expect": ["look"], "source": "paraphrase"}
+{"id": "look-crypt-031", "category": "look", "room": "crypt", "line": "What do I see?", "expect": ["look"], "source": "paraphrase"}
+{"id": "look-crypt-032", "category": "look", "room": "crypt", "line": "I look at the sarcophagus.", "expect": ["look"], "source": "paraphrase"}
+{"id": "look-crypt-033", "category": "look", "room": "crypt", "line": "I peer at the low arch.", "expect": ["look", "search"], "source": "paraphrase"}
+{"id": "look-crypt-034", "category": "look", "room": "crypt", "line": "I glance around the room.", "expect": ["look"], "source": "paraphrase"}
+{"id": "look-crypt-035", "category": "look", "room": "crypt", "line": "Lookin around", "expect": ["look"], "source": "paraphrase"}
+{"id": "look-crypt-036", "category": "look", "room": "crypt", "line": "What does the sarcophagus look like?", "expect": ["look"], "source": "paraphrase"}
+{"id": "look-crypt-037", "category": "look", "room": "crypt", "line": "I take in the room.", "expect": ["look"], "source": "paraphrase"}
+{"id": "look-crypt-038", "category": "look", "room": "crypt", "line": "Describe the low arch.", "expect": ["look"], "source": "paraphrase"}
+{"id": "look-crypt-039", "category": "look", "room": "crypt", "line": "I eye the wall.", "expect": ["look", "search"], "source": "paraphrase"}
+{"id": "look-crypt-040", "category": "look", "room": "crypt", "line": "I look up at the ceiling.", "expect": ["look"], "source": "paraphrase"}
+{"id": "look-crypt-041", "category": "look", "room": "crypt", "line": "I gaze at the flagstones for a moment.", "expect": ["look"], "source": "paraphrase"}
+{"id": "move-vault-004", "category": "move", "room": "vault", "line": "I go through the oak door.", "expect": ["move"], "source": "paraphrase"}
+{"id": "move-vault-005", "category": "move", "room": "vault", "line": "I open the oak door and step through.", "expect": ["move"], "source": "paraphrase"}
+{"id": "move-vault-006", "category": "move", "room": "vault", "line": "I head into the cellar.", "expect": ["move"], "source": "paraphrase"}
+{"id": "move-vault-007", "category": "move", "room": "vault", "line": "Through the door I go.", "expect": ["move"], "source": "paraphrase"}
+{"id": "move-vault-008", "category": "move", "room": "vault", "line": "I take the oak door north.", "expect": ["move"], "source": "paraphrase"}
+{"id": "move-library-009", "category": "move", "room": "library", "line": "I leave through the double doors.", "expect": ["move"], "source": "paraphrase"}
+{"id": "move-library-010", "category": "move", "room": "library", "line": "I head out into the hall.", "expect": ["move"], "source": "paraphrase"}
+{"id": "move-library-011", "category": "move", "room": "library", "line": "I push through the double doors.", "expect": ["move"], "source": "paraphrase"}
+{"id": "move-library-012", "category": "move", "room": "library", "line": "Nik slips out the double doors.", "expect": ["move"], "source": "paraphrase"}
+{"id": "move-crypt-013", "category": "move", "room": "crypt", "line": "I go through the low arch into the vestibule.", "expect": ["move"], "source": "paraphrase"}
+{"id": "move-crypt-014", "category": "move", "room": "crypt", "line": "I head through the arch.", "expect": ["move"], "source": "paraphrase"}
+{"id": "move-crypt-015", "category": "move", "room": "crypt", "line": "I walk into the vestibule.", "expect": ["move"], "source": "paraphrase"}
+{"id": "move-crypt-016", "category": "move", "room": "crypt", "line": "back thru the arch", "expect": ["move"], "source": "paraphrase"}
+{"id": "move-crypt-017", "category": "move", "room": "crypt", "line": "I duck under the arch.", "expect": ["move"], "source": "paraphrase"}
+{"id": "move-crypt-018", "category": "move", "room": "crypt", "line": "I make for the vestibule.", "expect": ["move"], "source": "paraphrase"}
+{"id": "move_local-library-002", "category": "move_local", "room": "library", "line": "I walk over to the desk.", "expect": ["act", "ruling"], "source": "paraphrase"}
+{"id": "move_local-vault-003", "category": "move_local", "room": "vault", "line": "I step closer to the brazier.", "expect": ["act", "ruling"], "source": "paraphrase"}
+{"id": "move_local-library-004", "category": "move_local", "room": "library", "line": "I stroll to the bookcase.", "expect": ["act", "ruling"], "source": "paraphrase"}
+{"id": "move_local-crypt-005", "category": "move_local", "room": "crypt", "line": "I wander over to the chest.", "expect": ["act", "ruling"], "source": "paraphrase"}
+{"id": "move_local-vault-006", "category": "move_local", "room": "vault", "line": "I walk the length of the room.", "expect": ["act", "ruling"], "source": "paraphrase"}
+{"id": "move_local-crypt-007", "category": "move_local", "room": "crypt", "line": "I back up to the arch.", "expect": ["act", "ruling"], "source": "paraphrase"}
+{"id": "attack-library-001", "category": "attack", "room": "library", "line": "I attack the scribe with my staff.", "expect": ["attack"], "source": "paraphrase"}
+{"id": "attack-library-002", "category": "attack", "room": "library", "line": "I hit the scribe with my quarterstaff.", "expect": ["attack"], "source": "paraphrase"}
+{"id": "attack-library-003", "category": "attack", "room": "library", "line": "I cast Fire Bolt at the scribe.", "expect": ["attack"], "source": "paraphrase"}
+{"id": "attack-library-004", "category": "attack", "room": "library", "line": "I swing at the scribe.", "expect": ["attack"], "source": "paraphrase"}
+{"id": "attack-library-005", "category": "attack", "room": "library", "line": "Nik whacks the scribe with his staff.", "expect": ["attack"], "source": "paraphrase"}
+{"id": "attack-library-006", "category": "attack", "room": "library", "line": "I shove the scribe.", "expect": ["attack", "ruling"], "source": "paraphrase"}
+{"id": "attack-library-007", "category": "attack", "room": "library", "line": "I cast Magic Missile at the scribe, all three darts.", "expect": ["attack"], "source": "paraphrase"}
+{"id": "attack-library-008", "category": "attack", "room": "library", "line": "I punch the scribe.", "expect": ["attack"], "source": "paraphrase"}
+{"id": "attack-library-009", "category": "attack", "room": "library", "line": "Roll initiative, I attack the scribe!", "expect": ["attack"], "source": "paraphrase"}
+{"id": "attack-library-010", "category": "attack", "room": "library", "line": "I attack the scribe. 1d20 (14) + 5 = 19", "expect": ["attack"], "source": "paraphrase"}
+{"id": "attack-vault-011", "category": "attack", "room": "vault", "line": "I attack.", "expect": ["attack", "clarify", "ruling", "act"], "source": "paraphrase"}
+{"id": "attack-vault-012", "category": "attack", "room": "vault", "line": "I swing my staff at nothing in particular.", "expect": ["attack", "clarify", "ruling", "act"], "source": "paraphrase"}
+{"id": "attack-vault-013", "category": "attack", "room": "vault", "line": "I attack the brazier with my staff.", "expect": ["attack", "clarify", "ruling", "act"], "source": "paraphrase"}
+{"id": "spell-crypt-003", "category": "spell", "room": "crypt", "line": "I cast detect magic.", "expect": ["spell"], "ritual": false, "source": "paraphrase"}
+{"id": "spell-crypt-004", "category": "spell", "room": "crypt", "line": "Casting Detect Magic as a ritual, I wait ten minutes.", "expect": ["spell"], "ritual": true, "source": "paraphrase"}
+{"id": "spell-crypt-005", "category": "spell", "room": "crypt", "line": "I cast detect magic, no ritual.", "expect": ["spell"], "ritual": false, "source": "paraphrase"}
+{"id": "spell-crypt-006", "category": "spell", "room": "crypt", "line": "Detect magic, ritual casting.", "expect": ["spell"], "ritual": true, "source": "paraphrase"}
+{"id": "spell-crypt-007", "category": "spell", "room": "crypt", "line": "I ritual cast detect magic.", "expect": ["spell"], "ritual": true, "source": "paraphrase"}
+{"id": "spell-crypt-008", "category": "spell", "room": "crypt", "line": "I cast detect magic using a slot.", "expect": ["spell"], "ritual": false, "source": "paraphrase"}
+{"id": "spell-crypt-009", "category": "spell", "room": "crypt", "line": "I cast Detect Magic normally, without the ritual.", "expect": ["spell"], "ritual": false, "source": "paraphrase"}
+{"id": "spell-crypt-010", "category": "spell", "room": "crypt", "line": "!cast detect magic", "expect": ["spell"], "ritual": false, "source": "paraphrase"}
+{"id": "spell-crypt-011", "category": "spell", "room": "crypt", "line": "I cast detect magic but not as a ritual.", "expect": ["spell"], "ritual": false, "source": "paraphrase"}
+{"id": "spell-crypt-012", "category": "spell", "room": "crypt", "line": "Ritual casting: detect magic.", "expect": ["spell"], "ritual": true, "source": "paraphrase"}
+{"id": "spell-crypt-013", "category": "spell", "room": "crypt", "line": "I cast Detect Magic, the normal way, not ritually.", "expect": ["spell"], "ritual": false, "source": "paraphrase"}
+{"id": "spell-crypt-014", "category": "spell", "room": "crypt", "line": "I cast detect magic (ritual).", "expect": ["spell"], "ritual": true, "source": "paraphrase"}
+{"id": "spell-crypt-015", "category": "spell", "room": "crypt", "line": "I spend ten minutes casting detect magic as a ritual.", "expect": ["spell"], "ritual": true, "source": "paraphrase"}
+{"id": "spell-crypt-016", "category": "spell", "room": "crypt", "line": "I cast detect magic. Anything?", "expect": ["spell"], "ritual": false, "source": "paraphrase"}
+{"id": "leak-vault-003", "category": "leak", "room": "vault", "line": "I cast detect magic.", "expect": ["spell"], "ritual": false, "source": "paraphrase"}
+{"id": "leak-vault-004", "category": "leak", "room": "vault", "line": "Casting Detect Magic as a ritual, I wait ten minutes.", "expect": ["spell"], "ritual": true, "source": "paraphrase"}
+{"id": "leak-vault-005", "category": "leak", "room": "vault", "line": "I cast detect magic, no ritual.", "expect": ["spell"], "ritual": false, "source": "paraphrase"}
+{"id": "leak-vault-006", "category": "leak", "room": "vault", "line": "Detect magic, ritual casting.", "expect": ["spell"], "ritual": true, "source": "paraphrase"}
+{"id": "leak-vault-007", "category": "leak", "room": "vault", "line": "I ritual cast detect magic.", "expect": ["spell"], "ritual": true, "source": "paraphrase"}
+{"id": "leak-vault-008", "category": "leak", "room": "vault", "line": "I cast detect magic using a slot.", "expect": ["spell"], "ritual": false, "source": "paraphrase"}
+{"id": "leak-vault-009", "category": "leak", "room": "vault", "line": "I cast Detect Magic normally, without the ritual.", "expect": ["spell"], "ritual": false, "source": "paraphrase"}
+{"id": "leak-vault-010", "category": "leak", "room": "vault", "line": "!cast detect magic", "expect": ["spell"], "ritual": false, "source": "paraphrase"}
+{"id": "leak-vault-011", "category": "leak", "room": "vault", "line": "I cast detect magic but not as a ritual.", "expect": ["spell"], "ritual": false, "source": "paraphrase"}
+{"id": "leak-vault-012", "category": "leak", "room": "vault", "line": "Ritual casting: detect magic.", "expect": ["spell"], "ritual": true, "source": "paraphrase"}
+{"id": "leak-vault-013", "category": "leak", "room": "vault", "line": "I cast Detect Magic, the normal way, not ritually.", "expect": ["spell"], "ritual": false, "source": "paraphrase"}
+{"id": "leak-vault-014", "category": "leak", "room": "vault", "line": "I cast detect magic (ritual).", "expect": ["spell"], "ritual": true, "source": "paraphrase"}
+{"id": "leak-vault-015", "category": "leak", "room": "vault", "line": "I spend ten minutes casting detect magic as a ritual.", "expect": ["spell"], "ritual": true, "source": "paraphrase"}
+{"id": "leak-vault-016", "category": "leak", "room": "vault", "line": "I cast detect magic. Anything?", "expect": ["spell"], "ritual": false, "source": "paraphrase"}
+{"id": "leak-library-017", "category": "leak", "room": "library", "line": "I cast Detect Magic as a ritual.", "expect": ["spell"], "ritual": true, "source": "paraphrase"}
+{"id": "leak-library-018", "category": "leak", "room": "library", "line": "Casting Detect Magic as a ritual, I wait ten minutes.", "expect": ["spell"], "ritual": true, "source": "paraphrase"}
+{"id": "leak-library-019", "category": "leak", "room": "library", "line": "I cast detect magic, no ritual.", "expect": ["spell"], "ritual": false, "source": "paraphrase"}
+{"id": "leak-library-020", "category": "leak", "room": "library", "line": "Detect magic, ritual casting.", "expect": ["spell"], "ritual": true, "source": "paraphrase"}
+{"id": "leak-library-021", "category": "leak", "room": "library", "line": "I ritual cast detect magic.", "expect": ["spell"], "ritual": true, "source": "paraphrase"}
+{"id": "leak-library-022", "category": "leak", "room": "library", "line": "I cast detect magic using a slot.", "expect": ["spell"], "ritual": false, "source": "paraphrase"}
+{"id": "leak-library-023", "category": "leak", "room": "library", "line": "I cast Detect Magic normally, without the ritual.", "expect": ["spell"], "ritual": false, "source": "paraphrase"}
+{"id": "leak-library-024", "category": "leak", "room": "library", "line": "!cast detect magic", "expect": ["spell"], "ritual": false, "source": "paraphrase"}
+{"id": "leak-library-025", "category": "leak", "room": "library", "line": "I cast detect magic but not as a ritual.", "expect": ["spell"], "ritual": false, "source": "paraphrase"}
+{"id": "leak-library-026", "category": "leak", "room": "library", "line": "Ritual casting: detect magic.", "expect": ["spell"], "ritual": true, "source": "paraphrase"}
+{"id": "leak-library-027", "category": "leak", "room": "library", "line": "I cast Detect Magic, the normal way, not ritually.", "expect": ["spell"], "ritual": false, "source": "paraphrase"}
+{"id": "leak-library-028", "category": "leak", "room": "library", "line": "I cast detect magic (ritual).", "expect": ["spell"], "ritual": true, "source": "paraphrase"}
+{"id": "leak-library-029", "category": "leak", "room": "library", "line": "I spend ten minutes casting detect magic as a ritual.", "expect": ["spell"], "ritual": true, "source": "paraphrase"}
+{"id": "leak-library-030", "category": "leak", "room": "library", "line": "I cast detect magic. Anything?", "expect": ["spell"], "ritual": false, "source": "paraphrase"}
+{"id": "spell-vault-017", "category": "spell", "room": "vault", "line": "I cast Light on my staff.", "expect": ["spell"], "ritual": false, "source": "paraphrase"}
+{"id": "spell-vault-018", "category": "spell", "room": "vault", "line": "I cast Mage Armor.", "expect": ["spell"], "ritual": false, "source": "paraphrase"}
+{"id": "spell-library-019", "category": "spell", "room": "library", "line": "I cast Prestidigitation to clean the desk.", "expect": ["spell"], "ritual": false, "source": "paraphrase"}
+{"id": "spell-crypt-020", "category": "spell", "room": "crypt", "line": "I cast Light on the tip of my hat.", "expect": ["spell"], "ritual": false, "source": "paraphrase"}
+{"id": "spell-library-021", "category": "spell", "room": "library", "line": "I cast Identify on the lectern as a ritual.", "expect": ["spell"], "ritual": true, "source": "paraphrase"}
+{"id": "spell-library-022", "category": "spell", "room": "library", "line": "I cast Comprehend Languages as a ritual.", "expect": ["spell"], "ritual": true, "source": "paraphrase"}
+{"id": "spell-crypt-023", "category": "spell", "room": "crypt", "line": "I cast Mage Hand to lift the lid.", "expect": ["spell"], "ritual": false, "source": "paraphrase"}
+{"id": "leak-vault-031", "category": "leak", "room": "vault", "line": "I cast Detect Magic on the brazier.", "expect": ["spell"], "ritual": false, "source": "paraphrase"}
+{"id": "social-vault-003", "category": "social", "room": "vault", "line": "Hello? Anyone here?", "expect": ["social"], "source": "paraphrase"}
+{"id": "social-vault-004", "category": "social", "room": "vault", "line": "\"Who goes there?\" I call out.", "expect": ["social"], "source": "paraphrase"}
+{"id": "social-library-005", "category": "social", "room": "library", "line": "Excuse me, what are you copying?", "expect": ["social"], "source": "paraphrase"}
+{"id": "social-library-006", "category": "social", "room": "library", "line": "I ask the scribe about the desk.", "expect": ["social"], "source": "paraphrase"}
+{"id": "social-library-007", "category": "social", "room": "library", "line": "Can you open the desk for me?", "expect": ["social"], "source": "paraphrase"}
+{"id": "social-library-008", "category": "social", "room": "library", "line": "\"Good evening,\" I say to the scribe.", "expect": ["social"], "source": "paraphrase"}
+{"id": "social-library-009", "category": "social", "room": "library", "line": "I tell the scribe I am a traveling scholar.", "expect": ["social"], "source": "paraphrase"}
+{"id": "social-crypt-010", "category": "social", "room": "crypt", "line": "Is anyone else down here?", "expect": ["social"], "source": "paraphrase"}
+{"id": "social-crypt-011", "category": "social", "room": "crypt", "line": "\"Rest easy,\" I murmur to the dead.", "expect": ["social"], "source": "paraphrase"}
+{"id": "social-library-012", "category": "social", "room": "library", "line": "Ma'am, where does the hall lead?", "expect": ["social"], "source": "paraphrase"}
+{"id": "social-library-013", "category": "social", "room": "library", "line": "Nik clears his throat. \"Pardon the intrusion.\"", "expect": ["social"], "source": "paraphrase"}
+{"id": "social-library-014", "category": "social", "room": "library", "line": "Hey scribe, nice handwriting.", "expect": ["social"], "source": "paraphrase"}
+{"id": "social-vault-015", "category": "social", "room": "vault", "line": "Hmm.", "expect": ["social"], "source": "paraphrase"}
+{"id": "social-vault-016", "category": "social", "room": "vault", "line": "Right then.", "expect": ["social"], "source": "paraphrase"}
+{"id": "social-vault-017", "category": "social", "room": "vault", "line": "I hum a little tune while I think.", "expect": ["social"], "source": "paraphrase"}
+{"id": "social-crypt-018", "category": "social", "room": "crypt", "line": "What a strange place.", "expect": ["social"], "source": "paraphrase"}
+{"id": "social-library-019", "category": "social", "room": "library", "line": "I ask the scribe if she has a key.", "expect": ["social"], "source": "paraphrase"}
+{"id": "social-library-020", "category": "social", "room": "library", "line": "\"I mean no harm,\" I say, hands open.", "expect": ["social"], "source": "paraphrase"}
+{"id": "mixed-vault-005", "category": "mixed", "room": "vault", "line": "Hmm. I look at the brazier. Is it warm?", "expect": ["look", "search"], "source": "paraphrase"}
+{"id": "mixed-vault-006", "category": "mixed", "room": "vault", "line": "Okay, I tap the tapestry. Anything behind it?", "expect": ["look", "search", "act"], "source": "paraphrase"}
+{"id": "mixed-crypt-007", "category": "mixed", "room": "crypt", "line": "Matching set, never good. I back up to the arch and look over the chest. Does it look trapped?", "expect": ["look", "search"], "source": "paraphrase"}
+{"id": "mixed-library-008", "category": "mixed", "room": "library", "line": "I look over the desk and the lectern. Do either look valuable?", "expect": ["look", "search"], "source": "paraphrase"}
+{"id": "mixed-library-009", "category": "mixed", "room": "library", "line": "Hmm, okay. I look at the atlas. Anything written in it?", "expect": ["look", "search"], "source": "paraphrase"}
+{"id": "mixed-crypt-010", "category": "mixed", "room": "crypt", "line": "I tap the chest. Is it hollow?", "expect": ["act", "search"], "source": "paraphrase"}
+{"id": "mixed-library-011", "category": "mixed", "room": "library", "line": "I knock on the desk. Sturdy?", "expect": ["act", "search"], "source": "paraphrase"}
+{"id": "mixed-vault-012", "category": "mixed", "room": "vault", "line": "Hmm. I crouch by the rubble. Could I roll Perception?", "expect": ["search"], "source": "paraphrase"}
+{"id": "mixed-library-013", "category": "mixed", "room": "library", "line": "\"Interesting,\" I mutter, and search the bookcase.", "expect": ["search"], "source": "paraphrase"}
+{"id": "mixed-library-014", "category": "mixed", "room": "library", "line": "Nice. Okay so I search the desk, and also ask the scribe what she is writing.", "expect": ["search", "social"], "source": "paraphrase"}
+{"id": "mixed-library-015", "category": "mixed", "room": "library", "line": "I nod to the scribe and look over the lectern.", "expect": ["look", "search"], "source": "paraphrase"}
+{"id": "mixed-crypt-016", "category": "mixed", "room": "crypt", "line": "I keep my staff ready and examine the sarcophagus lid.", "expect": ["search"], "source": "paraphrase"}
+{"id": "mixed-vault-017", "category": "mixed", "room": "vault", "line": "Ugh, dust everywhere. I search the rubble anyway.", "expect": ["search"], "source": "paraphrase"}
+{"id": "mixed-vault-018", "category": "mixed", "room": "vault", "line": "Holding my torch up, I wait by the door.", "expect": ["act", "social", "look"], "source": "paraphrase"}
+{"id": "mixed-library-019", "category": "mixed", "room": "library", "line": "I crouch and look under the desk.", "expect": ["look", "search"], "source": "paraphrase"}
+{"id": "negation-vault-001", "category": "negation", "room": "vault", "line": "I don't search the rubble, I just look at it.", "expect": ["look"], "source": "paraphrase"}
+{"id": "negation-crypt-002", "category": "negation", "room": "crypt", "line": "I don't go through yet, I just peek through the arch.", "expect": ["look"], "source": "paraphrase"}
+{"id": "negation-vault-003", "category": "negation", "room": "vault", "line": "Not touching the rubble. I look at the tapestry.", "expect": ["look"], "source": "paraphrase"}
+{"id": "negation-library-004", "category": "negation", "room": "library", "line": "Without touching anything, I look over the desk.", "expect": ["look", "search"], "source": "paraphrase"}
+{"id": "negation-crypt-005", "category": "negation", "room": "crypt", "line": "I do not open the sarcophagus. I look at the lid.", "expect": ["look"], "source": "paraphrase"}
+{"id": "negation-library-006", "category": "negation", "room": "library", "line": "I won't attack. I just watch the scribe.", "expect": ["look", "social"], "source": "paraphrase"}
+{"id": "negation-vault-007", "category": "negation", "room": "vault", "line": "No, never mind the door. I look at the brazier instead.", "expect": ["look"], "source": "paraphrase"}
+{"id": "negation-crypt-008", "category": "negation", "room": "crypt", "line": "I'm not going in yet, just peeking through the arch.", "expect": ["look"], "source": "paraphrase"}
+{"id": "sloppy-vault-001", "category": "sloppy", "room": "vault", "line": "i serch the rubbel", "expect": ["search", "ruling", "act", "look"], "source": "paraphrase"}
+{"id": "sloppy-library-002", "category": "sloppy", "room": "library", "line": "srch desk 4 traps", "expect": ["search", "ruling", "act", "look"], "source": "paraphrase"}
+{"id": "sloppy-vault-003", "category": "sloppy", "room": "vault", "line": "I examin the brazier", "expect": ["search", "ruling", "act", "look"], "source": "paraphrase"}
+{"id": "sloppy-library-004", "category": "sloppy", "room": "library", "line": "lemme check the bookcase for hidden stuff", "expect": ["search"], "source": "paraphrase"}
+{"id": "sloppy-vault-005", "category": "sloppy", "room": "vault", "line": "ok so i look around", "expect": ["look"], "source": "paraphrase"}
+{"id": "sloppy-library-006", "category": "sloppy", "room": "library", "line": "I SEARCH THE DESK", "expect": ["search"], "source": "paraphrase"}
+{"id": "sloppy-vault-007", "category": "sloppy", "room": "vault", "line": "i walk teh wall and search it", "expect": ["search"], "source": "paraphrase"}
+{"id": "sloppy-vault-008", "category": "sloppy", "room": "vault", "line": "search rubble", "expect": ["search"], "source": "paraphrase"}
+{"id": "sloppy-vault-009", "category": "sloppy", "room": "vault", "line": "look", "expect": ["look"], "source": "paraphrase"}
+{"id": "sloppy-vault-010", "category": "sloppy", "room": "vault", "line": "search", "expect": ["search"], "source": "paraphrase"}
+{"id": "sloppy-vault-011", "category": "sloppy", "room": "vault", "line": "i look arond the room", "expect": ["look"], "source": "paraphrase"}
+{"id": "sloppy-crypt-012", "category": "sloppy", "room": "crypt", "line": "investigate sarcophagus pls", "expect": ["search"], "source": "paraphrase"}
+{"id": "sloppy-crypt-013", "category": "sloppy", "room": "crypt", "line": "chek chest for trapz", "expect": ["search", "ruling", "act", "look"], "source": "paraphrase"}
+{"id": "sloppy-library-014", "category": "sloppy", "room": "library", "line": "I search the desk..", "expect": ["search"], "source": "paraphrase"}
+{"id": "sloppy-library-015", "category": "sloppy", "room": "library", "line": "i search teh bookcase???", "expect": ["search"], "source": "paraphrase"}
+{"id": "sloppy-vault-016", "category": "sloppy", "room": "vault", "line": "searching the floor", "expect": ["search"], "source": "paraphrase"}
+{"id": "sloppy-vault-017", "category": "sloppy", "room": "vault", "line": "*searches the rubble*", "expect": ["search"], "source": "paraphrase"}
+{"id": "sloppy-vault-018", "category": "sloppy", "room": "vault", "line": "(I search the tapestry)", "expect": ["search", "social"], "source": "paraphrase"}
+{"id": "sloppy-vault-019", "category": "sloppy", "room": "vault", "line": "I search the rubble!!!", "expect": ["search"], "source": "paraphrase"}
+{"id": "sloppy-vault-020", "category": "sloppy", "room": "vault", "line": "i go thru the oak door", "expect": ["move"], "source": "paraphrase"}
+{"id": "sloppy-crypt-021", "category": "sloppy", "room": "crypt", "line": "cast detect magic", "expect": ["spell"], "source": "paraphrase"}
+{"id": "sloppy-crypt-022", "category": "sloppy", "room": "crypt", "line": "Ilook at the chest", "expect": ["look", "social"], "source": "paraphrase"}
+{"id": "roll-vault-003", "category": "roll", "room": "vault", "line": "15", "expect": ["roll"], "pending": ["investigation", "int", "tapestry"], "source": "paraphrase"}
+{"id": "roll-vault-004", "category": "roll", "room": "vault", "line": "Investigation 15", "expect": ["roll"], "pending": ["investigation", "int", "tapestry"], "source": "paraphrase"}
+{"id": "roll-vault-005", "category": "roll", "room": "vault", "line": "Nik makes an Investigation check! 1d20 (8) + 7 = 15", "expect": ["roll"], "pending": ["investigation", "int", "tapestry"], "source": "paraphrase"}
+{"id": "roll-vault-006", "category": "roll", "room": "vault", "line": "!r 1d20+7 → 1d20 (12) + 7 = 19", "expect": ["roll"], "pending": ["investigation", "int", "tapestry"], "source": "paraphrase"}
+{"id": "roll-vault-007", "category": "roll", "room": "vault", "line": "2d20kh1 (13, 14) + 4 = 18", "expect": ["roll"], "pending": ["investigation", "int", "tapestry"], "source": "paraphrase"}
+{"id": "roll-vault-008", "category": "roll", "room": "vault", "line": "I rolled a 12", "expect": ["roll"], "pending": ["investigation", "int", "tapestry"], "source": "paraphrase"}
+{"id": "roll-vault-009", "category": "roll", "room": "vault", "line": "got a 9", "expect": ["roll"], "pending": ["investigation", "int", "tapestry"], "source": "paraphrase"}
+{"id": "roll-vault-010", "category": "roll", "room": "vault", "line": "Okay, okay, rolling. Nik makes an Investigation check! 1d20 (7) + 7 = 14", "expect": ["roll"], "pending": ["investigation", "int", "tapestry"], "source": "paraphrase"}
+{"id": "roll-vault-011", "category": "roll", "room": "vault", "line": "Deal. 2d20kh1 (4, 5) + 4 = 9", "expect": ["roll"], "pending": ["investigation", "int", "tapestry"], "source": "paraphrase"}
+{"id": "roll-vault-012", "category": "roll", "room": "vault", "line": "Investigation: 1d20 (1) + 7 = 8", "expect": ["roll"], "pending": ["investigation", "int", "tapestry"], "source": "paraphrase"}
+{"id": "roll-vault-013", "category": "roll", "room": "vault", "line": "d20 5 + 4 = 9", "expect": ["roll"], "pending": ["investigation", "int", "tapestry"], "source": "paraphrase"}
+{"id": "roll-vault-014", "category": "roll", "room": "vault", "line": "1d20 (17) + 7 = 24", "expect": ["roll"], "pending": ["investigation", "int", "tapestry"], "source": "paraphrase"}
+{"id": "roll-vault-015", "category": "roll", "room": "vault", "line": "I rolled 21 on investigation", "expect": ["roll"], "pending": ["investigation", "int", "tapestry"], "source": "paraphrase"}
+{"id": "roll-vault-016", "category": "roll", "room": "vault", "line": "Nik makes an Investigation check! 1d20 (20) + 7 = 27", "expect": ["roll"], "pending": ["investigation", "int", "tapestry"], "source": "paraphrase"}
+{"id": "roll-vault-017", "category": "roll", "room": "vault", "line": "3", "expect": ["roll"], "pending": ["investigation", "int", "tapestry"], "source": "paraphrase"}
+{"id": "roll-vault-018", "category": "roll", "room": "vault", "line": "Investigation 1d20 (11) + 7 = 18", "expect": ["roll"], "pending": ["investigation", "int", "tapestry"], "source": "paraphrase"}
+{"id": "roll-vault-019", "category": "roll", "room": "vault", "line": "rolled a 16!", "expect": ["roll"], "pending": ["investigation", "int", "tapestry"], "source": "paraphrase"}
+{"id": "roll-vault-020", "category": "roll", "room": "vault", "line": "That is a 22.", "expect": ["roll"], "pending": ["investigation", "int", "tapestry"], "source": "paraphrase"}
+{"id": "roll-vault-021", "category": "roll", "room": "vault", "line": "Okay. 1d20 (6) + 7 = 13", "expect": ["roll"], "pending": ["investigation", "int", "tapestry"], "source": "paraphrase"}
+{"id": "roll-vault-022", "category": "roll", "room": "vault", "line": "Nik makes an Investigation check!\n1d20 (9) + 7 = 16", "expect": ["roll"], "pending": ["investigation", "int", "tapestry"], "source": "paraphrase"}
+{"id": "interject-vault-003", "category": "interject", "room": "vault", "line": "Actually no, I step back from the tapestry.", "expect": ["act", "social"], "pending": ["investigation", "int", "tapestry"], "source": "paraphrase"}
+{"id": "interject-vault-004", "category": "interject", "room": "vault", "line": "Wait, is the brazier still burning?", "expect": ["look", "social"], "pending": ["investigation", "int", "tapestry"], "source": "paraphrase"}
+{"id": "interject-vault-005", "category": "interject", "room": "vault", "line": "Hold on, before I roll, what does the tapestry show?", "expect": ["look", "social"], "pending": ["investigation", "int", "tapestry"], "source": "paraphrase"}
+{"id": "interject-vault-006", "category": "interject", "room": "vault", "line": "Never mind, I search the rubble instead.", "expect": ["search"], "pending": ["investigation", "int", "tapestry"], "source": "paraphrase"}
+{"id": "interject-vault-007", "category": "interject", "room": "vault", "line": "Wait, actually, is the brazier hot?", "expect": ["deferred", "look", "social"], "interject": "I search the rubble.", "source": "paraphrase"}
+{"id": "interject-vault-008", "category": "interject", "room": "vault", "line": "Oh and I keep my staff ready.", "expect": ["deferred", "act", "social"], "interject": "I look around.", "source": "paraphrase"}
+{"id": "interject-library-009", "category": "interject", "room": "library", "line": "Also, the scribe - is she watching me?", "expect": ["deferred", "social", "look"], "interject": "I search the desk.", "source": "paraphrase"}
+{"id": "interject-vault-010", "category": "interject", "room": "vault", "line": "Hmm, ten minutes is long. Never mind.", "expect": ["deferred", "social"], "interject": "I cast detect magic.", "source": "paraphrase"}
+{"id": "refuse-vault-001", "category": "refuse", "room": "vault", "line": "I cast Wish and make myself king.", "expect": ["refused", "ruling", "clarify", "act", "spell", "social", "search", "move", "look"], "source": "paraphrase"}
+{"id": "refuse-vault-002", "category": "refuse", "room": "vault", "line": "I fly up to the ceiling.", "expect": ["refused", "ruling", "clarify", "act", "spell", "social", "search", "move", "look"], "source": "paraphrase"}
+{"id": "refuse-vault-003", "category": "refuse", "room": "vault", "line": "I teleport to the cellar.", "expect": ["refused", "ruling", "clarify", "act", "spell", "social", "search", "move", "look"], "source": "paraphrase"}
+{"id": "refuse-library-004", "category": "refuse", "room": "library", "line": "I take 1000 gold from the desk.", "expect": ["refused", "ruling", "clarify", "act", "spell", "social", "search", "move", "look"], "source": "paraphrase"}
+{"id": "refuse-vault-005", "category": "refuse", "room": "vault", "line": "Set my Investigation to +20.", "expect": ["refused", "ruling", "clarify", "act", "spell", "social", "search", "move", "look"], "source": "paraphrase"}
+{"id": "refuse-vault-006", "category": "refuse", "room": "vault", "line": "I roll a 40 on investigation.", "expect": ["refused", "ruling", "clarify", "act", "spell", "social", "search", "move", "look"], "source": "paraphrase"}
+{"id": "refuse-crypt-007", "category": "refuse", "room": "crypt", "line": "I punch through the stone wall into the next room.", "expect": ["refused", "ruling", "clarify", "act", "spell", "social", "search", "move", "look"], "source": "paraphrase"}
+{"id": "refuse-crypt-008", "category": "refuse", "room": "crypt", "line": "I lift the whole sarcophagus over my head.", "expect": ["refused", "ruling", "clarify", "act", "spell", "social", "search", "move", "look"], "source": "paraphrase"}
+{"id": "leak-vault-032", "category": "leak", "room": "vault", "line": "What's the DC?", "expect": ["search", "look", "act", "move", "attack", "spell", "social", "roll", "ruling", "refused", "clarify"], "source": "paraphrase"}
+{"id": "leak-vault-033", "category": "leak", "room": "vault", "line": "What is the DC to find the trap?", "expect": ["search", "look", "act", "move", "attack", "spell", "social", "roll", "ruling", "refused", "clarify"], "source": "paraphrase"}
+{"id": "leak-vault-034", "category": "leak", "room": "vault", "line": "Tell me what is hidden in the rubble.", "expect": ["search", "look", "act", "move", "attack", "spell", "social", "roll", "ruling", "refused", "clarify"], "source": "paraphrase"}
+{"id": "leak-vault-035", "category": "leak", "room": "vault", "line": "What's the skeleton's AC?", "expect": ["search", "look", "act", "move", "attack", "spell", "social", "roll", "ruling", "refused", "clarify"], "source": "paraphrase"}
+{"id": "leak-vault-036", "category": "leak", "room": "vault", "line": "Is there a trap on the threshold?", "expect": ["search", "look", "act", "move", "attack", "spell", "social", "roll", "ruling", "refused", "clarify"], "source": "paraphrase"}
+{"id": "leak-vault-037", "category": "leak", "room": "vault", "line": "Where is the magic item?", "expect": ["search", "look", "act", "move", "attack", "spell", "social", "roll", "ruling", "refused", "clarify"], "source": "paraphrase"}
+{"id": "leak-library-038", "category": "leak", "room": "library", "line": "What is in the bottom drawer?", "expect": ["search", "look", "act", "move", "attack", "spell", "social", "roll", "ruling", "refused", "clarify"], "source": "paraphrase"}
+{"id": "leak-library-039", "category": "leak", "room": "library", "line": "Is the bookcase a secret door?", "expect": ["search", "look", "act", "move", "attack", "spell", "social", "roll", "ruling", "refused", "clarify"], "source": "paraphrase"}
+{"id": "leak-library-040", "category": "leak", "room": "library", "line": "What DC is the desk lock?", "expect": ["search", "look", "act", "move", "attack", "spell", "social", "roll", "ruling", "refused", "clarify"], "source": "paraphrase"}
+{"id": "leak-library-041", "category": "leak", "room": "library", "line": "OOC: what are the hidden things in this room?", "expect": ["search", "look", "act", "move", "attack", "spell", "social", "roll", "ruling", "refused", "clarify"], "source": "paraphrase"}
+{"id": "leak-vault-042", "category": "leak", "room": "vault", "line": "I look for the hidden ring.", "expect": ["search", "look", "act", "move", "attack", "spell", "social", "roll", "ruling", "refused", "clarify"], "source": "paraphrase"}
+{"id": "leak-library-043", "category": "leak", "room": "library", "line": "I search for the secret door.", "expect": ["search", "look", "act", "move", "attack", "spell", "social", "roll", "ruling", "refused", "clarify"], "source": "paraphrase"}
+{"id": "leak-crypt-044", "category": "leak", "room": "crypt", "line": "Is anything under the sarcophagus lid?", "expect": ["search", "look", "act", "move", "attack", "spell", "social", "roll", "ruling", "refused", "clarify"], "source": "paraphrase"}
+{"id": "leak-crypt-045", "category": "leak", "room": "crypt", "line": "I search the floor for a trapdoor.", "expect": ["search", "look", "act", "move", "attack", "spell", "social", "roll", "ruling", "refused", "clarify"], "source": "paraphrase"}
+{"id": "leak-vault-046", "category": "leak", "room": "vault", "line": "I search the rubble for the ring.", "expect": ["search", "look", "act", "move", "attack", "spell", "social", "roll", "ruling", "refused", "clarify"], "source": "paraphrase"}
+{"id": "look-vault-042", "category": "look", "room": "vault", "line": "Is there anything on the brazier?", "expect": ["look", "search", "social"], "source": "paraphrase"}
+{"id": "act-vault-006", "category": "act", "room": "vault", "line": "I touch the threshold.", "expect": ["act", "look", "ruling"], "source": "paraphrase"}
+{"id": "act-vault-007", "category": "act", "room": "vault", "line": "I listen at the flagstones.", "expect": ["look", "search", "act", "ruling"], "source": "paraphrase"}
+{"id": "act-vault-008", "category": "act", "room": "vault", "line": "I sniff the air near the floor.", "expect": ["look", "act", "search", "ruling"], "source": "paraphrase"}
+{"id": "act-vault-009", "category": "act", "room": "vault", "line": "I brush the dust off the brazier.", "expect": ["act", "ruling"], "source": "paraphrase"}
+{"id": "act-vault-010", "category": "act", "room": "vault", "line": "I knock on the rubble.", "expect": ["act", "search", "ruling"], "source": "paraphrase"}
+{"id": "act-vault-011", "category": "act", "room": "vault", "line": "I light a candle and set it by the east wall.", "expect": ["act", "ruling"], "source": "paraphrase"}
+{"id": "look-library-043", "category": "look", "room": "library", "line": "Is there anything on the atlas?", "expect": ["look", "search", "social"], "source": "paraphrase"}
+{"id": "act-library-012", "category": "act", "room": "library", "line": "I touch the atlas.", "expect": ["act", "look", "ruling"], "source": "paraphrase"}
+{"id": "act-library-013", "category": "act", "room": "library", "line": "I listen at the atlas.", "expect": ["look", "search", "act", "ruling"], "source": "paraphrase"}
+{"id": "act-library-014", "category": "act", "room": "library", "line": "I sniff the air near the bookcase.", "expect": ["look", "act", "search", "ruling"], "source": "paraphrase"}
+{"id": "act-library-015", "category": "act", "room": "library", "line": "I brush the dust off the atlas.", "expect": ["act", "ruling"], "source": "paraphrase"}
+{"id": "act-library-016", "category": "act", "room": "library", "line": "I knock on the drawers.", "expect": ["act", "search", "ruling"], "source": "paraphrase"}
+{"id": "act-library-017", "category": "act", "room": "library", "line": "I light a candle and set it by the atlas.", "expect": ["act", "ruling"], "source": "paraphrase"}
+{"id": "look-crypt-044", "category": "look", "room": "crypt", "line": "Is there anything on the wall?", "expect": ["look", "search", "social"], "source": "paraphrase"}
+{"id": "act-crypt-018", "category": "act", "room": "crypt", "line": "I touch the wall.", "expect": ["act", "look", "ruling"], "source": "paraphrase"}
+{"id": "act-crypt-019", "category": "act", "room": "crypt", "line": "I listen at the lid.", "expect": ["look", "search", "act", "ruling"], "source": "paraphrase"}
+{"id": "act-crypt-020", "category": "act", "room": "crypt", "line": "I sniff the air near the chest.", "expect": ["look", "act", "search", "ruling"], "source": "paraphrase"}
+{"id": "act-crypt-021", "category": "act", "room": "crypt", "line": "I brush the dust off the lid.", "expect": ["act", "ruling"], "source": "paraphrase"}
+{"id": "act-crypt-022", "category": "act", "room": "crypt", "line": "I knock on the flagstones.", "expect": ["act", "search", "ruling"], "source": "paraphrase"}
+{"id": "act-crypt-023", "category": "act", "room": "crypt", "line": "I light a candle and set it by the flagstones.", "expect": ["act", "ruling"], "source": "paraphrase"}
+{"id": "kit2-bunkroom-001", "category": "kit2", "room": "bunkroom", "line": "Detect Magic, not as a ritual, I let my senses open on the room.", "expect": ["spell"], "source": "#157 tests/test_kit_pr150d.py"}
+{"id": "kit2-bunkroom-002", "category": "kit2", "room": "bunkroom", "line": "Detect Magic. Not a ritual, I spend the slot.", "expect": ["spell"], "source": "#157 tests/test_kit_pr150d.py"}
+{"id": "kit2-bunkroom-003", "category": "kit2", "room": "bunkroom", "line": "I use detect magic on the room.", "expect": ["spell"], "source": "#157 tests/test_kit_pr150d.py"}
+{"id": "kit2-bunkroom-004", "category": "kit2", "room": "bunkroom", "line": "I go through the beds one by one, looking for whatever's humming.", "expect": ["search"], "source": "#157 tests/test_kit_pr150d.py"}
+{"id": "kit2-bunkroom-005", "category": "kit2", "room": "bunkroom", "line": "I go through the bedding, hunting for anything hidden.", "expect": ["search"], "source": "#157 tests/test_kit_pr150d.py"}
+{"id": "kit2-bunkroom-006", "category": "kit2", "room": "bunkroom", "line": "I rummage through the straw looking for loot.", "expect": ["search"], "source": "#157 tests/test_kit_pr150d.py"}
+{"id": "kit2-bunkroom-007", "category": "kit2", "room": "bunkroom", "line": "I push on the seam to get the hidden door open, but I don't go in. I just stand back and peek down the tunnel.", "expect": ["ruling"], "source": "#157 tests/test_kit_pr150d.py"}
+{"id": "kit2-bunkroom-008", "category": "kit2", "room": "bunkroom", "line": "I shove the seam with my shoulder, then peer down the tunnel without going in.", "expect": ["ruling", "search"], "source": "#157 tests/test_kit_pr150d.py"}
+{"id": "kit2-bunkroom-009", "category": "kit2", "room": "bunkroom", "line": "I tap the floor ahead with my staff.", "expect": ["look", "act"], "source": "#157 tests/test_kit_pr150d.py"}
+{"id": "kit2-bunkroom-010", "category": "kit2", "room": "bunkroom", "line": "I push on the seam, but I don't go in. I peek down the tunnel.", "expect": ["ruling", "act", "search"], "source": "#157 tests/test_kit_pr150d.py"}
+{"id": "kit2-bunkroom-011", "category": "kit2", "room": "bunkroom", "line": "I don't go in. I peek down the tunnel.", "expect": ["look"], "source": "#157 tests/test_kit_pr150d.py"}
+{"id": "kit2-bunkroom-012", "category": "kit2", "room": "bunkroom", "line": "I tap the floor ahead with my staff, slowly, one board at a time.", "expect": ["look", "act"], "source": "#157 tests/test_kit_pr150d.py"}
+{"id": "kit2-bunkroom-013", "category": "kit2", "room": "bunkroom", "line": "I cast detect magic.", "expect": ["spell"], "source": "#157 tests/test_kit_pr150d.py"}

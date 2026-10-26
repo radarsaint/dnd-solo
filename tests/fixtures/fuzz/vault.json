@@ -1,0 +1,236 @@
+{
+  "id": "synthetic-fuzz-vault-v1",
+  "fixture_only": true,
+  "_note": "Synthetic SRD-generic room for tools/kit_fuzz.py (no adventure text): a rubble-strewn vault with a visible magic brazier, a HIDDEN magic ring buried in the rubble, a hidden pressure-plate trap, hidden sigils behind a tapestry, a stuck oak door and a hidden skeleton guard.",
+  "starting_area": "vault",
+  "areas": {
+    "vault": {
+      "name": "Rubble vault",
+      "called": "the vault",
+      "arrival": "Someone picks their way in over the rubble."
+    },
+    "cellar": {
+      "name": "Wine cellar",
+      "called": "the cellar",
+      "arrival": "Someone comes down into the cellar."
+    }
+  },
+  "exits": {
+    "oak_door": {
+      "name": "the oak door",
+      "areas": [
+        "vault",
+        "cellar"
+      ],
+      "secret": false,
+      "labels": {
+        "vault": "A swollen oak door in the north wall.",
+        "cellar": "The oak door back up to the vault."
+      }
+    }
+  },
+  "facts": {
+    "brazier": {
+      "area": "vault",
+      "visible": true,
+      "magic": "evocation",
+      "magic_objects": {
+        "count": 1,
+        "what": "the iron brazier",
+        "where": "in the middle of the floor"
+      },
+      "text": "An iron brazier burns with a cold blue flame in the middle of the floor.",
+      "handling": {
+        "nouns": [
+          "brazier",
+          "flame"
+        ],
+        "look": "The flame gives no heat.",
+        "move": "The brazier is too heavy to shift."
+      }
+    },
+    "rubble": {
+      "area": "vault",
+      "visible": true,
+      "text": "Broken masonry lies heaped in the south corner.",
+      "handling": {
+        "nouns": [
+          "rubble",
+          "masonry",
+          "debris"
+        ],
+        "holds": "zircon_ring",
+        "look": "Chunks of fallen ceiling, grey with dust."
+      }
+    },
+    "zircon_ring": {
+      "area": "vault",
+      "visible": false,
+      "magic": "abjuration",
+      "magic_objects": {
+        "count": 1,
+        "what": "a zircon signet ring",
+        "where": "buried under the rubble in the south corner"
+      },
+      "text": "A zircon signet ring lies buried under the rubble in the south corner.",
+      "handling": {
+        "nouns": [
+          "ring",
+          "signet"
+        ],
+        "look": "A pale stone in a silver band."
+      }
+    },
+    "tapestry": {
+      "area": "vault",
+      "visible": true,
+      "text": "A moth-eaten tapestry of a stag hunt hangs on the east wall.",
+      "handling": {
+        "nouns": [
+          "tapestry",
+          "hanging"
+        ],
+        "look": "The stag's eye has been picked out of the weave.",
+        "move": "The tapestry sways on its rod."
+      }
+    },
+    "sigils": {
+      "area": "vault",
+      "visible": false,
+      "text": "Scorched warding sigils are cut into the stone behind the tapestry."
+    },
+    "pressure_plate": {
+      "area": "vault",
+      "visible": false,
+      "text": "A pressure plate under the threshold flagstone fires darts from the lintel."
+    },
+    "barrels": {
+      "area": "cellar",
+      "visible": true,
+      "text": "Three empty wine barrels lie on their sides."
+    }
+  },
+  "actors": {
+    "guard_skeleton": {
+      "name": "Vault skeleton",
+      "location": "vault",
+      "status": "hidden",
+      "visible": false,
+      "motive": "Guard the vault.",
+      "knowledge": [],
+      "secrets": [],
+      "communication_profile": {
+        "rhythm": "Silent.",
+        "humor": "None."
+      },
+      "stat_block": {
+        "_srd": "SRD 5.1 Skeleton",
+        "ac": 13,
+        "hp": 13,
+        "initiative": 2,
+        "stealth": 2,
+        "attacks": [
+          {
+            "name": "shortsword",
+            "verb": "stabs",
+            "to_hit": 4,
+            "damage": 5,
+            "type": "piercing"
+          }
+        ]
+      }
+    }
+  },
+  "claims": {
+    "sigils": {
+      "about": "item:wall/sigils",
+      "truth": "Scorched warding sigils are cut behind the tapestry.",
+      "source": "kit",
+      "fact": "sigils",
+      "roots": [
+        "sigils",
+        "tapestry"
+      ],
+      "exposure": "hidden",
+      "dc": 19,
+      "pc_check": "investigation",
+      "pc_checks": [
+        "investigation",
+        "perception"
+      ],
+      "pc_access": "roll",
+      "subject_words": [
+        "wall",
+        "tapestry",
+        "stone",
+        "east wall",
+        "sigils"
+      ]
+    },
+    "pressure_plate": {
+      "about": "item:floor/pressure_plate",
+      "truth": "A pressure plate under the threshold arms a dart trap.",
+      "source": "kit",
+      "fact": "pressure_plate",
+      "roots": [
+        "pressure_plate"
+      ],
+      "exposure": "hidden",
+      "dc": 14,
+      "pc_check": "perception",
+      "pc_checks": [
+        "perception",
+        "investigation"
+      ],
+      "pc_access": "roll",
+      "subject_words": [
+        "floor",
+        "threshold",
+        "flagstone",
+        "flagstones",
+        "doorway",
+        "trap",
+        "traps"
+      ]
+    },
+    "zircon_ring": {
+      "about": "item:rubble/zircon_ring",
+      "truth": "A zircon ring is buried in the rubble.",
+      "source": "kit",
+      "fact": "zircon_ring",
+      "roots": [
+        "zircon_ring",
+        "rubble"
+      ],
+      "exposure": "hidden",
+      "dc": 12,
+      "pc_check": "investigation",
+      "pc_checks": [
+        "investigation",
+        "perception"
+      ],
+      "pc_access": "roll",
+      "subject_words": [
+        "rubble",
+        "masonry",
+        "debris",
+        "corner",
+        "ring"
+      ]
+    }
+  },
+  "resources": {},
+  "triggers": [
+    {
+      "id": "rubble_dug",
+      "on": {
+        "disturb": "rubble"
+      },
+      "starts_combat": true,
+      "actors": [
+        "guard_skeleton"
+      ],
+      "reveal": "Bones rattle out of the rubble and a skeleton stands, sword first."
+    }
+  ]
+}
