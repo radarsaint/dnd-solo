@@ -2,16 +2,16 @@
   "schema": "kit_project_gardener_state/v1",
   "purpose": "RESUMABILITY_CURSOR_NOT_KNOWLEDGE_STORE",
   "canonical_location": "radarsaint/dnd-solo/coordination/context_state.json",
-  "state_revision": 38,
+  "state_revision": 39,
   "semantic_brain": {
     "repo": "radarsaint/dnd-solo",
     "path": "docs/PROJECT_UNDERSTANDING.md",
-    "last_semantic_commit": "2de1127f0daf937c64c76a086e151a8d4e9fea0e",
+    "last_semantic_commit": "726a0b198cfea81002ea515390b73d7aa5cc3f1c",
     "last_reviewed_on": "2026-10-26"
   },
   "checkpoint": {
     "reviewed_against_main": {
-      "radarsaint/dnd-solo": "2de1127f0daf937c64c76a086e151a8d4e9fea0e",
+      "radarsaint/dnd-solo": "726a0b198cfea81002ea515390b73d7aa5cc3f1c",
       "radarsaint/bfdm-corpus": "df47554633b20ba872bd8cd393c420bbef7140d1"
     },
     "context_inbox": {
@@ -25,9 +25,9 @@
   "last_completed_pass": {
     "kind": "BOUNDED_SEMANTIC_RECONCILIATION",
     "completed_on": "2026-10-26",
-    "scope": "Reviewed dnd-solo #159 merge (main edba0534, brain 2de1127f). #115 comment 6266120288 remains pending.",
-    "result": "Accept: #159 adds model-free phrase fuzz, leak scanner and log replay (new files only, no runtime change). 458 player lines with outcomes, synthetic rooms, stubbed Kit, leak scan, known_failures tracking. Replaces most live playtest rounds for routing/leak checks. Full suite passes. Narrow: player-experience truth remains unproved. Brain updated. Pending #115 DM Kit rulings remain unresolved.",
-    "resulting_brain_commit": "2de1127f0daf937c64c76a086e151a8d4e9fea0e",
+    "scope": "Reviewed dnd-solo #169 merge (main e3e139cd, brain 726a0b19). #115 comment 6266120288 remains pending.",
+    "result": "Accept: #169 adds play-loop hard rule (never read runtime source/schemas/tests during play; exact 3-step loop; unsupported modules/companions get one line then play with what exists, no ad-hoc building). Shared block in AGENTS.md/LOAD_KIT.md/KIT_PORTABLE. Tests pass (1400). Narrow: player-experience truth remains unproved. Brain updated. Pending #115 DM Kit rulings remain unresolved.",
+    "resulting_brain_commit": "726a0b198cfea81002ea515390b73d7aa5cc3f1c",
     "reconciled_comment_id": 6202184874
   },
   "active_pass": null,
