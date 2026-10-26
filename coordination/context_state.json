@@ -2,7 +2,7 @@
   "schema": "kit_project_gardener_state/v1",
   "purpose": "RESUMABILITY_CURSOR_NOT_KNOWLEDGE_STORE",
   "canonical_location": "radarsaint/dnd-solo/coordination/context_state.json",
-  "state_revision": 47,
+  "state_revision": 48,
   "semantic_brain": {
     "repo": "radarsaint/dnd-solo",
     "path": "docs/PROJECT_UNDERSTANDING.md",
@@ -11,8 +11,8 @@
   },
   "checkpoint": {
     "reviewed_against_main": {
-      "radarsaint/dnd-solo": "58df0a15750c8e5c0fcb410d2314f35170f377ad",
-      "radarsaint/bfdm-corpus": "d7911b08beb9a7c4304430219d44c0a85a9a4b95"
+      "radarsaint/dnd-solo": "32b21e158b0589b911e38f3f7af05a7f195c6136",
+      "radarsaint/bfdm-corpus": "07ee8aba64c79d18b317f19a99644462f375b141"
     },
     "context_inbox": {
       "repo": "radarsaint/dnd-solo",
@@ -25,8 +25,8 @@
   "last_completed_pass": {
     "kind": "BOUNDED_SEMANTIC_RECONCILIATION",
     "completed_on": "2026-10-26",
-    "scope": "Reviewed bfdm-corpus #48 merge (Worker 4 cross-format research preservation). Corrected false 'not canonical until merge' claims in INDEX.md and the research MD status. #115 comment 6266120288 remains pending.",
-    "result": "Accept narrow: #48 lands the research records on main with KIT_CONSUMPTION=NOT_APPROVED. Status lines updated. No Kit consumption. Pending #115 DM Kit rulings remain unresolved.",
+    "scope": "Reviewed bfdm-corpus #33 merge (Prototype corpus-wide human-object index). Corrected false 'draft' claims in PROJECT_CONTROL.md. #115 comment 6266120288 remains pending. No brain edit required; no conflicting claim in PROJECT_UNDERSTANDING.md.",
+    "result": "Accept narrow: #33 lands the seed prototype on main (10 objects/15 assertions/5 relations). Derived projection only; not source truth; not corpus-wide inventory; KIT_CONSUMPTION=NOT_APPROVED. Expansion off scarce-work list. Control text updated. Pending #115 DM Kit rulings remain unresolved.",
     "resulting_brain_commit": "931e84837ee77ff6736abc9f9f2f5a1ea7a54f16",
     "reconciled_comment_id": 6202184874
   },
