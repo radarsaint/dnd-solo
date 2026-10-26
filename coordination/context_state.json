@@ -2,16 +2,16 @@
   "schema": "kit_project_gardener_state/v1",
   "purpose": "RESUMABILITY_CURSOR_NOT_KNOWLEDGE_STORE",
   "canonical_location": "radarsaint/dnd-solo/coordination/context_state.json",
-  "state_revision": 50,
+  "state_revision": 51,
   "semantic_brain": {
     "repo": "radarsaint/dnd-solo",
     "path": "docs/PROJECT_UNDERSTANDING.md",
-    "last_semantic_commit": "6a17a85d3e22f1c48c168880122d0f4bfad8e088",
+    "last_semantic_commit": "cf5beda08e2af681bf27df03143a8d30ce8d704c",
     "last_reviewed_on": "2026-10-26"
   },
   "checkpoint": {
     "reviewed_against_main": {
-      "radarsaint/dnd-solo": "6a17a85d3e22f1c48c168880122d0f4bfad8e088",
+      "radarsaint/dnd-solo": "cf5beda08e2af681bf27df03143a8d30ce8d704c",
       "radarsaint/bfdm-corpus": "9cb097c0b110989a191d7fa968b0baacaf0e0a7a"
     },
     "context_inbox": {
@@ -25,9 +25,9 @@
   "last_completed_pass": {
     "kind": "BOUNDED_SEMANTIC_RECONCILIATION",
     "completed_on": "2026-10-26",
-    "scope": "Reviewed bfdm-corpus #53 merge (Correct the open queue without restamping research). Queue resolved: ready PRs merged, #29 closed without merge, branch retained. Control inspected SHA corrected. #115 comment 6266120288 remains pending.",
-    "result": "Accept narrow: #53 records the resolved open queue on main without restamping research or approving KIT_CONSUMPTION. #29 deliberately not merged; branch kept. Brain and control updated. Pending DM Kit rulings unresolved.",
-    "resulting_brain_commit": "6a17a85d3e22f1c48c168880122d0f4bfad8e088",
+    "scope": "Reviewed dnd-solo #178 merge (Kit is a general DM: Mad Mage framing confined to dotmm rooms). Brain corrected to record the general-DM rule. #115 comment 6266120288 remains pending.",
+    "result": "Accept: #178 confines Mad Mage/Halaster framing and personality addendum to rooms with id starting dotmm; non-Mad-Mage packets use generic core and source-named constraint. Brain updated on main. Pending DM Kit rulings unresolved.",
+    "resulting_brain_commit": "cf5beda08e2af681bf27df03143a8d30ce8d704c",
     "reconciled_comment_id": 6202184874
   },
   "active_pass": null,
