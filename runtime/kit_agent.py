@@ -5360,6 +5360,33 @@ def check_hidden_actors(spoken, words):
                                 "engine's outcome brings it out.")
 
 
+_SENTENCE_END = re.compile(r'(?<=[.!?])\s+')
+
+
+def _sentence_key(text):
+    return ' '.join(re.findall(r"[a-z0-9']+", (text or '').casefold().replace('\u2019', "'")))
+
+
+def without_engine_sentences(spoken, engine_line):
+    """``spoken`` (speaker-labelled lines) without any sentence the engine's line says word for word
+    (Nagatha's clean-host review: "Roll initiative." twice). The engine's line stays whole; a line
+    left with no words is dropped. Sentences of two or more words only; paraphrase is kept."""
+    said = {_sentence_key(part) for part in _SENTENCE_END.split(engine_line or '')}
+    said = {key for key in said if len(key.split()) >= 2}
+    if not said:
+        return spoken
+    kept = []
+    for line in (spoken or '').split('\n'):
+        label, sep, text = line.partition(': ')
+        if not sep:
+            kept.append(line)
+            continue
+        parts = [part for part in _SENTENCE_END.split(text) if _sentence_key(part) not in said]
+        if any(_sentence_key(part) for part in parts):
+            kept.append(f'{label}: {" ".join(parts).strip()}')
+    return '\n'.join(kept)
+
+
 def checked_record(body, plan, speech, performance_variant, source=None, degraded=False):
     """Validate a performance. Every variant faces the same checks; the record names
     which performer instructions ran so play reviews can tell the variants apart. A
@@ -5395,19 +5422,21 @@ def checked_record(body, plan, speech, performance_variant, source=None, degrade
     elif (body['kind'] in EVENT_AFTER_PERFORMANCE_KINDS or body.get('rewind')) and not _entering(source, body):
         # The room reacts while the player is still there; then they are gone. The departure
         # line never follows Kit's closing remark (watchroom T6): it goes before her handoff.
-        lines = spoken.split('\n')
+        lines = without_engine_sentences(spoken, body['public_event']).split('\n')
         handoff = 0
         while handoff < len(lines) and lines[len(lines) - 1 - handoff].startswith('Kit: '):
             handoff += 1
         lines.insert(len(lines) - handoff, f"Narrator: {body['public_event']}")
         spoken = '\n'.join(lines)
     elif body['kind'] not in ('social', 'opening', 'feature_act'):
-        spoken = f"Narrator: {body['public_event']}\n{spoken}"
+        rest = without_engine_sentences(spoken, body['public_event'])
+        spoken = f"Narrator: {body['public_event']}" + (f"\n{rest}" if rest else '')
     declared = body.get('declared')
     if declared and declared.get('public'):
         # Kit performed the attempt; the engine's outcome of her declared act follows it, and
         # a fight it starts ends the turn on the roll call ("Roll initiative.").
-        spoken = f"{spoken}\nNarrator: {declared['public']}"
+        before = without_engine_sentences(spoken, declared['public'])
+        spoken = (f"{before}\n" if before else '') + f"Narrator: {declared['public']}"
         public_event = f"{public_event} {declared['public']}".strip()
     record = {'player_input': body['action'], 'public_event': public_event,
               'trace': plan, 'spoken': spoken, 'performance_variant': performance_variant}
