@@ -19,6 +19,7 @@ import re
 import sys
 from pathlib import Path
 
+from .kit_text import leading_count
 from .goldscale import SOURCE
 from .goldscale.clarification import (PendingAppraisal, PendingAppraisals, apply_answer, cancel_appraisal,
                                       classify_question, clarification_question, invalid_choice_message,
@@ -89,31 +90,6 @@ def canonical_names(text):
             if variant != name:
                 text = re.sub(rf'\b{re.escape(variant)}\b', name, text, flags=re.I)
     return text
-
-
-_NUMBER_WORDS = {w: n for n, w in enumerate(
-    'zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen '
-    'sixteen seventeen eighteen nineteen twenty'.split())}
-_NUMBER_WORDS.update({'a': 1, 'an': 1, 'dozen': 12, 'pair': 2, 'couple': 2, 'brace': 2})
-_COUNT = re.compile(r"^(?:(\d+)|(?:a\s+|an\s+)?(dozen|pair|couple|brace)(?:\s+of)?|([a-z]+))\s+(?=[a-z+])", re.I)
-
-
-def leading_count(text):
-    """(count, rest) for a leading quantity: digits, one..twenty, a dozen, a pair/couple (of),
-    and a/an as 1. None when the text does not start with a count."""
-    m = _COUNT.match(text or '')
-    if not m:
-        return None
-    if m.group(1):
-        n = int(m.group(1))
-    else:
-        word = (m.group(2) or m.group(3)).lower()
-        if word not in _NUMBER_WORDS or word == 'zero':
-            return None
-        n = _NUMBER_WORDS[word]
-    if n < 1:
-        return None
-    return n, text[m.end():]
 
 
 def strip_question(text):

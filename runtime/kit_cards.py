@@ -33,6 +33,7 @@ import re
 
 from .state_context import InvalidChange, require
 from . import kit_rolls
+from .kit_text import CARD_WORDS, card_number
 
 # Kit's deck: ten dragon colors, six cards each. Chromatic dragons' powers move gold;
 # metallic dragons' powers move cards (the published game's broad theme, simplified).
@@ -142,13 +143,11 @@ def supplied_roll(action, modifier=None, skill=None):
 
 
 _AMOUNT = re.compile(r'\b(\d{1,4})\s*(?:gp|gold)\b')
-_NUMBER_WORDS = {'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5, 'six': 6, 'seven': 7,
-                 'eight': 8, 'nine': 9, 'ten': 10, 'eleven': 11, 'twelve': 12, 'thirteen': 13}
-_NUM = r'(\d{1,2}|' + '|'.join(_NUMBER_WORDS) + r')'
+_NUM = r'(\d{1,2}|' + '|'.join(CARD_WORDS) + r')'
 
 
 def _number(token):
-    return int(token) if token.isdigit() else _NUMBER_WORDS[token]
+    return card_number(token)
 
 
 def parse_card(action, hand):
