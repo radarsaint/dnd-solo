@@ -267,6 +267,10 @@ class SurpriseTests(unittest.TestCase):
     def test_a_flat_dc_works_and_no_surprise_block_means_none(self):
         source = carcass()
         source['triggers'][0]['surprise'] = {'dc': 15}
+        # A flat dc stands in for an ambusher whose Stealth is unknown (inline, no stealth).
+        from test_kit_surprise_stealth import inline
+        for key in ('centipede_a', 'centipede_b'):
+            source['actors'][key]['stat_block'] = inline()
         room = Room(self, source=source)
         room.act('I roll the carcass over.', ROLL)
         self.assertIn('pc', room.state['combat']['surprised'])
