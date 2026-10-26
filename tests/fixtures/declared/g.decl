@@ -1,0 +1,13 @@
+grab archer =Athletics 12
+grab archer =Athletics 11
+grab archer =Athletics 14
+grab archer =Athletics 15
+grab archer =!check athletics\nVex makes an Athletics check!\n1d20 (9) + 3 = `12`
+grab archer =Athletics 13 ; atk imp dagger =15 to hit, 3 piercing
+grab imp =Athletics 20
+grab archer =I rolled 14 on Athletics
+grab ogre =Athletics 16
+grab ogre =Athletics 15
+grab ogre
+grab ogre =Athletics 16 ; away 10
+grab ogre =Athletics 18

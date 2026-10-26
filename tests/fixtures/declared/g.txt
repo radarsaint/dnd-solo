@@ -1,0 +1,13 @@
+wz|I grab the kobold slinger. Athletics 12.
+wz|I grab the kobold slinger. Athletics 11.
+wz|I grapple the kobold slinger, Athletics 14.
+wz|I seize the slinger by the collar, Athletics 15.
+wz|I grab the slinger.\n!check athletics\nVex makes an Athletics check!\n1d20 (9) + 3 = `12`
+wz|I grab the slinger, Athletics 13, then stab the imp with my dagger, 15 to hit, 3 piercing.
+wz|I grab the imp, Athletics 20.
+wz|I try to grab the kobold slinger. I rolled 14 on Athletics.
+rb|I grab the bridge ogre, Athletics 16.
+rb|I grab the bridge ogre, Athletics 15.
+rb|I grab the ogre.
+rb|I grab the bridge ogre, Athletics 16, and back off 10 feet.
+rb|I wrestle the ogre, Athletics 18.
