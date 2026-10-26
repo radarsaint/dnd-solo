@@ -194,6 +194,40 @@ class HostSequenceError(InvalidChange):
         self.next_step = next_step
 
 
+HIDING_MARKS = ('hidden', 'invisible', 'concealed', 'unseen')
+GONE_STATUSES = ('dead', 'fled', 'destroyed')
+
+
+def unperceived(actor):
+    """True for a creature still there that the PC cannot perceive now, whatever marks it: the
+    room schema's status "hidden" (until a trigger) or "visible": false, or a hidden / invisible /
+    concealed / unseen flag set true, or a condition of those names. Pass the source actor merged
+    with its state. Dead, fled and destroyed creatures are not "there"."""
+    actor = actor or {}
+    if actor.get('status') in GONE_STATUSES:
+        return False
+    if actor.get('status') == 'hidden' or actor.get('visible') is False:
+        return True
+    if any(actor.get(mark) is True for mark in HIDING_MARKS):
+        return True
+    return any(str(c).casefold() in HIDING_MARKS for c in actor.get('conditions') or ())
+
+
+def reveal_actor(actor, spec=None):
+    """Clear every hiding marker on the state actor (a trigger's reveal): status hidden -> alive,
+    visible true, each hiding flag false (also those only the room spec carries), and the hiding
+    names dropped from conditions. Other conditions (prone) stay."""
+    merged = {**(spec or {}), **actor}
+    if actor.get('status') == 'hidden' or (spec or {}).get('status') == 'hidden' and 'status' not in actor:
+        actor['status'] = 'alive'
+    actor['visible'] = True
+    for mark in HIDING_MARKS:
+        if merged.get(mark):
+            actor[mark] = False
+    if merged.get('conditions'):
+        actor['conditions'] = [c for c in merged['conditions'] if str(c).casefold() not in HIDING_MARKS]
+
+
 def encode(value):
     return json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
 
@@ -251,6 +285,9 @@ class Runtime:
             );
             -- Timing telemetry is deliberately outside turns/ledger/kit_turns: it never
             -- enters a turn digest, so an identical retry stays idempotent.
+            -- The last full packet issued for a pending one-pass turn, for rehydrate (a host that
+            -- lost it, e.g. the one a window answer returns). Rows of finished turns are pruned.
+            CREATE TABLE IF NOT EXISTS kit_packets (turn_id TEXT PRIMARY KEY, body TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS kit_telemetry (
                 seq INTEGER PRIMARY KEY, turn_id TEXT NOT NULL UNIQUE, body TEXT NOT NULL
             );
@@ -466,6 +503,19 @@ class Runtime:
                 'Call prepare first and use the turn_id it returns.', 'prepare')
         return {'revision': row[0], 'body': json.loads(row[1]),
                 'plan': json.loads(row[2]) if row[2] is not None else None}
+
+    def save_kit_packet(self, turn_id, packet):
+        """Keep the full packet just issued for a pending turn, replacing an earlier one."""
+        with self.db:
+            self.db.execute('DELETE FROM kit_packets WHERE turn_id NOT IN (SELECT turn_id FROM kit_pending)')
+            self.db.execute('INSERT OR REPLACE INTO kit_packets(turn_id, body) VALUES (?, ?)',
+                            (turn_id, encode(packet)))
+
+    def kit_packet(self, turn_id):
+        """The full packet last issued for a turn that is still pending, else None."""
+        row = self.db.execute('SELECT p.body FROM kit_packets p JOIN kit_pending k USING (turn_id) '
+                              'WHERE p.turn_id=?', (turn_id,)).fetchone()
+        return json.loads(row[0]) if row else None
 
     def discard_pending_kit_turn(self, turn_id):
         """Drop an uncommitted staged turn (nothing in the world or ledger changes)."""
@@ -1194,8 +1244,9 @@ class Runtime:
             'known_facts_here': [source['facts'][k]['text'] for k in state['known_facts']
                                  if source['facts'][k]['area'] == state['area']],
             'exits': exits,
-            'actors': [{'name': a['name'], 'status': a['status']} for a in state['actors'].values()
-                       if a['location'] == state['area'] and a['visible'] and a['status'] != 'fled'],
+            'actors': [{'name': a['name'], 'status': a['status']} for k, a in state['actors'].items()
+                       if a['location'] == state['area'] and a['visible'] and a['status'] != 'fled'
+                       and not unperceived({**(source['actors'].get(k) or {}), **a})],
             'resources': state['resources'], 'elapsed_seconds': state['elapsed_seconds'],
             **({'your_character': dict(state['player_character'])} if state.get('player_character') else {}),
             **({'your_position': f"at {source['exits'][state['pc_position']['at_exit']].get('name') or 'the doorway'}"}
