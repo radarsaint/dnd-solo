@@ -1,0 +1,111 @@
+# Provisional notes on the BFDM ruling fixture
+
+**PROVISIONAL. Not doctrine. Not a Kit prompt. Not a behavior spec.**
+
+`bfdm_rulings.jsonl` is a source-checked set of player lines and the next Brendon reply in the same Discord channel. Nothing here is approved for the runtime. Do not import it from `runtime/`.
+
+`bfdm_rulings_followup.jsonl` is a separate file. Every row has `"verified": false`. Do not treat it as checked rulings.
+
+## Citations
+
+Notes cite Discord snowflakes: server id, channel id, the player message id, and the reply message id. Those columns live in `discord/<server>/<server>.sqlite`. The `messages-NNNN` shard filenames are not in that database. Do not cite them.
+
+- Roanoke Season 3 server `636012145204527125`
+- Empire City server `850779382791536640`
+
+## Full text
+
+`my_ruling` stores his whole reply. It is not cut at 200 characters. Rows are not marked truncated. The reply to message `738203001797345330` is narration of the street. Its prefix is `just let it happen`, not `other`.
+
+## How a verified pair qualified
+
+Brendon is Discord account `bfdm` / `313689699627696139`. A pair was kept only when all of these were true:
+
+- The reply is his next message with text in that channel, before any other person speaks. Bot posts are skipped.
+- The reply repeats a character name from the player line, or a distinctive word of six or more letters, or is a Discord reply to that message.
+- The player line still has wording after the name replacement below.
+
+An @mention by itself was not enough. A bare "hit" after `!a` was not enough.
+
+26 rows have Avrae messages in between the player line and his reply. 3 skip an image-only reply. @mentions are stripped. User and role pings are both removed, and so is custom emoji markup.
+
+## Names
+
+Names on the list are replaced case-insensitively as whole words, including a plain `@name`, with PC1, PC2, PC3, and so on in order of appearance. A fourth person is PC4, not a second PC3. Orpheus is on the list. Nicknames such as leaf, goose, kiln, bo, gil, and vee are on the list. `Chad Chadowski` and `Father chad` are character names. `Fabertell` is on the list, including Fabertel, Fabertale, and faber.
+
+This is not a claim that only the castor jokes remain. Whole-word list names still appear where they are not character references. Those remaining uses are documented exceptions, not leftover tags:
+
+- Castor pun lines: mixed-case jokes, `BEAR CASTOR`, and "everyone is castor" (replacing that last one produced "Everyone is PC1", which is not what he said). The spelling in this set is castor, with the case of the token (Castor, CASTOR). Plural `castors` and the misspelling `castpr` were folded into that spelling. On a line that already says castor, `caster` was folded in too. A spellcaster with no castor on the line was left alone. Those castor tokens stay. They are that name, not a missed tag.
+- The store: `Chadmart`, `Chad-Mart`, `Chadmarts`. The word Chad inside those is not a character tag.
+- Ordinary English that happens to be on the list: "How lucky!", "coils arc", "the rush", "willow tree", "pearl of power", and similar.
+
+A test fails if any whole-word name from the list remains outside those exceptions. Names that were never on the list can still appear.
+
+## What the labels are
+
+The intent is a label on the player line, not a rule. `ooc/meta` is table talk: out-of-character channels, the castor pun channel, dead-chat, scheduling, and rules asides. `emote` is a face or a body beat. `mixed` is an action and a question in the same line.
+
+Of the 260 lines that were labeled `other`, 196 now have a tighter bucket. 64 stayed `other` because they did not match a clearer one. One of those 64 was the roll-call line. It left this file, so 63 `other` remain. Table and rules questions were moved out of `social/speech` and `interjection` into `ooc/meta`. `ooc/meta` prefixes name what the reply does (rules, table talk, joke, recap, and the rest); they are not all `just let it happen`. Counts below are this file only.
+
+| intent | n |
+| --- | ---: |
+| social/speech | 268 |
+| ooc/meta | 113 |
+| other | 63 |
+| move | 62 |
+| emote | 36 |
+| interjection | 17 |
+| mixed | 15 |
+| spell | 13 |
+| attack | 11 |
+| search/examine | 10 |
+| look | 5 |
+| ritual | 3 |
+| consent | 2 |
+| stunt | 1 |
+| negation | 1 |
+
+Season 3: 436. Empire City: 184. One Empire City line was removed (below).
+
+## Not in the ruling set
+
+`tests/fixtures/rulings/bfdm_rulings_ooc.jsonl` holds 45 lines taken out of the verified file. They are not rulings. Each intent is `ooc/meta`.
+
+- 41 lines are one parenthetical question.
+- Message `735964040999862305`, message `738296479025725490`, and message `739036043273043969`.
+- The roll-call line `PC1 IT PC2 PC3 PC4` (message `866252748714541076`) is table logistics.
+
+Precedence: a verified pair outranks a follow-up row. This ooc file is not the ruling set. An adjacency row is never a verified pair.
+
+## Misfires
+
+1. Empire City server `850779382791536640` channel `855583918468235264` message `863508929778941972`. The line draws a sword and, in the same line, asks who the person was. It is labeled `mixed`. The reply answers the question and does not resolve the sword.
+2. Message `864445238209675284` ("I won't mind") was dropped. It is scheduling, not play.
+3. Empire City server `850779382791536640` channel `850806376740945952` message `863988564215332865`. He did write that the character casts sword and to roll it. The pair is real. "called check" is our tag because the reply says "roll".
+
+## Follow-up file
+
+`tests/fixtures/rulings/bfdm_rulings_followup.jsonl`
+
+Nothing in this file is added to the verified set.
+
+- `link` `avrae` was dropped. The harvest stores the result line, not the embed title, so the roller, the roll type (attack, save, or check from that title), and a reliable preceding player line could not be added.
+- `link` `adjacency` (12035 rows): the next human message with text is Brendon, but there is no shared name, no distinctive shared word, and no reply-to. `link_reason` is `adjacent`. This tier is for Brendon to confirm. It is never a verified pair.
+
+Adjacency rows carry `tag`:
+
+| tag | n | rule |
+| --- | ---: | --- |
+| chatter | 593 | lol / lmao / rofl, a line that is only a laugh, a real-life aside (brb, afk, woke up, at work), a meme link, or bot-help text |
+| likely_play | 1238 | not chatter, and the line or the reply has attack, save, check, does, or cast |
+| unsorted | 10204 | everything else |
+
+A 20-row sample of `likely_play` was about 55% precise. The tag is that keyword screen. It does not mean the reply resolves the player line. Do not treat it as a cleaned play set.
+
+A wider sweep would call more rows chatter, and it would also mark scene lines. These tags are only the obvious markers. They are not a cleaned set.
+
+Every follow-up row sets `"verified": false`.
+
+## Starter list
+
+A 54-line starter was a guide to the fields. It was not forced in. Rows are in this file only when they met the rule above.
