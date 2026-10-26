@@ -1,0 +1,48 @@
+{
+ "id": "synthetic-bunkroom-v1",
+ "fixture_only": true,
+ "_note": "Synthetic SRD-generic room for #157 (Kit II pr150d phrasings, no adventure text): a bunk room with straw beds that hold an unfound potion, a visible divination stone, a seam in the north wall, a tunnel mouth east and a short passage west.",
+ "starting_area": "bunks",
+ "areas": {
+  "bunks": {"name": "Bunk room", "called": "the bunk room", "arrival": "Someone steps in among the beds."},
+  "tunnel": {"name": "Low tunnel", "called": "the low tunnel", "arrival": "Someone ducks into the tunnel."},
+  "passage": {"name": "Short passage", "called": "the short passage", "arrival": "Someone comes along the passage."}
+ },
+ "exits": {
+  "tunnel_mouth": {"name": "the tunnel mouth", "areas": ["bunks", "tunnel"], "secret": false,
+                   "labels": {"bunks": "A low tunnel mouth in the east wall.", "tunnel": "The way back to the bunk room."}},
+  "west_passage": {"name": "the short west passage", "areas": ["bunks", "passage"], "secret": false,
+                   "labels": {"bunks": "A short passage leads west.", "passage": "The bunk room lies east."}}
+ },
+ "facts": {
+  "beds": {"area": "bunks", "visible": true,
+           "text": "Heaps of filthy straw bedding line the south wall.",
+           "handling": {"nouns": ["beds", "bed", "bedding", "straw"], "holds": "potion",
+                        "look": "Lumpy straw, crawling with lice."}},
+  "potion": {"area": "bunks", "visible": false, "magic": "evocation",
+             "magic_objects": {"count": 1, "what": "a stoppered glass flask", "where": "at the bottom of the east bed"},
+             "text": "A small stoppered flask of ruby liquid lies buried in the east bed.",
+             "handling": {"nouns": ["flask", "potion"], "look": "Ruby liquid sloshes inside."}},
+  "standing_stone": {"area": "bunks", "visible": true, "magic": "divination",
+                     "magic_objects": {"count": 1, "what": "the standing stone", "where": "at the north end"},
+                     "text": "A waist-high standing stone carved with eyes stands at the north end.",
+                     "handling": {"nouns": ["stone", "carving"], "look": "The carved eyes seem to follow you."}},
+  "seam": {"area": "bunks", "visible": false,
+           "text": "A hairline seam in the north wall outlines a hidden door."},
+  "pit": {"area": "bunks", "visible": false,
+          "text": "A spiked pit lies under rotten boards just inside the tunnel mouth."}
+ },
+ "actors": {},
+ "claims": {
+  "seam": {"about": "item:wall/seam", "truth": "A seam in the north wall outlines a hidden door.",
+           "source": "kit", "fact": "seam", "roots": ["seam"], "exposure": "hidden", "dc": 18,
+           "pc_check": "investigation", "pc_checks": ["investigation", "perception"], "pc_access": "roll",
+           "subject_words": ["wall", "north wall", "seam"]},
+  "pit": {"about": "item:floor/pit", "truth": "A spiked pit lies under the boards by the tunnel.",
+          "source": "kit", "fact": "pit", "roots": ["pit"], "exposure": "hidden", "dc": 15,
+          "pc_check": "perception", "pc_checks": ["perception"], "pc_access": "roll",
+          "subject_words": ["floor", "boards", "tunnel", "trap", "traps"]}
+ },
+ "resources": {},
+ "triggers": []
+}

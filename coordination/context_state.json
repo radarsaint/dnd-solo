@@ -2,17 +2,17 @@
   "schema": "kit_project_gardener_state/v1",
   "purpose": "RESUMABILITY_CURSOR_NOT_KNOWLEDGE_STORE",
   "canonical_location": "radarsaint/dnd-solo/coordination/context_state.json",
-  "state_revision": 30,
+  "state_revision": 32,
   "semantic_brain": {
     "repo": "radarsaint/dnd-solo",
     "path": "docs/PROJECT_UNDERSTANDING.md",
-    "last_semantic_commit": "a6cee53c3aa69e870b063bd94837e61a748dd744",
-    "last_reviewed_on": "2026-10-25"
+    "last_semantic_commit": "37fd22f11e393c3dddd279a55c55fc272faf3c93",
+    "last_reviewed_on": "2026-10-26"
   },
   "checkpoint": {
     "reviewed_against_main": {
-      "radarsaint/dnd-solo": "a6cee53c3aa69e870b063bd94837e61a748dd744",
-      "radarsaint/bfdm-corpus": "f5f6e4d48aed32e3f4ddfdf70cbdcd5fe6e27b2d"
+      "radarsaint/dnd-solo": "37fd22f11e393c3dddd279a55c55fc272faf3c93",
+      "radarsaint/bfdm-corpus": "a6a84d902a995e53b3ceb72bd535b909429493f9"
     },
     "context_inbox": {
       "repo": "radarsaint/dnd-solo",
@@ -24,10 +24,10 @@
   },
   "last_completed_pass": {
     "kind": "BOUNDED_SEMANTIC_RECONCILIATION",
-    "completed_on": "2026-10-25",
-    "scope": "Reviewed dnd-solo #144 Rule 0 Brendon-direct-authority mount merge (main 8a6ee05). #115 comment 6266120288 remains pending draft.",
-    "result": "Accept: #144 puts Rule 0 at the top of entry files. Any AI mounts Kit immediately on Brendon's direct call with no permission check or deferral. ZIP-only offline mount works via KIT_SOURCE_MANIFEST.json. Ordinary-GPT hand-off rules yield to direct instruction. Brain records the change. No bfdm-corpus change. Pending #115 DM Kit rulings remain unresolved.",
-    "resulting_brain_commit": "a6cee53c3aa69e870b063bd94837e61a748dd744",
+    "completed_on": "2026-10-26",
+    "scope": "Reviewed bfdm-corpus #28 merge (main a6a84d9). #115 comment 6266120288 remains pending.",
+    "result": "Accept: #28 lands Phase 2 contrast families and Earthfall/Saturday tranche as derived research hypotheses on main. Narrow: zero BREAK and the tranche do not confirm the families or make them doctrine or Kit-consumed. Brain and control corrected. Pending #115 DM Kit rulings remain unresolved.",
+    "resulting_brain_commit": "37fd22f11e393c3dddd279a55c55fc272faf3c93",
     "reconciled_comment_id": 6202184874
   },
   "active_pass": null,
@@ -40,7 +40,8 @@
     "#115 comment 6158450658 plan items beyond the two #101 fixes are not fixed on main.",
     "Legitimate Mad Mage opening remains blocked on missing room files and source-to-room authoring. No executable non-6c authored location.",
     "#115 comment 6266120288 (2026-10-19 DM Kit rulings on spell slots, equipment misuse, unsourced proficiencies) is PENDING REVIEW; draft PR in progress, nothing merged. Not reconciled as live truth.",
-    "Ordinary-GPT complete load and reset recovery via LOAD_KIT.md remains unproved. Work-host and CI checks do not certify the destination host."
+    "Ordinary-GPT complete load and reset recovery via LOAD_KIT.md remains unproved. Work-host and CI checks do not certify the destination host.",
+    "Goldscale vs older in-play pricing formula discrepancy (rounding, weapon bonus, inputs, charges) is open for Brendon; in-play shop left unchanged."
   ],
   "needs_review": [],
   "checkpoint_rules": {

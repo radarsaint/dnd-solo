@@ -42,11 +42,12 @@ class _LazyUrllib:
 
 urllib = _LazyUrllib()
 
+from . import _lazy
 from . import kit_attitude
 from . import kit_brief
 from . import kit_cards
 from . import kit_reactions
-from . import kit_combat
+kit_combat = _lazy.module('.kit_combat', __package__)  # lazy: only combat, attacks and spells need it
 from . import kit_rolls
 from . import kit_triggers
 from . import kit_reveal
@@ -61,8 +62,8 @@ from . import kit_prices
 from . import kit_campaign
 from . import kit_rooms
 from . import kit_texture
-from . import kit_toll
-from . import kit_twenty_one
+kit_toll = _lazy.module('.kit_toll', __package__)
+kit_twenty_one = _lazy.module('.kit_twenty_one', __package__)
 from . import kit_guards
 from . import kit_interstitial
 from . import kit_voice
@@ -190,11 +191,11 @@ def table_talk_resolution(action):
 
 # Table talk addressed to Kit rather than the room: answered, never resolved as a check.
 _SKILL_NAMES = '(?:' + '|'.join(sorted((s.replace('_', ' ') for s in pc_sheet.SKILLS), key=len, reverse=True)) + ')'
-OOC_MARKER = re.compile(r'^\s*[(\[]?\s*(ooc\b|out[- ]of[- ]character)|\brules question\b', re.I)
+OOC_MARKER = _lazy.regex(r'^\s*[(\[]?\s*(ooc\b|out[- ]of[- ]character)|\brules question\b', re.I)
 # Natural table talk needs no prefix: a message addressed to Kit by name, or a question
 # about the rules themselves (their nouns, not in-world verbs like sneak or grab).
-KIT_ADDRESS = re.compile(r"^\W*(?:(?:hey|ok|okay|so|um|and)\W+)?kit\b|\bkit\s*[,?]|,\s*kit\W*$", re.I)
-RULES_NOUNS = re.compile(r"\b(rules?|dc|modifiers?|advantage|disadvantage|bonus action|reactions?|saving throws?|"
+KIT_ADDRESS = _lazy.regex(r"^\W*(?:(?:hey|ok|okay|so|um|and)\W+)?kit\b|\bkit\s*[,?]|,\s*kit\W*$", re.I)
+RULES_NOUNS = _lazy.regex(r"\b(rules?|dc|modifiers?|advantage|disadvantage|bonus action|reactions?|saving throws?|"
                          r"proficien\w*|spell slots?|initiative|passive \w+|concentration|(?:short|long) rest|"
                          r"hit points|armou?r class|cantrips?|how does \w+(?: \w+)? work|allowed to|"
                          # skill questions (Kit's working model of skills, docs/voice): "what's the
@@ -205,7 +206,7 @@ RULES_NOUNS = re.compile(r"\b(rules?|dc|modifiers?|advantage|disadvantage|bonus 
                          r"why (?:didn't|did not|doesn't|does not|can't|cannot|won't|wouldn't) (?:my )?"
                          + _SKILL_NAMES + r")\b", re.I)
 # Looking away from whatever is in front of you: the room, the rest of it, elsewhere.
-OBSERVE = re.compile(r"\b(look|looks|looking|glance|scan|survey|take in|gaze|peer|what else)\b[^.?!]{0,30}"
+OBSERVE = _lazy.regex(r"\b(look|looks|looking|glance|scan|survey|take in|gaze|peer|what else)\b[^.?!]{0,30}"
                      r"\b(around|room|else|rest of|elsewhere|away|here|walls?)\b|\bwhat else\b"
                      # A plain look at a visible feature is free description, no roll (table call 2).
                      r"|\b(?:look|looks|looking|glance|glances|gaze|gazes)\s+(?:up |over |closer )?at\b"
@@ -217,11 +218,11 @@ OBSERVE = re.compile(r"\b(look|looks|looking|glance|scan|survey|take in|gaze|pee
                      r"|\b(?:head|heads|walk|walks|go|goes|step|steps|come|comes)\s+(?:on\s+)?(?:in|into|toward|towards)\b"
                      r"[^.?!]{0,15}\b(?:6c|room|chamber)\b")
 # A read of the whole group, not one speaker's words (call 3's clue invites it).
-GROUP_READ = re.compile(r"\bsomething(?:'s| is)? (?:off|wrong|strange|weird|not right)\b|\bwhat'?s off\b"
+GROUP_READ = _lazy.regex(r"\bsomething(?:'s| is)? (?:off|wrong|strange|weird|not right)\b|\bwhat'?s off\b"
                         r"|\b(?:study|studying|size up|sizing up|read|reading|scrutini[sz]e)\s+(?:them|the (?:four|table|"
                         r"players|group|gamblers|lot of them))\b|\bsize them up\b", re.I)
 # Asking to play the room's game (call 7: "I play the game." is a complete declaration).
-PLAY_REQUEST = re.compile(r"\b(?:i(?:'ll| will)? play|let'?s play|join (?:the|your|you|in)|sit in|deal me in|"
+PLAY_REQUEST = _lazy.regex(r"\b(?:i(?:'ll| will)? play|let'?s play|join (?:the|your|you|in)|sit in|deal me in|"
                           r"count me in|buy in|buy-in|i'?m in|play (?:a|the|one|your) (?:game|hand|round)|"
                           r"play cards|play blackjack|play twenty[- ]one|just roll for it|dealt in|be dealt|"
                           r"deal (?:me|us|her|him|myself) in|deal(?:s|ing)? in|take (?:the|a|an) (?:empty |open |free )?(?:chair|seat) at the table)\b")
@@ -235,34 +236,42 @@ SOCIAL_OUTCOMES = {
     'athletics': ('You overpower {who}.', '{who} holds firm against you.'),
 }
 # A bet named in speech or narration ("'I'll bet fifty gold.'") is asking to play.
-SPOKEN_BET = re.compile(r"\b(?:bet|bets|betting|wager|stake)\b[^.?!]{0,20}\b(?:\d{1,4}|[a-z]+(?:-[a-z]+)?)\s+(?:gp|gold)\b")
+SPOKEN_BET = _lazy.regex(r"\b(?:bet|bets|betting|wager|stake)\b[^.?!]{0,20}\b(?:\d{1,4}|[a-z]+(?:-[a-z]+)?)\s+(?:gp|gold)\b")
 # Words inside quotation marks are speech; a threat or a noun spoken aloud is not a physical act.
 # Double or single quotes (the 6c baseline's V7: 'Ten gold just to walk through a room?'
 # inside single quotes was read as walking out the door). Apostrophes in words never open one.
-QUOTED_SPEECH = re.compile(r'"[^"]*"|' + r"(?:(?<=^)|(?<=[\s(\[:;,.!?\u2014-]))'(?=\S)[^\n]*?(?<=\S)'"
+QUOTED_SPEECH = _lazy.regex(r'"[^"]*"|' + r"(?:(?<=^)|(?<=[\s(\[:;,.!?\u2014-]))'(?=\S)[^\n]*?(?<=\S)'"
                            r"(?=$|[\s)\].,!?;:\u2014-])")
 # A stealthy approach needs a Stealth ruling; it must never pass as a free, unopposed exit.
-STEALTH_INTENT = re.compile(r'\b(sneak|sneaks|sneaking|creep|creeps|creeping|tiptoe|tiptoes|tiptoeing|'
+STEALTH_INTENT = _lazy.regex(r'\b(sneak|sneaks|sneaking|creep|creeps|creeping|tiptoe|tiptoes|tiptoeing|'
                             r'stealth|stealthily|unnoticed|unseen)\b|\bslip(s|ping)? (past|by)\b')
 # Perception at a threshold, not movement (watchroom T1: a peek through the door gap was read as
 # walking out through it): peek, peer, look or watch through, listen at, an eye or ear to the
 # gap, cracking the door. Going through, in, or past is still movement (MOVE_THROUGH).
-THRESHOLD_LOOK = re.compile(
+THRESHOLD_LOOK = _lazy.regex(
     r"\b(?:peek|peeks|peeking|peeked|peer|peers|peering|eavesdrop\w*|listen|listens|listening|listened)\b"
     r"|\b(?:eye|eyes|ear|ears)\s+(?:up\s+)?(?:to|against)\b"
     r"|\b(?:look|looks|looking|glance|glances|watch|watches|watching|see|sees)\s+(?:in\s+)?(?:through|in\b|into|past)"
     r"|\b(?:crack|cracks|cracking|cracked)\s+(?:the|it|that)\b")
-PERCEIVING = re.compile(r"\b(?:look|looks|looking|glance|glances|peer|peers|peering|peek|peeks|peeking|gaze|gazes|"
+# A refusal to go in ("not going in yet, just peeking"): the movement words are negated, so a
+# look from the threshold stays a look (PR 145 playtest bug 7).
+NOT_ENTERING = _lazy.regex(r"(?:\bnot|n't|\bnever)\s+(?:\w+\s+)?(?:go|going|step|stepping|walk|walking|enter|"
+                          r"entering|head|heading|move|moving|cross|crossing)\b")
+# Taking up a place at a doorway ('I back up to the door', 'I stand in the doorway').
+BACK_TO_DOOR = _lazy.regex(r"\b(?:back|backs|backing|backed|step|steps|stepping|stepped|move|moves|retreat\w*|"
+                          r"stand|stands|standing|wait|waits|edge|edges)\b(?:\s+(?:up|back|away))?\s+"
+                          r"(?:to|in|at|into|by|toward|towards)\s+(?:the\s+)?(?:door|doorway|threshold|entrance)\b")
+PERCEIVING = _lazy.regex(r"\b(?:look|looks|looking|glance|glances|peer|peers|peering|peek|peeks|peeking|gaze|gazes|"
                         r"watch|watches|watching|listen|listens|listening|scan|scans|survey|surveys|sniff|sniffs|"
                         r"smell|smells)\b")
-THRESHOLD_GAP = re.compile(r"\b(?:gap|crack|keyhole|opening|chink|doorway|threshold|door|doors|hinges?|grille|grate)\b")
-MOVE_THROUGH = re.compile(
+THRESHOLD_GAP = _lazy.regex(r"\b(?:gap|crack|keyhole|opening|chink|doorway|threshold|door|doors|hinges?|grille|grate)\b")
+MOVE_THROUGH = _lazy.regex(
     r"\b(?:go|goes|going|went|step|steps|stepping|stepped|walk|walks|walked|slip|slips|slipped|move|moves|head|heads|"
     r"pass|passes|enter|enters|entered|run|runs|ran|squeeze|squeezes|duck|ducks|push|pushes)\b(?:\s+[\w']+){0,2}?"
     r"\s+(?:through|in|inside|into|past|out)\b|\b(?:enter|enters|entered)\b")
 # The player asking for a check (watchroom T1/T3): Kit decides whether one applies and which
 # (Brendon: the player never picks the skill and never rolls first). Never a social declaration.
-CHECK_REQUEST = re.compile(
+CHECK_REQUEST = _lazy.regex(
     # The PC asks for themselves ("Can I roll...", "Should we check..."): never an NPC asked to
     # do something ("Dealer, can you check my hand?"); a save is the noun ("make a save"), never
     # the verb ("Can I save him?").
@@ -273,26 +282,27 @@ CHECK_REQUEST = re.compile(
 CHECK_REQUEST_PREFIX = 'You ask for a check: '
 # 'Can I investigate the door?', 'Let me search the lid', 'Time to search the chest': asking
 # to search is a search.
-CHECK_ASK = re.compile(r"^\s*(?:can|could|may|might)\s+i\b|^\s*let\s+me\b|^\s*time\s+to\b|^\s*i(?:'d| would)\s+like\s+to\b")
+CHECK_ASK = _lazy.regex(r"^\s*(?:can|could|may|might)\s+i\b|^\s*let\s+me\b|^\s*time\s+to\b|^\s*i(?:'d| would)\s+like\s+to\b")
 SEARCH_PREFIX = 'You search: '
+SIMPLE_ACT_LINE = 'You go ahead.'
 ATTEMPT_PREFIX = 'You try: '
 DETECT_MAGIC_SECONDS = 600  # Detect Magic: concentration, up to 10 minutes
 # 'regular casting, no ritual', 'not as a ritual', 'without the ritual': a slotted casting
 # (#150 retest: read as a ritual, 10 minutes passed).
-NOT_RITUAL = re.compile(r"\b(?:no|not|never|without|skip\w*|rather than|instead of)\s+(?:\w+\s+){0,2}?ritual\b|"
+NOT_RITUAL = _lazy.regex(r"\b(?:no|not|never|without|skip\w*|rather than|instead of)\s+(?:\w+\s+){0,2}?ritual\b|"
                         r"\bnon-?ritual\b|\britual\s*(?:\?|:)?\s*no\b|"
                         r"\b(?:regular|normal|ordinary|standard|slotted|using a slot|with a slot|spend(?:ing)? a slot)\b")
 # A sentence that asks ("Could I grab the spear before he moves?", "Is there anywhere to
 # hide?") declares nothing; asked_away drops those sentences before a physical reading.
-ASKING = re.compile(r"(?:(?<=^)|(?<=[.!?]))\s*(?:can|could|may|might|would|will|should|shall|is|are|was|were|"
+ASKING = _lazy.regex(r"(?:(?<=^)|(?<=[.!?]))\s*(?:can|could|may|might|would|will|should|shall|is|are|was|were|"
                     r"do|does|did|what|where|who|whom|how|which|why|when|any)\b[^.?!]*\?", re.I)
 
 
-HEALING = re.compile(r"\b(?:potion of healing|healing potion|cure wounds|healing word|lay on hands|"
+HEALING = _lazy.regex(r"\b(?:potion of healing|healing potion|cure wounds|healing word|lay on hands|"
                      r"heals?|healed|healing|regains?|regained)\b", re.I)
-HEAL_AMOUNT = re.compile(r"\b(?:for|of|regains?|regained|heals?|healed|:|=)\s*`?\*{0,2}(\d{1,3})\b"
+HEAL_AMOUNT = _lazy.regex(r"\b(?:for|of|regains?|regained|heals?|healed|:|=)\s*`?\*{0,2}(\d{1,3})\b"
                          r"|\b(\d{1,3})\s*(?:hit points?|hp)\b", re.I)
-RESTING = re.compile(r"\b(?:i|nik)\s+(?:just\s+)?(?:wait|waits|rest|rests|lie still|lay still|sleep|"
+RESTING = _lazy.regex(r"\b(?:i|nik)\s+(?:just\s+)?(?:wait|waits|rest|rests|lie still|lay still|sleep|"
                      r"let (?:it|the \w+) wear off|take a (?:short|long) rest)\b|\b(?:short|long) rest\b", re.I)
 
 
@@ -440,7 +450,7 @@ def _feature_handled(nouns):
         r"|\banything (?:in|inside|under)\b" + gap + r"(?:" + nouns + r")\b")
 
 
-SOCIAL_WORDS = re.compile(
+SOCIAL_WORDS = _lazy.regex(
     r'\b(ask|say|tell|talk|speak|offer|bargain|propose|accuse|call out|sit|greet|hello|wait|listen|'
     r'wager|help|deal|promise|refuse|decline|pay|flirt|wink|smile|laugh|bow|introduce|threaten|'
     r'intimidate|join|bet|watch|observe|nod|shrug|thank|insist|warn|demand|charm|compliment|stare|'
@@ -449,7 +459,7 @@ SOCIAL_WORDS = re.compile(
 # Harmless table gestures and postures: the PC's own body at rest or at play, never an act on
 # the room or on someone. A posture verb ("lean back", "kick back", "stretch"), or any verb
 # whose own object is the PC's own body part ("clean my nails", "crack my knuckles").
-GESTURE = re.compile(
+GESTURE = _lazy.regex(
     r"\b(?:lean|leans|leaning|relax|relaxes|stretch|stretches|yawn|yawns|settle|settles|slouch|slouches|lounge|"
     r"lounges|sprawl|sprawls|fidget|fidgets|kick(?:s|ing)? back|put(?:s|ting)? (?:my|his|her) feet up|"
     r"raise(?:s|d)? a toast|cross(?:es)? (?:my|his|her) (?:arms|legs))\b"
@@ -545,17 +555,17 @@ def _exit_object(words, exit_words):
 
 # Going back the way the PC came, with no exit named (the exit chooser takes the one they came
 # in by). Narrow on purpose: "I go back to the table" is not leaving.
-RETRACING = re.compile(r"\b(?:retrace[sd]?|retracing)\b|\bback the way (?:i|we) came\b|"
+RETRACING = _lazy.regex(r"\b(?:retrace[sd]?|retracing)\b|\bback the way (?:i|we) came\b|"
                        r"\b(?:go|head|walk|turn)s? back (?:out|the way)\b")
-GOING_BACK = re.compile(r"\b(?:back|return|returns|retrace[sd]?|retracing|the way (?:i|we) came|came in)\b")
+GOING_BACK = _lazy.regex(r"\b(?:back|return|returns|retrace[sd]?|retracing|the way (?:i|we) came|came in)\b")
 
 
 # Moving, in any tense: "Nik steps through the iron door", "she went out" (watchroom playtest).
-MOVING = re.compile(r"\b(?:make for|makes for|leave|leaves|leaving|left|go|goes|going|went|walk|walks|walked|walking|move|moves|"
+MOVING = _lazy.regex(r"\b(?:make for|makes for|leave|leaves|leaving|left|go|goes|going|went|walk|walks|walked|walking|move|moves|"
                     r"moved|moving|step|steps|stepped|stepping)\b")
 # Going in with no exit named: "I step in", "Nik goes inside". The exit chooser takes the
 # one exit from here that leads into the room.
-GOING_IN = re.compile(r"\b(?:go|goes|went|step|steps|stepped|walk|walks|walked|head|heads|come|comes|move|moves|"
+GOING_IN = _lazy.regex(r"\b(?:go|goes|went|step|steps|stepped|walk|walks|walked|head|heads|come|comes|move|moves|"
                       r"hop|hops|hopped|duck|ducks|ducked|pop|pops|popped|slip|slips|slipped)"
                       r"\s+(?:on\s+|right\s+|back\s+)?(?:in|inside)\b(?!\s+(?:the|a|an|my|his|her)\b)")
 # The PC's own open hand is not an act on the room: "I keep my hands open".
@@ -581,24 +591,24 @@ def _bare_name(edge):
     return re.sub(r'^(?:the|a|an)\s+', '', str((edge or {}).get('name') or '').casefold().strip())
 
 
-ADDRESS_WORDS = re.compile(r"\b(you|you're|your|yours|yourself|y'all)\b")
-SEATING = re.compile(r"\b(?:take|takes|taking|took)\s+(?:a|the|that|an empty|the empty|my|his|her|their)\s+"
+ADDRESS_WORDS = _lazy.regex(r"\b(you|you're|your|yours|yourself|y'all)\b")
+SEATING = _lazy.regex(r"\b(?:take|takes|taking|took)\s+(?:a|the|that|an empty|the empty|my|his|her|their)\s+"
                      r"(?:seat|chair|stool|place)\b|"
                      r"\b(?:move|moves|scoot|scoots|pull|pulls|drag|drags|shift|shifts|edge|edges|slide|slides|"
                      r"turn|turns)\s+(?:my|his|her|their|the|a)\s+(?:chair|stool|seat)\b|\bpull(?:s)? up a chair\b|\b(?:sit|sits|sat|sitting) down\b")
-GEAR_SET = re.compile(r"\b(?:sling|slings|slung|stow|stows|strap|straps|set|sets|lay|lays|put|puts|rest|rests|hang|"
+GEAR_SET = _lazy.regex(r"\b(?:sling|slings|slung|stow|stows|strap|straps|set|sets|lay|lays|put|puts|rest|rests|hang|"
                       r"hangs)\b[^.?!]{0,30}\b(?:shield|weapon|sword|axe|bow|crossbow|staff|pack|rapier|mace)\b"
                       r"[^.?!]{0,30}\b(?:on(?:to)? (?:my|his|her|their) back|aside|down|away|against|by (?:my|his|her|their)"
                       r" (?:chair|feet|side)|at (?:my|his|her|their) feet|under the (?:table|chair))\b")
 # Harmless acts that need no ruling: they happen as declared (PR 145 playtests).
-SIMPLE_ACT = re.compile(r"\b(?:(?:hold|holds|holding|raise|raises|raising|lift|lifts|lifting)\s+(?:up\s+)?(?:my\s+|his\s+|her\s+|their\s+|a\s+|the\s+)?"
+SIMPLE_ACT = _lazy.regex(r"\b(?:(?:hold|holds|holding|raise|raises|raising|lift|lifts|lifting)\s+(?:up\s+)?(?:my\s+|his\s+|her\s+|their\s+|a\s+|the\s+)?"
                         r"(?:light|lantern|torch|candle|lamp|staff)|light\s+(?:up|a|my|the)\b|crouch\w*|kneel\w*|"
                         r"squat\w*|wait\w*|lean\w*|tap|taps|tapped|tapping|knock\w*|sweep\w*|brush\w*|wipe\w*|"
                         r"dust\w*|sniff\w*|nod\w*|shrug\w*|stand\w*|sit|sits|sat|back\s+up|backs\s+up|"
                         r"hop\w*|step\w*|walk\w*|pace\w*|circle\w*)\b")
 # A search, investigation or check is never a simple act, even with a step or a walk in it
 # ('I walk the wall and search it for seams'): it goes to Kit's call (#150 playtest).
-SEARCH_INTENT = re.compile(r"\b(?:search\w*|investigat\w*|examin\w*|inspect\w*|prob(?:e|es|ing)|"
+SEARCH_INTENT = _lazy.regex(r"\b(?:search\w*|investigat\w*|examin\w*|inspect\w*|prob(?:e|es|ing)|"
                            r"rummag\w*|scour\w*|check\w*\s+(?:\w+\s+){0,4}?for|check\w*\s+(?:each|every|all|its)\b|checking\s+(?!on\b|in\b|out\b|my\b)\w+s\b|check\w*\s+(?:the|it|that|behind|under|inside|around)\b|feel\w*\s+(?:\w+\s+){0,3}for|"
                            r"(?:look|looks|looking)\s+for|"
                            # #150 retest 2: hunting, going over, poking around, studying, sifting,
@@ -616,15 +626,15 @@ SEARCH_INTENT = re.compile(r"\b(?:search\w*|investigat\w*|examin\w*|inspect\w*|p
 # An act on a thing in the room, declared by the PC ("I yank the manacles off the wall",
 # "Wait, before I roll, I pry the stone loose"): Kit rules it as an ordinary turn and may
 # call a check. It beats talk words around it ("wait") (#150 retest 3).
-OBJECT_ACT = re.compile(r"(?:^|[.!;,]\s*|\band\s+)i\s+(?:\w+ly\s+)?(?:yank|pull|rip|tear|wrench|pry|prise|lift|heave|push|"
+OBJECT_ACT = _lazy.regex(r"(?:^|[.!;,]\s*|\band\s+)i\s+(?:\w+ly\s+)?(?:yank|pull|rip|tear|wrench|pry|prise|lift|heave|push|"
                         r"drag|kick|twist|turn|pour|cut|tie|throw|toss|dig|scrape|wedge|jam|pound|hammer|unscrew|"
                         r"shake|rattle|tug|smash|break|force|climb|grab|pick up|scratch|wipe|rub|press|pull on)"
                         r"(?:s|ed|ing)?\b[^.!?]*?\b(?:the|a|an|some|this|that|those|these|its|each)\b")
 # A thing in the room the act is aimed at, not a person: an article and a noun.
-AIMED_AT_THING = re.compile(r"\b(?:the|a|an|this|that|those|these|each|every)\s+(?:\w+\s+){0,2}?\w{3,}")
+AIMED_AT_THING = _lazy.regex(r"\b(?:the|a|an|this|that|those|these|each|every)\s+(?:\w+\s+){0,2}?\w{3,}")
 # Refusals stay only for exploits and impossibilities (and attempts on a person, which
 # need the fight or social machinery): stealing, pocketing, killing everyone, wishing.
-EXPLOIT = re.compile(r"\b(?:steal|steals|stealing|pocket|pockets|pocketing|all (?:the )?(?:gold|treasure|loot)|"
+EXPLOIT = _lazy.regex(r"\b(?:steal|steals|stealing|pocket|pockets|pocketing|all (?:the )?(?:gold|treasure|loot)|"
                      r"every(?:thing|one)|instantly|automatically|infinite|wish|teleport\w*|fly|flies|levitat\w*|"
                      r"on fire|set fire|ablaze|kill\w*|dead|dies|falls dead)\b|"
                      r"\b(?:him|them|guard|warden|man|woman|dealer|orc|goblin|person|throat|neck|heart)\b")
@@ -632,7 +642,7 @@ PHYSICAL_VERBS = r'(steal|pocket|grab|pick up|smash|break|hide|climb|force|open|
 # A declared physical act: "I grab the ring", "I quickly open the door". When an NPC has
 # just asked the player something, only this shape still counts as physical; a verb
 # inside an answer ("I was hoping to find something to steal") is speech.
-DECLARED_PHYSICAL = re.compile(r'(^|[.!;]\s*)(i|i\s+\w+ly)\s+' + PHYSICAL_VERBS + r'\b')
+DECLARED_PHYSICAL = _lazy.regex(r'(^|[.!;]\s*)(i|i\s+\w+ly)\s+' + PHYSICAL_VERBS + r'\b')
 
 
 def npc_addressed_player(spoken):
@@ -647,14 +657,50 @@ def npc_addressed_player(spoken):
 
 # A clause the player negates ("I don't search the rubble", "not going in yet", "I won't
 # attack") says what does not happen: it is dropped before routing (#150 fuzz: negation).
-NEGATED = re.compile(r"\bwithout\s+(?:stepping|going|walking|moving)\s+(?:in|inside|through)\b|\b(?:i\s+)?(?:don't|dont|do not|won't|wont|will not|am not|i'm not|not)\s+"
+NEGATED = _lazy.regex(r"\bwithout\s+(?:stepping|going|walking|moving)\s+(?:in|inside|through)\b|\b(?:i\s+)?(?:don't|dont|do not|won't|wont|will not|am not|i'm not|not)\s+"
                      r"(?:going\s+(?:to\s+)?|gonna\s+|yet\s+)?(?!only\b|just\b)[a-z]+\b(?:\s+(?:in|through|out|inside|"
                      r"the\s+\w+|it|yet))*(?:\s+yet)?", re.I)
 # Plain looks the router missed (#150 fuzz): 'What do I see?', 'Lookin around', 'Describe
 # the floor', 'I eye the flagstones', 'I listen at the lid'.
-PLAIN_LOOK = re.compile(r"\bwhat\s+do\s+i\s+see\b|\blookin'?\b|^\s*describe\b|\bi\s+eye\b|"
+PLAIN_LOOK = _lazy.regex(r"\bwhat\s+do\s+i\s+see\b|\blookin'?\b|^\s*describe\b|\bi\s+eye\b|"
                         r"\blisten\w*\s+at\b|\bwhat\s+(?:does|do)\s+(?:the\s+)?[\w ]+\s+look\s+like\b|"
                         r"\b(?:i|and)\s*look\s+(?:at|over)\b")
+
+
+_PASSAGE_WORDS = _lazy.regex(r"\b(?:door|doors|doorway|arch|archway|threshold|gate|passage|corridor|hall|"
+                            r"tunnel|stair|stairs|opening|gap|entrance|exit|room|chamber)\b")
+
+
+def _moves_through_exit(words, room):
+    """MOVE_THROUGH, but 'go through the goblin beds looking for…' (pr150d T14) is going
+    through a heap of things, not through a way out: only 'in/into/inside/out', 'enter', or
+    'through/past' a door, passage or named exit is movement."""
+    exit_words = {word for word, _ in (room.exits if room else ())}
+    for match in MOVE_THROUGH.finditer(words):
+        if not re.search(r'\b(?:through|past)\s*$', match.group(0)):
+            return True
+        after = ' '.join(words[match.end():].split()[:5])
+        if _PASSAGE_WORDS.search(after) or any(re.search(r'\b' + re.escape(w) + r's?\b', after) for w in exit_words):
+            return True
+        if not re.search(r'\b(?:the|a|an|these|those|this|that)\b', after):
+            return True  # 'I go through' with nothing named: the way on
+    return False
+
+
+def _acts_on_a_thing(words, room):
+    """A hands-on act aimed at something that is not a door or exit ('I push on the seam …,
+    then peek down the tunnel', pr150d T20): the act is the turn, the peek rides along."""
+    exit_words = {word for word, _ in (room.exits if room else ())}
+    for match in OBJECT_ACT.finditer(words):
+        noun = re.split(r'\b(?:to|on|at|against|into|of|with|for|so|and|but|then|,)\b|[,.;!?]',
+                        words[match.end():])[0].split()[:2]
+        if not noun or noun[0] in ('eye', 'eyes', 'ear', 'ears', 'face', 'cheek', 'hand', 'hands', 'palm'):
+            continue  # an eye to the crack: perceiving, not handling
+        aimed = ' '.join(noun)
+        if not THRESHOLD_GAP.search(aimed) and not _PASSAGE_WORDS.search(aimed) and \
+                not any(re.search(r'\b' + re.escape(w) + r's?\b', aimed) for w in exit_words):
+            return True
+    return False
 
 
 def room_intent(action, addressed=False, room=None):
@@ -691,10 +737,12 @@ def room_intent(action, addressed=False, room=None):
             re.search(r'\bcast\b', words) and re.search(r'\b(at|on|against|into)\s+(him|her|them|the|it|his)\b', words)
             and not re.search(r'\b(?:detect magic|light|identify|mending|prestidigitation|guidance)\b', words)):
         return 'combat'
-    if re.search(r'\b(cast|casts|casting)\b', words):
+    if re.search(r'\b(cast|casts|casting)\b', words) or re.search(r'\bdetect(?:s|ing)?\s+magic\b', words) and \
+            not re.match(r"\s*(?:is|does|do|can|could|would|will|what|how|has)\b", words) and '?' not in words:
+        # 'Detect Magic, not as a ritual' names the spell without 'cast' (#157, pr150d T7).
         return 'spell'  # a spell aimed at nobody (Detect Magic, Light...) is not combat
     early = asked_away(words)
-    if SEARCH_INTENT.search(early) and not addressed and not MOVE_THROUGH.search(early) and \
+    if SEARCH_INTENT.search(early) and not addressed and not _moves_through_exit(early, room) and \
             not GOING_IN.search(early) and not re.search(r'\b' + PHYSICAL_VERBS + r'\b', early) and \
             not OBJECT_ACT.search(early) or (SEARCH_INTENT.search(words) and not quoted and not addressed and
                                             CHECK_ASK.search(words)):
@@ -705,8 +753,12 @@ def room_intent(action, addressed=False, room=None):
         return 'search'
     exit_named = bool(room.exits) and re.search(
         r'\b(?:' + '|'.join(re.escape(word) for word, _ in room.exits) + r')s?\b', words)
+    if (THRESHOLD_LOOK.search(words) or PERCEIVING.search(words)) and NOT_ENTERING.search(words) and \
+            (THRESHOLD_GAP.search(words) or exit_named) and (room.exits or room.inward) and \
+            not _acts_on_a_thing(words, room):
+        return 'threshold_look'
     if THRESHOLD_LOOK.search(words) and (THRESHOLD_GAP.search(words) or exit_named) and \
-            not MOVE_THROUGH.search(words) and (room.exits or room.inward):
+            not MOVE_THROUGH.search(words) and (room.exits or room.inward) and not _acts_on_a_thing(words, room):
         # Looking or listening through a gap, or down a named exit ('I peer down the stair
         # into the hall'), from where the PC stands: perception, not movement (#97 p2b).
         return 'threshold_look'
@@ -718,6 +770,11 @@ def room_intent(action, addressed=False, room=None):
     feature = room.feature_in(words)
     exit_words = '|'.join(re.escape(word) for word, _ in room.exits)
     named_exit = re.search(r'\bdoors?\b', words) or (exit_words and re.search(r'\b(?:' + exit_words + r')s?\b', words))
+    if BACK_TO_DOOR.search(words) and not MOVE_THROUGH.search(words) and not RETRACING.search(words) and \
+            (room.exits or room.inward):
+        # Backing up to a doorway is taking a place at it, not leaving through it (PR 145
+        # bug 18: 'I step back to the door and look over the chest' walked out of the room).
+        return 'observe'
     if MOVING.search(words) and (named_exit or (re.search(r'\bout\b', words) and not feature)) or room.inward and GOING_IN.search(words) \
             or re.search(r'\b(head|heads|charge|charges|barge|barges|burst|bursts|continue|continues)\b', words) and named_exit \
             or named_exit and _exit_object(words, exit_words) or RETRACING.search(words) \
@@ -973,6 +1030,13 @@ class RoomAdjudicator:
                 result = self._spring(result, *fired, action, revision, state)
         if result.kind == 'exit' and choice is None:
             result = self._also_after_entry(result, action, revision, state)
+        if result.kind in ('observe', 'threshold_look') and BACK_TO_DOOR.search(QUOTED_SPEECH.sub(' ', action).lower()):
+            key = self._threshold_exit(action, state)
+            if key:
+                # Backing up to a doorway is a position the PC now holds (PR 145 playtest bug 18).
+                result = dataclasses.replace(result, events=list(result.events) + [
+                    {'type': 'pc_position', 'at_exit': key,
+                     'evidence': f'Player declared: {action[:200]}. Resolution: the PC stands at that doorway.'}])
         return self._offer_downed(result)
 
     def _offer_downed(self, result):
@@ -1010,7 +1074,19 @@ class RoomAdjudicator:
             # A second mention of the same door ('shoves the door open ... steps through the door')
             # is the one entry, not a walk back out: only a different exit is a second move.
             return result
+        if more.kind == 'check_request':
+            # A search on entry ('step through and search the chest'): the move stands and the
+            # search is a bid for a check in the new room (#150 retest-2: a trap rides the check).
+            return dataclasses.replace(more, public_event=f'{result.public_event} {more.public_event}'.strip(),
+                                       events=list(result.events) + list(more.events))
         changed = [e for e in more.events if e.get('type') not in ('beat',)]
+        declared = [e for e in more.events if e.get('type') == 'beat' and
+                    {'simple_act', 'observe'} & set(e.get('tags') or ())]
+        if not changed and declared:
+            # A declared act on entry ('steps in and brushes the cobwebs off it'): it happens in
+            # the new room, so Kit hears it instead of only the move (PR 145 playtest bug 7).
+            return dataclasses.replace(result, events=list(result.events) + declared,
+                                       public_event=f'{result.public_event} {more.public_event}'.strip())
         if not changed and (more.offers or {}).get('handles'):
             # Hands on a watched feature in the new area ('...and grab the orb'): Kit's declared
             # handles resolve it at commit (runtime/kit_acts.py), so the entry carries the offer.
@@ -1331,7 +1407,8 @@ class RoomAdjudicator:
             event = {'type': 'beat', 'tags': ['observe', 'simple_act'],
                      'evidence': f'Player declared: {action}. Resolution: done as declared; no roll; '
                                  'nothing hidden is learned; nothing changes in the world.'}
-            return Resolution('observe', social_event(action).replace(SOCIAL_EVENT_PREFIX, 'You go ahead: ', 1), [event])
+            # A short neutral line, not the player's whole message read back (pr150d feel).
+            return Resolution('observe', SIMPLE_ACT_LINE, [event])
         if kind == 'unsupported_action':
             exc = PendingRuling(f'{UNSUPPORTED_RULING} No turn was committed.', attempt=True)
             exc.player_line = unsupported_line(action, state)
@@ -1794,6 +1871,8 @@ class RoomAdjudicator:
         words = QUOTED_SPEECH.sub(' ', action.translate(_TYPOGRAPHIC)).lower()
         named = re.search(r"\bcast(?:s|ing)?\s+(?:a\s+|an\s+|the\s+)?([a-z' -]+?)(?=\s+(?:as|on|at|into|over|while|and|then|to|with|for)\b|[.,;!?]|$)", words)
         spell = (named.group(1).strip() if named else 'a spell') or 'a spell'
+        if not named and re.search(r'\bdetect(?:s|ing)?\s+magic\b', words):
+            spell = 'detect magic'  # named without 'cast' (pr150d T7)
         ritual = bool(re.search(r'\britual\b', words)) and not NOT_RITUAL.search(words)
         events = [{'type': 'beat', 'tags': ['spell'] + (['ritual'] if ritual else []),
                    'evidence': f'Player declared: {action}. Resolution: {spell} is cast outside combat'
@@ -1842,7 +1921,7 @@ class RoomAdjudicator:
         public = detect_magic_line(auras)
         private = 'Detect Magic senses (DM only, place each aura but do not read out the fact): ' + '; '.join(
             f"{a['fact']}{' [' + a['school'] + ']' if a['school'] else ''} x{a['count']}"
-            f"{' at ' + a['where'] if a['where'] else ''}: {a['text']}" for a in auras)
+            f"{' at ' + re.sub(r'^at\s+', '', a['where']) if a['where'] else ''}: {a['text']}" for a in auras)
         return public, private
 
     def _resolve_called(self, action, revision, state):
@@ -1898,12 +1977,65 @@ class RoomAdjudicator:
         if len(found) == 1:
             result = self._resolve_check(roll_text, revision, state, *found[0])
             return Resolution(result.kind, result.public_event, list(result.events) + [clear])
+        # The called skill cannot reach the target's hidden claim (pr150d T3: Investigation on
+        # a Perception-only trap): Kit hears it privately, so she can say so or call again.
+        missed = [(key, claim) for key, claim in kit_claims.compile_claims(self.source or {}).items()
+                  if claim.get('exposure') == 'hidden' and key not in learned and
+                  (((self.source or {}).get('facts') or {}).get(claim.get('fact') or '') or {}).get('area') == area and
+                  target in (claim.get('concealer'), claim.get('fact'), key) and
+                  skill not in kit_claims.claim_skills(claim)] if not found else []
+        held = self._held_by(target, state) if skill in ('perception', 'investigation') else None
         modifier, _ = self._pc_numbers(skill, state, roll_text)
         die = self._die(state, revision, f'called:{pending["called_turn"]}:{skill}', roll_text, modifier, skill)
         evidence = (f'Player rolled the {skill} check Kit called on turn {pending["called_turn"]} '
-                    f'(target {target}): d20 {die} + {modifier} = {die + modifier}.')
-        return Resolution('called_check', f'You roll {skill.replace("_", " ").title()}: {total}.',
-                          [{'type': 'beat', 'tags': ['check'], 'evidence': evidence}, clear])
+                    f'(target {target}): d20 {die} + {modifier} = {die + modifier}'
+                    # every die the player rolled (advantage keeps both), not only the kept one
+                    + (f' (rolled {text[stated[0].start:].strip()[:120]})' if not bare and stated else '') + '.')
+        tags = ['check']
+        if type(pending.get('dc')) is int:
+            # Kit's own DC: she hears pass or fail privately (PR 145 playtest bug 11). The
+            # public event never carries the DC.
+            outcome = kit_rolls.roll_outcome(total, pending['dc'], save=skill.endswith('_save'))
+            tags.append(outcome)
+            evidence += (f' Against Kit\'s DC {pending["dc"]}: {outcome.upper()} '
+                         '(ties go to the actor; a save that ties fails). Narrate the result, never the DC.')
+        else:
+            evidence += ' No DC was set and no room claim is here: Kit rules the result.'
+        for key, claim in missed:
+            evidence += (f' DM only: {skill} cannot find the hidden {key} on {target}; it is found by '
+                         f'{", ".join(sorted(kit_claims.claim_skills(claim)))}. This roll reveals nothing of it.')
+        events = [{'type': 'beat', 'tags': tags, 'evidence': evidence}, clear]
+        offers = None
+        if held:
+            feature, fact_key = held
+            if 'pass' in tags:
+                # The searched feature holds an unfound thing (pr150d T15: the bed's potion): a
+                # success shows it, so the state knows it was found.
+                events.insert(1, {'type': 'reveal_fact', 'fact': fact_key,
+                                  'evidence': f'The {skill} check on the {feature} finds what it holds.'})
+            elif 'fail' not in tags:
+                # No DC: Kit rules it, and handles on the feature brings out what it holds.
+                events[0]['evidence'] += (f' DM only: the {feature} holds {fact_key}; if the roll finds it, '
+                                          f'declare handles on {feature} so the engine reveals it.')
+                parts = list(((self.source['facts'][feature].get('handling') or {}).get('parts')) or ())
+                offers = {'handles': {'targets': {feature: parts}}}
+        return Resolution('called_check', f'You roll {skill.replace("_", " ").title()}: {total}.', events,
+                          offers=offers)
+
+    def _held_by(self, target, state):
+        """(feature, held fact) when the called check's target is a feature here that holds a
+        fact not yet found, else None."""
+        facts = (self.source or {}).get('facts') or {}
+        feature = target if target in facts else None
+        if feature is None and target and target != 'none':
+            hit = room_words(self.source, state).feature_in(str(target).replace('_', ' ').casefold())
+            feature = hit[1] if hit else None
+        fact = facts.get(feature) or {}
+        held = (fact.get('handling') or {}).get('holds')
+        if not held or fact.get('area') != state.get('area') or held in (state.get('known_facts') or ()) or \
+                (facts.get(held) or {}).get('visible'):
+            return None
+        return feature, held
 
     def _resolve_check(self, action, revision, state, claim_id, claim):
         """An active look or read at one hidden claim, against that claim's single DC.
@@ -1928,7 +2060,9 @@ class RoomAdjudicator:
         dc = kit_claims.claim_dc(claim, state.get('actors', {}),
                                  kit_claims.current_floor_level(self.source, state.get('area')))
         result = self._check(skill, dc, state, revision, f'check:{claim_id}', action)
-        evidence = f'Player actively checked {claim_id}: {kit_claims.check_evidence(skill, result)}.'
+        stated = kit_rolls.rolls(action)
+        evidence = f'Player actively checked {claim_id}: {kit_claims.check_evidence(skill, result)}' + (
+            f' (rolled {action[stated[0].start:].strip()[:120]})' if len(stated) == 1 and 'd20' in action[stated[0].start:] else '') + '.'
         details = None
         if skill == 'perception' and claim.get('perception_details'):
             # Details scale with the result: a stated roll above an automatic passive counts.
@@ -3084,7 +3218,8 @@ def check_plan(plan, episodes, public_event, action_kind=None, candidates=None, 
         # A state the player declares this turn counts for this turn's roll.
         kit_agenda.check_roll_call(plan['roll_call'], source or {},
                                    kit_agenda.with_pc_state(state or {}, plan.get('pc_state'),
-                                                            fight=plan.get('turn_mode') == 'combat'))
+                                                            fight=plan.get('turn_mode') == 'combat'),
+                                   action=player_action or '')
     plan.setdefault('observed_event', public_event)  # the engine's event, unless Kit copied it
     for key in ('observed_event', 'goal'):
         require(isinstance(plan[key], str) and plan[key].strip(), f'Missing {key}')
@@ -3680,9 +3815,9 @@ def turn_events(runtime, body, plan, turn_id, record=None):
 
 # The player's words are about the game (asking to play, or about it): only then may a
 # decision start a table procedure (call 1: a game in the room is never a reason by itself).
-ASKS_ABOUT_GAME = re.compile(r"\b(game|games|play|playing|cards?|deal|dealing|bet|bets|wager|ante|stakes?|gambl\w*|"
+ASKS_ABOUT_GAME = _lazy.regex(r"\b(game|games|play|playing|cards?|deal|dealing|bet|bets|wager|ante|stakes?|gambl\w*|"
                              r"join|rules|blackjack|twenty[- ]one|poker|hand|round|buy[- ]in|dealt)\b", re.I)
-PUT_OFF = re.compile(r"\b(steer\w*|stall\w*|put (?:\w+ )?off|putting (?:\w+ )?off|distract\w*|divert\w*|"
+PUT_OFF = _lazy.regex(r"\b(steer\w*|stall\w*|put (?:\w+ )?off|putting (?:\w+ )?off|distract\w*|divert\w*|"
                      r"keep (?:\w+ ){0,2}(?:busy|seated|at the table|from)|draw (?:\w+ )?in)\b", re.I)
 
 
@@ -3972,6 +4107,16 @@ def prepare_inputs(runtime, revision, state, action, resolution, use_memory, one
     context = runtime.context()
     if context['revision'] != revision:
         raise StaleTurn(f'Expected revision {revision}; current is {context["revision"]}')
+    if post_event_state.get('area') != state.get('area') and \
+            post_event_state.get('area') in (runtime.source().get('areas') or {}):
+        # A move this turn: Kit narrates the room the PC walks into, so her private half is
+        # that room's (hidden facts included) this turn, not the next (PR 145 playtest bug 4).
+        arrived = {**post_event_state, 'known_facts': state['known_facts']}
+        context['dm_context'] = {**context['dm_context'],
+                                 'dm_only': {**Runtime.dm_only(runtime.source(), arrived),
+                                             # those left behind still react (scene_candidates)
+                                             'actors': {**context['dm_context']['dm_only']['actors'],
+                                                        **Runtime.dm_only(runtime.source(), arrived)['actors']}}}
     memory = kit_memory(runtime, state, action, use_memory)
     public_history = [{'player_input': turn['player_input'], 'spoken': turn['spoken'][-1200:]}
                       for turn in runtime.recent_kit_turns(limit=4)]
@@ -4003,6 +4148,19 @@ def prepare_inputs(runtime, revision, state, action, resolution, use_memory, one
         'dialogue_history': public_history,
         'discernment_candidates': body['discernment_candidates'],
     }
+    outcome = next((e for e in resolution.events if e.get('type') == 'beat' and 'check' in (e.get('tags') or ())
+                    and {'pass', 'fail'} & set(e.get('tags') or ())), None)
+    if outcome:
+        # Private: the called check's pass or fail against Kit's DC (never in the public half).
+        planning_input['check_outcome'] = {'result': 'pass' if 'pass' in outcome['tags'] else 'fail',
+                                           'evidence': outcome['evidence']}
+    elif resolution.kind == 'called_check':
+        # Private: a called roll with no DC, or one that cannot reach the claim, still tells
+        # Kit what the engine knows (pr150d T3/T15): which skill finds the claim, what the
+        # searched feature holds.
+        beat = next((e for e in resolution.events if e.get('type') == 'beat' and 'check' in (e.get('tags') or ())), None)
+        if beat and 'DM only' in beat.get('evidence', ''):
+            planning_input['check_outcome'] = {'result': 'kit_rules', 'evidence': beat['evidence']}
     oracle = detail_oracle(runtime, state, action, resolution.kind)
     if oracle:
         # Private: the slot, canon, texture, and a seeded deal for the detail decision.
@@ -4631,6 +4789,21 @@ def stake_amounts(procedures):
     return found
 
 
+ECHO_KINDS = ('exit', 'observe', 'threshold_look', 'check_request', 'called_check')
+ECHO_EVENT_TYPES = ('move', 'beat')
+
+
+def _engine_echo(body):
+    """This turn's public event only restates what the player did: a plain move, a look, a
+    declared simple act, a check asked for or a roll reported. Never a result the engine
+    decided (a fight, a trap, a toll, a declared outcome, a rewind)."""
+    if body.get('rewind') or body['kind'] not in ECHO_KINDS:
+        return False
+    if body['kind'] in ('check_request', 'called_check'):
+        return True
+    return all(e.get('type') in ECHO_EVENT_TYPES for e in body.get('events') or ())
+
+
 def _entering(source, body):
     """The move this turn goes from outside the room into it: the performance happens in the
     new area, so the engine's line comes first (watchroom T6)."""
@@ -4655,6 +4828,7 @@ def declare(runtime, adjudicator, body, plan):
     sealed = {} if (acts or {}).get('handles') else sealed_terms(runtime.source(), after)
     if not acts or not isinstance(adjudicator, RoomAdjudicator):
         return {**body, 'hidden_actors': hidden_actor_words(runtime.source(), after, body),
+                'hidden_facts': hidden_fact_words(runtime.source(), after, body),
                 **({'sealed': sealed} if sealed else {})}
     adjudicator.mount(runtime.source())
     result = adjudicator.declared_acts(acts, body['action'], revision, after)
@@ -4662,6 +4836,7 @@ def declare(runtime, adjudicator, body, plan):
     shown = {field: ({k: v for k, v in value.items() if v} if field == 'handles' else {'act': value['act']})
              for field, value in acts.items()}
     return {**body, 'hidden_actors': hidden_actor_words(runtime.source(), final, body),
+            'hidden_facts': hidden_fact_words(runtime.source(), final, body),
             'declared': {'acts': shown, 'events': list(result.events), 'public': result.public_event,
                          'kind': result.kind, 'handoff': result.handoff}}
 
@@ -4676,14 +4851,14 @@ INTERIOR_DEFAULTS = ('inside', 'interior', 'within', 'inner', 'innards')
 # off", "has been pushed back", "lies aside"; not "sits back against the wall" or "stands apart".
 _COPULA = r"(?:is|are|was|were|lies|lie|lay|rests|sits|stands|hangs|now|has been|have been|had been|comes|came|goes|went)"
 _DISPLACED = r"(?:pushed|thrown|slid|pulled|swung|rolled|drawn|levered|pried|prised|shoved|heaved|lifted|knocked|tipped|eased|dragged|ripped|torn|wrenched|kicked)"
-OPEN_STATE = re.compile(r"\b" + _COPULA + r"\s+(?:\w+\s+){0,2}?(?:open|opened|off|aside|ajar|removed|gone|in two|broken open|"
+OPEN_STATE = _lazy.regex(r"\b" + _COPULA + r"\s+(?:\w+\s+){0,2}?(?:open|opened|off|aside|ajar|removed|gone|in two|broken open|"
                         r"split open|cracked open|unsealed)\b"
                         r"|\b" + _DISPLACED + r"\s+(?:\w+\s+){0,1}?(?:back|off|aside|open|away|up|clear|free|loose)\b"
                         r"|\b(?:open|off|aside|ajar|in two)\s+now\b|\bnow\s+(?:open|off|aside|ajar|gone)\b")
 # A part lying on the floor is off the feature ("the lid lies on the floor"); the feature itself
 # resting on the floor is just where it stands.
 # Coming away from the feature ("the lid comes away in your hands", "comes free").
-COMES_AWAY = re.compile(r"\b(?:comes?|came|coming|pulls?|pulled|breaks?|broke)\s+(?:\w+\s+)?(?:away|free|loose|off)\b")
+COMES_AWAY = _lazy.regex(r"\b(?:comes?|came|coming|pulls?|pulled|breaks?|broke)\s+(?:\w+\s+)?(?:away|free|loose|off)\b")
 # Wear and damage (#97 review at eb0f643): "faces worn off", "chipped off at one corner", "the
 # gilt has flaked off". Pure wear is always description; breakage ("broken off", "knocked
 # off") is description only when what broke is not the feature or its part itself (a
@@ -4691,27 +4866,27 @@ COMES_AWAY = re.compile(r"\b(?:comes?|came|coming|pulls?|pulled|breaks?|broke)\s
 _WEAR = (r"worn|wearing|chipped|chipping|flaked|flaking|weathered|eroded|rubbed|peeled|peeling|crumbled|"
          r"crumbling|rotted|rotting|rusted|scoured|faded|scraped|scratched|pitted|corroded|stripped|gnawed")
 _DAMAGE = r"broken|knocked|snapped|smashed|cracked|hacked|pried|prised|chiselled|chiseled|struck|sheared"
-_WEAR_OFF = re.compile(r"\b(" + _WEAR + r")\s+(?:\w+\s+)?(?:off|away|back)\b")
-_DAMAGE_OFF = re.compile(r"\b(" + _DAMAGE + r")\s+(?:\w+\s+)?(?:off|away)\b")
-PART_DOWN = re.compile(r"\b" + _COPULA + r"\s+(?:\w+\s+){0,3}?(?:on|at|across)\s+(?:the|your|his|her)\s+(?:floor|ground|flagstones|feet)\b")
-FEATURE_MOVES = re.compile(r"\b(?:shift|slid|slide|grind|budg|swing|swung|tilt|tip|lift|rais|rise|rose|crack|"
+_WEAR_OFF = _lazy.regex(r"\b(" + _WEAR + r")\s+(?:\w+\s+)?(?:off|away|back)\b")
+_DAMAGE_OFF = _lazy.regex(r"\b(" + _DAMAGE + r")\s+(?:\w+\s+)?(?:off|away)\b")
+PART_DOWN = _lazy.regex(r"\b" + _COPULA + r"\s+(?:\w+\s+){0,3}?(?:on|at|across)\s+(?:the|your|his|her)\s+(?:floor|ground|flagstones|feet)\b")
+FEATURE_MOVES = _lazy.regex(r"\b(?:shift|slid|slide|grind|budg|swing|swung|tilt|tip|lift|rais|rise|rose|crack|"
                            r"creak|groan|scrap|grat|rasp|yield|give|gave|loosen|lurch|swiv|gap)\w*\b")
-NOT_MOVING = re.compile(r"\b(?:not|never|no|nothing|none|won't|wont|cannot|can't|refuses?|fails?|"
+NOT_MOVING = _lazy.regex(r"\b(?:not|never|no|nothing|none|won't|wont|cannot|can't|refuses?|fails?|"
                         r"holds? fast|stays? put|unmoved|stuck|still)\b|n't\b")
-CLAUSE = re.compile(r"[.!?;:,\n\u2014\u2013]+|\s+(?:but|and|yet|while|then|though|although|until|as)\s+|\s+-+\s+")
+CLAUSE = _lazy.regex(r"[.!?;:,\n\u2014\u2013]+|\s+(?:but|and|yet|while|then|though|although|until|as)\s+|\s+-+\s+")
 # Kit narrates in English: a segment of four or more words with none of these is not English.
-ENGLISH = re.compile(r"\b(?:the|a|an|and|of|to|is|are|you|your|it|its|in|on|at|with|from|he|she|they|"
+ENGLISH = _lazy.regex(r"\b(?:the|a|an|and|of|to|is|are|you|your|it|its|in|on|at|with|from|he|she|they|"
                      r"his|her|their|this|that|not|but|for|as|by|into|there|here|no)\b")
-_GENERIC_INSIDE = re.compile(r"\b(?:interior|inner|innards)\b|\b(?:inside|within)\b(?!\s+(?:the|a|an|your|his|her|"
+_GENERIC_INSIDE = _lazy.regex(r"\b(?:interior|inner|innards)\b|\b(?:inside|within)\b(?!\s+(?:the|a|an|your|his|her|"
                              r"their|its|my|our|reach|earshot|sight|range|view|you|him|me|them|us|yourself|himself|"
                              r"herself|myself|themselves)\b)")
 # The PC's (or someone's) own movement: "you duck inside", "he steps within".
-_GOING_INSIDE = re.compile(r"\b(?:you|i|he|she|they|we)\s+(?:\w+ly\s+)?(?:duck|ducks|step|steps|go|goes|slip|slips|move|"
+_GOING_INSIDE = _lazy.regex(r"\b(?:you|i|he|she|they|we)\s+(?:\w+ly\s+)?(?:duck|ducks|step|steps|go|goes|slip|slips|move|"
                            r"moves|walk|walks|head|heads|crawl|crawls|climb|climbs|hurry|hurries|edge|edges|come|comes|"
                            r"stay|stays|wait|waits|run|runs|squeeze|squeezes|back|backs)\s+(?:back\s+)?(?:inside|within)\b")
 # "it" names the feature only with a movement or state predicate right after it ("it slides",
 # "it is now off"), never as a dummy subject ("it is dark back here", "it has been a long night").
-_IT_MOVES = re.compile(r"^it\s+(?:(?:slowly|suddenly|finally|then|now|just)\s+)?(?:shift|slid|slide|grind|budg|swing|swung|"
+_IT_MOVES = _lazy.regex(r"^it\s+(?:(?:slowly|suddenly|finally|then|now|just)\s+)?(?:shift|slid|slide|grind|budg|swing|swung|"
                        r"tilt|tip|lift|rise|rose|crack|creak|groan|scrap|grat|rasp|yield|give|gave|loosen|lurch|swiv|"
                        r"come|came|mov|open|fall|fell|drop)\w*\b")
 
@@ -4747,7 +4922,7 @@ def _has(words, text):
     return any(re.search(r'\b' + re.escape(w) + r'(?:s|es)?\b', text) for w in words)
 
 
-_POSSESSED = re.compile(r"^(?:the\s+|a\s+)?(?:(its|their)|([a-z][a-z-]*)'s)\s+([a-z][a-z-]*)(?:\s+([a-z][a-z-]*))?")
+_POSSESSED = _lazy.regex(r"^(?:the\s+|a\s+)?(?:(its|their)|([a-z][a-z-]*)'s)\s+([a-z][a-z-]*)(?:\s+([a-z][a-z-]*))?")
 
 
 def _subject_is_feature(clause, terms):
@@ -4878,6 +5053,43 @@ def hidden_actor_words(source, state, body=None):
     return sorted(nouns) + sorted(runs)
 
 
+def hidden_fact_words(source, state, body=None):
+    """The three-content-word runs of every fact here still hidden once
+    this turn lands: its text and its magic object's description. Runs the player can see
+    (public view, a visible or found fact) or said himself do not count (pr150d T15: Kit
+    narrated the bed's unfound potion into the PC's hands and nothing caught it)."""
+    if not source:
+        return []
+    facts = source.get('facts') or {}
+    known = set(state.get('known_facts') or ())
+    shown = [json.dumps((body or {}).get('public_view') or {}), (body or {}).get('action') or '']
+    shown += [str(f.get('text') or '') for k, f in facts.items() if isinstance(f, dict) and (f.get('visible') or k in known)]
+    seen = ' '.join(' '.join(_word_list(text)) for text in shown)
+    runs = set()
+    for key, fact in facts.items():
+        if not isinstance(fact, dict) or fact.get('visible') or key in known or fact.get('area') != state.get('area'):
+            continue
+        for text in (fact.get('text'), (fact.get('magic_objects') or {}).get('what')):
+            words = _word_list(text)
+            for i in range(len(words) - 2):
+                run = words[i:i + 3]
+                if all(w not in _HIDDEN_STOP and len(w) > 2 for w in run):
+                    runs.add(' '.join(run))
+    return sorted(r for r in runs if r not in seen)
+
+
+def check_hidden_facts(spoken, runs):
+    """HARD (secrecy, pr150d T15): no performance describes a fact still hidden after this
+    turn. A found thing comes out through the engine (a passed check, declared handles),
+    which marks it revealed, so state and story agree."""
+    text = ' '.join(_word_list(spoken))
+    for run in runs or ():
+        if run in text:
+            raise InvalidChange('The performance describes something still hidden (not found yet). Only what '
+                                'the player can perceive: if the PC finds it, it comes out through a passed check '
+                                "or declared handles, and the engine marks it found.")
+
+
 def check_hidden_actors(spoken, words):
     """HARD (#97 review B): no performance names or describes a creature that is still hidden
     after this turn. Only a declared act that sets its trigger off brings it out."""
@@ -4905,6 +5117,7 @@ def checked_record(body, plan, speech, performance_variant, source=None, degrade
                           public_event=public_event)
     spoken, warnings = result if degraded else (result, [])
     check_hidden_actors(spoken, body.get('hidden_actors'))
+    check_hidden_facts(spoken, body.get('hidden_facts'))
     kit_agenda.check_carriers_spoken(spoken, plan)
     check_held_delivered(body.get('held_description'), spoken)
     if not ask and not stall_check(plan, body['kind']):
@@ -4916,6 +5129,11 @@ def checked_record(body, plan, speech, performance_variant, source=None, degrade
         kit_brief.check_raised(body['story_due'], source, {'area': body['story_area']}, spoken)
     if ask:
         kit_agenda.check_ask_spoken(speech['segments'], ask)
+    elif _engine_echo(body):
+        # The engine restating the player's own act ('You ask for a check: ...', 'You roll
+        # Perception: 9.', 'You go through the doorway into the room.'): the player said it,
+        # Kit performs it, and the host no longer has to trim it (PR 145 playtest bug 12).
+        pass
     elif (body['kind'] in EVENT_AFTER_PERFORMANCE_KINDS or body.get('rewind')) and not _entering(source, body):
         # The room reacts while the player is still there; then they are gone. The departure
         # line never follows Kit's closing remark (watchroom T6): it goes before her handoff.
@@ -5069,7 +5287,7 @@ def _spoken_lines(speech):
 
 
 # The PC speaking out loud: a quoted line, or says/asks/calls/shouts.
-ADDRESSING = re.compile(r'["\u201c\u201d]|\b(?:say|says|said|ask|asks|asked|call|calls|called|shout|shouts|'
+ADDRESSING = _lazy.regex(r'["\u201c\u201d]|\b(?:say|says|said|ask|asks|asked|call|calls|called|shout|shouts|'
                         r'whisper|whispers|tell|tells)\b', re.I)
 
 
@@ -5204,7 +5422,7 @@ def turn_latency(timing):
 
 # Engine wording that must never reach the player word for word (#97 review P2): the
 # message is for the host; player_message is what Kit may say at the table.
-_ENGINE_SENTENCES = re.compile(r"[^.!?]*\b(?:No turn was committed|in this slice|test slice|room/rules ruling|"
+_ENGINE_SENTENCES = _lazy.regex(r"[^.!?]*\b(?:No turn was committed|in this slice|test slice|room/rules ruling|"
                                r"noted in the public history|engine|host)\b[^.!?]*[.!?]\s*", re.I)
 PLAYER_SAFE_UNSUPPORTED = ("That one needs the DM's call. Say a little more about how you go about it, "
                            "or try it another way.")
@@ -5520,12 +5738,13 @@ class KitChatBridge:
     def _layer(self, turn_id, packet):
         """SessionManifest, RoomManifest, TurnDelta (kit_manifest). A body the host was sent
         recently is replaced by its hash."""
-        session, room, _ = kit_manifest.split(packet)
+        parts = kit_manifest.split(packet)
+        session, room, _ = parts
         hashes = {'session': kit_manifest.digest(session), 'room': kit_manifest.digest(room)}
         recent = [row for row in self.runtime.recent_kit_timings(limit=50) if row['turn_id'] != turn_id]
         held = kit_manifest.plan_sends(recent, self.runtime.committed_kit_turn_ids())
         cached = {layer: hashes[layer] in held[layer] for layer in hashes}
-        layered, _, _ = kit_manifest.layered(packet, cached['session'], cached['room'])
+        layered, _, _ = kit_manifest.layered(packet, cached['session'], cached['room'], parts=parts, hashes=hashes)
         notice = kit_manifest.rejection_notice(recent, hashes['session'])
         if notice:
             layered = {**{k: layered[k] for k in ('session_manifest', 'room_manifest', 'manifest_rule')},
@@ -5848,6 +6067,14 @@ def start_session(db, sheet_path=None, runtime=None, room=None, area=None, manif
     own = runtime is None
     runtime = runtime or Runtime(db)
     try:
+        if runtime.db.execute('SELECT 1 FROM source').fetchone() is not None and \
+                runtime.source().get('id') == source.get('id') and runtime.source() != source:
+            # The same room, edited, on a game already running: it reloads in place, keeping
+            # progress and Kit's memory (PR 145 bug 10). An unchanged room still refuses below.
+            revision = runtime.reload_room(source, room_path=room)
+            return {'stage': 'reloaded', 'db': str(db), 'room_id': source.get('id'), 'room': str(room),
+                    'revision': revision,
+                    'next_step': 'The edited room file was reloaded mid-game; carry on with prepare.'}
         try:
             runtime.initialize(source, area or source['starting_area'], room_path=room)
         except InvalidChange as exc:

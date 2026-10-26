@@ -28,6 +28,7 @@ makes the chosen answer stick.
 import copy
 import re
 
+from . import _lazy
 from . import kit_guards, kit_prices
 from . import kit_texture
 from .state_context import normalize_fact, require
@@ -38,7 +39,7 @@ SCOPES = ('scene', 'location', 'actor', 'campaign')
 MAX_INVENTIONS = 4
 INVENTION_FACT_MAX_CHARS = 240
 INVENTION_BASIS_MAX_CHARS = 200  # the canon ledger's bound (state_context.CANON_BASIS_MAX_CHARS)
-SLOT_PATTERN = re.compile(r'^[a-z0-9_:]+(/[a-z0-9_]+){1,3}$')
+SLOT_PATTERN = _lazy.regex(r'^[a-z0-9_:]+(/[a-z0-9_]+){1,3}$')
 MIN_CANDIDATES, MAX_CANDIDATES = 3, 5
 LINE_MAX_CHARS = 160
 FIELD_MAX_CHARS = 200
@@ -93,7 +94,7 @@ NO_DETAIL = {'request': 'none', 'slot': 'none', 'choice': 'none', 'candidates': 
 
 # A player asking for a detail. Broad and room-agnostic: a miss only means the host was
 # not reminded; the host sets request whenever the player asks for a detail.
-DETAIL_ASK = re.compile(
+DETAIL_ASK = _lazy.regex(
     r"\bwhat(?:'s| is| are| was| were| kind of| sort of)?\b[^.?!]{0,40}?\b("
     r"drink|drinking|eat|eating|smok|playing|game|wear|wearing|read|reading|carv|written|"
     r"says|inscri|made of|inside|in it|on it|smell|taste|called|name|"
@@ -102,7 +103,7 @@ DETAIL_ASK = re.compile(
 
 # Rules or stakes stated as settled. Naming any game as flavor is fine; offering one as
 # playable (its rules, its stakes) needs a procedure the runtime can run.
-PROCEDURE_STATEMENT = re.compile(
+PROCEDURE_STATEMENT = _lazy.regex(
     r"\b(the )?rules? (is|are)\b|\bhighest\b[^.]{0,20}\b(wins|takes)\b|\bwinner takes\b"
     r"|\b(stakes?|ante|buy-in) (is|are)\b|\b(matching )?coin from each\b|\bone card (apiece|each)\b"
     r"|\beach player (puts|antes|pays|bets|gets)\b")
@@ -112,9 +113,9 @@ _SMALL = frozenset('''
     he she they them his her their you your i me my we our who what which when where how why
     because true none there here has have had will would can could not no so than then just
 '''.split())
-_NUMBER = re.compile(r"\b\d+\b|\b(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|"
+_NUMBER = _lazy.regex(r"\b\d+\b|\b(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|"
                      r"twenty|thirty|forty|fifty|hundred|dozen)\b")
-_CONTRACTION = re.compile(r"\b(what|where|who|how|that|there|here)s\b")
+_CONTRACTION = _lazy.regex(r"\b(what|where|who|how|that|there|here)s\b")
 
 
 def _norm(text):
@@ -138,7 +139,7 @@ def is_none(value):
 
 
 # "What is that worth (to you)?" bargains; it asks no item's price.
-_BARGAIN_WORTH = re.compile(r"\bwhat(?:'s| is| are| would| will)?\s+(?:that|it|this|those|these|they)\s+"
+_BARGAIN_WORTH = _lazy.regex(r"\bwhat(?:'s| is| are| would| will)?\s+(?:that|it|this|those|these|they)\s+"
                             r"(?:be\s+)?worth\b")
 
 
@@ -445,7 +446,7 @@ def public_inventions(detail):
 # runtime runs; "high card takes it" or "one card apiece" is a game nobody is playing.
 # Brendon's table call 1 (2026-10-02): never "high card for 1 gp" or "one card apiece".
 # Blackjack and poker words are fine now: call 7 asks for an easy game of that class.
-FOREIGN_RULES = re.compile(r"\bhigh(?:est)? card\b|\bone card (?:apiece|each)\b")
+FOREIGN_RULES = _lazy.regex(r"\bhigh(?:est)? card\b|\bone card (?:apiece|each)\b")
 
 
 def check_detail_performance(segments, declared_procedures=(), game_terms=()):

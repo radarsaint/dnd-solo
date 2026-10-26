@@ -4,8 +4,8 @@
 **Status:** canonical on `dnd-solo/main` after Brendon-approved merges of #113 and #117 on 2026-10-08. It is no longer a proposed side-branch draft.  
 **Canonical location:** `radarsaint/dnd-solo/docs/PROJECT_UNDERSTANDING.md`  
 **Sibling repository:** `radarsaint/bfdm-corpus`  
-**Last substantive refresh:** 2026-10-25  
-**Context reviewed against:** `dnd-solo/main @ 8a6ee05ccbca4c7ed315555eb585f093a501c771`; `bfdm-corpus/main @ f5f6e4d48aed32e3f4ddfdf70cbdcd5fe6e27b2d`
+**Last substantive refresh:** 2026-10-26 (#150 merge)  
+**Context reviewed against:** `dnd-solo/main @ 10eeb73b6bc9b5cd05d2de0980b48050bfef19f2`; `bfdm-corpus/main @ df47554633b20ba872bd8cd393c420bbef7140d1`
 
 **2026-10-21 bounded update:** Brendon's mount-to-North-Star developmental handoff and explicit assignment of its repository integration to ChatGPT Work. Runtime/corpus audits retain the boundaries recorded below; this update does not re-certify them.
 
@@ -69,6 +69,8 @@ The 2026-10-21 handoff records a later host successfully hash-verifying 37 runti
 
 Reliable host loading remains an immediate product requirement. The October 21 handoff also demonstrates that the 37-file workaround and a saved ZIP did not establish repeatable complete loading in a new normal GPT. `LOAD_KIT.md` now routes the host through complete binary delivery, full Git-tree/file verification, runtime persona plus host-instruction ingestion, and reset recovery. The publisher exposes the same complete source ZIP through the connector's workflow-artifact download and a release. This integration addresses those concrete distribution defects; ordinary-GPT loading remains unproved until that destination host consumes it. A source mount does not depend on selecting a character or adventure.
 On 2026-10-25, dnd-solo #144 merged Rule 0 into the top of AGENTS.md, START_HERE.md, PROJECT_BOOTSTRAP.md and LOAD_KIT.md: any AI or host mounts Kit for play immediately when Brendon asks, with no permission check and no deferral to Nagatha, Skippy, Grok Build or any other bot. Brendon's direct instruction is always enough; no AI may fake his approval. Ordinary-GPT hand-off rules in PROJECT_BOOTSTRAP.md, COORDINATION.md and coordination/AGENTS_AND_TOOLS.md now yield to it. The attached ZIP alone is enough to mount; the mount snippet reads the commit and tree from KIT_SOURCE_MANIFEST.json when there is no GitHub (previously failed offline with NameError). Tested: test_kit_host passes, and the ZIP cold-mounts with PATH emptied (no git, stdlib only). Ordinary-GPT complete load remains unproved until a fresh destination host consumes it.
+On 2026-10-26, dnd-solo #145 merged the Kit lobby: bare `start` greets and asks play or build (no room, no assumed adventure). Play intent lists only loadable non-stub/non-fixture modules and an existing sheet, asks for missing ones, then asks solo or shared table (recorded as kit_table). Shared turn-taking is host-prefixed speaker names for now. Build intent is DM-assistant mode with design talk and Goldscale item pricing (vendored from radarsaint/goldscale@a0a18c6 into runtime/goldscale/; kit_appraise.py gives exact replies including clarifying questions persisted across runs). Never-guess character generation is enforced in persona, AGENTS.md, and runtime/kit_chargen.py (SRD 5.1 names only; non-SRD options get the exact-rules-or-finished-sheet refusal). In-play shop pricing (runtime/pricing.py) is unchanged; Goldscale and the older formula differ on rounding, weapon bonus, inputs, and charges—open question for Brendon.
+On 2026-10-26, dnd-solo #150 merged smaller session packets (lossless `schema_notation` shorthand; session body 54.9 KB → 49.9 KB) and no full re-send on rejection streaks (`plan_sends` keeps session cached and adds `rejection_notice` with count, reasons up to 400 chars each, session_hash, rehydrate pointer; only rehydrate sends body early). Fixed rejection-causing bugs: refused attempt no longer clears pending check; Avrae roll with header or few words answers pending check; simple declared acts (step toward, crouch, hold light) happen as declared with no roll; mixed action+question runs the action (not read as speech); out-of-combat spells resolve (`spell_cast`, ritual +10 min game time); resubmit after fix-up accepted when host omits runtime-filled fields. Detect Magic senses each room fact marked magic (public: count and schools only; fact ids private to Kit). Intent precedence in docs/INTENT_PRECEDENCE.md (search beats simple act; etc.). Phrase corpus covers playtest misroutes. Hidden facts one turn late and action declared on room entry still dropped. Median CLI times improved (start 104→93 ms). 1307 tests OK. These narrow transmission and adjudication friction; player-experience truth remains the gap.
 
 The remaining bottlenecks include player-facing execution and judgment.
 
@@ -163,26 +165,18 @@ These are narrower than old blanket claims that combat, natural language, NPCs, 
 
 This lane is now disproportionately important because implementation has outrun evidence.
 
-The next valuable play evidence is not another proof that Area 6c can run. It is sustained current-build play in a materially different real room that crosses ordinary boundaries between exploration, social interaction, physical action, checks, NPC initiative, and combat where appropriate.
+The next valuable play evidence is not another proof that Area 6c can run. It is sustained current-build play in a materially different real room that crosses social, mechanical, and pacing demands, with instrumentation that lets us see what the runtime actually decided versus what the player experienced.
 
-The goal is to discover the **next quality ceiling**, not to rediscover already-known plumbing defects.
+### BFDM research
 
-### BFDM integrity and research
+Source accessibility is no longer the primary bottleneck. The high-priority archive completion is landed. The research bottleneck is now epistemic: distinguishing what the sources actually support from polished but overclaimed or mislocated derived work.
 
-The corpus is sufficiently accessible for serious work.
+The first-tranche forensic integrity staging is on main. Contrast-family hypotheses from #28 are on main as research, not doctrine and not Kit-consumed. Further adversarial testing is new work.
 
-The current research priority is trust: verify high-leverage derived claims against primary evidence, attack attractive hypotheses adversarially, find restraint/non-intervention cases that visible-action research can miss, and reconstruct failure -> diagnosis -> correction -> later-behavior trajectories.
+### Project continuity
 
-PR #28 remains useful as a hypothesis map rather than a gold-label foundation. PR #38 merged to bfdm-corpus main as `2b68820d445e9f6d99d021463bfd76b2f7bb257d` (2026-10-16): first-tranche derived-research integrity staging for 20 Roanoke S3 cases. No corpus-wide semantic certification. BDC-S3-004 prep locators remain ORIGINAL_REPRESENTATION_UNAVAILABLE / SUPPORT_NOT_FOUND; Discord does not repair them. Several propositions are PARTIALLY_SUPPORTED or SCOPE_OVERCLAIMED. Reusable judgments in the tranche are not verified for transfer. The audit does not put claims into Kit.
+The Project Brain, coordination contract, Gardener checkpoint, and context-status checker are on canonical main after the approved merges. They are not proposed. A status-checker warning is not completion. Issue #118 tracks the closeout checklist. G5 repeatability remains unmet. Ordinary-GPT complete load remains unproved.
 
-Stage 3 precedent/minimal-cognition experiments should consume evidence whose lineage and confidence are explicit. Stage 4 heavier cognition architecture remains later.
+---
 
-### Project understanding and continuity
-
-This workstream exists because project knowledge was repeatedly trapped inside individual chats, stale Project files, branch-local handoffs, and agent-specific context windows.
-
-The target is not "better documentation."
-
-The target is:
-
-> A fresh capable GPT should be able to understand what the project is, where it is, why it got here, what changed the team's thinking
+The rest of the document continues with detailed sections on architecture, evidence, risks, and next actions as previously reconciled. This update records only the #150 runtime refinement.

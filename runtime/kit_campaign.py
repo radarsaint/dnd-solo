@@ -12,7 +12,8 @@ import shlex
 import sqlite3
 from pathlib import Path
 
-from . import kit_chargen, kit_rooms, pc_sheet
+from . import _lazy, kit_rooms, pc_sheet
+kit_chargen = _lazy.module('.kit_chargen', __package__)
 from .state_context import PROJECT_ROOT
 
 # Outside rooms/ on purpose: a regression fixture, not a campaign start.

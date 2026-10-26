@@ -15,6 +15,8 @@ Each roll is labelled by the words just before or after it: a skill, a save,
 ``initiative``, ``attack`` ("to hit"), or ``damage``. Deterministic; no dice here.
 """
 import re
+
+from . import _lazy
 from dataclasses import dataclass
 
 SKILLS = ('acrobatics', 'animal handling', 'arcana', 'athletics', 'deception', 'history', 'insight',
@@ -28,17 +30,17 @@ DAMAGE_TYPES = ('acid', 'bludgeoning', 'cold', 'fire', 'force', 'lightning', 'ne
 _SKILL = r'(?:' + '|'.join(s.replace(' ', r'\s+') for s in sorted(SKILLS, key=len, reverse=True)) + r')'
 _DTYPE = r'(?:' + '|'.join(DAMAGE_TYPES) + r')'
 
-_AVRAE = re.compile(r'\b\d*d20(?:[kp][hl]\d+)?\s*\(([^)]*)\)\s*((?:[+-]\s*\d+\s*)*)=\s*(-?\d{1,3})\b')
-_SUM = re.compile(r'(?<![\d(])\b(\d{1,2})\s*((?:[+-]\s*\d{1,2}\s*)+)=\s*(-?\d{1,3})\b')
-_NATURAL = re.compile(r'\b(?:natural|nat|the d20 (?:shows|showed|came up|says)|the die (?:shows|showed|came up)|'
+_AVRAE = _lazy.regex(r'\b\d*d20(?:[kp][hl]\d+)?\s*\(([^)]*)\)\s*((?:[+-]\s*\d+\s*)*)=\s*(-?\d{1,3})\b')
+_SUM = _lazy.regex(r'(?<![\d(])\b(\d{1,2})\s*((?:[+-]\s*\d{1,2}\s*)+)=\s*(-?\d{1,3})\b')
+_NATURAL = _lazy.regex(r'\b(?:natural|nat|the d20 (?:shows|showed|came up|says)|the die (?:shows|showed|came up)|'
                       r'd20 (?:shows|showed|came up)|d20:?)\s*(?:a\s+|an\s+)?(\d{1,2})\b')
-_DAMAGE = re.compile(r'\b(\d{1,3})\s+(?:points?\s+of\s+)?(?:(' + _DTYPE + r')\s+)?(?:damage|dmg)\b'
+_DAMAGE = _lazy.regex(r'\b(\d{1,3})\s+(?:points?\s+of\s+)?(?:(' + _DTYPE + r')\s+)?(?:damage|dmg)\b'
                      r'|\b(\d{1,3})\s+(' + _DTYPE + r')\b(?!\s+(?:damage|dmg))'
                      r'|\b(?:damage|dmg):?\s+(?:of\s+)?(\d{1,3})\b')
-_INIT = re.compile(r'\b(?:initiative|init)\b[^.!?\d\[\]]{0,30}?(?<![\d+-])(\d{1,2})\b(?!\s*(?:[+-]|to[- ]hit|damage|\w+ damage))')
-_SKILL_AFTER = re.compile(r'^\s*(?:on|for|in|at)\s+(?:my\s+|the\s+|a\s+)?(' + _SKILL + r')\b')
-_ATTACK_AFTER = re.compile(r'^\s*(?:to[- ]hit|to strike|on the attack|for the attack|attack)\b')
-_TOTAL = re.compile(r'\b(?:rolled|rolling|roll(?:ed)?:|got|get|total(?:\s+of)?|scored?|came up)\s*'
+_INIT = _lazy.regex(r'\b(?:initiative|init)\b[^.!?\d\[\]]{0,30}?(?<![\d+-])(\d{1,2})\b(?!\s*(?:[+-]|to[- ]hit|damage|\w+ damage))')
+_SKILL_AFTER = _lazy.regex(r'^\s*(?:on|for|in|at)\s+(?:my\s+|the\s+|a\s+)?(' + _SKILL + r')\b')
+_ATTACK_AFTER = _lazy.regex(r'^\s*(?:to[- ]hit|to strike|on the attack|for the attack|attack)\b')
+_TOTAL = _lazy.regex(r'\b(?:rolled|rolling|roll(?:ed)?:|got|get|total(?:\s+of)?|scored?|came up)\s*'
                     r'(?:(?:a|an|my|the|for|with)\s+){0,2}(?:' + _SKILL + r'\s+(?:check\s+)?)?(?:of\s+)?(\d{1,2})\b'
                     r'|\b(\d{1,2})\s+(?:to[- ]hit|on the attack|for the attack)\b'
                     r'|\b(?:to[- ]hit|attack(?: roll)?|initiative|init)\s*(?:roll\s*)?(?:is|of|was|:|=)?\s*(\d{1,2})\b'
@@ -96,10 +98,10 @@ def _mods(text):
 # names what it is ("To Hit: 1d20 (11) + 7 = 18", "Damage: 1d12 (5) + 6 [slashing] = 11",
 # "DEX Save: 1d20 (8) + 1 = 9; Failure!", "Initiative: 1d20 (12) + 2 = 14"); a title line
 # names the check the next roll belongs to ("Sela makes a Persuasion check!").
-_FIELD = re.compile(r'^\s*(?:[^:\n]{1,40}:\s*)?(to[- ]hit|damage(?:\s*\(crit!?\))?|'
+_FIELD = _lazy.regex(r'^\s*(?:[^:\n]{1,40}:\s*)?(to[- ]hit|damage(?:\s*\(crit!?\))?|'
                     r'(strength|dexterity|constitution|intelligence|wisdom|charisma|str|dex|con|int|wis|cha)\s+save|'
                     r'initiative|init)\s*:')
-_HEADER = re.compile(r'\bmakes? an?\s+(' + _SKILL + r'|strength|dexterity|constitution|intelligence|wisdom|charisma)'
+_HEADER = _lazy.regex(r'\bmakes? an?\s+(' + _SKILL + r'|strength|dexterity|constitution|intelligence|wisdom|charisma)'
                      r'\s+(check|save|saving throw)\s*!?')
 
 
@@ -267,8 +269,8 @@ def attack_total(action):
     return None
 
 
-_AVRAE_DAMAGE = re.compile(r'^\s*damage(?:\s*\((crit)!?\))?\s*:\s*(.*)$', re.M)
-_DC = re.compile(r'\bdc\s*:?\s*(\d{1,2})\b')
+_AVRAE_DAMAGE = _lazy.regex(r'^\s*damage(?:\s*\((crit)!?\))?\s*:\s*(.*)$', re.M)
+_DC = _lazy.regex(r'\bdc\s*:?\s*(\d{1,2})\b')
 
 
 def _avrae_damage_line(content):
@@ -348,7 +350,7 @@ _UNITS = {'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5, 'six': 6, 'seven
           'seventeen': 17, 'eighteen': 18, 'nineteen': 19}
 _TENS = {'twenty': 20, 'thirty': 30, 'forty': 40, 'fifty': 50, 'sixty': 60, 'seventy': 70, 'eighty': 80,
          'ninety': 90}
-_NUMBER_WORD = re.compile(
+_NUMBER_WORD = _lazy.regex(
     r"\b(?:(a|one|two|three|four|five|six|seven|eight|nine)\s+hundred(?:\s+(?:and\s+)?)?)?"
     r"(?:(" + '|'.join(_TENS) + r")(?:[- ](" + '|'.join(k for k in _UNITS if _UNITS[k] < 10) + r"))?|"
     r"(" + '|'.join(sorted(_UNITS, key=len, reverse=True)) + r"))?\b")
@@ -377,14 +379,14 @@ def number_words(text):
 
 
 _DICE_TERM = r'\d*d\d+(?:[a-z]{1,3}\d+)*(?:\s*\([^)]*\))?'
-_DICE_EXPR = re.compile(r'\b' + _DICE_TERM + r'(?:\s*\[[^\]]*\])?'
+_DICE_EXPR = _lazy.regex(r'\b' + _DICE_TERM + r'(?:\s*\[[^\]]*\])?'
                         r'(?:\s*[+-]\s*(?:' + _DICE_TERM + r'|\d+)(?:\s*\[[^\]]*\])?)*'
                         r'(?:\s*/\s*\d+)?(?:\s*=\s*-?\d{1,3}\b)?')
 
 
 # Avrae's title lines: "Wren makes an Investigation check!", "Brakka attacks with a Greataxe!",
 # "Nik casts Fireball!".
-AVRAE_TITLE = re.compile(r"^[^\n!?.]{1,40}?\b(?:makes? an?\s+[a-z' ]{3,30}\s+(?:check|save|saving throw)|"
+AVRAE_TITLE = _lazy.regex(r"^[^\n!?.]{1,40}?\b(?:makes? an?\s+[a-z' ]{3,30}\s+(?:check|save|saving throw)|"
                          r"attacks? with an?\s+[^\n!]{1,40}|casts?\s+[^\n!]{1,40})!\s*$", re.M | re.I)
 
 
@@ -417,3 +419,9 @@ def damage_total(action):
         return amount, kind
     items = damage(action)
     return (sum(a for a, _ in items), next((k for _, k in items if k), None)) if items else (0, None)
+
+
+def roll_outcome(total, dc, save=False):
+    """'pass' or 'fail' for a roll against a DC, for Kit only, never shown to the player.
+    Ties go to the actor on a check (meet or beat); a saving throw that only ties the DC fails."""
+    return 'pass' if (total > dc if save else total >= dc) else 'fail'

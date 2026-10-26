@@ -18,7 +18,16 @@ Checks come in two strengths:
 """
 import re
 
-from .kit_toll import TOLL_GAME_WORDS, npc_names_toll_words  # one NPC-line toll test: detector and guard
+from . import _lazy
+kit_toll = _lazy.module('.kit_toll', __package__)  # one NPC-line toll test: detector and guard, imported on first use
+
+
+def __getattr__(name):
+    """kit_guards.npc_names_toll_words / TOLL_GAME_WORDS: the one toll test kit_toll owns
+    (shared by the detector and this guard), imported on first use."""
+    if name in ('npc_names_toll_words', 'TOLL_GAME_WORDS'):
+        return getattr(kit_toll, name)
+    raise AttributeError(name)
 from .state_context import InvalidChange, require
 
 # Every speaker label except these is an NPC voiced from the room source's actor cards.
@@ -84,7 +93,7 @@ FILLER_PHRASES = (             # stock narration that fills space without adding
 )
 # Narration that retells what the player just did ("You ask what is going on.").
 # The accepted event already shows it; retelling it only fills the floor.
-_RESTATE_OPENERS = re.compile(
+_RESTATE_OPENERS = _lazy.regex(
     r"^you (say|said|ask|asked|tell|told|greet|greeted|introduce|introduced|declare|declared|"
     r"explain|explained|mention|mentioned|inquire|inquired|reply|replied|announce|announced)\b")
 
@@ -151,7 +160,7 @@ def check_padding(segments, player_action, action_kind, public_history=(), publi
 # ---------------------------------------------------------------------------
 # HARD: NPCs live in the fiction. Talk of dice, checks, DCs, the DM, "your character",
 # or the story as a story is table talk, which belongs only to Kit.
-NPC_META_PATTERN = re.compile(
+NPC_META_PATTERN = _lazy.regex(
     r"\b(dungeon master|game master|the dm|your character|the narrator|npcs?|nat(ural)? ?20|"
     r"d20|d12|d10|d8|d6|d4|saving throw|hit points|initiative|ability check|skill check|"
     r"roll (a|for|initiative|insight|perception|stealth|athletics)|make (a|an) \w+ check|"
@@ -379,11 +388,11 @@ def check_voice_contracts(actor_cards):
 # kit_focus may choose which tactic plays out, how fast, and how it is framed. It may
 # not set how an NPC talks: that comes from the NPC's card. Diction words next to an
 # NPC reference in Kit's direction are the tell.
-DICTION_WORDS = re.compile(
+DICTION_WORDS = _lazy.regex(
     r"\b(quips?|jokes?|joking|puns?|wisecracks?|witty|wit|banter|sarcas\w*|wry|wryly|humou?r\w*|"
     r"funny|drawl\w*|accent|diction|phrasing|vocabulary|catchphrase|voice|sounds? like|"
     r"speaks? like|talks? like|in kit's|like kit)\b")
-NPC_REFERENCES = re.compile(r"\b(dealer|card player|players at the table|npcs?|actors?|he|his|him|"
+NPC_REFERENCES = _lazy.regex(r"\b(dealer|card player|players at the table|npcs?|actors?|he|his|him|"
                             r"she|her|they|them)\b")
 # Quoted text of this many words in a brief direction field is a scripted line.
 BRIEF_QUOTE_MAX_WORDS = 2
@@ -445,7 +454,7 @@ def check_focus_specific(kit_focus):
 # ---------------------------------------------------------------------------
 # A social turn labeled `ruling` (or given `call` scope) escapes the exchange floors.
 # That is only honest when the player asked a rules or mechanics question.
-RULES_CUE = re.compile(
+RULES_CUE = _lazy.regex(
     r"\b(can i|could i|may i|am i able|do i (need|have|get)|roll|rolls|check|dc|modifier|bonus|"
     r"advantage|disadvantage|rules?|allowed|how does|saving throw|initiative|skill|ability|"
     r"insight|perception|stealth|athletics|persuasion|deception|intimidation|sleight of hand|"
@@ -547,7 +556,7 @@ def leak_phrases(source):
             'player_may_name': [p.lower() for p in entry.get('player_may_name', [])]}
 
 
-_NEGATION = re.compile(r"\b(not|never|no|nothing|n't)\b|n't\b")
+_NEGATION = _lazy.regex(r"\b(not|never|no|nothing|n't)\b|n't\b")
 
 
 def check_paraphrased_leaks(text, public_view, player_action, sets, labels=()):
@@ -591,7 +600,7 @@ AGENCY_LOOKBACK_WORDS = 3      # "if you agree" is conditional when if/unless/..
 _CONDITIONALS = frozenset('if unless when whether until once should would might may could '
                           'perhaps maybe before after lest suppose supposing whatever what how '
                           'why do does did can will to let lets letting'.split())
-_NARRATION_AGENCY = re.compile(
+_NARRATION_AGENCY = _lazy.regex(
     r"\byou(?:'re| are| have| had|'ve)? (?:\w+ly )?(agree|agreed|accept|accepted|decide|decided|refuse|"
     r"refused|feel|felt|realize|realized|realise|realised|nod|nodded|smile|smiled|laugh|laughed|"
     r"shrug|shrugged|sit|sat|take a seat|pay|paid|hand over|handed|reach for|reached for|lean|"
@@ -599,10 +608,10 @@ _NARRATION_AGENCY = re.compile(
     r"wondered|remember|remembered|find yourself|found yourself|can't help|cannot help|"
     r"afraid|terrified|nervous|convinced|tempted|uneasy|impressed|charmed|intrigued|"
     r"fall silent|fell silent|comply|complied|obey|obeyed)\b")
-_NPC_AGENCY = re.compile(
+_NPC_AGENCY = _lazy.regex(
     r"\byou(?:'ve| have)? (agree|agreed|accept|accepted|decided|feel|felt|are afraid|are nervous|"
     r"are tempted|are convinced)\b")
-_IMPOSED_BODY = re.compile(
+_IMPOSED_BODY = _lazy.regex(
     r"\byour (heart|pulse|stomach|breath|hand|hands|fingers|cheeks|skin) "
     r"(races|raced|pounds|pounded|sinks|sank|quickens|quickened|catches|caught|drifts|drifted|"
     r"moves|moved|tightens|tightened|flushes|flushed|crawls|crawled|itch|itches)\b|"
@@ -726,7 +735,7 @@ def numeric_facts(source):
 
 # An opening sentence that leads with the amount ("Thirty gold, to a jeweler", "Oh, about
 # 25 gp") is an elliptical answer; "I won twenty gold tonight" is not.
-ELLIPTIC_AMOUNT = re.compile(
+ELLIPTIC_AMOUNT = _lazy.regex(
     r"^\W*(?:(?:oh|well|only|just|about|maybe|roughly|near|nearly|call it|that'?s|it'?s|its)\W+)*"
     r"(?:an? )?(?:\d|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen"
     r"|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty"
@@ -857,7 +866,7 @@ def check_player_identity(segments, character):
                     '(public view your_character). Get who they are right.')
 
 
-CLEAN_DEAL = re.compile(
+CLEAN_DEAL = _lazy.regex(
     r"\b(?:fingers|hands|wrists) (?:stay |stayed |are |were |kept |keep )?(?:clear|clean|honest|still)\b"
     r"|\bdeals? (?:it |them |the cards )?(?:clean|straight|honest|fair)(?:ly)?\b"
     r"|\bdealt (?:it |them )?(?:clean|straight|honest|honestly|fair|fairly)\b"
@@ -865,7 +874,7 @@ CLEAN_DEAL = re.compile(
     r"|\bstraight off the top\b|\bevery card (?:from|off) the top\b|\boff the top,? (?:every|each) card\b"
     r"|\bthe deal (?:is|was|looks|looked|seems|seemed) (?:clean|fair|honest|straight)\b"
     r"|\bno (?:tricks?|sleight|funny business) (?:in|with) the deal\b|\bnothing (?:wrong|off|amiss) (?:with|about|in) the deal\b")
-_PERCEIVED = re.compile(r"\b(?:to you|you see|you can see|you notice|you spot|you can tell|you catch|as far as you)\b")
+_PERCEIVED = _lazy.regex(r"\b(?:to you|you see|you can see|you notice|you spot|you can tell|you catch|as far as you)\b")
 
 
 def check_clean_deal(segments, dealer_cheated):
@@ -886,11 +895,11 @@ def check_clean_deal(segments, dealer_cheated):
                     'but the game state says otherwise. Describe only what the player can see.')
 
 
-STAKE_CUE = re.compile(
+STAKE_CUE = _lazy.regex(
     r"\b(?:wager|wagers|wagering|stake|staking|put up|puts up|putting up|play (?:you )?for|playing for|"
     r"bet|bets|betting|throw in|throws in|toss in|in(?:to)? the (?:pot|stakes)|on the table as|as stakes|"
     r"win (?:a|the|one|this|that) (?:gambit|hand|game|round))\b")
-UNCARRIED_STAKES = re.compile(
+UNCARRIED_STAKES = _lazy.regex(
     r"\b(ring|rings|toll|tolls|passage|key|keys|bottle|cordial|door|way through|your (?:sword|blade|weapon|"
     r"horse|boots|pack|cloak|bow)|favou?r|secret|secrets)\b")
 
@@ -931,12 +940,12 @@ PUBLIC_NUMBER_PATTERNS = (
     ('a roll total', re.compile(r"\(\s*(?:passive\s+)?" + _SKILL_NAMES + r"\s+\d+", re.I)),
     ('a die expression', re.compile(r"\bd(?:4|6|8|10|12|20|100)\s*[+-]\s*\d+|\b\d+d\d+\b|\bd20\b|\bnat(?:ural)? ?(?:1|20)\b", re.I)),
 )
-SIGNED_MODIFIER = re.compile(
+SIGNED_MODIFIER = _lazy.regex(
     _SKILL_NAMES + r"(?:\s+(?:check|roll|save|saving throw|bonus|modifier))?[,:]?\s*(?:at |of |is )?[+\u2212-]\s?\d+"
     + r"|[+\u2212-]\s?\d+\s+(?:to|on|in)\s+(?:your\s+)?" + _SKILL_NAMES
     + r"|\b(?:your|a|the) (?:bonus|modifier) (?:is|of) [+\u2212-]?\s?\d+", re.I)
 # Reminders of the PC's own bonuses, advantage sources, or item benefits (call 4).
-FEATURE_REMINDER = re.compile(
+FEATURE_REMINDER = _lazy.regex(
     r"\b(?:grants?|gives?|giving|grant(?:ing|s)?) (?:you )?(?:advantage|disadvantage|a bonus|a \+\d|\+\d)"
     r"|\byou(?:'ve| have)? (?:got )?(?:advantage|a \+\d+|\+\d+) (?:on|to|for)\b"
     r"|\byour (?:\w+ )?(?:bonus|modifier)\b", re.I)
@@ -969,7 +978,7 @@ def check_public_numbers(segments, rules_question=False, public_event=''):
 _FOOD = (r"(?:wine|ale|beer|mead|cordial|liquor|spirits|brandy|whisk(?:e)?y|drinks?|cups?|glass(?:es)?|"
          r"goblets?|mugs?|flasks?|tankards?|bottles?|food|bread|meat|cheese|snacks?|refreshments?|"
          r"water|tea|stew|meal|supper|dinner)")
-REFRESHMENT = re.compile(rf"\b{_FOOD}\b")
+REFRESHMENT = _lazy.regex(rf"\b{_FOOD}\b")
 # Figurative speech is not a served drink: food words only count when a serving or drinking
 # verb takes them as its object in the same clause ("pours you a cup of wine"), or they are
 # the subject of a serving predicate ("drinks are on the house"). A food word that is only a
@@ -980,11 +989,11 @@ _SERVE_VERB = (r"(?:pour\w*|serv(?:e|es|ed|ing)|offer\w*|hand(?:s|ed|ing)|hands?
                r"pass(?:es|ed|ing)?|slid\w*|slides?|fill\w*|refill\w*|top(?:s|ped)? up|raise\w*|"
                r"have|help yourself to|try)")
 _DRINK_VERB = r"(?:sip\w*|drink\w*|drank|eat\w*|ate|nibbl\w*|toast\w*)"
-SERVED = re.compile(
+SERVED = _lazy.regex(
     rf"\b{_SERVE_VERB}{_CLAUSE_GAP}{_FOOD}\b"                  # pours you a cup of wine
     rf"|\b{_DRINK_VERB}(?:\s+(?:to|up|deep)\b|\s*$|{_CLAUSE_GAP}{_FOOD}\b)"  # drink to luck; sips wine
     rf"|\b{_FOOD}\s+(?:is|are|was|were)(?:\s+\w+){{0,2}}?\s+(?:poured|served|offered|on the house|free)\b")
-REFRESHMENT_NEGATED = re.compile(r"\b(no|not|none|nothing|never|without|empty|dry|run out|ran out|gone|"
+REFRESHMENT_NEGATED = _lazy.regex(r"\b(no|not|none|nothing|never|without|empty|dry|run out|ran out|gone|"
                                  r"don'?t|do not|haven'?t|have not|can'?t|cannot|no longer|nor|neither|lack\w*)\b")
 
 
@@ -1021,13 +1030,13 @@ def check_toll_exchange(segments, amount, raised):
         parts = sentences(segment['text'])
         for index, sentence in enumerate(parts):
             said = {value for value, _ in spoken_amounts(sentence)}
-            if amount not in said or not npc_names_toll_words(normalize(sentence)):
+            if amount not in said or not kit_toll.npc_names_toll_words(normalize(sentence)):
                 continue
             require(is_npc(segment['speaker']),
                     f'The toll is an NPC\'s demand: the {segment["speaker"]} names it ("{sentence[:60]}"). Let the '
                     'NPC who wants it make the demand, with their reason.')
             around = ' '.join(normalize(part) for part in parts[max(0, index - 1):index + 1])
-            require('?' in segment['text'] and not TOLL_GAME_WORDS.search(around),
+            require('?' in segment['text'] and not kit_toll.TOLL_GAME_WORDS.search(around),
                     f'The toll is a real exchange, not a line beside the game: the {segment["speaker"]} names it '
                     'in passing. Make the demand its own beat, with a reason in character and an opening '
                     'for the player to answer.')

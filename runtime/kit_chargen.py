@@ -12,6 +12,8 @@ import json
 import re
 import sys
 
+from . import _lazy
+
 # SRD 5.1 (CC-BY-4.0) player options, names only.
 SRD_OPTIONS = {
     'class': ('barbarian', 'bard', 'cleric', 'druid', 'fighter', 'monk', 'paladin', 'ranger', 'rogue',
@@ -86,32 +88,32 @@ NON_SRD_NAMES = {
               'shadow of moil', 'life transference', 'intellect fortress', 'sickening radiance'),
 }
 _NON_SRD_WORDS = {n: k for k, v in NON_SRD_NAMES.items() for n in v}
-_NON_SRD_RE = re.compile(r"(?<![a-z'])(" + '|'.join(re.escape(n) for n in sorted(_NON_SRD_WORDS, key=len, reverse=True))
+_NON_SRD_RE = _lazy.regex(r"(?<![a-z'])(" + '|'.join(re.escape(n) for n in sorted(_NON_SRD_WORDS, key=len, reverse=True))
                          + r")(?![a-z'])", re.I)
 
-_BUILD = re.compile(
+_BUILD = _lazy.regex(
     r"\b(build|make|create|roll up|level(?:ing)? up|multiclass|respec|new character|"
     r"character creation|chargen|which (?:feat|subclass|species|race|background)|"
     r"pick (?:a |my )?(?:feat|subclass|species|race|background|spells?))\b", re.I)
 # Asking to take, play, learn or swap a player option counts even without a build verb.
-_OPTION_ASK = re.compile(
+_OPTION_ASK = _lazy.regex(
     r"\b(can (?:i|my \w+|we)|could (?:i|my \w+)|should (?:i|my \w+)|may i|i(?:'d| would)? (?:want|like|wanna|plan) to|"
     r"i'?m (?:going|gonna|planning) to|let me|how about|what about|is|are)\b.{0,40}?"
     r"\b(take|takes|taking|play|playing|be|pick|choose|get|have|use|learn|know|prepare|swap|switch|go|grab|add|allowed)\b"
     r"|\b(play(?:ing)? (?:a|an|as)|take (?:the )?\w[\w' \-]{0,30} (?:feat|subclass|archetype|spell|cantrip)|"
     r"learn (?:the )?\w[\w' \-]{0,30} (?:spell|cantrip)|multiclass(?:ing)? into|subclass|archetype)\b", re.I)
-_CHAR_NOUN = re.compile(r"\b(character|pc|sheet|build|feat|subclass|species|race|background|class|level|spell|"
+_CHAR_NOUN = _lazy.regex(r"\b(character|pc|sheet|build|feat|subclass|species|race|background|class|level|spell|"
                         r"cantrip|archetype|domain|oath|patron|circle|college|tradition|"
                         + '|'.join(re.escape(w) for w in SRD_OPTIONS['class']) + r")s?\b", re.I)
 # Names that mark a non-SRD option: a later book, D&D Beyond, or an option word with a name
 # that isn't an SRD option.
-_BEYOND = re.compile(r"\b(tasha'?s?|xanathar'?s?|volo'?s?|mordenkainen'?s?|fizban'?s?|monsters of the multiverse|"
+_BEYOND = _lazy.regex(r"\b(tasha'?s?|xanathar'?s?|volo'?s?|mordenkainen'?s?|fizban'?s?|monsters of the multiverse|"
                      r"2024|phb 2024|one d&d|d&d beyond|dndbeyond|ua|unearthed arcana|homebrew)\b", re.I)
-_NAMED = re.compile(r"\b([a-z][a-z'\-]*(?: [a-z][a-z'\-]*){0,2}) (domain|oath|circle|college|school|"
+_NAMED = _lazy.regex(r"\b([a-z][a-z'\-]*(?: [a-z][a-z'\-]*){0,2}) (domain|oath|circle|college|school|"
                     r"patron|path|way|archetype|conclave|bloodline|origin|subclass|feat|species|race|"
                     r"background|spell|cantrip)\b", re.I)
-_NAMED_AFTER = re.compile(r"\b(domain|oath|circle|college|school|path|way) of (?:the )?([a-z][a-z'\-]*)", re.I)
-_CLASS_WITH_ADJ = re.compile(r"\b((?:[a-z][a-z'\-]+ )?[a-z][a-z'\-]+) (" + '|'.join(SRD_OPTIONS['class']) + r")\b", re.I)
+_NAMED_AFTER = _lazy.regex(r"\b(domain|oath|circle|college|school|path|way) of (?:the )?([a-z][a-z'\-]*)", re.I)
+_CLASS_WITH_ADJ = _lazy.regex(r"\b((?:[a-z][a-z'\-]+ )?[a-z][a-z'\-]+) (" + '|'.join(SRD_OPTIONS['class']) + r")\b", re.I)
 _FILLER = {'a', 'an', 'the', 'my', 'new', 'level', 'srd', 'first', 'second', 'third', 'fourth', 'fifth',
            'this', 'that', 'good', 'basic', 'simple', 'human', 'build', 'make', 'create', 'pick', 'which',
            'what', 'help', 'me', 'to', 'up', 'for', 'some', 'level-1', 'multiclass', 'with', 'and', 'or',
@@ -234,7 +236,7 @@ UNSOURCED_LINE = ("One thing before we start, and I'm asking, not ruling: where 
                   "If there's a story, pitch it and we'll settle it together.")
 
 
-_CATEGORY = re.compile(r'\b(?:armor|weapons|tools|supplies|kit|instruments?)\b', re.I)
+_CATEGORY = _lazy.regex(r'\b(?:armor|weapons|tools|supplies|kit|instruments?)\b', re.I)
 
 
 def natural_proficiency(prof):
@@ -329,8 +331,8 @@ def proficiency_sources(sheet):
     return out
 
 
-_COPY = re.compile(r'^\s*(?:copy of\s+)+', re.I)
-_DUP = re.compile(r'\s*(?:\(\d+\)|-\s*copy|\bcopy\b)\s*$', re.I)
+_COPY = _lazy.regex(r'^\s*(?:copy of\s+)+', re.I)
+_DUP = _lazy.regex(r'\s*(?:\(\d+\)|-\s*copy|\bcopy\b)\s*$', re.I)
 
 
 def character_name(sheet):
