@@ -1,4 +1,4 @@
-# Player save (campaign-record design P1 and P2)
+# Player save (campaign-record design P1 to P3)
 
 `kit.sqlite` is the live runtime database. It is **runtime-only**: the `source` table holds the
 whole room file (hidden facts, DCs, claims, secret actors and exits, and for book rooms the
@@ -79,9 +79,31 @@ under `env -i python3`.
   is logged as superseded. Either way the journal says "edited by player" and `save` returns
   `noticed` so Kit may mention it once, lightly. Never an accept prompt.
 
-## Later phases
+## P3: resume
 
-P3 resumes from the save ZIP. Until P3, an uploaded `kit.sqlite` from an older save still resumes.
+```sh
+python3 -m runtime.kit_agent start --save <save ZIP or folder> [--room FILE] [--sheet FILE]
+```
+
+- A `kit.sqlite` at `--db` whose room matches `campaign.location.room_id` continues mid-room
+  (`stage: resume`). One for another room is refused: pass a new `--db`.
+- No sqlite: the room is found by id (`--room`, else the db folder, the working dir, `rooms/`,
+  and `/mnt/data`, `/mnt/user-data/uploads`, `/mnt/user-data`), mounted fresh at its
+  `starting_area`, and a `campaign_restore` bookkeeping event applies the public record (rooms
+  left with their status, people met, facts learned, loot carried) before the opening is
+  prepared. The sheet is the save's `sheet.json`, as written. Mid-room hidden state is not
+  rebuilt. `stage: resumed_from_save`. The save files are unpacked into `saves/<player>/<campaign>/`
+  so the next save keeps the session history.
+- Only the journal survived: the `kit-state` block gives the location, PC, mode and hashes
+  (`rebuilt_from_journal: true`); without a sheet the stage is `need_character`.
+- Neither: `stage: needs_rebuild`. Kit asks once for the room and sheet, the player confirms.
+- A hand-edited file (hash differs from the `kit-state` record) is used as written and listed in
+  `noticed`. A room file whose hash differs from `source_hashes` mounts anyway with
+  `room_changed: true`, and Kit says so.
+- ZIP members with absolute paths or `..` are refused; only the player files are read.
+- The greeting (`start` with no room) lists saves it finds (`saves`: player, campaign, PC,
+  room, area, last session and recap, open threads) and carries `new_campaign.ask`, starting with
+  the journal-mode question.
 
 ## Imported adventures (#172, #174)
 
@@ -91,3 +113,9 @@ save never reads or copies it. Compiled creatures start hidden; a hidden creatur
 stat block) stays out of the save until the player can see it in the public view.
 `tests/test_kit_player_save.py` checks every location of the original synthetic Lantern Ferry
 adventure.
+
+Resuming an imported adventure: the save names the room (`adv-<book sha8>-<key>`) but never
+carries the book. If the same book is imported next to `--db`, `start --save` compiles that
+room on demand and restarts it from its start. Otherwise the stage is `needs_adventure`: Kit asks
+once for the same adventure file, the host runs `adventure import`, then `start --save` again.
+A different copy of the book has a different id and is refused, never guessed.
