@@ -2,16 +2,16 @@
   "schema": "kit_project_gardener_state/v1",
   "purpose": "RESUMABILITY_CURSOR_NOT_KNOWLEDGE_STORE",
   "canonical_location": "radarsaint/dnd-solo/coordination/context_state.json",
-  "state_revision": 36,
+  "state_revision": 37,
   "semantic_brain": {
     "repo": "radarsaint/dnd-solo",
     "path": "docs/PROJECT_UNDERSTANDING.md",
-    "last_semantic_commit": "b5b313a41c5491ce488fb30d2355fda24e8c3a6e",
+    "last_semantic_commit": "5e0ec39e0dc98c68f47a01a5a4602d5804ba0a8d",
     "last_reviewed_on": "2026-10-26"
   },
   "checkpoint": {
     "reviewed_against_main": {
-      "radarsaint/dnd-solo": "b5b313a41c5491ce488fb30d2355fda24e8c3a6e",
+      "radarsaint/dnd-solo": "5e0ec39e0dc98c68f47a01a5a4602d5804ba0a8d",
       "radarsaint/bfdm-corpus": "df47554633b20ba872bd8cd393c420bbef7140d1"
     },
     "context_inbox": {
@@ -19,15 +19,15 @@
       "issue": 115,
       "issue_state_at_checkpoint": "open",
       "last_fully_reconciled_comment_id": 6202184874,
-      "comment_count_at_checkpoint": 19
+      "comment_count_at_checkpoint": 17
     }
   },
   "last_completed_pass": {
     "kind": "BOUNDED_SEMANTIC_RECONCILIATION",
     "completed_on": "2026-10-26",
-    "scope": "Reviewed dnd-solo #167 merge (main f02bf181, brain b5b313a4). #115 comment 6266120288 remains pending.",
-    "result": "Accept: #167 lands cold-start mount from the repo URL alone. Entry files open with the shared cold-start block; fresh AI mounts itself with no handoff (ZIP\u2192LOAD_KIT, one internet try for release asset, or browsing-only KIT_PORTABLE.md as explicit partial load). KIT_PORTABLE.md generated ~20KB with hard play rules without runtime. Precedence cold-start then LOAD_KIT. Narrow: docs/host instructions; ordinary-GPT complete load remains unproved; portable is partial fallback. Brain updated. Pending #115 DM Kit rulings remain unresolved.",
-    "resulting_brain_commit": "b5b313a41c5491ce488fb30d2355fda24e8c3a6e",
+    "scope": "Reviewed dnd-solo #168 merge (main e8905032, brain 5e0ec39e). #115 comment 6266120288 remains pending.",
+    "result": "Accept: #168 refines cold-start after live vanilla ChatGPT test. Order: attached ZIP (full), exactly one capped Python internet try (5s timeout for release ZIP, no retries/other tools), then KIT_PORTABLE.md via GitHub app/connector or github.com blob browsing (raw removed; explicit partial load with player notice to attach ZIP). Guard bans pip/PyPI/container.download/raw.githubusercontent. KIT_PORTABLE header matches. 1395 tests pass. Narrow: ordinary-GPT complete load unproved; portable remains partial fallback. Brain updated. Pending #115 DM Kit rulings remain unresolved.",
+    "resulting_brain_commit": "5e0ec39e0dc98c68f47a01a5a4602d5804ba0a8d",
     "reconciled_comment_id": 6202184874
   },
   "active_pass": null,
