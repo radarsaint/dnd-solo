@@ -434,3 +434,43 @@ class Combatant(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class PartyCarry(unittest.TestCase):
+    """A companion's roster entry (sheet, tactics, hp, ledger) is the session's, not the room's:
+    it survives a room change, a save and a lost-sqlite resume, and a room change after that."""
+
+    def setUp(self):
+        from tests.test_kit_campaign_carry import Carry
+        self.carry = Carry('test_spent_slots_and_uses_survive_a_room_change')
+        self.carry.setUp()
+        self.addCleanup(self.carry.doCleanups)
+        r = self.carry.runtime
+        r.add_companion('odile', sheet('odile'), 'healer', 'conserve')
+        party = copy.deepcopy(r.load()[1]['party'])
+        party['odile']['hp'] = party['odile']['max_hp'] - 3
+        slot = sorted(party['odile']['ledger']['slots'])[0]
+        party['odile']['ledger']['slots'][slot] -= 1
+        self.expected = party
+        self.carry.commit(r, {'type': 'party_state', 'party': party, 'evidence': 'Odile was hurt and cast.'})
+
+    def test_room_change_keeps_the_party(self):
+        self.carry.to_carcass()
+        self.assertEqual(self.carry.runtime.load()[1]['party'], self.expected)
+
+    def test_save_resume_and_next_room_keep_the_party(self):
+        from runtime import kit_save
+        runtime, db = self.carry.resumed()
+        campaign = json.loads((Path(kit_save.save(str(db))['folder']) / 'campaign.json').read_text())
+        self.assertEqual(campaign['party'], self.expected)
+        self.assertEqual(runtime.load()[1]['party'], self.expected)
+        self.carry.play(runtime, 'I go up the stair.')
+        self.assertEqual(runtime.source()['id'], 'synthetic-watchroom-secrets-v1')
+        self.assertEqual(runtime.load()[1]['party'], self.expected)
+
+    def test_a_bad_party_in_a_save_is_refused(self):
+        runtime, _ = self.carry.resumed()
+        bad = copy.deepcopy(self.expected)
+        bad['odile']['role'] = 'tank'
+        with self.assertRaises(InvalidChange):
+            runtime.restore_campaign({'rooms': []}, [], party=bad)

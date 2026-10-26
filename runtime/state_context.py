@@ -816,11 +816,12 @@ class Runtime:
         next_revision = self.commit(f'party-{digest}', revision, [event])
         return {'revision': next_revision, 'asks': self.load()[1]['party'][key]['asks']}
 
-    def restore_campaign(self, log, carried, pc_state=None):
+    def restore_campaign(self, log, carried, pc_state=None, party=None):
         """Apply a player save's public record (kit_resume) before the room's opening."""
         revision, _ = self.load()
         event = {'type': 'campaign_restore', 'log': log, 'carried': carried,
                  **({'pc_state': pc_state} if pc_state is not None else {}),
+                 **({'party': party} if party else {}),
                  'evidence': "The host resumed from the player's save."}
         digest = hashlib.sha256(f'{revision}:{encode(event)}'.encode()).hexdigest()[:16]
         return self.commit(f'restore-{digest}', revision, [event])
@@ -1266,6 +1267,16 @@ class Runtime:
                 state['pc_resources'] = kit_reactions.carry_spent(kit_reactions.current(state), spent)
                 if pc.get('conditions'):
                     state['pc_conditions'] = list(dict.fromkeys(pc['conditions']))
+            party = event.get('party')
+            if party is not None:  # companions on the roster when the player saved (kit_party)
+                from . import kit_party
+                kit_party.check_party(party)
+                require(all(isinstance(k, str) and re.fullmatch(r'[a-z][a-z0-9_]{0,30}', k) and
+                            isinstance(v.get('sheet'), dict) for k, v in party.items()),
+                        'campaign_restore party maps companion ids to roster entries')
+                for entry in party.values():
+                    kit_party.check_sheet(entry['sheet'])
+                state['party'] = copy.deepcopy(party)
             state['campaign_log'] = copy.deepcopy(log)
             state['carried'] = copy.deepcopy(carried)
         elif kind == 'beat':
