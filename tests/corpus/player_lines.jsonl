@@ -456,3 +456,16 @@
 {"id": "act-crypt-021", "category": "act", "room": "crypt", "line": "I brush the dust off the lid.", "expect": ["act", "ruling"], "source": "paraphrase"}
 {"id": "act-crypt-022", "category": "act", "room": "crypt", "line": "I knock on the flagstones.", "expect": ["act", "search", "ruling"], "source": "paraphrase"}
 {"id": "act-crypt-023", "category": "act", "room": "crypt", "line": "I light a candle and set it by the flagstones.", "expect": ["act", "ruling"], "source": "paraphrase"}
+{"id": "kit2-bunkroom-001", "category": "kit2", "room": "bunkroom", "line": "Detect Magic, not as a ritual, I let my senses open on the room.", "expect": ["spell"], "source": "#157 tests/test_kit_pr150d.py"}
+{"id": "kit2-bunkroom-002", "category": "kit2", "room": "bunkroom", "line": "Detect Magic. Not a ritual, I spend the slot.", "expect": ["spell"], "source": "#157 tests/test_kit_pr150d.py"}
+{"id": "kit2-bunkroom-003", "category": "kit2", "room": "bunkroom", "line": "I use detect magic on the room.", "expect": ["spell"], "source": "#157 tests/test_kit_pr150d.py"}
+{"id": "kit2-bunkroom-004", "category": "kit2", "room": "bunkroom", "line": "I go through the beds one by one, looking for whatever's humming.", "expect": ["search"], "source": "#157 tests/test_kit_pr150d.py"}
+{"id": "kit2-bunkroom-005", "category": "kit2", "room": "bunkroom", "line": "I go through the bedding, hunting for anything hidden.", "expect": ["search"], "source": "#157 tests/test_kit_pr150d.py"}
+{"id": "kit2-bunkroom-006", "category": "kit2", "room": "bunkroom", "line": "I rummage through the straw looking for loot.", "expect": ["search"], "source": "#157 tests/test_kit_pr150d.py"}
+{"id": "kit2-bunkroom-007", "category": "kit2", "room": "bunkroom", "line": "I push on the seam to get the hidden door open, but I don't go in. I just stand back and peek down the tunnel.", "expect": ["ruling"], "source": "#157 tests/test_kit_pr150d.py"}
+{"id": "kit2-bunkroom-008", "category": "kit2", "room": "bunkroom", "line": "I shove the seam with my shoulder, then peer down the tunnel without going in.", "expect": ["ruling", "search"], "source": "#157 tests/test_kit_pr150d.py"}
+{"id": "kit2-bunkroom-009", "category": "kit2", "room": "bunkroom", "line": "I tap the floor ahead with my staff.", "expect": ["look", "act"], "source": "#157 tests/test_kit_pr150d.py"}
+{"id": "kit2-bunkroom-010", "category": "kit2", "room": "bunkroom", "line": "I push on the seam, but I don't go in. I peek down the tunnel.", "expect": ["ruling", "act", "search"], "source": "#157 tests/test_kit_pr150d.py"}
+{"id": "kit2-bunkroom-011", "category": "kit2", "room": "bunkroom", "line": "I don't go in. I peek down the tunnel.", "expect": ["look"], "source": "#157 tests/test_kit_pr150d.py"}
+{"id": "kit2-bunkroom-012", "category": "kit2", "room": "bunkroom", "line": "I tap the floor ahead with my staff, slowly, one board at a time.", "expect": ["look", "act"], "source": "#157 tests/test_kit_pr150d.py"}
+{"id": "kit2-bunkroom-013", "category": "kit2", "room": "bunkroom", "line": "I cast detect magic.", "expect": ["spell"], "source": "#157 tests/test_kit_pr150d.py"}

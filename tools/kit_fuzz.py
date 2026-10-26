@@ -44,6 +44,7 @@ SHEET = ROOT / 'tests/fixtures/characters/nik.json'
 ROOMS = {
     'vault': 'tests/fixtures/fuzz/vault.json',
     'library': 'tests/fixtures/fuzz/library.json',
+    'bunkroom': 'tests/fixtures/fuzz/bunkroom.json',
     'crypt': 'tests/fixtures/rooms/crypt.json',
 }
 OUTCOMES = ('search', 'look', 'act', 'move', 'attack', 'spell', 'social', 'roll', 'ruling', 'clarify', 'deferred',
@@ -166,7 +167,7 @@ def expected(case):
 def classify(public):
     event = public.get('accepted_public_event', '')
     kind = public.get('action_kind')
-    if event.startswith('You go ahead: '):
+    if event.startswith('You go ahead'):
         return 'act'
     if kind == 'check' and event.startswith('You roll '):
         return 'roll'
