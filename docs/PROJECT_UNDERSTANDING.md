@@ -1,1 +1,1 @@
-$(cat /tmp/brain_updated.md)
+PLACEHOLDER_WILL_REPLACE
