@@ -26,6 +26,9 @@ after that. `h` is the first 16 hex characters of the SHA-256 of the canonical J
   guaranteed, and on the scheduled full re-send below.
 * `rehydrate --turn-id T` (Python: `bridge.rehydrate(turn_id)`) returns both bodies in full. Resubmit with
   their hashes. A lost copy costs one retry, not a bad turn.
+* While the turn is pending, `rehydrate` also returns its whole one-pass packet as `packet`
+  (manifests joined in), including the packet a window answer returns. That works without layers
+  too. An abandoned or committed turn has no packet, and without layers it is refused.
 * Bodies are re-sent anyway at least every `FULL_EVERY` = 8 prepared turns. **This re-send is the real
   safety net.** A lost body is stale for at most 8 turns.
 * After a turn with `REJECT_STREAK` = 2 or more rejections, the next packet does **not** re-send the
