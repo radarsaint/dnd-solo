@@ -2,7 +2,7 @@
   "schema": "kit_project_gardener_state/v1",
   "purpose": "RESUMABILITY_CURSOR_NOT_KNOWLEDGE_STORE",
   "canonical_location": "radarsaint/dnd-solo/coordination/context_state.json",
-  "state_revision": 46,
+  "state_revision": 47,
   "semantic_brain": {
     "repo": "radarsaint/dnd-solo",
     "path": "docs/PROJECT_UNDERSTANDING.md",
@@ -11,8 +11,8 @@
   },
   "checkpoint": {
     "reviewed_against_main": {
-      "radarsaint/dnd-solo": "931e84837ee77ff6736abc9f9f2f5a1ea7a54f16",
-      "radarsaint/bfdm-corpus": "df47554633b20ba872bd8cd393c420bbef7140d1"
+      "radarsaint/dnd-solo": "58df0a15750c8e5c0fcb410d2314f35170f377ad",
+      "radarsaint/bfdm-corpus": "50a06607fa8db4f33b8bc0356c9b486140c5dba3"
     },
     "context_inbox": {
       "repo": "radarsaint/dnd-solo",
@@ -25,8 +25,8 @@
   "last_completed_pass": {
     "kind": "BOUNDED_SEMANTIC_RECONCILIATION",
     "completed_on": "2026-10-26",
-    "scope": "Reviewed dnd-solo #177 merge (latency instrumentation, opt-in compact; main tip cc92e0b before brain). #115 comment 6266120288 remains pending.",
-    "result": "Accept: #177 adds per-turn telemetry (opt-out, *.telemetry.jsonl) and opt-in compact packet (full default; drops persona and far facts; rehydrate full). Measures only; does not change play or engine guards. Brain updated with note. Pending #115 DM Kit rulings remain unresolved (draft PR, nothing merged).",
+    "scope": "Reviewed bfdm-corpus #42 merge (homebrew player-option inventory; merge 92acc300, main tip 50a0660) and confirmed dnd-solo main tip 58df0a1. #115 comment 6266120288 remains pending.",
+    "result": "Accept (narrow): #42 lands source-grounded research inventory of 159 homebrew player-option records (research/player-options/). play_observed is NOT_ESTABLISHED on every record; publication is not play; Discord name hits are not play; conflicts and gaps kept visible. Does not change Kit runtime, chargen, verified options, or doctrine. No Project Brain edit required (live bfdm-corpus/main remains authority for research facts; brain already distinguishes research from product and verified judgment). Pending #115 DM Kit rulings (spell slots, equipment misuse, unsourced proficiencies) remain unresolved (draft PR, nothing merged).",
     "resulting_brain_commit": "931e84837ee77ff6736abc9f9f2f5a1ea7a54f16",
     "reconciled_comment_id": 6202184874
   },
