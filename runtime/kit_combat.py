@@ -35,6 +35,7 @@ import hashlib
 import re
 
 from . import _lazy
+from . import kit_party
 from . import kit_reactions
 from . import kit_rolls
 from .state_context import require
@@ -1030,6 +1031,9 @@ class Fight:
         self.conditions = pc_conditions(state)
         self.terms = condition_terms(state)
         self.conditions_changed = False
+        self.party = copy.deepcopy(state.get('party') or {})  # companions (runtime/kit_party.py)
+        for key, entry in self.party.items():
+            self.labels.setdefault(key, entry['sheet']['name'])
 
     # -- helpers ---------------------------------------------------------------------
     def label(self, key):
@@ -1045,6 +1049,8 @@ class Fight:
         return self.statuses.get(key) or (self.state['actors'][key].get('status'))
 
     def active(self, key):
+        if key in self.party:
+            return self.party[key]['status'] == 'standing'
         actor = self.state['actors'][key]
         return actor.get('location') == self.state.get('area') and self.status(key) in ACTIVE_STATUSES
 
@@ -1104,6 +1110,8 @@ class Fight:
         """(count, tiebreak): the PC's reported total, an NPC's flat 10 + Dexterity."""
         if key == 'pc':
             return (self.fight.get('pc_initiative') or 0, 99)
+        if key in self.party:
+            return kit_party.initiative(self, key)
         bonus = self.stats(key).get('initiative', 0)
         return (10 + bonus, bonus)
 
@@ -2139,11 +2147,15 @@ class Fight:
         for key in self.hostiles():
             bonus = self.stats(key).get('initiative', 0)
             entries.append((key, 10 + bonus, bonus))
+        for key, entry in self.party.items():
+            if entry['status'] != 'dead':  # Kit rolls a companion's initiative (it is Kit's to run)
+                entries.append((key, *kit_party.initiative(self, key)))
         entries.sort(key=lambda e: (-e[1], -e[2]))
         self.fight.update(status='running', order=[e[0] for e in entries], pc_initiative=pc_init,
                           round=1, next=0)
         self.trace.append('initiative: ' + ', '.join(f'{k} {v}' for k, v, _ in entries))
-        order_text = ', '.join('you' if k == 'pc' else f'the {self.label(k)}' for k, _, _ in entries)
+        order_text = ', '.join('you' if k == 'pc' else self.labels[k] if k in self.party else f'the {self.label(k)}'
+                               for k, _, _ in entries)
         self.lines.append(f'Turn order: {order_text}.')
         if self.fight['opener_spent']:
             # The blow declared before initiative was the PC's first action this round.
@@ -2185,7 +2197,12 @@ class Fight:
                     self.fight['surprise_spent'] = True
                 elif not self.pc_slot_passes():
                     break
+            elif key in self.party:
+                kills = len(self.kills)
+                kit_party.companion_turn(self, key)  # deterministic tactics, no model call
+                del self.kills[kills:]  # a companion's kill is not the PC's (no flourish offer)
             elif self.fight.get('pc_down') and self.active(key) and self.fight.get('vs_downed') is None and \
+                    not kit_party.standing(self) and \
                     not (key in self.fight.get('surprised', []) and self.fight['round'] == 1):
                 foes = self.foes_before_pc()
                 self.fight['awaiting'] = {'kind': 'kit_call', 'call': 'downed', 'foes': foes}
@@ -2207,7 +2224,7 @@ class Fight:
             key = order[(at + offset) % len(order)]
             if key == 'pc':
                 break
-            if self.active(key):
+            if key not in self.party and self.active(key):
                 out.append(key)
         return out
 
@@ -2763,6 +2780,11 @@ class Fight:
                                   options=options, triggers=['foe_leaves_reach'], stakes='normal')
                 self.flee(key)
                 return
+        if self.party:
+            target = kit_party.foe_target(self, key)
+            if target != 'pc':
+                kit_party.foe_attacks_companion(self, key, target)
+                return
         if self.fight.get('pc_dead'):
             return
         down = bool(self.fight.get('pc_down'))
@@ -3120,6 +3142,8 @@ class Fight:
         events = [{'type': 'scene_state', 'state': self.scene, 'evidence': evidence}]
         if self.fight:
             events.append({'type': 'combat_state', 'state': self.fight, 'evidence': evidence})
+        if self.party and self.party != (self.state.get('party') or {}):
+            events.append({'type': 'party_state', 'party': self.party, 'evidence': evidence})
         if self.resources_changed:
             events.append({'type': 'pc_resources', 'resources': self.resources, 'evidence': evidence})
         if self.conditions_changed:
@@ -3276,6 +3300,11 @@ def public_view(source, state):
             out['fight']['roll_needed'] = save_prompt(current['awaiting'])[len('Roll a '):-1]
         if current['status'] == 'running':
             out['fight']['your_reaction'] = 'spent' if current.get('reaction_used') else 'available'
+        if state.get('party'):
+            out['fight']['party'] = {e['sheet']['name']: kit_party.injury(e['hp'], e['max_hp'])
+                                     if e['status'] == 'standing' else e['status'] for e in state['party'].values()}
+            lab = {**lab, **{k: e['sheet']['name'] for k, e in state['party'].items()}}
+            out['fight']['order'] = ['you' if k == 'pc' else lab.get(k, k) for k in order]
         if current.get('pc_dead'):
             out['fight']['you_are'] = 'dead'
         elif current.get('pc_down'):
