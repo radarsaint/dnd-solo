@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import re
 
+from .kit_lazyre import compile as lazy_compile
+
 _SPOKEN = (
     'zero one two three four five six seven eight nine ten eleven twelve thirteen '
     'fourteen fifteen sixteen seventeen eighteen nineteen twenty'
@@ -25,7 +27,7 @@ _SHOP_WORDS = {
     'couple': 2,
     'brace': 2,
 }
-_COUNT = re.compile(
+_COUNT = lazy_compile(
     r"^(?:(\d+)|(?:a\s+|an\s+)?(dozen|pair|couple|brace)(?:\s+of)?|([a-z]+))\s+(?=[a-z+])",
     re.IGNORECASE,
 )

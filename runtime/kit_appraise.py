@@ -19,6 +19,7 @@ import re
 import sys
 from pathlib import Path
 
+from .kit_lazyre import compile as lazy_compile
 from .kit_text import leading_count
 from .goldscale import SOURCE
 from .goldscale.clarification import (PendingAppraisal, PendingAppraisals, apply_answer, cancel_appraisal,
@@ -37,21 +38,21 @@ DEFAULT_STATE = 'kit_appraise.json'
 # Phrasing around an item name, stripped generally (any item), in passes until nothing changes:
 # "what's a potion of healing worth?", "sell a potion of healing", "what's the potion of healing's value?",
 # "how much could I sell a healing potion for?", "price of a +1 longsword, please".
-_FILLER = re.compile(r"^\s*(?:hey|hi|ok|okay|so|um|well|kit|goldscale)\b[,!]?\s*", re.I)
+_FILLER = lazy_compile(r"^\s*(?:hey|hi|ok|okay|so|um|well|kit|goldscale)\b[,!]?\s*", re.I)
 _AUX = r"(?:is|are|was|were|do|does|did|would|will|could|can|should|might)"
 # A question word, then any auxiliary after it ("how much are 3 healing potions?", "what do two
 # potions of greater healing go for?"), stripped generally, never as a one-off phrase.
-_LEAD = re.compile(
+_LEAD = lazy_compile(
     rf"^\s*(?:(?:what(?:'s|s|’s)?|how much|how many(?: gold| gp| coins?)?|which)(?:\s+{_AUX})?|can you|could you|would you|will you|"
     r"please|pls|i'?d like to|i want to|i wanna|i need to|let'?s|tell me|do you know|any idea|give me)\b[,]?\s*", re.I)
-_SUBJ = re.compile(r"^\s*(?:i|we|you|me|us)\b\s*(?:(?:get|got|make|pay|be|charge)\b\s*)?(?:for\b\s*)?", re.I)
-_VERB = re.compile(r"^\s*(?:price(?:\s+check)?|appraise|value|cost|quote|be|get|for)\b\s*", re.I)
-_OF = re.compile(r"^\s*(?:the\s+)?(?:value|price|worth|cost|market price|going rate)\s+(?:of|for|on)\b\s*", re.I)
-_ARTICLE = re.compile(r"^\s*(?:a|an|the|one|some|my|this|that)\b\s*", re.I)
-_TAIL = re.compile(r"(?:\s*(?:'s|’s)?\s*(?:(?:be\s+)?worth|value|price|cost|go(?:es)? for|sell(?:s)? for|"
+_SUBJ = lazy_compile(r"^\s*(?:i|we|you|me|us)\b\s*(?:(?:get|got|make|pay|be|charge)\b\s*)?(?:for\b\s*)?", re.I)
+_VERB = lazy_compile(r"^\s*(?:price(?:\s+check)?|appraise|value|cost|quote|be|get|for)\b\s*", re.I)
+_OF = lazy_compile(r"^\s*(?:the\s+)?(?:value|price|worth|cost|market price|going rate)\s+(?:of|for|on)\b\s*", re.I)
+_ARTICLE = lazy_compile(r"^\s*(?:a|an|the|one|some|my|this|that)\b\s*", re.I)
+_TAIL = lazy_compile(r"(?:\s*(?:'s|’s)?\s*(?:(?:be\s+)?worth|value|price|cost|go(?:es)? for|sell(?:s)? for|"
                    r"buy for|fetch|run(?: me)?|be|for|please|pls|at market|in gold|in gp)\b|\s*[?.!,]+)\s*$", re.I)
-_SELL = re.compile(r"\b(?:sell|selling|sold|pawn|offload)\b(?!\s+for\s*[?.!]*\s*$)", re.I)
-_MODE_WORD = re.compile(r"^\s*(?:\?gs\s+)?(?:buy(?:ing)?|sell(?:ing)?|pawn|offload|purchase)\b\s*", re.I)
+_SELL = lazy_compile(r"\b(?:sell|selling|sold|pawn|offload)\b(?!\s+for\s*[?.!]*\s*$)", re.I)
+_MODE_WORD = lazy_compile(r"^\s*(?:\?gs\s+)?(?:buy(?:ing)?|sell(?:ing)?|pawn|offload|purchase)\b\s*", re.I)
 
 # Well-known SRD items Kit can price without the player pasting the item text (SRD 5.1 values).
 SRD_DEFAULTS = (
@@ -60,8 +61,8 @@ SRD_DEFAULTS = (
     ('potion of greater healing', 'uncommon potion', '4d4+4 healing'),
     ('potion of healing', 'common potion', '2d4+2 healing'),
 )
-_DICE = re.compile(r'\d+d\d+', re.I)
-_RARITY = re.compile(r'\b(?:common|uncommon|rare|very rare|legendary|artifact)\b', re.I)
+_DICE = lazy_compile(r'\d+d\d+', re.I)
+_RARITY = lazy_compile(r'\b(?:common|uncommon|rare|very rare|legendary|artifact)\b', re.I)
 
 
 def _plural(word):
