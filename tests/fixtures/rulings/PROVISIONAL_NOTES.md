@@ -31,29 +31,30 @@ An @mention by itself was not enough. A bare "hit" after `!a` was not enough.
 
 ## Names
 
-Names on the list are replaced in order of appearance with PC1, PC2, PC3, and so on. A fourth person is PC4, not a second PC3. Orpheus is on the list.
+Names on the list are replaced case-insensitively as whole words, including a plain `@name`, with PC1, PC2, PC3, and so on in order of appearance. A fourth person is PC4, not a second PC3. Orpheus is on the list. Nicknames such as leaf, goose, kiln, bo, gil, and vee are on the list. `Chad Chadowski` and `Father chad` are character names. `Fabertell` is on the list, including Fabertel, Fabertale, and faber.
 
-This is not a complete scrub. Two cases are left on purpose:
+This is not a claim that only the castor jokes remain. Whole-word list names still appear where they are not character references. Those remaining uses are documented exceptions, not leftover tags:
 
-- The phrase "everyone is <name>" is left as written. Replacing it produced "Everyone is PC1", which is not what he said.
-- A name used as a pun is left as written: built into a longer word, or both shouted and lowercase in the same message. That is why "castor" still shows in the joke lines.
+- Castor pun lines: mixed-case jokes, `BEAR CASTOR`, and "everyone is castor" (replacing that last one produced "Everyone is PC1", which is not what he said).
+- The store: `Chadmart`, `Chad-Mart`, `Chadmarts`. The word Chad inside those is not a character tag.
+- Ordinary English that happens to be on the list: "How lucky!", "coils arc", "the rush", "willow tree", "pearl of power", and similar.
 
-Names that were never on the list can still appear. `Fabertell` is on the list, including the spellings Fabertel, Fabertale, and faber. `Chadmart`, `Chad-Mart`, and `Chad-Marts` are a place. The word Chad inside those is not a character tag.
+A test fails if any whole-word name from the list remains outside those exceptions. Names that were never on the list can still appear.
 
 ## What the labels are
 
 The intent is a label on the player line, not a rule. `ooc/meta` is table talk: out-of-character channels, the castor pun channel, dead-chat, scheduling, and rules asides. `emote` is a face or a body beat. `mixed` is an action and a question in the same line.
 
-Of the 260 lines that were labeled `other`, 193 now have a tighter bucket. 67 stayed `other` because they did not match a clearer one. Counts below are this file only.
+Of the 260 lines that were labeled `other`, 196 now have a tighter bucket. 64 stayed `other` because they did not match a clearer one. Table and rules questions were moved out of `social/speech` and `interjection` into `ooc/meta`. `ooc/meta` prefixes name what the reply does (rules, table talk, joke, recap, and the rest); they are not all `just let it happen`. Counts below are this file only.
 
 | intent | n |
 | --- | ---: |
-| social/speech | 309 |
-| ooc/meta | 96 |
-| other | 67 |
-| move | 63 |
+| social/speech | 299 |
+| ooc/meta | 121 |
+| other | 64 |
+| move | 62 |
 | emote | 36 |
-| interjection | 30 |
+| interjection | 19 |
 | mixed | 18 |
 | spell | 13 |
 | attack | 11 |
@@ -78,7 +79,7 @@ Season 3: 474. Empire City: 191. One Empire City line was removed (below).
 
 Nothing in this file is added to the verified set.
 
-- `link` `avrae` (9 rows): an Avrae roll or attack post, the next human message with text is Brendon, and an actor name in that post or in the player line just before it also appears in his reply. Discord reply-to would count too. There were no reply-to hits. Dice with no shared actor name are not in the file. Two rolls that pointed at the same reply were kept once.
+- `link` `avrae` was dropped. The harvest stores the result line, not the embed title, so the roller, the roll type (attack, save, or check from that title), and a reliable preceding player line could not be added.
 - `link` `adjacency` (12035 rows): the next human message with text is Brendon, but there is no shared name, no distinctive shared word, and no reply-to. `link_reason` is `adjacent`. This tier is for Brendon to confirm. It is never a verified pair.
 
 Adjacency rows carry `tag`:
@@ -89,9 +90,11 @@ Adjacency rows carry `tag`:
 | likely_play | 1238 | not chatter, and the line or the reply has attack, save, check, does, or cast |
 | unsorted | 10204 | everything else |
 
+A 20-row sample of `likely_play` was about 55% precise. The tag is that keyword screen. It does not mean the reply resolves the player line. Do not treat it as a cleaned play set.
+
 A wider sweep would call more rows chatter, and it would also mark scene lines. These tags are only the obvious markers. They are not a cleaned set.
 
-Both kinds set `"verified": false`.
+Every follow-up row sets `"verified": false`.
 
 ## Starter list
 
