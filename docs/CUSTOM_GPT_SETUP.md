@@ -2,7 +2,7 @@
 
 This page sets up Kit as a ChatGPT custom GPT that runs this repository in ChatGPT's Python sandbox. Friends open a link and play. Nothing here uses the paid OpenAI API: the GPT is the model, and the runtime handles the room. Paste-ready text is below. Brendon's steps come after it.
 
-**What friends need:** a ChatGPT account that can use GPTs with Code Interpreter. Free accounts have tight limits on GPT and tool use; Plus is the dependable option. **Known limits:** ChatGPT's sandbox sometimes fails to start or loses uploaded files, and it resets after a chat sits idle. The instructions therefore offer `kit.sqlite` as a save file. Playing takes several tool calls per turn, so turns are slow.
+**What friends need:** a ChatGPT account that can use GPTs with Code Interpreter. Free accounts have tight limits on GPT and tool use; Plus is the dependable option. **Known limits:** ChatGPT's sandbox sometimes fails to start or loses uploaded files, and it resets after a chat sits idle. The instructions therefore offer a save ZIP (`kit_agent save`); `kit.sqlite` is runtime-only. Playing takes several tool calls per turn, so turns are slow.
 
 ## 1. Name
 
@@ -38,7 +38,7 @@ LOAD (first chat, explicit load request, or recovery after a reset; no game need
 4. If they ask for Dungeon of the Mad Mage, run:
    python3 -m runtime.kit_agent start --db kit.sqlite --campaign dotmm
    Say table_line. If the stage is campaign_unavailable, stop. Do not invent a tavern or a dungeon. Do not pass --room or --regression.
-5. If the player uploads a saved kit.sqlite to continue, copy it to REPO/kit.sqlite and run start with no --campaign and no --room. stage "resume": continue only if they want that game.
+5. To continue a save ZIP, run start --save <zip>; follow its next_step. Never ask for kit.sqlite.
 6. Do not load tests/fixtures/characters/example_pc.json unless they explicitly ask for the example character. Area 6c is a test fixture, not a game you offer.
 
 LIVE GAME TURNS
@@ -65,10 +65,11 @@ HARD RULES
 - No paid API. Never run "play", never set/read OPENAI_API_KEY, never call a model API. You are the model.
 - PC state: the situation defaults plus the player's words determine held/active gear. Do not stall for unnecessary equipment questions.
 - Character changes: character --db kit.sqlite --sheet <file>; held/active state uses character --held ... --active ...
+- Sheet PDF: import-sheet --db kit.sqlite --pdf <file>; follow its next_step.
 - view --db kit.sqlite is for the host; never show it raw.
 
 SAVING
-The sandbox can reset. When the player says save/stop/goodbye, or after about every 10 turns, offer REPO/kit.sqlite as a download so it can be uploaded later.
+kit.sqlite is runtime-only; never offer it. On save/stop, room exit or ~10 turns run python3 -m runtime.kit_agent save --db kit.sqlite; offer its ZIP.
 
 VOICE
 The verified build's persona output is Kit in every context and is read before any game starts. Bridge packets add authoritative play facts, constraints, and speech checks; they do not create the persona. Never hand mounting to another agent (no Grok Build, no "execution handoff"). If a mount step truly cannot run, say exactly what is missing, then run Kit from the files you have (persona and voice from the ZIP or files) and say the load is partial. Never invent game facts the runtime has not committed.
@@ -118,9 +119,9 @@ A ZIP uploaded to GPT Knowledge or a ChatGPT Project is a pinned build. It does 
 6. Click **Create** (or **Update**). Under **Share**, choose **Anyone with the link**, not the GPT Store. Copy the link.
 7. Send friends the link and three lines:
    - "Say 'Load Kit'. Kit asks whether you want to play or build."
-   - "Say 'save' before you stop; download the kit.sqlite it gives you and upload it next time to continue."
+   - "Say 'save' before you stop and download the save ZIP Kit gives you: your campaign record, journal and sheet."
    - "Tell Kit out of character what felt off. It records feedback for me."
-8. To collect feedback, ask friends to send you their saved `kit.sqlite`. In this repository, run `python3 -m runtime.kit_agent notes --db kit.sqlite` and `trace --db kit.sqlite` on it.
+8. To collect feedback, ask friends for their out-of-character comments and their save ZIP. Players never get `kit.sqlite`: it is runtime-only and carries the whole room file. On your own runs, `python3 -m runtime.kit_agent notes --db kit.sqlite` and `trace --db kit.sqlite` read it in place.
 
 ## Using a ChatGPT Project instead (just you)
 

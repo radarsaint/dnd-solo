@@ -2,17 +2,17 @@
   "schema": "kit_project_gardener_state/v1",
   "purpose": "RESUMABILITY_CURSOR_NOT_KNOWLEDGE_STORE",
   "canonical_location": "radarsaint/dnd-solo/coordination/context_state.json",
-  "state_revision": 45,
+  "state_revision": 52,
   "semantic_brain": {
     "repo": "radarsaint/dnd-solo",
     "path": "docs/PROJECT_UNDERSTANDING.md",
-    "last_semantic_commit": "10db3610a294ffc8c9775287dc8d5765970570d6",
+    "last_semantic_commit": "8b6a819345cda1ed5237f03de7aa23d578e20597",
     "last_reviewed_on": "2026-10-26"
   },
   "checkpoint": {
     "reviewed_against_main": {
-      "radarsaint/dnd-solo": "10db3610a294ffc8c9775287dc8d5765970570d6",
-      "radarsaint/bfdm-corpus": "df47554633b20ba872bd8cd393c420bbef7140d1"
+      "radarsaint/dnd-solo": "432ef6f932cd90766527e622f7435263209a9738",
+      "radarsaint/bfdm-corpus": "9cb097c0b110989a191d7fa968b0baacaf0e0a7a"
     },
     "context_inbox": {
       "repo": "radarsaint/dnd-solo",
@@ -25,9 +25,9 @@
   "last_completed_pass": {
     "kind": "BOUNDED_SEMANTIC_RECONCILIATION",
     "completed_on": "2026-10-26",
-    "scope": "Reviewed dnd-solo #185 and #187 merges (main tip 8dcf8d8 before brain; brain 10db3610). #115 comment 6266120288 remains pending.",
-    "result": "Accept: #185 makes rehydrate return the pending one-pass packet (stored in kit_packets, with or without layers). #187 makes standing checks ride; the engine calls, never rolls, a PC's check. Brain updated. Pending #115 DM Kit rulings (spell slots, equipment, proficiencies) remain unresolved (draft PR, nothing merged).",
-    "resulting_brain_commit": "10db3610a294ffc8c9775287dc8d5765970570d6",
+    "scope": "Reviewed dnd-solo #180 and #186 merges (save chain P2 ledger/journal and P3 resume). Brain updated to record live save export and resume-from-ZIP behavior. #115 comment 6266120288 remains pending.",
+    "result": "Accept: #180 adds campaign ledger fold, journal mode ask, recap, hand edits. #186 adds resume from player save with room-start on lost sqlite. Brain updated on main. Pending DM Kit rulings unresolved.",
+    "resulting_brain_commit": "8b6a819345cda1ed5237f03de7aa23d578e20597",
     "reconciled_comment_id": 6202184874
   },
   "active_pass": null,

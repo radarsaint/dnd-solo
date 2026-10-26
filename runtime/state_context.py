@@ -13,6 +13,8 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 PERSONALITY_CORE = PROJECT_ROOT / 'docs/personality/dm-personality-core.md'
+# Brendon's Halaster and Mad Mage lines, verbatim, for Mad Mage rooms only (is_mad_mage).
+MAD_MAGE_ADDENDUM = PROJECT_ROOT / 'docs/personality/dm-personality-mad-mage.md'
 # Distilled voice files (docs/voice/*.md, not README.md) join the personality core every
 # turn, in file-name order, so both stages read them (the performer most). Whole files load
 # until VOICE_MAX_BYTES; any that do not fit are skipped and voice_warning says so. They
@@ -46,9 +48,12 @@ def load_voice(folder=None, max_bytes=None):
     return ''.join(parts), warning
 
 
-def personality_core_text(folder=None):
-    """The personality core plus the voice files that fit the cap."""
+def personality_core_text(folder=None, source=None):
+    """The personality core plus the voice files that fit the cap. A Mad Mage room (``source``
+    id starting dotmm) also gets the Mad Mage addendum after the core; no other room does."""
     core = PERSONALITY_CORE.read_text(encoding='utf-8')
+    if source is not None and is_mad_mage(source):
+        core = core.rstrip('\n') + '\n\n' + MAD_MAGE_ADDENDUM.read_text(encoding='utf-8')
     voice, _ = load_voice(folder)
     return core + VOICE_HEADING + voice if voice else core
 RHYTHM_EVIDENCE_MAX_CHARS = 600  # per recent_rhythm entry; 12 entries stay inside context()
@@ -96,7 +101,8 @@ CANON_SLOT = re.compile(r'^[a-z0-9_:]+(/[a-z0-9_]+){1,3}$')
 # Events a Kit turn may add at commit, after the adjudicated batch it was prepared with:
 # the decision's canon entries, the oracle deal it consumed, and procedure state.
 # Host bookkeeping, not a turn taken in the room (kit_rooms.stage counts the others).
-BOOKKEEPING_EVENTS = ('party_roster', 'player_sheet', 'player_character', 'player_note', 'pc_state', 'kit_plan', 'rest')
+BOOKKEEPING_EVENTS = ('party_roster', 'player_sheet', 'player_character', 'player_note', 'pc_state', 'kit_plan', 'rest',
+                      'campaign_restore')
 # A refused attempt changed nothing in the world, so it does not use up the check Kit just
 # called (PR 145 playtest: one refused line, then every roll was refused).
 KEEPS_PENDING_CHECK = BOOKKEEPING_EVENTS + ('refused_attempt',)
@@ -261,6 +267,24 @@ def check_player_note_text(text):
             f'A player note must be 1–{PLAYER_NOTE_MAX_CHARS} characters')
     require(re.search(_SCORE_PATTERN, text.casefold()) is None,
             'A player note records observed behavior or feedback, not a score or meter')
+
+
+def is_mad_mage(source):
+    """A Dungeon of the Mad Mage room (its id starts with dotmm, as the area 6c regression fixture's does).
+    Only these may carry Mad Mage wording; Kit is a general DM."""
+    return str(source.get('id') or '').startswith('dotmm')
+
+
+def source_constraint(source):
+    """The packet's source line, named for the room's own adventure, never assumed to be Mad Mage."""
+    ref = source.get('source_ref')
+    if not ref:
+        return 'This synthetic fixture is not canon for any published adventure and is not a campaign save.'
+    if is_mad_mage(source):
+        return 'This is a conditional test snapshot grounded in the cited Mad Mage source, not a campaign save.'
+    title = str(ref).split(' / ')[0].strip()
+    return (f'This room is grounded in the cited adventure source ({title}); '
+            'do not add to it from other adventures.')
 
 
 class Runtime:
@@ -764,7 +788,7 @@ class Runtime:
         next_revision = self.commit(f'character-{digest}', revision, [event])
         return {'revision': next_revision, 'character': character}
 
-    def set_player_sheet(self, sheet):
+    def set_player_sheet(self, sheet, intake=None):
         """Load the player character's sheet (runtime/pc_sheet.py, any class or
         ancestry). It also sets the public identity, like set_player_character."""
         from . import pc_sheet
@@ -774,6 +798,7 @@ class Runtime:
         pc_sheet.check_sheet(sheet)
         revision, _ = self.load()
         event = {'type': 'player_sheet', 'sheet': sheet,
+                 **({'intake': intake} if intake else {}),
                  'evidence': 'The host loaded the player character\'s sheet.'}
         digest = hashlib.sha256(f'{revision}:{encode(event)}'.encode()).hexdigest()[:16]
         next_revision = self.commit(f'sheet-{digest}', revision, [event])
@@ -790,6 +815,15 @@ class Runtime:
         digest = hashlib.sha256(f'{revision}:{encode(event)}'.encode()).hexdigest()[:16]
         next_revision = self.commit(f'party-{digest}', revision, [event])
         return {'revision': next_revision, 'asks': self.load()[1]['party'][key]['asks']}
+
+    def restore_campaign(self, log, carried, pc_state=None):
+        """Apply a player save's public record (kit_resume) before the room's opening."""
+        revision, _ = self.load()
+        event = {'type': 'campaign_restore', 'log': log, 'carried': carried,
+                 **({'pc_state': pc_state} if pc_state is not None else {}),
+                 'evidence': "The host resumed from the player's save."}
+        digest = hashlib.sha256(f'{revision}:{encode(event)}'.encode()).hexdigest()[:16]
+        return self.commit(f'restore-{digest}', revision, [event])
 
     def rest(self, kind):
         """The PC finished a short or long rest (host bookkeeping, like the sheet): the reaction
@@ -1037,6 +1071,11 @@ class Runtime:
             # The reaction inventory, slots and uses, rebuilt from the sheet; what was spent since the
             # last rest stays spent (re-sending or editing the sheet is not a rest: #101 review D7).
             state['pc_resources'] = kit_reactions.carry_spent(kit_reactions.build(sheet), state.get('pc_resources'))
+            # Where this sheet came from and when (P5). No timing gate: the player manages their own sheet.
+            intake = event.get('intake') or {'kind': 'json'}
+            require(isinstance(intake, dict) and all(isinstance(v, (str, type(None))) for v in intake.values()),
+                    'player_sheet intake is {kind, at, named_by_player, imported_at}')
+            state['sheet_import'] = {**copy.deepcopy(intake), 'long_rests': state.get('long_rests', 0)}
         elif kind == 'pc_resources':
             from . import kit_reactions
             state['pc_resources'] = copy.deepcopy(kit_reactions.check(event.get('resources')))
@@ -1045,6 +1084,8 @@ class Runtime:
             require(event.get('kind') in ('short', 'long'), 'A rest is short or long')
             state['pc_resources'] = kit_reactions.rest(kit_reactions.current(state), state.get('player_sheet') or {},
                                                        event['kind'])
+            if event['kind'] == 'long':
+                state['long_rests'] = int(state.get('long_rests') or 0) + 1
         elif kind == 'claim_said':
             from . import kit_claims
             said = event.get('said')
@@ -1193,6 +1234,40 @@ class Runtime:
             require(key in source['exits'] and state['area'] in source['exits'][key]['areas'],
                     'pc_position names an exit next to the PC')
             state['pc_position'] = {'area': state['area'], 'at_exit': key}
+        elif kind == 'campaign_restore':
+            # Resume from the player's save (kit_resume): the public record of rooms left and
+            # what the PC carries. Only lists of short public strings; nothing of a room's secrets.
+            log, carried = event.get('log'), event.get('carried')
+            def names(value, limit=60):
+                return isinstance(value, list) and len(value) <= limit and all(
+                    isinstance(v, str) and len(v) <= 400 for v in value)
+            rooms = (log or {}).get('rooms') if isinstance(log, dict) else None
+            require(isinstance(rooms, list) and len(rooms) <= 200 and all(
+                isinstance(r, dict) and isinstance(r.get('room_id'), str) and
+                r.get('status') in ('left', 'bypassed') and names(r.get('areas')) and
+                names(r.get('learned'), 200) and names(r.get('took')) and
+                isinstance(r.get('npcs_met'), list) and all(
+                    isinstance(n, dict) and isinstance(n.get('name'), str) and isinstance(n.get('status'), str)
+                    for n in r['npcs_met']) for r in rooms), 'campaign_restore needs log.rooms of public records')
+            require(isinstance(carried, list) and len(carried) <= 60 and all(
+                isinstance(c, dict) and isinstance(c.get('item'), str) for c in carried),
+                'campaign_restore carried lists {item, from}')
+            from . import kit_save, kit_reactions
+            for record in rooms:
+                kit_save.check_carry(record.get('carry'))
+            pc = event.get('pc_state')
+            if pc is not None:
+                counts = lambda v: isinstance(v, dict) and all(
+                    isinstance(k, str) and type(n) is int and n >= 0 for k, n in v.items())
+                require(isinstance(pc, dict) and counts(pc.get('slots', {})) and counts(pc.get('uses', {}))
+                        and names(pc.get('conditions', [])), 'campaign_restore pc_state is {slots, uses, conditions}')
+                spent = {'slots': {k: {'used': n} for k, n in pc.get('slots', {}).items()},
+                         'uses': {k: {'used': n} for k, n in pc.get('uses', {}).items()}}
+                state['pc_resources'] = kit_reactions.carry_spent(kit_reactions.current(state), spent)
+                if pc.get('conditions'):
+                    state['pc_conditions'] = list(dict.fromkeys(pc['conditions']))
+            state['campaign_log'] = copy.deepcopy(log)
+            state['carried'] = copy.deepcopy(carried)
         elif kind == 'beat':
             tags = event.get('tags')
             require(isinstance(tags, list) and all(isinstance(t, str) for t in tags), 'Invalid beat tags')
@@ -1310,7 +1385,7 @@ class Runtime:
 
     def context(self, personality_core=None, max_bytes=CONTEXT_BUDGET_BYTES):
         if personality_core is None:
-            personality_core = personality_core_text()
+            personality_core = personality_core_text(source=self.source())
         revision, state = self.load()
         source, area = self.source(), state['area']
         packet = {
@@ -1331,13 +1406,11 @@ class Runtime:
                     'DM-only facts and actor secrets are private.',
                     'The source graph is immutable. Missing connections are not invented.',
                     'Writes require adjudication; this prototype does not check D&D legality.',
-                    ('This is a conditional test snapshot grounded in the cited Mad Mage source, '
-                     'not a campaign save.' if source.get('source_ref') else
-                     'This synthetic fixture is not Mad Mage canon and is not a campaign save.'),
+                    source_constraint(source),
                 ],
                 'missing_production_layers': ['rules resolver', 'source retrieval', 'level story state',
-                    'Halaster state', 'faction ticks', 'player model beyond evidence-cited notes',
-                    'character patterns'],
+                    *(['Halaster state'] if is_mad_mage(source) else []), 'faction ticks',
+                    'player model beyond evidence-cited notes', 'character patterns'],
             },
         }
         require(len(encode(packet).encode()) <= max_bytes, 'Context budget exceeded; narrow the source adapter')

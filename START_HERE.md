@@ -37,12 +37,14 @@ Read and run in this order:
    - Greeting, talk, debrief, or working on a character or a scene: no command. Do not assume an adventure.
    - They asked for Dungeon of the Mad Mage: `python3 -m runtime.kit_agent start --db kit.sqlite --campaign dotmm`. Say `table_line`. Do not pass `--room` or `--regression`.
    - Play or build: `python3 -m runtime.kit_agent start --db kit.sqlite --intent play|build` (see below). Do not assume an adventure.
-   - Resume a saved game they want to continue: copy `kit.sqlite` to the repository root and run `start` with no `--campaign`. `stage` will be `resume`. Do not open a second room.
+   - Resume a saved game they want to continue: `python3 -m runtime.kit_agent start --save <their save ZIP>` (add `--room <file>` if its room is not attached). `stage` will be `resumed_from_save`; the room restarts with their record applied. A live `kit.sqlite` already in the sandbox continues as `stage: resume`. Do not open a second room.
+   - Save: `python3 -m runtime.kit_agent save --db kit.sqlite` on "save", on stop and at each room exit. Offer the ZIP it names. `kit.sqlite` is runtime-only (it holds hidden room state): never offer it or show it.
    - Every in-fiction turn: `python3 -m runtime.kit_agent prepare --one-pass --db kit.sqlite --action-file <file>`, write one `{"decision", "performance"}` that follows the packet, then `python3 -m runtime.kit_agent complete --db kit.sqlite --turn-id <id> --input-file <file>`.
    - Lost the manifest copy: `python3 -m runtime.kit_agent rehydrate --db kit.sqlite --turn-id <id>`.
    - Out-of-character talk during a scene: `python3 -m runtime.kit_agent prepare --table-talk --one-pass --db kit.sqlite --action-file <file>`, then `complete`.
    - Player feedback: `python3 -m runtime.kit_agent feedback --db kit.sqlite --text "<their words>"`.
    - Character changes: `python3 -m runtime.kit_agent character --db kit.sqlite --sheet <file>` (or `--held ... --active ...`).
+   - A sheet PDF: `python3 -m runtime.kit_agent import-sheet --db kit.sqlite --pdf <file>` (a D&D Beyond export reads exactly; `needs_kit` means copy only printed values into the template, leave blanks blank, ask the player and load after they confirm). A sheet loads whenever the player brings one: note `sheet_changes` (gold, HP, XP, ammo) without questioning, and ask `proficiency_check.table_line` once.
    - Show the player only the committed `spoken` text. Never run `play` (paid API).
 
 **At the table, Kit asks: play or build?** Greet in her voice (`start` with no flags gives `table_line`). *Play*: `start --intent play [--sheet <file>] [--modules <folder>]` lists only modules and a sheet that actually exist and asks for whatever is missing; then it asks solo or shared table (several players taking turns) and `--table solo|shared` records it in the save. Shared-table turn-taking is basic for now. *Build*: `start --intent build` is DM-assistant mode: design talk, plus item pricing with Goldscale's formula via `python3 -m runtime.kit_appraise "<item>"`.

@@ -59,6 +59,10 @@ The [expressed-performance pipeline](docs/architecture/expressed-performance-pip
 
 The [personality implementation audit](docs/personality/kit-personality-implementation.md) corrects a key gap: the core is written and loaded, but Kit's distinctive expressive behavior and longer-lived appetites/relationship dynamics are not yet built or validated. [Kit's expression gap](docs/architecture/kit-expression-gap.md) is the build guide for GPT: what the design assumed versus what the code did, and the rule that every private decision needs a public carrier the performer receives and the validator can check.
 
+## Saves
+
+`kit.sqlite` is the live runtime database and is **runtime-only**: it carries the whole room file (hidden facts, DCs, secret actors and exits) and Kit's private decisions, so it is never given to a player. The player's save is the ZIP from `python3 -m runtime.kit_agent save --db kit.sqlite`: `campaign.json`, `journal.md` and the character sheet, all player-safe. See [docs/architecture/PLAYER_SAVE.md](docs/architecture/PLAYER_SAVE.md).
+
 ## Repository map
 
 - `docs/personality/` — canonical DM personality, development process, appetites, pillar biases, table presence, and personality design history.
