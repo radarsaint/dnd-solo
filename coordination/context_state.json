@@ -2,16 +2,16 @@
   "schema": "kit_project_gardener_state/v1",
   "purpose": "RESUMABILITY_CURSOR_NOT_KNOWLEDGE_STORE",
   "canonical_location": "radarsaint/dnd-solo/coordination/context_state.json",
-  "state_revision": 33,
+  "state_revision": 34,
   "semantic_brain": {
     "repo": "radarsaint/dnd-solo",
     "path": "docs/PROJECT_UNDERSTANDING.md",
-    "last_semantic_commit": "1656796a8f1b7844589a58f16f07aa63e9753d83",
+    "last_semantic_commit": "d5dda08a5b613556f27537aa06dd111554f8cae6",
     "last_reviewed_on": "2026-10-26"
   },
   "checkpoint": {
     "reviewed_against_main": {
-      "radarsaint/dnd-solo": "10eeb73b6bc9b5cd05d2de0980b48050bfef19f2",
+      "radarsaint/dnd-solo": "d5dda08a5b613556f27537aa06dd111554f8cae6",
       "radarsaint/bfdm-corpus": "df47554633b20ba872bd8cd393c420bbef7140d1"
     },
     "context_inbox": {
@@ -25,9 +25,9 @@
   "last_completed_pass": {
     "kind": "BOUNDED_SEMANTIC_RECONCILIATION",
     "completed_on": "2026-10-26",
-    "scope": "Reviewed dnd-solo #150 merge (main 10eeb73b). #115 comment 6266120288 remains pending.",
-    "result": "Accept: #150 lands smaller session packets, rejection-streak notice (no full re-send), rejection-bug fixes, Detect Magic sensing, intent precedence. Narrow: mechanical friction reduced; player-experience truth and some edge drops remain. Brain updated. Pending #115 DM Kit rulings remain unresolved.",
-    "resulting_brain_commit": "1656796a8f1b7844589a58f16f07aa63e9753d83",
+    "scope": "Reviewed dnd-solo #157 merge (main 8329f176, stacked on #150). #115 comment 6266120288 remains pending.",
+    "result": "Accept: #157 lands playtest bug fixes (entry-turn hidden facts, entry acts riding moves, doorway pc_position, declared_held shield, private pass/fail with house-rule ties, named incomplete decisions, no pure-echo lines, recap with raw dice, granted-shield AC, same-id room reload, dangling-tease RoomWarning) plus lazy startup for combat/chargen/toll/twenty-one and first-use phrase compilation. Narrow: mechanical; player-experience truth remains the gap. Corrected prior #150 note that entry bugs were still dropped. Brain updated. Pending #115 DM Kit rulings remain unresolved.",
+    "resulting_brain_commit": "d5dda08a5b613556f27537aa06dd111554f8cae6",
     "reconciled_comment_id": 6202184874
   },
   "active_pass": null,
