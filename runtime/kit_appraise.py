@@ -37,22 +37,43 @@ DEFAULT_STATE = 'kit_appraise.json'
 
 # Phrasing around an item name, stripped generally (any item), in passes until nothing changes:
 # "what's a potion of healing worth?", "sell a potion of healing", "what's the potion of healing's value?",
-# "how much could I sell a healing potion for?", "price of a +1 longsword, please".
+# "how much could I sell a healing potion for?", "price of a +1 longsword, please",
+# "price check on a rope", "can I sell my torch?".
 _FILLER = lazy_compile(r"^\s*(?:hey|hi|ok|okay|so|um|well|kit|goldscale)\b[,!]?\s*", re.I)
 _AUX = r"(?:is|are|was|were|do|does|did|would|will|could|can|should|might)"
 # A question word, then any auxiliary after it ("how much are 3 healing potions?", "what do two
 # potions of greater healing go for?"), stripped generally, never as a one-off phrase.
 _LEAD = lazy_compile(
-    rf"^\s*(?:(?:what(?:'s|s|’s)?|how much|how many(?: gold| gp| coins?)?|which)(?:\s+{_AUX})?|can you|could you|would you|will you|"
+    rf"^\s*(?:(?:what(?:'s|s|’s| is)?|how much(?:\s+for)?|how many(?: gold| gp| coins?)?|which)(?:\s+{_AUX})?|"
+    r"can you|could you|would you|will you|may you|might you|"
+    r"can i|could i|would i|will i|may i|might i|"
     r"please|pls|i'?d like to|i want to|i wanna|i need to|let'?s|tell me|do you know|any idea|give me)\b[,]?\s*", re.I)
 _SUBJ = lazy_compile(r"^\s*(?:i|we|you|me|us)\b\s*(?:(?:get|got|make|pay|be|charge)\b\s*)?(?:for\b\s*)?", re.I)
-_VERB = lazy_compile(r"^\s*(?:price(?:\s+check)?|appraise|value|cost|quote|be|get|for)\b\s*", re.I)
+_VERB = lazy_compile(
+    r"^\s*(?:price(?:\s+check)?(?:\s+on)?|appraise|value|cost|quote|check(?:\s+on)?|be|get|for|on)\b\s*", re.I)
 _OF = lazy_compile(r"^\s*(?:the\s+)?(?:value|price|worth|cost|market price|going rate)\s+(?:of|for|on)\b\s*", re.I)
 _ARTICLE = lazy_compile(r"^\s*(?:a|an|the|one|some|my|this|that)\b\s*", re.I)
 _TAIL = lazy_compile(r"(?:\s*(?:'s|’s)?\s*(?:(?:be\s+)?worth|value|price|cost|go(?:es)? for|sell(?:s)? for|"
-                   r"buy for|fetch|run(?: me)?|be|for|please|pls|at market|in gold|in gp)\b|\s*[?.!,]+)\s*$", re.I)
+                   r"buy for|fetch|run(?: me)?|be|for|please|pls|at market|in gold|in gp)\b|\s*[?.!,…]+)\s*$", re.I)
 _SELL = lazy_compile(r"\b(?:sell|selling|sold|pawn|offload)\b(?!\s+for\s*[?.!]*\s*$)", re.I)
 _MODE_WORD = lazy_compile(r"^\s*(?:\?gs\s+)?(?:buy(?:ing)?|sell(?:ing)?|pawn|offload|purchase)\b\s*", re.I)
+# Question-word typos only. Item nouns are not corrected here.
+_TYPOS = {
+    'hw': 'how', 'muhc': 'much', 'mch': 'much', 'waht': 'what', 'whta': 'what', 'wht': 'what',
+    'wats': 'what', 'hwat': 'what', 'whats': 'what', 'prise': 'price', 'prcie': 'price',
+    'pirce': 'price', 'chekc': 'check', 'chek': 'check', 'chcek': 'check', 'wroth': 'worth',
+    'wohrt': 'worth', 'worht': 'worth', 'seel': 'sell', 'slel': 'sell', 'howmuch': 'how much',
+    'pricecheck': 'price check', 'cna': 'can',
+}
+_NEXT_ITEM = re.compile(
+    r'^(?:a|an|the|my|your|\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|'
+    r'thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|dozen|pair|couple|brace)\b',
+    re.I)
+_NOT_NEXT = re.compile(
+    r'^(?:common|uncommon|rare|very|legendary|artifact|weapon|armor|armour|shield|potion|wand|'
+    r'staff|cloak|ring|boots|scroll|consumable|utility|complex|minor|reusable|broad|healing|'
+    r'damage|aoe|charged)\b',
+    re.I)
 
 # Well-known SRD items Kit can price without the player pasting the item text (SRD 5.1 values).
 SRD_DEFAULTS = (
@@ -93,10 +114,50 @@ def canonical_names(text):
     return text
 
 
-def strip_question(text):
-    """The item, without the phrasing around it, keeping buy/sell intent:
-    "what's a potion of healing worth?" -> "potion of healing"; "sell a potion of healing" -> "sell potion of healing"."""
-    original = (text or '').strip()
+def _fix_typos(text):
+    """Question-word typos only (prise -> price). Item nouns are left alone."""
+    def repl(match):
+        fixed = _TYPOS.get(match.group(0).casefold())
+        return fixed if fixed else match.group(0)
+    return re.sub(r"[A-Za-z']+", repl, text)
+
+
+def _comma_bonus(text):
+    """'longsword, +1' and '+1 longsword' share a bonus at the front.
+
+    A trailing '+1' with no comma is left where the speaker put it, so
+    'cloak of protection uncommon cloak +1' still prices as that line.
+    """
+    found = re.search(r',\s*\+\s*([123])\b', text, flags=re.I)
+    if not found:
+        return text
+    rest = ' '.join((text[:found.start()] + ' ' + text[found.end():]).replace(',', ' ').split())
+    if re.match(rf'\+{found.group(1)}\b', rest):
+        return rest
+    return f'+{found.group(1)} {rest}'.strip()
+
+
+def _split_clauses(frame):
+    """'a rope and two torches' is two items. '+1 longsword, uncommon weapon' is one."""
+    clauses = []
+    for chunk in re.split(r'\s+(?:and|&)\s+', frame):
+        buf = []
+        for piece in [part.strip() for part in chunk.split(',')]:
+            if not piece:
+                continue
+            if buf and _NEXT_ITEM.match(piece) and not _NOT_NEXT.match(piece):
+                clauses.append(', '.join(buf))
+                buf = [piece]
+            else:
+                buf.append(piece)
+        if buf:
+            clauses.append(', '.join(buf))
+    return clauses
+
+
+def _frame(text):
+    """(mode, item words) with the question shell removed. mode is 'sell ' or ''."""
+    original = _fix_typos((text or '').strip()).replace('\u2019', "'")
     mode = 'sell ' if _SELL.search(original) else ('buy ' if re.match(r'^\s*(?:\?gs\s+)?buy\b', original, re.I) else '')
     t = original
     for _ in range(12):
@@ -108,17 +169,40 @@ def strip_question(text):
         t = re.sub(r"\b(?:sell(?:ing)?|buy(?:ing)?)\s+(?=\S)", '', t, count=1, flags=re.I) if t is before else t
         if t == before:
             break
-    t = canonical_names(t.strip(" \t'\"")).strip()
-    # The same grammar Goldscale uses: "3 torches", "three torches", "qty 3 torch",
-    # "a dozen arrows", "pair of daggers", "torches x3".
-    parsed = parse_quantity(t)
+    return mode, t.strip(" \t'\"")
+
+
+def _one_clause(part):
+    part = _comma_bonus(part.strip(" \t'\""))
+    for _ in range(4):
+        nxt = _ARTICLE.sub('', part, count=1).strip()
+        if nxt == part:
+            break
+        part = nxt
+    part = canonical_names(part).strip()
+    parsed = parse_quantity(part)
     if parsed:
-        n, rest = parsed
-        if n > 1:
-            t = f'qty {n} {rest}'
-        else:
-            t = rest
-    return mode + t if t else original
+        count, rest = parsed
+        part = f'qty {count} {rest}' if count > 1 else rest
+    return part.strip(" \t'\"?.!,…")
+
+
+def strip_question(text):
+    """The item, without the phrasing around it, keeping buy/sell intent.
+
+    "what's a potion of healing worth?" -> "potion of healing"
+    "sell a potion of healing" -> "sell potion of healing"
+    "price a rope and two torches" -> "rope and qty 2 torches"
+    "can I sell my torch?" -> "sell torch"
+    """
+    original = (text or '').strip()
+    mode, frame = _frame(original)
+    if not frame:
+        return original
+    parts = [part for part in (_one_clause(piece) for piece in _split_clauses(frame)) if part]
+    if not parts:
+        return original
+    return (mode + ' and '.join(parts)).strip()
 
 
 def srd_defaults(text):
