@@ -1046,6 +1046,13 @@ class Runtime:
                 evidence = evidence[:RHYTHM_EVIDENCE_MAX_CHARS - 3] + '...'
             state['rhythm'].append({'tags': tags, 'evidence': evidence})
             state['rhythm'] = state['rhythm'][-12:]
+        elif kind == 'spell_running':
+            # A lasting spell the PC keeps up (Detect Magic, 10 minutes): until when, in game
+            # seconds, so entering a new area while it runs senses there (#150 retest 5).
+            spell, until = event.get('spell'), event.get('until')
+            require(isinstance(spell, str) and 0 < len(spell) <= 40 and type(until) is int and until >= 0,
+                    'spell_running needs a spell name and an until time')
+            state.setdefault('spells_running', {})[spell.casefold()] = until
         else:
             raise InvalidChange(f'Unsupported event: {kind}')
 

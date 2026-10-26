@@ -112,12 +112,28 @@ class Resend(Layers):
         packet, output = self.open_room()
         self.bridge.complete('open', output)
         sent = []
+        # Committed turns fill the window (abandoned ones do not; next test): count these as
+        # committed without writing nine distinct performances.
+        done = {'open'}
+        self.runtime.committed_kit_turn_ids = lambda: set(done)
         for n in range(kit_manifest.FULL_EVERY + 1):
             later, out = self.wait(f'w{n}')
             sent.append('body' in later['session_manifest'])
             self.bridge.abandon(f'w{n}')
+            done.add(f'w{n}')
         self.assertFalse(any(sent[:kit_manifest.FULL_EVERY - 1]))
         self.assertTrue(any(sent))
+
+    def test_abandoned_prepares_do_not_count_toward_the_window(self):
+        # #150 retest 4: bursts of abandoned prepares forced 60 KB resends.
+        packet, output = self.open_room()
+        self.bridge.complete('open', output)
+        sent = []
+        for n in range(kit_manifest.FULL_EVERY * 2):
+            later, out = self.wait(f'a{n}')
+            sent.append('body' in later['session_manifest'])
+            self.bridge.abandon(f'a{n}')
+        self.assertFalse(any(sent))
 
     def test_a_rejection_streak_resends_the_bodies(self):
         packet, output = self.open_room()

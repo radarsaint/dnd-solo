@@ -41,7 +41,7 @@ class CalledCheck(Stalls):
     def test_a_refused_attempt_keeps_the_called_check(self):
         self.call()
         with self.assertRaises(PendingRuling):
-            self.bridge.prepare('I smash the chest open with my staff.', 'smash', one_pass=True)
+            self.bridge.prepare('I steal everything in the room.', 'smash', one_pass=True)
         self.assertEqual(self.runtime.load()[1]['pending_check']['skill'], 'investigation')
         self.assertEqual(self.resolve(self.runtime, '1d20 (1) + 7 = 8').kind, 'called_check')
 
@@ -58,9 +58,11 @@ class SimpleActs(Stalls):
     def test_hop_on_in_goes_in(self):
         self.assertEqual(self.resolve(self.runtime, 'Hop on in.').kind, 'exit')
 
-    def test_a_risky_act_still_needs_a_ruling(self):
+    def test_a_risky_act_is_kits_ruling_not_a_refusal(self):
+        # #150 retest 2b: an attempt on a thing in the room is an ordinary turn Kit rules.
+        self.assertEqual(self.resolve(self.runtime, 'I smash the chest.').kind, 'kit_ruling')
         with self.assertRaises(PendingRuling):
-            self.resolve(self.runtime, 'I smash the chest.')
+            self.resolve(self.runtime, 'I steal everything in the room.')
 
 
 class MixedMessages(Stalls):

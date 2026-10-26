@@ -30,7 +30,7 @@ SESSION_KEYS = ('performance_variant', 'instructions', 'schema', 'performance_li
 SESSION_PRIVATE_KEYS = ('personality_core', 'available_reactions')
 ROOM_DM_KEYS = ('source_id', 'source_ref', 'map_ref', 'fixture_only', 'level_context', 'campaign_context',
                 'constraints', 'dm_only', 'missing_production_layers')
-FULL_EVERY = 8               # re-send both bodies at least every 8 prepared turns
+FULL_EVERY = 8               # re-send both bodies at least every 8 committed turns
 REJECT_STREAK = 2            # after this many rejections the next packet gets rejection_notice
 MANIFEST_RULE = ('session_manifest and room_manifest hold this session\'s core, instructions, output '
                  'contract and the room\'s static truth. "cached": true means unchanged since you were '
@@ -84,13 +84,27 @@ def layered(packet, cached_session=False, cached_room=False):
     return out, hashes, room
 
 
-def plan_sends(recent):
+def plan_sends(recent, committed=None):
     """Which bodies the host already holds: hashes sent in full within the last FULL_EVERY
     prepared turns. A rejection streak no longer clears them: the host still holds the body,
     so re-sending ~50 KB after every bad turn only made the retry slower. See rejection_notice;
     a host or model that really lost the body runs rehydrate."""
     held = {'session': set(), 'room': set()}
-    for row in list(recent)[-FULL_EVERY:]:
+    rows = list(recent)
+    if committed is not None:
+        # Only committed turns count toward the window (#150 retest 4: bursts of abandoned
+        # prepares pushed a body out and forced a 60 KB resend). A body sent with an abandoned
+        # prepare still reached the host, so rows after the window's oldest committed turn stay.
+        window, seen = [], 0
+        for row in reversed(rows):
+            window.append(row)
+            seen += row['turn_id'] in committed
+            if seen >= FULL_EVERY:
+                break
+        rows = list(reversed(window))
+    else:
+        rows = rows[-FULL_EVERY:]
+    for row in rows:
         record = row.get('manifest') or {}
         for layer in ('session', 'room'):
             if layer in (record.get('sent') or ()):

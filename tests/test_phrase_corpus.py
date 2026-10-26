@@ -12,8 +12,8 @@ import unittest
 from runtime.kit_agent import PendingRuling
 from test_kit_watchroom_stalls import Stalls
 
-CHECK, LOOK, ACT, MOVE, SPELL, SPEECH, REFUSED = 'check', 'look', 'act', 'move', 'spell', 'speech', 'refused'
-_KINDS = {'check_request': CHECK, 'observe': LOOK, 'threshold_look': LOOK, 'inspect_feature': LOOK,
+CHECK, LOOK, ACT, MOVE, SPELL, SPEECH, REFUSED, RULED = 'check', 'look', 'act', 'move', 'spell', 'speech', 'refused', 'ruled'
+_KINDS = {'kit_ruling': RULED, 'check_request': CHECK, 'observe': LOOK, 'threshold_look': LOOK, 'inspect_feature': LOOK,
           'exit': MOVE, 'spell_cast': SPELL, 'social': SPEECH}
 
 INSIDE = [
@@ -28,9 +28,37 @@ INSIDE = [
     ('I walk over to the table.', ACT),
     ('I step closer to the table.', ACT),
     ('I raise my lantern and look in.', LOOK),
-    # Risky acts stay Kit's ruling
-    ('I smash the chest.', REFUSED),
-    ('I break the chest open with my staff.', REFUSED),
+    # A physical act on a thing in the room is an ordinary turn Kit rules, not a refusal
+    # (#150 retest 2b); exploits and acts on a person stay refused
+    ('I smash the chest.', RULED),
+    ('I break the chest open with my staff.', RULED),
+    ('I yank the lid of the chest.', 'physical_act'),     # the room file handles it (kit_acts)
+    ('I pry at the floorboards with my dagger.', RULED),
+    ('I wedge my dagger under the table leg.', RULED),
+    ('I pour water over the ledger.', RULED),
+    ('I steal everything in the room.', REFUSED),            # exploit
+    ('I instantly open every lock.', REFUSED),               # exploit
+    ("I steal the warden's keys.", REFUSED),                # a person's things: refused
+    # Kit II #150 retest 2 lines (from the Old Gate room), as watchroom paraphrases
+    ('I run my fingers along the mortar lines, hunting for a hidden catch.', CHECK),
+    ('I run my hands over the table, hunting for a hidden drawer.', CHECK),
+    ('I go over the west wall inch by inch for anything odd.', CHECK),
+    ('I go over the chest carefully.', CHECK),
+    ('I poke around in the cobwebs with my staff.', CHECK),
+    ('I poke around under the table.', CHECK),
+    ('I study the ledger closely.', CHECK),
+    ('I study the writing on the wall.', CHECK),
+    ('I sift through the ashes in the corner.', CHECK),
+    ('Sifting through the dust, I look for anything dropped.', CHECK),
+    ('I look behind the table.', CHECK),
+    ('I peer under the chest.', LOOK),                       # a handled feature: the file answers
+    ('I comb through the papers on the table.', CHECK),
+    ('I rifle through the drawers.', CHECK),
+    ('I scrutinise the floorboards.', CHECK),
+    # Kit II retest 3: an act after 'wait' is an act, not talk
+    ('Wait, before I roll, I yank the manacles off the wall.', RULED),
+    ('Wait. I pull the torch out of its bracket.', RULED),
+    ('Hold on, I kick the chest.', RULED),
     # Search beats a simple act and reaches a called check (#150 playtest; #150 retest: these
     # were refused, and the corpus pinned the refusal because it asserted labels, not outcomes)
     ('I walk along the north wall, checking each mirror frame for seams.', CHECK),
@@ -41,7 +69,7 @@ INSIDE = [
     ("I examine each niche's mirrors.", CHECK),
     ('Along the wall I go, searching every stone for a seam.', CHECK),
     ('I run my hands over the wall looking for a catch.', CHECK),
-    ('I check behind the table.', LOOK),  # known: a plain 'check behind' is a free look
+    ('I check behind the table.', CHECK),  # was a free look; behind something is a search now
     ('I walk the wall and search it for seams.', CHECK),
     ('I pace along the wall, searching for seams.', CHECK),
     ('Walking the wall, I check it for hidden seams.', CHECK),
@@ -106,9 +134,9 @@ class Precedence(Stalls):
     PAIRS = [
         ('check request > simple act', 'I kneel by the chest. Can I roll Investigation?', CHECK),
         ('search > simple act', 'I step along the wall and search for a draft.', CHECK),
-        ('look > simple act', 'I crouch and look under the table.', LOOK),
+        ('search (look under) > simple act', 'I crouch and look under the table.', CHECK),
         ('spell > simple act', 'I kneel and cast detect magic.', SPELL),
-        ('risky act > simple act', 'I walk over and smash the chest.', REFUSED),
+        ('risky act > simple act', 'I walk over and smash the chest.', RULED),
         ('simple act > speech', 'Right then. I tap the table with my staff.', ACT),
     ]
 
