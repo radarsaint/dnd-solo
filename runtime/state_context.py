@@ -189,6 +189,40 @@ class HostSequenceError(InvalidChange):
         self.next_step = next_step
 
 
+HIDING_MARKS = ('hidden', 'invisible', 'concealed', 'unseen')
+GONE_STATUSES = ('dead', 'fled', 'destroyed')
+
+
+def unperceived(actor):
+    """True for a creature still there that the PC cannot perceive now, whatever marks it: the
+    room schema's status "hidden" (until a trigger) or "visible": false, or a hidden / invisible /
+    concealed / unseen flag set true, or a condition of those names. Pass the source actor merged
+    with its state. Dead, fled and destroyed creatures are not "there"."""
+    actor = actor or {}
+    if actor.get('status') in GONE_STATUSES:
+        return False
+    if actor.get('status') == 'hidden' or actor.get('visible') is False:
+        return True
+    if any(actor.get(mark) is True for mark in HIDING_MARKS):
+        return True
+    return any(str(c).casefold() in HIDING_MARKS for c in actor.get('conditions') or ())
+
+
+def reveal_actor(actor, spec=None):
+    """Clear every hiding marker on the state actor (a trigger's reveal): status hidden -> alive,
+    visible true, each hiding flag false (also those only the room spec carries), and the hiding
+    names dropped from conditions. Other conditions (prone) stay."""
+    merged = {**(spec or {}), **actor}
+    if actor.get('status') == 'hidden' or (spec or {}).get('status') == 'hidden' and 'status' not in actor:
+        actor['status'] = 'alive'
+    actor['visible'] = True
+    for mark in HIDING_MARKS:
+        if merged.get(mark):
+            actor[mark] = False
+    if merged.get('conditions'):
+        actor['conditions'] = [c for c in merged['conditions'] if str(c).casefold() not in HIDING_MARKS]
+
+
 def encode(value):
     return json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
 
@@ -1173,8 +1207,9 @@ class Runtime:
             'known_facts_here': [source['facts'][k]['text'] for k in state['known_facts']
                                  if source['facts'][k]['area'] == state['area']],
             'exits': exits,
-            'actors': [{'name': a['name'], 'status': a['status']} for a in state['actors'].values()
-                       if a['location'] == state['area'] and a['visible'] and a['status'] != 'fled'],
+            'actors': [{'name': a['name'], 'status': a['status']} for k, a in state['actors'].items()
+                       if a['location'] == state['area'] and a['visible'] and a['status'] != 'fled'
+                       and not unperceived({**(source['actors'].get(k) or {}), **a})],
             'resources': state['resources'], 'elapsed_seconds': state['elapsed_seconds'],
             **({'your_character': dict(state['player_character'])} if state.get('player_character') else {}),
             **({'your_position': f"at {source['exits'][state['pc_position']['at_exit']].get('name') or 'the doorway'}"}
