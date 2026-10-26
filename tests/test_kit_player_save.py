@@ -22,7 +22,7 @@ import unittest.mock
 import zipfile
 from pathlib import Path
 
-from runtime import kit_adventure, kit_agent, kit_save
+from runtime import kit_adventure, kit_agent, kit_rooms, kit_save
 from runtime.state_context import Runtime
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -127,6 +127,10 @@ class SaveBase(unittest.TestCase):
         try:
             source, (_, state) = runtime.source(), runtime.load()
             public = set(strings(runtime.player_view())) | {source['id']}
+            # What the player learned anywhere in the room is theirs (P2 exports it).
+            public |= {source['facts'][k]['text'] for k in kit_rooms.known_fact_ids(source, state)
+                       if k in source['facts']}
+            public |= {source['areas'][a]['name'] for a in state.get('visited') or () if a in source['areas']}
             raw = runtime.db.execute('SELECT body FROM source').fetchone()[0]
         finally:
             runtime.close()
@@ -150,8 +154,10 @@ class SaveBase(unittest.TestCase):
             for item in secret:
                 self.assertNotIn(item, text, f'{name} leaks {item!r}')
             if name.endswith('campaign.json') or name.endswith('journal.md'):
-                self.assertNotRegex(text, r'(?i)\bdc\b', name)
-                self.assertNotIn('claim', text.lower(), name)
+                # On the unblanked text, hashes removed: blanking can put word edges inside a hex digest.
+                plain = re.sub(r'\b[0-9a-f]{64}\b', '', full)
+                self.assertNotRegex(plain, r'(?i)\bdc\b', name)
+                self.assertNotIn('claim', plain.lower(), name)
             if name.endswith('sheet.md'):
                 sheet_dc = json.loads(NIK.read_text(encoding='utf-8')).get('spell_save_dc')
                 for dc in re.findall(r'(?i)\bdc\s*(\d+)', text):
