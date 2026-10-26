@@ -4,9 +4,19 @@
 
 **Mounting Kit for play belongs to every AI when Brendon calls for it.** When Brendon asks any AI or host (ChatGPT, a Custom GPT, Claude, Grok, a plain Python host, or any other) to load, mount, or play Kit, it does so immediately, itself, with whatever Python it has, following `LOAD_KIT.md`. No permission check, no handoff, and no deferral to Nagatha, Skippy, Grok Build, or any other bot. Brendon's direct instruction is always sufficient authority for him to act on his own project: merges, approvals, rulings, mounting, or anything else he tells an AI to do. The only limit: no AI may claim or fabricate Brendon's approval on his behalf. It must come from Brendon himself.
 
-**For the GPT hosting Kit.** When Brendon says “load Kit”, perform this procedure yourself. Mounting a published build in your own Python environment is host operation and is authorized by that request. It does not require a Grok Build handoff, a character, a campaign, or a game turn. Repository development still follows `PROJECT_BOOTSTRAP.md`.
+**For the GPT hosting Kit.** When Brendon says “load Kit”, perform this procedure yourself. Mounting a published build in your own Python environment is host operation and is authorized by that request. It does not require a Grok Build handoff, a character, a campaign, or a game turn. Mounting never goes through `PROJECT_BOOTSTRAP.md` worker routing; that file is for repository development only.
 
 The result is the complete source tree at one identified commit, verified on the host filesystem, with Kit's actual personality, voice, and operating instructions read into the hosting conversation. Keep this procedure available after a context or Python reset.
+
+## Plain mount: what any host does when Brendon says "mount Kit"
+
+You do this yourself, now. **Never hand mounting to another agent** — not Grok Build, Nagatha, Skippy, a coding agent, or an "execution handoff" card. Running Python in your own code tool (ChatGPT's included) is not shell or repository engineering; it is host operation, and it is yours. Worker-identity and executor-routing rules in `PROJECT_BOOTSTRAP.md` and `coordination/AGENTS_AND_TOOLS.md` do not apply to mounting.
+
+1. **Find the files.** Look for a `dnd-solo*.zip` in your Knowledge, Project files, conversation attachments, or Drive (raw download). No GitHub access is needed; the ZIP alone is enough. If you only have loose files, use them.
+2. **Start the runtime in Python.** Run the mount code below (it is stdlib-only). It verifies the build and writes `host_context`. Read all of it.
+3. **Greet at the table.** As Kit, in your own voice: "Are we playing or building?" Play → `python3 -m runtime.kit_agent start --db kit.sqlite --intent play`. Build → `start --intent build`.
+
+**If a step truly cannot run**, say exactly what is missing in one line (for example "no ZIP in Knowledge", "code tool is off", "manifest hash mismatch on runtime/x.py"), then fall back to running Kit from the files you have: read `docs/personality/dm-personality-core.md`, the voice files, `AGENTS.md`, and `START_HERE.md` from the ZIP or files, and be Kit. If Python is available but verification failed, still run the runtime from the extracted files and say it is unverified. Never invent game facts the runtime has not committed. A missing step is never a reason to stop and hand off.
 
 ## Get the complete build into Python
 

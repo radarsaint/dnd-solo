@@ -21,6 +21,8 @@ For substantial project work, use this order:
 
 ### 0. Identify the worker
 
+**Mounting Kit is exempt from this step.** Loading, mounting, or playing Kit is never routed to another worker and has no handoff target; follow the plain mount in `LOAD_KIT.md` yourself. Running Python in a code tool is not shell or repository execution.
+
 Before reading the repository as a plan of action, establish the worker that is actually present. Use the product and execution environment, not the requested task and not the connectors attached to this chat.
 
 Establish:
@@ -30,7 +32,7 @@ Establish:
 - what this worker can do directly;
 - which execution capabilities are absent;
 - which work must be routed to a differently capable AI;
-- the default handoff target.
+- the default handoff target for repository work (never for mounting Kit, and never for anything Brendon directly told this worker to do).
 
 Tool availability does not redefine worker identity. A connector is not a different worker.
 
@@ -46,7 +48,7 @@ Keep the other identities distinct. Grok Build is the shell and repository execu
 
 Brendon is not the routine repository or shell executor. His lane is product direction, creative judgment, disputed requirements, priorities, permission, and merge approval. His direct instruction to any AI is sufficient authority; no AI may defer it to Nagatha, Skippy, or another bot. When a separate environment can be started only by pasting a packet, Brendon may be the transport. The AI still writes the exact packet. Transport is not execution.
 
-Do not reason from "this worker cannot execute the required outcome" to a weaker or skipped outcome. Identify the worker, identify the executor, hand off the execution, receive the result, and check it against the original acceptance condition.
+Do not reason from "this worker cannot execute the required outcome" to a weaker or skipped outcome. Identify the worker, identify the executor, hand off the execution, receive the result, and check it against the original acceptance condition. This never applies to mounting Kit or to work Brendon directly told this worker to do.
 
 Keep these action states distinct: PREPARED, RECORDED, DELIVERED, EXECUTED, VERIFIED, BLOCKED. A prompt in chat is PREPARED. A prompt written to GitHub is RECORDED. Brendon pasting it into Grok Build is DELIVERED. Grok Build performing the operation is EXECUTED. The control-room checking that result is VERIFIED. Do not call one state another.
 
