@@ -4832,6 +4832,10 @@ def declare(runtime, adjudicator, body, plan):
     revision, _ = runtime.load()
     after = runtime.preview_state(revision, body['events'])
     sealed = {} if (acts or {}).get('handles') else sealed_terms(runtime.source(), after)
+    _, before = runtime.load()
+    looked = threshold_look(runtime.source(), before, body.get('events'))
+    if looked:
+        body = {**body, 'threshold_hidden': threshold_hidden_words(runtime.source(), after, looked, body)}
     if not acts or not isinstance(adjudicator, RoomAdjudicator):
         return {**body, 'hidden_actors': hidden_actor_words(runtime.source(), after, body),
                 'hidden_facts': hidden_fact_words(runtime.source(), after, body),
@@ -5059,6 +5063,127 @@ def hidden_actor_words(source, state, body=None):
     return sorted(nouns) + sorted(runs)
 
 
+def _proper_name_words(name, creature=''):
+    """The words of a personal name ("Vex", "Orrin Tallow"), which no look through a way shows, as
+    opposed to a descriptive label ("Watch warden": a capitalised first word, then lowercase words)
+    or a bare creature name (its stat block's own creature: "Bandit" for an SRD bandit)."""
+    words = re.findall(r"[A-Za-z][A-Za-z'-]+", str(name or ''))
+    if len(words) > 1 and words[0][0].isupper() and all(w[0].islower() for w in words[1:]):
+        return set()
+    kind = set(_word_list(creature))
+    return {w.casefold() for w in words
+            if w[0].isupper() and w.casefold() not in _HIDDEN_STOP and len(w) > 2 and w.casefold() not in kind}
+
+
+def _runs(text):
+    """Pairs of content words and three-word runs with two or more: what describes a thing."""
+    words = _word_list(text)
+    out = set()
+    for i in range(len(words)):
+        pair, three = words[i:i + 2], words[i:i + 3]
+        if len(pair) == 2 and all(w not in _HIDDEN_STOP and len(w) > 2 for w in pair):
+            out.add(' '.join(pair))
+        if len(three) == 3 and sum(w not in _HIDDEN_STOP and len(w) > 2 for w in three) >= 2:
+            out.add(' '.join(three))
+    return out
+
+
+def threshold_look(source, before, events):
+    """The exit a look or listen this turn went through (its beat, or the check called on it)."""
+    looked = threshold_exit(events)
+    if looked is None and any(e.get('type') == 'pending_check' and e.get('check') is None for e in events or ()):
+        looked = ((before or {}).get('pending_check') or {}).get('threshold')
+    return looked
+
+
+def threshold_hidden_words(source, state, exit_key, body=None):
+    """What would show the inside of the area through ``exit_key`` on a look or listen from here
+    (tease-only, kit_brief.THRESHOLD_RULE; Nagatha's clean-host review 8c). For that area:
+    always hidden: each live actor's secrets, motive, knowledge, dm_identity and personal name; the
+    name, truth and subject words of each claim rooted there that is hidden and not yet learned; each
+    fact there not visible and not found. Hidden on a plain look too, but shown when the held
+    description is delivered on the check called on the look: who is there (name head noun, stat
+    block creature, id) and the visible facts there. Words the tease, what is heard, the public view
+    or the player's own words give do not count. [] when the turn is no threshold look."""
+    source, state, body = source or {}, state or {}, body or {}
+    edge = (source.get('exits') or {}).get(exit_key) or {}
+    here = state.get('area')
+    if not exit_key or here not in edge.get('areas', ()):
+        return []
+    other = next((a for a in edge['areas'] if a != here), None)
+    if other is None:
+        return []
+    view = kit_brief.threshold_view(source, state, exit_key) or {}
+    shown_text = ' '.join([view.get('tease') or '', view.get('label') or '',
+                           ' '.join(h.get('heard') or '' for h in view.get('heard') or ()),
+                           json.dumps(body.get('public_view') or {}), body.get('action') or ''])
+    seen = ' '.join(_word_list(shown_text))
+    held = bool(body.get('held_description'))
+    words, runs = set(), set()
+    live = state.get('actors') or {}
+    inside = []
+    for key, spec in (source.get('actors') or {}).items():
+        actor = {**(spec or {}), **(live.get(key) or {})}
+        if actor.get('location') != other or actor.get('status') in ('dead', 'fled', 'destroyed'):
+            continue
+        inside.append(key)
+        creature = str((actor.get('stat_block') or {}).get('srd') or '')
+        for text in list(actor.get('secrets') or ()) + list(actor.get('knowledge') or ()) + \
+                [actor.get('motive') or '', actor.get('dm_identity') or '']:
+            runs |= _runs(text)
+        names = {(spec or {}).get('name') or '', (live.get(key) or {}).get('name') or ''} - {''}
+        for name in names:  # the room's name and the live one (both, when a turn renamed)
+            words |= _proper_name_words(name, creature)
+        if not held:
+            for name in (*names, creature, ' '.join(p for p in key.split('_') if len(p) > 2)):
+                found = [w for w in _word_list(name) if w not in _HIDDEN_STOP and len(w) > 2]
+                if found:
+                    words.add(found[-1])
+    learned = set(state.get('known_facts') or ()) | set((state.get('claims') or {}).get('learned') or ())
+    established = kit_claims.established_claims(state)
+    facts = source.get('facts') or {}
+    for cid, claim in (source.get('claims') or {}).items():
+        if not isinstance(claim, dict) or claim.get('exposure') != 'hidden' or cid in learned or \
+                str(claim.get('about') or '').strip().casefold() in established:
+            continue
+        roots = list(claim.get('roots') or ()) + [f'actor:{h}' for h in claim.get('holders') or ()]
+        there = any(r.startswith('actor:') and r[6:] in inside or
+                    (facts.get(r[5:] if r.startswith('fact:') else r) or {}).get('area') == other for r in roots)
+        if not there:
+            continue
+        runs |= _runs(claim.get('truth') or '')
+        words |= {w for w in _word_list(' '.join(claim.get('subject_words') or ())) if w not in _HIDDEN_STOP}
+        about = str(claim.get('about') or '')
+        if about.startswith('actor:') and about.endswith('/name'):
+            name = ((source.get('actors') or {}).get(about[6:-5]) or {}).get('name')
+            words |= {w for w in _word_list(name) if w not in _HIDDEN_STOP and len(w) > 2}
+    for key, fact in facts.items():
+        if not isinstance(fact, dict) or fact.get('area') != other:
+            continue
+        if not fact.get('visible') and key not in learned:
+            runs |= _runs(fact.get('text') or '')
+            runs |= _runs((fact.get('magic_objects') or {}).get('what') or '')
+        elif not held:
+            runs |= _runs(fact.get('text') or '')
+    words = {w for w in words if not re.search(r'\b' + re.escape(w) + r'(?:s|es)?\b', seen)}
+    runs = {r for r in runs if r not in seen}
+    return sorted(words) + sorted(runs)
+
+
+def check_threshold_contents(spoken, words):
+    """HARD (secrecy): a look or listen through a threshold shows only the tease, what is heard and
+    what the PC already perceives, never who or what is inside or what they hide."""
+    if not words:
+        return
+    text = ' '.join(_word_list(spoken))
+    for word in words:
+        if ' ' in word and word in text or ' ' not in word and re.search(
+                r'\b' + re.escape(word) + r'(?:s|es)?\b', text):
+            raise InvalidChange('Threshold look: the performance shows what lies inside the next area '
+                                f'("{word}"). Through a threshold, describe only the tease, what is heard, '
+                                'and what the PC already perceives.')
+
+
 def hidden_fact_words(source, state, body=None):
     """The three-content-word runs of every fact here still hidden once
     this turn lands: its text and its magic object's description. Runs the player can see
@@ -5124,6 +5249,8 @@ def checked_record(body, plan, speech, performance_variant, source=None, degrade
     spoken, warnings = result if degraded else (result, [])
     check_hidden_actors(spoken, body.get('hidden_actors'))
     check_hidden_facts(spoken, body.get('hidden_facts'))
+    check_threshold_contents(' '.join(seg.get('text') or '' for seg in speech.get('segments') or ()),
+                             body.get('threshold_hidden'))
     kit_agenda.check_carriers_spoken(spoken, plan)
     check_held_delivered(body.get('held_description'), spoken)
     if not ask and not stall_check(plan, body['kind']):
