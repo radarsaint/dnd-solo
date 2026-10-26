@@ -2,16 +2,16 @@
   "schema": "kit_project_gardener_state/v1",
   "purpose": "RESUMABILITY_CURSOR_NOT_KNOWLEDGE_STORE",
   "canonical_location": "radarsaint/dnd-solo/coordination/context_state.json",
-  "state_revision": 52,
+  "state_revision": 53,
   "semantic_brain": {
     "repo": "radarsaint/dnd-solo",
     "path": "docs/PROJECT_UNDERSTANDING.md",
-    "last_semantic_commit": "8b6a819345cda1ed5237f03de7aa23d578e20597",
+    "last_semantic_commit": "f4093e49c1c61d4bbfaca2888336d1b7e0a6180d",
     "last_reviewed_on": "2026-10-26"
   },
   "checkpoint": {
     "reviewed_against_main": {
-      "radarsaint/dnd-solo": "432ef6f932cd90766527e622f7435263209a9738",
+      "radarsaint/dnd-solo": "f4093e49c1c61d4bbfaca2888336d1b7e0a6180d",
       "radarsaint/bfdm-corpus": "9cb097c0b110989a191d7fa968b0baacaf0e0a7a"
     },
     "context_inbox": {
@@ -25,9 +25,9 @@
   "last_completed_pass": {
     "kind": "BOUNDED_SEMANTIC_RECONCILIATION",
     "completed_on": "2026-10-26",
-    "scope": "Reviewed dnd-solo #180 and #186 merges (save chain P2 ledger/journal and P3 resume). Brain updated to record live save export and resume-from-ZIP behavior. #115 comment 6266120288 remains pending.",
-    "result": "Accept: #180 adds campaign ledger fold, journal mode ask, recap, hand edits. #186 adds resume from player save with room-start on lost sqlite. Brain updated on main. Pending DM Kit rulings unresolved.",
-    "resulting_brain_commit": "8b6a819345cda1ed5237f03de7aa23d578e20597",
+    "scope": "Reviewed dnd-solo #188 merge (cross-room carry; spent slots stay spent) and concurrent #189 (sheet intake). Brain updated on main.",
+    "result": "Accept: #188 makes pc_resources a session key so spent slots carry across rooms and saves until rest; campaign.json gains pc_state and rooms[].carry. #189 adds sheet intake. Brain updated. #115 comment 6266120288 remains pending.",
+    "resulting_brain_commit": "f4093e49c1c61d4bbfaca2888336d1b7e0a6180d",
     "reconciled_comment_id": 6202184874
   },
   "active_pass": null,
