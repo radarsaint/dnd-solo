@@ -915,7 +915,7 @@ APPROACH = _lazy.regex(r"\b(?:close (?:in|the (?:distance|gap))|closes in|step (
 
 def sheet_thrown(state, weapon):
     """The sheet says this weapon has the thrown property."""
-    for item in ((state.get('player_sheet') or {}).get('weapons') or ()) + \
+    for item in list((state.get('player_sheet') or {}).get('weapons') or ()) + \
             list((state.get('player_sheet') or {}).get('gear') or ()):
         text = json.dumps(item).casefold() if not isinstance(item, str) else item.casefold()
         if weapon in text and 'thrown' in text:
@@ -1296,7 +1296,9 @@ class Fight:
         whole = self.action
         acted = reacted = moved = bonus = False
         first_weapon = None
+        feet, dashes, speed = 0, 0, self.pc_speed()  # movement against speed (SRD), Dash adds his speed
         self.in_multi = len(steps) > 1  # one clause alone keeps its own lines
+        self.fight.pop('pc_dodging', None)  # a Dodge lasts until his next turn starts
         try:
             for index, step in enumerate(steps, 1):
                 self.action = step['text']
@@ -1311,6 +1313,45 @@ class Fight:
                     because = 'the fight is waiting on your answer first'
                 elif not self.pc_turn_now():
                     because = 'it is not your turn'
+                elif kind == 'refused':
+                    because = one['because']
+                elif kind == 'standard' or (kind == 'withdraw' and one.get('standard')):
+                    # SRD: Dash, Disengage and Hide take his action; a rogue's Cunning Action
+                    # (level 2+) takes one as his bonus action instead, once his action is spent.
+                    what = one.get('standard')
+                    cunning = what in ('dash', 'disengage', 'hide') and self.cunning_action() and \
+                        (acted or one.get('bonus'))
+                    if cunning and bonus:
+                        because = 'you have already used your bonus action this turn'
+                    elif acted and not cunning:
+                        because = 'you have already used your action this turn'
+                    elif kind == 'withdraw':
+                        because = self.move_budget(one, feet, speed * (1 + dashes))
+                        if because is None:
+                            feet += one.get('distance_ft') or 0
+                            self.pc_move_away(one)
+                            moved = True
+                            bonus, acted = (True, acted) if cunning else (bonus, True)
+                    else:
+                        because = self.pc_standard(one)
+                        if self.needs_roll:
+                            return
+                        if because is None:
+                            bonus, acted = (True, acted) if cunning else (bonus, True)
+                            dashes += what == 'dash'
+                elif kind == 'attack' and one.get('declared_bonus'):
+                    if bonus:
+                        because = 'you have already used your bonus action this turn'
+                    elif not (acted and str(one.get('weapon')) in self.LIGHT and str(first_weapon) in self.LIGHT):
+                        because = ('an off-hand attack follows an attack with a light weapon, and is made '
+                                   'with another light weapon')
+                    elif self.out_of_reach(one):
+                        because = f"the {self.label(one['target'])} is out of your reach now"
+                    else:
+                        bonus = True
+                        if not self.pc_attack(one):
+                            self.needs_roll = True
+                            return
                 elif kind == 'missing_reaction':
                     because = 'it is not on your sheet'
                     fizzled = self.avrae_fizzle(one['name'])
@@ -1334,10 +1375,14 @@ class Fight:
                         reacted = True
                     else:
                         because = self.refused_because or 'it has nothing to answer'
+                elif kind in ('withdraw', 'approach') and self.move_budget(one, feet, speed * (1 + dashes)):
+                    because = self.move_budget(one, feet, speed * (1 + dashes))
                 elif kind == 'withdraw':
+                    feet += one.get('distance_ft') or 0
                     self.pc_move_away(one)
                     moved = True
                 elif kind == 'approach':
+                    feet += one.get('distance_ft') or 0
                     self.pc_approach(one)
                     moved = True
                 elif kind == 'own_shield':
@@ -1382,7 +1427,13 @@ class Fight:
                 if self.fight.get('awaiting'):
                     # A checkpoint opened (a window, a flourish): the clauses after it wait for his turn.
                     rest = ' '.join(s['text'] for s in steps[index:])
-                    if rest:
+                    if act.get('declared') and steps[index:]:
+                        # Kit's declared entries after the checkpoint run as declared on his turn.
+                        self.fight['declared_next_steps'] = steps[index:]
+                        for later, s in enumerate(steps[index:], index + 1):
+                            self.trace.append(f'clause {later}/{len(steps)}: held for your turn ({s["label"][:60]})')
+                        self.lines.append('The rest waits for your next turn.')
+                    elif rest:
                         self.fight['declared_next'] = rest
                         for later, s in enumerate(steps[index:], index + 1):
                             self.trace.append(f'clause {later}/{len(steps)}: resolved (held for your turn: '
@@ -2167,6 +2218,51 @@ class Fight:
                          provoke=not act.get('disengage'))
         self.lines.append('You fall back out of reach.' if foes else 'You move off.')
 
+    def cunning_action(self):
+        """A rogue of level 2+ with Cunning Action on his sheet."""
+        sheet = (self.state or {}).get('player_sheet') or {}
+        features = ' '.join(str(f) for f in sheet.get('features') or ()).casefold()
+        return 'cunning action' in features and int(sheet.get('level') or 0) >= 2
+
+    def pc_speed(self):
+        """His walking speed in feet: the sheet's, else 30 (SRD medium default)."""
+        speed = ((self.state or {}).get('player_sheet') or {}).get('speed')
+        if isinstance(speed, dict):
+            speed = speed.get('walk')
+        found = re.search(r'\d+', str(speed or ''))
+        return int(found.group(0)) if found else 30
+
+    @staticmethod
+    def move_budget(act, used, budget):
+        """Why a declared move of distance_ft does not fit in what is left of his speed, else None."""
+        want = act.get('distance_ft') or 0
+        if want and used + want > budget:
+            left = max(budget - used, 0)
+            return (f'you have only {left} feet of movement left this turn' if left else
+                    'you have no movement left this turn')
+        return None
+
+    def pc_standard(self, act):
+        """A standard action Kit declared (SRD): Dodge, Dash, Hide, Help. None when it happens,
+        else why not (voiced)."""
+        what = act['standard']
+        if what == 'dodge':
+            self.fight['pc_dodging'] = True
+            self.lines.append('You take the Dodge action: attacks against you have disadvantage until your next turn.')
+        elif what == 'dash':
+            self.lines.append('You Dash, covering double ground this turn.')
+        elif what == 'hide':
+            roll = kit_rolls.check_roll(self.action, 'stealth')
+            if roll is None or roll.label != 'stealth':
+                self.lines.append('Hiding is a Stealth check: roll it in Avrae (!check stealth) and tell me the total.')
+                self.needs_roll = True
+                return None
+            self.trace.append(f'hide: Stealth {roll.total}')
+            self.lines.append(f'You slip out of sight (Stealth {roll.total}).')
+        elif what == 'help':
+            return 'there is no ally here for you to help'
+        return None
+
     def pc_wait(self, act):
         self.lines.append('You hold your ground and wait for them to come to you.')
 
@@ -2538,6 +2634,13 @@ class Fight:
     def declared_turn(self):
         """What the player declared with a save ('..., then I cast magic missile') is his act when
         his turn comes and nothing else waits."""
+        held = (self.fight or {}).get('declared_next_steps')
+        if held and self.fight['status'] == 'running' and not self.fight.get('pc_down') and \
+                not self.fight.get('awaiting') and self.pc_turn_now():
+            self.fight.pop('declared_next_steps', None)
+            self.trace.append(f'his declared acts after the checkpoint: {len(held)}')
+            self._resolve({'kind': 'multi', 'target': None, 'steps': held, 'declared': True})
+            return
         rest = (self.fight or {}).get('declared_next')
         if not rest or self.fight['status'] != 'running' or self.fight.get('pc_down') or \
                 self.fight.get('awaiting') or not self.pc_turn_now():
@@ -2865,6 +2968,8 @@ class Fight:
             die = self.die(f'npc:{key}:r{self.fight["round"]}:{index}')
             if helpless:
                 die = max(die, self.die(f'npc:{key}:r{self.fight["round"]}:{index}:advantage'))
+            elif self.fight.get('pc_dodging'):
+                die = min(die, self.die(f'npc:{key}:r{self.fight["round"]}:{index}:dodge'))
             total = die + attack['to_hit']
             ac = self.pc_ac()
             missile = bool(attack.get('auto_hit'))  # magic missile: no roll, Shield blocks it
@@ -3053,7 +3158,7 @@ class Fight:
 
 
     def pc_grab(self, act):
-        if not CLAUSE_PARSER:
+        if not (CLAUSE_PARSER or act.get('contest')):
             return self.pc_grab_main(act)
         key = act['target']
         if not key:
