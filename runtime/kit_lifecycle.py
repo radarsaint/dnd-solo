@@ -101,7 +101,32 @@ def status(db):
         found['packet_command'] = packet_command(db, found['pending_turn_id'], state == 'ready')
     else:
         nxt = f'python3 -m runtime.kit_agent prepare --one-pass --db {q} --action-file a.txt'
-    return {'stage': 'status', **found, 'next_command': nxt}
+    out = {'stage': 'status', **found, 'next_command': nxt}
+    from . import kit_adventure
+    ready = kit_adventure.readiness(db, mounted_room_id(db))
+    if ready['adventure_readiness'] != 'none':
+        out['adventure'] = ready
+        if state == 'unmounted' and ready.get('start_room'):
+            out['next_command'] = (f'python3 -m runtime.kit_agent start --db {q} --room '
+                                   f"{shlex.quote(ready['start_room'])} --sheet <sheet.json>")
+        elif state == 'unmounted' and ready.get('adventure_next'):
+            out['next_command'] = ready['adventure_next']
+    return out
+
+
+def mounted_room_id(db):
+    """The id of the room mounted in a save, or None (read-only)."""
+    path = Path(db)
+    if not path.is_file() or path.stat().st_size == 0:
+        return None
+    con = sqlite3.connect(f'file:{path}?mode=ro', uri=True)
+    try:
+        row = con.execute('SELECT body FROM source WHERE id=1').fetchone()
+        return json.loads(row[0]).get('id') if row else None
+    except (sqlite3.Error, ValueError, AttributeError):
+        return None
+    finally:
+        con.close()
 
 
 def packet_command(db, turn_id, opening):

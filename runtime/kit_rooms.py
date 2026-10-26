@@ -425,7 +425,12 @@ def load_room(ref):
 
 
 def load_link(link):
-    """The room an area's ``room_link`` leads to, checked down to its arrival area."""
+    """The room an area's ``room_link`` leads to, checked down to its arrival area. A link
+    into an imported adventure location that is not compiled yet is compiled first
+    (runtime/kit_adventure.py), so moving on needs no host step."""
+    if isinstance(link, dict) and link.get('adventure'):
+        from .kit_adventure import ensure_compiled
+        ensure_compiled(link)
     source = load_room(link['room'])
     if link['area'] not in source['areas']:
         raise RoomMountError(link['room'], [f"room_link area {link['area']!r} is not one of its areas"])

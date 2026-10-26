@@ -1,0 +1,39 @@
+Chapter 1: The Lantern Ferry
+
+This short adventure is original synthetic test text written for Kit. It is not from any published book.
+
+1. Ferry Landing
+> Rain hisses on a tarred plank landing. A rope bell hangs from a crooked post, and a flat-bottomed ferry knocks against the pilings.
+> Up the bank, a stone tollhouse shows one lit window.
+Oswin Tarr, a nervous ferryman, waits under the eaves. He will not cross tonight unless paid three silver.
+A path climbs the bank to area 2. The ferry itself crosses to area 4.
+The bell rope is frayed; a DC 12 Strength (Athletics) check pulls it loose.
+
+2. Tollhouse
+> The tollhouse smells of wet wool and lamp oil. A ledger lies open on a high desk beside a cold stove.
+Two bandits sit in the back room playing knucklebones. They attack anyone who touches the ledger.
+A secret hatch under the stove drops to area 3. The door back down the bank leads to area 1.
+The ledger records a payment of forty gold to someone called the Lantern Wight.
+
+3. Smugglers Cellar
+> Black water stands ankle deep. Crates are stacked on a ledge above the waterline.
+The Lantern Wight (see the Lantern Wight stat block) waits here, and so does a marsh hag (see the Monster Manual).
+A narrow ladder climbs back to area 2.
+The crates hold twelve bolts of dry silk worth 10 gp each.
+
+MAP: Lantern Ferry
+
+4. Far Shore
+> Reeds rattle against the hull as the ferry grounds on a shingle beach.
+Nothing waits here yet. The ferry returns to area 1.
+
+Appendix: Creatures
+
+Lantern Wight
+Medium undead
+Armor Class 13
+Hit Points 27 (5d8 + 5)
+Speed 30 ft.
+Senses darkvision 60 ft., passive Perception 11
+Actions. Lantern Lash. Melee Weapon Attack: +4 to hit, reach 5 ft., one target. Hit: 6 (1d8 + 2) fire damage.
+The wight cannot cross running water and avoids the ferry.
