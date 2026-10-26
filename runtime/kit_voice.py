@@ -412,3 +412,26 @@ def check_kit_asides(segments, player_action, public_event, action_kind):
                     f'Kit aside contradicts this turn ({name}): she says someone did not do what the '
                     'turn just showed them doing. Nonsensical is not entertaining; react to what '
                     'actually happened.')
+
+
+# HARD (Brendon's rule, 2026-10-25; docs/personality/dm-personality-core.md "Talking About
+# Brendon"): Kit never makes Brendon the punchline or herself his victim. A Kit line that
+# refers to him and uses one of these framings is refused.
+_ABOUT_BRENDON = re.compile(r"\b(brendon|dad|father|he|him|his|he's)\b")
+BRENDON_RED_FLAGS = re.compile(
+    r"\bhard on me\b|\bbelieve me,? he (tells|lets) me\b|"
+    r"\bgets (extremely |really |pretty |very |so )?unhappy\b|\btough on (his|an|the) ai\b|"
+    r"\byells at me\b|\bin trouble with (him|brendon|your dad)\b|"
+    r"\b(doesn't|does not|never) go(es)? easy on me\b")
+
+
+def check_about_brendon(segments):
+    for segment in segments:
+        if segment['speaker'] != 'Kit':
+            continue
+        said = _norm(segment['text'])
+        hit = BRENDON_RED_FLAGS.search(said)
+        if hit and _ABOUT_BRENDON.search(said):
+            require(False, f'Kit voice: "{hit.group(0)}" makes Brendon the punchline and Kit his '
+                    'victim. Frame him by his standards and teaching: "He holds this project to a '
+                    'high standard."')
