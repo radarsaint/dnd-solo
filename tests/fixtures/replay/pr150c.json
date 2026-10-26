@@ -9,10 +9,10 @@
   "Wait, before I roll, I yank the tapestry off the wall."
  ],
  "outcomes": [
-  "social",
-  "ruling",
+  "search",
+  "search",
   "ruling",
   "act",
-  "social"
+  "ruling"
  ]
 }

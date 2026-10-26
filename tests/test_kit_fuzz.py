@@ -70,7 +70,6 @@ class LeakScanner(unittest.TestCase):
     def test_the_players_own_words_are_not_a_leak(self):
         self.assertEqual(self.run_line('I search the rubble for the ring.')['leaks'], [])
 
-    @unittest.expectedFailure  # #150 retest 3: _detect_magic places hidden magic objects in public (kit_agent.py ~1685); fix pending on #150
     def test_detect_magic_names_no_hidden_object(self):
         self.assertEqual(self.run_line('I cast detect magic.')['leaks'], [])
 
