@@ -36,12 +36,16 @@ _LOCKED = {
 }
 
 
-def _listed(entry, quantity):
+def _listed(entry, quantity, selling=False):
     per = entry.get('per') or 1
     copper = entry['amount'] * _CP[entry['unit']] * quantity
     if copper % per:
         return None, None
     copper //= per
+    if selling:
+        copper //= 2  # Brendon's ruling: half the listed price, like Goldscale's 50%
+    if copper == 0:
+        return 0, 'cp'
     if copper % 100 == 0:
         return copper // 100, 'gp'
     if copper % 10 == 0:
@@ -62,7 +66,7 @@ class ShopLineCorpusTests(unittest.TestCase):
                     continue
                 entry = srd_entry(item['item'])
                 self.assertIsNotNone(entry, item['item'])
-                self.assertEqual((item['price'], item['unit']), _listed(entry, item['quantity']), row['line'])
+                self.assertEqual((item['price'], item['unit']), _listed(entry, item['quantity'], item['mode'] == 'sell'), row['line'])
 
     def test_goldscale_totals_did_not_move(self):
         by_line = {row['line']: row['items'][0] for row in CORPUS}

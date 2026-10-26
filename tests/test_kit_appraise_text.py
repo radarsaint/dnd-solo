@@ -86,12 +86,13 @@ class NameMatchTests(unittest.TestCase):
         self.assertNotEqual(bare[0]['price'], 15)
 
     def test_unknown_item_is_not_a_neighbor(self):
-        for line in ('blorbo', 'a sword', 'a rope', 'flaming cheese'):
+        for line in ('blorbo', 'a sword', 'flaming cheese'):
             row = kit_appraise.read_items(line)[0]
             self.assertEqual(row['item'], 'unknown item', line)
             self.assertIsNone(row['price'], line)
         rope = kit_appraise.read_items('price a rope and two torches')
-        self.assertEqual(rope[0]['item'], 'unknown item')
+        self.assertEqual(rope[0]['item'], 'ambiguous item')
+        self.assertIsNone(rope[0]['price'])
         self.assertEqual(rope[1]['item'], 'Torch')
         self.assertEqual((rope[1]['quantity'], rope[1]['price'], rope[1]['unit']), (2, 2, 'cp'))
 

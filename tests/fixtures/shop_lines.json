@@ -96,7 +96,7 @@
       {
         "item": "Torch",
         "quantity": 1,
-        "price": 1,
+        "price": 0,
         "unit": "cp",
         "source": "srd",
         "mode": "sell"
@@ -226,7 +226,7 @@
       {
         "item": "Arrow",
         "quantity": 1,
-        "price": 5,
+        "price": 2,
         "unit": "cp",
         "source": "srd",
         "mode": "sell"
@@ -356,7 +356,7 @@
       {
         "item": "Dagger",
         "quantity": 1,
-        "price": 2,
+        "price": 1,
         "unit": "gp",
         "source": "srd",
         "mode": "sell"
@@ -486,7 +486,7 @@
       {
         "item": "Backpack",
         "quantity": 1,
-        "price": 2,
+        "price": 1,
         "unit": "gp",
         "source": "srd",
         "mode": "sell"
@@ -616,7 +616,7 @@
       {
         "item": "Candle",
         "quantity": 1,
-        "price": 1,
+        "price": 0,
         "unit": "cp",
         "source": "srd",
         "mode": "sell"
@@ -746,7 +746,7 @@
       {
         "item": "Crowbar",
         "quantity": 1,
-        "price": 2,
+        "price": 1,
         "unit": "gp",
         "source": "srd",
         "mode": "sell"
@@ -876,7 +876,7 @@
       {
         "item": "Piton",
         "quantity": 1,
-        "price": 5,
+        "price": 2,
         "unit": "cp",
         "source": "srd",
         "mode": "sell"
@@ -1006,8 +1006,8 @@
       {
         "item": "Longsword",
         "quantity": 1,
-        "price": 15,
-        "unit": "gp",
+        "price": 75,
+        "unit": "sp",
         "source": "srd",
         "mode": "sell"
       }
@@ -1136,8 +1136,8 @@
       {
         "item": "Shortbow",
         "quantity": 1,
-        "price": 25,
-        "unit": "gp",
+        "price": 125,
+        "unit": "sp",
         "source": "srd",
         "mode": "sell"
       }
@@ -1266,8 +1266,8 @@
       {
         "item": "Club",
         "quantity": 1,
-        "price": 1,
-        "unit": "sp",
+        "price": 5,
+        "unit": "cp",
         "source": "srd",
         "mode": "sell"
       }
@@ -1396,8 +1396,8 @@
       {
         "item": "Spear",
         "quantity": 1,
-        "price": 1,
-        "unit": "gp",
+        "price": 5,
+        "unit": "sp",
         "source": "srd",
         "mode": "sell"
       }
@@ -1526,8 +1526,8 @@
       {
         "item": "Mace",
         "quantity": 1,
-        "price": 5,
-        "unit": "gp",
+        "price": 25,
+        "unit": "sp",
         "source": "srd",
         "mode": "sell"
       }
@@ -1656,8 +1656,8 @@
       {
         "item": "Javelin",
         "quantity": 1,
-        "price": 5,
-        "unit": "sp",
+        "price": 25,
+        "unit": "cp",
         "source": "srd",
         "mode": "sell"
       }
@@ -1786,7 +1786,7 @@
       {
         "item": "Dart",
         "quantity": 1,
-        "price": 5,
+        "price": 2,
         "unit": "cp",
         "source": "srd",
         "mode": "sell"
@@ -1916,8 +1916,8 @@
       {
         "item": "Sickle",
         "quantity": 1,
-        "price": 1,
-        "unit": "gp",
+        "price": 5,
+        "unit": "sp",
         "source": "srd",
         "mode": "sell"
       }
@@ -2046,8 +2046,8 @@
       {
         "item": "Blanket",
         "quantity": 1,
-        "price": 5,
-        "unit": "sp",
+        "price": 25,
+        "unit": "cp",
         "source": "srd",
         "mode": "sell"
       }
@@ -2176,8 +2176,8 @@
       {
         "item": "Chest",
         "quantity": 1,
-        "price": 5,
-        "unit": "gp",
+        "price": 25,
+        "unit": "sp",
         "source": "srd",
         "mode": "sell"
       }
@@ -2306,8 +2306,8 @@
       {
         "item": "Rations (1 day)",
         "quantity": 1,
-        "price": 5,
-        "unit": "sp",
+        "price": 25,
+        "unit": "cp",
         "source": "srd",
         "mode": "sell"
       }
@@ -2436,8 +2436,8 @@
       {
         "item": "Tinderbox",
         "quantity": 1,
-        "price": 5,
-        "unit": "sp",
+        "price": 25,
+        "unit": "cp",
         "source": "srd",
         "mode": "sell"
       }
@@ -2566,8 +2566,8 @@
       {
         "item": "Hammer",
         "quantity": 1,
-        "price": 1,
-        "unit": "gp",
+        "price": 5,
+        "unit": "sp",
         "source": "srd",
         "mode": "sell"
       }
@@ -2772,12 +2772,24 @@
     "line": "a rope",
     "items": [
       {
-        "item": "unknown item",
+        "item": "ambiguous item",
         "quantity": 1,
         "price": null,
         "unit": null,
-        "source": "unknown",
-        "mode": "buy"
+        "source": "ambiguous",
+        "mode": "buy",
+        "choices": [
+          {
+            "item": "Rope, hempen (50 feet)",
+            "price": 1,
+            "unit": "gp"
+          },
+          {
+            "item": "Rope, silk (50 feet)",
+            "price": 10,
+            "unit": "gp"
+          }
+        ]
       }
     ]
   },
@@ -2954,12 +2966,24 @@
     "line": "price a rope and two torches",
     "items": [
       {
-        "item": "unknown item",
+        "item": "ambiguous item",
         "quantity": 1,
         "price": null,
         "unit": null,
-        "source": "unknown",
-        "mode": "buy"
+        "source": "ambiguous",
+        "mode": "buy",
+        "choices": [
+          {
+            "item": "Rope, hempen (50 feet)",
+            "price": 1,
+            "unit": "gp"
+          },
+          {
+            "item": "Rope, silk (50 feet)",
+            "price": 10,
+            "unit": "gp"
+          }
+        ]
       },
       {
         "item": "Torch",
@@ -3082,7 +3106,7 @@
       {
         "item": "Dagger",
         "quantity": 1,
-        "price": 2,
+        "price": 1,
         "unit": "gp",
         "source": "srd",
         "mode": "sell"
@@ -3090,7 +3114,7 @@
       {
         "item": "Backpack",
         "quantity": 1,
-        "price": 2,
+        "price": 1,
         "unit": "gp",
         "source": "srd",
         "mode": "sell"
@@ -3164,12 +3188,24 @@
     "line": "a rope, two torches",
     "items": [
       {
-        "item": "unknown item",
+        "item": "ambiguous item",
         "quantity": 1,
         "price": null,
         "unit": null,
-        "source": "unknown",
-        "mode": "buy"
+        "source": "ambiguous",
+        "mode": "buy",
+        "choices": [
+          {
+            "item": "Rope, hempen (50 feet)",
+            "price": 1,
+            "unit": "gp"
+          },
+          {
+            "item": "Rope, silk (50 feet)",
+            "price": 10,
+            "unit": "gp"
+          }
+        ]
       },
       {
         "item": "Torch",
@@ -3562,6 +3598,544 @@
         "price": null,
         "unit": null,
         "source": "unknown",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "some rope",
+    "items": [
+      {
+        "item": "ambiguous item",
+        "quantity": 1,
+        "price": null,
+        "unit": null,
+        "source": "ambiguous",
+        "mode": "buy",
+        "choices": [
+          {
+            "item": "Rope, hempen (50 feet)",
+            "price": 1,
+            "unit": "gp"
+          },
+          {
+            "item": "Rope, silk (50 feet)",
+            "price": 10,
+            "unit": "gp"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "line": "sell my rope",
+    "items": [
+      {
+        "item": "ambiguous item",
+        "quantity": 1,
+        "price": null,
+        "unit": null,
+        "source": "ambiguous",
+        "mode": "sell",
+        "choices": [
+          {
+            "item": "Rope, hempen (50 feet)",
+            "price": 5,
+            "unit": "sp"
+          },
+          {
+            "item": "Rope, silk (50 feet)",
+            "price": 5,
+            "unit": "gp"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "line": "how much is a rope",
+    "items": [
+      {
+        "item": "ambiguous item",
+        "quantity": 1,
+        "price": null,
+        "unit": null,
+        "source": "ambiguous",
+        "mode": "buy",
+        "choices": [
+          {
+            "item": "Rope, hempen (50 feet)",
+            "price": 1,
+            "unit": "gp"
+          },
+          {
+            "item": "Rope, silk (50 feet)",
+            "price": 10,
+            "unit": "gp"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "line": "can i buy a lantern",
+    "items": [
+      {
+        "item": "ambiguous item",
+        "quantity": 1,
+        "price": null,
+        "unit": null,
+        "source": "ambiguous",
+        "mode": "buy",
+        "choices": [
+          {
+            "item": "Lantern, bullseye",
+            "price": 10,
+            "unit": "gp"
+          },
+          {
+            "item": "Lantern, hooded",
+            "price": 5,
+            "unit": "gp"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "line": "a lantern",
+    "items": [
+      {
+        "item": "ambiguous item",
+        "quantity": 1,
+        "price": null,
+        "unit": null,
+        "source": "ambiguous",
+        "mode": "buy",
+        "choices": [
+          {
+            "item": "Lantern, bullseye",
+            "price": 10,
+            "unit": "gp"
+          },
+          {
+            "item": "Lantern, hooded",
+            "price": 5,
+            "unit": "gp"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "line": "sell a lantern",
+    "items": [
+      {
+        "item": "ambiguous item",
+        "quantity": 1,
+        "price": null,
+        "unit": null,
+        "source": "ambiguous",
+        "mode": "sell",
+        "choices": [
+          {
+            "item": "Lantern, bullseye",
+            "price": 5,
+            "unit": "gp"
+          },
+          {
+            "item": "Lantern, hooded",
+            "price": 25,
+            "unit": "sp"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "line": "sell 5 torches",
+    "items": [
+      {
+        "item": "Torch",
+        "quantity": 5,
+        "price": 2,
+        "unit": "cp",
+        "source": "srd",
+        "mode": "sell"
+      }
+    ]
+  },
+  {
+    "line": "sell a torch",
+    "items": [
+      {
+        "item": "Torch",
+        "quantity": 1,
+        "price": 0,
+        "unit": "cp",
+        "source": "srd",
+        "mode": "sell"
+      }
+    ]
+  },
+  {
+    "line": "sell 2 torches",
+    "items": [
+      {
+        "item": "Torch",
+        "quantity": 2,
+        "price": 1,
+        "unit": "cp",
+        "source": "srd",
+        "mode": "sell"
+      }
+    ]
+  },
+  {
+    "line": "sell my longsword",
+    "items": [
+      {
+        "item": "Longsword",
+        "quantity": 1,
+        "price": 75,
+        "unit": "sp",
+        "source": "srd",
+        "mode": "sell"
+      }
+    ]
+  },
+  {
+    "line": "sell a dagger and a shield",
+    "items": [
+      {
+        "item": "Dagger",
+        "quantity": 1,
+        "price": 1,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "sell"
+      },
+      {
+        "item": "Shield",
+        "quantity": 1,
+        "price": 5,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "sell"
+      }
+    ]
+  },
+  {
+    "line": "sell 20 arrows",
+    "items": [
+      {
+        "item": "Arrow",
+        "quantity": 20,
+        "price": 5,
+        "unit": "sp",
+        "source": "srd",
+        "mode": "sell"
+      }
+    ]
+  },
+  {
+    "line": "sell my chain mail",
+    "items": [
+      {
+        "item": "Chain Mail",
+        "quantity": 1,
+        "price": 375,
+        "unit": "sp",
+        "source": "srd",
+        "mode": "sell"
+      }
+    ]
+  },
+  {
+    "line": "sell 3 potions of healing",
+    "items": [
+      {
+        "item": "Potion of Healing",
+        "quantity": 3,
+        "price": 105,
+        "unit": "gp",
+        "source": "goldscale",
+        "mode": "sell"
+      }
+    ]
+  },
+  {
+    "line": "sell potion of healing",
+    "items": [
+      {
+        "item": "Potion of Healing",
+        "quantity": 1,
+        "price": 35,
+        "unit": "gp",
+        "source": "goldscale",
+        "mode": "sell"
+      }
+    ]
+  },
+  {
+    "line": "sell +1 longsword uncommon weapon",
+    "items": [
+      {
+        "item": "+1 Longsword",
+        "quantity": 1,
+        "price": 600,
+        "unit": "gp",
+        "source": "goldscale",
+        "mode": "sell"
+      }
+    ]
+  },
+  {
+    "line": "sell +2 shield rare armor",
+    "items": [
+      {
+        "item": "+2 Shield",
+        "quantity": 1,
+        "price": 2900,
+        "unit": "gp",
+        "source": "goldscale",
+        "mode": "sell"
+      }
+    ]
+  },
+  {
+    "line": "sell qty 3 potion of greater healing",
+    "items": [
+      {
+        "item": "Potion of Greater Healing",
+        "quantity": 3,
+        "price": 600,
+        "unit": "gp",
+        "source": "goldscale",
+        "mode": "sell"
+      }
+    ]
+  },
+  {
+    "line": "i want to buy a shortbow and 20 arrows",
+    "items": [
+      {
+        "item": "Shortbow",
+        "quantity": 1,
+        "price": 25,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      },
+      {
+        "item": "Arrow",
+        "quantity": 20,
+        "price": 1,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "price a dagger and a shield",
+    "items": [
+      {
+        "item": "Dagger",
+        "quantity": 1,
+        "price": 2,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      },
+      {
+        "item": "Shield",
+        "quantity": 1,
+        "price": 10,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "a couple of daggers",
+    "items": [
+      {
+        "item": "Dagger",
+        "quantity": 2,
+        "price": 4,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "price check: crossbow bolts x20",
+    "items": [
+      {
+        "item": "Crossbow bolt",
+        "quantity": 20,
+        "price": 1,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "potion of healing x4",
+    "items": [
+      {
+        "item": "Potion of Healing",
+        "quantity": 4,
+        "price": 280,
+        "unit": "gp",
+        "source": "goldscale",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "2 healing potions",
+    "items": [
+      {
+        "item": "Potion of Healing",
+        "quantity": 2,
+        "price": 140,
+        "unit": "gp",
+        "source": "goldscale",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "buy 10 torches",
+    "items": [
+      {
+        "item": "Torch",
+        "quantity": 10,
+        "price": 1,
+        "unit": "sp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "hooded lantern",
+    "items": [
+      {
+        "item": "Lantern, hooded",
+        "quantity": 1,
+        "price": 5,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "riding horse",
+    "items": [
+      {
+        "item": "Horse, riding",
+        "quantity": 1,
+        "price": 75,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "caltrops",
+    "items": [
+      {
+        "item": "Caltrops",
+        "quantity": 1,
+        "price": 5,
+        "unit": "cp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "grappling hook",
+    "items": [
+      {
+        "item": "Grappling hook",
+        "quantity": 1,
+        "price": 2,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "healer's kit",
+    "items": [
+      {
+        "item": "Healer's Kit",
+        "quantity": 1,
+        "price": 5,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "thieves' tools",
+    "items": [
+      {
+        "item": "Thieves' Tools",
+        "quantity": 1,
+        "price": 25,
+        "unit": "gp",
+        "source": "srd",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "+3 longsword very rare weapon",
+    "items": [
+      {
+        "item": "+3 Longsword",
+        "quantity": 1,
+        "price": 21500,
+        "unit": "gp",
+        "source": "goldscale",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "+2 shield rare armor",
+    "items": [
+      {
+        "item": "+2 Shield",
+        "quantity": 1,
+        "price": 5800,
+        "unit": "gp",
+        "source": "goldscale",
+        "mode": "buy"
+      }
+    ]
+  },
+  {
+    "line": "qty 20 +1 arrow uncommon ammunition",
+    "items": [
+      {
+        "item": "+1 Arrow",
+        "quantity": 20,
+        "price": 14500,
+        "unit": "gp",
+        "source": "goldscale",
         "mode": "buy"
       }
     ]

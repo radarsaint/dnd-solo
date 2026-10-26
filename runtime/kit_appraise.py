@@ -220,6 +220,24 @@ def _unknown(mode, quantity=1):
             'source': 'unknown', 'mode': 'sell' if (mode or '').startswith('sell') else 'buy'}
 
 
+# Brendon's ruling: a merchant buys mundane gear at half the listed SRD price,
+# the same 50% Goldscale applies when a magic item is sold.
+SELL_SHARE = 2
+# More listed entries than this is a vague word ("armor"), not a choice to offer.
+_MAX_CHOICES = 4
+
+
+def _ambiguous(mode, quantity, entries):
+    """A name that fits a few listed entries: ask which, with each one's price. Never pick."""
+    selling = (mode or '').startswith('sell')
+    choices = []
+    for entry in entries:
+        amount, unit = _bundle_price(entry, quantity, selling)
+        choices.append({'item': entry['name'], 'price': amount, 'unit': unit})
+    return {'item': 'ambiguous item', 'quantity': quantity, 'price': None, 'unit': None,
+            'source': 'ambiguous', 'mode': 'sell' if selling else 'buy', 'choices': choices}
+
+
 def _entry_tokens(name):
     bare = re.sub(r'\([^)]*\)', ' ', (name or '').casefold())
     head, _, qual = bare.partition(',')
@@ -323,17 +341,39 @@ def match_catalog(name):
     return None
 
 
-def _bundle_price(entry, quantity):
+def catalog_choices(name):
+    """Listed entries this name could be, when it is not exactly one of them.
+
+    "rope" is both ropes and "lantern" both lanterns: every head word of the
+    entry was said and nothing else was. A word not in the list matches nothing.
+    """
+    rows, words = _catalog()
+    wanted = _query_tokens(name, words)
+    if not wanted:
+        return []
+    wanted_set = set(wanted)
+    hits = [entry for entry, head, qual in rows
+            if head and set(head) <= wanted_set <= set(head + qual)]
+    return hits if 1 < len(hits) <= _MAX_CHOICES else []
+
+
+def _bundle_price(entry, quantity, selling=False):
     """Listed price times quantity, in the largest whole coin the rate divides into.
 
     Arrow is 1 gp per 20, so one arrow is 5 cp and a dozen is 6 sp. A rate that
     does not divide into whole coins returns (None, None) rather than a rounded guess.
+    Selling is half the bundle, rounded down to a whole copper (a merchant does not
+    pay half a copper): one torch sells for 0 cp, two for 1 cp.
     """
     per = entry.get('per') or 1
     copper = entry['amount'] * _CP[entry['unit']] * quantity
     if copper % per:
         return None, None
     copper //= per
+    if selling:
+        copper //= SELL_SHARE
+    if copper == 0:
+        return 0, 'cp'
     if copper % 100 == 0:
         return copper // 100, 'gp'
     if copper % 10 == 0:
@@ -373,8 +413,9 @@ def _quote_clause(mode, cleaned):
         return _from_goldscale(f'{prefix}{counted}'.strip(), quantity)
     hit = match_catalog(name)
     if hit is None:
-        return _unknown(mode, quantity)
-    amount, unit = _bundle_price(hit, quantity)
+        choices = catalog_choices(name)
+        return _ambiguous(mode, quantity, choices) if choices else _unknown(mode, quantity)
+    amount, unit = _bundle_price(hit, quantity, mode.startswith('sell'))
     return {'item': hit['name'], 'quantity': quantity, 'price': amount, 'unit': unit,
             'source': 'srd', 'mode': 'sell' if mode.startswith('sell') else 'buy'}
 
@@ -394,6 +435,57 @@ def read_items(text):
         cleaned = _one_clause(piece)
         rows.append(_quote_clause(mode, cleaned) if cleaned else _unknown(mode))
     return rows or [_unknown(mode)]
+
+
+def _spoken_name(name):
+    """'Rope, hempen (50 feet)' -> 'hempen rope (50 feet)'."""
+    size = re.search(r'\s*(\([^)]*\))\s*$', name)
+    bare = name[:size.start()] if size else name
+    head, _, qual = bare.partition(',')
+    words = f'{qual.strip()} {head.strip()}'.strip() if qual else head.strip()
+    words = words.lower()
+    return f'{words} {size.group(1)}' if size else words
+
+
+def _coins(amount, unit):
+    """75 sp -> '7 gp 5 sp'. Zero copper is 'less than 1 cp'."""
+    if amount is None:
+        return 'no listed price'
+    copper = amount * _CP[unit]
+    if copper == 0:
+        return 'less than 1 cp'
+    parts = []
+    for name, size in (('gp', 100), ('sp', 10), ('cp', 1)):
+        if copper >= size:
+            parts.append(f'{copper // size} {name}')
+            copper %= size
+    return ' '.join(parts)
+
+
+def mundane_reply(text):
+    """Plain-gear answer for a line with no magic item in it, or None for Goldscale.
+
+    Goldscale cannot price a torch or a rope; it asks for an item description,
+    which dead-ends a player who only wanted the shop price.
+    """
+    rows = read_items(text)
+    # An unlisted name may be a homebrew magic item ("potion of vigor"): Goldscale
+    # asks for its description, as it did before. Only listed or ambiguous gear is answered here.
+    if not rows or any(row['source'] not in ('srd', 'ambiguous') for row in rows):
+        return None
+    lines = []
+    for row in rows:
+        count = f"{row['quantity']} x " if row['quantity'] > 1 else ''
+        if row['source'] == 'srd':
+            verb = 'sells for' if row['mode'] == 'sell' else 'costs'
+            lines.append(f"{count}{_spoken_name(row['item'])} {verb} {_coins(row['price'], row['unit'])}.")
+        elif row['source'] == 'ambiguous':
+            options = [f"{_spoken_name(c['item'])} ({_coins(c['price'], c['unit'])})" for c in row['choices']]
+            which = ', '.join(options[:-1]) + ' or ' + options[-1]
+            lines.append(f"Which one: {which}?")
+    if any(row['mode'] == 'sell' and row['source'] == 'srd' for row in rows):
+        lines.append('Selling is half the listed price.')
+    return '\n'.join(lines)
 
 
 def srd_defaults(text):
@@ -456,6 +548,11 @@ def _data(raw, answers):
 def appraise(text, state_path=None, now=None):
     """Goldscale's reply to one item description (may be a clarifying question)."""
     store = PendingAppraisals()
+    plain = None if (text or '').strip().lower().startswith('?gs') else mundane_reply(text)
+    if plain is not None:
+        if state_path:
+            _save(state_path, store, [])
+        return plain
     reply = start_appraisal(_command(text), KEY, store, now=now)
     if state_path:
         _save(state_path, store, [])
