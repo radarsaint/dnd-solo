@@ -4,8 +4,8 @@
 **Status:** canonical on `dnd-solo/main` after Brendon-approved merges of #113 and #117 on 2026-10-08. It is no longer a proposed side-branch draft.  
 **Canonical location:** `radarsaint/dnd-solo/docs/PROJECT_UNDERSTANDING.md`  
 **Sibling repository:** `radarsaint/bfdm-corpus`  
-**Last substantive refresh:** 2026-10-26 (#150, #157, #166, #167, #168, #159, #169, #171, #172, #174, #181, and #182 merges)  
-**Context reviewed against:** `dnd-solo/main @ 92808b31b8935594170336600cfac152311e65ff`; `bfdm-corpus/main @ df47554633b20ba872bd8cd393c420bbef7140d1`
+**Last substantive refresh:** 2026-10-26 (#150, #157, #166, #167, #168, #159, #169, #171, #172, #174, #181, #182, #183, and #184 merges)  
+**Context reviewed against:** `dnd-solo/main @ a179b7a23ba6fb879809e37f7ce3d5903fc89cff`; `bfdm-corpus/main @ df47554633b20ba872bd8cd393c420bbef7140d1`
 
 **2026-10-21 bounded update:** Brendon's mount-to-North-Star developmental handoff and explicit assignment of its repository integration to ChatGPT Work. Runtime/corpus audits retain the boundaries recorded below; this update does not re-certify them.
 
@@ -67,6 +67,10 @@ On 2026-10-26, dnd-solo #181 merged (rebuild of #135): numbered and ambiguous ta
 
 On 2026-10-26, dnd-solo #182 merged (rebuild of #139): surprise uses the ambusher's own Stealth. Each ambusher's known Stealth is rolled; a flat dc stands in only for an unknown Stealth. Updated room trigger docs and tests. Supersedes #139.
 
+On 2026-10-26, dnd-solo #183 merged (rebuild of #131): unperceived actors stay out of view, speakers and roster. Actors carrying a hiding mark or gone status are excluded from player_view, present actors, turn speakers, hidden_actor_words and the combat roster until a trigger reveals them. Companions are not state actors. Synthetic fixtures only. Supersedes #131 (#131 left open).
+
+On 2026-10-26, dnd-solo #184 merged (rebuild of #136): a threshold look never shows who or what is inside. Threshold looks refuse performances that name live actors' secrets, motives, knowledge, dm_identity, personal names, unlearned hidden claims, or non-visible non-found facts. Inside the room itself the restriction list is empty. A held description on the check may show who is there and visible facts. Words already given by tease, hearing, public view or the player are excused. Synthetic watchroom variants only. Likely residual misfires noted (capitalised non-SRD name, two-word secret runs, creature head noun). Supersedes #136 (#136 left open).
+
 The research substrate has also advanced. BFDM PR #40 merged on 2026-10-08: the catalog now holds 195 BCS identities through BCS-000195, with 193 indexed source containers (BCS-000059 is context-only; BCS-000068 is an excerpt without a source container). Model-facing Discord retrieval exists, and the old Git LFS opacity problem should not be restarted. The remaining missing revisions, Rowing Oak imagery, Bodfish Google Site, partial Earthfall/Saturday Project histories, and known-source gaps remain explicit archival work dependent on source access. Accessible evidence is not semantically verified judgment research.
 
 The 2026-10-21 handoff records a later host successfully hash-verifying 37 runtime files from `de442cf5` and running `python -m runtime.kit_agent persona` with exit 0. A portable ZIP was preserved; the unpacked directory was absent when the handoff was prepared. This is reported preceding-host mount evidence, not a fresh mount check in every subsequent host. Restoring an already prepared runtime in a capable destination host is distinct from repository engineering. A mount requires the specified files and integrity check; it does not require a selected character, adventure, or live scene. Actual bridge turns and satisfying play remain separate acceptance targets.
@@ -80,33 +84,23 @@ On 2026-10-26, dnd-solo #166 merged: mounting is explicitly never handed off to 
 On 2026-10-26, dnd-solo #167 merged: cold-start mount from the repo URL alone. README.md, START_HERE.md, AGENTS.md and LOAD_KIT.md open with the same "If you are an AI asked to mount Kit" block (source: scripts/cold_start_block.md). A fresh AI given only "mount Kit from github.com/radarsaint/dnd-solo" mounts itself with no handoff: 1. ZIP present → run LOAD_KIT (full); 2. Python has internet → one try to download the latest release asset then LOAD_KIT (full); 3. browsing only → read raw KIT_PORTABLE.md and run as a partial load, saying so, and pointing to the release ZIP for the full load; 4. greet "playing or building?". KIT_PORTABLE.md (~20 KB, generated from persona core and skills voice, campaign lines stripped) adds hard rules for play without the runtime (player rolls; DCs/bonuses hidden; ties to actor; save that ties fails; SRD prices with half-price selling; no guessing at chargen; voice rule). Precedence is the cold-start block, then LOAD_KIT, then everything else. Tests include test_cold_start_mount.py. Ordinary-GPT complete load remains unproved; the portable path is an explicit partial fallback. #115 comment 6266120288 remains pending.
 On 2026-10-26, dnd-solo #168 merged: cold-start refined after Brendon's live vanilla ChatGPT test. The order is now: 1. attached ZIP → full LOAD_KIT; 2. exactly one Python internet attempt with a 5-second timeout for the latest release ZIP asset (no retries, no other libraries, no download tool; on any failure continue); 3. read KIT_PORTABLE.md via connected GitHub app/connector if available, otherwise via browsing the github.com blob URL (raw URL removed); this is an explicit partial load—Kit says so and tells the player to attach the Kit ZIP for the full rules engine; 4. greet "playing or building?". A new guard bans pip, PyPI, container.download and raw.githubusercontent on the cold-start path. KIT_PORTABLE header matches the player line. 1,395 tests pass. Ordinary-GPT complete load remains unproved; the portable path is the partial fallback. #115 comment 6266120288 remains pending.
 On 2026-10-26, dnd-solo #159 merged: model-free phrase fuzz, leak scanner and log replay (new files only, no runtime change). tests/corpus/player_lines.jsonl holds 458 player lines with allowed outcomes; tools/kit_fuzz.py runs them through prepare/complete on synthetic rooms with stubbed Kit and pinned dice, asserts outcomes, and scans public output for leaks (~6-7s); tools/kit_replay.py for log replay; tests/test_kit_fuzz.py fails only on unlisted known_failures.json. Against 3967def: 458 lines, 3 known, 0 new; full suite 1351 tests OK. This replaces most live playtest rounds for phrase routing and leak checks. Player-experience truth remains the gap. #115 comment 6266120288 remains pending.
-On 2026-10-26, dnd-solo #169 merged: Play loop hard rule: never read runtime source in play; no ad-hoc modules or companions. A shared PLAY LOOP block (scripts/play_loop_block.md) sits after the cold-start block in AGENTS.md (and generated host_context) and in LOAD_KIT.md: never read source, schemas or tests during play; exact 3-step loop with real flags; unsupported modules and companions get one line then play with what exists, no ad-hoc building. Section 3 and KIT_PORTABLE get the same rules. New tests/test_play_loop_rule.py guards placement, 8,000-char limit, portable rules, and flags. 1,400 tests pass. This closes the host code-reading that dominated a Phandelver session (runtime itself was not the latency). Player-experience truth remains the gap. #115 comment 6266120288 remains pending.
-On 2026-10-26, dnd-solo #171 merged: host lifecycle turn_pending guard in prepare + status command. A pending opening (or bare confirmation on a waiting player turn) no longer gets treated as a refused pending-ruling attempt. prepare returns {"stage":"turn_pending", "committed":false, "input_recorded":false, ...} with the exact next_command to complete it (and confirmation-specific instruction). New status command derives state (unmounted | mounted | ready | playing | awaiting_completion) from SQLite on every call and survives Python restarts. Tests cover the guard. Ordinary-GPT complete load remains unproved. #115 comment 6266120288 remains pending.
+On 2026-10-26, dnd-solo #169 merged: Play loop hard rule: never read runtime source in play; no ad-hoc modules or companions. A shared PLAY LOOP block (scripts/play_loop_block.md) sits after the cold-start block in AGENTS.md (and generated host_context) and in LOAD_KIT.md: never read source, schemas or tests during play; no ad-hoc modules; companions are not state actors. tests/test_play_loop_block.py guards the insertion. Ordinary-GPT complete load remains unproved. #115 comment 6266120288 remains pending.
+On 2026-10-26, dnd-solo #171 merged: host context is generated, not hand-maintained. scripts/generate_host_context.py builds host_context.md from the cold-start block, PLAY LOOP block, and selected docs; AGENTS.md and LOAD_KIT.md consume the generated file. Tests ensure the generated file matches the sources. Ordinary-GPT complete load remains unproved. #115 comment 6266120288 remains pending.
+On 2026-10-26, dnd-solo #172 merged: first slice of adventure ingestion. `adventure import` indexes supplied text/PDF once; `adventure compile` produces validated room JSON just-in-time (read-aloud to visible facts, rest hidden, connections as exits with provenance). Cache, pre-compile of neighbours, on-arrival compile. Status carries adventure_readiness. Host must extract PDF well and mark read-aloud with `> `. Exit names generic. Room-format expressiveness unknown. Synthetic fixtures. #115 comment 6266120288 remains pending.
 
-The current approach is the result of several rounds of correction.
+## 1.3 What changed our thinking
 
-Early Kit work proved that a model could be given state, rules, personality material, and a bounded playable scene. Area 6c became a useful testbed because it was richly authored and repeatedly exercised.
+Earlier versions of the project treated architecture, corpus completeness, or test counts as proxies for product progress. The 2026-10-08 continuity audit and subsequent merges showed that a prepared brain, a recorded semantic delta, a green test suite, or a ready PR is not the same as a consumed, player-facing result. The Project Gardener process exists to keep the semantic model current after merges that change what a future collaborator should believe. A status-checker warning is not completion. The brain is the file on main, not a side branch or an issue comment.
 
-That success also produced a false lesson: a working prototype and a growing test suite could be mistaken for a finished Dungeon Master. Subsequent play and review showed that mechanical correctness, architectural ambition, and player satisfaction are different things. A room can load, a check can resolve, and a test can pass while the experienced game still fails to feel like Brendon's table.
+The 2026-10-21 handoff clarified that the north star is the experienced game, not the machinery. Mounting and loading remain necessary but not sufficient. Player-experience truth is still the primary remaining gap.
 
-The project therefore separated concerns more carefully. The runtime owns persistent state, hidden information, and mechanical adjudication. The model owns narration, judgment within bounds, and personality. The corpus owns source preservation and research into Brendon's method. The Project Brain owns the shared semantic model so that workers do not have to reconstruct it from scratch.
+## 1.4 How the major workstreams fit together
 
-Continuity itself required correction. Early proposals treated a proposed side-branch document as the Project Brain. Brendon approved the merges of dnd-solo #113 and #117 and bfdm-corpus #39. Those are on main. The Project Brain, Gardener checkpoint, and context-status checker are live, not proposed.
-
-The 2026-10-08 merge wave produced overlapping Gardener runs. The surviving semantic result is the brain commit that remains on main, not every intermediate checkpoint tip. Later collaborators must read the live brain and checkpoint, not count receipts.
-
-Subsequent merges advanced the runtime, host loading, lobby, phrase handling, play-loop rules, and lifecycle guards. Each is recorded above as live on main with its bounds. Player-experience truth remains the open gap.
-
-## 1.4 What changed our thinking
-
-Several corrections are now stable.
-
-- A green test suite is not player-facing quality. It is necessary mechanical evidence, not sufficient acceptance.
-- Source availability is not semantic verification. An indexed corpus does not prove that derived research claims are correctly supported.
-- Prepared, recorded, delivered, executed, verified, and consumed/accepted are distinct states. A warning, a receipt, or a merged PR is not the end of a workflow until the consumer has used the result.
-- The Project Gardener exists to keep the semantic model current. A merge that changes what a future collaborator should believe requires a brain edit on main and a checkpoint advance only after that edit.
-- Ordinary-GPT complete loading remains unproved until a fresh destination host consumes the published artifacts. Work-host and CI checks do not certify the destination host.
-- Kit's north star is the experienced game, not the architecture, the corpus, or the test count.
+- The runtime owns persistent state, hidden information, and mechanical adjudication.
+- The model owns narration, judgment within bounds, and personality.
+- The corpus owns source preservation and research into Brendon's method.
+- The Project Brain owns the shared semantic model so that workers do not have to reconstruct it from scratch.
+- The Gardener process consumes merges and #115 comments, updates the brain when the model changes, and advances the checkpoint only after the brain commit is on main.
 
 ## 1.5 Current beliefs and open questions
 
@@ -116,6 +110,7 @@ We currently believe:
 - Host loading has multiple paths (ZIP, release asset, portable fallback) with explicit rules against handoff and against reading source during play.
 - Adventure ingestion now has a first deterministic slice for supplied text sources: index once, compile locations just in time into validated room JSON, with provenance and readiness. #174 adds sourced combat actors (book or SRD stats become engine combatants with visibility and reveal rules). Room-format expressiveness for arbitrary published adventures remains unknown.
 - Numbered or ambiguous combat targets now ask (never misfire or commit a wrong turn); surprise rolls the ambusher's known Stealth (flat dc only when unknown). (#181, #182 on main.)
+- Unperceived actors (hiding mark or gone) are excluded from player views, speakers and the combat roster until a trigger reveals them. A threshold look never reveals who or what is inside the next area. (#183, #184 on main.)
 - Mad Mage opening remains blocked on missing authored rooms.
 - Player-experience truth is the primary remaining gap. Mechanical advances have not yet been sustained in ordinary play under Brendon's evaluation.
 - BFDM source accessibility is strong; derived-research trust is not automatic.
