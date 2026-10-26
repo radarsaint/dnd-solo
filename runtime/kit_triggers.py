@@ -33,7 +33,7 @@ import hashlib
 import re
 
 from . import kit_rolls
-from .state_context import InvalidChange, require
+from .state_context import InvalidChange, require, reveal_actor, unperceived
 
 KINDS = ('disturb', 'enter')
 FEATURE_KINDS = ('move_feature', 'inspect_feature', 'enter_feature')
@@ -95,9 +95,9 @@ def apply_event(state, source, event):
     for actor_key in trigger['actors']:
         actor = state['actors'].get(actor_key)
         require(actor is not None, 'Unknown actor')
-        if actor.get('status') == 'hidden':
-            actor['status'] = 'alive'
-            actor['visible'] = True
+        spec = (source.get('actors') or {}).get(actor_key) or {}
+        if unperceived({**spec, **actor}):
+            reveal_actor(actor, spec)
     fired.append(key)
 
 
@@ -283,26 +283,30 @@ def surprise_roll(source, state, revision, trigger, actor_key, npc_roll=None):
 
 
 def pc_surprised(source, state, revision, trigger, passive, npc_roll=None):
-    """(surprised?, trace) by the SRD: the PC is surprised if his passive Perception is below
-    every ambusher's Stealth total (he notices none of them)."""
+    """(surprised?, trace) by the SRD: each ambusher's Stealth check against the PC's passive
+    Perception; the actor wins ties (``kit_rolls.meets_or_beats``), and the PC is surprised only
+    if he notices none of them. Precedence per ambusher: the trigger's ``stealth`` bonus, else its
+    stat block's ``stealth`` (both rolled, d20 + bonus); a flat ``dc`` stands in only for an
+    ambusher whose Stealth is unknown (a compiled stat block that states none); with neither,
+    Stealth +0 is rolled, as before."""
     rule = trigger.get('surprise')
     if not rule or (state.get('combat') or {}).get('status') in ('awaiting_initiative', 'running'):
         return False, 'no surprise'
-    if 'dc' in rule:
-        return kit_rolls.meets_or_beats(rule['dc'], passive), \
-            f"surprise: stealth DC {rule['dc']} vs passive Perception {passive}"
     from . import kit_combat
     stats = kit_combat.config(source).get('actors') or {}
-    totals = []
+    checks = []
     for key in trigger['actors']:
         bonus = rule.get('stealth')
         if bonus is None:
-            bonus = (stats.get(key) or {}).get('stealth', 0)
+            bonus = (stats.get(key) or {}).get('stealth')
+        if bonus is None and 'dc' in rule:
+            checks.append((key, f"stealth DC {rule['dc']}", rule['dc']))
+            continue
         die = surprise_roll(source, state, revision, trigger, key, npc_roll)
-        totals.append((key, die, bonus, die + bonus))
-    # Each hider unnoticed when his Stealth meets or beats the passive (the actor wins ties).
-    surprised = all(kit_rolls.meets_or_beats(total, passive) for *_, total in totals)
-    trace = 'surprise: ' + ', '.join(f'{k} stealth d20 {d} + {b} = {t}' for k, d, b, t in totals) + \
+        bonus = int(bonus or 0)
+        checks.append((key, f'stealth d20 {die} + {bonus} = {die + bonus}', die + bonus))
+    surprised = all(kit_rolls.meets_or_beats(total, passive) for *_, total in checks)
+    trace = 'surprise: ' + ', '.join(f'{k} {how}' for k, how, _ in checks) + \
         f' vs passive Perception {passive}: {"surprised" if surprised else "noticed"}'
     return surprised, trace
 
