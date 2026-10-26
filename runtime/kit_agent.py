@@ -43,6 +43,7 @@ class _LazyUrllib:
 urllib = _LazyUrllib()
 
 from . import _lazy
+from . import state_context
 from . import kit_attitude
 from . import kit_brief
 from . import kit_cards
@@ -1806,7 +1807,8 @@ class RoomAdjudicator:
 
     def _present_actors(self, state):
         return {key: actor for key, actor in (state.get('actors') or {}).items()
-                if actor.get('location') == state['area'] and actor.get('status') not in ('fled', 'dead', 'hidden')}
+                if actor.get('location') == state['area'] and actor.get('status') not in ('fled', 'dead', 'hidden')
+                and not state_context.unperceived({**((self.source.get('actors') or {}).get(key) or {}), **actor})}
 
     BLOCKERS_UNABLE = ('asleep', 'unconscious', 'restrained', 'bound', 'paralyzed', 'stunned')
 
@@ -4641,7 +4643,8 @@ def turn_speakers(runtime, body):
     heard = {key: sound for key, sound in {**kit_brief.heard_here(source, before),
                                            **kit_brief.heard_here(source, after)}.items()
              if where(key) not in areas}
-    hidden = {key for key, actor in (after.get('actors') or {}).items() if actor.get('status') == 'hidden'}
+    hidden = {key for key, actor in (after.get('actors') or {}).items()
+              if state_context.unperceived({**((source.get('actors') or {}).get(key) or {}), **actor})}
     here = [label for key, label in labels.items()
             if key not in heard and key not in hidden and where(key) in areas | {None}]
     out = {'speakers': list(dict.fromkeys(NON_NPC_SPEAKERS + tuple(here)))}
@@ -5035,9 +5038,9 @@ def hidden_actor_words(source, state, body=None):
                     _word_list((body or {}).get('action') or ''))
     nouns, runs = set(), set()
     for key, actor in (state.get('actors') or {}).items():
-        if actor.get('status') != 'hidden':
-            continue
         spec = ((source.get('actors') or {}).get(key) or {})
+        if not state_context.unperceived({**spec, **actor}):
+            continue
         names = [spec.get('name') or actor.get('name') or '', str((spec.get('stat_block') or {}).get('srd') or ''),
                  ' '.join(part for part in key.split('_') if len(part) > 2)]
         for name in names:

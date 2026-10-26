@@ -37,6 +37,7 @@ import re
 from . import kit_names, _lazy
 from . import kit_reactions
 from . import kit_rolls
+from . import state_context
 from .state_context import require
 
 QUOTED = _lazy.regex(r'"[^"]*"')
@@ -1097,7 +1098,8 @@ class Fight:
         if self.fight and self.fight.get('status') != 'over':
             return False
         hp = {key: self.stats(key)['hp'] for key in self.config['actors']
-              if key in self.state['actors'] and self.state['actors'][key].get('status') != 'hidden'}
+              if key in self.state['actors'] and not state_context.unperceived(
+                  {**((self.source.get('actors') or {}).get(key) or {}), **self.state['actors'][key]})}
         self.fight = {'status': 'awaiting_initiative', 'round': 1, 'order': [], 'next': 0,
                       'pc_initiative': None, 'surprised': list(self.surprised()), 'hp': hp, 'max_hp': dict(hp),
                       'pc_damage': 0, 'pending': None, 'opener_spent': False, 'started_by': started_by,

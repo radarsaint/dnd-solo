@@ -33,7 +33,7 @@ import hashlib
 import re
 
 from . import kit_rolls
-from .state_context import InvalidChange, require
+from .state_context import InvalidChange, require, reveal_actor, unperceived
 
 KINDS = ('disturb', 'enter')
 FEATURE_KINDS = ('move_feature', 'inspect_feature', 'enter_feature')
@@ -95,9 +95,9 @@ def apply_event(state, source, event):
     for actor_key in trigger['actors']:
         actor = state['actors'].get(actor_key)
         require(actor is not None, 'Unknown actor')
-        if actor.get('status') == 'hidden':
-            actor['status'] = 'alive'
-            actor['visible'] = True
+        spec = (source.get('actors') or {}).get(actor_key) or {}
+        if unperceived({**spec, **actor}):
+            reveal_actor(actor, spec)
     fired.append(key)
 
 
