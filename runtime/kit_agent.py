@@ -53,6 +53,7 @@ from . import kit_triggers
 from . import kit_reveal
 from . import kit_handoff
 from . import kit_acts
+from . import kit_telemetry
 from . import kit_lifecycle
 from . import kit_claims
 from . import kit_manifest
@@ -5505,12 +5506,15 @@ def window_scene(runtime, state):
 
 class KitChatBridge:
     """Host this model loop in an assistant chat, with no API credential in Python."""
-    def __init__(self, runtime, adjudicator=None, manifests=False):
+    def __init__(self, runtime, adjudicator=None, manifests=False, compact=None):
         """``manifests``: send one-pass packets in three layers (kit_manifest; the live CLI
-        does). Off by default, so staged evals and the Python API see the full packet."""
+        does). Off by default, so staged evals and the Python API see the full packet.
+        ``compact``: layered packets in compact mode (kit_telemetry); None reads the mode
+        recorded in the save (start --compact), which defaults to full."""
         self.runtime = runtime
         self.adjudicator = adjudicator or RoomAdjudicator()
         self.manifests = manifests
+        self.compact = (kit_telemetry.packet_mode(runtime.db) == 'compact') if compact is None else bool(compact)
 
     def try_prepare(self, *args, **kwargs):
         """prepare() for hosts: a pending ruling never crashes the turn. It comes back as a
@@ -5756,7 +5760,14 @@ class KitChatBridge:
         """SessionManifest, RoomManifest, TurnDelta (kit_manifest). A body the host was sent
         recently is replaced by its hash."""
         parts = kit_manifest.split(packet)
-        session, room, _ = parts
+        session, room, delta = parts
+        full_room = room
+        if self.compact:
+            area = (((delta.get('input') or {}).get('private') or {}).get('dm_context') or {}).get('scene', {}) \
+                .get('current_area')
+            session, room = kit_telemetry.compact_parts(session, room, area)
+            delta = {**delta, 'retrieval': kit_telemetry.RETRIEVAL}
+            parts = (session, room, delta)
         hashes = {'session': kit_manifest.digest(session), 'room': kit_manifest.digest(room)}
         recent = [row for row in self.runtime.recent_kit_timings(limit=50) if row['turn_id'] != turn_id]
         held = kit_manifest.plan_sends(recent, self.runtime.committed_kit_turn_ids())
@@ -5769,7 +5780,8 @@ class KitChatBridge:
                        **{k: v for k, v in layered.items()
                           if k not in ('session_manifest', 'room_manifest', 'manifest_rule')}}
         return layered, {'manifest': {**hashes, 'sent': [layer for layer in hashes if not cached[layer]]},
-                         'room_manifest': room, 'full_packet_bytes': _bytes(packet)}
+                         'room_manifest': full_room, 'full_packet_bytes': _bytes(packet),
+                         'packet_mode': 'compact' if self.compact else 'full'}
 
     def rehydrate(self, turn_id):
         """Both manifest bodies for a layered turn, in full (the host lost a copy)."""
@@ -6068,7 +6080,7 @@ EXAMPLE_SHEET = PROJECT_ROOT / 'tests/fixtures/characters/example_pc.json'
 
 
 def start_session(db, sheet_path=None, runtime=None, room=None, area=None, manifests=False, campaign=None,
-                  intent=None, table=None, modules=None):
+                  intent=None, table=None, modules=None, compact=False):
     """Bootstrap for a host.
 
     No room and no campaign: a greeting. Nothing is mounted. Mad Mage is not assumed.
@@ -6100,6 +6112,8 @@ def start_session(db, sheet_path=None, runtime=None, room=None, area=None, manif
         path = Path(sheet_path) if sheet_path else EXAMPLE_SHEET
         sheet = json.loads(path.read_text(encoding='utf-8'))
         loaded = runtime.set_player_sheet(sheet)
+        if compact:
+            kit_telemetry.set_packet_mode(runtime.path, 'compact')
         prepared = KitChatBridge(runtime, RoomAdjudicator(), manifests=manifests).prepare(
             opening=True, one_pass=True)
         turn = prepared['turn_id']
@@ -6107,6 +6121,9 @@ def start_session(db, sheet_path=None, runtime=None, room=None, area=None, manif
             'stage': 'started', 'db': str(db), 'character': loaded['character'],
             'sheet': str(path), 'example_sheet': not sheet_path,
             'room_id': source.get('id'), 'room': str(room),
+            # The packet before next_step: next_step names this turn's id, and volatile text
+            # ahead of the stable session manifest would break a provider's prefix cache.
+            'prepared': prepared,
             'next_step': ('You are Kit. Write one JSON object {"decision", "performance"} that follows '
                           'prepared.instructions and prepared.schema, save it to a file, then run: '
                           f'python3 -m runtime.kit_agent complete --db {db} --turn-id {turn} '
@@ -6117,7 +6134,6 @@ def start_session(db, sheet_path=None, runtime=None, room=None, area=None, manif
                           + (' Add "manifest": {"session": <session_manifest.hash>, "room": <room_manifest.hash>} '
                              'to every output; a "cached" manifest is the copy you were sent earlier '
                              '(rehydrate --turn-id T if you lost it).' if manifests else '')),
-            'prepared': prepared,
         }
     finally:
         if own:
@@ -6186,7 +6202,107 @@ def _lobby_question_delivery(args, result):
         pass
 
 
+_EMIT = {}  # serialization time of the reply, for telemetry (set by _dumps)
+
+
+def _dumps(result, **kwargs):
+    """json.dumps for the CLI's play packets, timed for telemetry. Same output."""
+    clock = time.perf_counter_ns()
+    text = json.dumps(result, **kwargs)
+    _EMIT['serialization_ns'] = _EMIT.get('serialization_ns', 0) + time.perf_counter_ns() - clock
+    if isinstance(result, dict):
+        prepared = result.get('prepared')
+        _EMIT['turn_id'] = result.get('turn_id') or (prepared.get('turn_id') if isinstance(prepared, dict) else None)
+    return text
+
+
+def _telemetry_cli(argv):
+    """kit_agent telemetry report --db kit.sqlite: medians and p95 from the JSONL."""
+    parser = argparse.ArgumentParser(prog='kit_agent telemetry')
+    parser.add_argument('action', choices=['report'])
+    parser.add_argument('--db', default='kit.sqlite')
+    args = parser.parse_args(argv)
+    print(json.dumps(kit_telemetry.report(args.db), indent=2, ensure_ascii=False))
+    return 0
+
+
+def _telemetry_flags(argv):
+    """Pull --host and --session-id (telemetry only) out of argv; return (argv, host, session)."""
+    out, host, session, items = [], None, None, iter(argv)
+    for item in items:
+        if item in ('--host', '--session-id'):
+            value = next(items, None)
+            host, session = (value, session) if item == '--host' else (host, value)
+        elif item.startswith('--host='):
+            host = item.split('=', 1)[1]
+        elif item.startswith('--session-id='):
+            session = item.split('=', 1)[1]
+        else:
+            out.append(item)
+    return out, host, session
+
+
+def _argv_value(argv, name):
+    for i, item in enumerate(argv):
+        if item == name and i + 1 < len(argv):
+            return argv[i + 1]
+        if item.startswith(name + '='):
+            return item.split('=', 1)[1]
+    return None
+
+
 def main():
+    """The CLI, with one telemetry record per call (runtime/kit_telemetry.py). The reply on
+    stdout is byte for byte what _main prints; telemetry only appends to <db>.telemetry.jsonl."""
+    import contextlib
+    import io
+    if sys.argv[1:2] == ['telemetry']:
+        return _telemetry_cli(sys.argv[2:])
+    argv, host, session = _telemetry_flags(sys.argv[1:])
+    sys.argv[1:] = argv
+    if argv[:1] == ['play']:
+        return _main()  # interactive: never buffer what the player reads
+    _EMIT.clear()
+    buffer = io.StringIO()
+    clock = time.perf_counter_ns()
+    code = None
+    try:
+        with contextlib.redirect_stdout(buffer):
+            code = _main()
+        return code
+    except SystemExit as exc:
+        code = exc.code
+        raise
+    finally:
+        total = time.perf_counter_ns() - clock
+        text = buffer.getvalue()
+        sys.stdout.write(text)
+        sys.stdout.flush()
+        db = _argv_value(argv, '--db') or 'kit.sqlite'
+        command = ' '.join(argv[:2]) if argv[:1] == ['adventure'] else (argv[0] if argv else None)
+        if command not in (None, 'persona') and Path(db).is_file():
+            serial = _EMIT.get('serialization_ns')
+            mode = None
+            if command in ('start', 'prepare', 'rehydrate'):
+                try:
+                    import sqlite3
+                    con = sqlite3.connect(db)
+                    try:
+                        mode = 'compact' if '--compact' in argv else kit_telemetry.packet_mode(con)
+                        if '--full' in argv:
+                            mode = 'unlayered'
+                    finally:
+                        con.close()
+                except Exception:  # noqa: BLE001
+                    mode = None
+            kit_telemetry.record(
+                db, command=command, turn_id=_EMIT.get('turn_id') or _argv_value(argv, '--turn-id'),
+                host=host, session_id=session, packet_mode=mode,
+                exit_code=code if isinstance(code, int) else (0 if code is None else 2),
+                engine_ns=total - (serial or 0), serialization_ns=serial, packet=text)
+
+
+def _main():
     if sys.argv[1:2] == ['adventure']:
         # Adventure ingestion (runtime/kit_adventure.py): import, compile, status.
         from . import kit_adventure
@@ -6257,6 +6373,9 @@ def main():
     parser.add_argument('--full', action='store_true',
                         help='prepare --one-pass/start: send the whole packet, not the three layers '
                              '(docs/architecture/MANIFESTS.md)')
+    parser.add_argument('--compact', action='store_true',
+                        help='start: record compact packets for this save; prepare: this turn compact '
+                             '(docs/latency/experiment-protocol.md). Default: full')
     parser.add_argument('--pretty', action='store_true',
                         help='prepare/decide/finish/complete: indent the JSON for reading (default compact)')
     args = parser.parse_args()
@@ -6285,7 +6404,8 @@ def main():
                     return 0
             result = start_session(args.db, args.sheet, room=args.room, area=args.area,
                                    manifests=not args.full, campaign=args.campaign,
-                                   intent=args.intent, table=args.table, modules=args.modules)
+                                   intent=args.intent, table=args.table, modules=args.modules,
+                                   compact=args.compact)
             if args.room and args.table and isinstance(result, dict):
                 kit_campaign.record_table_mode(args.db, args.table)
                 result['table_mode'] = args.table
@@ -6297,8 +6417,8 @@ def main():
         except (InvalidChange, PendingRuling) as exc:
             print(json.dumps({'stage': 'rejected', 'message': str(exc)}, ensure_ascii=False), file=sys.stderr)
             return 2
-        print(json.dumps(result, ensure_ascii=False,
-                         **({'indent': 2} if args.pretty else {'separators': (',', ':')})))
+        print(_dumps(result, ensure_ascii=False,
+                     **({'indent': 2} if args.pretty else {'separators': (',', ':')})))
         return 0
     if args.command == 'init':
         if not args.room:
@@ -6335,7 +6455,7 @@ def main():
             if not args.turn_id:
                 parser.error('rehydrate requires --turn-id')
             try:
-                print(json.dumps(KitChatBridge(runtime).rehydrate(args.turn_id), ensure_ascii=False))
+                print(_dumps(KitChatBridge(runtime).rehydrate(args.turn_id), ensure_ascii=False))
             except InvalidChange as exc:
                 print(json.dumps({'stage': 'rejected', 'message': str(exc)}, ensure_ascii=False), file=sys.stderr)
                 return 2
@@ -6369,7 +6489,7 @@ def main():
         elif args.command in ('prepare', 'decide', 'finish', 'complete', 'abandon', 'feedback'):
             bridge = KitChatBridge(runtime, RoomAdjudicator(args.perception, args.insight,
                                                              sleight_of_hand=args.sleight_of_hand),
-                                   manifests=not args.full)
+                                   manifests=not args.full, compact=True if args.compact else None)
             try:
                 if args.command == 'abandon':
                     if not args.turn_id:
@@ -6432,8 +6552,8 @@ def main():
                 _lobby_question_delivery(args, result)
             # Compact by default: the chat host reads this whole packet every turn, and
             # indentation alone added about a quarter to its size. --pretty for people.
-            print(json.dumps(result, ensure_ascii=False,
-                             **({'indent': 2} if args.pretty else {'separators': (',', ':')})))
+            print(_dumps(result, ensure_ascii=False,
+                         **({'indent': 2} if args.pretty else {'separators': (',', ':')})))
         else:
             if not args.model:
                 parser.error('standalone play requires --model; for ChatGPT use prepare/decide/finish')
