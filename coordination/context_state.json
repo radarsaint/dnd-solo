@@ -2,16 +2,16 @@
   "schema": "kit_project_gardener_state/v1",
   "purpose": "RESUMABILITY_CURSOR_NOT_KNOWLEDGE_STORE",
   "canonical_location": "radarsaint/dnd-solo/coordination/context_state.json",
-  "state_revision": 40,
+  "state_revision": 41,
   "semantic_brain": {
     "repo": "radarsaint/dnd-solo",
     "path": "docs/PROJECT_UNDERSTANDING.md",
-    "last_semantic_commit": "61db2b2dbc37fafd6649089fa6f59e8db2bed0e0",
+    "last_semantic_commit": "bbbfa840ccd3a602247800ae27bbd976afc26203",
     "last_reviewed_on": "2026-10-26"
   },
   "checkpoint": {
     "reviewed_against_main": {
-      "radarsaint/dnd-solo": "1abdbf889b60dfe46652b3b1bb1dedb090f5b799",
+      "radarsaint/dnd-solo": "a3bfaab37082e9e28b462c45f9add3d3298e75da",
       "radarsaint/bfdm-corpus": "df47554633b20ba872bd8cd393c420bbef7140d1"
     },
     "context_inbox": {
@@ -25,9 +25,9 @@
   "last_completed_pass": {
     "kind": "BOUNDED_SEMANTIC_RECONCILIATION",
     "completed_on": "2026-10-26",
-    "scope": "Reviewed dnd-solo #171 merge (main 1abdbf88, brain 61db2b2d). #115 comment 6266120288 remains pending.",
-    "result": "Accept: #171 adds turn_pending guard in prepare (returns exact complete command, nothing staged/recorded for waiting opening or bare confirmation) and read-only status command derived from SQLite. Docs updated. Tests 1419 OK. Narrow: Codex noted multi-pending and staged recovery edges; player-experience truth remains unproved. Brain updated. Pending #115 DM Kit rulings remain unresolved.",
-    "resulting_brain_commit": "61db2b2dbc37fafd6649089fa6f59e8db2bed0e0",
+    "scope": "Reviewed dnd-solo #172 merge (main a3bfaab37, brain bbbfa840). #115 comment 6266120288 remains pending.",
+    "result": "Accept: #172 adds adventure ingestion first slice (deterministic import/index, JIT compile to validated room JSON with provenance, cache/precompile, readiness in status). Synthetic fixture, 1437 tests OK. Narrow: PDF extraction/read-aloud host-dependent; no actors/combat; exit naming generic; room-format expressiveness unknown. Mad Mage still blocked. Brain updated. Pending #115 DM Kit rulings remain unresolved.",
+    "resulting_brain_commit": "bbbfa840ccd3a602247800ae27bbd976afc26203",
     "reconciled_comment_id": 6202184874
   },
   "active_pass": null,
@@ -38,7 +38,7 @@
     "Post-#101 combat/engine items (open-ask gate at RoomAdjudicator.resolve, public_event fallback after failed narration, #122 Kit-declared combat_acts) are still pending.",
     "PR #122 Kit-declared combat_acts is draft; word-matching parser ends only after it lands. Main default path unchanged.",
     "#115 comment 6158450658 plan items beyond the two #101 fixes are not fixed on main.",
-    "Legitimate Mad Mage opening remains blocked on missing room files and source-to-room authoring. No executable non-6c authored location.",
+    "Legitimate Mad Mage opening remains blocked on missing room files. Adventure ingestion first slice is live for supplied text, but Mad Mage rooms unauthored and room-format expressiveness open.",
     "#115 comment 6266120288 (2026-10-19 DM Kit rulings on spell slots, equipment misuse, unsourced proficiencies) is PENDING REVIEW; draft PR in progress, nothing merged. Not reconciled as live truth.",
     "Ordinary-GPT complete load and reset recovery via LOAD_KIT.md remains unproved. Work-host and CI checks do not certify the destination host.",
     "Goldscale vs older in-play pricing formula discrepancy (rounding, weapon bonus, inputs, charges) is open for Brendon; in-play shop left unchanged."
