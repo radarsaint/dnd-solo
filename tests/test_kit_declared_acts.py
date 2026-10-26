@@ -533,6 +533,10 @@ class TieRuleTests(unittest.TestCase):
             with self.subTest(dc=dc):
                 source = carcass()
                 source['triggers'][0]['surprise'] = {'dc': dc}
+                # A flat dc stands in for an ambusher whose Stealth is unknown (inline, no stealth).
+                from test_kit_surprise_stealth import inline
+                for key in ('centipede_a', 'centipede_b'):
+                    source['actors'][key]['stat_block'] = inline()
                 room = Room(self, source=source)
                 room.act('I roll the carcass over.', ROLL)
                 self.assertEqual('pc' in room.state['combat']['surprised'], surprised)
