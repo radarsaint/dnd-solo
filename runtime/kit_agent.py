@@ -4740,7 +4740,7 @@ def public_performance_base(runtime, body, one_pass=False):
                 'as_changes_to_private_view': VIEW_UNCHANGED_NOTE,
                 **view_changes(body['public_view'], before)}
     else:
-        payload['personality_core'] = personality_core_text()
+        payload['personality_core'] = personality_core_text(source=runtime.source())
         payload['public_history'] = body.get('public_history', [])
     return payload
 
@@ -6058,7 +6058,8 @@ class KitChatBridge:
         variant = timing.get('performance_variant') or DEFAULT_BRIDGE_VARIANT
         session = {'performance_variant': variant, 'instructions': one_pass_instructions(variant),
                    'schema': ONE_PASS_SCHEMA, 'performance_limits': performance_limits(),
-                   'host_retry': HOST_RETRY_NOTE, 'personality_core': personality_core_text()}
+                   'host_retry': HOST_RETRY_NOTE,
+                   'personality_core': personality_core_text(source=self.runtime.source())}
         _, state = self.runtime.load()
         if kit_combat.config(self.runtime.source()) and state.get('player_sheet'):
             from . import kit_reactions  # the same session line prepare_inputs puts in the manifest
