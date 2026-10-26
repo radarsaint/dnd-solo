@@ -40,8 +40,8 @@ class MissingFieldsNamed(unittest.TestCase):
         with self.assertRaises(InvalidChange) as caught:
             kit_agent.check_plan(plan, [], 'x')
         message = str(caught.exception)
-        self.assertIn('missing player_mood, tone', message)
-        self.assertIn('unexpected bogus', message)
+        self.assertIn('missing: player_mood, tone', message)  # #129 wording
+        self.assertIn('not allowed: bogus', message)
 
 
 class SearchBeatsSimpleAct(Stalls):

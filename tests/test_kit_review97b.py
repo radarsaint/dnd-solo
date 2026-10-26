@@ -25,6 +25,7 @@ from runtime.kit_agent import KitChatBridge, PendingRuling, RoomAdjudicator
 from runtime.state_context import InvalidChange, Runtime
 from test_kit_agent import RecordingModel
 from test_kit_monster_initiative import Room as _InitiativeRoom
+from kit_policy import rejections_raise
 
 decline_open = _InitiativeRoom.decline_open
 
@@ -216,6 +217,7 @@ class AnswerAndHiddenActorTests(unittest.TestCase):
                 with self.assertRaises(InvalidChange):
                     kit_acts.check({'handles': value}, {'acts': offer})
 
+    @rejections_raise  # validator probe (tests/kit_policy.py)
     def test_a_performance_naming_or_describing_the_hidden_ghoul_is_rejected(self):
         for text in ('You push the lid and a grey ghoul lunges out at you.',
                      'You push the lid; something hisses and grey fingers curl over the rim.'):

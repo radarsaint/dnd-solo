@@ -14,6 +14,7 @@ from pathlib import Path
 
 from runtime import kit_agent
 from runtime.state_context import InvalidChange
+from kit_policy import rejections_raise
 from test_kit_watchroom_stalls import LANDING, LANDING_MORE, PEEKS, Stalls, landing
 from test_kit_room_review import WATCH
 
@@ -61,6 +62,7 @@ class ThresholdLookIsTeaseOnly(Stalls):
         return self.bridge.complete(turn, {'decision': plan, 'performance': {'segments': [
             {'speaker': 'Narrator', 'text': LANDING}, {'speaker': 'Narrator', 'text': text}]}})
 
+    @rejections_raise  # validator probe (tests/kit_policy.py)
     def test_what_lies_inside_is_refused_on_a_threshold_look(self):
         for n, (label, text) in enumerate(LEAKS.items()):
             with self.subTest(label):

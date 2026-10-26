@@ -7,6 +7,7 @@ import copy
 import json
 import tempfile
 import unittest
+import unittest.mock
 from pathlib import Path
 
 from runtime import kit_agenda, kit_agent, kit_cards, kit_detail, pc_sheet
@@ -434,6 +435,7 @@ class PcStateBySituationTests(unittest.TestCase):
         with self.assertRaisesRegex(InvalidChange, 'the situation sets it.*Do not ask'):
             self.bridge.complete(packet['turn_id'], {'decision': plan, 'performance': ask})
 
+    @unittest.mock.patch.object(kit_agent, 'ENGINE_LINE_AFTER_REJECTIONS', 99)  # validator probe: rejections loop (see test_kit_open_ask)
     def test_the_rare_ask_still_works_and_commits_nothing_mechanical(self):
         revision, before = self.runtime.load()
         packet = self.bridge.prepare('I look around the room.', one_pass=True)
