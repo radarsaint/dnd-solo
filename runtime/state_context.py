@@ -97,6 +97,9 @@ CANON_SLOT = re.compile(r'^[a-z0-9_:]+(/[a-z0-9_]+){1,3}$')
 # the decision's canon entries, the oracle deal it consumed, and procedure state.
 # Host bookkeeping, not a turn taken in the room (kit_rooms.stage counts the others).
 BOOKKEEPING_EVENTS = ('player_sheet', 'player_character', 'player_note', 'pc_state', 'kit_plan', 'rest')
+# A refused attempt changed nothing in the world, so it does not use up the check Kit just
+# called (PR 145 playtest: one refused line, then every roll was refused).
+KEEPS_PENDING_CHECK = BOOKKEEPING_EVENTS + ('refused_attempt',)
 # A pending check's optional fields: a held exit, and room for the check-calling follow-up's
 # quiet DC adjustment for creative use of the scene (Brendon: about -2) with its reason. Not
 # applied anywhere yet.
@@ -432,7 +435,8 @@ class Runtime:
             row = self.db.execute('SELECT revision, plan FROM kit_pending WHERE turn_id=?',
                                   (turn_id,)).fetchone()
             require(row is not None and row[0] == expected_revision, 'No matching pending Kit turn')
-            require(row[1] is None or row[1] == serialized, 'Private decision already fixed for this turn')
+            require(row[1] is None or row[1] == serialized, ('Private decision already fixed for this turn: a retry keeps the same decision and changes only '
+                     'the performance. Resubmit the decision you first sent, unchanged.'))
             if row[1] is None:
                 self.db.execute('UPDATE kit_pending SET plan=? WHERE turn_id=?',
                                 (serialized, turn_id))
@@ -487,7 +491,7 @@ class Runtime:
             elif any(event.get('type') not in BOOKKEEPING_EVENTS for event in events):
                 room.setdefault('turns_in', {})[acted_in] = room.get('turns_in', {}).get(acted_in, 0) + 1
             if not any(event.get('type') == 'pending_check' for event in events) and \
-                    any(event.get('type') not in BOOKKEEPING_EVENTS for event in events):
+                    any(event.get('type') not in KEEPS_PENDING_CHECK for event in events):
                 held = (state.get('pending_check') or {}).get('held')
                 if not (held and held.get('area', acted_in) == state['area']):
                     # A called check lasts one player turn. A held description is an obligation:

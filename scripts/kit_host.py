@@ -143,9 +143,23 @@ def build(repo, output, commit='HEAD'):
             'sha256': hashlib.sha256(output.read_bytes()).hexdigest()}
 
 
+def precompile(root):
+    """Build runtime/__pycache__ once at mount, so the first game call does not compile
+    ~1.2 MB of source (latency PR: ~0.5 s). Stdlib compileall; the cache is outside the
+    verified manifest (extra files are allowed), and a read-only folder or any compile
+    problem only costs speed: it returns False and the mount goes on."""
+    try:
+        import compileall
+        return bool(compileall.compile_dir(str(Path(root) / 'runtime'), quiet=2, workers=1))
+    except Exception:  # noqa: BLE001 - never fail a mount over a speed-up
+        return False
+
+
 def host_context(root, manifest):
     """Exercise the real persona entry point; create no game or database."""
-    result = subprocess.run([sys.executable, '-B', '-m', 'runtime.kit_agent', 'persona'],
+    # No -B: the persona run may write bytecode the first game call then reuses. A read-only
+    # folder just skips the write (Python ignores it), so this never fails a mount.
+    result = subprocess.run([sys.executable, '-m', 'runtime.kit_agent', 'persona'],
                             cwd=root, capture_output=True, text=True, timeout=60,
                             env={**os.environ, 'PYTHONPATH': str(root), 'PYTHONIOENCODING': 'utf-8'})
     if result.returncode:
@@ -203,10 +217,11 @@ def mount(archive_path, destination, expected_commit=None, expected_tree=None):
                     root.rename(previous)
                 temporary.rename(root)
     manifest = verify(root, manifest['commit'], manifest['tree'])
+    compiled = precompile(root)
     context = host_context(root, manifest)
     return {'status': 'mounted', 'commit': manifest['commit'], 'tree': manifest['tree'],
             'verified_files': len(manifest['files']), 'root': str(root),
-            'host_context': str(context), 'persona_exit': 0, 'reused': reuse,
+            'host_context': str(context), 'persona_exit': 0, 'reused': reuse, 'pyc_cache': compiled,
             'preserved_previous_root': str(previous) if previous else None,
             'game_started': False, 'host_context_read': False,
             'next': 'Read the entire host_context file; then use this verified build as Kit.'}

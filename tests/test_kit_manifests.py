@@ -129,7 +129,22 @@ class Resend(Layers):
                 self.bridge.complete('w1', flat)
         self.bridge.abandon('w1')
         again, _ = self.wait('w2')
-        self.assertIn('body', again['session_manifest'])
+        # The body is not re-sent: the reasons and the hash are, and rehydrate still restores it.
+        self.assertTrue(again['session_manifest'].get('cached'))
+        notice = again['rejection_notice']
+        self.assertEqual(notice['session_hash'], again['session_manifest']['hash'])
+        self.assertGreaterEqual(notice['rejections'], kit_manifest.REJECT_STREAK)
+        self.assertTrue(notice['reasons'] and all(notice['reasons']))
+        self.assertIn('rehydrate', notice['note'])
+        full = self.bridge.rehydrate('w2')
+        self.assertEqual(full['session_manifest']['hash'], again['session_manifest']['hash'])
+        self.assertIn('body', full['session_manifest'])
+
+    def test_no_notice_without_a_streak(self):
+        packet, output = self.open_room()
+        self.bridge.complete('open', output)
+        later, _ = self.wait('w1')
+        self.assertNotIn('rejection_notice', later)
 
 
 class LiveCli(unittest.TestCase):

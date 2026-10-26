@@ -26,11 +26,21 @@ import os
 import re
 import sys
 import time
-import urllib.error
-import urllib.request
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
+
+
+class _LazyUrllib:
+    """urllib.request (and with it http.client and ssl) loads only when the API model path
+    runs. A chat host never uses it, and importing it cost every CLI call ~15 ms (latency PR).
+    ``urllib.request`` / ``urllib.error`` behave as before, including for mock.patch."""
+    def __getattr__(self, name):
+        import importlib
+        return importlib.import_module('urllib.' + name)
+
+
+urllib = _LazyUrllib()
 
 from . import kit_attitude
 from . import kit_brief
@@ -129,6 +139,9 @@ CARD_EVENT_MAX_CHARS = 1200
 # (the PC's act and every NPC turn after it), and a physical act with its consequences.
 LONG_EVENT_KINDS = ('card_', 'combat_', 'physical_')
 SOCIAL_EVENT_PREFIX = 'You declare: '
+# Words an unlabelled roll may carry and still answer Kit's called check ("Deal, 2d20kh1 ...").
+CALLED_ROLL_CHATTER_WORDS = 4
+RITUAL_EXTRA_SECONDS = 600  # a ritual adds 10 minutes to the casting time
 _TYPOGRAPHIC = str.maketrans({'‘': "'", '’': "'", '“': '"', '”': '"'})
 
 
@@ -522,7 +535,8 @@ MOVING = re.compile(r"\b(?:leave|leaves|leaving|left|go|goes|going|went|walk|wal
                     r"moved|moving|step|steps|stepped|stepping)\b")
 # Going in with no exit named: "I step in", "Nik goes inside". The exit chooser takes the
 # one exit from here that leads into the room.
-GOING_IN = re.compile(r"\b(?:go|goes|went|step|steps|stepped|walk|walks|walked|head|heads|come|comes|move|moves)"
+GOING_IN = re.compile(r"\b(?:go|goes|went|step|steps|stepped|walk|walks|walked|head|heads|come|comes|move|moves|"
+                      r"hop|hops|hopped|duck|ducks|ducked|pop|pops|popped|slip|slips|slipped)"
                       r"\s+(?:on\s+|right\s+|back\s+)?(?:in|inside)\b(?!\s+(?:the|a|an|my|his|her)\b)")
 # The PC's own open hand is not an act on the room: "I keep my hands open".
 _OPEN_EXIT = (r"\b(?:open|opens|opening)\b(?:\s+[\w']+){0,2}?\s+(?:the\s+)?(?:{names})\b"
@@ -556,6 +570,12 @@ GEAR_SET = re.compile(r"\b(?:sling|slings|slung|stow|stows|strap|straps|set|sets
                       r"hangs)\b[^.?!]{0,30}\b(?:shield|weapon|sword|axe|bow|crossbow|staff|pack|rapier|mace)\b"
                       r"[^.?!]{0,30}\b(?:on(?:to)? (?:my|his|her|their) back|aside|down|away|against|by (?:my|his|her|their)"
                       r" (?:chair|feet|side)|at (?:my|his|her|their) feet|under the (?:table|chair))\b")
+# Harmless acts that need no ruling: they happen as declared (PR 145 playtests).
+SIMPLE_ACT = re.compile(r"\b(?:(?:hold|holds|holding|raise|raises|raising|lift|lifts|lifting)\s+(?:up\s+)?(?:my\s+|his\s+|her\s+|their\s+|a\s+|the\s+)?"
+                        r"(?:light|lantern|torch|candle|lamp|staff)|light\s+(?:up|a|my|the)\b|crouch\w*|kneel\w*|"
+                        r"squat\w*|wait\w*|lean\w*|tap|taps|tapped|tapping|knock\w*|sweep\w*|brush\w*|wipe\w*|"
+                        r"dust\w*|sniff\w*|nod\w*|shrug\w*|stand\w*|sit|sits|sat|back\s+up|backs\s+up|"
+                        r"hop\w*|step\w*|walk\w*|pace\w*|circle\w*)\b")
 PHYSICAL_VERBS = r'(steal|pocket|grab|pick up|smash|break|hide|climb|force|open|disarm)'
 # A declared physical act: "I grab the ring", "I quickly open the door". When an NPC has
 # just asked the player something, only this shape still counts as physical; a verb
@@ -663,6 +683,15 @@ def room_intent(action, addressed=False, room=None):
     if physical and (not addressed or DECLARED_PHYSICAL.search(words.strip()) or
                      re.search(r'(^|[.!;]\s*)i\s+take\b', words.strip())):
         return 'unsupported_action'
+    if '?' in words and not quoted and not addressed and not door_business and declared.strip() and \
+            not SOCIAL_WORDS.search(declared) and not ADDRESS_WORDS.search(declared):
+        # Talk, an act and a question in one message ("Matching set. I look over the helm.
+        # Does it glow?"): the declared act goes through and Kit answers the question in the
+        # same turn (PR 145 playtests: the whole message was read as speech).
+        if PERCEIVING.search(declared):
+            return 'observe'
+        if SIMPLE_ACT.search(declared):
+            return 'simple_act'
     if quoted or door_business or '?' in words or SOCIAL_WORDS.search(words) or ADDRESS_WORDS.search(words) or \
             GESTURE.search(words) or violent.search(words):
         # A violent verb that reached here is aimed at nobody: an idiom or a gesture
@@ -674,6 +703,8 @@ def room_intent(action, addressed=False, room=None):
         # A look or listen with no physical verb is free perception, never a physical ruling
         # ('I peer ahead.', 'I listen.'): a pending ruling must not stall a plain look (#97 p2b).
         return 'observe'
+    if SIMPLE_ACT.search(words):
+        return 'simple_act'
     return 'unsupported_action'
 
 
@@ -1113,12 +1144,19 @@ class RoomAdjudicator:
             raise PendingRuling('Who are you attacking, and with what? Name the target and the weapon or '
                                 'spell (with the Avrae roll if you have it). No turn was committed.')
         if kind == 'spell':
-            raise PendingRuling('Spell effects outside combat are not resolved in this slice yet, so the '
-                                'spell is not cast. No turn was committed.', attempt=True)
+            return self._cast_out_of_combat(action, state)
         if kind == 'threshold_look':
             return self._threshold_look(action, state)
         if kind == 'stealth':
             return self._resolve_stealth(action, narration, revision, state)
+        if kind == 'simple_act':
+            # A harmless declared act (a light held up, a crouch, a tap, cobwebs brushed aside):
+            # it happens as declared, with no roll and nothing hidden learned (PR 145 playtests:
+            # these were refused as "needs the DM's call").
+            event = {'type': 'beat', 'tags': ['observe', 'simple_act'],
+                     'evidence': f'Player declared: {action}. Resolution: done as declared; no roll; '
+                                 'nothing hidden is learned; nothing changes in the world.'}
+            return Resolution('observe', social_event(action).replace(SOCIAL_EVENT_PREFIX, 'You go ahead: ', 1), [event])
         if kind == 'unsupported_action':
             exc = PendingRuling(f'{UNSUPPORTED_RULING} No turn was committed.', attempt=True)
             exc.player_line = unsupported_line(action, state)
@@ -1130,7 +1168,7 @@ class RoomAdjudicator:
                 # through that way from here, voiced from the room's own exit (#97 review P2).
                 return self._threshold_look(action, state, key)
         if kind == 'observe':
-            around = not re.search(r"\b(?:at|interesting|notable)\b", action.lower())
+            around = not re.search(r"\b(?:at|over|closer|closely|interesting|notable)\b", action.lower())
             event = {'type': 'beat', 'tags': ['observe'],
                      'evidence': f'Player declared: {action}. Resolution: they look '
                                  f'{"around the room" if around else "at what is plainly visible"}; free description, '
@@ -1571,6 +1609,25 @@ class RoomAdjudicator:
         return Resolution('exit_contested', f'The {label} keeps you from the {_bare_name(self.source["exits"][key]) or key}.',
                           [{'type': 'beat', 'tags': ['exit_contested'], 'evidence': evidence}, clear])
 
+    def _cast_out_of_combat(self, action, state):
+        """A spell cast with nobody to fight (Detect Magic, Light, a ritual): the casting is
+        recorded and Kit narrates what the player can perceive from public room facts. The engine
+        reveals nothing hidden by it. A ritual takes 10 minutes more, so game time advances
+        (PR 145 playtest: Detect Magic as a ritual was refused)."""
+        words = QUOTED_SPEECH.sub(' ', action.translate(_TYPOGRAPHIC)).lower()
+        named = re.search(r"\bcast(?:s|ing)?\s+(?:a\s+|an\s+|the\s+)?([a-z' -]+?)(?=\s+(?:as|on|at|into|over|while|and|then|to|with|for)\b|[.,;!?]|$)", words)
+        spell = (named.group(1).strip() if named else 'a spell') or 'a spell'
+        ritual = bool(re.search(r'\britual\b', words))
+        events = [{'type': 'beat', 'tags': ['spell'] + (['ritual'] if ritual else []),
+                   'evidence': f'Player declared: {action}. Resolution: {spell} is cast outside combat'
+                               f'{" as a ritual (10 minutes, no slot spent)" if ritual else ""}; the engine resolves '
+                               'no hidden fact from it, so describe only what the room plainly shows.'}]
+        if ritual:
+            events.append({'type': 'advance_time', 'seconds': RITUAL_EXTRA_SECONDS,
+                           'evidence': f'Casting {spell} as a ritual takes 10 minutes.'})
+        return Resolution('spell_cast', f'You cast {spell}' + (' as a ritual, taking ten minutes.' if ritual else '.'),
+                          events)
+
     def _resolve_called(self, action, revision, state):
         """A bare roll ("Perception 22", "22", "I rolled a 22") answering the check Kit called
         last turn (watchroom playtest: the roll stalled). It resolves against the one hidden
@@ -1586,10 +1643,20 @@ class RoomAdjudicator:
         stated = [roll for roll in kit_rolls.rolls(text) if roll.label not in ('attack', 'initiative')]
         rest = re.sub(r"\b(?:i|rolled|roll|got|a|an|check|for|my|it's|that's|that|is|" +
                       skill.replace('_', r'\s+') + r")\b|[\W\d_]+", ' ', kit_rolls.without_rolls(text).casefold())
-        if not (bare or len(stated) == 1 and stated[0].label in (None, skill) and not rest.strip()):
+        # One roll answers the call even with words around it (latency PR, PR 145 playtests):
+        # Avrae's header ("Nik makes an Investigation check! 1d20 (1) + 7 = 8") or the player's
+        # own words first ("Deal, 2d20kh1 (4, 5) + 4 = 9", "I search the throne. Investigation
+        # 1d20 ..."). A roll labelled with the called skill always answers it; an unlabelled one
+        # does when only a few words, and no question, come with it.
+        chatter = rest.split()
+        answers = len(stated) == 1 and (
+            stated[0].label == skill or
+            stated[0].label is None and (not chatter or len(chatter) <= CALLED_ROLL_CHATTER_WORDS and '?' not in text))
+        if not (bare or answers):
             return None
         total = int(bare.group(1)) if bare else stated[0].total
-        roll_text = text if not bare and stated[0].label == skill else f'{skill.replace("_", " ")} {total}'
+        roll_text = (f'{skill.replace("_", " ")} {text[stated[0].start:].strip()}'
+                     if not bare and stated[0].label == skill else f'{skill.replace("_", " ")} {total}')
         clear = {'type': 'pending_check', 'check': None,
                  'evidence': f'The {skill} check called on turn {pending["called_turn"]} is rolled.'}
         target, area = pending['target'], state.get('area')
@@ -5224,6 +5291,12 @@ class KitChatBridge:
         held = kit_manifest.plan_sends(recent)
         cached = {layer: hashes[layer] in held[layer] for layer in hashes}
         layered, _, _ = kit_manifest.layered(packet, cached['session'], cached['room'])
+        notice = kit_manifest.rejection_notice(recent, hashes['session'])
+        if notice:
+            layered = {**{k: layered[k] for k in ('session_manifest', 'room_manifest', 'manifest_rule')},
+                       'rejection_notice': notice,
+                       **{k: v for k, v in layered.items()
+                          if k not in ('session_manifest', 'room_manifest', 'manifest_rule')}}
         return layered, {'manifest': {**hashes, 'sent': [layer for layer in hashes if not cached[layer]]},
                          'room_manifest': room, 'full_packet_bytes': _bytes(packet)}
 
@@ -5240,6 +5313,7 @@ class KitChatBridge:
         if kit_combat.config(self.runtime.source()) and state.get('player_sheet'):
             from . import kit_reactions  # the same session line prepare_inputs puts in the manifest
             session['available_reactions'] = kit_reactions.definitions(kit_reactions.current(state))
+        session = kit_manifest.compact_session(session)
         room = timing.get('room_manifest') or {}
         hashes = {'session': kit_manifest.digest(session), 'room': kit_manifest.digest(room)}
         self.runtime.record_kit_timing(turn_id, manifest={**hashes, 'sent': ['session', 'room']})
@@ -5430,12 +5504,13 @@ class KitChatBridge:
         self.runtime.record_kit_timing(turn_id, host_stamps={**(prior.get('host_stamps') or {}), **stamps})
         return {'turn_id': turn_id, 'host_stamps': {**(prior.get('host_stamps') or {}), **stamps}}
 
-    def _attempt(self, turn_id, output, host_stamps, clock, outcome):
+    def _attempt(self, turn_id, output, host_stamps, clock, outcome, reason=None):
         """One submitted output: its bytes, the model trip the host stamped, validation time."""
         prior = self.runtime.kit_timing(turn_id) or {}
         stamps = check_stamps(host_stamps or {})
         attempt = {'output_bytes': _bytes(output), 'validation_ms': round((time.perf_counter() - clock) * 1000, 2),
-                   'outcome': outcome, **{key: stamps[key] for key in ('model_sent_at', 'model_done_at') if key in stamps}}
+                   'outcome': outcome, **({'reason': reason[:400]} if reason else {}),
+                   **{key: stamps[key] for key in ('model_sent_at', 'model_done_at') if key in stamps}}
         self.runtime.record_kit_timing(turn_id, attempts=list(prior.get('attempts') or []) + [attempt])
 
     @_stale_guided
@@ -5450,8 +5525,8 @@ class KitChatBridge:
                 output = {key: value for key, value in output.items() if key != 'manifest'}
             with self._question_allowance(turn_id):
                 result = self._complete(turn_id, output, degraded)
-        except InvalidChange:
-            self._attempt(turn_id, output, host_stamps, clock, 'rejected')
+        except InvalidChange as exc:
+            self._attempt(turn_id, output, host_stamps, clock, 'rejected', str(exc))
             raise
         if result.get('stage') in ('window_voice', 'one_pass'):
             # A window answer resolved: the next model packet for the same turn (no commit yet).
@@ -5461,6 +5536,23 @@ class KitChatBridge:
             self._attempt(turn_id, output, host_stamps, clock, 'committed')
             result['timing'] = self.runtime.kit_timing(turn_id)
         return result
+
+    def _same_fixed_plan(self, stored, plan, state, body):
+        """The stored decision when ``plan`` is the same decision the host first sent. The
+        stored copy carries what the engine filled in (observed_event, an empty detail, ...),
+        so the host's identical resubmission after a performance rejection must not read as a
+        changed decision (PR 145 playtests: "Private decision already fixed")."""
+        if not isinstance(plan, dict) or encode(plan) == encode(stored):
+            return plan
+        if encode({**stored, **plan}) == encode(stored):
+            return copy.deepcopy(stored)
+        trial = copy.deepcopy(plan)
+        try:
+            check_decision(self.runtime, trial,
+                           kit_memory(self.runtime, state, body['action'], body['use_memory']), body)
+        except InvalidChange:
+            return plan
+        return copy.deepcopy(stored) if encode(trial) == encode(stored) else plan
 
     def _complete(self, turn_id, output, degraded=False):
         require(isinstance(output, dict) and set(output) == {'decision', 'performance'},
@@ -5487,6 +5579,8 @@ class KitChatBridge:
                 raise
             except InvalidChange as exc:
                 raise self._log_rejection(turn_id, exc) from exc
+        else:
+            plan = self._same_fixed_plan(pending['plan'], plan, state, body)
         self.runtime.save_kit_plan(turn_id, revision, plan)
         body = self._declared(body, plan)
         # Turns staged before variants reached one-pass ran the `current` instructions.

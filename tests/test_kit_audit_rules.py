@@ -256,10 +256,9 @@ class NoLeakyRefusalsTests(Case):
         self.assertEqual(kit_agent.room_intent('I cast Detect Magic.'), 'spell')
         self.assertEqual(kit_agent.room_intent('I cast Fire Bolt at the dealer.'), 'combat')
         revision, state = self.start(NIK)
-        with self.assertRaises(PendingRuling) as caught:
-            RoomAdjudicator(source=self.source).resolve('I cast Detect Magic.', revision, state)
-        self.assertNotIn('Combat', str(caught.exception))
-        self.assertNotIn('Fights', str(caught.exception))
+        result = RoomAdjudicator(source=self.source).resolve('I cast Detect Magic.', revision, state)
+        self.assertEqual(result.kind, 'spell_cast')
+        self.assertNotIn('Combat', result.public_text if hasattr(result, 'public_text') else str(result))
 
     def test_the_ring_uses_the_default_dc_without_a_source_dc(self):
         ring = SOURCE['claims']['ring_value']

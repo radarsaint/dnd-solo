@@ -30,7 +30,7 @@ SESSION_PRIVATE_KEYS = ('personality_core', 'available_reactions')
 ROOM_DM_KEYS = ('source_id', 'source_ref', 'map_ref', 'fixture_only', 'level_context', 'campaign_context',
                 'constraints', 'dm_only', 'missing_production_layers')
 FULL_EVERY = 8               # re-send both bodies at least every 8 prepared turns
-REJECT_STREAK = 2            # and after a turn with this many rejections
+REJECT_STREAK = 2            # after this many rejections the next packet gets rejection_notice
 MANIFEST_RULE = ('session_manifest and room_manifest hold this session\'s core, instructions, output '
                  'contract and the room\'s static truth. "cached": true means unchanged since you were '
                  'sent the body; use that copy. Echo both hashes with your output as "manifest": '
@@ -53,6 +53,7 @@ def split(packet):
     private = delta['input']['private']
     session = {key: delta.pop(key) for key in SESSION_KEYS if key in delta}
     session.update({key: private.pop(key) for key in SESSION_PRIVATE_KEYS if key in private})
+    session = compact_session(session)
     dm = private.get('dm_context') or {}
     room = {key: dm.pop(key) for key in ROOM_DM_KEYS if key in dm}
     return session, room, delta
@@ -63,6 +64,7 @@ def join(session, room, delta):
     packet = copy.deepcopy(delta)
     for key in ('session_manifest', 'room_manifest', 'manifest_rule'):
         packet.pop(key, None)
+    session = expand_session(session)
     packet.update({key: session[key] for key in SESSION_KEYS if key in session})
     private = packet['input']['private']
     private.update({key: session[key] for key in SESSION_PRIVATE_KEYS if key in session})
@@ -83,18 +85,34 @@ def layered(packet, cached_session=False, cached_room=False):
 
 def plan_sends(recent):
     """Which bodies the host already holds: hashes sent in full within the last FULL_EVERY
-    prepared turns, unless a turn since then hit the rejection streak."""
+    prepared turns. A rejection streak no longer clears them: the host still holds the body,
+    so re-sending ~50 KB after every bad turn only made the retry slower. See rejection_notice;
+    a host or model that really lost the body runs rehydrate."""
     held = {'session': set(), 'room': set()}
     for row in list(recent)[-FULL_EVERY:]:
         record = row.get('manifest') or {}
-        rejected = sum(1 for a in row.get('attempts') or () if a.get('outcome') == 'rejected')
-        if rejected >= REJECT_STREAK:
-            held = {'session': set(), 'room': set()}
-            continue
         for layer in ('session', 'room'):
             if layer in (record.get('sent') or ()):
                 held[layer].add(record[layer])
     return held
+
+
+def rejection_notice(recent, session_hash):
+    """After a prepared turn that hit REJECT_STREAK rejections, the next packet carries the
+    last rejection reasons and the session hash to re-read, not the full body again.
+    None when the latest prepared turn had no streak."""
+    rows = list(recent)
+    if not rows:
+        return None
+    attempts = [a for a in rows[-1].get('attempts') or () if a.get('outcome') == 'rejected']
+    if len(attempts) < REJECT_STREAK:
+        return None
+    reasons = [a['reason'] for a in attempts[-REJECT_STREAK:] if a.get('reason')]
+    return {'rejections': len(attempts), 'reasons': reasons, 'session_hash': session_hash,
+            'note': ('Your last turn was refused this many times. Fix exactly what the reasons '
+                     'say, using the session_manifest you already hold (same hash). If you no '
+                     'longer have that body, run rehydrate for this turn_id (CLI: rehydrate '
+                     '--turn-id T) instead of guessing.')}
 
 
 def check_echo(output, record):
@@ -108,3 +126,100 @@ def check_echo(output, record):
             f'manifest echo {json.dumps(echo)} does not match this turn\'s manifests '
             f'{json.dumps(expected)}. If you lost a manifest body, run rehydrate for this turn_id '
             '(CLI: rehydrate --turn-id T), then resubmit the same output with "manifest" set to these hashes.')
+
+
+# Compact output contract (latency PR): the one-pass JSON Schema is ~9.5 KB, most of it
+# boilerplate ("type": "string", "additionalProperties": false, a "required" list repeating
+# every key). The session manifest carries this lossless shorthand instead; expand_schema
+# turns it back into the exact JSON Schema (tests/test_kit_latency.py checks the round trip).
+SCHEMA_NOTATION = ('schema shorthand: "string" "integer" "boolean" "number" are those types; '
+                   '"string(a..b)" has that length range (either end may be empty); "enum:x|y" is one of '
+                   'those strings, "int:0|1" one of those integers; [T] is an array of T; an object '
+                   'lists its keys, every key required unless it ends in "?", no other keys allowed; '
+                   '"//" is a note; {"$raw": ...} is plain JSON Schema.')
+_SCALARS = ('string', 'integer', 'boolean', 'number')
+
+
+def compact_schema(node):
+    keys = set(node)
+    kind = node.get('type')
+    if keys == {'type'} and kind in _SCALARS:
+        return kind
+    if keys == {'type', 'enum'} and kind == 'string' and all(
+            isinstance(v, str) and '|' not in v and v for v in node['enum']):
+        return 'enum:' + '|'.join(node['enum'])
+    if keys == {'type', 'enum'} and kind == 'integer' and all(
+            isinstance(v, int) and not isinstance(v, bool) for v in node['enum']):
+        return 'int:' + '|'.join(str(v) for v in node['enum'])
+    if kind == 'string' and keys - {'type'} and keys <= {'type', 'minLength', 'maxLength'}:
+        return f"string({node.get('minLength', '')}..{node.get('maxLength', '')})"
+    if keys == {'type', 'items'} and kind == 'array':
+        return [compact_schema(node['items'])]
+    if (kind == 'object' and node.get('additionalProperties') is False and 'properties' in node
+            and keys <= {'type', 'additionalProperties', 'properties', 'required', 'description'}
+            and not any(name.endswith('?') or name.startswith('$') or name == '//'
+                        for name in node['properties'])):
+        names = list(node['properties'])
+        required = node.get('required')
+        in_order = [name for name in names if name in (required or ())]
+        if required is not None and list(required) != in_order:
+            return {'$raw': node}
+        out = {}
+        if 'description' in node:
+            out['//'] = node['description']
+        for name in names:
+            optional = required is None or name not in required
+            out[name + ('?' if optional else '')] = compact_schema(node['properties'][name])
+        if required is None:
+            out['$no_required'] = True
+        return out
+    return {'$raw': node}
+
+
+def expand_schema(node):
+    if isinstance(node, list):
+        return {'type': 'array', 'items': expand_schema(node[0])}
+    if isinstance(node, str):
+        if node in _SCALARS:
+            return {'type': node}
+        if node.startswith('enum:'):
+            return {'type': 'string', 'enum': node[5:].split('|')}
+        if node.startswith('int:'):
+            return {'type': 'integer', 'enum': [int(v) for v in node[4:].split('|')]}
+        low, high = node[len('string('):-1].split('..')
+        out = {'type': 'string'}
+        if low:
+            out['minLength'] = int(low)
+        if high:
+            out['maxLength'] = int(high)
+        return out
+    if '$raw' in node:
+        return node['$raw']
+    out = {'type': 'object', 'additionalProperties': False, 'properties': {}}
+    required = []
+    for name, child in node.items():
+        if name in ('//', '$no_required'):
+            continue
+        bare = name[:-1] if name.endswith('?') else name
+        out['properties'][bare] = expand_schema(child)
+        if not name.endswith('?'):
+            required.append(bare)
+    if not node.get('$no_required'):
+        out['required'] = required
+    if '//' in node:
+        out['description'] = node['//']
+    return out
+
+
+def compact_session(session):
+    """The session body as sent: the schema in shorthand, with the notation beside it."""
+    if isinstance(session.get('schema'), dict) and 'schema_notation' not in session:
+        session = dict(session, schema=compact_schema(session['schema']), schema_notation=SCHEMA_NOTATION)
+    return session
+
+
+def expand_session(session):
+    if 'schema_notation' in session:
+        session = {key: value for key, value in session.items() if key != 'schema_notation'}
+        session['schema'] = expand_schema(session['schema'])
+    return session
