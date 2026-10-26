@@ -252,21 +252,28 @@ class StartReloadsAnEditedRoom(unittest.TestCase):
             runtime.close()
 
 
-class TeaseNeedsARealHook(unittest.TestCase):
-    """Item 11: a doorway tease naming a hook that does not exist does not mount."""
+class TeaseNeedsARealTarget(unittest.TestCase):
+    """Item 11: a doorway tease whose points_to names nothing in the file warns; one that
+    names a fact (rooms5 level_01_area_11: 'throne') or a declared hook is fine."""
 
-    def test_missing_hook_is_named(self):
-        source = {'areas': {'door': {'tease': {'text': 'Humming.', 'points_to': 'ghost', 'heard': []}}},
-                  'story': {}}
+    def warnings_for(self, points_to, story=None):
+        source = {'areas': {'door': {'tease': {'text': 'Humming.', 'points_to': points_to, 'heard': []}}},
+                  'facts': {'throne': {}}, 'actors': {}, 'story': story or {}}
         with unittest.mock.patch.object(kit_rooms, 'approaches', return_value=['door']):
-            problems = kit_rooms.tease_problems(source)
-        self.assertTrue(any("'ghost'" in p and 'no story hooks' in p for p in problems))
+            return kit_rooms.tease_warnings(source), kit_rooms.tease_problems(source)
 
-    def test_no_points_to_no_hooks_is_fine(self):
-        source = {'areas': {'door': {'tease': {'text': 'Humming.', 'heard': []}}}, 'story': {}}
-        with unittest.mock.patch.object(kit_rooms, 'approaches', return_value=['door']):
-            self.assertEqual(kit_rooms.tease_problems(source), [])
+    def test_a_dangling_points_to_warns(self):
+        warned, problems = self.warnings_for('ghost')
+        self.assertTrue(any("'ghost'" in line for line in warned))
+        self.assertEqual(problems, [])
 
+    def test_a_fact_target_is_fine(self):
+        self.assertEqual(self.warnings_for('throne'), ([], []))
+
+    def test_with_hooks_a_missing_hook_still_refuses(self):
+        warned, problems = self.warnings_for('ghost', {'main': {'hooks': [{'id': 'h1'}]}})
+        self.assertEqual(warned, [])
+        self.assertTrue(any("'ghost'" in p for p in problems))
 
 if __name__ == '__main__':
     unittest.main()

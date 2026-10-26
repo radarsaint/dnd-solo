@@ -324,12 +324,8 @@ def tease_problems(source):
             problems.append(f'area {key} is an approach and needs a tease: text (what is seen or heard from '
                             'outside that points toward the hook), points_to (the hook), heard (who is audible)')
             continue
-        points = tease.get('points_to')
-        # A named hook must exist even when the room declares no hooks at all (PR 145 bug 11:
-        # a typo, or a hook never written, mounted silently and the tease pointed nowhere).
-        if (hooks or points is not None) and points not in hooks:
-            problems.append(f"area {key} tease points_to {points!r} is not a story hook"
-                            + ('' if hooks else ' (this room declares no story hooks)'))
+        if hooks and tease.get('points_to') not in hooks:
+            problems.append(f"area {key} tease points_to {tease.get('points_to')!r} is not a story hook")
         heard = tease.get('heard', [])
         if not isinstance(heard, list):
             problems.append(f'area {key} tease heard must be a list')
@@ -388,13 +384,30 @@ def later_stage_problems(source):
     return problems
 
 
+def tease_warnings(source):
+    """A tease in a room with no story hooks whose points_to names nothing in the file (no
+    hook, fact, actor or area): it mounts, but the author hears it (PR 145 bug 11: a typo
+    pointed nowhere, silently). Rooms with hooks are held to them by tease_problems."""
+    if any(isinstance(story, dict) and story.get('hooks') for story in (source.get('story') or {}).values()):
+        return []
+    known = set(source.get('facts') or {}) | set(source.get('actors') or {}) | set(source.get('areas') or {})
+    lines = []
+    for key in approaches(source):
+        tease = source['areas'][key].get('tease')
+        points = tease.get('points_to') if isinstance(tease, dict) else None
+        if points is not None and points not in known:
+            lines.append(f'area {key} tease points_to {points!r} names no story hook, fact, actor or area in '
+                         'this room: fix the id, or the tease points nowhere')
+    return lines
+
+
 def check_room(source, ref='room'):
     problems = first_framing_problems(source)
     if not problems:
         problems = unsupported(source) or later_stage_problems(source)
     if problems:
         raise RoomMountError(ref, problems)
-    for line in alarm_warnings(source):
+    for line in alarm_warnings(source) + tease_warnings(source):
         warnings.warn(f'ROOM WARNING {ref}: {line}', RoomWarning, stacklevel=3)
     source.setdefault('resources', {})
     return source
