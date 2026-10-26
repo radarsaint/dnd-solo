@@ -199,8 +199,11 @@ class MonsterInitiativeTests(unittest.TestCase):
             with self.subTest(action=action):
                 room = Room(self)
                 result = room.act(action)
-                self.assertEqual(result.kind, 'feature_act')
-                self.assertEqual(result.offers['handles']['hint'], hint)
+                if hint['act'] == 'search':  # a search is a bid for a check (#150 retest-2)
+                    self.assertEqual(result.kind, 'check_request')
+                else:
+                    self.assertEqual(result.kind, 'feature_act')
+                    self.assertEqual(result.offers['handles']['hint'], hint)
                 self.assertNotIn('trigger_fired', [e['type'] for e in result.events])
                 self.assertEqual(room.state.get('triggers_fired') or [], [])
                 self.assertNotIn('orb', room.state['known_facts'])

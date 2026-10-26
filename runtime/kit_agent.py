@@ -26,11 +26,21 @@ import os
 import re
 import sys
 import time
-import urllib.error
-import urllib.request
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
+
+
+class _LazyUrllib:
+    """urllib.request (and with it http.client and ssl) loads only when the API model path
+    runs. A chat host never uses it, and importing it cost every CLI call ~15 ms (latency PR).
+    ``urllib.request`` / ``urllib.error`` behave as before, including for mock.patch."""
+    def __getattr__(self, name):
+        import importlib
+        return importlib.import_module('urllib.' + name)
+
+
+urllib = _LazyUrllib()
 
 from . import kit_attitude
 from . import kit_brief
@@ -129,6 +139,9 @@ CARD_EVENT_MAX_CHARS = 1200
 # (the PC's act and every NPC turn after it), and a physical act with its consequences.
 LONG_EVENT_KINDS = ('card_', 'combat_', 'physical_')
 SOCIAL_EVENT_PREFIX = 'You declare: '
+# Words an unlabelled roll may carry and still answer Kit's called check ("Deal, 2d20kh1 ...").
+CALLED_ROLL_CHATTER_WORDS = 4
+RITUAL_EXTRA_SECONDS = 600  # a ritual adds 10 minutes to the casting time
 _TYPOGRAPHIC = str.maketrans({'‘': "'", '’': "'", '“': '"', '”': '"'})
 
 
@@ -258,6 +271,17 @@ CHECK_REQUEST = re.compile(
     r"|\b(?:is|would) (?:that|this|there) (?:a|an) (?:\w+\s+)?(?:check|roll)\b[^?]*\?"
     r"|\bdo i (?:need|get|have) (?:to )?(?:make |roll )?(?:a|an) (?:\w+\s+)?(?:check|roll)\b", re.I)
 CHECK_REQUEST_PREFIX = 'You ask for a check: '
+# 'Can I investigate the door?', 'Let me search the lid', 'Time to search the chest': asking
+# to search is a search.
+CHECK_ASK = re.compile(r"^\s*(?:can|could|may|might)\s+i\b|^\s*let\s+me\b|^\s*time\s+to\b|^\s*i(?:'d| would)\s+like\s+to\b")
+SEARCH_PREFIX = 'You search: '
+ATTEMPT_PREFIX = 'You try: '
+DETECT_MAGIC_SECONDS = 600  # Detect Magic: concentration, up to 10 minutes
+# 'regular casting, no ritual', 'not as a ritual', 'without the ritual': a slotted casting
+# (#150 retest: read as a ritual, 10 minutes passed).
+NOT_RITUAL = re.compile(r"\b(?:no|not|never|without|skip\w*|rather than|instead of)\s+(?:\w+\s+){0,2}?ritual\b|"
+                        r"\bnon-?ritual\b|\britual\s*(?:\?|:)?\s*no\b|"
+                        r"\b(?:regular|normal|ordinary|standard|slotted|using a slot|with a slot|spend(?:ing)? a slot)\b")
 # A sentence that asks ("Could I grab the spear before he moves?", "Is there anywhere to
 # hide?") declares nothing; asked_away drops those sentences before a physical reading.
 ASKING = re.compile(r"(?:(?<=^)|(?<=[.!?]))\s*(?:can|could|may|might|would|will|should|shall|is|are|was|were|"
@@ -483,7 +507,7 @@ def room_words(source, state):
                      if isinstance(fact, dict) and fact.get('area') == area and fact.get('handling') and
                      (fact.get('visible') or key in known)
                      for noun in list(fact['handling'].get('nouns') or ()) + list(fact['handling'].get('parts') or ()))
-    exits = []
+    exits, called_words = [], []
     for key in state.get('known_exits') or ():
         edge = (source.get('exits') or {}).get(key) or {}
         if area not in edge.get('areas', ()):
@@ -491,6 +515,15 @@ def room_words(source, state):
         for word in re.findall(r"[a-z]+", str(edge.get('name') or '').casefold()):
             if word not in EXIT_STOPWORDS:
                 exits.append((word, key))
+        # The area it leads to names it too ('I head into the cellar', #150 fuzz), unless
+        # that word already names another exit.
+        for there in edge.get('areas', ()):
+            called = ((source.get('areas') or {}).get(there) or {}).get('called') if there != area else None
+            for word in re.findall(r"[a-z]+", str(called or '').casefold()):
+                if word not in EXIT_STOPWORDS and len(word) > 3:
+                    called_words.append((word, key))
+    exits += [(word, key) for word, key in called_words
+              if not any(word.rstrip('s') == w.rstrip('s') for w, k in exits + called_words if k != key)]
     inside = set(kit_rooms.room_areas(source)) if source.get('areas') else set()
     inward = tuple(key for key in state.get('known_exits') or ()
                    if area not in inside and area in ((source.get('exits') or {}).get(key) or {}).get('areas', ()) and
@@ -518,11 +551,12 @@ GOING_BACK = re.compile(r"\b(?:back|return|returns|retrace[sd]?|retracing|the wa
 
 
 # Moving, in any tense: "Nik steps through the iron door", "she went out" (watchroom playtest).
-MOVING = re.compile(r"\b(?:leave|leaves|leaving|left|go|goes|going|went|walk|walks|walked|walking|move|moves|"
+MOVING = re.compile(r"\b(?:make for|makes for|leave|leaves|leaving|left|go|goes|going|went|walk|walks|walked|walking|move|moves|"
                     r"moved|moving|step|steps|stepped|stepping)\b")
 # Going in with no exit named: "I step in", "Nik goes inside". The exit chooser takes the
 # one exit from here that leads into the room.
-GOING_IN = re.compile(r"\b(?:go|goes|went|step|steps|stepped|walk|walks|walked|head|heads|come|comes|move|moves)"
+GOING_IN = re.compile(r"\b(?:go|goes|went|step|steps|stepped|walk|walks|walked|head|heads|come|comes|move|moves|"
+                      r"hop|hops|hopped|duck|ducks|ducked|pop|pops|popped|slip|slips|slipped)"
                       r"\s+(?:on\s+|right\s+|back\s+)?(?:in|inside)\b(?!\s+(?:the|a|an|my|his|her)\b)")
 # The PC's own open hand is not an act on the room: "I keep my hands open".
 _OPEN_EXIT = (r"\b(?:open|opens|opening)\b(?:\s+[\w']+){0,2}?\s+(?:the\s+)?(?:{names})\b"
@@ -556,6 +590,44 @@ GEAR_SET = re.compile(r"\b(?:sling|slings|slung|stow|stows|strap|straps|set|sets
                       r"hangs)\b[^.?!]{0,30}\b(?:shield|weapon|sword|axe|bow|crossbow|staff|pack|rapier|mace)\b"
                       r"[^.?!]{0,30}\b(?:on(?:to)? (?:my|his|her|their) back|aside|down|away|against|by (?:my|his|her|their)"
                       r" (?:chair|feet|side)|at (?:my|his|her|their) feet|under the (?:table|chair))\b")
+# Harmless acts that need no ruling: they happen as declared (PR 145 playtests).
+SIMPLE_ACT = re.compile(r"\b(?:(?:hold|holds|holding|raise|raises|raising|lift|lifts|lifting)\s+(?:up\s+)?(?:my\s+|his\s+|her\s+|their\s+|a\s+|the\s+)?"
+                        r"(?:light|lantern|torch|candle|lamp|staff)|light\s+(?:up|a|my|the)\b|crouch\w*|kneel\w*|"
+                        r"squat\w*|wait\w*|lean\w*|tap|taps|tapped|tapping|knock\w*|sweep\w*|brush\w*|wipe\w*|"
+                        r"dust\w*|sniff\w*|nod\w*|shrug\w*|stand\w*|sit|sits|sat|back\s+up|backs\s+up|"
+                        r"hop\w*|step\w*|walk\w*|pace\w*|circle\w*)\b")
+# A search, investigation or check is never a simple act, even with a step or a walk in it
+# ('I walk the wall and search it for seams'): it goes to Kit's call (#150 playtest).
+SEARCH_INTENT = re.compile(r"\b(?:search\w*|investigat\w*|examin\w*|inspect\w*|prob(?:e|es|ing)|"
+                           r"rummag\w*|scour\w*|check\w*\s+(?:\w+\s+){0,4}?for|check\w*\s+(?:each|every|all|its)\b|checking\s+(?!on\b|in\b|out\b|my\b)\w+s\b|check\w*\s+(?:the|it|that|behind|under|inside|around)\b|feel\w*\s+(?:\w+\s+){0,3}for|"
+                           r"(?:look|looks|looking)\s+for|"
+                           # #150 retest 2: hunting, going over, poking around, studying, sifting,
+                           # looking behind; search intent anywhere in the sentence.
+                           r"hunt\w*\s+(?:\w+\s+){0,3}?for|go(?:es|ing)?\s+over\s+(?:\w+\s+){1,4}?(?:inch by inch|carefully|closely|for)|"
+                           r"inch by inch|poke\w*\s+(?:around|about|through)|pok(?:e|es|ing)\s+(?:at|into)\s+(?:the|a)\b|"
+                           r"rifl(?:e|es|ing)\s+through|sift\w*|comb\w*\s+(?:through|over)|pore\w*\s+over|"
+                           r"stud(?:y|ies|ying)\s+(?:\w+\s+){0,4}?(?:closely|carefully|for)|stud(?:y|ies|ying)\s+(?:the|it|its|each|every)\b|"
+                           r"scrutini\w*|(?:look|looks|looking|peer\w*|peek\w*)\s+(?:behind|beneath|underneath|under)\b|"
+                           r"pat\w*\s+(?:\w+\s+){0,3}?down|pat(?:s|ting)?\s+down|test\w*\s+(?:\w+\s+){0,4}?for|once-over|"
+                           r"prod\w*|listen\w*\s+for\s+(?:a\s+)?hollow|look\w*\s+closely|"
+                           r"for\s+(?:any\s+|a\s+|the\s+)?(?:traps?|seams?|gaps?|hidden\b|secret|catch|latch|lever|draft|"
+                           r"compartments?|anything\s+(?:hidden|odd|unusual|out of place|loose))|srch|"
+                           r"run\w*\s+(?:my|his|her)\s+(?:hands?|fingers?|palms?)\s+(?:along|over|across)\s+(?:\w+\s+){0,4}?(?:for|seams?|gaps?|cracks?|hunting|looking|feeling))\b")
+# An act on a thing in the room, declared by the PC ("I yank the manacles off the wall",
+# "Wait, before I roll, I pry the stone loose"): Kit rules it as an ordinary turn and may
+# call a check. It beats talk words around it ("wait") (#150 retest 3).
+OBJECT_ACT = re.compile(r"(?:^|[.!;,]\s*|\band\s+)i\s+(?:\w+ly\s+)?(?:yank|pull|rip|tear|wrench|pry|prise|lift|heave|push|"
+                        r"drag|kick|twist|turn|pour|cut|tie|throw|toss|dig|scrape|wedge|jam|pound|hammer|unscrew|"
+                        r"shake|rattle|tug|smash|break|force|climb|grab|pick up|scratch|wipe|rub|press|pull on)"
+                        r"(?:s|ed|ing)?\b[^.!?]*?\b(?:the|a|an|some|this|that|those|these|its|each)\b")
+# A thing in the room the act is aimed at, not a person: an article and a noun.
+AIMED_AT_THING = re.compile(r"\b(?:the|a|an|this|that|those|these|each|every)\s+(?:\w+\s+){0,2}?\w{3,}")
+# Refusals stay only for exploits and impossibilities (and attempts on a person, which
+# need the fight or social machinery): stealing, pocketing, killing everyone, wishing.
+EXPLOIT = re.compile(r"\b(?:steal|steals|stealing|pocket|pockets|pocketing|all (?:the )?(?:gold|treasure|loot)|"
+                     r"every(?:thing|one)|instantly|automatically|infinite|wish|teleport\w*|fly|flies|levitat\w*|"
+                     r"on fire|set fire|ablaze|kill\w*|dead|dies|falls dead)\b|"
+                     r"\b(?:him|them|guard|warden|man|woman|dealer|orc|goblin|person|throat|neck|heart)\b")
 PHYSICAL_VERBS = r'(steal|pocket|grab|pick up|smash|break|hide|climb|force|open|disarm)'
 # A declared physical act: "I grab the ring", "I quickly open the door". When an NPC has
 # just asked the player something, only this shape still counts as physical; a verb
@@ -571,6 +643,18 @@ def npc_addressed_player(spoken):
                 '?' in text or ADDRESS_WORDS.search(text.translate(_TYPOGRAPHIC).lower())):
             return True
     return False
+
+
+# A clause the player negates ("I don't search the rubble", "not going in yet", "I won't
+# attack") says what does not happen: it is dropped before routing (#150 fuzz: negation).
+NEGATED = re.compile(r"\bwithout\s+(?:stepping|going|walking|moving)\s+(?:in|inside|through)\b|\b(?:i\s+)?(?:don't|dont|do not|won't|wont|will not|am not|i'm not|not)\s+"
+                     r"(?:going\s+(?:to\s+)?|gonna\s+|yet\s+)?(?!only\b|just\b)[a-z]+\b(?:\s+(?:in|through|out|inside|"
+                     r"the\s+\w+|it|yet))*(?:\s+yet)?", re.I)
+# Plain looks the router missed (#150 fuzz): 'What do I see?', 'Lookin around', 'Describe
+# the floor', 'I eye the flagstones', 'I listen at the lid'.
+PLAIN_LOOK = re.compile(r"\bwhat\s+do\s+i\s+see\b|\blookin'?\b|^\s*describe\b|\bi\s+eye\b|"
+                        r"\blisten\w*\s+at\b|\bwhat\s+(?:does|do)\s+(?:the\s+)?[\w ]+\s+look\s+like\b|"
+                        r"\b(?:i|and)\s*look\s+(?:at|over)\b")
 
 
 def room_intent(action, addressed=False, room=None):
@@ -594,17 +678,31 @@ def room_intent(action, addressed=False, room=None):
     if is_ooc(text):
         return 'social'
     quoted = bool(QUOTED_SPEECH.search(text))
-    words = QUOTED_SPEECH.sub(' ', text).lower()
+    words = QUOTED_SPEECH.sub(' ', text).lower().replace(' thru ', ' through ').replace('ilook ', 'i look ')
+    words = NEGATED.sub(' ', words)
+    words = re.sub(r"\b(?:hands|palms|arms)\s+(?:open|wide)\b|\bopen\s+(?:hands|palms|arms)\b", ' ', words)
+    words = re.sub(r"\bchek", 'check', words).replace('trapz', 'traps')
     violent = re.compile(r'\b(attack|attacks|stab|stabs|shoot|shoots|kill|kills)\b')
     # A capitalized name mid-sentence is someone ("I attack Uktarl"), in any room.
     names = tuple(word.casefold() for word in re.findall(r"(?<![.!?]\s)(?<!^)\b([A-Z][a-z'-]+)",
                                                           QUOTED_SPEECH.sub(' ', text)) if word != 'I')
     if any(kit_combat.aimed_attack(words, verb, names) for verb in violent.finditer(words)) or \
             re.search(r'\b(initiative|fireball)\b', words) or (
-            re.search(r'\bcast\b', words) and re.search(r'\b(at|on|against|into)\s+(him|her|them|the|it|his)\b', words)):
+            re.search(r'\bcast\b', words) and re.search(r'\b(at|on|against|into)\s+(him|her|them|the|it|his)\b', words)
+            and not re.search(r'\b(?:detect magic|light|identify|mending|prestidigitation|guidance)\b', words)):
         return 'combat'
     if re.search(r'\b(cast|casts|casting)\b', words):
         return 'spell'  # a spell aimed at nobody (Detect Magic, Light...) is not combat
+    early = asked_away(words)
+    if SEARCH_INTENT.search(early) and not addressed and not MOVE_THROUGH.search(early) and \
+            not GOING_IN.search(early) and not re.search(r'\b' + PHYSICAL_VERBS + r'\b', early) and \
+            not OBJECT_ACT.search(early) or (SEARCH_INTENT.search(words) and not quoted and not addressed and
+                                            CHECK_ASK.search(words)):
+        # Search, examine or investigate anywhere in the sentence beats a move, a gesture or
+        # talk around it ('run my fingers along the mortar, hunting for a catch', 'head over to
+        # the door, checking it for traps'), and a handled feature's free look: a bid for a
+        # check (docs/INTENT_PRECEDENCE.md). Going through or in first stays a move.
+        return 'search'
     exit_named = bool(room.exits) and re.search(
         r'\b(?:' + '|'.join(re.escape(word) for word, _ in room.exits) + r')s?\b', words)
     if THRESHOLD_LOOK.search(words) and (THRESHOLD_GAP.search(words) or exit_named) and \
@@ -622,7 +720,8 @@ def room_intent(action, addressed=False, room=None):
     named_exit = re.search(r'\bdoors?\b', words) or (exit_words and re.search(r'\b(?:' + exit_words + r')s?\b', words))
     if MOVING.search(words) and (named_exit or (re.search(r'\bout\b', words) and not feature)) or room.inward and GOING_IN.search(words) \
             or re.search(r'\b(head|heads|charge|charges|barge|barges|burst|bursts|continue|continues)\b', words) and named_exit \
-            or named_exit and _exit_object(words, exit_words) or RETRACING.search(words):
+            or named_exit and _exit_object(words, exit_words) or RETRACING.search(words) \
+            or named_exit and re.search(r'^\s*back\s+(?:through|out|in)\b|\bpush(?:es)?\s+(?:through|past)\b', words):
         return 'exit'
     if feature:
         nouns = re.escape(feature[0]) + 's?'
@@ -630,7 +729,7 @@ def room_intent(action, addressed=False, room=None):
             return 'move_feature'
         if _feature_entry(nouns).search(words):
             return 'enter_feature'
-        if _feature_handled(nouns).search(words):
+        if _feature_handled(nouns).search(words) and not ADDRESS_WORDS.search(words):
             # The 6c baseline's contradictory tub rule: a question about what is in a feature
             # went to Kit's invention oracle while the room forbade inventing the contents. The
             # file keys the contents (the feature's ``holds`` fact) and a plain look at a
@@ -662,7 +761,31 @@ def room_intent(action, addressed=False, room=None):
                  re.search(r'\b(coins?|ring|gear|key|cards|deck|treasure)\b', declared)))
     if physical and (not addressed or DECLARED_PHYSICAL.search(words.strip()) or
                      re.search(r'(^|[.!;]\s*)i\s+take\b', words.strip())):
+        # Aimed at a thing in the room, it is an ordinary turn Kit rules (she may call a
+        # check); only exploits and attempts on a person stay refused (#150 retest 2b).
         return 'unsupported_action'
+    if OBJECT_ACT.search(declared) and not quoted:
+        return 'unsupported_action'  # the engine's handlers first, then Kit's ruling (ordinary_attempt)
+    if SEARCH_INTENT.search(declared) and not quoted and not addressed and not door_business:
+        # A search ('I walk the wall and search it for seams', 'pace, feeling for gaps') is a
+        # bid for a check: Kit calls one or declines (#150 retest: these were refused as
+        # needing the DM's call; at f5e0a7d they were simple acts with no roll).
+        return 'search'
+    if PLAIN_LOOK.search(words) and not quoted and not ADDRESS_WORDS.search(words):
+        return 'observe'
+    if re.match(r"\s*(?:what|how)\s+an?\b|\s*(?:wow|huh|ooh|hmm|ah|oh)\b[^a-z]*$", words):
+        return 'social'  # an exclamation ('What a strange place.')
+    if '?' in words and not quoted and not addressed and not door_business and declared.strip() and \
+            not SOCIAL_WORDS.search(declared) and not ADDRESS_WORDS.search(declared):
+        # Talk, an act and a question in one message ("Matching set. I look over the helm.
+        # Does it glow?"): the declared act goes through and Kit answers the question in the
+        # same turn (PR 145 playtests: the whole message was read as speech).
+        if PERCEIVING.search(declared):
+            return 'observe'
+        if SIMPLE_ACT.search(declared) and not SEARCH_INTENT.search(declared):
+            return 'simple_act'
+    if re.search(r'\b(attack|attacks|stab|stabs)\b', declared) and AIMED_AT_THING.search(declared) and not quoted:
+        return 'unsupported_action'  # a strike at a thing ('I attack the brazier'): Kit's ruling
     if quoted or door_business or '?' in words or SOCIAL_WORDS.search(words) or ADDRESS_WORDS.search(words) or \
             GESTURE.search(words) or violent.search(words):
         # A violent verb that reached here is aimed at nobody: an idiom or a gesture
@@ -674,7 +797,74 @@ def room_intent(action, addressed=False, room=None):
         # A look or listen with no physical verb is free perception, never a physical ruling
         # ('I peer ahead.', 'I listen.'): a pending ruling must not stall a plain look (#97 p2b).
         return 'observe'
+    if SIMPLE_ACT.search(words) and not SEARCH_INTENT.search(words):
+        return 'simple_act'
+    if re.match(r"\s*(?:hey|hi|hello|greetings)\b", declared) and not re.search(r'\b' + PHYSICAL_VERBS + r'\b', declared) \
+            or re.search(r"\bnever\s*mind\b", declared):
+        return 'social'  # a greeting or a retraction: nothing to rule
+    if re.match(r"\s*(?:hmm+|right|okay|ok|well|alright|so|huh|interesting)\b[\w ,']*[.!]?\s*$", declared) and \
+            not re.search(r"\bstop\b|\d", declared) and not AIMED_AT_THING.search(declared) and \
+            not re.search(r'\b' + PHYSICAL_VERBS + r'\b', declared):
+        return 'social'  # 'Hmm.', 'Right then.': nothing acted on, nothing to rule
     return 'unsupported_action'
+
+
+def ordinary_attempt(action, source=None, state=None):
+    """True when an act the engine has no ruling for is an ordinary attempt on a thing in
+    the room, which Kit rules as a turn (she may call a check), not a refusal: aimed at an
+    object, not an exploit, an impossibility or a person (#150 retest 2b)."""
+    if is_ooc(action) or ((state or {}).get('combat') or {}).get('status') in ('running', 'awaiting_initiative'):
+        return False  # in a fight the fight's machinery rules, not a free attempt
+    words = asked_away(QUOTED_SPEECH.sub(' ', action.translate(_TYPOGRAPHIC)).lower())
+    people = {w for name in actor_speakers(source or {}).values() for w in str(name).casefold().split()
+              if len(w) > 2 and w not in ('the', 'and')}
+    if people & set(re.findall(r"[a-z'-]+", words.replace("'s", ' '))):
+        return False  # aimed at someone here
+    return bool(AIMED_AT_THING.search(words)) and not EXPLOIT.search(words)
+
+
+def detect_magic_line(auras):
+    """The public Detect Magic line: for auras on objects the PC can see, a count, the
+    schools and a vague area; for hidden ones only that more magic is near that the PC cannot
+    place (no count, school, object or location). Kit gets the rest privately."""
+    shown = [a for a in auras if not a.get('hidden')]
+    hidden = len(shown) < len(auras)
+    parts = []
+    if shown:
+        count = sum(a['count'] for a in shown)
+        schools = sorted({a['school'] for a in shown if a['school']})
+        areas = list(dict.fromkeys(a['area'] for a in shown if a['area']))
+        parts.append(f"You sense {'a magical aura' if count == 1 else f'{count} magical auras'} within 30 feet"
+                     + (f" ({', '.join(schools)})" if schools else '')
+                     + (f", from {' and '.join(areas)}" if areas else '') + '.')
+    if hidden:
+        parts.append('You sense magic within 30 feet' + (' as well' if shown else '') +
+                     ', but nothing you can see carries it, and you cannot pin it to a place.')
+    return ' '.join(parts)
+
+
+def detect_magic_auras(source, area):
+    """Every magical aura Detect Magic senses in ``area``: one entry per fact the room marks
+    magical, with its school, how many objects carry it, what they are and where (from
+    the fact's optional "magic_objects"; else one aura, placed by the fact alone)."""
+    auras = []
+    for key, fact in ((source or {}).get('facts') or {}).items():
+        if not (isinstance(fact, dict) and fact.get('area') == area and fact.get('magic')):
+            continue
+        objects = fact.get('magic_objects') if isinstance(fact.get('magic_objects'), dict) else {}
+        count = objects.get('count')
+        # Counted in public only when the room says the objects can be seen (magic_objects
+        # "visible": true, or a visible fact with no objects), placed only by a vague "area"
+        # ("the east alcove"); anything else (a ring buried in bones, unmarked objects) is
+        # sensed but never named, counted or located (#150 retest: leak).
+        shown = objects.get('visible') is True if objects else fact.get('visible') is True
+        area_hint = objects.get('area') if shown and isinstance(objects.get('area'), str) else ''
+        auras.append({'fact': key, 'hidden': not shown, 'area': area_hint.strip(),
+                      'school': fact['magic'].strip().casefold() if isinstance(fact['magic'], str) else None,
+                      'count': count if type(count) is int and count > 0 else 1,
+                      'what': str(objects.get('what') or '').strip(), 'where': str(objects.get('where') or '').strip(),
+                      'text': fact.get('text', '')})
+    return auras
 
 
 def card_procedure(source, state):
@@ -739,11 +929,15 @@ class RoomAdjudicator:
             # stone slab aside'), is Kit's ruling, not a refusal: she declares handles or none.
             near = str(exc).startswith(UNSUPPORTED_RULING) and not is_ooc(action) and \
                 (self.source or {}).get('triggers') and kit_triggers.disturb_targets(self.source, state)
-            if not near:
+            if near:
+                # Not hands-on ('I take a step toward the claw'): Kit's to voice, nothing to
+                # declare (no offer; #97 review P1-E).
+                result = self._feature_act(action, self._handles_offer(action, state, None))
+            elif str(exc).startswith(UNSUPPORTED_RULING) and ordinary_attempt(action, self.source, state):
+                # An ordinary attempt on a thing in the room is Kit's turn to rule (#150 retest 2b).
+                result = self._kit_ruling(action)
+            else:
                 raise
-            # Not hands-on ('I take a step toward the claw'): Kit's to voice, nothing to
-            # declare (no offer; #97 review P1-E).
-            result = self._feature_act(action, self._handles_offer(action, state, None))
         waiting = (state.get('combat') or {}).get('awaiting') or {}
         if waiting.get('kind') == 'flourish_window' and (choice or {}).get('flourish') == 'new_action' and \
                 not any(e.get('type') == 'combat_state' for e in result.events):
@@ -849,6 +1043,15 @@ class RoomAdjudicator:
         if is_ooc(action) or not (self.source or {}).get('triggers'):
             return None
         return kit_triggers.handles_offer(self.source, state, action, area, kind)
+
+    def _kit_ruling(self, action):
+        """An attempt Kit rules as an ordinary turn: committed as tried, outcome hers."""
+        words = social_event(action)[len(SOCIAL_EVENT_PREFIX):]
+        event = {'type': 'beat', 'tags': ['attempt', 'kit_ruling'],
+                 'evidence': f'Player attempts: {action[:300]}. Nothing rolled yet; Kit rules the outcome '
+                             'as an ordinary turn and may call a check (roll_call). Nothing hidden is learned '
+                             'unless a called check succeeds.'}
+        return Resolution('kit_ruling', f'{ATTEMPT_PREFIX}{words}', [event])
 
     def _feature_act(self, action, offer):
         """A turn about a watched feature: nothing is resolved from the words; Kit's decision
@@ -991,7 +1194,7 @@ class RoomAdjudicator:
 
     def _resolve(self, action, revision, state, addressed=False):
         require(isinstance(action, str) and action.strip(), 'Player action required')
-        narration = QUOTED_SPEECH.sub(' ', action.translate(_TYPOGRAPHIC))
+        narration = NEGATED.sub(' ', QUOTED_SPEECH.sub(' ', action.translate(_TYPOGRAPHIC)))
         # Speech and table talk to Kit are never resolved as checks.
         spoken = bool(QUOTED_SPEECH.search(action.translate(_TYPOGRAPHIC))) or is_ooc(action)
         # A physical act changes the world (attacks, grabs, a flipped table, coins taken, paint
@@ -1020,7 +1223,8 @@ class RoomAdjudicator:
                                 'or something else, or time passing ("I wait"), is what ends it. '
                                 'No turn was committed.')
         if not is_ooc(action) and kit_combat.config(self.source) and asked_away(narration).strip():
-            physical = self._resolve_physical(action if asked_away(narration) == narration else
+            physical = self._resolve_physical(action if asked_away(narration) == narration and
+                                              not NEGATED.search(action) else
                                               asked_away(narration), revision, state)
             if physical:
                 # One message, several intents: an act that starts no fight still carries the
@@ -1113,12 +1317,21 @@ class RoomAdjudicator:
             raise PendingRuling('Who are you attacking, and with what? Name the target and the weapon or '
                                 'spell (with the Avrae roll if you have it). No turn was committed.')
         if kind == 'spell':
-            raise PendingRuling('Spell effects outside combat are not resolved in this slice yet, so the '
-                                'spell is not cast. No turn was committed.', attempt=True)
+            return self._cast_out_of_combat(action, state)
         if kind == 'threshold_look':
             return self._threshold_look(action, state)
         if kind == 'stealth':
             return self._resolve_stealth(action, narration, revision, state)
+        if kind == 'search':
+            return self._check_request(action, narration, state, search=True)
+        if kind == 'simple_act':
+            # A harmless declared act (a light held up, a crouch, a tap, cobwebs brushed aside):
+            # it happens as declared, with no roll and nothing hidden learned (PR 145 playtests:
+            # these were refused as "needs the DM's call").
+            event = {'type': 'beat', 'tags': ['observe', 'simple_act'],
+                     'evidence': f'Player declared: {action}. Resolution: done as declared; no roll; '
+                                 'nothing hidden is learned; nothing changes in the world.'}
+            return Resolution('observe', social_event(action).replace(SOCIAL_EVENT_PREFIX, 'You go ahead: ', 1), [event])
         if kind == 'unsupported_action':
             exc = PendingRuling(f'{UNSUPPORTED_RULING} No turn was committed.', attempt=True)
             exc.player_line = unsupported_line(action, state)
@@ -1130,7 +1343,7 @@ class RoomAdjudicator:
                 # through that way from here, voiced from the room's own exit (#97 review P2).
                 return self._threshold_look(action, state, key)
         if kind == 'observe':
-            around = not re.search(r"\b(?:at|interesting|notable)\b", action.lower())
+            around = not re.search(r"\b(?:at|over|closer|closely|interesting|notable)\b", action.lower())
             event = {'type': 'beat', 'tags': ['observe'],
                      'evidence': f'Player declared: {action}. Resolution: they look '
                                  f'{"around the room" if around else "at what is plainly visible"}; free description, '
@@ -1145,13 +1358,15 @@ class RoomAdjudicator:
             if blocked:
                 return blocked
             event = {'type': 'move', 'exit': key, 'evidence': f'The player explicitly left by the known exit {key}.'}
-            return Resolution(kind, self._exit_text(key, state, 'go'), [event])
+            return self._still_sensing(Resolution(kind, self._exit_text(key, state, 'go'), [event]), key, state)
         if kind in ('move_feature', 'inspect_feature', 'enter_feature'):
             noun, key = room_words(self.source, state).feature_in(narration.lower()) or \
                 room_words(self.source, state).feature_in(action.lower())
             handling = self.source['facts'][key]['handling']
             text = handling.get({'move_feature': 'move', 'inspect_feature': 'look',
                                  'enter_feature': 'enter'}[kind])
+            if not text and ordinary_attempt(action, self.source, state):
+                return self._kit_ruling(action)  # an act the file has no line for: Kit rules it
             if not text:
                 raise PendingRuling(f'The room file gives no ruling for that with the {noun}. No turn was committed.',
                                     attempt=True)
@@ -1211,11 +1426,11 @@ class RoomAdjudicator:
                              f'({key or "no exit named"}), not movement; the PC stays where they are.'}
         return Resolution('threshold_look', public, [event])
 
-    def _check_request(self, action, narration, state):
+    def _check_request(self, action, narration, state, search=False):
         """The player asks for a check. Nothing is rolled: Kit calls one (roll_call) or declines.
         Every other intent in the message stays in the public event (the questions, the watching)."""
         words = social_event(action)[len(SOCIAL_EVENT_PREFIX):]
-        tags = ['check_request']
+        tags = ['check_request'] + (['search'] if search else [])
         threshold = THRESHOLD_LOOK.search(narration.lower()) and THRESHOLD_GAP.search(narration.lower()) and \
             not MOVE_THROUGH.search(narration.lower())
         key = self._threshold_exit(action, state) if threshold else None
@@ -1223,10 +1438,10 @@ class RoomAdjudicator:
             tags += ['threshold', key]
         named = kit_rolls.stated_skill(action)
         event = {'type': 'beat', 'tags': tags,
-                 'evidence': f'Player asked for a check: {action[:300]}. Nothing rolled; '
+                 'evidence': f'Player {"searches" if search else "asked for a check"}: {action[:300]}. Nothing rolled; '
                              f'{"they named " + named + " (a request)" if named else "no skill named"}. '
                              'Kit calls a check or declines.'}
-        return Resolution('check_request', f'{CHECK_REQUEST_PREFIX}{words}', [event])
+        return Resolution('check_request', f'{SEARCH_PREFIX if search else CHECK_REQUEST_PREFIX}{words}', [event])
 
     # -- social checks rolled in conversation -----------------------------------------
     def _resolve_social_check(self, skill, action, narration, revision, state, private=False, who=None):
@@ -1571,6 +1786,65 @@ class RoomAdjudicator:
         return Resolution('exit_contested', f'The {label} keeps you from the {_bare_name(self.source["exits"][key]) or key}.',
                           [{'type': 'beat', 'tags': ['exit_contested'], 'evidence': evidence}, clear])
 
+    def _cast_out_of_combat(self, action, state):
+        """A spell cast with nobody to fight (Detect Magic, Light, a ritual): the casting is
+        recorded and Kit narrates what the player can perceive from public room facts. The engine
+        reveals nothing hidden by it. A ritual takes 10 minutes more, so game time advances
+        (PR 145 playtest: Detect Magic as a ritual was refused)."""
+        words = QUOTED_SPEECH.sub(' ', action.translate(_TYPOGRAPHIC)).lower()
+        named = re.search(r"\bcast(?:s|ing)?\s+(?:a\s+|an\s+|the\s+)?([a-z' -]+?)(?=\s+(?:as|on|at|into|over|while|and|then|to|with|for)\b|[.,;!?]|$)", words)
+        spell = (named.group(1).strip() if named else 'a spell') or 'a spell'
+        ritual = bool(re.search(r'\britual\b', words)) and not NOT_RITUAL.search(words)
+        events = [{'type': 'beat', 'tags': ['spell'] + (['ritual'] if ritual else []),
+                   'evidence': f'Player declared: {action}. Resolution: {spell} is cast outside combat'
+                               f'{" as a ritual (10 minutes, no slot spent)" if ritual else ""}; the engine resolves '
+                               'no hidden fact from it, so describe only what the room plainly shows.'}]
+        sensed = None
+        if re.search(r'\bdetect(?:s|ing)?\s+magic\b', words):
+            sensed = self._detect_magic(state)
+            events[0]['tags'].append('detect_magic')
+            events[0]['evidence'] += ' ' + sensed[1]
+        if ritual:
+            events.append({'type': 'advance_time', 'seconds': RITUAL_EXTRA_SECONDS,
+                           'evidence': f'Casting {spell} as a ritual takes 10 minutes.'})
+        if sensed:
+            until = int(state.get('elapsed_seconds') or 0) + (RITUAL_EXTRA_SECONDS if ritual else 0) + DETECT_MAGIC_SECONDS
+            events.append({'type': 'spell_running', 'spell': 'detect magic', 'until': until,
+                           'evidence': 'Detect Magic lasts up to 10 minutes (concentration).'})
+        public = f'You cast {spell}' + (' as a ritual, taking ten minutes.' if ritual else '.')
+        return Resolution('spell_cast', f'{public} {sensed[0]}' if sensed else public, events)
+
+    def _still_sensing(self, result, key, state):
+        """Detect Magic still running when the PC enters a new area senses there, with no
+        recast (#150 retest 5): the public line and Kit's private auras are for the new area."""
+        if int((state.get('spells_running') or {}).get('detect magic', -1)) < int(state.get('elapsed_seconds') or 0):
+            return result
+        edge = ((self.source or {}).get('exits') or {}).get(key) or {}
+        there = next((a for a in edge.get('areas') or () if a != state.get('area')), None)
+        if not there:
+            return result
+        public, private = self._detect_magic({**state, 'area': there})
+        beat = {'type': 'beat', 'tags': ['detect_magic', 'still_running'], 'area': there,
+                'evidence': f'Detect Magic is still running as the PC enters {there}. {private}'}
+        return dataclasses.replace(result, public_event=f'{result.public_event} Your Detect Magic is still up. {public}',
+                                   events=list(result.events) + [beat])
+
+    def _detect_magic(self, state):
+        """(public line, private evidence) for Detect Magic here (#150 playtest): every fact in
+        this area the room marks magical ("magic": true or a school name) is sensed (school
+        only, never the fact's text, in public); with none, the PC senses no magic. A fact
+        that names its objects ("magic_objects": {"count", "what", "where"}) is counted by
+        object and placed where the room says (#150 retest: 8 enchanted mirrors read as 2)."""
+        auras = detect_magic_auras(self.source, state.get('area'))
+        if not auras:
+            return ('Nothing within 30 feet carries a magical aura.',
+                    'Detect Magic: the room marks no magic here; tell the player plainly they sense none.')
+        public = detect_magic_line(auras)
+        private = 'Detect Magic senses (DM only, place each aura but do not read out the fact): ' + '; '.join(
+            f"{a['fact']}{' [' + a['school'] + ']' if a['school'] else ''} x{a['count']}"
+            f"{' at ' + a['where'] if a['where'] else ''}: {a['text']}" for a in auras)
+        return public, private
+
     def _resolve_called(self, action, revision, state):
         """A bare roll ("Perception 22", "22", "I rolled a 22") answering the check Kit called
         last turn (watchroom playtest: the roll stalled). It resolves against the one hidden
@@ -1586,10 +1860,20 @@ class RoomAdjudicator:
         stated = [roll for roll in kit_rolls.rolls(text) if roll.label not in ('attack', 'initiative')]
         rest = re.sub(r"\b(?:i|rolled|roll|got|a|an|check|for|my|it's|that's|that|is|" +
                       skill.replace('_', r'\s+') + r")\b|[\W\d_]+", ' ', kit_rolls.without_rolls(text).casefold())
-        if not (bare or len(stated) == 1 and stated[0].label in (None, skill) and not rest.strip()):
+        # One roll answers the call even with words around it (latency PR, PR 145 playtests):
+        # Avrae's header ("Nik makes an Investigation check! 1d20 (1) + 7 = 8") or the player's
+        # own words first ("Deal, 2d20kh1 (4, 5) + 4 = 9", "I search the throne. Investigation
+        # 1d20 ..."). A roll labelled with the called skill always answers it; an unlabelled one
+        # does when only a few words, and no question, come with it.
+        chatter = rest.split()
+        answers = len(stated) == 1 and (
+            stated[0].label == skill or
+            stated[0].label is None and (not chatter or len(chatter) <= CALLED_ROLL_CHATTER_WORDS and '?' not in text))
+        if not (bare or answers):
             return None
         total = int(bare.group(1)) if bare else stated[0].total
-        roll_text = text if not bare and stated[0].label == skill else f'{skill.replace("_", " ")} {total}'
+        roll_text = (f'{skill.replace("_", " ")} {text[stated[0].start:].strip()}'
+                     if not bare and stated[0].label == skill else f'{skill.replace("_", " ")} {total}')
         clear = {'type': 'pending_check', 'check': None,
                  'evidence': f'The {skill} check called on turn {pending["called_turn"]} is rolled.'}
         target, area = pending['target'], state.get('area')
@@ -2783,8 +3067,12 @@ def supported_procedures(source):
 def check_plan(plan, episodes, public_event, action_kind=None, candidates=None, player_action=None,
                player_notes=(), committed_turn_ids=(), source=None, state=None, established='',
                oracle=None, claims_packet=None, table_talk=False):
-    require(isinstance(plan, dict) and set(plan) - set(OPTIONAL_PLAN_KEYS) == set(PLAN_SCHEMA['required']),
-            'Incomplete private decision')
+    require(isinstance(plan, dict), 'Incomplete private decision: the decision must be a JSON object')
+    missing = sorted(set(PLAN_SCHEMA['required']) - set(plan))
+    extra = sorted(set(plan) - set(PLAN_SCHEMA['required']) - set(OPTIONAL_PLAN_KEYS))
+    require(not missing and not extra, 'Incomplete private decision: ' + '; '.join(
+        part for part in (f"missing {', '.join(missing)}" if missing else '',
+                          f"unexpected {', '.join(extra)}" if extra else '') if part))
     plan.setdefault('detail', copy.deepcopy(kit_detail.NO_DETAIL))  # no detail this turn
     if 'claims' in plan:
         kit_claims.check_claims(plan['claims'], claims_packet, source or {}, state or {})
@@ -3758,6 +4046,18 @@ def prepare_inputs(runtime, revision, state, action, resolution, use_memory, one
         outcome = 'dead' if waiting.get('outcome', 'dead') == 'dead' else 'down, out cold (a knockout they chose)'
         planning_input['flourish'] = {'rule': FLOURISH_RULE.format(target=label, outcome=outcome),
                                       'player_description': action}
+    if any('detect_magic' in (e.get('tags') or ()) for e in resolution.events):
+        # Private: where each aura sits, so Kit can place them (#150 retest: only the counts
+        # reached her; she had to guess placement from dm_only).
+        planning_input['detect_magic'] = {
+            'rule': ('Detect Magic: the player senses these auras and, with an action, sees each visible '
+                     'one glow and learns its school. A "hidden": true aura is on nothing they can see: '
+                     'they know magic is near, never what or where, until the fact is found. Never read '
+                     'out the fact text.'),
+            'auras': [{k: a[k] for k in ('fact', 'school', 'count', 'what', 'where', 'hidden')}
+                      for a in detect_magic_auras(source, next(
+                          (e['area'] for e in resolution.events if 'detect_magic' in (e.get('tags') or ()) and
+                           e.get('area')), state.get('area')))]}
     if resolution.kind == 'check_request':
         # Private: the player asked for a check; the call is Kit's (watchroom T1, Brendon's rule).
         named = re.search(r'\b(' + _SKILL_NAMES + r')\b', action, re.I)
@@ -5017,6 +5317,7 @@ class KitChatBridge:
                 'A staged turn chooses its performance variant at decide')
         if one_pass:
             performance_variant = check_variant(performance_variant or DEFAULT_BRIDGE_VARIANT)
+        self.runtime.flush_queued_attempts()  # refused attempts held while a turn was waiting
         if opening:
             require(action is None and not table_talk, 'Room opening does not take a player action')
             revision, body, planning_input = prepare_opening(self.runtime, one_pass=one_pass)
@@ -5035,7 +5336,9 @@ class KitChatBridge:
                     raise
                 # Record the refused attempt publicly so the next turn can refer to it.
                 recorded = self.runtime.record_refused_attempt(action, str(exc))
-                ruling = PendingRuling(f'{exc} The attempt is noted in the public history.', attempt=True)
+                ruling = PendingRuling(f'{exc} ' + ('The attempt is noted in the public history.' if recorded is not None else
+                                                     'The attempt joins the public history once the turn in progress '
+                                                     'is committed; that turn is still current.'), attempt=True)
                 ruling.recorded_revision = recorded
                 raise ruling from exc
         return self._stage(turn_id, revision, body, planning_input, one_pass, performance_variant, started, clock,
@@ -5219,11 +5522,16 @@ class KitChatBridge:
         recently is replaced by its hash."""
         session, room, _ = kit_manifest.split(packet)
         hashes = {'session': kit_manifest.digest(session), 'room': kit_manifest.digest(room)}
-        recent = [row for row in self.runtime.recent_kit_timings(limit=kit_manifest.FULL_EVERY + 1)
-                  if row['turn_id'] != turn_id]
-        held = kit_manifest.plan_sends(recent)
+        recent = [row for row in self.runtime.recent_kit_timings(limit=50) if row['turn_id'] != turn_id]
+        held = kit_manifest.plan_sends(recent, self.runtime.committed_kit_turn_ids())
         cached = {layer: hashes[layer] in held[layer] for layer in hashes}
         layered, _, _ = kit_manifest.layered(packet, cached['session'], cached['room'])
+        notice = kit_manifest.rejection_notice(recent, hashes['session'])
+        if notice:
+            layered = {**{k: layered[k] for k in ('session_manifest', 'room_manifest', 'manifest_rule')},
+                       'rejection_notice': notice,
+                       **{k: v for k, v in layered.items()
+                          if k not in ('session_manifest', 'room_manifest', 'manifest_rule')}}
         return layered, {'manifest': {**hashes, 'sent': [layer for layer in hashes if not cached[layer]]},
                          'room_manifest': room, 'full_packet_bytes': _bytes(packet)}
 
@@ -5240,6 +5548,7 @@ class KitChatBridge:
         if kit_combat.config(self.runtime.source()) and state.get('player_sheet'):
             from . import kit_reactions  # the same session line prepare_inputs puts in the manifest
             session['available_reactions'] = kit_reactions.definitions(kit_reactions.current(state))
+        session = kit_manifest.compact_session(session)
         room = timing.get('room_manifest') or {}
         hashes = {'session': kit_manifest.digest(session), 'room': kit_manifest.digest(room)}
         self.runtime.record_kit_timing(turn_id, manifest={**hashes, 'sent': ['session', 'room']})
@@ -5430,12 +5739,13 @@ class KitChatBridge:
         self.runtime.record_kit_timing(turn_id, host_stamps={**(prior.get('host_stamps') or {}), **stamps})
         return {'turn_id': turn_id, 'host_stamps': {**(prior.get('host_stamps') or {}), **stamps}}
 
-    def _attempt(self, turn_id, output, host_stamps, clock, outcome):
+    def _attempt(self, turn_id, output, host_stamps, clock, outcome, reason=None):
         """One submitted output: its bytes, the model trip the host stamped, validation time."""
         prior = self.runtime.kit_timing(turn_id) or {}
         stamps = check_stamps(host_stamps or {})
         attempt = {'output_bytes': _bytes(output), 'validation_ms': round((time.perf_counter() - clock) * 1000, 2),
-                   'outcome': outcome, **{key: stamps[key] for key in ('model_sent_at', 'model_done_at') if key in stamps}}
+                   'outcome': outcome, **({'reason': kit_manifest.strip_boilerplate(reason)[:400]} if reason else {}),
+                   **{key: stamps[key] for key in ('model_sent_at', 'model_done_at') if key in stamps}}
         self.runtime.record_kit_timing(turn_id, attempts=list(prior.get('attempts') or []) + [attempt])
 
     @_stale_guided
@@ -5450,8 +5760,8 @@ class KitChatBridge:
                 output = {key: value for key, value in output.items() if key != 'manifest'}
             with self._question_allowance(turn_id):
                 result = self._complete(turn_id, output, degraded)
-        except InvalidChange:
-            self._attempt(turn_id, output, host_stamps, clock, 'rejected')
+        except InvalidChange as exc:
+            self._attempt(turn_id, output, host_stamps, clock, 'rejected', str(exc))
             raise
         if result.get('stage') in ('window_voice', 'one_pass'):
             # A window answer resolved: the next model packet for the same turn (no commit yet).
@@ -5461,6 +5771,23 @@ class KitChatBridge:
             self._attempt(turn_id, output, host_stamps, clock, 'committed')
             result['timing'] = self.runtime.kit_timing(turn_id)
         return result
+
+    def _same_fixed_plan(self, stored, plan, state, body):
+        """The stored decision when ``plan`` is the same decision the host first sent. The
+        stored copy carries what the engine filled in (observed_event, an empty detail, ...),
+        so the host's identical resubmission after a performance rejection must not read as a
+        changed decision (PR 145 playtests: "Private decision already fixed")."""
+        if not isinstance(plan, dict) or encode(plan) == encode(stored):
+            return plan
+        if encode({**stored, **plan}) == encode(stored):
+            return copy.deepcopy(stored)
+        trial = copy.deepcopy(plan)
+        try:
+            check_decision(self.runtime, trial,
+                           kit_memory(self.runtime, state, body['action'], body['use_memory']), body)
+        except InvalidChange:
+            return plan
+        return copy.deepcopy(stored) if encode(trial) == encode(stored) else plan
 
     def _complete(self, turn_id, output, degraded=False):
         require(isinstance(output, dict) and set(output) == {'decision', 'performance'},
@@ -5487,6 +5814,8 @@ class KitChatBridge:
                 raise
             except InvalidChange as exc:
                 raise self._log_rejection(turn_id, exc) from exc
+        else:
+            plan = self._same_fixed_plan(pending['plan'], plan, state, body)
         self.runtime.save_kit_plan(turn_id, revision, plan)
         body = self._declared(body, plan)
         # Turns staged before variants reached one-pass ran the `current` instructions.

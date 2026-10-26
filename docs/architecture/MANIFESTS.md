@@ -26,9 +26,14 @@ after that. `h` is the first 16 hex characters of the SHA-256 of the canonical J
   guaranteed, and on the scheduled full re-send below.
 * `rehydrate --turn-id T` (Python: `bridge.rehydrate(turn_id)`) returns both bodies in full. Resubmit with
   their hashes. A lost copy costs one retry, not a bad turn.
-* Bodies are re-sent anyway at least every `FULL_EVERY` = 8 prepared turns, and on the turn after one with
-  `REJECT_STREAK` = 2 or more rejections. **This re-send is the real safety net.** A lost body is
-  stale for at most 8 turns, and a turn that keeps getting rejected gets the bodies back on the next one.
+* Bodies are re-sent anyway at least every `FULL_EVERY` = 8 prepared turns. **This re-send is the real
+  safety net.** A lost body is stale for at most 8 turns.
+* After a turn with `REJECT_STREAK` = 2 or more rejections, the next packet does **not** re-send the
+  ~50 KB session body any more. It carries `rejection_notice`: `{rejections, reasons, session_hash, note}`
+  (each reason is the refusal text, cut to 400 characters). The session stays `cached`. If the host no
+  longer holds the body with that hash, it runs `rehydrate`; that is the only path that re-sends it early.
+* The session `schema` is sent in a lossless shorthand described by the body's `schema_notation`
+  field (`kit_manifest.compact_schema` / `expand_schema`; `join(split(p)) == p` still holds).
 * The live CLI (`start`, `prepare --one-pass`) sends layers by default. `--full` sends the whole packet.
   The Python `KitChatBridge` default (`manifests=False`) and staged evals are unchanged.
 

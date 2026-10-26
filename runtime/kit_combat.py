@@ -65,7 +65,8 @@ SPELL_AUTO = ('magic missile',)
 SPELLS = tuple(SPELL_ATTACK) + tuple(SPELL_SAVE) + SPELL_AUTO
 _SPELL = re.compile(r"\b(" + '|'.join(re.escape(s) for s in sorted(SPELLS, key=len, reverse=True)) + r")\b")
 GRAB = re.compile(r'\b(grab|grabs|grabbing|seize|seizes|grip|grips|grapple|grapples|collar|collars|haul|hauls|'
-                  r'yank|yanks|pin|pins|tackle|tackles|shove|shoves|push|pushes|drag|drags|catch|catches|clamp)\b')
+                  r'yank|yanks|pin|pins|tackle|tackles|shove|shoves|push|pushes|drag|drags|'
+                  r'(?<!\ba )(?<!\bthe )(?<!\bany )catch|catches|clamp)\b')  # 'a catch' is a latch, not a grab
 FACE = re.compile(r'\b(wipe|wipes|wiping|smear|smears|rub|rubs|scrub|scrubs|lick (?:my|a) thumb|swipe|swipes|'
                   r'pull|pulls|tug|tugs|pluck|plucks|pry|touch|touches|flick|flicks)\b')
 FACE_PARTS = re.compile(r"\b(cheek|cheeks|face|faces|paint|makeup|make-up|powder|greasepaint|flour|fangs?|teeth|"

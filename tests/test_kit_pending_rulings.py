@@ -60,7 +60,7 @@ class LooksAreNotPhysicalRulings(unittest.TestCase):
 class TryPrepareNeverRaises(unittest.TestCase):
     def test_a_real_pending_ruling_becomes_a_result(self):
         runtime, bridge = crypt_bridge(self)
-        out = bridge.try_prepare('I juggle three of the loose bricks.', 'j', one_pass=True)
+        out = bridge.try_prepare('I steal everything in the crypt.', 'j', one_pass=True)
         self.assertEqual(out['stage'], 'pending_ruling')
         self.assertFalse(out['committed'])
         self.assertTrue(out['message'])

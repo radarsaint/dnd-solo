@@ -263,8 +263,8 @@ class S7WatchAndAskKeepsEveryIntent(Stalls):
 
     def test_a_declared_grab_is_still_a_physical_act(self):
         self.go_in()
-        with self.assertRaises(PendingRuling):
-            self.resolve(self.runtime, 'I grab the spear.')
+        # Not talk: an attempt Kit rules (#150 retest 2b; it was refused before).
+        self.assertEqual(self.resolve(self.runtime, 'I grab the spear.').kind, 'kit_ruling')
 
 
 class S8EngineLineNeverAfterTheHandoff(Stalls):

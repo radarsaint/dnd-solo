@@ -305,9 +305,10 @@ class KitAgentTests(unittest.TestCase):
         self.assertEqual(self.runtime.recent_kit_turns()[0]['trace']['improv_read']['story_anchor'], 'level')
 
     def test_unsupported_actions_and_missing_modifier_do_not_consume_turn(self):
-        for action in ('I attack Uktarl.', 'I pocket the silver ring.', 'I cast Detect Magic.'):
+        for action in ('I attack Uktarl.', 'I pocket the silver ring.'):
             with self.assertRaises(PendingRuling):
                 self.agent.turn(action)
+        # Out-of-combat spells now resolve (spell_cast); see test_kit_rejection_bugs.
         agent = KitAgent(self.runtime, self.model, RoomAdjudicator())
         with self.assertRaisesRegex(PendingRuling, 'Load a character sheet or state the Perception roll'):
             agent.turn('I inspect the fresco.')

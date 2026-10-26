@@ -158,7 +158,7 @@ class PendingRulingMessageTests(unittest.TestCase):
     def test_a_bridge_ruling_carries_it(self):
         room = Room(self, source=belfry())
         result = kit_agent.KitChatBridge(room.runtime, room.adjudicator).try_prepare(
-            'I cast Light on my staff.', 'p', one_pass=True)
+            'I cast Fire Bolt at the nearest figure.', 'p', one_pass=True)
         self.assertEqual(result['stage'], 'pending_ruling')
         self.assertNotIn('slice', result['player_message'])
 

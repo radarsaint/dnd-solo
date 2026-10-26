@@ -72,9 +72,9 @@ NEGATIVE = {
 }
 # The tub has no trigger: these play exactly as on main (2804b79), and never show the stash.
 SIXC_ON_MAIN = {
-    'I take a step toward the tub.': 'PENDING',
+    'I take a step toward the tub.': 'observe',  # simple act: done as declared, nothing revealed
     'I take a look at the tub.': 'observe',
-    'I pull up a stool near the tub.': 'PENDING',
+    'I pull up a stool near the tub.': 'kit_ruling',  # #150 retest 2b: Kit rules it
     'I grab the coins by the tub.': 'combat_round',  # the table coins, not the tub (P1-3)
 }
 

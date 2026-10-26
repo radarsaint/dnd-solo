@@ -97,6 +97,9 @@ CANON_SLOT = re.compile(r'^[a-z0-9_:]+(/[a-z0-9_]+){1,3}$')
 # the decision's canon entries, the oracle deal it consumed, and procedure state.
 # Host bookkeeping, not a turn taken in the room (kit_rooms.stage counts the others).
 BOOKKEEPING_EVENTS = ('player_sheet', 'player_character', 'player_note', 'pc_state', 'kit_plan', 'rest')
+# A refused attempt changed nothing in the world, so it does not use up the check Kit just
+# called (PR 145 playtest: one refused line, then every roll was refused).
+KEEPS_PENDING_CHECK = BOOKKEEPING_EVENTS + ('refused_attempt',)
 # A pending check's optional fields: a held exit, and room for the check-calling follow-up's
 # quiet DC adjustment for creative use of the scene (Brendon: about -2) with its reason. Not
 # applied anywhere yet.
@@ -235,6 +238,11 @@ class Runtime:
             CREATE TABLE IF NOT EXISTS kit_pending (
                 turn_id TEXT PRIMARY KEY, revision INTEGER NOT NULL,
                 body TEXT NOT NULL, plan TEXT
+            );
+            -- Refused attempts that arrived while a prepared turn was waiting: held here, not
+            -- committed, so that turn's revision stays current (#150 retest).
+            CREATE TABLE IF NOT EXISTS queued_attempts (
+                seq INTEGER PRIMARY KEY, action TEXT NOT NULL, ruling TEXT NOT NULL
             );
             -- Timing telemetry is deliberately outside turns/ledger/kit_turns: it never
             -- enters a turn digest, so an identical retry stays idempotent.
@@ -432,7 +440,8 @@ class Runtime:
             row = self.db.execute('SELECT revision, plan FROM kit_pending WHERE turn_id=?',
                                   (turn_id,)).fetchone()
             require(row is not None and row[0] == expected_revision, 'No matching pending Kit turn')
-            require(row[1] is None or row[1] == serialized, 'Private decision already fixed for this turn')
+            require(row[1] is None or row[1] == serialized, ('Private decision already fixed for this turn: a retry keeps the same decision and changes only '
+                     'the performance. Resubmit the decision you first sent, unchanged.'))
             if row[1] is None:
                 self.db.execute('UPDATE kit_pending SET plan=? WHERE turn_id=?',
                                 (serialized, turn_id))
@@ -487,7 +496,7 @@ class Runtime:
             elif any(event.get('type') not in BOOKKEEPING_EVENTS for event in events):
                 room.setdefault('turns_in', {})[acted_in] = room.get('turns_in', {}).get(acted_in, 0) + 1
             if not any(event.get('type') == 'pending_check' for event in events) and \
-                    any(event.get('type') not in BOOKKEEPING_EVENTS for event in events):
+                    any(event.get('type') not in KEEPS_PENDING_CHECK for event in events):
                 held = (state.get('pending_check') or {}).get('held')
                 if not (held and held.get('area', acted_in) == state['area']):
                     # A called check lasts one player turn. A held description is an obligation:
@@ -699,12 +708,41 @@ class Runtime:
         and a retry of the same attempt at the same revision is idempotent."""
         require(isinstance(action, str) and action.strip(), 'Player action required')
         revision, _ = self.load()
-        event = {'type': 'refused_attempt', 'action': action.strip()[:REFUSED_ATTEMPT_MAX_CHARS],
+        if self.db.execute('SELECT 1 FROM kit_pending WHERE revision=?', (revision,)).fetchone():
+            # A prepared turn is waiting at this revision: committing now would make it stale
+            # ('Expected revision 10; current is 11'). Queue it; flush_queued_attempts commits
+            # it once nothing current is waiting. Returns None (nothing committed yet).
+            with self.db:
+                self.db.execute('INSERT INTO queued_attempts(action, ruling) VALUES (?, ?)',
+                                (action.strip()[:REFUSED_ATTEMPT_MAX_CHARS], str(ruling).strip()[:REFUSED_ATTEMPT_MAX_CHARS]))
+            return None
+        return self._commit_attempts(revision, [(action, ruling)])
+
+    def flush_queued_attempts(self):
+        """Commit queued refused attempts when no prepared turn is waiting at the current
+        revision. Returns the new revision, or None when nothing was flushed."""
+        revision, _ = self.load()
+        if self.db.execute('SELECT 1 FROM kit_pending WHERE revision=?', (revision,)).fetchone():
+            return None
+        rows = self.db.execute('SELECT seq, action, ruling FROM queued_attempts ORDER BY seq').fetchall()
+        if not rows:
+            return None
+        new = self._commit_attempts(revision, [(a, r) for _, a, r in rows])
+        with self.db:
+            self.db.execute('DELETE FROM queued_attempts WHERE seq <= ?', (rows[-1][0],))
+        return new
+
+    def _commit_attempts(self, revision, attempts):
+        events = [self._attempt_event(action, ruling) for action, ruling in attempts]
+        digest = hashlib.sha256(f'{revision}:{encode(events)}'.encode()).hexdigest()[:16]
+        return self.commit(f'attempt-{digest}', revision, events)
+
+    @staticmethod
+    def _attempt_event(action, ruling):
+        return {'type': 'refused_attempt', 'action': action.strip()[:REFUSED_ATTEMPT_MAX_CHARS],
                  'ruling': str(ruling).strip()[:REFUSED_ATTEMPT_MAX_CHARS],
                  'evidence': 'The player attempted an action the slice could not adjudicate; '
                              'nothing changed in the world.'}
-        digest = hashlib.sha256(f'{revision}:{encode(event)}'.encode()).hexdigest()[:16]
-        return self.commit(f'attempt-{digest}', revision, [event])
 
     def _add_player_note(self, state, note_id, source, text, evidence_turns, replaces='none',
                          current_turn=None):
@@ -1008,6 +1046,13 @@ class Runtime:
                 evidence = evidence[:RHYTHM_EVIDENCE_MAX_CHARS - 3] + '...'
             state['rhythm'].append({'tags': tags, 'evidence': evidence})
             state['rhythm'] = state['rhythm'][-12:]
+        elif kind == 'spell_running':
+            # A lasting spell the PC keeps up (Detect Magic, 10 minutes): until when, in game
+            # seconds, so entering a new area while it runs senses there (#150 retest 5).
+            spell, until = event.get('spell'), event.get('until')
+            require(isinstance(spell, str) and 0 < len(spell) <= 40 and type(until) is int and until >= 0,
+                    'spell_running needs a spell name and an until time')
+            state.setdefault('spells_running', {})[spell.casefold()] = until
         else:
             raise InvalidChange(f'Unsupported event: {kind}')
 

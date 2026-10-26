@@ -112,12 +112,28 @@ class Resend(Layers):
         packet, output = self.open_room()
         self.bridge.complete('open', output)
         sent = []
+        # Committed turns fill the window (abandoned ones do not; next test): count these as
+        # committed without writing nine distinct performances.
+        done = {'open'}
+        self.runtime.committed_kit_turn_ids = lambda: set(done)
         for n in range(kit_manifest.FULL_EVERY + 1):
             later, out = self.wait(f'w{n}')
             sent.append('body' in later['session_manifest'])
             self.bridge.abandon(f'w{n}')
+            done.add(f'w{n}')
         self.assertFalse(any(sent[:kit_manifest.FULL_EVERY - 1]))
         self.assertTrue(any(sent))
+
+    def test_abandoned_prepares_do_not_count_toward_the_window(self):
+        # #150 retest 4: bursts of abandoned prepares forced 60 KB resends.
+        packet, output = self.open_room()
+        self.bridge.complete('open', output)
+        sent = []
+        for n in range(kit_manifest.FULL_EVERY * 2):
+            later, out = self.wait(f'a{n}')
+            sent.append('body' in later['session_manifest'])
+            self.bridge.abandon(f'a{n}')
+        self.assertFalse(any(sent))
 
     def test_a_rejection_streak_resends_the_bodies(self):
         packet, output = self.open_room()
@@ -129,7 +145,22 @@ class Resend(Layers):
                 self.bridge.complete('w1', flat)
         self.bridge.abandon('w1')
         again, _ = self.wait('w2')
-        self.assertIn('body', again['session_manifest'])
+        # The body is not re-sent: the reasons and the hash are, and rehydrate still restores it.
+        self.assertTrue(again['session_manifest'].get('cached'))
+        notice = again['rejection_notice']
+        self.assertEqual(notice['session_hash'], again['session_manifest']['hash'])
+        self.assertGreaterEqual(notice['rejections'], kit_manifest.REJECT_STREAK)
+        self.assertTrue(notice['reasons'] and all(notice['reasons']))
+        self.assertIn('rehydrate', notice['note'])
+        full = self.bridge.rehydrate('w2')
+        self.assertEqual(full['session_manifest']['hash'], again['session_manifest']['hash'])
+        self.assertIn('body', full['session_manifest'])
+
+    def test_no_notice_without_a_streak(self):
+        packet, output = self.open_room()
+        self.bridge.complete('open', output)
+        later, _ = self.wait('w1')
+        self.assertNotIn('rejection_notice', later)
 
 
 class LiveCli(unittest.TestCase):
