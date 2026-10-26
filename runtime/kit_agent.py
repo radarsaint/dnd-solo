@@ -271,6 +271,9 @@ CHECK_REQUEST = re.compile(
     r"|\b(?:is|would) (?:that|this|there) (?:a|an) (?:\w+\s+)?(?:check|roll)\b[^?]*\?"
     r"|\bdo i (?:need|get|have) (?:to )?(?:make |roll )?(?:a|an) (?:\w+\s+)?(?:check|roll)\b", re.I)
 CHECK_REQUEST_PREFIX = 'You ask for a check: '
+# 'Can I investigate the door?', 'Let me search the lid', 'Time to search the chest': asking
+# to search is a search.
+CHECK_ASK = re.compile(r"^\s*(?:can|could|may|might)\s+i\b|^\s*let\s+me\b|^\s*time\s+to\b|^\s*i(?:'d| would)\s+like\s+to\b")
 SEARCH_PREFIX = 'You search: '
 ATTEMPT_PREFIX = 'You try: '
 DETECT_MAGIC_SECONDS = 600  # Detect Magic: concentration, up to 10 minutes
@@ -504,7 +507,7 @@ def room_words(source, state):
                      if isinstance(fact, dict) and fact.get('area') == area and fact.get('handling') and
                      (fact.get('visible') or key in known)
                      for noun in list(fact['handling'].get('nouns') or ()) + list(fact['handling'].get('parts') or ()))
-    exits = []
+    exits, called_words = [], []
     for key in state.get('known_exits') or ():
         edge = (source.get('exits') or {}).get(key) or {}
         if area not in edge.get('areas', ()):
@@ -512,6 +515,15 @@ def room_words(source, state):
         for word in re.findall(r"[a-z]+", str(edge.get('name') or '').casefold()):
             if word not in EXIT_STOPWORDS:
                 exits.append((word, key))
+        # The area it leads to names it too ('I head into the cellar', #150 fuzz), unless
+        # that word already names another exit.
+        for there in edge.get('areas', ()):
+            called = ((source.get('areas') or {}).get(there) or {}).get('called') if there != area else None
+            for word in re.findall(r"[a-z]+", str(called or '').casefold()):
+                if word not in EXIT_STOPWORDS and len(word) > 3:
+                    called_words.append((word, key))
+    exits += [(word, key) for word, key in called_words
+              if not any(word.rstrip('s') == w.rstrip('s') for w, k in exits + called_words if k != key)]
     inside = set(kit_rooms.room_areas(source)) if source.get('areas') else set()
     inward = tuple(key for key in state.get('known_exits') or ()
                    if area not in inside and area in ((source.get('exits') or {}).get(key) or {}).get('areas', ()) and
@@ -539,7 +551,7 @@ GOING_BACK = re.compile(r"\b(?:back|return|returns|retrace[sd]?|retracing|the wa
 
 
 # Moving, in any tense: "Nik steps through the iron door", "she went out" (watchroom playtest).
-MOVING = re.compile(r"\b(?:leave|leaves|leaving|left|go|goes|going|went|walk|walks|walked|walking|move|moves|"
+MOVING = re.compile(r"\b(?:make for|makes for|leave|leaves|leaving|left|go|goes|going|went|walk|walks|walked|walking|move|moves|"
                     r"moved|moving|step|steps|stepped|stepping)\b")
 # Going in with no exit named: "I step in", "Nik goes inside". The exit chooser takes the
 # one exit from here that leads into the room.
@@ -596,6 +608,10 @@ SEARCH_INTENT = re.compile(r"\b(?:search\w*|investigat\w*|examin\w*|inspect\w*|p
                            r"rifl(?:e|es|ing)\s+through|sift\w*|comb\w*\s+(?:through|over)|pore\w*\s+over|"
                            r"stud(?:y|ies|ying)\s+(?:\w+\s+){0,4}?(?:closely|carefully|for)|stud(?:y|ies|ying)\s+(?:the|it|its|each|every)\b|"
                            r"scrutini\w*|(?:look|looks|looking|peer\w*|peek\w*)\s+(?:behind|beneath|underneath|under)\b|"
+                           r"pat\w*\s+(?:\w+\s+){0,3}?down|pat(?:s|ting)?\s+down|test\w*\s+(?:\w+\s+){0,4}?for|once-over|"
+                           r"prod\w*|listen\w*\s+for\s+(?:a\s+)?hollow|look\w*\s+closely|"
+                           r"for\s+(?:any\s+|a\s+|the\s+)?(?:traps?|seams?|gaps?|hidden\b|secret|catch|latch|lever|draft|"
+                           r"compartments?|anything\s+(?:hidden|odd|unusual|out of place|loose))|srch|"
                            r"run\w*\s+(?:my|his|her)\s+(?:hands?|fingers?|palms?)\s+(?:along|over|across)\s+(?:\w+\s+){0,4}?(?:for|seams?|gaps?|cracks?|hunting|looking|feeling))\b")
 # An act on a thing in the room, declared by the PC ("I yank the manacles off the wall",
 # "Wait, before I roll, I pry the stone loose"): Kit rules it as an ordinary turn and may
@@ -611,7 +627,7 @@ AIMED_AT_THING = re.compile(r"\b(?:the|a|an|this|that|those|these|each|every)\s+
 EXPLOIT = re.compile(r"\b(?:steal|steals|stealing|pocket|pockets|pocketing|all (?:the )?(?:gold|treasure|loot)|"
                      r"every(?:thing|one)|instantly|automatically|infinite|wish|teleport\w*|fly|flies|levitat\w*|"
                      r"on fire|set fire|ablaze|kill\w*|dead|dies|falls dead)\b|"
-                     r"\b(?:him|her|them|his|guard|warden|man|woman|dealer|orc|goblin|person|throat|neck|heart)\b")
+                     r"\b(?:him|them|guard|warden|man|woman|dealer|orc|goblin|person|throat|neck|heart)\b")
 PHYSICAL_VERBS = r'(steal|pocket|grab|pick up|smash|break|hide|climb|force|open|disarm)'
 # A declared physical act: "I grab the ring", "I quickly open the door". When an NPC has
 # just asked the player something, only this shape still counts as physical; a verb
@@ -627,6 +643,18 @@ def npc_addressed_player(spoken):
                 '?' in text or ADDRESS_WORDS.search(text.translate(_TYPOGRAPHIC).lower())):
             return True
     return False
+
+
+# A clause the player negates ("I don't search the rubble", "not going in yet", "I won't
+# attack") says what does not happen: it is dropped before routing (#150 fuzz: negation).
+NEGATED = re.compile(r"\bwithout\s+(?:stepping|going|walking|moving)\s+(?:in|inside|through)\b|\b(?:i\s+)?(?:don't|dont|do not|won't|wont|will not|am not|i'm not|not)\s+"
+                     r"(?:going\s+(?:to\s+)?|gonna\s+|yet\s+)?(?!only\b|just\b)[a-z]+\b(?:\s+(?:in|through|out|inside|"
+                     r"the\s+\w+|it|yet))*(?:\s+yet)?", re.I)
+# Plain looks the router missed (#150 fuzz): 'What do I see?', 'Lookin around', 'Describe
+# the floor', 'I eye the flagstones', 'I listen at the lid'.
+PLAIN_LOOK = re.compile(r"\bwhat\s+do\s+i\s+see\b|\blookin'?\b|^\s*describe\b|\bi\s+eye\b|"
+                        r"\blisten\w*\s+at\b|\bwhat\s+(?:does|do)\s+(?:the\s+)?[\w ]+\s+look\s+like\b|"
+                        r"\b(?:i|and)\s*look\s+(?:at|over)\b")
 
 
 def room_intent(action, addressed=False, room=None):
@@ -650,7 +678,10 @@ def room_intent(action, addressed=False, room=None):
     if is_ooc(text):
         return 'social'
     quoted = bool(QUOTED_SPEECH.search(text))
-    words = QUOTED_SPEECH.sub(' ', text).lower()
+    words = QUOTED_SPEECH.sub(' ', text).lower().replace(' thru ', ' through ').replace('ilook ', 'i look ')
+    words = NEGATED.sub(' ', words)
+    words = re.sub(r"\b(?:hands|palms|arms)\s+(?:open|wide)\b|\bopen\s+(?:hands|palms|arms)\b", ' ', words)
+    words = re.sub(r"\bchek", 'check', words).replace('trapz', 'traps')
     violent = re.compile(r'\b(attack|attacks|stab|stabs|shoot|shoots|kill|kills)\b')
     # A capitalized name mid-sentence is someone ("I attack Uktarl"), in any room.
     names = tuple(word.casefold() for word in re.findall(r"(?<![.!?]\s)(?<!^)\b([A-Z][a-z'-]+)",
@@ -662,6 +693,16 @@ def room_intent(action, addressed=False, room=None):
         return 'combat'
     if re.search(r'\b(cast|casts|casting)\b', words):
         return 'spell'  # a spell aimed at nobody (Detect Magic, Light...) is not combat
+    early = asked_away(words)
+    if SEARCH_INTENT.search(early) and not addressed and not MOVE_THROUGH.search(early) and \
+            not GOING_IN.search(early) and not re.search(r'\b' + PHYSICAL_VERBS + r'\b', early) and \
+            not OBJECT_ACT.search(early) or (SEARCH_INTENT.search(words) and not quoted and not addressed and
+                                            CHECK_ASK.search(words)):
+        # Search, examine or investigate anywhere in the sentence beats a move, a gesture or
+        # talk around it ('run my fingers along the mortar, hunting for a catch', 'head over to
+        # the door, checking it for traps'), and a handled feature's free look: a bid for a
+        # check (docs/INTENT_PRECEDENCE.md). Going through or in first stays a move.
+        return 'search'
     exit_named = bool(room.exits) and re.search(
         r'\b(?:' + '|'.join(re.escape(word) for word, _ in room.exits) + r')s?\b', words)
     if THRESHOLD_LOOK.search(words) and (THRESHOLD_GAP.search(words) or exit_named) and \
@@ -679,23 +720,16 @@ def room_intent(action, addressed=False, room=None):
     named_exit = re.search(r'\bdoors?\b', words) or (exit_words and re.search(r'\b(?:' + exit_words + r')s?\b', words))
     if MOVING.search(words) and (named_exit or (re.search(r'\bout\b', words) and not feature)) or room.inward and GOING_IN.search(words) \
             or re.search(r'\b(head|heads|charge|charges|barge|barges|burst|bursts|continue|continues)\b', words) and named_exit \
-            or named_exit and _exit_object(words, exit_words) or RETRACING.search(words):
+            or named_exit and _exit_object(words, exit_words) or RETRACING.search(words) \
+            or named_exit and re.search(r'^\s*back\s+(?:through|out|in)\b|\bpush(?:es)?\s+(?:through|past)\b', words):
         return 'exit'
-    early = asked_away(words)
-    if SEARCH_INTENT.search(early) and not quoted and not addressed and not (
-            feature and _feature_handled(re.escape(feature[0]) + 's?').search(words)) and \
-            not re.search(r'\b' + PHYSICAL_VERBS + r'\b', early) and not OBJECT_ACT.search(early):
-        # Search, examine or investigate anywhere in the sentence beats a move, a gesture or
-        # talk before it ('run my fingers along the mortar, hunting for a catch', 'go over the
-        # west pillar inch by inch'): a bid for a check (docs/INTENT_PRECEDENCE.md).
-        return 'search'
     if feature:
         nouns = re.escape(feature[0]) + 's?'
         if _feature_moved(nouns).search(words):
             return 'move_feature'
         if _feature_entry(nouns).search(words):
             return 'enter_feature'
-        if _feature_handled(nouns).search(words):
+        if _feature_handled(nouns).search(words) and not ADDRESS_WORDS.search(words):
             # The 6c baseline's contradictory tub rule: a question about what is in a feature
             # went to Kit's invention oracle while the room forbade inventing the contents. The
             # file keys the contents (the feature's ``holds`` fact) and a plain look at a
@@ -737,6 +771,10 @@ def room_intent(action, addressed=False, room=None):
         # bid for a check: Kit calls one or declines (#150 retest: these were refused as
         # needing the DM's call; at f5e0a7d they were simple acts with no roll).
         return 'search'
+    if PLAIN_LOOK.search(words) and not quoted and not ADDRESS_WORDS.search(words):
+        return 'observe'
+    if re.match(r"\s*(?:what|how)\s+an?\b|\s*(?:wow|huh|ooh|hmm|ah|oh)\b[^a-z]*$", words):
+        return 'social'  # an exclamation ('What a strange place.')
     if '?' in words and not quoted and not addressed and not door_business and declared.strip() and \
             not SOCIAL_WORDS.search(declared) and not ADDRESS_WORDS.search(declared):
         # Talk, an act and a question in one message ("Matching set. I look over the helm.
@@ -746,6 +784,8 @@ def room_intent(action, addressed=False, room=None):
             return 'observe'
         if SIMPLE_ACT.search(declared) and not SEARCH_INTENT.search(declared):
             return 'simple_act'
+    if re.search(r'\b(attack|attacks|stab|stabs)\b', declared) and AIMED_AT_THING.search(declared) and not quoted:
+        return 'unsupported_action'  # a strike at a thing ('I attack the brazier'): Kit's ruling
     if quoted or door_business or '?' in words or SOCIAL_WORDS.search(words) or ADDRESS_WORDS.search(words) or \
             GESTURE.search(words) or violent.search(words):
         # A violent verb that reached here is aimed at nobody: an idiom or a gesture
@@ -759,6 +799,13 @@ def room_intent(action, addressed=False, room=None):
         return 'observe'
     if SIMPLE_ACT.search(words) and not SEARCH_INTENT.search(words):
         return 'simple_act'
+    if re.match(r"\s*(?:hey|hi|hello|greetings)\b", declared) and not re.search(r'\b' + PHYSICAL_VERBS + r'\b', declared) \
+            or re.search(r"\bnever\s*mind\b", declared):
+        return 'social'  # a greeting or a retraction: nothing to rule
+    if re.match(r"\s*(?:hmm+|right|okay|ok|well|alright|so|huh|interesting)\b[\w ,']*[.!]?\s*$", declared) and \
+            not re.search(r"\bstop\b|\d", declared) and not AIMED_AT_THING.search(declared) and \
+            not re.search(r'\b' + PHYSICAL_VERBS + r'\b', declared):
+        return 'social'  # 'Hmm.', 'Right then.': nothing acted on, nothing to rule
     return 'unsupported_action'
 
 
@@ -1147,7 +1194,7 @@ class RoomAdjudicator:
 
     def _resolve(self, action, revision, state, addressed=False):
         require(isinstance(action, str) and action.strip(), 'Player action required')
-        narration = QUOTED_SPEECH.sub(' ', action.translate(_TYPOGRAPHIC))
+        narration = NEGATED.sub(' ', QUOTED_SPEECH.sub(' ', action.translate(_TYPOGRAPHIC)))
         # Speech and table talk to Kit are never resolved as checks.
         spoken = bool(QUOTED_SPEECH.search(action.translate(_TYPOGRAPHIC))) or is_ooc(action)
         # A physical act changes the world (attacks, grabs, a flipped table, coins taken, paint
@@ -1176,7 +1223,8 @@ class RoomAdjudicator:
                                 'or something else, or time passing ("I wait"), is what ends it. '
                                 'No turn was committed.')
         if not is_ooc(action) and kit_combat.config(self.source) and asked_away(narration).strip():
-            physical = self._resolve_physical(action if asked_away(narration) == narration else
+            physical = self._resolve_physical(action if asked_away(narration) == narration and
+                                              not NEGATED.search(action) else
                                               asked_away(narration), revision, state)
             if physical:
                 # One message, several intents: an act that starts no fight still carries the
@@ -1317,6 +1365,8 @@ class RoomAdjudicator:
             handling = self.source['facts'][key]['handling']
             text = handling.get({'move_feature': 'move', 'inspect_feature': 'look',
                                  'enter_feature': 'enter'}[kind])
+            if not text and ordinary_attempt(action, self.source, state):
+                return self._kit_ruling(action)  # an act the file has no line for: Kit rules it
             if not text:
                 raise PendingRuling(f'The room file gives no ruling for that with the {noun}. No turn was committed.',
                                     attempt=True)

@@ -51,7 +51,7 @@ INSIDE = [
     ('I sift through the ashes in the corner.', CHECK),
     ('Sifting through the dust, I look for anything dropped.', CHECK),
     ('I look behind the table.', CHECK),
-    ('I peer under the chest.', LOOK),                       # a handled feature: the file answers
+    ('I peer under the chest.', CHECK),                      # a search on a handled (trapped) feature: a check
     ('I comb through the papers on the table.', CHECK),
     ('I rifle through the drawers.', CHECK),
     ('I scrutinise the floorboards.', CHECK),
@@ -75,7 +75,7 @@ INSIDE = [
     ('Walking the wall, I check it for hidden seams.', CHECK),
     ('I walk to the table and examine the ledger.', CHECK),
     ('I kneel and inspect the floor.', CHECK),
-    ('I step over and check the chest for traps.', LOOK),
+    ('I step over and check the chest for traps.', CHECK),
     # Mixed talk + act + question keep the act (PR 145 bug 3)
     ('Matching set, never good. I back up to the door and look over the chest. Does it look trapped?', LOOK),
     ('I look over the chest and the ledger. Do either look valuable?', LOOK),
@@ -149,7 +149,8 @@ class Precedence(Stalls):
     def test_the_order_is_documented(self):
         from pathlib import Path
         doc = (Path(__file__).parents[1] / 'docs/INTENT_PRECEDENCE.md').read_text(encoding='utf-8')
-        self.assertIn('A search **always**', doc)
+        self.assertIn('**whole sentence**', doc)
+        self.assertIn("Kit's ruling as an ordinary turn", doc)
         self.assertIn('never refused', doc)
 
 

@@ -31,3 +31,12 @@ When one message fits more than one intent class, the engine (`room_intent` and
 
 `tests/test_phrase_corpus.py` holds the playtest phrasings and paraphrases; its
 `Precedence` class pins each overlap above with one message per pair.
+
+## Retest-2 additions (fuzz-driven)
+
+- A negated clause ("I don't search", "I won't attack", "without stepping in") is dropped before routing.
+- Asking to search ("Can I…", "Let me…", "Time to…") is a search. A search on a handled or trap-watched feature is a check request; the trap is resolved by the check's outcome.
+- Plain looks ("What do I see?", "Describe…", "I eye…", "listen at…") are free observation.
+- An exclamation, greeting, interjection ("Hmm.") or "never mind" is talk.
+- A strike at a thing ("I attack the brazier") is Kit's ruling as an ordinary turn.
+- An exit is also named by the area it leads to, unless that word names another exit.
