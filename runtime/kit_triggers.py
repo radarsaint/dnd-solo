@@ -33,7 +33,7 @@ import hashlib
 import re
 
 from . import kit_rolls
-from .state_context import InvalidChange, require
+from .state_context import require
 
 KINDS = ('disturb', 'enter')
 FEATURE_KINDS = ('move_feature', 'inspect_feature', 'enter_feature')

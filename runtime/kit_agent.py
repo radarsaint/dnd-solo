@@ -17,7 +17,6 @@ if __name__ == '__main__' and not __package__:
     _sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))
     _runpy.run_module('runtime.kit_agent', run_name='__main__', alter_sys=True)
     raise SystemExit(0)
-import argparse
 import copy
 import dataclasses
 import hashlib
@@ -58,7 +57,7 @@ from . import kit_interstitial
 from . import kit_voice
 from .scene_discernment import IMPROV_READ_SCHEMA, check_improv_read, discernment_candidates
 from .state_context import (ASKED_EVENT_PREFIX, CONTEXT_BUDGET_BYTES, HostSequenceError, InvalidChange,
-                            PERSONALITY_CORE, PLAYER_NOTE_MAX_EVIDENCE, PROJECT_ROOT, Runtime,
+                            PLAYER_NOTE_MAX_EVIDENCE, PROJECT_ROOT, Runtime,
                             StaleTurn, VOICE_MAX_BYTES, load_voice, personality_core_text,
                             check_player_note_text, encode, require)
 from .state_context import HELD_KINDS as _HELD_KINDS

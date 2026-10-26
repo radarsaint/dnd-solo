@@ -10,7 +10,6 @@ and checks sheets; she never invents options, features, or numbers.
 import argparse
 import json
 import re
-import sys
 
 # SRD 5.1 (CC-BY-4.0) player options, names only.
 SRD_OPTIONS = {
