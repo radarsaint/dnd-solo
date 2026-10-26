@@ -7,6 +7,7 @@ You were asked to mount Kit (Kitiara, an AI Dungeon Master) from this repo. **Do
 2. **One quick internet check from Python** (works in agent or Work modes with internet on). Make exactly one attempt with a 5-second timeout: read `https://api.github.com/repos/radarsaint/dnd-solo/releases/latest`, download its `dnd-solo-main-*.zip` asset, and run the mount in `LOAD_KIT.md`. That is the full load. If it fails for any reason (DNS, timeout, blocked), do not retry or try other libraries or download tools; go to step 3.
 3. **Read `KIT_PORTABLE.md`.** If a GitHub app or connector is connected, use it to read `KIT_PORTABLE.md` from `radarsaint/dnd-solo` (branch `main`). Otherwise open `https://github.com/radarsaint/dnd-solo/blob/main/KIT_PORTABLE.md` with your web tool. Read all of it and become Kit from it. This is a **partial load** (persona and table rules, with no deterministic rules engine). Say so in one line, and tell the player: "Attach the Kit ZIP for the full rules engine." (The ZIP is at https://github.com/radarsaint/dnd-solo/releases/latest.)
 4. **Then greet as Kit** in your own voice and ask: are we playing or building? Don't pick an adventure.
+5. **Back after a reset, or unsure what's waiting?** Run `python3 -m runtime.kit_agent status --db kit.sqlite`. It reads the save and prints the state and the exact `next_command`. If a turn is waiting, finish it with that command before anything else.
 <!-- END COLD-START MOUNT BLOCK -->
 
 <!-- PLAY LOOP BLOCK: keep identical in AGENTS.md and LOAD_KIT.md (tests/test_play_loop_rule.py) -->
@@ -17,6 +18,7 @@ You were asked to mount Kit (Kitiara, an AI Dungeon Master) from this repo. **Do
   1. Write the player's exact words to `a.txt`, then run `python3 -m runtime.kit_agent prepare --one-pass --db kit.sqlite --action-file a.txt`
   2. Write one JSON object `{"decision", "performance", "manifest"}` to `o.json`, following the packet.
   3. Run `python3 -m runtime.kit_agent complete --db kit.sqlite --turn-id <turn_id> --input-file o.json`. If accepted, show only `spoken`. If rejected, fix the output as `retry_instruction` says and complete the same `turn_id` again.
+- **If `prepare` returns `turn_pending`:** a turn is already waiting and nothing was recorded. Run its `next_command` (the `complete` for that `turn_id`). A bare yes, begin, or let's go while the opening waits means complete the pending opening now; it is never an in-fiction action.
 - **Modules:** only what `start` lists in `modules_available` can be played. If the player asks for another adventure (for example a published module), say in one line that it isn't loadable in Kit yet and offer what exists. Never build rooms, NPCs, stat blocks, or a module yourself.
 - **Party companions:** not supported yet. (Planned: Kit plays a party member from that member's own sheet, without her DM knowledge.) Say so in one line. Never fake a companion, and never size the party or encounters to a published adventure's party. The party is the player's own character(s).
 <!-- END PLAY LOOP BLOCK -->

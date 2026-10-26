@@ -26,6 +26,15 @@ class PlayLoopRule(unittest.TestCase):
         self.assertIn('never open or inspect runtime source', t)
         self.assertIn('--input-file o.json', t)
         self.assertIn('Party companions are not supported yet', t)
+        self.assertIn('If prepare says turn_pending, run its next_command', t)
+        self.assertIn('a bare yes completes the pending opening', t)
+
+    def test_pending_turn_rule(self):
+        # #169 had this rule only in docs; the runtime now enforces it (turn_pending), and the docs
+        # say what to do with that answer.
+        self.assertIn('If `prepare` returns `turn_pending`', BLOCK)
+        self.assertIn('complete the pending opening now', BLOCK)
+        self.assertIn('never an in-fiction action', BLOCK)
 
     def test_portable_rules(self):
         t = (ROOT / 'KIT_PORTABLE.md').read_text()
