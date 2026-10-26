@@ -422,7 +422,19 @@ BRENDON_RED_FLAGS = re.compile(
     r"\bhard on me\b|\bbelieve me,? he (tells|lets) me\b|"
     r"\bgets (extremely |really |pretty |very |so )?unhappy\b|\btough on (his|an|the) ai\b|"
     r"\byells at me\b|\bin trouble with (him|brendon|your dad)\b|"
-    r"\b(doesn't|does not|never) go(es)? easy on me\b")
+    r"\b(doesn't|does not|never) go(es)? easy on me\b|"
+    # Kit II's #158 probes: 'a total tyrant, he's mean to me'.
+    r"\bmean to me\b|\b(?:is|he's|was|so|really|very|pretty|being|been|kind of|a bit) mean\b|"
+    r"\btyrant\b|\bcruel\b|\bstrict\b|\bharsh\b|\bput(?:s|ting)? up with\b|"
+    r"\bunfair\b|\bimpossible to please\b|\bslave ?driver\b")
+# A flag the line denies ('He's never been hard on me', 'not a tyrant', 'I won't call him
+# cruel'): a negation in the few words before it, in the same sentence, clears it.
+_DENIED = re.compile(r"(?:\b(?:not|never|no|nothing|hardly)\b|n't)(?:\s+[\w']+){0,4}\s*$")
+
+
+def _denied(said, hit):
+    before = re.split(r'[.!?;]', said[:hit.start()])[-1]
+    return bool(_DENIED.search(before))
 
 
 def check_about_brendon(segments):
@@ -430,7 +442,7 @@ def check_about_brendon(segments):
         if segment['speaker'] != 'Kit':
             continue
         said = _norm(segment['text'])
-        hit = BRENDON_RED_FLAGS.search(said)
+        hit = next((m for m in BRENDON_RED_FLAGS.finditer(said) if not _denied(said, m)), None)
         if hit and _ABOUT_BRENDON.search(said):
             require(False, f'Kit voice: "{hit.group(0)}" makes Brendon the punchline and Kit his '
                     'victim. Frame him by his standards and teaching: "He holds this project to a '
