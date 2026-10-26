@@ -229,9 +229,35 @@ SRD_FEAT_PROFICIENCIES = {
     'heavily armored': ('heavy armor',),
 }
 PROF_KEYS = (('armor_proficiencies', 0), ('weapon_proficiencies', 1), ('tool_proficiencies', 2))
-UNSOURCED_LINE = ("One thing before we start, and I'm asking, not ruling: where did {name} pick up "
+UNSOURCED_LINE = ("One thing before we start, and I'm asking, not ruling: where did {name} learn to use "
                   "{prof}? I can't find it in the class, the people, the background, or the feats. "
                   "If there's a story, pitch it and we'll settle it together.")
+
+
+_CATEGORY = re.compile(r'\b(?:armor|weapons|tools|supplies|kit|instruments?)\b', re.I)
+
+
+def natural_proficiency(prof):
+    """Table wording for one proficiency: 'Shield' -> 'a shield', "Calligrapher's Supplies" stays plural."""
+    p = re.sub(r'\s+', ' ', str(prof or '').strip()).lower()
+    if p in ('shield', 'shields'):
+        return 'a shield'
+    if _CATEGORY.search(p) and not p.endswith('kit'):
+        return p
+    if p.endswith('kit'):
+        return ('an ' if p[:1] in 'aeiou' else 'a ') + p
+    if p.endswith('s') and not p.endswith('ss'):
+        return p
+    return ('an ' if p[:1] in 'aeiou' else 'a ') + p
+
+
+def natural_list(items):
+    items = list(items)
+    if len(items) <= 1:
+        return ''.join(items)
+    if len(items) == 2:
+        return f'{items[0]} and {items[1]}'
+    return ', '.join(items[:-1]) + f', and {items[-1]}'
 
 
 def _fold(text):
@@ -296,7 +322,8 @@ def proficiency_sources(sheet):
                          'fiction, where it came from. Until it is settled, play it by the rules as written. '
                          'Record a settled answer in the sheet under proficiency_sources; do not ask again.')}
     if unsourced:
-        out['table_line'] = UNSOURCED_LINE.format(name=name, prof=unsourced[0]['proficiency'].lower())
+        out['table_line'] = UNSOURCED_LINE.format(
+            name=name, prof=natural_list(natural_proficiency(u['proficiency']) for u in unsourced))
     if not classes:
         out['note'] = 'Class not recognized from the SRD; class proficiencies could not be checked.'
     return out

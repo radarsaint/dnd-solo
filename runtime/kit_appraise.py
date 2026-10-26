@@ -33,10 +33,55 @@ KEY = (None, 0, 0)  # one table, one appraiser
 DEFAULT_STATE = 'kit_appraise.json'
 
 
+# Question phrasing around an item name ("what's a potion of healing worth?").
+_LEAD = re.compile(r"^\s*(?:(?:hey|ok|okay|so|kit|goldscale)[,!]?\s+)*(?:(?:what(?:'s| is| does| would)|how much(?: is| does| would)?|"
+                   r"can you|could you|please|pls)\s+)+(?:(?:price|appraise|value|cost|be|for|me|us)\s+)*"
+                   r"(?:(?:a|an|the|one|some)\s+)?", re.I)
+_LEAD_VERB = re.compile(r"^\s*(?:please\s+)?(?:price|appraise|value)\s+(?:(?:me|us)\s+)?(?:(?:a|an|the|one)\s+)?", re.I)
+_TAIL = re.compile(r"\s*(?:(?:be\s+)?worth|cost|go for|sell for|run(?: me)?|be)?\s*(?:,?\s*please)?\s*[?.!]*\s*$", re.I)
+
+# Well-known SRD items Kit can price without the player pasting the item text (SRD 5.1 values).
+SRD_DEFAULTS = (
+    ('potion of supreme healing', 'very rare potion', '10d4+20 healing'),
+    ('potion of superior healing', 'rare potion', '8d4+8 healing'),
+    ('potion of greater healing', 'uncommon potion', '4d4+4 healing'),
+    ('potion of healing', 'common potion', '2d4+2 healing'),
+)
+_DICE = re.compile(r'\d+d\d+', re.I)
+_RARITY = re.compile(r'\b(?:common|uncommon|rare|very rare|legendary|artifact)\b', re.I)
+
+
+def strip_question(text):
+    """The item, without question phrasing: "what's a potion of healing worth?" -> "potion of healing"."""
+    t = (text or '').strip()
+    mode = ''
+    m = re.match(r'^(?:\?gs\s+)?(buy|sell)\s+', t, re.I)
+    if m:
+        mode, t = m.group(1).lower() + ' ', t[m.end():]
+    t = _LEAD_VERB.sub('', _LEAD.sub('', t))
+    t = _TAIL.sub('', t).strip()
+    return mode + t if t else (text or '').strip()
+
+
+def srd_defaults(text):
+    """Fill in rarity/type and dice for a well-known SRD item the player only named."""
+    low = text.casefold()
+    for name, rarity_type, dice in SRD_DEFAULTS:
+        if name in low:
+            extra = []
+            if not _RARITY.search(text):
+                extra.append(rarity_type)
+            if not _DICE.search(text):
+                extra.append(dice)
+            return f"{text} {' '.join(extra)}" if extra else text
+    return text
+
+
 def _command(text):
     text = (text or '').strip()
     if text.lower().startswith('?gs'):
         return text
+    text = srd_defaults(strip_question(text))
     if not text.lower().startswith(('buy ', 'sell ')):
         text = 'buy ' + text
     return '?gs ' + text

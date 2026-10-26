@@ -266,10 +266,11 @@ class PlaytestFixTests(unittest.TestCase):
     def test_description_answer_keeps_the_item_across_runs(self):
         with tempfile.TemporaryDirectory() as tmp:
             state = os.path.join(tmp, 'pending.json')
-            self.assertIn('item description', kit_appraise.appraise('potion of healing', state))
+            # A homebrew name: SRD potions of healing now price from built-in defaults (PR 145 #4).
+            self.assertIn('item description', kit_appraise.appraise('potion of vigor', state))
             self.assertTrue(os.path.exists(state))
             second = kit_appraise.answer('common potion', state)
-            self.assertIn('Potion of Healing', second)
+            self.assertIn('Potion of Vigor', second)
             self.assertTrue(os.path.exists(state), 'a still-missing item must stay pending')
             third = kit_appraise.answer('2d4+2 healing', state)
             self.assertIn('**70 gp**', third)

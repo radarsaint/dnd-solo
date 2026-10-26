@@ -248,18 +248,62 @@ def _sheet_real(sheet_path):
     return bool(sheet_path) and Path(sheet_path).is_file()
 
 
-def lobby_sheet(sheet_path):
-    """Load and check the player's sheet in the lobby: real name and proficiency sources."""
+def _asked_key(name, unsourced):
+    return json.dumps([str(name).casefold(), sorted(str(u['proficiency']).casefold() for u in unsourced)])
+
+
+def proficiency_question_asked(db, name, unsourced):
+    """True when this exact unsourced-proficiency question was already raised for this character."""
+    path = Path(db) if db else None
+    if path is None or not path.is_file():
+        return False
+    con = sqlite3.connect(f'file:{path}?mode=ro', uri=True)
+    try:
+        return con.execute('SELECT 1 FROM kit_asked WHERE key = ?', (_asked_key(name, unsourced),)).fetchone() is not None
+    except sqlite3.Error:
+        return False
+    finally:
+        con.close()
+
+
+def record_proficiency_question(db, name, unsourced):
+    """Persist in the save that the unsourced-proficiency question was raised, so it is raised once."""
+    con = sqlite3.connect(str(db))
+    try:
+        con.execute('CREATE TABLE IF NOT EXISTS kit_asked (key TEXT PRIMARY KEY, kind TEXT NOT NULL)')
+        con.execute('INSERT OR IGNORE INTO kit_asked (key, kind) VALUES (?, ?)',
+                    (_asked_key(name, unsourced), 'proficiency_source'))
+        con.commit()
+    finally:
+        con.close()
+
+
+def lobby_sheet(sheet_path, db=None):
+    """Load and check the player's sheet in the lobby: real name and proficiency sources.
+
+    With a save (db), the unsourced-proficiency question is recorded when first raised and
+    not raised again on later lobby calls (table_line is dropped, already_asked is set)."""
     try:
         sheet = json.loads(Path(sheet_path).read_text(encoding='utf-8'))
         pc_sheet.check_sheet(sheet)
     except Exception as exc:  # noqa: BLE001 - a bad sheet is reported, never crashes the lobby
         return {'sheet_loaded': False, 'sheet_problems': [str(exc)]}
+    check = kit_chargen.proficiency_sources(sheet)
+    name = kit_chargen.character_name(sheet)
+    if check.get('unsourced') and db:
+        if proficiency_question_asked(db, name, check['unsourced']):
+            check.pop('table_line', None)
+            check['already_asked'] = True
+            check['next_step'] = ('Already asked once in this save. Do not ask again; play it by the rules as '
+                                  'written until the player settles it.')
+        else:
+            record_proficiency_question(db, name, check['unsourced'])
+            check['already_asked'] = False
     return {'sheet_loaded': True, 'character_loaded': True,
-            'character': {'name': kit_chargen.character_name(sheet), 'sheet_title': sheet.get('name'),
+            'character': {'name': name, 'sheet_title': sheet.get('name'),
                           'ancestry': sheet.get('ancestry'), 'class': sheet.get('class'),
                           'level': sheet.get('level')},
-            'proficiency_check': kit_chargen.proficiency_sources(sheet)}
+            'proficiency_check': check}
 
 
 def _play(db, sheet_path, executable, blocked, table, modules=None):
@@ -269,7 +313,7 @@ def _play(db, sheet_path, executable, blocked, table, modules=None):
     if table in TABLE_MODES:
         record_table_mode(db, table)
     table = table if table in TABLE_MODES else table_mode(db)
-    loaded = lobby_sheet(sheet_path) if has_sheet else {}
+    loaded = lobby_sheet(sheet_path, db) if has_sheet else {}
     if loaded and not loaded['sheet_loaded']:
         has_sheet = False
     # An attached module folder must ride along on every retry, or the rerun loses it.
