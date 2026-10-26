@@ -2038,9 +2038,12 @@ class RoomAdjudicator:
             return ('Nothing within 30 feet carries a magical aura.',
                     'Detect Magic: the room marks no magic here; tell the player plainly they sense none.')
         public = detect_magic_line(auras)
+        def where(aura):  # no backslash inside an f-string expression: Python 3.8-3.11 can't parse it
+            place = re.sub(r'^at\s+', '', aura['where']) if aura['where'] else ''
+            return ' at ' + place if aura['where'] else ''
         private = 'Detect Magic senses (DM only, place each aura but do not read out the fact): ' + '; '.join(
             f"{a['fact']}{' [' + a['school'] + ']' if a['school'] else ''} x{a['count']}"
-            f"{' at ' + re.sub(r'^at\s+', '', a['where']) if a['where'] else ''}: {a['text']}" for a in auras)
+            f"{where(a)}: {a['text']}" for a in auras)
         return public, private
 
     def _resolve_called(self, action, revision, state):
