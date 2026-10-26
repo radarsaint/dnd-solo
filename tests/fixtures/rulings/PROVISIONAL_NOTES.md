@@ -15,7 +15,7 @@ Notes cite Discord snowflakes: server id, channel id, the player message id, and
 
 ## Full text
 
-`my_ruling` stores his whole reply. It is not cut at 200 characters. Rows are not marked truncated.
+`my_ruling` stores his whole reply. It is not cut at 200 characters. Rows are not marked truncated. The reply to message `738203001797345330` is narration of the street. Its prefix is `just let it happen`, not `other`.
 
 ## How a verified pair qualified
 
@@ -38,7 +38,7 @@ This is not a complete scrub. Two cases are left on purpose:
 - The phrase "everyone is <name>" is left as written. Replacing it produced "Everyone is PC1", which is not what he said.
 - A name used as a pun is left as written: built into a longer word, or both shouted and lowercase in the same message. That is why "castor" still shows in the joke lines.
 
-Names that were never on the list can still appear.
+Names that were never on the list can still appear. `Fabertell` is on the list, including the spellings Fabertel, Fabertale, and faber. `Chadmart`, `Chad-Mart`, and `Chad-Marts` are a place. The word Chad inside those is not a character tag.
 
 ## What the labels are
 
@@ -76,8 +76,20 @@ Season 3: 474. Empire City: 191. One Empire City line was removed (below).
 
 `tests/fixtures/rulings/bfdm_rulings_followup.jsonl`
 
-- `link` `avrae` (11 rows): an Avrae roll or attack post, the next human message with text is Brendon, and an actor name in that post or in the player line just before it also appears in his reply. Discord reply-to would count too. There were no reply-to hits. Dice with no shared actor name are not in the file. `link_reason` is `actor` or `reply`.
+Nothing in this file is added to the verified set.
+
+- `link` `avrae` (9 rows): an Avrae roll or attack post, the next human message with text is Brendon, and an actor name in that post or in the player line just before it also appears in his reply. Discord reply-to would count too. There were no reply-to hits. Dice with no shared actor name are not in the file. Two rolls that pointed at the same reply were kept once.
 - `link` `adjacency` (12035 rows): the next human message with text is Brendon, but there is no shared name, no distinctive shared word, and no reply-to. `link_reason` is `adjacent`. This tier is for Brendon to confirm. It is never a verified pair.
+
+Adjacency rows carry `tag`:
+
+| tag | n | rule |
+| --- | ---: | --- |
+| chatter | 593 | lol / lmao / rofl, a line that is only a laugh, a real-life aside (brb, afk, woke up, at work), a meme link, or bot-help text |
+| likely_play | 1238 | not chatter, and the line or the reply has attack, save, check, does, or cast |
+| unsorted | 10204 | everything else |
+
+A wider sweep would call more rows chatter, and it would also mark scene lines. These tags are only the obvious markers. They are not a cleaned set.
 
 Both kinds set `"verified": false`.
 
