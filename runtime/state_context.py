@@ -280,6 +280,9 @@ class Runtime:
             );
             -- Timing telemetry is deliberately outside turns/ledger/kit_turns: it never
             -- enters a turn digest, so an identical retry stays idempotent.
+            -- The last full packet issued for a pending one-pass turn, for rehydrate (a host that
+            -- lost it, e.g. the one a window answer returns). Rows of finished turns are pruned.
+            CREATE TABLE IF NOT EXISTS kit_packets (turn_id TEXT PRIMARY KEY, body TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS kit_telemetry (
                 seq INTEGER PRIMARY KEY, turn_id TEXT NOT NULL UNIQUE, body TEXT NOT NULL
             );
@@ -495,6 +498,19 @@ class Runtime:
                 'Call prepare first and use the turn_id it returns.', 'prepare')
         return {'revision': row[0], 'body': json.loads(row[1]),
                 'plan': json.loads(row[2]) if row[2] is not None else None}
+
+    def save_kit_packet(self, turn_id, packet):
+        """Keep the full packet just issued for a pending turn, replacing an earlier one."""
+        with self.db:
+            self.db.execute('DELETE FROM kit_packets WHERE turn_id NOT IN (SELECT turn_id FROM kit_pending)')
+            self.db.execute('INSERT OR REPLACE INTO kit_packets(turn_id, body) VALUES (?, ?)',
+                            (turn_id, encode(packet)))
+
+    def kit_packet(self, turn_id):
+        """The full packet last issued for a turn that is still pending, else None."""
+        row = self.db.execute('SELECT p.body FROM kit_packets p JOIN kit_pending k USING (turn_id) '
+                              'WHERE p.turn_id=?', (turn_id,)).fetchone()
+        return json.loads(row[0]) if row else None
 
     def discard_pending_kit_turn(self, turn_id):
         """Drop an uncommitted staged turn (nothing in the world or ledger changes)."""
