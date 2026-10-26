@@ -43,7 +43,8 @@ NOT_A_CAMPAIGN_LINE = (
     "That isn't a campaign room. It's a test file, and I won't start the adventure there.")
 
 
-def campaign_entry(db, sheet_path=None, rooms_dir=None, campaign=None, intent=None, table=None):
+def campaign_entry(db, sheet_path=None, rooms_dir=None, campaign=None, intent=None, table=None,
+                   saves_db=None):
     """No room was named.
 
     No campaign: a greeting. She does not open a game.
@@ -60,7 +61,8 @@ def campaign_entry(db, sheet_path=None, rooms_dir=None, campaign=None, intent=No
     if campaign is None and intent == 'play':
         return _play(db, sheet_path, executable, blocked, table, modules=rooms_dir)
     if campaign is None:
-        return _greeting(sheet_path, executable, blocked)
+        from . import kit_resume  # local: kit_resume imports this module's callers
+        return _greeting(sheet_path, executable, blocked, kit_resume.find_saves(saves_db or db))
     if _is_mad_mage(campaign):
         return _mad_mage(sheet_path, executable, blocked)
     return {
@@ -219,7 +221,24 @@ def _resume(saved, campaign):
     }
 
 
-def _greeting(sheet_path, executable, blocked):
+NEW_CAMPAIGN_ASK = [
+    {'key': 'journal_mode', 'question': 'One journal for the whole campaign, or one per character?',
+     'options': ['campaign', 'character'],
+     'then': 'Pass save --journal-mode <choice> on the first save. It sticks.'},
+]
+
+
+def saves_line(saves):
+    if not saves:
+        return ''
+    if len(saves) == 1:
+        s = saves[0]
+        return f" I see a saved game: {s['pc']}, last at {s.get('area') or s['room_id']}. Say if you want to pick it up."
+    return f" I see {len(saves)} saved games. Say which one you want to pick up, or start something new."
+
+
+def _greeting(sheet_path, executable, blocked, saves=()):
+    saves = list(saves)
     return {
         'stage': 'greeting',
         'committed': False,
@@ -237,7 +256,10 @@ def _greeting(sheet_path, executable, blocked):
         'executable_starts': executable,
         'do_not_start': blocked,
         'mad_mage': _mad_mage_facts(),
-        'table_line': GREETING,
+        'saves': saves,
+        'new_campaign': {'ask': NEW_CAMPAIGN_ASK,
+                         'note': 'Ask these, in order, when the player starts a new campaign.'},
+        'table_line': GREETING + saves_line(saves),
         'next_step': (
             'Say table_line in your own voice if they have not already said what they want: play or build. '
             'Play: run start --intent play [--sheet <file>]. Build: run start --intent build. '
@@ -245,7 +267,9 @@ def _greeting(sheet_path, executable, blocked):
             'Do not pass --room. Do not pass --regression. Do not open do_not_start. '
             'If they want to play and have not named a game, ask which one. '
             'If they asked for Mad Mage, run start --campaign dotmm and say that table_line. '
-            'Talk, debrief, and design do not use the bridge.'),
+            'Talk, debrief, and design do not use the bridge.'
+            + (' To pick up a listed save: start --save <its path> (add --room <file> if its room '
+               'is not attached). Never ask for kit.sqlite.' if saves else '')),
     }
 
 

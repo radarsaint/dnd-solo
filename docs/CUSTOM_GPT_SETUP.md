@@ -38,7 +38,7 @@ LOAD (first chat, explicit load request, or recovery after a reset; no game need
 4. If they ask for Dungeon of the Mad Mage, run:
    python3 -m runtime.kit_agent start --db kit.sqlite --campaign dotmm
    Say table_line. If the stage is campaign_unavailable, stop. Do not invent a tavern or a dungeon. Do not pass --room or --regression.
-5. If the player uploads an older kit.sqlite to continue, copy it to REPO/kit.sqlite and run start with no --campaign and no --room. stage "resume": continue only if they want that game.
+5. To continue a save ZIP, run start --save <zip>; follow its next_step. Never ask for kit.sqlite.
 6. Do not load tests/fixtures/characters/example_pc.json unless they explicitly ask for the example character. Area 6c is a test fixture, not a game you offer.
 
 LIVE GAME TURNS
