@@ -105,7 +105,29 @@ INSIDE = [
     ('I walk over and check on the warden.', ACT),
     ('I walk the length of the room.', ACT),
     # Known: waiting is read as a social beat (harmless: nothing is refused)
-    ('Holding my torch up, I wait by the door.', SPEECH),
+    ('Holding my torch up, I wait by the door.', LOOK),  # a position at the door (was a social beat on #150)
+    # Backing up to a doorway is a position, not leaving (stacked PR, item 3) + misfires
+    ('I step back to the door and look over the chest.', LOOK),
+    ('I back up to the doorway and look around.', LOOK),
+    ('I back up to the door.', LOOK),
+    ('I step back to the door and listen.', LOOK),
+    ('I step back to the door and go out.', MOVE),            # misfire: leaving still leaves
+    ('I go out through the iron door.', MOVE),                # misfire: a plain exit
+    ('I look at the doorway.', LOOK),                         # misfire: no position from a look
+]
+
+
+# From the landing: entering with an act keeps the act; 'not going in yet' is a look (item 2)
+LANDING = [
+    ("I'm not going in yet, just peeking through the door.", LOOK),
+    ("I don't go in yet; I listen at the door.", LOOK),
+    ('Not stepping in, I peek through the keyhole.', LOOK),
+    ('I go through the iron door and look around.', MOVE),
+    ('I go in and knock on the chest.', MOVE),
+    ('I step through the iron door and search the chest.', LOOK),
+    # Misfires pinned: a real entry with 'not' elsewhere, and a peek with no negation
+    ("I go through the iron door, not waiting any longer.", MOVE),
+    ('I peek through the gap in the door.', LOOK),
 ]
 
 
@@ -127,6 +149,13 @@ class Corpus(Stalls):
         for i, (line, expected) in enumerate(INSIDE):
             with self.subTest(line):
                 self.assertEqual(outcome(self, line, f'c{i}'), expected)
+
+
+class LandingCorpus(Stalls):
+    def test_from_the_landing(self):
+        for i, (line, expected) in enumerate(LANDING):
+            with self.subTest(line):
+                self.assertEqual(outcome(self, line, f'l{i}'), expected)
 
 
 class Precedence(Stalls):

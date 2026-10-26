@@ -324,8 +324,12 @@ def tease_problems(source):
             problems.append(f'area {key} is an approach and needs a tease: text (what is seen or heard from '
                             'outside that points toward the hook), points_to (the hook), heard (who is audible)')
             continue
-        if hooks and tease.get('points_to') not in hooks:
-            problems.append(f"area {key} tease points_to {tease.get('points_to')!r} is not a story hook")
+        points = tease.get('points_to')
+        # A named hook must exist even when the room declares no hooks at all (PR 145 bug 11:
+        # a typo, or a hook never written, mounted silently and the tease pointed nowhere).
+        if (hooks or points is not None) and points not in hooks:
+            problems.append(f"area {key} tease points_to {points!r} is not a story hook"
+                            + ('' if hooks else ' (this room declares no story hooks)'))
         heard = tease.get('heard', [])
         if not isinstance(heard, list):
             problems.append(f'area {key} tease heard must be a list')

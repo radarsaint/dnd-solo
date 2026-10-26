@@ -417,3 +417,9 @@ def damage_total(action):
         return amount, kind
     items = damage(action)
     return (sum(a for a, _ in items), next((k for _, k in items if k), None)) if items else (0, None)
+
+
+def roll_outcome(total, dc, save=False):
+    """'pass' or 'fail' for a roll against a DC, for Kit only, never shown to the player.
+    Ties go to the actor on a check (meet or beat); a saving throw that only ties the DC fails."""
+    return 'pass' if (total > dc if save else total >= dc) else 'fail'

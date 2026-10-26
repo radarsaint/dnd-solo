@@ -729,6 +729,11 @@ def room_intent(action, addressed=False, room=None):
     feature = room.feature_in(words)
     exit_words = '|'.join(re.escape(word) for word, _ in room.exits)
     named_exit = re.search(r'\bdoors?\b', words) or (exit_words and re.search(r'\b(?:' + exit_words + r')s?\b', words))
+    if BACK_TO_DOOR.search(words) and not MOVE_THROUGH.search(words) and not RETRACING.search(words) and \
+            (room.exits or room.inward):
+        # Backing up to a doorway is taking a place at it, not leaving through it (PR 145
+        # bug 18: 'I step back to the door and look over the chest' walked out of the room).
+        return 'observe'
     if MOVING.search(words) and (named_exit or (re.search(r'\bout\b', words) and not feature)) or room.inward and GOING_IN.search(words) \
             or re.search(r'\b(head|heads|charge|charges|barge|barges|burst|bursts|continue|continues)\b', words) and named_exit \
             or named_exit and _exit_object(words, exit_words) or RETRACING.search(words) \
@@ -984,7 +989,7 @@ class RoomAdjudicator:
                 result = self._spring(result, *fired, action, revision, state)
         if result.kind == 'exit' and choice is None:
             result = self._also_after_entry(result, action, revision, state)
-        if result.kind == 'observe' and BACK_TO_DOOR.search(QUOTED_SPEECH.sub(' ', action).lower()):
+        if result.kind in ('observe', 'threshold_look') and BACK_TO_DOOR.search(QUOTED_SPEECH.sub(' ', action).lower()):
             key = self._threshold_exit(action, state)
             if key:
                 # Backing up to a doorway is a position the PC now holds (PR 145 playtest bug 18).
@@ -1926,9 +1931,21 @@ class RoomAdjudicator:
         modifier, _ = self._pc_numbers(skill, state, roll_text)
         die = self._die(state, revision, f'called:{pending["called_turn"]}:{skill}', roll_text, modifier, skill)
         evidence = (f'Player rolled the {skill} check Kit called on turn {pending["called_turn"]} '
-                    f'(target {target}): d20 {die} + {modifier} = {die + modifier}.')
+                    f'(target {target}): d20 {die} + {modifier} = {die + modifier}'
+                    # every die the player rolled (advantage keeps both), not only the kept one
+                    + (f' (rolled {text[stated[0].start:].strip()[:120]})' if not bare and stated else '') + '.')
+        tags = ['check']
+        if type(pending.get('dc')) is int:
+            # Kit's own DC: she hears pass or fail privately (PR 145 playtest bug 11). The
+            # public event never carries the DC.
+            outcome = kit_rolls.roll_outcome(total, pending['dc'], save=skill.endswith('_save'))
+            tags.append(outcome)
+            evidence += (f' Against Kit\'s DC {pending["dc"]}: {outcome.upper()} '
+                         '(ties go to the actor; a save that ties fails). Narrate the result, never the DC.')
+        else:
+            evidence += ' No DC was set and no room claim is here: Kit rules the result.'
         return Resolution('called_check', f'You roll {skill.replace("_", " ").title()}: {total}.',
-                          [{'type': 'beat', 'tags': ['check'], 'evidence': evidence}, clear])
+                          [{'type': 'beat', 'tags': tags, 'evidence': evidence}, clear])
 
     def _resolve_check(self, action, revision, state, claim_id, claim):
         """An active look or read at one hidden claim, against that claim's single DC.
@@ -1953,7 +1970,9 @@ class RoomAdjudicator:
         dc = kit_claims.claim_dc(claim, state.get('actors', {}),
                                  kit_claims.current_floor_level(self.source, state.get('area')))
         result = self._check(skill, dc, state, revision, f'check:{claim_id}', action)
-        evidence = f'Player actively checked {claim_id}: {kit_claims.check_evidence(skill, result)}.'
+        stated = kit_rolls.rolls(action)
+        evidence = f'Player actively checked {claim_id}: {kit_claims.check_evidence(skill, result)}' + (
+            f' (rolled {action[stated[0].start:].strip()[:120]})' if len(stated) == 1 and 'd20' in action[stated[0].start:] else '') + '.'
         details = None
         if skill == 'perception' and claim.get('perception_details'):
             # Details scale with the result: a stated roll above an automatic passive counts.
@@ -3109,7 +3128,8 @@ def check_plan(plan, episodes, public_event, action_kind=None, candidates=None, 
         # A state the player declares this turn counts for this turn's roll.
         kit_agenda.check_roll_call(plan['roll_call'], source or {},
                                    kit_agenda.with_pc_state(state or {}, plan.get('pc_state'),
-                                                            fight=plan.get('turn_mode') == 'combat'))
+                                                            fight=plan.get('turn_mode') == 'combat'),
+                                   action=player_action or '')
     plan.setdefault('observed_event', public_event)  # the engine's event, unless Kit copied it
     for key in ('observed_event', 'goal'):
         require(isinstance(plan[key], str) and plan[key].strip(), f'Missing {key}')
@@ -4038,6 +4058,12 @@ def prepare_inputs(runtime, revision, state, action, resolution, use_memory, one
         'dialogue_history': public_history,
         'discernment_candidates': body['discernment_candidates'],
     }
+    outcome = next((e for e in resolution.events if e.get('type') == 'beat' and 'check' in (e.get('tags') or ())
+                    and {'pass', 'fail'} & set(e.get('tags') or ())), None)
+    if outcome:
+        # Private: the called check's pass or fail against Kit's DC (never in the public half).
+        planning_input['check_outcome'] = {'result': 'pass' if 'pass' in outcome['tags'] else 'fail',
+                                           'evidence': outcome['evidence']}
     oracle = detail_oracle(runtime, state, action, resolution.kind)
     if oracle:
         # Private: the slot, canon, texture, and a seeded deal for the detail decision.
@@ -5903,6 +5929,14 @@ def start_session(db, sheet_path=None, runtime=None, room=None, area=None, manif
     own = runtime is None
     runtime = runtime or Runtime(db)
     try:
+        if runtime.db.execute('SELECT 1 FROM source').fetchone() is not None and \
+                runtime.source().get('id') == source.get('id') and runtime.source() != source:
+            # The same room, edited, on a game already running: it reloads in place, keeping
+            # progress and Kit's memory (PR 145 bug 10). An unchanged room still refuses below.
+            revision = runtime.reload_room(source, room_path=room)
+            return {'stage': 'reloaded', 'db': str(db), 'room_id': source.get('id'), 'room': str(room),
+                    'revision': revision,
+                    'next_step': 'The edited room file was reloaded mid-game; carry on with prepare.'}
         try:
             runtime.initialize(source, area or source['starting_area'], room_path=room)
         except InvalidChange as exc:

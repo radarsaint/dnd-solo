@@ -209,3 +209,20 @@ def private_summary(sheet, situation='at_ease'):
             'from_situation': [key for key in CONDITIONS if key not in sheet],
             'conditional_advantage': [e for e in sheet.get('advantage_on', []) if isinstance(e, dict)],
             'advantage_now': {skill: src for skill in SKILLS if (src := advantage_sources(now, skill))}}
+
+
+SHIELD_AC = 2
+
+
+def armor_class(sheet):
+    """The PC's AC now. The sheet's ``ac`` as written, plus a shield's +2 when shield training
+    was granted by a ruling (a settled ``proficiency_sources`` entry for Shield) after the
+    sheet's AC was worked out, and a shield is held or equipped. A sheet whose ``ac`` already
+    counts the shield says ``"ac_counts_shield": true`` (PR 145 playtest bug 16)."""
+    base = int((sheet or {}).get('ac') or 10)
+    settled = {str(k).strip().casefold() for k in ((sheet or {}).get('proficiency_sources') or {})}
+    trained = bool(settled & {'shield', 'shields'})
+    in_hand = any('shield' in str(v).casefold() for key in ('held', 'equipped') for v in (sheet or {}).get(key) or ())
+    if trained and in_hand and not (sheet or {}).get('ac_counts_shield'):
+        return base + SHIELD_AC
+    return base

@@ -103,7 +103,7 @@ KEEPS_PENDING_CHECK = BOOKKEEPING_EVENTS + ('refused_attempt',)
 # A pending check's optional fields: a held exit, and room for the check-calling follow-up's
 # quiet DC adjustment for creative use of the scene (Brendon: about -2) with its reason. Not
 # applied anywhere yet.
-PENDING_CHECK_OPTIONAL = {'exit', 'dc_adjust', 'reason', 'threshold', 'held'}
+PENDING_CHECK_OPTIONAL = {'exit', 'dc_adjust', 'reason', 'threshold', 'held', 'dc'}
 # A heavy turn Kit opened on a check call holds its description for the roll (kit_agent.STALL_KINDS).
 HELD_KINDS = ('opening', 'exit', 'threshold_look')
 # What the engine's outcome of a declared act may add (runtime/kit_acts.py: handles).
@@ -258,12 +258,8 @@ class Runtime:
     def close(self):
         self.db.close()
 
-    def initialize(self, source, area, room_path=None):
-        """Create a fresh fixture session. Refuse to overwrite a running game. ``room_path``:
-        the room file it was mounted from (kit_rooms), kept in the first snapshot."""
-        require(self.db.execute('SELECT 1 FROM source').fetchone() is None,
-                'This database already holds a game.')
-        require(area in source['areas'], 'Unknown starting area')
+    def _check_source(self, source):
+        """The room's graph and DM prep, checked before it is played (initialize and reload)."""
         for exit_id, edge in source['exits'].items():
             require(len(edge['areas']) == 2 and len(set(edge['areas'])) == 2,
                     'Each exit must connect two distinct areas')
@@ -284,6 +280,14 @@ class Runtime:
         for key, config in (source.get('procedures') or {}).items():
             if not key.startswith('_') and config.get('kind') == 'card_game':
                 kit_cards.check_config(config)
+
+    def initialize(self, source, area, room_path=None):
+        """Create a fresh fixture session. Refuse to overwrite a running game. ``room_path``:
+        the room file it was mounted from (kit_rooms), kept in the first snapshot."""
+        require(self.db.execute('SELECT 1 FROM source').fetchone() is None,
+                'This database already holds a game.')
+        require(area in source['areas'], 'Unknown starting area')
+        self._check_source(source)
         state = {
             'schema_version': STATE_SCHEMA_VERSION, 'area': area, 'elapsed_seconds': 0,
             'scene_id': FIRST_SCENE, 'visited': [area], 'known_facts': [], 'known_exits': [],
@@ -297,6 +301,48 @@ class Runtime:
         with self.db:
             self.db.execute('INSERT INTO source VALUES (1, ?)', (encode(source),))
             self.db.execute('INSERT INTO snapshots VALUES (0, ?)', (encode(state),))
+
+    def reload_room(self, new_source, room_path=None):
+        """Swap in an edited copy of the room this game is playing, mid-game (PR 145 playtest
+        bug 10: adding a claim meant a new database and lost episodes). Safe only when it is
+        the same room (same id), the PC's area still exists, and no prepared turn is waiting.
+        Progress carries over: known facts and exits, visited areas, actors as they stand, Kit's
+        memory. Ids the edit removed are dropped; new actors and resources start as written.
+        Returns the new revision, or None when the room is unchanged."""
+        old = self.source()
+        if encode(old) == encode(new_source):
+            return None
+        require(new_source.get('id') == old.get('id'),
+                f"Reload only the room being played ({old.get('id')!r}); this file is {new_source.get('id')!r}. "
+                'Use a new --db to start a different room.')
+        require(self.db.execute('SELECT 1 FROM kit_pending').fetchone() is None,
+                'Finish or abandon the prepared turn before reloading the room.')
+        revision, state = self.load()
+        require(state['area'] in new_source['areas'],
+                f"The edited room no longer has the PC's area {state['area']!r}.")
+        self._check_source(new_source)
+        new = copy.deepcopy(state)
+        new['known_facts'] = [k for k in new['known_facts'] if k in new_source['facts']]
+        new['known_exits'] = [k for k in new['known_exits'] if k in new_source['exits']]
+        new['visited'] = [a for a in new['visited'] if a in new_source['areas']]
+        actors = {k: v for k, v in new['actors'].items() if k in new_source['actors']}
+        for key, actor in new_source['actors'].items():
+            actors.setdefault(key, copy.deepcopy(actor))
+        new['actors'] = actors
+        new['resources'] = {**copy.deepcopy(new_source.get('resources') or {}), **new['resources']}
+        if room_path:
+            new.setdefault('room', {})['path'] = str(room_path)
+        self._observe(new, new_source)
+        body = encode(new_source)
+        turn_id = 'room_reload:' + hashlib.sha256(body.encode()).hexdigest()[:16]
+        event = {'type': 'beat', 'tags': ['room_reloaded'],
+                 'evidence': f'The room file was edited and reloaded mid-game ({room_path or old.get("id")}).'}
+        with self.db:
+            self.db.execute('UPDATE source SET body=? WHERE id=1', (body,))
+            self.db.execute('INSERT INTO turns VALUES (?, ?, ?)', (turn_id, turn_id, revision + 1))
+            self.db.execute('INSERT INTO ledger(turn_id, body) VALUES (?, ?)', (turn_id, encode(event)))
+            self.db.execute('INSERT INTO snapshots VALUES (?, ?)', (revision + 1, encode(new)))
+        return revision + 1
 
     def source(self):
         row = self.db.execute('SELECT body FROM source WHERE id=1').fetchone()
@@ -958,6 +1004,7 @@ class Runtime:
                                       set(check) - PENDING_CHECK_OPTIONAL == {'skill', 'ability', 'target', 'called_turn'} and
                                       ('exit' not in check or check['exit'] in (source.get('exits') or {})) and
                                       ('threshold' not in check or check['threshold'] in (source.get('exits') or {})) and
+                                      ('dc' not in check or (type(check['dc']) is int and 1 <= check['dc'] <= 30)) and
                                       ('dc_adjust' not in check or (type(check['dc_adjust']) is int and
                                                                     -5 <= check['dc_adjust'] <= 5)) and
                                       ('held' not in check or (isinstance(check['held'], dict) and
@@ -973,6 +1020,12 @@ class Runtime:
                 state.pop('pending_check', None)
             else:
                 state['pending_check'] = copy.deepcopy(check)
+                if not check.get('exit'):
+                    # The recap says the check is called, not the stale "nothing rolled" of
+                    # the request turn (PR 145 playtest bug 15).
+                    state['rhythm'].append({'tags': ['check_called'],
+                                            'evidence': f"Kit called for {check['skill']}; waiting on the roll."})
+                    state['rhythm'] = state['rhythm'][-12:]
         elif kind == 'risk_warned':
             from . import kit_interstitial
             kit_interstitial.apply(state, event)

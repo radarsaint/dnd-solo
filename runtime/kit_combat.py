@@ -1122,7 +1122,8 @@ class Fight:
         return [key for key in self.hostiles()] if self.scene.get('pc_hidden') else []
 
     def pc_ac(self):
-        return int(self.sheet.get('ac') or 10) + (5 if (self.fight or {}).get('shield_up') else 0)
+        from . import pc_sheet
+        return pc_sheet.armor_class(self.sheet) + (5 if (self.fight or {}).get('shield_up') else 0)
 
     # -- checkpoints -------------------------------------------------------------------
     def wait_for(self, kind, awaits, **detail):
