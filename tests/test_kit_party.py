@@ -25,6 +25,12 @@ def sheet(name):
     return json.loads((SHEETS / f'{name}.json').read_text())
 
 
+# Sessions draw a fresh roll_seed (state_context); the fights here pin it so every d20 (initiative
+# included) is the same each run. With a random seed the Wight sometimes hit Nik, which opens his
+# Shield reaction window: a checkpoint only Kit's reading of the reply can answer.
+SEED = 's2'
+
+
 class Table(unittest.TestCase):
     """Nik and three companions in compiled area 3 of the synthetic Lantern Ferry."""
 
@@ -52,6 +58,7 @@ class Table(unittest.TestCase):
 
     def act(self, line):
         revision, state = self.runtime.load()
+        state['roll_seed'] = SEED
         result = self.adjudicator.resolve(line, revision, state)
         self.runtime.commit(f't{revision}', revision, list(result.events))
         self.commits.append((line, list(result.events)))
@@ -79,7 +86,10 @@ class FourCharacterFight(Table):
         trace = self.trace()
         for key in ('brannoc', 'tamsin', 'odile'):
             self.assertIn(f'{key} tactics', trace)  # each companion acted on the engine
-        self.assertIn('lantern lash', trace)  # it fights back (targeting: see Targeting)
+        # It acts, and answers the defender who meleed it (not Nik, who is casting from range).
+        self.assertLess(trace.index('brannoc longsword'), trace.index('lantern_wight lantern lash at brannoc'))
+        self.assertIn('lantern_wight lantern lash at brannoc: d20 17 + 4 = 21 vs AC 18: hit 6', trace)
+        self.assertNotRegex(trace, r'lantern_wight lantern lash:')  # never at the PC
         self.assertIn('tamsin rapier', trace)
         self.assertEqual(state['actors']['lantern_wight']['status'], 'dead')
 
@@ -340,6 +350,7 @@ class DownedWithCompanions(Table):
         self.act('I look around the cellar.')
         self.act(INITIATIVE)
         revision, state = self.runtime.load()
+        state['roll_seed'] = SEED
         combat = state['combat']
         combat.update(pc_down=True, pc_damage=32, vs_downed=None, awaiting=None,
                       next=combat['order'].index('lantern_wight'))
