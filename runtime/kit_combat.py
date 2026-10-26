@@ -1063,6 +1063,7 @@ class Fight:
         self.trace = []
         self.labels = labels(source)
         self.needs_roll = False  # the act is an attack still waiting on its Avrae roll
+        self.damage_owed = False  # his blow hit on his turn and waits on its damage roll: the turn holds
         self.sheet = state.get('player_sheet') or {}
         self.kills = []          # who the PC's blows killed this turn (a flourish may follow)
         self.flourish_of = None  # resumed from a flourish: whose death the player described
@@ -2128,7 +2129,7 @@ class Fight:
                     acted = True
                 else:
                     acted = self.pc_attack(act)
-                self.needs_roll = not acted and init is None
+                self.needs_roll = not acted and init is None and not self.damage_owed
                 if self.fight['status'] == 'awaiting_initiative' and acted:
                     self.fight['opener_spent'] = True
         elif kind == 'late_reaction':
@@ -2619,6 +2620,14 @@ class Fight:
             self.lines.append('There is nobody there to hit.')
             return True
         self.fight['last_target'] = targets[0]
+        pending = self.fight.get('pending') if isinstance(self.fight.get('pending'), dict) else None
+        follow_up = bool(pending and pending.get('needs') == 'damage' and pending.get('weapon') == weapon and damage
+                         and kit_rolls.attack_total(self.action) is None)
+        if spell and not follow_up and self.fizzle_without_slot(spell):
+            # No slot left by the count: it fizzles before any roll is asked for (Witch Bolt with no
+            # slot left never gets "roll the attack"). The damage line of a spell already cast and
+            # paid for is not a new cast. Which slot a cast takes (the next free one up) is unchanged.
+            return True
         if spell in SPELL_SAVE:
             dc = posted.get('dc') or self.sheet.get('spell_save_dc') or _derived_save_dc(self.sheet)
             if dc is None:
@@ -2694,7 +2703,6 @@ class Fight:
             return True
         total = kit_rolls.attack_total(self.action)
         natural = next((roll.die for roll in kit_rolls.rolls(self.action) if roll.label == 'attack'), None)
-        pending = self.fight.get('pending') if isinstance(self.fight.get('pending'), dict) else None
         if total is None and spell in SPELL_AUTO and damage and pending and pending.get('needs') == 'damage' and \
                 pending.get('weapon') == weapon:
             # The damage line of an auto-hit spell already cast (and paid for): it lands, no second slot.
@@ -2727,9 +2735,10 @@ class Fight:
             self.fight['pending'] = None
             return True
         if not damage:
-            self.fight['pending'] = {'kind': 'attack', 'target': key, 'weapon': weapon, 'needs': 'damage'}
+            self.fight['pending'] = {'kind': 'attack', 'target': key, 'weapon': weapon, 'needs': 'damage',
+                                     **({'spell': spell} if spell else {})}
             self.lines.append(f'Your {what} hits the {self.label(key)}. Roll damage in Avrae.')
-            return True
+            return not self.hold_for_damage(key)
         self.lines.append(f'Your {what} hits the {self.label(key)}.')
         self.apply_damage(key, damage, dtype, nonlethal=act.get('nonlethal'))
         self.fight['pending'] = None
@@ -2741,7 +2750,21 @@ class Fight:
                 self.fight['pending'] = {'kind': 'attack', 'target': key, 'weapon': weapon, 'needs': 'damage',
                                          'type': bonus['type'], 'absorb': True}
                 self.lines.append(f"Absorb Elements adds {bonus['dice']} {bonus['type']} to this hit: roll it in Avrae.")
+                self.trace.append(f"absorb elements: +{bonus['dice']} {bonus['type']} on this melee hit")
+                return not self.hold_for_damage(key)
             self.trace.append(f"absorb elements: +{bonus['dice']} {bonus['type']} on this melee hit")
+        return True
+
+    def hold_for_damage(self, key):
+        """His blow hit on his own turn and its damage is not rolled yet: the turn holds for it (the
+        monsters wait for the damage; the open-ask gate in RoomAdjudicator.resolve takes the next
+        message as the answer). True when it holds. Before initiative, or on an attack made off his
+        turn (a reaction), nothing holds, as before."""
+        if self.fight['status'] != 'running' or not self.pc_turn_now() or not self.active(key):
+            return False
+        self.fight['pending']['holds_turn'] = True
+        self.damage_owed = True
+        self.trace.append(f'hit on {key}: his turn holds for the damage roll')
         return True
 
     def cast_slot(self, spell):

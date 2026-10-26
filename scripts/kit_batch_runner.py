@@ -37,7 +37,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 SHEET_DIRS = [REPO / 'tests' / 'fixtures' / 'characters']
 REGRESSION_ROOM = REPO / 'tests' / 'fixtures' / 'level_01_area_06c.json'
-MAX_ATTEMPTS = 4          # host_retry: degraded after 2 rejections, abandon after 4
+MAX_ATTEMPTS = 4          # host_retry: a style miss gets one retry, then the engine line commits (engine_line)
 DEGRADE_AFTER = 2
 
 DM_PREFACE = (
@@ -278,7 +278,7 @@ def run_scenario(scen, out_root, dm, sheet_dirs, room):
 
 
 def excerpt(result):
-    keep = {k: result[k] for k in ('stage', 'committed', 'message', 'degraded', 'soft_warnings', 'revision',
+    keep = {k: result[k] for k in ('stage', 'committed', 'message', 'degraded', 'engine_line', 'soft_warnings', 'revision',
                                    'public_event', 'asked')
             if k in result}
     return keep

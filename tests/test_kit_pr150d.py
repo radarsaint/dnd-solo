@@ -10,6 +10,7 @@ from pathlib import Path
 from runtime import kit_agent
 from runtime.kit_agent import KitChatBridge, PendingRuling, RoomAdjudicator, start_session
 from runtime.state_context import InvalidChange, Runtime
+from kit_policy import rejections_raise
 from test_kit_agent import RecordingModel
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -150,6 +151,7 @@ class BunkRoom(unittest.TestCase):
         self.assertIn('investigation cannot find the hidden pit', str(packet['input']['private']))
         self.assertNotIn('cannot find', packet['input']['public']['accepted_public_event'])
 
+    @rejections_raise  # validator probe (tests/kit_policy.py)
     def test_kit_cannot_narrate_an_unfound_thing_into_the_pcs_hands(self):
         with self.assertRaises(InvalidChange) as caught:
             self.turn('I pat the straw in the east bed.',

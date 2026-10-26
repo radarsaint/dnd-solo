@@ -446,7 +446,8 @@ def check_focus_specific(kit_focus):
         raise InvalidChange(
             f'kit_focus is too generic{f" ({phrase!r})" if phrase else ""}: name the concrete thing '
             'Kit foregrounds this turn (a detail, which actor tactic gets room, how a ruling is '
-            'framed, or a deliberate restraint).')
+            'framed, or a deliberate restraint). Example: "Let the humming behind the iron door carry '
+            'the beat; hold back the stair." Name things in this room, not a mood.')
 
 
 # ---------------------------------------------------------------------------

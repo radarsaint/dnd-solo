@@ -17,6 +17,7 @@ from runtime.state_context import InvalidChange
 from test_kit_combat_checkpoints import CAST, Camp, DECLINE, KILL_CAPTAIN, OPEN, SHIELD, shield_only
 from test_kit_monster_initiative import ROLL, Room, carcass
 from test_kit_short_beats import PERCEPTION, ShortBeat
+from kit_policy import rejections_raise
 
 ROOT = Path(__file__).resolve().parents[1]
 CARCASS_LOOK = ('A basilisk carcass sprawls across the floor of the hall, grey hide split and stinking, its '
@@ -71,6 +72,7 @@ class Reveal(unittest.TestCase):
         self.assertEqual(reveal['hold'], ['pillars'], 'held by id: its text is withheld from Kit (#101 review)')
         self.assertTrue(any('obvious layer' in line for line in packet['first_try']))
 
+    @rejections_raise  # validator probe (tests/kit_policy.py)
     def test_the_entry_ends_with_kit_handing_the_floor_back(self):
         room, bridge, packet = self.opening()
         with self.assertRaisesRegex(InvalidChange, 'handing the floor back'):
@@ -81,6 +83,7 @@ class Reveal(unittest.TestCase):
                                                    kit_line(KIT_HANDOFF)])
         self.assertTrue(result['spoken'].endswith('Kit: So. What draws you in first?'))
 
+    @rejections_raise  # validator probe (tests/kit_policy.py)
     def test_pouring_out_the_held_layer_is_refused(self):
         source = carcass()
         source['facts']['urns'] = {'area': 'hall', 'visible': True,

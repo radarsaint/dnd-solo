@@ -12,6 +12,7 @@ from runtime import kit_agent, kit_claims, kit_guards, pc_sheet
 from runtime.kit_agent import PendingRuling, RoomAdjudicator
 from runtime.state_context import InvalidChange, Runtime
 from test_kit_agent import FIXTURE, RecordingModel
+from kit_policy import rejections_raise
 
 NIK = json.loads((Path(__file__).parent / 'fixtures/characters/nik.json').read_text())
 SOURCE = json.loads(FIXTURE.read_text())
@@ -368,6 +369,7 @@ class PlayTests(unittest.TestCase):
         self.assertEqual(replay['revision'], result['revision'])
         self.assertIn('ring_value', self.runtime.load()[1]['claims']['learned'])
 
+    @rejections_raise  # validator probe (tests/kit_policy.py)
     def test_one_pass_wrong_toll_is_rejected_before_a_corrected_ring_lie_commits(self):
         self.runtime.set_player_sheet(NIK)
         bridge = kit_agent.KitChatBridge(self.runtime)

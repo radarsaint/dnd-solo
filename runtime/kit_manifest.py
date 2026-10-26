@@ -126,8 +126,9 @@ def rejection_notice(recent, session_hash):
     rows = list(recent)
     if not rows:
         return None
-    attempts = [a for a in rows[-1].get('attempts') or () if a.get('outcome') == 'rejected']
-    if len(attempts) < REJECT_STREAK:
+    attempts = [a for a in rows[-1].get('attempts') or () if a.get('outcome') in ('rejected', 'engine_line')]
+    # A turn the engine line closed (its narration rejected) counts as the streak by itself (#127).
+    if len(attempts) < REJECT_STREAK and not any(a.get('outcome') == 'engine_line' for a in attempts):
         return None
     reasons = _distinct_reasons(a.get('reason') for a in attempts)
     return {'rejections': len(attempts), 'reasons': reasons, 'session_hash': session_hash,

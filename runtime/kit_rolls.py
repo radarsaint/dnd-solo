@@ -384,6 +384,23 @@ _DICE_EXPR = _lazy.regex(r'\b' + _DICE_TERM + r'(?:\s*\[[^\]]*\])?'
                         r'(?:\s*/\s*\d+)?(?:\s*=\s*-?\d{1,3}\b)?')
 
 
+
+
+def without_dice(text):
+    """``text`` with its dice expressions ("1d4 (2) + 2 = 4", "2d6") blanked out."""
+    return _DICE_EXPR.sub(' ', text or '')
+
+def dice_totals(text):
+    """The stated total of every dice expression with one ("1d4 (4) + 2 = 6", "2d6 (3, 4) + 1 =
+    `8`", "3d4 (1, 2, 3) [piercing] = 6"), in order. A d20 roll is a to-hit, a check or a save,
+    never damage, so it is left out."""
+    out = []
+    for match in _DICE_EXPR.finditer(_clean(text).replace('`', '')):
+        total = re.search(r'=\s*(-?\d{1,3})\s*$', match.group(0))
+        if total and not re.search(r'd20\b', match.group(0), re.I):
+            out.append(int(total.group(1)))
+    return out
+
 # Avrae's title lines: "Wren makes an Investigation check!", "Brakka attacks with a Greataxe!",
 # "Nik casts Fireball!".
 AVRAE_TITLE = _lazy.regex(r"^[^\n!?.]{1,40}?\b(?:makes? an?\s+[a-z' ]{3,30}\s+(?:check|save|saving throw)|"

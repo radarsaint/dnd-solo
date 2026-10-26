@@ -3,10 +3,11 @@ import io
 import json
 import tempfile
 import unittest
+import unittest.mock
 from pathlib import Path
 from unittest.mock import patch
 
-from runtime import kit_agent, kit_claims, kit_detail, kit_guards
+from runtime import kit_agent, kit_claims, kit_detail, kit_guards, kit_voice
 from runtime.kit_agent import (EVENT_MAX_CHARS, EXCHANGE_MIN_ACTOR_WORDS, KitAgent, KitChatBridge,
                                OpenAIResponsesModel, PendingRuling, RoomAdjudicator,
                                check_public_content, room_intent, social_event)
@@ -16,6 +17,7 @@ from runtime.state_context import RHYTHM_EVIDENCE_MAX_CHARS, InvalidChange, Runt
 # The 6c room's own words (its tub, its south door) come from its file (ROOM_LOADER.md).
 from runtime import kit_agent as _kit_agent
 from runtime.kit_rooms import read_room as _read_room
+from kit_policy import rejections_raise
 _SIXC_WORDS = _kit_agent.room_words(_read_room('tests/fixtures/level_01_area_06c.json'),
                                     {'area': 'area_06c', 'known_exits': ['south_door']})
 
@@ -252,6 +254,7 @@ class KitAgentTests(unittest.TestCase):
         self.assertNotIn('area 14b', public)
         self.assertEqual(self.runtime.load()[0], 1)
 
+    @unittest.mock.patch.object(kit_agent, 'ENGINE_LINE_AFTER_REJECTIONS', 99)  # validator probe: rejections loop (see test_kit_open_ask)
     def test_private_fact_in_performance_rolls_back_kit_and_world(self):
         self.model.leak = True
         before = self.runtime.load()
@@ -326,6 +329,7 @@ class KitAgentTests(unittest.TestCase):
         self.assertEqual(self.runtime.recent_kit_turns()[0]['public_event'],
                          'You find nothing you can be sure of.')
 
+    @unittest.mock.patch.object(kit_agent, 'ENGINE_LINE_AFTER_REJECTIONS', 99)  # validator probe: rejections loop (see test_kit_open_ask)
     def test_model_failure_does_not_reroll_same_uncommitted_check(self):
         bad = KitAgent(self.runtime, RecordingModel(leak=True),
                        RoomAdjudicator(perception=0))
@@ -423,6 +427,7 @@ class KitAgentTests(unittest.TestCase):
         with self.assertRaisesRegex(InvalidChange, 'Unknown performance variant'):
             bridge.decide('identity-trial', plan, 'invented')
 
+    @rejections_raise  # validator probe (tests/kit_policy.py)
     def test_chat_bridge_rejects_leaks_and_locks_decision_before_performance(self):
         bridge = KitChatBridge(self.runtime, self.agent.adjudicator)
         prepared = bridge.prepare('I sit down.', 'guarded')
@@ -484,6 +489,7 @@ class KitAgentTests(unittest.TestCase):
         with self.assertRaisesRegex(InvalidChange, 'No pending'):
             self.runtime.pending_kit_turn('quick')
 
+    @rejections_raise  # validator probe (tests/kit_policy.py)
     def test_one_pass_rejection_keeps_world_uncommitted_and_decision_fixed(self):
         bridge = KitChatBridge(self.runtime, self.agent.adjudicator)
         prepared = bridge.prepare('I take a seat.', 'quick-guarded', one_pass=True)
@@ -493,8 +499,11 @@ class KitAgentTests(unittest.TestCase):
             bridge.complete('quick-guarded', {'decision': plan, 'performance': bad})
         self.assertEqual(self.runtime.load()[0], 0)
         self.assertEqual(self.runtime.pending_kit_turn('quick-guarded')['plan'], plan)
-        with self.assertRaisesRegex(InvalidChange, 'already fixed'):
-            bridge.complete('quick-guarded', {'decision': {**plan, 'tone': 'warm'},
+        # The engine-facing part of the decision stays fixed (presentation fields may be corrected:
+        # tests/test_kit_opening_friction.py).
+        other = next(mode for mode in kit_voice.TURN_MODES if mode != plan['turn_mode'])
+        with self.assertRaisesRegex(InvalidChange, 'already fixed.*turn_mode'):
+            bridge.complete('quick-guarded', {'decision': {**plan, 'turn_mode': other},
                                               'performance': self.model.perform({})})
         self.assertEqual(bridge.complete('quick-guarded', {
             'decision': plan, 'performance': self.model.perform({})})['revision'], 1)
@@ -538,6 +547,7 @@ class KitAgentTests(unittest.TestCase):
         bridge.prepare('Hello. What is this game?', turn_id='reply')
         self.assertEqual(self.runtime.load()[0], 1)
 
+    @unittest.mock.patch.object(kit_agent, 'ENGINE_LINE_AFTER_REJECTIONS', 99)  # validator probe: rejections loop (see test_kit_open_ask)
     def test_opening_requires_visible_scene_and_rejects_private_reveal(self):
         bridge = KitChatBridge(self.runtime)
         prepared = bridge.prepare(opening=True, turn_id='bad-entry')
@@ -579,6 +589,7 @@ class KitFocusAndScopeTests(unittest.TestCase):
         plan['public_brief'].update(brief)
         return prepared, plan
 
+    @rejections_raise  # validator probe (tests/kit_policy.py)
     def test_exact_nik_reply_is_rejected_as_a_flat_exchange(self):
         prepared, plan = self._prepared_plan(NIK_GREETING, 'nik', reply_to='Whats going on here?')
         plan.update(move='npc_reply', table_presence='quiet')
@@ -591,6 +602,7 @@ class KitFocusAndScopeTests(unittest.TestCase):
         # The fixed decision still accepts a performance that actually plays the exchange.
         self.assertEqual(self.bridge.finish('nik', QUIET_EXCHANGE_SPEECH)['revision'], 1)
 
+    @rejections_raise  # validator probe (tests/kit_policy.py)
     def test_the_t1_bare_toll_line_is_the_reference_fail(self):
         # Table call 6, TC-6a: "Passage is ten gold a head" tossed in beside the game talk,
         # with no opening, is rejected as a hard check (degraded mode cannot pass it).
@@ -613,6 +625,7 @@ class KitFocusAndScopeTests(unittest.TestCase):
              'reacts_to': 'Can I tell if they are friendly'}]})
         self.assertEqual(result['spoken'], 'Kit: Give me a Wisdom (Insight) check.')
 
+    @rejections_raise  # validator probe (tests/kit_policy.py)
     def test_call_scope_cannot_run_long_or_cover_an_npc_reply(self):
         prepared, plan = self._prepared_plan('Can I tell if they are friendly?', 'long-call',
                                              reply_to='friendly', scope='call')
@@ -635,6 +648,7 @@ class KitFocusAndScopeTests(unittest.TestCase):
         plan['public_brief']['reply_to'] = 'I WASN’T expecting  to find people gambling'
         self.bridge.decide('misquote', plan)
 
+    @rejections_raise  # validator probe (tests/kit_policy.py)
     def test_player_quoting_a_secret_word_does_not_fail_the_brief(self):
         prepared, plan = self._prepared_plan('I accuse that player of being a doppelganger.', 'accuse',
                                              reply_to='being a doppelganger')
@@ -674,6 +688,7 @@ class KitFocusAndScopeTests(unittest.TestCase):
         with self.assertRaisesRegex(InvalidChange, 'private fact'):
             self.bridge.decide('bad-focus', leaky)
 
+    @rejections_raise  # validator probe (tests/kit_policy.py)
     def test_opening_must_be_feature_scope_with_no_reply_to(self):
         prepared = self.bridge.prepare(opening=True, turn_id='entry')
         plan = self.model.plan(prepared['input'])
@@ -688,6 +703,7 @@ class KitFocusAndScopeTests(unittest.TestCase):
                 {'speaker': 'Narrator', 'text': 'Four pale figures play cards.'},
                 {'speaker': 'Dealer', 'text': 'Ten gold.'}]})
 
+    @rejections_raise  # validator probe (tests/kit_policy.py)
     def test_retry_carries_the_specific_rejection_reason(self):
         flat = iter([NIK_FLAT_REPLY, QUIET_EXCHANGE_SPEECH])
         seen = []
@@ -753,6 +769,7 @@ class ChatBridgeCarrierTests(unittest.TestCase):
                        'scope', 'own motives'):
             self.assertIn(phrase, instructions)
 
+    @rejections_raise  # validator probe (tests/kit_policy.py)
     def test_staged_bridge_carries_focus_fields_to_the_performer(self):
         prepared = self.bridge.prepare(NIK_GREETING, 'staged')
         self.assert_host_is_told_how_to_fill_the_carrier(
@@ -777,6 +794,7 @@ class ChatBridgeCarrierTests(unittest.TestCase):
             self.bridge.finish('staged', NIK_FLAT_REPLY)
         self.assertEqual(self.bridge.finish('staged', QUIET_EXCHANGE_SPEECH)['revision'], 1)
 
+    @unittest.mock.patch.object(kit_agent, 'ENGINE_LINE_AFTER_REJECTIONS', 99)  # validator probe: rejections loop (see test_kit_open_ask)
     def test_one_pass_bridge_carries_and_checks_focus_fields(self):
         prepared = self.bridge.prepare(NIK_GREETING, 'fast', one_pass=True)
         self.assert_host_is_told_how_to_fill_the_carrier(
@@ -802,6 +820,7 @@ class ChatBridgeCarrierTests(unittest.TestCase):
             code = kit_agent.main()
         return code, out.getvalue(), err.getvalue()
 
+    @rejections_raise  # validator probe (tests/kit_policy.py)
     def test_cli_rejection_tells_the_host_how_to_retry(self):
         self.runtime.close()
         code, out, _ = self._cli('prepare', '--action', NIK_GREETING, '--turn-id', 'cli')
@@ -1084,6 +1103,7 @@ class BridgeVoiceVariantTests(unittest.TestCase):
         with self.assertRaises(InvalidChange):
             self.runtime.commit_kit_turn('v1', 0, events, {**record, 'performance_variant': 'current'})
 
+    @unittest.mock.patch.object(kit_agent, 'ENGINE_LINE_AFTER_REJECTIONS', 99)  # validator probe: rejections loop (see test_kit_open_ask)
     def test_kit_voice_faces_exactly_the_same_validators(self):
         outcomes = {}
         for variant in kit_agent.PERFORMANCE_VARIANTS:
