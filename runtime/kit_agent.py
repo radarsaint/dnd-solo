@@ -6103,7 +6103,7 @@ def start_session(db, sheet_path=None, runtime=None, room=None, area=None, manif
         sheet = json.loads(path.read_text(encoding='utf-8'))
         loaded = runtime.set_player_sheet(sheet)
         if restore:  # resume from the player's save (runtime/kit_resume.py)
-            runtime.restore_campaign(restore['log'], restore['carried'])
+            runtime.restore_campaign(restore['log'], restore['carried'], restore.get('pc_state'))
         prepared = KitChatBridge(runtime, RoomAdjudicator(), manifests=manifests).prepare(
             opening=True, one_pass=True)
         turn = prepared['turn_id']
