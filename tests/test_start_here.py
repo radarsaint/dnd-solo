@@ -69,6 +69,7 @@ class StartHereTests(unittest.TestCase):
         for doc in ('AGENTS.md', 'README.md'):
             text = (ROOT / doc).read_text(encoding='utf-8')
             text = text.split('<!-- END COLD-START MOUNT BLOCK -->', 1)[-1]
+            text = text.split('<!-- END PLAY LOOP BLOCK -->', 1)[-1]
             first = text.strip().splitlines()[0]
             self.assertIn('(START_HERE.md)', first, doc)
 
