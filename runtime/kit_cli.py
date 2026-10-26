@@ -70,6 +70,19 @@ def _lobby_question_delivery(args, result):
         pass
 
 
+def _reject(message, missing=()):
+    """Refuse a command the host can fix. Exit 2, one JSON object on stderr, same as a bridge rejection.
+
+    ``missing`` names the flags or fields the command cannot run without. The message is the
+    sentence the CLI used to print after argparse's usage dump.
+    """
+    body = {'stage': 'rejected', 'committed': False, 'message': message}
+    if missing:
+        body['missing'] = list(missing)
+    print(json.dumps(body, ensure_ascii=False), file=sys.stderr)
+    return 2
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('command', choices=['start', 'init', 'view', 'prepare', 'decide', 'finish', 'complete',
@@ -209,7 +222,7 @@ def main():
                              indent=2, ensure_ascii=False))
         elif args.command == 'rehydrate':
             if not args.turn_id:
-                parser.error('rehydrate requires --turn-id')
+                return _reject('rehydrate requires --turn-id', ('turn-id',))
             try:
                 print(json.dumps(KitChatBridge(runtime).rehydrate(args.turn_id), ensure_ascii=False))
             except InvalidChange as exc:
@@ -217,7 +230,8 @@ def main():
                 return 2
         elif args.command == 'stamp':
             if not args.turn_id or not args.stamp:
-                parser.error('stamp requires --turn-id and at least one --stamp NAME=EPOCH_SECONDS')
+                missing = [name for name, present in (('turn-id', args.turn_id), ('stamp', args.stamp)) if not present]
+                return _reject('stamp requires --turn-id and at least one --stamp NAME=EPOCH_SECONDS', missing)
             try:
                 print(json.dumps(KitChatBridge(runtime).stamp(args.turn_id, **_cli_stamps(args.stamp)),
                                  ensure_ascii=False))
@@ -226,7 +240,7 @@ def main():
                 return 2
         elif args.command == 'rest':
             if args.kind not in ('short', 'long'):
-                parser.error('rest requires --kind short or --kind long')
+                return _reject('rest requires --kind short or --kind long', ('kind',))
             print(json.dumps(runtime.rest(args.kind), indent=2, ensure_ascii=False))
         elif args.command == 'notes':
             print(json.dumps(runtime.player_notes(), indent=2, ensure_ascii=False))
@@ -239,7 +253,8 @@ def main():
             print(json.dumps(runtime.set_pc_state(**lists), indent=2, ensure_ascii=False))
         elif args.command == 'character':
             if not (args.name and args.ancestry):
-                parser.error('character requires --sheet, or --name and --ancestry')
+                return _reject('character requires --sheet, or --name and --ancestry',
+                               ('sheet', 'name', 'ancestry'))
             print(json.dumps(runtime.set_player_character(args.name, args.ancestry, args.class_name,
                                                           args.level), indent=2, ensure_ascii=False))
         elif args.command in ('prepare', 'decide', 'finish', 'complete', 'abandon', 'feedback'):
@@ -249,32 +264,35 @@ def main():
             try:
                 if args.command == 'abandon':
                     if not args.turn_id:
-                        parser.error('abandon requires --turn-id')
+                        return _reject('abandon requires --turn-id', ('turn-id',))
                     result = bridge.abandon(args.turn_id)
                 elif args.command == 'feedback':
                     if not args.text:
-                        parser.error('feedback requires --text')
+                        return _reject('feedback requires --text', ('text',))
                     result = bridge.feedback(args.text, args.evidence, args.replaces)
                 elif args.command == 'prepare':
                     if args.opening:
                         if args.action is not None or args.action_file is not None:
-                            parser.error('--opening does not take an action')
+                            return _reject('--opening does not take an action')
                         action = None
                     else:
                         if (args.action is None) == (args.action_file is None):
-                            parser.error('prepare requires exactly one of --action or --action-file')
+                            return _reject('prepare requires exactly one of --action or --action-file',
+                                           ('action', 'action-file'))
                         action = (args.action if args.action_file is None else
                                   Path(args.action_file).read_text(encoding='utf-8').strip())
                     if args.performance_variant and not args.one_pass:
-                        parser.error('--performance-variant on prepare needs --one-pass; '
-                                     'staged turns choose it at decide')
+                        return _reject('--performance-variant on prepare needs --one-pass; '
+                                       'staged turns choose it at decide', ('one-pass',))
                     result = bridge.prepare(action, args.turn_id, use_memory=not args.no_memory,
                                             one_pass=args.one_pass, opening=args.opening,
                                             performance_variant=args.performance_variant,
                                             table_talk=args.table_talk, host_stamps=_cli_stamps(args.stamp))
                 else:
                     if not args.turn_id or not args.input_file:
-                        parser.error(f'{args.command} requires --turn-id and --input-file')
+                        missing = [name for name, present in (('turn-id', args.turn_id),
+                                                              ('input-file', args.input_file)) if not present]
+                        return _reject(f'{args.command} requires --turn-id and --input-file', missing)
                     raw = sys.stdin.read() if args.input_file == '-' else Path(args.input_file).read_text(encoding='utf-8')
                     submitted = json.loads(raw)
                     variant = args.performance_variant or DEFAULT_BRIDGE_VARIANT
@@ -312,9 +330,10 @@ def main():
                              **({'indent': 2} if args.pretty else {'separators': (',', ':')})))
         else:
             if not args.model:
-                parser.error('standalone play requires --model; for ChatGPT use prepare/decide/finish')
+                return _reject('standalone play requires --model; for ChatGPT use prepare/decide/finish', ('model',))
             if not os.environ.get('OPENAI_API_KEY'):
-                parser.error('standalone play requires OPENAI_API_KEY; for ChatGPT use prepare/decide/finish')
+                return _reject('standalone play requires OPENAI_API_KEY; for ChatGPT use prepare/decide/finish',
+                               ('OPENAI_API_KEY',))
             model = OpenAIResponsesModel(args.model)
             agent = KitAgent(runtime, model, RoomAdjudicator(args.perception, args.insight,
                                                                sleight_of_hand=args.sleight_of_hand),

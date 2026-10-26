@@ -1213,9 +1213,14 @@ class BridgeVoiceVariantTests(unittest.TestCase):
                                  '--turn-id', 'cli-base', '--performance-variant', 'current')
         self.assertEqual((code, json.loads(out)['performance_variant']), (0, 'current'))
         self.assertNotIn('KIT’S TABLE VOICE', json.loads(out)['instructions'])
-        with self.assertRaises(SystemExit):
-            self._cli('prepare', '--action', NIK_GREETING, '--turn-id', 'cli-staged',
-                      '--performance-variant', 'current')
+        code, _, err = self._cli('prepare', '--action', NIK_GREETING, '--turn-id', 'cli-staged',
+                                 '--performance-variant', 'current')
+        rejected = json.loads(err)
+        self.assertEqual(code, 2)
+        self.assertEqual(rejected['stage'], 'rejected')
+        self.assertFalse(rejected['committed'])
+        self.assertIn('--one-pass', rejected['message'])
+        self.assertIn('one-pass', rejected['missing'])
         self.runtime = Runtime(self.path)
         self.assertEqual(self.runtime.pending_kit_turn('cli-base')['body']['performance_variant'], 'current')
 
