@@ -2,7 +2,7 @@
   "schema": "kit_project_gardener_state/v1",
   "purpose": "RESUMABILITY_CURSOR_NOT_KNOWLEDGE_STORE",
   "canonical_location": "radarsaint/dnd-solo/coordination/context_state.json",
-  "state_revision": 47,
+  "state_revision": 48,
   "semantic_brain": {
     "repo": "radarsaint/dnd-solo",
     "path": "docs/PROJECT_UNDERSTANDING.md",
@@ -11,8 +11,8 @@
   },
   "checkpoint": {
     "reviewed_against_main": {
-      "radarsaint/dnd-solo": "58df0a15750c8e5c0fcb410d2314f35170f377ad",
-      "radarsaint/bfdm-corpus": "50a06607fa8db4f33b8bc0356c9b486140c5dba3"
+      "radarsaint/dnd-solo": "3f073ea9accc761dc55a74395c3ffb34cbfc7f6c",
+      "radarsaint/bfdm-corpus": "d72686dc6d9482d0c8c738e1d85ef606ea0711b8"
     },
     "context_inbox": {
       "repo": "radarsaint/dnd-solo",
@@ -25,8 +25,8 @@
   "last_completed_pass": {
     "kind": "BOUNDED_SEMANTIC_RECONCILIATION",
     "completed_on": "2026-10-26",
-    "scope": "Reviewed bfdm-corpus #42 merge (homebrew player-option inventory; merge 92acc300, main tip 50a0660) and confirmed dnd-solo main tip 58df0a1. #115 comment 6266120288 remains pending.",
-    "result": "Accept (narrow): #42 lands source-grounded research inventory of 159 homebrew player-option records (research/player-options/). play_observed is NOT_ESTABLISHED on every record; publication is not play; Discord name hits are not play; conflicts and gaps kept visible. Does not change Kit runtime, chargen, verified options, or doctrine. No Project Brain edit required (live bfdm-corpus/main remains authority for research facts; brain already distinguishes research from product and verified judgment). Pending #115 DM Kit rulings (spell slots, equipment misuse, unsourced proficiencies) remain unresolved (draft PR, nothing merged).",
+    "scope": "Reviewed bfdm-corpus #37 merge (dated strategic handoff snapshot; merge fc3376c1, then control correction d72686dc). dnd-solo main tip 3f073ea9. #115 comment 6266120288 remains pending.",
+    "result": "Accept (narrow): #37 preserves the 2026-10-05 planning snapshot as research/STRATEGIC_HANDOFF_2026-10-05.md. Explicitly not current direction, not historical BFDM evidence; catalog ceiling BCS-000172 is not current. Operational handoff files unchanged. bfdm-corpus PROJECT_CONTROL.md corrected on main to record the merge and non-current status. No Project Brain edit required (live main remains authority; brain already treats planning snapshots as non-authoritative). Pending #115 DM Kit rulings remain unresolved (draft PR, nothing merged).",
     "resulting_brain_commit": "931e84837ee77ff6736abc9f9f2f5a1ea7a54f16",
     "reconciled_comment_id": 6202184874
   },
