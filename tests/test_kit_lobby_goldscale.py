@@ -150,6 +150,29 @@ class LobbyTests(unittest.TestCase):
         self.assertEqual(kit_campaign.table_mode(self.db), 'shared')
         self.assertEqual(kit_campaign.campaign_entry(self.db)['stage'], 'resume')
 
+    def test_attached_modules_ride_along_on_every_retry(self):
+        self._module()
+        out = self.entry(intent='play', rooms_dir=self.modules)
+        self.assertIn(f'--modules {self.modules}', out['next_step'])
+        out = self.entry(intent='play', rooms_dir=self.modules, sheet_path=str(SHEET))
+        self.assertEqual(out['stage'], 'ask_table')
+        self.assertIn(f'--modules {self.modules}', out['next_step'])
+        self.assertEqual(out['modules'], self.modules)
+        out = self.entry(intent='play', rooms_dir=self.modules, sheet_path=str(SHEET), table='solo')
+        self.assertEqual(out['stage'], 'ready')
+        self.assertEqual(len(out['modules_available']), 1)
+
+    def test_cli_retry_with_modules_keeps_the_module(self):
+        self._module()
+        base = [sys.executable, '-m', 'runtime.kit_agent', 'start', '--db', self.db, '--intent', 'play',
+                '--sheet', str(SHEET), '--modules', self.modules]
+        first = json.loads(subprocess.run(base, cwd=ROOT, capture_output=True, text=True).stdout)
+        self.assertIn('--modules', first['next_step'])
+        second = json.loads(subprocess.run(base + ['--table', 'solo'], cwd=ROOT, capture_output=True,
+                                           text=True).stdout)
+        self.assertEqual(second['stage'], 'ready')
+        self.assertEqual(len(second['modules_available']), 1)
+
 
 class LineTests(unittest.TestCase):
     def test_lines_are_short_and_in_voice_not_system_talk(self):
@@ -204,3 +227,89 @@ class NeverGuessChargenTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class PlaytestFixTests(unittest.TestCase):
+    """Bugs found in the PR 145 playtest (2026-10-25)."""
+
+    def test_chargen_catches_option_asks_without_build_verb(self):
+        cases = {
+            "I want to play a Gloom Stalker ranger from Xanathar's": 'gloom stalker',
+            'can I take the Sharpshooter feat': 'sharpshooter',
+            'can I take Sharpshooter': 'sharpshooter',
+            'can my wizard learn Silvery Barbs': 'silvery barbs',
+            'can I learn the Frost Lance spell': 'frost lance',
+            "I'd like to play an Aasimar paladin": 'aasimar',
+            'I want to play a Moonblade species': 'moonblade',
+            'should I pick Fey Touched at level 4': 'fey touched',
+        }
+        for text, name in cases.items():
+            with self.subTest(text=text):
+                out = kit_chargen.chargen(text)
+                self.assertIsNotNone(out, text)
+                self.assertFalse(out['srd_only'], out)
+                self.assertTrue(any(name in u for u in out['unknown_options']), out)
+                self.assertIn("won't guess", out['table_line'])
+
+    def test_chargen_cli_reports_chargen(self):
+        run = subprocess.run([sys.executable, '-m', 'runtime.kit_chargen', 'can I take the Sharpshooter feat'],
+                             cwd=ROOT, capture_output=True, text=True)
+        self.assertEqual(json.loads(run.stdout)['stage'], 'chargen')
+
+    def test_chargen_srd_asks_and_table_talk_stay_put(self):
+        for text in ('can I take the grappler feat', 'can I play a hill dwarf cleric'):
+            self.assertTrue(kit_chargen.chargen(text)['srd_only'], text)
+        for text in ('I attack the goblin', 'can I take the sword', 'is the goblin dead',
+                     'can I use my action to hide', 'I want to play'):
+            self.assertIsNone(kit_chargen.chargen(text), text)
+
+    def test_description_answer_keeps_the_item_across_runs(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            state = os.path.join(tmp, 'pending.json')
+            self.assertIn('item description', kit_appraise.appraise('potion of healing', state))
+            self.assertTrue(os.path.exists(state))
+            second = kit_appraise.answer('common potion', state)
+            self.assertIn('Potion of Healing', second)
+            self.assertTrue(os.path.exists(state), 'a still-missing item must stay pending')
+            third = kit_appraise.answer('2d4+2 healing', state)
+            self.assertIn('**70 gp**', third)
+            self.assertFalse(os.path.exists(state))
+
+    def test_two_clarifications_move_forward_not_loop(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            state = os.path.join(tmp, 'pending.json')
+            kit_appraise.appraise('ring', state)
+            kit_appraise.answer('rare', state)  # description: adds rarity, then asks for impact
+            first_q = json.loads(Path(state).read_text())['question_kind']
+            nxt = kit_appraise.answer('4' if first_q == 'item_type' else '2', state)
+            if 'Final Price' not in nxt:
+                self.assertNotEqual(json.loads(Path(state).read_text())['question_kind'], first_q)
+                nxt = kit_appraise.answer('2', state)
+            self.assertIn('**900 gp**', nxt)
+
+    def test_closed_answers_accumulate(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            state = os.path.join(tmp, 'pending.json')
+            Path(state).write_text(json.dumps({'raw': '?gs buy amulet', 'question_kind': 'rarity',
+                                               'created_at': 10**12, 'answers': []}))
+            r1 = kit_appraise.answer('3', state, now=10**12)  # rare
+            self.assertNotIn('Final Price', r1)
+            saved = json.loads(Path(state).read_text())
+            self.assertNotEqual(saved['question_kind'], 'rarity')
+            self.assertEqual(saved['answers'][0], ['rarity', '3'])
+
+    def test_cli_answer_reads_state(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            state = os.path.join(tmp, 'p.json')
+            run = lambda *a: subprocess.run([sys.executable, '-m', 'runtime.kit_appraise', '--state', state, *a],
+                                            cwd=ROOT, capture_output=True, text=True).stdout
+            run('cloak uncommon')
+            self.assertIn('Final Price', run('--answer', '2'))
+            self.assertIn('no pending appraisal', run('--answer', '2'))
+
+    def test_script_form_runs(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run = subprocess.run([sys.executable, str(ROOT / 'runtime/kit_agent.py'), 'start', '--db',
+                                  os.path.join(tmp, 'k.db')], cwd=tmp, capture_output=True, text=True)
+            self.assertEqual(run.returncode, 0, run.stderr)
+            self.assertEqual(json.loads(run.stdout)['stage'], 'greeting')

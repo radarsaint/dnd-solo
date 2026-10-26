@@ -6,6 +6,7 @@ only when the player asks for it. Talk, debrief, and working on a scene or a
 character do not go through a room at all.
 """
 import json
+import shlex
 import sqlite3
 from pathlib import Path
 
@@ -54,7 +55,7 @@ def campaign_entry(db, sheet_path=None, rooms_dir=None, campaign=None, intent=No
     if campaign is None and intent == 'build':
         return _build(sheet_path)
     if campaign is None and intent == 'play':
-        return _play(db, sheet_path, executable, blocked, table)
+        return _play(db, sheet_path, executable, blocked, table, modules=rooms_dir)
     if campaign is None:
         return _greeting(sheet_path, executable, blocked)
     if _is_mad_mage(campaign):
@@ -245,9 +246,11 @@ def _sheet_real(sheet_path):
     return bool(sheet_path) and Path(sheet_path).is_file()
 
 
-def _play(db, sheet_path, executable, blocked, table):
+def _play(db, sheet_path, executable, blocked, table, modules=None):
     """Play: a real module and a real character, then solo or shared table. Lists only what exists."""
     has_sheet = _sheet_real(sheet_path)
+    # An attached module folder must ride along on every retry, or the rerun loses it.
+    mods = f' --modules {shlex.quote(str(modules))}' if modules else ''
     base = {
         'committed': False, 'opened_room': None, 'intent': 'play', 'character_loaded': False,
         'sheet_noted': str(sheet_path) if has_sheet else None, 'sheet_loaded': False,
@@ -264,15 +267,19 @@ def _play(db, sheet_path, executable, blocked, table):
                 'next_step': (
                     'Say table_line. List only modules_available (it may be empty) and only a sheet the '
                     'player actually gave. Ask them to attach what is missing. Never offer do_not_start, '
-                    'the example sheet, or an adventure they did not name.')}
+                    'the example sheet, or an adventure they did not name.'
+                    + (f' Rerun start --intent play --sheet <file>{mods} once they attach it.' if mods else '')),
+                **({'modules': str(modules)} if modules else {})}
     if table not in TABLE_MODES:
         return {**base, 'stage': 'ask_table', 'table_modes': list(TABLE_MODES), 'table_line': TABLE_LINE,
                 'next_step': ('Ask which module from modules_available if there is more than one, then '
-                              'say table_line. Rerun start --intent play --sheet <file> --table solo|shared.')}
+                              f'say table_line. Rerun start --intent play --sheet <file>{mods} --table solo|shared.'),
+                **({'modules': str(modules)} if modules else {})}
     record_table_mode(db, table)
     return {**base, 'stage': 'ready', 'table_mode': table,
             **({'table_note': SHARED_NOTE} if table == 'shared' else {}),
             'table_line': SOLO_LINE if table == 'solo' else SHARED_LINE,
+            **({'modules': str(modules)} if modules else {}),
             'next_step': ('Run start --room <a path from modules_available> --sheet <file> --table '
                           f'{table}. Then prepare --opening. Show the player only "spoken".')}
 

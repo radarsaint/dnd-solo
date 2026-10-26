@@ -8,6 +8,15 @@ room and --regression on the CLI. The model chooses and performs a DM move. Acce
 may also commit checked model proposals (canon, claims, agenda, and related state). The
 model does not write storage except through those checked commits.
 """
+if __name__ == '__main__' and not __package__:
+    # Run as a script (python3 runtime/kit_agent.py): re-enter as the package module so the
+    # relative imports below work, exactly like python3 -m runtime.kit_agent.
+    import os as _os
+    import runpy as _runpy
+    import sys as _sys
+    _sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))
+    _runpy.run_module('runtime.kit_agent', run_name='__main__', alter_sys=True)
+    raise SystemExit(0)
 import argparse
 import copy
 import dataclasses

@@ -15,12 +15,16 @@ runtime/pricing.py (the 2026-09-29 written formula) and never invents a price.
 """
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 
 from .goldscale import SOURCE
-from .goldscale.clarification import (PendingAppraisal, PendingAppraisals, cancel_appraisal,
-                                      continue_appraisal, start_appraisal)
+from .goldscale.clarification import (PendingAppraisal, PendingAppraisals, apply_answer, cancel_appraisal,
+                                      classify_question, clarification_question, invalid_choice_message,
+                                      start_appraisal, valid_closed_choice)
+from .goldscale.formatting import format_missing, format_result
+from .goldscale.pricing import has_impact
 from .goldscale.formatting import formula_text, help_text
 from .goldscale.parser import parse_item_text
 from .goldscale.pricing import calculate_price
@@ -39,16 +43,19 @@ def _command(text):
 
 
 def _load(path):
+    """(store, answers): the pending question plus every answer given so far."""
     store = PendingAppraisals()
+    answers = []
     try:
         raw = json.loads(Path(path).read_text(encoding='utf-8'))
         store._items[KEY] = PendingAppraisal(raw['raw'], raw['question_kind'], raw['created_at'])
+        answers = [tuple(a) for a in raw.get('answers', [])]
     except (OSError, ValueError, KeyError, TypeError):
         pass
-    return store
+    return store, answers
 
 
-def _save(path, store):
+def _save(path, store, answers=()):
     pending = store._items.get(KEY)
     target = Path(path)
     if pending is None:
@@ -56,24 +63,69 @@ def _save(path, store):
             target.unlink()
         return
     target.write_text(json.dumps({'raw': pending.raw, 'question_kind': pending.question_kind,
-                                  'created_at': pending.created_at}), encoding='utf-8')
+                                  'created_at': pending.created_at,
+                                  'answers': [list(a) for a in answers]}), encoding='utf-8')
+
+
+def _data(raw, answers):
+    """Re-read the item and apply every clarification so far, so no answer is lost."""
+    data = parse_item_text(raw)
+    for kind, reply in answers:
+        data = apply_answer(data, PendingAppraisal(raw, kind, 0.0), reply)
+    return data
 
 
 def appraise(text, state_path=None, now=None):
     """Goldscale's reply to one item description (may be a clarifying question)."""
-    store = _load(state_path) if state_path else PendingAppraisals()
+    store = PendingAppraisals()
     reply = start_appraisal(_command(text), KEY, store, now=now)
     if state_path:
-        _save(state_path, store)
+        _save(state_path, store, [])
     return reply
 
 
 def answer(text, state_path, now=None):
-    """Answer Goldscale's pending question. None when nothing is pending."""
-    store = _load(state_path)
-    reply = continue_appraisal(text, KEY, store, now=now)
-    _save(state_path, store)
-    return reply
+    """Answer Goldscale's pending question. None when nothing is pending.
+
+    Answers accumulate in the state file across separate runs: description text is merged
+    into the item text, closed choices are replayed on every step, so an item that needs
+    two or more clarifications moves forward instead of re-asking the first question.
+    """
+    store, answers = _load(state_path)
+    pending = store.get(KEY, now=now)
+    if not pending:
+        _save(state_path, store)
+        return None
+    text = (text or '').strip()
+    raw, kind = pending.raw, pending.question_kind
+    if kind == 'description':
+        extra = re.sub(r'^\?gs\s+(buy|sell)\s+', '', text, flags=re.I)
+        raw = f'{raw}, {extra}' if extra else raw
+    else:
+        if not valid_closed_choice(pending, text):
+            return invalid_choice_message(kind)
+        answers = answers + [(kind, text)]
+    data = _data(raw, answers)
+    try:
+        result = format_result(calculate_price(data))
+        store.clear(KEY)
+        _save(state_path, store)
+        return result
+    except ValueError as error:
+        if str(error) != 'missing fields':
+            raise
+    if kind == 'spell_description' and not has_impact(data):
+        nxt, lead = 'utility', "I found spell text, but no damage or healing dice.\n"
+    else:
+        nxt, lead = classify_question(data, raw), ''
+    if nxt:
+        store.set(KEY, raw, nxt, now=now)
+        _save(state_path, store, answers)
+        return lead + clarification_question(data, nxt)
+    # Nothing closed to ask: keep the item open so the next --answer adds the missing text.
+    store.set(KEY, raw, 'description', now=now)
+    _save(state_path, store, answers)
+    return format_missing(data)
 
 
 def price(text):
@@ -97,7 +149,7 @@ def main(argv=None):
     if args.formula:
         out = formula_text()
     elif args.cancel:
-        store = _load(args.state)
+        store, _ = _load(args.state)
         out = cancel_appraisal(KEY, store)
         _save(args.state, store)
     elif args.answer is not None:
