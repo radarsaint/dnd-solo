@@ -33,12 +33,22 @@ KEY = (None, 0, 0)  # one table, one appraiser
 DEFAULT_STATE = 'kit_appraise.json'
 
 
-# Question phrasing around an item name ("what's a potion of healing worth?").
-_LEAD = re.compile(r"^\s*(?:(?:hey|ok|okay|so|kit|goldscale)[,!]?\s+)*(?:(?:what(?:'s| is| does| would)|how much(?: is| does| would)?|"
-                   r"can you|could you|please|pls)\s+)+(?:(?:price|appraise|value|cost|be|for|me|us)\s+)*"
-                   r"(?:(?:a|an|the|one|some)\s+)?", re.I)
-_LEAD_VERB = re.compile(r"^\s*(?:please\s+)?(?:price|appraise|value)\s+(?:(?:me|us)\s+)?(?:(?:a|an|the|one)\s+)?", re.I)
-_TAIL = re.compile(r"\s*(?:(?:be\s+)?worth|cost|go for|sell for|run(?: me)?|be)?\s*(?:,?\s*please)?\s*[?.!]*\s*$", re.I)
+# Phrasing around an item name, stripped generally (any item), in passes until nothing changes:
+# "what's a potion of healing worth?", "sell a potion of healing", "what's the potion of healing's value?",
+# "how much could I sell a healing potion for?", "price of a +1 longsword, please".
+_FILLER = re.compile(r"^\s*(?:hey|hi|ok|okay|so|um|well|kit|goldscale)\b[,!]?\s*", re.I)
+_LEAD = re.compile(
+    r"^\s*(?:what(?:'s|s| is| are| does| do| would| will| might| should)?|how much(?: is| does| would| will| could| can|"
+    r" should| might)?|can you|could you|would you|will you|please|pls|i'?d like to|i want to|i wanna|"
+    r"i need to|let'?s|tell me|do you know|any idea|give me)\b[,]?\s*", re.I)
+_SUBJ = re.compile(r"^\s*(?:i|we|you|me|us)\b\s*(?:(?:get|got|make|pay|be|charge)\b\s*)?(?:for\b\s*)?", re.I)
+_VERB = re.compile(r"^\s*(?:price(?:\s+check)?|appraise|value|cost|quote|be|get|for)\b\s*", re.I)
+_OF = re.compile(r"^\s*(?:the\s+)?(?:value|price|worth|cost|market price|going rate)\s+(?:of|for|on)\b\s*", re.I)
+_ARTICLE = re.compile(r"^\s*(?:a|an|the|one|some|my|this|that)\b\s*", re.I)
+_TAIL = re.compile(r"(?:\s*(?:'s|’s)?\s*(?:(?:be\s+)?worth|value|price|cost|go(?:es)? for|sell(?:s)? for|"
+                   r"buy for|fetch|run(?: me)?|be|for|please|pls|at market|in gold|in gp)\b|\s*[?.!,]+)\s*$", re.I)
+_SELL = re.compile(r"\b(?:sell|selling|sold|pawn|offload)\b(?!\s+for\s*[?.!]*\s*$)", re.I)
+_MODE_WORD = re.compile(r"^\s*(?:\?gs\s+)?(?:buy(?:ing)?|sell(?:ing)?|pawn|offload|purchase)\b\s*", re.I)
 
 # Well-known SRD items Kit can price without the player pasting the item text (SRD 5.1 values).
 SRD_DEFAULTS = (
@@ -51,16 +61,55 @@ _DICE = re.compile(r'\d+d\d+', re.I)
 _RARITY = re.compile(r'\b(?:common|uncommon|rare|very rare|legendary|artifact)\b', re.I)
 
 
-def strip_question(text):
-    """The item, without question phrasing: "what's a potion of healing worth?" -> "potion of healing"."""
-    t = (text or '').strip()
-    mode = ''
-    m = re.match(r'^(?:\?gs\s+)?(buy|sell)\s+', t, re.I)
+def _plural(word):
+    return word[:-1] + 'ies' if word.endswith('y') else word + ('es' if word.endswith(('s', 'x', 'ch', 'sh')) else 's')
+
+
+def name_variants(name):
+    """Common spoken forms of an "<thing> of <quality>" item name: reversed and plural.
+    'potion of greater healing' -> 'greater healing potion', 'potions of greater healing', ..."""
+    out = {name}
+    m = re.match(r'^(\w+) of (.+)$', name)
     if m:
-        mode, t = m.group(1).lower() + ' ', t[m.end():]
-    t = _LEAD_VERB.sub('', _LEAD.sub('', t))
-    t = _TAIL.sub('', t).strip()
-    return mode + t if t else (text or '').strip()
+        thing, quality = m.groups()
+        many = _plural(thing)
+        out |= {f'{quality} {thing}', f'{many} of {quality}', f'{quality} {many}'}
+    else:
+        *head, last = name.split()
+        out.add(' '.join(head + [_plural(last)]))
+    return sorted(out, key=len, reverse=True)
+
+
+def canonical_names(text):
+    """Rewrite any known item's variant spelling to its canonical name (word-bounded, case-insensitive)."""
+    for name, _, _ in SRD_DEFAULTS:
+        for variant in name_variants(name):
+            if variant != name:
+                text = re.sub(rf'\b{re.escape(variant)}\b', name, text, flags=re.I)
+    return text
+
+
+def strip_question(text):
+    """The item, without the phrasing around it, keeping buy/sell intent:
+    "what's a potion of healing worth?" -> "potion of healing"; "sell a potion of healing" -> "sell potion of healing"."""
+    original = (text or '').strip()
+    mode = 'sell ' if _SELL.search(original) else ('buy ' if re.match(r'^\s*(?:\?gs\s+)?buy\b', original, re.I) else '')
+    t = original
+    for _ in range(12):
+        before = t
+        for pattern in (_FILLER, _MODE_WORD, _LEAD, _SUBJ, _OF, _VERB, _ARTICLE):
+            t = pattern.sub('', t, count=1)
+        t = _TAIL.sub('', t)
+        t = re.sub(r"\s+(?:i|we)\s+(?:sell|buy|get|pay)\s*$", '', t, flags=re.I)
+        t = re.sub(r"\b(?:sell(?:ing)?|buy(?:ing)?)\s+(?=\S)", '', t, count=1, flags=re.I) if t is before else t
+        if t == before:
+            break
+    t = canonical_names(t.strip(" \t'\"")).strip()
+    # A leading count ("3 healing potions") becomes Goldscale's own quantity signal.
+    count = re.match(r'^(\d+)\s+(?=[a-z])', t, re.I)
+    if count and int(count.group(1)) > 1:
+        t = f'qty {count.group(1)} {t[count.end():]}'
+    return mode + t if t else original
 
 
 def srd_defaults(text):

@@ -5566,6 +5566,24 @@ def _cli_stamps(items):
     return out
 
 
+def _lobby_question_delivery(args, result):
+    """A lobby question not yet confirmed delivered rides on the next play packet; the commit of
+    that turn confirms it (docs/architecture/LOBBY_QUESTIONS.md)."""
+    try:
+        if args.command == 'prepare' and not args.table_talk and result.get('turn_id'):
+            pending = kit_campaign.carry_question(args.db, result['turn_id'])
+            if pending:
+                result['lobby_question'] = {
+                    'id': pending['id'], 'table_line': pending['table_line'],
+                    'instruction': 'Not yet delivered from the lobby. Ask it in your own voice in this '
+                                   "turn's spoken, out of character, before or after the scene."}
+        elif args.command in ('complete', 'finish') and result.get('committed') is not False:
+            if kit_campaign.confirm_question_delivered(args.db, turn_id=args.turn_id):
+                result['lobby_question_delivered'] = True
+    except Exception:  # noqa: BLE001 - bookkeeping must never break a turn
+        pass
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('command', choices=['start', 'init', 'view', 'prepare', 'decide', 'finish', 'complete',
@@ -5587,6 +5605,9 @@ def main():
     parser.add_argument('--table', choices=kit_campaign.TABLE_MODES,
                         help='start: solo (one player) or shared (several players taking turns); '
                              'recorded in the save')
+    parser.add_argument('--question-delivered', dest='question_delivered', metavar='ID',
+                        help='start: confirm the lobby question with this question_id was shown to the player '
+                             '(until confirmed, it is raised again)')
     parser.add_argument('--modules', help='start: a folder of module/room files the player attached '
                                           '(default: rooms/). Only loadable, non-stub files are offered.')
     parser.add_argument('--area', help='start: begin in this area of the room (default: its starting_area)')
@@ -5637,6 +5658,10 @@ def main():
         # Kit before any game: the persona text the bridge uses, with no database or scene.
         sys.stdout.write(persona_text())
         return 0
+    if args.command == 'start' and args.question_delivered:
+        done = kit_campaign.confirm_question_delivered(args.db, question_id=args.question_delivered)
+        print(json.dumps({'question_delivered': args.question_delivered, 'confirmed': done}))
+        return 0 if done else 2
     if args.command == 'start':
         try:
             if args.room and not args.regression:
@@ -5791,6 +5816,8 @@ def main():
                                         host_retry=HOST_RETRY_NOTE)
                 print(json.dumps(rejected, ensure_ascii=False), file=sys.stderr)
                 return 2
+            if isinstance(result, dict):
+                _lobby_question_delivery(args, result)
             # Compact by default: the chat host reads this whole packet every turn, and
             # indentation alone added about a quarter to its size. --pretty for people.
             print(json.dumps(result, ensure_ascii=False,

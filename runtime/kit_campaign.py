@@ -5,6 +5,7 @@
 only when the player asks for it. Talk, debrief, and working on a scene or a
 character do not go through a room at all.
 """
+import hashlib
 import json
 import shlex
 import sqlite3
@@ -252,28 +253,98 @@ def _asked_key(name, unsourced):
     return json.dumps([str(name).casefold(), sorted(str(u['proficiency']).casefold() for u in unsourced)])
 
 
-def proficiency_question_asked(db, name, unsourced):
-    """True when this exact unsourced-proficiency question was already raised for this character."""
+def _question_id(key):
+    return hashlib.sha256(key.encode('utf-8')).hexdigest()[:12]
+
+
+def _ensure_question_tables(con):
+    con.execute('CREATE TABLE IF NOT EXISTS kit_asked (key TEXT PRIMARY KEY, kind TEXT NOT NULL)')
+    con.execute('CREATE TABLE IF NOT EXISTS kit_pending_question (id TEXT PRIMARY KEY, key TEXT NOT NULL, '
+                'kind TEXT NOT NULL, table_line TEXT NOT NULL, shown INTEGER NOT NULL DEFAULT 0, '
+                'carried_turn TEXT)')
+
+
+def _read(db, sql, args=()):
     path = Path(db) if db else None
     if path is None or not path.is_file():
-        return False
+        return None
     con = sqlite3.connect(f'file:{path}?mode=ro', uri=True)
     try:
-        return con.execute('SELECT 1 FROM kit_asked WHERE key = ?', (_asked_key(name, unsourced),)).fetchone() is not None
+        return con.execute(sql, args).fetchone()
     except sqlite3.Error:
-        return False
+        return None
     finally:
         con.close()
 
 
-def record_proficiency_question(db, name, unsourced):
-    """Persist in the save that the unsourced-proficiency question was raised, so it is raised once."""
+def proficiency_question_asked(db, name, unsourced):
+    """True when this exact unsourced-proficiency question was delivered to the player in this save."""
+    return _read(db, 'SELECT 1 FROM kit_asked WHERE key = ?', (_asked_key(name, unsourced),)) is not None
+
+
+def record_proficiency_question(db, name, unsourced, table_line=''):
+    """Persist the unsourced-proficiency question as PENDING (generated, not yet known delivered).
+
+    Delivery design (host-agnostic; docs in docs/architecture/LOBBY_QUESTIONS.md): a question is
+    marked asked only on a positive delivery signal, never when it is generated:
+      1. the host confirms with `start --question-delivered <id>` after showing table_line, or
+      2. a play turn whose packet carried it as lobby_question commits (`complete` succeeds;
+         the committed `spoken` is what the player sees).
+    Until then every lobby call raises it again and every play prepare carries it, so a dropped
+    reply is asked again. Returns the question id."""
+    key = _asked_key(name, unsourced)
+    qid = _question_id(key)
     con = sqlite3.connect(str(db))
     try:
-        con.execute('CREATE TABLE IF NOT EXISTS kit_asked (key TEXT PRIMARY KEY, kind TEXT NOT NULL)')
-        con.execute('INSERT OR IGNORE INTO kit_asked (key, kind) VALUES (?, ?)',
-                    (_asked_key(name, unsourced), 'proficiency_source'))
+        _ensure_question_tables(con)
+        # A changed sheet replaces the older pending question of the same kind.
+        con.execute('DELETE FROM kit_pending_question WHERE kind = ? AND id != ?', ('proficiency_source', qid))
+        con.execute('INSERT INTO kit_pending_question (id, key, kind, table_line, shown) VALUES (?, ?, ?, ?, 1) '
+                    'ON CONFLICT(id) DO UPDATE SET shown = shown + 1, table_line = excluded.table_line',
+                    (qid, key, 'proficiency_source', table_line or ''))
         con.commit()
+    finally:
+        con.close()
+    return qid
+
+
+def pending_question(db):
+    """The oldest lobby question still awaiting confirmed delivery: {'id', 'table_line', 'shown'} or None."""
+    row = _read(db, 'SELECT id, table_line, shown, carried_turn FROM kit_pending_question ORDER BY rowid LIMIT 1')
+    return None if row is None else {'id': row[0], 'table_line': row[1], 'shown': row[2], 'carried_turn': row[3]}
+
+
+def carry_question(db, turn_id):
+    """Note that a play turn's packet carries the pending question; its commit confirms delivery."""
+    pending = pending_question(db)
+    if not pending:
+        return None
+    con = sqlite3.connect(str(db))
+    try:
+        con.execute('UPDATE kit_pending_question SET carried_turn = ? WHERE id = ?', (turn_id, pending['id']))
+        con.commit()
+    finally:
+        con.close()
+    return pending
+
+
+def confirm_question_delivered(db, question_id=None, turn_id=None):
+    """Mark a pending question asked (by id, or by the committed turn that carried it). True if one moved."""
+    if _read(db, "SELECT name FROM sqlite_master WHERE name = 'kit_pending_question'") is None:
+        return False
+    con = sqlite3.connect(str(db))
+    try:
+        if question_id is not None:
+            row = con.execute('SELECT id, key, kind FROM kit_pending_question WHERE id = ?', (question_id,)).fetchone()
+        else:
+            row = con.execute('SELECT id, key, kind FROM kit_pending_question WHERE carried_turn = ?',
+                              (turn_id,)).fetchone()
+        if row is None:
+            return False
+        con.execute('INSERT OR IGNORE INTO kit_asked (key, kind) VALUES (?, ?)', (row[1], row[2]))
+        con.execute('DELETE FROM kit_pending_question WHERE id = ?', (row[0],))
+        con.commit()
+        return True
     finally:
         con.close()
 
@@ -281,8 +352,9 @@ def record_proficiency_question(db, name, unsourced):
 def lobby_sheet(sheet_path, db=None):
     """Load and check the player's sheet in the lobby: real name and proficiency sources.
 
-    With a save (db), the unsourced-proficiency question is recorded when first raised and
-    not raised again on later lobby calls (table_line is dropped, already_asked is set)."""
+    With a save (db), the unsourced-proficiency question is kept pending and raised on every
+    lobby call until delivery is confirmed (see record_proficiency_question); after that,
+    table_line is dropped and already_asked is set."""
     try:
         sheet = json.loads(Path(sheet_path).read_text(encoding='utf-8'))
         pc_sheet.check_sheet(sheet)
@@ -297,8 +369,11 @@ def lobby_sheet(sheet_path, db=None):
             check['next_step'] = ('Already asked once in this save. Do not ask again; play it by the rules as '
                                   'written until the player settles it.')
         else:
-            record_proficiency_question(db, name, check['unsourced'])
+            qid = record_proficiency_question(db, name, check['unsourced'], check.get('table_line', ''))
             check['already_asked'] = False
+            check['question_id'] = qid
+            check['delivery'] = (f'Say table_line, then run start --db <db> --question-delivered {qid}. '
+                                 'Until it is confirmed (or a play turn carrying it commits) it is raised again.')
     return {'sheet_loaded': True, 'character_loaded': True,
             'character': {'name': name, 'sheet_title': sheet.get('name'),
                           'ancestry': sheet.get('ancestry'), 'class': sheet.get('class'),

@@ -90,6 +90,8 @@ class UnsourcedQuestionTests(unittest.TestCase):
         first = self.entry()['proficiency_check']
         self.assertIn('table_line', first)
         self.assertFalse(first['already_asked'])
+        # Marked asked on confirmed delivery, not on generation (PR 145 c-run fix).
+        self.assertTrue(kit_campaign.confirm_question_delivered(self.db, question_id=first['question_id']))
         for _ in range(2):
             again = self.entry()['proficiency_check']
             self.assertNotIn('table_line', again)

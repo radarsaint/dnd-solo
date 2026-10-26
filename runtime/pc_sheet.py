@@ -176,6 +176,20 @@ def passive(sheet, skill):
     return derived_passive(sheet, skill)
 
 
+def with_real_name(sheet):
+    """A copy of the sheet whose name is the character's real name ("Copy of Nik" -> "Nik").
+    The file title it came in with is kept in sheet_title when it differs, so nothing is lost."""
+    out = dict(sheet)
+    title = str(sheet.get('sheet_title') or sheet.get('name') or '').strip()
+    real = character_name(sheet)
+    if real:
+        out['name'] = real
+    out.pop('character_name', None)
+    if title and title != out.get('name'):
+        out['sheet_title'] = title
+    return out
+
+
 def identity(sheet):
     """The public identity the scene-fit guard and your_character use."""
     return {'name': character_name(sheet), 'ancestry': sheet['ancestry'], 'class': sheet['class'],
