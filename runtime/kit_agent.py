@@ -48,6 +48,7 @@ from . import kit_attitude
 from . import kit_brief
 from . import kit_cards
 from . import kit_reactions
+from . import kit_save
 kit_combat = _lazy.module('.kit_combat', __package__)  # lazy: only combat, attacks and spells need it
 from . import kit_rolls
 from . import kit_triggers
@@ -6611,8 +6612,11 @@ def _main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('command', choices=['start', 'init', 'status', 'view', 'prepare', 'decide', 'finish', 'complete',
                                             'abandon', 'feedback', 'character', 'notes', 'play', 'trace',
-                                            'timing', 'persona', 'stamp', 'rehydrate', 'rest'])
+                                            'timing', 'persona', 'stamp', 'rehydrate', 'rest', 'save'])
     parser.add_argument('--db', default='kit.sqlite')
+    parser.add_argument('--out', help='save: where to write the player-safe ZIP '
+                                      '(default saves/<player>/<campaign>/ next to --db)')
+    parser.add_argument('--player', help='save: the player folder name under saves/ (default "player")')
     parser.add_argument('--kind', choices=['short', 'long'], help='rest: a short or a long rest (slots and uses '
                                                                   'come back; re-sending the sheet does not)')
     parser.add_argument('--room', help='start/init: a room file to mount. With no --room, start reports '
@@ -6720,6 +6724,15 @@ def _main():
             return 2
         print(_dumps(result, ensure_ascii=False,
                      **({'indent': 2} if args.pretty else {'separators': (',', ':')})))
+        return 0
+    if args.command == 'save':
+        # The player-safe export. kit.sqlite itself is runtime-only and is never offered.
+        try:
+            result = kit_save.save(args.db, out=args.out, player=args.player, campaign=args.campaign)
+        except kit_save.SaveError as exc:
+            print(json.dumps({'stage': 'rejected', 'message': str(exc)}, ensure_ascii=False), file=sys.stderr)
+            return 2
+        print(json.dumps(result, ensure_ascii=False))
         return 0
     if args.command == 'init':
         if not args.room:
