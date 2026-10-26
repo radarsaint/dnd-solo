@@ -8,9 +8,18 @@ plays an ally: ordered tactics (Dragon Age) with resource permissions (Pillars).
   `party_roster` event; fights commit `party_state` (hit points, status, conditions, death saves,
   resource ledger). Both replay from SQLite, so a Python reset resumes mid-fight.
 * **Real combatants.** Kit rolls a companion's initiative (seeded d20 + Dex or the sheet's
-  initiative); it takes its slot in the order; foes attack whoever is in melee with them
-  (a defender first), else the PC; damage, 0 hp, death saves (SRD), massive damage, revival by
-  healing, and incapacitating/poisoned/dodging conditions are run by the engine.
+  initiative) and it takes its slot in the order. Damage, 0 hp, death saves (SRD), massive
+  damage, revival by healing, and incapacitating/poisoned/dodging conditions are run by the engine.
+* **Foe targeting** (`kit_party.foe_target`, deterministic). A foe attacks, in order: a standing
+  companion in melee with it (a defender first); else whoever hurt it last, if that is a standing
+  companion (bow shots, spell attacks, save and auto-hit spells all count; a bow shot is not
+  melee); else the PC. Downed companions are left alone. "Last attacker" is sticky and naive:
+  there is no threat model.
+* **Downed PC.** Kit's `downed` call (main's step) is always kept: when the PC is down and a foe
+  acts, Kit decides `attack` or `turn_away`. With companions standing, the call also lists them.
+  `attack` keeps each foe on its own fight (as above, falling back to the PC); `turn_away` sends
+  it at the standing companions. With no companions the call, and every event, is byte-identical
+  to the solo path.
 * **Capability isolation.** Legal actions come only from the sheet: attacks with stated to-hit
   and dice, spells the SRD table runs (slots from the sheet), Second Wind, Potion of Healing.
   `validate` refuses anything else and falls back to Dodge; the engine spends slots, uses, items.
