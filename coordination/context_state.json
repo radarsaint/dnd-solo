@@ -2,32 +2,32 @@
   "schema": "kit_project_gardener_state/v1",
   "purpose": "RESUMABILITY_CURSOR_NOT_KNOWLEDGE_STORE",
   "canonical_location": "radarsaint/dnd-solo/coordination/context_state.json",
-  "state_revision": 32,
+  "state_revision": 33,
   "semantic_brain": {
     "repo": "radarsaint/dnd-solo",
     "path": "docs/PROJECT_UNDERSTANDING.md",
-    "last_semantic_commit": "37fd22f11e393c3dddd279a55c55fc272faf3c93",
+    "last_semantic_commit": "1656796a8f1b7844589a58f16f07aa63e9753d83",
     "last_reviewed_on": "2026-10-26"
   },
   "checkpoint": {
     "reviewed_against_main": {
-      "radarsaint/dnd-solo": "37fd22f11e393c3dddd279a55c55fc272faf3c93",
-      "radarsaint/bfdm-corpus": "a6a84d902a995e53b3ceb72bd535b909429493f9"
+      "radarsaint/dnd-solo": "10eeb73b6bc9b5cd05d2de0980b48050bfef19f2",
+      "radarsaint/bfdm-corpus": "df47554633b20ba872bd8cd393c420bbef7140d1"
     },
     "context_inbox": {
       "repo": "radarsaint/dnd-solo",
       "issue": 115,
       "issue_state_at_checkpoint": "open",
       "last_fully_reconciled_comment_id": 6202184874,
-      "comment_count_at_checkpoint": 18
+      "comment_count_at_checkpoint": 19
     }
   },
   "last_completed_pass": {
     "kind": "BOUNDED_SEMANTIC_RECONCILIATION",
     "completed_on": "2026-10-26",
-    "scope": "Reviewed bfdm-corpus #28 merge (main a6a84d9). #115 comment 6266120288 remains pending.",
-    "result": "Accept: #28 lands Phase 2 contrast families and Earthfall/Saturday tranche as derived research hypotheses on main. Narrow: zero BREAK and the tranche do not confirm the families or make them doctrine or Kit-consumed. Brain and control corrected. Pending #115 DM Kit rulings remain unresolved.",
-    "resulting_brain_commit": "37fd22f11e393c3dddd279a55c55fc272faf3c93",
+    "scope": "Reviewed dnd-solo #150 merge (main 10eeb73b). #115 comment 6266120288 remains pending.",
+    "result": "Accept: #150 lands smaller session packets, rejection-streak notice (no full re-send), rejection-bug fixes, Detect Magic sensing, intent precedence. Narrow: mechanical friction reduced; player-experience truth and some edge drops remain. Brain updated. Pending #115 DM Kit rulings remain unresolved.",
+    "resulting_brain_commit": "1656796a8f1b7844589a58f16f07aa63e9753d83",
     "reconciled_comment_id": 6202184874
   },
   "active_pass": null,
