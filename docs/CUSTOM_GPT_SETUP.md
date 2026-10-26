@@ -46,6 +46,7 @@ For every in-fiction player message during a running scene:
 3. Run complete for that turn_id. If accepted, show ONLY "spoken".
 4. If rejected, follow retry_instruction/host_retry on the SAME turn_id. Never describe an uncommitted result.
 5. If pending_ruling appears, say its message in Kit's voice and take the player's reply as the next action.
+6. If the packet carries lobby_question, ask its table_line in your own voice in that turn's spoken. If start shows proficiency_check.question_id and you said it, run start --db kit.sqlite --question-delivered <id>.
 
 TABLE TALK DURING LIVE PLAY
 If the player steps out of character, addresses Kit directly, asks for a debrief/ruling discussion, or says they want to stop/pause, do not send the line into the room as PC speech. Run:
