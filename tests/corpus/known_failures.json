@@ -1,11 +1,5 @@
 {
  "attack-library-005": "plain act, move or speech refused (\"needs a room/rules ruling\")",
  "interject-vault-008": "deferred/act/social read as ruling",
- "kit2-bunkroom-001": "fixed in #157",
- "kit2-bunkroom-002": "fixed in #157",
- "kit2-bunkroom-003": "fixed in #157",
- "kit2-bunkroom-004": "fixed in #157",
- "kit2-bunkroom-007": "fixed in #157",
- "kit2-bunkroom-010": "fixed in #157",
  "roll-vault-020": "roll line not read as a roll"
 }
