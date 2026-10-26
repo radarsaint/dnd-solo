@@ -33,6 +33,14 @@ class StripQuestionTests(unittest.TestCase):
         self.assertEqual(
             kit_appraise.strip_question('price a rope, two torches.'),
             'rope and qty 2 torches')
+        kept = kit_appraise.strip_question(
+            'price check on a wand of fireballs, rare wand, 8d6 aoe, 7 charges')
+        self.assertNotIn(' and ', kept)
+        self.assertIn('7 charges', kept)
+        wand = kit_appraise.price(kept if kept.startswith('wand') else
+                                  'price check on a wand of fireballs, rare wand, 8d6 aoe, 7 charges')
+        self.assertEqual(wand['final_price'], 157000)
+        self.assertEqual(wand['quantity'], None)
 
     def test_comma_bonus_moves_to_the_front_without_moving_a_trailing_bonus(self):
         self.assertEqual(

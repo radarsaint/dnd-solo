@@ -70,7 +70,8 @@ _NEXT_ITEM = re.compile(
     r'thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|dozen|pair|couple|brace)\b',
     re.I)
 _NOT_NEXT = re.compile(
-    r'^(?:common|uncommon|rare|very|legendary|artifact|weapon|armor|armour|shield|potion|wand|'
+    r'^(?:\d+\s*(?:charges?|uses?|beads?)|\d+d\d+|\+[123]\b|'
+    r'common|uncommon|rare|very|legendary|artifact|weapon|armor|armour|shield|potion|wand|'
     r'staff|cloak|ring|boots|scroll|consumable|utility|complex|minor|reusable|broad|healing|'
     r'damage|aoe|charged)\b',
     re.I)
