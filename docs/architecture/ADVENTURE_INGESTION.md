@@ -57,6 +57,26 @@ actors (not compiled yet); and anything the room loader itself refuses.
 Secret connections (`secret|hidden|concealed` in the stating sentence) compile to `secret: true`
 exits: the PC cannot use one until play reveals it.
 
+## Combatants
+
+A creature becomes an engine actor (`actors.<key>` with `stat_block`) only when the location puts it
+there: a count or article before its name ("two bandits", "a reed lurker") or a "(see ...)" after it.
+A passing mention ("someone called the Lantern Wight") is not a combatant.
+
+* **Book stat block:** parsed into the inline engine shape `{ac, hp, attacks: [{name, to_hit, damage, type}]}`.
+  Each of `ac`, `hp` and each attack carries the quote it came from (`Armor Class 13`, the attack line).
+  Initiative, grapple and saves keep the engine defaults; nothing is guessed.
+* **SRD 5.1:** `{"srd": name}` from `runtime/srd_creatures.py`.
+* **Otherwise `ask_player`:** no actor; the creature stays a hidden fact.
+
+The validator refuses an actor with no presence quote in the location, an inline stat whose quote is not in
+that creature's book stat block or does not state the number, any extra stat field, or an SRD name the
+runtime does not ship. Stats are dm-only: the player view carries names, never AC, hit points or bonuses.
+
+Partial or unsupported: Multiattack (every listed attack is given to the engine, which uses its own
+attack order), Recharge abilities, Spellcasting, legendary actions, saving-throw riders on attacks,
+resistances, speeds, and damage dice (the average is used). Each is flagged on compile.
+
 ## Readiness levels (`status.adventure.adventure_readiness`)
 
 * `source_available`: imported and indexed, nothing compiled.
@@ -66,8 +86,7 @@ exits: the PC cannot use one until play reveals it.
 
 ## What the room format could not express (open question)
 
-From the synthetic corpus alone: creatures as engine actors (kept as hidden facts with stat-block
-resolution in the provenance sidecar); a bell that summons help without the book naming who
+From the synthetic corpus alone: a bell that summons help without the book naming who
 (loader alarm warning, carried as a flag); conditional text ("they attack anyone who touches the
 ledger") as triggers; treasure as resources; sub-areas inside one keyed location; map-only layout.
 Whether the format can express arbitrary published adventures is **not yet known**.

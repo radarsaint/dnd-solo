@@ -25,7 +25,7 @@ MAP: Lantern Ferry
 
 4. Far Shore
 > Reeds rattle against the hull as the ferry grounds on a shingle beach.
-Nothing waits here yet. The ferry returns to area 1.
+A reed lurker (see the Reed Lurker stat block) hides in the shallows and lunges at anyone who wades in. The ferry returns to area 1.
 
 Appendix: Creatures
 
@@ -37,3 +37,13 @@ Speed 30 ft.
 Senses darkvision 60 ft., passive Perception 11
 Actions. Lantern Lash. Melee Weapon Attack: +4 to hit, reach 5 ft., one target. Hit: 6 (1d8 + 2) fire damage.
 The wight cannot cross running water and avoids the ferry.
+
+Reed Lurker
+Large beast
+Armor Class 12 (natural armor)
+Hit Points 22 (4d10)
+Speed 10 ft., swim 30 ft.
+Multiattack. The lurker makes two attacks: one with its bite and one with its tail.
+Bite. Melee Weapon Attack: +5 to hit, reach 5 ft., one target. Hit: 7 (1d8 + 3) piercing damage.
+Tail. Melee Weapon Attack: +5 to hit, reach 10 ft., one target. Hit: 5 (1d4 + 3) bludgeoning damage.
+Mud Spray (Recharge 5-6). Each creature in a 15-foot cone must succeed on a DC 12 Dexterity saving throw or be blinded until the end of its next turn.

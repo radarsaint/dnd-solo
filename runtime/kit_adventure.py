@@ -201,6 +201,58 @@ def _sentence_around(span, at):
     return _norm(span[start:end].lstrip('> '))
 
 
+AC_RE = re.compile(r'Armor Class (\d+)')
+HP_RE = re.compile(r'Hit Points (\d+)')
+ATTACK_RE = re.compile(r'([A-Z][A-Za-z\' ]{1,30})\. (?:Melee|Ranged) (?:Weapon|Spell) Attack: \+(\d+) to hit[^.]*?'
+                       r'(?:\.[^.]*?)*?Hit: (\d+) \([^)]*\) ([a-z]+) damage')
+UNSUPPORTED_RE = re.compile(r'^(Multiattack|Spellcasting|Innate Spellcasting|Legendary Actions?|[A-Z][\w ]*\(Recharge[^)]*\))',
+                            re.M)
+COUNTS = {'a': 1, 'an': 1, 'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5, 'six': 6}
+ACTOR_MAX = 6
+
+
+def stat_block_span(text, entry):
+    """(start, end) of the book's stat block for an index entry: its heading to the next blank line."""
+    start = entry['offset']
+    end = text.find('\n\n', start)
+    return start, len(text) if end < 0 else end
+
+
+def parse_stat_block(text, entry):
+    """(engine stat block, provenance {field: {quote, offset}}, unsupported) from the book's own
+    stat block, or (None, {}, reasons) when it lacks AC, hit points or a usable attack. Only
+    what the text states: initiative, grapple and saves keep the engine's defaults."""
+    start, end = stat_block_span(text, entry)
+    block = text[start:end]
+    prov, problems = {}, []
+    ac, hp = AC_RE.search(block), HP_RE.search(block)
+    attacks = []
+    for n, m in enumerate(ATTACK_RE.finditer(block)):
+        attacks.append({'name': m.group(1).strip().lower(), 'to_hit': int(m.group(2)),
+                        'damage': int(m.group(3)), 'type': m.group(4)})
+        prov[f'attacks.{n}'] = {'offset': start + m.start(), 'quote': m.group(0)}
+    unsupported = [m.group(1) for m in UNSUPPORTED_RE.finditer(block)]
+    if not (ac and hp and attacks):
+        problems.append('no Armor Class, Hit Points and attack line the engine can use')
+        return None, {}, problems + unsupported
+    prov['ac'] = {'offset': start + ac.start(), 'quote': ac.group(0)}
+    prov['hp'] = {'offset': start + hp.start(), 'quote': hp.group(0)}
+    return {'ac': int(ac.group(1)), 'hp': int(hp.group(1)), 'attacks': attacks}, prov, unsupported
+
+
+def _present(span, name):
+    """(count, offset) of the first mention that puts the creature here: a count or article
+    before it ("two bandits", "a reed lurker"), or a "(see ...)" right after it. A passing
+    mention ("someone called the Lantern Wight") is not a creature present."""
+    pattern = rf'\b(?:(a|an|one|two|three|four|five|six|\d)\s+)?(?:the\s+)?({re.escape(name)}(?:e?s)?)\b(\s*\(see)?'
+    for m in re.finditer(pattern, span, re.I):
+        if m.group(1) or m.group(3):
+            word = (m.group(1) or 'one').lower()
+            count = int(word) if word.isdigit() else COUNTS.get(word, 1)
+            return min(count, ACTOR_MAX), m.start()
+    return None
+
+
 def _creatures(span, base, stat_blocks):
     """Creature references and how each resolves: the book's own stat block, then SRD 5.1,
     else ask the player. Never a made-up stat line."""
@@ -335,8 +387,35 @@ def draft_room(db, key, index, text):
     page = next((p for p in index['pages'] if p['page'] == loc['page']), None)
     if page and page['needs_map_look']:
         flags.append(f"page {loc['page']} is mostly map/image: look at the map for layout")
+    actors = {}
+    from .srd_creatures import CREATURES
+    for creature in loc['creatures']:
+        name = creature['name']
+        found = _present(text[start:end], name)
+        if creature['resolved'] == 'ask_player' or found is None:
+            continue
+        count, rel = found
+        if creature['resolved'] == 'in_book':
+            block, stat_prov, unsupported = parse_stat_block(text, index['stat_blocks'][name])
+            if block is None:
+                flags.append(f'{name}: book stat block unusable ({"; ".join(unsupported)}); not a combatant')
+                continue
+            if unsupported:
+                flags.append(f'{name}: not run by the engine: {", ".join(unsupported)}')
+        elif name in CREATURES:
+            block, stat_prov = {'srd': name}, {'srd': {'srd': name}}
+        else:
+            continue
+        mention = _sentence_around(text[start:end], rel)
+        for n in range(1, count + 1):
+            akey = _slug(name) + (f'_{n}' if count > 1 else '')
+            actors[akey] = {'name': name.title() if count == 1 else f'{name.title()} {n}', 'location': here,
+                            'status': 'alive', 'visible': True, 'stat_block': block}
+            prov[f'actors.{akey}'] = {'offset': start + rel, 'quote': mention}
+            for field, entry in stat_prov.items():
+                prov[f'actors.{akey}.stat_block.{field}'] = entry
     room = {'id': f"adv-{index['sha256'][:8]}-{_slug(key)}", 'source_ref': f"{index['title']} / {key}. {loc['name']}",
-            'starting_area': here, 'areas': areas, 'exits': exits, 'facts': facts, 'actors': {}}
+            'starting_area': here, 'areas': areas, 'exits': exits, 'facts': facts, 'actors': actors}
     sidecar = {'location': key, 'source_sha256': index['sha256'], 'fields': prov,
                'creatures': loc['creatures'],
                'ask_player': [c['name'] for c in loc['creatures'] if c['resolved'] == 'ask_player'],
@@ -389,8 +468,7 @@ def validate(room, sidecar, index, text):
         body = _norm(str(fact.get('text', '')).rstrip('…'))
         if quote and body and body not in quote and not _words_from(body, quote):
             problems.append(f'fact {key} text says more than its quote')
-    if room.get('actors'):
-        problems.append('actors are not compiled from source yet; describe creatures as hidden facts')
+    problems += _actor_problems(room, fields, flat, index, text)
     if not problems:
         import warnings
         with warnings.catch_warnings(record=True) as caught:
@@ -403,6 +481,47 @@ def validate(room, sidecar, index, text):
         # carried as flags so Kit asks rather than invents.
         sidecar.setdefault('flags', []).extend(
             str(w.message).split(': ', 1)[-1] for w in caught if issubclass(w.category, kit_rooms.RoomWarning))
+    return problems
+
+
+def _actor_problems(room, fields, flat, index, text):
+    """Every combatant is sourced: its presence quotes this location, and every stat quotes the
+    book's own stat block for it (and states that number) or names an SRD creature the runtime ships."""
+    from .srd_creatures import CREATURES
+    problems = []
+    for key, actor in (room.get('actors') or {}).items():
+        where = fields.get(f'actors.{key}') or {}
+        if not (isinstance(where.get('quote'), str) and _norm(where['quote']) in flat):
+            problems.append(f'actors.{key} has no source quote in this location')
+        block = actor.get('stat_block') if isinstance(actor, dict) else None
+        if not isinstance(block, dict):
+            problems.append(f'actors.{key} has no stat_block')
+            continue
+        if set(block) == {'srd'}:
+            if str(block['srd']).casefold() not in CREATURES or \
+                    (fields.get(f'actors.{key}.stat_block.srd') or {}).get('srd') != block['srd']:
+                problems.append(f'actors.{key} stat_block cites no SRD creature the runtime ships')
+            continue
+        entry = index['stat_blocks'].get(str(actor.get('name', '')).rstrip(' 0123456789').strip().casefold())
+        if entry is None:
+            problems.append(f'actors.{key} has inline stats but the book has no stat block named {actor.get("name")!r}')
+            continue
+        lo, hi = stat_block_span(text, entry)
+        book = _norm(text[lo:hi])
+        checks = [('ac', block.get('ac')), ('hp', block.get('hp'))] + \
+            [(f'attacks.{n}', a) for n, a in enumerate(block.get('attacks') or [])]
+        extra = set(block) - {'ac', 'hp', 'attacks'}
+        if extra:
+            problems.append(f'actors.{key} stat_block has unsourced fields: {", ".join(sorted(extra))}')
+        for field, value in checks:
+            quote = _norm(str((fields.get(f'actors.{key}.stat_block.{field}') or {}).get('quote', '')))
+            if not quote or quote not in book:
+                problems.append(f'actors.{key}.stat_block.{field} has no source quote in its stat block')
+                continue
+            numbers = [value] if isinstance(value, int) else \
+                [value.get('to_hit'), value.get('damage')] if isinstance(value, dict) else [None]
+            if not all(isinstance(v, int) and re.search(rf'(?<![\d]){v}(?![\d])', quote) for v in numbers):
+                problems.append(f'actors.{key}.stat_block.{field} states a number its quote does not')
     return problems
 
 

@@ -184,6 +184,81 @@ class Transition(Base):
         self.assertEqual(bad.returncode, 2)
 
 
+class Combatants(Base):
+    """Creatures compile into actors the existing combat engine fights: the book's own stat block
+    first, then SRD 5.1, else ask_player and no combatant."""
+
+    def room(self, key):
+        kit_adventure.compile_location(self.db, key, neighbours=False)
+        path = kit_adventure.room_file(self.db, key)
+        return json.loads(path.read_text()), json.loads(path.with_suffix('.provenance.json').read_text())
+
+    def test_book_stat_block_becomes_an_inline_combatant(self):
+        room, side = self.room('3')
+        self.assertEqual(room['actors']['lantern_wight']['stat_block'],
+                         {'ac': 13, 'hp': 27, 'attacks': [{'name': 'lantern lash', 'to_hit': 4, 'damage': 6, 'type': 'fire'}]})
+        self.assertEqual(side['fields']['actors.lantern_wight.stat_block.ac']['quote'], 'Armor Class 13')
+        self.assertNotIn('marsh_hag', room['actors'])  # ask_player: no combatant
+        self.assertIn('marsh hag', side['ask_player'])
+
+    def test_srd_creatures_and_counts(self):
+        room, _ = self.room('2')
+        self.assertEqual(sorted(room['actors']), ['bandit_1', 'bandit_2'])
+        self.assertEqual(room['actors']['bandit_1']['stat_block'], {'srd': 'bandit'})
+        self.assertNotIn('lantern_wight', room['actors'])  # a passing mention in the ledger
+
+    def test_unsupported_features_are_flagged(self):
+        room, side = self.room('4')
+        self.assertEqual(len(room['actors']['reed_lurker']['stat_block']['attacks']), 2)
+        self.assertTrue(any('Multiattack' in f and 'Recharge' in f for f in side['flags']))
+
+    def _draft(self, key='3'):
+        return kit_adventure.draft_room(self.db, key, self.index, self.text)
+
+    def test_a_stat_without_a_source_is_rejected(self):
+        room, side = self._draft()
+        room['actors']['lantern_wight']['stat_block']['hp'] = 40
+        room['actors']['lantern_wight']['stat_block']['initiative'] = 3
+        with self.assertRaises(kit_adventure.IngestError) as caught:
+            kit_adventure.compile_location(self.db, '3', draft={'room': room, 'provenance': side})
+        problems = ' '.join(caught.exception.problems)
+        self.assertIn('stat_block.hp states a number its quote does not', problems)
+        self.assertIn('unsourced fields: initiative', problems)
+
+    def test_an_invented_creature_is_rejected(self):
+        room, side = self._draft()
+        room['actors']['ogre'] = {'name': 'Ogre', 'location': 'here', 'status': 'alive', 'visible': True,
+                                  'stat_block': {'srd': 'ogre'}}
+        with self.assertRaises(kit_adventure.IngestError) as caught:
+            kit_adventure.compile_location(self.db, '3', draft={'room': room, 'provenance': side})
+        self.assertIn('actors.ogre has no source quote in this location', caught.exception.problems)
+
+    def test_a_fight_in_a_compiled_room_runs_on_the_engine(self):
+        kit_adventure.compile_location(self.db, '3', neighbours=False)
+        started = start_session(self.db, NIK, room=kit_adventure.room_file(self.db, '3'))
+        runtime = Runtime(self.db)
+        self.addCleanup(runtime.close)
+        adjudicator = RoomAdjudicator(roll=lambda: 10, npc_roll=lambda: 10, source=runtime.source())
+        KitChatBridge(runtime, adjudicator).abandon(started['prepared']['turn_id'])
+
+        def act(line):
+            revision, state = runtime.load()
+            result = adjudicator.resolve(line, revision, state)
+            runtime.commit(f't{revision}', revision, list(result.events))
+            return result, runtime.load()[1]['combat']
+
+        result, combat = act('I hit the Lantern Wight with Fire Bolt.\nNik casts Fire Bolt!\n'
+                             '**To Hit**: 1d20 (12) + 7 = `19`\n**Damage**: 2d10 (4, 5) [fire] = `9`')
+        self.assertEqual(result.kind, 'combat_round')
+        self.assertEqual(combat['hp']['lantern_wight'], 18)  # 27 from the book, minus 9
+        result, combat = act('Rolling initiative.\n**Initiative**: 1d20 (12) + 2 = `14`')
+        self.assertEqual(combat['awaiting']['attacker'], 'lantern_wight')  # the wight swings back
+        self.assertEqual(combat['awaiting']['name'], 'lantern lash')
+        seen = json.dumps(runtime.player_view())
+        for secret in ('to_hit', 'stat_block', 'Armor Class', '"ac"'):
+            self.assertNotIn(secret, seen)
+
+
 class NoPublishedText(unittest.TestCase):
     def test_corpus_is_marked_original(self):
         self.assertIn('original synthetic test text', CORPUS.read_text())
