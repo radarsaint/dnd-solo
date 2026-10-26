@@ -803,10 +803,11 @@ class Runtime:
         next_revision = self.commit(f'sheet-{digest}', revision, [event])
         return {'revision': next_revision, 'character': pc_sheet.identity(sheet)}
 
-    def restore_campaign(self, log, carried):
+    def restore_campaign(self, log, carried, pc_state=None):
         """Apply a player save's public record (kit_resume) before the room's opening."""
         revision, _ = self.load()
         event = {'type': 'campaign_restore', 'log': log, 'carried': carried,
+                 **({'pc_state': pc_state} if pc_state is not None else {}),
                  'evidence': "The host resumed from the player's save."}
         digest = hashlib.sha256(f'{revision}:{encode(event)}'.encode()).hexdigest()[:16]
         return self.commit(f'restore-{digest}', revision, [event])
@@ -1216,6 +1217,20 @@ class Runtime:
             require(isinstance(carried, list) and len(carried) <= 60 and all(
                 isinstance(c, dict) and isinstance(c.get('item'), str) for c in carried),
                 'campaign_restore carried lists {item, from}')
+            from . import kit_save, kit_reactions
+            for record in rooms:
+                kit_save.check_carry(record.get('carry'))
+            pc = event.get('pc_state')
+            if pc is not None:
+                counts = lambda v: isinstance(v, dict) and all(
+                    isinstance(k, str) and type(n) is int and n >= 0 for k, n in v.items())
+                require(isinstance(pc, dict) and counts(pc.get('slots', {})) and counts(pc.get('uses', {}))
+                        and names(pc.get('conditions', [])), 'campaign_restore pc_state is {slots, uses, conditions}')
+                spent = {'slots': {k: {'used': n} for k, n in pc.get('slots', {}).items()},
+                         'uses': {k: {'used': n} for k, n in pc.get('uses', {}).items()}}
+                state['pc_resources'] = kit_reactions.carry_spent(kit_reactions.current(state), spent)
+                if pc.get('conditions'):
+                    state['pc_conditions'] = list(dict.fromkeys(pc['conditions']))
             state['campaign_log'] = copy.deepcopy(log)
             state['carried'] = copy.deepcopy(carried)
         elif kind == 'beat':
