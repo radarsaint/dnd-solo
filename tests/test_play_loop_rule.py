@@ -36,6 +36,17 @@ class PlayLoopRule(unittest.TestCase):
         self.assertIn('complete the pending opening now', BLOCK)
         self.assertIn('never an in-fiction action', BLOCK)
 
+    def test_adventure_import_rule(self):
+        # A supplied adventure goes through the importer, never hand-built rooms (#172).
+        self.assertIn('adventure import --db kit.sqlite --text-file adventure.txt', BLOCK)
+        self.assertIn('pdftotext', BLOCK)
+        self.assertIn('`> `', BLOCK)
+        self.assertIn('next_command', BLOCK)
+        self.assertIn('Never build rooms, NPCs, stat blocks, or a module yourself', BLOCK)
+        t = gpt_instructions()
+        self.assertIn('adventure import', t)
+        self.assertIn('never hand-build rooms', t)
+
     def test_portable_rules(self):
         t = (ROOT / 'KIT_PORTABLE.md').read_text()
         self.assertIn('Party companions aren\'t supported yet', t)
@@ -48,6 +59,8 @@ class PlayLoopRule(unittest.TestCase):
     def test_documented_flags_exist(self):
         h = subprocess.run([sys.executable, '-m', 'runtime.kit_agent', '--help'], cwd=ROOT,
                            capture_output=True, text=True).stdout
+        h += subprocess.run([sys.executable, '-m', 'runtime.kit_agent', 'adventure', '--help'], cwd=ROOT,
+                            capture_output=True, text=True).stdout
         for flag in re.findall(r'--[a-z][a-z-]+', BLOCK):
             self.assertIn(flag, h, flag)
 

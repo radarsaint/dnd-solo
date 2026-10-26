@@ -6187,6 +6187,10 @@ def _lobby_question_delivery(args, result):
 
 
 def main():
+    if sys.argv[1:2] == ['adventure']:
+        # Adventure ingestion (runtime/kit_adventure.py): import, compile, status.
+        from . import kit_adventure
+        return kit_adventure.main(sys.argv[2:])
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('command', choices=['start', 'init', 'status', 'view', 'prepare', 'decide', 'finish', 'complete',
                                             'abandon', 'feedback', 'character', 'notes', 'play', 'trace',
