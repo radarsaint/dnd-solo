@@ -34,12 +34,13 @@ import json
 import hashlib
 import re
 
+from . import _lazy
 from . import kit_reactions
 from . import kit_rolls
 from .state_context import require
 
-QUOTED = re.compile(r'"[^"]*"')
-SPEECH_SINGLE = re.compile(r"(?:(?<=^)|(?<=[\s(\[:;,.!?\u2014-]))'(?=\S)[^\n]*?(?<=\S)'(?=$|[\s)\].,!?;:\u2014-])")
+QUOTED = _lazy.regex(r'"[^"]*"')
+SPEECH_SINGLE = _lazy.regex(r"(?:(?<=^)|(?<=[\s(\[:;,.!?\u2014-]))'(?=\S)[^\n]*?(?<=\S)'(?=$|[\s)\].,!?;:\u2014-])")
 
 WEAPONS = (r'greataxe|axe|handaxe|greatsword|longsword|shortsword|sword|rapier|scimitar|dagger|knife|blade|'
            r'mace|maul|warhammer|hammer|club|quarterstaff|staff|spear|javelin|pike|halberd|glaive|whip|flail|'
@@ -50,7 +51,7 @@ ATTACK_VERBS = (r'attack|attacks|attacking|swing|swings|swinging|slash|slashes|s
                 r'put (?:my|the) (?:' + WEAPONS + r') (?:through|into)|bury (?:my|the) (?:' + WEAPONS + r') in|'
                 r'drive (?:my|the) (?:' + WEAPONS + r') (?:through|into)|bash|bashes|throw (?:my|a|the) (?:dagger|knife|'
                 r'javelin|axe|handaxe|spear) at|kill|murder|bite')
-ATTACK = re.compile(r'\b(' + ATTACK_VERBS + r')\b')
+ATTACK = _lazy.regex(r'\b(' + ATTACK_VERBS + r')\b')
 # Spells: the attack-roll ones, the saving-throw ones (ability, half on a save?), and the
 # ones that always hit. Area spells catch everyone at the table.
 SPELL_ATTACK = ('fire bolt', 'ray of frost', 'eldritch blast', 'chill touch', 'shocking grasp', 'chromatic orb',
@@ -63,50 +64,50 @@ SPELL_SAVE = {'fireball': ('dex', True, True), 'burning hands': ('dex', True, Tr
               'poison spray': ('con', False, False), 'mind spike': ('wis', True, False)}
 SPELL_AUTO = ('magic missile',)
 SPELLS = tuple(SPELL_ATTACK) + tuple(SPELL_SAVE) + SPELL_AUTO
-_SPELL = re.compile(r"\b(" + '|'.join(re.escape(s) for s in sorted(SPELLS, key=len, reverse=True)) + r")\b")
-GRAB = re.compile(r'\b(grab|grabs|grabbing|seize|seizes|grip|grips|grapple|grapples|collar|collars|haul|hauls|'
+_SPELL = _lazy.regex(r"\b(" + '|'.join(re.escape(s) for s in sorted(SPELLS, key=len, reverse=True)) + r")\b")
+GRAB = _lazy.regex(r'\b(grab|grabs|grabbing|seize|seizes|grip|grips|grapple|grapples|collar|collars|haul|hauls|'
                   r'yank|yanks|pin|pins|tackle|tackles|shove|shoves|push|pushes|drag|drags|'
                   r'(?<!\ba )(?<!\bthe )(?<!\bany )catch|catches|clamp)\b')  # 'a catch' is a latch, not a grab
-FACE = re.compile(r'\b(wipe|wipes|wiping|smear|smears|rub|rubs|scrub|scrubs|lick (?:my|a) thumb|swipe|swipes|'
+FACE = _lazy.regex(r'\b(wipe|wipes|wiping|smear|smears|rub|rubs|scrub|scrubs|lick (?:my|a) thumb|swipe|swipes|'
                   r'pull|pulls|tug|tugs|pluck|plucks|pry|touch|touches|flick|flicks)\b')
-FACE_PARTS = re.compile(r"\b(cheek|cheeks|face|faces|paint|makeup|make-up|powder|greasepaint|flour|fangs?|teeth|"
+FACE_PARTS = _lazy.regex(r"\b(cheek|cheeks|face|faces|paint|makeup|make-up|powder|greasepaint|flour|fangs?|teeth|"
                         r"tooth|forehead|jaw|chin|lips?|skin)\b")
-TEETH = re.compile(r'\b(teeth|tooth|fangs?|mouth|gums?)\b')
-FLIP = re.compile(r'\b(flip|flips|flipping|overturn|overturns|upend|upends|heave|heaves|tip|tips|kick over|'
+TEETH = _lazy.regex(r'\b(teeth|tooth|fangs?|mouth|gums?)\b')
+FLIP = _lazy.regex(r'\b(flip|flips|flipping|overturn|overturns|upend|upends|heave|heaves|tip|tips|kick over|'
                   r'knock over|knocks over|throw over|turn over|shove over|topple|topples)\b')
-TABLE = re.compile(r'\b(table|card table)\b')
-TAKE = re.compile(r'\b(scoop|scoops|scooping|grab|grabs|snatch|snatches|pocket|pockets|pocketing|take|takes|'
+TABLE = _lazy.regex(r'\b(table|card table)\b')
+TAKE = _lazy.regex(r'\b(scoop|scoops|scooping|grab|grabs|snatch|snatches|pocket|pockets|pocketing|take|takes|'
                   r'swipe|swipes|pick up|picks up|gather|gathers|sweep|sweeps|lift|lifts|palm|palms|steal|steals|'
                   r'help myself to)\b')
-VALUABLES = re.compile(r'\b(coins?|gold|silver|copper|pot|money|stacks?|the stakes|winnings|ring|silver ring|purse)\b')
-COVERT = re.compile(r"\b(quietly|unnoticed|unseen|without (?:anyone|them) (?:seeing|noticing)|slip|slips|palm|palms|"
+VALUABLES = _lazy.regex(r'\b(coins?|gold|silver|copper|pot|money|stacks?|the stakes|winnings|ring|silver ring|purse)\b')
+COVERT = _lazy.regex(r"\b(quietly|unnoticed|unseen|without (?:anyone|them) (?:seeing|noticing)|slip|slips|palm|palms|"
                     r"secretly|covertly|furtively|stealthily|on the sly|discreetly|"
                     # a covert clause: while or when nobody watches, or the others look away
                     r"(?:while|when|as)\s+(?:no ?one|no-one|nobody|they|the others|everyone(?: else)?|he|she|their "
                     r"(?:backs?|eyes?))(?:'s|'re|\s+(?:is|are|was|were))?\s+(?:not\s+)?(?:looking|watching|distracted|busy|"
                     r"turned|elsewhere|looking away|looks away|look away))\b")
 # Shield typed on his own turn, or after its window passed: a reaction spell with no trigger now.
-OWN_SHIELD = re.compile(r"!cast\s+shield\b|\bshield\s+(?:myself|me)\b|\b(?:cast|casts|casting|raise|raises|throw up|throws up)\s+(?:a\s+|my\s+)?shield\b"
+OWN_SHIELD = _lazy.regex(r"!cast\s+shield\b|\bshield\s+(?:myself|me)\b|\b(?:cast|casts|casting|raise|raises|throw up|throws up)\s+(?:a\s+|my\s+)?shield\b"
                         r"(?!\s+(?:bash|slam))")
 # Combat movement away from his foes ('I step back 30 feet', 'I fall back', 'I disengage').
-WITHDRAW = re.compile(r"\b(?:disengage|disengages|disengaging)\b|\b(?:step|steps|stepping|back|backs|backing|move|moves|"
+WITHDRAW = _lazy.regex(r"\b(?:disengage|disengages|disengaging)\b|\b(?:step|steps|stepping|back|backs|backing|move|moves|"
                       r"moving|fall|falls|falling|retreat|retreats|retreating|withdraw|withdraws|run|runs|running|"
                       r"dash|dashes|dashing|hop|hops|scramble|scrambles)\b[^.!?]{0,40}?\b(?:away|back|off|clear|"
                       r"out of (?:his |its |her |their )?reach|\d+\s*(?:feet|foot|ft))\b")
-WAIT = re.compile(r'\b(wait|waits|ready|readied|hold my action|hold (?:my )?ground|let them come|'
+WAIT = _lazy.regex(r'\b(wait|waits|ready|readied|hold my action|hold (?:my )?ground|let them come|'
                   r'make the first move|stand my ground|on guard)\b')
-EVERYONE = re.compile(r'\b(middle of the (?:card )?table|the (?:card )?table|all of them|them all|everyone|'
+EVERYONE = _lazy.regex(r'\b(middle of the (?:card )?table|the (?:card )?table|all of them|them all|everyone|'
                       r'the lot of them|the four|the whole table|the group)\b')
-ANY_STANDING = re.compile(r"\b(whoever(?:'s| is)? (?:still )?(?:standing|left|up)|anyone (?:still )?standing|"
+ANY_STANDING = _lazy.regex(r"\b(whoever(?:'s| is)? (?:still )?(?:standing|left|up)|anyone (?:still )?standing|"
                           r"the (?:last|nearest|closest) one|whoever)\b")
-NEAREST = re.compile(r'\b(nearest|closest|first)\b')
-PRONOUN = re.compile(r'\b(him|her|his|it|its|them|their|he|she|one of them|the pale one|that one)\b')
-OBJECTS = re.compile(r'\b(door|wall|floor|tub|carving|fresco|deck|cards|chair|ceiling|lock)\b')
+NEAREST = _lazy.regex(r'\b(nearest|closest|first)\b')
+PRONOUN = _lazy.regex(r'\b(him|her|his|it|its|them|their|he|she|one of them|the pale one|that one)\b')
+OBJECTS = _lazy.regex(r'\b(door|wall|floor|tub|carving|fresco|deck|cards|chair|ceiling|lock)\b')
 # The PC's own things and body: "my face", "out of my purse" are not acts on the room.
-OWN = re.compile(r'\b(my|our)\s+(?:own\s+)?(?:\w+\s+)?(face|cheeks?|fangs?|teeth|lips?|skin|coins?|gold|silver|purse|'
+OWN = _lazy.regex(r'\b(my|our)\s+(?:own\s+)?(?:\w+\s+)?(face|cheeks?|fangs?|teeth|lips?|skin|coins?|gold|silver|purse|'
                  r'pouch|money|ring|stake|stack|winnings)\b|\b(?:out of|from) my\b')
-GAZE = re.compile(r'\b(eye|eyes|gaze|look|attention|breath|drift|meaning|light)\b')
-NONLETHAL = re.compile(r'\b(knock (?:him|her|them|it) out|non-?lethal|pull (?:my|the) punch|to subdue)\b')
+GAZE = _lazy.regex(r'\b(eye|eyes|gaze|look|attention|breath|drift|meaning|light)\b')
+NONLETHAL = _lazy.regex(r'\b(knock (?:him|her|them|it) out|non-?lethal|pull (?:my|the) punch|to subdue)\b')
 
 ACTIVE_STATUSES = ('alive',)
 
@@ -142,7 +143,7 @@ class NeedsChoice(Exception):
 
 
 ELEMENTS = kit_reactions.ELEMENTS
-RANGED = re.compile(r'\b(bow|crossbow|longbow|shortbow|sling|dart|javelin|ray|bolt|blowgun|net)\b')
+RANGED = _lazy.regex(r'\b(bow|crossbow|longbow|shortbow|sling|dart|javelin|ray|bolt|blowgun|net)\b')
 # Window event families: a declined window is not offered again for the same family that round,
 # unless the stakes change (the hit would now drop the PC).
 FAMILIES = ('hit', 'leaves_reach', 'npc_save', 'npc_spell')
@@ -151,13 +152,13 @@ FAMILIES = ('hit', 'leaves_reach', 'npc_save', 'npc_spell')
 # -- what a verb acts on (general guards; no room names) ---------------------------------
 # A physical act needs its noun as the verb's own object: "takes the chair and sets a copper
 # on the table" takes a chair; "flicks his ears ... eyes on the dealer's face" touches no face.
-CLAUSE_BREAK = re.compile(r"[,.;:!?]|\b(?:and|then|while|but|as|before|after|so)\b")
+CLAUSE_BREAK = _lazy.regex(r"[,.;:!?]|\b(?:and|then|while|but|as|before|after|so)\b")
 # "into his pocket": a TAKE word after a possessive or article is a noun, not the verb.
-NOUN_USE = re.compile(r"\b(?:my|our|his|her|their|its|your|a|an|the)\s+(?:\w+\s+)?$")
-POSSESSIVE = re.compile(r"\b(my|our|his|her|their)\s+(?:own\s+)?(?:\w+\s+)?$")
-CARRIED_OR_BODY = re.compile(r"(?:pocket|pouch|purse|belt|pack|bag|sheath|sleeve|coat|cloak|lap|ears?|face|"
+NOUN_USE = _lazy.regex(r"\b(?:my|our|his|her|their|its|your|a|an|the)\s+(?:\w+\s+)?$")
+POSSESSIVE = _lazy.regex(r"\b(my|our|his|her|their)\s+(?:own\s+)?(?:\w+\s+)?$")
+CARRIED_OR_BODY = _lazy.regex(r"(?:pocket|pouch|purse|belt|pack|bag|sheath|sleeve|coat|cloak|lap|ears?|face|"
                              r"cheeks?|brow|forehead|hands?|lips?|teeth|skin|chin|jaw)\b")
-ACTOR_WORDS = re.compile(r"\b(dealer|player|players|man|woman|men|women|vampire|vampires|bandit|bandits|thug|"
+ACTOR_WORDS = _lazy.regex(r"\b(dealer|player|players|man|woman|men|women|vampire|vampires|bandit|bandits|thug|"
                          r"thugs|guard|guards|stranger|captain|he|she|they|him|them)\b")
 
 
@@ -167,14 +168,14 @@ ACTOR_WORDS = re.compile(r"\b(dealer|player|players|man|woman|men|women|vampire|
 # preposition ("fire at the man"), or it uses a weapon ("thrust my dagger at him"). Its object
 # being anything else is an idiom or a gesture, never a strike: "shoot the breeze", "kill
 # time", "thrust my chin at the dealer", "kick back", "kick my feet up".
-_SKIP = re.compile(r"(?:the|a|an|this|that|these|those|some|\w+ly|right|straight|all)$")
+_SKIP = _lazy.regex(r"(?:the|a|an|this|that|these|those|some|\w+ly|right|straight|all)$")
 _OWNERS = ('my', 'our', 'his', 'her', 'their', 'its', 'your')
 _AIM_PREPOSITIONS = ('at', 'on', 'into', 'through', 'against', 'toward', 'towards', 'upon')
-CREATURE_WORDS = re.compile(r"(?:dealer|player|players|man|woman|men|women|vampires?|bandits?|thugs?|guards?|"
+CREATURE_WORDS = _lazy.regex(r"(?:dealer|player|players|man|woman|men|women|vampires?|bandits?|thugs?|guards?|"
                             r"stranger|captain|creature|monster|doppelganger|guy|bastard|one|someone|anyone|"
                             r"everyone|whoever|him|her|them|it|me|you)s?$")
 # Someone else's body part is a target ("his throat"); a bare one is not ("kick back").
-BODY_WORDS = re.compile(r"(?:throat|neck|chest|gut|head|face|arm|wrist|hand|leg|back|shoulder|heart|eye|side|"
+BODY_WORDS = _lazy.regex(r"(?:throat|neck|chest|gut|head|face|arm|wrist|hand|leg|back|shoulder|heart|eye|side|"
                         r"ribs?|kneecap|jaw|nose|belly|knee)s?$")
 
 
@@ -393,15 +394,15 @@ def _creature_words(text):
                                                   r"neck|shoulder|head|chest|gut)\b", text))
 
 
-_CLAUSE_OPEN = re.compile(r"[.;!?]\s*|,?\s+(?:and\s+)?then\b\s*|,?\s+and\b\s*", re.I)
-_CLAUSE_CLOSE = re.compile(r"[.;!?]|,|\s+(?:and\s+)?then\b|\s+and\b", re.I)
+_CLAUSE_OPEN = _lazy.regex(r"[.;!?]\s*|,?\s+(?:and\s+)?then\b\s*|,?\s+and\b\s*", re.I)
+_CLAUSE_CLOSE = _lazy.regex(r"[.;!?]|,|\s+(?:and\s+)?then\b|\s+and\b", re.I)
 
 
 _ORDINAL_WORDS = {'first': 1, 'second': 2, 'third': 3, 'fourth': 4, 'fifth': 5, 'sixth': 6, 'seventh': 7,
                   'eighth': 8, 'ninth': 9}
 _ORD = r"([1-9])(?:st|nd|rd|th)|(first|second|third|fourth|fifth|sixth|seventh|eighth|ninth)"
-_AVRAE_LEVEL = re.compile(r"!cast\b[^\n)]*?\s-l\s*([1-9])", re.I)
-_SAID_LEVEL = re.compile(
+_AVRAE_LEVEL = _lazy.regex(r"!cast\b[^\n)]*?\s-l\s*([1-9])", re.I)
+_SAID_LEVEL = _lazy.regex(
     # 'upcast to 2nd', 'upcast it to 3rd level'
     r"\bup-?cast(?:\s+it)?\s+(?:to|at)\s+(?:" + _ORD + r")(?:[- ]level)?\b|"
     # '2nd level', '2nd-level Magic Missile', 'at third level' (not '3rd level of the tower')
@@ -572,20 +573,20 @@ def parse(action, source, state):
     return parse_one(action, source, state)
 
 
-_SPLIT = re.compile(r"\s*\n\s*|[.;!?]+\s*|,\s*(?:and\s+)?(?:then\s+)?|\s+(?:and\s+)?then\s+|\s+and\s+", re.I)
-_DETAIL = re.compile(r"^\W*(?:\(|\d|dc\s*\d|for\s+\d|total|avrae)|^\s*!\w|^\W*[A-Za-z']+\W*$|"
+_SPLIT = _lazy.regex(r"\s*\n\s*|[.;!?]+\s*|,\s*(?:and\s+)?(?:then\s+)?|\s+(?:and\s+)?then\s+|\s+and\s+", re.I)
+_DETAIL = _lazy.regex(r"^\W*(?:\(|\d|dc\s*\d|for\s+\d|total|avrae)|^\s*!\w|^\W*[A-Za-z']+\W*$|"
                      r"^\W*(?:i\s+)?(?:pause|breathe|take a (?:deep |slow )?breath|steady (?:myself|now|my\w*)|"
                      r"brace myself|grin|wink|nod|shrug|smile|laugh|sigh)\b", re.I)
-SHIELD_SELF = re.compile(r"\bshield\s+(?:myself|me)\b|\b(?:cast|casts|casting|raise|raises)\s+(?:a\s+|my\s+)?shield\b"
+SHIELD_SELF = _lazy.regex(r"\bshield\s+(?:myself|me)\b|\b(?:cast|casts|casting|raise|raises)\s+(?:a\s+|my\s+)?shield\b"
                          r"(?!\s+(?:bash|slam))|!cast\s+shield\b")
 UNRESOLVED = "I couldn't tell what that would do in this fight"
 
 
 # An Avrae-shaped line: a command, a bold field, "X casts Y!" / "X attacks with Y!", or a
 # "Field: number" result line ("To Hit: 1d20 (11) + 7 = 18", "Hellish Rebuke: 12 fire").
-_AVRAE_SHAPED = re.compile(r"^\s*(?:!\w|\*\*|[\w' -]+ (?:casts|attacks with|uses) [^\n]*!\s*$|"
+_AVRAE_SHAPED = _lazy.regex(r"^\s*(?:!\w|\*\*|[\w' -]+ (?:casts|attacks with|uses) [^\n]*!\s*$|"
                            r"(?:to hit|damage|dc|meta|effect|spell slots|[\w' -]+ save)\s*:|[\w' -]{2,40}:\s*`?\d)", re.I)
-_BLOCK_HEAD = re.compile(r"!cast\s+([a-z' ]+?)(?:\s+-\w|\s*$)|!a(?:ttack)?\s+([a-z' ]+?)(?:\s+-\w|\s*$)|"
+_BLOCK_HEAD = _lazy.regex(r"!cast\s+([a-z' ]+?)(?:\s+-\w|\s*$)|!a(?:ttack)?\s+([a-z' ]+?)(?:\s+-\w|\s*$)|"
                          r"\bcasts\s+([a-z' ]+?)!|\battacks with (?:an? )?([a-z' ]+?)!|\*\*([a-z' ]+?)\*\*", re.I)
 
 
@@ -713,11 +714,11 @@ def clauses(action, source, state):
     return steps
 
 
-PRONOUN_IT = re.compile(r"\b(?:it|him|her|them)\b")
+PRONOUN_IT = _lazy.regex(r"\b(?:it|him|her|them)\b")
 # High confidence (#101 review at 5dd307f): the engine commits a known combat verb at a resolved
 # target, a move, a reaction. A deed on an object or the room is Kit's call; holding things,
 # looks, words and breath are flavor.
-_HEAD = re.compile(r"^\W*(?:(?:and|then|so|now)\s+)*(?:i\s+)?([a-z']+)\s*(.*)$", re.S)
+_HEAD = _lazy.regex(r"^\W*(?:(?:and|then|so|now)\s+)*(?:i\s+)?([a-z']+)\s*(.*)$", re.S)
 OBJECT_VERBS = frozenset('''push pushes pull pulls shove shoves yank yanks drag drags haul hauls kick kicks cut cuts slice
 slices open opens shut shuts close closes take takes pick picks lift lifts tip tips topple topples knock knocks
 throw throws toss tosses hurl hurls pump pumps light lights break breaks smash smashes pry prise climb climbs jump
@@ -726,7 +727,7 @@ GRAPPLE_VERBS = frozenset('grab grabs grabbing grapple grapples seize seizes tac
 FLAVOR_VERBS = frozenset('''grip grips hold holds clutch clutches squeeze squeezes tighten tightens look looks glance glances
 glare glares stare stares watch watches eye eyes say says shout shouts yell yells taunt taunts mutter mutters whisper
 whispers curse curses snarl snarls growl growls spit spits grit grits wipe wipes'''.split())
-_PREP = re.compile(r"\s(?:with|at|behind|into|onto|over|on|across|from|toward|towards|to|by)\b|[,;.]|\band\b|\bthen\b")
+_PREP = _lazy.regex(r"\s(?:with|at|behind|into|onto|over|on|across|from|toward|towards|to|by)\b|[,;.]|\band\b|\bthen\b")
 THROWN = frozenset('dagger daggers handaxe javelin spear dart darts trident hammer'.split())
 
 
@@ -867,7 +868,7 @@ def parse_one(action, source, state):
     return None
 
 
-APPROACH = re.compile(r"\b(?:close (?:in|the (?:distance|gap))|closes in|step (?:up|in)|steps (?:up|in)|advance|advances|"
+APPROACH = _lazy.regex(r"\b(?:close (?:in|the (?:distance|gap))|closes in|step (?:up|in)|steps (?:up|in)|advance|advances|"
                       r"charge|charges|rush|rushes|move (?:toward|towards|up to|back to|in on)|close on|press in)\b")
 
 
@@ -3135,7 +3136,7 @@ class Fight:
 
 ABILITY_NAMES = {'str': 'Strength', 'dex': 'Dexterity', 'con': 'Constitution', 'int': 'Intelligence',
                  'wis': 'Wisdom', 'cha': 'Charisma'}
-BARE_NUMBER = re.compile(r'^\W*(\d{1,2})\W*$')
+BARE_NUMBER = _lazy.regex(r'^\W*(\d{1,2})\W*$')
 ABILITY_WORDS = {'str': 'str|strength', 'dex': 'dex|dexterity', 'con': 'con|constitution',
                  'int': 'int|intelligence', 'wis': 'wis|wisdom', 'cha': 'cha|charisma'}
 # "Con save 14", "Con: 14", "Constitution 14", "con save: 14" (the ability, then the total).

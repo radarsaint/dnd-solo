@@ -42,11 +42,12 @@ class _LazyUrllib:
 
 urllib = _LazyUrllib()
 
+from . import _lazy
 from . import kit_attitude
 from . import kit_brief
 from . import kit_cards
 from . import kit_reactions
-from . import kit_combat
+kit_combat = _lazy.module('.kit_combat', __package__)  # lazy: only combat, attacks and spells need it
 from . import kit_rolls
 from . import kit_triggers
 from . import kit_reveal
@@ -61,8 +62,8 @@ from . import kit_prices
 from . import kit_campaign
 from . import kit_rooms
 from . import kit_texture
-from . import kit_toll
-from . import kit_twenty_one
+kit_toll = _lazy.module('.kit_toll', __package__)
+kit_twenty_one = _lazy.module('.kit_twenty_one', __package__)
 from . import kit_guards
 from . import kit_interstitial
 from . import kit_voice
@@ -190,11 +191,11 @@ def table_talk_resolution(action):
 
 # Table talk addressed to Kit rather than the room: answered, never resolved as a check.
 _SKILL_NAMES = '(?:' + '|'.join(sorted((s.replace('_', ' ') for s in pc_sheet.SKILLS), key=len, reverse=True)) + ')'
-OOC_MARKER = re.compile(r'^\s*[(\[]?\s*(ooc\b|out[- ]of[- ]character)|\brules question\b', re.I)
+OOC_MARKER = _lazy.regex(r'^\s*[(\[]?\s*(ooc\b|out[- ]of[- ]character)|\brules question\b', re.I)
 # Natural table talk needs no prefix: a message addressed to Kit by name, or a question
 # about the rules themselves (their nouns, not in-world verbs like sneak or grab).
-KIT_ADDRESS = re.compile(r"^\W*(?:(?:hey|ok|okay|so|um|and)\W+)?kit\b|\bkit\s*[,?]|,\s*kit\W*$", re.I)
-RULES_NOUNS = re.compile(r"\b(rules?|dc|modifiers?|advantage|disadvantage|bonus action|reactions?|saving throws?|"
+KIT_ADDRESS = _lazy.regex(r"^\W*(?:(?:hey|ok|okay|so|um|and)\W+)?kit\b|\bkit\s*[,?]|,\s*kit\W*$", re.I)
+RULES_NOUNS = _lazy.regex(r"\b(rules?|dc|modifiers?|advantage|disadvantage|bonus action|reactions?|saving throws?|"
                          r"proficien\w*|spell slots?|initiative|passive \w+|concentration|(?:short|long) rest|"
                          r"hit points|armou?r class|cantrips?|how does \w+(?: \w+)? work|allowed to|"
                          # skill questions (Kit's working model of skills, docs/voice): "what's the
@@ -205,7 +206,7 @@ RULES_NOUNS = re.compile(r"\b(rules?|dc|modifiers?|advantage|disadvantage|bonus 
                          r"why (?:didn't|did not|doesn't|does not|can't|cannot|won't|wouldn't) (?:my )?"
                          + _SKILL_NAMES + r")\b", re.I)
 # Looking away from whatever is in front of you: the room, the rest of it, elsewhere.
-OBSERVE = re.compile(r"\b(look|looks|looking|glance|scan|survey|take in|gaze|peer|what else)\b[^.?!]{0,30}"
+OBSERVE = _lazy.regex(r"\b(look|looks|looking|glance|scan|survey|take in|gaze|peer|what else)\b[^.?!]{0,30}"
                      r"\b(around|room|else|rest of|elsewhere|away|here|walls?)\b|\bwhat else\b"
                      # A plain look at a visible feature is free description, no roll (table call 2).
                      r"|\b(?:look|looks|looking|glance|glances|gaze|gazes)\s+(?:up |over |closer )?at\b"
@@ -217,11 +218,11 @@ OBSERVE = re.compile(r"\b(look|looks|looking|glance|scan|survey|take in|gaze|pee
                      r"|\b(?:head|heads|walk|walks|go|goes|step|steps|come|comes)\s+(?:on\s+)?(?:in|into|toward|towards)\b"
                      r"[^.?!]{0,15}\b(?:6c|room|chamber)\b")
 # A read of the whole group, not one speaker's words (call 3's clue invites it).
-GROUP_READ = re.compile(r"\bsomething(?:'s| is)? (?:off|wrong|strange|weird|not right)\b|\bwhat'?s off\b"
+GROUP_READ = _lazy.regex(r"\bsomething(?:'s| is)? (?:off|wrong|strange|weird|not right)\b|\bwhat'?s off\b"
                         r"|\b(?:study|studying|size up|sizing up|read|reading|scrutini[sz]e)\s+(?:them|the (?:four|table|"
                         r"players|group|gamblers|lot of them))\b|\bsize them up\b", re.I)
 # Asking to play the room's game (call 7: "I play the game." is a complete declaration).
-PLAY_REQUEST = re.compile(r"\b(?:i(?:'ll| will)? play|let'?s play|join (?:the|your|you|in)|sit in|deal me in|"
+PLAY_REQUEST = _lazy.regex(r"\b(?:i(?:'ll| will)? play|let'?s play|join (?:the|your|you|in)|sit in|deal me in|"
                           r"count me in|buy in|buy-in|i'?m in|play (?:a|the|one|your) (?:game|hand|round)|"
                           r"play cards|play blackjack|play twenty[- ]one|just roll for it|dealt in|be dealt|"
                           r"deal (?:me|us|her|him|myself) in|deal(?:s|ing)? in|take (?:the|a|an) (?:empty |open |free )?(?:chair|seat) at the table)\b")
@@ -235,42 +236,42 @@ SOCIAL_OUTCOMES = {
     'athletics': ('You overpower {who}.', '{who} holds firm against you.'),
 }
 # A bet named in speech or narration ("'I'll bet fifty gold.'") is asking to play.
-SPOKEN_BET = re.compile(r"\b(?:bet|bets|betting|wager|stake)\b[^.?!]{0,20}\b(?:\d{1,4}|[a-z]+(?:-[a-z]+)?)\s+(?:gp|gold)\b")
+SPOKEN_BET = _lazy.regex(r"\b(?:bet|bets|betting|wager|stake)\b[^.?!]{0,20}\b(?:\d{1,4}|[a-z]+(?:-[a-z]+)?)\s+(?:gp|gold)\b")
 # Words inside quotation marks are speech; a threat or a noun spoken aloud is not a physical act.
 # Double or single quotes (the 6c baseline's V7: 'Ten gold just to walk through a room?'
 # inside single quotes was read as walking out the door). Apostrophes in words never open one.
-QUOTED_SPEECH = re.compile(r'"[^"]*"|' + r"(?:(?<=^)|(?<=[\s(\[:;,.!?\u2014-]))'(?=\S)[^\n]*?(?<=\S)'"
+QUOTED_SPEECH = _lazy.regex(r'"[^"]*"|' + r"(?:(?<=^)|(?<=[\s(\[:;,.!?\u2014-]))'(?=\S)[^\n]*?(?<=\S)'"
                            r"(?=$|[\s)\].,!?;:\u2014-])")
 # A stealthy approach needs a Stealth ruling; it must never pass as a free, unopposed exit.
-STEALTH_INTENT = re.compile(r'\b(sneak|sneaks|sneaking|creep|creeps|creeping|tiptoe|tiptoes|tiptoeing|'
+STEALTH_INTENT = _lazy.regex(r'\b(sneak|sneaks|sneaking|creep|creeps|creeping|tiptoe|tiptoes|tiptoeing|'
                             r'stealth|stealthily|unnoticed|unseen)\b|\bslip(s|ping)? (past|by)\b')
 # Perception at a threshold, not movement (watchroom T1: a peek through the door gap was read as
 # walking out through it): peek, peer, look or watch through, listen at, an eye or ear to the
 # gap, cracking the door. Going through, in, or past is still movement (MOVE_THROUGH).
-THRESHOLD_LOOK = re.compile(
+THRESHOLD_LOOK = _lazy.regex(
     r"\b(?:peek|peeks|peeking|peeked|peer|peers|peering|eavesdrop\w*|listen|listens|listening|listened)\b"
     r"|\b(?:eye|eyes|ear|ears)\s+(?:up\s+)?(?:to|against)\b"
     r"|\b(?:look|looks|looking|glance|glances|watch|watches|watching|see|sees)\s+(?:in\s+)?(?:through|in\b|into|past)"
     r"|\b(?:crack|cracks|cracking|cracked)\s+(?:the|it|that)\b")
 # A refusal to go in ("not going in yet, just peeking"): the movement words are negated, so a
 # look from the threshold stays a look (PR 145 playtest bug 7).
-NOT_ENTERING = re.compile(r"(?:\bnot|n't|\bnever)\s+(?:\w+\s+)?(?:go|going|step|stepping|walk|walking|enter|"
+NOT_ENTERING = _lazy.regex(r"(?:\bnot|n't|\bnever)\s+(?:\w+\s+)?(?:go|going|step|stepping|walk|walking|enter|"
                           r"entering|head|heading|move|moving|cross|crossing)\b")
 # Taking up a place at a doorway ('I back up to the door', 'I stand in the doorway').
-BACK_TO_DOOR = re.compile(r"\b(?:back|backs|backing|backed|step|steps|stepping|stepped|move|moves|retreat\w*|"
+BACK_TO_DOOR = _lazy.regex(r"\b(?:back|backs|backing|backed|step|steps|stepping|stepped|move|moves|retreat\w*|"
                           r"stand|stands|standing|wait|waits|edge|edges)\b(?:\s+(?:up|back|away))?\s+"
                           r"(?:to|in|at|into|by|toward|towards)\s+(?:the\s+)?(?:door|doorway|threshold|entrance)\b")
-PERCEIVING = re.compile(r"\b(?:look|looks|looking|glance|glances|peer|peers|peering|peek|peeks|peeking|gaze|gazes|"
+PERCEIVING = _lazy.regex(r"\b(?:look|looks|looking|glance|glances|peer|peers|peering|peek|peeks|peeking|gaze|gazes|"
                         r"watch|watches|watching|listen|listens|listening|scan|scans|survey|surveys|sniff|sniffs|"
                         r"smell|smells)\b")
-THRESHOLD_GAP = re.compile(r"\b(?:gap|crack|keyhole|opening|chink|doorway|threshold|door|doors|hinges?|grille|grate)\b")
-MOVE_THROUGH = re.compile(
+THRESHOLD_GAP = _lazy.regex(r"\b(?:gap|crack|keyhole|opening|chink|doorway|threshold|door|doors|hinges?|grille|grate)\b")
+MOVE_THROUGH = _lazy.regex(
     r"\b(?:go|goes|going|went|step|steps|stepping|stepped|walk|walks|walked|slip|slips|slipped|move|moves|head|heads|"
     r"pass|passes|enter|enters|entered|run|runs|ran|squeeze|squeezes|duck|ducks|push|pushes)\b(?:\s+[\w']+){0,2}?"
     r"\s+(?:through|in|inside|into|past|out)\b|\b(?:enter|enters|entered)\b")
 # The player asking for a check (watchroom T1/T3): Kit decides whether one applies and which
 # (Brendon: the player never picks the skill and never rolls first). Never a social declaration.
-CHECK_REQUEST = re.compile(
+CHECK_REQUEST = _lazy.regex(
     # The PC asks for themselves ("Can I roll...", "Should we check..."): never an NPC asked to
     # do something ("Dealer, can you check my hand?"); a save is the noun ("make a save"), never
     # the verb ("Can I save him?").
@@ -287,20 +288,20 @@ ATTEMPT_PREFIX = 'You try: '
 DETECT_MAGIC_SECONDS = 600  # Detect Magic: concentration, up to 10 minutes
 # 'regular casting, no ritual', 'not as a ritual', 'without the ritual': a slotted casting
 # (#150 retest: read as a ritual, 10 minutes passed).
-NOT_RITUAL = re.compile(r"\b(?:no|not|never|without|skip\w*|rather than|instead of)\s+(?:\w+\s+){0,2}?ritual\b|"
+NOT_RITUAL = _lazy.regex(r"\b(?:no|not|never|without|skip\w*|rather than|instead of)\s+(?:\w+\s+){0,2}?ritual\b|"
                         r"\bnon-?ritual\b|\britual\s*(?:\?|:)?\s*no\b|"
                         r"\b(?:regular|normal|ordinary|standard|slotted|using a slot|with a slot|spend(?:ing)? a slot)\b")
 # A sentence that asks ("Could I grab the spear before he moves?", "Is there anywhere to
 # hide?") declares nothing; asked_away drops those sentences before a physical reading.
-ASKING = re.compile(r"(?:(?<=^)|(?<=[.!?]))\s*(?:can|could|may|might|would|will|should|shall|is|are|was|were|"
+ASKING = _lazy.regex(r"(?:(?<=^)|(?<=[.!?]))\s*(?:can|could|may|might|would|will|should|shall|is|are|was|were|"
                     r"do|does|did|what|where|who|whom|how|which|why|when|any)\b[^.?!]*\?", re.I)
 
 
-HEALING = re.compile(r"\b(?:potion of healing|healing potion|cure wounds|healing word|lay on hands|"
+HEALING = _lazy.regex(r"\b(?:potion of healing|healing potion|cure wounds|healing word|lay on hands|"
                      r"heals?|healed|healing|regains?|regained)\b", re.I)
-HEAL_AMOUNT = re.compile(r"\b(?:for|of|regains?|regained|heals?|healed|:|=)\s*`?\*{0,2}(\d{1,3})\b"
+HEAL_AMOUNT = _lazy.regex(r"\b(?:for|of|regains?|regained|heals?|healed|:|=)\s*`?\*{0,2}(\d{1,3})\b"
                          r"|\b(\d{1,3})\s*(?:hit points?|hp)\b", re.I)
-RESTING = re.compile(r"\b(?:i|nik)\s+(?:just\s+)?(?:wait|waits|rest|rests|lie still|lay still|sleep|"
+RESTING = _lazy.regex(r"\b(?:i|nik)\s+(?:just\s+)?(?:wait|waits|rest|rests|lie still|lay still|sleep|"
                      r"let (?:it|the \w+) wear off|take a (?:short|long) rest)\b|\b(?:short|long) rest\b", re.I)
 
 
@@ -448,7 +449,7 @@ def _feature_handled(nouns):
         r"|\banything (?:in|inside|under)\b" + gap + r"(?:" + nouns + r")\b")
 
 
-SOCIAL_WORDS = re.compile(
+SOCIAL_WORDS = _lazy.regex(
     r'\b(ask|say|tell|talk|speak|offer|bargain|propose|accuse|call out|sit|greet|hello|wait|listen|'
     r'wager|help|deal|promise|refuse|decline|pay|flirt|wink|smile|laugh|bow|introduce|threaten|'
     r'intimidate|join|bet|watch|observe|nod|shrug|thank|insist|warn|demand|charm|compliment|stare|'
@@ -457,7 +458,7 @@ SOCIAL_WORDS = re.compile(
 # Harmless table gestures and postures: the PC's own body at rest or at play, never an act on
 # the room or on someone. A posture verb ("lean back", "kick back", "stretch"), or any verb
 # whose own object is the PC's own body part ("clean my nails", "crack my knuckles").
-GESTURE = re.compile(
+GESTURE = _lazy.regex(
     r"\b(?:lean|leans|leaning|relax|relaxes|stretch|stretches|yawn|yawns|settle|settles|slouch|slouches|lounge|"
     r"lounges|sprawl|sprawls|fidget|fidgets|kick(?:s|ing)? back|put(?:s|ting)? (?:my|his|her) feet up|"
     r"raise(?:s|d)? a toast|cross(?:es)? (?:my|his|her) (?:arms|legs))\b"
@@ -553,17 +554,17 @@ def _exit_object(words, exit_words):
 
 # Going back the way the PC came, with no exit named (the exit chooser takes the one they came
 # in by). Narrow on purpose: "I go back to the table" is not leaving.
-RETRACING = re.compile(r"\b(?:retrace[sd]?|retracing)\b|\bback the way (?:i|we) came\b|"
+RETRACING = _lazy.regex(r"\b(?:retrace[sd]?|retracing)\b|\bback the way (?:i|we) came\b|"
                        r"\b(?:go|head|walk|turn)s? back (?:out|the way)\b")
-GOING_BACK = re.compile(r"\b(?:back|return|returns|retrace[sd]?|retracing|the way (?:i|we) came|came in)\b")
+GOING_BACK = _lazy.regex(r"\b(?:back|return|returns|retrace[sd]?|retracing|the way (?:i|we) came|came in)\b")
 
 
 # Moving, in any tense: "Nik steps through the iron door", "she went out" (watchroom playtest).
-MOVING = re.compile(r"\b(?:make for|makes for|leave|leaves|leaving|left|go|goes|going|went|walk|walks|walked|walking|move|moves|"
+MOVING = _lazy.regex(r"(?:make for|makes for|leave|leaves|leaving|left|go|goes|going|went|walk|walks|walked|walking|move|moves|"
                     r"moved|moving|step|steps|stepped|stepping)\b")
 # Going in with no exit named: "I step in", "Nik goes inside". The exit chooser takes the
 # one exit from here that leads into the room.
-GOING_IN = re.compile(r"\b(?:go|goes|went|step|steps|stepped|walk|walks|walked|head|heads|come|comes|move|moves|"
+GOING_IN = _lazy.regex(r"\b(?:go|goes|went|step|steps|stepped|walk|walks|walked|head|heads|come|comes|move|moves|"
                       r"hop|hops|hopped|duck|ducks|ducked|pop|pops|popped|slip|slips|slipped)"
                       r"\s+(?:on\s+|right\s+|back\s+)?(?:in|inside)\b(?!\s+(?:the|a|an|my|his|her)\b)")
 # The PC's own open hand is not an act on the room: "I keep my hands open".
@@ -589,24 +590,24 @@ def _bare_name(edge):
     return re.sub(r'^(?:the|a|an)\s+', '', str((edge or {}).get('name') or '').casefold().strip())
 
 
-ADDRESS_WORDS = re.compile(r"\b(you|you're|your|yours|yourself|y'all)\b")
-SEATING = re.compile(r"\b(?:take|takes|taking|took)\s+(?:a|the|that|an empty|the empty|my|his|her|their)\s+"
+ADDRESS_WORDS = _lazy.regex(r"\b(you|you're|your|yours|yourself|y'all)\b")
+SEATING = _lazy.regex(r"\b(?:take|takes|taking|took)\s+(?:a|the|that|an empty|the empty|my|his|her|their)\s+"
                      r"(?:seat|chair|stool|place)\b|"
                      r"\b(?:move|moves|scoot|scoots|pull|pulls|drag|drags|shift|shifts|edge|edges|slide|slides|"
                      r"turn|turns)\s+(?:my|his|her|their|the|a)\s+(?:chair|stool|seat)\b|\bpull(?:s)? up a chair\b|\b(?:sit|sits|sat|sitting) down\b")
-GEAR_SET = re.compile(r"\b(?:sling|slings|slung|stow|stows|strap|straps|set|sets|lay|lays|put|puts|rest|rests|hang|"
+GEAR_SET = _lazy.regex(r"\b(?:sling|slings|slung|stow|stows|strap|straps|set|sets|lay|lays|put|puts|rest|rests|hang|"
                       r"hangs)\b[^.?!]{0,30}\b(?:shield|weapon|sword|axe|bow|crossbow|staff|pack|rapier|mace)\b"
                       r"[^.?!]{0,30}\b(?:on(?:to)? (?:my|his|her|their) back|aside|down|away|against|by (?:my|his|her|their)"
                       r" (?:chair|feet|side)|at (?:my|his|her|their) feet|under the (?:table|chair))\b")
 # Harmless acts that need no ruling: they happen as declared (PR 145 playtests).
-SIMPLE_ACT = re.compile(r"\b(?:(?:hold|holds|holding|raise|raises|raising|lift|lifts|lifting)\s+(?:up\s+)?(?:my\s+|his\s+|her\s+|their\s+|a\s+|the\s+)?"
+SIMPLE_ACT = _lazy.regex(r"\b(?:(?:hold|holds|holding|raise|raises|raising|lift|lifts|lifting)\s+(?:up\s+)?(?:my\s+|his\s+|her\s+|their\s+|a\s+|the\s+)?"
                         r"(?:light|lantern|torch|candle|lamp|staff)|light\s+(?:up|a|my|the)\b|crouch\w*|kneel\w*|"
                         r"squat\w*|wait\w*|lean\w*|tap|taps|tapped|tapping|knock\w*|sweep\w*|brush\w*|wipe\w*|"
                         r"dust\w*|sniff\w*|nod\w*|shrug\w*|stand\w*|sit|sits|sat|back\s+up|backs\s+up|"
                         r"hop\w*|step\w*|walk\w*|pace\w*|circle\w*)\b")
 # A search, investigation or check is never a simple act, even with a step or a walk in it
 # ('I walk the wall and search it for seams'): it goes to Kit's call (#150 playtest).
-SEARCH_INTENT = re.compile(r"\b(?:search\w*|investigat\w*|examin\w*|inspect\w*|prob(?:e|es|ing)|"
+SEARCH_INTENT = _lazy.regex(r"\b(?:search\w*|investigat\w*|examin\w*|inspect\w*|prob(?:e|es|ing)|"
                            r"rummag\w*|scour\w*|check\w*\s+(?:\w+\s+){0,4}?for|check\w*\s+(?:each|every|all|its)\b|checking\s+(?!on\b|in\b|out\b|my\b)\w+s\b|check\w*\s+(?:the|it|that|behind|under|inside|around)\b|feel\w*\s+(?:\w+\s+){0,3}for|"
                            r"(?:look|looks|looking)\s+for|"
                            # #150 retest 2: hunting, going over, poking around, studying, sifting,
@@ -640,7 +641,7 @@ PHYSICAL_VERBS = r'(steal|pocket|grab|pick up|smash|break|hide|climb|force|open|
 # A declared physical act: "I grab the ring", "I quickly open the door". When an NPC has
 # just asked the player something, only this shape still counts as physical; a verb
 # inside an answer ("I was hoping to find something to steal") is speech.
-DECLARED_PHYSICAL = re.compile(r'(^|[.!;]\s*)(i|i\s+\w+ly)\s+' + PHYSICAL_VERBS + r'\b')
+DECLARED_PHYSICAL = _lazy.regex(r'(^|[.!;]\s*)(i|i\s+\w+ly)\s+' + PHYSICAL_VERBS + r'\b')
 
 
 def npc_addressed_player(spoken):
@@ -3725,9 +3726,9 @@ def turn_events(runtime, body, plan, turn_id, record=None):
 
 # The player's words are about the game (asking to play, or about it): only then may a
 # decision start a table procedure (call 1: a game in the room is never a reason by itself).
-ASKS_ABOUT_GAME = re.compile(r"\b(game|games|play|playing|cards?|deal|dealing|bet|bets|wager|ante|stakes?|gambl\w*|"
+ASKS_ABOUT_GAME = _lazy.regex(r"\b(game|games|play|playing|cards?|deal|dealing|bet|bets|wager|ante|stakes?|gambl\w*|"
                              r"join|rules|blackjack|twenty[- ]one|poker|hand|round|buy[- ]in|dealt)\b", re.I)
-PUT_OFF = re.compile(r"\b(steer\w*|stall\w*|put (?:\w+ )?off|putting (?:\w+ )?off|distract\w*|divert\w*|"
+PUT_OFF = _lazy.regex(r"\b(steer\w*|stall\w*|put (?:\w+ )?off|putting (?:\w+ )?off|distract\w*|divert\w*|"
                      r"keep (?:\w+ ){0,2}(?:busy|seated|at the table|from)|draw (?:\w+ )?in)\b", re.I)
 
 
@@ -4752,14 +4753,14 @@ INTERIOR_DEFAULTS = ('inside', 'interior', 'within', 'inner', 'innards')
 # off", "has been pushed back", "lies aside"; not "sits back against the wall" or "stands apart".
 _COPULA = r"(?:is|are|was|were|lies|lie|lay|rests|sits|stands|hangs|now|has been|have been|had been|comes|came|goes|went)"
 _DISPLACED = r"(?:pushed|thrown|slid|pulled|swung|rolled|drawn|levered|pried|prised|shoved|heaved|lifted|knocked|tipped|eased|dragged|ripped|torn|wrenched|kicked)"
-OPEN_STATE = re.compile(r"\b" + _COPULA + r"\s+(?:\w+\s+){0,2}?(?:open|opened|off|aside|ajar|removed|gone|in two|broken open|"
+OPEN_STATE = _lazy.regex(r"\b" + _COPULA + r"\s+(?:\w+\s+){0,2}?(?:open|opened|off|aside|ajar|removed|gone|in two|broken open|"
                         r"split open|cracked open|unsealed)\b"
                         r"|\b" + _DISPLACED + r"\s+(?:\w+\s+){0,1}?(?:back|off|aside|open|away|up|clear|free|loose)\b"
                         r"|\b(?:open|off|aside|ajar|in two)\s+now\b|\bnow\s+(?:open|off|aside|ajar|gone)\b")
 # A part lying on the floor is off the feature ("the lid lies on the floor"); the feature itself
 # resting on the floor is just where it stands.
 # Coming away from the feature ("the lid comes away in your hands", "comes free").
-COMES_AWAY = re.compile(r"\b(?:comes?|came|coming|pulls?|pulled|breaks?|broke)\s+(?:\w+\s+)?(?:away|free|loose|off)\b")
+COMES_AWAY = _lazy.regex(r"\b(?:comes?|came|coming|pulls?|pulled|breaks?|broke)\s+(?:\w+\s+)?(?:away|free|loose|off)\b")
 # Wear and damage (#97 review at eb0f643): "faces worn off", "chipped off at one corner", "the
 # gilt has flaked off". Pure wear is always description; breakage ("broken off", "knocked
 # off") is description only when what broke is not the feature or its part itself (a
@@ -4767,27 +4768,27 @@ COMES_AWAY = re.compile(r"\b(?:comes?|came|coming|pulls?|pulled|breaks?|broke)\s
 _WEAR = (r"worn|wearing|chipped|chipping|flaked|flaking|weathered|eroded|rubbed|peeled|peeling|crumbled|"
          r"crumbling|rotted|rotting|rusted|scoured|faded|scraped|scratched|pitted|corroded|stripped|gnawed")
 _DAMAGE = r"broken|knocked|snapped|smashed|cracked|hacked|pried|prised|chiselled|chiseled|struck|sheared"
-_WEAR_OFF = re.compile(r"\b(" + _WEAR + r")\s+(?:\w+\s+)?(?:off|away|back)\b")
-_DAMAGE_OFF = re.compile(r"\b(" + _DAMAGE + r")\s+(?:\w+\s+)?(?:off|away)\b")
-PART_DOWN = re.compile(r"\b" + _COPULA + r"\s+(?:\w+\s+){0,3}?(?:on|at|across)\s+(?:the|your|his|her)\s+(?:floor|ground|flagstones|feet)\b")
-FEATURE_MOVES = re.compile(r"\b(?:shift|slid|slide|grind|budg|swing|swung|tilt|tip|lift|rais|rise|rose|crack|"
+_WEAR_OFF = _lazy.regex(r"\b(" + _WEAR + r")\s+(?:\w+\s+)?(?:off|away|back)\b")
+_DAMAGE_OFF = _lazy.regex(r"\b(" + _DAMAGE + r")\s+(?:\w+\s+)?(?:off|away)\b")
+PART_DOWN = _lazy.regex(r"\b" + _COPULA + r"\s+(?:\w+\s+){0,3}?(?:on|at|across)\s+(?:the|your|his|her)\s+(?:floor|ground|flagstones|feet)\b")
+FEATURE_MOVES = _lazy.regex(r"\b(?:shift|slid|slide|grind|budg|swing|swung|tilt|tip|lift|rais|rise|rose|crack|"
                            r"creak|groan|scrap|grat|rasp|yield|give|gave|loosen|lurch|swiv|gap)\w*\b")
-NOT_MOVING = re.compile(r"\b(?:not|never|no|nothing|none|won't|wont|cannot|can't|refuses?|fails?|"
+NOT_MOVING = _lazy.regex(r"\b(?:not|never|no|nothing|none|won't|wont|cannot|can't|refuses?|fails?|"
                         r"holds? fast|stays? put|unmoved|stuck|still)\b|n't\b")
-CLAUSE = re.compile(r"[.!?;:,\n\u2014\u2013]+|\s+(?:but|and|yet|while|then|though|although|until|as)\s+|\s+-+\s+")
+CLAUSE = _lazy.regex(r"[.!?;:,\n\u2014\u2013]+|\s+(?:but|and|yet|while|then|though|although|until|as)\s+|\s+-+\s+")
 # Kit narrates in English: a segment of four or more words with none of these is not English.
-ENGLISH = re.compile(r"\b(?:the|a|an|and|of|to|is|are|you|your|it|its|in|on|at|with|from|he|she|they|"
+ENGLISH = _lazy.regex(r"\b(?:the|a|an|and|of|to|is|are|you|your|it|its|in|on|at|with|from|he|she|they|"
                      r"his|her|their|this|that|not|but|for|as|by|into|there|here|no)\b")
-_GENERIC_INSIDE = re.compile(r"\b(?:interior|inner|innards)\b|\b(?:inside|within)\b(?!\s+(?:the|a|an|your|his|her|"
+_GENERIC_INSIDE = _lazy.regex(r"\b(?:interior|inner|innards)\b|\b(?:inside|within)\b(?!\s+(?:the|a|an|your|his|her|"
                              r"their|its|my|our|reach|earshot|sight|range|view|you|him|me|them|us|yourself|himself|"
                              r"herself|myself|themselves)\b)")
 # The PC's (or someone's) own movement: "you duck inside", "he steps within".
-_GOING_INSIDE = re.compile(r"\b(?:you|i|he|she|they|we)\s+(?:\w+ly\s+)?(?:duck|ducks|step|steps|go|goes|slip|slips|move|"
+_GOING_INSIDE = _lazy.regex(r"\b(?:you|i|he|she|they|we)\s+(?:\w+ly\s+)?(?:duck|ducks|step|steps|go|goes|slip|slips|move|"
                            r"moves|walk|walks|head|heads|crawl|crawls|climb|climbs|hurry|hurries|edge|edges|come|comes|"
                            r"stay|stays|wait|waits|run|runs|squeeze|squeezes|back|backs)\s+(?:back\s+)?(?:inside|within)\b")
 # "it" names the feature only with a movement or state predicate right after it ("it slides",
 # "it is now off"), never as a dummy subject ("it is dark back here", "it has been a long night").
-_IT_MOVES = re.compile(r"^it\s+(?:(?:slowly|suddenly|finally|then|now|just)\s+)?(?:shift|slid|slide|grind|budg|swing|swung|"
+_IT_MOVES = _lazy.regex(r"^it\s+(?:(?:slowly|suddenly|finally|then|now|just)\s+)?(?:shift|slid|slide|grind|budg|swing|swung|"
                        r"tilt|tip|lift|rise|rose|crack|creak|groan|scrap|grat|rasp|yield|give|gave|loosen|lurch|swiv|"
                        r"come|came|mov|open|fall|fell|drop)\w*\b")
 
@@ -4823,7 +4824,7 @@ def _has(words, text):
     return any(re.search(r'\b' + re.escape(w) + r'(?:s|es)?\b', text) for w in words)
 
 
-_POSSESSED = re.compile(r"^(?:the\s+|a\s+)?(?:(its|their)|([a-z][a-z-]*)'s)\s+([a-z][a-z-]*)(?:\s+([a-z][a-z-]*))?")
+_POSSESSED = _lazy.regex(r"^(?:the\s+|a\s+)?(?:(its|their)|([a-z][a-z-]*)'s)\s+([a-z][a-z-]*)(?:\s+([a-z][a-z-]*))?")
 
 
 def _subject_is_feature(clause, terms):
@@ -5150,7 +5151,7 @@ def _spoken_lines(speech):
 
 
 # The PC speaking out loud: a quoted line, or says/asks/calls/shouts.
-ADDRESSING = re.compile(r'["\u201c\u201d]|\b(?:say|says|said|ask|asks|asked|call|calls|called|shout|shouts|'
+ADDRESSING = _lazy.regex(r'["\u201c\u201d]|\b(?:say|says|said|ask|asks|asked|call|calls|called|shout|shouts|'
                         r'whisper|whispers|tell|tells)\b', re.I)
 
 
@@ -5285,7 +5286,7 @@ def turn_latency(timing):
 
 # Engine wording that must never reach the player word for word (#97 review P2): the
 # message is for the host; player_message is what Kit may say at the table.
-_ENGINE_SENTENCES = re.compile(r"[^.!?]*\b(?:No turn was committed|in this slice|test slice|room/rules ruling|"
+_ENGINE_SENTENCES = _lazy.regex(r"[^.!?]*\b(?:No turn was committed|in this slice|test slice|room/rules ruling|"
                                r"noted in the public history|engine|host)\b[^.!?]*[.!?]\s*", re.I)
 PLAYER_SAFE_UNSUPPORTED = ("That one needs the DM's call. Say a little more about how you go about it, "
                            "or try it another way.")
@@ -5601,12 +5602,13 @@ class KitChatBridge:
     def _layer(self, turn_id, packet):
         """SessionManifest, RoomManifest, TurnDelta (kit_manifest). A body the host was sent
         recently is replaced by its hash."""
-        session, room, _ = kit_manifest.split(packet)
+        parts = kit_manifest.split(packet)
+        session, room, _ = parts
         hashes = {'session': kit_manifest.digest(session), 'room': kit_manifest.digest(room)}
         recent = [row for row in self.runtime.recent_kit_timings(limit=50) if row['turn_id'] != turn_id]
         held = kit_manifest.plan_sends(recent, self.runtime.committed_kit_turn_ids())
         cached = {layer: hashes[layer] in held[layer] for layer in hashes}
-        layered, _, _ = kit_manifest.layered(packet, cached['session'], cached['room'])
+        layered, _, _ = kit_manifest.layered(packet, cached['session'], cached['room'], parts=parts, hashes=hashes)
         notice = kit_manifest.rejection_notice(recent, hashes['session'])
         if notice:
             layered = {**{k: layered[k] for k in ('session_manifest', 'room_manifest', 'manifest_rule')},

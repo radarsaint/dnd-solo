@@ -50,8 +50,14 @@ def digest(value):
 def split(packet):
     """(session body, room body, delta) of a full one-pass packet. The delta keeps the
     packet's key order with the manifest parts removed."""
-    delta = copy.deepcopy(packet)
-    private = delta['input']['private']
+    # Copy only the dicts this pops from (packet, input, private, dm_context), not the whole
+    # ~60 KB packet: the bodies and delta share the untouched leaves with the packet, which
+    # stays as it was. (Was a full deepcopy, done twice per prepare: latbench REPORT.md.)
+    delta = dict(packet)
+    delta['input'] = dict(delta['input'])
+    private = delta['input']['private'] = dict(delta['input']['private'])
+    if isinstance(private.get('dm_context'), dict):
+        private['dm_context'] = dict(private['dm_context'])
     session = {key: delta.pop(key) for key in SESSION_KEYS if key in delta}
     session.update({key: private.pop(key) for key in SESSION_PRIVATE_KEYS if key in private})
     session = compact_session(session)
@@ -74,10 +80,11 @@ def join(session, room, delta):
     return packet
 
 
-def layered(packet, cached_session=False, cached_room=False):
-    """The packet as three layers, stable first. Returns (layered packet, hashes, room body)."""
-    session, room, delta = split(packet)
-    hashes = {'session': digest(session), 'room': digest(room)}
+def layered(packet, cached_session=False, cached_room=False, parts=None, hashes=None):
+    """The packet as three layers, stable first. Returns (layered packet, hashes, room body).
+    ``parts``/``hashes``: a split(packet) and its digests the caller already made."""
+    session, room, delta = parts or split(packet)
+    hashes = hashes or {'session': digest(session), 'room': digest(room)}
     out = {'session_manifest': {'hash': hashes['session'], **({'cached': True} if cached_session else {'body': session})},
            'room_manifest': {'hash': hashes['room'], **({'cached': True} if cached_room else {'body': room})},
            'manifest_rule': MANIFEST_RULE, **delta}

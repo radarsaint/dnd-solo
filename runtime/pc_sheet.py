@@ -30,7 +30,12 @@ Schema ``character_sheet_v1``:
     extra fields (hp, ac, spells, features, gear) are kept as written and never checked.
 """
 from .state_context import require
-from .kit_chargen import character_name
+
+
+def character_name(sheet):
+    """kit_chargen.character_name, imported on first use (startup cost)."""
+    from .kit_chargen import character_name as name
+    return name(sheet)
 
 SCHEMA = 'character_sheet_v1'
 ABILITIES = ('str', 'dex', 'con', 'int', 'wis', 'cha')

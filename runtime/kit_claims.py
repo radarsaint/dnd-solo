@@ -29,6 +29,7 @@ blocks plus role fields). No model calls; deterministic Python.
 """
 import re
 
+from . import _lazy
 from . import kit_rolls, pc_sheet
 from .state_context import normalize_fact, require
 
@@ -49,7 +50,7 @@ SAID_LIMIT = 32
 FIELD_MAX = 200
 # Which ability works out a thing, and which skill sees through a person.
 REASON_ABILITY = 'int'
-_WORD = re.compile(r"[a-z0-9']+")
+_WORD = _lazy.regex(r"[a-z0-9']+")
 _SMALL = frozenset('a an the and or but of to in on at is it its this that with for from by as be '
                    'are was were he she they them his her their you your i me my we our so not no'.split())
 
@@ -440,7 +441,7 @@ def planned_amounts(items, speaker_labels):
 # ---------------------------------------------------------------------------
 # Player-initiated knowledge rolls
 # ---------------------------------------------------------------------------
-_RECALL = re.compile(r"\b(appraise|apprais\w+|history|recall|remember|know (?:about|anything)|"
+_RECALL = _lazy.regex(r"\b(appraise|apprais\w+|history|recall|remember|know (?:about|anything)|"
                      r"what do i know|identify|arcana|study the)\b")
 
 
@@ -466,7 +467,7 @@ def roll_target(action, source):
 
 # A plain look ("I look at the fresco", "I look around") is free description, never a check
 # (Brendon's table call 2): only a searching look qualifies.
-_LOOK = re.compile(r"\b(look(?:s|ed|ing)? (?:for|closely|closer|carefully|hard|over|under|behind|into|through|"
+_LOOK = _lazy.regex(r"\b(look(?:s|ed|ing)? (?:for|closely|closer|carefully|hard|over|under|behind|into|through|"
                    r"for anything|again)|(?:close|careful|closer|hard) look|search\w*|inspect\w*|examin\w*|stud(?:y|ies|ying)|check\w*|peer\w*|"
                    r"scrutini[sz]\w*|insight|perception|investigat\w*|notice|watch\w*|"
                    r"see (?:if|whether|through)|tell (?:if|whether)|are they|is he|is she)\b")
@@ -578,9 +579,9 @@ def check_target(action, source, state=None):
     return found[0]
 
 
-_LIE_WORDS = re.compile(r"\b(lying|lie|lies|lied|liar|truth\w*|honest\w*|sincere\w*|straight with|"
+_LIE_WORDS = _lazy.regex(r"\b(lying|lie|lies|lied|liar|truth\w*|honest\w*|sincere\w*|straight with|"
                         r"mean(?:s)? it|level(?:ing)? with|bullshit\w*|deceiv\w*|decept\w*)\b")
-_READ_WORDS = re.compile(r"\b(insight|read|reading|sense|tell|judge|gauge|study|studying|watch|watching|"
+_READ_WORDS = _lazy.regex(r"\b(insight|read|reading|sense|tell|judge|gauge|study|studying|watch|watching|"
                          r"whether|if|is he|is she|are they|are you)\b")
 
 
