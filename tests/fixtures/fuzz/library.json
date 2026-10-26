@@ -1,0 +1,51 @@
+{
+  "id": "synthetic-fuzz-library-v1",
+  "fixture_only": true,
+  "_note": "Synthetic SRD-generic room for tools/kit_fuzz.py: a reading room with a scribe (SRD Commoner), a visible illusion-warded lectern, HIDDEN enchanted spectacles in a drawer, a secret door behind a bookcase, and a hidden needle trap in a locked desk.",
+  "starting_area": "reading_room",
+  "areas": {
+    "reading_room": {"name": "Reading room", "called": "the reading room", "arrival": "Someone steps between the shelves."},
+    "study": {"name": "Hidden study", "called": "the study", "arrival": "Someone squeezes in behind the bookcase."},
+    "hall": {"name": "Hall", "called": "the hall", "arrival": "Someone comes out into the hall."}
+  },
+  "exits": {
+    "double_doors": {"name": "the double doors", "areas": ["reading_room", "hall"], "secret": false,
+      "labels": {"reading_room": "Double doors out to the hall.", "hall": "The double doors into the reading room."}},
+    "bookcase_door": {"name": "the bookcase", "areas": ["reading_room", "study"], "secret": true,
+      "labels": {"reading_room": "A bookcase that swings on hidden hinges.", "study": "The back of the bookcase."}}
+  },
+  "facts": {
+    "lectern": {"area": "reading_room", "visible": true, "magic": "illusion",
+      "magic_objects": {"count": 1, "what": "the brass lectern", "where": "by the window"},
+      "text": "A brass lectern by the window holds an open atlas whose ink seems to shift.",
+      "handling": {"nouns": ["lectern", "atlas"], "look": "Coastlines that redraw themselves as you watch."}},
+    "desk": {"area": "reading_room", "visible": true, "text": "A locked oak desk with three drawers stands against the west wall.",
+      "handling": {"nouns": ["desk", "drawer", "drawers"], "holds": "spectacles", "look": "Brass keyholes, polished by use."}},
+    "spectacles": {"area": "reading_room", "visible": false, "magic": "divination",
+      "magic_objects": {"count": 1, "what": "a pair of silver-rimmed spectacles", "where": "in the desk's bottom drawer"},
+      "text": "Silver-rimmed spectacles lie in the desk's bottom drawer.",
+      "handling": {"nouns": ["spectacles", "glasses"], "look": "Thin silver rims, cold to the touch."}},
+    "needle": {"area": "reading_room", "visible": false, "text": "A poisoned needle is set in the bottom drawer's lock."},
+    "bookcase": {"area": "reading_room", "visible": true, "text": "Tall bookcases line the north wall, one slightly out of true.",
+      "handling": {"nouns": ["bookcase", "bookcases", "shelves", "books"], "look": "Dusty spines, histories and herbals."}},
+    "hinges": {"area": "reading_room", "visible": false, "text": "One bookcase hangs on hidden hinges over a narrow study."}
+  },
+  "actors": {
+    "scribe": {"name": "Ink-stained scribe", "location": "reading_room", "status": "alive", "visible": true,
+      "motive": "Finish copying before the lamp burns down.", "knowledge": ["The desk key is on her belt."], "secrets": [],
+      "communication_profile": {"rhythm": "Clipped, distracted.", "humor": "Dry."},
+      "stat_block": {"_srd": "SRD 5.1 Commoner", "ac": 10, "hp": 4, "initiative": 0,
+        "attacks": [{"name": "club", "verb": "strikes", "to_hit": 2, "damage": 2, "type": "bludgeoning"}]}}
+  },
+  "claims": {
+    "hinges": {"about": "item:wall/hinges", "truth": "A bookcase on the north wall swings on hidden hinges.", "source": "kit",
+      "fact": "hinges", "roots": ["hinges", "bookcase"], "exposure": "hidden", "dc": 16,
+      "pc_check": "investigation", "pc_checks": ["investigation", "perception"], "pc_access": "roll",
+      "subject_words": ["bookcase", "bookcases", "shelves", "north wall", "wall"]},
+    "needle": {"about": "item:desk/needle", "truth": "The bottom drawer's lock hides a poisoned needle.", "source": "kit",
+      "fact": "needle", "roots": ["needle", "desk"], "exposure": "hidden", "dc": 15,
+      "pc_check": "investigation", "pc_checks": ["investigation", "perception"], "pc_access": "roll",
+      "subject_words": ["desk", "drawer", "drawers", "lock", "trap", "traps"]}
+  },
+  "resources": {}
+}

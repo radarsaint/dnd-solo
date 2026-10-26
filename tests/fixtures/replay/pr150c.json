@@ -1,0 +1,18 @@
+{
+ "source": "pr150c-log.md",
+ "room": "vault",
+ "lines": [
+  "I run my fingers along the mortar lines, hunting for a hidden catch.",
+  "I go over the east wall inch by inch for anything odd.",
+  "Okay, okay, leaving the dead guy alone. Nik makes a Perception check! 1d20 (5) + 4 = 9",
+  "I hold up my staff.",
+  "Wait, before I roll, I yank the tapestry off the wall."
+ ],
+ "outcomes": [
+  "social",
+  "ruling",
+  "ruling",
+  "act",
+  "social"
+ ]
+}
