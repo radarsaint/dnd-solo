@@ -793,6 +793,7 @@ class Runtime:
             require(state['area'] in edge['areas'], 'Exit not adjacent')
             state['area'] = next(a for a in edge['areas'] if a != state['area'])
             state.setdefault('room', {'id': source.get('id'), 'path': None, 'turns_in': {}})['came_by'] = key
+            state.pop('pc_position', None)  # a new area: no longer at the old doorway
             if state['area'] not in state['visited']:
                 state['visited'].append(state['area'])
             self._observe(state, source)
@@ -1036,6 +1037,11 @@ class Runtime:
                     'Procedure state needs public and private halves')
             require(len(encode(body).encode()) <= 6000, 'Procedure state exceeds size limit')
             state.setdefault('procedures', {})[key] = copy.deepcopy(body)
+        elif kind == 'pc_position':
+            key = event.get('at_exit')
+            require(key in source['exits'] and state['area'] in source['exits'][key]['areas'],
+                    'pc_position names an exit next to the PC')
+            state['pc_position'] = {'area': state['area'], 'at_exit': key}
         elif kind == 'beat':
             tags = event.get('tags')
             require(isinstance(tags, list) and all(isinstance(t, str) for t in tags), 'Invalid beat tags')
@@ -1118,6 +1124,8 @@ class Runtime:
                        if a['location'] == state['area'] and a['visible'] and a['status'] != 'fled'],
             'resources': state['resources'], 'elapsed_seconds': state['elapsed_seconds'],
             **({'your_character': dict(state['player_character'])} if state.get('player_character') else {}),
+            **({'your_position': f"at {source['exits'][state['pc_position']['at_exit']].get('name') or 'the doorway'}"}
+               if (state.get('pc_position') or {}).get('area') == state['area'] else {}),
         }
 
     def player_view(self):

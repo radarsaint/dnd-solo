@@ -252,6 +252,14 @@ THRESHOLD_LOOK = re.compile(
     r"|\b(?:eye|eyes|ear|ears)\s+(?:up\s+)?(?:to|against)\b"
     r"|\b(?:look|looks|looking|glance|glances|watch|watches|watching|see|sees)\s+(?:in\s+)?(?:through|in\b|into|past)"
     r"|\b(?:crack|cracks|cracking|cracked)\s+(?:the|it|that)\b")
+# A refusal to go in ("not going in yet, just peeking"): the movement words are negated, so a
+# look from the threshold stays a look (PR 145 playtest bug 7).
+NOT_ENTERING = re.compile(r"(?:\bnot|n't|\bnever)\s+(?:\w+\s+)?(?:go|going|step|stepping|walk|walking|enter|"
+                          r"entering|head|heading|move|moving|cross|crossing)\b")
+# Taking up a place at a doorway ('I back up to the door', 'I stand in the doorway').
+BACK_TO_DOOR = re.compile(r"\b(?:back|backs|backing|backed|step|steps|stepping|stepped|move|moves|retreat\w*|"
+                          r"stand|stands|standing|wait|waits|edge|edges)\b(?:\s+(?:up|back|away))?\s+"
+                          r"(?:to|in|at|into|by|toward|towards)\s+(?:the\s+)?(?:door|doorway|threshold|entrance)\b")
 PERCEIVING = re.compile(r"\b(?:look|looks|looking|glance|glances|peer|peers|peering|peek|peeks|peeking|gaze|gazes|"
                         r"watch|watches|watching|listen|listens|listening|scan|scans|survey|surveys|sniff|sniffs|"
                         r"smell|smells)\b")
@@ -705,6 +713,9 @@ def room_intent(action, addressed=False, room=None):
         return 'search'
     exit_named = bool(room.exits) and re.search(
         r'\b(?:' + '|'.join(re.escape(word) for word, _ in room.exits) + r')s?\b', words)
+    if (THRESHOLD_LOOK.search(words) or PERCEIVING.search(words)) and NOT_ENTERING.search(words) and \
+            (THRESHOLD_GAP.search(words) or exit_named) and (room.exits or room.inward):
+        return 'threshold_look'
     if THRESHOLD_LOOK.search(words) and (THRESHOLD_GAP.search(words) or exit_named) and \
             not MOVE_THROUGH.search(words) and (room.exits or room.inward):
         # Looking or listening through a gap, or down a named exit ('I peer down the stair
@@ -973,6 +984,13 @@ class RoomAdjudicator:
                 result = self._spring(result, *fired, action, revision, state)
         if result.kind == 'exit' and choice is None:
             result = self._also_after_entry(result, action, revision, state)
+        if result.kind == 'observe' and BACK_TO_DOOR.search(QUOTED_SPEECH.sub(' ', action).lower()):
+            key = self._threshold_exit(action, state)
+            if key:
+                # Backing up to a doorway is a position the PC now holds (PR 145 playtest bug 18).
+                result = dataclasses.replace(result, events=list(result.events) + [
+                    {'type': 'pc_position', 'at_exit': key,
+                     'evidence': f'Player declared: {action[:200]}. Resolution: the PC stands at that doorway.'}])
         return self._offer_downed(result)
 
     def _offer_downed(self, result):
@@ -1011,6 +1029,13 @@ class RoomAdjudicator:
             # is the one entry, not a walk back out: only a different exit is a second move.
             return result
         changed = [e for e in more.events if e.get('type') not in ('beat',)]
+        declared = [e for e in more.events if e.get('type') == 'beat' and
+                    {'simple_act', 'observe'} & set(e.get('tags') or ())]
+        if not changed and declared:
+            # A declared act on entry ('steps in and brushes the cobwebs off it'): it happens in
+            # the new room, so Kit hears it instead of only the move (PR 145 playtest bug 7).
+            return dataclasses.replace(result, events=list(result.events) + declared,
+                                       public_event=f'{result.public_event} {more.public_event}'.strip())
         if not changed and (more.offers or {}).get('handles'):
             # Hands on a watched feature in the new area ('...and grab the orb'): Kit's declared
             # handles resolve it at commit (runtime/kit_acts.py), so the entry carries the offer.
@@ -3972,6 +3997,16 @@ def prepare_inputs(runtime, revision, state, action, resolution, use_memory, one
     context = runtime.context()
     if context['revision'] != revision:
         raise StaleTurn(f'Expected revision {revision}; current is {context["revision"]}')
+    if post_event_state.get('area') != state.get('area') and \
+            post_event_state.get('area') in (runtime.source().get('areas') or {}):
+        # A move this turn: Kit narrates the room the PC walks into, so her private half is
+        # that room's (hidden facts included) this turn, not the next (PR 145 playtest bug 4).
+        arrived = {**post_event_state, 'known_facts': state['known_facts']}
+        context['dm_context'] = {**context['dm_context'],
+                                 'dm_only': {**Runtime.dm_only(runtime.source(), arrived),
+                                             # those left behind still react (scene_candidates)
+                                             'actors': {**context['dm_context']['dm_only']['actors'],
+                                                        **Runtime.dm_only(runtime.source(), arrived)['actors']}}}
     memory = kit_memory(runtime, state, action, use_memory)
     public_history = [{'player_input': turn['player_input'], 'spoken': turn['spoken'][-1200:]}
                       for turn in runtime.recent_kit_turns(limit=4)]
@@ -4631,6 +4666,21 @@ def stake_amounts(procedures):
     return found
 
 
+ECHO_KINDS = ('exit', 'observe', 'threshold_look', 'check_request', 'called_check')
+ECHO_EVENT_TYPES = ('move', 'beat')
+
+
+def _engine_echo(body):
+    """This turn's public event only restates what the player did: a plain move, a look, a
+    declared simple act, a check asked for or a roll reported. Never a result the engine
+    decided (a fight, a trap, a toll, a declared outcome, a rewind)."""
+    if body.get('rewind') or body['kind'] not in ECHO_KINDS:
+        return False
+    if body['kind'] in ('check_request', 'called_check'):
+        return True
+    return all(e.get('type') in ECHO_EVENT_TYPES for e in body.get('events') or ())
+
+
 def _entering(source, body):
     """The move this turn goes from outside the room into it: the performance happens in the
     new area, so the engine's line comes first (watchroom T6)."""
@@ -4916,6 +4966,11 @@ def checked_record(body, plan, speech, performance_variant, source=None, degrade
         kit_brief.check_raised(body['story_due'], source, {'area': body['story_area']}, spoken)
     if ask:
         kit_agenda.check_ask_spoken(speech['segments'], ask)
+    elif _engine_echo(body):
+        # The engine restating the player's own act ('You ask for a check: ...', 'You roll
+        # Perception: 9.', 'You go through the doorway into the room.'): the player said it,
+        # Kit performs it, and the host no longer has to trim it (PR 145 playtest bug 12).
+        pass
     elif (body['kind'] in EVENT_AFTER_PERFORMANCE_KINDS or body.get('rewind')) and not _entering(source, body):
         # The room reacts while the player is still there; then they are gone. The departure
         # line never follows Kit's closing remark (watchroom T6): it goes before her handoff.
