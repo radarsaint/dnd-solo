@@ -12,8 +12,9 @@ When one message fits more than one intent class, the engine (`room_intent` and
 7. **Stealth** (sneak, creep, slip past).
 8. **Move** through an exit, and the act declared on entry after it.
 9. **Look / search / investigate / check for**: a look is free description; a search,
-   investigation or "check it for" is Kit's call (a ruling or a check). A search **always**
-   beats a simple act: "I walk the wall and search it for seams" is a search.
+   investigation or "check it for" is a bid for a check: it commits as a check request and Kit
+   calls the check (roll_call) or declines; it is never refused. A search **always** beats a
+   simple act: "I walk the wall and search it for seams" is a search.
 10. **Risky physical act** (smash, force, climb, steal): Kit's ruling.
 11. **Simple act** (hold up a light, crouch, tap, brush cobwebs, walk over, back up to the
     door): happens as declared, no roll, nothing hidden learned.

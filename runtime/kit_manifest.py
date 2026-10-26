@@ -118,7 +118,16 @@ def rejection_notice(recent, session_hash):
 
 
 # Host boilerplate the engine appends to many refusals; the notice keeps it once, not per reason.
-_BOILERPLATE = re.compile(r'\s*(?:No turn was committed\.|Resubmit[^.]*\.|Revise[^.]*and resubmit\.)\s*')
+# The engine's standing advice appended to a reason (resubmit, degraded mode, abandon) is not
+# a reason. The degraded and abandon paragraphs also match when an older record cut them short.
+_BOILERPLATE = re.compile(r'\s*(?:No turn was committed\.|Resubmit[^.]*\.|Revise[^.]*and resubmit\.|'
+                          r'Degraded mode is available for this turn\..*?(?:still checked\.|$)|'
+                          r'This turn keeps failing\..*?(?:simpler decision\.|$))\s*', re.S)
+
+
+def strip_boilerplate(reason):
+    """A rejection reason without the engine's standing advice, ready to be stored or cut."""
+    return _BOILERPLATE.sub(' ', str(reason or '')).strip()
 
 
 def _distinct_reasons(raw):
@@ -127,7 +136,7 @@ def _distinct_reasons(raw):
     for reason in raw:
         if not reason:
             continue
-        text = _BOILERPLATE.sub(' ', str(reason)).strip()
+        text = strip_boilerplate(reason)
         if text and text not in out:
             out.append(text)
     return out

@@ -239,6 +239,11 @@ class Runtime:
                 turn_id TEXT PRIMARY KEY, revision INTEGER NOT NULL,
                 body TEXT NOT NULL, plan TEXT
             );
+            -- Refused attempts that arrived while a prepared turn was waiting: held here, not
+            -- committed, so that turn's revision stays current (#150 retest).
+            CREATE TABLE IF NOT EXISTS queued_attempts (
+                seq INTEGER PRIMARY KEY, action TEXT NOT NULL, ruling TEXT NOT NULL
+            );
             -- Timing telemetry is deliberately outside turns/ledger/kit_turns: it never
             -- enters a turn digest, so an identical retry stays idempotent.
             CREATE TABLE IF NOT EXISTS kit_telemetry (
@@ -703,12 +708,41 @@ class Runtime:
         and a retry of the same attempt at the same revision is idempotent."""
         require(isinstance(action, str) and action.strip(), 'Player action required')
         revision, _ = self.load()
-        event = {'type': 'refused_attempt', 'action': action.strip()[:REFUSED_ATTEMPT_MAX_CHARS],
+        if self.db.execute('SELECT 1 FROM kit_pending WHERE revision=?', (revision,)).fetchone():
+            # A prepared turn is waiting at this revision: committing now would make it stale
+            # ('Expected revision 10; current is 11'). Queue it; flush_queued_attempts commits
+            # it once nothing current is waiting. Returns None (nothing committed yet).
+            with self.db:
+                self.db.execute('INSERT INTO queued_attempts(action, ruling) VALUES (?, ?)',
+                                (action.strip()[:REFUSED_ATTEMPT_MAX_CHARS], str(ruling).strip()[:REFUSED_ATTEMPT_MAX_CHARS]))
+            return None
+        return self._commit_attempts(revision, [(action, ruling)])
+
+    def flush_queued_attempts(self):
+        """Commit queued refused attempts when no prepared turn is waiting at the current
+        revision. Returns the new revision, or None when nothing was flushed."""
+        revision, _ = self.load()
+        if self.db.execute('SELECT 1 FROM kit_pending WHERE revision=?', (revision,)).fetchone():
+            return None
+        rows = self.db.execute('SELECT seq, action, ruling FROM queued_attempts ORDER BY seq').fetchall()
+        if not rows:
+            return None
+        new = self._commit_attempts(revision, [(a, r) for _, a, r in rows])
+        with self.db:
+            self.db.execute('DELETE FROM queued_attempts WHERE seq <= ?', (rows[-1][0],))
+        return new
+
+    def _commit_attempts(self, revision, attempts):
+        events = [self._attempt_event(action, ruling) for action, ruling in attempts]
+        digest = hashlib.sha256(f'{revision}:{encode(events)}'.encode()).hexdigest()[:16]
+        return self.commit(f'attempt-{digest}', revision, events)
+
+    @staticmethod
+    def _attempt_event(action, ruling):
+        return {'type': 'refused_attempt', 'action': action.strip()[:REFUSED_ATTEMPT_MAX_CHARS],
                  'ruling': str(ruling).strip()[:REFUSED_ATTEMPT_MAX_CHARS],
                  'evidence': 'The player attempted an action the slice could not adjudicate; '
                              'nothing changed in the world.'}
-        digest = hashlib.sha256(f'{revision}:{encode(event)}'.encode()).hexdigest()[:16]
-        return self.commit(f'attempt-{digest}', revision, [event])
 
     def _add_player_note(self, state, note_id, source, text, evidence_turns, replaces='none',
                          current_turn=None):
