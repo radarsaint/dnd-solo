@@ -5,20 +5,36 @@
 only when the player asks for it. Talk, debrief, and working on a scene or a
 character do not go through a room at all.
 """
+import hashlib
 import json
+import re
+import shlex
 import sqlite3
 from pathlib import Path
 
-from . import kit_rooms
+from . import kit_chargen, kit_rooms, pc_sheet
 from .state_context import PROJECT_ROOT
 
 # Outside rooms/ on purpose: a regression fixture, not a campaign start.
 REGRESSION_ROOM = 'tests/fixtures/level_01_area_06c.json'
 EXAMPLE_SHEET = 'tests/fixtures/characters/example_pc.json'
 MAD_MAGE_KEYS = ('dotmm', 'mad mage', 'mad-mage', 'dungeon of the mad mage')
-GREETING = (
-    "I'm Kit. I can talk with you, go over a game, work on a character or a scene, "
-    "or run a session once you tell me which one. I won't pick the adventure for you.")
+GREETING = "Pull up a chair. Are we rolling dice tonight, or building something?"
+PLAY_NEEDS_LINES = {
+    ('a module', 'your character'): "Then hand me two things: the adventure, and whoever's walking into it.",
+    ('a module',): "Good. Now, what am I running? Hand me the module.",
+    ('your character',): "And who's walking in? Give me your sheet. I read those closely.",
+}
+TABLE_LINE = "Just you tonight, or a full table taking turns?"
+SOLO_LINE = "Just us, then. Settle in."
+SHARED_LINE = "A full table. Tell me who's talking and I'll get to everyone."
+BUILD_LINE = ("Building, then. Encounters, NPCs, rulings, what that loot's worth: that's my wheelhouse. "
+              "Character options past the core rules, hand me the text and I'll check it.")
+TABLE_MODES = ('solo', 'shared')
+INTENTS = ('play', 'build')
+SHARED_NOTE = ('Shared table is recorded, but turn-taking is basic for now: the host prefixes each '
+               'line with the speaker\'s name and Kit answers in the order lines arrive. '
+               'No initiative-style turn order outside combat yet.')
 MAD_MAGE_LINE = (
     "Dungeon of the Mad Mage isn't a playable room in this build. It should open at the "
     "Yawning Portal, then the first room under the well. I won't put you in a test room instead.")
@@ -26,7 +42,7 @@ NOT_A_CAMPAIGN_LINE = (
     "That isn't a campaign room. It's a test file, and I won't start the adventure there.")
 
 
-def campaign_entry(db, sheet_path=None, rooms_dir=None, campaign=None):
+def campaign_entry(db, sheet_path=None, rooms_dir=None, campaign=None, intent=None, table=None):
     """No room was named.
 
     No campaign: a greeting. She does not open a game.
@@ -38,6 +54,10 @@ def campaign_entry(db, sheet_path=None, rooms_dir=None, campaign=None):
         return _resume(saved, campaign)
     executable, blocked = inspect_rooms(rooms_dir or (PROJECT_ROOT / 'rooms'))
     blocked = _with_regression(blocked)
+    if campaign is None and intent == 'build':
+        return _build(sheet_path)
+    if campaign is None and intent == 'play':
+        return _play(db, sheet_path, executable, blocked, table, modules=rooms_dir)
     if campaign is None:
         return _greeting(sheet_path, executable, blocked)
     if _is_mad_mage(campaign):
@@ -108,6 +128,8 @@ def inspect_rooms(rooms_dir):
         return executable, blocked
     root = PROJECT_ROOT.resolve()
     for path in sorted(folder.rglob('*.json')):
+        if path.name.casefold() == 'manifest.json':
+            continue  # a pack's manifest describes the pack; it is not a room
         try:
             rel = path.resolve().relative_to(root).as_posix()
         except ValueError:
@@ -208,18 +230,309 @@ def _greeting(sheet_path, executable, blocked):
             'Work on a character or a scene. That is talk and prep, not a running session.',
             'Run a session only after the player names the game.',
         ],
+        'choices': list(INTENTS),
         'executable_starts': executable,
         'do_not_start': blocked,
         'mad_mage': _mad_mage_facts(),
         'table_line': GREETING,
         'next_step': (
-            'Say table_line in your own voice if they have not already said what they want. '
+            'Say table_line in your own voice if they have not already said what they want: play or build. '
+            'Play: run start --intent play [--sheet <file>]. Build: run start --intent build. '
             'Do not mention Dungeon of the Mad Mage unless they did. '
             'Do not pass --room. Do not pass --regression. Do not open do_not_start. '
             'If they want to play and have not named a game, ask which one. '
             'If they asked for Mad Mage, run start --campaign dotmm and say that table_line. '
             'Talk, debrief, and design do not use the bridge.'),
     }
+
+
+def _sheet_real(sheet_path):
+    return bool(sheet_path) and Path(sheet_path).is_file()
+
+
+def _asked_key(name, unsourced):
+    return json.dumps([str(name).casefold(), sorted(str(u['proficiency']).casefold() for u in unsourced)])
+
+
+def _question_id(key):
+    return hashlib.sha256(key.encode('utf-8')).hexdigest()[:12]
+
+
+def _ensure_question_tables(con):
+    con.execute('CREATE TABLE IF NOT EXISTS kit_asked (key TEXT PRIMARY KEY, kind TEXT NOT NULL)')
+    con.execute('CREATE TABLE IF NOT EXISTS kit_pending_question (id TEXT PRIMARY KEY, key TEXT NOT NULL, '
+                'kind TEXT NOT NULL, table_line TEXT NOT NULL, shown INTEGER NOT NULL DEFAULT 0, '
+                'carried_turn TEXT)')
+
+
+def _read(db, sql, args=()):
+    path = Path(db) if db else None
+    if path is None or not path.is_file():
+        return None
+    con = sqlite3.connect(f'file:{path}?mode=ro', uri=True)
+    try:
+        return con.execute(sql, args).fetchone()
+    except sqlite3.Error:
+        return None
+    finally:
+        con.close()
+
+
+def proficiency_question_asked(db, name, unsourced):
+    """True when this exact unsourced-proficiency question was delivered to the player in this save."""
+    return _read(db, 'SELECT 1 FROM kit_asked WHERE key = ?', (_asked_key(name, unsourced),)) is not None
+
+
+def record_proficiency_question(db, name, unsourced, table_line=''):
+    """Persist the unsourced-proficiency question as PENDING (generated, not yet known delivered).
+
+    Delivery design (host-agnostic; docs in docs/architecture/LOBBY_QUESTIONS.md): a question is
+    marked asked only on a positive delivery signal, never when it is generated:
+      1. the host confirms with `start --question-delivered <id>` after showing table_line, or
+      2. a play turn whose packet carried it as lobby_question commits (`complete` succeeds;
+         the committed `spoken` is what the player sees).
+    Until then every lobby call raises it again and every play prepare carries it, so a dropped
+    reply is asked again. Returns the question id."""
+    key = _asked_key(name, unsourced)
+    qid = _question_id(key)
+    con = sqlite3.connect(str(db))
+    try:
+        _ensure_question_tables(con)
+        # A changed sheet replaces the older pending question of the same kind.
+        con.execute('DELETE FROM kit_pending_question WHERE kind = ? AND id != ?', ('proficiency_source', qid))
+        con.execute('INSERT INTO kit_pending_question (id, key, kind, table_line, shown) VALUES (?, ?, ?, ?, 1) '
+                    'ON CONFLICT(id) DO UPDATE SET shown = shown + 1, table_line = excluded.table_line',
+                    (qid, key, 'proficiency_source', table_line or ''))
+        con.commit()
+    finally:
+        con.close()
+    return qid
+
+
+def pending_question(db):
+    """The oldest lobby question still awaiting confirmed delivery: {'id', 'table_line', 'shown'} or None."""
+    row = _read(db, 'SELECT id, table_line, shown, carried_turn FROM kit_pending_question ORDER BY rowid LIMIT 1')
+    return None if row is None else {'id': row[0], 'table_line': row[1], 'shown': row[2], 'carried_turn': row[3]}
+
+
+def carry_question(db, turn_id):
+    """Note that a play turn's packet carries the pending question; its commit confirms delivery."""
+    pending = pending_question(db)
+    if not pending:
+        return None
+    con = sqlite3.connect(str(db))
+    try:
+        con.execute('UPDATE kit_pending_question SET carried_turn = ? WHERE id = ?', (turn_id, pending['id']))
+        con.commit()
+    finally:
+        con.close()
+    return pending
+
+
+# Words that name a kind of proficiency, not the item itself; they never identify the question.
+_GENERIC_TERMS = frozenset('supplies supply tools tool kit kits set sets proficiency proficiencies instrument '
+                           'instruments the a an of and with'.split())
+_ASK_SIGNAL = re.compile(r"\?|\b(?:where|how|why|pitch|tell me|story)\b", re.I)
+
+
+def _stem(word):
+    word = re.sub(r"(?:'s|’s|'|’)$", '', word.casefold())
+    return word[:max(5, len(word) - 3)] if len(word) > 5 else word
+
+
+def question_terms(key):
+    """Per unsourced item, the stems that must all appear for a reply to name it:
+    'Shield' -> ['shie'... ], "Calligrapher's Supplies" -> ['calligrap']."""
+    try:
+        _, profs = json.loads(key)
+    except (TypeError, ValueError):
+        return []
+    items = []
+    for prof in profs:
+        words = [w for w in re.findall(r"[a-z’']+", str(prof).casefold()) if w.strip("'’") not in _GENERIC_TERMS]
+        stems = [_stem(w) for w in words if len(w.strip("'’")) > 1]
+        if stems:
+            items.append(stems)
+    return items
+
+
+def question_asked_in(key, spoken):
+    """Host-agnostic check that a reply actually asks the lobby question: every unsourced item is
+    named (each of its key stems at a word start, so 'calligraphy' names calligrapher's supplies)
+    and the reply asks something (a question mark or an ask word). Wording is Kit's own."""
+    text = (spoken or '').casefold()
+    items = question_terms(key)
+    if not items or not _ASK_SIGNAL.search(text):
+        return False
+    return all(all(re.search(r'\b' + re.escape(stem), text) for stem in stems) for stems in items)
+
+
+def carried_question(db, turn_id):
+    """The pending question a given play turn carries ({'id','key','table_line'}) or None."""
+    if not turn_id:
+        return None
+    row = _read(db, 'SELECT id, key, table_line FROM kit_pending_question WHERE carried_turn = ?', (turn_id,))
+    return None if row is None else {'id': row[0], 'key': row[1], 'table_line': row[2]}
+
+
+def question_word_allowance(db, turn_id, spoken):
+    """Extra words a turn may spend asking its carried lobby question (exempt from the length caps):
+    the table line's length, but only when the reply really asks it."""
+    carried = carried_question(db, turn_id)
+    if not carried or not question_asked_in(carried['key'], spoken):
+        return 0
+    return len(re.findall(r"[A-Za-z0-9’']+", carried['table_line'] or '')) or 0
+
+
+def confirm_question_delivered(db, question_id=None, turn_id=None, spoken=None):
+    """Mark a pending question asked. By id: the host confirmed it showed table_line. By turn: the
+    committed turn that carried it, and only when its spoken reply actually asks it
+    (question_asked_in); otherwise it stays pending and rides the next turn. True if one moved."""
+    if _read(db, "SELECT name FROM sqlite_master WHERE name = 'kit_pending_question'") is None:
+        return False
+    con = sqlite3.connect(str(db))
+    try:
+        if question_id is not None:
+            row = con.execute('SELECT id, key, kind FROM kit_pending_question WHERE id = ?', (question_id,)).fetchone()
+        else:
+            row = con.execute('SELECT id, key, kind FROM kit_pending_question WHERE carried_turn = ?',
+                              (turn_id,)).fetchone()
+            if row is not None and not question_asked_in(row[1], spoken):
+                return False
+        if row is None:
+            return False
+        con.execute('INSERT OR IGNORE INTO kit_asked (key, kind) VALUES (?, ?)', (row[1], row[2]))
+        con.execute('DELETE FROM kit_pending_question WHERE id = ?', (row[0],))
+        con.commit()
+        return True
+    finally:
+        con.close()
+
+
+def lobby_sheet(sheet_path, db=None):
+    """Load and check the player's sheet in the lobby: real name and proficiency sources.
+
+    With a save (db), the unsourced-proficiency question is kept pending and raised on every
+    lobby call until delivery is confirmed (see record_proficiency_question); after that,
+    table_line is dropped and already_asked is set."""
+    try:
+        sheet = json.loads(Path(sheet_path).read_text(encoding='utf-8'))
+        pc_sheet.check_sheet(sheet)
+    except Exception as exc:  # noqa: BLE001 - a bad sheet is reported, never crashes the lobby
+        return {'sheet_loaded': False, 'sheet_problems': [str(exc)]}
+    check = kit_chargen.proficiency_sources(sheet)
+    name = kit_chargen.character_name(sheet)
+    if check.get('unsourced') and db:
+        if proficiency_question_asked(db, name, check['unsourced']):
+            check.pop('table_line', None)
+            check['already_asked'] = True
+            check['next_step'] = ('Already asked once in this save. Do not ask again; play it by the rules as '
+                                  'written until the player settles it.')
+        else:
+            qid = record_proficiency_question(db, name, check['unsourced'], check.get('table_line', ''))
+            check['already_asked'] = False
+            check['question_id'] = qid
+            check['delivery'] = (f'Say table_line, then run start --db <db> --question-delivered {qid}. '
+                                 'Until it is confirmed (or a play turn carrying it commits) it is raised again.')
+    return {'sheet_loaded': True, 'character_loaded': True,
+            'character': {'name': name, 'sheet_title': sheet.get('name'),
+                          'ancestry': sheet.get('ancestry'), 'class': sheet.get('class'),
+                          'level': sheet.get('level')},
+            'proficiency_check': check}
+
+
+def _play(db, sheet_path, executable, blocked, table, modules=None):
+    """Play: a real module and a real character, then solo or shared table. Lists only what exists."""
+    has_sheet = _sheet_real(sheet_path)
+    # The player's table choice holds even while a module or sheet is still missing.
+    if table in TABLE_MODES:
+        record_table_mode(db, table)
+    table = table if table in TABLE_MODES else table_mode(db)
+    loaded = lobby_sheet(sheet_path, db) if has_sheet else {}
+    if loaded and not loaded['sheet_loaded']:
+        has_sheet = False
+    # An attached module folder must ride along on every retry, or the rerun loses it.
+    mods = f' --modules {shlex.quote(str(modules))}' if modules else ''
+    base = {
+        'committed': False, 'opened_room': None, 'intent': 'play', 'character_loaded': False,
+        'sheet_noted': str(sheet_path) if has_sheet else None, 'sheet_loaded': False,
+        'modules_available': executable, 'do_not_start': blocked,
+        **loaded, **({'table_mode': table} if table in TABLE_MODES else {}),
+    }
+    if loaded.get('sheet_problems'):
+        base['sheet_noted'] = str(sheet_path)
+    need = []
+    if not executable:
+        need.append('a module')
+    if not has_sheet:
+        need.append('your character')
+    if need:
+        return {**base, 'stage': 'need_module' if not executable else 'need_character', 'missing': need,
+                'table_line': PLAY_NEEDS_LINES[tuple(need)],
+                'next_step': (
+                    'Say table_line. List only modules_available (it may be empty) and only a sheet the '
+                    'player actually gave. Ask them to attach what is missing. Never offer do_not_start, '
+                    'the example sheet, or an adventure they did not name.'
+                    + (f' Rerun start --intent play --sheet <file>{mods} once they attach it.' if mods else '')),
+                **({'modules': str(modules)} if modules else {})}
+    if table not in TABLE_MODES:
+        return {**base, 'stage': 'ask_table', 'table_modes': list(TABLE_MODES), 'table_line': TABLE_LINE,
+                'next_step': ('Ask which module from modules_available if there is more than one, then '
+                              f'say table_line. Rerun start --intent play --sheet <file>{mods} --table solo|shared.'),
+                **({'modules': str(modules)} if modules else {})}
+    return {**base, 'stage': 'ready', 'table_mode': table,
+            **({'table_note': SHARED_NOTE} if table == 'shared' else {}),
+            'table_line': SOLO_LINE if table == 'solo' else SHARED_LINE,
+            **({'modules': str(modules)} if modules else {}),
+            'next_step': ('Run start --room <a path from modules_available> --sheet <file> --table '
+                          f'{table}. Then prepare --opening. Show the player only "spoken".')}
+
+
+def _build(sheet_path):
+    """Build: DM-assistant mode. No room, no game state."""
+    return {
+        'stage': 'build', 'intent': 'build', 'committed': False, 'opened_room': None,
+        'character_loaded': False, 'sheet_noted': str(sheet_path) if _sheet_real(sheet_path) else None,
+        'tools': {
+            'design_talk': 'Scenes, NPCs, encounters, rulings, homebrew: talk, no bridge command.',
+            'price_item': ('python -m runtime.kit_appraise "<item description>" (Goldscale formula; '
+                           'answer its questions with --answer "<reply>"; --formula shows the math).'),
+            'character_building': ('python -m runtime.kit_chargen "<request>". Never guess: beyond SRD 5.1, '
+                                   'ask for the exact rules text or the finished sheet, then check it.'),
+        },
+        'table_line': BUILD_LINE,
+        'next_step': ('Say table_line in your own voice. Never guess at character generation (runtime/kit_chargen.py). For a price, run the price_item tool and give '
+                      'the Final Price with its impact math. Do not open a room.'),
+    }
+
+
+def record_table_mode(db, mode):
+    """Persist the table mode (solo or shared) in the save, beside the game."""
+    if mode not in TABLE_MODES:
+        raise ValueError(f'table mode must be one of {TABLE_MODES}')
+    con = sqlite3.connect(str(db))
+    try:
+        con.execute('CREATE TABLE IF NOT EXISTS kit_table (id INTEGER PRIMARY KEY CHECK (id = 1), mode TEXT NOT NULL)')
+        con.execute('INSERT INTO kit_table (id, mode) VALUES (1, ?) ON CONFLICT(id) DO UPDATE SET mode=excluded.mode',
+                    (mode,))
+        con.commit()
+    finally:
+        con.close()
+
+
+def table_mode(db):
+    """The recorded table mode, or None."""
+    path = Path(db)
+    if not path.is_file():
+        return None
+    con = sqlite3.connect(f'file:{path}?mode=ro', uri=True)
+    try:
+        row = con.execute('SELECT mode FROM kit_table WHERE id = 1').fetchone()
+        return row[0] if row else None
+    except sqlite3.Error:
+        return None
+    finally:
+        con.close()
 
 
 def _mad_mage(sheet_path, executable, blocked):

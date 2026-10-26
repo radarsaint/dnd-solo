@@ -20,6 +20,8 @@ This module imports nothing from kit_agent so it merges cleanly with other work 
 that file (kit-hardening adds NPC voice cards and leak, price, and repetition checks;
 none of that is duplicated here).
 """
+import contextlib
+import contextvars
 import re
 
 from .state_context import require
@@ -54,6 +56,31 @@ MOOD_CUE_REF = re.compile(r'^\s*(feedback|note)\s+(?P<id>\S+?)\s*[.:]?\s*$', re.
 
 # Performance floors tied to the carriers.
 TIGHT_MAX_WORDS = {'exchange': 110, 'feature': 150}  # a call keeps its own 60-word cap
+
+# A pending lobby question the turn carries is not scene talk: when Kit's reply really asks it,
+# its words are exempt from the length caps (docs/architecture/LOBBY_QUESTIONS.md). The bridge sets
+# this to a function spoken -> extra words for the turn being validated.
+_QUESTION_ALLOWANCE = contextvars.ContextVar('kit_question_allowance', default=None)
+
+
+@contextlib.contextmanager
+def question_allowance(fn):
+    token = _QUESTION_ALLOWANCE.set(fn)
+    try:
+        yield
+    finally:
+        _QUESTION_ALLOWANCE.reset(token)
+
+
+def allowance_for(segments):
+    """Extra words this performance may use because it asks the carried lobby question (0 if none)."""
+    fn = _QUESTION_ALLOWANCE.get()
+    if fn is None:
+        return 0
+    try:
+        return max(0, int(fn(' '.join(str(segment.get('text', '')) for segment in segments))))
+    except Exception:  # noqa: BLE001 - the allowance never breaks validation
+        return 0
 COMBAT_MAX_AVG_SENTENCE_WORDS = 14                   # Narrator and Kit sentences in combat
 COMBAT_MAX_SENTENCE_WORDS = 24
 SHOWTIME_MAX_KIT_SEGMENTS = 3
@@ -279,8 +306,9 @@ def check_voice_style(segments, plan):
     mirror = parse_mirror(brief.get('mirror', ''))
     if mirror and mirror['length'] == 'tight' and scope in TIGHT_MAX_WORDS:
         total = sum(_words(segment['text']) for segment in segments)
-        require(total <= TIGHT_MAX_WORDS[scope],
-                f'Mirror says tight: {total} words (limit {TIGHT_MAX_WORDS[scope]} for {scope}). '
+        limit = TIGHT_MAX_WORDS[scope] + allowance_for(segments)
+        require(total <= limit,
+                f'Mirror says tight: {total} words (limit {limit} for {scope}). '
                 'Give momentum: answer, move the scene, hand the player a choice. No padding.')
     if plan.get('turn_mode') == 'combat':
         lengths = [_words(sentence) for segment in segments if segment['speaker'] in ('Narrator', 'Kit')

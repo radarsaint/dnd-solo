@@ -30,6 +30,7 @@ Schema ``character_sheet_v1``:
     extra fields (hp, ac, spells, features, gear) are kept as written and never checked.
 """
 from .state_context import require
+from .kit_chargen import character_name
 
 SCHEMA = 'character_sheet_v1'
 ABILITIES = ('str', 'dex', 'con', 'int', 'wis', 'cha')
@@ -175,9 +176,23 @@ def passive(sheet, skill):
     return derived_passive(sheet, skill)
 
 
+def with_real_name(sheet):
+    """A copy of the sheet whose name is the character's real name ("Copy of Nik" -> "Nik").
+    The file title it came in with is kept in sheet_title when it differs, so nothing is lost."""
+    out = dict(sheet)
+    title = str(sheet.get('sheet_title') or sheet.get('name') or '').strip()
+    real = character_name(sheet)
+    if real:
+        out['name'] = real
+    out.pop('character_name', None)
+    if title and title != out.get('name'):
+        out['sheet_title'] = title
+    return out
+
+
 def identity(sheet):
     """The public identity the scene-fit guard and your_character use."""
-    return {'name': sheet['name'], 'ancestry': sheet['ancestry'], 'class': sheet['class'],
+    return {'name': character_name(sheet), 'ancestry': sheet['ancestry'], 'class': sheet['class'],
             'level': sheet['level']}
 
 
@@ -185,7 +200,7 @@ def private_summary(sheet, situation='at_ease'):
     """What the decision stage sees of the sheet: the numbers the bands come from, with the
     in-force lists as they stand now (the player's word, else the situation's default)."""
     now = situated(sheet, situation)
-    return {'name': sheet['name'], 'ancestry': sheet['ancestry'], 'class': sheet['class'],
+    return {'name': character_name(sheet), 'ancestry': sheet['ancestry'], 'class': sheet['class'],
             'level': sheet['level'], 'abilities': sheet['abilities'],
             'passives': {skill: passive(now, skill) for skill in ('perception', 'insight', 'investigation')},
             'skills': sheet.get('skills', {}),

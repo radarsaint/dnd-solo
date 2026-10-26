@@ -659,6 +659,9 @@ class Runtime:
         ancestry). It also sets the public identity, like set_player_character."""
         from . import pc_sheet
         pc_sheet.check_sheet(sheet)
+        # Store the real character name; the file title ("Copy of Nik") rides in sheet_title.
+        sheet = pc_sheet.with_real_name(sheet)
+        pc_sheet.check_sheet(sheet)
         revision, _ = self.load()
         event = {'type': 'player_sheet', 'sheet': sheet,
                  'evidence': 'The host loaded the player character\'s sheet.'}
@@ -873,7 +876,7 @@ class Runtime:
             state.pop('player_sheet', None)
         elif kind == 'player_sheet':
             from . import pc_sheet
-            sheet = pc_sheet.check_sheet(event.get('sheet'))
+            sheet = pc_sheet.with_real_name(pc_sheet.check_sheet(event.get('sheet')))
             state['player_sheet'] = copy.deepcopy(sheet)
             state['player_character'] = pc_sheet.identity(sheet)
             from . import kit_reactions

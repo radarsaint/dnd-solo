@@ -8,6 +8,15 @@ room and --regression on the CLI. The model chooses and performs a DM move. Acce
 may also commit checked model proposals (canon, claims, agenda, and related state). The
 model does not write storage except through those checked commits.
 """
+if __name__ == '__main__' and not __package__:
+    # Run as a script (python3 runtime/kit_agent.py): re-enter as the package module so the
+    # relative imports below work, exactly like python3 -m runtime.kit_agent.
+    import os as _os
+    import runpy as _runpy
+    import sys as _sys
+    _sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))
+    _runpy.run_module('runtime.kit_agent', run_name='__main__', alter_sys=True)
+    raise SystemExit(0)
 import argparse
 import copy
 import dataclasses
@@ -3047,9 +3056,10 @@ def check_scope(segments, plan, guards=None):
     performed_words = sum(_words(segment['text']) for segment in performed)
     if scope == 'call':
         total = sum(_words(segment['text']) for segment in segments)
-        require(len(segments) <= CALL_MAX_SEGMENTS and total <= CALL_MAX_WORDS,
+        cap = CALL_MAX_WORDS + kit_voice.allowance_for(segments)
+        require(len(segments) <= CALL_MAX_SEGMENTS and total <= cap,
                 f'Call scope ran long ({total} words in {len(segments)} segments; limit '
-                f'{CALL_MAX_WORDS} words in {CALL_MAX_SEGMENTS}). Answer directly and stop.')
+                f'{cap} words in {CALL_MAX_SEGMENTS}). Answer directly and stop.')
         return
     if scope == 'exchange':
         guards = guards or {}
@@ -5262,7 +5272,19 @@ class KitChatBridge:
                 'host_retry': HOST_RETRY_NOTE, 'input': payload}
 
     @_stale_guided
+    def _question_allowance(self, turn_id):
+        """Exempt the carried lobby question's words from the length caps for this turn."""
+        db = getattr(self.runtime, 'path', None)
+        if not db or not kit_campaign.carried_question(db, turn_id):
+            return kit_voice.question_allowance(None)
+        return kit_voice.question_allowance(
+            lambda spoken: kit_campaign.question_word_allowance(db, turn_id, spoken))
+
     def finish(self, turn_id, speech, degraded=False):
+        with self._question_allowance(turn_id):
+            return self._finish(turn_id, speech, degraded)
+
+    def _finish(self, turn_id, speech, degraded=False):
         pending = self._pending_or_replay(turn_id, speech=speech)
         if 'already_committed' in pending:
             return pending
@@ -5426,7 +5448,8 @@ class KitChatBridge:
             if isinstance(output, dict) and (record or 'manifest' in output):
                 kit_manifest.check_echo(output, record)
                 output = {key: value for key, value in output.items() if key != 'manifest'}
-            result = self._complete(turn_id, output, degraded)
+            with self._question_allowance(turn_id):
+                result = self._complete(turn_id, output, degraded)
         except InvalidChange:
             self._attempt(turn_id, output, host_stamps, clock, 'rejected')
             raise
@@ -5479,7 +5502,8 @@ class KitChatBridge:
 EXAMPLE_SHEET = PROJECT_ROOT / 'tests/fixtures/characters/example_pc.json'
 
 
-def start_session(db, sheet_path=None, runtime=None, room=None, area=None, manifests=False, campaign=None):
+def start_session(db, sheet_path=None, runtime=None, room=None, area=None, manifests=False, campaign=None,
+                  intent=None, table=None, modules=None):
     """Bootstrap for a host.
 
     No room and no campaign: a greeting. Nothing is mounted. Mad Mage is not assumed.
@@ -5488,7 +5512,7 @@ def start_session(db, sheet_path=None, runtime=None, room=None, area=None, manif
     (engineering path). The CLI does not use that fill-in for player-facing starts.
     """
     if room is None:
-        return kit_campaign.campaign_entry(db, sheet_path, campaign=campaign)
+        return kit_campaign.campaign_entry(db, sheet_path, rooms_dir=modules, campaign=campaign, intent=intent, table=table)
     source = kit_rooms.load_room(room)
     if area is not None and area not in source['areas']:
         raise kit_rooms.RoomMountError(room, [f'no area {area!r} in this room'])
@@ -5556,6 +5580,39 @@ def _cli_stamps(items):
     return out
 
 
+def _carry_lobby_question(db, packet, turn_id):
+    pending = kit_campaign.carry_question(db, turn_id)
+    if pending:
+        packet['lobby_question'] = {
+            'id': pending['id'], 'table_line': pending['table_line'],
+            'instruction': 'Not yet delivered from the lobby. Ask it in your own voice in this '
+                           "turn's spoken, out of character, before or after the scene. Name each item "
+                           'it asks about; its words do not count against the length caps. It is marked '
+                           'asked only when your committed reply actually asks it.'}
+
+
+def _lobby_question_delivery(args, result):
+    """A lobby question not yet confirmed delivered rides on the next play packet (prepare, or the
+    start --room opening); the commit of that turn confirms it only when the committed spoken
+    actually asks it (docs/architecture/LOBBY_QUESTIONS.md)."""
+    try:
+        if args.command == 'prepare' and not args.table_talk and result.get('turn_id'):
+            _carry_lobby_question(args.db, result, result['turn_id'])
+        elif args.command == 'start' and isinstance(result.get('prepared'), dict) \
+                and result['prepared'].get('turn_id'):
+            _carry_lobby_question(args.db, result['prepared'], result['prepared']['turn_id'])
+        elif args.command in ('complete', 'finish') and result.get('committed') is not False:
+            if kit_campaign.confirm_question_delivered(args.db, turn_id=args.turn_id,
+                                                       spoken=result.get('spoken')):
+                result['lobby_question_delivered'] = True
+            elif kit_campaign.carried_question(args.db, args.turn_id):
+                result['lobby_question_delivered'] = False
+                result['lobby_question_note'] = ('The reply did not ask the lobby question; it stays '
+                                                 'pending and rides the next turn.')
+    except Exception:  # noqa: BLE001 - bookkeeping must never break a turn
+        pass
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('command', choices=['start', 'init', 'view', 'prepare', 'decide', 'finish', 'complete',
@@ -5572,6 +5629,16 @@ def main():
     parser.add_argument('--campaign',
                         help='start/init: a game the player asked for by name. '
                              'Omit it unless they named one. "dotmm" is Dungeon of the Mad Mage.')
+    parser.add_argument('--intent', choices=kit_campaign.INTENTS,
+                        help='start: the player chose play (Kit DMs) or build (DM assistant) at the greeting')
+    parser.add_argument('--table', choices=kit_campaign.TABLE_MODES,
+                        help='start: solo (one player) or shared (several players taking turns); '
+                             'recorded in the save')
+    parser.add_argument('--question-delivered', dest='question_delivered', metavar='ID',
+                        help='start: confirm the lobby question with this question_id was shown to the player '
+                             '(until confirmed, it is raised again)')
+    parser.add_argument('--modules', help='start: a folder of module/room files the player attached '
+                                          '(default: rooms/). Only loadable, non-stub files are offered.')
     parser.add_argument('--area', help='start: begin in this area of the room (default: its starting_area)')
     parser.add_argument('--model', help='Optional standalone Responses API model for play')
     parser.add_argument('--perception', type=int, help='Test character Wisdom (Perception) modifier')
@@ -5620,6 +5687,10 @@ def main():
         # Kit before any game: the persona text the bridge uses, with no database or scene.
         sys.stdout.write(persona_text())
         return 0
+    if args.command == 'start' and args.question_delivered:
+        done = kit_campaign.confirm_question_delivered(args.db, question_id=args.question_delivered)
+        print(json.dumps({'question_delivered': args.question_delivered, 'confirmed': done}))
+        return 0 if done else 2
     if args.command == 'start':
         try:
             if args.room and not args.regression:
@@ -5632,7 +5703,13 @@ def main():
                     print(json.dumps(kit_campaign.need_character(args.room, source), ensure_ascii=False))
                     return 0
             result = start_session(args.db, args.sheet, room=args.room, area=args.area,
-                                   manifests=not args.full, campaign=args.campaign)
+                                   manifests=not args.full, campaign=args.campaign,
+                                   intent=args.intent, table=args.table, modules=args.modules)
+            if args.room and args.table and isinstance(result, dict):
+                kit_campaign.record_table_mode(args.db, args.table)
+                result['table_mode'] = args.table
+            if args.room and isinstance(result, dict):
+                _lobby_question_delivery(args, result)
         except kit_rooms.RoomMountError as exc:
             print(json.dumps(exc.host_view(), ensure_ascii=False), file=sys.stderr)
             return 2
@@ -5770,6 +5847,8 @@ def main():
                                         host_retry=HOST_RETRY_NOTE)
                 print(json.dumps(rejected, ensure_ascii=False), file=sys.stderr)
                 return 2
+            if isinstance(result, dict):
+                _lobby_question_delivery(args, result)
             # Compact by default: the chat host reads this whole packet every turn, and
             # indentation alone added about a quarter to its size. --pretty for people.
             print(json.dumps(result, ensure_ascii=False,
