@@ -26,3 +26,6 @@ kit_appraise.json
 
 # Private, player-supplied adventures (runtime/kit_adventure.py). Never commit.
 *.adventure/
+
+# Per-turn latency telemetry next to the save (runtime/kit_telemetry.py).
+*.telemetry.jsonl

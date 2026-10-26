@@ -296,7 +296,8 @@ fixed in general code, tested on the watchroom and the 17a stub (`tests/test_kit
 - **Open threads.** A decision may carry `open_threads` {plant: [{id, hint}], pay: [ids],
   drop: [ids]}. They live in state (`open_threads`), every prepare packet lists them, and
   `due` is true once the scene is ending (stage resolution). Paying an unknown id is refused.
-- **First-try lines.** Every packet opens with `first_try`: the constraints this turn checks
+- **First-try lines.** Every packet's per-turn part opens with `first_try`, right after the stable
+  contract (instructions, schema, limits; kept first so a cached prefix can be reused): the constraints this turn checks
   (reply_to, the story bases, the actor ids, the appraisal labels, the speakers and the heard,
   terse speakers, a due hook, a check request, a threshold view, open threads).
 

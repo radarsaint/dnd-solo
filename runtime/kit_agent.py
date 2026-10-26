@@ -56,6 +56,8 @@ from . import kit_acts
 from . import kit_lifecycle
 from . import kit_claims
 from . import kit_manifest
+from . import kit_compact
+from . import kit_telemetry
 from . import kit_router
 from . import kit_agenda, kit_plan, kit_threads, pc_sheet
 from . import kit_detail
@@ -5505,12 +5507,15 @@ def window_scene(runtime, state):
 
 class KitChatBridge:
     """Host this model loop in an assistant chat, with no API credential in Python."""
-    def __init__(self, runtime, adjudicator=None, manifests=False):
+    def __init__(self, runtime, adjudicator=None, manifests=False, compact=False):
         """``manifests``: send one-pass packets in three layers (kit_manifest; the live CLI
-        does). Off by default, so staged evals and the Python API see the full packet."""
+        does). Off by default, so staged evals and the Python API see the full packet.
+        ``compact``: send one-pass packets in compact form (kit_compact; latency condition D).
+        Opt-in only; it takes the place of layering for that bridge."""
         self.runtime = runtime
         self.adjudicator = adjudicator or RoomAdjudicator()
-        self.manifests = manifests
+        self.manifests = manifests and not compact
+        self.compact = compact
 
     def try_prepare(self, *args, **kwargs):
         """prepare() for hosts: a pending ruling never crashes the turn. It comes back as a
@@ -5605,23 +5610,27 @@ class KitChatBridge:
             notice['table_talk'] = TABLE_TALK_NOTE
         first_try = first_try_lines(self.runtime, body, planning_input)
         if one_pass:
-            packet = {'first_try': first_try, 'turn_id': turn_id, 'stage': 'one_pass', **notice,
-                      'performance_variant': performance_variant,
+            # Stable first (latency research): the unchanging contract leads, so a provider that
+            # caches a matching prefix can reuse it; turn ids and per-turn lines come after.
+            packet = {'performance_variant': performance_variant,
                       'instructions': one_pass_instructions(performance_variant),
                       'schema': ONE_PASS_SCHEMA,
                       'performance_limits': performance_limits(), 'host_retry': HOST_RETRY_NOTE,
+                      'stage': 'one_pass', 'first_try': first_try, 'turn_id': turn_id, **notice,
                       'input': {'private': planning_input,
                                 'public': public_performance_base(self.runtime, body, one_pass=True)}}
         else:
-            packet = {'first_try': first_try, 'turn_id': turn_id, 'stage': 'private_decision', **notice,
-                      'instructions': PRIVATE_INSTRUCTIONS, 'schema': PLAN_SCHEMA,
+            packet = {'instructions': PRIVATE_INSTRUCTIONS, 'schema': PLAN_SCHEMA,
                       'performance_limits': performance_limits(), 'host_retry': HOST_RETRY_NOTE,
+                      'stage': 'private_decision', 'first_try': first_try, 'turn_id': turn_id, **notice,
                       'input': planning_input}
         withheld = kit_reveal.held_texts(self.runtime.source(), body.get('progressive_reveal'))
         if withheld:
             packet['input'] = kit_reveal.withhold(packet['input'], withheld)
         manifest = {}
-        if one_pass and self.manifests:
+        if one_pass and self.compact:
+            packet = kit_compact.compact(packet, self.runtime.path)[0]
+        elif one_pass and self.manifests:
             packet, manifest = self._layer(turn_id, packet)
         # Runtime time and packet size, from the bridge's own clock (docs/architecture/HOST_TIMING.md).
         self.runtime.record_kit_timing(turn_id, runtime_prepare_ms=round((time.perf_counter() - clock) * 1000, 2),
@@ -6068,7 +6077,7 @@ EXAMPLE_SHEET = PROJECT_ROOT / 'tests/fixtures/characters/example_pc.json'
 
 
 def start_session(db, sheet_path=None, runtime=None, room=None, area=None, manifests=False, campaign=None,
-                  intent=None, table=None, modules=None):
+                  intent=None, table=None, modules=None, compact=False):
     """Bootstrap for a host.
 
     No room and no campaign: a greeting. Nothing is mounted. Mad Mage is not assumed.
@@ -6100,10 +6109,13 @@ def start_session(db, sheet_path=None, runtime=None, room=None, area=None, manif
         path = Path(sheet_path) if sheet_path else EXAMPLE_SHEET
         sheet = json.loads(path.read_text(encoding='utf-8'))
         loaded = runtime.set_player_sheet(sheet)
-        prepared = KitChatBridge(runtime, RoomAdjudicator(), manifests=manifests).prepare(
+        prepared = KitChatBridge(runtime, RoomAdjudicator(), manifests=manifests, compact=compact).prepare(
             opening=True, one_pass=True)
         turn = prepared['turn_id']
+        # 'prepared' leads: its stable contract is the start of what the host reads (cache-friendly
+        # prefix); the turn id in next_step comes after it.
         return {
+            'prepared': prepared,
             'stage': 'started', 'db': str(db), 'character': loaded['character'],
             'sheet': str(path), 'example_sheet': not sheet_path,
             'room_id': source.get('id'), 'room': str(room),
@@ -6116,8 +6128,9 @@ def start_session(db, sheet_path=None, runtime=None, room=None, area=None, manif
                           'not the room, mid-scene, add --table-talk to prepare.'
                           + (' Add "manifest": {"session": <session_manifest.hash>, "room": <room_manifest.hash>} '
                              'to every output; a "cached" manifest is the copy you were sent earlier '
-                             '(rehydrate --turn-id T if you lost it).' if manifests else '')),
-            'prepared': prepared,
+                             '(rehydrate --turn-id T if you lost it).' if manifests and not compact else '')
+                          + (' Compact packets: add --compact to every prepare and use prepared.retrieval '
+                             'for anything not in the packet.' if compact else '')),
         }
     finally:
         if own:
@@ -6186,7 +6199,10 @@ def _lobby_question_delivery(args, result):
         pass
 
 
-def main():
+def _main():
+    if sys.argv[1:2] == ['telemetry']:
+        # Latency telemetry (runtime/kit_telemetry.py): report medians/p95, or a hand-timed note.
+        return kit_telemetry.main(sys.argv[2:])
     if sys.argv[1:2] == ['adventure']:
         # Adventure ingestion (runtime/kit_adventure.py): import, compile, status.
         from . import kit_adventure
@@ -6194,7 +6210,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('command', choices=['start', 'init', 'status', 'view', 'prepare', 'decide', 'finish', 'complete',
                                             'abandon', 'feedback', 'character', 'notes', 'play', 'trace',
-                                            'timing', 'persona', 'stamp', 'rehydrate', 'rest'])
+                                            'timing', 'persona', 'stamp', 'rehydrate', 'rest', 'fetch'])
     parser.add_argument('--db', default='kit.sqlite')
     parser.add_argument('--kind', choices=['short', 'long'], help='rest: a short or a long rest (slots and uses '
                                                                   'come back; re-sending the sheet does not)')
@@ -6257,6 +6273,13 @@ def main():
     parser.add_argument('--full', action='store_true',
                         help='prepare --one-pass/start: send the whole packet, not the three layers '
                              '(docs/architecture/MANIFESTS.md)')
+    parser.add_argument('--compact', action='store_true',
+                        help='start/prepare --one-pass: send the compact packet (active scene + contract + '
+                             'retrieval commands; docs/latency/experiment-protocol.md condition D)')
+    parser.add_argument('--part', choices=['persona', 'schema', 'production_layers', 'area'],
+                        help='fetch: what a compact packet left for retrieval')
+    parser.add_argument('--host', help='telemetry: the host running Kit (e.g. chatgpt), if known; '
+                                       'or set KIT_HOST')
     parser.add_argument('--pretty', action='store_true',
                         help='prepare/decide/finish/complete: indent the JSON for reading (default compact)')
     args = parser.parse_args()
@@ -6266,11 +6289,11 @@ def main():
         return 0
     if args.command == 'status':
         # Read-only: the lifecycle state from the save and the exact next command (kit_lifecycle).
-        print(json.dumps(kit_lifecycle.status(args.db), ensure_ascii=False))
+        print(kit_telemetry.dumps(kit_lifecycle.status(args.db), ensure_ascii=False))
         return 0
     if args.command == 'start' and args.question_delivered:
         done = kit_campaign.confirm_question_delivered(args.db, question_id=args.question_delivered)
-        print(json.dumps({'question_delivered': args.question_delivered, 'confirmed': done}))
+        print(kit_telemetry.dumps({'question_delivered': args.question_delivered, 'confirmed': done}))
         return 0 if done else 2
     if args.command == 'start':
         try:
@@ -6278,13 +6301,13 @@ def main():
                 source = kit_rooms.load_room(args.room)
                 refusal = kit_campaign.player_room_refusal(args.room, source)
                 if refusal:
-                    print(json.dumps(refusal, ensure_ascii=False), file=sys.stderr)
+                    print(kit_telemetry.dumps(refusal, ensure_ascii=False), file=sys.stderr)
                     return 2
                 if not args.sheet:
-                    print(json.dumps(kit_campaign.need_character(args.room, source), ensure_ascii=False))
+                    print(kit_telemetry.dumps(kit_campaign.need_character(args.room, source), ensure_ascii=False))
                     return 0
             result = start_session(args.db, args.sheet, room=args.room, area=args.area,
-                                   manifests=not args.full, campaign=args.campaign,
+                                   manifests=not args.full, compact=args.compact, campaign=args.campaign,
                                    intent=args.intent, table=args.table, modules=args.modules)
             if args.room and args.table and isinstance(result, dict):
                 kit_campaign.record_table_mode(args.db, args.table)
@@ -6292,84 +6315,93 @@ def main():
             if args.room and isinstance(result, dict):
                 _lobby_question_delivery(args, result)
         except kit_rooms.RoomMountError as exc:
-            print(json.dumps(exc.host_view(), ensure_ascii=False), file=sys.stderr)
+            print(kit_telemetry.dumps(exc.host_view(), ensure_ascii=False), file=sys.stderr)
             return 2
         except (InvalidChange, PendingRuling) as exc:
-            print(json.dumps({'stage': 'rejected', 'message': str(exc)}, ensure_ascii=False), file=sys.stderr)
+            print(kit_telemetry.dumps({'stage': 'rejected', 'message': str(exc)}, ensure_ascii=False), file=sys.stderr)
             return 2
-        print(json.dumps(result, ensure_ascii=False,
+        print(kit_telemetry.dumps(result, ensure_ascii=False,
                          **({'indent': 2} if args.pretty else {'separators': (',', ':')})))
         return 0
     if args.command == 'init':
         if not args.room:
-            print(json.dumps(kit_campaign.campaign_entry(args.db, args.sheet, campaign=args.campaign),
+            print(kit_telemetry.dumps(kit_campaign.campaign_entry(args.db, args.sheet, campaign=args.campaign),
                              ensure_ascii=False))
             return 0
         try:
             source = kit_rooms.load_room(args.room)
         except kit_rooms.RoomMountError as exc:
-            print(json.dumps(exc.host_view(), ensure_ascii=False), file=sys.stderr)
+            print(kit_telemetry.dumps(exc.host_view(), ensure_ascii=False), file=sys.stderr)
             return 2
         if not args.regression:
             refusal = kit_campaign.player_room_refusal(args.room, source)
             if refusal:
-                print(json.dumps(refusal, ensure_ascii=False), file=sys.stderr)
+                print(kit_telemetry.dumps(refusal, ensure_ascii=False), file=sys.stderr)
                 return 2
         runtime = Runtime(args.db)
         try:
             runtime.initialize(source, source['starting_area'])
-            print(json.dumps(runtime.player_view(), indent=2, ensure_ascii=False))
+            print(kit_telemetry.dumps(runtime.player_view(), indent=2, ensure_ascii=False))
         finally:
             runtime.close()
         return 0
     runtime = Runtime(args.db)
     try:
         if args.command == 'view':
-            print(json.dumps(runtime.player_view(), indent=2, ensure_ascii=False))
+            print(kit_telemetry.dumps(runtime.player_view(), indent=2, ensure_ascii=False))
+        elif args.command == 'fetch':
+            if not args.part or (args.part == 'area') != bool(args.area):
+                parser.error('fetch requires --part, and --area only with --part area')
+            try:
+                print(kit_telemetry.dumps(fetch_part(runtime, args.part, args.area), ensure_ascii=False))
+            except InvalidChange as exc:
+                print(kit_telemetry.dumps({'stage': 'rejected', 'message': str(exc)}, ensure_ascii=False),
+                      file=sys.stderr)
+                return 2
         elif args.command == 'trace':
-            print(json.dumps(runtime.recent_kit_turns(), indent=2, ensure_ascii=False))
+            print(kit_telemetry.dumps(runtime.recent_kit_turns(), indent=2, ensure_ascii=False))
         elif args.command == 'timing':
-            print(json.dumps([{**row, 'latency': turn_latency(row)} for row in runtime.recent_kit_timings()],
+            print(kit_telemetry.dumps([{**row, 'latency': turn_latency(row)} for row in runtime.recent_kit_timings()],
                              indent=2, ensure_ascii=False))
         elif args.command == 'rehydrate':
             if not args.turn_id:
                 parser.error('rehydrate requires --turn-id')
             try:
-                print(json.dumps(KitChatBridge(runtime).rehydrate(args.turn_id), ensure_ascii=False))
+                print(kit_telemetry.dumps(KitChatBridge(runtime).rehydrate(args.turn_id), ensure_ascii=False))
             except InvalidChange as exc:
-                print(json.dumps({'stage': 'rejected', 'message': str(exc)}, ensure_ascii=False), file=sys.stderr)
+                print(kit_telemetry.dumps({'stage': 'rejected', 'message': str(exc)}, ensure_ascii=False), file=sys.stderr)
                 return 2
         elif args.command == 'stamp':
             if not args.turn_id or not args.stamp:
                 parser.error('stamp requires --turn-id and at least one --stamp NAME=EPOCH_SECONDS')
             try:
-                print(json.dumps(KitChatBridge(runtime).stamp(args.turn_id, **_cli_stamps(args.stamp)),
+                print(kit_telemetry.dumps(KitChatBridge(runtime).stamp(args.turn_id, **_cli_stamps(args.stamp)),
                                  ensure_ascii=False))
             except (InvalidChange, ValueError) as exc:
-                print(json.dumps({'stage': 'rejected', 'message': str(exc)}, ensure_ascii=False), file=sys.stderr)
+                print(kit_telemetry.dumps({'stage': 'rejected', 'message': str(exc)}, ensure_ascii=False), file=sys.stderr)
                 return 2
         elif args.command == 'rest':
             if args.kind not in ('short', 'long'):
                 parser.error('rest requires --kind short or --kind long')
-            print(json.dumps(runtime.rest(args.kind), indent=2, ensure_ascii=False))
+            print(kit_telemetry.dumps(runtime.rest(args.kind), indent=2, ensure_ascii=False))
         elif args.command == 'notes':
-            print(json.dumps(runtime.player_notes(), indent=2, ensure_ascii=False))
+            print(kit_telemetry.dumps(runtime.player_notes(), indent=2, ensure_ascii=False))
         elif args.command == 'character' and args.sheet:
             sheet = json.loads(Path(args.sheet).read_text(encoding='utf-8'))
-            print(json.dumps(runtime.set_player_sheet(sheet), indent=2, ensure_ascii=False))
+            print(kit_telemetry.dumps(runtime.set_player_sheet(sheet), indent=2, ensure_ascii=False))
         elif args.command == 'character' and (args.held is not None or args.active is not None):
             lists = {key: [v.strip() for v in value.split(',') if v.strip()]
                      for key, value in (('held', args.held), ('active', args.active)) if value is not None}
-            print(json.dumps(runtime.set_pc_state(**lists), indent=2, ensure_ascii=False))
+            print(kit_telemetry.dumps(runtime.set_pc_state(**lists), indent=2, ensure_ascii=False))
         elif args.command == 'character':
             if not (args.name and args.ancestry):
                 parser.error('character requires --sheet, or --name and --ancestry')
-            print(json.dumps(runtime.set_player_character(args.name, args.ancestry, args.class_name,
+            print(kit_telemetry.dumps(runtime.set_player_character(args.name, args.ancestry, args.class_name,
                                                           args.level), indent=2, ensure_ascii=False))
         elif args.command in ('prepare', 'decide', 'finish', 'complete', 'abandon', 'feedback'):
             bridge = KitChatBridge(runtime, RoomAdjudicator(args.perception, args.insight,
                                                              sleight_of_hand=args.sleight_of_hand),
-                                   manifests=not args.full)
+                                   manifests=not args.full, compact=args.compact)
             try:
                 if args.command == 'abandon':
                     if not args.turn_id:
@@ -6426,13 +6458,13 @@ def main():
                     if pending and pending['plan'] is not None:
                         rejected.update(decision_fixed=True, retry_instruction=retry_instruction(exc),
                                         host_retry=HOST_RETRY_NOTE)
-                print(json.dumps(rejected, ensure_ascii=False), file=sys.stderr)
+                print(kit_telemetry.dumps(rejected, ensure_ascii=False), file=sys.stderr)
                 return 2
             if isinstance(result, dict):
                 _lobby_question_delivery(args, result)
             # Compact by default: the chat host reads this whole packet every turn, and
             # indentation alone added about a quarter to its size. --pretty for people.
-            print(json.dumps(result, ensure_ascii=False,
+            print(kit_telemetry.dumps(result, ensure_ascii=False,
                              **({'indent': 2} if args.pretty else {'separators': (',', ':')})))
         else:
             if not args.model:
@@ -6472,6 +6504,75 @@ def main():
         runtime.close()
     return 0
 
+
+
+def fetch_part(runtime, part, area=None):
+    """What a compact packet leaves for retrieval (kit_compact). Host-private, like the packet."""
+    if part == 'persona':
+        return {'part': 'persona', 'personality_core': personality_core_text()}
+    if part == 'schema':
+        return {'part': 'schema', 'schema': ONE_PASS_SCHEMA}
+    if part == 'production_layers':
+        context = runtime.context()
+        return {'part': 'production_layers',
+                'missing_production_layers': (context.get('dm_context') or {}).get('missing_production_layers')}
+    source = runtime.source()
+    require(area in (source.get('areas') or {}), f'No area {area!r} in this room')
+    facts = {key: fact for key, fact in (source.get('facts') or {}).items()
+             if isinstance(fact, dict) and fact.get('area') == area}
+    actors = {key: actor for key, actor in (source.get('actors') or {}).items()
+              if isinstance(actor, dict) and actor.get('area') == area}
+    return {'part': 'area', 'area': area, 'area_source': source['areas'][area], 'facts': facts,
+            'actors': actors, 'note': 'DM-side source for another area. Use it to plan; reveal nothing '
+                                      'the player has not earned.'}
+
+
+class _Tee:
+    """stdout that also keeps a copy, so telemetry can size the packet the host received."""
+
+    def __init__(self, stream):
+        self.stream, self.parts = stream, []
+
+    def write(self, text):
+        self.parts.append(text)
+        return self.stream.write(text)
+
+    def flush(self):
+        self.stream.flush()
+
+    def __getattr__(self, name):
+        return getattr(self.stream, name)
+
+
+def main():
+    """The CLI, with one telemetry record per call that names a save (runtime/kit_telemetry.py).
+    Telemetry prints nothing and never changes the result."""
+    argv = sys.argv[1:]
+    command = argv[0] if argv else None
+    if command in (None, 'telemetry', 'persona', '-h', '--help') or not kit_telemetry.enabled():
+        return _main()
+    flag = lambda name: next((a.split('=', 1)[1] if '=' in a else argv[k + 1]  # noqa: E731
+                              for k, a in enumerate(argv)
+                              if (a == name and k + 1 < len(argv)) or a.startswith(name + '=')), None)
+    if command == 'adventure':
+        command = 'adventure ' + (argv[1] if len(argv) > 1 else '')
+    kit_telemetry.reset()
+    tee, real = _Tee(sys.stdout), sys.stdout
+    sys.stdout = tee
+    start = time.perf_counter_ns()
+    code = 1
+    try:
+        code = _main()
+        return code
+    except SystemExit as exc:
+        code = exc.code if isinstance(exc.code, int) else 1
+        raise
+    finally:
+        total = time.perf_counter_ns() - start
+        sys.stdout = real
+        kit_telemetry.record(flag('--db') or 'kit.sqlite', command, total, kit_telemetry.serialization_ns(),
+                             ''.join(tee.parts), turn_id=flag('--turn-id'), host=flag('--host'),
+                             exit_code=code or 0)
 
 if __name__ == '__main__':
     sys.exit(main())

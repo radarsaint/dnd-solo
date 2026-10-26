@@ -346,7 +346,12 @@ class FirstTryHeader(Stalls):
 
     def test_the_packet_opens_with_the_first_try_lines(self):
         packet = self.bridge.prepare(opening=True, one_pass=True)
-        self.assertEqual(next(iter(packet)), 'first_try')
+        # Stable prefix first (latency, docs/latency/experiment-protocol.md): the unchanging
+        # contract leads; first_try is the first per-turn key after it, as in layered packets.
+        keys = list(packet)
+        contract = ('performance_variant', 'instructions', 'schema', 'performance_limits', 'host_retry', 'stage')
+        self.assertEqual(keys[:len(contract)], list(contract))
+        self.assertEqual(keys[len(contract)], 'first_try')
         lines = '\n'.join(packet['first_try'])
         self.assertIn('reply_to is none', lines)
         self.assertIn('scene: scene_state, tease', lines)
