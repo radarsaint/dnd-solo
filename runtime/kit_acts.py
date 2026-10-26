@@ -238,6 +238,10 @@ def model_view(offers):
             view['handles'] = {'targets': offer['targets'], **({'hint': offer['hint']} if offer.get('hint') else {})}
         elif field == 'downed' and offer:
             view['downed'] = {'foes': list(offer.get('names') or offer.get('foes') or ())}
+            if offer.get('companions'):
+                # attack: each foe keeps on whoever it fights (a companion in its reach or who
+                # hurt it), else the PC; turn_away: they leave the PC and fight the companions.
+                view['downed']['companions'] = list(offer['companions'])
     return view
 
 

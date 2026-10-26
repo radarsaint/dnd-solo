@@ -2202,10 +2202,11 @@ class Fight:
                 kit_party.companion_turn(self, key)  # deterministic tactics, no model call
                 del self.kills[kills:]  # a companion's kill is not the PC's (no flourish offer)
             elif self.fight.get('pc_down') and self.active(key) and self.fight.get('vs_downed') is None and \
-                    not kit_party.standing(self) and \
                     not (key in self.fight.get('surprised', []) and self.fight['round'] == 1):
                 foes = self.foes_before_pc()
                 self.fight['awaiting'] = {'kind': 'kit_call', 'call': 'downed', 'foes': foes}
+                if kit_party.standing(self):  # companions are targets too (kit_party.foe_target)
+                    self.fight['awaiting']['companions'] = [self.labels[k] for k in kit_party.standing(self)]
                 self.trace.append(f'the PC is down: Kit calls what {", ".join(foes)} do')
                 break
             elif self.active(key):
@@ -2750,6 +2751,8 @@ class Fight:
             self.lines.append(f'The {self.label(key)} comes through it unhurt.')
             return
         hp = self.fight['hp']
+        if self.party:  # who visibly hurt it last: the foe may answer them (kit_party.foe_target)
+            self.fight.setdefault('attackers', {})[key] = getattr(self, 'acting', None) or 'pc'
         hp[key] = max(0, hp[key] - amount)
         self.trace.append(f'{key} takes {amount} {dtype or ""} damage: {hp[key]}/{self.fight["max_hp"][key]} hp')
         if hp[key] == 0:

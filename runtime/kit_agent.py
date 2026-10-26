@@ -1049,6 +1049,8 @@ class RoomAdjudicator:
         names = kit_combat.labels(self.source)
         offer = {'foes': list(awaiting.get('foes') or ()),
                  'names': [names.get(k, k) for k in awaiting.get('foes') or ()]}
+        if awaiting.get('companions'):
+            offer['companions'] = list(awaiting['companions'])
         return dataclasses.replace(result, offers={**(result.offers or {}), 'downed': offer})
 
     _ENTRY_THEN = re.compile(r"\b(?:and|then)\b|[,;]")

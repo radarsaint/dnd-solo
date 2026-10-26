@@ -79,7 +79,7 @@ class FourCharacterFight(Table):
         trace = self.trace()
         for key in ('brannoc', 'tamsin', 'odile'):
             self.assertIn(f'{key} tactics', trace)  # each companion acted on the engine
-        self.assertIn('lantern lash at brannoc', trace)  # the defender holds it: it is targeted
+        self.assertIn('lantern lash', trace)  # it fights back (targeting: see Targeting)
         self.assertIn('tamsin rapier', trace)
         self.assertEqual(state['actors']['lantern_wight']['status'], 'dead')
 
@@ -199,6 +199,7 @@ class Fake:
         return 32
 
     def apply_damage(self, key, amount, dtype=None):
+        self.fight.setdefault('attackers', {})[key] = getattr(self, 'acting', None) or 'pc'
         self.damage.append((key, amount))
         self.fight['hp'][key] -= amount
 
@@ -296,6 +297,73 @@ class Tactics(unittest.TestCase):
         fake.party['tamsin']['sheet']['attacks'] = []
         kit_party.companion_turn(fake, 'tamsin')
         self.assertEqual(fake.lines, ['Tamsin takes the Dodge action.'])
+
+
+class Targeting(unittest.TestCase):
+
+    def test_a_ranged_attacker_draws_the_foe(self):
+        fake = Fake(party(tamsin=('striker', 'balanced')), foes=['bandit'], d20=15)
+        fake.party['tamsin']['sheet']['attacks'] = [a for a in sheet('tamsin')['attacks'] if a['name'] == 'shortbow']
+        kit_party.companion_turn(fake, 'tamsin')
+        self.assertEqual(fake.damage, [('bandit', 6)])
+        self.assertNotIn('tamsin', fake.fight.get('marks') or {})  # a bow shot is not melee
+        self.assertEqual(kit_party.foe_target(fake, 'bandit'), 'tamsin')
+        fake.apply_damage('bandit', 3)  # then the PC hurts it: it answers the PC
+        self.assertEqual(kit_party.foe_target(fake, 'bandit'), 'pc')
+
+    def test_a_spellcaster_draws_the_foe_and_melee_holds_it(self):
+        fake = Fake(party(odile=('striker', 'conserve'), brannoc=('defender', 'balanced')), foes=['bandit'], d20=2)
+        kit_party.companion_turn(fake, 'odile')  # Sacred Flame: the bandit fails its save
+        self.assertIn('sacred flame', ' '.join(fake.trace))
+        self.assertEqual(kit_party.foe_target(fake, 'bandit'), 'odile')
+        fake.fight['marks'] = {'brannoc': 'bandit'}
+        self.assertEqual(kit_party.foe_target(fake, 'bandit'), 'brannoc')  # the defender in its reach
+        kit_party.hurt_companion(fake, 'brannoc', 28)
+        self.assertEqual(kit_party.foe_target(fake, 'bandit'), 'odile')  # the downed are left alone
+
+    def test_downed_pc_follows_kits_call(self):
+        fake = Fake(party(tamsin=('striker', 'balanced')), foes=['bandit'])
+        fake.fight['pc_down'] = True
+        fake.fight['vs_downed'] = 'attack'
+        self.assertEqual(kit_party.foe_target(fake, 'bandit'), 'pc')  # nobody else fights it
+        fake.fight['vs_downed'] = 'turn_away'
+        self.assertEqual(kit_party.foe_target(fake, 'bandit'), 'tamsin')
+        fake.fight['vs_downed'] = 'attack'
+        fake.fight['attackers'] = {'bandit': 'tamsin'}
+        self.assertEqual(kit_party.foe_target(fake, 'bandit'), 'tamsin')
+
+
+class DownedWithCompanions(Table):
+
+    def _downed(self, party):
+        self.begin(party=party)
+        self.act('I look around the cellar.')
+        self.act(INITIATIVE)
+        revision, state = self.runtime.load()
+        combat = state['combat']
+        combat.update(pc_down=True, pc_damage=32, vs_downed=None, awaiting=None,
+                      next=combat['order'].index('lantern_wight'))
+        fight = kit_combat.Fight(self.runtime.source(), state, revision, 'x', check=None, roll=lambda: 10)
+        fight.run_npcs()
+        return fight
+
+    def test_kits_call_is_kept_and_offers_the_companions(self):
+        fight = self._downed(PARTY)
+        awaiting = fight.fight['awaiting']
+        self.assertEqual((awaiting['kind'], awaiting['call']), ('kit_call', 'downed'))
+        self.assertEqual(sorted(awaiting['companions']), ['Brannoc', 'Odile', 'Tamsin'])
+        from runtime import kit_acts
+        view = kit_acts.model_view({'downed': {'foes': ['lantern_wight'], 'names': ['Lantern Wight'],
+                                               'companions': awaiting['companions']}})
+        self.assertEqual(view['downed']['companions'], awaiting['companions'])
+        fight.resume_downed('turn_away')
+        self.assertRegex(' '.join(fight.trace), r'lantern lash at (brannoc|odile|tamsin)')
+
+    def test_solo_downed_call_is_unchanged(self):
+        fight = self._downed(())
+        self.assertEqual(fight.fight['awaiting'], {'kind': 'kit_call', 'call': 'downed', 'foes': ['lantern_wight']})
+        self.assertNotIn('attackers', fight.fight)
+        self.assertNotIn('party_state', [e['type'] for e in fight.events()])
 
 
 class Combatant(unittest.TestCase):

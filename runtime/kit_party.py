@@ -26,6 +26,7 @@ import re
 
 from .state_context import require
 
+RANGED_WEAPON = re.compile(r'bow|crossbow|sling|dart|javelin', re.I)
 ROLES = ('defender', 'striker', 'healer')
 POLICIES = ('conserve', 'balanced', 'aggressive')
 INCAPACITATING = ('incapacitated', 'paralyzed', 'petrified', 'stunned', 'unconscious')
@@ -319,6 +320,14 @@ def _cantrip_mult(level):
 
 
 def resolve(fight, key, action):
+    fight.acting = key  # damage it deals is credited to it (Fight.apply_damage)
+    try:
+        _resolve(fight, key, action)
+    finally:
+        fight.acting = None
+
+
+def _resolve(fight, key, action):
     me = fight.party[key]
     sheet, ledger, name = me['sheet'], me['ledger'], me['sheet']['name']
     act, what, target = action['act'], action.get('with'), action.get('target')
@@ -375,7 +384,8 @@ def resolve(fight, key, action):
         attack = next(a for a in sheet['attacks'] if a['name'] == what)
         to_hit, damage, dtype, verb = int(attack['to_hit']), average(attack['damage']), attack['type'], \
             f'attacks the {foe_name} with'
-        fight.fight.setdefault('marks', {})[key] = target  # in melee with it: foes answer this
+        if not RANGED_WEAPON.search(what):
+            fight.fight.setdefault('marks', {})[key] = target  # in melee with it: foes answer this
     die = fight.die(f'party:{key}:attack:{target}:r{fight.fight["round"]}')
     if 'poisoned' in me['conditions']:
         die = min(die, fight.die(f'party:{key}:attack:{target}:r{fight.fight["round"]}:dis'))
@@ -431,15 +441,22 @@ def standing(fight):
 
 
 def foe_target(fight, foe):
-    """Who a foe swings at: whoever is in melee with it (a defender holds it), else the PC.
-    Downed companions are left alone (they are no threat)."""
-    marks = (fight.fight.get('marks') or {})
-    engaged = [k for k, f in marks.items() if f == foe and k in standing(fight)]
-    if engaged:
-        defenders = [k for k in engaged if fight.party[k]['role'] == 'defender']
+    """Who a foe attacks, deterministically: a standing companion in melee with it (a defender
+    first); else whoever visibly hurt it last, if that is a standing companion (a ranged or
+    spellcasting attacker draws it too); else the PC. Downed companions are left alone. With
+    the PC down, Kit's call (kit_acts downed) still decides: ``attack`` keeps each foe on its
+    own fight as above, ``turn_away`` sends it at the standing companions instead."""
+    up = standing(fight)
+    marks = fight.fight.get('marks') or {}
+    engaged = [k for k, f in marks.items() if f == foe and k in up]
+    defenders = [k for k in engaged if fight.party[k]['role'] == 'defender']
+    if defenders or engaged:
         return (defenders or engaged)[0]
-    if fight.fight.get('pc_down') and standing(fight):
-        return standing(fight)[0]
+    last = (fight.fight.get('attackers') or {}).get(foe)
+    if last in up:
+        return last
+    if fight.fight.get('pc_down') and fight.fight.get('vs_downed') == 'turn_away' and up:
+        return up[0]
     return 'pc'
 
 
