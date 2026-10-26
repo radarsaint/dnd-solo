@@ -788,7 +788,7 @@ class Runtime:
         next_revision = self.commit(f'character-{digest}', revision, [event])
         return {'revision': next_revision, 'character': character}
 
-    def set_player_sheet(self, sheet):
+    def set_player_sheet(self, sheet, intake=None):
         """Load the player character's sheet (runtime/pc_sheet.py, any class or
         ancestry). It also sets the public identity, like set_player_character."""
         from . import pc_sheet
@@ -798,6 +798,7 @@ class Runtime:
         pc_sheet.check_sheet(sheet)
         revision, _ = self.load()
         event = {'type': 'player_sheet', 'sheet': sheet,
+                 **({'intake': intake} if intake else {}),
                  'evidence': 'The host loaded the player character\'s sheet.'}
         digest = hashlib.sha256(f'{revision}:{encode(event)}'.encode()).hexdigest()[:16]
         next_revision = self.commit(f'sheet-{digest}', revision, [event])
@@ -1058,6 +1059,11 @@ class Runtime:
             # The reaction inventory, slots and uses, rebuilt from the sheet; what was spent since the
             # last rest stays spent (re-sending or editing the sheet is not a rest: #101 review D7).
             state['pc_resources'] = kit_reactions.carry_spent(kit_reactions.build(sheet), state.get('pc_resources'))
+            # Where this sheet came from and when (P5). No timing gate: the player manages their own sheet.
+            intake = event.get('intake') or {'kind': 'json'}
+            require(isinstance(intake, dict) and all(isinstance(v, (str, type(None))) for v in intake.values()),
+                    'player_sheet intake is {kind, at, named_by_player, imported_at}')
+            state['sheet_import'] = {**copy.deepcopy(intake), 'long_rests': state.get('long_rests', 0)}
         elif kind == 'pc_resources':
             from . import kit_reactions
             state['pc_resources'] = copy.deepcopy(kit_reactions.check(event.get('resources')))
@@ -1066,6 +1072,8 @@ class Runtime:
             require(event.get('kind') in ('short', 'long'), 'A rest is short or long')
             state['pc_resources'] = kit_reactions.rest(kit_reactions.current(state), state.get('player_sheet') or {},
                                                        event['kind'])
+            if event['kind'] == 'long':
+                state['long_rests'] = int(state.get('long_rests') or 0) + 1
         elif kind == 'claim_said':
             from . import kit_claims
             said = event.get('said')

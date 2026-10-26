@@ -65,6 +65,7 @@ HARD RULES
 - No paid API. Never run "play", never set/read OPENAI_API_KEY, never call a model API. You are the model.
 - PC state: the situation defaults plus the player's words determine held/active gear. Do not stall for unnecessary equipment questions.
 - Character changes: character --db kit.sqlite --sheet <file>; held/active state uses character --held ... --active ...
+- Sheet PDF: import-sheet --db kit.sqlite --pdf <file>; follow its next_step.
 - view --db kit.sqlite is for the host; never show it raw.
 
 SAVING

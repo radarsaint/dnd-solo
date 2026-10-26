@@ -225,6 +225,12 @@ NEW_CAMPAIGN_ASK = [
     {'key': 'journal_mode', 'question': 'One journal for the whole campaign, or one per character?',
      'options': ['campaign', 'character'],
      'then': 'Pass save --journal-mode <choice> on the first save. It sticks.'},
+    {'key': 'master_sheet', 'question': "What's your master sheet?",
+     'options': ['D&D Beyond', 'Avrae GSheet', 'paper', 'JSON'],
+     'then': 'Pass import-sheet --master-sheet "<their answer>" when the sheet comes in.'},
+    {'key': 'sheet_upload', 'question': 'Upload a PDF or JSON of it (or use the example).',
+     'options': ['pdf', 'json', 'example'],
+     'then': 'A PDF: import-sheet --pdf <file>. A JSON: start --sheet <file>. The example only if they ask for it.'},
 ]
 
 
