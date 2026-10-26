@@ -233,9 +233,9 @@ class Combatants(Base):
             kit_adventure.compile_location(self.db, '3', draft={'room': room, 'provenance': side})
         self.assertIn('actors.ogre has no source quote in this location', caught.exception.problems)
 
-    def test_a_fight_in_a_compiled_room_runs_on_the_engine(self):
-        kit_adventure.compile_location(self.db, '3', neighbours=False)
-        started = start_session(self.db, NIK, room=kit_adventure.room_file(self.db, '3'))
+    def _session(self, key):
+        kit_adventure.compile_location(self.db, key, neighbours=False)
+        started = start_session(self.db, NIK, room=kit_adventure.room_file(self.db, key))
         runtime = Runtime(self.db)
         self.addCleanup(runtime.close)
         adjudicator = RoomAdjudicator(roll=lambda: 10, npc_roll=lambda: 10, source=runtime.source())
@@ -245,13 +245,58 @@ class Combatants(Base):
             revision, state = runtime.load()
             result = adjudicator.resolve(line, revision, state)
             runtime.commit(f't{revision}', revision, list(result.events))
-            return result, runtime.load()[1]['combat']
+            return result, runtime.load()[1].get('combat') or {}
+        return started, runtime, act
 
+    @staticmethod
+    def _public(started):
+        """Everything in the start packet except the DM-only context."""
+        packet = json.loads(json.dumps(started))
+        packet['prepared']['input']['private'].pop('dm_context', None)
+        return json.dumps(packet).lower()
+
+    def test_creatures_not_in_read_aloud_text_start_hidden(self):
+        for key in '234':
+            room, side = self.room(key)
+            for akey, actor in room['actors'].items():
+                self.assertEqual((actor['status'], actor['visible']), ('hidden', False), akey)
+            woken = {a for t in room['triggers'] for a in t['actors']}
+            self.assertEqual(woken, set(room['actors']))
+            for t in room['triggers']:
+                self.assertIn(f"triggers.{t['id']}", side['fields'])
+
+    def test_back_room_bandits_wait_for_the_ledger(self):
+        room, _ = self.room('2')
+        trigger, = room['triggers']
+        ledger = trigger['on']['disturb']
+        self.assertIn('ledger', room['facts'][ledger]['text'])
+        self.assertEqual(room['facts'][ledger]['handling'], {'nouns': ['ledger']})
+        started, runtime, act = self._session('2')
+        act('I look around the tollhouse.')  # entering does not wake them
+        self.assertNotIn('bandit', self._public(started))
+        self.assertNotIn('bandit', json.dumps(runtime.player_view()).lower())
+        self.assertEqual(runtime.load()[1]['actors']['bandit_1']['status'], 'hidden')
+
+    def test_ambusher_is_unnamed_until_revealed_then_fights(self):
+        started, runtime, act = self._session('4')
+        self.assertNotIn('lurker', self._public(started))
+        self.assertNotIn('lurker', json.dumps(runtime.player_view()).lower())
+        result, combat = act('I wade into the shallows.')
+        self.assertEqual(combat['status'], 'awaiting_initiative')  # the trigger fired: revealed
+        self.assertIn('lurker', json.dumps(runtime.player_view()).lower())
+        act('Rolling initiative.\n**Initiative**: 1d20 (12) + 2 = `14`')
+        result, combat = act('I hit the Reed Lurker with Fire Bolt.\nNik casts Fire Bolt!\n'
+                             '**To Hit**: 1d20 (12) + 7 = `19`\n**Damage**: 2d10 (4, 5) [fire] = `9`')
+        self.assertEqual(combat['hp']['reed_lurker'], 13)  # 22 from the book, minus 9
+
+    def test_a_fight_in_a_compiled_room_runs_on_the_engine(self):
+        started, runtime, act = self._session('3')
+        self.assertNotIn('wight', self._public(started))
+        act('I look around the cellar.')  # the wight shows itself: its trigger fires
+        act('Rolling initiative.\n**Initiative**: 1d20 (12) + 2 = `14`')
         result, combat = act('I hit the Lantern Wight with Fire Bolt.\nNik casts Fire Bolt!\n'
                              '**To Hit**: 1d20 (12) + 7 = `19`\n**Damage**: 2d10 (4, 5) [fire] = `9`')
-        self.assertEqual(result.kind, 'combat_round')
         self.assertEqual(combat['hp']['lantern_wight'], 18)  # 27 from the book, minus 9
-        result, combat = act('Rolling initiative.\n**Initiative**: 1d20 (12) + 2 = `14`')
         self.assertEqual(combat['awaiting']['attacker'], 'lantern_wight')  # the wight swings back
         self.assertEqual(combat['awaiting']['name'], 'lantern lash')
         seen = json.dumps(runtime.player_view())

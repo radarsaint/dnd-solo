@@ -209,6 +209,7 @@ UNSUPPORTED_RE = re.compile(r'^(Multiattack|Spellcasting|Innate Spellcasting|Leg
                             re.M)
 COUNTS = {'a': 1, 'an': 1, 'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5, 'six': 6}
 ACTOR_MAX = 6
+DISTURB_RE = re.compile(r"anyone who (?:touches|disturbs|opens|moves|takes|reads) (?:the |a |an )?([a-z]+)", re.I)
 
 
 def stat_block_span(text, entry):
@@ -387,7 +388,7 @@ def draft_room(db, key, index, text):
     page = next((p for p in index['pages'] if p['page'] == loc['page']), None)
     if page and page['needs_map_look']:
         flags.append(f"page {loc['page']} is mostly map/image: look at the map for layout")
-    actors = {}
+    actors, triggers = {}, []
     from .srd_creatures import CREATURES
     for creature in loc['creatures']:
         name = creature['name']
@@ -407,15 +408,37 @@ def draft_room(db, key, index, text):
         else:
             continue
         mention = _sentence_around(text[start:end], rel)
+        # Player-visible only when the read-aloud text names it; otherwise hidden until its trigger.
+        seen = any(name.lower() in sentence.lower() for _, sentence in read)
+        woken = []
         for n in range(1, count + 1):
             akey = _slug(name) + (f'_{n}' if count > 1 else '')
             actors[akey] = {'name': name.title() if count == 1 else f'{name.title()} {n}', 'location': here,
-                            'status': 'alive', 'visible': True, 'stat_block': block}
+                            'status': 'alive' if seen else 'hidden', 'visible': seen, 'stat_block': block}
+            woken.append(akey)
             prov[f'actors.{akey}'] = {'offset': start + rel, 'quote': mention}
             for field, entry in stat_prov.items():
                 prov[f'actors.{akey}.stat_block.{field}'] = entry
+        if not seen:
+            # The book's own condition when it names a thing here ("attack anyone who touches the
+            # ledger"); otherwise the creature shows itself when the PC arrives.
+            follow = next((t for o, t in dm if o > start + rel and o - (start + rel) < len(mention) + 3), '')
+            follow = follow if re.match(r'(?:They|It|He|She)\b', follow) else ''
+            on, cond = {'enter': here}, DISTURB_RE.search(mention + ' ' + follow)
+            target = cond and next((fk for fk, fact in facts.items()
+                                    if re.search(rf"\b{re.escape(cond.group(1))}\b", fact['text'], re.I)), None)
+            if target:
+                facts[target].setdefault('handling', {'nouns': [cond.group(1).lower()]})
+                prov[f'facts.{target}.handling'] = {'offset': start + rel, 'quote': mention}
+                on = {'disturb': target}
+            prov[f'triggers.reveal_{_slug(name)}'] = {'offset': start + rel, 'quote': mention}
+            triggers.append({'id': f'reveal_{_slug(name)}', 'on': on, 'actors': woken,
+                             'reveal': f'{name[0].upper() + name[1:]} reveals itself.' if count == 1
+                             else f'{count} {name}s reveal themselves.'})
     room = {'id': f"adv-{index['sha256'][:8]}-{_slug(key)}", 'source_ref': f"{index['title']} / {key}. {loc['name']}",
             'starting_area': here, 'areas': areas, 'exits': exits, 'facts': facts, 'actors': actors}
+    if triggers:
+        room['triggers'] = triggers
     sidecar = {'location': key, 'source_sha256': index['sha256'], 'fields': prov,
                'creatures': loc['creatures'],
                'ask_player': [c['name'] for c in loc['creatures'] if c['resolved'] == 'ask_player'],

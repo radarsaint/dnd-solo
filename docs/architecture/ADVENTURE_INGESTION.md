@@ -45,7 +45,7 @@ its yield is poor it refuses and asks the host to extract with `pdftotext -layou
 `validate` refuses: any area, exit or fact with no `{quote, offset}` provenance; a quote that is
 not verbatim in that location's own span; a visible fact quoting DM-only (non read-aloud) text;
 a fact whose text uses words its quote does not; an exit quoting no connection the source states;
-actors (not compiled yet); and anything the room loader itself refuses.
+an unsourced or misquoted creature stat (see Combatants); and anything the room loader itself refuses.
 
 ## Precedence
 
@@ -71,7 +71,14 @@ A passing mention ("someone called the Lantern Wight") is not a combatant.
 
 The validator refuses an actor with no presence quote in the location, an inline stat whose quote is not in
 that creature's book stat block or does not state the number, any extra stat field, or an SRD name the
-runtime does not ship. Stats are dm-only: the player view carries names, never AC, hit points or bonuses.
+runtime does not ship. Stats are dm-only: the player never sees AC, hit points or bonuses.
+
+**Visibility.** A creature is player-visible only when the location's read-aloud text names it.
+Otherwise it compiles `status: "hidden"`, `visible: false` (dm_only and nowhere else) and is woken
+only by a room trigger, the existing reveal path. When the book ties it to something in the room
+("they attack anyone who touches the ledger") the trigger is `disturb` on that fact, which gains
+`handling.nouns` quoting the same sentence; otherwise it is `enter` on the area, so the creature
+shows itself (and the fight starts) on arrival. The trigger is sourced to the creature's sentence.
 
 Partial or unsupported: Multiattack (every listed attack is given to the engine, which uses its own
 attack order), Recharge abilities, Spellcasting, legendary actions, saving-throw riders on attacks,
