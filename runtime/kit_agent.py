@@ -1739,6 +1739,8 @@ class RoomAdjudicator:
             raise clause_ruling(act['steps'])
         if act and act['kind'] == 'ruling':
             act = None  # the room's own trigger handles it, as before
+        if act and act['kind'] == 'ask_target':
+            raise PendingRuling(act['message'], attempt=True)  # which foe: asked, never guessed
         current = state.get('combat') or {}
         fighting = current.get('status') in ('awaiting_initiative', 'running')
         owed = (current.get('awaiting') or {}).get('kind') in ('roll_call', 'kit_call')
