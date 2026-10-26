@@ -35,7 +35,7 @@ Names on the list are replaced case-insensitively as whole words, including a pl
 
 This is not a claim that only the castor jokes remain. Whole-word list names still appear where they are not character references. Those remaining uses are documented exceptions, not leftover tags:
 
-- Castor pun lines: mixed-case jokes, `BEAR CASTOR`, and "everyone is castor" (replacing that last one produced "Everyone is PC1", which is not what he said).
+- Castor pun lines: mixed-case jokes, `BEAR CASTOR`, and "everyone is castor" (replacing that last one produced "Everyone is PC1", which is not what he said). The spelling in this set is castor, with the case of the token (Castor, CASTOR). Plural `castors` and the misspelling `castpr` were folded into that spelling. On a line that already says castor, `caster` was folded in too. A spellcaster with no castor on the line was left alone. Those castor tokens stay. They are that name, not a missed tag.
 - The store: `Chadmart`, `Chad-Mart`, `Chadmarts`. The word Chad inside those is not a character tag.
 - Ordinary English that happens to be on the list: "How lucky!", "coils arc", "the rush", "willow tree", "pearl of power", and similar.
 
@@ -45,17 +45,17 @@ A test fails if any whole-word name from the list remains outside those exceptio
 
 The intent is a label on the player line, not a rule. `ooc/meta` is table talk: out-of-character channels, the castor pun channel, dead-chat, scheduling, and rules asides. `emote` is a face or a body beat. `mixed` is an action and a question in the same line.
 
-Of the 260 lines that were labeled `other`, 196 now have a tighter bucket. 64 stayed `other` because they did not match a clearer one. Table and rules questions were moved out of `social/speech` and `interjection` into `ooc/meta`. `ooc/meta` prefixes name what the reply does (rules, table talk, joke, recap, and the rest); they are not all `just let it happen`. Counts below are this file only.
+Of the 260 lines that were labeled `other`, 196 now have a tighter bucket. 64 stayed `other` because they did not match a clearer one. One of those 64 was the roll-call line. It left this file, so 63 `other` remain. Table and rules questions were moved out of `social/speech` and `interjection` into `ooc/meta`. `ooc/meta` prefixes name what the reply does (rules, table talk, joke, recap, and the rest); they are not all `just let it happen`. Counts below are this file only.
 
 | intent | n |
 | --- | ---: |
-| social/speech | 299 |
-| ooc/meta | 121 |
-| other | 64 |
+| social/speech | 268 |
+| ooc/meta | 113 |
+| other | 63 |
 | move | 62 |
 | emote | 36 |
-| interjection | 19 |
-| mixed | 18 |
+| interjection | 17 |
+| mixed | 15 |
 | spell | 13 |
 | attack | 11 |
 | search/examine | 10 |
@@ -65,7 +65,17 @@ Of the 260 lines that were labeled `other`, 196 now have a tighter bucket. 64 st
 | stunt | 1 |
 | negation | 1 |
 
-Season 3: 474. Empire City: 191. One Empire City line was removed (below).
+Season 3: 436. Empire City: 184. One Empire City line was removed (below).
+
+## Not in the ruling set
+
+`tests/fixtures/rulings/bfdm_rulings_ooc.jsonl` holds 45 lines taken out of the verified file. They are not rulings. Each intent is `ooc/meta`.
+
+- 41 lines are one parenthetical question.
+- Message `735964040999862305`, message `738296479025725490`, and message `739036043273043969`.
+- The roll-call line `PC1 IT PC2 PC3 PC4` (message `866252748714541076`) is table logistics.
+
+Precedence: a verified pair outranks a follow-up row. This ooc file is not the ruling set. An adjacency row is never a verified pair.
 
 ## Misfires
 

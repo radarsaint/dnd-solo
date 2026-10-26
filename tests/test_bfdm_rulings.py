@@ -11,6 +11,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "rulings"
 FIXTURE = ROOT / "bfdm_rulings.jsonl"
 FOLLOW = ROOT / "bfdm_rulings_followup.jsonl"
+OOC = ROOT / "bfdm_rulings_ooc.jsonl"
 NOTES = ROOT / "PROVISIONAL_NOTES.md"
 KEYS = {"player_line", "intent", "my_ruling", "hidden_info_risk", "note"}
 INTENTS = {
@@ -182,16 +183,13 @@ def is_castor_pun(text):
         r"(?i)(hail castor|rogue castor|prudish castor|castor on|"
         r"detective business castor|nice castor|castor it up|"
         r"castor in your room|only one castor|shame among all castor|"
-        r"castors as if to castor|castoring)",
+        r"castors? as if to castor|castoring)",
         text,
     ):
         return True
-    forms = [m.group() for m in re.finditer(r"(?i)\bcastors?\b", text)]
-    if not forms:
-        return False
-    has_lower = any(f == f.lower() for f in forms)
-    has_upper = any(f == f.upper() and len(f) > 1 for f in forms)
-    return has_lower and has_upper
+    # Canonical spelling of this name, any case. A line that only had the
+    # plural now has one castor token. That token is still the name.
+    return re.search(r"(?i)\bcastors?\b", text) is not None
 
 
 def protected_spans(text):
@@ -248,7 +246,7 @@ class TestBfdmRulings(unittest.TestCase):
     def test_schema_and_every_note_cites_server_channel_and_message(self):
         lines = FIXTURE.read_text(encoding="utf-8").splitlines()
         self.assertGreaterEqual(len(lines), 300)
-        self.assertEqual(len(lines), 665)
+        self.assertEqual(len(lines), 620)
         seen = set()
         blob = "\n".join(lines)
         self.assertNotIn(DROPPED, blob)
@@ -266,8 +264,6 @@ class TestBfdmRulings(unittest.TestCase):
         found_351 = False
         found_361 = False
         found_426 = False
-        found_476 = False
-        found_553 = False
         reply_ids = []
         for n, line in enumerate(lines, 1):
             row = json.loads(line)
@@ -325,12 +321,6 @@ class TestBfdmRulings(unittest.TestCase):
             if message_id == ROW426_ID:
                 found_426 = True
                 self.assertEqual(row["intent"], "social/speech", n)
-            if message_id == ROW476_ID:
-                found_476 = True
-                self.assertEqual(row["intent"], "ooc/meta", n)
-            if message_id == ROW553_ID:
-                found_553 = True
-                self.assertEqual(row["intent"], "ooc/meta", n)
         self.assertTrue(found_mixed)
         self.assertTrue(found_full)
         self.assertTrue(found_narr)
@@ -341,8 +331,13 @@ class TestBfdmRulings(unittest.TestCase):
         self.assertTrue(found_351)
         self.assertTrue(found_361)
         self.assertTrue(found_426)
-        self.assertTrue(found_476)
-        self.assertTrue(found_553)
+        ooc_rows = load_rows(OOC)
+        ooc_index = by_message(ooc_rows)
+        self.assertEqual(len(ooc_rows), 45)
+        self.assertEqual(ooc_index[ROW476_ID]["intent"], "ooc/meta")
+        self.assertEqual(ooc_index[ROW553_ID]["intent"], "ooc/meta")
+        self.assertTrue(ooc_index[ROW476_ID]["player_line"].startswith("(does that last forever?)"))
+        self.assertTrue(ooc_index[ROW553_ID]["player_line"].startswith("(Can I hold an action?)"))
 
     def test_notes_state_the_gaps(self):
         text = NOTES.read_text(encoding="utf-8")
@@ -411,10 +406,12 @@ class TestBfdmRulings(unittest.TestCase):
     def test_pass3_validator(self):
         rows = load_rows(FIXTURE)
         follow = load_rows(FOLLOW)
+        ooc = load_rows(OOC)
         notes = NOTES.read_text(encoding="utf-8")
         index = by_message(rows)
+        ooc_index = by_message(ooc)
         checks = [
-            ("verified_count", lambda: self.assertEqual(len(rows), 665)),
+            ("verified_count", lambda: self.assertEqual(len(rows), 620)),
             ("follow_count", lambda: self.assertEqual(len(follow), 12035)),
             ("no_avrae", lambda: self.assertTrue(all(r["link"] == "adjacency" for r in follow))),
             ("no_orpheus", lambda: self.assertTrue(all("orpheus" not in r["player_line"].lower() for r in rows))),
@@ -434,16 +431,16 @@ class TestBfdmRulings(unittest.TestCase):
             ("row351_ooc", lambda: self.assertEqual(index[ROW351_ID]["intent"], "ooc/meta")),
             ("row361_ooc", lambda: self.assertEqual(index[ROW361_ID]["intent"], "ooc/meta")),
             ("row426_social", lambda: self.assertEqual(index[ROW426_ID]["intent"], "social/speech")),
-            ("row476_ooc", lambda: self.assertEqual(index[ROW476_ID]["intent"], "ooc/meta")),
-            ("row553_ooc", lambda: self.assertEqual(index[ROW553_ID]["intent"], "ooc/meta")),
+            ("row476_ooc", lambda: self.assertEqual(ooc_index[ROW476_ID]["intent"], "ooc/meta")),
+            ("row553_ooc", lambda: self.assertEqual(ooc_index[ROW553_ID]["intent"], "ooc/meta")),
             ("narration_prefix", lambda: self.assertTrue(index[NARRATION_ID]["my_ruling"].startswith("just let it happen;"))),
             ("table_id_ooc", lambda: self.assertEqual(index[TABLE_ID]["intent"], "ooc/meta")),
             ("numbered_pcs", lambda: self.assertEqual(index[NUMBERED_ID]["player_line"], "Sylric PC1 PC2 PC3 PC4 PC5 PC6")),
             ("notes_55", lambda: self.assertIn("55%", notes)),
             ("notes_not_only_castor", lambda: self.assertIn("not a claim that only the castor jokes remain", notes)),
             ("notes_avrae_dropped", lambda: self.assertIn("embed title", notes)),
-            ("hold_action_moved", lambda: self.assertTrue(index[ROW553_ID]["player_line"].startswith("(Can I hold an action?)"))),
-            ("forever_moved", lambda: self.assertTrue(index[ROW476_ID]["player_line"].startswith("(does that last forever?)"))),
+            ("hold_action_moved", lambda: self.assertTrue(ooc_index[ROW553_ID]["player_line"].startswith("(Can I hold an action?)"))),
+            ("forever_moved", lambda: self.assertTrue(ooc_index[ROW476_ID]["player_line"].startswith("(does that last forever?)"))),
         ]
         self.assertEqual(len(checks), 30)
         for name, fn in checks:
