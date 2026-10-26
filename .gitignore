@@ -26,3 +26,4 @@ kit_appraise.json
 
 # Private, player-supplied adventures (runtime/kit_adventure.py). Never commit.
 *.adventure/
+*.telemetry.jsonl
