@@ -1,0 +1,56 @@
+{
+  "id": "synthetic-judgment-yard",
+  "fixture_only": true,
+  "_note": "Synthetic yard for one advisory annotation. Not adventure content and not Area 6c. The _judgment block names situations. Live state, not these booleans, says whether an exception is still open.",
+  "starting_area": "yard",
+  "areas": {
+    "yard": {
+      "name": "The yard",
+      "called": "the yard",
+      "arrival": "The newcomer comes into a small bare yard."
+    },
+    "lane": {
+      "name": "The lane",
+      "called": "the lane",
+      "outside": true,
+      "beyond": true
+    }
+  },
+  "exits": {
+    "lane": {
+      "name": "the lane",
+      "areas": ["yard", "lane"],
+      "secret": false,
+      "labels": {
+        "yard": "A lane runs out of the yard.",
+        "lane": "The lane leads back into the yard."
+      }
+    }
+  },
+  "facts": {
+    "post": {
+      "area": "yard",
+      "visible": true,
+      "layer": "obvious",
+      "text": "A weathered post stands in the middle of the yard."
+    }
+  },
+  "actors": {},
+  "_judgment": {
+    "encounters": [
+      {
+        "id": "yard_post",
+        "area": "yard",
+        "prepared": true,
+        "assumes": {"min_hp": 16, "min_slots_remaining": 1}
+      }
+    ],
+    "constraints": [
+      {
+        "id": "post_rule",
+        "area": "yard",
+        "exception_open": true
+      }
+    ]
+  }
+}

@@ -1,0 +1,54 @@
+# Cross-repo check for the pinned BFDM judgment records.
+# Checks out radarsaint/bfdm-corpus at the SHA in the pin file and compares
+# statuses and evidence locators. No model call and no paid API.
+# A missing checkout is a failure here. The unit test still skipTests when
+# neither this workflow nor a local checkout is present.
+
+name: bfdm-judgment-pin
+
+on:
+  pull_request:
+    paths:
+      - 'runtime/kit_judgment.py'
+      - 'tests/test_kit_judgment.py'
+      - 'tests/fixtures/judgment/**'
+      - '.github/workflows/bfdm-judgment-pin.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'runtime/kit_judgment.py'
+      - 'tests/test_kit_judgment.py'
+      - 'tests/fixtures/judgment/**'
+      - '.github/workflows/bfdm-judgment-pin.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  pin:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Checkout the pinned bfdm-corpus commit
+        run: |
+          set -eu
+          python3 - << 'PY'
+          import json
+          from pathlib import Path
+          pin = json.loads(Path('tests/fixtures/judgment/bfdm-bounded-judgment-pin.json').read_text())
+          Path('/tmp/pin-sha').write_text(pin['commit'].strip())
+          PY
+          sha=$(cat /tmp/pin-sha)
+          git clone --filter=blob:none --no-checkout https://github.com/radarsaint/bfdm-corpus.git /tmp/bfdm-judgment
+          git -C /tmp/bfdm-judgment fetch --depth 1 origin "$sha"
+          git -C /tmp/bfdm-judgment checkout --detach FETCH_HEAD
+          test "$(git -C /tmp/bfdm-judgment rev-parse HEAD)" = "$sha"
+
+      - name: Statuses, evidence locators, and the pinned SHA
+        env:
+          BFDM_CORPUS: /tmp/bfdm-judgment
+          BFDM_JUDGMENT_REQUIRED: '1'
+        run: |
+          env -u PYTHONPATH python3 -m unittest discover -s tests -p test_kit_judgment.py -v
