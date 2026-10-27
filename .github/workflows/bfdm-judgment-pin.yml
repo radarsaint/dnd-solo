@@ -28,10 +28,14 @@ permissions:
 jobs:
   pin:
     runs-on: ubuntu-latest
+    env:
+      # Raw-git form of actions/checkout lfs:false. A full checkout smudges every
+      # Git LFS Discord attachment and the runner disk fills (exit 128).
+      GIT_LFS_SKIP_SMUDGE: "1"
     steps:
       - uses: actions/checkout@v4
 
-      - name: Checkout the pinned bfdm-corpus commit
+      - name: Checkout the pinned bfdm-corpus file
         run: |
           set -eu
           python3 - << 'PY'
@@ -39,12 +43,17 @@ jobs:
           from pathlib import Path
           pin = json.loads(Path('tests/fixtures/judgment/bfdm-bounded-judgment-pin.json').read_text())
           Path('/tmp/pin-sha').write_text(pin['commit'].strip())
+          Path('/tmp/pin-path').write_text(pin['path'].strip())
           PY
           sha=$(cat /tmp/pin-sha)
+          path=$(cat /tmp/pin-path)
           git clone --filter=blob:none --no-checkout https://github.com/radarsaint/bfdm-corpus.git /tmp/bfdm-judgment
           git -C /tmp/bfdm-judgment fetch --depth 1 origin "$sha"
-          git -C /tmp/bfdm-judgment checkout --detach FETCH_HEAD
+          # The job only compares this one JSONL. Do not materialize the rest of the tree.
+          git -C /tmp/bfdm-judgment sparse-checkout set --no-cone "$path"
+          git -C /tmp/bfdm-judgment -c filter.lfs.smudge= -c filter.lfs.process= -c filter.lfs.required=false checkout --detach FETCH_HEAD
           test "$(git -C /tmp/bfdm-judgment rev-parse HEAD)" = "$sha"
+          test -s "/tmp/bfdm-judgment/$path"
 
       - name: Statuses, evidence locators, and the pinned SHA
         env:

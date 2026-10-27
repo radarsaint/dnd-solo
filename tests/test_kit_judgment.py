@@ -16,7 +16,7 @@ import subprocess
 import unittest
 from pathlib import Path
 
-from runtime import kit_combat, kit_judgment, kit_reactions, kit_rooms
+from runtime import kit_claims, kit_combat, kit_judgment, kit_reactions, kit_rooms
 from runtime.kit_agent import KitAgent, KitChatBridge, RoomAdjudicator, check_public_content, start_session
 from runtime.state_context import BOOKKEEPING_EVENTS, COMMIT_APPENDED_EVENTS, InvalidChange, Runtime
 from test_kit_agent import FIXTURE, RecordingModel
@@ -164,11 +164,38 @@ class StateSelects(unittest.TestCase):
                                  "text": "The vault word is silverlane"}}
         state = {"area": AREA, "actors": {"uktarl": {"location": AREA}}}
         self.assertIsNone(kit_judgment.select(source, state, "social"))
-        source["claims"]["portfolio"]["holders"] = {"clerk": "knows"}
+        # Listed unaware is the engine's ignorant band. A missing holders entry is not.
+        source["claims"]["portfolio"]["holders"] = {"clerk": "knows", "uktarl": "unaware"}
         card = kit_judgment.select(source, state, "social")["applied"][0]
         self.assertEqual(card["id"], "BJ-005")
         self.assertIn("not a play transcript", card["advisory"])
         self.assertNotIn("silverlane", json.dumps(card))
+
+    def test_an_unlisted_present_npc_with_engine_band_knows_is_not_ignorant(self):
+        """BJ-005 follows kit_claims.npc_band. Absence from a nonempty holders map is not ignorance.
+
+        Passive Insight 10 against DC 10 is the engine band ``knows``. A granted
+        capability is ``knows`` even when the passive would fall short. Neither emits
+        present_npc_does_not_hold_claim.
+        """
+        source = room(unknown_to=[{"actor": "uktarl", "claim": "portfolio"}])
+        abilities = {"str": 10, "dex": 10, "con": 10, "int": 10, "wis": 10, "cha": 10}
+        actors = {"uktarl": {"location": AREA, "stats": {
+            "abilities": abilities, "skills": {}, "proficiency_bonus": 2}}}
+        claim = {"holders": {"clerk": "knows"}, "dc": 10, "npc_check": "insight",
+                 "text": "The vault word is silverlane"}
+        source["claims"] = {"portfolio": claim}
+        state = {"area": AREA, "actors": actors}
+        level = kit_claims.current_floor_level(source, AREA)
+        self.assertEqual(kit_claims.npc_band(claim, "uktarl", actors, AREA, level), "knows")
+        self.assertIsNone(kit_judgment.select(source, state, "social"))
+
+        granted = {"holders": {"clerk": "knows"}, "dc": 30, "npc_check": "insight",
+                   "granted_by": ["read_thoughts"], "text": "The vault word is silverlane"}
+        source["claims"] = {"portfolio": granted}
+        actors["uktarl"]["stats"]["special"] = ["read_thoughts"]
+        self.assertEqual(kit_claims.npc_band(granted, "uktarl", actors, AREA, level), "knows")
+        self.assertIsNone(kit_judgment.select(source, state, "social"))
 
     def test_standing_is_live_state_and_a_sentence_does_not_erase_it(self):
         source = room(settled=[{"id": "resurrection", "area": AREA, "standing": True}])
@@ -390,6 +417,67 @@ class TurnPath(Base):
         self.assertNotIn("746253583552479272", json.dumps(self.model.performances[-1]))
         self.assertEqual(self.runtime.load()[1]["player_sheet"]["hp"], 32)
         self.assertEqual(nik["slots"], {"1": 4, "2": 3, "3": 2})
+
+
+class LinkedRoomSeed(unittest.TestCase):
+    """A linked room is mounted by arrive(), which does not call Runtime.initialize()."""
+
+    def _room(self, folder, name, room_id, area, judgment=None):
+        body = {
+            "id": room_id,
+            "fixture_only": True,
+            "starting_area": area,
+            "areas": {area: {"name": area, "called": area}},
+            "exits": {},
+            "facts": {"stone": {"area": area, "visible": True, "text": "The stone is bare."}},
+            "actors": {},
+        }
+        if judgment is not None:
+            body["_judgment"] = judgment
+        path = folder / name
+        path.write_text(json.dumps(body), encoding="utf-8")
+        return path
+
+    def test_a_first_arrival_seeds_judgment_and_a_revisit_keeps_the_archive(self):
+        import tempfile
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        folder = Path(temp.name)
+        here = self._room(folder, "here.json", "synthetic-judgment-here", "hall")
+        nxt = self._room(folder, "next.json", "synthetic-judgment-next", "yard", judgment={
+            "constraints": [{"id": "post_rule", "area": "yard", "exception_open": True}],
+            "settled": [{"id": "old_call", "area": "yard", "standing": True}],
+            "damage": [{"id": "beam", "area": "yard", "scheduled": False}],
+        })
+        old = kit_rooms.load_room(here)
+        state = {
+            "area": "hall",
+            "visited": ["hall"],
+            "known_facts": [],
+            "known_exits": [],
+            "actors": {},
+            "kit": {"episodes": [], "current_appraisal": None, "player_notes": []},
+            "room": {"id": old["id"], "path": str(here), "turns_in": {}},
+            "judgment": {"open": ["from-here"], "standing": [], "unscheduled": []},
+        }
+        new_source, arrived = kit_rooms.arrive(old, state, {"room": str(nxt), "area": "yard"})
+        self.assertEqual(arrived["area"], "yard")
+        self.assertEqual(arrived["judgment"], {
+            "open": ["post_rule"], "standing": ["old_call"], "unscheduled": ["beam"]})
+        self.assertEqual(arrived["rooms"][old["id"]]["state"]["judgment"]["open"], ["from-here"])
+        packet = kit_judgment.select(new_source, arrived, "social")
+        self.assertEqual([card["id"] for card in packet["applied"]], ["BJ-002", "BJ-003"])
+
+        arrived["judgment"] = {"open": [], "standing": [], "unscheduled": []}
+        back_source, back = kit_rooms.arrive(new_source, arrived, {"room": str(here), "area": "hall"})
+        self.assertEqual(back["judgment"], {"open": ["from-here"], "standing": [], "unscheduled": []})
+        again_source, again = kit_rooms.arrive(back_source, back, {"room": str(nxt), "area": "yard"})
+        self.assertEqual(again["judgment"], {"open": [], "standing": [], "unscheduled": []})
+        self.assertIsNone(kit_judgment.select(again_source, again, "physical_act"))
+        block = again_source["_judgment"]
+        self.assertIs(block["constraints"][0]["exception_open"], True)
+        self.assertIs(block["settled"][0]["standing"], True)
+        self.assertIs(block["damage"][0]["scheduled"], False)
 
 
 class YardMount(unittest.TestCase):

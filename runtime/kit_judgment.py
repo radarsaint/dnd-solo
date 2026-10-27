@@ -24,7 +24,8 @@ that live list. The historical sentence on each card stays the pinned record.
 
 ``prepared`` is static: the encounter is written as prepared. Whether the one
 player character meets its assumption is live hit points and spell slots.
-``unknown_to`` is already live: present actors and claim holders.
+``unknown_to`` is already live: present actors and the engine's knowledge band
+(``kit_claims.npc_band``). A missing holders entry is not ignorance.
 
 Solo scope: one player character. Sheet ``hp`` is the maximum. Damage taken is
 ``state['combat']['pc_damage']``. Spell slots still available are
@@ -299,6 +300,9 @@ def select(source, state, kind='play'):
         break
 
     claims = (source or {}).get('claims') or {}
+    actors = state.get('actors') if isinstance(state.get('actors'), dict) else {}
+    from . import kit_claims
+    floor = kit_claims.current_floor_level(source, area)
     for item in block.get('unknown_to') or ():
         if not isinstance(item, dict):
             continue
@@ -307,10 +311,11 @@ def select(source, state, kind='play'):
         holders = (claim or {}).get('holders') if isinstance(claim, dict) else None
         if not actor or not isinstance(holders, dict) or not holders:
             continue
-        if holders.get(actor) in ('knows', 'close', 'anchored'):
+        if (actors.get(actor) or {}).get('location') != area:
             continue
-        present = ((state.get('actors') or {}).get(actor) or {}).get('location') == area
-        if not present:
+        # Absence from holders is not ignorance. The claims packet uses this band.
+        band = kit_claims.npc_band(claim, actor, actors, area, floor)
+        if band in ('knows', 'close', 'anchored'):
             continue
         applied.append(_view('BJ-005', 'present_npc_does_not_hold_claim', RECORDS['BJ-005']['advisory']))
         break
