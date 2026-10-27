@@ -126,8 +126,9 @@ def rejection_notice(recent, session_hash):
     rows = list(recent)
     if not rows:
         return None
-    attempts = [a for a in rows[-1].get('attempts') or () if a.get('outcome') == 'rejected']
-    if len(attempts) < REJECT_STREAK:
+    attempts = [a for a in rows[-1].get('attempts') or () if a.get('outcome') in ('rejected', 'engine_line')]
+    # A turn the engine line closed (its narration rejected) counts as the streak by itself (#127).
+    if len(attempts) < REJECT_STREAK and not any(a.get('outcome') == 'engine_line' for a in attempts):
         return None
     reasons = _distinct_reasons(a.get('reason') for a in attempts)
     return {'rejections': len(attempts), 'reasons': reasons, 'session_hash': session_hash,
@@ -184,7 +185,8 @@ SCHEMA_NOTATION = ('schema shorthand: "string" "integer" "boolean" "number" are 
                    '"string(a..b)" has that length range (either end may be empty); "enum:x|y" is one of '
                    'those strings, "int:0|1" one of those integers; [T] is an array of T; an object '
                    'lists its keys, every key required unless it ends in "?", no other keys allowed; '
-                   '"//" is a note; {"$raw": ...} is plain JSON Schema.')
+                   '"//" is a note; "T|null" is T or null; [T, "max:n"] holds at most n items; '
+                   '{"$raw": ...} is plain JSON Schema.')
 _SCALARS = ('string', 'integer', 'boolean', 'number')
 
 
@@ -193,6 +195,8 @@ def compact_schema(node):
     kind = node.get('type')
     if keys == {'type'} and kind in _SCALARS:
         return kind
+    if keys == {'type'} and isinstance(kind, list) and len(kind) == 2 and kind[0] in _SCALARS and kind[1] == 'null':
+        return kind[0] + '|null'
     if keys == {'type', 'enum'} and kind == 'string' and all(
             isinstance(v, str) and '|' not in v and v for v in node['enum']):
         return 'enum:' + '|'.join(node['enum'])
@@ -203,6 +207,9 @@ def compact_schema(node):
         return f"string({node.get('minLength', '')}..{node.get('maxLength', '')})"
     if keys == {'type', 'items'} and kind == 'array':
         return [compact_schema(node['items'])]
+    if keys == {'type', 'items', 'maxItems'} and kind == 'array' and isinstance(node['maxItems'], int) \
+            and not isinstance(node['maxItems'], bool):
+        return [compact_schema(node['items']), f"max:{node['maxItems']}"]
     if (kind == 'object' and node.get('additionalProperties') is False and 'properties' in node
             and keys <= {'type', 'additionalProperties', 'properties', 'required', 'description'}
             and not any(name.endswith('?') or name.startswith('$') or name == '//'
@@ -226,10 +233,15 @@ def compact_schema(node):
 
 def expand_schema(node):
     if isinstance(node, list):
-        return {'type': 'array', 'items': expand_schema(node[0])}
+        out = {'type': 'array', 'items': expand_schema(node[0])}
+        if len(node) == 2:
+            out['maxItems'] = int(node[1][len('max:'):])
+        return out
     if isinstance(node, str):
         if node in _SCALARS:
             return {'type': node}
+        if node.endswith('|null') and node[:-len('|null')] in _SCALARS:
+            return {'type': [node[:-len('|null')], 'null']}
         if node.startswith('enum:'):
             return {'type': 'string', 'enum': node[5:].split('|')}
         if node.startswith('int:'):

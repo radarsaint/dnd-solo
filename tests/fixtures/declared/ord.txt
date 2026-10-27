@@ -1,0 +1,50 @@
+rb|I attack the ogre with my rapier, 16 to hit, 5 piercing.
+rb|Rapier at the ogre: 17 to hit, 6 damage.
+rb|I lunge at the bridge ogre with my rapier. 18 to hit, 7 piercing.
+rb|I thrust my rapier into the ogre's gut, 16 to hit, 5 piercing.
+rb|I slash at the ogre, 16 to hit, 5 piercing.
+rb|I swing my rapier at the ogre — 16 to hit, 5 damage.
+rb|I hit the ogre with my rapier, 16 to hit, 5 piercing.
+rb|I strike at the ogre with my rapier (16 to hit, 5 piercing).
+rb|Attacking the ogre with my rapier. 16 to hit and 5 piercing damage.
+rb|I stab at him with my rapier, 16 to hit, 5 piercing.
+rb|I go for the ogre's knee with my rapier, 16 to hit, 5 piercing.
+rb|I attack the ogre. 16 to hit, 5 piercing.
+rb|I throw a dagger at the ogre, 15 to hit, 4 piercing.
+rb|I hurl my dagger at the bridge ogre: 15 to hit, 4 damage.
+rb|I shoot the ogre with my shortbow, 15 to hit, 6 piercing.
+rb|I back away 15 feet.
+rb|I retreat 10 feet along the bridge.
+rb|I move 10 feet back.
+rb|I fall back.
+rb|I disengage.
+rb|I dodge.
+rb|I take the Dodge action.
+rb|I Dash to the far end of the bridge.
+rb|I use Uncanny Dodge on that hit.
+rb|Uncanny Dodge!
+rb|I'll use my reaction for Uncanny Dodge, then stab the ogre, 16 to hit, 5 piercing.
+rb|I stab the ogre, 16 to hit, 5 piercing, then use Cunning Action to disengage and back off 10 feet.
+rb|With a snarl I drive my rapier at the ogre, 16 to hit, 5 piercing.
+rb|"Die, brute!" I stab the ogre with my rapier, 16 to hit, 5 piercing.
+rb|!a rapier -t ogre\nNik attacks with a Rapier!\nTo Hit: 1d20 (12) + 7 = 19\nDamage: 1d8 (4) + 4 = 8 piercing\nAnd I sidestep 5 feet.
+wl|I cast Eldritch Blast at the imp, 17 to hit, 6 force.
+wl|Eldritch Blast the slinger, 15 to hit, 7 force.
+wl|I blast the imp with eldritch blast: 16 to hit, 8 force damage.
+wl|!cast eldritch blast -t imp\nEldritch Blast: 1d20 (10) + 5 = 15 to hit\nDamage: 1d10 (6) = 6 force
+wl|I attack the slinger with my dagger, 16 to hit, 3 piercing.
+wl|I knife the kobold slinger, 16 to hit, 3 piercing.
+wl|I cast Hellish Rebuke on the imp (Avrae: !cast hellish rebuke -t imp -l 1), 11 fire.
+wl|Hellish Rebuke on the imp, 2d10 = 11 fire. (!cast hellish rebuke -t imp)
+wl|I move away from the kiln, 15 feet.
+wl|I step 5 feet left and blast the slinger with Eldritch Blast, 17 to hit, 6 force.
+wz|I cast Fire Bolt at the slinger, 17 to hit, 8 fire.
+wz|Fire Bolt on the kobold, 17 to hit, 8 fire.
+wz|I fling a Fire Bolt at the imp! 17 to hit, 7 fire.
+wz|I cast Magic Missile at the slinger (Avrae: !cast magic missile -t slinger), 10 force.
+wz|I cast Ray of Frost at the imp, 16 to hit, 5 cold.
+wz|I stab the imp with my dagger, 15 to hit, 3 piercing.
+wz|I cast Absorb Elements (Avrae: !cast absorb elements -l 1).
+wz|Absorb Elements on that fire spit (!cast absorb elements -l 1), then I step back and Fire Bolt the imp, 17 to hit, 7 fire.
+wz|I retreat behind the kiln.
+wz|I take the Dodge action and back away 10 feet.

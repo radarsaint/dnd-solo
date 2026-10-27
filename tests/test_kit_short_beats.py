@@ -10,6 +10,7 @@ import unittest
 
 from runtime.state_context import InvalidChange
 from test_kit_watchroom_stalls import Stalls, landing
+from kit_policy import rejections_raise
 
 PERCEPTION = {'skill': 'perception', 'mode': 'normal', 'target': 'none',
               'cause': {'kind': 'position', 'ref': 'none', 'roots': []}}
@@ -46,12 +47,14 @@ class ReactionAndNarrowingQuestion(ShortBeat):
         result = self.narrow('w', [kit('Whoever is humming in there will hear that door hit the wall. Are you sure?', 'kick the iron door')])
         self.assertTrue(result['spoken'])
 
+    @rejections_raise  # validator probe (tests/kit_policy.py)
     def test_a_short_beat_still_asks(self):
         with self.assertRaises(InvalidChange):
             self.narrow('q', [kit('Whoever is humming in there will hear that door hit the wall.', 'kick the iron door')])
 
 
 class CannedFillerIsNotAReaction(ShortBeat):
+    @rejections_raise  # validator probe (tests/kit_policy.py)
     def test_a_canned_reaction_is_refused(self):
         for filler in ('Ooh, bold!', 'Oh ho, interesting.', 'Love it. Classic.', 'Well, well, well.'):
             with self.subTest(filler), self.assertRaisesRegex(InvalidChange, 'canned'):
@@ -63,10 +66,12 @@ class CannedFillerIsNotAReaction(ShortBeat):
             with self.subTest(line):
                 self.assertTrue(self.narrow('l' + line[:2], [kit(line, 'kick the iron door')])['spoken'])
 
+    @rejections_raise  # validator probe (tests/kit_policy.py)
     def test_a_laugh_with_no_question_is_still_canned(self):
         with self.assertRaisesRegex(InvalidChange, 'canned|ask'):
             self.narrow('h', [kit('Ha!', 'kick the iron door')])
 
+    @rejections_raise  # validator probe (tests/kit_policy.py)
     def test_a_reaction_kit_already_used_is_refused(self):
         line = 'Whoever is humming in there will hear that door hit the wall.'
         self.narrow('a', [kit(line + ' Are you sure?', 'kick the iron door')])
@@ -165,6 +170,7 @@ class HeldDescriptionIsAnObligation(ShortBeat):
         packet = self.bridge.prepare('I look around.', 'w', one_pass=True)
         self.assertNotIn('held_description', packet['input']['private'])
 
+    @rejections_raise  # validator probe (tests/kit_policy.py)
     def test_the_resolution_turn_must_describe_the_held_place(self):
         self.stall(roll_call=PERCEPTION)
         rolled = self.bridge.prepare('Perception check: 1d20 (13) + 2 = 15', 'd', one_pass=True)

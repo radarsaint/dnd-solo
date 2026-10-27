@@ -120,6 +120,9 @@ HELD_KINDS = ('opening', 'exit', 'threshold_look')
 # What the engine's outcome of a declared act may add (runtime/kit_acts.py: handles).
 DECLARED_EVENTS = ('beat', 'reveal_fact', 'trigger_fired', 'scene_state', 'combat_state', 'actor_status',
                    'pc_conditions')
+# Kit's declared combat acts (runtime/kit_combat_acts.py, #122) replace the engine's read of the
+# words: the prepared events give way to the engine's outcome of her entries, which may hold only these.
+COMBAT_DECLARED_EVENTS = ('beat', 'combat_state', 'scene_state', 'actor_status', 'pc_conditions', 'pc_resources')
 COMMIT_APPENDED_EVENTS = ('canon_entry', 'oracle_draw', 'procedure_state', 'claim_said', 'agenda_turn',
                           'pc_state', 'kit_plan', 'toll_state', 'story_beat', 'threshold_crossed',
                           'attitude_shift', 'pending_check', 'open_threads', 'risk_warned')
@@ -262,9 +265,12 @@ def upgrade_state(state):
     return state
 
 
-def check_player_note_text(text):
-    require(isinstance(text, str) and 0 < len(text.strip()) <= PLAYER_NOTE_MAX_CHARS,
-            f'A player note must be 1–{PLAYER_NOTE_MAX_CHARS} characters')
+def check_player_note_text(text, field='note'):
+    size = len(text.strip()) if isinstance(text, str) else None
+    require(isinstance(text, str) and 0 < size <= PLAYER_NOTE_MAX_CHARS,
+            f'A player note must be 1–{PLAYER_NOTE_MAX_CHARS} characters: {field} has '
+            f'{"no text" if size is None else size}. Write one observed pattern in a sentence. Example: '
+            '"note": "Tests NPCs with direct questions before trusting them."')
     require(re.search(_SCORE_PATTERN, text.casefold()) is None,
             'A player note records observed behavior or feedback, not a score or meter')
 
@@ -554,7 +560,9 @@ class Runtime:
                               (turn_id,)).fetchone()
         return {**json.loads(row[0]), 'revision': row[1]} if row else None
 
-    def save_kit_plan(self, turn_id, expected_revision, plan):
+    def save_kit_plan(self, turn_id, expected_revision, plan, replace=False):
+        """Fix the private decision for a pending turn. ``replace``: a corrected decision that
+        passed every check replaces one an earlier, rejected attempt saved (one-pass only)."""
         serialized = encode(plan)
         require(len(serialized.encode()) <= 12000, 'Private Kit decision exceeds size limit')
         self.db.execute('BEGIN IMMEDIATE')
@@ -565,9 +573,10 @@ class Runtime:
             row = self.db.execute('SELECT revision, plan FROM kit_pending WHERE turn_id=?',
                                   (turn_id,)).fetchone()
             require(row is not None and row[0] == expected_revision, 'No matching pending Kit turn')
-            require(row[1] is None or row[1] == serialized, ('Private decision already fixed for this turn: a retry keeps the same decision and changes only '
-                     'the performance. Resubmit the decision you first sent, unchanged.'))
-            if row[1] is None:
+            require(replace or row[1] is None or row[1] == serialized,
+                    'Private decision already fixed for this turn. The same decision with only a new '
+                    'performance is accepted and commits; a changed decision is not.')
+            if row[1] != serialized:
                 self.db.execute('UPDATE kit_pending SET plan=? WHERE turn_id=?',
                                 (serialized, turn_id))
             self.db.commit()
@@ -601,6 +610,15 @@ class Runtime:
                 asked = isinstance(kit_record['trace'].get('ask_player'), dict)
                 # An act Kit declared (runtime/kit_acts.py) appends the engine's outcome of it.
                 declared = bool(kit_record.get('declared'))
+                fought = (kit_record.get('declared') or {}).get('combat_acts')
+                if fought:
+                    # Her entries were resolved on the state before this turn: the word read gives way.
+                    prepared = events[:fought['events']]
+                    require(staged['action'] == kit_record['player_input'] and not asked and
+                            all(event.get('type') in COMBAT_DECLARED_EVENTS for event in prepared) and
+                            all(event.get('type') in COMMIT_APPENDED_EVENTS + DECLARED_EVENTS
+                                for event in events[len(prepared):]), 'Pending Kit event changed')
+                    staged = {**staged, 'events': prepared, 'public_event': kit_record['public_event']}
                 require(staged['action'] == kit_record['player_input'] and
                         (asked and events == [{'type': 'beat', 'tags': ['asked'],
                                                 'evidence': kit_record['public_event']}] and kit_record['public_event'].startswith(ASKED_EVENT_PREFIX) or

@@ -5,7 +5,7 @@ import json
 import unittest
 
 from runtime import kit_manifest
-from runtime.kit_agent import KitChatBridge, RoomAdjudicator
+from runtime.kit_agent import KitChatBridge, PerformanceRejected, RoomAdjudicator
 from runtime.state_context import InvalidChange
 from test_kit_watchroom_stalls import Stalls, landing
 
@@ -140,10 +140,11 @@ class Resend(Layers):
         self.bridge.complete('open', output)
         later, out = self.wait('w1')
         flat = dict(out, performance={'segments': [{'speaker': 'Narrator', 'text': 'Dark.'}]})
-        for _ in range(kit_manifest.REJECT_STREAK):
-            with self.assertRaises(InvalidChange):
-                self.bridge.complete('w1', flat)
-        self.bridge.abandon('w1')
+        # A rejected narration commits the engine line (Brendon's 2026-10-14 plan, Nagatha's #127
+        # review); a style miss gets one retry first (e3fc5a7 playtest). That turn counts as the streak.
+        with self.assertRaises(PerformanceRejected):
+            self.bridge.complete('w1', flat)
+        self.assertTrue(self.bridge.complete('w1', flat)['engine_line'])
         again, _ = self.wait('w2')
         # The body is not re-sent: the reasons and the hash are, and rehydrate still restores it.
         self.assertTrue(again['session_manifest'].get('cached'))

@@ -14,6 +14,7 @@ import unittest
 
 from runtime import kit_agent, state_context
 from runtime.state_context import InvalidChange
+from kit_policy import rejections_raise
 from test_kit_review97b import Room, bridge_turn, crypt
 
 SEEN = 'Cold stone and dust; an invisible stalker stands right beside you.'
@@ -34,6 +35,7 @@ MARKS = {'not visible': {'visible': False}, 'invisible flag': {'invisible': True
 
 
 class UnperceivedActors(unittest.TestCase):
+    @rejections_raise  # validator probe (tests/kit_policy.py)
     def test_an_alive_creature_the_pc_cannot_perceive_is_protected_whatever_marks_it(self):
         for label, marks in MARKS.items():
             with self.subTest(marks=label):

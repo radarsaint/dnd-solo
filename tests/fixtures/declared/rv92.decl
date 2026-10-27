@@ -1,0 +1,52 @@
+atk ogre rapier =18 to hit, 7 piercing ; away 10
+atk ogre rapier =18 to hit, 7 piercing ; atk ogre rapier =17 to hit, 6 piercing
+atk ogre rapier =18 to hit, 7 piercing ; atk ogre rapier =19 to hit, 8 piercing
+atk ogre rapier =18 to hit, 7 piercing
+-
+-
+-
+-
+rea uncanny_dodge ; atk ogre rapier =18 to hit, 7 piercing
+atk ogre rapier =(Avrae: !a rapier -t ogre) 18 to hit, 7 piercing ; rea uncanny_dodge
+atk ogre rapier =**Rapier**: 1d20+7 = 18 to hit; 7 piercing ; away 10
+atk ogre rapier =Nik attacks with a Rapier!\nTo Hit: 1d20 (11) + 7 = 18\nDamage: 7 piercing ; rea uncanny_dodge
+rea uncanny_dodge ; away 5 ; atk ogre rapier =18 to hit, 7 piercing
+rea uncanny_dodge ; atk ogre rapier ; atk ogre rapier ; away 10
+atk ogre rapier =18 to hit, 7 piercing
+atk ogre rapier =18 to hit, 7 piercing
+atk ogre rapier =18 to hit, 7 piercing ; away 10
+atk ogre rapier =18 to hit, 7 piercing ; rea uncanny_dodge
+atk ogre rapier =18 to hit, 7 piercing ; rea uncanny_dodge ; away 10
+rea uncanny_dodge ; atk ogre rapier =18 to hit, 7 piercing
+shove ogre ; atk ogre rapier =18 to hit, 7 piercing
+away 10 ; away 10
+obj hold my ground, sword up, and wait
+atk ogre rapier =18 to hit, 7 piercing
+rea shield ; atk ogre rapier =18 to hit, 7 piercing
+rea hellish_rebuke ogre ; atk ogre rapier =18 to hit, 7 piercing
+atk ogre rapier =18 to hit, 7 piercing ; rea uncanny_dodge ; rea uncanny_dodge
+atk ogre rapier =18 to hit, 7 piercing
+obj check the knots and the planks ; away 10
+-
+rea hellish_rebuke imp =(Avrae: !cast hellish rebuke -t imp -l 1), 12 fire ; atk archer dagger =18 to hit, 3 piercing
+rea hellish_rebuke imp =12 fire (Avrae: !cast hellish rebuke -l 2) ; atk archer dagger =18 to hit, 3 piercing
+atk archer dagger =18 to hit, 3 piercing ; atk imp dagger =19 to hit, 4 piercing
+rea hellish_rebuke imp =12 fire ; atk archer dagger =18 to hit, 3 piercing
+rea hellish_rebuke imp =at 2nd level, 15 fire ; atk archer dagger =18 to hit, 3 piercing
+rea hellish_rebuke imp =(Avrae: !cast hellish rebuke -l 1), 12 fire
+atk archer dagger =18 to hit, 3 piercing ; rea hellish_rebuke imp =!cast hellish rebuke -t imp -l 1\nHellish Rebuke: 12 fire ; away 10
+atk archer dagger =18 to hit, 3 piercing
+atk archer dagger =18 to hit, 3 piercing ; rea uncanny_dodge
+rea hellish_rebuke imp ; rea hellish_rebuke archer ; atk archer dagger =18 to hit, 3 piercing
+rea absorb_elements =(Avrae: !cast absorb elements -l 2) ; spl archer fire bolt =19 to hit, 8 fire
+rea absorb_elements ; spl archer fire bolt =19 to hit, 8 fire
+spl archer fire bolt =19 to hit, 8 fire ; spl imp fire bolt =18 to hit, 7 fire
+rea absorb_elements =(Avrae: !cast absorb elements -l 3) ; spl imp fire bolt =18 to hit, 7 fire
+spl archer fire bolt =19 to hit, 8 fire
+rea absorb_elements =(Avrae: !cast absorb elements -l 1) ; rea absorb_elements =(Avrae: !cast absorb elements -l 1) ; spl archer fire bolt =19 to hit, 8 fire
+rea shield =(Avrae: !cast shield) ; spl archer fire bolt =19 to hit, 8 fire
+spl archer fire bolt =19 to hit, 8 fire ; away 10 ; rea absorb_elements =(Avrae: !cast absorb elements -l 1)
+atk archer dagger =18 to hit, 3 piercing ; bon imp dagger =15 to hit, 2 piercing
+spl archer fire bolt =19 to hit, 8 fire
+away 10
+-

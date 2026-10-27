@@ -30,3 +30,6 @@ kit_appraise.json
 
 # Player save folders written by `kit_agent save` (never committed).
 saves/
+
+# playtest snapshots hold licensed rooms; never commit
+tests/fixtures/declared/snaps/

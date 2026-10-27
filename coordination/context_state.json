@@ -2,17 +2,17 @@
   "schema": "kit_project_gardener_state/v1",
   "purpose": "RESUMABILITY_CURSOR_NOT_KNOWLEDGE_STORE",
   "canonical_location": "radarsaint/dnd-solo/coordination/context_state.json",
-  "state_revision": 53,
+  "state_revision": 54,
   "semantic_brain": {
     "repo": "radarsaint/dnd-solo",
     "path": "docs/PROJECT_UNDERSTANDING.md",
-    "last_semantic_commit": "f4093e49c1c61d4bbfaca2888336d1b7e0a6180d",
+    "last_semantic_commit": "01d582dc1934956b318079d2f39f2edcd8358b1a",
     "last_reviewed_on": "2026-10-26"
   },
   "checkpoint": {
     "reviewed_against_main": {
-      "radarsaint/dnd-solo": "f4093e49c1c61d4bbfaca2888336d1b7e0a6180d",
-      "radarsaint/bfdm-corpus": "9cb097c0b110989a191d7fa968b0baacaf0e0a7a"
+      "radarsaint/dnd-solo": "01d582dc1934956b318079d2f39f2edcd8358b1a",
+      "radarsaint/bfdm-corpus": "cf65ec04572b2a033383344d1f2583e3380686f7"
     },
     "context_inbox": {
       "repo": "radarsaint/dnd-solo",
@@ -25,9 +25,9 @@
   "last_completed_pass": {
     "kind": "BOUNDED_SEMANTIC_RECONCILIATION",
     "completed_on": "2026-10-26",
-    "scope": "Reviewed dnd-solo #188 merge (cross-room carry; spent slots stay spent) and concurrent #189 (sheet intake). Brain updated on main.",
-    "result": "Accept: #188 makes pc_resources a session key so spent slots carry across rooms and saves until rest; campaign.json gains pc_state and rooms[].carry. #189 adds sheet intake. Brain updated. #115 comment 6266120288 remains pending.",
-    "resulting_brain_commit": "f4093e49c1c61d4bbfaca2888336d1b7e0a6180d",
+    "scope": "Reviewed dnd-solo #196 merge (engine-line policy + opening problems) and concurrent #173 (BFDM ruling fixture); bfdm-corpus #56 status lines. Brain and control updated on main.",
+    "result": "Accept: #196 makes presentation keys replaceable, rejection_notice fires after engine_line turns, secrecy > engine-line > presentation. #173 adds source-checked ruling fixture. bfdm-corpus #56 confirms merged research on main not doctrine. #115 comment 6266120288 remains pending.",
+    "resulting_brain_commit": "01d582dc1934956b318079d2f39f2edcd8358b1a",
     "reconciled_comment_id": 6202184874
   },
   "active_pass": null,

@@ -5,6 +5,7 @@ questions keep their action; out-of-combat spells and rituals resolve; resubmitt
 decision after a performance rejection is not "already fixed". Watchroom fixture, dice pinned."""
 import unittest
 
+from runtime import kit_agent
 from runtime.kit_agent import PendingRuling
 from test_kit_watchroom_stalls import Stalls
 
@@ -136,8 +137,11 @@ class ResubmitSameDecision(Stalls):
         with self.assertRaises(InvalidChange):
             self.bridge.complete('c', {'decision': dict(plan), 'performance': {'segments': [
                 {'speaker': 'Kit', 'text': long, 'reacts_to': 'Can I make a check'}]}})
+        # Presentation keys may be corrected after a rejection (#129, REPLACEABLE_PLAN_KEYS); what
+        # the engine acts on may not.
+        other = next(mode for mode in kit_agent.kit_voice.TURN_MODES if mode != plan['turn_mode'])
         with self.assertRaisesRegex(InvalidChange, 'already fixed'):
-            self.bridge.complete('c', {'decision': {**plan, 'table_presence': 'present'}, 'performance': {
+            self.bridge.complete('c', {'decision': {**plan, 'turn_mode': other}, 'performance': {
                 'segments': [{'speaker': 'Kit', 'text': 'No roll needed.', 'reacts_to': 'Can I make a check'}]}})
 
 
