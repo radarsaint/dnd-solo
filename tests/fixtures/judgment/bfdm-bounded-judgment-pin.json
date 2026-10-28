@@ -1,0 +1,39 @@
+{
+  "repo": "radarsaint/bfdm-corpus",
+  "commit": "bf56ca4f9b0f4b410b37c5601a6e49b33627eecb",
+  "path": "research/longitudinal/bounded-judgment-tranche-2026-10-15.jsonl",
+  "records": {
+    "BJ-001": {
+      "status": "VERIFIED_NARROW",
+      "evidence": [
+        "discord:865565663296225280",
+        "discord:865565818481279018",
+        "discord:865565932783796255",
+        "discord:865566464831258674",
+        "discord:865567436970786836"
+      ]
+    },
+    "BJ-002": {
+      "status": "VERIFIED_NARROW",
+      "evidence": ["discord:863492563784040539"]
+    },
+    "BJ-003": {
+      "status": "VERIFIED_NARROW",
+      "evidence": ["discord:744056939096571924"]
+    },
+    "BJ-004": {
+      "status": "NARROWED",
+      "evidence": [
+        "discord:746253583552479272",
+        "discord:746253900490735686",
+        "discord:746254025883779113",
+        "discord:746254092011175968",
+        "discord:746254154774872094"
+      ]
+    },
+    "BJ-005": {
+      "status": "VERIFIED_NARROW",
+      "evidence": ["bcs:BCS-000172"]
+    }
+  }
+}

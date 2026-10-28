@@ -640,6 +640,11 @@ def mounted_state(old_source, state, new_source, area, ref):
                    room=initial_room(new_source, ref))
         from . import kit_save  # a room left before a resume: its public status from the save
         kit_save.apply_carry(new, new_source, kit_save.carry_for(state, new_source.get('id')))
+        from . import kit_judgment
+        seeded = kit_judgment.initial_state(new_source)
+        if seeded:
+            # Same one-time copy as Runtime.initialize. A revisit keeps the archived lists.
+            new['judgment'] = seeded
     new['area'] = area
     new['room'] = {k: v for k, v in (new.get('room') or {}).items() if k != 'came_by'}  # came from another room
     if area not in new['visited']:

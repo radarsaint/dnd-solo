@@ -66,6 +66,7 @@ from . import kit_manifest
 from . import kit_router
 from . import kit_agenda, kit_plan, kit_threads, pc_sheet
 from . import kit_detail
+from . import kit_judgment
 from . import kit_prices
 from . import kit_campaign
 from . import kit_rooms
@@ -4434,6 +4435,10 @@ def check_public_content(text, public_view, player_action, leak_sets=(), phrases
         if phrase in text and phrase not in public and not player_named:
             raise InvalidChange('Public performance mentioned a private fact')
     kit_guards.check_paraphrased_leaks(text, public_view, player_action, leak_sets)
+    # Pinned research (record ids, evidence locators, the corpus pin) is private.
+    # The error names the guard, not the marker.
+    if kit_judgment.research_in_player_text(text, declared):
+        raise InvalidChange('Public performance mentioned private research')
 
 
 def check_brief_public(brief, public_view, player_action, leak_sets=(), phrases=None):
@@ -5091,6 +5096,11 @@ def prepare_inputs(runtime, revision, state, action, resolution, use_memory, one
         planning_input['check_called'] = {
             'rule': 'The act needs the player\'s roll and none was stated. Say the call in one short line '
                     '(the skill named in the event); resolve nothing, describe no outcome. The player rolls in Avrae.'}
+    # Private, and only when live state establishes a pinned situation.
+    # The player sentence is not consulted. Never copied into the performer packet.
+    judgment = kit_judgment.select(source, post_event_state, resolution.kind)
+    if judgment and not table_talk:
+        planning_input['dm_judgment'] = judgment
     if kit_combat.config(source) and post_event_state.get('player_sheet'):
         # Session manifest (cached): what the PC's reactions are and cost, with no counts, so a spend
         # never busts the cache. What is left now (slots, uses) is live state like HP: the per-turn
