@@ -208,8 +208,9 @@ def resume(db, save_path, room=None, sheet=None, search=None, manifests=False):
                 'table_line': ("Your save is from an adventure you gave me, and I don't keep the book. Attach "
                                "the same adventure file and I'll pick it up from the start of that room."),
                 'next_step': ('The save stopped in a room of an imported adventure; the book text never travels '
-                              'in a save. Ask the player once for the same adventure file, extract its text the '
-                              'same way as before, run adventure import --db <this db> --text-file <file>, then run '
+                              'in a save. Ask the player once for the same adventure file. A PDF: run '
+                              'python3 -m runtime.kit_agent ingest <file> --db <this db>. Pasted text: run '
+                              'adventure import --db <this db> --text-file <file>, then run '
                               'start --save <the zip> again. A different copy or extraction of the book gets a '
                               'different id and is refused; do not hand-build the room.'),
             }

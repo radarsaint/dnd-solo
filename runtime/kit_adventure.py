@@ -7,7 +7,10 @@ result unchanged; a compiled room is an ordinary room file.
 
 What is deterministic and what is model-assisted:
 
-* ``import`` (deterministic): text (or a PDF, best effort, stdlib only) -> ``index.json``:
+* ``ingest`` (one host step): a PDF or pasted text -> the index and the first scene.
+  ``import`` (deterministic) is the index alone. A PDF is read with the stdlib text-layer
+  reader (``runtime/kit_pdf.py``); ``pdftotext`` or ``pypdf`` are used only when that
+  reader cannot, and only if the host has them. -> ``index.json``:
   chapters, keyed locations with character offsets and pages, NPC mentions, stat-block
   references, connections between locations, and pages that are mostly map/image.
 * ``compile`` (deterministic by default): one keyed location -> a room draft. Read-aloud
@@ -30,8 +33,10 @@ import argparse
 import hashlib
 import json
 import re
+import shutil
+import subprocess
 import sys
-import zlib
+import time
 from pathlib import Path
 
 INDEX_VERSION = 1
@@ -87,35 +92,98 @@ def _norm(text):
     return re.sub(r'\s+', ' ', text).strip()
 
 
-# ---------------------------------------------------------------- PDF (best effort)
+# ---------------------------------------------------------------- PDF
+
+NO_TEXT_LAYER = ('this PDF has no text layer (it looks scanned or image-only); '
+                 'paste the text or pass --text-file. The built-in reader cannot OCR')
+POOR_TEXT = ('this PDF has a text layer but the built-in reader could not read it '
+             '(often a custom font encoding); extract it with pdftotext -layout or pypdf, '
+             'or paste the text and pass --text-file')
+NOT_PDF = 'this file is not a PDF; pass a .pdf or --text-file'
+
 
 def pdf_text(data):
-    """Best-effort stdlib PDF text: inflate content streams, read Tj/TJ strings, one page per
-    form feed. Fonts with custom encodings come out garbled; the caller checks the yield and
-    asks the host to extract text itself (pdftotext, pypdf) when it is poor."""
-    pages = []
-    for match in re.finditer(rb'stream\r?\n(.*?)\r?\nendstream', data, re.S):
-        raw = match.group(1)
-        try:
-            raw = zlib.decompress(raw)
-        except zlib.error:
-            pass
-        if b'BT' not in raw:
-            continue
-        parts = []
-        for block in re.findall(rb'BT(.*?)ET', raw, re.S):
-            for s in re.findall(rb'\((?:\\.|[^\\)])*\)', block):
-                body = s[1:-1]
-                body = re.sub(rb'\\([()\\])', rb'\1', body).replace(rb'\n', b'\n')
-                parts.append(body.decode('latin-1'))
-            parts.append('\n')
-        pages.append(''.join(parts))
-    return '\f'.join(pages)
+    """Stdlib text layer of a PDF (positions, columns, boxes). Empty when it cannot be read."""
+    from .kit_pdf import extract
+    return extract(data)['text']
 
 
 def pdf_yield_ok(text):
-    letters = sum(c.isalpha() for c in text)
-    return letters >= 200 and letters / max(1, len(text)) > 0.5
+    """True when extracted text is words, not a scan or a garbled encoding."""
+    from .kit_pdf import text_usable
+    return text_usable(text)
+
+
+def _pdftotext(path):
+    tool = shutil.which('pdftotext')
+    if not tool:
+        return None
+    try:
+        done = subprocess.run([tool, '-layout', '-enc', 'UTF-8', str(path), '-'],
+                              capture_output=True, timeout=60)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if done.returncode != 0:
+        return None
+    return done.stdout.decode('utf-8', errors='replace')
+
+
+def _pypdf_text(path):
+    try:
+        try:
+            from pypdf import PdfReader
+        except ImportError:
+            from PyPDF2 import PdfReader
+        reader = PdfReader(str(path))
+        return '\f'.join((page.extract_text() or '') for page in reader.pages)
+    except Exception:
+        return None
+
+
+def optional_pdf_text(path, reader='auto'):
+    """``(text, name)`` from pdftotext and/or pypdf when the host has them, else ``(None, None)``.
+
+    The built-in reader is the default. These run only when it cannot read the text layer,
+    or when the host names one with ``--reader``.
+    """
+    order = ('pdftotext', 'pypdf') if reader == 'auto' else (reader,)
+    for name in order:
+        text = _pdftotext(path) if name == 'pdftotext' else _pypdf_text(path) if name == 'pypdf' else None
+        if text and pdf_yield_ok(text):
+            return text, name
+    return None, None
+
+
+def read_pdf(path, reader='auto'):
+    """``(text, reader_name)`` from a PDF. Refuses a missing file, a non-PDF, a scan, or
+    a text layer the chosen reader cannot decode. ``reader`` is auto, stdlib, pdftotext, or pypdf."""
+    path = Path(path)
+    if not path.is_file():
+        raise IngestError(['no PDF at %s' % path])
+    if reader not in ('auto', 'stdlib', 'pdftotext', 'pypdf'):
+        raise IngestError(['unknown PDF reader %r (auto, stdlib, pdftotext, pypdf)' % reader])
+    data = path.read_bytes()
+    if not data.startswith(b'%PDF'):
+        raise IngestError([NOT_PDF])
+    from .kit_pdf import extract
+    found = extract(data) if reader in ('auto', 'stdlib') else {'kind': 'poor', 'text': ''}
+    if reader == 'stdlib' or (reader == 'auto' and found['kind'] == 'text'):
+        if found['kind'] == 'no_text_layer':
+            raise IngestError([NO_TEXT_LAYER])
+        if found['kind'] != 'text':
+            raise IngestError([POOR_TEXT])
+        return found['text'], 'stdlib'
+    if reader == 'auto' and found['kind'] == 'no_text_layer':
+        text, name = optional_pdf_text(path, 'auto')
+        if text:
+            return text, name
+        raise IngestError([NO_TEXT_LAYER])
+    text, name = optional_pdf_text(path, 'auto' if reader == 'auto' else reader)
+    if text:
+        return text, name
+    if found.get('kind') == 'no_text_layer':
+        raise IngestError([NO_TEXT_LAYER])
+    raise IngestError([POOR_TEXT])
 
 
 # ---------------------------------------------------------------- import (deterministic)
@@ -282,16 +350,12 @@ def _creatures(span, base, stat_blocks):
     return out
 
 
-def import_adventure(db, text=None, pdf=None, title=None):
+def import_adventure(db, text=None, pdf=None, title=None, reader='auto'):
     """Write the private source and its index next to the save. Returns the import report."""
     if text is None and pdf is None:
         raise IngestError(['give --text-file (extracted text) or --pdf'])
     if text is None:
-        text = pdf_text(Path(pdf).read_bytes())
-        if not pdf_yield_ok(text):
-            raise IngestError(['the PDF gave too little readable text with the built-in reader; extract its text '
-                               'with the host (pdftotext -layout, or pypdf), keep page breaks as form feeds, '
-                               'prefix boxed read-aloud lines with "> ", and pass --text-file'])
+        text, _how = read_pdf(pdf, reader=reader)
     text = text.replace('\r\n', '\n')
     index = build_index(text, title)
     if not index['locations']:
@@ -435,7 +499,8 @@ def draft_room(db, key, index, text):
             triggers.append({'id': f'reveal_{_slug(name)}', 'on': on, 'actors': woken,
                              'reveal': f'{name[0].upper() + name[1:]} reveals itself.' if count == 1
                              else f'{count} {name}s reveal themselves.'})
-    room = {'id': f"adv-{index['sha256'][:8]}-{_slug(key)}", 'source_ref': f"{index['title']} / {key}. {loc['name']}",
+    room = {'id': f"adv-{index['sha256'][:8]}-{_slug(key)}",
+            'source_ref': f"{index['title']} / {key}. {loc['name']} (p. {loc['page']})",
             'starting_area': here, 'areas': areas, 'exits': exits, 'facts': facts, 'actors': actors}
     if triggers:
         room['triggers'] = triggers
@@ -559,6 +624,7 @@ def compile_location(db, key, draft=None, neighbours=True):
     pre-compile the locations it connects to, so the next move is already executable."""
     index, text = _load(db)
     key = key.upper()
+    clock = time.perf_counter()
     if draft is None:
         room, sidecar = draft_room(db, key, index, text)
     else:
@@ -572,6 +638,12 @@ def compile_location(db, key, draft=None, neighbours=True):
     path = room_file(db, key)
     path.parent.mkdir(parents=True, exist_ok=True)
     _write_json(path, room)
+    scene_ms = round((time.perf_counter() - clock) * 1000, 3)
+    scene_bytes = path.stat().st_size
+    loc = index['locations'].get(key) or {}
+    sidecar['page'] = loc.get('page')
+    sidecar['scene_ms'] = scene_ms
+    sidecar['scene_bytes'] = scene_bytes
     _write_json(path.with_suffix('.provenance.json'), sidecar)
     precompiled = []
     if neighbours:
@@ -584,7 +656,47 @@ def compile_location(db, key, draft=None, neighbours=True):
                     pass
     return {'stage': 'location_compiled', 'location': key, 'room': str(path), 'room_id': room['id'],
             'compiled_by': sidecar['compiled_by'], 'precompiled': precompiled,
+            'page': sidecar.get('page'), 'scene_ms': scene_ms, 'scene_bytes': scene_bytes,
             'ask_player': sidecar.get('ask_player', []), 'flags': sidecar.get('flags', []), **readiness(db)}
+
+
+def ingest_adventure(db, text=None, pdf=None, title=None, reader='auto'):
+    """One host step: a PDF or pasted text -> the private index and the first scene.
+
+    Later scenes compile when play reaches them (``ensure_compiled``). The report carries
+    ingest and first-scene time in milliseconds, the byte sizes, the page of the first
+    scene, and ``next_command`` — what to run when the player says begin.
+    """
+    if text is None and pdf is None:
+        raise IngestError(['ingest needs a PDF path or --text-file'])
+    if text is not None and pdf is not None:
+        raise IngestError(['give a PDF or --text-file, not both'])
+    clock = time.perf_counter()
+    how = 'text'
+    if text is None:
+        text, how = read_pdf(pdf, reader=reader)
+    report = import_adventure(db, text=text, title=title)
+    ingest_ms = round((time.perf_counter() - clock) * 1000, 3)
+    compiled = compile_location(db, report['start_location'], neighbours=False)
+    import shlex
+    q = shlex.quote(str(db))
+    room = shlex.quote(compiled['room'])
+    return {
+        'stage': 'adventure_ingested', 'reader': how, 'title': report['title'],
+        'locations': report['locations'], 'chapters': report['chapters'],
+        'start_location': report['start_location'], 'start_room': compiled['room'],
+        'room_id': compiled['room_id'], 'first_scene_page': compiled.get('page'),
+        'ingest_ms': ingest_ms, 'first_scene_ms': compiled['scene_ms'],
+        'source_bytes': (folder_for(db) / 'source.txt').stat().st_size,
+        'index_bytes': (folder_for(db) / 'index.json').stat().st_size,
+        'first_scene_bytes': compiled['scene_bytes'],
+        'next_command': (f'python3 -m runtime.kit_agent start --db {q} --room {room} '
+                         '--sheet <sheet.json>'),
+        'begin': ('When the player says begin, run next_command with their sheet. '
+                  'The next scene compiles on arrival; do not hand-build rooms.'),
+        'ask_player': compiled.get('ask_player', []), 'flags': compiled.get('flags', []),
+        **readiness(db),
+    }
 
 
 def ensure_compiled(link):
@@ -632,11 +744,15 @@ def readiness(db, mounted_id=None):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(prog='kit_agent adventure', description=__doc__.split('\n\n')[0])
-    parser.add_argument('action', choices=['import', 'compile', 'status'])
+    parser.add_argument('action', choices=['import', 'compile', 'status', 'ingest'])
+    parser.add_argument('path', nargs='?', help='ingest: the adventure PDF (or pass --pdf)')
     parser.add_argument('--db', default='kit.sqlite')
-    parser.add_argument('--text-file', help='import: the adventure as UTF-8 text (form feed between pages; '
+    parser.add_argument('--text-file', help='import/ingest: the adventure as UTF-8 text (form feed between pages; '
                                              'boxed read-aloud lines prefixed "> ")')
-    parser.add_argument('--pdf', help='import: a PDF, read with the built-in best-effort reader')
+    parser.add_argument('--pdf', help='import/ingest: a PDF. The built-in reader uses the text layer; '
+                                      'pdftotext or pypdf run only when that reader cannot')
+    parser.add_argument('--reader', choices=['auto', 'stdlib', 'pdftotext', 'pypdf'], default='auto',
+                        help='PDF reader. auto uses the built-in text layer, then pdftotext, then pypdf')
     parser.add_argument('--title')
     parser.add_argument('--location', help='compile: the location key, e.g. 1 or A2')
     parser.add_argument('--draft-file', help='compile: a host-model draft {"room", "provenance"} to validate')
@@ -644,7 +760,15 @@ def main(argv=None):
     try:
         if args.action == 'import':
             text = Path(args.text_file).read_text(encoding='utf-8') if args.text_file else None
-            result = import_adventure(args.db, text=text, pdf=args.pdf, title=args.title)
+            result = import_adventure(args.db, text=text, pdf=args.pdf, title=args.title, reader=args.reader)
+        elif args.action == 'ingest':
+            pdf = args.pdf or args.path
+            if args.text_file and pdf:
+                raise IngestError(['give a PDF or --text-file, not both'])
+            text = Path(args.text_file).read_text(encoding='utf-8') if args.text_file else None
+            if text is None and not pdf:
+                raise IngestError(['ingest needs a PDF path or --text-file'])
+            result = ingest_adventure(args.db, text=text, pdf=pdf, title=args.title, reader=args.reader)
         elif args.action == 'compile':
             if not args.location:
                 raise IngestError(['compile needs --location'])

@@ -7829,9 +7829,13 @@ def main():
 
 def _main():
     if sys.argv[1:2] == ['adventure']:
-        # Adventure ingestion (runtime/kit_adventure.py): import, compile, status.
+        # Adventure ingestion (runtime/kit_adventure.py): import, compile, status, ingest.
         from . import kit_adventure
         return kit_adventure.main(sys.argv[2:])
+    if sys.argv[1:2] == ['ingest']:
+        # One host step: a PDF (or --text-file) -> index + first scene. Begin with status's next_command.
+        from . import kit_adventure
+        return kit_adventure.main(['ingest', *sys.argv[2:]])
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('command', choices=['start', 'init', 'status', 'view', 'prepare', 'decide', 'finish', 'complete',
                                             'abandon', 'feedback', 'character', 'notes', 'play', 'trace',
