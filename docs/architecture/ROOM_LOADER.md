@@ -405,9 +405,10 @@ reason for that prep: a room either mounts in milliseconds or says plainly that 
    do travel (section 4).
 9. **Room files live in two places:** 6c stays in `tests/fixtures/` (14 test modules and the
    scripts load it from there) and the stub is in `rooms/`.
-10. **Budget:** 105,000 B (raised from 103,000 by Brendon, 2026-10-04, so a room at both caps,
-    ~103,475 B with every trim taken, fits). The suite's worst case now trims less and lands at
-    103,806 B.
+10. **Budget:** 107,000 B (105,000 after Brendon, 2026-10-04, so a room at both caps,
+    ~103,475 B with every trim taken, fits; raised again for the DM-assist section of the
+    personality core, whose full-voice worst case measured 106,652 private bytes). The suite's
+    worst case now trims less and lands at 103,806 B.
 11. **No agenda fixture.** No room file in the repo declares an `agenda` block; Claude's probe
     showed the path works, but no test room carries one.
 

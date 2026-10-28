@@ -17,7 +17,9 @@ of the room file wholesale or out of Kit's trace.
 P2: the public record of a room is folded into state['campaign_log'] at room exit
 (kit_rooms.mounted_state; the room file is replaced once the next room mounts) and again on
 every save. Kit's recap is hers: <=120 words, checked like public text. Hand edits are taken
-as written and noted, never arbitrated (docs/architecture/PLAYER_SAVE.md). Standard library only.
+as written and noted, never arbitrated (docs/architecture/PLAYER_SAVE.md). Campaign facts
+(contracts, clocks, custody, awards, loot boxes) live on campaign_log['facts'] and
+campaign.json facts, with canon status from runtime/kit_canon.py. Standard library only.
 """
 
 import copy
@@ -218,6 +220,7 @@ def collect(runtime):
         'loot': [{'item': c['item'], 'room_id': c.get('from')} for c in carried],
         'gold_gp': (sheet or {}).get('gold_gp'),
         'debts': [], 'threads': [], 'choices': _choices(runtime),
+        'facts': copy.deepcopy((state.get('campaign_log') or {}).get('facts') or []),
         'sessions': [{'revision': revision, 'turns': turns, **provenance}],
         'edits': [],
         'source_hashes': {room_id: sha(raw)},
@@ -298,7 +301,8 @@ def journal_md(campaign, written=None):
             line += f', saved {entry["saved_at"]}'
         log.append(line + '.')
         if entry.get('recap'):
-            log.append(f'  {entry["recap"]}')
+            from . import kit_canon
+            log.append('  ' + kit_canon.render_recap(entry['recap'], campaign))
         for edit in edits:
             if edit.get('revision') == entry.get('revision'):
                 log.append(f'  {edit["file"]} edited by player{": " + edit["note"] if edit.get("note") else ""}.')
@@ -320,6 +324,7 @@ def journal_md(campaign, written=None):
         f'- Gold: {gold} gp (from your sheet)' if gold is not None else '- Gold: not on the sheet.',
         *loot,
         '', '## Debts', '', *(debts or ['- None recorded yet.']),
+        '', '## Campaign record', '', *_record_lines(campaign),
         '', '## Session log', '', *(log or ['- No sessions yet.']),
         '', '```kit-state', json.dumps(state, indent=2, ensure_ascii=False, sort_keys=True), '```', '']
     return '\n'.join(lines)
@@ -334,6 +339,11 @@ def kit_state(journal_text):
         return json.loads(match.group(1))
     except ValueError:
         return None
+
+
+def _record_lines(campaign):
+    from . import kit_canon
+    return kit_canon.record_lines(campaign) or ['- None recorded yet.']
 
 
 def _flat(value):
@@ -411,6 +421,8 @@ def merge(fresh, old, edited_campaign, mode):
         if old:
             for key in ('debts', 'threads'):
                 base[key] = old.get(key) or base[key]  # player-kept lists the engine does not write yet
+            from . import kit_canon
+            base['facts'] = kit_canon.merge_saved(fresh.get('facts'), old.get('facts'))
             sessions = [s for s in old.get('sessions') or () if s.get('revision') != fresh['export']['revision']]
             base['sessions'] = sessions + fresh['sessions']
             base['edits'] = list(old.get('edits') or ())

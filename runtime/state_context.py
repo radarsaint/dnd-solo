@@ -69,7 +69,9 @@ RHYTHM_EVIDENCE_MAX_CHARS = 600  # per recent_rhythm entry; 12 entries stay insi
 # +2 KB (2026-10-04, PR #87, Brendon): room headroom. A room at both of its context caps
 # (kit_rooms.DM_ONLY_ROOM_MAX_BYTES, CLAIMS_HERE_MAX_BYTES) in the suite's worst case comes to
 # ~103,475 B; the personality core is not trimmed to make room. Overflow still fails loudly.
-CONTEXT_BUDGET_BYTES = 99000 + VOICE_MAX_BYTES  # 105 KB: worst case, story brief, core growth, attitudes, full voice slot, room headroom
+# +2 KB: the personality core gained DM-assist. With the voice slot full, the same worst case
+# measured 106,652 private bytes against the old 105,000 cap.
+CONTEXT_BUDGET_BYTES = 101000 + VOICE_MAX_BYTES  # 107 KB: worst case, story brief, core growth, attitudes, full voice slot, room headroom, DM-assist
 # (88 KB -> 89 KB, 2026-10-03: area 6c gained the vampire_tells fact and claim, table call 8).
 # A staged or one-pass body carries the post-event public view (with the whole ledger)
 # and the procedure state: ~49.4 KB in the same worst case.
@@ -102,7 +104,7 @@ CANON_SLOT = re.compile(r'^[a-z0-9_:]+(/[a-z0-9_]+){1,3}$')
 # the decision's canon entries, the oracle deal it consumed, and procedure state.
 # Host bookkeeping, not a turn taken in the room (kit_rooms.stage counts the others).
 BOOKKEEPING_EVENTS = ('party_roster', 'player_sheet', 'player_character', 'player_note', 'pc_state', 'kit_plan', 'rest',
-                      'campaign_restore', 'judgment_state')
+                      'campaign_restore', 'campaign_facts', 'judgment_state')
 # A refused attempt changed nothing in the world, so it does not use up the check Kit just
 # called (PR 145 playtest: one refused line, then every roll was refused).
 KEEPS_PENDING_CHECK = BOOKKEEPING_EVENTS + ('refused_attempt',)
@@ -1282,6 +1284,12 @@ class Runtime:
             require(isinstance(carried, list) and len(carried) <= 60 and all(
                 isinstance(c, dict) and isinstance(c.get('item'), str) for c in carried),
                 'campaign_restore carried lists {item, from}')
+            if isinstance(log, dict) and 'facts' in log:
+                from . import kit_canon
+                try:
+                    kit_canon.check_stored(log.get('facts'))
+                except kit_canon.CanonError as exc:
+                    require(False, str(exc))
             from . import kit_save, kit_reactions
             for record in rooms:
                 kit_save.check_carry(record.get('carry'))
@@ -1308,6 +1316,14 @@ class Runtime:
                 state['party'] = copy.deepcopy(party)
             state['campaign_log'] = copy.deepcopy(log)
             state['carried'] = copy.deepcopy(carried)
+        elif kind == 'campaign_facts':
+            # Campaign-record canon (kit_canon): the same facts list the journal renders.
+            # Bookkeeping, so it does not spend a player turn. Rooms already folded stay.
+            from . import kit_canon
+            try:
+                kit_canon.apply_facts(state, event.get('facts'))
+            except kit_canon.CanonError as exc:
+                require(False, str(exc))
         elif kind == 'beat':
             tags = event.get('tags')
             require(isinstance(tags, list) and all(isinstance(t, str) for t in tags), 'Invalid beat tags')
