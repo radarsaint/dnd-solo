@@ -137,7 +137,15 @@ def _restore(campaign, current_id):
                if isinstance(i, dict) and isinstance(i.get('item'), str) and i.get('room_id') != current_id]
     pc = campaign.get('pc_state') if isinstance(campaign.get('pc_state'), dict) else None
     party = campaign.get('party') if isinstance(campaign.get('party'), dict) and campaign.get('party') else None
-    return {'log': {'rooms': rooms}, 'carried': carried, **({'pc_state': pc} if pc else {}),
+    facts = [fact for fact in campaign.get('facts') or () if isinstance(fact, dict) and isinstance(fact.get('key'), str)]
+    if facts:
+        from . import kit_canon
+        try:
+            kit_canon.check_stored(facts)
+        except kit_canon.CanonError as exc:
+            raise ResumeError(str(exc)) from exc
+    log = {'rooms': rooms, **({'facts': facts} if facts else {})}
+    return {'log': log, 'carried': carried, **({'pc_state': pc} if pc else {}),
             **({'party': party} if party else {})}
 
 
@@ -265,12 +273,16 @@ def _entry(path, kind, files):
     export = campaign.get('export') or {}
     sessions = sorted(campaign.get('sessions') or (), key=lambda s: s.get('revision') or 0)
     last = sessions[-1] if sessions else {}
+    recap = last.get('recap')
+    if isinstance(recap, str):
+        from . import kit_canon
+        recap = kit_canon.render_recap(recap, campaign)
     return {'path': str(path), 'kind': kind,
             'player': kit_save.slug(export.get('player'), 'player'),
             'campaign': kit_save.slug(export.get('campaign'), kit_save._default_campaign(campaign['location']['room_id'])),
             'pc': (campaign.get('pc') or {}).get('name') or (campaign.get('pcs') or ['pc'])[0],
             'room_id': campaign['location']['room_id'], 'area': campaign['location'].get('area'),
-            'last_session': {k: last.get(k) for k in ('revision', 'saved_at', 'recap')},
+            'last_session': {'revision': last.get('revision'), 'saved_at': last.get('saved_at'), 'recap': recap},
             'open_threads': len(campaign.get('threads') or ())}
 
 

@@ -514,10 +514,12 @@ class RoomContextIsCapped(Base):
         return planning
 
     def test_a_room_at_both_caps_fits_the_budget(self):
-        # Brendon (2026-10-04): the budget is 105,000 B so a room at both caps fits the suite's
+        # Brendon (2026-10-04): the budget was 105,000 B so a room at both caps fits the suite's
         # worst case (~103,475 B: 101,904 measured + the room's growth to both caps).
+        # Raised to 107,000 when the personality core gained DM-assist (full-voice worst case
+        # measured 106,652 private bytes).
         from runtime.state_context import CONTEXT_BUDGET_BYTES
-        self.assertEqual(CONTEXT_BUDGET_BYTES, 105000)
+        self.assertEqual(CONTEXT_BUDGET_BYTES, 107000)
         worst = 101904 + (kit_rooms.DM_ONLY_ROOM_MAX_BYTES - 9126) + (kit_rooms.CLAIMS_HERE_MAX_BYTES - 2153)
         self.assertEqual(worst, 103475)
         for size in (worst, CONTEXT_BUDGET_BYTES):

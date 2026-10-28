@@ -138,3 +138,33 @@ A different copy of the book has a different id and is refused, never guessed.
   from its file and `apply_carry` puts back what the player knew and did: visited areas, known
   facts and exits, met actors' statuses (the warden stays dead), resources. Actors and secrets
   the player never met stay as the room file has them.
+
+## Canon status on the campaign record
+
+`campaign.json` `facts` and the runtime `campaign_log['facts']` are the same list
+(`runtime/kit_canon.py`: `record`, `adopt` / `promote`, `supersede`, `query`). The journal's
+Campaign record section and the save listing's recap render each current fact's status.
+This is not the room detail canon (`state['canon']`).
+
+| Status | Meaning |
+|---|---|
+| `CONFIRMED` | A source document, or the DM adopted it |
+| `PROPOSED` | Kit generated it. Saying it does not make it canon |
+| `RESOLVED_IN_PLAY` | What the players actually did, including a DM report of play |
+| `UNKNOWN` | Unset. Must not be invented as history |
+
+The DM's latest ruling is current. The superseded value stays on `history` and is not current.
+An earned loot box and its later contents are different facts (`<key>` and `<key>.contents`).
+A paid contract obligation, and a treasure or artifact that already has a holder, cannot be
+recorded again as a second current payment or holder.
+
+Missing status on an older save is not a blank check:
+
+- Play folds (`loot`, `npcs_met`, `learned`, `choices`, `rooms`) read as RESOLVED_IN_PLAY.
+- Player-kept `debts` and `threads` read as CONFIRMED. The player wrote them.
+- A `facts` entry with no status reads as PROPOSED. It is not promoted.
+- Actor `status` (alive, dead, and the rest) is not a canon status.
+- UNKNOWN is never inferred from a missing field.
+
+An empty runtime facts list does not wipe facts already in the player save. `kit_campaign_v1`
+is unchanged; `facts` is optional. A journal-only rebuild still does not restore the fact list.
