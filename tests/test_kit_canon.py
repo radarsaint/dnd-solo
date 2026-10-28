@@ -290,6 +290,72 @@ class CanonRules(unittest.TestCase):
         self.assertIn('[CONFIRMED] contract cinder-rate:', journal)
         self.assertIn('## Campaign record', journal)
 
+    def test_cli_adopt_survives_the_next_save(self):
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        db = Path(temp.name) / 'kit.sqlite'
+        runtime = Runtime(str(db))
+        self.addCleanup(runtime.close)
+        runtime.initialize(json.loads(FIXTURE.read_text(encoding='utf-8')), 'entry')
+        campaign = shell()
+        record(campaign, 'contract', 'cinder-rate', {'gp_per_day': 200}, by='kit')
+        kit_canon.commit_runtime(runtime, campaign, 'campaign-facts')
+        first = kit_save.save(str(db), journal_mode='campaign')
+        path = str(Path(first['folder']) / 'campaign.json')
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            self.assertEqual(kit_canon.main(['adopt', '--file', path, '--key', 'cinder-rate', '--by', 'dm',
+                                             '--source', 'adopted at the table']), 0)
+        revision, _state = runtime.load()
+        runtime.commit('tide-noted', revision, [{
+            'type': 'beat', 'tags': ['note'], 'evidence': 'The tide was noted.'}])
+        again = kit_save.save(str(db))
+        with zipfile.ZipFile(again['zip']) as archive:
+            saved = json.loads(archive.read('campaign.json').decode('utf-8'))
+            journal = archive.read('journal.md').decode('utf-8')
+        rate = next(fact for fact in saved['facts'] if fact['key'] == 'cinder-rate')
+        self.assertEqual(rate['status'], 'CONFIRMED')
+        self.assertEqual(rate['value'], {'gp_per_day': 200})
+        self.assertEqual(rate['history'][0]['status'], 'PROPOSED')
+        self.assertEqual(rate['history'][0]['value'], {'gp_per_day': 200})
+        self.assertIn('[CONFIRMED] contract cinder-rate:', journal)
+        self.assertNotIn('[PROPOSED] contract cinder-rate:', journal)
+
+    def test_supersede_replaces_only_that_facts_number(self):
+        campaign = shell()
+        record(campaign, 'contract', 'cinder-rate', {'gp_per_day': 200}, by='kit')
+        supersede(campaign, 'cinder-rate', {'gp_per_day': 2000}, by='dm', status='RESOLVED_IN_PLAY',
+                  source='played at the table')
+        recap = 'We agreed 200 gp/day and found 200 gp in the chest.'
+        campaign['sessions'] = [{'revision': 4, 'turns': 1, 'recap': recap}]
+        shown = render_recap(recap, campaign)
+        self.assertIn('2,000 gp/day', shown)
+        self.assertRegex(shown, r'found 200(?: \(proposed ruling\))? gp')
+        self.assertNotRegex(shown, r'found 2,000')
+        self.assertNotRegex(shown, r'found 2000')
+        ambiguous = render_recap('We agreed 200 and found 200 in the chest.', campaign)
+        self.assertNotIn('2,000', ambiguous)
+        self.assertNotIn('2000', ambiguous)
+        self.assertEqual(len(re.findall(r'\b200\b', ambiguous)), 2)
+        for text in (kit_save.journal_md(campaign), handoff_text(campaign)):
+            self.assertIn('2,000 gp/day', text)
+            self.assertNotRegex(text, r'found 2,000')
+            self.assertRegex(text, r'found 200(?: \(proposed ruling\))? gp')
+
+    def test_proposed_label_follows_its_own_fact(self):
+        campaign = shell()
+        record(campaign, 'clock', 'logbook-clock', {'hours': 12}, by='dm', status='CONFIRMED', source='ship log')
+        record(campaign, 'audience', 'dock-crowd', {'count': 12}, by='kit')
+        self.assertEqual(render_recap('The crowd was 12.', campaign), 'The crowd was 12 (proposed ruling).')
+        self.assertEqual(render_recap('The clock reads 12 hours.', campaign), 'The clock reads 12 hours.')
+        self.assertEqual(
+            render_recap('The clock reads 12 hours and the crowd was 12.', campaign),
+            'The clock reads 12 hours and the crowd was 12 (proposed ruling).')
+        campaign['sessions'] = [{'revision': 4, 'turns': 1, 'recap': 'The crowd was 12.'}]
+        self.assertIn('The crowd was 12 (proposed ruling).', kit_save.journal_md(campaign))
+        self.assertIn('[PROPOSED] audience dock-crowd:', handoff_text(campaign))
+        self.assertIn('[CONFIRMED] clock logbook-clock:', handoff_text(campaign))
+
     def test_cli_record_and_query_round_trip(self):
         temp = tempfile.TemporaryDirectory()
         self.addCleanup(temp.cleanup)

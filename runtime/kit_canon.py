@@ -404,8 +404,59 @@ def _forms(number):
     return [plain, grouped]
 
 
+def _tail(text, end):
+    return text[end:end + 24].lstrip().lower()
+
+
+def _context_matches(text, end, key):
+    """The number at end belongs to this fact's unit, not to some other mention."""
+    tail = _tail(text, end)
+    per_day = (tail.startswith('gp/day') or tail.startswith('gp / day')
+               or tail.startswith('gp per day') or tail.startswith('gp a day'))
+    if key == 'gp_per_day':
+        return per_day
+    if key in ('gp', 'gold', 'amount'):
+        if per_day:
+            return False
+        return tail.startswith('gp') or tail.startswith('gold')
+    if key == 'hours':
+        return tail.startswith('hour')
+    return False
+
+
+def _occurrences(text, number):
+    spans, seen = [], set()
+    for form in _forms(number):
+        for match in re.finditer(r'\b' + re.escape(form) + r'\b', text):
+            span = (match.start(), match.end())
+            if span not in seen:
+                seen.add(span)
+                spans.append(span)
+    return spans
+
+
+def _apply_spans(text, jobs):
+    grouped = {}
+    for start, end, rendered in jobs:
+        grouped.setdefault((start, end), []).append(rendered)
+    chosen = []
+    for (start, end), rendered in grouped.items():
+        if len(set(rendered)) == 1:
+            chosen.append((start, end, rendered[0]))
+    chosen.sort(key=lambda item: item[0], reverse=True)
+    for start, end, rendered in chosen:
+        text = text[:start] + rendered + text[end:]
+    return text
+
+
 def _swap(text, campaign):
-    pairs = []
+    """Replace a superseded number only where it is that fact's mention.
+
+    A unit-scoped mention (200 gp/day, not 200 gp) is replaced. A number that
+    appears once in the whole recap is that fact's mention. Two unscoped
+    mentions are left alone.
+    """
+    jobs = []
     for fact in query(campaign, include_legacy=False):
         if fact.get('status') not in ('CONFIRMED', 'RESOLVED_IN_PLAY'):
             continue
@@ -417,26 +468,20 @@ def _swap(text, campaign):
                 continue
             for pair_key, number in _numbers(old.get('value')):
                 new = current.get(pair_key)
-                if type(new) is int and type(number) is int and new != number:
-                    pairs.append((number, new, pair_key))
-    pairs.sort(key=lambda item: len(str(item[0])), reverse=True)
-    for old, new, pair_key in pairs:
-        rendered = _fmt(new, pair_key)
-        for form in _forms(old):
-            text = re.sub(r'\b' + re.escape(form) + r'\b', rendered, text)
-    return text
-
-
-def _settled_numbers(campaign):
-    settled = set()
-    for fact in query(campaign, include_legacy=True):
-        if fact.get('status') in ('CONFIRMED', 'RESOLVED_IN_PLAY'):
-            for _key, number in _numbers(fact.get('value')):
-                settled.add(number)
-    gold = campaign.get('gold_gp')
-    if type(gold) is int:
-        settled.add(gold)
-    return settled
+                if type(new) is not int or type(number) is not int or new == number:
+                    continue
+                spans = _occurrences(text, number)
+                scoped = [span for span in spans if _context_matches(text, span[1], pair_key)]
+                if len(scoped) == 1:
+                    chosen = scoped
+                elif not scoped and len(spans) == 1:
+                    chosen = spans
+                else:
+                    chosen = []
+                rendered = _fmt(new, pair_key)
+                for start, end in chosen:
+                    jobs.append((start, end, rendered))
+    return _apply_spans(text, jobs)
 
 
 def _label_name(text, name):
@@ -476,15 +521,40 @@ def _label(text, campaign):
             continue
         text = _label_name(text, name)
 
-    settled = _settled_numbers(campaign)
-
     def number(match):
         raw = match.group(0)
         if text[match.end():match.end() + 20].lstrip().startswith('(proposed'):
             return raw
-        if int(raw.replace(',', '')) in settled:
+        value = int(raw.replace(',', ''))
+        facts = []
+        for fact in query(campaign, include_legacy=False):
+            keys = [key for key, found in _numbers(fact.get('value')) if found == value]
+            if keys:
+                facts.append((fact, keys))
+        settled_hit = False
+        proposed_hit = False
+        for fact, keys in facts:
+            status = fact.get('status')
+            for key in keys:
+                if not _context_matches(text, match.end(), key):
+                    continue
+                if status in ('CONFIRMED', 'RESOLVED_IN_PLAY'):
+                    settled_hit = True
+                elif status == 'PROPOSED':
+                    proposed_hit = True
+        if proposed_hit:
+            return raw + LABEL
+        if settled_hit:
             return raw
-        return raw + LABEL
+        statuses = {fact.get('status') for fact, _keys in facts}
+        if 'PROPOSED' in statuses:
+            return raw + LABEL
+        gold = campaign.get('gold_gp')
+        if type(gold) is int and gold == value and _context_matches(text, match.end(), 'gp'):
+            return raw
+        if not facts:
+            return raw + LABEL
+        return raw
 
     return NUMBER.sub(number, text)
 
@@ -553,14 +623,50 @@ def handoff_text(campaign, recap=None):
     return '\n'.join(lines)
 
 
+def _json_same(left, right):
+    return (json.dumps(left, sort_keys=True, ensure_ascii=False)
+            == json.dumps(right, sort_keys=True, ensure_ascii=False))
+
+
+def _file_continues(runtime_fact, file_fact):
+    """True when the file fact is an adopt or supersede of this runtime snapshot."""
+    history = file_fact.get('history') or []
+    if not history or not isinstance(history[-1], dict):
+        return False
+    prior = history[-1]
+    if prior.get('status') != canon_status(runtime_fact, 'facts'):
+        return False
+    if not _json_same(prior.get('value'), runtime_fact.get('value')):
+        return False
+    return (canon_status(file_fact, 'facts') != canon_status(runtime_fact, 'facts')
+            or not _json_same(file_fact.get('value'), runtime_fact.get('value')))
+
+
 def merge_saved(fresh, old):
-    """Runtime facts win per key. An empty runtime list does not wipe facts already in the save."""
+    """Runtime facts win per key, except a file adopt or supersede of that snapshot.
+
+    An empty runtime list does not wipe facts already in the save. A CLI adopt or
+    supersede whose history ends on the runtime snapshot is kept; the stale
+    runtime copy does not become current again.
+    """
     fresh_rows = [fact for fact in (fresh or []) if isinstance(fact, dict)]
     old_rows = [fact for fact in (old or []) if isinstance(fact, dict)]
     if not fresh_rows:
         return old_rows
-    seen = {fact.get('key') for fact in fresh_rows}
-    return fresh_rows + [fact for fact in old_rows if fact.get('key') not in seen]
+    old_by_key = {fact.get('key'): fact for fact in old_rows}
+    merged, seen = [], set()
+    for fact in fresh_rows:
+        key = fact.get('key')
+        seen.add(key)
+        previous = old_by_key.get(key)
+        if previous is not None and _file_continues(fact, previous):
+            merged.append(previous)
+        else:
+            merged.append(fact)
+    for fact in old_rows:
+        if fact.get('key') not in seen:
+            merged.append(fact)
+    return merged
 
 
 def commit_runtime(runtime, campaign, turn_id='campaign-facts'):
