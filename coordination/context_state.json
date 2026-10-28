@@ -2,16 +2,16 @@
   "schema": "kit_project_gardener_state/v1",
   "purpose": "RESUMABILITY_CURSOR_NOT_KNOWLEDGE_STORE",
   "canonical_location": "radarsaint/dnd-solo/coordination/context_state.json",
-  "state_revision": 55,
+  "state_revision": 56,
   "semantic_brain": {
     "repo": "radarsaint/dnd-solo",
     "path": "docs/PROJECT_UNDERSTANDING.md",
-    "last_semantic_commit": "bd5571e0e6a5c271363aa85fd0494f7e3c691d75",
+    "last_semantic_commit": "119a9598a512daec255f66b8f3d09b8c3775815d",
     "last_reviewed_on": "2026-10-28"
   },
   "checkpoint": {
     "reviewed_against_main": {
-      "radarsaint/dnd-solo": "8e31e3413765c60faf47160ab4dd5e3ba740cadf",
+      "radarsaint/dnd-solo": "b5ddad748055e7bab0048539cde75a45de177675",
       "radarsaint/bfdm-corpus": "cf65ec04572b2a033383344d1f2583e3380686f7"
     },
     "context_inbox": {
@@ -25,9 +25,9 @@
   "last_completed_pass": {
     "kind": "BOUNDED_SEMANTIC_RECONCILIATION",
     "completed_on": "2026-10-28",
-    "scope": "Reviewed dnd-solo #198 merge (rebuild of #126: bounded private state-selected dm_judgment). No bfdm-corpus change.",
-    "result": "Accept: #198 lands advisory non-binding dm_judgment cards selected from live state only, pinned to corpus research tranche, never reading player input or reaching public performance. Hidden guards take precedence. Not evidence of better play. #115 comment 6266120288 remains pending.",
-    "resulting_brain_commit": "bd5571e0e6a5c271363aa85fd0494f7e3c691d75",
+    "scope": "Reviewed dnd-solo #199 merge (canon status on the campaign record + DM-assist rules). No bfdm-corpus change.",
+    "result": "Accept: #199 adds explicit canon statuses (RESOLVED_IN_PLAY, PROPOSED, CONFIRMED, UNKNOWN) and precedence to campaign facts in campaign_log/campaign.json/journal. Kit speech does not confer CONFIRMED. Separate from room detail canon and #198 dm_judgment. CLI adopt/promote/supersede. #115 comment 6266120288 remains pending.",
+    "resulting_brain_commit": "119a9598a512daec255f66b8f3d09b8c3775815d",
     "reconciled_comment_id": 6202184874
   },
   "active_pass": null,
