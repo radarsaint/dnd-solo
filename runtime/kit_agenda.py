@@ -37,7 +37,7 @@ No model calls; deterministic Python.
 import re
 
 from . import kit_claims
-from .state_context import require
+from .state_context import InvalidChange, require
 
 KINDS = ('npc', 'monster', 'faction', 'environment', 'clock')
 DISPOSITIONS = ('hostile', 'friendly', 'neutral')
@@ -342,9 +342,56 @@ ROLL_CALL_SCHEMA = {'type': 'object', 'additionalProperties': False, 'properties
     # tells Kit pass or fail when the roll comes in; the player never sees it.
     'dc': {'type': 'integer', 'minimum': 1, 'maximum': 30}},
     'required': ['skill', 'mode', 'cause', 'target']}
+# Copyable forms. No DC: the player never sees one, and a repaired call does not invent one.
+ROLL_CALL_FORM = (
+    'Copy this form and change only the values: '
+    '{"skill": "perception", "mode": "normal", "cause": {"kind": "position", "ref": "none", "roots": ["scene"]}, '
+    '"target": "none"}. For advantage or disadvantage, name a cause that is true now: '
+    '{"skill": "perception", "mode": "advantage", "cause": {"kind": "item", "ref": "the shield", "roots": ["held"]}, '
+    '"target": "none"}.')
+_ROLL_KEYS = ('skill', 'mode', 'cause', 'target', 'dc')
+_NORMAL_CAUSE = {'kind': 'position', 'ref': 'none', 'roots': ['scene']}
+
+
+def _repair_roll_call(call):
+    """Form only: fold the mode, drop unknown keys, and fill target and a normal cause when
+    those are the only things missing. Never invents a skill, an advantage, or a DC."""
+    out = {key: call[key] for key in _ROLL_KEYS if key in call}
+    mode = out.get('mode')
+    if isinstance(mode, str) and mode.strip().casefold() in ROLL_MODES:
+        out['mode'] = mode.strip().casefold()
+    if 'target' not in out:
+        out['target'] = 'none'
+    dc = out.get('dc')
+    if isinstance(dc, str) and dc.strip().isdigit():
+        out['dc'] = int(dc.strip())
+    if ('cause' not in out and out.get('mode') == 'normal' and isinstance(out.get('skill'), str)
+            and out['skill'].strip()):
+        out['cause'] = {'kind': _NORMAL_CAUSE['kind'], 'ref': _NORMAL_CAUSE['ref'],
+                        'roots': list(_NORMAL_CAUSE['roots'])}
+    return out
+
+
 def check_roll_call(call, source, state, action=''):
     """Advantage or disadvantage cites a condition that is true in state right now; the
-    target, when given, is someone present or something here."""
+    target, when given, is someone present or something here. A normal call missing only its
+    cause or target is repaired. Anything else is refused with a copyable form."""
+    if isinstance(call, dict):
+        repaired = _repair_roll_call(call)
+        for key in list(call):
+            if key not in repaired:
+                del call[key]
+        call.update(repaired)
+    try:
+        _check_roll_call(call, source, state, action)
+    except InvalidChange as exc:
+        text = str(exc)
+        if 'Copy this form' not in text:
+            text = text + ' ' + ROLL_CALL_FORM
+        raise InvalidChange(text) from None
+
+
+def _check_roll_call(call, source, state, action=''):
     from . import pc_sheet
     require(isinstance(call, dict) and set(call) - {'target', 'dc'} == {'skill', 'mode', 'cause'} and
             ('dc' not in call or (type(call['dc']) is int and 1 <= call['dc'] <= 30)) and
