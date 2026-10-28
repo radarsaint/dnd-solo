@@ -2,16 +2,16 @@
   "schema": "kit_project_gardener_state/v1",
   "purpose": "RESUMABILITY_CURSOR_NOT_KNOWLEDGE_STORE",
   "canonical_location": "radarsaint/dnd-solo/coordination/context_state.json",
-  "state_revision": 54,
+  "state_revision": 55,
   "semantic_brain": {
     "repo": "radarsaint/dnd-solo",
     "path": "docs/PROJECT_UNDERSTANDING.md",
-    "last_semantic_commit": "01d582dc1934956b318079d2f39f2edcd8358b1a",
-    "last_reviewed_on": "2026-10-26"
+    "last_semantic_commit": "bd5571e0e6a5c271363aa85fd0494f7e3c691d75",
+    "last_reviewed_on": "2026-10-28"
   },
   "checkpoint": {
     "reviewed_against_main": {
-      "radarsaint/dnd-solo": "01d582dc1934956b318079d2f39f2edcd8358b1a",
+      "radarsaint/dnd-solo": "8e31e3413765c60faf47160ab4dd5e3ba740cadf",
       "radarsaint/bfdm-corpus": "cf65ec04572b2a033383344d1f2583e3380686f7"
     },
     "context_inbox": {
@@ -24,10 +24,10 @@
   },
   "last_completed_pass": {
     "kind": "BOUNDED_SEMANTIC_RECONCILIATION",
-    "completed_on": "2026-10-26",
-    "scope": "Reviewed dnd-solo #196 merge (engine-line policy + opening problems) and concurrent #173 (BFDM ruling fixture); bfdm-corpus #56 status lines. Brain and control updated on main.",
-    "result": "Accept: #196 makes presentation keys replaceable, rejection_notice fires after engine_line turns, secrecy > engine-line > presentation. #173 adds source-checked ruling fixture. bfdm-corpus #56 confirms merged research on main not doctrine. #115 comment 6266120288 remains pending.",
-    "resulting_brain_commit": "01d582dc1934956b318079d2f39f2edcd8358b1a",
+    "completed_on": "2026-10-28",
+    "scope": "Reviewed dnd-solo #198 merge (rebuild of #126: bounded private state-selected dm_judgment). No bfdm-corpus change.",
+    "result": "Accept: #198 lands advisory non-binding dm_judgment cards selected from live state only, pinned to corpus research tranche, never reading player input or reaching public performance. Hidden guards take precedence. Not evidence of better play. #115 comment 6266120288 remains pending.",
+    "resulting_brain_commit": "bd5571e0e6a5c271363aa85fd0494f7e3c691d75",
     "reconciled_comment_id": 6202184874
   },
   "active_pass": null,
