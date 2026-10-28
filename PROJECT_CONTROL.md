@@ -26,6 +26,7 @@ At the audited commit:
 - SQLite persists source/state, revisions, ledger events, Kit turns, pending turns, and telemetry;
 - Python handles bounded intent routing, deterministic checks when the player supplies no roll, tolls, card procedures, minimal combat, claims/knowers, agendas, attitudes, hidden-information guards, manifests, retries, and idempotent commits;
 - Kit/model supplies private judgment and public performance plus a checked set of canon/state proposals;
+- a live state that establishes a pinned situation can attach advisory `dm_judgment` to that private input (`runtime/kit_judgment.py`); a player sentence does not; this is not evidence that play is better;
 - `--table-talk` is a distinct execution path;
 - the audited suite is **813 tests green**.
 
