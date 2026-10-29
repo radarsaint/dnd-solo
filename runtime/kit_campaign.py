@@ -61,6 +61,14 @@ def campaign_entry(db, sheet_path=None, rooms_dir=None, campaign=None, intent=No
         return _build(sheet_path)
     if campaign is None and intent == 'play':
         return _play(db, sheet_path, executable, blocked, table, modules=rooms_dir)
+    if campaign is None and _sheet_real(sheet_path):
+        # A book is already in, and the player handed a sheet. Open its first scene.
+        # Play-or-build is for when one of those is still missing.
+        default = next((item for item in executable
+                        if item.get('ingested') and item.get('default') and item.get('path')), None)
+        if default:
+            from .kit_agent import start_session
+            return start_session(str(db), sheet_path, room=default['path'], manifests=True, table=table)
     if campaign is None:
         from . import kit_resume  # local: kit_resume imports this module's callers
         return _greeting(sheet_path, executable, blocked, kit_resume.find_saves(saves_db or db))

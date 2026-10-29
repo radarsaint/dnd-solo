@@ -18,7 +18,7 @@ Their next message is the answer and the roll together (`The door. 14.`). `prepa
 
 One check is one exchange after the ask. If they do something else, that outcome is stale: `prepare` their new words as a normal turn.
 
-After ingest, `start` with no `--room` lists the book's scenes in `executable_starts`. The default is marked. It is the first lettered scene (the road fight), not the first numbered cave. `--start A` or `--start 1` picks another. A sheet is required: `start` without `--sheet` does not open the room.
+After ingest, `start` with no `--room` lists the book's scenes in `executable_starts`. The default is marked. It is the prose before the first numbered area, not the contents list and not that first numbered room. A part that is only named places, with no numbers, still opens. `--start A` or `--start 1` picks another. Pass `--sheet`: that opens the default and loads the character. Without a sheet the room does not open.
 
 A bare `Yes.` answers the waiting opening. The scene is staged and Kit is waiting for a go-ahead to begin. It is not a yes to anyone in the fiction. `prepare` commits it and returns `spoken`. Show `spoken`. Do not draft it.
 

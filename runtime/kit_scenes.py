@@ -27,6 +27,8 @@ PROMOTE_SIGNALS = 2
 BODY_MIN = 40
 
 _HEAD_WORD = re.compile(r"^[A-Z][A-Za-z'’-]{2,24}$")
+# Short words that still belong in a place or encounter heading ("on the road", "of the inn").
+_SMALL_WORD = frozenset('a an the of on to and in for or by at'.split())
 _PREFIX = re.compile(r'^(encounter|event|travel|random encounter)\s*:\s*(.+)$', re.I)
 _DM = re.compile(
     r'^(?:developments|features|treasure|creatures|tactics|roleplaying|adjusting|xp awards|'
@@ -85,9 +87,16 @@ def _fragment(core):
     if any(ch in core for ch in '.?!;'):
         return False
     words = core.split()
-    if not 1 <= len(words) <= 6 or len(core) > 48:
+    if not 1 <= len(words) <= 8 or len(core) > 60:
         return False
-    return all(_HEAD_WORD.match(word) for word in words)
+    real = 0
+    for word in words:
+        if word.casefold() in _SMALL_WORD:
+            continue
+        if not _HEAD_WORD.match(word):
+            return False
+        real += 1
+    return real >= 1
 
 
 def _signals_in(body, heading, travel):
@@ -296,7 +305,7 @@ def _prompt(letter, name, page, relation, number):
         letter, title.casefold(), page, where)
 
 
-def collect(text, heads, chapters, page_of):
+def collect(text, heads, chapters, page_of, listed=None):
     """Playable scene heads, low-confidence checks, and the front-matter hook.
 
     ``heads`` is the chapter/location list build_index already found. Scenes are
@@ -306,13 +315,41 @@ def collect(text, heads, chapters, page_of):
     rows = list(_lines(text))
     raw = []
     seen = []
+    listed = listed or []
+
+    def _listed(offset):
+        return any(start <= offset < end for start, end in listed)
+
+    def _pre_key(offset):
+        """A heading in the prose before this part's first numbered area. One scene covers that gap."""
+        chapter = _chapter_at(chapters, offset)
+        if not chapter:
+            return False
+        title = chapter['title']
+        later = [room['offset'] for room in rooms
+                 if room.get('chapter') == title and room['offset'] > chapter['offset']]
+        if not later:
+            return False
+        return chapter['offset'] <= offset < min(later)
+
     i = 0
     while i < len(rows):
         found = _heading_at(rows, i)
         if not found:
             i += 1
             continue
+        if _listed(found['offset']) or _pre_key(found['offset']):
+            i += found['consumed']
+            continue
+        # One word is a stat block or a section label, not a place you can enter.
+        if len(found['name'].split()) < 2:
+            i += found['consumed']
+            continue
         chapter = _chapter_at(chapters, found['offset'])
+        # Front matter before the first part is not a scene.
+        if chapters and found['offset'] < chapters[0]['offset']:
+            i += found['consumed']
+            continue
         title = chapter['title'] if chapter else ''
         if title and 'appendix' in title.casefold():
             i += found['consumed']
@@ -458,7 +495,10 @@ def _preamble_scenes(text, chapters, rooms, seen, page_of):
             continue
         if _DM.match(body.strip()):
             continue
-        signals = _signals_in(body, False, False)
+        has_head = any(
+            _fragment(_core(line.strip().lstrip('>').strip())[0])
+            for line in body.splitlines() if line.strip())
+        signals = _signals_in(body, has_head, False)
         if len(signals) < PROMOTE_SIGNALS or _score(signals) < PROMOTE_SCORE:
             continue
         name = 'Opening'

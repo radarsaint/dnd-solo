@@ -429,9 +429,46 @@ def _book_number(raw):
     return match.group(1).upper() + match.group(2) + match.group(3).lower()
 
 
+def _unwrap_line(line):
+    """A running header glued on with a bar or a dash rule is not part of the heading.
+
+    'AMBUSH ON THE ROAD | PART 1: THE LONG ROAD' is the encounter. 'THE RED INN | THE MARKET'
+    is the inn. A part heading that itself matches stays a part heading.
+    """
+    stripped = line.strip()
+    if not stripped:
+        return line
+    cleaned = re.sub(r'\s*-{4,}.*$', '', stripped).strip()
+    if '|' not in cleaned:
+        return cleaned if cleaned != stripped else line
+    if CHAPTER_RE.match(cleaned):
+        return re.sub(r'\s+', ' ', cleaned.replace('|', ' ')).strip()
+    sides = [part.strip() for part in cleaned.split('|') if part.strip()]
+    kept = []
+    for part in sides:
+        words = part.split()
+        if CHAPTER_RE.match(part) or re.fullmatch(r'[\d ]+', part):
+            continue
+        if len(words) <= 2 and part.isupper() and len(part) < 24:
+            continue
+        kept.append(part)
+    if not kept:
+        return sides[0] if sides else cleaned
+    return kept[0]
+
+
+def _unwrap_headers(text):
+    """Split a running header off the line it was glued to. Page breaks stay put."""
+    pages = []
+    for page in text.split('\f'):
+        pages.append('\n'.join(_unwrap_line(line) for line in page.split('\n')))
+    return '\f'.join(pages)
+
+
 def prepare_source(text):
     """Running headers off, read-aloud marked. The index and the saved source are this text."""
     text = text.replace('\r\n', '\n').replace('\r', '\n')
+    text = _unwrap_headers(text)
     text = mark_read_aloud(strip_running_matter(text))
     from . import kit_scenes
     return kit_scenes.mark_scene_lines(text)
@@ -678,6 +715,51 @@ def _resolve_area(bare, loc, sentence, by_site, unique):
     return unique.get(bare)
 
 
+def contents_ranges(text):
+    """Spans of a contents list: real part headings packed together, with no keyed area between them.
+
+    A sentence that merely mentions a part is not a heading. A heading that is followed by a
+    numbered area before the next part is where that part begins. The list is not a start.
+    """
+    chapters, locations = [], []
+    at = 0
+    flat = text.replace('\f', '\n')
+    for line in flat.split('\n'):
+        stripped = line.strip()
+        if (stripped and CHAPTER_RE.match(stripped) and _is_real_chapter(stripped)
+                and not re.search(r'-{4,}', stripped)):
+            chapters.append(at)
+        elif stripped and LOCATION_RE.match(stripped) and _location_name_ok(stripped):
+            locations.append(at)
+        at += len(line) + 1
+    ranges = []
+    gap = 900
+    for i, off in enumerate(chapters):
+        nxt = chapters[i + 1] if i + 1 < len(chapters) else None
+        if nxt and any(off < loc < nxt for loc in locations):
+            continue
+        if nxt is None and any(loc > off for loc in locations):
+            continue
+        close = False
+        for j in (i - 1, i + 1):
+            if not 0 <= j < len(chapters):
+                continue
+            other = chapters[j]
+            if abs(other - off) >= gap:
+                continue
+            lo, hi = min(off, other), max(off, other)
+            if any(lo < loc < hi for loc in locations):
+                continue
+            close = True
+        if not close:
+            continue
+        end = nxt if nxt and nxt - off < gap else min(len(flat), off + gap)
+        if nxt:
+            end = min(end, nxt)
+        ranges.append((off, end))
+    return ranges
+
+
 def build_index(text, title=None):
     """The global index of an adventure's text. Pure: same text, same index."""
     page_starts = [0] + [m.end() for m in re.finditer('\f', text)]
@@ -688,6 +770,8 @@ def build_index(text, title=None):
         chars = len(re.sub(r'\s', '', text[start:end]))
         pages.append({'page': number, 'start': start, 'end': end, 'chars': chars,
                       'needs_map_look': chars < MAP_PAGE_MAX_CHARS})
+    from . import kit_scenes
+    listed = contents_ranges(text)
     chapters, heads = [], []
     current = None
     for off, line in _lines(text.replace('\f', '\n')):
@@ -695,10 +779,17 @@ def build_index(text, title=None):
         if not stripped or stripped.startswith('>') or _toc_line(stripped):
             continue
         lead = len(line) - len(line.lstrip())
+        at = off + lead
         chapter = CHAPTER_RE.match(stripped)
         if chapter:
             if not _is_real_chapter(stripped):
                 continue  # TOC crumb, body bleed, or letter-spaced fake
+            if re.search(r'-{4,}', stripped):
+                continue  # a rule under a running header, not a new part
+            if any(start <= at < end for start, end in listed):
+                continue  # the contents list, not where the part begins
+            stripped = re.sub(r'\s*-{4,}.*$', '', stripped.replace('|', ' '))
+            stripped = re.sub(r'\s+', ' ', stripped).strip()
             norm = _chapter_norm(stripped)
             prior = next((c for c in chapters if _chapter_norm(c['title']) == norm), None)
             if prior is None:
@@ -707,7 +798,7 @@ def build_index(text, title=None):
             else:
                 prior['title'] = _preferred_chapter_title(prior['title'], stripped)
                 current = prior['title']
-            heads.append(('chapter', off, None, None, current))
+            heads.append(('chapter', at, None, None, current))
             continue
         loc = LOCATION_RE.match(stripped)
         if loc and _location_name_ok(stripped) and (not stripped.endswith('.') or len(stripped) < 40):
@@ -715,8 +806,7 @@ def build_index(text, title=None):
             name = re.sub(r'\s+', ' ', name).strip()
             heads.append(('location', off, _book_number(loc.group(1)), name, current))
             continue
-    from . import kit_scenes
-    scene_heads, checks, front = kit_scenes.collect(text, heads, chapters, page_of)
+    scene_heads, checks, front = kit_scenes.collect(text, heads, chapters, page_of, listed)
     heads.extend(scene_heads)
     heads.sort(key=lambda item: item[1])
     raw = []
@@ -839,7 +929,8 @@ def _sentence_around(span, at):
     para_end = span.find('\n\n', at)
     if para_end >= 0:
         end = min(end, para_end)
-    return _norm(span[start:end].lstrip('> '))
+    # A read-aloud mark can sit on every wrapped line, including mid-sentence.
+    return _norm(span[start:end].replace('>', ' '))
 
 
 AC_RE = re.compile(r'Armor Class (\d+)')
