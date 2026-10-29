@@ -459,7 +459,7 @@ def check_short_beat(plan, body, state):
                 'A held description is already waiting on the roll; deliver it before calling another')
         require(not body.get('story_due'),
                 'A due hook lands this turn; do not stall it behind a check')
-    if body.get('held_description'):
+    if body.get('held_description') and body.get('roll_call_policy', 'deliver') == 'deliver':
         require(plan['public_brief']['scope'] == 'feature',
                 'The held description is due now: describe the place in full (feature scope), '
                 'scaled to the roll; not another call')
@@ -1739,12 +1739,11 @@ class RoomAdjudicator:
 
     def _kit_ruling(self, action):
         """An attempt Kit rules as an ordinary turn: committed as tried, outcome hers."""
-        words = social_event(action)[len(SOCIAL_EVENT_PREFIX):]
         event = {'type': 'beat', 'tags': ['attempt', 'kit_ruling'],
                  'evidence': f'Player attempts: {action[:300]}. Nothing rolled yet; Kit rules the outcome '
                              'as an ordinary turn and may call a check (roll_call). Nothing hidden is learned '
                              'unless a called check succeeds.'}
-        return Resolution('kit_ruling', f'{ATTEMPT_PREFIX}{words}', [event])
+        return Resolution('kit_ruling', 'You try that.', [event])
 
     def _feature_act(self, action, offer):
         """A turn about a watched feature: nothing is resolved from the words; Kit's decision
@@ -2123,7 +2122,6 @@ class RoomAdjudicator:
     def _check_request(self, action, narration, state, search=False):
         """The player asks for a check. Nothing is rolled: Kit calls one (roll_call) or declines.
         Every other intent in the message stays in the public event (the questions, the watching)."""
-        words = social_event(action)[len(SOCIAL_EVENT_PREFIX):]
         tags = ['check_request'] + (['search'] if search else [])
         threshold = THRESHOLD_LOOK.search(narration.lower()) and THRESHOLD_GAP.search(narration.lower()) and \
             not MOVE_THROUGH.search(narration.lower())
@@ -2135,7 +2133,7 @@ class RoomAdjudicator:
                  'evidence': f'Player {"searches" if search else "asked for a check"}: {action[:300]}. Nothing rolled; '
                              f'{"they named " + named + " (a request)" if named else "no skill named"}. '
                              'Kit calls a check or declines.'}
-        return Resolution('check_request', f'{SEARCH_PREFIX if search else CHECK_REQUEST_PREFIX}{words}', [event])
+        return Resolution('check_request', 'You search.' if search else 'You ask for a check.', [event])
 
     # -- social checks rolled in conversation -----------------------------------------
     def _resolve_social_check(self, skill, action, narration, revision, state, private=False, who=None):
@@ -4609,11 +4607,50 @@ _LEAD_FLAVOR = re.compile(
     r'something glints|a glint|cloth on the thorns?)\b', re.I)
 
 
-def check_combined_call(segments, plan, action_kind):
-    """A check ask is one line: the focus question and the roll call. A question alone is another round trip."""
-    if action_kind != 'check_request':
+def check_reveal_text(source, area):
+    """The current scene's Check or Find row, or nothing. Never the opening."""
+    rows = [fact.get('text') for fact in ((source or {}).get('facts') or {}).values()
+            if isinstance(fact, dict) and fact.get('area') == area
+            and str(fact.get('row') or '').startswith(('check', 'find')) and fact.get('text')]
+    return _spoken_sentence(rows[0]) if rows else ''
+
+
+def assign_roll_call_policy(body, source):
+    """One roll_call rule for this turn_id. Later rejects on the same turn use this, and only this."""
+    frozen = body.get('roll_call_policy')
+    if frozen in ('combined', 'clarify', 'deliver', 'none'):
+        return frozen
+    if body.get('held_description'):
+        policy = 'deliver'
+    elif body.get('kind') == 'check_request' and str((source or {}).get('id') or '').startswith('adv-'):
+        area = ((body.get('public_view') or {}).get('area'))
+        rows = [fact for fact in ((source or {}).get('facts') or {}).values()
+                if isinstance(fact, dict) and fact.get('area') == area
+                and str(fact.get('row') or '').startswith(('check', 'find'))]
+        policy = 'combined' if rows else 'clarify'
+    elif body.get('kind') == 'check_request':
+        policy = 'combined'
+    else:
+        policy = 'none'
+    body['roll_call_policy'] = policy
+    return policy
+
+
+def check_combined_call(segments, plan, action_kind, policy=None):
+    """One policy per turn. A combined check asks and calls the roll. A scene with no Check clarifies."""
+    if policy is None:
+        policy = 'combined' if action_kind == 'check_request' else 'none'
+    if policy in (None, 'none'):
         return
     text = ' '.join(segment.get('text') or '' for segment in segments)
+    if policy == 'deliver':
+        require(not plan.get('roll_call'),
+                'A held description is owed; deliver it before calling another check')
+        return
+    if policy == 'clarify':
+        require(not plan.get('roll_call'),
+                'No Check or Find in this scene. Ask one question, with no roll call.')
+        return
     require(_WHICH_SKILL.search(text) is None,
             'Ask what they are focusing on, not which skill. You pick the skill. DCs stay hidden.')
     require(re.search(r'\bDC\s*\d+', text) is None, 'DCs stay hidden. Do not say the number.')
@@ -4855,7 +4892,7 @@ def check_speech(speech, plan, public_view, player_action, action_kind=None, gua
     if guards.get('no_refreshment'):
         hard(kit_guards.check_no_refreshment, segments)
     hard(kit_guards.check_clarification_shape, segments, plan)
-    hard(check_combined_call, segments, plan, action_kind)
+    hard(check_combined_call, segments, plan, action_kind, guards.get('roll_call_policy'))
     hard(check_invented_lead, segments, guards.get('fact_text') or '')
     # HARD: scene fit. Who the player is, what the deal really was, what can be staked.
     hard(kit_guards.check_player_identity, segments, (public_view or {}).get('your_character'))
@@ -4988,10 +5025,7 @@ def turn_events(runtime, body, plan, turn_id, record=None):
         skill = pending['check'].get('skill') or 'check'
         name = skill.replace('_', ' ')
         area = runtime.load()[1].get('area')
-        facts = [fact.get('text') for fact in (runtime.source().get('facts') or {}).values()
-                 if isinstance(fact, dict) and fact.get('visible') and fact.get('area') == area
-                 and fact.get('text')]
-        cited = _spoken_sentence(facts[0]) if facts else ''
+        cited = check_reveal_text(runtime.source(), area)
         events.append({'type': 'prepared_roll', 'roll': {
             'skill': skill, 'dc': pending['check'].get('dc') or 12,
             'called_turn': pending['check'].get('called_turn'),
@@ -6086,6 +6120,7 @@ def guard_context(source, body):
             'dealer_cheated': bool((body.get('scene_facts') or {}).get('dealer_cheated')),
             'declared_procedures': tuple(procedures),
             'voice_contracts': {name: card.get('voice_contract') or {} for name, card in cards.items()},
+            'roll_call_policy': body.get('roll_call_policy') or 'none',
             'speakers': labels, 'labels': speech_speakers(source), 'heard_only': heard_only,
             # The actor word floor is room data: only a card with speech_floor true asks for it
             # (6c's dealer). Every other voice may be terse (watchroom: a guard of short questions).
@@ -7461,6 +7496,7 @@ class KitChatBridge:
 
     def _stage(self, turn_id, revision, body, planning_input, one_pass, performance_variant, started, clock, stamps):
         """Stage a prepared turn and build its model packet."""
+        assign_roll_call_policy(body, self.runtime.source())
         body['host_mode'] = 'one_pass' if one_pass else 'staged'
         if one_pass:
             body['performance_variant'] = performance_variant

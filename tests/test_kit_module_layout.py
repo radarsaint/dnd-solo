@@ -422,7 +422,7 @@ class ModuleLayout(unittest.TestCase):
         self.assertIn('Case and punctuation may differ', card)
         self.assertIn('player_hears', card)
         self.assertIn('same exchange', card.casefold())
-        self.assertIn('let me check', card.casefold())
+        self.assertIn('give me a second, checking the page', card.casefold())
         self.assertIn('same line', card.casefold())
 
     def test_missing_labels_keep_the_heuristic_opening_and_the_picker(self):

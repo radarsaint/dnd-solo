@@ -239,7 +239,8 @@ class RetestTwoItems(Stalls):
         self.go_in()
         result = self.resolve(self.runtime, 'I pour water over the ledger.')
         self.assertEqual(result.kind, 'kit_ruling')
-        self.assertTrue(result.public_event.startswith('You try: '))
+        self.assertEqual(result.public_event, 'You try that.')
+        self.assertNotIn(result.public_event, 'You try: "')
         self.assertIn('may call a check', result.events[0]['evidence'])
 
     def test_exploits_and_people_stay_refused(self):

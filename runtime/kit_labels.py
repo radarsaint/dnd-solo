@@ -22,10 +22,37 @@ LEAK_RE = re.compile(
     r'|\bread when\b'
     r'|\b(?:secret|hidden|concealed)\b',
     re.I)
-FRONT_RE = re.compile(
-    r'^(?:contents|index|credits|preface|foreword|glossary|bibliography|overview|introduction|rests)\b',
+# A DM tip in front of boxed fiction. Cut before the box. A block that stays fused
+# cannot open, and is not painted dm (that would delete the only box).
+TIP_RE = re.compile(
+    r"read the (?:following )?boxed(?: text)?"
+    r"|when you(?:'re| are) ready"
+    r"|skip\b[^.]{0,80}\bhook"
+    r"|read or paraphrase"
+    r"|add the following",
     re.I)
-SIDEBAR_RE = re.compile(r'^(?:sidebar|side bar)\b', re.I)
+FRONT_RE = re.compile(
+    r'^(?:contents|index|credits|preface|foreword|glossary|bibliography|overview|introduction|'
+    r'rests|legal|welcome|tools|sheets|title)\b',
+    re.I)
+SIDEBAR_RE = re.compile(
+    r'^(?:sidebar|side bar|general features|history)\b',
+    re.I)
+LATER_SUMMARY_RE = re.compile(
+    r'\b(?:later floors?|lower levels?|the levels? below|the rest of (?:the )?(?:dungeon|crawl)|'
+    r'on the floors? (?:below|above))\b',
+    re.I)
+PLAYABLE_HEAD_RE = re.compile(
+    r'^(?:starting the adventure)\b'
+    r'|^(?:encounter|scene|section)\s+[A-Z]?\d+'
+    r'|^(?:part|chapter)\s+\S+',
+    re.I)
+SPEAKER_RE = re.compile(
+    r'\b([A-Z][a-z]{2,}(?:\s+[A-Z][a-z]{2,})?)\s+'
+    r'(?:says?|asks?|calls?|shouts?|whispers?|replies?|answers?|tells?|greets?|waves?|nods?)\b',
+)
+BLOCK_CAP = 20
+BYTE_CAP = 6000
 
 INSTRUCTIONS = (
     'Label this one section. Return one JSON object and nothing else. '
@@ -82,6 +109,47 @@ def leak(text):
     return bool(LEAK_RE.search(text or ''))
 
 
+def _split_tip(text):
+    """(tip, box, fused). A clean cut puts the fiction after the cue in its own block.
+
+    Primary cut: the sentence that holds the cue, then the fiction.
+    Secondary cut: a colon after the cue. Still one blob: fused, and not the opening.
+    """
+    match = TIP_RE.search(text or '')
+    if not match:
+        return None
+    # A colon after the cue introduces the box, even inside the same sentence.
+    colon = text.find(':', match.start())
+    end = len(text)
+    for mark in '.!?':
+        at = text.find(mark, match.end())
+        if 0 <= at < end:
+            end = at + 1
+    if 0 <= colon < end:
+        tip, box = text[:colon + 1].strip(), text[colon + 1:].strip()
+        if box and not TIP_RE.search(box):
+            return tip, box, False
+    tip, box = text[:end].strip(), text[end:].strip()
+    if box and not TIP_RE.search(box):
+        return tip, box, False
+    return text.strip(), '', True
+
+
+def _split_leak(text):
+    """A DC or a secret in one sentence does not drag the next sentence into dm."""
+    parts = [part.strip() for part in re.split(r'(?<=[.!?])\s+', text or '') if part.strip()]
+    if len(parts) < 2 or not any(leak(part) for part in parts):
+        return None
+    return parts
+
+
+def _normalize_words(text):
+    """One spacing, soft hyphens gone, a hyphenated wrap joined, before anything is frozen."""
+    text = (text or '').replace('\u00ad', '')
+    text = re.sub(r'(\w)-\s+([A-Za-z])', r'\1\2', text)
+    return re.sub(r'\s+', ' ', text).strip()
+
+
 def _table_line(line):
     stripped = line.strip()
     if stripped.count('|') >= 2:
@@ -115,7 +183,7 @@ def blocks_for(text, loc):
             groups.append({
                 'start': buf[0][0],
                 'end': buf[-1][0] + len(buf[-1][1]) + 1,
-                'text': re.sub(r'\s+', ' ', raw.replace('>', ' ')).strip(),
+                'text': _normalize_words(raw.replace('>', ' ')),
                 'kind': kind or 'prose',
             })
         buf = []
@@ -163,17 +231,50 @@ def blocks_for(text, loc):
         buf.append((off, line))
     flush()
     scene = loc.get('key')
+    expanded = []
+    for group in groups:
+        split = _split_tip(group['text'])
+        if not split:
+            expanded.append(group)
+            continue
+        tip, box, fused = split
+        if fused:
+            # Still one blob. It cannot open. Do not paint it dm: that would delete the only box.
+            expanded.append({**group, 'fused': True})
+            continue
+        expanded.append({**group, 'text': tip, 'kind': 'rules', 'tip': True})
+        expanded.append({
+            'start': group['start'], 'end': group['end'], 'text': _normalize_words(box),
+            'kind': 'read_aloud',
+        })
+    leaked = []
+    for group in expanded:
+        parts = None if group.get('fused') or group.get('tip') else _split_leak(group['text'])
+        if not parts:
+            leaked.append(group)
+            continue
+        for part in parts:
+            leaked.append({**group, 'text': part, 'kind': 'rules' if leak(part) else group['kind'],
+                           'tip': True if leak(part) else group.get('tip')})
+    expanded = leaked
     out = []
-    for n, group in enumerate(groups):
+    for n, group in enumerate(expanded):
         text_out = group['text']
-        audience = 'dm' if group['kind'] == 'sidebar' or leak(text_out) else None
-        if FRONT_RE.match(text_out):
-            audience = 'front'
-            group['kind'] = 'meta'
+        kind = group['kind']
+        block_scene = scene
+        audience = 'dm' if kind == 'sidebar' or leak(text_out) or group.get('tip') else None
+        if FRONT_RE.match(text_out) or SIDEBAR_RE.match(text_out) or LATER_SUMMARY_RE.search(text_out):
+            if SIDEBAR_RE.match(text_out) or LATER_SUMMARY_RE.search(text_out):
+                audience, kind, block_scene = 'dm', 'sidebar', None
+            else:
+                audience, kind = 'front', 'meta'
         block = {
             'id': 'b%d' % n, 'text': text_out, 'start': group['start'], 'end': group['end'],
-            'kind': group['kind'], 'scene': scene, 'scenes': [scene],
+            'kind': kind, 'scene': block_scene,
+            'scenes': [block_scene] if block_scene else [],
         }
+        if group.get('fused'):
+            block['fused'] = True
         if audience:
             block['audience'] = audience
             block['locked'] = True
@@ -190,7 +291,9 @@ def _ordered(blocks):
 
 
 def _eligible(block):
+    """A clean player read-aloud or prose block. A fused tip is never the opening."""
     return (block.get('audience') == 'player' and block.get('kind') in HEARD
+            and not block.get('fused') and block.get('scene') is not None
             and not leak(block.get('text', '')) and block.get('kind') != 'sidebar')
 
 
@@ -205,15 +308,28 @@ def choose_opening(blocks):
 
 
 def suggest_opening(blocks):
-    """Which block the host should mark, from the text's own shape, before audiences come back."""
+    """The first clean player read-aloud, else prose. A fused tip is skipped, not relabeled."""
     rows = [block for block in _ordered(blocks)
-            if block.get('audience') != 'front' and block.get('kind') != 'sidebar'
+            if not block.get('fused') and block.get('audience') != 'front'
+            and block.get('kind') != 'sidebar' and block.get('scene') is not None
             and not leak(block.get('text', ''))]
     aloud = [block for block in rows if block.get('kind') == 'read_aloud']
     if aloud:
         return aloud[0]['id']
     prose = [block for block in rows if block.get('kind') == 'prose']
     return prose[0]['id'] if prose else None
+
+
+def _cap_blocks(blocks):
+    """One call is at most 20 blocks and 6 KB of block text. Never a 100-block request."""
+    out, size = [], 0
+    for block in blocks:
+        raw = len((block.get('text') or '').encode('utf-8'))
+        if out and (len(out) >= BLOCK_CAP or size + raw > BYTE_CAP):
+            break
+        out.append(block)
+        size += raw
+    return out
 
 
 def _host_blocks(blocks):
@@ -235,11 +351,16 @@ def request_for(db, key):
     blocks = blocks_for(text, loc)
     if not blocks:
         return None
-    host = _host_blocks(blocks)
+    host = list(_host_blocks(blocks))
     if not host:
         _freeze_front(db, key, blocks)
         return None
-    opening = suggest_opening(host) or host[0]['id']
+    host = _cap_blocks(host)
+    opening = suggest_opening(host)
+    if not opening:
+        # Nothing clean to open on. A fused tip is not relabeled dm and is not spoken.
+        _silence(db, key)
+        return None
     return {
         'stage': 'label_section',
         'section': key,
@@ -252,6 +373,7 @@ def request_for(db, key):
             'scene': block['scene'], 'scenes': list(block['scenes']),
             'start': block['start'], 'end': block['end'],
             **({'audience': block['audience'], 'locked': True} if block.get('locked') else {}),
+            **({'fused': True} if block.get('fused') else {}),
         } for block in host],
     }
 
@@ -275,6 +397,53 @@ def _freeze_front(db, key, blocks):
         return
     if index.get('start') == key:
         _soft_start(db, key)
+
+
+def first_playable_offset(text):
+    """Where front matter ends: Starting the Adventure, Encounter N, a part, or a greeter."""
+    from .kit_adventure import _toc_line, contents_ranges
+    listed = contents_ranges(text or '')
+    at = 0
+    head = None
+    for line in (text or '').split('\n'):
+        stripped = line.strip()
+        in_list = any(start <= at < end for start, end in listed)
+        if stripped and not in_list and not _toc_line(stripped):
+            if PLAYABLE_HEAD_RE.match(stripped):
+                return at
+            if head is not None and SPEAKER_RE.search(stripped):
+                return head
+            if (not stripped.startswith('>') and len(stripped) <= 60 and stripped[:1].isupper()
+                    and stripped[-1:] not in '.?!'):
+                head = at
+            elif stripped[-1:] in '.?!':
+                head = None
+        at += len(line) + 1
+    return None
+
+
+def mark_leading_front(db):
+    """Title, credits, contents, and the rest before the first playable heading. No label call."""
+    from .kit_adventure import _load
+    try:
+        index, text = _load(db)
+    except Exception:
+        return
+    cut = first_playable_offset(text)
+    if cut is None:
+        return
+    for key, loc in (index.get('locations') or {}).items():
+        if (loc.get('offset') or 0) >= cut:
+            continue
+        if key in (_read(db).get('frozen') or {}):
+            continue
+        blocks = blocks_for(text, dict(loc, key=key))
+        if not blocks:
+            continue
+        for block in blocks:
+            block['audience'] = 'front'
+            block['kind'] = 'meta'
+        _freeze_front(db, key, blocks)
 
 
 def opening_labeled(db):
@@ -379,7 +548,10 @@ def _problems(req, reply):
         if type(body.get('opening')) is not bool:
             problems.append('opening must be true or false')
         allow = issued[block_id].get('scenes') or []
-        if body.get('scene') not in allow:
+        if issued[block_id].get('scene') is None:
+            if body.get('scene') not in (None, ''):
+                problems.append('a sidebar is not a scene')
+        elif body.get('scene') not in allow:
             problems.append('scene %r is not on the allowlist' % body.get('scene'))
         elif body.get('scene') != issued[block_id].get('scene'):
             problems.append('a block cannot be pulled onto another scene')
@@ -411,8 +583,10 @@ def _clamp(req, reply):
         stored[block_id] = {
             'id': block_id, 'audience': audience, 'kind': kind, 'scene': src.get('scene'),
             'opening': False, 'start': src.get('start'), 'end': src.get('end'),
-            'text': src.get('text') or '',
+            'text': _normalize_words(src.get('text') or ''),
         }
+        if src.get('fused'):
+            stored[block_id]['fused'] = True
     opening = choose_opening(stored)
     if opening:
         stored[opening]['opening'] = True
@@ -534,12 +708,25 @@ def accept(db, reply):
         return {'stage': 'labels_rejected', 'problems': problems, 'label_request': next_request(db),
                 'soft_start': fallback, 'start_picker': _picker(db), 'player_hears': []}
     clamped = _clamp(req, reply)
+    issued = {block['id']: block for block in req.get('blocks') or []}
+    named = issued.get(reply.get('opening_block')) or {}
     if clamped.get('opening_block') != reply.get('opening_block'):
-        fallback = _silence(db, req['section'])
-        return {'stage': 'labels_rejected',
-                'problems': ['the opening must be the first player read-aloud, or player prose'],
-                'label_request': next_request(db), 'soft_start': fallback,
-                'start_picker': _picker(db), 'player_hears': []}
+        # A fused tip is refused as the opening. The next clean player block stands.
+        # If there is none, soft-start. Any other mismatch is still a bad label pass.
+        if named.get('fused') and clamped.get('opening_block'):
+            pass
+        elif not clamped.get('opening_block'):
+            fallback = _silence(db, req['section'])
+            return {'stage': 'labels_rejected',
+                    'problems': ['a fused tip cannot open, and no clean player block follows'],
+                    'label_request': next_request(db), 'soft_start': fallback,
+                    'start_picker': _picker(db), 'player_hears': []}
+        else:
+            fallback = _silence(db, req['section'])
+            return {'stage': 'labels_rejected',
+                    'problems': ['the opening must be the first player read-aloud, or player prose'],
+                    'label_request': next_request(db), 'soft_start': fallback,
+                    'start_picker': _picker(db), 'player_hears': []}
     if any(body.get('audience') == 'front' and body.get('opening') for body in clamped['blocks'].values()):
         fallback = _silence(db, req['section'])
         return {'stage': 'labels_rejected', 'problems': ['front matter is never the opening'],

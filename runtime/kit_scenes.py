@@ -323,25 +323,13 @@ def collect(text, heads, chapters, page_of, listed=None):
     def _listed(offset):
         return any(start <= offset < end for start, end in listed)
 
-    def _pre_key(offset):
-        """A heading in the prose before this part's first numbered area. One scene covers that gap."""
-        chapter = _chapter_at(chapters, offset)
-        if not chapter:
-            return False
-        title = chapter['title']
-        later = [room['offset'] for room in rooms
-                 if room.get('chapter') == title and room['offset'] > chapter['offset']]
-        if not later:
-            return False
-        return chapter['offset'] <= offset < min(later)
-
     i = 0
     while i < len(rows):
         found = _heading_at(rows, i)
         if not found:
             i += 1
             continue
-        if _listed(found['offset']) or _pre_key(found['offset']):
+        if _listed(found['offset']):
             i += found['consumed']
             continue
         chapter = _chapter_at(chapters, found['offset'])
@@ -403,8 +391,16 @@ def collect(text, heads, chapters, page_of, listed=None):
                 explicit or not numbered or before_keys):
             playable = True
         anchor, relation = _relation(found['offset'], found['indent'], body, rooms, title, 'travel_event' in signals)
+        body_at = found['end'] + 1 if found['end'] < len(text) else found['end']
+        if chapter and not any(item.get('chapter') == title and item['offset'] < found['offset'] for item in raw):
+            first_here = min((room['offset'] for room in rooms if room.get('chapter') == title), default=None)
+            if first_here is None or found['offset'] < first_here:
+                # The lead-in before the first heading in this part stays with that scene.
+                nl = text.find('\n', chapter['offset'])
+                if nl >= 0:
+                    body_at = nl + 1
         raw.append({
-            'offset': found['offset'], 'body_at': found['end'] + 1 if found['end'] < len(text) else found['end'],
+            'offset': found['offset'], 'body_at': body_at,
             'end': boundary if boundary is not None else min(len(text), found['end'] + len(body) + 1),
             'name': found['name'], 'indent': found['indent'], 'signals': sorted(signals),
             'score': score, 'playable': playable, 'chapter': title,

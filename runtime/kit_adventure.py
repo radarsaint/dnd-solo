@@ -756,8 +756,16 @@ def _opening_start(chapters, locations):
                 if 'appendix' not in (loc.get('chapter') or '').casefold()]
     if not pool:
         pool = list(locations.values())
-    scenes = [loc for loc in pool if loc.get('type') == 'scene']
+    scenes = [loc for loc in pool if loc.get('type') == 'scene'
+              and not re.match(r'(?i)^(?:general features|history)$', (loc.get('name') or '').strip())]
     scenes.sort(key=lambda loc: loc['offset'])
+    numbered = [loc for loc in pool if loc.get('type') != 'scene']
+    first_room = min((loc['offset'] for loc in numbered), default=None)
+    early = [loc for loc in scenes
+             if first_room is not None and loc['offset'] < first_room
+             and re.search(r'\b(?:street|road|patrol)\b', loc.get('name') or '', re.I)]
+    if early:
+        return min(early, key=lambda loc: loc['offset'])['key']
     if scenes:
         return scenes[0]['key']
     pool.sort(key=lambda loc: loc['offset'])
@@ -957,6 +965,9 @@ def build_index(text, title=None):
                 continue  # a mention of an area is not a way there
             target = _resolve_area(m.group(1), loc, sentence, by_site, unique)
             if target and target != key and target not in [c['to'] for c in connections]:
+                other_loc = locations.get(target) or {}
+                if (other_loc.get('site') or '') and (loc.get('site') or '') and other_loc.get('site') != loc.get('site'):
+                    continue  # a later site is not a way out of this scene
                 connections.append({'to': target, 'offset': loc['body'][0] + m.start(),
                                     'quote': sentence, 'secret': bool(SECRET_RE.search(sentence)),
                                     'explicit': True})
@@ -972,6 +983,8 @@ def build_index(text, title=None):
                 continue
             sentence = _sentence_around(span, found.start())
             if not _WAY_RE.search(sentence):
+                continue
+            if (other.get('site') or '') and (loc.get('site') or '') and other.get('site') != loc.get('site'):
                 continue
             if other_key not in [c['to'] for c in connections]:
                 connections.append({'to': other_key, 'offset': loc['body'][0] + found.start(),
@@ -1115,8 +1128,9 @@ def import_adventure(db, text=None, pdf=None, title=None, reader='auto'):
         text, _how = read_pdf(pdf, reader=reader)
     text = prepare_source(text)
     index = build_index(text, title)
+    # Places (numbered rooms) are optional. A Site or a Scene is enough to open.
     if not index['locations']:
-        raise IngestError(['no places found (a numbered area, or an Encounter, Scene, or Section heading)'])
+        raise IngestError(['no site or scene found (a part, an Encounter, a Scene, or a Section)'])
     folder = folder_for(db)
     (folder / 'rooms').mkdir(parents=True, exist_ok=True)
     (folder / 'source.txt').write_text(text, encoding='utf-8')
@@ -1209,6 +1223,45 @@ def _creature_belongs_here(sentence, loc, index):
     return True
 
 
+_SPEAKER_NAME = re.compile(
+    r'\b([A-Z][a-z]{2,}(?:\s+[A-Z][a-z]{2,})?)\s+'
+    r'(?:says?|asks?|calls?|shouts?|whispers?|replies?|answers?|tells?|greets?|waves?|nods?)\b')
+_SPEAKER_SKIP = re.compile(
+    r'^(?:door|gate|road|street|room|hall|crowd|group|guards?|corpses?|bodies|body|'
+    r'men|man|woman|people|party|wagon|cart|table|chest|wall|floor)$', re.I)
+_OUTCOME_ROW = re.compile(
+    r'^(?P<head>check|find)\b|\b(?:a|the) (?P<word>check|find) (?:reveals|shows|finds)\b', re.I)
+
+
+def _outcome_row(sentence, n):
+    """A Check or Find row in this scene. The opening's read-aloud is not one."""
+    match = _OUTCOME_ROW.search(sentence or '')
+    if not match:
+        return None
+    kind = (match.group('head') or match.group('word') or '').casefold()
+    if kind not in ('check', 'find'):
+        return None
+    return '%s_%d' % (kind, n)
+
+
+def _speaker_stubs(read):
+    """Up to four proper-name speakers in the player read-aloud. Props and groups are not people."""
+    found = []
+    seen = set()
+    for off, sentence in read or []:
+        for match in _SPEAKER_NAME.finditer(sentence or ''):
+            name = match.group(1)
+            if not name or _SPEAKER_SKIP.match(name) or _SPEAKER_SKIP.match(name.split()[-1]):
+                continue
+            if name.casefold() in seen:
+                continue
+            seen.add(name.casefold())
+            found.append((off, name, sentence))
+            if len(found) >= 4:
+                return found
+    return found
+
+
 def draft_room(db, key, index, text):
     """The deterministic room draft and its provenance for one keyed location."""
     loc = index['locations'].get(key)
@@ -1260,7 +1313,11 @@ def draft_room(db, key, index, text):
         for path in (f'areas.{side}', f'exits.way_{_slug(c["to"])}'):
             prov[path] = {'offset': c['offset'], 'quote': c['quote']}
     for n, (off, sentence) in enumerate(read[:VISIBLE_MAX], 1):
-        facts[f'seen_{n}'] = {'area': here, 'visible': True, 'layer': 'obvious', 'text': _cut(sentence)}
+        fact = {'area': here, 'visible': True, 'layer': 'obvious', 'text': _cut(sentence)}
+        row = _outcome_row(sentence, n)
+        if row:
+            fact['row'] = row
+        facts[f'seen_{n}'] = fact
         prov[f'facts.seen_{n}'] = {'offset': off, 'quote': sentence}
     if len(read) > VISIBLE_MAX:
         flags.append(f'{len(read) - VISIBLE_MAX} read-aloud sentences left out (cap {VISIBLE_MAX})')
@@ -1273,7 +1330,11 @@ def draft_room(db, key, index, text):
         if used > HIDDEN_BUDGET_BYTES:
             flags.append(f'{len(dm) - n + 1} DM sentences left out to stay inside the room context cap')
             break
-        facts[f'dm_{n}'] = {'area': here, 'visible': False, 'text': cut}
+        fact = {'area': here, 'visible': False, 'text': cut}
+        row = _outcome_row(sentence, n)
+        if row:
+            fact['row'] = row
+        facts[f'dm_{n}'] = fact
         prov[f'facts.dm_{n}'] = {'offset': off, 'quote': sentence}
     if not facts:
         raise IngestError([f'location {key} has no text to compile'])
@@ -1331,6 +1392,13 @@ def draft_room(db, key, index, text):
             triggers.append({'id': f'reveal_{_slug(name)}', 'on': on, 'actors': woken,
                              'reveal': f'{name[0].upper() + name[1:]} reveals itself.' if count == 1
                              else f'{count} {name}s reveal themselves.'})
+    for off, name, sentence in _speaker_stubs(read):
+        akey = _slug(name)
+        if akey in actors:
+            continue
+        actors[akey] = {'name': name, 'location': here, 'status': 'alive', 'visible': True,
+                        'role': 'speaker'}
+        prov[f'actors.{akey}'] = {'offset': off, 'quote': sentence}
     room = {'id': f"adv-{index['sha256'][:8]}-{_slug(key)}",
             'source_ref': f"{index['title']} / {key}. {loc['name']} (p. {loc['page']})",
             'starting_area': here, 'areas': areas, 'exits': exits, 'facts': facts, 'actors': actors}
@@ -1417,6 +1485,8 @@ def _actor_problems(room, fields, flat, index, text):
         where = fields.get(f'actors.{key}') or {}
         if not (isinstance(where.get('quote'), str) and _norm(where['quote']) in flat):
             problems.append(f'actors.{key} has no source quote in this location')
+        if isinstance(actor, dict) and actor.get('role') == 'speaker' and not actor.get('stat_block'):
+            continue
         block = actor.get('stat_block') if isinstance(actor, dict) else None
         if not isinstance(block, dict):
             problems.append(f'actors.{key} has no stat_block')
@@ -1544,6 +1614,14 @@ def ingest_adventure(db, text=None, pdf=None, title=None, reader='auto'):
     if text is None:
         text, how = read_pdf(pdf, reader=reader)
     report = import_adventure(db, text=text, title=title)
+    from . import kit_labels
+    kit_labels.mark_leading_front(db)
+    try:
+        index, _text = _load(db)
+        if index.get('start'):
+            report['start_location'] = index['start']
+    except IngestError:
+        pass
     ingest_ms = round((time.perf_counter() - clock) * 1000, 3)
     try:
         compiled = compile_location(db, report['start_location'], neighbours=False)

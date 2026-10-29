@@ -32,9 +32,11 @@ The default is the prose before the first numbered area, or the first Encounter,
 
 Later sections arrive on a clarify or a roll, during patter. Answer that `label_request` in the same exchange as the line they already heard. Python does not call a model. Front matter is never the opening. A rejected label pass speaks nothing from that section: say `start_picker.table_line`, or begin the soft-start it names.
 
-Mid-play, a lookup is the same shape. The line they see is one in-fiction beat: `Kit: Let me check.` Then the prep runs. Do not go quiet doing it.
+Mid-play, a lookup is the same shape. The line they see is one in-fiction beat: `Kit: Give me a second, checking the page.` Then the prep runs. Do not go quiet doing it.
 
-`observed_event` equals `accepted_public_event` word for word, or it is normalized. Case and punctuation may differ. The words may not.
+Speak only `audience=player` text. Never narrate by quoting the player. One clarify-plus-roll_call rule for the turn: follow `retry_instruction`, and do not answer a later reject that contradicts it.
+
+`observed_event` copies `accepted_public_event` word for word. Case and punctuation may differ. The words may not.
 
 A bare `Yes.` answers the waiting opening. The scene is staged and Kit is waiting for a go-ahead to begin. It is not a yes to anyone in the fiction. `prepare` commits it and returns `spoken`. Show `spoken`. Do not draft it.
 
