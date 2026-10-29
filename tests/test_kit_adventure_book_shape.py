@@ -29,7 +29,7 @@ NIK = ROOT / 'tests/fixtures/characters/nik.json'
 
 # Flush-left read-aloud (no indent, no '> ', no italic cue). Second person marks it.
 FLUSH_RA = """\
-PART 1: GOBLIN ARROWS
+PART 1: NORTH WATCH
 
 1. Cave Mouth
 The trail from the ambush leads to the hideout entrance.
@@ -48,8 +48,8 @@ The thicket overlooks area 1.
 HYGIENE = """\
 4. Tower Room .... 9
 
-PART 1: GOBLIN ARROWS
-Part 1, "Goblin Arrows," provides the characters with a road encounter.
+PART 1: NORTH WATCH
+Part 1, "North Watch," gives the party a road encounter.
 
 1. Cave Mouth
 > You stand before a dark cave mouth beside a cold stream.
@@ -59,9 +59,9 @@ The path leads to area 2.
 > Briars hide two scouts.
 The path leads back to area 1.
 
-PART 2: PHANDALlN
-Part 2: PHAN DALlN
-PART 2: PHANDALIN
+PART 2: MILLHAVEN
+Part 2: MILL HAVEN
+PART 2: MILLHAVEN
 
 1. Town Square
 > Market stalls crowd the town square.
@@ -71,7 +71,7 @@ The road leads to area 2.
 > A stone manor overlooks the square.
 The road leads back to area 1.
 
-PART 4: WAVE ECHO CAVE
+PART 4: OLD QUARRY
 
 1. Cave Entrance
 > Damp air rolls from the cave entrance.
@@ -89,7 +89,7 @@ appendix A). The brazier cannot be removed from the
 altar without a check.
 
 16. Fake Orphan
-This should stay under Wave Echo, not go bare.
+This should stay under Old Quarry, not go bare.
 
 APPENDIX: SPELLS
 
@@ -239,7 +239,7 @@ class BookShape(unittest.TestCase):
         self.assertNotIn('> The trail from the ambush', prepared)
         self.assertNotIn('> The thicket in area 2', prepared)
         report = kit_adventure.ingest_adventure(self.db, text=FLUSH_RA)
-        self.assertEqual(report['start_location'], 'goblin_arrows-1')
+        self.assertEqual(report['start_location'], 'north_watch-1')
         room = json.loads(Path(report['start_room']).read_text(encoding='utf-8'))
         visible = ' '.join(f['text'] for f in room['facts'].values() if f['visible'])
         self.assertIn('you come across', visible.lower())
@@ -262,19 +262,19 @@ class BookShape(unittest.TestCase):
         self.assertNotIn('16', keys)
         self.assertNotIn('2', keys)
         sites = {k.split('-')[0] for k in keys}
-        self.assertIn('goblin_arrows', sites)
-        self.assertIn('phandalin', sites)
-        self.assertIn('wave_echo_cave', sites)
-        self.assertFalse(any('phan_dalln' == s or 'phan_da' in s for s in sites), sites)
+        self.assertIn('north_watch', sites)
+        self.assertIn('millhaven', sites)
+        self.assertIn('old_quarry', sites)
+        self.assertFalse(any(s == 'mill_haven' or s.startswith('mill_ha') for s in sites), sites)
         titles = [c['title'] for c in index['chapters']]
         self.assertFalse(any('provides the characters' in t for t in titles), titles)
         self.assertFalse(any('brazier cannot' in t for t in titles), titles)
         # Spell-line "2. Paralyzing Ray..." is not a room.
         self.assertFalse(any('paralyzing' in (index['locations'][k].get('name') or '').lower()
                              for k in keys))
-        self.assertEqual(index['start'], 'goblin_arrows-1')
+        self.assertEqual(index['start'], 'north_watch-1')
         report = kit_adventure.ingest_adventure(self.db, text=HYGIENE)
-        self.assertEqual(report['start_location'], 'goblin_arrows-1')
+        self.assertEqual(report['start_location'], 'north_watch-1')
 
     def test_area_refs_stay_inside_their_site(self):
         index = kit_adventure.build_index(kit_adventure.prepare_source(CROSS_SITE))

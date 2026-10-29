@@ -84,6 +84,9 @@ def _core(stripped):
 def _fragment(core):
     if not core or _CHAPTER.match(core) or _LOCATION.match(core) or _DM.match(core):
         return False
+    core = re.sub(r'(?:\.{2,}|…)+\s*$', '', core).strip()
+    if not core:
+        return False
     if any(ch in core for ch in '.?!;'):
         return False
     words = core.split()
@@ -341,10 +344,6 @@ def collect(text, heads, chapters, page_of, listed=None):
         if _listed(found['offset']) or _pre_key(found['offset']):
             i += found['consumed']
             continue
-        # One word is a stat block or a section label, not a place you can enter.
-        if len(found['name'].split()) < 2:
-            i += found['consumed']
-            continue
         chapter = _chapter_at(chapters, found['offset'])
         # Front matter before the first part is not a scene.
         if chapters and found['offset'] < chapters[0]['offset']:
@@ -389,13 +388,19 @@ def collect(text, heads, chapters, page_of, listed=None):
             playable = False
         # A part with no numbered areas is a chain of places. An Encounter, Scene, or
         # Section heading is a place even when the book never boxes the read-aloud.
+        # A headed block of prose before the first numbered area is a place too,
+        # including a one-word heading. Which of its sentences a player hears is a
+        # later labeling pass, not a guess from the heading.
         explicit = found['kind'] in ('encounter', 'scene', 'section') or bool(
             re.match(r'^(?:encounter|scene|section)\b', found['name'], re.I))
         numbered = any(room.get('chapter') == title for room in rooms)
         prose = (len(body.strip()) >= BODY_MIN
                  and not re.search(r'(?:armor|armour)\s+class', body, re.I))
-        if not playable and not inside and prose and len(found['name'].split()) >= 2 and (
-                explicit or not numbered):
+        first_room_off = min((room['offset'] for room in rooms
+                              if (room.get('chapter') or '') == title), default=None)
+        before_keys = first_room_off is not None and found['offset'] < first_room_off
+        if not playable and not inside and prose and len(found['name'].split()) >= 1 and (
+                explicit or not numbered or before_keys):
             playable = True
         anchor, relation = _relation(found['offset'], found['indent'], body, rooms, title, 'travel_event' in signals)
         raw.append({
@@ -511,10 +516,12 @@ def _preamble_scenes(text, chapters, rooms, seen, page_of):
             _fragment(_core(line.strip().lstrip('>').strip())[0])
             for line in body.splitlines() if line.strip())
         signals = _signals_in(body, has_head, False)
-        # A lead-in that speaks to the player ("you stand on the street") is the opening
-        # even when it is the only signal. A contents blurb with no second person is not.
+        # A headed section before the first numbered area is the opening, even without "you".
+        # A second-person lead-in with no heading is one too. A contents blurb is neither.
+        headed = has_head and len(body.strip()) >= BODY_MIN and not re.search(
+            r'(?:armor|armour)\s+class', body, re.I)
         lead_in = 'read_aloud' in signals and len(body.strip()) >= BODY_MIN
-        if not lead_in and (len(signals) < PROMOTE_SIGNALS or _score(signals) < PROMOTE_SCORE):
+        if not headed and not lead_in and (len(signals) < PROMOTE_SIGNALS or _score(signals) < PROMOTE_SCORE):
             continue
         name = 'Opening'
         for line in body.splitlines():

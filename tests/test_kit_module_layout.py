@@ -20,7 +20,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from runtime import kit_adventure, kit_pdf  # noqa: E402
-from runtime.kit_agent import start_session  # noqa: E402
+from runtime.kit_agent import _spoken_sentence, start_session  # noqa: E402
 from runtime.state_context import CONTEXT_BUDGET_BYTES  # noqa: E402
 
 NIK = ROOT / 'tests/fixtures/characters/nik.json'
@@ -116,6 +116,87 @@ BLANK = """\
 PART 1: THE BLANK
 
 2. Bare Room
+"""
+
+# A wrapped sentence, a hyphenated word, and a soft hyphen. The opening must stay whole.
+WRAPPED = """\
+PART 1: THE ARMORY
+
+The Broken Sword
+You find a broken sword-
+hand in the ruts, and the wagon
+rolls on toward the trees with a soft\u00adwood staff.
+The path leads to area 1.
+
+1. Stone Arch
+You stand under a stone arch where the road ends and the light fails.
+The tunnel leads to area 2.
+
+2. Inner Yard
+A yard sits past the arch in the quiet. The path leads back to area 1.
+"""
+
+# The road names bandits that belong to a later keyed area. That area has its own fight.
+BLEED = """\
+PART 1: THE ROAD
+
+Ambush on the Road
+You walk the wagon road as the trees close in and the light fails around you.
+Four bandits wait in area 2, and they are not on this road at all.
+The track leads on toward a cave in the hill.
+
+1. Stone Arch
+You stand under a stone arch where the road ends and the air is cold.
+The tunnel leads to area 2.
+
+2. Inner Yard
+Four bandits wait in the yard with weapons drawn and ready.
+The tunnel leads back to area 1.
+"""
+
+# Headed scenes in a line: an ellipsis, one word, then two words. No area numbers.
+MARCH = """\
+PART 1: THE MARCH
+
+First Light...
+The camp stirs as first light reaches the trees and the wagon is packed for the day.
+
+Camp
+A cookfire burns low beside the wagon and the track leads on toward the road.
+
+The Road
+The road runs east through open country and the track leads back to camp.
+"""
+
+# A village heading before the first numbered area, with no second-person lead.
+STREET = """\
+PART 1: THE TOWN
+
+Market Street
+Stalls line the lane and the shops are shuttered for the night. The lane leads to area 1.
+
+1. The Gate
+The gate is shut tight against the dark. The path leads to area 2.
+
+2. The Yard
+A yard sits past the gate in the quiet. The path leads back to area 1.
+"""
+
+# A rules section before the first encounter. The host labels it; Python does not guess.
+LESSON = """\
+PART 1: THE LESSON
+
+How to Play
+This section explains how a session is run before any scene begins.
+If the players ask, tell them the rules live in this front section.
+A guard is not waiting in this section at all.
+
+Encounter 1: The Gate
+A guard waits at a wooden gate. The path leads to encounter 2.
+The guard's orders are secret and must not be read aloud to the players.
+
+Encounter 2: The Yard
+A clerk sits in the yard past the gate. The path leads back to encounter 1.
 """
 
 
@@ -263,3 +344,94 @@ class ModuleLayout(unittest.TestCase):
         self.assertFalse(opened.get('character_loaded'))
         self.assertIn('places', (opened.get('table_line') or '').casefold())
         self.assertTrue(opened.get('places'))
+
+    def test_a_wrapped_sentence_is_joined_and_not_cut_off(self):
+        long_sentence = 'You walk ' + ' '.join(['onward'] * 90) + ' until the gate appears.'
+        self.assertGreater(len(long_sentence), 400)
+        self.assertEqual(kit_adventure._cut(long_sentence), long_sentence)
+        self.assertEqual(kit_adventure._cut('The gate is shut. ' + ('More text ' * 80)), 'The gate is shut.')
+        self.assertEqual(_spoken_sentence('The gate is shut. Then the hinge'), 'The gate is shut.')
+        report = kit_adventure.ingest_adventure(self.db, text=WRAPPED)
+        room = json.loads(Path(report['start_room']).read_text(encoding='utf-8'))
+        visible = ' '.join(fact.get('text') or '' for fact in room['facts'].values() if fact.get('visible'))
+        self.assertIn('swordhand', visible.casefold())
+        self.assertIn('wagon rolls', visible.casefold())
+        self.assertIn('softwood', visible.casefold())
+        self.assertNotIn('sword-', visible)
+        self.assertNotIn('…', visible)
+        self.assertTrue(visible.rstrip()[-1] in '.!?')
+        opened = start_session(str(self.db), str(NIK))
+        spoken = opened.get('spoken') or ''
+        body = spoken.split('\nKit:')[0].rstrip()
+        self.assertTrue(body[-1] in '.!?')
+        self.assertIn('swordhand', spoken.casefold())
+        self.assertIn('start_picker', opened)
+        request = report['label_request']
+        self.assertEqual(request['section'], report['start_location'])
+        self.assertTrue(request.get('blocks'))
+        self.assertGreaterEqual(len(request['instructions'].encode('utf-8')), 1000)
+        self.assertLessEqual(len(request['instructions'].encode('utf-8')), 1600)
+
+    def test_a_later_areas_creatures_do_not_arm_this_scene(self):
+        report = kit_adventure.ingest_adventure(self.db, text=BLEED)
+        room = json.loads(Path(report['start_room']).read_text(encoding='utf-8'))
+        self.assertFalse(room.get('actors'))
+        self.assertFalse(room.get('triggers'))
+        self.assertNotIn('weapons drawn', json.dumps(room).casefold())
+        index = json.loads((kit_adventure.folder_for(self.db) / 'index.json').read_text(encoding='utf-8'))
+        yard = next(key for key, loc in index['locations'].items()
+                    if 'yard' in (loc.get('name') or '').casefold())
+        kit_adventure.compile_location(self.db, yard, neighbours=False)
+        yard_room = json.loads(kit_adventure.room_file(self.db, yard).read_text(encoding='utf-8'))
+        self.assertTrue(any('bandit' in key for key in yard_room.get('actors') or {}))
+        road = ' '.join(fact.get('text') or '' for fact in room['facts'].values())
+        self.assertNotIn('weapons drawn', road.casefold())
+
+    def test_a_linear_chain_of_headed_scenes_becomes_places(self):
+        report = kit_adventure.ingest_adventure(self.db, text=MARCH)
+        self.assertTrue(str(report['start_location']).startswith('scene:'), report['start_location'])
+        index = json.loads((kit_adventure.folder_for(self.db) / 'index.json').read_text(encoding='utf-8'))
+        names = [(loc.get('name') or '').casefold() for loc in index['locations'].values()]
+        self.assertTrue(any(name.startswith('first light') for name in names), names)
+        self.assertIn('camp', names)
+        self.assertTrue(any(name == 'the road' for name in names), names)
+        self.assertIn('light', (index['locations'][index['start']].get('name') or '').casefold())
+        self.assertGreaterEqual(len(report['start_picker']['places']), 3)
+
+    def test_a_village_heading_before_area_one_is_the_opening(self):
+        report = kit_adventure.ingest_adventure(self.db, text=STREET)
+        index = json.loads((kit_adventure.folder_for(self.db) / 'index.json').read_text(encoding='utf-8'))
+        start = index['locations'][index['start']]
+        self.assertIn('street', (start.get('name') or '').casefold())
+        self.assertEqual(start.get('type'), 'scene')
+        room = json.loads(Path(report['start_room']).read_text(encoding='utf-8'))
+        visible = ' '.join(fact.get('text') or '' for fact in room['facts'].values() if fact.get('visible'))
+        self.assertIn('stalls', visible.casefold())
+        self.assertNotIn('shut tight', visible.casefold())
+        opened = start_session(str(self.db), str(NIK))
+        self.assertIn('stalls', (opened.get('spoken') or '').casefold())
+        self.assertIn('start_picker', opened)
+
+    def test_labeling_stays_in_the_host_process(self):
+        text = (ROOT / 'runtime' / 'kit_labels.py').read_text(encoding='utf-8')
+        for banned in ('urllib', 'openai', 'requests', 'http.client'):
+            self.assertNotIn(banned, text)
+        card = (ROOT / 'docs' / 'PLAY_CARD.md').read_text(encoding='utf-8')
+        self.assertIn('word for word', card)
+        self.assertIn('accepted_public_event', card)
+        self.assertIn('Case and punctuation may differ', card)
+        self.assertIn('player_hears', card)
+        self.assertIn('same exchange', card.casefold())
+        self.assertIn('let me check', card.casefold())
+        self.assertIn('same line', card.casefold())
+
+    def test_missing_labels_keep_the_heuristic_opening_and_the_picker(self):
+        report = kit_adventure.ingest_adventure(self.db, text=LESSON)
+        self.assertIsNotNone(report['label_request'])
+        self.assertGreaterEqual(len(report['start_picker']['places']), 2)
+        opened = start_session(str(self.db), str(NIK))
+        self.assertEqual(opened.get('stage'), 'started')
+        self.assertTrue(opened.get('committed'))
+        self.assertIn('start_picker', opened)
+        self.assertTrue(opened['start_picker']['places'])
+        self.assertIn('places', opened['start_picker']['table_line'].casefold())

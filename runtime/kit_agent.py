@@ -393,6 +393,20 @@ STALL_LINE = ('Heavy turn: you may open on just a fitting check call (scope call
 
 # Host loop, in the packet. A plain GPT has no worker to keep warm: one message is one prepare
 # and one complete. Docs/research (decision-speed, 2026-10-04): the engine is ~0.3 s; retries are the wait.
+def _with_patter_labels(runtime, result):
+    """A clarify or a roll can carry the next section's label pass. The player already has a line."""
+    try:
+        if not str(runtime.source().get('id') or '').startswith('adv-'):
+            return result
+        from . import kit_labels
+        request = kit_labels.patter_request(runtime.path)
+    except Exception:
+        return result
+    if not request:
+        return result
+    return {**result, 'label_request': request}
+
+
 def play_card_text():
     """docs/PLAY_CARD.md, verbatim, so the opening packet and the file cannot drift."""
     return (Path(__file__).resolve().parents[1] / 'docs' / 'PLAY_CARD.md').read_text(encoding='utf-8')
@@ -4207,6 +4221,13 @@ def check_plan_keys(plan):
             ', '.join(f'"{key}": {_example_value(key)}' for key in (missing or PLAN_SCHEMA['required'][:2])))
 
 
+def _same_event(left, right):
+    """The host copied the engine's event. Case and punctuation may differ; the words may not."""
+    def words(text):
+        return re.sub(r'[^a-z0-9]+', ' ', (text or '').casefold()).strip()
+    return words(left) == words(right)
+
+
 def check_plan(plan, episodes, public_event, action_kind=None, candidates=None, player_action=None,
                player_notes=(), committed_turn_ids=(), source=None, state=None, established='',
                oracle=None, claims_packet=None, table_talk=False, problems=None):
@@ -4240,7 +4261,8 @@ def check_plan(plan, episodes, public_event, action_kind=None, candidates=None, 
     with part():
         for key in ('observed_event', 'goal'):
             require(isinstance(plan[key], str) and plan[key].strip(), f'Missing {key}')
-        require(plan['observed_event'] == public_event, 'Private decision changed the accepted event')
+        require(_same_event(plan['observed_event'], public_event),
+                'Private decision changed the accepted event')
         bound = CARD_EVENT_MAX_CHARS if str(action_kind or '').startswith(LONG_EVENT_KINDS) else EVENT_MAX_CHARS
         require(len(plan['observed_event']) <= bound, 'Decision exceeds event bound')
     with part():
@@ -4969,7 +4991,7 @@ def turn_events(runtime, body, plan, turn_id, record=None):
         facts = [fact.get('text') for fact in (runtime.source().get('facts') or {}).values()
                  if isinstance(fact, dict) and fact.get('visible') and fact.get('area') == area
                  and fact.get('text')]
-        cited = (facts[0].split('.')[0] if facts else '').strip()
+        cited = _spoken_sentence(facts[0]) if facts else ''
         events.append({'type': 'prepared_roll', 'roll': {
             'skill': skill, 'dc': pending['check'].get('dc') or 12,
             'called_turn': pending['check'].get('called_turn'),
@@ -5746,6 +5768,30 @@ def speculative_branches(runtime, adjudicator, waiting, state, revision):
     return out
 
 
+def _spoken_sentence(text):
+    """The first complete sentence. A check result stops on . ! or ?."""
+    text = re.sub(r'\s+', ' ', (text or '').strip())
+    if not text:
+        return ''
+    end = len(text)
+    for mark in ('.', '!', '?'):
+        at = text.find(mark)
+        if at >= 0:
+            end = min(end, at + 1)
+    return text[:end].strip()
+
+
+def _complete_spoken(text):
+    """Sentences a player can hear. A trailing fragment after the last stop is left off."""
+    text = re.sub(r'\s+', ' ', (text or '').strip())
+    if not text:
+        return ''
+    end = max(text.rfind(mark) for mark in '.!?')
+    if end >= 0:
+        return text[:end + 1].strip()
+    return text
+
+
 def _opening_spoken(runtime, body):
     """Player-visible text for an opening the player just agreed to begin. Hidden facts stay out."""
     view = body.get('public_view') or {}
@@ -5769,6 +5815,16 @@ def _opening_spoken(runtime, body):
         if '?' not in spoken:
             spoken += '\nKit: Where do you look, or what do you do?'
         return spoken
+    try:
+        if str(runtime.source().get('id') or '').startswith('adv-'):
+            from . import kit_labels
+            hears = kit_labels.player_hears(runtime.path, runtime.source())
+            if hears is not None:
+                facts = list(hears)
+    except (AttributeError, KeyError, TypeError):
+        pass
+    facts = [_complete_spoken(text) for text in facts]
+    facts = [text for text in facts if text]
     spoken = ' '.join(facts).strip()
     if spoken:
         if '?' not in spoken:
@@ -7337,10 +7393,11 @@ class KitChatBridge:
         ]
         clock = time.perf_counter()
         committed = self.runtime.commit(f'roll-{revision}', revision, events)
-        return {'stage': 'prepared_committed', 'committed': True, 'calls': 1, 'turn_id': f'roll-{revision}',
-                'spoken': spoken, 'revision': committed, 'check_outcome': {'result': result},
-                'roll_text': text[:300],
-                'runtime_ms': round((time.perf_counter() - clock) * 1000, 3)}
+        result = {'stage': 'prepared_committed', 'committed': True, 'calls': 1, 'turn_id': f'roll-{revision}',
+                  'spoken': spoken, 'revision': committed, 'check_outcome': {'result': result},
+                  'roll_text': text[:300],
+                  'runtime_ms': round((time.perf_counter() - clock) * 1000, 3)}
+        return _with_patter_labels(self.runtime, result)
 
     def _turn_waiting(self, turn_id, action):
         """Lifecycle guard (postmortem, opening + "Yes."): while a turn is prepared and waiting at
@@ -7572,9 +7629,10 @@ class KitChatBridge:
             next_revision = self.runtime.commit_engine_interstitial(turn_id, pending['revision'], [event], record,
                                                                     consume_pending=True)
             kit_handoff.log_turn(self.runtime, turn_id, body['action'], 'window_ask', record=record)
-            return {'committed': True, 'turn_id': turn_id, 'revision': next_revision, 'turn_role': 'interstitial',
-                    'interstitial': record['interstitial'], 'spoken': spoken, 'asked': True,
-                    'next_step': WINDOW_NEXT_STEP, 'timing': self.runtime.kit_timing(turn_id)}
+            return _with_patter_labels(self.runtime, {
+                'committed': True, 'turn_id': turn_id, 'revision': next_revision, 'turn_role': 'interstitial',
+                'interstitial': record['interstitial'], 'spoken': spoken, 'asked': True,
+                'next_step': WINDOW_NEXT_STEP, 'timing': self.runtime.kit_timing(turn_id)})
         # Resolved: the rest of the round is a full Kit turn under the same turn id.
         self.runtime.discard_pending_kit_turn(turn_id)
         timing = self.runtime.kit_timing(turn_id) or {}
@@ -8142,6 +8200,19 @@ def start_session(db, sheet_path=None, runtime=None, room=None, area=None, manif
             opened['next_step'] = ('Show spoken. The opening is already committed. Do not draft it. '
                                    'Later turns: prepare the player\'s words, then complete unless prepare '
                                    'already returned spoken.')
+            from . import kit_labels
+            if not kit_labels.opening_labeled(db):
+                try:
+                    index, _text = kit_adventure._load(db)
+                    places = index.get('starts') or []
+                except kit_adventure.IngestError:
+                    places = []
+                opened['places'] = places
+                opened['start_picker'] = kit_adventure.start_picker(places)
+                opened['next_step'] += (' The opening is not labeled yet. Say start_picker.table_line and '
+                                        'let them choose, or begin the opening already spoken. '
+                                        'A labeling reply belongs on adventure label, before start when you can.')
+            opened['player_hears'] = kit_labels.player_hears(db, source) or []
         return opened
     finally:
         if own:

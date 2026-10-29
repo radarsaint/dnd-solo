@@ -41,7 +41,7 @@ from pathlib import Path
 
 INDEX_VERSION = 1
 MAP_PAGE_MAX_CHARS = 200     # a page with less text than this is treated as mostly map/image
-FACT_MAX_CHARS = 400         # one fact's text; longer sentences are cut at a word boundary
+FACT_MAX_CHARS = 400         # prefer a fact under this; a sentence is never cut in half
 HIDDEN_BUDGET_BYTES = 6000   # well under kit_rooms.DM_ONLY_ROOM_MAX_BYTES; the rest is flagged
 VISIBLE_MAX = 12
 READINESS = ('none', 'source_available', 'location_executable', 'campaign_playable')
@@ -287,8 +287,7 @@ _DM_SECTION_RE = re.compile(
     r'adjusting|xp awards|setup|background)\b', re.I)
 _SECOND_PERSON_RE = re.compile(r'\b(?:you|your|yours)\b', re.I)
 _BODY_CHAPTER_RE = re.compile(
-    r'(?:provides the characters|cannot be removed|see the|scrolls in his|'
-    r'appendix a\)|part\s+\d+,|wave echo cave\.\)")', re.I)
+    r'part\s+\d+\s*,|appendix\s+[a-z]\)', re.I)
 
 
 def _location_name_ok(stripped):
@@ -472,9 +471,55 @@ def _unwrap_headers(text):
     return '\f'.join(pages)
 
 
+def _starts_block(line):
+    """A heading or a boxed line starts its own block. A wrapped sentence does not."""
+    stripped = line.strip()
+    if not stripped or stripped.startswith('>'):
+        return True
+    if CHAPTER_RE.match(stripped) or LOCATION_RE.match(stripped) or _LABELED_RE.match(stripped):
+        return True
+    if len(stripped) <= 60 and stripped[:1].isupper() and len(stripped.split()) <= 8 and stripped[-1] not in '.?!':
+        return True
+    return False
+
+
+def _join_wrapped(text):
+    """Mend a word split by a hyphen at a line end, and join a wrapped sentence.
+
+    A heading stays on its own line. A sentence is not left cut at the wrap.
+    """
+    text = text.replace('\u00ad', '')
+    pages = []
+    for page in text.split('\f'):
+        lines = page.split('\n')
+        out = []
+        i = 0
+        while i < len(lines):
+            line = lines[i]
+            if not line.strip():
+                out.append(line)
+                i += 1
+                continue
+            while i + 1 < len(lines) and lines[i + 1].strip() and not _starts_block(lines[i + 1]):
+                nxt = lines[i + 1].strip()
+                bare = line.rstrip()
+                if bare.endswith('-') and nxt[:1].isalpha():
+                    line = bare[:-1] + nxt
+                elif bare and bare[-1] not in '.?!>' and nxt[:1].islower():
+                    line = bare + ' ' + nxt
+                else:
+                    break
+                i += 1
+            out.append(line)
+            i += 1
+        pages.append('\n'.join(out))
+    return '\f'.join(pages)
+
+
 def prepare_source(text):
     """Running headers off, read-aloud marked. The index and the saved source are this text."""
     text = text.replace('\r\n', '\n').replace('\r', '\n')
+    text = _join_wrapped(text)
     text = _unwrap_headers(text)
     text = mark_read_aloud(strip_running_matter(text))
     from . import kit_scenes
@@ -482,7 +527,7 @@ def prepare_source(text):
 
 
 def _strip_toc_bleed(title):
-    """A contents entry ('4. Goblin Arrows .... 5') is not the adventure's name."""
+    """A contents entry ('4. North Watch .... 5') is not the adventure's name."""
     title = re.sub(r'\s*\.{2,}.*$', '', title or '').strip()
     title = re.sub(r'\s{2,}\d{1,3}$', '', title).strip()
     return title
@@ -514,13 +559,9 @@ def _site_of(title):
     name = _strip_toc_bleed(name)
     name = re.sub(r'\s+', ' ', name).strip()
     fold = name.casefold()
-    # OCR: Phandalin split or Ll-for-li
-    fold = fold.replace('phan dalln', 'phandalin').replace('phandalln', 'phandalin')
-    fold = fold.replace('phan_dalln', 'phandalin')
     if not _readable_heading(name) and not _readable_heading(fold):
         return ''
-    slug = _slug(fold)[:24]
-    return slug.replace('phan_dalln', 'phandalin')
+    return _slug(fold)[:24]
 
 
 def _front_title(text, chapters):
@@ -598,16 +639,33 @@ def _preferred_chapter_title(current, challenger):
         if words:
             s += sum(1 for w in words if len(w) >= 3)
             s -= sum(1 for w in words if len(w) == 1)
-        fold = re.sub(r'[^a-z]', '', t.casefold())
-        if 'phandalin' in fold:
-            s += 5
-        if 'goblinarrows' in fold:
-            s += 3
-        if 'waveechocave' in fold:
-            s += 3
         return s
 
+    # The same heading split by OCR, or one letter off, keeps the unsplit line.
+    if _near_heading(current, challenger):
+        gaps = lambda text: len(re.findall(r'\s', text))
+        if gaps(challenger) != gaps(current):
+            return challenger if gaps(challenger) < gaps(current) else current
     return challenger if score(challenger) > score(current) else current
+
+
+def _near_heading(left, right):
+    """True when two headings are the same letters, or one insertion or substitution apart."""
+    a = re.sub(r'[^a-z]', '', (left or '').casefold())
+    b = re.sub(r'[^a-z]', '', (right or '').casefold())
+    if not a or not b or abs(len(a) - len(b)) > 1:
+        return False
+    if a == b:
+        return True
+    if len(a) == len(b):
+        return sum(x != y for x, y in zip(a, b)) <= 1
+    if len(a) > len(b):
+        a, b = b, a
+    i = 0
+    for ch in b:
+        if i < len(a) and a[i] == ch:
+            i += 1
+    return i == len(a)
 
 
 
@@ -834,8 +892,12 @@ def build_index(text, title=None):
             meta = key
             body_start = meta['body_at'] if meta.get('body_at') is not None else (
                 text.index('\n', off) + 1 if '\n' in text[off:end] else end)
+            span_end = meta.get('span', [body_start, end])[1]
+            # The next place's heading is the end of this scene, even if a later head sits closer.
+            if span_end > end:
+                span_end = end
             raw.append({'bare': meta.get('letter'), 'name': name, 'offset': off,
-                        'body': [body_start, meta.get('span', [body_start, end])[1]],
+                        'body': [body_start, span_end],
                         'page': meta.get('page') or page_of(off), 'chapter': chapter,
                         'site': meta.get('site') or _site_of(chapter), 'type': 'scene',
                         'letter': meta.get('letter'), 'part_n': meta.get('part_n'),
@@ -916,7 +978,13 @@ def build_index(text, title=None):
                                     'quote': sentence, 'secret': bool(SECRET_RE.search(sentence)),
                                     'explicit': True})
         loc['connections'] = connections
-        loc['creatures'] = _creatures(span, loc['body'][0], stat_blocks)
+        creatures = _creatures(span, loc['body'][0], stat_blocks)
+        kept_creatures = []
+        for creature in creatures:
+            rel = creature['mention_offset'] - loc['body'][0]
+            if _creature_belongs_here(_sentence_around(span, rel), loc, {'locations': locations}):
+                kept_creatures.append(creature)
+        loc['creatures'] = kept_creatures
         loc['npcs'] = sorted({m.group(1) for m in NPC_RE.finditer(span) if m.group(1).split()[0] not in NOT_NPC})
         loc['read_aloud'] = any(line.lstrip().startswith('>') for line in span.split('\n'))
     # No inferred reverse. The other side's own text is the only way back.
@@ -1075,10 +1143,24 @@ def _load(db):
 
 
 def _cut(text):
+    """Shorten at a sentence boundary. A sentence is never left cut in half."""
     text = _norm(text)
+    if len(text) <= FACT_MAX_CHARS and (not text or text[-1] in '.?!'):
+        return text
     if len(text) <= FACT_MAX_CHARS:
         return text
-    return text[:FACT_MAX_CHARS].rsplit(' ', 1)[0] + '…'
+    end = -1
+    for mark in ('.', '!', '?'):
+        at = text.rfind(mark, 0, FACT_MAX_CHARS + 1)
+        if at > end:
+            end = at
+    if end >= 20:
+        return text[:end + 1]
+    for mark in ('.', '!', '?'):
+        at = text.find(mark)
+        if at >= 0:
+            return text[:at + 1]
+    return text[:FACT_MAX_CHARS].rsplit(' ', 1)[0]
 
 
 def _split(span, base):
@@ -1110,13 +1192,39 @@ def _split(span, base):
     return read, dm
 
 
+def _creature_belongs_here(sentence, loc, index):
+    """A creature named in this span but placed in another keyed area is not this scene's fight."""
+    here = str(loc.get('bare') or loc.get('number') or '').lower()
+    for match in AREA_REF_RE.finditer(sentence or ''):
+        if match.group(1).lower() != here:
+            return False
+    here_name = (loc.get('name') or '').casefold()
+    folded = (sentence or '').casefold()
+    for other in (index.get('locations') or {}).values():
+        name = (other.get('name') or '').casefold()
+        if len(name) < 4 or name == here_name:
+            continue
+        if name in folded:
+            return False
+    return True
+
+
 def draft_room(db, key, index, text):
     """The deterministic room draft and its provenance for one keyed location."""
     loc = index['locations'].get(key)
     if loc is None:
         raise IngestError([f'no keyed location {key!r} in the index'])
     start, end = loc['body']
-    read, dm = _split(text[start:end], start)
+    raw_read, raw_dm = _split(text[start:end], start)
+    from . import kit_labels
+    silent = kit_labels.is_silent(db, key)
+    blocks = None if silent else kit_labels.frozen_blocks(db, key)
+    if silent:
+        read, dm = [], list(raw_read) + list(raw_dm)
+    elif blocks:
+        read, dm = kit_labels.apply_blocks(raw_read, raw_dm, blocks)
+    else:
+        read, dm = raw_read, raw_dm
     here = 'here'
     called = loc['name'].lower()
     areas = {here: {'name': loc['name'], 'called': called if called.startswith('the ') else 'the ' + called}}
@@ -1192,6 +1300,10 @@ def draft_room(db, key, index, text):
         else:
             continue
         mention = _sentence_around(text[start:end], rel)
+        if not _creature_belongs_here(mention, loc, index):
+            continue
+        if silent or (blocks and kit_labels.audience_for(blocks, start + rel, mention) == 'front'):
+            continue
         # Player-visible only when the read-aloud text names it; otherwise hidden until its trigger.
         seen = any(name.lower() in sentence.lower() for _, sentence in read)
         woken = []
@@ -1396,6 +1508,17 @@ def compile_location(db, key, draft=None, neighbours=True):
             'ask_player': sidecar.get('ask_player', []), 'flags': sidecar.get('flags', []), **readiness(db)}
 
 
+def start_picker(places):
+    """Places the player can start, shown when a labeling pass has not frozen the opening."""
+    shown = [{'pick': item.get('pick'), 'line': item.get('line'), 'id': item.get('id')}
+             for item in places or []]
+    return {
+        'table_line': ('These are the places I found. Tell me which one to start, '
+                       'or begin the one I opened.'),
+        'places': shown,
+    }
+
+
 def room_is_empty(room):
     """A compiled room with no text and no way out. Never stage one."""
     facts = (room or {}).get('facts') or {}
@@ -1437,6 +1560,16 @@ def ingest_adventure(db, text=None, pdf=None, title=None, reader='auto'):
     q = shlex.quote(str(db))
     room = shlex.quote(compiled['room']) if compiled else ''
     places = _read_json(folder_for(db) / 'index.json').get('starts') or []
+    from . import kit_labels
+    label_request = kit_labels.next_request(db)
+    label_command = (f'python3 -m runtime.kit_agent adventure label --db {q} --file labels.json'
+                     if label_request else None)
+    picker = None if kit_labels.opening_labeled(db) else start_picker(places)
+    landing = {
+        'table_line': ("Got it. Who's walking in? A sentence or two about them, or hand me the sheet."),
+        'same_exchange': ['ingest', 'label_request'],
+        'opening_after': 'their answer',
+    }
     if not compiled:
         return {
             'stage': 'adventure_ingested', 'reader': how, 'title': report['title'],
@@ -1445,6 +1578,8 @@ def ingest_adventure(db, text=None, pdf=None, title=None, reader='auto'):
             'opened_room': None, 'character_loaded': False, 'committed': False,
             'table_line': ('I couldn\'t open a scene from that book. Here are the places I found. '
                            'Tell me which one to start.'),
+            'label_request': label_request, 'label_command': label_command,
+            'landing': landing, 'start_picker': picker,
             'ingest_ms': ingest_ms,
             'source_bytes': (folder_for(db) / 'source.txt').stat().st_size,
             'index_bytes': (folder_for(db) / 'index.json').stat().st_size,
@@ -1466,6 +1601,9 @@ def ingest_adventure(db, text=None, pdf=None, title=None, reader='auto'):
         'begin': ('When the player says begin, run next_command with their sheet. '
                   'The next scene compiles on arrival; do not hand-build rooms.'),
         'ask_player': compiled.get('ask_player', []), 'flags': compiled.get('flags', []),
+        'label_request': label_request, 'label_command': label_command,
+        'landing': landing, 'start_picker': picker,
+        'places': places,
         **readiness(db),
     }
 
@@ -1543,7 +1681,8 @@ def readiness(db, mounted_id=None):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(prog='kit_agent adventure', description=__doc__.split('\n\n')[0])
-    parser.add_argument('action', choices=['import', 'compile', 'status', 'ingest'])
+    parser.add_argument('action', choices=['import', 'compile', 'status', 'ingest', 'label'])
+    parser.add_argument('--file', help='label: the host reply JSON (section, opening, labels)')
     parser.add_argument('path', nargs='?', help='ingest: the adventure PDF (or pass --pdf)')
     parser.add_argument('--db', default='kit.sqlite')
     parser.add_argument('--text-file', help='import/ingest: the adventure as UTF-8 text (form feed between pages; '
@@ -1570,6 +1709,13 @@ def main(argv=None):
             if text is None and not pdf:
                 raise IngestError(['ingest needs a PDF path or --text-file'])
             result = ingest_adventure(args.db, text=text, pdf=pdf, title=args.title, reader=args.reader)
+        elif args.action == 'label':
+            from . import kit_labels
+            if args.file:
+                reply = _read_json(args.file)
+                result = kit_labels.accept(args.db, reply)
+            else:
+                result = {'stage': 'label_section', 'label_request': kit_labels.next_request(args.db)}
         elif args.action == 'compile':
             if not args.location:
                 raise IngestError(['compile needs --location'])

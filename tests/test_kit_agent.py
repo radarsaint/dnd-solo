@@ -889,6 +889,14 @@ class SocialEventTests(unittest.TestCase):
             self.bridge.decide('copy', {**plan, 'observed_event': 'You declare: "Hi."'})
         self.bridge.decide('copy', plan)
 
+    def test_observed_event_matches_after_case_and_punctuation(self):
+        prepared = self.bridge.prepare(NIK_GREETING, 'case')
+        plan = self.model.plan(prepared['input'])
+        event = plan['observed_event']
+        shifted = event.upper().replace(':', ' :').replace('.', ' .').replace('?', ' ?')
+        self.assertNotEqual(shifted, event)
+        self.bridge.decide('case', {**plan, 'observed_event': shifted})
+
     def test_long_declaration_is_trimmed_in_event_but_kept_whole_in_evidence(self):
         action = 'Deal me in? ' + ' '.join(f'word{i}' for i in range(100))
         self.assertGreater(len(action), EVENT_MAX_CHARS)

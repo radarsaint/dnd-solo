@@ -26,7 +26,7 @@ SEED = 20261028
 NIK = ROOT / 'tests/fixtures/characters/nik.json'
 
 TRAIL = """\
-4. Goblin Arrows .... 5
+4. North Watch .... 5
 
 Part 1: The Trail
 

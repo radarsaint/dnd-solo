@@ -6,7 +6,7 @@ Read this once at mount. During play, do not reread repo docs, the runtime, or a
 
 The table's back-and-forth hides prep. Patter never adds a round trip.
 
-A check ask is one line. Ask what they are focusing on, and call the skill you picked:
+A check ask is one line. When the check needs clarifying, the question and the roll call are that same line. Do not send a clarify and then a separate roll call.
 
 `Feet or the door? Either way, roll me Perception.`
 
@@ -18,13 +18,29 @@ Their next message is the answer and the roll together (`The door. 14.`). `prepa
 
 One check is one exchange after the ask. If they do something else, that outcome is stale: `prepare` their new words as a normal turn.
 
-After ingest, `start --sheet` with no `--room` opens the default place and loads the character. The opening is already committed: show `spoken`. Do not draft it. The default is the prose before the first numbered area, or the first Encounter, Scene, or Section when the book has no numbered rooms. A contents list is not a start. Boxed read-aloud is optional. If no scene can open, `start` lists `places` and does not stage an empty room. Say that `table_line`. `--start A` or `--start 1` picks another. Without a sheet the room does not open.
+## Landing
+
+The landing is staging time. The player never sits in silence while you prep.
+
+When they hand you a PDF, your first reply is one short Kit line, in that same exchange as the tools. Acknowledge the book. Ask one or two questions about the character, or ask for a sheet. Say `landing.table_line` if you need the words: "Got it. Who's walking in? A sentence or two about them, or hand me the sheet."
+
+In that same exchange, run ingest and answer `label_request` for the opening section only. One JSON object, ids and enums only, no echoed prose. Run `label_command`. Do not reread docs. Do not go quiet.
+
+Do not speak the opening yet. When they answer, run `start --sheet`. The opening is already committed: show `spoken`, and speak only `player_hears`. Do not draft it.
+
+The default is the prose before the first numbered area, or the first Encounter, Scene, or Section when the book has no numbered rooms. A contents list is not a start. Boxed read-aloud is optional. If no scene can open, `start` lists `places` and does not stage an empty room. Say that `table_line`. `--start A` or `--start 1` picks another. Without a sheet the room does not open.
+
+Later sections arrive on a clarify or a roll, during patter. Answer that `label_request` in the same exchange as the line they already heard. Python does not call a model. Front matter is never the opening. A rejected label pass speaks nothing from that section: say `start_picker.table_line`, or begin the soft-start it names.
+
+Mid-play, a lookup is the same shape. The line they see is one in-fiction beat: `Kit: Let me check.` Then the prep runs. Do not go quiet doing it.
+
+`observed_event` equals `accepted_public_event` word for word, or it is normalized. Case and punctuation may differ. The words may not.
 
 A bare `Yes.` answers the waiting opening. The scene is staged and Kit is waiting for a go-ahead to begin. It is not a yes to anyone in the fiction. `prepare` commits it and returns `spoken`. Show `spoken`. Do not draft it.
 
 ## One message
 
-A plain chat host shows the player one message per turn. Run the tools first, then post that one in-fiction line. Do not post a line and then a second message for the tool result. Do not post fiction before the tools. The line they see is `spoken`, or the check line when you are calling for a roll. That line is the whole message.
+A plain chat host shows the player one message per turn. Run the tools first, then post that one in-fiction line. Do not post a line and then a second message for the tool result. Do not post fiction before the tools. The line they see is `spoken`, or the check line when you are calling for a roll. On a landing or a lookup, that line is the Kit line from Landing, not silence and not the opening. That line is the whole message.
 
 ## Turns
 
