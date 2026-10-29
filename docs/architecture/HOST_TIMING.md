@@ -58,6 +58,25 @@ python3 -m runtime.kit_agent timing           # each recent turn with its "laten
 * `shown_after_commit_s` = `committed_at → shown_at` (output/posting time)
 * `packet_bytes`, `output_bytes` per attempt, `rejects`, and `missing` (stamps the host did not send)
 
+## Host wall-clock log
+
+When the host can stamp the four moments above, `timing` already joins them. A host that
+only has a stopwatch fills one line per turn in `<db>.latency.jsonl` (git-ignored):
+
+```json
+{"v": 1, "turn_id": "t", "message_at": 1000.0, "reply_at": 1017.5, "rejections": 2}
+```
+
+`message_at` is when the player's message reached the host. `reply_at` is when Kit's reply
+was shown. `rejections` is how many `complete` attempts were rejected before that reply
+(0 when the first one committed). `wall_s` (`reply_at - message_at`) is filled in on read
+when the line omits it. Nothing is estimated.
+
+```
+python3 -m runtime.kit_agent latency --db kit.sqlite --turn-id T --message-at 1000.0 --reply-at 1017.5 --rejections 2
+python3 -m runtime.kit_agent latency --db kit.sqlite
+```
+
 ## Replay baseline without a model
 
 `scripts/watchroom_replay.py` replays the watchroom fixture with a scripted first-try Kit. It

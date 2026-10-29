@@ -158,15 +158,19 @@ class OpeningFallback(unittest.TestCase):
     def test_the_opening_fallback_frames_the_room_from_public_state(self):
         spoken = self.opened()['spoken']
         self.assertNotIn('The newcomer arrives', spoken)
-        for seen in ('Roadside camp', 'cookfire', 'canvas is slashed', 'Bandit captain', 'road runs on'):
+        for seen in ('Roadside camp', 'Bandit captain', 'road runs on'):
             self.assertIn(seen.casefold(), spoken.casefold(), seen)
+        # Those sights are the held layer (no obvious fact in this room). The entry line waits.
+        for held in ('cookfire', 'canvas is slashed'):
+            self.assertNotIn(held.casefold(), spoken.casefold(), held)
         for hidden in HIDDEN:
             self.assertNotIn(hidden, spoken.casefold(), hidden)
 
     def test_the_rooms_own_arrival_line_leads(self):
         spoken = self.opened(arrival=True)['spoken']
         self.assertTrue(spoken.startswith('Narrator: A stranger walks into the firelight.'), spoken)
-        self.assertIn('cookfire', spoken)
+        self.assertIn('road runs on', spoken.casefold())
+        self.assertNotIn('cookfire', spoken.casefold())
 
 
 class TableTalkFallback(unittest.TestCase):

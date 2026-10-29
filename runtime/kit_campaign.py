@@ -123,14 +123,51 @@ def need_character(room, source):
     }
 
 
+def _room_files(folder):
+    """Room files under a custom folder: ``.json`` in any case, one room file passed directly,
+    and paths named in a pack ``manifest.json`` ``rooms`` list (any suffix)."""
+    folder = Path(folder)
+    if folder.is_file():
+        return [folder]
+    if not folder.is_dir():
+        return []
+    found, seen = [], set()
+
+    def add(path):
+        path = Path(path)
+        if not path.is_file():
+            return
+        key = str(path.resolve())
+        if key in seen:
+            return
+        seen.add(key)
+        found.append(path)
+
+    for path in sorted(folder.rglob('*')):
+        if path.is_file() and path.suffix.casefold() == '.json' and path.name.casefold() != 'manifest.json':
+            add(path)
+    manifest = folder / 'manifest.json'
+    if manifest.is_file():
+        try:
+            data = json.loads(manifest.read_text(encoding='utf-8'))
+        except (OSError, UnicodeError, ValueError):
+            data = None
+        if isinstance(data, dict):
+            for rel in data.get('rooms') or ():
+                if isinstance(rel, str) and rel.strip():
+                    add((folder / rel.strip()))
+    return found
+
+
 def inspect_rooms(rooms_dir):
     """Classify room files. Executable means the loader accepts the file and it is not a stub or fixture."""
     executable, blocked = [], []
     folder = Path(rooms_dir)
-    if not folder.is_dir():
+    files = _room_files(folder)
+    if not files:
         return executable, blocked
     root = PROJECT_ROOT.resolve()
-    for path in sorted(folder.rglob('*.json')):
+    for path in files:
         if path.name.casefold() == 'manifest.json':
             continue  # a pack's manifest describes the pack; it is not a room
         try:

@@ -3340,6 +3340,12 @@ EXCHANGE_MIN_ACTOR_WORDS = 30  # the selected actor's own speech (voiced actors 
 EXCHANGE_MIN_SEGMENTS = 2    # an embodied beat or second reactor, not one speech alone
 FEATURE_MIN_WORDS = 80       # scene entry or scene-turning moment
 FEATURE_MIN_SEGMENTS = 2
+# A count this close to a word floor is a flat-reply near miss, not a retry. The floor
+# stays the floor: further under it is still rejected. Segment counts are not softened.
+# A measured room entry was a complete 66-word feature and was rejected at 80. The floor
+# stays 80 (it is still noted). At or above 66 is not a flat reply; below 66 still rejects.
+# Exchange (40) and actor (30) floors stay exact.
+WORD_FLOOR_MARGIN = 14
 # Speech ceilings (plan update #3, PR3 d). "Roomy" means the ceiling, not unlimited. Advisory:
 # over one is noted on the record (over_ceiling), never rejected. They count only what can be
 # cut: narration, any second NPC, and Kit's remarks after her first. Never counted, so never shortened: the
@@ -3375,8 +3381,9 @@ def performance_limits(scope=None):
                    f'{kit_voice.COMBAT_MAX_AVG_SENTENCE_WORDS} words, none over '
                    f'{kit_voice.COMBAT_MAX_SENTENCE_WORDS}). Showtime: 1 to '
                    f'{kit_voice.SHOWTIME_MAX_KIT_SEGMENTS} Kit segments, and they count toward the floors.'),
-        'note': ('Floors guard against flat replies; they are not targets. Kit segments do not count '
-                 'toward the actor side. Never pad.'),
+        'note': ('Floors guard against flat replies; they are not targets. On a feature, a miss of '
+                 f'at most {WORD_FLOOR_MARGIN} words is noted, not rejected. An exchange and an '
+                 'actor floor stay exact. Kit segments do not count toward the actor side. Never pad.'),
         'padding': (f'Rejected as padding: any {kit_guards.PADDING_REPEAT_RUN_WORDS}-word run said twice, '
                     f'{kit_guards.RESTATE_MAX_RUN_WORDS}+ consecutive words echoed from the player, '
                     f'an {kit_guards.RECYCLED_RUN_WORDS}-word run reused from recent turns, narration '
@@ -3857,10 +3864,111 @@ def check_variant(performance_variant):
     return performance_variant
 
 
-def one_pass_instructions(performance_variant=DEFAULT_BRIDGE_VARIANT):
-    """One-pass host instructions: the same private stage plus the chosen performer variant."""
-    return (ONE_PASS_PREAMBLE + '\n\nPRIVATE DECISION: ' + PRIVATE_INSTRUCTIONS +
+# Private-instruction sections. The session carries the ones every turn needs. Detail, claims,
+# agenda and attitudes ride in the turn's ``loaded`` block, and only when that procedure is in
+# the input, so a cold opening does not pay for them.
+_PRIVATE_MARKS = (('detail', 'DETAIL:'), ('claims', 'CLAIMS.'), ('agenda', 'AGENDA.'),
+                  ('plan', 'PLAN:'), ('attitudes', 'ATTITUDES:'), ('story', 'STORY:'),
+                  ('pc_state', 'PC STATE:'))
+_ALWAYS_PRIVATE = ('core', 'plan', 'story', 'pc_state')
+_PACKET_SCHEMA_OMIT = ('detail', 'claims', 'agenda', 'combat_acts')
+
+
+def private_parts():
+    """PRIVATE_INSTRUCTIONS split on its section marks. Joining them in order is the whole text."""
+    text = PRIVATE_INSTRUCTIONS
+    cursor, found = 0, []
+    for name, mark in _PRIVATE_MARKS:
+        at = text.find(mark, cursor)
+        if at < 0:
+            raise RuntimeError('PRIVATE_INSTRUCTIONS lost the ' + mark + ' section')
+        found.append((name, at))
+        cursor = at + len(mark)
+    parts = {'core': text[:found[0][1]]}
+    for index, (name, at) in enumerate(found):
+        end = found[index + 1][1] if index + 1 < len(found) else len(text)
+        parts[name] = text[at:end]
+    return parts
+
+
+def stable_private():
+    parts = private_parts()
+    return ''.join(parts[name] for name in _ALWAYS_PRIVATE)
+
+
+def jit_section_names(planning_input):
+    """Procedure sections this turn's input actually uses."""
+    planning = planning_input or {}
+    dm = ((planning.get('dm_context') or {}).get('dm_only') or {})
+    names = []
+    if planning.get('detail_oracle'):
+        names.append('detail')
+    if planning.get('claims_here'):
+        names.append('claims')
+    if planning.get('agenda_here'):
+        names.append('agenda')
+    if dm.get('attitudes_here'):
+        names.append('attitudes')
+    return names
+
+
+def jit_private(planning_input):
+    parts = private_parts()
+    return ''.join(parts[name] for name in jit_section_names(planning_input))
+
+
+def packet_schema():
+    """The one-pass decision schema without procedure blocks that load only when in play."""
+    schema = copy.deepcopy(ONE_PASS_SCHEMA)
+    props = schema['properties']['decision']['properties']
+    for key in _PACKET_SCHEMA_OMIT:
+        props.pop(key, None)
+    return schema
+
+
+def schema_addons(planning_input):
+    planning = planning_input or {}
+    scene = ((planning.get('dm_context') or {}).get('scene') or {})
+    keys = []
+    if planning.get('detail_oracle'):
+        keys.append('detail')
+    if planning.get('claims_here'):
+        keys.append('claims')
+    if planning.get('agenda_here'):
+        keys.append('agenda')
+    combat = (scene.get('combat') or {}).get('status')
+    if planning.get('available_reactions') or planning.get('flourish') or combat:
+        keys.append('combat_acts')
+    props = PLAN_SCHEMA['properties']
+    return {key: copy.deepcopy(props[key]) for key in keys}
+
+
+def packet_loaded(planning_input):
+    """Just-in-time procedure text and schema keys. Empty when this turn needs none of them."""
+    loaded = {}
+    text = jit_private(planning_input)
+    if text:
+        loaded['instructions'] = text
+        loaded['note'] = ('Procedure text for this turn only. Read it with the session instructions. '
+                          'A later turn sends a section again only when that procedure is in play.')
+    addons = schema_addons(planning_input)
+    if addons:
+        loaded['schema'] = addons
+    return loaded
+
+
+def one_pass_instructions(performance_variant=DEFAULT_BRIDGE_VARIANT, stable=False):
+    """One-pass host instructions: the same private stage plus the chosen performer variant.
+
+    ``stable`` is the session text: procedure sections that are not in play are omitted
+    (they travel in ``loaded``). The default is the whole private text.
+    """
+    private = stable_private() if stable else PRIVATE_INSTRUCTIONS
+    return (ONE_PASS_PREAMBLE + '\n\nPRIVATE DECISION: ' + private +
             '\n\nPUBLIC PERFORMANCE: ' + PERFORMANCE_VARIANTS[check_variant(performance_variant)])
+
+
+PACKET_SCHEMA = packet_schema()
 
 
 class OpenAIResponsesModel:
@@ -4336,8 +4444,30 @@ def _words(text):
     return len(re.findall(r"[\w’']+", text))
 
 
+def _floor_gap(count, floor):
+    """None at or over the floor, 'near' inside the feature margin, 'short' otherwise.
+
+    Only the feature floor (80) has a near-miss band. An exchange at 40 and an actor
+    floor at 30 stay exact: fixtures written a couple of words under them are still flat.
+    """
+    if count >= floor:
+        return None
+    if floor >= FEATURE_MIN_WORDS and count >= floor - WORD_FLOOR_MARGIN:
+        return 'near'
+    return 'short'
+
+
+def _near_floor(kind, count, floor):
+    return (f'{kind} was {count} words, {floor - count} under the {floor}-word floor '
+            f'(within {WORD_FLOOR_MARGIN}): noted, not rejected. Do not pad.')
+
+
 def check_scope(segments, plan, guards=None):
-    """Flat-reply guard per selected scope. A floor, not a measure of quality."""
+    """Flat-reply guard per selected scope. A floor, not a measure of quality.
+
+    A word count inside WORD_FLOOR_MARGIN of its floor is noted (the return value) and not
+    rejected. Anything shorter still fails. Segment counts are unchanged.
+    """
     scope = plan['public_brief']['scope']
     # Showtime: Kit's theatrical narration in her own segments is scene material.
     showtime = plan.get('table_presence') == 'showtime'
@@ -4349,7 +4479,8 @@ def check_scope(segments, plan, guards=None):
         require(len(segments) <= CALL_MAX_SEGMENTS and total <= cap,
                 f'Call scope ran long ({total} words in {len(segments)} segments; limit '
                 f'{cap} words in {CALL_MAX_SEGMENTS}). Answer directly and stop.')
-        return
+        return None
+    notes = []
     if scope == 'exchange':
         guards = guards or {}
         # Without the room's speaker labels there is no actor to count; the total floor applies.
@@ -4361,19 +4492,29 @@ def check_scope(segments, plan, guards=None):
         elif actor:
             actor_words = sum(_words(segment['text']) for segment in segments
                               if segment['speaker'] == actor)
-            require(actor_words >= EXCHANGE_MIN_ACTOR_WORDS,
+            actor_gap = _floor_gap(actor_words, EXCHANGE_MIN_ACTOR_WORDS)
+            require(actor_gap != 'short',
                     f'Exchange scope: the {actor} spoke {actor_words} words (floor '
                     f'{EXCHANGE_MIN_ACTOR_WORDS}). Answer the words in reply_to and let the actor '
                     'pursue the brief tactic; do not pad with generic banter.')
-        require(performed_words >= EXCHANGE_MIN_WORDS and len(segments) >= EXCHANGE_MIN_SEGMENTS,
+            if actor_gap == 'near':
+                notes.append(_near_floor(f'the {actor}', actor_words, EXCHANGE_MIN_ACTOR_WORDS))
+        total_gap = _floor_gap(performed_words, EXCHANGE_MIN_WORDS)
+        require(total_gap != 'short' and len(segments) >= EXCHANGE_MIN_SEGMENTS,
                 f'Exchange scope was flat ({performed_words} performed words in {len(segments)} '
                 f'segments; floor {EXCHANGE_MIN_WORDS} words in {EXCHANGE_MIN_SEGMENTS}). Add the '
                 'visible beat or reaction the brief calls for; a price or fact alone is not an exchange.')
-        return
-    require(performed_words >= FEATURE_MIN_WORDS and len(segments) >= FEATURE_MIN_SEGMENTS,
+        if total_gap == 'near':
+            notes.append(_near_floor('Exchange scope', performed_words, EXCHANGE_MIN_WORDS))
+        return ' '.join(notes) or None
+    gap = _floor_gap(performed_words, FEATURE_MIN_WORDS)
+    require(gap != 'short' and len(segments) >= FEATURE_MIN_SEGMENTS,
             f'Feature scope was flat ({performed_words} performed words in {len(segments)} '
             f'segments; floor {FEATURE_MIN_WORDS} words in {FEATURE_MIN_SEGMENTS}). Put people '
             'and pressure in motion, then stop at a player decision.')
+    if gap == 'near':
+        return _near_floor('Feature scope', performed_words, FEATURE_MIN_WORDS)
+    return None
 
 
 CEILINGS = {'exchange': 'EXCHANGE_MAX_WORDS', 'feature': 'FEATURE_MAX_WORDS'}
@@ -5652,7 +5793,8 @@ def guard_context(source, body):
     tease = ((((source or {}).get('areas') or {}).get(area) or {}).get('tease') or {})
     labels = actor_speakers(source)
     heard_only = tuple(labels.get(item.get('actor'), item.get('actor')) for item in tease.get('heard') or ()
-                       if (((source or {}).get('actors') or {}).get(item.get('actor')) or {}).get('location') != area)
+                       if item.get('actor') not in (None, '', 'none') and
+                       (((source or {}).get('actors') or {}).get(item.get('actor')) or {}).get('location') != area)
     carriable = ('toll', 'tolls', 'passage') if any(kit_cards.can_carry(configs.get(key), 'toll')
                                                     for key in procedures) else ()
     return {'leak_sets': kit_guards.leak_sets(source),
@@ -6306,9 +6448,16 @@ def checked_record(body, plan, speech, performance_variant, source=None, degrade
     if declared:
         record['declared'] = {**(record.get('declared') or {}), 'acts': declared['acts'], 'kind': declared['kind'],
                               **({'handoff': declared['handoff']} if declared.get('handoff') else {})}
-    note = ceiling_note(speech['segments'], plan, guard_context(source, body))
+    guards = guard_context(source, body)
+    note = ceiling_note(speech['segments'], plan, guards)
     if note:
         record['over_ceiling'] = note  # advisory: the turn commits; reviews count it
+    try:
+        near = check_scope(speech['segments'], plan, guards)
+    except InvalidChange:
+        near = None  # check_speech already reported it; degraded mode kept it as a warning
+    if near:
+        record['floor_note'] = near  # inside the feature-floor margin: committed, not a retry
     return record
 
 
@@ -6452,12 +6601,23 @@ def table_talk_answer(view, question):
     return ' '.join(_full_stop(part) for part in parts) or None
 
 
-def opening_frame(view, public_event):
+def _opening_facts(view, reveal):
+    """Facts the entry line may say. On a progressive reveal, only the obvious layer and
+    anything the player's own words already pointed at. The held layer waits."""
+    facts = list((view or {}).get('known_facts_here') or ())
+    if not reveal:
+        return facts
+    show = set(reveal.get('obvious') or ())
+    show.update((reveal.get('pointed') or {}).values())
+    return [fact for fact in facts if fact in show]
+
+
+def opening_frame(view, public_event, reveal=None):
     """The room's opening from public state: its arrival line (or its name), what can be seen,
-    who is here, and the ways on."""
+    who is here, and the ways on. A progressive reveal does not speak the held layer."""
     area = view.get('area') or ''
     lead = public_event if public_event and not public_event.startswith('The newcomer arrives') else f'{area}.'
-    parts = [lead, *(view.get('known_facts_here') or ())]
+    parts = [lead, *_opening_facts(view, reveal)]
     actors = [a['name'] for a in view.get('actors') or ()]
     if actors:
         parts.append(f"{_names(actors)} {'is' if len(actors) == 1 else 'are'} here.")
@@ -6471,7 +6631,7 @@ def public_fallback(body):
     view = body.get('public_view') or {}
     event = body.get('public_event') or ''
     if body.get('kind') == 'opening':
-        spoken = f'Narrator: {opening_frame(view, event)}'
+        spoken = f'Narrator: {opening_frame(view, event, body.get("progressive_reveal"))}'
     elif body.get('table_talk') or event.startswith(TABLE_TALK_PREFIX):
         echo = _TALK_ECHO.match(event[len(TABLE_TALK_PREFIX):]) if event.startswith(TABLE_TALK_PREFIX) else None
         question = echo.group('q') if echo else (body.get('action') or '')
@@ -6973,11 +7133,14 @@ class KitChatBridge:
         if one_pass:
             packet = {'first_try': first_try, 'turn_id': turn_id, 'stage': 'one_pass', **notice,
                       'performance_variant': performance_variant,
-                      'instructions': one_pass_instructions(performance_variant),
-                      'schema': ONE_PASS_SCHEMA,
+                      'instructions': one_pass_instructions(performance_variant, stable=True),
+                      'schema': PACKET_SCHEMA,
                       'performance_limits': performance_limits(), 'host_retry': HOST_RETRY_NOTE,
                       'input': {'private': planning_input,
                                 'public': public_performance_base(self.runtime, body, one_pass=True)}}
+            loaded = packet_loaded(planning_input)
+            if loaded:
+                packet['loaded'] = loaded
         else:
             packet = {'first_try': first_try, 'turn_id': turn_id, 'stage': 'private_decision', **notice,
                       'instructions': PRIVATE_INSTRUCTIONS, 'schema': PLAN_SCHEMA,
@@ -7135,18 +7298,52 @@ class KitChatBridge:
             session, room = kit_telemetry.compact_parts(session, room, area)
             delta = {**delta, 'retrieval': kit_telemetry.RETRIEVAL}
             parts = (session, room, delta)
-        hashes = {'session': kit_manifest.digest(session), 'room': kit_manifest.digest(room)}
         recent = [row for row in self.runtime.recent_kit_timings(limit=50) if row['turn_id'] != turn_id]
-        held = kit_manifest.plan_sends(recent, self.runtime.committed_kit_turn_ids())
-        cached = {layer: hashes[layer] in held[layer] for layer in hashes}
-        layered, _, _ = kit_manifest.layered(packet, cached['session'], cached['room'], parts=parts, hashes=hashes)
+        cache = kit_manifest.manifest_cache(recent)
+        session_hash = kit_manifest.digest(session)
+        room_id = str(room.get('source_id') or '')
+        area_id = (((delta.get('input') or {}).get('private') or {}).get('dm_context') or {}).get(
+            'scene', {}).get('current_area')
+        known = (cache.get('rooms') or {}).get(room_id) if room_id else None
+        send_area = None
+        if known:
+            # The opening room manifest stays cached across areas. Only the new area is added.
+            room_hash = known['hash']
+            cached_room = True
+            if area_id and area_id not in (known.get('areas') or []):
+                send_area = {'id': area_id, 'dm_only': room.get('dm_only') or {}}
+        else:
+            room_hash = kit_manifest.digest(room)
+            cached_room = False
+        cached_session = session_hash in set(cache.get('session') or [])
+        if cached_session:
+            delta = kit_manifest.slim_repeat(delta)
+            parts = (session, room, delta)
+        hashes = {'session': session_hash, 'room': room_hash}
+        layered, _, _ = kit_manifest.layered(packet, cached_session, cached_room, parts=parts, hashes=hashes)
+        if send_area:
+            layered['area'] = send_area
+        if cache.get('rule'):
+            layered.pop('manifest_rule', None)
+        loaded = layered.get('loaded')
+        loaded_id = kit_manifest.digest(loaded) if loaded else None
+        if loaded_id and loaded_id in set(cache.get('loaded') or []):
+            layered.pop('loaded', None)
+            loaded_id = None
         notice = kit_manifest.rejection_notice(recent, hashes['session'])
         if notice:
-            layered = {**{k: layered[k] for k in ('session_manifest', 'room_manifest', 'manifest_rule')},
+            layered = {**{k: layered[k] for k in ('session_manifest', 'room_manifest', 'manifest_rule')
+                          if k in layered},
                        'rejection_notice': notice,
                        **{k: v for k, v in layered.items()
                           if k not in ('session_manifest', 'room_manifest', 'manifest_rule')}}
-        return layered, {'manifest': {**hashes, 'sent': [layer for layer in hashes if not cached[layer]]},
+        new_cache = kit_manifest.remember_cache(
+            cache, session=None if cached_session else session_hash,
+            room_id=room_id or None, room_hash=room_hash, area=area_id,
+            rule=True, loaded=loaded_id)
+        return layered, {'manifest': {**hashes, 'sent': [layer for layer, cached in (
+                             ('session', cached_session), ('room', cached_room)) if not cached]},
+                         'manifest_cache': new_cache,
                          'room_manifest': full_room, 'full_packet_bytes': _bytes(packet),
                          'packet_mode': 'compact' if self.compact else 'full'}
 
@@ -7161,8 +7358,8 @@ class KitChatBridge:
                     'in layers; nothing to rehydrate. Prepare the action again with a new turn_id.')
             return {'turn_id': turn_id, 'packet': packet}
         variant = timing.get('performance_variant') or DEFAULT_BRIDGE_VARIANT
-        session = {'performance_variant': variant, 'instructions': one_pass_instructions(variant),
-                   'schema': ONE_PASS_SCHEMA, 'performance_limits': performance_limits(),
+        session = {'performance_variant': variant, 'instructions': one_pass_instructions(variant, stable=True),
+                   'schema': PACKET_SCHEMA, 'performance_limits': performance_limits(),
                    'host_retry': HOST_RETRY_NOTE,
                    'personality_core': personality_core_text(source=self.runtime.source())}
         _, state = self.runtime.load()
@@ -7835,7 +8032,7 @@ def _main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('command', choices=['start', 'init', 'status', 'view', 'prepare', 'decide', 'finish', 'complete',
                                             'abandon', 'feedback', 'character', 'notes', 'play', 'trace',
-                                            'timing', 'persona', 'stamp', 'rehydrate', 'rest', 'save',
+                                            'timing', 'latency', 'persona', 'stamp', 'rehydrate', 'rest', 'save',
                                             'import-sheet'])
     parser.add_argument('--db', default='kit.sqlite')
     parser.add_argument('--out', help='save: where to write the player-safe ZIP '
@@ -7908,6 +8105,12 @@ def _main():
     parser.add_argument('--stamp', action='append', default=[],
                         help='prepare/complete/stamp: a host time NAME=EPOCH_SECONDS, one of '
                              + ', '.join(HOST_STAMPS) + ' (docs/architecture/HOST_TIMING.md); repeatable')
+    parser.add_argument('--message-at', dest='message_at', type=float,
+                        help='latency: epoch seconds when the player message reached the host')
+    parser.add_argument('--reply-at', dest='reply_at', type=float,
+                        help='latency: epoch seconds when Kit\'s reply was shown')
+    parser.add_argument('--rejections', type=int,
+                        help='latency: how many complete attempts were rejected before the reply (0 if the first committed)')
     parser.add_argument('--full', action='store_true',
                         help='prepare --one-pass/start: send the whole packet, not the three layers '
                              '(docs/architecture/MANIFESTS.md)')
@@ -7924,6 +8127,20 @@ def _main():
     if args.command == 'status':
         # Read-only: the lifecycle state from the save and the exact next command (kit_lifecycle).
         print(json.dumps(kit_lifecycle.status(args.db), ensure_ascii=False))
+        return 0
+    if args.command == 'latency':
+        # Host wall-clock log (runtime/kit_latency_log.py). No game is opened.
+        from . import kit_latency_log
+        try:
+            if args.message_at is None and args.reply_at is None and args.rejections is None:
+                print(json.dumps(kit_latency_log.report(args.db), indent=2, ensure_ascii=False))
+                return 0
+            row = kit_latency_log.record(args.db, turn_id=args.turn_id, message_at=args.message_at,
+                                         reply_at=args.reply_at, rejections=args.rejections)
+        except ValueError as exc:
+            print(json.dumps({'stage': 'rejected', 'message': str(exc)}, ensure_ascii=False), file=sys.stderr)
+            return 2
+        print(json.dumps(row, ensure_ascii=False))
         return 0
     if args.command == 'start' and args.question_delivered:
         done = kit_campaign.confirm_question_delivered(args.db, question_id=args.question_delivered)

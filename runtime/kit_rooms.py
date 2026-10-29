@@ -328,19 +328,53 @@ def tease_problems(source):
         if hooks and tease.get('points_to') not in hooks:
             problems.append(f"area {key} tease points_to {tease.get('points_to')!r} is not a story hook")
         heard = tease.get('heard', [])
+        if heard is None:
+            heard = []
+        elif isinstance(heard, (str, dict)):
+            heard = [heard]
         if not isinstance(heard, list):
-            problems.append(f'area {key} tease heard must be a list')
+            problems.append(f'area {key} tease heard must be a list of {HEARD_EXAMPLE} entries '
+                            f'(or {HEARD_AMBIENT} when nobody is named). A plain string is the sound.')
             continue
+        normalized = []
         for item in heard:
-            if not (isinstance(item, dict) and isinstance(item.get('sound'), str) and item['sound'].strip()):
-                problems.append(f'area {key} tease heard entries need an actor and a sound')
-            elif item.get('actor') not in source['actors']:
-                problems.append(f"area {key} tease heard {item.get('actor')!r} is not an actor")
-            elif (source['actors'][item['actor']] or {}).get('status') == 'hidden':
+            fixed = _heard_item(item)
+            if fixed is None:
+                problems.append(
+                    f'area {key} tease heard entry {item!r} needs a sound. '
+                    f'Each entry is {HEARD_EXAMPLE}, or {HEARD_AMBIENT} when nobody is named. '
+                    'A plain string is taken as that sound with actor "none".')
+                continue
+            normalized.append(fixed)
+            if fixed['actor'] != 'none' and fixed['actor'] not in (source.get('actors') or {}):
+                problems.append(f"area {key} tease heard {fixed['actor']!r} is not an actor")
+            elif fixed['actor'] != 'none' and ((source.get('actors') or {}).get(fixed['actor']) or {}).get('status') == 'hidden':
                 # A heard actor is named to Kit and the player: a hidden one would be given away.
-                problems.append(f"area {key} tease heard {item['actor']!r} is hidden until a trigger "
+                problems.append(f"area {key} tease heard {fixed['actor']!r} is hidden until a trigger "
                                 'fires; put the sound in the tease text without naming it')
+        tease['heard'] = normalized
     return problems
+
+
+HEARD_EXAMPLE = '{"actor": "warden", "sound": "a chair creaking"}'
+HEARD_AMBIENT = '{"actor": "none", "sound": "water dripping"}'
+
+
+def _heard_item(item):
+    """A tease.heard entry as {actor, sound}. A string, or a sound with no actor, is ambient."""
+    if isinstance(item, str) and item.strip():
+        return {'actor': 'none', 'sound': item.strip()}
+    if not isinstance(item, dict):
+        return None
+    actor = item.get('actor', 'none')
+    if not isinstance(actor, str) or not actor.strip():
+        actor = 'none'
+    else:
+        actor = actor.strip()
+    sound = item.get('sound')
+    if not (isinstance(sound, str) and sound.strip()):
+        return None
+    return {'actor': actor, 'sound': sound.strip()}
 
 
 def unsupported(source):

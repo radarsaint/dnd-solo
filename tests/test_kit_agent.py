@@ -1062,9 +1062,12 @@ class BridgeVoiceVariantTests(unittest.TestCase):
         self.assertNotIn('KIT’S TABLE VOICE', baseline['instructions'])
         # Only the performer instructions differ: same private stage, input, schema, limits.
         for prepared in (voiced, baseline):
-            self.assertIn(kit_agent.PRIVATE_INSTRUCTIONS, prepared['instructions'])
+            # Procedure sections this turn does not use are not in the session text; the
+            # private rules that every turn needs still are. Both variants get the same text.
+            self.assertIn(kit_agent.stable_private(), prepared['instructions'])
             self.assertIn(kit_agent.PUBLIC_INSTRUCTIONS, prepared['instructions'])
             self.assertIn('Do not copy improv_read', prepared['instructions'])
+        self.assertEqual(voiced.get('loaded'), baseline.get('loaded'))
         self.assertEqual(voiced['input'], baseline['input'])
         self.assertEqual(voiced['schema'], baseline['schema'])
         self.assertEqual(voiced['performance_limits'], baseline['performance_limits'])

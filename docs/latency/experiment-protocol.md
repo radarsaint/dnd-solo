@@ -40,8 +40,11 @@ Telemetry never changes what the player sees. The host never reports it during p
   `retrieval` names the commands, and `rehydrate --turn-id T` returns both bodies in full.
 
 Lantern Ferry fixture opening (`tests/fixtures/adventures/lantern_ferry.txt`, location 1, the
-`start` stdout): full is 57,176 bytes and compact is 38,156 bytes. Most of what is left is the
-operating contract (~23 KB of instructions).
+`start` stdout) was 57,176 bytes full and 38,156 compact before procedure text moved out of the
+session. The session now keeps the instructions every turn needs; detail, claims, agenda and
+attitudes load in `loaded` only when that turn's input has them. The watchroom layered opening
+measured 58,752 bytes on main `b136732` and 51,894 after that move (`tests/test_kit_cold_turn.py`).
+Most of what remains is the operating contract and the personality core.
 
 **Stable prefix.** Each packet opens with `session_manifest` and then `room_manifest`. The
 `start` envelope puts `prepared` before `next_step`, which names the turn id. No timestamps and

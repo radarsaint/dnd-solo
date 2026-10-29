@@ -29,8 +29,9 @@ after that. `h` is the first 16 hex characters of the SHA-256 of the canonical J
 * While the turn is pending, `rehydrate` also returns its whole one-pass packet as `packet`
   (manifests joined in), including the packet a window answer returns. That works without layers
   too. An abandoned or committed turn has no packet, and without layers it is refused.
-* Bodies are re-sent anyway at least every `FULL_EVERY` = 8 prepared turns. **This re-send is the real
-  safety net.** A lost body is stale for at most 8 turns.
+* A session or room body the host has already been sent is not sent again, including after an area
+  change and after many turns. Entering a new area adds `area` (that area's dm_only only). A lost
+  body comes back from `rehydrate`.
 * After a turn with `REJECT_STREAK` = 2 or more rejections, the next packet does **not** re-send the
   ~50 KB session body any more. It carries `rejection_notice`: `{rejections, reasons, session_hash, note}`
   (each reason is the refusal text, cut to 400 characters). The session stays `cached`. If the host no
