@@ -91,6 +91,74 @@ def layered(packet, cached_session=False, cached_room=False, parts=None, hashes=
     return out, hashes, room
 
 
+def manifest_cache(recent):
+    """Hashes and areas already sent, carried forward on the newest timing row.
+
+    A body the host has been sent is never put in a later packet. Rehydrate is how a lost
+    copy comes back. The old 8-turn resend is not used: it was the area-change and long-scene
+    packet growing back to a full manifest.
+    """
+    for row in reversed(list(recent or ())):
+        cache = row.get('manifest_cache')
+        if isinstance(cache, dict):
+            return cache
+    return {'session': [], 'rooms': {}, 'rule': False, 'loaded': []}
+
+
+def remember_cache(cache, session=None, room_id=None, room_hash=None, area=None, rule=False, loaded=None):
+    rooms = {key: {'hash': value.get('hash'), 'areas': list(value.get('areas') or [])}
+             for key, value in (cache.get('rooms') or {}).items() if isinstance(value, dict)}
+    out = {'session': list(cache.get('session') or []), 'rooms': rooms,
+           'rule': bool(cache.get('rule')), 'loaded': list(cache.get('loaded') or [])}
+    if session and session not in out['session']:
+        out['session'].append(session)
+    if room_id and room_hash:
+        entry = rooms.setdefault(str(room_id), {'hash': room_hash, 'areas': []})
+        if area and area not in entry['areas']:
+            entry['areas'].append(area)
+    if rule:
+        out['rule'] = True
+    if loaded and loaded not in out['loaded']:
+        out['loaded'].append(loaded)
+    return out
+
+
+_EPISODE_KEEP = ('turn_id', 'actor_ref', 'goal', 'kit_choice', 'spoken', 'public_event', 'player_input')
+
+
+def slim_repeat(delta):
+    """A later turn's host delta: this turn's new state, not the accumulated scene.
+
+    The host already holds the session, the room, earlier episodes, and the procedure
+    text from the opening. Sending them again is what made every per-turn packet larger
+    than main, and what made an eight-turn scene climb from about 9 KB to about 23 KB.
+    """
+    delta = dict(delta)
+    if isinstance(delta.get('input'), dict):
+        delta['input'] = dict(delta['input'])
+        private = dict((delta['input'].get('private') or {}))
+        history = list(private.get('dialogue_history') or [])
+        if len(history) > 1:
+            private['dialogue_history'] = history[-1:]
+        state = dict(private.get('kit_state') or {})
+        episodes = list(state.get('episodes') or [])
+        if episodes:
+            last = {key: episodes[-1][key] for key in _EPISODE_KEEP if key in episodes[-1]}
+            spoken = last.get('spoken') or ''
+            if spoken.startswith('same as dialogue_history['):
+                last['spoken'] = 'same as dialogue_history[0].spoken'
+            state['episodes'] = [last]
+            private['kit_state'] = state
+        context = dict(private.get('dm_context') or {})
+        context.pop('recent_rhythm', None)
+        private['dm_context'] = context
+        delta['input']['private'] = private
+    if isinstance(delta.get('first_try'), list):
+        delta['first_try'] = [line for line in delta['first_try']
+                              if not str(line).startswith('appraisal.label:')]
+    return delta
+
+
 def plan_sends(recent, committed=None):
     """Which bodies the host already holds: hashes sent in full within the last FULL_EVERY
     prepared turns. A rejection streak no longer clears them: the host still holds the body,

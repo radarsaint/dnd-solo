@@ -3342,7 +3342,10 @@ FEATURE_MIN_WORDS = 80       # scene entry or scene-turning moment
 FEATURE_MIN_SEGMENTS = 2
 # A count this close to a word floor is a flat-reply near miss, not a retry. The floor
 # stays the floor: further under it is still rejected. Segment counts are not softened.
-WORD_FLOOR_MARGIN = 5
+# A measured room entry was a complete 66-word feature and was rejected at 80. The floor
+# stays 80 (it is still noted). At or above 66 is not a flat reply; below 66 still rejects.
+# Exchange (40) and actor (30) floors stay exact.
+WORD_FLOOR_MARGIN = 14
 # Speech ceilings (plan update #3, PR3 d). "Roomy" means the ceiling, not unlimited. Advisory:
 # over one is noted on the record (over_ceiling), never rejected. They count only what can be
 # cut: narration, any second NPC, and Kit's remarks after her first. Never counted, so never shortened: the
@@ -7295,18 +7298,52 @@ class KitChatBridge:
             session, room = kit_telemetry.compact_parts(session, room, area)
             delta = {**delta, 'retrieval': kit_telemetry.RETRIEVAL}
             parts = (session, room, delta)
-        hashes = {'session': kit_manifest.digest(session), 'room': kit_manifest.digest(room)}
         recent = [row for row in self.runtime.recent_kit_timings(limit=50) if row['turn_id'] != turn_id]
-        held = kit_manifest.plan_sends(recent, self.runtime.committed_kit_turn_ids())
-        cached = {layer: hashes[layer] in held[layer] for layer in hashes}
-        layered, _, _ = kit_manifest.layered(packet, cached['session'], cached['room'], parts=parts, hashes=hashes)
+        cache = kit_manifest.manifest_cache(recent)
+        session_hash = kit_manifest.digest(session)
+        room_id = str(room.get('source_id') or '')
+        area_id = (((delta.get('input') or {}).get('private') or {}).get('dm_context') or {}).get(
+            'scene', {}).get('current_area')
+        known = (cache.get('rooms') or {}).get(room_id) if room_id else None
+        send_area = None
+        if known:
+            # The opening room manifest stays cached across areas. Only the new area is added.
+            room_hash = known['hash']
+            cached_room = True
+            if area_id and area_id not in (known.get('areas') or []):
+                send_area = {'id': area_id, 'dm_only': room.get('dm_only') or {}}
+        else:
+            room_hash = kit_manifest.digest(room)
+            cached_room = False
+        cached_session = session_hash in set(cache.get('session') or [])
+        if cached_session:
+            delta = kit_manifest.slim_repeat(delta)
+            parts = (session, room, delta)
+        hashes = {'session': session_hash, 'room': room_hash}
+        layered, _, _ = kit_manifest.layered(packet, cached_session, cached_room, parts=parts, hashes=hashes)
+        if send_area:
+            layered['area'] = send_area
+        if cache.get('rule'):
+            layered.pop('manifest_rule', None)
+        loaded = layered.get('loaded')
+        loaded_id = kit_manifest.digest(loaded) if loaded else None
+        if loaded_id and loaded_id in set(cache.get('loaded') or []):
+            layered.pop('loaded', None)
+            loaded_id = None
         notice = kit_manifest.rejection_notice(recent, hashes['session'])
         if notice:
-            layered = {**{k: layered[k] for k in ('session_manifest', 'room_manifest', 'manifest_rule')},
+            layered = {**{k: layered[k] for k in ('session_manifest', 'room_manifest', 'manifest_rule')
+                          if k in layered},
                        'rejection_notice': notice,
                        **{k: v for k, v in layered.items()
                           if k not in ('session_manifest', 'room_manifest', 'manifest_rule')}}
-        return layered, {'manifest': {**hashes, 'sent': [layer for layer in hashes if not cached[layer]]},
+        new_cache = kit_manifest.remember_cache(
+            cache, session=None if cached_session else session_hash,
+            room_id=room_id or None, room_hash=room_hash, area=area_id,
+            rule=True, loaded=loaded_id)
+        return layered, {'manifest': {**hashes, 'sent': [layer for layer, cached in (
+                             ('session', cached_session), ('room', cached_room)) if not cached]},
+                         'manifest_cache': new_cache,
                          'room_manifest': full_room, 'full_packet_bytes': _bytes(packet),
                          'packet_mode': 'compact' if self.compact else 'full'}
 

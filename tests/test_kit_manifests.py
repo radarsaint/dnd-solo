@@ -108,21 +108,24 @@ class EchoOrRehydrate(Layers):
 
 
 class Resend(Layers):
-    def test_bodies_come_back_every_few_turns(self):
+    def test_bodies_stay_cached_instead_of_being_resent(self):
         packet, output = self.open_room()
         self.bridge.complete('open', output)
         sent = []
-        # Committed turns fill the window (abandoned ones do not; next test): count these as
-        # committed without writing nine distinct performances.
+        # A body the host already has is not sent again, however many turns follow.
+        # Rehydrate is the way back to the full session.
         done = {'open'}
         self.runtime.committed_kit_turn_ids = lambda: set(done)
         for n in range(kit_manifest.FULL_EVERY + 1):
             later, out = self.wait(f'w{n}')
             sent.append('body' in later['session_manifest'])
+            self.assertTrue(later['session_manifest'].get('cached'))
+            self.assertNotIn('body', later['room_manifest'])
             self.bridge.abandon(f'w{n}')
             done.add(f'w{n}')
-        self.assertFalse(any(sent[:kit_manifest.FULL_EVERY - 1]))
-        self.assertTrue(any(sent))
+        self.assertFalse(any(sent))
+        full = self.bridge.rehydrate('w0')
+        self.assertIn('body', full['session_manifest'])
 
     def test_abandoned_prepares_do_not_count_toward_the_window(self):
         # #150 retest 4: bursts of abandoned prepares forced 60 KB resends.

@@ -55,11 +55,12 @@ class WordFloorMargin(unittest.TestCase):
         self.assertIn(str(FEATURE_MIN_WORDS), note)
         self.assertIsNone(check_scope(_feature(FEATURE_MIN_WORDS), _feature_plan()))
 
-    def test_a_flat_feature_and_a_one_segment_near_miss_still_fail(self):
-        flat = FEATURE_MIN_WORDS - 6  # outside the margin
+    def test_a_66_word_feature_passes_and_a_flat_one_still_fails(self):
+        # Measured room entry: 66 words against the 80-word feature floor.
+        self.assertTrue(check_scope(_feature(66), _feature_plan()))
         with self.assertRaisesRegex(InvalidChange, 'Feature scope was flat'):
-            check_scope(_feature(flat), _feature_plan())
-        one = [{'speaker': 'Narrator', 'text': _words(FEATURE_MIN_WORDS - 3)}]
+            check_scope(_feature(65), _feature_plan())
+        one = [{'speaker': 'Narrator', 'text': _words(66)}]
         with self.assertRaisesRegex(InvalidChange, str(FEATURE_MIN_SEGMENTS)):
             check_scope(one, _feature_plan())
 
@@ -171,6 +172,110 @@ class EntryEngineLine(unittest.TestCase):
         self.assertIn('basilisk', spoken)
         self.assertNotIn('coiling serpents', spoken)
         self.assertNotIn('pillars carved', spoken)
+
+
+class AreaChangePacket(unittest.TestCase):
+    def test_a_new_area_adds_only_that_area_and_stays_under_6kb(self):
+        import sys
+        sys.path.insert(0, str(ROOT / 'tests'))
+        from test_kit_agent import RecordingModel
+        from test_kit_room_review import Base, WATCH
+        from test_kit_watchroom_stalls import landing
+        from runtime.kit_agent import RoomAdjudicator
+        case = Base()
+        case.setUp()
+        runtime = case.start(WATCH)
+        bridge = KitChatBridge(runtime, RoomAdjudicator(roll=lambda: 10), manifests=True)
+        opening = bridge.prepare(opening=True, one_pass=True, turn_id='open')
+        plan = RecordingModel().plan(opening['input']['private'])
+        plan.update(move='world_description', table_presence='quiet', focus_actor='none')
+        plan['improv_read'].update(actor_ref='none', actor_basis='none')
+        plan['public_brief'].update(scope='feature', reply_to='none')
+        bridge.complete('open', {'decision': plan, 'performance': landing(), 'manifest': {
+            'session': opening['session_manifest']['hash'], 'room': opening['room_manifest']['hash']}})
+        revision, _ = runtime.load()
+        runtime.commit('in', revision, [{'type': 'move', 'exit': 'iron_door', 'evidence': 'In.'}])
+        packet = bridge.prepare('I look around the room.', 'inside', one_pass=True)
+        raw = json.dumps(packet, ensure_ascii=False, separators=(',', ':')).encode('utf-8')
+        self.assertLess(len(raw), 6000, len(raw))
+        self.assertNotIn('body', packet['session_manifest'])
+        self.assertNotIn('body', packet['room_manifest'])
+        self.assertTrue(packet['session_manifest'].get('cached'))
+        self.assertTrue(packet['room_manifest'].get('cached'))
+        self.assertEqual(packet['room_manifest']['hash'], opening['room_manifest']['hash'])
+        area = packet['area']
+        self.assertEqual(area['id'], 'watchroom')
+        hidden = area['dm_only']['unrevealed_facts']
+        self.assertIn('chest_contents', hidden)
+        self.assertIn('sealed letter', hidden['chest_contents']['text'])
+        text = json.dumps(packet['session_manifest'])
+        self.assertNotIn('personality_core', text)
+
+
+# Watchroom replay, manifests on, json.dumps(ensure_ascii=False), main b5ddad74.
+# T0 is the opening. T1-T8 are the per-turn packets that climbed on main.
+MAIN_B5_TURN_BYTES = {
+    'T1': 8504, 'T2': 9773, 'T3': 11928, 'T4': 10715,
+    'T5': 14512, 'T6': 19828, 'T7': 16389, 'T8': 12624,
+}
+
+
+class EightTurnPackets(unittest.TestCase):
+    def test_per_turn_packets_stay_at_or_under_main_and_do_not_climb(self):
+        import sys
+        sys.path.insert(0, str(ROOT))
+        sys.path.insert(0, str(ROOT / 'scripts'))
+        import scripts.watchroom_replay as replay
+        from runtime.kit_agent import RoomAdjudicator
+        from runtime.kit_manifest import expand_session
+        from runtime.state_context import Runtime
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        db = Path(folder.name) / 'replay.sqlite'
+        started = start_session(db, replay.NIK, room=replay.ROOM, manifests=True)
+        runtime = Runtime(db)
+        self.addCleanup(runtime.close)
+        bridge = KitChatBridge(runtime, RoomAdjudicator(roll=lambda: 10, npc_roll=lambda: 10), manifests=True)
+
+        def nbytes(value):
+            return len(json.dumps(value, ensure_ascii=False).encode('utf-8'))
+
+        def expanded(packet):
+            body = (packet.get('session_manifest') or {}).get('body')
+            if not body or 'properties' in body.get('schema', {}):
+                return packet
+            packet = dict(packet)
+            packet['session_manifest'] = dict(packet['session_manifest'], body=dict(body))
+            packet['session_manifest']['body']['schema'] = expand_session(dict(body))['schema']
+            return packet
+
+        sizes = {}
+        for turn in replay.TURNS:
+            if turn['id'] not in set(MAIN_B5_TURN_BYTES) | {'T0'}:
+                continue
+            packet = started['prepared'] if turn.get('opening') else bridge.prepare(turn['line'], one_pass=True)
+            if turn['id'] != 'T0':
+                self.assertNotIn('loaded', packet, turn['id'])
+                self.assertNotIn('body', packet['session_manifest'], turn['id'])
+                sizes[turn['id']] = nbytes(packet)
+            speech = {'segments': [
+                {'speaker': speaker, 'text': text,
+                 **({'reacts_to': (turn.get('line') or 'the landing')[:40]} if speaker == 'Kit' else {})}
+                for speaker, text in turn['speech']]}
+            decision = replay.kit_decision(expanded(packet), turn)
+            output = {'decision': decision, 'performance': speech}
+            if 'session_manifest' in packet:
+                output['manifest'] = {'session': packet['session_manifest']['hash'],
+                                      'room': packet['room_manifest']['hash']}
+            bridge.complete(packet['turn_id'], output)
+        self.assertEqual(set(sizes), set(MAIN_B5_TURN_BYTES))
+        for turn_id, limit in MAIN_B5_TURN_BYTES.items():
+            self.assertLessEqual(sizes[turn_id], limit, turn_id)
+        # No climb: the eighth turn is not larger than the first, and the spread stays
+        # inside one speech's worth of variation rather than the old multi-kilobyte trend.
+        ordered = [sizes[turn_id] for turn_id in sorted(sizes, key=lambda name: int(name[1:]))]
+        self.assertLessEqual(ordered[-1], ordered[0])
+        self.assertLess(max(ordered) - min(ordered), 2500, ordered)
 
 
 class HostLatencyLog(unittest.TestCase):
