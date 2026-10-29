@@ -184,7 +184,7 @@ def _parse_name(data, i):
 
 
 def _parse_number(data, i):
-    match = re.match(br'[+-]?(?:\d+\.\d*|\.\d+|\d+)', data[i:])
+    match = re.match(br'[+-]?(?:\d+\.\d*|\.\d+|\d+)', data[i:i + 48])
     if not match:
         raise ValueError('number')
     token = match.group(0)
@@ -218,7 +218,7 @@ def _parse_value(data, i):
     if c in b'+-.0123456789':
         num, i = _parse_number(data, i)
         j = _skip(data, i)
-        match = re.match(br'(\d+)\s+R\b', data[j:])
+        match = re.match(br'(\d+)\s+R\b', data[j:j + 32])
         if isinstance(num, int) and match:
             return Ref(num, int(match.group(1))), j + match.end()
         return num, i
@@ -250,11 +250,74 @@ def _parse_array(data, i):
         out.append(val)
 
 
-def _decode_stream(raw, filt):
+def _undo_png_predictor(data, columns):
+    """Undo PNG frame predictors (10-15) used by many FlateDecode xref streams."""
+    if columns <= 0 or not data:
+        return data
+    row = columns + 1
+    if len(data) % row:
+        return data
+    out = bytearray()
+    prev = bytearray(columns)
+    for r in range(len(data) // row):
+        base = r * row
+        pred = data[base]
+        cur = bytearray(data[base + 1:base + row])
+        if pred == 1:  # Sub
+            for i in range(1, columns):
+                cur[i] = (cur[i] + cur[i - 1]) & 255
+        elif pred == 2:  # Up
+            for i in range(columns):
+                cur[i] = (cur[i] + prev[i]) & 255
+        elif pred == 3:  # Average
+            for i in range(columns):
+                left = cur[i - 1] if i else 0
+                cur[i] = (cur[i] + ((left + prev[i]) // 2)) & 255
+        elif pred == 4:  # Paeth
+            for i in range(columns):
+                left = cur[i - 1] if i else 0
+                up = prev[i]
+                up_left = prev[i - 1] if i else 0
+                p = left + up - up_left
+                pa, pb, pc = abs(p - left), abs(p - up), abs(p - up_left)
+                nearest = left if pa <= pb and pa <= pc else (up if pb <= pc else up_left)
+                cur[i] = (cur[i] + nearest) & 255
+        elif pred != 0:
+            return data
+        out.extend(cur)
+        prev = cur
+    return bytes(out)
+
+
+def _decode_parms_list(filt, parms):
     filters = [filt] if isinstance(filt, str) else list(filt or [])
-    for name in filters:
+    if isinstance(parms, list):
+        plist = list(parms)
+    elif parms is None:
+        plist = [None] * len(filters)
+    else:
+        plist = [parms] * len(filters)
+    while len(plist) < len(filters):
+        plist.append(None)
+    return filters, plist
+
+
+def _decode_stream(raw, filt, parms=None):
+    filters, plist = _decode_parms_list(filt, parms)
+    for name, params in zip(filters, plist):
         if name == '/FlateDecode':
             raw = _inflate(raw)
+            if isinstance(params, dict):
+                try:
+                    pred = int(params.get('/Predictor') or 1)
+                except (TypeError, ValueError):
+                    pred = 1
+                if pred >= 10:
+                    try:
+                        cols = int(params.get('/Columns') or 1)
+                    except (TypeError, ValueError):
+                        cols = 1
+                    raw = _undo_png_predictor(raw, cols)
         elif name == '/ASCIIHexDecode':
             hexstr = re.sub(br'[^0-9A-Fa-f]', b'', raw).decode('ascii')
             if len(hexstr) % 2:
@@ -284,10 +347,15 @@ def _parse_object(data, i):
             i = end if end >= 0 else j
         value = dict(value)
         value['_stream'] = raw
-        try:
-            value['_decoded'] = _decode_stream(raw, value.get('/Filter'))
-        except (zlib.error, ValueError):
+        if not _should_decode(value):
             value['_decoded'] = b''
+            value['_skipped'] = 'image'
+        else:
+            try:
+                value['_decoded'] = _decode_stream(raw, value.get('/Filter'),
+                                                   value.get('/DecodeParms') or value.get('/DP'))
+            except (zlib.error, ValueError):
+                value['_decoded'] = b''
     return value, i
 
 
@@ -403,7 +471,9 @@ def _parse_bounded(data, offset, limit):
             else:
                 raw = data[j:stop if stop >= 0 else region_end]
                 try:
-                    value['_decoded'] = _decode_stream(raw, value.get('/Filter'))
+                    value['_decoded'] = _decode_stream(
+                        raw, value.get('/Filter'),
+                        value.get('/DecodeParms') or value.get('/DP'))
                 except (zlib.error, ValueError):
                     value['_decoded'] = b''
     return value
@@ -417,7 +487,7 @@ def _xref_table(data, offset):
     entries = {}
     while True:
         i = _skip(data, i)
-        head = re.match(br'(\d+)\s+(\d+)\s*', data[i:])
+        head = re.match(br'(\d+)\s+(\d+)\s*', data[i:i + 32])
         if not head:
             break
         start, count = int(head.group(1)), int(head.group(2))

@@ -58,7 +58,7 @@ ELSEWHERE_RE = re.compile(r'\b(?:a|an|the|one|two|three|four|five|six|\d+)\s+([a
 NPC_RE = re.compile(r'\b([A-Z][a-z]+(?: [A-Z][a-z]+)?), (?:a|an|the) ((?:[a-z]+ ){0,3}[a-z]+)')
 SECRET_RE = re.compile(r'\b(secret|hidden|concealed)\b', re.I)
 SENTENCE_RE = re.compile(r'[^.!?]+[.!?]+(?:["\')\]]+)?|[^.!?]+$')
-NOT_NPC = {'The', 'This', 'That', 'These', 'Those', 'If', 'When', 'Each', 'Any', 'Its', 'His', 'Her', 'A', 'An'}
+NOT_NPC = {'The', 'This', 'That', 'These', 'Those', 'If', 'When', 'Each', 'Any', 'Its', 'His', 'Her', 'A', 'An', 'However'}
 
 
 class IngestError(ValueError):
@@ -262,6 +262,56 @@ def strip_running_matter(text):
     return '\f'.join(out)
 
 
+
+_DM_SECTION_RE = re.compile(
+    r'^(?:developments|features|treasure|creatures|tactics|roleplaying|'
+    r'adjusting|xp awards|setup|background)\b', re.I)
+_SECOND_PERSON_RE = re.compile(r'\b(?:you|your|yours)\b', re.I)
+_BODY_CHAPTER_RE = re.compile(
+    r'(?:provides the characters|cannot be removed|see the|scrolls in his|'
+    r'appendix a\)|part\s+\d+,|wave echo cave\.\)")', re.I)
+
+
+def _location_name_ok(stripped):
+    """Reject spell lines and sentences that LOCATION_RE still matches."""
+    m = LOCATION_RE.match(stripped)
+    if not m:
+        return False
+    name = m.group(2).strip()
+    if re.search(r'\bDC\s+\d+', name):
+        return False
+    if name.count('.') >= 1 and len(name) > 24:
+        return False
+    if len(name.split()) > 8:
+        return False
+    if re.match(r'^(?:paralyzing|wounding|enervation|fear|fire|cold|lightning)\s+ray\b', name, re.I):
+        return False
+    return True
+
+
+def _is_real_chapter(title):
+    """A PART/Chapter heading, not a TOC crumb or a mid-sentence body bleed."""
+    stripped = (title or '').strip()
+    if not stripped or not CHAPTER_RE.match(stripped):
+        return False
+    if _toc_line(stripped):
+        return False
+    if len(stripped) > 70:
+        return False
+    if _BODY_CHAPTER_RE.search(stripped):
+        return False
+    if stripped.count(',') >= 1 and len(stripped) > 42:
+        return False
+    if not _readable_heading(stripped):
+        return False
+    if re.match(r'appendix\b', stripped, re.I) and (')' in stripped or len(stripped) > 40):
+        return False
+    if '"' in stripped or stripped.endswith(')') or '|' in stripped and len(stripped) > 30:
+        return False
+    return True
+
+
+
 _READ_CUE = re.compile(
     r'\b(?:read(?:\s+or\s+paraphrase|\s+aloud|\s+the\s+following)?|boxed text)\b', re.I)
 
@@ -271,7 +321,10 @@ def mark_read_aloud(text):
 
     A vector box or an italic face is already marked by the PDF reader. Pasted text and
     ``pdftotext -layout`` keep the box as indentation under the location heading, or as a
-    'read or paraphrase' cue. Stat lines are left alone.
+    'read or paraphrase' cue. When those are missing, the first second-person narrative
+    paragraph under a location heading (before DEVELOPMENTS / Features / Treasure) is
+    treated as read-aloud so a flush-left starter-book opening still mounts. Stat lines
+    stay unmarked.
     """
     pages = []
     for page in text.split('\f'):
@@ -295,8 +348,11 @@ def mark_read_aloud(text):
                 cue = True
                 i += 1
                 continue
-            if (LOCATION_RE.match(stripped) and (not stripped.endswith('.') or len(stripped) < 40)
-                    and not _toc_line(stripped)):
+            loc_ok = (LOCATION_RE.match(stripped)
+                      and (not stripped.endswith('.') or len(stripped) < 40)
+                      and not _toc_line(stripped)
+                      and _location_name_ok(stripped))
+            if loc_ok:
                 marked.append(line)
                 indent = len(line) - len(line.lstrip(' '))
                 i += 1
@@ -304,11 +360,48 @@ def mark_read_aloud(text):
                     nxt = lines[i]
                     nxt_indent = len(nxt) - len(nxt.lstrip(' '))
                     body = nxt.strip()
-                    if nxt_indent >= indent + 2 and not LOCATION_RE.match(body) and not _toc_line(body):
+                    if (nxt_indent >= indent + 2 and not LOCATION_RE.match(body)
+                            and not _toc_line(body)):
                         marked.append(nxt if body.startswith('>') else '> ' + body)
                         i += 1
                         continue
                     break
+                block_lines = []
+                while i < len(lines):
+                    nxt = lines[i]
+                    body = nxt.strip()
+                    if not body:
+                        block_lines.append((i, nxt, body))
+                        i += 1
+                        continue
+                    if (LOCATION_RE.match(body) or CHAPTER_RE.match(body)
+                            or _DM_SECTION_RE.match(body) or _toc_line(body)):
+                        break
+                    block_lines.append((i, nxt, body))
+                    i += 1
+                already = any(body.startswith('>') for _idx, _nxt, body in block_lines if body)
+                area_in = re.compile(r'\barea\s+[A-Z]?\d', re.I)
+                marking = False
+                for idx, nxt, body in block_lines:
+                    if not body:
+                        marked.append(nxt)
+                        continue
+                    if already:
+                        marked.append(nxt)
+                        continue
+                    if not marking:
+                        if _SECOND_PERSON_RE.search(body) and ('.' in body or len(body) > 40):
+                            marking = True
+                            marked.append('> ' + body)
+                        else:
+                            marked.append(nxt)
+                        continue
+                    # Once the second-person read-aloud starts, stop at DM area refs / DC lines.
+                    if area_in.search(body) or re.search(r'\bDC\s+\d+', body):
+                        marking = False
+                        marked.append(nxt)
+                        continue
+                    marked.append('> ' + body)
                 continue
             marked.append(line)
             i += 1
@@ -350,11 +443,18 @@ def _site_of(title):
     if not match:
         return ''
     name = match.group(2).strip() or ('part ' + match.group(1))
+    name = name.replace('|', ' ')
     name = re.sub(r'^(?:the|a|an)\s+', '', name, flags=re.I)
     name = _strip_toc_bleed(name)
-    if not _readable_heading(name):
+    name = re.sub(r'\s+', ' ', name).strip()
+    fold = name.casefold()
+    # OCR: Phandalin split or Ll-for-li
+    fold = fold.replace('phan dalln', 'phandalin').replace('phandalln', 'phandalin')
+    fold = fold.replace('phan_dalln', 'phandalin')
+    if not _readable_heading(name) and not _readable_heading(fold):
         return ''
-    return _slug(name)[:24]
+    slug = _slug(fold)[:24]
+    return slug.replace('phan_dalln', 'phandalin')
 
 
 def _index_title(title, chapters):
@@ -378,7 +478,44 @@ def _opening_chapter(title):
 
 
 def _chapter_norm(title):
-    return re.sub(r'\s+', ' ', (title or '').strip().casefold())
+    """Collapse PART 2 OCR variants onto one key (part 2 / chapter 1)."""
+    stripped = (title or '').strip()
+    m = re.match(r'^(part|chapter)\s+([\w-]+)', stripped, re.I)
+    if m:
+        return '%s %s' % (m.group(1).casefold(), m.group(2).casefold())
+    if re.match(r'^appendix\b', stripped, re.I):
+        return 'appendix'
+    return re.sub(r'\s+', ' ', stripped.casefold())
+
+
+def _preferred_chapter_title(current, challenger):
+    """Prefer the cleaner PART title when OCR variants collide."""
+    if not current:
+        return challenger
+    if not challenger:
+        return current
+
+    def score(t):
+        s = 0
+        if _readable_heading(t):
+            s += 2
+        if '|' not in t:
+            s += 1
+        words = re.findall(r"[A-Za-z']+", t)
+        if words:
+            s += sum(1 for w in words if len(w) >= 3)
+            s -= sum(1 for w in words if len(w) == 1)
+        fold = re.sub(r'[^a-z]', '', t.casefold())
+        if 'phandalin' in fold:
+            s += 5
+        if 'goblinarrows' in fold:
+            s += 3
+        if 'waveechocave' in fold:
+            s += 3
+        return s
+
+    return challenger if score(challenger) > score(current) else current
+
 
 
 _CREATURE_NAME = re.compile(r"^[A-Z][A-Za-z' -]{0,40}$")
@@ -459,6 +596,9 @@ def _resolve_area(bare, loc, sentence, by_site, unique):
             return loc_key
     if (site, bare) in by_site:
         return by_site[(site, bare)]
+    # Never jump to another site's reused number just because the bare int is unique globally.
+    if site:
+        return None
     return unique.get(bare)
 
 
@@ -481,20 +621,23 @@ def build_index(text, title=None):
         lead = len(line) - len(line.lstrip())
         chapter = CHAPTER_RE.match(stripped)
         if chapter:
-            if not _readable_heading(stripped):
-                continue  # a letter-spaced fake chapter does not spawn a site
+            if not _is_real_chapter(stripped):
+                continue  # TOC crumb, body bleed, or letter-spaced fake
             norm = _chapter_norm(stripped)
             prior = next((c for c in chapters if _chapter_norm(c['title']) == norm), None)
             if prior is None:
-                chapters.append({'title': stripped, 'offset': off + lead, 'page': page_of(off)})
+                chapters.append({'title': re.sub(r'\s+', ' ', stripped.replace('|', ' ')).strip(), 'offset': off + lead, 'page': page_of(off)})
                 current = stripped
             else:
+                prior['title'] = _preferred_chapter_title(prior['title'], stripped)
                 current = prior['title']
             heads.append(('chapter', off, None, None, current))
             continue
         loc = LOCATION_RE.match(stripped)
-        if loc and not stripped.endswith('.') or loc and len(stripped) < 40:
-            heads.append(('location', off, loc.group(1).upper(), loc.group(2).strip().rstrip('.'), current))
+        if loc and _location_name_ok(stripped) and (not stripped.endswith('.') or len(stripped) < 40):
+            name = loc.group(2).strip().rstrip('.').replace('|', ' ')
+            name = re.sub(r'\s+', ' ', name).strip()
+            heads.append(('location', off, loc.group(1).upper(), name, current))
     raw = []
     for i, (kind, off, key, name, chapter) in enumerate(heads):
         if kind != 'location':
@@ -503,9 +646,17 @@ def build_index(text, title=None):
         body_start = text.index('\n', off) + 1 if '\n' in text[off:end] else end
         raw.append({'bare': key, 'name': name, 'offset': off, 'body': [body_start, end],
                     'page': page_of(off), 'chapter': chapter, 'site': _site_of(chapter)})
+    # Carry the last real PART site forward so a body-bleed "chapter" does not orphan areas.
+    last_site = ''
+    for loc in raw:
+        if loc.get('site'):
+            last_site = loc['site']
+        elif last_site and not loc.get('site'):
+            loc['site'] = last_site
     bare_sites = {}
     for loc in raw:
         bare_sites.setdefault(loc['bare'], set()).add(loc['site'])
+    has_part_site = any(loc.get('site') for loc in raw)
     locations = {}
     for loc in raw:
         sites = bare_sites[loc['bare']]
@@ -513,6 +664,9 @@ def build_index(text, title=None):
         # with no PART keeps 1, 2, 3. A letter-spaced chapter is not a site.
         if loc.get('site'):
             key = loc['site'] + '-' + loc['bare']
+        elif has_part_site and last_site:
+            loc['site'] = last_site
+            key = last_site + '-' + loc['bare']
         elif len(sites) > 1:
             key = loc['bare']
         else:
@@ -540,10 +694,15 @@ def build_index(text, title=None):
         loc['creatures'] = _creatures(span, loc['body'][0], stat_blocks)
         loc['npcs'] = sorted({m.group(1) for m in NPC_RE.finditer(span) if m.group(1).split()[0] not in NOT_NPC})
         loc['read_aloud'] = any(line.lstrip().startswith('>') for line in span.split('\n'))
-    # Undirected, and only back to the site the sentence already named.
+    # Undirected within a site. A cross-site link stays one-way unless the quote named both.
     for key, loc in locations.items():
         for c in loc['connections']:
-            back = locations[c['to']]['connections']
+            other = locations[c['to']]
+            if (loc.get('site') or '') != (other.get('site') or '') and not c.get('stated_in'):
+                # Forward edge was an explicit cross-site name; do not invent a back edge.
+                if (loc.get('site') or '').replace('_', ' ') not in (c.get('quote') or '').casefold():
+                    continue
+            back = other['connections']
             if key not in [b['to'] for b in back]:
                 back.append({'to': key, 'offset': c['offset'], 'quote': c['quote'], 'secret': c['secret'],
                              'stated_in': key})
