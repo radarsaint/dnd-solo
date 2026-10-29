@@ -38,22 +38,35 @@ locations stay headings on their own line (`A1. Gatehouse`, `12. Ash Court`, `Ar
 Shaft`); a table row stays one line.
 
 `pdftotext -layout` and `pypdf` run only when the built-in reader cannot read the encoding,
-and only if the host has them (`--reader stdlib` never calls them). A PDF with no text
-operators is refused: `this PDF has no text layer` — paste the text and pass `--text-file`.
-There is no OCR.
+and only if the host has them (`--reader stdlib` never calls them). Layout padding is not
+counted against the letter ratio (non-space characters only), so `--reader pdftotext` can
+ingest a padded page. A PDF with no text operators is refused: `this PDF has no text layer`.
+A file that has `Tj`/`TJ` (including inside an object stream) is never called a scan. The
+reader follows the xref, including xref streams and `ObjStm`. There is no OCR.
+
+Keyed numbers are reused across sites. A bare key that appears in two chapters (`1`, `4`)
+is stored as `<site>-<key>` (`hideout-1`, `castle-4`). A reference to "area 4" stays inside
+the site that said it. The start is the first keyed area of part 1 / chapter 1 / the
+introduction, not whichever number was seen first. A contents line (`4. Tower .... 9`) is
+not a room. A running header repeated at the edge of later pages is one chapter, not one
+per page.
+
+Read-aloud is a `> ` line, a vector box, an italic sentence, an indented block under the
+location heading, or the paragraph after a "read or paraphrase" cue. A bare "Yes." or
+"begin" while the opening is pending commits that opening from this player-visible text.
 
 ## Likely misfires
 
-1. A font with no ToUnicode map (glyph indexes only) comes out garbled. Ingest refuses it
-   (`has a text layer but the built-in reader could not read it`) rather than compiling
-   nonsense. Paste the text, or use a host that has `pdftotext` / `pypdf`.
-2. Three columns, a sidebar, or text drawn out of order can attach a paragraph or a stat
-   block to the wrong location. Two columns with a full-width heading are the case this
-   reader is built for.
-3. Read-aloud that is not a vector rectangle (an image shade, or italics with no box) is
-   not prefixed with `> `, so the scene compiles with nothing player-visible until it is
-   revealed. A box around a secret would show it; a rectangle bigger than about a third of
-   the page is ignored.
+1. A font with no ToUnicode map (or a Type3 / predictor stream) comes out garbled. Ingest
+   refuses it rather than compiling nonsense. Paste the text, or use a host that has
+   `pdftotext` / `pypdf`.
+2. Three or more columns, or a sidebar that does not share one repeated x, can still put a
+   sentence in the wrong location. Two columns with a repeated right-hand start are the
+   case this reader is built for.
+3. Read-aloud that is not italic, not indented under the heading, not in a vector box, and
+   not under a "read or paraphrase" cue stays hidden, so the opening has nothing
+   player-visible. A box or an italic sentence around a secret would show it. A rectangle
+   bigger than about a third of the page is ignored.
 
 ## Private storage
 

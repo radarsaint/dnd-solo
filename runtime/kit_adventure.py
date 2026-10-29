@@ -196,6 +196,219 @@ def _lines(text):
         at += len(line) + 1
 
 
+def _norm_line(text):
+    return re.sub(r'\d+', '#', re.sub(r'\s+', ' ', text).strip().casefold())
+
+
+def _toc_line(stripped):
+    """A contents entry ('4. Tower Room .... 9'), not a room you can enter."""
+    if re.search(r'\.{2,}\s*\d+\s*$', stripped):
+        return True
+    if re.search(r'\s{3,}\d{1,3}\s*$', stripped) and len(stripped) < 80:
+        return True
+    return False
+
+
+def strip_running_matter(text):
+    """Drop a header or footer repeated on later pages. The first copy stays, so one
+    'PART 1: ...' is a chapter and the copies on the next sixty pages are not."""
+    pages = text.split('\f')
+    if len(pages) < 2:
+        return text
+
+    def edges(page):
+        raw = page.split('\n')
+        idx = [i for i, line in enumerate(raw) if line.strip()]
+        if not idx:
+            return set()
+        found = {idx[0]}
+        if len(idx) > 1:
+            found.add(idx[-1])
+        return found
+
+    counts = {}
+    for page in pages:
+        raw = page.split('\n')
+        seen = set()
+        for i in edges(page):
+            key = _norm_line(raw[i])
+            if len(key) < 4 or key in seen:
+                continue
+            counts[key] = counts.get(key, 0) + 1
+            seen.add(key)
+    repeated = {key for key, count in counts.items() if count >= 3}
+    if not repeated:
+        return text
+    kept = set()
+    out = []
+    for page in pages:
+        raw = page.split('\n')
+        edge = edges(page)
+        lines = []
+        for i, line in enumerate(raw):
+            key = _norm_line(line)
+            if i in edge and key in repeated:
+                if key in kept:
+                    continue
+                kept.add(key)
+            lines.append(line)
+        out.append('\n'.join(lines))
+    return '\f'.join(out)
+
+
+_READ_CUE = re.compile(
+    r'\b(?:read(?:\s+or\s+paraphrase|\s+aloud|\s+the\s+following)?|boxed text)\b', re.I)
+
+
+def mark_read_aloud(text):
+    """Prefix player-facing lines with ``> `` when the book did not.
+
+    A vector box or an italic face is already marked by the PDF reader. Pasted text and
+    ``pdftotext -layout`` keep the box as indentation under the location heading, or as a
+    'read or paraphrase' cue. Stat lines are left alone.
+    """
+    pages = []
+    for page in text.split('\f'):
+        lines = page.split('\n')
+        marked = []
+        i = 0
+        cue = False
+        while i < len(lines):
+            line = lines[i]
+            stripped = line.strip()
+            if cue:
+                if not stripped:
+                    cue = False
+                    marked.append(line)
+                else:
+                    marked.append(line if stripped.startswith('>') else '> ' + stripped)
+                i += 1
+                continue
+            if stripped and _READ_CUE.search(stripped) and not stripped.startswith('>'):
+                marked.append(line)
+                cue = True
+                i += 1
+                continue
+            if (LOCATION_RE.match(stripped) and (not stripped.endswith('.') or len(stripped) < 40)
+                    and not _toc_line(stripped)):
+                marked.append(line)
+                indent = len(line) - len(line.lstrip(' '))
+                i += 1
+                while i < len(lines) and lines[i].strip():
+                    nxt = lines[i]
+                    nxt_indent = len(nxt) - len(nxt.lstrip(' '))
+                    body = nxt.strip()
+                    if nxt_indent >= indent + 2 and not LOCATION_RE.match(body) and not _toc_line(body):
+                        marked.append(nxt if body.startswith('>') else '> ' + body)
+                        i += 1
+                        continue
+                    break
+                continue
+            marked.append(line)
+            i += 1
+        pages.append('\n'.join(marked))
+    return '\f'.join(pages)
+
+
+def prepare_source(text):
+    """Running headers off, read-aloud marked. The index and the saved source are this text."""
+    text = text.replace('\r\n', '\n').replace('\r', '\n')
+    return mark_read_aloud(strip_running_matter(text))
+
+
+def _site_of(title):
+    if not title:
+        return ''
+    match = re.match(r'(?:part|chapter|appendix)\s+[\w-]+\s*[:.\-]\s*(.+)$', title.strip(), re.I)
+    name = match.group(1) if match else title
+    name = re.sub(r'^(?:the|a|an)\s+', '', name.strip(), flags=re.I)
+    return _slug(name)[:24]
+
+
+def _opening_chapter(title):
+    text = (title or '').casefold()
+    if 'appendix' in text:
+        return False
+    if re.search(r'\b(?:part|chapter)\s+1\b', text):
+        return True
+    return bool(re.search(r'\b(?:introduction|prologue)\b', text))
+
+
+def _chapter_norm(title):
+    return re.sub(r'\s+', ' ', (title or '').strip().casefold())
+
+
+_CREATURE_NAME = re.compile(r"^[A-Z][A-Za-z' -]{0,40}$")
+_TYPE_LINE = re.compile(r'^(?:tiny|small|medium|large|huge|gargantuan)\b', re.I)
+
+
+def _creature_name_line(line):
+    line = line.strip().lstrip('>').strip()
+    if not line or not line[0].isupper() or not _CREATURE_NAME.match(line):
+        return False
+    if LOCATION_RE.match(line) or _toc_line(line):
+        return False
+    if re.match(r'(?:armor|armour)\s+class|hit points|speed|str|dex|con|int|wis|cha$', line, re.I):
+        return False
+    return 1 <= len(line.split()) <= 6
+
+
+def _stat_blocks(text, page_of):
+    """Creature blocks. The name may sit more than two lines above Armor Class."""
+    found = {}
+    for match in re.finditer(r'(?im)^[ \t>]*((?:armor|armour)\s+class\s+\d+)', text):
+        before = text[max(0, match.start() - 600):match.start()]
+        name = None
+        name_at = None
+        lines = before.split('\n')
+        consumed = 0
+        for line in reversed(lines[-8:]):
+            consumed += len(line) + 1
+            if _TYPE_LINE.match(line.strip()):
+                continue
+            if _creature_name_line(line):
+                name = line.strip().lstrip('>').strip()
+                name_at = match.start() - consumed + (len(line) - len(line.lstrip()))
+                break
+        if not name:
+            continue
+        window = text[match.start():match.start() + 900]
+        if not re.search(r'hit points\s+\d+', window, re.I):
+            continue
+        found[name.casefold()] = {'name': name, 'offset': name_at if name_at and name_at >= 0 else match.start(),
+                                  'page': page_of(match.start())}
+    return found
+
+
+def _opening_start(chapters, locations):
+    """The first keyed area of part 1 / chapter 1 / the introduction, not whichever key was seen first."""
+    opening = [c for c in chapters if _opening_chapter(c['title'])]
+    pool = []
+    if opening:
+        chosen = min(opening, key=lambda c: c['offset'])
+        pool = [loc for loc in locations.values() if loc.get('chapter') == chosen['title']]
+    if not pool:
+        pool = [loc for loc in locations.values()
+                if 'appendix' not in (loc.get('chapter') or '').casefold()]
+    if not pool:
+        pool = list(locations.values())
+    pool.sort(key=lambda loc: loc['offset'])
+    return pool[0]['key'] if pool else None
+
+
+def _resolve_area(bare, loc, sentence, by_site, unique):
+    """Area 4 in the hideout is the hideout's 4, not the castle's."""
+    bare = bare.upper()
+    site = loc.get('site') or ''
+    folded = sentence.casefold()
+    for (other, key), loc_key in by_site.items():
+        if key == bare and other and other != site and other.replace('_', ' ') in folded:
+            return loc_key
+    if (site, bare) in by_site:
+        return by_site[(site, bare)]
+    return unique.get(bare)
+
+
 def build_index(text, title=None):
     """The global index of an adventure's text. Pure: same text, same index."""
     page_starts = [0] + [m.end() for m in re.finditer('\f', text)]
@@ -207,47 +420,65 @@ def build_index(text, title=None):
         pages.append({'page': number, 'start': start, 'end': end, 'chars': chars,
                       'needs_map_look': chars < MAP_PAGE_MAX_CHARS})
     chapters, heads = [], []
+    current = None
     for off, line in _lines(text.replace('\f', '\n')):
         stripped = line.strip()
-        if not stripped or stripped.startswith('>'):
+        if not stripped or stripped.startswith('>') or _toc_line(stripped):
             continue
         lead = len(line) - len(line.lstrip())
         chapter = CHAPTER_RE.match(stripped)
         if chapter:
-            chapters.append({'title': stripped, 'offset': off + lead, 'page': page_of(off)})
-            heads.append(('chapter', off, None, None))
+            norm = _chapter_norm(stripped)
+            prior = next((c for c in chapters if _chapter_norm(c['title']) == norm), None)
+            if prior is None:
+                chapters.append({'title': stripped, 'offset': off + lead, 'page': page_of(off)})
+                current = stripped
+            else:
+                current = prior['title']
+            heads.append(('chapter', off, None, None, current))
             continue
         loc = LOCATION_RE.match(stripped)
         if loc and not stripped.endswith('.') or loc and len(stripped) < 40:
-            heads.append(('location', off, loc.group(1).upper(), loc.group(2).strip().rstrip('.')))
-    locations = {}
-    for i, (kind, off, key, name) in enumerate(heads):
-        if kind != 'location' or key in locations:
+            heads.append(('location', off, loc.group(1).upper(), loc.group(2).strip().rstrip('.'), current))
+    raw = []
+    for i, (kind, off, key, name, chapter) in enumerate(heads):
+        if kind != 'location':
             continue
         end = heads[i + 1][1] if i + 1 < len(heads) else len(text)
         body_start = text.index('\n', off) + 1 if '\n' in text[off:end] else end
-        locations[key] = {'key': key, 'name': name, 'offset': off, 'body': [body_start, end],
-                          'page': page_of(off), 'chapter': next(
-                              (c['title'] for c in reversed(chapters) if c['offset'] <= off), None)}
-    stat_blocks = {}
-    for m in STAT_HEAD_RE.finditer(text):
-        name = m.group(1).strip()
-        if not LOCATION_RE.match(name):
-            stat_blocks[name.casefold()] = {'name': name, 'offset': m.start(1), 'page': page_of(m.start(1))}
+        raw.append({'bare': key, 'name': name, 'offset': off, 'body': [body_start, end],
+                    'page': page_of(off), 'chapter': chapter, 'site': _site_of(chapter)})
+    bare_sites = {}
+    for loc in raw:
+        bare_sites.setdefault(loc['bare'], set()).add(loc['site'])
+    locations = {}
+    for loc in raw:
+        sites = bare_sites[loc['bare']]
+        key = (loc['site'] + '-' + loc['bare']) if len(sites) > 1 and loc['site'] else loc['bare']
+        if key in locations:
+            continue
+        loc['key'] = key
+        locations[key] = loc
+    stat_blocks = _stat_blocks(text, page_of)
+    by_site = {(loc.get('site') or '', loc['bare']): key for key, loc in locations.items()}
+    bare_keys = {}
+    for key, loc in locations.items():
+        bare_keys.setdefault(loc['bare'], []).append(key)
+    unique = {bare: keys[0] for bare, keys in bare_keys.items() if len(keys) == 1}
     for key, loc in locations.items():
         span = text[loc['body'][0]:loc['body'][1]]
-        refs, connections = [], []
+        connections = []
         for m in AREA_REF_RE.finditer(span):
-            target = m.group(1).upper()
-            if target in locations and target != key and target not in [c['to'] for c in connections]:
-                sentence = _sentence_around(span, m.start())
+            sentence = _sentence_around(span, m.start())
+            target = _resolve_area(m.group(1), loc, sentence, by_site, unique)
+            if target and target != key and target not in [c['to'] for c in connections]:
                 connections.append({'to': target, 'offset': loc['body'][0] + m.start(),
                                     'quote': sentence, 'secret': bool(SECRET_RE.search(sentence))})
         loc['connections'] = connections
         loc['creatures'] = _creatures(span, loc['body'][0], stat_blocks)
         loc['npcs'] = sorted({m.group(1) for m in NPC_RE.finditer(span) if m.group(1).split()[0] not in NOT_NPC})
         loc['read_aloud'] = any(line.lstrip().startswith('>') for line in span.split('\n'))
-    # Undirected: a link stated in either location's text joins both.
+    # Undirected, and only back to the site the sentence already named.
     for key, loc in locations.items():
         for c in loc['connections']:
             back = locations[c['to']]['connections']
@@ -259,7 +490,7 @@ def build_index(text, title=None):
             'sha256': hashlib.sha256(text.encode('utf-8')).hexdigest(), 'chars': len(text),
             'chapters': chapters, 'locations': locations, 'npcs': npcs, 'stat_blocks': stat_blocks,
             'pages': pages, 'map_pages': [p['page'] for p in pages if p['needs_map_look']],
-            'start': next(iter(locations), None)}
+            'start': _opening_start(chapters, locations)}
 
 
 def _sentence_around(span, at):
@@ -281,10 +512,14 @@ DISTURB_RE = re.compile(r"anyone who (?:touches|disturbs|opens|moves|takes|reads
 
 
 def stat_block_span(text, entry):
-    """(start, end) of the book's stat block for an index entry: its heading to the next blank line."""
+    """(start, end) of the book's stat block: its name through the first blank line after Hit Points."""
     start = entry['offset']
-    end = text.find('\n\n', start)
-    return start, len(text) if end < 0 else end
+    window = text[start:start + 1600]
+    hp = re.search(r'hit points\s+\d+', window, re.I)
+    search_from = hp.end() if hp else 0
+    rel = window.find('\n\n', search_from)
+    end = start + (rel if rel >= 0 else len(window))
+    return start, min(len(text), end)
 
 
 def parse_stat_block(text, entry):
@@ -356,7 +591,7 @@ def import_adventure(db, text=None, pdf=None, title=None, reader='auto'):
         raise IngestError(['give --text-file (extracted text) or --pdf'])
     if text is None:
         text, _how = read_pdf(pdf, reader=reader)
-    text = text.replace('\r\n', '\n')
+    text = prepare_source(text)
     index = build_index(text, title)
     if not index['locations']:
         raise IngestError(['no keyed locations found (headings like "1. Mill Yard" or "Area 3: Cellar")'])
@@ -619,11 +854,23 @@ def _words_from(body, quote):
     return words(body) <= words(quote)
 
 
+def _canon_key(key, locations):
+    text = str(key)
+    if text in locations:
+        return text
+    folded = {name.casefold(): name for name in locations}
+    found = folded.get(text.casefold())
+    if found:
+        return found
+    upper = text.upper()
+    return upper if upper in locations else text
+
+
 def compile_location(db, key, draft=None, neighbours=True):
     """Compile (or accept a host draft for) one location, validate it, cache it. Then
     pre-compile the locations it connects to, so the next move is already executable."""
     index, text = _load(db)
-    key = key.upper()
+    key = _canon_key(key, index['locations'])
     clock = time.perf_counter()
     if draft is None:
         room, sidecar = draft_room(db, key, index, text)

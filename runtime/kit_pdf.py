@@ -35,31 +35,44 @@ class Ref(object):
 
 
 def text_usable(text):
-    """True when extracted text is real words, not an empty page or a garbled encoding."""
-    letters = sum(ch.isalpha() for ch in text or '')
-    return letters >= 40 and letters / max(len(text or ''), 1) > 0.5
+    """True when extracted text is real words, not an empty page or a garbled encoding.
+
+    ``pdftotext -layout`` pads lines with spaces. The ratio is letters over non-space
+    characters, so that padding does not make a readable page look empty.
+    """
+    raw = text or ''
+    letters = sum(ch.isalpha() for ch in raw)
+    body = sum(1 for ch in raw if not ch.isspace())
+    return letters >= 40 and letters / max(body, 1) > 0.5
 
 
 def extract(data):
     """``{text, kind, pages, text_ops}``. ``kind`` is text, poor, no_text_layer, or not_pdf.
 
-    ``text`` is UTF-8-able str with a form feed between pages. Boxed lines start with ``> ``.
+    ``text`` is UTF-8-able str with a form feed between pages. Boxed lines and italic prose
+    start with ``> ``. A file that contains text operators is never ``no_text_layer``.
     """
     if not isinstance(data, (bytes, bytearray)) or not bytes(data).startswith(b'%PDF'):
         return {'text': '', 'kind': 'not_pdf', 'pages': 0, 'text_ops': 0}
     data = bytes(data)
-    objects = _scan_objects(data)
-    catalog = next((obj for obj in objects.values()
-                    if isinstance(obj, dict) and obj.get('/Type') == '/Catalog'), None)
+    objects, root = _load_documents(data)
+    catalog = root if isinstance(root, dict) and root.get('/Type') == '/Catalog' else None
     if catalog is None:
-        return {'text': '', 'kind': 'no_text_layer', 'pages': 0, 'text_ops': 0}
+        catalog = next((obj for obj in objects.values()
+                        if isinstance(obj, dict) and obj.get('/Type') == '/Catalog'), None)
+    if catalog is None:
+        seen = _text_ops_in(objects)
+        kind = 'poor' if seen else 'no_text_layer'
+        return {'text': '', 'kind': kind, 'pages': 0, 'text_ops': seen}
     pages, text_ops = [], 0
     for node in _walk_pages(_resolve(catalog.get('/Pages'), objects), objects):
         chunks, rects, ops, width, height = _read_page(node, objects)
         text_ops += ops
         pages.append({'chunks': chunks, 'rects': rects, 'width': width, 'height': height})
     if text_ops <= 0:
-        return {'text': '', 'kind': 'no_text_layer', 'pages': len(pages), 'text_ops': 0}
+        seen = _text_ops_in(objects)
+        kind = 'poor' if seen else 'no_text_layer'
+        return {'text': '', 'kind': kind, 'pages': len(pages), 'text_ops': seen}
     text = _layout(pages)
     return {'text': text, 'kind': 'text' if text_usable(text) else 'poor',
             'pages': len(pages), 'text_ops': text_ops}
@@ -228,7 +241,7 @@ def _decode_stream(raw, filt):
     filters = [filt] if isinstance(filt, str) else list(filt or [])
     for name in filters:
         if name == '/FlateDecode':
-            raw = zlib.decompress(raw)
+            raw = _inflate(raw)
         elif name == '/ASCIIHexDecode':
             hexstr = re.sub(br'[^0-9A-Fa-f]', b'', raw).decode('ascii')
             if len(hexstr) % 2:
@@ -266,10 +279,12 @@ def _parse_object(data, i):
 
 
 def _scan_objects(data):
+    """Fallback for PDFs with no usable xref. Stream bodies are skipped via /Length so a
+    compressed page is not scanned byte by byte."""
     objects = {}
     pattern = re.compile(br'(\d+)\s+(\d+)\s+obj\b')
     i = 0
-    while True:
+    while i < len(data):
         match = pattern.search(data, i)
         if not match:
             break
@@ -277,12 +292,246 @@ def _scan_objects(data):
         try:
             value, end = _parse_object(data, match.end())
         except (ValueError, IndexError, KeyError):
-            i = match.end()
+            i = match.end() + 1
             continue
         objects[num] = value
+        if isinstance(value, dict) and isinstance(value.get('/Length'), int) and b'stream' in data[match.end():end + 1]:
+            i = end
+            continue
         endobj = data.find(b'endobj', end)
-        i = endobj + 6 if endobj >= 0 else end
+        i = endobj + 6 if 0 <= endobj < end + 64 else end
     return objects
+
+
+def _inflate(raw):
+    try:
+        return zlib.decompress(raw)
+    except zlib.error:
+        return zlib.decompress(raw.strip(b'\r\n \t'))
+
+
+def _text_ops_in(objects):
+    count = 0
+    for obj in objects.values():
+        if not isinstance(obj, dict):
+            continue
+        blob = obj.get('_decoded')
+        if isinstance(blob, (bytes, bytearray)) and (b'Tj' in blob or b'TJ' in blob or b"'" in blob):
+            count += blob.count(b'Tj') + blob.count(b'TJ')
+    return count
+
+
+def _expand_objstm(obj, objects):
+    if not isinstance(obj, dict) or obj.get('/Type') != '/ObjStm':
+        return
+    data = obj.get('_decoded')
+    if not isinstance(data, (bytes, bytearray)):
+        return
+    try:
+        count = int(obj.get('/N') or 0)
+        first = int(obj.get('/First') or 0)
+    except (TypeError, ValueError):
+        return
+    if count <= 0 or first < 0 or first > len(data):
+        return
+    try:
+        nums = [int(piece) for piece in data[:first].split()]
+    except ValueError:
+        return
+    if len(nums) < count * 2:
+        return
+    pairs = [(nums[i * 2], nums[i * 2 + 1]) for i in range(count)]
+    for i, (num, rel) in enumerate(pairs):
+        if num in objects:
+            continue
+        start = first + rel
+        if start < 0 or start >= len(data):
+            continue
+        try:
+            value, _end = _parse_value(data, start)
+        except (ValueError, IndexError, KeyError):
+            continue
+        objects[num] = value
+
+
+def _expand_all_objstms(objects):
+    for obj in list(objects.values()):
+        _expand_objstm(obj, objects)
+
+
+def _parse_bounded(data, offset, limit):
+    """The object at ``offset``, not reading past ``limit`` (the next xref offset)."""
+    match = re.match(br'\s*(\d+)\s+(\d+)\s+obj\b', data[offset:offset + 64])
+    start = offset + match.end() if match else offset
+    region_end = limit if limit > start else len(data)
+    value, end = _parse_value(data, start)
+    if isinstance(value, dict):
+        window = data[start:region_end]
+        stream_at = window.find(b'stream')
+        if stream_at >= 0 and stream_at < 800:
+            j = start + stream_at + 6
+            if data.startswith(b'\r\n', j):
+                j += 2
+            elif j < len(data) and data[j] in (10, 13):
+                j += 1
+            stop = data.find(b'endstream', j, region_end)
+            raw = data[j:stop if stop >= 0 else region_end]
+            value = dict(value)
+            value['_stream'] = raw
+            try:
+                value['_decoded'] = _decode_stream(raw, value.get('/Filter'))
+            except (zlib.error, ValueError):
+                try:
+                    value['_decoded'] = _inflate(raw) if value.get('/Filter') in (
+                        '/FlateDecode', ['/FlateDecode']) else raw
+                except (zlib.error, ValueError):
+                    value['_decoded'] = b''
+    return value
+
+
+def _xref_table(data, offset):
+    """Classic xref table at ``offset``. Returns (entries, root_ref, prev) or None."""
+    if not data.startswith(b'xref', offset):
+        return None
+    i = offset + 4
+    entries = {}
+    while True:
+        i = _skip(data, i)
+        head = re.match(br'(\d+)\s+(\d+)\s*', data[i:])
+        if not head:
+            break
+        start, count = int(head.group(1)), int(head.group(2))
+        i += head.end()
+        for n in range(count):
+            line = data[i:i + 20]
+            m = re.match(br'(\d{10})\s+(\d{5})\s+([nf])', line)
+            if not m:
+                break
+            if m.group(3) == b'n':
+                entries[start + n] = (1, int(m.group(1)), int(m.group(2)))
+            else:
+                entries[start + n] = (0, 0, 65535)
+            i += 20
+    i = _skip(data, i)
+    if not data.startswith(b'trailer', i):
+        return entries, None, None
+    trailer, _end = _parse_value(data, i + len(b'trailer'))
+    root = trailer.get('/Root') if isinstance(trailer, dict) else None
+    prev = trailer.get('/Prev') if isinstance(trailer, dict) else None
+    return entries, root, prev
+
+
+def _xref_stream_entries(value):
+    if not isinstance(value, dict) or value.get('/Type') != '/XRef':
+        return None
+    decoded = value.get('_decoded')
+    if not isinstance(decoded, (bytes, bytearray)):
+        return None
+    widths = value.get('/W') or [1, 2, 1]
+    if not (isinstance(widths, list) and len(widths) == 3):
+        return None
+    w1, w2, w3 = (int(widths[0]), int(widths[1]), int(widths[2]))
+    span = w1 + w2 + w3
+    if span <= 0:
+        return None
+    index = value.get('/Index')
+    if not (isinstance(index, list) and len(index) >= 2):
+        size = int(value.get('/Size') or 0)
+        index = [0, size]
+    entries = {}
+    pos = 0
+
+    def field(blob):
+        return int.from_bytes(blob, 'big') if blob else 0
+
+    for i in range(0, len(index) - 1, 2):
+        start, count = int(index[i]), int(index[i + 1])
+        for n in range(count):
+            if pos + span > len(decoded):
+                break
+            chunk = decoded[pos:pos + span]
+            pos += span
+            typ = field(chunk[:w1]) if w1 else 1
+            a = field(chunk[w1:w1 + w2])
+            b = field(chunk[w1 + w2:w1 + w2 + w3])
+            entries[start + n] = (typ, a, b)
+    return entries, value.get('/Root'), value.get('/Prev')
+
+
+def _read_xref_chain(data):
+    positions = [int(m.group(1)) for m in re.finditer(br'startxref\s+(\d+)', data)]
+    if not positions:
+        return {}, None
+    entries = {}
+    root = None
+    pending = [positions[-1]]
+    seen = set()
+    while pending:
+        pos = pending.pop()
+        if pos in seen or pos < 0 or pos >= len(data):
+            continue
+        seen.add(pos)
+        if data.startswith(b'xref', pos):
+            found = _xref_table(data, pos)
+            if not found:
+                continue
+            got, got_root, prev = found
+        else:
+            try:
+                value = _parse_bounded(data, pos, len(data))
+            except (ValueError, IndexError, KeyError):
+                continue
+            found = _xref_stream_entries(value)
+            if not found:
+                continue
+            got, got_root, prev = found
+        for num, item in got.items():
+            entries.setdefault(num, item)
+        if root is None and got_root is not None:
+            root = got_root
+        if isinstance(prev, int):
+            pending.append(prev)
+    return entries, root
+
+
+def _load_via_xref(data):
+    entries, root_ref = _read_xref_chain(data)
+    if not entries:
+        return None
+    offsets = sorted((off, num) for num, (typ, off, _gen) in entries.items() if typ == 1 and off > 0)
+    limits = {}
+    offs = [off for off, _num in offsets]
+    for i, (off, num) in enumerate(offsets):
+        limits[num] = offs[i + 1] if i + 1 < len(offs) else len(data)
+    objects = {}
+    for off, num in offsets:
+        try:
+            objects[num] = _parse_bounded(data, off, limits[num])
+        except (ValueError, IndexError, KeyError):
+            continue
+    _expand_all_objstms(objects)
+    root = _resolve(root_ref, objects) if isinstance(root_ref, Ref) else None
+    return objects, root
+
+
+def _has_pages(objects, root):
+    catalog = root if isinstance(root, dict) and root.get('/Type') == '/Catalog' else None
+    if catalog is None:
+        catalog = next((obj for obj in objects.values()
+                        if isinstance(obj, dict) and obj.get('/Type') == '/Catalog'), None)
+    if not isinstance(catalog, dict):
+        return False
+    return any(True for _ in _walk_pages(_resolve(catalog.get('/Pages'), objects), objects))
+
+
+def _load_documents(data):
+    """Objects via the xref (including object streams), else a direct scan."""
+    loaded = _load_via_xref(data)
+    if loaded and _has_pages(loaded[0], loaded[1]):
+        return loaded
+    objects = _scan_objects(data)
+    _expand_all_objstms(objects)
+    return objects, None
 
 
 def _resolve(value, objects):
@@ -442,12 +691,16 @@ def _fonts(page, objects):
             continue
         font = _resolve(ref, objects)
         cmap = None
-        if isinstance(font, dict) and font.get('/ToUnicode') is not None:
-            uni = _resolve(font.get('/ToUnicode'), objects)
-            if isinstance(uni, dict) and isinstance(uni.get('_decoded'), (bytes, bytearray)):
-                cmap = _parse_cmap(uni['_decoded'])
-        fonts[name] = cmap
-        fonts[name[1:]] = cmap
+        italic = False
+        if isinstance(font, dict):
+            base = str(font.get('/BaseFont') or '')
+            italic = 'italic' in base.lower() or 'oblique' in base.lower()
+            if font.get('/ToUnicode') is not None:
+                uni = _resolve(font.get('/ToUnicode'), objects)
+                if isinstance(uni, dict) and isinstance(uni.get('_decoded'), (bytes, bytearray)):
+                    cmap = _parse_cmap(uni['_decoded'])
+        fonts[name] = (cmap, italic)
+        fonts[name[1:]] = (cmap, italic)
     return fonts
 
 
@@ -515,7 +768,9 @@ def _interpret(data, fonts, width, height):
         return found
 
     def show(raw):
-        text = _decode_text(raw, fonts.get(state.font))
+        info = fonts.get(state.font)
+        cmap, italic = info if isinstance(info, tuple) else (None, False)
+        text = _decode_text(raw, cmap)
         if not text:
             return
         x, y = state.origin()
@@ -525,7 +780,7 @@ def _interpret(data, fonts, width, height):
         state.advance(tx)
         x2, y2 = state.origin()
         chunks.append({'x': x, 'y': y, 'text': text, 'size': state.font_size or 12,
-                       'w': ((x2 - x) ** 2 + (y2 - y) ** 2) ** 0.5})
+                       'w': ((x2 - x) ** 2 + (y2 - y) ** 2) ** 0.5, 'italic': bool(italic)})
 
     def show_item(item):
         if isinstance(item, (bytes, bytearray)):
@@ -695,28 +950,41 @@ def _boxed(chunk, rects, area):
 
 
 def _split_columns(chunks):
-    if len(chunks) < 6:
+    """Split on the gutter a column gap repeats along, not on a long word's width.
+
+    Word starts inside one sentence are not a second column. A gap that shows up at
+    the same x on several lines is the gutter, so 'the door of bronze-covered wood'
+    stays one phrase and the facing column stays on its own side.
+    """
+    if len(chunks) < 4:
         return [chunks]
-    buckets = {}
-    for chunk in chunks:
-        bucket = int(round(chunk['x'] / 10.0) * 10)
-        buckets[bucket] = buckets.get(bucket, 0) + 1
-    keys = sorted(buckets)
-    best = None
-    for i in range(len(keys) - 1):
-        gap = keys[i + 1] - keys[i]
-        if gap < COLUMN_GAP:
-            continue
-        left_n = sum(n for key, n in buckets.items() if key <= keys[i])
-        right_n = sum(n for key, n in buckets.items() if key >= keys[i + 1])
-        if left_n >= 3 and right_n >= 3 and (best is None or gap > best[0]):
-            best = (gap, (keys[i] + keys[i + 1]) / 2.0)
-    if best is None:
+    # The right column starts at nearly the same x on each line. That x, not the
+    # midpoint of a long word, is the gutter.
+    starts = []
+    for group in _cluster(chunks):
+        ordered = sorted(group, key=lambda c: c['x'])
+        for prev, cur in zip(ordered, ordered[1:]):
+            gap = cur['x'] - (prev['x'] + max(prev.get('w') or 0, 0))
+            if gap >= 20:
+                starts.append(cur['x'])
+    if len(starts) < 2:
         return [chunks]
-    boundary = best[1]
+    starts.sort()
+    bands = []
+    for x in starts:
+        if bands and abs(x - bands[-1][0]) <= 18:
+            bands[-1][1].append(x)
+        else:
+            bands.append([x, [x]])
+    bands.sort(key=lambda band: len(band[1]), reverse=True)
+    if len(bands[0][1]) < 2:
+        return [chunks]
+    boundary = min(bands[0][1]) - 4
     left = [c for c in chunks if c['x'] < boundary]
     right = [c for c in chunks if c['x'] >= boundary]
-    columns = [col for col in (left, right) if col]
+    if len(left) < 2 or len(right) < 2:
+        return [chunks]
+    columns = [left, right]
     columns.sort(key=lambda col: min(c['x'] for c in col))
     return columns
 
@@ -736,17 +1004,21 @@ def _join(chunks):
     chunks = sorted(chunks, key=lambda c: c['x'])
     text = chunks[0]['text']
     boxed = bool(chunks[0].get('boxed'))
+    italic = bool(chunks[0].get('italic'))
     for prev, cur in zip(chunks, chunks[1:]):
         gap = cur['x'] - (prev['x'] + prev.get('w', 0))
         if gap > max(18, prev['size'] * 1.5):
             text += ' | ' + cur['text']
-        elif gap > prev['size'] * 0.12:
+        elif gap > -1.5:
             text += ' ' + cur['text']
         else:
             text += cur['text']
         boxed = boxed and bool(cur.get('boxed'))
+        italic = italic and bool(cur.get('italic'))
     text = re.sub(r'[ \t]+', ' ', text).strip()
-    if boxed and text:
+    prose = ('.' in text or '?' in text or '!' in text) and len(text) > 12
+    stat = re.match(r'(?:armor|armour)\s+class\b|hit points\b|speed\s+\d', text, re.I)
+    if text and not text.startswith('>') and not stat and (boxed or (italic and prose)):
         text = '> ' + text
     return text
 

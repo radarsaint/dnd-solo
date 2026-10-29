@@ -5434,6 +5434,23 @@ def speculative_branches(runtime, adjudicator, waiting, state, revision):
     return out
 
 
+def _opening_spoken(runtime, body):
+    """Player-visible text for an opening the player just agreed to begin. Hidden facts stay out."""
+    view = body.get('public_view') or {}
+    facts = [text for text in (view.get('known_facts_here') or []) if isinstance(text, str) and text.strip()]
+    if not facts:
+        try:
+            source = runtime.source()
+            area = runtime.load()[1].get('area')
+        except (AttributeError, KeyError, TypeError):
+            source, area = {}, None
+        facts = [fact['text'] for fact in (source.get('facts') or {}).values()
+                 if isinstance(fact, dict) and fact.get('visible') and fact.get('area') == area
+                 and isinstance(fact.get('text'), str)]
+    spoken = ' '.join(facts).strip()
+    return spoken or str(body.get('public_event') or 'The scene opens.')
+
+
 def prepare_opening(runtime, one_pass=False):
     revision, state = runtime.load()
     # The entry is the first Kit turn. Host bookkeeping committed before it (the player
@@ -6915,9 +6932,31 @@ class KitChatBridge:
         if pending is None or pending == turn_id:
             return None
         opening = waiting['state'] == 'ready'
+        if opening and kit_lifecycle.is_confirmation(action):
+            # A bare "Yes." / "begin" is the player starting, not a new turn and not a
+            # turn_pending the host has to notice. Commit the opening from its own read-aloud.
+            return self._commit_pending_opening(pending, action)
         if not opening and not kit_lifecycle.is_confirmation(action):
             return None  # a new player action supersedes a waiting turn (#150 queue rules)
         return kit_lifecycle.turn_pending(self.runtime.path, pending, opening, action)
+
+    def _commit_pending_opening(self, turn_id, action):
+        pending = self.runtime.pending_kit_turn(turn_id)
+        body = pending['body']
+        spoken = _opening_spoken(self.runtime, body)
+        public = str(body.get('public_event') or spoken)
+        record = {'player_input': str(action).strip(), 'public_event': public, 'spoken': spoken,
+                  'trace': {'appraisal': {}, 'observed_event': public, 'move': 'world_description'}}
+        events = list(body.get('events') or [])
+        if not events:
+            events = [{'type': 'beat', 'tags': ['scene_entry'], 'evidence': public}]
+        revision = self.runtime.commit_kit_turn(
+            turn_id, pending['revision'], events, record, consume_pending=False)
+        with self.runtime.db:
+            self.runtime.db.execute('DELETE FROM kit_pending WHERE turn_id=?', (turn_id,))
+        return {'stage': 'opening_committed', 'committed': True, 'turn_id': turn_id,
+                'pending_kind': 'opening', 'confirmation': True, 'spoken': spoken,
+                'public_event': public, 'revision': revision, 'input_recorded': False}
 
     def _held(self, action, exc):
         """Main's pending ruling for a held input: logged, a refused attempt recorded in the public

@@ -24,19 +24,15 @@ class PendingOpening(Layers):
         packet, output = self.open_room()
         self.assertEqual(kit_lifecycle.status(self.runtime.path)['state'], 'ready')
         held = self.bridge.try_prepare('Yes.', one_pass=True)
-        self.assertEqual(held['stage'], 'turn_pending')
-        self.assertEqual(held['pending_turn_id'], 'open')
+        self.assertNotEqual(held['stage'], 'turn_pending')
+        self.assertEqual(held['turn_id'], 'open')
         self.assertEqual(held['pending_kind'], 'opening')
         self.assertTrue(held['confirmation'])
-        self.assertIn('Complete the pending opening now', held['instruction'])
-        self.assertIn('complete --db', held['next_command'])
-        self.assertIn('--turn-id open --input-file', held['next_command'])
-        self.assertFalse(held['committed'])
+        self.assertTrue(held['committed'])
+        self.assertTrue(held['spoken'])
         self.assertEqual(queued(self.runtime), 0)          # "Yes." was not held as an attempt
-        self.assertEqual(self.runtime.db.execute('SELECT COUNT(*) FROM kit_pending').fetchone()[0], 1)
-        self.assertLess(len(json.dumps(held)), 1200)      # small and machine-readable
-        done = self.bridge.complete('open', output)
-        self.assertTrue(done['spoken'])
+        self.assertEqual(self.runtime.db.execute('SELECT COUNT(*) FROM kit_pending').fetchone()[0], 0)
+        self.assertLess(len(json.dumps(held)), 4000)
         status = kit_lifecycle.status(self.runtime.path)
         self.assertEqual((status['state'], status['committed_turns']), ('playing', 1))
         self.assertIn('prepare --one-pass', status['next_command'])
@@ -53,8 +49,10 @@ class PendingOpening(Layers):
         bridge = KitChatBridge(fresh, RoomAdjudicator(roll=lambda: 10, npc_roll=lambda: 10), manifests=True)
         again = bridge.prepare(opening=True, one_pass=True, turn_id='open')   # packet_command: same turn
         self.assertEqual(again['turn_id'], 'open')
-        self.assertEqual(bridge.try_prepare("Let's go!", one_pass=True)['stage'], 'turn_pending')
-        self.assertTrue(bridge.complete('open', output)['spoken'])
+        gone = bridge.try_prepare("Let's go!", one_pass=True)
+        self.assertTrue(gone['committed'])
+        self.assertNotEqual(gone['stage'], 'turn_pending')
+        self.assertTrue(gone['spoken'])
         self.assertEqual(kit_lifecycle.status(path)['state'], 'playing')
 
     def test_non_confirmations_stay_safe(self):
