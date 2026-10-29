@@ -165,8 +165,14 @@ def read_pdf(path, reader='auto'):
     data = path.read_bytes()
     if not data.startswith(b'%PDF'):
         raise IngestError([NOT_PDF])
-    from .kit_pdf import extract
+    from .kit_pdf import extract, text_readable
     found = extract(data) if reader in ('auto', 'stdlib') else {'kind': 'poor', 'text': ''}
+    # Letter-spaced stdlib text ('T h e', 'F o llo wi n') is a weak read. pdftotext, when the
+    # host has it, is the fallback. --reader stdlib never takes that path.
+    if reader == 'auto' and found.get('kind') == 'text' and not text_readable(found.get('text')):
+        alt, name = optional_pdf_text(path, 'pdftotext')
+        if alt and text_readable(alt):
+            return alt, name
     if reader == 'stdlib' or (reader == 'auto' and found['kind'] == 'text'):
         if found['kind'] == 'no_text_layer':
             raise IngestError([NO_TEXT_LAYER])
@@ -316,13 +322,50 @@ def prepare_source(text):
     return mark_read_aloud(strip_running_matter(text))
 
 
+def _strip_toc_bleed(title):
+    """A contents entry ('4. Goblin Arrows .... 5') is not the adventure's name."""
+    title = re.sub(r'\s*\.{2,}.*$', '', title or '').strip()
+    title = re.sub(r'\s{2,}\d{1,3}$', '', title).strip()
+    return title
+
+
+def _readable_heading(text):
+    """False for a letter-spaced fake title ('F o llo wi n g')."""
+    words = re.findall(r"[A-Za-z']+", text or '')
+    if not words:
+        return False
+    singles = sum(1 for word in words if len(word) == 1)
+    if len(words) >= 3 and singles / float(len(words)) > 0.34:
+        return False
+    if len(words) >= 4 and sum(len(word) for word in words) / float(len(words)) < 2.4:
+        return False
+    return True
+
+
 def _site_of(title):
-    if not title:
+    """The site slug of a clean PART heading. A chapter, an appendix, or a garbled line is not a site."""
+    if not title or not re.match(r'part\b', title.strip(), re.I):
         return ''
-    match = re.match(r'(?:part|chapter|appendix)\s+[\w-]+\s*[:.\-]\s*(.+)$', title.strip(), re.I)
-    name = match.group(1) if match else title
-    name = re.sub(r'^(?:the|a|an)\s+', '', name.strip(), flags=re.I)
+    match = re.match(r'part\s+([\w-]+)\s*[:.\-]?\s*(.*)$', title.strip(), re.I)
+    if not match:
+        return ''
+    name = match.group(2).strip() or ('part ' + match.group(1))
+    name = re.sub(r'^(?:the|a|an)\s+', '', name, flags=re.I)
+    name = _strip_toc_bleed(name)
+    if not _readable_heading(name):
+        return ''
     return _slug(name)[:24]
+
+
+def _index_title(title, chapters):
+    if title:
+        cleaned = _strip_toc_bleed(title)
+        if cleaned and not _toc_line(title) and _readable_heading(cleaned):
+            return cleaned
+    for chapter in chapters:
+        if _readable_heading(chapter['title']) and not _toc_line(chapter['title']):
+            return _strip_toc_bleed(chapter['title'])
+    return title or 'Adventure'
 
 
 def _opening_chapter(title):
@@ -340,13 +383,16 @@ def _chapter_norm(title):
 
 _CREATURE_NAME = re.compile(r"^[A-Z][A-Za-z' -]{0,40}$")
 _TYPE_LINE = re.compile(r'^(?:tiny|small|medium|large|huge|gargantuan)\b', re.I)
+_NOT_CREATURE = re.compile(
+    r'^(?:appendix|chapter|part|contents|index|introduction|prologue|epilogue|overview|credits|map)\b',
+    re.I)
 
 
 def _creature_name_line(line):
     line = line.strip().lstrip('>').strip()
     if not line or not line[0].isupper() or not _CREATURE_NAME.match(line):
         return False
-    if LOCATION_RE.match(line) or _toc_line(line):
+    if LOCATION_RE.match(line) or _toc_line(line) or _NOT_CREATURE.match(line):
         return False
     if re.match(r'(?:armor|armour)\s+class|hit points|speed|str|dex|con|int|wis|cha$', line, re.I):
         return False
@@ -375,8 +421,15 @@ def _stat_blocks(text, page_of):
         window = text[match.start():match.start() + 900]
         if not re.search(r'hit points\s+\d+', window, re.I):
             continue
-        found[name.casefold()] = {'name': name, 'offset': name_at if name_at and name_at >= 0 else match.start(),
-                                  'page': page_of(match.start())}
+        if _NOT_CREATURE.match(name):
+            continue
+        entry = {'name': name, 'offset': name_at if name_at and name_at >= 0 else match.start(),
+                 'page': page_of(match.start())}
+        parsed, _prov, _problems = parse_stat_block(text, entry)
+        if not parsed:
+            continue
+        entry['stat_block'] = parsed
+        found[name.casefold()] = entry
     return found
 
 
@@ -428,6 +481,8 @@ def build_index(text, title=None):
         lead = len(line) - len(line.lstrip())
         chapter = CHAPTER_RE.match(stripped)
         if chapter:
+            if not _readable_heading(stripped):
+                continue  # a letter-spaced fake chapter does not spawn a site
             norm = _chapter_norm(stripped)
             prior = next((c for c in chapters if _chapter_norm(c['title']) == norm), None)
             if prior is None:
@@ -454,7 +509,14 @@ def build_index(text, title=None):
     locations = {}
     for loc in raw:
         sites = bare_sites[loc['bare']]
-        key = (loc['site'] + '-' + loc['bare']) if len(sites) > 1 and loc['site'] else loc['bare']
+        # A known PART never leaves a bare int: hideout-1, not 1. A single-chapter book
+        # with no PART keeps 1, 2, 3. A letter-spaced chapter is not a site.
+        if loc.get('site'):
+            key = loc['site'] + '-' + loc['bare']
+        elif len(sites) > 1:
+            key = loc['bare']
+        else:
+            key = loc['bare']
         if key in locations:
             continue
         loc['key'] = key
@@ -486,7 +548,7 @@ def build_index(text, title=None):
                 back.append({'to': key, 'offset': c['offset'], 'quote': c['quote'], 'secret': c['secret'],
                              'stated_in': key})
     npcs = sorted({n for loc in locations.values() for n in loc['npcs']})
-    return {'version': INDEX_VERSION, 'title': title or (chapters[0]['title'] if chapters else 'Adventure'),
+    return {'version': INDEX_VERSION, 'title': _index_title(title, chapters),
             'sha256': hashlib.sha256(text.encode('utf-8')).hexdigest(), 'chars': len(text),
             'chapters': chapters, 'locations': locations, 'npcs': npcs, 'stat_blocks': stat_blocks,
             'pages': pages, 'map_pages': [p['page'] for p in pages if p['needs_map_look']],
@@ -925,6 +987,17 @@ def ingest_adventure(db, text=None, pdf=None, title=None, reader='auto'):
     report = import_adventure(db, text=text, title=title)
     ingest_ms = round((time.perf_counter() - clock) * 1000, 3)
     compiled = compile_location(db, report['start_location'], neighbours=False)
+    room_body = _read_json(compiled['room'])
+    visible = [fact for fact in (room_body.get('facts') or {}).values()
+               if isinstance(fact, dict) and fact.get('visible') and str(fact.get('text') or '').strip()]
+    if not visible:
+        Path(compiled['room']).unlink()
+        side = Path(compiled['room']).with_suffix('.provenance.json')
+        if side.is_file():
+            side.unlink()
+        raise IngestError(['the first scene has no player-visible read-aloud; refusing an opening that would '
+                           'only say "The newcomer arrives". Mark the boxed, italic, or indented text, '
+                           'or pass text whose read-aloud lines start with "> "'])
     import shlex
     q = shlex.quote(str(db))
     room = shlex.quote(compiled['room'])

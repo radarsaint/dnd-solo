@@ -44,12 +44,21 @@ ingest a padded page. A PDF with no text operators is refused: `this PDF has no 
 A file that has `Tj`/`TJ` (including inside an object stream) is never called a scan. The
 reader follows the xref, including xref streams and `ObjStm`. There is no OCR.
 
-Keyed numbers are reused across sites. A bare key that appears in two chapters (`1`, `4`)
-is stored as `<site>-<key>` (`hideout-1`, `castle-4`). A reference to "area 4" stays inside
-the site that said it. The start is the first keyed area of part 1 / chapter 1 / the
-introduction, not whichever number was seen first. A contents line (`4. Tower .... 9`) is
-not a room. A running header repeated at the edge of later pages is one chapter, not one
-per page.
+Keyed numbers are reused across sites. A **PART** heading names the site (`Part 1: The
+Trail` → `trail-1`). A bare integer is kept only when no PART is known (a single-chapter
+book stays `1`, `2`, `3`). A letter-spaced fake chapter (`F o llo wi n g`) is not a site.
+A reference to "area 4" stays inside the site that said it. The start is the first keyed
+area of part 1 / chapter 1 / the introduction. A contents line (`4. Goblin Arrows .... 5`)
+is not a room and is not the adventure title. A running header repeated at the edge of
+later pages is one chapter, not one per page.
+
+Glyphs in one `TJ` array are one word until a kerning gap exceeds about a sixth of the
+font size. A ToUnicode CMap is applied and cached per font. If the stdlib text is mostly
+single-letter tokens and the host has `pdftotext`, that output is used instead. Image
+XObjects are not inflated. The first scene must have at least one player-visible
+read-aloud fact; the opening is never the stub "The newcomer arrives" when that text exists.
+A stat block is stored only when it parses to AC, hit points, and an attack. `Appendix` is
+not a creature.
 
 Read-aloud is a `> ` line, a vector box, an italic sentence, an indented block under the
 location heading, or the paragraph after a "read or paraphrase" cue. A bare "Yes." or

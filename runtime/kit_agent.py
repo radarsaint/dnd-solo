@@ -5448,7 +5448,14 @@ def _opening_spoken(runtime, body):
                  if isinstance(fact, dict) and fact.get('visible') and fact.get('area') == area
                  and isinstance(fact.get('text'), str)]
     spoken = ' '.join(facts).strip()
-    return spoken or str(body.get('public_event') or 'The scene opens.')
+    if spoken:
+        return spoken
+    event = str(body.get('public_event') or '')
+    # Never commit the empty arrival stub. Read-aloud, when the room has it, is the opening.
+    if event.lower().startswith('the newcomer arrives'):
+        area = ((body.get('public_view') or {}).get('area') or '').strip()
+        return (area + '.') if area else 'The scene opens.'
+    return event or 'The scene opens.'
 
 
 def prepare_opening(runtime, one_pass=False):

@@ -46,6 +46,19 @@ def text_usable(text):
     return letters >= 40 and letters / max(body, 1) > 0.5
 
 
+def text_readable(text):
+    """False when glyphs were emitted one letter at a time ('T h e', 'F o llo wi n').
+
+    A short page is not judged. A page of real words has few single-letter tokens.
+    """
+    words = re.findall(r"[A-Za-z']+", text or '')
+    if len(words) < 12:
+        return True
+    singles = sum(1 for word in words if len(word) == 1)
+    mean = sum(len(word) for word in words) / float(len(words))
+    return singles / float(len(words)) < 0.22 and mean >= 2.8
+
+
 def extract(data):
     """``{text, kind, pages, text_ops}``. ``kind`` is text, poor, no_text_layer, or not_pdf.
 
@@ -359,6 +372,15 @@ def _expand_all_objstms(objects):
         _expand_objstm(obj, objects)
 
 
+def _should_decode(value):
+    """Image XObjects are not text. Inflating them is what made a 64-page book take 20 s."""
+    if not isinstance(value, dict):
+        return False
+    if value.get('/Subtype') == '/Image':
+        return False
+    return True
+
+
 def _parse_bounded(data, offset, limit):
     """The object at ``offset``, not reading past ``limit`` (the next xref offset)."""
     match = re.match(br'\s*(\d+)\s+(\d+)\s+obj\b', data[offset:offset + 64])
@@ -366,24 +388,22 @@ def _parse_bounded(data, offset, limit):
     region_end = limit if limit > start else len(data)
     value, end = _parse_value(data, start)
     if isinstance(value, dict):
-        window = data[start:region_end]
-        stream_at = window.find(b'stream')
-        if stream_at >= 0 and stream_at < 800:
-            j = start + stream_at + 6
+        stream_at = data.find(b'stream', start, min(start + 900, region_end))
+        if stream_at >= 0:
+            j = stream_at + 6
             if data.startswith(b'\r\n', j):
                 j += 2
             elif j < len(data) and data[j] in (10, 13):
                 j += 1
             stop = data.find(b'endstream', j, region_end)
-            raw = data[j:stop if stop >= 0 else region_end]
             value = dict(value)
-            value['_stream'] = raw
-            try:
-                value['_decoded'] = _decode_stream(raw, value.get('/Filter'))
-            except (zlib.error, ValueError):
+            if not _should_decode(value):
+                value['_decoded'] = b''
+                value['_skipped'] = 'image'
+            else:
+                raw = data[j:stop if stop >= 0 else region_end]
                 try:
-                    value['_decoded'] = _inflate(raw) if value.get('/Filter') in (
-                        '/FlateDecode', ['/FlateDecode']) else raw
+                    value['_decoded'] = _decode_stream(raw, value.get('/Filter'))
                 except (zlib.error, ValueError):
                     value['_decoded'] = b''
     return value
@@ -678,6 +698,46 @@ def _decode_text(raw, cmap):
     return raw.decode('latin-1', errors='replace')
 
 
+def _face_italic(font, objects):
+    if not isinstance(font, dict):
+        return False
+    base = str(font.get('/BaseFont') or '')
+    if 'italic' in base.lower() or 'oblique' in base.lower():
+        return True
+    desc = _resolve(font.get('/FontDescriptor'), objects) if font.get('/FontDescriptor') is not None else None
+    if isinstance(desc, dict):
+        try:
+            angle = float(desc.get('/ItalicAngle') or 0)
+        except (TypeError, ValueError):
+            angle = 0
+        try:
+            flags = int(desc.get('/Flags') or 0)
+        except (TypeError, ValueError):
+            flags = 0
+        if angle or flags & 64:
+            return True
+    kids = font.get('/DescendantFonts')
+    if isinstance(kids, list) and kids:
+        return _face_italic(_resolve(kids[0], objects), objects)
+    return False
+
+
+def _font_face(font, objects):
+    """(cmap, italic). The CMap is cached on the font object so 64 pages parse it once."""
+    if not isinstance(font, dict):
+        return None, False
+    italic = _face_italic(font, objects)
+    if '_cmap' in font:
+        return font.get('_cmap'), italic
+    cmap = None
+    if font.get('/ToUnicode') is not None:
+        uni = _resolve(font.get('/ToUnicode'), objects)
+        if isinstance(uni, dict) and isinstance(uni.get('_decoded'), (bytes, bytearray)) and uni['_decoded']:
+            cmap = _parse_cmap(uni['_decoded'])
+    font['_cmap'] = cmap
+    return cmap, italic
+
+
 def _fonts(page, objects):
     resources = _inherited(page, '/Resources', objects) or {}
     if not isinstance(resources, dict):
@@ -690,15 +750,7 @@ def _fonts(page, objects):
         if not isinstance(name, str):
             continue
         font = _resolve(ref, objects)
-        cmap = None
-        italic = False
-        if isinstance(font, dict):
-            base = str(font.get('/BaseFont') or '')
-            italic = 'italic' in base.lower() or 'oblique' in base.lower()
-            if font.get('/ToUnicode') is not None:
-                uni = _resolve(font.get('/ToUnicode'), objects)
-                if isinstance(uni, dict) and isinstance(uni.get('_decoded'), (bytes, bytearray)):
-                    cmap = _parse_cmap(uni['_decoded'])
+        cmap, italic = _font_face(font, objects)
         fonts[name] = (cmap, italic)
         fonts[name[1:]] = (cmap, italic)
     return fonts
@@ -741,6 +793,7 @@ class _Text(object):
         self.tm = _IDENT
         self.tlm = _IDENT
         self.in_text = False
+        self.word_break = False
 
     def copy(self):
         other = _Text()
@@ -767,20 +820,45 @@ def _interpret(data, fonts, width, height):
         found = [val for kind, val in stack if kind == 'num']
         return found
 
+    # One run is a line of glyphs. A TJ number that moves right by more than a fraction of
+    # the font size is a word space; a smaller kern stays inside the word. One token per
+    # glyph is what produced 'Th e trail' and 'F o llo wi n'.
+    run = {'text': '', 'x': 0.0, 'y': 0.0, 'end': 0.0, 'size': 12.0, 'italic': False}
+
+    def flush():
+        if run['text']:
+            chunks.append({'x': run['x'], 'y': run['y'], 'text': run['text'], 'size': run['size'],
+                           'w': max(run['end'] - run['x'], 0.0), 'italic': run['italic']})
+        run['text'] = ''
+
     def show(raw):
         info = fonts.get(state.font)
         cmap, italic = info if isinstance(info, tuple) else (None, False)
         text = _decode_text(raw, cmap)
         if not text:
+            state.word_break = False
             return
         x, y = state.origin()
+        size = state.font_size or 12.0
         spaces = text.count(' ')
-        tx = ((0.5 * state.font_size * len(text)) + state.char_space * len(text)
+        tx = ((0.45 * size * len(text)) + state.char_space * len(text)
               + state.word_space * spaces) * (state.hscale / 100.0)
+        if run['text']:
+            same = abs(y - run['y']) <= max(LINE_Y, size * 0.35)
+            gap = x - run['end']
+            if not same or gap > max(14.0, size * 1.15):
+                flush()
+            elif state.word_break or gap > size * 0.17:
+                run['text'] += ' '
+        state.word_break = False
+        if not run['text']:
+            run['x'], run['y'], run['size'], run['italic'] = x, y, size, bool(italic)
+            run['text'] = text
+        else:
+            run['text'] += text
+            run['italic'] = run['italic'] and bool(italic)
         state.advance(tx)
-        x2, y2 = state.origin()
-        chunks.append({'x': x, 'y': y, 'text': text, 'size': state.font_size or 12,
-                       'w': ((x2 - x) ** 2 + (y2 - y) ** 2) ** 0.5, 'italic': bool(italic)})
+        run['end'] = state.origin()[0]
 
     def show_item(item):
         if isinstance(item, (bytes, bytearray)):
@@ -788,7 +866,12 @@ def _interpret(data, fonts, width, height):
         elif isinstance(item, str):
             show(item.encode('latin-1'))
         elif isinstance(item, (int, float)) and not isinstance(item, bool):
-            state.advance((-float(item) / 1000.0) * state.font_size * (state.hscale / 100.0))
+            size = state.font_size or 12.0
+            shift = (-float(item) / 1000.0) * size * (state.hscale / 100.0)
+            # PDF subtracts the TJ number from x. A large negative number is a word space.
+            if shift > size * 0.17:
+                state.word_break = True
+            state.advance(shift)
 
     for kind, val in _content_tokens(data):
         if kind != 'op':
@@ -808,6 +891,7 @@ def _interpret(data, fonts, width, height):
             state.tm = _IDENT
             state.tlm = _IDENT
         elif op == 'ET':
+            flush()
             state.in_text = False
         elif op == 'Tf':
             names = [v for k, v in stack if k == 'name']
@@ -890,6 +974,7 @@ def _interpret(data, fonts, width, height):
         elif op == 'n':
             pending = None
         stack = []
+    flush()
     return chunks, rects, text_ops, width, height
 
 
