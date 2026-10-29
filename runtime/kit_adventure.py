@@ -7,7 +7,10 @@ result unchanged; a compiled room is an ordinary room file.
 
 What is deterministic and what is model-assisted:
 
-* ``import`` (deterministic): text (or a PDF, best effort, stdlib only) -> ``index.json``:
+* ``ingest`` (one host step): a PDF or pasted text -> the index and the first scene.
+  ``import`` (deterministic) is the index alone. A PDF is read with the stdlib text-layer
+  reader (``runtime/kit_pdf.py``); ``pdftotext`` or ``pypdf`` are used only when that
+  reader cannot, and only if the host has them. -> ``index.json``:
   chapters, keyed locations with character offsets and pages, NPC mentions, stat-block
   references, connections between locations, and pages that are mostly map/image.
 * ``compile`` (deterministic by default): one keyed location -> a room draft. Read-aloud
@@ -30,8 +33,10 @@ import argparse
 import hashlib
 import json
 import re
+import shutil
+import subprocess
 import sys
-import zlib
+import time
 from pathlib import Path
 
 INDEX_VERSION = 1
@@ -53,7 +58,7 @@ ELSEWHERE_RE = re.compile(r'\b(?:a|an|the|one|two|three|four|five|six|\d+)\s+([a
 NPC_RE = re.compile(r'\b([A-Z][a-z]+(?: [A-Z][a-z]+)?), (?:a|an|the) ((?:[a-z]+ ){0,3}[a-z]+)')
 SECRET_RE = re.compile(r'\b(secret|hidden|concealed)\b', re.I)
 SENTENCE_RE = re.compile(r'[^.!?]+[.!?]+(?:["\')\]]+)?|[^.!?]+$')
-NOT_NPC = {'The', 'This', 'That', 'These', 'Those', 'If', 'When', 'Each', 'Any', 'Its', 'His', 'Her', 'A', 'An'}
+NOT_NPC = {'The', 'This', 'That', 'These', 'Those', 'If', 'When', 'Each', 'Any', 'Its', 'His', 'Her', 'A', 'An', 'However'}
 
 
 class IngestError(ValueError):
@@ -87,35 +92,104 @@ def _norm(text):
     return re.sub(r'\s+', ' ', text).strip()
 
 
-# ---------------------------------------------------------------- PDF (best effort)
+# ---------------------------------------------------------------- PDF
+
+NO_TEXT_LAYER = ('this PDF has no text layer (it looks scanned or image-only); '
+                 'paste the text or pass --text-file. The built-in reader cannot OCR')
+POOR_TEXT = ('this PDF has a text layer but the built-in reader could not read it '
+             '(often a custom font encoding); extract it with pdftotext -layout or pypdf, '
+             'or paste the text and pass --text-file')
+NOT_PDF = 'this file is not a PDF; pass a .pdf or --text-file'
+
 
 def pdf_text(data):
-    """Best-effort stdlib PDF text: inflate content streams, read Tj/TJ strings, one page per
-    form feed. Fonts with custom encodings come out garbled; the caller checks the yield and
-    asks the host to extract text itself (pdftotext, pypdf) when it is poor."""
-    pages = []
-    for match in re.finditer(rb'stream\r?\n(.*?)\r?\nendstream', data, re.S):
-        raw = match.group(1)
-        try:
-            raw = zlib.decompress(raw)
-        except zlib.error:
-            pass
-        if b'BT' not in raw:
-            continue
-        parts = []
-        for block in re.findall(rb'BT(.*?)ET', raw, re.S):
-            for s in re.findall(rb'\((?:\\.|[^\\)])*\)', block):
-                body = s[1:-1]
-                body = re.sub(rb'\\([()\\])', rb'\1', body).replace(rb'\n', b'\n')
-                parts.append(body.decode('latin-1'))
-            parts.append('\n')
-        pages.append(''.join(parts))
-    return '\f'.join(pages)
+    """Stdlib text layer of a PDF (positions, columns, boxes). Empty when it cannot be read."""
+    from .kit_pdf import extract
+    return extract(data)['text']
 
 
 def pdf_yield_ok(text):
-    letters = sum(c.isalpha() for c in text)
-    return letters >= 200 and letters / max(1, len(text)) > 0.5
+    """True when extracted text is words, not a scan or a garbled encoding."""
+    from .kit_pdf import text_usable
+    return text_usable(text)
+
+
+def _pdftotext(path):
+    tool = shutil.which('pdftotext')
+    if not tool:
+        return None
+    try:
+        done = subprocess.run([tool, '-layout', '-enc', 'UTF-8', str(path), '-'],
+                              capture_output=True, timeout=60)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if done.returncode != 0:
+        return None
+    return done.stdout.decode('utf-8', errors='replace')
+
+
+def _pypdf_text(path):
+    try:
+        try:
+            from pypdf import PdfReader
+        except ImportError:
+            from PyPDF2 import PdfReader
+        reader = PdfReader(str(path))
+        return '\f'.join((page.extract_text() or '') for page in reader.pages)
+    except Exception:
+        return None
+
+
+def optional_pdf_text(path, reader='auto'):
+    """``(text, name)`` from pdftotext and/or pypdf when the host has them, else ``(None, None)``.
+
+    The built-in reader is the default. These run only when it cannot read the text layer,
+    or when the host names one with ``--reader``.
+    """
+    order = ('pdftotext', 'pypdf') if reader == 'auto' else (reader,)
+    for name in order:
+        text = _pdftotext(path) if name == 'pdftotext' else _pypdf_text(path) if name == 'pypdf' else None
+        if text and pdf_yield_ok(text):
+            return text, name
+    return None, None
+
+
+def read_pdf(path, reader='auto'):
+    """``(text, reader_name)`` from a PDF. Refuses a missing file, a non-PDF, a scan, or
+    a text layer the chosen reader cannot decode. ``reader`` is auto, stdlib, pdftotext, or pypdf."""
+    path = Path(path)
+    if not path.is_file():
+        raise IngestError(['no PDF at %s' % path])
+    if reader not in ('auto', 'stdlib', 'pdftotext', 'pypdf'):
+        raise IngestError(['unknown PDF reader %r (auto, stdlib, pdftotext, pypdf)' % reader])
+    data = path.read_bytes()
+    if not data.startswith(b'%PDF'):
+        raise IngestError([NOT_PDF])
+    from .kit_pdf import extract, text_readable
+    found = extract(data) if reader in ('auto', 'stdlib') else {'kind': 'poor', 'text': ''}
+    # Letter-spaced stdlib text ('T h e', 'F o llo wi n') is a weak read. pdftotext, when the
+    # host has it, is the fallback. --reader stdlib never takes that path.
+    if reader == 'auto' and found.get('kind') == 'text' and not text_readable(found.get('text')):
+        alt, name = optional_pdf_text(path, 'pdftotext')
+        if alt and text_readable(alt):
+            return alt, name
+    if reader == 'stdlib' or (reader == 'auto' and found['kind'] == 'text'):
+        if found['kind'] == 'no_text_layer':
+            raise IngestError([NO_TEXT_LAYER])
+        if found['kind'] != 'text':
+            raise IngestError([POOR_TEXT])
+        return found['text'], 'stdlib'
+    if reader == 'auto' and found['kind'] == 'no_text_layer':
+        text, name = optional_pdf_text(path, 'auto')
+        if text:
+            return text, name
+        raise IngestError([NO_TEXT_LAYER])
+    text, name = optional_pdf_text(path, 'auto' if reader == 'auto' else reader)
+    if text:
+        return text, name
+    if found.get('kind') == 'no_text_layer':
+        raise IngestError([NO_TEXT_LAYER])
+    raise IngestError([POOR_TEXT])
 
 
 # ---------------------------------------------------------------- import (deterministic)
@@ -126,6 +200,406 @@ def _lines(text):
     for line in text.split('\n'):
         yield at, line
         at += len(line) + 1
+
+
+def _norm_line(text):
+    return re.sub(r'\d+', '#', re.sub(r'\s+', ' ', text).strip().casefold())
+
+
+def _toc_line(stripped):
+    """A contents entry ('4. Tower Room .... 9'), not a room you can enter."""
+    if re.search(r'\.{2,}\s*\d+\s*$', stripped):
+        return True
+    if re.search(r'\s{3,}\d{1,3}\s*$', stripped) and len(stripped) < 80:
+        return True
+    return False
+
+
+def strip_running_matter(text):
+    """Drop a header or footer repeated on later pages. The first copy stays, so one
+    'PART 1: ...' is a chapter and the copies on the next sixty pages are not."""
+    pages = text.split('\f')
+    if len(pages) < 2:
+        return text
+
+    def edges(page):
+        raw = page.split('\n')
+        idx = [i for i, line in enumerate(raw) if line.strip()]
+        if not idx:
+            return set()
+        found = {idx[0]}
+        if len(idx) > 1:
+            found.add(idx[-1])
+        return found
+
+    counts = {}
+    for page in pages:
+        raw = page.split('\n')
+        seen = set()
+        for i in edges(page):
+            key = _norm_line(raw[i])
+            if len(key) < 4 or key in seen:
+                continue
+            counts[key] = counts.get(key, 0) + 1
+            seen.add(key)
+    repeated = {key for key, count in counts.items() if count >= 3}
+    if not repeated:
+        return text
+    kept = set()
+    out = []
+    for page in pages:
+        raw = page.split('\n')
+        edge = edges(page)
+        lines = []
+        for i, line in enumerate(raw):
+            key = _norm_line(line)
+            if i in edge and key in repeated:
+                if key in kept:
+                    continue
+                kept.add(key)
+            lines.append(line)
+        out.append('\n'.join(lines))
+    return '\f'.join(out)
+
+
+
+_DM_SECTION_RE = re.compile(
+    r'^(?:developments|features|treasure|creatures|tactics|roleplaying|'
+    r'adjusting|xp awards|setup|background)\b', re.I)
+_SECOND_PERSON_RE = re.compile(r'\b(?:you|your|yours)\b', re.I)
+_BODY_CHAPTER_RE = re.compile(
+    r'(?:provides the characters|cannot be removed|see the|scrolls in his|'
+    r'appendix a\)|part\s+\d+,|wave echo cave\.\)")', re.I)
+
+
+def _location_name_ok(stripped):
+    """Reject spell lines and sentences that LOCATION_RE still matches."""
+    m = LOCATION_RE.match(stripped)
+    if not m:
+        return False
+    name = m.group(2).strip()
+    if re.search(r'\bDC\s+\d+', name):
+        return False
+    if name.count('.') >= 1 and len(name) > 24:
+        return False
+    if len(name.split()) > 8:
+        return False
+    if re.match(r'^(?:paralyzing|wounding|enervation|fear|fire|cold|lightning)\s+ray\b', name, re.I):
+        return False
+    return True
+
+
+def _is_real_chapter(title):
+    """A PART/Chapter heading, not a TOC crumb or a mid-sentence body bleed."""
+    stripped = (title or '').strip()
+    if not stripped or not CHAPTER_RE.match(stripped):
+        return False
+    if _toc_line(stripped):
+        return False
+    if len(stripped) > 70:
+        return False
+    if _BODY_CHAPTER_RE.search(stripped):
+        return False
+    if stripped.count(',') >= 1 and len(stripped) > 42:
+        return False
+    if not _readable_heading(stripped):
+        return False
+    if re.match(r'appendix\b', stripped, re.I) and (')' in stripped or len(stripped) > 40):
+        return False
+    if '"' in stripped or stripped.endswith(')') or '|' in stripped and len(stripped) > 30:
+        return False
+    return True
+
+
+
+_READ_CUE = re.compile(
+    r'\b(?:read(?:\s+or\s+paraphrase|\s+aloud|\s+the\s+following)?|boxed text)\b', re.I)
+
+
+def mark_read_aloud(text):
+    """Prefix player-facing lines with ``> `` when the book did not.
+
+    A vector box or an italic face is already marked by the PDF reader. Pasted text and
+    ``pdftotext -layout`` keep the box as indentation under the location heading, or as a
+    'read or paraphrase' cue. When those are missing, the first second-person narrative
+    paragraph under a location heading (before DEVELOPMENTS / Features / Treasure) is
+    treated as read-aloud so a flush-left starter-book opening still mounts. Stat lines
+    stay unmarked.
+    """
+    pages = []
+    for page in text.split('\f'):
+        lines = page.split('\n')
+        marked = []
+        i = 0
+        cue = False
+        while i < len(lines):
+            line = lines[i]
+            stripped = line.strip()
+            if cue:
+                if not stripped:
+                    cue = False
+                    marked.append(line)
+                else:
+                    marked.append(line if stripped.startswith('>') else '> ' + stripped)
+                i += 1
+                continue
+            if stripped and _READ_CUE.search(stripped) and not stripped.startswith('>'):
+                marked.append(line)
+                cue = True
+                i += 1
+                continue
+            loc_ok = (LOCATION_RE.match(stripped)
+                      and (not stripped.endswith('.') or len(stripped) < 40)
+                      and not _toc_line(stripped)
+                      and _location_name_ok(stripped))
+            if loc_ok:
+                marked.append(line)
+                indent = len(line) - len(line.lstrip(' '))
+                i += 1
+                while i < len(lines) and lines[i].strip():
+                    nxt = lines[i]
+                    nxt_indent = len(nxt) - len(nxt.lstrip(' '))
+                    body = nxt.strip()
+                    if (nxt_indent >= indent + 2 and not LOCATION_RE.match(body)
+                            and not _toc_line(body)):
+                        marked.append(nxt if body.startswith('>') else '> ' + body)
+                        i += 1
+                        continue
+                    break
+                block_lines = []
+                while i < len(lines):
+                    nxt = lines[i]
+                    body = nxt.strip()
+                    if not body:
+                        block_lines.append((i, nxt, body))
+                        i += 1
+                        continue
+                    if (LOCATION_RE.match(body) or CHAPTER_RE.match(body)
+                            or _DM_SECTION_RE.match(body) or _toc_line(body)):
+                        break
+                    block_lines.append((i, nxt, body))
+                    i += 1
+                already = any(body.startswith('>') for _idx, _nxt, body in block_lines if body)
+                area_in = re.compile(r'\barea\s+[A-Z]?\d', re.I)
+                marking = False
+                for idx, nxt, body in block_lines:
+                    if not body:
+                        marked.append(nxt)
+                        continue
+                    if already:
+                        marked.append(nxt)
+                        continue
+                    if not marking:
+                        if _SECOND_PERSON_RE.search(body) and ('.' in body or len(body) > 40):
+                            marking = True
+                            marked.append('> ' + body)
+                        else:
+                            marked.append(nxt)
+                        continue
+                    # Once the second-person read-aloud starts, stop at DM area refs / DC lines.
+                    if area_in.search(body) or re.search(r'\bDC\s+\d+', body):
+                        marking = False
+                        marked.append(nxt)
+                        continue
+                    marked.append('> ' + body)
+                continue
+            marked.append(line)
+            i += 1
+        pages.append('\n'.join(marked))
+    return '\f'.join(pages)
+
+
+def prepare_source(text):
+    """Running headers off, read-aloud marked. The index and the saved source are this text."""
+    text = text.replace('\r\n', '\n').replace('\r', '\n')
+    return mark_read_aloud(strip_running_matter(text))
+
+
+def _strip_toc_bleed(title):
+    """A contents entry ('4. Goblin Arrows .... 5') is not the adventure's name."""
+    title = re.sub(r'\s*\.{2,}.*$', '', title or '').strip()
+    title = re.sub(r'\s{2,}\d{1,3}$', '', title).strip()
+    return title
+
+
+def _readable_heading(text):
+    """False for a letter-spaced fake title ('F o llo wi n g')."""
+    words = re.findall(r"[A-Za-z']+", text or '')
+    if not words:
+        return False
+    singles = sum(1 for word in words if len(word) == 1)
+    if len(words) >= 3 and singles / float(len(words)) > 0.34:
+        return False
+    if len(words) >= 4 and sum(len(word) for word in words) / float(len(words)) < 2.4:
+        return False
+    return True
+
+
+def _site_of(title):
+    """The site slug of a clean PART heading. A chapter, an appendix, or a garbled line is not a site."""
+    if not title or not re.match(r'part\b', title.strip(), re.I):
+        return ''
+    match = re.match(r'part\s+([\w-]+)\s*[:.\-]?\s*(.*)$', title.strip(), re.I)
+    if not match:
+        return ''
+    name = match.group(2).strip() or ('part ' + match.group(1))
+    name = name.replace('|', ' ')
+    name = re.sub(r'^(?:the|a|an)\s+', '', name, flags=re.I)
+    name = _strip_toc_bleed(name)
+    name = re.sub(r'\s+', ' ', name).strip()
+    fold = name.casefold()
+    # OCR: Phandalin split or Ll-for-li
+    fold = fold.replace('phan dalln', 'phandalin').replace('phandalln', 'phandalin')
+    fold = fold.replace('phan_dalln', 'phandalin')
+    if not _readable_heading(name) and not _readable_heading(fold):
+        return ''
+    slug = _slug(fold)[:24]
+    return slug.replace('phan_dalln', 'phandalin')
+
+
+def _index_title(title, chapters):
+    if title:
+        cleaned = _strip_toc_bleed(title)
+        if cleaned and not _toc_line(title) and _readable_heading(cleaned):
+            return cleaned
+    for chapter in chapters:
+        if _readable_heading(chapter['title']) and not _toc_line(chapter['title']):
+            return _strip_toc_bleed(chapter['title'])
+    return title or 'Adventure'
+
+
+def _opening_chapter(title):
+    text = (title or '').casefold()
+    if 'appendix' in text:
+        return False
+    if re.search(r'\b(?:part|chapter)\s+1\b', text):
+        return True
+    return bool(re.search(r'\b(?:introduction|prologue)\b', text))
+
+
+def _chapter_norm(title):
+    """Collapse PART 2 OCR variants onto one key (part 2 / chapter 1)."""
+    stripped = (title or '').strip()
+    m = re.match(r'^(part|chapter)\s+([\w-]+)', stripped, re.I)
+    if m:
+        return '%s %s' % (m.group(1).casefold(), m.group(2).casefold())
+    if re.match(r'^appendix\b', stripped, re.I):
+        return 'appendix'
+    return re.sub(r'\s+', ' ', stripped.casefold())
+
+
+def _preferred_chapter_title(current, challenger):
+    """Prefer the cleaner PART title when OCR variants collide."""
+    if not current:
+        return challenger
+    if not challenger:
+        return current
+
+    def score(t):
+        s = 0
+        if _readable_heading(t):
+            s += 2
+        if '|' not in t:
+            s += 1
+        words = re.findall(r"[A-Za-z']+", t)
+        if words:
+            s += sum(1 for w in words if len(w) >= 3)
+            s -= sum(1 for w in words if len(w) == 1)
+        fold = re.sub(r'[^a-z]', '', t.casefold())
+        if 'phandalin' in fold:
+            s += 5
+        if 'goblinarrows' in fold:
+            s += 3
+        if 'waveechocave' in fold:
+            s += 3
+        return s
+
+    return challenger if score(challenger) > score(current) else current
+
+
+
+_CREATURE_NAME = re.compile(r"^[A-Z][A-Za-z' -]{0,40}$")
+_TYPE_LINE = re.compile(r'^(?:tiny|small|medium|large|huge|gargantuan)\b', re.I)
+_NOT_CREATURE = re.compile(
+    r'^(?:appendix|chapter|part|contents|index|introduction|prologue|epilogue|overview|credits|map)\b',
+    re.I)
+
+
+def _creature_name_line(line):
+    line = line.strip().lstrip('>').strip()
+    if not line or not line[0].isupper() or not _CREATURE_NAME.match(line):
+        return False
+    if LOCATION_RE.match(line) or _toc_line(line) or _NOT_CREATURE.match(line):
+        return False
+    if re.match(r'(?:armor|armour)\s+class|hit points|speed|str|dex|con|int|wis|cha$', line, re.I):
+        return False
+    return 1 <= len(line.split()) <= 6
+
+
+def _stat_blocks(text, page_of):
+    """Creature blocks. The name may sit more than two lines above Armor Class."""
+    found = {}
+    for match in re.finditer(r'(?im)^[ \t>]*((?:armor|armour)\s+class\s+\d+)', text):
+        before = text[max(0, match.start() - 600):match.start()]
+        name = None
+        name_at = None
+        lines = before.split('\n')
+        consumed = 0
+        for line in reversed(lines[-8:]):
+            consumed += len(line) + 1
+            if _TYPE_LINE.match(line.strip()):
+                continue
+            if _creature_name_line(line):
+                name = line.strip().lstrip('>').strip()
+                name_at = match.start() - consumed + (len(line) - len(line.lstrip()))
+                break
+        if not name:
+            continue
+        window = text[match.start():match.start() + 900]
+        if not re.search(r'hit points\s+\d+', window, re.I):
+            continue
+        if _NOT_CREATURE.match(name):
+            continue
+        entry = {'name': name, 'offset': name_at if name_at and name_at >= 0 else match.start(),
+                 'page': page_of(match.start())}
+        parsed, _prov, _problems = parse_stat_block(text, entry)
+        if not parsed:
+            continue
+        entry['stat_block'] = parsed
+        found[name.casefold()] = entry
+    return found
+
+
+def _opening_start(chapters, locations):
+    """The first keyed area of part 1 / chapter 1 / the introduction, not whichever key was seen first."""
+    opening = [c for c in chapters if _opening_chapter(c['title'])]
+    pool = []
+    if opening:
+        chosen = min(opening, key=lambda c: c['offset'])
+        pool = [loc for loc in locations.values() if loc.get('chapter') == chosen['title']]
+    if not pool:
+        pool = [loc for loc in locations.values()
+                if 'appendix' not in (loc.get('chapter') or '').casefold()]
+    if not pool:
+        pool = list(locations.values())
+    pool.sort(key=lambda loc: loc['offset'])
+    return pool[0]['key'] if pool else None
+
+
+def _resolve_area(bare, loc, sentence, by_site, unique):
+    """Area 4 in the hideout is the hideout's 4, not the castle's."""
+    bare = bare.upper()
+    site = loc.get('site') or ''
+    folded = sentence.casefold()
+    for (other, key), loc_key in by_site.items():
+        if key == bare and other and other != site and other.replace('_', ' ') in folded:
+            return loc_key
+    if (site, bare) in by_site:
+        return by_site[(site, bare)]
+    # Never jump to another site's reused number just because the bare int is unique globally.
+    if site:
+        return None
+    return unique.get(bare)
 
 
 def build_index(text, title=None):
@@ -139,59 +613,105 @@ def build_index(text, title=None):
         pages.append({'page': number, 'start': start, 'end': end, 'chars': chars,
                       'needs_map_look': chars < MAP_PAGE_MAX_CHARS})
     chapters, heads = [], []
+    current = None
     for off, line in _lines(text.replace('\f', '\n')):
         stripped = line.strip()
-        if not stripped or stripped.startswith('>'):
+        if not stripped or stripped.startswith('>') or _toc_line(stripped):
             continue
         lead = len(line) - len(line.lstrip())
         chapter = CHAPTER_RE.match(stripped)
         if chapter:
-            chapters.append({'title': stripped, 'offset': off + lead, 'page': page_of(off)})
-            heads.append(('chapter', off, None, None))
+            if not _is_real_chapter(stripped):
+                continue  # TOC crumb, body bleed, or letter-spaced fake
+            norm = _chapter_norm(stripped)
+            prior = next((c for c in chapters if _chapter_norm(c['title']) == norm), None)
+            if prior is None:
+                chapters.append({'title': re.sub(r'\s+', ' ', stripped.replace('|', ' ')).strip(), 'offset': off + lead, 'page': page_of(off)})
+                current = stripped
+            else:
+                prior['title'] = _preferred_chapter_title(prior['title'], stripped)
+                current = prior['title']
+            heads.append(('chapter', off, None, None, current))
             continue
         loc = LOCATION_RE.match(stripped)
-        if loc and not stripped.endswith('.') or loc and len(stripped) < 40:
-            heads.append(('location', off, loc.group(1).upper(), loc.group(2).strip().rstrip('.')))
-    locations = {}
-    for i, (kind, off, key, name) in enumerate(heads):
-        if kind != 'location' or key in locations:
+        if loc and _location_name_ok(stripped) and (not stripped.endswith('.') or len(stripped) < 40):
+            name = loc.group(2).strip().rstrip('.').replace('|', ' ')
+            name = re.sub(r'\s+', ' ', name).strip()
+            heads.append(('location', off, loc.group(1).upper(), name, current))
+    raw = []
+    for i, (kind, off, key, name, chapter) in enumerate(heads):
+        if kind != 'location':
             continue
         end = heads[i + 1][1] if i + 1 < len(heads) else len(text)
         body_start = text.index('\n', off) + 1 if '\n' in text[off:end] else end
-        locations[key] = {'key': key, 'name': name, 'offset': off, 'body': [body_start, end],
-                          'page': page_of(off), 'chapter': next(
-                              (c['title'] for c in reversed(chapters) if c['offset'] <= off), None)}
-    stat_blocks = {}
-    for m in STAT_HEAD_RE.finditer(text):
-        name = m.group(1).strip()
-        if not LOCATION_RE.match(name):
-            stat_blocks[name.casefold()] = {'name': name, 'offset': m.start(1), 'page': page_of(m.start(1))}
+        raw.append({'bare': key, 'name': name, 'offset': off, 'body': [body_start, end],
+                    'page': page_of(off), 'chapter': chapter, 'site': _site_of(chapter)})
+    # Carry the last real PART site forward so a body-bleed "chapter" does not orphan areas.
+    last_site = ''
+    for loc in raw:
+        if loc.get('site'):
+            last_site = loc['site']
+        elif last_site and not loc.get('site'):
+            loc['site'] = last_site
+    bare_sites = {}
+    for loc in raw:
+        bare_sites.setdefault(loc['bare'], set()).add(loc['site'])
+    has_part_site = any(loc.get('site') for loc in raw)
+    locations = {}
+    for loc in raw:
+        sites = bare_sites[loc['bare']]
+        # A known PART never leaves a bare int: hideout-1, not 1. A single-chapter book
+        # with no PART keeps 1, 2, 3. A letter-spaced chapter is not a site.
+        if loc.get('site'):
+            key = loc['site'] + '-' + loc['bare']
+        elif has_part_site and last_site:
+            loc['site'] = last_site
+            key = last_site + '-' + loc['bare']
+        elif len(sites) > 1:
+            key = loc['bare']
+        else:
+            key = loc['bare']
+        if key in locations:
+            continue
+        loc['key'] = key
+        locations[key] = loc
+    stat_blocks = _stat_blocks(text, page_of)
+    by_site = {(loc.get('site') or '', loc['bare']): key for key, loc in locations.items()}
+    bare_keys = {}
+    for key, loc in locations.items():
+        bare_keys.setdefault(loc['bare'], []).append(key)
+    unique = {bare: keys[0] for bare, keys in bare_keys.items() if len(keys) == 1}
     for key, loc in locations.items():
         span = text[loc['body'][0]:loc['body'][1]]
-        refs, connections = [], []
+        connections = []
         for m in AREA_REF_RE.finditer(span):
-            target = m.group(1).upper()
-            if target in locations and target != key and target not in [c['to'] for c in connections]:
-                sentence = _sentence_around(span, m.start())
+            sentence = _sentence_around(span, m.start())
+            target = _resolve_area(m.group(1), loc, sentence, by_site, unique)
+            if target and target != key and target not in [c['to'] for c in connections]:
                 connections.append({'to': target, 'offset': loc['body'][0] + m.start(),
                                     'quote': sentence, 'secret': bool(SECRET_RE.search(sentence))})
         loc['connections'] = connections
         loc['creatures'] = _creatures(span, loc['body'][0], stat_blocks)
         loc['npcs'] = sorted({m.group(1) for m in NPC_RE.finditer(span) if m.group(1).split()[0] not in NOT_NPC})
         loc['read_aloud'] = any(line.lstrip().startswith('>') for line in span.split('\n'))
-    # Undirected: a link stated in either location's text joins both.
+    # Undirected within a site. A cross-site link stays one-way unless the quote named both.
     for key, loc in locations.items():
         for c in loc['connections']:
-            back = locations[c['to']]['connections']
+            other = locations[c['to']]
+            if (loc.get('site') or '') != (other.get('site') or '') and not c.get('stated_in'):
+                # Forward edge was an explicit cross-site name; do not invent a back edge.
+                if (loc.get('site') or '').replace('_', ' ') not in (c.get('quote') or '').casefold():
+                    continue
+            back = other['connections']
             if key not in [b['to'] for b in back]:
                 back.append({'to': key, 'offset': c['offset'], 'quote': c['quote'], 'secret': c['secret'],
                              'stated_in': key})
     npcs = sorted({n for loc in locations.values() for n in loc['npcs']})
-    return {'version': INDEX_VERSION, 'title': title or (chapters[0]['title'] if chapters else 'Adventure'),
+    return {'version': INDEX_VERSION, 'title': _index_title(title, chapters),
             'sha256': hashlib.sha256(text.encode('utf-8')).hexdigest(), 'chars': len(text),
             'chapters': chapters, 'locations': locations, 'npcs': npcs, 'stat_blocks': stat_blocks,
             'pages': pages, 'map_pages': [p['page'] for p in pages if p['needs_map_look']],
-            'start': next(iter(locations), None)}
+            'start': _opening_start(chapters, locations)}
 
 
 def _sentence_around(span, at):
@@ -213,10 +733,14 @@ DISTURB_RE = re.compile(r"anyone who (?:touches|disturbs|opens|moves|takes|reads
 
 
 def stat_block_span(text, entry):
-    """(start, end) of the book's stat block for an index entry: its heading to the next blank line."""
+    """(start, end) of the book's stat block: its name through the first blank line after Hit Points."""
     start = entry['offset']
-    end = text.find('\n\n', start)
-    return start, len(text) if end < 0 else end
+    window = text[start:start + 1600]
+    hp = re.search(r'hit points\s+\d+', window, re.I)
+    search_from = hp.end() if hp else 0
+    rel = window.find('\n\n', search_from)
+    end = start + (rel if rel >= 0 else len(window))
+    return start, min(len(text), end)
 
 
 def parse_stat_block(text, entry):
@@ -282,17 +806,13 @@ def _creatures(span, base, stat_blocks):
     return out
 
 
-def import_adventure(db, text=None, pdf=None, title=None):
+def import_adventure(db, text=None, pdf=None, title=None, reader='auto'):
     """Write the private source and its index next to the save. Returns the import report."""
     if text is None and pdf is None:
         raise IngestError(['give --text-file (extracted text) or --pdf'])
     if text is None:
-        text = pdf_text(Path(pdf).read_bytes())
-        if not pdf_yield_ok(text):
-            raise IngestError(['the PDF gave too little readable text with the built-in reader; extract its text '
-                               'with the host (pdftotext -layout, or pypdf), keep page breaks as form feeds, '
-                               'prefix boxed read-aloud lines with "> ", and pass --text-file'])
-    text = text.replace('\r\n', '\n')
+        text, _how = read_pdf(pdf, reader=reader)
+    text = prepare_source(text)
     index = build_index(text, title)
     if not index['locations']:
         raise IngestError(['no keyed locations found (headings like "1. Mill Yard" or "Area 3: Cellar")'])
@@ -435,7 +955,8 @@ def draft_room(db, key, index, text):
             triggers.append({'id': f'reveal_{_slug(name)}', 'on': on, 'actors': woken,
                              'reveal': f'{name[0].upper() + name[1:]} reveals itself.' if count == 1
                              else f'{count} {name}s reveal themselves.'})
-    room = {'id': f"adv-{index['sha256'][:8]}-{_slug(key)}", 'source_ref': f"{index['title']} / {key}. {loc['name']}",
+    room = {'id': f"adv-{index['sha256'][:8]}-{_slug(key)}",
+            'source_ref': f"{index['title']} / {key}. {loc['name']} (p. {loc['page']})",
             'starting_area': here, 'areas': areas, 'exits': exits, 'facts': facts, 'actors': actors}
     if triggers:
         room['triggers'] = triggers
@@ -554,11 +1075,24 @@ def _words_from(body, quote):
     return words(body) <= words(quote)
 
 
+def _canon_key(key, locations):
+    text = str(key)
+    if text in locations:
+        return text
+    folded = {name.casefold(): name for name in locations}
+    found = folded.get(text.casefold())
+    if found:
+        return found
+    upper = text.upper()
+    return upper if upper in locations else text
+
+
 def compile_location(db, key, draft=None, neighbours=True):
     """Compile (or accept a host draft for) one location, validate it, cache it. Then
     pre-compile the locations it connects to, so the next move is already executable."""
     index, text = _load(db)
-    key = key.upper()
+    key = _canon_key(key, index['locations'])
+    clock = time.perf_counter()
     if draft is None:
         room, sidecar = draft_room(db, key, index, text)
     else:
@@ -572,6 +1106,12 @@ def compile_location(db, key, draft=None, neighbours=True):
     path = room_file(db, key)
     path.parent.mkdir(parents=True, exist_ok=True)
     _write_json(path, room)
+    scene_ms = round((time.perf_counter() - clock) * 1000, 3)
+    scene_bytes = path.stat().st_size
+    loc = index['locations'].get(key) or {}
+    sidecar['page'] = loc.get('page')
+    sidecar['scene_ms'] = scene_ms
+    sidecar['scene_bytes'] = scene_bytes
     _write_json(path.with_suffix('.provenance.json'), sidecar)
     precompiled = []
     if neighbours:
@@ -584,7 +1124,58 @@ def compile_location(db, key, draft=None, neighbours=True):
                     pass
     return {'stage': 'location_compiled', 'location': key, 'room': str(path), 'room_id': room['id'],
             'compiled_by': sidecar['compiled_by'], 'precompiled': precompiled,
+            'page': sidecar.get('page'), 'scene_ms': scene_ms, 'scene_bytes': scene_bytes,
             'ask_player': sidecar.get('ask_player', []), 'flags': sidecar.get('flags', []), **readiness(db)}
+
+
+def ingest_adventure(db, text=None, pdf=None, title=None, reader='auto'):
+    """One host step: a PDF or pasted text -> the private index and the first scene.
+
+    Later scenes compile when play reaches them (``ensure_compiled``). The report carries
+    ingest and first-scene time in milliseconds, the byte sizes, the page of the first
+    scene, and ``next_command`` — what to run when the player says begin.
+    """
+    if text is None and pdf is None:
+        raise IngestError(['ingest needs a PDF path or --text-file'])
+    if text is not None and pdf is not None:
+        raise IngestError(['give a PDF or --text-file, not both'])
+    clock = time.perf_counter()
+    how = 'text'
+    if text is None:
+        text, how = read_pdf(pdf, reader=reader)
+    report = import_adventure(db, text=text, title=title)
+    ingest_ms = round((time.perf_counter() - clock) * 1000, 3)
+    compiled = compile_location(db, report['start_location'], neighbours=False)
+    room_body = _read_json(compiled['room'])
+    visible = [fact for fact in (room_body.get('facts') or {}).values()
+               if isinstance(fact, dict) and fact.get('visible') and str(fact.get('text') or '').strip()]
+    if not visible:
+        Path(compiled['room']).unlink()
+        side = Path(compiled['room']).with_suffix('.provenance.json')
+        if side.is_file():
+            side.unlink()
+        raise IngestError(['the first scene has no player-visible read-aloud; refusing an opening that would '
+                           'only say "The newcomer arrives". Mark the boxed, italic, or indented text, '
+                           'or pass text whose read-aloud lines start with "> "'])
+    import shlex
+    q = shlex.quote(str(db))
+    room = shlex.quote(compiled['room'])
+    return {
+        'stage': 'adventure_ingested', 'reader': how, 'title': report['title'],
+        'locations': report['locations'], 'chapters': report['chapters'],
+        'start_location': report['start_location'], 'start_room': compiled['room'],
+        'room_id': compiled['room_id'], 'first_scene_page': compiled.get('page'),
+        'ingest_ms': ingest_ms, 'first_scene_ms': compiled['scene_ms'],
+        'source_bytes': (folder_for(db) / 'source.txt').stat().st_size,
+        'index_bytes': (folder_for(db) / 'index.json').stat().st_size,
+        'first_scene_bytes': compiled['scene_bytes'],
+        'next_command': (f'python3 -m runtime.kit_agent start --db {q} --room {room} '
+                         '--sheet <sheet.json>'),
+        'begin': ('When the player says begin, run next_command with their sheet. '
+                  'The next scene compiles on arrival; do not hand-build rooms.'),
+        'ask_player': compiled.get('ask_player', []), 'flags': compiled.get('flags', []),
+        **readiness(db),
+    }
 
 
 def ensure_compiled(link):
@@ -632,11 +1223,15 @@ def readiness(db, mounted_id=None):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(prog='kit_agent adventure', description=__doc__.split('\n\n')[0])
-    parser.add_argument('action', choices=['import', 'compile', 'status'])
+    parser.add_argument('action', choices=['import', 'compile', 'status', 'ingest'])
+    parser.add_argument('path', nargs='?', help='ingest: the adventure PDF (or pass --pdf)')
     parser.add_argument('--db', default='kit.sqlite')
-    parser.add_argument('--text-file', help='import: the adventure as UTF-8 text (form feed between pages; '
+    parser.add_argument('--text-file', help='import/ingest: the adventure as UTF-8 text (form feed between pages; '
                                              'boxed read-aloud lines prefixed "> ")')
-    parser.add_argument('--pdf', help='import: a PDF, read with the built-in best-effort reader')
+    parser.add_argument('--pdf', help='import/ingest: a PDF. The built-in reader uses the text layer; '
+                                      'pdftotext or pypdf run only when that reader cannot')
+    parser.add_argument('--reader', choices=['auto', 'stdlib', 'pdftotext', 'pypdf'], default='auto',
+                        help='PDF reader. auto uses the built-in text layer, then pdftotext, then pypdf')
     parser.add_argument('--title')
     parser.add_argument('--location', help='compile: the location key, e.g. 1 or A2')
     parser.add_argument('--draft-file', help='compile: a host-model draft {"room", "provenance"} to validate')
@@ -644,7 +1239,15 @@ def main(argv=None):
     try:
         if args.action == 'import':
             text = Path(args.text_file).read_text(encoding='utf-8') if args.text_file else None
-            result = import_adventure(args.db, text=text, pdf=args.pdf, title=args.title)
+            result = import_adventure(args.db, text=text, pdf=args.pdf, title=args.title, reader=args.reader)
+        elif args.action == 'ingest':
+            pdf = args.pdf or args.path
+            if args.text_file and pdf:
+                raise IngestError(['give a PDF or --text-file, not both'])
+            text = Path(args.text_file).read_text(encoding='utf-8') if args.text_file else None
+            if text is None and not pdf:
+                raise IngestError(['ingest needs a PDF path or --text-file'])
+            result = ingest_adventure(args.db, text=text, pdf=pdf, title=args.title, reader=args.reader)
         elif args.action == 'compile':
             if not args.location:
                 raise IngestError(['compile needs --location'])

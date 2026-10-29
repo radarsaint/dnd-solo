@@ -13,7 +13,9 @@ States
 
 While a turn is waiting, ``prepare`` refuses new input (``turn_pending``): it never stages a
 second turn and never files the words as a held or refused attempt. A bare out-of-character
-confirmation ("Yes.", "Let's go", "Begin") means: complete the waiting turn now.
+confirmation ("Yes.", "Let's go", "Begin") on a pending **opening** commits that opening
+from its player-visible text. The same words on a later waiting turn still mean: complete
+it with ``next_command``.
 """
 import json
 import re

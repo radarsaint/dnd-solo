@@ -1,22 +1,81 @@
 # Adventure ingestion (architecture 1: index once, compile just in time)
 
-**Status:** first slice, PR "adventure ingestion". Code: `runtime/kit_adventure.py`, a loader hook in
-`runtime/kit_rooms.load_link`, readiness in `runtime/kit_lifecycle.status`. Tests:
-`tests/test_kit_adventure.py`. Corpus: `tests/fixtures/adventures/lantern_ferry.txt`, an original
-synthetic adventure written for the tests. No published adventure text is in this repo.
+**Status:** index once, compile just in time, including a raw PDF. Code: `runtime/kit_adventure.py`,
+`runtime/kit_pdf.py` (stdlib text layer), a loader hook in `runtime/kit_rooms.load_link`, readiness
+in `runtime/kit_lifecycle.status`. Tests: `tests/test_kit_adventure.py` (text corpus
+`tests/fixtures/adventures/lantern_ferry.txt`) and `tests/test_kit_adventure_pdf.py` (synthetic PDFs
+generated in the test: two columns, read-aloud boxes, a stat block, keyed rooms, a scan). No
+published adventure text is in this repo.
 
 ## Host commands
 
+One step, then begin. `ingest` reads the PDF (or pasted text), writes the index, and compiles
+the first scene. `status` prints `next_command`; run it when the player says begin.
+
 ```sh
-python3 -m runtime.kit_agent adventure import  --db kit.sqlite --text-file adventure.txt   # or --pdf file.pdf
+python3 -m runtime.kit_agent ingest adventure.pdf --db kit.sqlite
+python3 -m runtime.kit_agent status --db kit.sqlite          # next_command is start --room of the first scene
+# pasted text, or a PDF the built-in reader cannot read:
+python3 -m runtime.kit_agent adventure import  --db kit.sqlite --text-file adventure.txt
 python3 -m runtime.kit_agent adventure compile --db kit.sqlite --location 1                 # deterministic
 python3 -m runtime.kit_agent adventure compile --db kit.sqlite --location 1 --draft-file d.json  # host-model draft, validated
 python3 -m runtime.kit_agent adventure status  --db kit.sqlite
-python3 -m runtime.kit_agent status --db kit.sqlite     # lifecycle; carries "adventure" readiness
 ```
 
-Then `start --db kit.sqlite --room <adventure.start_room> --sheet <sheet>` (status prints it as
-`next_command`). After that, moving between locations is ordinary play: no host step.
+`ingest` reports `ingest_ms`, `first_scene_ms`, `source_bytes`, `index_bytes`, and
+`first_scene_bytes`. It compiles only the opening location. The next scene compiles when
+play reaches it (the loader hook), and that compile's `scene_ms` / `scene_bytes` land in
+the provenance sidecar. No host step between rooms.
+
+## PDF text layer
+
+`runtime/kit_pdf.py` is stdlib only. It inflates Flate streams, reads text with positions
+(`Tm` / `Td` / `Tj` / `TJ`), puts a two-column page back in reading order (left column, then
+right), drops a running header, footer, or page number, and prefixes a line inside a vector
+box with `> ` so the compiler treats it as read-aloud. A page-sized frame is not a box.
+UTF-16 hex strings and a font's ToUnicode CMap (`bfchar` / `bfrange`) are applied. Keyed
+locations stay headings on their own line (`A1. Gatehouse`, `12. Ash Court`, `Area 3: Well
+Shaft`); a table row stays one line.
+
+`pdftotext -layout` and `pypdf` run only when the built-in reader cannot read the encoding,
+and only if the host has them (`--reader stdlib` never calls them). Layout padding is not
+counted against the letter ratio (non-space characters only), so `--reader pdftotext` can
+ingest a padded page. A PDF with no text operators is refused: `this PDF has no text layer`.
+A file that has `Tj`/`TJ` (including inside an object stream) is never called a scan. The
+reader follows the xref, including xref streams and `ObjStm`. There is no OCR.
+
+Keyed numbers are reused across sites. A **PART** heading names the site (`Part 1: The
+Trail` → `trail-1`). A bare integer is kept only when no PART is known (a single-chapter
+book stays `1`, `2`, `3`). A letter-spaced fake chapter (`F o llo wi n g`) is not a site.
+A reference to "area 4" stays inside the site that said it. The start is the first keyed
+area of part 1 / chapter 1 / the introduction. A contents line (`4. Goblin Arrows .... 5`)
+is not a room and is not the adventure title. A running header repeated at the edge of
+later pages is one chapter, not one per page.
+
+Glyphs in one `TJ` array are one word until a kerning gap exceeds about a sixth of the
+font size. A ToUnicode CMap is applied and cached per font. If the stdlib text is mostly
+single-letter tokens and the host has `pdftotext`, that output is used instead. Image
+XObjects are not inflated. The first scene must have at least one player-visible
+read-aloud fact; the opening is never the stub "The newcomer arrives" when that text exists.
+A stat block is stored only when it parses to AC, hit points, and an attack. `Appendix` is
+not a creature.
+
+Read-aloud is a `> ` line, a vector box, an italic sentence, an indented block under the
+location heading, or the paragraph after a "read or paraphrase" cue. A bare "Yes." or
+"begin" while the opening is pending commits that opening from this player-visible text.
+
+## Likely misfires
+
+1. A font with no ToUnicode map (or a Type3 / predictor stream) comes out garbled. Ingest
+   refuses it rather than compiling nonsense. Paste the text, or use a host that has
+   `pdftotext` / `pypdf`.
+2. Three or more columns, or a sidebar that does not share one repeated x, can still put a
+   sentence in the wrong location. Two columns with a repeated right-hand start are the
+   case this reader is built for.
+3. Read-aloud that is not italic, not indented under the heading, not in a vector box, and
+   not under a "read or paraphrase" cue stays hidden, so the opening has nothing
+   player-visible. A box or an italic sentence around a secret would show it. A rectangle
+   bigger than about a third of the page is ignored.
 
 ## Private storage
 
@@ -28,10 +87,10 @@ file, so the packet is exactly as large as for any hand-written room (and capped
 
 ## Text the host supplies
 
-Plain UTF-8. Page breaks as form feeds (`\f`, what `pdftotext` emits). Boxed read-aloud lines
-prefixed `> `. Keyed locations as headings on their own line: `1. Ferry Landing`, `Area 3: Cellar`,
-`A2. Gatehouse`. The stdlib `--pdf` reader is best effort (Flate streams, `Tj`/`TJ` strings); when
-its yield is poor it refuses and asks the host to extract with `pdftotext -layout` or `pypdf`.
+Plain UTF-8, or a PDF (`ingest <file>`). Page breaks as form feeds (`\f`). Boxed read-aloud lines
+prefixed `> ` (the PDF reader adds that prefix for a vector box). Keyed locations as headings on
+their own line: `1. Ferry Landing`, `12. Ash Court`, `Area 3: Cellar`, `A1. Gatehouse`. A scanned
+PDF is refused; paste the text and pass `--text-file`.
 
 ## What is deterministic, what is model-assisted
 
@@ -39,7 +98,7 @@ its yield is poor it refuses and asks the host to extract with `pdftotext -layou
 |---|---|---|
 | Index: chapters, keyed locations + offsets + pages, NPC mentions, stat-block refs, connections, map pages | runtime (regex, deterministic) | tests |
 | Compile a location to a room draft | runtime by default; optionally the host model fills a draft | **runtime `validate`** in both cases |
-| Pre-compile neighbours | runtime, after every compile | |
+| Pre-compile neighbours | runtime, after `compile` (not after `ingest`; the opening stays one scene) | |
 | Compile on arrival when not cached | runtime, via the `room_link.adventure` hook in the loader | |
 
 `validate` refuses: any area, exit or fact with no `{quote, offset}` provenance; a quote that is
