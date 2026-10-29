@@ -2,16 +2,16 @@
   "schema": "kit_project_gardener_state/v1",
   "purpose": "RESUMABILITY_CURSOR_NOT_KNOWLEDGE_STORE",
   "canonical_location": "radarsaint/dnd-solo/coordination/context_state.json",
-  "state_revision": 57,
+  "state_revision": 58,
   "semantic_brain": {
     "repo": "radarsaint/dnd-solo",
     "path": "docs/PROJECT_UNDERSTANDING.md",
-    "last_semantic_commit": "0461fc3ea2320f171de14b253211931407ca1b05",
+    "last_semantic_commit": "20efbe5cc3521d8c60295915dad31f94cb8ac425",
     "last_reviewed_on": "2026-10-29"
   },
   "checkpoint": {
     "reviewed_against_main": {
-      "radarsaint/dnd-solo": "0461fc3ea2320f171de14b253211931407ca1b05",
+      "radarsaint/dnd-solo": "20efbe5cc3521d8c60295915dad31f94cb8ac425",
       "radarsaint/bfdm-corpus": "cf65ec04572b2a033383344d1f2583e3380686f7"
     },
     "context_inbox": {
@@ -25,9 +25,9 @@
   "last_completed_pass": {
     "kind": "BOUNDED_SEMANTIC_RECONCILIATION",
     "completed_on": "2026-10-29",
-    "scope": "Reviewed dnd-solo #200 merge (cut cold-turn retries and shrink the opening packet). No bfdm-corpus change.",
-    "result": "Accept: #200 reduces form retries, sends procedure text once on opening, keeps per-turn packets flat with newest line/episode only, notes 66-79 feature words without rejecting, adds latency.jsonl. Secrecy/agency/exchange/actor floors and 105k cap unchanged. Synthetic fixtures only. #115 comment 6266120288 remains pending.",
-    "resulting_brain_commit": "0461fc3ea2320f171de14b253211931407ca1b05",
+    "scope": "Reviewed dnd-solo #201 merge (one-step adventure PDF ingest and first-scene compile). No bfdm-corpus change.",
+    "result": "Accept: #201 makes adventure PDF ingest one host step that indexes and compiles the first scene, with improved read-aloud recovery and PDF parsing. Brain updated accordingly. #115 comment 6266120288 remains pending.",
+    "resulting_brain_commit": "20efbe5cc3521d8c60295915dad31f94cb8ac425",
     "reconciled_comment_id": 6202184874
   },
   "active_pass": null,
