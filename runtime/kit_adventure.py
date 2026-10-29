@@ -57,6 +57,9 @@ ELSEWHERE_RE = re.compile(r'\b(?:a|an|the|one|two|three|four|five|six|\d+)\s+([a
                           r'\(see (?:the )?(?:monster manual|mm|bestiary|core rules)[^)]*\)', re.I)
 NPC_RE = re.compile(r'\b([A-Z][a-z]+(?: [A-Z][a-z]+)?), (?:a|an|the) ((?:[a-z]+ ){0,3}[a-z]+)')
 SECRET_RE = re.compile(r'\b(secret|hidden|concealed)\b', re.I)
+_ALIAS_SKIP = frozenset(
+    'the a an to of into and way back out area areas room rooms from with that this they them '
+    'you your'.split())
 SENTENCE_RE = re.compile(r'[^.!?]+[.!?]+(?:["\')\]]+)?|[^.!?]+$')
 NOT_NPC = {'The', 'This', 'That', 'These', 'Those', 'If', 'When', 'Each', 'Any', 'Its', 'His', 'Her', 'A', 'An', 'However'}
 
@@ -570,6 +573,29 @@ def _stat_blocks(text, page_of):
     return found
 
 
+ENCOUNTER_RE = re.compile(r"^[A-Z][A-Za-z'’-]+(?: [A-Z][A-Za-z'’-]+){1,5}$")
+
+
+def _encounter_heading(line):
+    """A short title-case heading that is not an area number and not a chapter."""
+    if not line or LOCATION_RE.match(line) or CHAPTER_RE.match(line) or _toc_line(line):
+        return False
+    return bool(ENCOUNTER_RE.match(line))
+
+
+def _read_aloud_follows(text, at):
+    """True when a boxed read-aloud line comes before the next heading."""
+    for line in text[at:at + 1500].split('\n')[:18]:
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if stripped.startswith('>'):
+            return True
+        if CHAPTER_RE.match(stripped) or LOCATION_RE.match(stripped) or ENCOUNTER_RE.match(stripped):
+            return False
+    return False
+
+
 def _opening_start(chapters, locations):
     """The first keyed area of part 1 / chapter 1 / the introduction, not whichever key was seen first."""
     opening = [c for c in chapters if _opening_chapter(c['title'])]
@@ -638,6 +664,12 @@ def build_index(text, title=None):
             name = loc.group(2).strip().rstrip('.').replace('|', ' ')
             name = re.sub(r'\s+', ' ', name).strip()
             heads.append(('location', off, loc.group(1).upper(), name, current))
+            continue
+        # An unnumbered encounter heading (Road Ambush) that opens on read-aloud, before the
+        # numbered sites. Part 1 starts there, not at the first area number.
+        if (_encounter_heading(stripped) and current and 'appendix' not in (current or '').casefold()
+                and _read_aloud_follows(text, off + len(line) + 1)):
+            heads.append(('location', off, _slug(stripped), stripped, current))
     raw = []
     for i, (kind, off, key, name, chapter) in enumerate(heads):
         if kind != 'location':
@@ -879,16 +911,21 @@ def draft_room(db, key, index, text):
     for c in loc['connections']:
         other = index['locations'][c['to']]
         side = f'to_{_slug(c["to"])}'
-        areas[side] = {'name': f'Toward {other["name"]}', 'outside': True, 'beyond': True,
+        areas[side] = {'name': f'Outside {loc["name"]}', 'outside': True, 'beyond': True,
                        'room_link': {'room': str(room_file(db, c['to'])), 'area': f'to_{_slug(key)}',
                                      'adventure': {'db': str(db), 'location': c['to']}}}
+        aliases = []
+        for word in re.findall(r'[a-z]+', c['quote'].casefold()):
+            if word not in _ALIAS_SKIP and len(word) >= 3 and word not in aliases:
+                aliases.append(word)
         exits[f'way_{_slug(c["to"])}'] = {
             'name': f'the way to {other["name"]}', 'areas': [here, side], 'secret': c['secret'],
+            'aliases': aliases[:8],
             'labels': {here: f'The way to {other["name"]}.', side: f'The way back to {loc["name"]}.'}}
         for path in (f'areas.{side}', f'exits.way_{_slug(c["to"])}'):
             prov[path] = {'offset': c['offset'], 'quote': c['quote']}
     for n, (off, sentence) in enumerate(read[:VISIBLE_MAX], 1):
-        facts[f'seen_{n}'] = {'area': here, 'visible': True, 'text': _cut(sentence)}
+        facts[f'seen_{n}'] = {'area': here, 'visible': True, 'layer': 'obvious', 'text': _cut(sentence)}
         prov[f'facts.seen_{n}'] = {'offset': off, 'quote': sentence}
     if len(read) > VISIBLE_MAX:
         flags.append(f'{len(read) - VISIBLE_MAX} read-aloud sentences left out (cap {VISIBLE_MAX})')
@@ -1235,6 +1272,8 @@ def main(argv=None):
     parser.add_argument('--title')
     parser.add_argument('--location', help='compile: the location key, e.g. 1 or A2')
     parser.add_argument('--draft-file', help='compile: a host-model draft {"room", "provenance"} to validate')
+    parser.add_argument('--pretty', action='store_true',
+                        help='indent the JSON (same as kit_agent --pretty; a no-op for the ingest itself)')
     args = parser.parse_args(argv)
     try:
         if args.action == 'import':
@@ -1260,7 +1299,8 @@ def main(argv=None):
         print(json.dumps({'stage': 'rejected', 'committed': False, 'problems': exc.problems},
                          ensure_ascii=False), file=sys.stderr)
         return 2
-    print(json.dumps(result, ensure_ascii=False))
+    print(json.dumps(result, ensure_ascii=False,
+                     **({'indent': 2} if args.pretty else {'separators': (',', ':')})))
     return 0
 
 

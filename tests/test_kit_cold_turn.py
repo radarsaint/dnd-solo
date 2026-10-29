@@ -95,8 +95,11 @@ class OpeningPacket(unittest.TestCase):
 
     def test_the_watchroom_opening_drops_procedures_it_does_not_use(self):
         packet, size, text = self._packet(WATCH)
-        self.assertLess(size, OPENING_PACKET_BEFORE - 4000, size)
-        self.assertLess(size, 54000, size)
+        # docs/PLAY_CARD.md is embedded verbatim for the host. It is read once; it is not engine state.
+        card_bytes = len(json.dumps(packet['play_card'], ensure_ascii=False).encode())
+        engine = size - card_bytes
+        self.assertLess(engine, OPENING_PACKET_BEFORE - 4000, size)
+        self.assertLess(engine, 54000, size)
         for absent in ('DETAIL:', 'CLAIMS.', 'AGENDA.'):
             self.assertNotIn(absent, text, absent)
         self.assertIn('PC STATE:', text)

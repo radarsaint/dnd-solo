@@ -511,6 +511,36 @@ def lobby_sheet(sheet_path, db=None):
             'proficiency_check': check}
 
 
+def _ingested_module(db):
+    """The adventure imported into this save, compiled at its start if needed. One module."""
+    from . import kit_adventure, kit_rooms
+    ready = kit_adventure.readiness(db)
+    if ready.get('adventure_readiness') == 'none':
+        return None
+    if not ready.get('start_room'):
+        try:
+            index, _text = kit_adventure._load(db)
+        except kit_adventure.IngestError:
+            return None
+        if not index.get('start'):
+            return None
+        try:
+            kit_adventure.compile_location(db, index['start'], neighbours=False)
+        except kit_adventure.IngestError:
+            return None
+        ready = kit_adventure.readiness(db)
+    path = ready.get('start_room')
+    if not path or not Path(path).is_file():
+        return None
+    try:
+        source = kit_rooms.load_room(path)
+    except kit_rooms.RoomMountError:
+        return None
+    return {'path': str(path), 'room_id': source.get('id'),
+            'starting_area': source.get('starting_area'), 'ingested': True,
+            'title': ready.get('adventure_title')}
+
+
 def _play(db, sheet_path, executable, blocked, table, modules=None):
     """Play: a real module and a real character, then solo or shared table. Lists only what exists."""
     has_sheet = _sheet_real(sheet_path)
@@ -521,6 +551,9 @@ def _play(db, sheet_path, executable, blocked, table, modules=None):
     loaded = lobby_sheet(sheet_path, db) if has_sheet else {}
     if loaded and not loaded['sheet_loaded']:
         has_sheet = False
+    ingested = _ingested_module(db)
+    if ingested and all(item.get('path') != ingested['path'] for item in executable):
+        executable = [ingested] + list(executable)
     # An attached module folder must ride along on every retry, or the rerun loses it.
     mods = f' --modules {shlex.quote(str(modules))}' if modules else ''
     base = {
@@ -550,6 +583,9 @@ def _play(db, sheet_path, executable, blocked, table, modules=None):
                 'next_step': ('Ask which module from modules_available if there is more than one, then '
                               f'say table_line. Rerun start --intent play --sheet <file>{mods} --table solo|shared.'),
                 **({'modules': str(modules)} if modules else {})}
+    if len(executable) == 1 and executable[0].get('ingested'):
+        from .kit_agent import start_session
+        return start_session(str(db), sheet_path, room=executable[0]['path'], manifests=True)
     return {**base, 'stage': 'ready', 'table_mode': table,
             **({'table_note': SHARED_NOTE} if table == 'shared' else {}),
             'table_line': SOLO_LINE if table == 'solo' else SHARED_LINE,

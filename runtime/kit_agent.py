@@ -391,6 +391,39 @@ STALL_LINE = ('Heavy turn: you may open on just a fitting check call (scope call
               'skill); the engine holds the description for the roll. Only an earned check: would you call '
               'it if the answer were instant? If not, describe now. Not while a due hook must land.')
 
+# Host loop, in the packet. A plain GPT has no worker to keep warm: one message is one prepare
+# and one complete. Docs/research (decision-speed, 2026-10-04): the engine is ~0.3 s; retries are the wait.
+def play_card_text():
+    """docs/PLAY_CARD.md, verbatim, so the opening packet and the file cannot drift."""
+    return (Path(__file__).resolve().parents[1] / 'docs' / 'PLAY_CARD.md').read_text(encoding='utf-8')
+
+
+PER_TURN = (
+    'One message = one prepare + one complete. Do not reread docs. '
+    'a.txt -> prepare --one-pass --action-file a.txt -> o.json '
+    '{"decision","performance","manifest":{"session":"<hash>","room":"<hash>"}} '
+    '-> complete --turn-id <id> --input-file o.json -> show spoken. '
+    'On reject, paste fix, same turn_id, once. '
+    'roll_call, clarify, risk_confirm, reaction: that commit is the whole turn. '
+    'Yes on a waiting opening returns spoken. Shapes on the opening are the examples.')
+
+FIELD_SHAPES = {
+    'manifest': {'session': '<session_manifest.hash>', 'room': '<room_manifest.hash>'},
+    'public_brief.mirror': 'steady energy, standard, dry humor: meet the even pace and let the answer land.',
+    'player_note': {'note': 'none', 'evidence_turns': [], 'replaces': 'none'},
+    'player_note_real': {'note': 'Tests NPCs with direct questions before trusting them.',
+                         'evidence_turns': ['this_turn'], 'replaces': 'none'},
+    'player_mood': {'read': 'neutral', 'cue': 'none'},
+    'player_mood_quoted': {'read': 'curious', 'cue': 'look around the landing'},
+    'public_brief': {
+        'tactic': 'Let the lit window and the rope bell carry the beat.',
+        'reply_to': 'none', 'scope': 'feature',
+        'kit_focus': 'Hold the bell and the lit window; do not invent who is inside.',
+        'callback': 'none',
+        'mirror': 'steady energy, standard, dry humor: meet the even pace and let the answer land.',
+        'npc_notice': 'none'},
+}
+
 
 def stall_check(plan, action_kind):
     """Kit's first commit on a heavy turn is only a check call (room entry, a first look,
@@ -555,6 +588,10 @@ def room_words(source, state):
             continue
         for word in re.findall(r"[a-z]+", str(edge.get('name') or '').casefold()):
             if word not in EXIT_STOPWORDS:
+                exits.append((word, key))
+        for word in edge.get('aliases') or ():
+            word = str(word).casefold()
+            if word and word not in EXIT_STOPWORDS:
                 exits.append((word, key))
         # The area it leads to names it too ('I head into the cellar', #150 fuzz), unless
         # that word already names another exit.
@@ -752,7 +789,7 @@ def room_intent(action, addressed=False, room=None):
     """
     text = action.translate(_TYPOGRAPHIC)
     room = room or RoomWords()
-    if is_ooc(text):
+    if is_ooc(text) or kit_lifecycle.is_confirmation(text):
         return 'social'
     quoted = bool(QUOTED_SPEECH.search(text))
     words = QUOTED_SPEECH.sub(' ', text).lower().replace(' thru ', ' through ').replace('ilook ', 'i look ')
@@ -5242,14 +5279,16 @@ def prepare_inputs(runtime, revision, state, action, resolution, use_memory, one
     judgment = kit_judgment.select(source, post_event_state, resolution.kind)
     if judgment and not table_talk:
         planning_input['dm_judgment'] = judgment
-    if kit_combat.config(source) and post_event_state.get('player_sheet'):
+    if post_event_state.get('player_sheet'):
         # Session manifest (cached): what the PC's reactions are and cost, with no counts, so a spend
-        # never busts the cache. What is left now (slots, uses) is live state like HP: the per-turn
-        # delta carries it, with the fight view's reaction available/spent (#101 review P1-4).
+        # never busts the cache. Always present once a sheet is loaded: appearing only in a combat
+        # room resent the whole session (~50 KB) on the area change. What is left now (slots, uses)
+        # is live state like HP: the per-turn delta carries it when a fight can happen.
         from . import kit_reactions
         resources = kit_reactions.current(post_event_state)
         planning_input['available_reactions'] = kit_reactions.definitions(resources)
-        planning_input['reactions_ready'] = kit_reactions.ready(resources)
+        if kit_combat.config(source):
+            planning_input['reactions_ready'] = kit_reactions.ready(resources)
     if resolution.kind == FLOURISH_KIND:
         dead = ((state.get('combat') or {}).get('awaiting') or {}).get('target')
         label = actor_speakers(source).get(dead, dead or 'the target')
@@ -5590,6 +5629,8 @@ def _opening_spoken(runtime, body):
                  and isinstance(fact.get('text'), str)]
     spoken = ' '.join(facts).strip()
     if spoken:
+        if '?' not in spoken:
+            spoken += '\nKit: Where do you look, or what do you do?'
         return spoken
     event = str(body.get('public_event') or '')
     # Never commit the empty arrival stub. Read-aloud, when the room has it, is the opening.
@@ -5769,9 +5810,21 @@ def performance_input(runtime, body, plan):
     return payload
 
 
+def rejection_fix_line(exc):
+    """One line the host pastes. Exact field when the check named one; otherwise the same turn."""
+    text = str(exc)
+    if 'Fix:' in text:
+        return text[text.index('Fix:'):].split('\n', 1)[0].strip()
+    fix = getattr(exc, 'fix', None)
+    if fix is not None:
+        body = json.dumps(fix, ensure_ascii=False) if not isinstance(fix, str) else fix
+        return 'Fix: ' + body
+    return 'Fix: change only the field named above and complete this same turn_id once.'
+
+
 def retry_instruction(exc):
     """Tell the performer exactly which check failed; the reason names no private fact."""
-    return (f'The previous output was rejected: {exc} Keep the same brief and use only '
+    return (f'The previous output was rejected: {exc} {rejection_fix_line(exc)} Keep the same brief and use only '
             'supplied player-visible facts and the accepted event.')
 
 
@@ -6655,7 +6708,8 @@ def public_fallback(body):
     view = body.get('public_view') or {}
     event = body.get('public_event') or ''
     if body.get('kind') == 'opening':
-        spoken = f'Narrator: {opening_frame(view, event, body.get("progressive_reveal"))}'
+        spoken = (f'Narrator: {opening_frame(view, event, body.get("progressive_reveal"))}'
+                  '\nKit: Where do you look, or what do you do?')
     elif body.get('table_talk') or event.startswith(TABLE_TALK_PREFIX):
         echo = _TALK_ECHO.match(event[len(TABLE_TALK_PREFIX):]) if event.startswith(TABLE_TALK_PREFIX) else None
         question = echo.group('q') if echo else (body.get('action') or '')
@@ -7195,6 +7249,11 @@ class KitChatBridge:
         withheld = kit_reveal.held_texts(self.runtime.source(), body.get('progressive_reveal'))
         if withheld:
             packet['input'] = kit_reveal.withhold(packet['input'], withheld)
+        if one_pass:
+            packet['per_turn'] = PER_TURN
+            if body.get('kind') == 'opening':
+                packet['shapes'] = FIELD_SHAPES
+                packet['play_card'] = play_card_text()
         manifest = {}
         if one_pass:
             self.runtime.save_kit_packet(turn_id, packet)  # in full, before layering, for rehydrate
@@ -7409,7 +7468,7 @@ class KitChatBridge:
                    'host_retry': HOST_RETRY_NOTE,
                    'personality_core': personality_core_text(source=self.runtime.source())}
         _, state = self.runtime.load()
-        if kit_combat.config(self.runtime.source()) and state.get('player_sheet'):
+        if state.get('player_sheet'):
             from . import kit_reactions  # the same session line prepare_inputs puts in the manifest
             session['available_reactions'] = kit_reactions.definitions(kit_reactions.current(state))
         session = kit_manifest.compact_session(session)
@@ -7517,6 +7576,13 @@ class KitChatBridge:
             result.update(engine_line=True, rejected_attempts=record['engine_line']['after_rejections'],
                           last_rejection=record['engine_line']['last_rejection'],
                           rejection_kinds=record['engine_line']['kinds'])
+        kind = (record.get('interstitial') or {}).get('kind')
+        if record.get('turn_role') == 'interstitial' or kind in ('roll_call', 'clarify', 'risk_confirm'):
+            # A short beat is a complete turn (plan update #3). Do not replace a more specific next_step.
+            result['complete_turn'] = True
+            result.setdefault('next_step',
+                              'This short beat is a complete turn. Show spoken and stop. '
+                              'The player\'s answer is the next message: one prepare, one complete.')
         kit_handoff.log_turn(self.runtime, turn_id, body['action'], body['kind'], body, record.get('trace'), record,
                              by_player=body['kind'] != 'opening' and not body.get('table_talk'))
         return result
@@ -7760,6 +7826,26 @@ class KitChatBridge:
 EXAMPLE_SHEET = PROJECT_ROOT / 'tests/fixtures/characters/example_pc.json'
 
 
+def read_character_sheet(path):
+    """One character_sheet_v1 JSON file. Markdown is not a sheet, and a second file does not
+    make a party: set_player_sheet says when it replaces the one PC."""
+    path = Path(path)
+    text = path.read_text(encoding='utf-8')
+    stripped = text.lstrip()
+    if path.suffix.lower() in ('.md', '.markdown') or stripped.startswith('#'):
+        raise InvalidChange(
+            'Only one PC is supported. Markdown sheets are not loaded. '
+            'Give one character_sheet_v1 JSON file. A second character replaces the first '
+            'and is not added beside them.')
+    try:
+        sheet = json.loads(text)
+    except ValueError as exc:
+        raise InvalidChange(
+            'Only one PC is supported. The sheet must be character_sheet_v1 JSON. '
+            'Markdown sheets are not loaded.') from exc
+    return sheet
+
+
 def start_session(db, sheet_path=None, runtime=None, room=None, area=None, manifests=False, campaign=None,
                   intent=None, table=None, modules=None, restore=None, compact=False):
     """Bootstrap for a host.
@@ -7794,7 +7880,7 @@ def start_session(db, sheet_path=None, runtime=None, room=None, area=None, manif
             raise InvalidChange(f'{exc} Resume it with view and '
                                 'prepare, or pass a new --db to start fresh.') from exc
         path = Path(sheet_path) if sheet_path else EXAMPLE_SHEET
-        sheet = json.loads(path.read_text(encoding='utf-8'))
+        sheet = read_character_sheet(path)
         loaded = runtime.set_player_sheet(sheet)
         if restore:  # resume from the player's save (runtime/kit_resume.py)
             runtime.restore_campaign(restore['log'], restore['carried'], restore.get('pc_state'),
@@ -7855,7 +7941,7 @@ def import_sheet(db, pdf, out=None, master_sheet=None):
     result = sheet_intake.import_pdf(pdf, out=target)
     if result['stage'] != 'sheet_imported' or saved_game(db) is None:
         return result
-    sheet = json.loads(Path(result['sheet_file']).read_text(encoding='utf-8'))
+    sheet = read_character_sheet(result['sheet_file'])
     runtime = Runtime(db)
     try:
         _, state = runtime.load()
@@ -8324,7 +8410,7 @@ def _main():
         elif args.command == 'notes':
             print(json.dumps(runtime.player_notes(), indent=2, ensure_ascii=False))
         elif args.command == 'character' and args.sheet:
-            sheet = json.loads(Path(args.sheet).read_text(encoding='utf-8'))
+            sheet = read_character_sheet(args.sheet)
             before = runtime.load()[1].get('player_sheet')
             loaded = runtime.set_player_sheet(sheet)
             loaded.update(sheet_review(args.db, before, sheet, args.sheet))
@@ -8382,13 +8468,21 @@ def _main():
             except PendingRuling as exc:
                 result = pending_ruling_result(exc)
             except InvalidChange as exc:
-                rejected = {'stage': 'rejected', 'message': str(exc), 'committed': False}
+                message = str(exc).rstrip()
+                if 'Fix:' not in message:
+                    message = message + ' ' + rejection_fix_line(exc)
+                rejected = {'stage': 'rejected', 'message': message, 'committed': False}
                 if isinstance(exc, HostSequenceError):
                     rejected['next_step'] = exc.next_step
                 elif isinstance(exc, StaleTurn):
                     rejected['next_step'] = 'prepare_again'
                 if isinstance(exc, PerformanceRejected):
                     rejected.update(exc.guidance)
+                fix = getattr(exc, 'fix', None)
+                if fix is not None:
+                    rejected['fix'] = fix
+                    rejected['next_step'] = ('Paste fix into o.json and complete this same turn_id once. '
+                                             'Do not prepare again and do not reread docs.')
                 if args.command in ('finish', 'complete') and not isinstance(exc, StaleTurn):
                     pending = None
                     try:

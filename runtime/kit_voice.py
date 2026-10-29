@@ -22,9 +22,10 @@ none of that is duplicated here).
 """
 import contextlib
 import contextvars
+import json
 import re
 
-from .state_context import require
+from .state_context import InvalidChange, require
 
 MOOD_READS = ('neutral', 'playful', 'curious', 'tense', 'frustrated', 'bored', 'cautious', 'gleeful')
 TURN_MODES = ('meta', 'banter', 'description', 'combat')
@@ -49,6 +50,16 @@ NPC_NOTICE_MAX_CHARS = 160
 # mirror: "<energy> energy, <length>, <humor> humor: <how Kit answers>"
 MIRROR_FORMAT = '<low|steady|high> energy, <tight|standard|roomy>, <no|dry|playful> humor: <how>'
 MIRROR_EXAMPLE = 'steady energy, standard, dry humor: meet the even pace and let the answer land.'
+_MIRROR_PREFIX = re.compile(
+    r'^\s*(low|steady|high) energy\s*,\s*(tight|standard|roomy)\s*,\s*(no|dry|playful) humor\s*$', re.I)
+
+
+def _repair_mirror(mirror):
+    """A pasteable mirror when the host omitted ': <how>'. The check still rejects the original."""
+    text = (mirror or '').strip().rstrip(' .')
+    if _MIRROR_PREFIX.match(text):
+        return text + ': meet the pace and let the answer land.'
+    return MIRROR_EXAMPLE
 MIRROR_PATTERN = re.compile(
     r'^\s*(?P<energy>low|steady|high) energy\s*,\s*(?P<length>tight|standard|roomy)\s*,\s*'
     r'(?P<humor>no|dry|playful) humor\s*[:;,.\u2014\u2013-]+\s*(?P<how>.*)$', re.I | re.S)
@@ -201,8 +212,13 @@ def check_mirror(mirror, mood_read, turn_mode):
     require(len(mirror.strip()) <= MIRROR_MAX_CHARS, f'mirror exceeds {MIRROR_MAX_CHARS} characters')
     require(not re.search(r'["\u201c\u201d]', mirror), 'mirror is direction, not quoted dialogue')
     parsed = parse_mirror(mirror)
-    require(parsed is not None, f'mirror must read "{MIRROR_FORMAT}": public_brief.mirror is {mirror!r}. '
-            f'Example: "mirror": "{MIRROR_EXAMPLE}"')
+    if parsed is None:
+        repaired = _repair_mirror(mirror)
+        exc = InvalidChange(
+            f'mirror must read "{MIRROR_FORMAT}": public_brief.mirror is {mirror!r}. '
+            f'Paste this field and complete the same turn_id once: "mirror": {json.dumps(repaired)}')
+        exc.fix = {'public_brief.mirror': repaired}
+        raise exc
     require(len(parsed['how'].split()) >= 3,
             'mirror must say how Kit answers the mood in a few words: public_brief.mirror needs three or '
             f'more words after the colon, in the form "{MIRROR_FORMAT}". Example: "mirror": "{MIRROR_EXAMPLE}"')

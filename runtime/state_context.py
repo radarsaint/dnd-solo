@@ -684,7 +684,10 @@ class Runtime:
             # commit (docs/architecture/ROOM_LOADER.md): no host step, and a room that cannot
             # mount rejects the whole turn, so the session stays where it was. After Kit's episode:
             # the turn that leaves was decided in this room, so its memory stays with this room.
-            link = (source['areas'].get(state['area']) or {}).get('room_link')
+            # Only a move into the linked area this commit. Standing there (a look, a word) must
+            # not bounce back through the link and resend the other room.
+            link = ((source['areas'].get(state['area']) or {}).get('room_link')
+                    if state['area'] != acted_in else None)
             if link:
                 from . import kit_rooms
                 new_source, state = kit_rooms.arrive(source, state, link)
@@ -822,13 +825,21 @@ class Runtime:
         # Store the real character name; the file title ("Copy of Nik") rides in sheet_title.
         sheet = pc_sheet.with_real_name(sheet)
         pc_sheet.check_sheet(sheet)
-        revision, _ = self.load()
+        revision, state = self.load()
+        previous = ((state.get('player_sheet') or {}).get('name'))
         event = {'type': 'player_sheet', 'sheet': sheet,
                  **({'intake': intake} if intake else {}),
                  'evidence': 'The host loaded the player character\'s sheet.'}
         digest = hashlib.sha256(f'{revision}:{encode(event)}'.encode()).hexdigest()[:16]
         next_revision = self.commit(f'sheet-{digest}', revision, [event])
-        return {'revision': next_revision, 'character': pc_sheet.identity(sheet)}
+        character = pc_sheet.identity(sheet)
+        notice = ('Only one PC is supported. Companions are not loaded, and a markdown sheet is not '
+                  'a character. This sheet is the one character.')
+        if previous:
+            notice = (f'Only one PC is supported. {previous} is replaced by {character.get("name")}. '
+                      'A second sheet is not added beside the first, and markdown sheets are not loaded.')
+        return {'revision': next_revision, 'character': character, 'only_one_pc': True, 'notice': notice,
+                **({'replaced': previous} if previous else {})}
 
     def add_companion(self, key, sheet, role, policy):
         """Put a companion on the party roster (runtime/kit_party.py): its sheet as the player
