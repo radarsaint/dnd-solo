@@ -20,7 +20,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from runtime import kit_adventure, kit_pdf  # noqa: E402
+from runtime import kit_adventure, kit_campaign, kit_pdf  # noqa: E402
 from runtime.kit_agent import KitChatBridge, RoomAdjudicator, start_session  # noqa: E402
 from runtime.state_context import CONTEXT_BUDGET_BYTES, Runtime  # noqa: E402
 
@@ -119,6 +119,48 @@ The trail leads to area 3.
 3. Web Bridge
 > A bridge of webs spans the gorge.
 The trail leads back to area 1.
+"""
+
+# Unnumbered road fight, a cave whose way is split over a layout newline, counted goblins,
+# and back-matter headings that are not scenes. Original sentences only.
+GREEN_MINE = """\
+GREEN MINE OF THE NORTH
+
+A northern road, a cave, and the journeys that come after.
+
+PART 1: GREEN ARROWS
+
+You are driving a wagon along the north road when arrows hiss out of the brush.
+Four goblins rush the wagon from both sides and the fight is on.
+The track leads on toward a cave mouth.
+
+1. Cave Mouth
+You stand at a dark cave mouth where a cold stream comes out of the hill.
+The track leads into the cave
+and on to area 2.
+Six goblins watch this mouth from the brush.
+The goblins on the ledge signal.
+More goblins wait inside.
+The goblins here keep the mouth.
+The goblins know the stream.
+The goblins do not come out until the bell rings.
+The goblins own this cave.
+
+2. Kennel
+> A kennel sits in the dark past the cave.
+The track leads back
+to area 1.
+
+PART 3: THE LATER WEB
+
+Introduction
+This part tells you how the later journeys fit together and who you meet on the way.
+
+Glossary
+A short glossary of the names you will hear when you travel on.
+
+Rests
+A short rest and a long rest are yours to call when you camp between fights.
 """
 
 
@@ -247,6 +289,32 @@ class BookShape(unittest.TestCase):
         web_targets = {c['to'] for c in web['connections']}
         self.assertTrue(all(t.startswith(web['site'] + '-') for t in web_targets), web_targets)
         self.assertNotIn('hideout-3', web_targets)
+
+    def test_the_road_fight_is_the_start_and_the_cave_is_not_empty(self):
+        report = kit_adventure.ingest_adventure(self.db, text=GREEN_MINE)
+        self.assertIn('GREEN MINE', report['title'].upper())
+        self.assertNotIn('PART 1', report['title'].upper())
+        self.assertTrue(str(report['start_location']).startswith('scene:'), report['start_location'])
+        index = json.loads((kit_adventure.folder_for(self.db) / 'index.json').read_text(encoding='utf-8'))
+        names = [loc.get('name') for loc in index['locations'].values()]
+        for banned in ('Introduction', 'Glossary', 'Rests'):
+            self.assertNotIn(banned, names)
+        cave_key = next(key for key, loc in index['locations'].items() if loc.get('name') == 'Cave Mouth')
+        compiled = kit_adventure.compile_location(self.db, cave_key, neighbours=False)
+        room = json.loads(Path(compiled['room']).read_text(encoding='utf-8'))
+        goblin_facts = sum(str(fact.get('text') or '').casefold().count('goblin')
+                           for fact in room['facts'].values())
+        self.assertGreaterEqual(goblin_facts, 7, goblin_facts)
+        self.assertTrue(room['actors'], room['actors'])
+        self.assertTrue(any('goblin' in key for key in room['actors']), room['actors'])
+        self.assertTrue(room['exits'], room['exits'])
+        empty = self.folder / 'empty-rooms'
+        empty.mkdir()
+        offered = kit_campaign.campaign_entry(self.db, rooms_dir=empty)
+        starts = [item for item in offered['executable_starts'] if item.get('ingested')]
+        self.assertTrue(starts, offered['executable_starts'])
+        self.assertTrue(any(item.get('default') and item.get('path') for item in starts), starts)
+        self.assertTrue(any(item.get('pick') in ('1', '2') for item in starts), starts)
 
     def test_png_predictor_xref_loads_without_full_scan(self):
         data = predictor_xref_pdf()

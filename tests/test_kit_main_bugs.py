@@ -146,7 +146,8 @@ class CalledCheckOutcome(Stalls):
             with self.subTest(dc=dc):
                 self.setUp()
                 packet = self.outcome(dc)
-                self.assertEqual(next(find(packet, 'check_outcome'))['result'], want)
+                found = packet.get('check_outcome') or next(find(packet, 'check_outcome'))
+                self.assertEqual(found['result'], want)
 
     def test_a_failed_or_passed_called_check_reveals_nothing_unclaimed(self):
         for dc, tag in ((16, 'fail'), (12, 'pass')):
@@ -160,6 +161,10 @@ class CalledCheckOutcome(Stalls):
 
     def test_dc_never_public(self):
         packet = self.outcome(17)
+        if packet.get('committed'):
+            self.assertNotIn('DC', packet['spoken'])
+            self.assertNotIn('17', packet['spoken'])
+            return
         public = encode(packet['input'].get('public') or {}) + encode(packet.get('player_view') or {})
         self.assertNotIn('DC', public)
         self.assertNotIn('"dc"', public)
@@ -181,6 +186,9 @@ class RecapKeepsTheAdvantageDie(CalledCheckOutcome):
     def test_the_stated_roll_keeps_both_dice(self):
         self.call(12)
         packet = self.bridge.prepare('Stealth check with advantage: 2d20kh1 (4, 13) + 2 = 15', 'r', one_pass=True)
+        if packet.get('committed'):
+            self.assertIn('(4, 13)', packet.get('roll_text') or '')
+            return
         self.assertIn('(4, 13)', encode(packet['input']['private']))
 
 

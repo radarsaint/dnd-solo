@@ -56,6 +56,7 @@ def campaign_entry(db, sheet_path=None, rooms_dir=None, campaign=None, intent=No
         return _resume(saved, campaign)
     executable, blocked = inspect_rooms(rooms_dir or (PROJECT_ROOT / 'rooms'))
     blocked = _with_regression(blocked)
+    executable = _with_book(db, executable)
     if campaign is None and intent == 'build':
         return _build(sheet_path)
     if campaign is None and intent == 'play':
@@ -312,8 +313,58 @@ def _greeting(sheet_path, executable, blocked, saves=()):
             'If they asked for Mad Mage, run start --campaign dotmm and say that table_line. '
             'Talk, debrief, and design do not use the bridge.'
             + (' To pick up a listed save: start --save <its path> (add --room <file> if its room '
-               'is not attached). Never ask for kit.sqlite.' if saves else '')),
+               'is not attached). Never ask for kit.sqlite.' if saves else '')
+            + (' An ingested book is in executable_starts (default is marked). '
+               'Open one with start --start <pick> --sheet <file>, or start --room <path> --sheet <file>. '
+               'A sheet is required; without it the room does not open.'
+               if any(item.get('ingested') for item in executable) else '')),
     }
+
+
+def book_starts(db):
+    """Playable starts from an ingested book: the default has a room path, the rest a pick."""
+    from . import kit_adventure
+    try:
+        index, _text = kit_adventure._load(db)
+    except kit_adventure.IngestError:
+        return []
+    listed = []
+    for item in index.get('starts') or []:
+        key = item.get('id')
+        path = kit_adventure.room_file(db, key) if key else None
+        if item.get('default') and path is not None and not path.is_file():
+            try:
+                kit_adventure.compile_location(db, key, neighbours=False)
+            except kit_adventure.IngestError:
+                pass
+        entry = {
+            'ingested': True,
+            'path': str(path) if path is not None and path.is_file() else None,
+            'pick': item.get('pick'),
+            'line': item.get('line'),
+            'location': key,
+            'default': bool(item.get('default')),
+        }
+        if entry['path']:
+            try:
+                source = kit_rooms.load_room(entry['path'])
+                entry['room_id'] = source.get('id')
+                entry['starting_area'] = source.get('starting_area')
+            except kit_rooms.RoomMountError:
+                entry['room_id'] = None
+        listed.append(entry)
+    return listed
+
+
+def _with_book(db, executable):
+    paths = {item.get('path') for item in executable if item.get('path')}
+    for item in book_starts(db):
+        if item.get('path') and item['path'] in paths:
+            continue
+        executable.append(item)
+        if item.get('path'):
+            paths.add(item['path'])
+    return executable
 
 
 def _sheet_real(sheet_path):
@@ -583,9 +634,15 @@ def _play(db, sheet_path, executable, blocked, table, modules=None):
                 'next_step': ('Ask which module from modules_available if there is more than one, then '
                               f'say table_line. Rerun start --intent play --sheet <file>{mods} --table solo|shared.'),
                 **({'modules': str(modules)} if modules else {})}
-    if len(executable) == 1 and executable[0].get('ingested'):
-        from .kit_agent import start_session
-        return start_session(str(db), sheet_path, room=executable[0]['path'], manifests=True)
+    book_paths = [item for item in executable if item.get('ingested') and item.get('path')]
+    other_paths = [item for item in executable if item.get('path') and not item.get('ingested')]
+    default = next((item for item in book_paths if item.get('default')), None)
+    # Play, with a sheet: open the book's default scene. The other picks stay listed on a bare start.
+    if not other_paths and (default or (len(executable) == 1 and executable[0].get('ingested'))):
+        chosen = default or executable[0]
+        if chosen.get('path'):
+            from .kit_agent import start_session
+            return start_session(str(db), sheet_path, room=chosen['path'], manifests=True)
     return {**base, 'stage': 'ready', 'table_mode': table,
             **({'table_note': SHARED_NOTE} if table == 'shared' else {}),
             'table_line': SOLO_LINE if table == 'solo' else SHARED_LINE,

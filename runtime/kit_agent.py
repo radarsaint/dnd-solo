@@ -422,6 +422,9 @@ FIELD_SHAPES = {
         'callback': 'none',
         'mirror': 'steady energy, standard, dry humor: meet the even pace and let the answer land.',
         'npc_notice': 'none'},
+    'reacts_to': 'at least 2 words, verbatim, one not a small word (a/the/and); Narrator uses "none"',
+    'feature_floor': 'at least 80 words across non-Kit segments, in at least 2 segments',
+    'kit_segment': {'speaker': 'Kit', 'text': 'Where next?', 'reacts_to': 'the landing stays wet'},
 }
 
 
@@ -476,6 +479,23 @@ def check_held_delivered(held, spoken):
             f"would notice: e.g. {', '.join((held.get('cues') or [])[:6])}), not just this move")
 
 
+def _answer_total(text, skill):
+    """The total in an answer-and-roll line ("The door. 14", "Perception 14", an Avrae line)."""
+    bare = roll_total(text)
+    if bare is not None:
+        return bare
+    found = [roll for roll in kit_rolls.rolls(text) if roll.label not in ('attack', 'initiative')]
+    if found and (found[0].label in (None, skill) or skill in (text or '').casefold().replace(' ', '_')):
+        return found[0].total
+    if re.search(r'\b(?:room|area|dc)\s+\d+', text or '', re.I):
+        return None
+    tail = re.search(r'(?<![\w.])(\d{1,2})\s*[.!]?\s*$', (text or '').strip())
+    if tail and not re.search(r'\b(?:room|area)\s+$', (text or '')[:tail.start()], re.I):
+        return int(tail.group(1))
+    named = re.search(r'\b' + re.escape(skill).replace('_', r'[\s_]+') + r'\s+(\d{1,2})\b', text or '', re.I)
+    return int(named.group(1)) if named else None
+
+
 def roll_total(action):
     """The total in a bare or stated roll line, or None."""
     text = action.translate(_TYPOGRAPHIC).strip()
@@ -487,10 +507,12 @@ def roll_total(action):
 
 
 CHECK_REQUEST_RULE = (
-    'The player asks for a check. Kit decides: call one with roll_call (the skill, mode, and DC are '
-    'yours; the player never picks the skill and never rolls first) and stop at the call, or decline '
-    'in a line and resolve from what is plain. A skill the player named is a request, never the call. '
-    'Answer every question in the same message.')
+    'The player asks for a check. Kit decides the skill (the player never picks it and never rolls '
+    'first; a skill they named is a request, never the call). DCs stay hidden. '
+    'One line does both: ask what they are focusing on, and call the skill. '
+    '"Feet or the door? Either way, roll me Perception." A question alone is another round trip. '
+    'Do not ask which skill. Or decline in a line and resolve from what is plain. '
+    'The player\'s next message is the answer and the roll together; prepare commits the outcome you prepared.')
 
 
 # A room feature the file declares (a fact's ``handling``: a tub, a chest, a well) is acted
@@ -1132,6 +1154,8 @@ class RoomAdjudicator:
             fired = kit_triggers.entered(self.source, state, result)
             if fired:
                 result = self._spring(result, *fired, action, revision, state)
+        if result.kind != 'exit' and choice is None:
+            result = self._also_named_move(result, action, state)
         if result.kind == 'exit' and choice is None:
             result = self._also_after_entry(result, action, revision, state)
         if result.kind in ('observe', 'threshold_look') and BACK_TO_DOOR.search(QUOTED_SPEECH.sub(' ', action).lower()):
@@ -1586,6 +1610,49 @@ class RoomAdjudicator:
         return dataclasses.replace(result, offers={**(result.offers or {}), 'downed': offer})
 
     _ENTRY_THEN = re.compile(r"\b(?:and|then)\b|[,;]")
+
+    def _named_exit(self, action, state):
+        """The one exit these words name while also moving, or None. Never asks which way."""
+        source, area = self.source or {}, state.get('area')
+        exits = source.get('exits') or {}
+        here = [key for key in state.get('known_exits') or ()
+                if area in (exits.get(key) or {}).get('areas', ())]
+        # Quoted speech is not the move ("walk through a room?" asked at the door). A negated
+        # going ("I don't go in") is not one either.
+        text = NOT_ENTERING.sub(' ', QUOTED_SPEECH.sub(' ', action).casefold())
+        if not re.search(r'\b(?:creep|creeps|creeping|sneak|sneaks|sneaking|walk|walks|walking|'
+                         r'go|goes|going|head|heads|heading|move|moves|moving|run|runs|running)\b', text):
+            return None
+        words = {}
+        for word, key in room_words(source, state).exits:
+            words.setdefault(key, set()).add(word)
+        said = lambda phrase: bool(phrase) and re.search(r'\b' + re.escape(phrase) + r's?\b', text) is not None
+        score = {}
+        for key in here:
+            hit = {word for word in words.get(key, ()) if said(word)}
+            if hit:
+                score[key] = (said(_bare_name(exits[key])), len(hit))
+        if not score:
+            return None
+        best = max(score.values())
+        tied = [key for key in here if score.get(key) == best]
+        return tied[0] if len(tied) == 1 else None
+
+    def _also_named_move(self, result, action, state):
+        """Move and check, or move and talk, in the same words: both happen."""
+        if any(event.get('type') == 'move' for event in result.events or ()):
+            return result
+        # Stealth already decides whether the move lands. A caught sneak must not still leave.
+        if result.kind not in ('check_request', 'social', 'observe', 'kit_ruling'):
+            return result
+        key = self._named_exit(action, state)
+        if not key:
+            return result
+        move = {'type': 'move', 'exit': key,
+                'evidence': f'The same words leave by the known exit {key} and keep the rest of the act.'}
+        return dataclasses.replace(
+            result, events=[move] + list(result.events),
+            public_event=f'{self._exit_text(key, state, "go")} {result.public_event}'.strip())
 
     def _also_after_entry(self, result, action, revision, state):
         """A directed entry ("I go in and grab the orb"): the rest of the message resolves in the new
@@ -3469,7 +3536,8 @@ VALIDATOR_KINDS = {
     'check_player_agency': 'agency', 'check_player_identity': 'agency',
     # style and fidelity: retried once
     'check_npc_meta': 'style', 'check_claimed_numbers': 'style', 'check_toll_exchange': 'style',
-    'check_no_refreshment': 'style', 'check_clarification_shape': 'style', 'check_clean_deal': 'style',
+    'check_no_refreshment': 'style', 'check_clarification_shape': 'style',
+    'check_combined_call': 'style', 'check_invented_lead': 'style', 'check_clean_deal': 'style',
     'check_stake_offers': 'style', 'check_table_narration': 'style', 'check_kit_asides': 'style',
     'check_detail_performance': 'style', 'kit_interstitial.check_spoken': 'style',
     'check_not_canned': 'style', 'check_voice_presence': 'style', 'check_scope': 'style',
@@ -4066,10 +4134,12 @@ class DecisionProblems:
     """Collects every problem in one decision so the host fixes them in one correction (a fresh
     host's opening took seven attempts when each rejection named one). Each ``part`` is one
     independent check; a check that cannot run because an earlier problem left its field missing
-    or malformed is skipped, since that problem is already named."""
+    or malformed is skipped, since that problem is already named. A one-line Fix: on a problem
+    (a mirror, a manifest) is kept on the exception the host catches."""
 
     def __init__(self):
         self.messages = []
+        self.fixes = []
 
     @contextlib.contextmanager
     def part(self):
@@ -4080,17 +4150,27 @@ class DecisionProblems:
         except InvalidChange as exc:
             if str(exc) not in self.messages:
                 self.messages.append(str(exc))
+                fix = getattr(exc, 'fix', None)
+                if fix is not None:
+                    self.fixes.append(fix)
         except (KeyError, TypeError, AttributeError, IndexError):
             if not self.messages:
                 raise
 
     def raise_any(self):
+        if not self.messages:
+            return
         if len(self.messages) == 1:
-            raise InvalidChange(self.messages[0])
-        if self.messages:
-            raise InvalidChange(
-                f'{len(self.messages)} problems in this decision; fix them all in one correction: ' +
-                ' '.join(f'({n}) {message}' for n, message in enumerate(self.messages, 1)))
+            text = self.messages[0]
+        else:
+            text = (f'{len(self.messages)} problems in this decision; fix them all in one correction: ' +
+                    ' '.join(f'({n}) {message}' for n, message in enumerate(self.messages, 1)))
+        if self.fixes and 'Fix:' not in text:
+            text = text.rstrip() + ' Fix: ' + json.dumps(self.fixes[0], ensure_ascii=False)
+        raised = InvalidChange(text)
+        if self.fixes:
+            raised.fix = self.fixes[0]
+        raise raised
 
 
 def _example_value(key):
@@ -4499,6 +4579,39 @@ def _near_floor(kind, count, floor):
             f'(within {WORD_FLOOR_MARGIN}): noted, not rejected. Do not pad.')
 
 
+_WHICH_SKILL = re.compile(
+    r'\b(?:which skill|what skill|perception or investigation|investigation or perception|'
+    r'perception or stealth|stealth or perception)\b', re.I)
+_LEAD_FLAVOR = re.compile(
+    r'\b(?:twigs?|thorns?|footprints?|bloodstains?|blood trail|scrap of cloth|torn cloth|'
+    r'something glints|a glint|cloth on the thorns?)\b', re.I)
+
+
+def check_combined_call(segments, plan, action_kind):
+    """A check ask is one line: the focus question and the roll call. A question alone is another round trip."""
+    if action_kind != 'check_request':
+        return
+    text = ' '.join(segment.get('text') or '' for segment in segments)
+    require(_WHICH_SKILL.search(text) is None,
+            'Ask what they are focusing on, not which skill. You pick the skill. DCs stay hidden.')
+    require(re.search(r'\bDC\s*\d+', text) is None, 'DCs stay hidden. Do not say the number.')
+    if '?' in text and not plan.get('roll_call'):
+        require(False, 'A clarifying beat includes the roll call in the same line: '
+                '"Feet or the door? Either way, roll me Perception." A question alone is another round trip.')
+
+
+def check_invented_lead(segments, fact_text):
+    """Sensory flavor that implies a lead must name something the book or the state already has."""
+    book = (fact_text or '').casefold()
+    for segment in segments:
+        for match in _LEAD_FLAVOR.finditer(segment.get('text') or ''):
+            word = match.group(0).casefold()
+            noun = re.sub(r'^(?:a|the|something|scrap of|torn|blood)\s+', '', word).split()[-1].rstrip('s')
+            require(re.search(r'\b' + re.escape(noun) + r'\b', book) or word in book,
+                    f'Flavor implies a lead ({match.group(0)}) that is not in the book or the state. '
+                    'Cite a fact that names it, or cut it.')
+
+
 def check_scope(segments, plan, guards=None):
     """Flat-reply guard per selected scope. A floor, not a measure of quality.
 
@@ -4720,6 +4833,8 @@ def check_speech(speech, plan, public_view, player_action, action_kind=None, gua
     if guards.get('no_refreshment'):
         hard(kit_guards.check_no_refreshment, segments)
     hard(kit_guards.check_clarification_shape, segments, plan)
+    hard(check_combined_call, segments, plan, action_kind)
+    hard(check_invented_lead, segments, guards.get('fact_text') or '')
     # HARD: scene fit. Who the player is, what the deal really was, what can be staked.
     hard(kit_guards.check_player_identity, segments, (public_view or {}).get('your_character'))
     hard(kit_guards.check_clean_deal, segments, guards.get('dealer_cheated', False))
@@ -4846,6 +4961,23 @@ def turn_events(runtime, body, plan, turn_id, record=None):
                        'evidence': f"The held {body['held_description']['kind']} description is delivered."})
     if pending and not any(event.get('type') == 'pending_check' for event in events):  # a held exit wins
         events.append(pending)
+    if pending and pending.get('check') and not pending['check'].get('held'):
+        # Settled now, beside the check, so the player's roll is one light commit.
+        skill = pending['check'].get('skill') or 'check'
+        name = skill.replace('_', ' ')
+        area = runtime.load()[1].get('area')
+        facts = [fact.get('text') for fact in (runtime.source().get('facts') or {}).values()
+                 if isinstance(fact, dict) and fact.get('visible') and fact.get('area') == area
+                 and fact.get('text')]
+        cited = (facts[0].split('.')[0] if facts else '').strip()
+        events.append({'type': 'prepared_roll', 'roll': {
+            'skill': skill, 'dc': pending['check'].get('dc') or 12,
+            'called_turn': pending['check'].get('called_turn'),
+            'bands': {
+                'fail': "The %s check doesn't turn anything up." % name,
+                'pass': ("The %s check comes up. %s" % (name, cited)).strip(),
+                'high': ("The %s check comes up clean. %s" % (name, cited)).strip(),
+            }}, 'evidence': 'The outcome of this %s check is prepared for the roll.' % name})
     if plan.get('claims'):
         events += kit_claims.said_events(plan['claims'], turn_id, body.get('claims_here'),
                                          runtime.load()[1])
@@ -5905,7 +6037,9 @@ def guard_context(source, body):
                                     if (cards.get(name) or {}).get('speech_floor') is not True),
             'public_history': body.get('public_history', []),
             'raisers': tuple(item['by'] for item in body.get('story_due') or ()),
-            'table_talk': bool(body.get('table_talk'))}
+            'table_talk': bool(body.get('table_talk')),
+            'fact_text': ' '.join(str((fact or {}).get('text') or '')
+                                  for fact in ((source or {}).get('facts') or {}).values())}
 
 
 def _area_id(source, view):
@@ -6944,7 +7078,10 @@ def first_try_lines(runtime, body, planning_input):
         lines.append(f"A standing {held['skill']} {held['total']} holds while the PC keeps at it (let it ride): "
                      'never call or roll it again unless circumstances change; the engine decides that.')
     if planning_input.get('check_request'):
-        lines.append('The player asked for a check: call one in roll_call or decline. You pick the skill.')
+        lines.append('The player asked for a check: one line asks what they are focusing on AND calls the '
+                     'skill in roll_call ("Feet or the door? Either way, roll me Perception."). '
+                     'You pick the skill. Do not ask which skill. Do not say a DC. '
+                     'Or decline. A question without roll_call is another round trip.')
     if planning_input.get('threshold_view'):
         lines.append('A look or listen through a threshold: describe only threshold_view (tease-only); the PC has not moved.')
     if planning_input.get('open_threads'):
@@ -7136,6 +7273,9 @@ class KitChatBridge:
         held = self._turn_waiting(turn_id, action)
         if held is not None:
             return held
+        ready = self._prepared_answer(action)
+        if ready is not None:
+            return ready
         self.runtime.flush_queued_attempts()  # refused attempts held while a turn was waiting
         if opening:
             require(action is None and not table_talk, 'Room opening does not take a player action')
@@ -7153,6 +7293,54 @@ class KitChatBridge:
                 self._held(action, exc)
         return self._stage(turn_id, revision, body, planning_input, one_pass, performance_variant, started, clock,
                            stamps)
+
+    def _prepared_answer(self, action):
+        """The roll that answers a prepared check: one commit, the outcome already stored.
+
+        Anything else makes that outcome stale and falls through to a normal turn. A held
+        description still waits on Kit's narration, so this path does not take it.
+        """
+        if not action or not str(action).strip() or is_ooc(action):
+            return None
+        revision, state = self.runtime.load()
+        pending = state.get('pending_check') or {}
+        prepared = state.get('prepared_roll')
+        if not prepared or pending.get('held'):
+            return None
+        text = str(action)
+        skill = pending.get('skill') or prepared.get('skill') or ''
+        total = _answer_total(text, skill)
+        answers = total is not None
+        if '?' in text and not kit_rolls.rolls(text) and roll_total(text) is None:
+            answers = False
+        if not answers:
+            # Anything but the answer and the roll: the prepared lines must not land on it.
+            self.runtime.commit(
+                f'stale-{revision}', revision,
+                [{'type': 'prepared_roll', 'clear': True,
+                  'evidence': 'The player did something else. The prepared check outcome is stale.'}])
+            return None
+        dc = prepared.get('dc') or 12
+        result = kit_rolls.roll_outcome(total, dc)
+        band = 'high' if total >= dc + 5 else result
+        spoken = (prepared.get('bands') or {}).get(band) or (prepared.get('bands') or {}).get(result)
+        if not spoken:
+            return None
+        if '?' not in spoken:
+            spoken += '\nKit: What do you do?'
+        events = [
+            {'type': 'beat', 'tags': ['prepared_roll', result],
+             'evidence': f'Prepared {band} for {skill} {total}. {text[:200]}'},
+            {'type': 'pending_check', 'check': None,
+             'evidence': f'The {skill} check called on turn {pending.get("called_turn")} is rolled.'},
+            {'type': 'prepared_roll', 'clear': True, 'evidence': 'The prepared outcome was used.'},
+        ]
+        clock = time.perf_counter()
+        committed = self.runtime.commit(f'roll-{revision}', revision, events)
+        return {'stage': 'prepared_committed', 'committed': True, 'calls': 1, 'turn_id': f'roll-{revision}',
+                'spoken': spoken, 'revision': committed, 'check_outcome': {'result': result},
+                'roll_text': text[:300],
+                'runtime_ms': round((time.perf_counter() - clock) * 1000, 3)}
 
     def _turn_waiting(self, turn_id, action):
         """Lifecycle guard (postmortem, opening + "Yes."): while a turn is prepared and waiting at
@@ -7596,9 +7784,15 @@ class KitChatBridge:
         if record.get('turn_role') == 'interstitial' or kind in ('roll_call', 'clarify', 'risk_confirm'):
             # A short beat is a complete turn (plan update #3). Do not replace a more specific next_step.
             result['complete_turn'] = True
-            result.setdefault('next_step',
-                              'This short beat is a complete turn. Show spoken and stop. '
-                              'The player\'s answer is the next message: one prepare, one complete.')
+            if kind == 'roll_call':
+                result.setdefault('next_step',
+                                  'Show spoken and stop. Their next message is the answer and the roll '
+                                  'together. prepare commits the outcome already prepared and returns spoken. '
+                                  'One call. If they do something else, that outcome is stale.')
+            else:
+                result.setdefault('next_step',
+                                  'This short beat is a complete turn. Show spoken and stop. '
+                                  'The player\'s answer is the next message.')
         kit_handoff.log_turn(self.runtime, turn_id, body['action'], body['kind'], body, record.get('trace'), record,
                              by_player=body['kind'] != 'opening' and not body.get('table_talk'))
         return result
@@ -7659,6 +7853,9 @@ class KitChatBridge:
             last_rejection=str(exc))
         guidance = self.guidance(turn_id)
         message = _full_stop(exc)
+        fix = getattr(exc, 'fix', None)
+        if fix is not None and 'Fix:' not in message:
+            message += ' Fix: ' + (json.dumps(fix, ensure_ascii=False) if not isinstance(fix, str) else fix)
         if guidance.get('engine_line_next'):
             message += ' ' + ENGINE_LINE_NOTE
         if guidance.get('abandon_instruction'):
@@ -7667,7 +7864,10 @@ class KitChatBridge:
             message += ' ' + guidance['abandon_instruction']
         elif guidance['degraded_available']:
             message += ' ' + DEGRADED_INSTRUCTION
-        return PerformanceRejected(message, guidance)
+        rejected = PerformanceRejected(message, guidance)
+        if fix is not None:
+            rejected.fix = fix
+        return rejected
 
     def _checked_or_log(self, turn_id, body, plan, speech, performance_variant, degraded=False):
         try:
@@ -8220,6 +8420,8 @@ def _main():
     parser.add_argument('--modules', help='start: a folder of module/room files the player attached '
                                           '(default: rooms/). Only loadable, non-stub files are offered.')
     parser.add_argument('--area', help='start: begin in this area of the room (default: its starting_area)')
+    parser.add_argument('--start', help='start: a scene letter or room number from the ingested book '
+                                        '(A, 1, or a line from starts). Omit for the book\'s first scene.')
     parser.add_argument('--model', help='Optional standalone Responses API model for play')
     parser.add_argument('--perception', type=int, help='Test character Wisdom (Perception) modifier')
     parser.add_argument('--insight', type=int, help='Test character Wisdom (Insight) modifier')
@@ -8318,6 +8520,10 @@ def _main():
         return 0
     if args.command == 'start':
         try:
+            if args.start and not args.room:
+                from . import kit_adventure
+                chosen = kit_adventure.choose_start(args.db, args.start)
+                args.room = chosen['room']
             if args.room and not args.regression:
                 source = kit_rooms.load_room(args.room)
                 refusal = kit_campaign.player_room_refusal(args.room, source)

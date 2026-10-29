@@ -15,7 +15,7 @@ rejected; a stamp the host does not send stays missing and is named, never guess
 | `received_at` | The player's message reaches the host (Discord event / chat message arrives), before any host work. |
 | `model_sent_at` | The host sends the packet to the model. Stamp it per attempt (on `complete`), so every retry has its own pair. |
 | `model_done_at` | The model's reply (decision + performance) is back, before the host calls `complete`. |
-| `shown_at` | Kit's first playable line is visible to the player. The host stays silent until speech commits, so this comes after `committed_at`. |
+| `shown_at` | Kit's first playable line is visible to the player. A check ask may be shown in the same beat as `prepare`, before the outcome commits. `shown_at` is that moment. |
 
 The engine records, by itself:
 

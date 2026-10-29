@@ -52,6 +52,9 @@ LOCATION_RE = re.compile(r'^(?:area\s+)?([A-Z]?\d{1,3}[a-z]?)\s*[.:]\s+([A-Z][^\
 AREA_REF_RE = re.compile(r'\b(?:areas?|locations?|room)\s+([A-Z]?\d{1,3}[a-z]?)\b', re.I)
 # A way you can take. A mention ("the scouts in area 2") is not an exit, and a reverse
 # exit is never invented from the far side's sentence.
+_EXIT_NOUNS = frozenset(
+    'path door doors ladder ladders stair stairs tunnel tunnels passage passages trail track '
+    'lane hatch gate gates bridge road roads way steps'.split())
 _WAY_RE = re.compile(
     r'\b(?:leads?|leading|path|paths|door|doors|ladder|ladders|stair|stairs|tunnel|tunnels|'
     r'passage|passages|climbs?|runs?|return|returns|crosses?|crossing|drops?|trail|track|'
@@ -476,11 +479,38 @@ def _site_of(title):
     return slug.replace('phan_dalln', 'phandalin')
 
 
-def _index_title(title, chapters):
+def _front_title(text, chapters):
+    """The book's own name, the heading before the first part. A part title is not the book."""
+    if not text or not chapters:
+        return ''
+    front = text[:chapters[0]['offset']]
+    for line in front.splitlines():
+        stripped = re.sub(r'\s+', ' ', line).strip()
+        if not stripped or stripped.startswith('>') or len(stripped) > 70:
+            continue
+        if stripped[:1].isdigit() or stripped.endswith(('.', '!', '?')):
+            continue
+        if _toc_line(stripped) or LOCATION_RE.match(stripped) or CHAPTER_RE.match(stripped):
+            continue
+        words = stripped.split()
+        if not 2 <= len(words) <= 8:
+            continue
+        if not all(word[:1].isupper() for word in words if word[:1].isalpha()):
+            continue
+        if not _readable_heading(stripped):
+            continue
+        return _strip_toc_bleed(stripped)
+    return ''
+
+
+def _index_title(title, chapters, text=''):
     if title:
         cleaned = _strip_toc_bleed(title)
         if cleaned and not _toc_line(title) and _readable_heading(cleaned):
             return cleaned
+    front = _front_title(text, chapters)
+    if front:
+        return front
     for chapter in chapters:
         if _readable_heading(chapter['title']) and not _toc_line(chapter['title']):
             return _strip_toc_bleed(chapter['title'])
@@ -784,7 +814,7 @@ def build_index(text, title=None):
         loc['read_aloud'] = any(line.lstrip().startswith('>') for line in span.split('\n'))
     # No inferred reverse. The other side's own text is the only way back.
     npcs = sorted({n for loc in locations.values() for n in loc['npcs']})
-    index = {'version': INDEX_VERSION, 'title': _index_title(title, chapters),
+    index = {'version': INDEX_VERSION, 'title': _index_title(title, chapters, text),
              'sha256': hashlib.sha256(text.encode('utf-8')).hexdigest(), 'chars': len(text),
              'chapters': chapters, 'locations': locations, 'npcs': npcs, 'stat_blocks': stat_blocks,
              'pages': pages, 'map_pages': [p['page'] for p in pages if p['needs_map_look']],
@@ -795,9 +825,20 @@ def build_index(text, title=None):
 
 
 def _sentence_around(span, at):
-    start = max(span.rfind('.', 0, at), span.rfind('\n', 0, at)) + 1
-    end_dot = span.find('.', at)
-    end = len(span) if end_dot < 0 else end_dot + 1
+    """The sentence around ``at``. A single newline is a layout wrap, not a new sentence."""
+    cuts = [span.rfind(mark, 0, at) for mark in ('.', '!', '?')]
+    para = span.rfind('\n\n', 0, at)
+    start = max(cuts + [para]) + 1
+    if 0 <= start < len(span) and span[start] == '\n':
+        start += 1
+    end = len(span)
+    for mark in ('.', '!', '?'):
+        pos = span.find(mark, at)
+        if pos >= 0:
+            end = min(end, pos + 1)
+    para_end = span.find('\n\n', at)
+    if para_end >= 0:
+        end = min(end, para_end)
     return _norm(span[start:end].lstrip('> '))
 
 
@@ -864,8 +905,12 @@ def _creatures(span, base, stat_blocks):
     from .srd_creatures import CREATURES
     found = {}
     names = set(stat_blocks) | set(CREATURES)
+    claimed = []
     for name in sorted(names, key=len, reverse=True):
         for m in re.finditer(rf'\b{re.escape(name)}(?:e?s)?\b', span, re.I):
+            if any(a <= m.start() < b for a, b in claimed):
+                continue
+            claimed.append((m.start(), m.end()))
             found.setdefault(name, base + m.start())
     for m in SEE_RE.finditer(span):
         name = m.group(1).strip().casefold()
@@ -976,8 +1021,10 @@ def draft_room(db, key, index, text):
             if number:
                 aliases.append(number)
                 aliases.append('room ' + number)
+        # Only the way itself (path, door, ladder). A bell or a rope named in the same
+        # sentence is a thing you can take, not a word that means "leave".
         for word in re.findall(r'[a-z0-9]+', c['quote'].casefold()):
-            if word not in _ALIAS_SKIP and len(word) >= 3 and word not in here_words and word not in aliases:
+            if word in _EXIT_NOUNS and word not in aliases:
                 aliases.append(word)
         exits[f'way_{_slug(c["to"])}'] = {
             'name': f'the way to {other["name"]}', 'areas': [here, side], 'secret': c['secret'],
@@ -1264,6 +1311,7 @@ def ingest_adventure(db, text=None, pdf=None, title=None, reader='auto'):
         'stage': 'adventure_ingested', 'reader': how, 'title': report['title'],
         'locations': report['locations'], 'chapters': report['chapters'],
         'start_location': report['start_location'], 'start_room': compiled['room'],
+        'starts': _read_json(folder_for(db) / 'index.json').get('starts') or [],
         'room_id': compiled['room_id'], 'first_scene_page': compiled.get('page'),
         'ingest_ms': ingest_ms, 'first_scene_ms': compiled['scene_ms'],
         'source_bytes': (folder_for(db) / 'source.txt').stat().st_size,
@@ -1276,6 +1324,34 @@ def ingest_adventure(db, text=None, pdf=None, title=None, reader='auto'):
         'ask_player': compiled.get('ask_player', []), 'flags': compiled.get('flags', []),
         **readiness(db),
     }
+
+
+def choose_start(db, token=None):
+    """Compile the book's default scene, or the scene or room the host named (A, 1, a label)."""
+    index, _text = _load(db)
+    starts = index.get('starts') or []
+    key = index.get('start')
+    want = (token or '').strip()
+    if want:
+        folded = want.casefold()
+        found = None
+        for item in starts:
+            pick = str(item.get('pick') or '')
+            names = {pick.casefold(), str(item.get('id') or '').casefold()}
+            if folded in names or pick.casefold().endswith(' ' + folded):
+                found = item
+                break
+        if found is None:
+            shown = '; '.join(item.get('line') or item.get('pick') or '' for item in starts[:16])
+            raise IngestError(['no start %r. %s' % (token, shown or 'no scenes indexed')])
+        key = found['id']
+    if not key:
+        raise IngestError(['this book has no start'])
+    compiled = compile_location(db, key, neighbours=False)
+    compiled['pick'] = next((item.get('pick') for item in starts if item.get('id') == key), None)
+    compiled['line'] = next((item.get('line') for item in starts if item.get('id') == key), None)
+    compiled['starts'] = starts
+    return compiled
 
 
 def ensure_compiled(link):

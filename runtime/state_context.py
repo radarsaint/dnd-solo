@@ -104,7 +104,7 @@ CANON_SLOT = re.compile(r'^[a-z0-9_:]+(/[a-z0-9_]+){1,3}$')
 # the decision's canon entries, the oracle deal it consumed, and procedure state.
 # Host bookkeeping, not a turn taken in the room (kit_rooms.stage counts the others).
 BOOKKEEPING_EVENTS = ('party_roster', 'player_sheet', 'player_character', 'player_note', 'pc_state', 'kit_plan', 'rest',
-                      'campaign_restore', 'campaign_facts', 'judgment_state')
+                      'campaign_restore', 'campaign_facts', 'judgment_state', 'prepared_roll')
 # A refused attempt changed nothing in the world, so it does not use up the check Kit just
 # called (PR 145 playtest: one refused line, then every roll was refused).
 KEEPS_PENDING_CHECK = BOOKKEEPING_EVENTS + ('refused_attempt',)
@@ -127,7 +127,7 @@ DECLARED_EVENTS = ('beat', 'reveal_fact', 'trigger_fired', 'scene_state', 'comba
 COMBAT_DECLARED_EVENTS = ('beat', 'combat_state', 'scene_state', 'actor_status', 'pc_conditions', 'pc_resources')
 COMMIT_APPENDED_EVENTS = ('canon_entry', 'oracle_draw', 'procedure_state', 'claim_said', 'agenda_turn',
                           'pc_state', 'kit_plan', 'toll_state', 'story_beat', 'threshold_crossed',
-                          'attitude_shift', 'pending_check', 'open_threads', 'risk_warned')
+                          'attitude_shift', 'pending_check', 'open_threads', 'risk_warned', 'prepared_roll')
 # A turn whose decision asks the player a question resolves nothing: its only event is a
 # rhythm beat tagged 'asked' whose evidence is the question.
 ASKED_EVENT_PREFIX = 'Kit asks before resolving: '
@@ -1178,6 +1178,7 @@ class Runtime:
                     'pending_check is {skill, ability, target, called_turn[, exit, threshold, held, dc, dc_adjust, reason, action]} or None')
             if check is None:
                 state.pop('pending_check', None)
+                state.pop('prepared_roll', None)
             else:
                 state['pending_check'] = copy.deepcopy(check)
                 if not check.get('exit'):
@@ -1186,6 +1187,14 @@ class Runtime:
                     state['rhythm'].append({'tags': ['check_called'],
                                             'evidence': f"Kit called for {check['skill']}; waiting on the roll."})
                     state['rhythm'] = state['rhythm'][-12:]
+        elif kind == 'prepared_roll':
+            if event.get('clear'):
+                state.pop('prepared_roll', None)
+            else:
+                roll = event.get('roll')
+                require(isinstance(roll, dict) and isinstance(roll.get('bands'), dict),
+                        'prepared_roll needs bands')
+                state['prepared_roll'] = copy.deepcopy(roll)
         elif kind == 'standing_check':
             from . import pc_sheet
             check = event.get('check')

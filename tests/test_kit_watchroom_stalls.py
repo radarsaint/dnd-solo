@@ -182,6 +182,7 @@ class S5ACheckRequestIsKitsCall(Stalls):
         packet = self.bridge.prepare('Could I make a Perception check?', 'c', one_pass=True)
         ask = packet['input']['private']['check_request']
         self.assertIn('Kit decides', ask['rule'])
+        self.assertIn('Feet or the door', ask['rule'])
         self.assertEqual(ask['player_named'], 'perception')  # a request, never the call
 
     def answer(self, turn, **update):

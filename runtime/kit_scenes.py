@@ -30,7 +30,8 @@ _HEAD_WORD = re.compile(r"^[A-Z][A-Za-z'’-]{2,24}$")
 _PREFIX = re.compile(r'^(encounter|event|travel|random encounter)\s*:\s*(.+)$', re.I)
 _DM = re.compile(
     r'^(?:developments|features|treasure|creatures|tactics|roleplaying|adjusting|xp awards|'
-    r'setup|background|map)\b', re.I)
+    r'setup|background|map|introduction|glossary|rests|contents|index|credits|preface|'
+    r'foreword|overview|bibliography)\b', re.I)
 _YOU = re.compile(r'\b(?:you|your|yours)\b', re.I)
 _CUE = re.compile(
     r"\bif the characters\b|\bwhen the (?:party|characters|heroes|adventurers)\b|"
@@ -362,6 +363,8 @@ def collect(text, heads, chapters, page_of):
         seen.append(found['offset'])
         i += found['consumed']
 
+    raw.extend(_preamble_scenes(text, chapters, rooms, seen, page_of))
+
     # Body signals with no heading: encounter or NPC text before the first room,
     # or a lone cue. One signal stays a check. Two signals before the first key promote.
     first_room = min((room['offset'] for room in rooms), default=None)
@@ -429,6 +432,53 @@ def collect(text, heads, chapters, page_of):
     checks.sort(key=lambda item: item['offset'])
     front = _front(text, chapters)
     return scene_heads, checks, front
+
+
+def _preamble_scenes(text, chapters, rooms, seen, page_of):
+    """A fight told before the first numbered room, with no heading of its own.
+
+    Two signals promote it (read-aloud plus the creatures). One signal stays out.
+    Book apparatus (Introduction, Glossary, Rests) is not a scene.
+    """
+    by_chapter = {}
+    for room in rooms:
+        by_chapter.setdefault(room.get('chapter') or '', []).append(room)
+    titled = {chapter['title']: chapter for chapter in chapters}
+    found = []
+    for title, group in by_chapter.items():
+        group.sort(key=lambda room: room['offset'])
+        first = group[0]
+        chapter = titled.get(title)
+        start = chapter['offset'] if chapter else 0
+        if any(start <= off < first['offset'] for off in seen):
+            continue
+        body = text[start:first['offset']]
+        body = re.sub(r'^[^\n]*', '', body, count=1)
+        if len(re.sub(r'\s+', '', body)) < BODY_MIN:
+            continue
+        if _DM.match(body.strip()):
+            continue
+        signals = _signals_in(body, False, False)
+        if len(signals) < PROMOTE_SIGNALS or _score(signals) < PROMOTE_SCORE:
+            continue
+        name = 'Opening'
+        for line in body.splitlines():
+            core, _kind = _core(line.strip().lstrip('>').strip())
+            if core and _fragment(core) and not _DM.match(core):
+                name = core
+                break
+        at = start + (text[start:first['offset']].find(body.lstrip()[:12]) if body.strip() else 0)
+        if at < start:
+            at = start
+        found.append({
+            'offset': at, 'body_at': at, 'end': first['offset'],
+            'name': name, 'indent': 0, 'signals': sorted(signals),
+            'score': _score(signals), 'playable': True, 'chapter': title,
+            'part': _part_number(title), 'site': _site(title), 'page': page_of(at),
+            'body': body, 'anchor_room': first, 'relation': 'before',
+            'travel': False, 'npc': _npc_name(body),
+        })
+    return found
 
 
 def _front(text, chapters):
@@ -711,6 +761,19 @@ def mark_scene_lines(text):
                 mark_at.add(j)
             j += 1
         i += found['consumed']
+    # An unnumbered fight before the first key has no heading. Its second-person lines
+    # are still the read-aloud, or the opening compiles as an empty room.
+    in_preamble = False
+    for n, (_off, line) in enumerate(rows):
+        stripped = line.strip()
+        if _CHAPTER.match(stripped):
+            in_preamble = True
+            continue
+        if _LOCATION.match(stripped) or (_fragment(_core(stripped)[0]) if stripped else False):
+            in_preamble = False
+            continue
+        if in_preamble and stripped and not stripped.startswith('>') and _YOU.search(stripped):
+            mark_at.add(n)
     if not mark_at:
         return text
     out = []
