@@ -143,7 +143,7 @@ class FewestCalls(unittest.TestCase):
 class StartAndIngest(unittest.TestCase):
     def test_part_one_starts_at_the_road_encounter_not_the_numbered_hideout(self):
         index = kit_adventure.build_index(WAGON.read_text(encoding='utf-8'))
-        self.assertEqual(index['start'], 'wagon_road-road_ambush')
+        self.assertEqual(index['start'], 'scene:wagon_road:A')
         self.assertNotEqual(index['locations'][index['start']]['name'], 'Timber Mouth')
         self.assertIn('Timber Mouth', [loc['name'] for loc in index['locations'].values()])
 

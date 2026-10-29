@@ -50,6 +50,12 @@ CHAPTER_RE = re.compile(r'^(?:(?:chapter|part)\s+[\w-]+|appendix(?:\s+[\w-]+)?)\
 # "1. Mill Yard", "Area 3: The Cellar", "A2. Gatehouse", "12b. Loft"
 LOCATION_RE = re.compile(r'^(?:area\s+)?([A-Z]?\d{1,3}[a-z]?)\s*[.:]\s+([A-Z][^\n]{1,70})$', re.I)
 AREA_REF_RE = re.compile(r'\b(?:areas?|locations?|room)\s+([A-Z]?\d{1,3}[a-z]?)\b', re.I)
+# A way you can take. A mention ("the scouts in area 2") is not an exit, and a reverse
+# exit is never invented from the far side's sentence.
+_WAY_RE = re.compile(
+    r'\b(?:leads?|leading|path|paths|door|doors|ladder|ladders|stair|stairs|tunnel|tunnels|'
+    r'passage|passages|climbs?|runs?|return|returns|crosses?|crossing|drops?|trail|track|'
+    r'lane|hatch|gate|gates|bridge|heads?)\b', re.I)
 STAT_HEAD_RE = re.compile(r'^([A-Z][A-Za-z\' -]{1,40})\n(?:[^\n]*\n){0,2}armor class\s+\d+', re.I | re.M)
 SEE_RE = re.compile(r'\(see (?:the )?([^)]{2,60}?)(?:\'s)? (?:stat block|statistics|in the [^)]*|appendix[^)]*)\)', re.I)
 # "a marsh hag (see the Monster Manual)": a creature the book points elsewhere for.
@@ -412,10 +418,20 @@ def mark_read_aloud(text):
     return '\f'.join(pages)
 
 
+def _book_number(raw):
+    """Keep the book's number: 1, 1a, A2. A trailing letter stays lower so 1a is not scene A."""
+    match = re.match(r'^([A-Za-z]?)(\d+)([A-Za-z]?)$', (raw or '').strip())
+    if not match:
+        return (raw or '').upper()
+    return match.group(1).upper() + match.group(2) + match.group(3).lower()
+
+
 def prepare_source(text):
     """Running headers off, read-aloud marked. The index and the saved source are this text."""
     text = text.replace('\r\n', '\n').replace('\r', '\n')
-    return mark_read_aloud(strip_running_matter(text))
+    text = mark_read_aloud(strip_running_matter(text))
+    from . import kit_scenes
+    return kit_scenes.mark_scene_lines(text)
 
 
 def _strip_toc_bleed(title):
@@ -608,6 +624,10 @@ def _opening_start(chapters, locations):
                 if 'appendix' not in (loc.get('chapter') or '').casefold()]
     if not pool:
         pool = list(locations.values())
+    scenes = [loc for loc in pool if loc.get('type') == 'scene']
+    scenes.sort(key=lambda loc: loc['offset'])
+    if scenes:
+        return scenes[0]['key']
     pool.sort(key=lambda loc: loc['offset'])
     return pool[0]['key'] if pool else None
 
@@ -663,21 +683,34 @@ def build_index(text, title=None):
         if loc and _location_name_ok(stripped) and (not stripped.endswith('.') or len(stripped) < 40):
             name = loc.group(2).strip().rstrip('.').replace('|', ' ')
             name = re.sub(r'\s+', ' ', name).strip()
-            heads.append(('location', off, loc.group(1).upper(), name, current))
+            heads.append(('location', off, _book_number(loc.group(1)), name, current))
             continue
-        # An unnumbered encounter heading (Road Ambush) that opens on read-aloud, before the
-        # numbered sites. Part 1 starts there, not at the first area number.
-        if (_encounter_heading(stripped) and current and 'appendix' not in (current or '').casefold()
-                and _read_aloud_follows(text, off + len(line) + 1)):
-            heads.append(('location', off, _slug(stripped), stripped, current))
+    from . import kit_scenes
+    scene_heads, checks, front = kit_scenes.collect(text, heads, chapters, page_of)
+    heads.extend(scene_heads)
+    heads.sort(key=lambda item: item[1])
     raw = []
     for i, (kind, off, key, name, chapter) in enumerate(heads):
-        if kind != 'location':
+        if kind not in ('location', 'scene'):
             continue
         end = heads[i + 1][1] if i + 1 < len(heads) else len(text)
+        if kind == 'scene':
+            meta = key
+            body_start = meta.get('body_at') or (text.index('\n', off) + 1 if '\n' in text[off:end] else end)
+            raw.append({'bare': meta.get('letter'), 'name': name, 'offset': off,
+                        'body': [body_start, meta.get('span', [body_start, end])[1]],
+                        'page': meta.get('page') or page_of(off), 'chapter': chapter,
+                        'site': meta.get('site') or _site_of(chapter), 'type': 'scene',
+                        'letter': meta.get('letter'), 'part_n': meta.get('part_n'),
+                        'relation': meta.get('relation'), 'anchor': meta.get('anchor'),
+                        'trigger': meta.get('trigger'), 'signals': meta.get('signals'),
+                        'score': meta.get('score'), 'confidence': meta.get('confidence'),
+                        'indent': meta.get('indent')})
+            continue
         body_start = text.index('\n', off) + 1 if '\n' in text[off:end] else end
         raw.append({'bare': key, 'name': name, 'offset': off, 'body': [body_start, end],
-                    'page': page_of(off), 'chapter': chapter, 'site': _site_of(chapter)})
+                    'page': page_of(off), 'chapter': chapter, 'site': _site_of(chapter),
+                    'type': 'room', 'number': key, 'part_n': kit_scenes._part_number(chapter)})
     # Carry the last real PART site forward so a body-bleed "chapter" does not orphan areas.
     last_site = ''
     for loc in raw:
@@ -692,9 +725,12 @@ def build_index(text, title=None):
     locations = {}
     for loc in raw:
         sites = bare_sites[loc['bare']]
+        # A scene is its own type (scene:site:A), never a room number and never 1a.
+        if loc.get('type') == 'scene':
+            key = 'scene:%s:%s' % (loc.get('site') or 'book', loc.get('letter'))
         # A known PART never leaves a bare int: hideout-1, not 1. A single-chapter book
         # with no PART keeps 1, 2, 3. A letter-spaced chapter is not a site.
-        if loc.get('site'):
+        elif loc.get('site'):
             key = loc['site'] + '-' + loc['bare']
         elif has_part_site and last_site:
             loc['site'] = last_site
@@ -718,32 +754,44 @@ def build_index(text, title=None):
         connections = []
         for m in AREA_REF_RE.finditer(span):
             sentence = _sentence_around(span, m.start())
+            if not _WAY_RE.search(sentence):
+                continue  # a mention of an area is not a way there
             target = _resolve_area(m.group(1), loc, sentence, by_site, unique)
             if target and target != key and target not in [c['to'] for c in connections]:
                 connections.append({'to': target, 'offset': loc['body'][0] + m.start(),
-                                    'quote': sentence, 'secret': bool(SECRET_RE.search(sentence))})
+                                    'quote': sentence, 'secret': bool(SECRET_RE.search(sentence)),
+                                    'explicit': True})
+        # An explicit way that names another place ("the path runs back to the road opening").
+        for other_key, other in locations.items():
+            if other_key == key:
+                continue
+            other_name = other.get('name') or ''
+            if len(other_name) < 4:
+                continue
+            found = re.search(re.escape(other_name), span, re.I)
+            if not found:
+                continue
+            sentence = _sentence_around(span, found.start())
+            if not _WAY_RE.search(sentence):
+                continue
+            if other_key not in [c['to'] for c in connections]:
+                connections.append({'to': other_key, 'offset': loc['body'][0] + found.start(),
+                                    'quote': sentence, 'secret': bool(SECRET_RE.search(sentence)),
+                                    'explicit': True})
         loc['connections'] = connections
         loc['creatures'] = _creatures(span, loc['body'][0], stat_blocks)
         loc['npcs'] = sorted({m.group(1) for m in NPC_RE.finditer(span) if m.group(1).split()[0] not in NOT_NPC})
         loc['read_aloud'] = any(line.lstrip().startswith('>') for line in span.split('\n'))
-    # Undirected within a site. A cross-site link stays one-way unless the quote named both.
-    for key, loc in locations.items():
-        for c in loc['connections']:
-            other = locations[c['to']]
-            if (loc.get('site') or '') != (other.get('site') or '') and not c.get('stated_in'):
-                # Forward edge was an explicit cross-site name; do not invent a back edge.
-                if (loc.get('site') or '').replace('_', ' ') not in (c.get('quote') or '').casefold():
-                    continue
-            back = other['connections']
-            if key not in [b['to'] for b in back]:
-                back.append({'to': key, 'offset': c['offset'], 'quote': c['quote'], 'secret': c['secret'],
-                             'stated_in': key})
+    # No inferred reverse. The other side's own text is the only way back.
     npcs = sorted({n for loc in locations.values() for n in loc['npcs']})
-    return {'version': INDEX_VERSION, 'title': _index_title(title, chapters),
-            'sha256': hashlib.sha256(text.encode('utf-8')).hexdigest(), 'chars': len(text),
-            'chapters': chapters, 'locations': locations, 'npcs': npcs, 'stat_blocks': stat_blocks,
-            'pages': pages, 'map_pages': [p['page'] for p in pages if p['needs_map_look']],
-            'start': _opening_start(chapters, locations)}
+    index = {'version': INDEX_VERSION, 'title': _index_title(title, chapters),
+             'sha256': hashlib.sha256(text.encode('utf-8')).hexdigest(), 'chars': len(text),
+             'chapters': chapters, 'locations': locations, 'npcs': npcs, 'stat_blocks': stat_blocks,
+             'pages': pages, 'map_pages': [p['page'] for p in pages if p['needs_map_look']],
+             'checks': checks, 'hook': front.get('hook') or '', 'book_says': front.get('book_says') or '',
+             'start': None}
+    index['start'] = _opening_start(chapters, locations)
+    return kit_scenes.finish(index, text)
 
 
 def _sentence_around(span, at):
@@ -852,6 +900,8 @@ def import_adventure(db, text=None, pdf=None, title=None, reader='auto'):
     (folder / 'rooms').mkdir(parents=True, exist_ok=True)
     (folder / 'source.txt').write_text(text, encoding='utf-8')
     _write_json(folder / 'index.json', index)
+    from . import kit_scenes
+    kit_scenes.write_side(folder, index)
     return {'stage': 'adventure_imported', 'title': index['title'], 'locations': len(index['locations']),
             'chapters': len(index['chapters']), 'npcs': len(index['npcs']),
             'stat_blocks_in_book': len(index['stat_blocks']), 'map_pages': index['map_pages'],
@@ -914,9 +964,20 @@ def draft_room(db, key, index, text):
         areas[side] = {'name': f'Outside {loc["name"]}', 'outside': True, 'beyond': True,
                        'room_link': {'room': str(room_file(db, c['to'])), 'area': f'to_{_slug(key)}',
                                      'adventure': {'db': str(db), 'location': c['to']}}}
+        here_words = set(re.findall(r'[a-z0-9]+', loc['name'].casefold()))
         aliases = []
-        for word in re.findall(r'[a-z]+', c['quote'].casefold()):
-            if word not in _ALIAS_SKIP and len(word) >= 3 and word not in aliases:
+        for word in re.findall(r'[a-z0-9]+', (other.get('name') or '').casefold()):
+            if word not in _ALIAS_SKIP and len(word) >= 3 and word not in here_words and word not in aliases:
+                aliases.append(word)
+        if other.get('type') == 'scene':
+            aliases.append('scene ' + str(other.get('letter') or '').lower())
+        else:
+            number = str(other.get('number') or other.get('bare') or '').lower()
+            if number:
+                aliases.append(number)
+                aliases.append('room ' + number)
+        for word in re.findall(r'[a-z0-9]+', c['quote'].casefold()):
+            if word not in _ALIAS_SKIP and len(word) >= 3 and word not in here_words and word not in aliases:
                 aliases.append(word)
         exits[f'way_{_slug(c["to"])}'] = {
             'name': f'the way to {other["name"]}', 'areas': [here, side], 'secret': c['secret'],
@@ -997,6 +1058,8 @@ def draft_room(db, key, index, text):
             'starting_area': here, 'areas': areas, 'exits': exits, 'facts': facts, 'actors': actors}
     if triggers:
         room['triggers'] = triggers
+    if re.search(r'\b(?:each time|whenever|every time)\b', text[start:end], re.I):
+        room['_repeatable'] = True
     sidecar = {'location': key, 'source_sha256': index['sha256'], 'fields': prov,
                'creatures': loc['creatures'],
                'ask_player': [c['name'] for c in loc['creatures'] if c['resolved'] == 'ask_player'],

@@ -370,6 +370,7 @@ class Runtime:
             'kit': {'episodes': [], 'current_appraisal': None, 'player_notes': []},
             'roll_seed': secrets.token_hex(16),
             'room': {'id': source.get('id'), 'path': str(room_path) if room_path else None, 'turns_in': {}},
+            'places': {},
         }
         from . import kit_judgment  # local: it imports this module's helpers
         seeded = kit_judgment.initial_state(source)
@@ -378,6 +379,8 @@ class Runtime:
             # state['judgment'] and a judgment_state event, not the file's booleans.
             state['judgment'] = seeded
         self._observe(state, source)
+        from . import kit_scenes
+        kit_scenes.enter_place(state, source.get('id'), bool(source.get('_repeatable')))
         with self.db:
             self.db.execute('INSERT INTO source VALUES (1, ?)', (encode(source),))
             self.db.execute('INSERT INTO snapshots VALUES (0, ?)', (encode(state),))
@@ -853,12 +856,13 @@ class Runtime:
         next_revision = self.commit(f'party-{digest}', revision, [event])
         return {'revision': next_revision, 'asks': self.load()[1]['party'][key]['asks']}
 
-    def restore_campaign(self, log, carried, pc_state=None, party=None):
+    def restore_campaign(self, log, carried, pc_state=None, party=None, places=None):
         """Apply a player save's public record (kit_resume) before the room's opening."""
         revision, _ = self.load()
         event = {'type': 'campaign_restore', 'log': log, 'carried': carried,
                  **({'pc_state': pc_state} if pc_state is not None else {}),
                  **({'party': party} if party else {}),
+                 **({'places': places} if places else {}),
                  'evidence': "The host resumed from the player's save."}
         digest = hashlib.sha256(f'{revision}:{encode(event)}'.encode()).hexdigest()[:16]
         return self.commit(f'restore-{digest}', revision, [event])
@@ -993,6 +997,12 @@ class Runtime:
             require(status in {'alive', 'unconscious', 'dead', 'fled'}, 'Unknown status')
             require(actor['status'] != 'dead' or status == 'dead', 'Resurrection needs a future explicit rules operation')
             actor['status'] = status
+            from . import kit_scenes
+            if status == 'dead':
+                kit_scenes.log_change(state, source.get('id'), 'dead', actor.get('name') or key, 'stays dead')
+            elif status == 'fled':
+                kit_scenes.log_change(state, source.get('id'), 'fled', actor.get('name') or key,
+                                      event.get('toward') or 'left')
             toward = event.get('toward')
             if toward is not None:
                 require(status == 'fled' and isinstance(toward, str) and re.match(r'^area_[0-9a-z_]+$', toward),
@@ -1327,6 +1337,12 @@ class Runtime:
                 state['party'] = copy.deepcopy(party)
             state['campaign_log'] = copy.deepcopy(log)
             state['carried'] = copy.deepcopy(carried)
+            places = event.get('places')
+            if places:
+                require(isinstance(places, dict) and len(places) <= 200, 'campaign_restore places is a small log')
+                state['places'] = copy.deepcopy(places)
+                from . import kit_scenes
+                kit_scenes.apply_actors(state, source)
         elif kind == 'campaign_facts':
             # Campaign-record canon (kit_canon): the same facts list the journal renders.
             # Bookkeeping, so it does not spend a player turn. Rooms already folded stay.
@@ -1335,6 +1351,13 @@ class Runtime:
                 kit_canon.apply_facts(state, event.get('facts'))
             except kit_canon.CanonError as exc:
                 require(False, str(exc))
+        elif kind == 'place_change':
+            from . import kit_scenes
+            change = event.get('change')
+            require(change in kit_scenes.CHANGE_KINDS, 'place_change kind is one of %s' % ', '.join(kit_scenes.CHANGE_KINDS))
+            require(isinstance(event.get('what'), str) and event.get('what').strip(),
+                    'place_change names what changed')
+            kit_scenes.log_change(state, source.get('id'), change, event['what'], event.get('detail') or '')
         elif kind == 'beat':
             tags = event.get('tags')
             require(isinstance(tags, list) and all(isinstance(t, str) for t in tags), 'Invalid beat tags')

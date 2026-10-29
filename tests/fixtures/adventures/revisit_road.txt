@@ -1,0 +1,22 @@
+PART 1: THE OPEN ROAD
+
+This short adventure is original synthetic text written for Kit. It is not from any published book.
+
+Road Opening
+> You walk a dry wagon road. A broken wheel blocks the ruts.
+A dry path runs on to the timber cave, area 1.
+
+1. Timber Cave
+> A timber cave opens in a sandy bank.
+The dry path runs back to the road opening.
+A ladder drops to area 2.
+
+2. Store Niche
+> Crates are stacked against the wall.
+The ladder climbs back to area 1.
+A passage runs to area 3.
+
+3. Inner Cell
+> One bandit stands by a shut door, a tin box at his feet.
+The passage leads back to area 2.
+The scouts in area 1 are only a mention, not a way.

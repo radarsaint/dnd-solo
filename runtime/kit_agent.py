@@ -5627,6 +5627,16 @@ def _opening_spoken(runtime, body):
         facts = [fact['text'] for fact in (source.get('facts') or {}).values()
                  if isinstance(fact, dict) and fact.get('visible') and fact.get('area') == area
                  and isinstance(fact.get('text'), str)]
+    from . import kit_scenes
+    try:
+        back = kit_scenes.revisit_view(runtime.load()[1], runtime.source().get('id'))
+    except (AttributeError, KeyError, TypeError):
+        back = None
+    if back:
+        spoken = back['narration']
+        if '?' not in spoken:
+            spoken += '\nKit: Where do you look, or what do you do?'
+        return spoken
     spoken = ' '.join(facts).strip()
     if spoken:
         if '?' not in spoken:
@@ -7254,6 +7264,12 @@ class KitChatBridge:
             if body.get('kind') == 'opening':
                 packet['shapes'] = FIELD_SHAPES
                 packet['play_card'] = play_card_text()
+            from . import kit_scenes
+            back = kit_scenes.revisit_view(self.runtime.load()[1], self.runtime.source().get('id'))
+            if back:
+                packet['place_now'] = back
+                packet['first_try'] = list(packet.get('first_try') or []) + [
+                    "Revisit: you're back. Narrate place_now (the changes only). Do not repeat the read-aloud."]
         manifest = {}
         if one_pass:
             self.runtime.save_kit_packet(turn_id, packet)  # in full, before layering, for rehydrate
@@ -7884,7 +7900,7 @@ def start_session(db, sheet_path=None, runtime=None, room=None, area=None, manif
         loaded = runtime.set_player_sheet(sheet)
         if restore:  # resume from the player's save (runtime/kit_resume.py)
             runtime.restore_campaign(restore['log'], restore['carried'], restore.get('pc_state'),
-                                     restore.get('party'))
+                                     restore.get('party'), restore.get('places'))
         if compact:
             kit_telemetry.set_packet_mode(runtime.path, 'compact')
         prepared = KitChatBridge(runtime, RoomAdjudicator(), manifests=manifests).prepare(
