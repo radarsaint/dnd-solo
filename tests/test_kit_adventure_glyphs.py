@@ -4,6 +4,7 @@ SEED pins the glyph map. No published book text. A per-glyph TJ array with a ToU
 CMap must come back as words, not 'T h e'. A letter-spaced PART title must not become a
 site, and a bare Yes must not speak 'The newcomer arrives' when read-aloud exists.
 """
+import json
 import re
 import tempfile
 import time
@@ -213,19 +214,23 @@ class Glyphs(unittest.TestCase):
         self.assertIn('trailhead', visible.lower())
         self.assertNotIn('DC 11', visible)
         started = start_session(self.db, NIK, room=report['start_room'])
-        runtime = Runtime(self.db)
-        self.addCleanup(runtime.close)
-        held = KitChatBridge(runtime, RoomAdjudicator(roll=lambda: 10)).try_prepare('Yes.', one_pass=True)
-        self.assertTrue(held.get('committed'))
-        self.assertIn('trailhead', held.get('spoken', '').lower())
-        self.assertNotIn('The newcomer arrives', held.get('spoken', ''))
-        self.assertNotIn('DC 11', held.get('spoken', ''))
-        self.assertNotIn('Armor Class', held.get('spoken', ''))
+        self.assertTrue(started.get('committed'))
+        self.assertTrue(started.get('character_loaded'))
+        self.assertEqual(started.get('opened_room'), started.get('room_id'))
+        spoken = started.get('spoken') or ''
+        self.assertIn('trailhead', spoken.lower())
+        self.assertNotIn('The newcomer arrives', spoken)
+        self.assertNotIn('DC 11', spoken)
+        self.assertNotIn('Armor Class', spoken)
 
-    def test_a_start_with_no_read_aloud_is_refused(self):
-        with self.assertRaises(kit_adventure.IngestError) as caught:
-            kit_adventure.ingest_adventure(self.folder / 'bare.sqlite', text=BARE)
-        self.assertIn('no player-visible read-aloud', ' '.join(caught.exception.problems))
+    def test_a_scene_without_boxed_text_still_opens_from_its_prose(self):
+        report = kit_adventure.ingest_adventure(self.folder / 'bare.sqlite', text=BARE)
+        room = json.loads(Path(report['start_room']).read_text(encoding='utf-8'))
+        visible = ' '.join(f['text'] for f in room['facts'].values() if f.get('visible'))
+        hidden = ' '.join(f['text'] for f in room['facts'].values() if not f.get('visible'))
+        self.assertIn('door leads', visible.lower())
+        self.assertIn('DC 15', hidden)
+        self.assertNotIn('DC 15', visible)
 
     def test_an_image_stream_is_not_inflated_on_the_way_to_the_text(self):
         data = image_and_text_pdf()

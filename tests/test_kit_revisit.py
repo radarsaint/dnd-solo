@@ -41,7 +41,8 @@ class Revisit(unittest.TestCase):
         self.addCleanup(self.runtime.close)
         self.bridge = KitChatBridge(self.runtime, RoomAdjudicator(roll=lambda: 10, npc_roll=lambda: 10),
                                     manifests=True)
-        self.bridge.prepare('Yes.', one_pass=True)
+        if not self.started.get('committed'):
+            self.bridge.prepare('Yes.', one_pass=True)
 
     def _commit(self, line):
         packet = self.bridge.prepare(line, one_pass=True)

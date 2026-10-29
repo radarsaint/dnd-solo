@@ -12,13 +12,14 @@ import json
 import tempfile
 import unittest
 import warnings
+import zlib
 from pathlib import Path
 
 import sys
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from runtime import kit_adventure  # noqa: E402
+from runtime import kit_adventure, kit_pdf  # noqa: E402
 from runtime.kit_agent import start_session  # noqa: E402
 from runtime.state_context import CONTEXT_BUDGET_BYTES  # noqa: E402
 
@@ -80,6 +81,81 @@ THE OLD SHRINE | THE MARKET
 The lane leads back to the red inn.
 """
 
+# Numbered encounters, no "1. Room" keys.
+ENCOUNTERS = """\
+PART 1: THE LESSON
+
+Encounter 1: The Gate
+A guard waits at a wooden gate. The path leads to encounter 2.
+
+Encounter 2: The Yard
+A clerk sits in the yard. The path leads back to encounter 1.
+
+Encounter 3: The Hall
+Benches line the hall. The path leads to encounter 4.
+
+Encounter 4: The Cellar
+A stair drops under the hall. The path leads back to encounter 3.
+"""
+
+# Travel and talk, in order, with no numbered places.
+JOURNEY = """\
+PART 1: THE JOURNEY
+
+The North Road
+The wagon rolls north along a rutted track. The track leads on to the river ferry.
+
+The River Ferry
+A ferryman waits at the bank. The track leads back to the north road.
+
+The Far Bank
+The far bank is quiet moss and stone. The track leads back to the river ferry.
+"""
+
+BLANK = """\
+PART 1: THE BLANK
+
+2. Bare Room
+"""
+
+
+def _street_pdf():
+    """Left column is the street. Right column is the keyed crawl. Same baseline."""
+    def esc(text):
+        return text.replace('\\', '\\\\').replace('(', '\\(').replace(')', '\\)')
+
+    rows = [
+        (36, 700, 'You stand on the village street as the shops close.'),
+        (36, 676, 'The inn is dark and the lane leads to area 1.'),
+        (340, 700, '1. The Gate'),
+        (340, 676, 'The gate is shut. The path leads to area 2.'),
+        (340, 640, '2. The Yard'),
+        (340, 616, 'A yard sits past the gate. The path leads back to area 1.'),
+    ]
+    stream = ''.join(
+        'BT /F1 12 Tf 1 0 0 1 %s %s Tm (%s) Tj ET\n' % (x, y, esc(text)) for x, y, text in rows
+    ).encode('latin-1')
+    raw = zlib.compress(stream)
+    out = bytearray(b'%PDF-1.4\n')
+    bodies = {
+        1: b'<< /Type /Catalog /Pages 2 0 R >>',
+        2: b'<< /Type /Pages /Kids [4 0 R] /Count 1 >>',
+        3: (b'<< /Filter /FlateDecode /Length %d >>\nstream\n' % len(raw)) + raw + b'\nendstream',
+        4: (b'<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 3 0 R '
+            b'/Resources << /Font << /F1 5 0 R >> >> >>'),
+        5: b'<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+    }
+    offsets = [0]
+    for num in range(1, 6):
+        offsets.append(len(out))
+        out += ('%d 0 obj\n' % num).encode('ascii') + bodies[num] + b'\nendobj\n'
+    xref = len(out)
+    out += b'xref\n0 6\n0000000000 65535 f \n'
+    for off in offsets[1:]:
+        out += ('%010d 00000 n \n' % off).encode('ascii')
+    out += ('trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n' % xref).encode('ascii')
+    return bytes(out)
+
 
 class ModuleLayout(unittest.TestCase):
     def setUp(self):
@@ -108,6 +184,10 @@ class ModuleLayout(unittest.TestCase):
         opened = start_session(str(self.db), str(NIK))
         self.assertEqual(opened.get('stage'), 'started')
         self.assertEqual((opened.get('character') or {}).get('name'), 'Nik')
+        self.assertTrue(opened.get('character_loaded'))
+        self.assertEqual(opened.get('opened_room'), opened.get('room_id'))
+        self.assertTrue(opened.get('committed'))
+        self.assertIn('wagon', (opened.get('spoken') or '').casefold())
         self.assertIn('road', (opened.get('room_id') or '').casefold())
 
     def test_a_town_hub_with_no_numbered_rooms_still_opens(self):
@@ -121,3 +201,65 @@ class ModuleLayout(unittest.TestCase):
         self.assertTrue(room.get('exits'), room.get('exits'))
         visible = ' '.join(fact.get('text') or '' for fact in room['facts'].values() if fact.get('visible'))
         self.assertIn('red inn', visible.casefold())
+
+    def test_numbered_encounters_open_without_keyed_rooms(self):
+        report = kit_adventure.ingest_adventure(self.db, text=ENCOUNTERS)
+        self.assertIn('1', str(report['start_location']))
+        index = json.loads((kit_adventure.folder_for(self.db) / 'index.json').read_text(encoding='utf-8'))
+        names = [(loc.get('name') or '').casefold() for loc in index['locations'].values()]
+        for place in ('gate', 'yard', 'hall', 'cellar'):
+            self.assertTrue(any(place in name for name in names), names)
+        room = json.loads(Path(report['start_room']).read_text(encoding='utf-8'))
+        self.assertTrue(room.get('facts'))
+        self.assertTrue(room.get('exits'))
+        opened = start_session(str(self.db), str(NIK))
+        self.assertEqual(opened.get('stage'), 'started')
+        self.assertTrue(opened.get('character_loaded'))
+        self.assertEqual(opened.get('opened_room'), opened.get('room_id'))
+        self.assertTrue(opened.get('committed'))
+        self.assertIn('gate', (opened.get('spoken') or '').casefold())
+
+    def test_a_linear_chain_of_scenes_opens(self):
+        report = kit_adventure.ingest_adventure(self.db, text=JOURNEY)
+        self.assertTrue(str(report['start_location']).startswith('scene:'), report['start_location'])
+        index = json.loads((kit_adventure.folder_for(self.db) / 'index.json').read_text(encoding='utf-8'))
+        names = [(loc.get('name') or '').casefold() for loc in index['locations'].values()]
+        self.assertTrue(any('north road' in name for name in names), names)
+        self.assertTrue(any('ferry' in name for name in names), names)
+        self.assertTrue(any('far bank' in name for name in names), names)
+        room = json.loads(Path(report['start_room']).read_text(encoding='utf-8'))
+        self.assertTrue(room.get('exits'))
+        opened = start_session(str(self.db), str(NIK))
+        self.assertTrue(opened.get('committed'))
+        self.assertTrue(opened.get('character_loaded'))
+        self.assertIn('wagon', (opened.get('spoken') or '').casefold())
+
+    def test_two_columns_keep_the_street_ahead_of_the_crawl(self):
+        data = _street_pdf()
+        text = kit_pdf.extract(data)['text']
+        self.assertLess(text.find('village street'), text.find('1. The Gate'))
+        self.assertNotIn('village street 1.', text.replace('\n', ' '))
+        path = self.db.parent / 'street.pdf'
+        path.write_bytes(data)
+        report = kit_adventure.ingest_adventure(self.db, pdf=path, reader='stdlib')
+        self.assertFalse(str(report.get('start_location') or '').endswith('-2'), report.get('start_location'))
+        room = json.loads(Path(report['start_room']).read_text(encoding='utf-8'))
+        visible = ' '.join(fact.get('text') or '' for fact in room['facts'].values() if fact.get('visible'))
+        self.assertIn('village street', visible.casefold())
+        self.assertTrue(room.get('facts'))
+        opened = start_session(str(self.db), str(NIK))
+        self.assertEqual(opened.get('opened_room'), opened.get('room_id'))
+        self.assertTrue(opened.get('character_loaded'))
+        self.assertTrue(opened.get('committed'))
+        self.assertIn('village street', (opened.get('spoken') or '').casefold())
+
+    def test_an_empty_room_is_never_staged(self):
+        report = kit_adventure.ingest_adventure(self.db, text=BLANK)
+        self.assertIsNone(report.get('start_room'))
+        self.assertTrue(report.get('places') or report.get('starts'))
+        opened = start_session(str(self.db), str(NIK))
+        self.assertEqual(opened.get('stage'), 'pick_start')
+        self.assertIsNone(opened.get('opened_room'))
+        self.assertFalse(opened.get('character_loaded'))
+        self.assertIn('places', (opened.get('table_line') or '').casefold())
+        self.assertTrue(opened.get('places'))

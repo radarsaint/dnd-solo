@@ -148,7 +148,8 @@ class Transition(Base):
         self.addCleanup(runtime.close)
         adjudicator = RoomAdjudicator(roll=lambda: 10, npc_roll=lambda: 10)
         bridge = KitChatBridge(runtime, adjudicator)
-        bridge.abandon(started['prepared']['turn_id'])
+        if not started.get('committed'):
+            bridge.abandon(started['prepared']['turn_id'])
         self.assertEqual(kit_lifecycle.status(self.db)['adventure']['adventure_readiness'], 'campaign_playable')
 
         def step(line):
@@ -239,7 +240,8 @@ class Combatants(Base):
         runtime = Runtime(self.db)
         self.addCleanup(runtime.close)
         adjudicator = RoomAdjudicator(roll=lambda: 10, npc_roll=lambda: 10, source=runtime.source())
-        KitChatBridge(runtime, adjudicator).abandon(started['prepared']['turn_id'])
+        if not started.get('committed'):
+            KitChatBridge(runtime, adjudicator).abandon(started['prepared']['turn_id'])
 
         def act(line):
             revision, state = runtime.load()

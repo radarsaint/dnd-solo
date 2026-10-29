@@ -166,12 +166,10 @@ class OpeningAndExits(unittest.TestCase):
         scene = kit_adventure.choose_start(db, 'A')
         self.assertTrue(scene['location'].endswith(':A'))
         started = start_session(db, 'tests/fixtures/characters/nik.json', room=report['start_room'])
-        runtime = Runtime(db)
-        self.addCleanup(runtime.close)
-        bridge = KitChatBridge(runtime, RoomAdjudicator(roll=lambda: 10, npc_roll=lambda: 10))
-        done = bridge.prepare('Yes.', one_pass=True)
-        self.assertTrue(done.get('committed'))
-        self.assertIn('wagon', done['spoken'].lower() + ' ' + (done.get('public_event') or '').lower())
+        self.assertTrue(started.get('committed'))
+        self.assertTrue(started.get('character_loaded'))
+        self.assertEqual(started.get('opened_room'), started.get('room_id'))
+        self.assertIn('wagon', (started.get('spoken') or '').lower())
 
     def test_a_bell_in_the_path_sentence_is_not_an_exit(self):
         raw = (

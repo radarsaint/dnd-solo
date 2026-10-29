@@ -63,7 +63,8 @@ class FewestCalls(unittest.TestCase):
         self.assertIn('one prepare', packet['per_turn'])
 
     def test_a_bad_manifest_is_rejected_with_a_pasteable_fix(self):
-        self.bridge.prepare('Yes.', one_pass=True)
+        if not self.started.get('committed'):
+            self.bridge.prepare('Yes.', one_pass=True)
         packet = self.bridge.prepare('I look around the landing.', 't1', one_pass=True)
         from tests.test_kit_agent import RecordingModel
         plan = RecordingModel().plan(packet['input']['private'])
@@ -93,7 +94,7 @@ class FewestCalls(unittest.TestCase):
         self.assertIsNotNone(kit_voice.parse_mirror(caught.exception.fix['public_brief.mirror']))
 
     def test_yes_speaks_the_read_aloud_and_hands_the_floor_back(self):
-        done = self.bridge.prepare('Yes.', one_pass=True)
+        done = self.started if self.started.get('committed') else self.bridge.prepare('Yes.', one_pass=True)
         self.assertTrue(done.get('committed'))
         spoken = done['spoken']
         self.assertIn('rope bell', spoken)
@@ -102,7 +103,8 @@ class FewestCalls(unittest.TestCase):
         self.assertNotIn('The newcomer arrives', spoken)
 
     def test_area_change_stays_a_delta_and_does_not_bounce_the_room(self):
-        self.bridge.prepare('Yes.', one_pass=True)
+        if not self.started.get('committed'):
+            self.bridge.prepare('Yes.', one_pass=True)
 
         def commit(line):
             packet = self.bridge.prepare(line, one_pass=True)

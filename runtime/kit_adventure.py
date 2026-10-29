@@ -49,7 +49,14 @@ READINESS = ('none', 'source_available', 'location_executable', 'campaign_playab
 CHAPTER_RE = re.compile(r'^(?:(?:chapter|part)\s+[\w-]+|appendix(?:\s+[\w-]+)?)\s*[:.\-]?\s*(.*)$', re.I)
 # "1. Mill Yard", "Area 3: The Cellar", "A2. Gatehouse", "12b. Loft"
 LOCATION_RE = re.compile(r'^(?:area\s+)?([A-Z]?\d{1,3}[a-z]?)\s*[.:]\s+([A-Z][^\n]{1,70})$', re.I)
-AREA_REF_RE = re.compile(r'\b(?:areas?|locations?|room)\s+([A-Z]?\d{1,3}[a-z]?)\b', re.I)
+AREA_REF_RE = re.compile(
+    r'\b(?:areas?|locations?|room|encounters?|sections?|scenes?)\s+([A-Z]?\d{1,3}[a-z]?)\b', re.I)
+# "Encounter 1: The Gate", "Section 2. The Docks", "Scene 3". Not only "1. Mill Yard".
+_LABELED_RE = re.compile(
+    r'^(encounter|scene|section)\s+([A-Z]?\d{1,3}[a-z]?)\b(?:\s*[:.\-]\s*([^\n]{0,70}))?\s*$',
+    re.I)
+_KEEP_HIDDEN = re.compile(
+    r'\bDC\s*\d+\b|\b(?:secret|hidden|concealed)\b|\b(?:do not|don\'t) (?:tell|read)\b', re.I)
 # A way you can take. A mention ("the scouts in area 2") is not an exit, and a reverse
 # exit is never invented from the far side's sentence.
 _EXIT_NOUNS = frozenset(
@@ -806,6 +813,15 @@ def build_index(text, title=None):
             name = re.sub(r'\s+', ' ', name).strip()
             heads.append(('location', off, _book_number(loc.group(1)), name, current))
             continue
+        labeled = _LABELED_RE.match(stripped)
+        if labeled and not _toc_line(stripped):
+            number = _book_number(labeled.group(2))
+            name = (labeled.group(3) or '').strip().rstrip('.')
+            name = re.sub(r'\s+', ' ', name.replace('|', ' ')).strip()
+            if len(name) < 2:
+                name = labeled.group(1).title() + ' ' + number
+            heads.append(('location', off, number, name, current))
+            continue
     scene_heads, checks, front = kit_scenes.collect(text, heads, chapters, page_of, listed)
     heads.extend(scene_heads)
     heads.sort(key=lambda item: item[1])
@@ -816,7 +832,8 @@ def build_index(text, title=None):
         end = heads[i + 1][1] if i + 1 < len(heads) else len(text)
         if kind == 'scene':
             meta = key
-            body_start = meta.get('body_at') or (text.index('\n', off) + 1 if '\n' in text[off:end] else end)
+            body_start = meta['body_at'] if meta.get('body_at') is not None else (
+                text.index('\n', off) + 1 if '\n' in text[off:end] else end)
             raw.append({'bare': meta.get('letter'), 'name': name, 'offset': off,
                         'body': [body_start, meta.get('span', [body_start, end])[1]],
                         'page': meta.get('page') or page_of(off), 'chapter': chapter,
@@ -1031,7 +1048,7 @@ def import_adventure(db, text=None, pdf=None, title=None, reader='auto'):
     text = prepare_source(text)
     index = build_index(text, title)
     if not index['locations']:
-        raise IngestError(['no keyed locations found (headings like "1. Mill Yard" or "Area 3: Cellar")'])
+        raise IngestError(['no places found (a numbered area, or an Encounter, Scene, or Section heading)'])
     folder = folder_for(db)
     (folder / 'rooms').mkdir(parents=True, exist_ok=True)
     (folder / 'source.txt').write_text(text, encoding='utf-8')
@@ -1079,6 +1096,17 @@ def _split(span, base):
                 if len(s) > 1:
                     target.append((base + at + inner + m.start() + lead, s))
         at += len(line) + 1
+    # Boxed read-aloud is optional. When the book doesn't mark any, the scene's own
+    # sentences are what a player can hear. A DC or a secret stays hidden.
+    if not read and dm:
+        shown, kept = [], []
+        for item in dm:
+            if _KEEP_HIDDEN.search(item[1]):
+                kept.append(item)
+            else:
+                shown.append(item)
+        if shown:
+            read, dm = shown, kept
     return read, dm
 
 
@@ -1129,7 +1157,7 @@ def draft_room(db, key, index, text):
     if len(read) > VISIBLE_MAX:
         flags.append(f'{len(read) - VISIBLE_MAX} read-aloud sentences left out (cap {VISIBLE_MAX})')
     if not read:
-        flags.append('no read-aloud text found: nothing in this location is player-visible until Kit reveals it')
+        flags.append('no boxed read-aloud: the scene\'s own sentences are what the player hears')
     used = 0
     for n, (off, sentence) in enumerate(dm, 1):
         cut = _cut(sentence)
@@ -1246,7 +1274,9 @@ def validate(room, sidecar, index, text):
         if fact.get('area') != 'here':
             problems.append(f'fact {key} must sit in this location')
         if fact.get('visible') and quote and quote not in flat_read:
-            problems.append(f'fact {key} is visible but quotes DM-only text (secrets stay hidden)')
+            # No boxed read-aloud: the scene's own sentences may be spoken. A secret may not.
+            if quote not in flat or _KEEP_HIDDEN.search(quote):
+                problems.append(f'fact {key} is visible but quotes DM-only text (secrets stay hidden)')
         body = _norm(str(fact.get('text', '')).rstrip('…'))
         if quote and body and body not in quote and not _words_from(body, quote):
             problems.append(f'fact {key} text says more than its quote')
@@ -1366,6 +1396,15 @@ def compile_location(db, key, draft=None, neighbours=True):
             'ask_player': sidecar.get('ask_player', []), 'flags': sidecar.get('flags', []), **readiness(db)}
 
 
+def room_is_empty(room):
+    """A compiled room with no text and no way out. Never stage one."""
+    facts = (room or {}).get('facts') or {}
+    exits = (room or {}).get('exits') or {}
+    texts = [fact.get('text') for fact in facts.values()
+             if isinstance(fact, dict) and str(fact.get('text') or '').strip()]
+    return not texts and not exits
+
+
 def ingest_adventure(db, text=None, pdf=None, title=None, reader='auto'):
     """One host step: a PDF or pasted text -> the private index and the first scene.
 
@@ -1383,21 +1422,35 @@ def ingest_adventure(db, text=None, pdf=None, title=None, reader='auto'):
         text, how = read_pdf(pdf, reader=reader)
     report = import_adventure(db, text=text, title=title)
     ingest_ms = round((time.perf_counter() - clock) * 1000, 3)
-    compiled = compile_location(db, report['start_location'], neighbours=False)
-    room_body = _read_json(compiled['room'])
-    visible = [fact for fact in (room_body.get('facts') or {}).values()
-               if isinstance(fact, dict) and fact.get('visible') and str(fact.get('text') or '').strip()]
-    if not visible:
+    try:
+        compiled = compile_location(db, report['start_location'], neighbours=False)
+    except IngestError:
+        compiled = None
+    room_body = _read_json(compiled['room']) if compiled else {}
+    if compiled and room_is_empty(room_body):
         Path(compiled['room']).unlink()
         side = Path(compiled['room']).with_suffix('.provenance.json')
         if side.is_file():
             side.unlink()
-        raise IngestError(['the first scene has no player-visible read-aloud; refusing an opening that would '
-                           'only say "The newcomer arrives". Mark the boxed, italic, or indented text, '
-                           'or pass text whose read-aloud lines start with "> "'])
+        compiled = None
     import shlex
     q = shlex.quote(str(db))
-    room = shlex.quote(compiled['room'])
+    room = shlex.quote(compiled['room']) if compiled else ''
+    places = _read_json(folder_for(db) / 'index.json').get('starts') or []
+    if not compiled:
+        return {
+            'stage': 'adventure_ingested', 'reader': how, 'title': report['title'],
+            'locations': report['locations'], 'chapters': report['chapters'],
+            'start_location': None, 'start_room': None, 'starts': places, 'places': places,
+            'opened_room': None, 'character_loaded': False, 'committed': False,
+            'table_line': ('I couldn\'t open a scene from that book. Here are the places I found. '
+                           'Tell me which one to start.'),
+            'ingest_ms': ingest_ms,
+            'source_bytes': (folder_for(db) / 'source.txt').stat().st_size,
+            'index_bytes': (folder_for(db) / 'index.json').stat().st_size,
+            'next_command': f'python3 -m runtime.kit_agent start --db {q} --sheet <sheet.json>',
+            **readiness(db),
+        }
     return {
         'stage': 'adventure_ingested', 'reader': how, 'title': report['title'],
         'locations': report['locations'], 'chapters': report['chapters'],

@@ -7903,7 +7903,13 @@ class KitChatBridge:
         e.g. when a fixed decision keeps producing rejected performances. The room entry is
         prepared again as the room entry; the room never has to restart."""
         opening = self._is_opening(turn_id)
-        self.runtime.discard_pending_kit_turn(turn_id)
+        try:
+            self.runtime.discard_pending_kit_turn(turn_id)
+        except InvalidChange:
+            if self.runtime.committed_kit_turn(turn_id):
+                return {'stage': 'committed', 'turn_id': turn_id, 'committed': True,
+                        'next_step': 'That turn is already committed. Show spoken. Do not draft it again.'}
+            raise
         self.runtime.record_kit_timing(turn_id, outcome='abandoned', abandoned_at=time.time())
         return {'stage': 'abandoned', 'turn_id': turn_id, 'committed': False,
                 'next_step': (OPENING_REPREPARE if opening else
@@ -8077,6 +8083,9 @@ def start_session(db, sheet_path=None, runtime=None, room=None, area=None, manif
             kit_telemetry.set_packet_mode(db, 'compact')  # resuming a save: compact from here on
         return entry
     source = kit_rooms.load_room(room)
+    from . import kit_adventure
+    if kit_adventure.room_is_empty(source):
+        return kit_campaign.place_picker(db)
     if area is not None and area not in source['areas']:
         raise kit_rooms.RoomMountError(room, [f'no area {area!r} in this room'])
     own = runtime is None
@@ -8103,13 +8112,14 @@ def start_session(db, sheet_path=None, runtime=None, room=None, area=None, manif
                                      restore.get('party'), restore.get('places'))
         if compact:
             kit_telemetry.set_packet_mode(runtime.path, 'compact')
-        prepared = KitChatBridge(runtime, RoomAdjudicator(), manifests=manifests).prepare(
-            opening=True, one_pass=True)
+        bridge = KitChatBridge(runtime, RoomAdjudicator(), manifests=manifests)
+        prepared = bridge.prepare(opening=True, one_pass=True)
         turn = prepared['turn_id']
-        return {
+        opened = {
             'stage': 'started', 'db': str(db), 'character': loaded['character'],
             'sheet': str(path), 'example_sheet': not sheet_path,
             'room_id': source.get('id'), 'room': str(room),
+            'opened_room': source.get('id'), 'character_loaded': True,
             # The packet before next_step: next_step names this turn's id, and volatile text
             # ahead of the stable session manifest would break a provider's prefix cache.
             'prepared': prepared,
@@ -8124,6 +8134,15 @@ def start_session(db, sheet_path=None, runtime=None, room=None, area=None, manif
                              'to every output; a "cached" manifest is the copy you were sent earlier '
                              '(rehydrate --turn-id T if you lost it).' if manifests else '')),
         }
+        # An ingested book speaks its own opening. The host does not draft it.
+        if str(source.get('id') or '').startswith('adv-'):
+            done = bridge._commit_pending_opening(turn, '[scene entry]')
+            opened.update(spoken=done.get('spoken'), committed=True, turn_id=turn,
+                          public_event=done.get('public_event'))
+            opened['next_step'] = ('Show spoken. The opening is already committed. Do not draft it. '
+                                   'Later turns: prepare the player\'s words, then complete unless prepare '
+                                   'already returned spoken.')
+        return opened
     finally:
         if own:
             runtime.close()

@@ -387,6 +387,16 @@ def collect(text, heads, chapters, page_of, listed=None):
             playable = False
         if playable and inside and found['indent'] < 2 and 'outside_heading' not in signals:
             playable = False
+        # A part with no numbered areas is a chain of places. An Encounter, Scene, or
+        # Section heading is a place even when the book never boxes the read-aloud.
+        explicit = found['kind'] in ('encounter', 'scene', 'section') or bool(
+            re.match(r'^(?:encounter|scene|section)\b', found['name'], re.I))
+        numbered = any(room.get('chapter') == title for room in rooms)
+        prose = (len(body.strip()) >= BODY_MIN
+                 and not re.search(r'(?:armor|armour)\s+class', body, re.I))
+        if not playable and not inside and prose and len(found['name'].split()) >= 2 and (
+                explicit or not numbered):
+            playable = True
         anchor, relation = _relation(found['offset'], found['indent'], body, rooms, title, 'travel_event' in signals)
         raw.append({
             'offset': found['offset'], 'body_at': found['end'] + 1 if found['end'] < len(text) else found['end'],
@@ -490,7 +500,9 @@ def _preamble_scenes(text, chapters, rooms, seen, page_of):
         if any(start <= off < first['offset'] for off in seen):
             continue
         body = text[start:first['offset']]
-        body = re.sub(r'^[^\n]*', '', body, count=1)
+        # Drop the part heading line only. With no part heading, the lead-in itself is the body.
+        if chapter:
+            body = re.sub(r'^[^\n]*', '', body, count=1)
         if len(re.sub(r'\s+', '', body)) < BODY_MIN:
             continue
         if _DM.match(body.strip()):
@@ -499,7 +511,10 @@ def _preamble_scenes(text, chapters, rooms, seen, page_of):
             _fragment(_core(line.strip().lstrip('>').strip())[0])
             for line in body.splitlines() if line.strip())
         signals = _signals_in(body, has_head, False)
-        if len(signals) < PROMOTE_SIGNALS or _score(signals) < PROMOTE_SCORE:
+        # A lead-in that speaks to the player ("you stand on the street") is the opening
+        # even when it is the only signal. A contents blurb with no second person is not.
+        lead_in = 'read_aloud' in signals and len(body.strip()) >= BODY_MIN
+        if not lead_in and (len(signals) < PROMOTE_SIGNALS or _score(signals) < PROMOTE_SCORE):
             continue
         name = 'Opening'
         for line in body.splitlines():

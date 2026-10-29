@@ -67,8 +67,16 @@ def campaign_entry(db, sheet_path=None, rooms_dir=None, campaign=None, intent=No
         default = next((item for item in executable
                         if item.get('ingested') and item.get('default') and item.get('path')), None)
         if default:
-            from .kit_agent import start_session
-            return start_session(str(db), sheet_path, room=default['path'], manifests=True, table=table)
+            try:
+                source = kit_rooms.load_room(default['path'])
+            except kit_rooms.RoomMountError:
+                source = None
+            from . import kit_adventure
+            if source and not kit_adventure.room_is_empty(source):
+                from .kit_agent import start_session
+                return start_session(str(db), sheet_path, room=default['path'], manifests=True, table=table)
+        if any(item.get('ingested') for item in executable):
+            return place_picker(db)
     if campaign is None:
         from . import kit_resume  # local: kit_resume imports this module's callers
         return _greeting(sheet_path, executable, blocked, kit_resume.find_saves(saves_db or db))
@@ -326,6 +334,30 @@ def _greeting(sheet_path, executable, blocked, saves=()):
                'Open one with start --start <pick> --sheet <file>, or start --room <path> --sheet <file>. '
                'A sheet is required; without it the room does not open.'
                if any(item.get('ingested') for item in executable) else '')),
+    }
+
+
+def place_picker(db):
+    """A book was ingested but no scene can open. List the places. Do not stage an empty room."""
+    places = []
+    try:
+        from . import kit_adventure
+        index, _text = kit_adventure._load(db)
+    except Exception:
+        index = None
+    if index:
+        for item in index.get('starts') or []:
+            places.append({'pick': item.get('pick'), 'line': item.get('line'), 'id': item.get('id')})
+    return {
+        'stage': 'pick_start',
+        'committed': False,
+        'opened_room': None,
+        'character_loaded': False,
+        'places': places,
+        'executable_starts': places,
+        'table_line': ('I couldn\'t open a scene from that book. Here are the places I found. '
+                       'Tell me which one to start.'),
+        'next_step': 'Say table_line. List places. When they pick one, run start --start <pick> --sheet <file>.',
     }
 
 

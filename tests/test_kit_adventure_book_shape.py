@@ -246,11 +246,10 @@ class BookShape(unittest.TestCase):
         self.assertNotIn('DC ', visible)
         self.assertNotIn('impassable', visible.lower())
         started = start_session(self.db, NIK, room=report['start_room'])
-        runtime = Runtime(self.db)
-        self.addCleanup(runtime.close)
-        held = KitChatBridge(runtime, RoomAdjudicator(roll=lambda: 10)).try_prepare('Yes.', one_pass=True)
-        self.assertTrue(held.get('committed'))
-        spoken = held.get('spoken') or ''
+        self.assertTrue(started.get('committed'))
+        self.assertTrue(started.get('character_loaded'))
+        self.assertEqual(started.get('opened_room'), started.get('room_id'))
+        spoken = started.get('spoken') or ''
         self.assertIn('cave', spoken.lower())
         self.assertNotIn('The newcomer arrives', spoken)
         self.assertGreaterEqual(len(re.findall(r"[A-Za-z']+", spoken)), 12)
