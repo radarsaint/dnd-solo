@@ -182,6 +182,7 @@ class S5ACheckRequestIsKitsCall(Stalls):
         packet = self.bridge.prepare('Could I make a Perception check?', 'c', one_pass=True)
         ask = packet['input']['private']['check_request']
         self.assertIn('Kit decides', ask['rule'])
+        self.assertIn('Feet or the door', ask['rule'])
         self.assertEqual(ask['player_named'], 'perception')  # a request, never the call
 
     def answer(self, turn, **update):
@@ -257,8 +258,11 @@ class S7WatchAndAskKeepsEveryIntent(Stalls):
         for line, parts in self.LINES:
             with self.subTest(line):
                 result = self.resolve(self.runtime, line)
+                evidence = ' '.join(event.get('evidence') or '' for event in result.events)
                 for part in parts:
-                    self.assertIn(part, result.public_event)
+                    self.assertIn(part, evidence)
+                self.assertNotIn('You search: "', result.public_event)
+                self.assertNotIn('You try: "', result.public_event)
                 self.assertFalse([e for e in result.events if e.get('type') in ('move', 'reveal_fact')])
 
     def test_a_declared_grab_is_still_a_physical_act(self):

@@ -41,7 +41,7 @@ from pathlib import Path
 
 INDEX_VERSION = 1
 MAP_PAGE_MAX_CHARS = 200     # a page with less text than this is treated as mostly map/image
-FACT_MAX_CHARS = 400         # one fact's text; longer sentences are cut at a word boundary
+FACT_MAX_CHARS = 400         # prefer a fact under this; a sentence is never cut in half
 HIDDEN_BUDGET_BYTES = 6000   # well under kit_rooms.DM_ONLY_ROOM_MAX_BYTES; the rest is flagged
 VISIBLE_MAX = 12
 READINESS = ('none', 'source_available', 'location_executable', 'campaign_playable')
@@ -49,7 +49,23 @@ READINESS = ('none', 'source_available', 'location_executable', 'campaign_playab
 CHAPTER_RE = re.compile(r'^(?:(?:chapter|part)\s+[\w-]+|appendix(?:\s+[\w-]+)?)\s*[:.\-]?\s*(.*)$', re.I)
 # "1. Mill Yard", "Area 3: The Cellar", "A2. Gatehouse", "12b. Loft"
 LOCATION_RE = re.compile(r'^(?:area\s+)?([A-Z]?\d{1,3}[a-z]?)\s*[.:]\s+([A-Z][^\n]{1,70})$', re.I)
-AREA_REF_RE = re.compile(r'\b(?:areas?|locations?|room)\s+([A-Z]?\d{1,3}[a-z]?)\b', re.I)
+AREA_REF_RE = re.compile(
+    r'\b(?:areas?|locations?|room|encounters?|sections?|scenes?)\s+([A-Z]?\d{1,3}[a-z]?)\b', re.I)
+# "Encounter 1: The Gate", "Section 2. The Docks", "Scene 3". Not only "1. Mill Yard".
+_LABELED_RE = re.compile(
+    r'^(encounter|scene|section)\s+([A-Z]?\d{1,3}[a-z]?)\b(?:\s*[:.\-]\s*([^\n]{0,70}))?\s*$',
+    re.I)
+_KEEP_HIDDEN = re.compile(
+    r'\bDC\s*\d+\b|\b(?:secret|hidden|concealed)\b|\b(?:do not|don\'t) (?:tell|read)\b', re.I)
+# A way you can take. A mention ("the scouts in area 2") is not an exit, and a reverse
+# exit is never invented from the far side's sentence.
+_EXIT_NOUNS = frozenset(
+    'path door doors ladder ladders stair stairs tunnel tunnels passage passages trail track '
+    'lane hatch gate gates bridge road roads way steps'.split())
+_WAY_RE = re.compile(
+    r'\b(?:leads?|leading|path|paths|door|doors|ladder|ladders|stair|stairs|tunnel|tunnels|'
+    r'passage|passages|climbs?|runs?|return|returns|crosses?|crossing|drops?|trail|track|'
+    r'lane|hatch|gate|gates|bridge|heads?)\b', re.I)
 STAT_HEAD_RE = re.compile(r'^([A-Z][A-Za-z\' -]{1,40})\n(?:[^\n]*\n){0,2}armor class\s+\d+', re.I | re.M)
 SEE_RE = re.compile(r'\(see (?:the )?([^)]{2,60}?)(?:\'s)? (?:stat block|statistics|in the [^)]*|appendix[^)]*)\)', re.I)
 # "a marsh hag (see the Monster Manual)": a creature the book points elsewhere for.
@@ -57,6 +73,9 @@ ELSEWHERE_RE = re.compile(r'\b(?:a|an|the|one|two|three|four|five|six|\d+)\s+([a
                           r'\(see (?:the )?(?:monster manual|mm|bestiary|core rules)[^)]*\)', re.I)
 NPC_RE = re.compile(r'\b([A-Z][a-z]+(?: [A-Z][a-z]+)?), (?:a|an|the) ((?:[a-z]+ ){0,3}[a-z]+)')
 SECRET_RE = re.compile(r'\b(secret|hidden|concealed)\b', re.I)
+_ALIAS_SKIP = frozenset(
+    'the a an to of into and way back out area areas room rooms from with that this they them '
+    'you your'.split())
 SENTENCE_RE = re.compile(r'[^.!?]+[.!?]+(?:["\')\]]+)?|[^.!?]+$')
 NOT_NPC = {'The', 'This', 'That', 'These', 'Those', 'If', 'When', 'Each', 'Any', 'Its', 'His', 'Her', 'A', 'An', 'However'}
 
@@ -268,8 +287,7 @@ _DM_SECTION_RE = re.compile(
     r'adjusting|xp awards|setup|background)\b', re.I)
 _SECOND_PERSON_RE = re.compile(r'\b(?:you|your|yours)\b', re.I)
 _BODY_CHAPTER_RE = re.compile(
-    r'(?:provides the characters|cannot be removed|see the|scrolls in his|'
-    r'appendix a\)|part\s+\d+,|wave echo cave\.\)")', re.I)
+    r'part\s+\d+\s*,|appendix\s+[a-z]\)', re.I)
 
 
 def _location_name_ok(stripped):
@@ -409,14 +427,107 @@ def mark_read_aloud(text):
     return '\f'.join(pages)
 
 
+def _book_number(raw):
+    """Keep the book's number: 1, 1a, A2. A trailing letter stays lower so 1a is not scene A."""
+    match = re.match(r'^([A-Za-z]?)(\d+)([A-Za-z]?)$', (raw or '').strip())
+    if not match:
+        return (raw or '').upper()
+    return match.group(1).upper() + match.group(2) + match.group(3).lower()
+
+
+def _unwrap_line(line):
+    """A running header glued on with a bar or a dash rule is not part of the heading.
+
+    'AMBUSH ON THE ROAD | PART 1: THE LONG ROAD' is the encounter. 'THE RED INN | THE MARKET'
+    is the inn. A part heading that itself matches stays a part heading.
+    """
+    stripped = line.strip()
+    if not stripped:
+        return line
+    cleaned = re.sub(r'\s*-{4,}.*$', '', stripped).strip()
+    if '|' not in cleaned:
+        return cleaned if cleaned != stripped else line
+    if CHAPTER_RE.match(cleaned):
+        return re.sub(r'\s+', ' ', cleaned.replace('|', ' ')).strip()
+    sides = [part.strip() for part in cleaned.split('|') if part.strip()]
+    kept = []
+    for part in sides:
+        words = part.split()
+        if CHAPTER_RE.match(part) or re.fullmatch(r'[\d ]+', part):
+            continue
+        if len(words) <= 2 and part.isupper() and len(part) < 24:
+            continue
+        kept.append(part)
+    if not kept:
+        return sides[0] if sides else cleaned
+    return kept[0]
+
+
+def _unwrap_headers(text):
+    """Split a running header off the line it was glued to. Page breaks stay put."""
+    pages = []
+    for page in text.split('\f'):
+        pages.append('\n'.join(_unwrap_line(line) for line in page.split('\n')))
+    return '\f'.join(pages)
+
+
+def _starts_block(line):
+    """A heading or a boxed line starts its own block. A wrapped sentence does not."""
+    stripped = line.strip()
+    if not stripped or stripped.startswith('>'):
+        return True
+    if CHAPTER_RE.match(stripped) or LOCATION_RE.match(stripped) or _LABELED_RE.match(stripped):
+        return True
+    if len(stripped) <= 60 and stripped[:1].isupper() and len(stripped.split()) <= 8 and stripped[-1] not in '.?!':
+        return True
+    return False
+
+
+def _join_wrapped(text):
+    """Mend a word split by a hyphen at a line end, and join a wrapped sentence.
+
+    A heading stays on its own line. A sentence is not left cut at the wrap.
+    """
+    text = text.replace('\u00ad', '')
+    pages = []
+    for page in text.split('\f'):
+        lines = page.split('\n')
+        out = []
+        i = 0
+        while i < len(lines):
+            line = lines[i]
+            if not line.strip():
+                out.append(line)
+                i += 1
+                continue
+            while i + 1 < len(lines) and lines[i + 1].strip() and not _starts_block(lines[i + 1]):
+                nxt = lines[i + 1].strip()
+                bare = line.rstrip()
+                if bare.endswith('-') and nxt[:1].isalpha():
+                    line = bare[:-1] + nxt
+                elif bare and bare[-1] not in '.?!>' and nxt[:1].islower():
+                    line = bare + ' ' + nxt
+                else:
+                    break
+                i += 1
+            out.append(line)
+            i += 1
+        pages.append('\n'.join(out))
+    return '\f'.join(pages)
+
+
 def prepare_source(text):
     """Running headers off, read-aloud marked. The index and the saved source are this text."""
     text = text.replace('\r\n', '\n').replace('\r', '\n')
-    return mark_read_aloud(strip_running_matter(text))
+    text = _join_wrapped(text)
+    text = _unwrap_headers(text)
+    text = mark_read_aloud(strip_running_matter(text))
+    from . import kit_scenes
+    return kit_scenes.mark_scene_lines(text)
 
 
 def _strip_toc_bleed(title):
-    """A contents entry ('4. Goblin Arrows .... 5') is not the adventure's name."""
+    """A contents entry ('4. North Watch .... 5') is not the adventure's name."""
     title = re.sub(r'\s*\.{2,}.*$', '', title or '').strip()
     title = re.sub(r'\s{2,}\d{1,3}$', '', title).strip()
     return title
@@ -448,20 +559,43 @@ def _site_of(title):
     name = _strip_toc_bleed(name)
     name = re.sub(r'\s+', ' ', name).strip()
     fold = name.casefold()
-    # OCR: Phandalin split or Ll-for-li
-    fold = fold.replace('phan dalln', 'phandalin').replace('phandalln', 'phandalin')
-    fold = fold.replace('phan_dalln', 'phandalin')
     if not _readable_heading(name) and not _readable_heading(fold):
         return ''
-    slug = _slug(fold)[:24]
-    return slug.replace('phan_dalln', 'phandalin')
+    return _slug(fold)[:24]
 
 
-def _index_title(title, chapters):
+def _front_title(text, chapters):
+    """The book's own name, the heading before the first part. A part title is not the book."""
+    if not text or not chapters:
+        return ''
+    front = text[:chapters[0]['offset']]
+    for line in front.splitlines():
+        stripped = re.sub(r'\s+', ' ', line).strip()
+        if not stripped or stripped.startswith('>') or len(stripped) > 70:
+            continue
+        if stripped[:1].isdigit() or stripped.endswith(('.', '!', '?')):
+            continue
+        if _toc_line(stripped) or LOCATION_RE.match(stripped) or CHAPTER_RE.match(stripped):
+            continue
+        words = stripped.split()
+        if not 2 <= len(words) <= 8:
+            continue
+        if not all(word[:1].isupper() for word in words if word[:1].isalpha()):
+            continue
+        if not _readable_heading(stripped):
+            continue
+        return _strip_toc_bleed(stripped)
+    return ''
+
+
+def _index_title(title, chapters, text=''):
     if title:
         cleaned = _strip_toc_bleed(title)
         if cleaned and not _toc_line(title) and _readable_heading(cleaned):
             return cleaned
+    front = _front_title(text, chapters)
+    if front:
+        return front
     for chapter in chapters:
         if _readable_heading(chapter['title']) and not _toc_line(chapter['title']):
             return _strip_toc_bleed(chapter['title'])
@@ -505,16 +639,33 @@ def _preferred_chapter_title(current, challenger):
         if words:
             s += sum(1 for w in words if len(w) >= 3)
             s -= sum(1 for w in words if len(w) == 1)
-        fold = re.sub(r'[^a-z]', '', t.casefold())
-        if 'phandalin' in fold:
-            s += 5
-        if 'goblinarrows' in fold:
-            s += 3
-        if 'waveechocave' in fold:
-            s += 3
         return s
 
+    # The same heading split by OCR, or one letter off, keeps the unsplit line.
+    if _near_heading(current, challenger):
+        gaps = lambda text: len(re.findall(r'\s', text))
+        if gaps(challenger) != gaps(current):
+            return challenger if gaps(challenger) < gaps(current) else current
     return challenger if score(challenger) > score(current) else current
+
+
+def _near_heading(left, right):
+    """True when two headings are the same letters, or one insertion or substitution apart."""
+    a = re.sub(r'[^a-z]', '', (left or '').casefold())
+    b = re.sub(r'[^a-z]', '', (right or '').casefold())
+    if not a or not b or abs(len(a) - len(b)) > 1:
+        return False
+    if a == b:
+        return True
+    if len(a) == len(b):
+        return sum(x != y for x, y in zip(a, b)) <= 1
+    if len(a) > len(b):
+        a, b = b, a
+    i = 0
+    for ch in b:
+        if i < len(a) and a[i] == ch:
+            i += 1
+    return i == len(a)
 
 
 
@@ -570,6 +721,29 @@ def _stat_blocks(text, page_of):
     return found
 
 
+ENCOUNTER_RE = re.compile(r"^[A-Z][A-Za-z'’-]+(?: [A-Z][A-Za-z'’-]+){1,5}$")
+
+
+def _encounter_heading(line):
+    """A short title-case heading that is not an area number and not a chapter."""
+    if not line or LOCATION_RE.match(line) or CHAPTER_RE.match(line) or _toc_line(line):
+        return False
+    return bool(ENCOUNTER_RE.match(line))
+
+
+def _read_aloud_follows(text, at):
+    """True when a boxed read-aloud line comes before the next heading."""
+    for line in text[at:at + 1500].split('\n')[:18]:
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if stripped.startswith('>'):
+            return True
+        if CHAPTER_RE.match(stripped) or LOCATION_RE.match(stripped) or ENCOUNTER_RE.match(stripped):
+            return False
+    return False
+
+
 def _opening_start(chapters, locations):
     """The first keyed area of part 1 / chapter 1 / the introduction, not whichever key was seen first."""
     opening = [c for c in chapters if _opening_chapter(c['title'])]
@@ -582,6 +756,18 @@ def _opening_start(chapters, locations):
                 if 'appendix' not in (loc.get('chapter') or '').casefold()]
     if not pool:
         pool = list(locations.values())
+    scenes = [loc for loc in pool if loc.get('type') == 'scene'
+              and not re.match(r'(?i)^(?:general features|history)$', (loc.get('name') or '').strip())]
+    scenes.sort(key=lambda loc: loc['offset'])
+    numbered = [loc for loc in pool if loc.get('type') != 'scene']
+    first_room = min((loc['offset'] for loc in numbered), default=None)
+    early = [loc for loc in scenes
+             if first_room is not None and loc['offset'] < first_room
+             and re.search(r'\b(?:street|road|patrol)\b', loc.get('name') or '', re.I)]
+    if early:
+        return min(early, key=lambda loc: loc['offset'])['key']
+    if scenes:
+        return scenes[0]['key']
     pool.sort(key=lambda loc: loc['offset'])
     return pool[0]['key'] if pool else None
 
@@ -602,6 +788,51 @@ def _resolve_area(bare, loc, sentence, by_site, unique):
     return unique.get(bare)
 
 
+def contents_ranges(text):
+    """Spans of a contents list: real part headings packed together, with no keyed area between them.
+
+    A sentence that merely mentions a part is not a heading. A heading that is followed by a
+    numbered area before the next part is where that part begins. The list is not a start.
+    """
+    chapters, locations = [], []
+    at = 0
+    flat = text.replace('\f', '\n')
+    for line in flat.split('\n'):
+        stripped = line.strip()
+        if (stripped and CHAPTER_RE.match(stripped) and _is_real_chapter(stripped)
+                and not re.search(r'-{4,}', stripped)):
+            chapters.append(at)
+        elif stripped and LOCATION_RE.match(stripped) and _location_name_ok(stripped):
+            locations.append(at)
+        at += len(line) + 1
+    ranges = []
+    gap = 900
+    for i, off in enumerate(chapters):
+        nxt = chapters[i + 1] if i + 1 < len(chapters) else None
+        if nxt and any(off < loc < nxt for loc in locations):
+            continue
+        if nxt is None and any(loc > off for loc in locations):
+            continue
+        close = False
+        for j in (i - 1, i + 1):
+            if not 0 <= j < len(chapters):
+                continue
+            other = chapters[j]
+            if abs(other - off) >= gap:
+                continue
+            lo, hi = min(off, other), max(off, other)
+            if any(lo < loc < hi for loc in locations):
+                continue
+            close = True
+        if not close:
+            continue
+        end = nxt if nxt and nxt - off < gap else min(len(flat), off + gap)
+        if nxt:
+            end = min(end, nxt)
+        ranges.append((off, end))
+    return ranges
+
+
 def build_index(text, title=None):
     """The global index of an adventure's text. Pure: same text, same index."""
     page_starts = [0] + [m.end() for m in re.finditer('\f', text)]
@@ -612,6 +843,8 @@ def build_index(text, title=None):
         chars = len(re.sub(r'\s', '', text[start:end]))
         pages.append({'page': number, 'start': start, 'end': end, 'chars': chars,
                       'needs_map_look': chars < MAP_PAGE_MAX_CHARS})
+    from . import kit_scenes
+    listed = contents_ranges(text)
     chapters, heads = [], []
     current = None
     for off, line in _lines(text.replace('\f', '\n')):
@@ -619,10 +852,17 @@ def build_index(text, title=None):
         if not stripped or stripped.startswith('>') or _toc_line(stripped):
             continue
         lead = len(line) - len(line.lstrip())
+        at = off + lead
         chapter = CHAPTER_RE.match(stripped)
         if chapter:
             if not _is_real_chapter(stripped):
                 continue  # TOC crumb, body bleed, or letter-spaced fake
+            if re.search(r'-{4,}', stripped):
+                continue  # a rule under a running header, not a new part
+            if any(start <= at < end for start, end in listed):
+                continue  # the contents list, not where the part begins
+            stripped = re.sub(r'\s*-{4,}.*$', '', stripped.replace('|', ' '))
+            stripped = re.sub(r'\s+', ' ', stripped).strip()
             norm = _chapter_norm(stripped)
             prior = next((c for c in chapters if _chapter_norm(c['title']) == norm), None)
             if prior is None:
@@ -631,21 +871,53 @@ def build_index(text, title=None):
             else:
                 prior['title'] = _preferred_chapter_title(prior['title'], stripped)
                 current = prior['title']
-            heads.append(('chapter', off, None, None, current))
+            heads.append(('chapter', at, None, None, current))
             continue
         loc = LOCATION_RE.match(stripped)
         if loc and _location_name_ok(stripped) and (not stripped.endswith('.') or len(stripped) < 40):
             name = loc.group(2).strip().rstrip('.').replace('|', ' ')
             name = re.sub(r'\s+', ' ', name).strip()
-            heads.append(('location', off, loc.group(1).upper(), name, current))
+            heads.append(('location', off, _book_number(loc.group(1)), name, current))
+            continue
+        labeled = _LABELED_RE.match(stripped)
+        if labeled and not _toc_line(stripped):
+            number = _book_number(labeled.group(2))
+            name = (labeled.group(3) or '').strip().rstrip('.')
+            name = re.sub(r'\s+', ' ', name.replace('|', ' ')).strip()
+            if len(name) < 2:
+                name = labeled.group(1).title() + ' ' + number
+            heads.append(('location', off, number, name, current))
+            continue
+    scene_heads, checks, front = kit_scenes.collect(text, heads, chapters, page_of, listed)
+    heads.extend(scene_heads)
+    heads.sort(key=lambda item: item[1])
     raw = []
     for i, (kind, off, key, name, chapter) in enumerate(heads):
-        if kind != 'location':
+        if kind not in ('location', 'scene'):
             continue
         end = heads[i + 1][1] if i + 1 < len(heads) else len(text)
+        if kind == 'scene':
+            meta = key
+            body_start = meta['body_at'] if meta.get('body_at') is not None else (
+                text.index('\n', off) + 1 if '\n' in text[off:end] else end)
+            span_end = meta.get('span', [body_start, end])[1]
+            # The next place's heading is the end of this scene, even if a later head sits closer.
+            if span_end > end:
+                span_end = end
+            raw.append({'bare': meta.get('letter'), 'name': name, 'offset': off,
+                        'body': [body_start, span_end],
+                        'page': meta.get('page') or page_of(off), 'chapter': chapter,
+                        'site': meta.get('site') or _site_of(chapter), 'type': 'scene',
+                        'letter': meta.get('letter'), 'part_n': meta.get('part_n'),
+                        'relation': meta.get('relation'), 'anchor': meta.get('anchor'),
+                        'trigger': meta.get('trigger'), 'signals': meta.get('signals'),
+                        'score': meta.get('score'), 'confidence': meta.get('confidence'),
+                        'indent': meta.get('indent')})
+            continue
         body_start = text.index('\n', off) + 1 if '\n' in text[off:end] else end
         raw.append({'bare': key, 'name': name, 'offset': off, 'body': [body_start, end],
-                    'page': page_of(off), 'chapter': chapter, 'site': _site_of(chapter)})
+                    'page': page_of(off), 'chapter': chapter, 'site': _site_of(chapter),
+                    'type': 'room', 'number': key, 'part_n': kit_scenes._part_number(chapter)})
     # Carry the last real PART site forward so a body-bleed "chapter" does not orphan areas.
     last_site = ''
     for loc in raw:
@@ -660,9 +932,12 @@ def build_index(text, title=None):
     locations = {}
     for loc in raw:
         sites = bare_sites[loc['bare']]
+        # A scene is its own type (scene:site:A), never a room number and never 1a.
+        if loc.get('type') == 'scene':
+            key = 'scene:%s:%s' % (loc.get('site') or 'book', loc.get('letter'))
         # A known PART never leaves a bare int: hideout-1, not 1. A single-chapter book
         # with no PART keeps 1, 2, 3. A letter-spaced chapter is not a site.
-        if loc.get('site'):
+        elif loc.get('site'):
             key = loc['site'] + '-' + loc['bare']
         elif has_part_site and last_site:
             loc['site'] = last_site
@@ -686,39 +961,74 @@ def build_index(text, title=None):
         connections = []
         for m in AREA_REF_RE.finditer(span):
             sentence = _sentence_around(span, m.start())
+            if not _WAY_RE.search(sentence):
+                continue  # a mention of an area is not a way there
             target = _resolve_area(m.group(1), loc, sentence, by_site, unique)
             if target and target != key and target not in [c['to'] for c in connections]:
+                other_loc = locations.get(target) or {}
+                if (other_loc.get('site') or '') and (loc.get('site') or '') and other_loc.get('site') != loc.get('site'):
+                    continue  # a later site is not a way out of this scene
                 connections.append({'to': target, 'offset': loc['body'][0] + m.start(),
-                                    'quote': sentence, 'secret': bool(SECRET_RE.search(sentence))})
+                                    'quote': sentence, 'secret': bool(SECRET_RE.search(sentence)),
+                                    'explicit': True})
+        # An explicit way that names another place ("the path runs back to the road opening").
+        for other_key, other in locations.items():
+            if other_key == key:
+                continue
+            other_name = other.get('name') or ''
+            if len(other_name) < 4:
+                continue
+            found = re.search(re.escape(other_name), span, re.I)
+            if not found:
+                continue
+            sentence = _sentence_around(span, found.start())
+            if not _WAY_RE.search(sentence):
+                continue
+            if (other.get('site') or '') and (loc.get('site') or '') and other.get('site') != loc.get('site'):
+                continue
+            if other_key not in [c['to'] for c in connections]:
+                connections.append({'to': other_key, 'offset': loc['body'][0] + found.start(),
+                                    'quote': sentence, 'secret': bool(SECRET_RE.search(sentence)),
+                                    'explicit': True})
         loc['connections'] = connections
-        loc['creatures'] = _creatures(span, loc['body'][0], stat_blocks)
+        creatures = _creatures(span, loc['body'][0], stat_blocks)
+        kept_creatures = []
+        for creature in creatures:
+            rel = creature['mention_offset'] - loc['body'][0]
+            if _creature_belongs_here(_sentence_around(span, rel), loc, {'locations': locations}):
+                kept_creatures.append(creature)
+        loc['creatures'] = kept_creatures
         loc['npcs'] = sorted({m.group(1) for m in NPC_RE.finditer(span) if m.group(1).split()[0] not in NOT_NPC})
         loc['read_aloud'] = any(line.lstrip().startswith('>') for line in span.split('\n'))
-    # Undirected within a site. A cross-site link stays one-way unless the quote named both.
-    for key, loc in locations.items():
-        for c in loc['connections']:
-            other = locations[c['to']]
-            if (loc.get('site') or '') != (other.get('site') or '') and not c.get('stated_in'):
-                # Forward edge was an explicit cross-site name; do not invent a back edge.
-                if (loc.get('site') or '').replace('_', ' ') not in (c.get('quote') or '').casefold():
-                    continue
-            back = other['connections']
-            if key not in [b['to'] for b in back]:
-                back.append({'to': key, 'offset': c['offset'], 'quote': c['quote'], 'secret': c['secret'],
-                             'stated_in': key})
+    # No inferred reverse. The other side's own text is the only way back.
     npcs = sorted({n for loc in locations.values() for n in loc['npcs']})
-    return {'version': INDEX_VERSION, 'title': _index_title(title, chapters),
-            'sha256': hashlib.sha256(text.encode('utf-8')).hexdigest(), 'chars': len(text),
-            'chapters': chapters, 'locations': locations, 'npcs': npcs, 'stat_blocks': stat_blocks,
-            'pages': pages, 'map_pages': [p['page'] for p in pages if p['needs_map_look']],
-            'start': _opening_start(chapters, locations)}
+    index = {'version': INDEX_VERSION, 'title': _index_title(title, chapters, text),
+             'sha256': hashlib.sha256(text.encode('utf-8')).hexdigest(), 'chars': len(text),
+             'chapters': chapters, 'locations': locations, 'npcs': npcs, 'stat_blocks': stat_blocks,
+             'pages': pages, 'map_pages': [p['page'] for p in pages if p['needs_map_look']],
+             'checks': checks, 'hook': front.get('hook') or '', 'book_says': front.get('book_says') or '',
+             'start': None}
+    index['start'] = _opening_start(chapters, locations)
+    return kit_scenes.finish(index, text)
 
 
 def _sentence_around(span, at):
-    start = max(span.rfind('.', 0, at), span.rfind('\n', 0, at)) + 1
-    end_dot = span.find('.', at)
-    end = len(span) if end_dot < 0 else end_dot + 1
-    return _norm(span[start:end].lstrip('> '))
+    """The sentence around ``at``. A single newline is a layout wrap, not a new sentence."""
+    cuts = [span.rfind(mark, 0, at) for mark in ('.', '!', '?')]
+    para = span.rfind('\n\n', 0, at)
+    start = max(cuts + [para]) + 1
+    if 0 <= start < len(span) and span[start] == '\n':
+        start += 1
+    end = len(span)
+    for mark in ('.', '!', '?'):
+        pos = span.find(mark, at)
+        if pos >= 0:
+            end = min(end, pos + 1)
+    para_end = span.find('\n\n', at)
+    if para_end >= 0:
+        end = min(end, para_end)
+    # A read-aloud mark can sit on every wrapped line, including mid-sentence.
+    return _norm(span[start:end].replace('>', ' '))
 
 
 AC_RE = re.compile(r'Armor Class (\d+)')
@@ -784,8 +1094,12 @@ def _creatures(span, base, stat_blocks):
     from .srd_creatures import CREATURES
     found = {}
     names = set(stat_blocks) | set(CREATURES)
+    claimed = []
     for name in sorted(names, key=len, reverse=True):
         for m in re.finditer(rf'\b{re.escape(name)}(?:e?s)?\b', span, re.I):
+            if any(a <= m.start() < b for a, b in claimed):
+                continue
+            claimed.append((m.start(), m.end()))
             found.setdefault(name, base + m.start())
     for m in SEE_RE.finditer(span):
         name = m.group(1).strip().casefold()
@@ -814,12 +1128,15 @@ def import_adventure(db, text=None, pdf=None, title=None, reader='auto'):
         text, _how = read_pdf(pdf, reader=reader)
     text = prepare_source(text)
     index = build_index(text, title)
+    # Places (numbered rooms) are optional. A Site or a Scene is enough to open.
     if not index['locations']:
-        raise IngestError(['no keyed locations found (headings like "1. Mill Yard" or "Area 3: Cellar")'])
+        raise IngestError(['no site or scene found (a part, an Encounter, a Scene, or a Section)'])
     folder = folder_for(db)
     (folder / 'rooms').mkdir(parents=True, exist_ok=True)
     (folder / 'source.txt').write_text(text, encoding='utf-8')
     _write_json(folder / 'index.json', index)
+    from . import kit_scenes
+    kit_scenes.write_side(folder, index)
     return {'stage': 'adventure_imported', 'title': index['title'], 'locations': len(index['locations']),
             'chapters': len(index['chapters']), 'npcs': len(index['npcs']),
             'stat_blocks_in_book': len(index['stat_blocks']), 'map_pages': index['map_pages'],
@@ -840,10 +1157,24 @@ def _load(db):
 
 
 def _cut(text):
+    """Shorten at a sentence boundary. A sentence is never left cut in half."""
     text = _norm(text)
+    if len(text) <= FACT_MAX_CHARS and (not text or text[-1] in '.?!'):
+        return text
     if len(text) <= FACT_MAX_CHARS:
         return text
-    return text[:FACT_MAX_CHARS].rsplit(' ', 1)[0] + '…'
+    end = -1
+    for mark in ('.', '!', '?'):
+        at = text.rfind(mark, 0, FACT_MAX_CHARS + 1)
+        if at > end:
+            end = at
+    if end >= 20:
+        return text[:end + 1]
+    for mark in ('.', '!', '?'):
+        at = text.find(mark)
+        if at >= 0:
+            return text[:at + 1]
+    return text[:FACT_MAX_CHARS].rsplit(' ', 1)[0]
 
 
 def _split(span, base):
@@ -861,7 +1192,74 @@ def _split(span, base):
                 if len(s) > 1:
                     target.append((base + at + inner + m.start() + lead, s))
         at += len(line) + 1
+    # Boxed read-aloud is optional. When the book doesn't mark any, the scene's own
+    # sentences are what a player can hear. A DC or a secret stays hidden.
+    if not read and dm:
+        shown, kept = [], []
+        for item in dm:
+            if _KEEP_HIDDEN.search(item[1]):
+                kept.append(item)
+            else:
+                shown.append(item)
+        if shown:
+            read, dm = shown, kept
     return read, dm
+
+
+def _creature_belongs_here(sentence, loc, index):
+    """A creature named in this span but placed in another keyed area is not this scene's fight."""
+    here = str(loc.get('bare') or loc.get('number') or '').lower()
+    for match in AREA_REF_RE.finditer(sentence or ''):
+        if match.group(1).lower() != here:
+            return False
+    here_name = (loc.get('name') or '').casefold()
+    folded = (sentence or '').casefold()
+    for other in (index.get('locations') or {}).values():
+        name = (other.get('name') or '').casefold()
+        if len(name) < 4 or name == here_name:
+            continue
+        if name in folded:
+            return False
+    return True
+
+
+_SPEAKER_NAME = re.compile(
+    r'\b([A-Z][a-z]{2,}(?:\s+[A-Z][a-z]{2,})?)\s+'
+    r'(?:says?|asks?|calls?|shouts?|whispers?|replies?|answers?|tells?|greets?|waves?|nods?)\b')
+_SPEAKER_SKIP = re.compile(
+    r'^(?:door|gate|road|street|room|hall|crowd|group|guards?|corpses?|bodies|body|'
+    r'men|man|woman|people|party|wagon|cart|table|chest|wall|floor)$', re.I)
+_OUTCOME_ROW = re.compile(
+    r'^(?P<head>check|find)\b|\b(?:a|the) (?P<word>check|find) (?:reveals|shows|finds)\b', re.I)
+
+
+def _outcome_row(sentence, n):
+    """A Check or Find row in this scene. The opening's read-aloud is not one."""
+    match = _OUTCOME_ROW.search(sentence or '')
+    if not match:
+        return None
+    kind = (match.group('head') or match.group('word') or '').casefold()
+    if kind not in ('check', 'find'):
+        return None
+    return '%s_%d' % (kind, n)
+
+
+def _speaker_stubs(read):
+    """Up to four proper-name speakers in the player read-aloud. Props and groups are not people."""
+    found = []
+    seen = set()
+    for off, sentence in read or []:
+        for match in _SPEAKER_NAME.finditer(sentence or ''):
+            name = match.group(1)
+            if not name or _SPEAKER_SKIP.match(name) or _SPEAKER_SKIP.match(name.split()[-1]):
+                continue
+            if name.casefold() in seen:
+                continue
+            seen.add(name.casefold())
+            found.append((off, name, sentence))
+            if len(found) >= 4:
+                return found
+    return found
 
 
 def draft_room(db, key, index, text):
@@ -870,7 +1268,16 @@ def draft_room(db, key, index, text):
     if loc is None:
         raise IngestError([f'no keyed location {key!r} in the index'])
     start, end = loc['body']
-    read, dm = _split(text[start:end], start)
+    raw_read, raw_dm = _split(text[start:end], start)
+    from . import kit_labels
+    silent = kit_labels.is_silent(db, key)
+    blocks = None if silent else kit_labels.frozen_blocks(db, key)
+    if silent:
+        read, dm = [], list(raw_read) + list(raw_dm)
+    elif blocks:
+        read, dm = kit_labels.apply_blocks(raw_read, raw_dm, blocks)
+    else:
+        read, dm = raw_read, raw_dm
     here = 'here'
     called = loc['name'].lower()
     areas = {here: {'name': loc['name'], 'called': called if called.startswith('the ') else 'the ' + called}}
@@ -879,21 +1286,43 @@ def draft_room(db, key, index, text):
     for c in loc['connections']:
         other = index['locations'][c['to']]
         side = f'to_{_slug(c["to"])}'
-        areas[side] = {'name': f'Toward {other["name"]}', 'outside': True, 'beyond': True,
+        areas[side] = {'name': f'Outside {loc["name"]}', 'outside': True, 'beyond': True,
                        'room_link': {'room': str(room_file(db, c['to'])), 'area': f'to_{_slug(key)}',
                                      'adventure': {'db': str(db), 'location': c['to']}}}
+        here_words = set(re.findall(r'[a-z0-9]+', loc['name'].casefold()))
+        aliases = []
+        for word in re.findall(r'[a-z0-9]+', (other.get('name') or '').casefold()):
+            if word not in _ALIAS_SKIP and len(word) >= 3 and word not in here_words and word not in aliases:
+                aliases.append(word)
+        if other.get('type') == 'scene':
+            aliases.append('scene ' + str(other.get('letter') or '').lower())
+        else:
+            number = str(other.get('number') or other.get('bare') or '').lower()
+            if number:
+                aliases.append(number)
+                aliases.append('room ' + number)
+        # Only the way itself (path, door, ladder). A bell or a rope named in the same
+        # sentence is a thing you can take, not a word that means "leave".
+        for word in re.findall(r'[a-z0-9]+', c['quote'].casefold()):
+            if word in _EXIT_NOUNS and word not in aliases:
+                aliases.append(word)
         exits[f'way_{_slug(c["to"])}'] = {
             'name': f'the way to {other["name"]}', 'areas': [here, side], 'secret': c['secret'],
+            'aliases': aliases[:8],
             'labels': {here: f'The way to {other["name"]}.', side: f'The way back to {loc["name"]}.'}}
         for path in (f'areas.{side}', f'exits.way_{_slug(c["to"])}'):
             prov[path] = {'offset': c['offset'], 'quote': c['quote']}
     for n, (off, sentence) in enumerate(read[:VISIBLE_MAX], 1):
-        facts[f'seen_{n}'] = {'area': here, 'visible': True, 'text': _cut(sentence)}
+        fact = {'area': here, 'visible': True, 'layer': 'obvious', 'text': _cut(sentence)}
+        row = _outcome_row(sentence, n)
+        if row:
+            fact['row'] = row
+        facts[f'seen_{n}'] = fact
         prov[f'facts.seen_{n}'] = {'offset': off, 'quote': sentence}
     if len(read) > VISIBLE_MAX:
         flags.append(f'{len(read) - VISIBLE_MAX} read-aloud sentences left out (cap {VISIBLE_MAX})')
     if not read:
-        flags.append('no read-aloud text found: nothing in this location is player-visible until Kit reveals it')
+        flags.append('no boxed read-aloud: the scene\'s own sentences are what the player hears')
     used = 0
     for n, (off, sentence) in enumerate(dm, 1):
         cut = _cut(sentence)
@@ -901,7 +1330,11 @@ def draft_room(db, key, index, text):
         if used > HIDDEN_BUDGET_BYTES:
             flags.append(f'{len(dm) - n + 1} DM sentences left out to stay inside the room context cap')
             break
-        facts[f'dm_{n}'] = {'area': here, 'visible': False, 'text': cut}
+        fact = {'area': here, 'visible': False, 'text': cut}
+        row = _outcome_row(sentence, n)
+        if row:
+            fact['row'] = row
+        facts[f'dm_{n}'] = fact
         prov[f'facts.dm_{n}'] = {'offset': off, 'quote': sentence}
     if not facts:
         raise IngestError([f'location {key} has no text to compile'])
@@ -928,6 +1361,10 @@ def draft_room(db, key, index, text):
         else:
             continue
         mention = _sentence_around(text[start:end], rel)
+        if not _creature_belongs_here(mention, loc, index):
+            continue
+        if silent or (blocks and kit_labels.audience_for(blocks, start + rel, mention) == 'front'):
+            continue
         # Player-visible only when the read-aloud text names it; otherwise hidden until its trigger.
         seen = any(name.lower() in sentence.lower() for _, sentence in read)
         woken = []
@@ -955,11 +1392,20 @@ def draft_room(db, key, index, text):
             triggers.append({'id': f'reveal_{_slug(name)}', 'on': on, 'actors': woken,
                              'reveal': f'{name[0].upper() + name[1:]} reveals itself.' if count == 1
                              else f'{count} {name}s reveal themselves.'})
+    for off, name, sentence in _speaker_stubs(read):
+        akey = _slug(name)
+        if akey in actors:
+            continue
+        actors[akey] = {'name': name, 'location': here, 'status': 'alive', 'visible': True,
+                        'role': 'speaker'}
+        prov[f'actors.{akey}'] = {'offset': off, 'quote': sentence}
     room = {'id': f"adv-{index['sha256'][:8]}-{_slug(key)}",
             'source_ref': f"{index['title']} / {key}. {loc['name']} (p. {loc['page']})",
             'starting_area': here, 'areas': areas, 'exits': exits, 'facts': facts, 'actors': actors}
     if triggers:
         room['triggers'] = triggers
+    if re.search(r'\b(?:each time|whenever|every time)\b', text[start:end], re.I):
+        room['_repeatable'] = True
     sidecar = {'location': key, 'source_sha256': index['sha256'], 'fields': prov,
                'creatures': loc['creatures'],
                'ask_player': [c['name'] for c in loc['creatures'] if c['resolved'] == 'ask_player'],
@@ -1008,7 +1454,9 @@ def validate(room, sidecar, index, text):
         if fact.get('area') != 'here':
             problems.append(f'fact {key} must sit in this location')
         if fact.get('visible') and quote and quote not in flat_read:
-            problems.append(f'fact {key} is visible but quotes DM-only text (secrets stay hidden)')
+            # No boxed read-aloud: the scene's own sentences may be spoken. A secret may not.
+            if quote not in flat or _KEEP_HIDDEN.search(quote):
+                problems.append(f'fact {key} is visible but quotes DM-only text (secrets stay hidden)')
         body = _norm(str(fact.get('text', '')).rstrip('…'))
         if quote and body and body not in quote and not _words_from(body, quote):
             problems.append(f'fact {key} text says more than its quote')
@@ -1037,6 +1485,8 @@ def _actor_problems(room, fields, flat, index, text):
         where = fields.get(f'actors.{key}') or {}
         if not (isinstance(where.get('quote'), str) and _norm(where['quote']) in flat):
             problems.append(f'actors.{key} has no source quote in this location')
+        if isinstance(actor, dict) and actor.get('role') == 'speaker' and not actor.get('stat_block'):
+            continue
         block = actor.get('stat_block') if isinstance(actor, dict) else None
         if not isinstance(block, dict):
             problems.append(f'actors.{key} has no stat_block')
@@ -1128,6 +1578,26 @@ def compile_location(db, key, draft=None, neighbours=True):
             'ask_player': sidecar.get('ask_player', []), 'flags': sidecar.get('flags', []), **readiness(db)}
 
 
+def start_picker(places):
+    """Places the player can start, shown when a labeling pass has not frozen the opening."""
+    shown = [{'pick': item.get('pick'), 'line': item.get('line'), 'id': item.get('id')}
+             for item in places or []]
+    return {
+        'table_line': ('These are the places I found. Tell me which one to start, '
+                       'or begin the one I opened.'),
+        'places': shown,
+    }
+
+
+def room_is_empty(room):
+    """A compiled room with no text and no way out. Never stage one."""
+    facts = (room or {}).get('facts') or {}
+    exits = (room or {}).get('exits') or {}
+    texts = [fact.get('text') for fact in facts.values()
+             if isinstance(fact, dict) and str(fact.get('text') or '').strip()]
+    return not texts and not exits
+
+
 def ingest_adventure(db, text=None, pdf=None, title=None, reader='auto'):
     """One host step: a PDF or pasted text -> the private index and the first scene.
 
@@ -1144,26 +1614,61 @@ def ingest_adventure(db, text=None, pdf=None, title=None, reader='auto'):
     if text is None:
         text, how = read_pdf(pdf, reader=reader)
     report = import_adventure(db, text=text, title=title)
+    from . import kit_labels
+    kit_labels.mark_leading_front(db)
+    try:
+        index, _text = _load(db)
+        if index.get('start'):
+            report['start_location'] = index['start']
+    except IngestError:
+        pass
     ingest_ms = round((time.perf_counter() - clock) * 1000, 3)
-    compiled = compile_location(db, report['start_location'], neighbours=False)
-    room_body = _read_json(compiled['room'])
-    visible = [fact for fact in (room_body.get('facts') or {}).values()
-               if isinstance(fact, dict) and fact.get('visible') and str(fact.get('text') or '').strip()]
-    if not visible:
+    try:
+        compiled = compile_location(db, report['start_location'], neighbours=False)
+    except IngestError:
+        compiled = None
+    room_body = _read_json(compiled['room']) if compiled else {}
+    if compiled and room_is_empty(room_body):
         Path(compiled['room']).unlink()
         side = Path(compiled['room']).with_suffix('.provenance.json')
         if side.is_file():
             side.unlink()
-        raise IngestError(['the first scene has no player-visible read-aloud; refusing an opening that would '
-                           'only say "The newcomer arrives". Mark the boxed, italic, or indented text, '
-                           'or pass text whose read-aloud lines start with "> "'])
+        compiled = None
     import shlex
     q = shlex.quote(str(db))
-    room = shlex.quote(compiled['room'])
+    room = shlex.quote(compiled['room']) if compiled else ''
+    places = _read_json(folder_for(db) / 'index.json').get('starts') or []
+    from . import kit_labels
+    label_request = kit_labels.next_request(db)
+    label_command = (f'python3 -m runtime.kit_agent adventure label --db {q} --file labels.json'
+                     if label_request else None)
+    picker = None if kit_labels.opening_labeled(db) else start_picker(places)
+    landing = {
+        'table_line': ("Got it. Who's walking in? A sentence or two about them, or hand me the sheet."),
+        'same_exchange': ['ingest', 'label_request'],
+        'opening_after': 'their answer',
+    }
+    if not compiled:
+        return {
+            'stage': 'adventure_ingested', 'reader': how, 'title': report['title'],
+            'locations': report['locations'], 'chapters': report['chapters'],
+            'start_location': None, 'start_room': None, 'starts': places, 'places': places,
+            'opened_room': None, 'character_loaded': False, 'committed': False,
+            'table_line': ('I couldn\'t open a scene from that book. Here are the places I found. '
+                           'Tell me which one to start.'),
+            'label_request': label_request, 'label_command': label_command,
+            'landing': landing, 'start_picker': picker,
+            'ingest_ms': ingest_ms,
+            'source_bytes': (folder_for(db) / 'source.txt').stat().st_size,
+            'index_bytes': (folder_for(db) / 'index.json').stat().st_size,
+            'next_command': f'python3 -m runtime.kit_agent start --db {q} --sheet <sheet.json>',
+            **readiness(db),
+        }
     return {
         'stage': 'adventure_ingested', 'reader': how, 'title': report['title'],
         'locations': report['locations'], 'chapters': report['chapters'],
         'start_location': report['start_location'], 'start_room': compiled['room'],
+        'starts': _read_json(folder_for(db) / 'index.json').get('starts') or [],
         'room_id': compiled['room_id'], 'first_scene_page': compiled.get('page'),
         'ingest_ms': ingest_ms, 'first_scene_ms': compiled['scene_ms'],
         'source_bytes': (folder_for(db) / 'source.txt').stat().st_size,
@@ -1174,8 +1679,39 @@ def ingest_adventure(db, text=None, pdf=None, title=None, reader='auto'):
         'begin': ('When the player says begin, run next_command with their sheet. '
                   'The next scene compiles on arrival; do not hand-build rooms.'),
         'ask_player': compiled.get('ask_player', []), 'flags': compiled.get('flags', []),
+        'label_request': label_request, 'label_command': label_command,
+        'landing': landing, 'start_picker': picker,
+        'places': places,
         **readiness(db),
     }
+
+
+def choose_start(db, token=None):
+    """Compile the book's default scene, or the scene or room the host named (A, 1, a label)."""
+    index, _text = _load(db)
+    starts = index.get('starts') or []
+    key = index.get('start')
+    want = (token or '').strip()
+    if want:
+        folded = want.casefold()
+        found = None
+        for item in starts:
+            pick = str(item.get('pick') or '')
+            names = {pick.casefold(), str(item.get('id') or '').casefold()}
+            if folded in names or pick.casefold().endswith(' ' + folded):
+                found = item
+                break
+        if found is None:
+            shown = '; '.join(item.get('line') or item.get('pick') or '' for item in starts[:16])
+            raise IngestError(['no start %r. %s' % (token, shown or 'no scenes indexed')])
+        key = found['id']
+    if not key:
+        raise IngestError(['this book has no start'])
+    compiled = compile_location(db, key, neighbours=False)
+    compiled['pick'] = next((item.get('pick') for item in starts if item.get('id') == key), None)
+    compiled['line'] = next((item.get('line') for item in starts if item.get('id') == key), None)
+    compiled['starts'] = starts
+    return compiled
 
 
 def ensure_compiled(link):
@@ -1223,7 +1759,8 @@ def readiness(db, mounted_id=None):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(prog='kit_agent adventure', description=__doc__.split('\n\n')[0])
-    parser.add_argument('action', choices=['import', 'compile', 'status', 'ingest'])
+    parser.add_argument('action', choices=['import', 'compile', 'status', 'ingest', 'label'])
+    parser.add_argument('--file', help='label: the host reply JSON (section, opening, labels)')
     parser.add_argument('path', nargs='?', help='ingest: the adventure PDF (or pass --pdf)')
     parser.add_argument('--db', default='kit.sqlite')
     parser.add_argument('--text-file', help='import/ingest: the adventure as UTF-8 text (form feed between pages; '
@@ -1235,6 +1772,8 @@ def main(argv=None):
     parser.add_argument('--title')
     parser.add_argument('--location', help='compile: the location key, e.g. 1 or A2')
     parser.add_argument('--draft-file', help='compile: a host-model draft {"room", "provenance"} to validate')
+    parser.add_argument('--pretty', action='store_true',
+                        help='indent the JSON (same as kit_agent --pretty; a no-op for the ingest itself)')
     args = parser.parse_args(argv)
     try:
         if args.action == 'import':
@@ -1248,6 +1787,13 @@ def main(argv=None):
             if text is None and not pdf:
                 raise IngestError(['ingest needs a PDF path or --text-file'])
             result = ingest_adventure(args.db, text=text, pdf=pdf, title=args.title, reader=args.reader)
+        elif args.action == 'label':
+            from . import kit_labels
+            if args.file:
+                reply = _read_json(args.file)
+                result = kit_labels.accept(args.db, reply)
+            else:
+                result = {'stage': 'label_section', 'label_request': kit_labels.next_request(args.db)}
         elif args.action == 'compile':
             if not args.location:
                 raise IngestError(['compile needs --location'])
@@ -1260,7 +1806,8 @@ def main(argv=None):
         print(json.dumps({'stage': 'rejected', 'committed': False, 'problems': exc.problems},
                          ensure_ascii=False), file=sys.stderr)
         return 2
-    print(json.dumps(result, ensure_ascii=False))
+    print(json.dumps(result, ensure_ascii=False,
+                     **({'indent': 2} if args.pretty else {'separators': (',', ':')})))
     return 0
 
 

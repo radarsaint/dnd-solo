@@ -460,7 +460,8 @@ class Play(PdfCase):
 
         adjudicator = RoomAdjudicator(roll=lambda: 10, npc_roll=lambda: 10)
         bridge = KitChatBridge(runtime, adjudicator)
-        bridge.abandon(started['prepared']['turn_id'])
+        if not started.get('committed'):
+            bridge.abandon(started['prepared']['turn_id'])
         sha = json.loads((kit_adventure.folder_for(self.db) / 'index.json').read_text())['sha256'][:8]
 
         def step(line):

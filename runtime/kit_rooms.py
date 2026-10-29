@@ -53,7 +53,7 @@ STAGES = ('approach', 'first_look', 'explore', 'resolution')
 SESSION_KEYS = ('schema_version', 'kit', 'player_character', 'player_sheet', 'pc_state', 'roll_seed',
                 'elapsed_seconds', 'rooms', 'carried', 'scene_id', 'scenes_closed', 'memory_trimmed',
                 'pc_conditions', 'pc_condition_terms', 'campaign_log', 'pc_resources',
-                'sheet_import', 'long_rests', 'party')
+                'sheet_import', 'long_rests', 'party', 'places')
 
 
 class RoomMountError(InvalidChange):
@@ -638,6 +638,8 @@ def mounted_state(old_source, state, new_source, area, ref):
     carry over; a room seen before comes back as it was left."""
     if area not in new_source['areas']:
         raise RoomMountError(ref, [f'room_link area {area!r} is not one of its areas'])
+    from . import kit_scenes
+    kit_scenes.leave_place(state, old_source.get('id'))
     sheet, carried, totals = fold_pc(old_source, state)
     rooms = copy.deepcopy(state.get('rooms') or {})
     left = {key: copy.deepcopy(value) for key, value in state.items() if key not in SESSION_KEYS}
@@ -680,6 +682,8 @@ def mounted_state(old_source, state, new_source, area, ref):
             # Same one-time copy as Runtime.initialize. A revisit keeps the archived lists.
             new['judgment'] = seeded
     new['area'] = area
+    kit_scenes.enter_place(new, new_source.get('id'), bool(new_source.get('_repeatable')))
+    kit_scenes.apply_actors(new, new_source)
     new['room'] = {k: v for k, v in (new.get('room') or {}).items() if k != 'came_by'}  # came from another room
     if area not in new['visited']:
         new['visited'].append(area)

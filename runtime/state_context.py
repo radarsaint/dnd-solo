@@ -104,7 +104,7 @@ CANON_SLOT = re.compile(r'^[a-z0-9_:]+(/[a-z0-9_]+){1,3}$')
 # the decision's canon entries, the oracle deal it consumed, and procedure state.
 # Host bookkeeping, not a turn taken in the room (kit_rooms.stage counts the others).
 BOOKKEEPING_EVENTS = ('party_roster', 'player_sheet', 'player_character', 'player_note', 'pc_state', 'kit_plan', 'rest',
-                      'campaign_restore', 'campaign_facts', 'judgment_state')
+                      'campaign_restore', 'campaign_facts', 'judgment_state', 'prepared_roll')
 # A refused attempt changed nothing in the world, so it does not use up the check Kit just
 # called (PR 145 playtest: one refused line, then every roll was refused).
 KEEPS_PENDING_CHECK = BOOKKEEPING_EVENTS + ('refused_attempt',)
@@ -127,7 +127,7 @@ DECLARED_EVENTS = ('beat', 'reveal_fact', 'trigger_fired', 'scene_state', 'comba
 COMBAT_DECLARED_EVENTS = ('beat', 'combat_state', 'scene_state', 'actor_status', 'pc_conditions', 'pc_resources')
 COMMIT_APPENDED_EVENTS = ('canon_entry', 'oracle_draw', 'procedure_state', 'claim_said', 'agenda_turn',
                           'pc_state', 'kit_plan', 'toll_state', 'story_beat', 'threshold_crossed',
-                          'attitude_shift', 'pending_check', 'open_threads', 'risk_warned')
+                          'attitude_shift', 'pending_check', 'open_threads', 'risk_warned', 'prepared_roll')
 # A turn whose decision asks the player a question resolves nothing: its only event is a
 # rhythm beat tagged 'asked' whose evidence is the question.
 ASKED_EVENT_PREFIX = 'Kit asks before resolving: '
@@ -370,6 +370,7 @@ class Runtime:
             'kit': {'episodes': [], 'current_appraisal': None, 'player_notes': []},
             'roll_seed': secrets.token_hex(16),
             'room': {'id': source.get('id'), 'path': str(room_path) if room_path else None, 'turns_in': {}},
+            'places': {},
         }
         from . import kit_judgment  # local: it imports this module's helpers
         seeded = kit_judgment.initial_state(source)
@@ -378,6 +379,8 @@ class Runtime:
             # state['judgment'] and a judgment_state event, not the file's booleans.
             state['judgment'] = seeded
         self._observe(state, source)
+        from . import kit_scenes
+        kit_scenes.enter_place(state, source.get('id'), bool(source.get('_repeatable')))
         with self.db:
             self.db.execute('INSERT INTO source VALUES (1, ?)', (encode(source),))
             self.db.execute('INSERT INTO snapshots VALUES (0, ?)', (encode(state),))
@@ -684,7 +687,10 @@ class Runtime:
             # commit (docs/architecture/ROOM_LOADER.md): no host step, and a room that cannot
             # mount rejects the whole turn, so the session stays where it was. After Kit's episode:
             # the turn that leaves was decided in this room, so its memory stays with this room.
-            link = (source['areas'].get(state['area']) or {}).get('room_link')
+            # Only a move into the linked area this commit. Standing there (a look, a word) must
+            # not bounce back through the link and resend the other room.
+            link = ((source['areas'].get(state['area']) or {}).get('room_link')
+                    if state['area'] != acted_in else None)
             if link:
                 from . import kit_rooms
                 new_source, state = kit_rooms.arrive(source, state, link)
@@ -822,13 +828,21 @@ class Runtime:
         # Store the real character name; the file title ("Copy of Nik") rides in sheet_title.
         sheet = pc_sheet.with_real_name(sheet)
         pc_sheet.check_sheet(sheet)
-        revision, _ = self.load()
+        revision, state = self.load()
+        previous = ((state.get('player_sheet') or {}).get('name'))
         event = {'type': 'player_sheet', 'sheet': sheet,
                  **({'intake': intake} if intake else {}),
                  'evidence': 'The host loaded the player character\'s sheet.'}
         digest = hashlib.sha256(f'{revision}:{encode(event)}'.encode()).hexdigest()[:16]
         next_revision = self.commit(f'sheet-{digest}', revision, [event])
-        return {'revision': next_revision, 'character': pc_sheet.identity(sheet)}
+        character = pc_sheet.identity(sheet)
+        notice = ('Only one PC is supported. Companions are not loaded, and a markdown sheet is not '
+                  'a character. This sheet is the one character.')
+        if previous:
+            notice = (f'Only one PC is supported. {previous} is replaced by {character.get("name")}. '
+                      'A second sheet is not added beside the first, and markdown sheets are not loaded.')
+        return {'revision': next_revision, 'character': character, 'only_one_pc': True, 'notice': notice,
+                **({'replaced': previous} if previous else {})}
 
     def add_companion(self, key, sheet, role, policy):
         """Put a companion on the party roster (runtime/kit_party.py): its sheet as the player
@@ -842,12 +856,13 @@ class Runtime:
         next_revision = self.commit(f'party-{digest}', revision, [event])
         return {'revision': next_revision, 'asks': self.load()[1]['party'][key]['asks']}
 
-    def restore_campaign(self, log, carried, pc_state=None, party=None):
+    def restore_campaign(self, log, carried, pc_state=None, party=None, places=None):
         """Apply a player save's public record (kit_resume) before the room's opening."""
         revision, _ = self.load()
         event = {'type': 'campaign_restore', 'log': log, 'carried': carried,
                  **({'pc_state': pc_state} if pc_state is not None else {}),
                  **({'party': party} if party else {}),
+                 **({'places': places} if places else {}),
                  'evidence': "The host resumed from the player's save."}
         digest = hashlib.sha256(f'{revision}:{encode(event)}'.encode()).hexdigest()[:16]
         return self.commit(f'restore-{digest}', revision, [event])
@@ -982,6 +997,12 @@ class Runtime:
             require(status in {'alive', 'unconscious', 'dead', 'fled'}, 'Unknown status')
             require(actor['status'] != 'dead' or status == 'dead', 'Resurrection needs a future explicit rules operation')
             actor['status'] = status
+            from . import kit_scenes
+            if status == 'dead':
+                kit_scenes.log_change(state, source.get('id'), 'dead', actor.get('name') or key, 'stays dead')
+            elif status == 'fled':
+                kit_scenes.log_change(state, source.get('id'), 'fled', actor.get('name') or key,
+                                      event.get('toward') or 'left')
             toward = event.get('toward')
             if toward is not None:
                 require(status == 'fled' and isinstance(toward, str) and re.match(r'^area_[0-9a-z_]+$', toward),
@@ -1157,6 +1178,7 @@ class Runtime:
                     'pending_check is {skill, ability, target, called_turn[, exit, threshold, held, dc, dc_adjust, reason, action]} or None')
             if check is None:
                 state.pop('pending_check', None)
+                state.pop('prepared_roll', None)
             else:
                 state['pending_check'] = copy.deepcopy(check)
                 if not check.get('exit'):
@@ -1165,6 +1187,14 @@ class Runtime:
                     state['rhythm'].append({'tags': ['check_called'],
                                             'evidence': f"Kit called for {check['skill']}; waiting on the roll."})
                     state['rhythm'] = state['rhythm'][-12:]
+        elif kind == 'prepared_roll':
+            if event.get('clear'):
+                state.pop('prepared_roll', None)
+            else:
+                roll = event.get('roll')
+                require(isinstance(roll, dict) and isinstance(roll.get('bands'), dict),
+                        'prepared_roll needs bands')
+                state['prepared_roll'] = copy.deepcopy(roll)
         elif kind == 'standing_check':
             from . import pc_sheet
             check = event.get('check')
@@ -1316,6 +1346,12 @@ class Runtime:
                 state['party'] = copy.deepcopy(party)
             state['campaign_log'] = copy.deepcopy(log)
             state['carried'] = copy.deepcopy(carried)
+            places = event.get('places')
+            if places:
+                require(isinstance(places, dict) and len(places) <= 200, 'campaign_restore places is a small log')
+                state['places'] = copy.deepcopy(places)
+                from . import kit_scenes
+                kit_scenes.apply_actors(state, source)
         elif kind == 'campaign_facts':
             # Campaign-record canon (kit_canon): the same facts list the journal renders.
             # Bookkeeping, so it does not spend a player turn. Rooms already folded stay.
@@ -1324,6 +1360,13 @@ class Runtime:
                 kit_canon.apply_facts(state, event.get('facts'))
             except kit_canon.CanonError as exc:
                 require(False, str(exc))
+        elif kind == 'place_change':
+            from . import kit_scenes
+            change = event.get('change')
+            require(change in kit_scenes.CHANGE_KINDS, 'place_change kind is one of %s' % ', '.join(kit_scenes.CHANGE_KINDS))
+            require(isinstance(event.get('what'), str) and event.get('what').strip(),
+                    'place_change names what changed')
+            kit_scenes.log_change(state, source.get('id'), change, event['what'], event.get('detail') or '')
         elif kind == 'beat':
             tags = event.get('tags')
             require(isinstance(tags, list) and all(isinstance(t, str) for t in tags), 'Invalid beat tags')

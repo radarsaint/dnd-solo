@@ -95,8 +95,11 @@ class OpeningPacket(unittest.TestCase):
 
     def test_the_watchroom_opening_drops_procedures_it_does_not_use(self):
         packet, size, text = self._packet(WATCH)
-        self.assertLess(size, OPENING_PACKET_BEFORE - 4000, size)
-        self.assertLess(size, 54000, size)
+        # docs/PLAY_CARD.md is embedded verbatim for the host. It is read once; it is not engine state.
+        card_bytes = len(json.dumps(packet['play_card'], ensure_ascii=False).encode())
+        engine = size - card_bytes
+        self.assertLess(engine, OPENING_PACKET_BEFORE - 4000, size)
+        self.assertLess(engine, 54000, size)
         for absent in ('DETAIL:', 'CLAIMS.', 'AGENDA.'):
             self.assertNotIn(absent, text, absent)
         self.assertIn('PC STATE:', text)
@@ -250,10 +253,18 @@ class EightTurnPackets(unittest.TestCase):
             return packet
 
         sizes = {}
+        committed_roll = set()
         for turn in replay.TURNS:
             if turn['id'] not in set(MAIN_B5_TURN_BYTES) | {'T0'}:
                 continue
             packet = started['prepared'] if turn.get('opening') else bridge.prepare(turn['line'], one_pass=True)
+            if packet.get('stage') == 'prepared_committed':
+                # The roll's prepare already committed the outcome. It is not a decision packet.
+                self.assertTrue(packet.get('spoken'), turn['id'])
+                self.assertNotIn('loaded', packet, turn['id'])
+                sizes[turn['id']] = nbytes(packet)
+                committed_roll.add(turn['id'])
+                continue
             if turn['id'] != 'T0':
                 self.assertNotIn('loaded', packet, turn['id'])
                 self.assertNotIn('body', packet['session_manifest'], turn['id'])
@@ -273,9 +284,12 @@ class EightTurnPackets(unittest.TestCase):
             self.assertLessEqual(sizes[turn_id], limit, turn_id)
         # No climb: the eighth turn is not larger than the first, and the spread stays
         # inside one speech's worth of variation rather than the old multi-kilobyte trend.
-        ordered = [sizes[turn_id] for turn_id in sorted(sizes, key=lambda name: int(name[1:]))]
+        ordered = [sizes[turn_id] for turn_id in sorted(sizes, key=lambda name: int(name[1:]))
+                   if turn_id not in committed_roll]
         self.assertLessEqual(ordered[-1], ordered[0])
         self.assertLess(max(ordered) - min(ordered), 2500, ordered)
+        for turn_id in committed_roll:
+            self.assertLess(sizes[turn_id], min(ordered), turn_id)
 
 
 class HostLatencyLog(unittest.TestCase):
