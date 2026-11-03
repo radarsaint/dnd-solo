@@ -2,33 +2,33 @@
   "schema": "kit_project_gardener_state/v1",
   "purpose": "RESUMABILITY_CURSOR_NOT_KNOWLEDGE_STORE",
   "canonical_location": "radarsaint/dnd-solo/coordination/context_state.json",
-  "state_revision": 58,
+  "state_revision": 59,
   "semantic_brain": {
     "repo": "radarsaint/dnd-solo",
     "path": "docs/PROJECT_UNDERSTANDING.md",
-    "last_semantic_commit": "20efbe5cc3521d8c60295915dad31f94cb8ac425",
-    "last_reviewed_on": "2026-10-29"
+    "last_semantic_commit": "14b403c4ad5ef5f0bf8c0c60943ab65f115f9fad",
+    "last_reviewed_on": "2026-11-03"
   },
   "checkpoint": {
     "reviewed_against_main": {
-      "radarsaint/dnd-solo": "20efbe5cc3521d8c60295915dad31f94cb8ac425",
+      "radarsaint/dnd-solo": "14b403c4ad5ef5f0bf8c0c60943ab65f115f9fad",
       "radarsaint/bfdm-corpus": "cf65ec04572b2a033383344d1f2583e3380686f7"
     },
     "context_inbox": {
       "repo": "radarsaint/dnd-solo",
       "issue": 115,
       "issue_state_at_checkpoint": "open",
-      "last_fully_reconciled_comment_id": 6202184874,
-      "comment_count_at_checkpoint": 17
+      "last_fully_reconciled_comment_id": 6598407850,
+      "comment_count_at_checkpoint": 18
     }
   },
   "last_completed_pass": {
     "kind": "BOUNDED_SEMANTIC_RECONCILIATION",
-    "completed_on": "2026-10-29",
-    "scope": "Reviewed dnd-solo #201 merge (one-step adventure PDF ingest and first-scene compile). No bfdm-corpus change.",
-    "result": "Accept: #201 makes adventure PDF ingest one host step that indexes and compiles the first scene, with improved read-aloud recovery and PDF parsing. Brain updated accordingly. #115 comment 6266120288 remains pending.",
-    "resulting_brain_commit": "20efbe5cc3521d8c60295915dad31f94cb8ac425",
-    "reconciled_comment_id": 6202184874
+    "completed_on": "2026-11-03",
+    "scope": "Reviewed #115 comment 6598407850 provisional non-DM creative-judgment observation.",
+    "result": "Accept narrow: one provisional self-reported case of non-DM creative collaboration with task reframing and decomposition leading to user approval; caveats on audit, confounds, and non-generalization recorded. No change to North Star, KRABS, or runtime. Brain updated. No bfdm-corpus change.",
+    "resulting_brain_commit": "14b403c4ad5ef5f0bf8c0c60943ab65f115f9fad",
+    "reconciled_comment_id": 6598407850
   },
   "active_pass": null,
   "unresolved": [
