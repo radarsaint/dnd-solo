@@ -1,1 +1,1 @@
-See /tmp/brain_full.md for the complete correct content with #201 changes applied to header and adventure paragraph; subsequent sections unchanged from prior main.
+PLACEHOLDER_TO_BE_REPLACED
