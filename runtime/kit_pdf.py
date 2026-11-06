@@ -59,6 +59,66 @@ def text_readable(text):
     return singles / float(len(words)) < 0.22 and mean >= 2.8
 
 
+class _LazyObjects(dict):
+    """Parse xref objects on demand. A first-pages read does not inflate the rest of the file."""
+
+    def __init__(self, data, entries):
+        super().__init__()
+        self._data = data
+        self._entries = entries
+        offsets = sorted((off, num) for num, (typ, off, _gen) in entries.items() if typ == 1 and off > 0)
+        offs = [off for off, _num in offsets]
+        self._off = {num: off for off, num in offsets}
+        self._limit = {}
+        for i, (off, num) in enumerate(offsets):
+            self._limit[num] = offs[i + 1] if i + 1 < len(offs) else len(data)
+        self._busy = set()
+
+    def get(self, num, default=None):
+        if not isinstance(num, int):
+            return super().get(num, default)
+        if num in self:
+            got = super().__getitem__(num)
+            return default if got is None else got
+        if num in self._busy:
+            return default
+        self._busy.add(num)
+        try:
+            value = self._materialize(num)
+        except (ValueError, IndexError, KeyError, zlib.error):
+            value = None
+        finally:
+            self._busy.discard(num)
+        super().__setitem__(num, value)
+        return default if value is None else value
+
+    def _materialize(self, num):
+        entry = self._entries.get(num)
+        if not entry:
+            return None
+        typ, a, b = entry
+        if typ == 1:
+            return _parse_bounded(self._data, self._off.get(num, a), self._limit.get(num, len(self._data)))
+        if typ == 2:
+            stream = self.get(a)
+            _expand_objstm(stream, self)
+            if num in self:
+                return super().__getitem__(num)
+        return None
+
+
+def _load_opening(data):
+    """Catalog and page objects only. None when the xref cannot name a root."""
+    entries, root_ref = _read_xref_chain(data)
+    if not entries or not isinstance(root_ref, Ref):
+        return None
+    objects = _LazyObjects(data, entries)
+    root = _resolve(root_ref, objects)
+    if not isinstance(root, dict):
+        return None
+    return objects, root
+
+
 def extract(data, max_pages=None):
     """``{text, kind, pages, text_ops}``. ``kind`` is text, poor, no_text_layer, or not_pdf.
 
@@ -68,7 +128,8 @@ def extract(data, max_pages=None):
     if not isinstance(data, (bytes, bytearray)) or not bytes(data).startswith(b'%PDF'):
         return {'text': '', 'kind': 'not_pdf', 'pages': 0, 'text_ops': 0}
     data = bytes(data)
-    objects, root = _load_documents(data)
+    opened = _load_opening(data) if max_pages else None
+    objects, root = opened if opened else _load_documents(data)
     catalog = root if isinstance(root, dict) and root.get('/Type') == '/Catalog' else None
     if catalog is None:
         catalog = next((obj for obj in objects.values()

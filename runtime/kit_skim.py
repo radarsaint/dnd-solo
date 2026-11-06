@@ -75,16 +75,30 @@ _SYNOPSIS = re.compile(
 # A note to the DM that can sit in the same span as a boxed line. Player fiction
 # does not instruct the table, name the patron's orders, or describe a procedure.
 _DM_NOTE = re.compile(
-    r'\bintroduc(?:e|ing)\b'
+    r'\bintroduc'
     r'|\bpatrons?\b'
+    r'|\bmarching\b'
+    r'|\bwatch order\b'
+    r'|\btravel pace\b'
     r'|\btracking\b'
     r'|\btrack (?:the|their|a)\b'
     r'|\bprocedures?\b'
     r'|\broleplaying\b'
     r'|\bfor the dm\b'
+    r'|\bbackground\b'
+    r'|\byears ago\b'
+    r'|\blong ago\b'
     r'|\byou (?:should|may|must|might|need to|decide)\b'
-    r'|\b(?:ask|tell|have|let|allow)\s+the\s+(?:players|characters|party)\b'
-    r'|\bthe (?:players|characters|adventurers|heroes)\b'
+    r'|\b(?:ask|tell|have|let|allow|determine|establish)\s+'
+    r'(?:the\s+)?(?:players|characters|party|each)\b'
+    r'|\b(?:each|the)\s+(?:players|characters|adventurers|heroes|party)\b'
+    r'|\binitiative\b'
+    r'|\b(?:if|when)\s+(?:a\s+|the\s+)?(?:fight|combat|battle)\b'
+    r'|\bon a (?:success|failure|hit|miss)\b'
+    r'|\blater (?:in|on)\b'
+    r'|\bforeshadow'
+    r'|\b(?:ability|skill|group) checks?\b'
+    r'|\(\s*(?:perception|investigation|survival|insight|athletics|acrobatics|stealth)\s*\)'
     r"|\b(?:do not|don't)\s+(?:tell|reveal|share|read)\b"
     r'|\bunknown to\b'
     r'|\bsecretly\b'
@@ -97,6 +111,10 @@ _DM_NOTE = re.compile(
     r'|\bsee (?:area|chapter|page)\b'
     r'|\bnpcs?\b',
     re.I)
+_FORK_STOP = frozenset(
+    'that this with from they have been were when your into over under after before where '
+    'what which there their about would could should then than them these those only just '
+    'also more some such very once here still back down away even much many well'.split())
 _LIGATURE = {
     '\ufb00': 'ff', '\ufb01': 'fi', '\ufb02': 'fl', '\ufb03': 'ffi', '\ufb04': 'ffl',
     '\u2010': '-', '\u2011': '-', '\u2012': '-', '\u2013': '-', '\u2014': '-',
@@ -177,13 +195,19 @@ def _words(text):
 
 
 def _match_tokens(text):
-    """Words for a proof. Ligatures, marks, and hyphens fold. The spoken line does not."""
-    text = normalize(text)
+    """Words for a proof. Ligatures, marks, and hyphens fold the same way on both sides.
+
+    The spoken line is not these tokens. A hyphen is a break, so a line-break hyphen
+    does not glue two words into one token the quote does not have.
+    """
+    text = text or ''
+    text = re.sub(r'[\u200b\u200c\u200d\ufeff]', '', text)
     for src, dst in _LIGATURE.items():
         text = text.replace(src, dst)
+    text = re.sub(r'-+', ' ', text)
+    text = normalize(text)
     text = unicodedata.normalize('NFKD', text)
     text = ''.join(ch for ch in text if not unicodedata.combining(ch))
-    text = re.sub(r'-+', ' ', text)
     return [word.casefold() for word in re.findall(r"[A-Za-z0-9']+", text)]
 
 
@@ -442,20 +466,16 @@ def _ordered_span(words, want):
 
 
 def _search_stream(stream, want):
-    """(spoken, how) on one column or one page. Contiguous wins. Ordered is the proof
-    when the other column sits between the words. The spoken line never adds those words."""
-    norm, spans = _word_spans(stream)
-    words = [item[0] for item in spans]
-    width = len(want)
-    for index in range(max(0, len(words) - width + 1)):
-        if words[index:index + width] == want:
-            spoken, _b, _e = _locate(norm, spans, index, index + width - 1)
-            return spoken, 'contiguous'
+    """(how) on one column or one page. Ordered is enough. A column may reorder the
+    extract; the words still have to sit in this stream. Nothing is invented."""
     flex = _match_tokens(stream)
-    if _ordered_flex(flex, _match_tokens(' '.join(want))):
-        return None, 'ordered'
-    if _local_cover(flex, _match_tokens(' '.join(want))):
-        return None, 'covered'
+    width = len(want)
+    if width and any(flex[index:index + width] == want for index in range(max(0, len(flex) - width + 1))):
+        return 'contiguous'
+    if _ordered_flex(flex, want):
+        return 'ordered'
+    if _local_cover(flex, want):
+        return 'covered'
     return None
 
 
@@ -465,8 +485,9 @@ def find_quote(page_text, quote):
     Each page, each column, and a left-then-right reading are tried. Words in order
     are enough. A column may put the printed order and the extract order out of step;
     the words still have to sit together in this window. Nothing is invented.
+    The spoken line is the quote, not the words that sat between its tokens.
     """
-    want = _words(quote)
+    want = _match_tokens(quote)
     if not want:
         return None
     pages = [page for page in (page_text or '').split('\f')] or ['']
@@ -476,39 +497,46 @@ def find_quote(page_text, quote):
         streams.extend(_reading_orders(page))
     streams.append(page_text or '')
     for stream in streams:
-        found = _search_stream(stream, want)
-        if not found:
+        how = _search_stream(stream, want)
+        if not how:
             continue
-        _spoken, how = found
         if how == 'contiguous':
-            return _spoken, how
+            return normalize(quote), how
         if ordered is None or (ordered[1] != 'ordered' and how == 'ordered'):
             ordered = (normalize(quote), how)
     return ordered
 
 
 def _fiction_after(window, title):
-    """Player sentences under a heading. Empty when the heading only leads into a secret."""
-    want = _words(title)
+    """Boxed player sentences under a heading. Unmarked prose is not a start."""
+    want = _match_tokens(title)
     if not want:
         return ''
-    for stream in column_streams(window):
-        norm, spans = _word_spans(stream)
-        words = [item[0] for item in spans]
-        width = len(want)
-        at = next((i for i in range(max(0, len(words) - width + 1)) if words[i:i + width] == want), None)
-        if at is None:
-            continue
-        _spoken, _b, end = _locate(norm, spans, at, at + width - 1)
+    lines = []
+    for stream in _reading_orders(window):
+        lines.append(stream.split('\n'))
+    lines.append((window or '').split('\n'))
+    for stream_lines in lines:
+        started = False
         kept = []
-        for sentence in _sentences(norm[end:]):
-            if _KEYED.match(sentence) or _unsafe(sentence):
+        for line in stream_lines:
+            stripped = line.strip()
+            if not stripped:
+                continue
+            if not started:
+                if _ordered_flex(_match_tokens(stripped), want):
+                    started = True
+                continue
+            if _heading_line(stripped):
                 break
-            if len(sentence.split()) <= 2 and sentence[:1].isupper() and not sentence.endswith('.'):
-                break
-            kept.append(sentence)
-            if len(kept) >= 2:
-                break
+            if not stripped.startswith('>'):
+                continue
+            for sentence in _sentences(stripped.lstrip('>').strip()):
+                if _unsafe(sentence):
+                    continue
+                kept.append(sentence)
+                if len(kept) >= 2:
+                    return ' '.join(kept)
         if kept:
             return ' '.join(kept)
     return ''
@@ -1062,11 +1090,11 @@ def opening_screen(db, source, *, honor_burst=True):
             visible.append(fact['text'])
     safe = [line for line in visible if not _unsafe(line)]
     burst = peek_burst(db) if honor_burst else ''
-    blob = ' '.join(safe or visible)
-    if burst and not _unsafe(burst) and blob and (_contiguous(burst, blob) or _contiguous(blob, burst)):
-        return None
-    if burst and _unsafe(burst) and not safe:
+    if burst and _unsafe(burst):
         return 'burst'
+    blob = ' '.join(safe or visible)
+    if burst and blob and (_contiguous(burst, blob) or _contiguous(blob, burst)):
+        return None
     boxed = _boxed_player(db, source)
     if boxed is not None and not boxed:
         return 'room'
@@ -1102,9 +1130,16 @@ def _cast_people(room_path, text):
     for name in _introduced_names(text):
         key = _slug(name)
         if key in actors:
+            actor = actors[key]
+            if isinstance(actor, dict):
+                actor.setdefault('immediate_goal', 'Answer whoever speaks to them here.')
+                actor.setdefault('motive', 'They are in this scene.')
+                changed = True
             continue
         actors[key] = {
             'name': name, 'location': here, 'status': 'alive', 'visible': True, 'role': 'speaker',
+            'immediate_goal': 'Answer whoever speaks to them here.',
+            'motive': 'They are in this scene.',
         }
         changed = True
     if changed:
@@ -1132,7 +1167,22 @@ def _note_people(runtime, chunk):
             actors[key] = {
                 'name': name, 'location': here or 'here', 'status': 'alive',
                 'visible': True, 'role': 'speaker',
+                'immediate_goal': 'Answer whoever speaks to them here.',
+                'motive': 'They are in this scene.',
             }
+    try:
+        state_actors = runtime.load()[1].setdefault('actors', {})
+    except Exception:
+        state_actors = None
+    if isinstance(state_actors, dict):
+        for name in _introduced_names(chunk):
+            key = _slug(name)
+            state_actors.setdefault(key, {
+                'name': name, 'location': here or 'here', 'status': 'alive', 'visible': True,
+                'role': 'speaker',
+                'immediate_goal': 'Answer whoever speaks to them here.',
+                'motive': 'They are in this scene.',
+            })
 
 
 def fork_check(runtime, body):
@@ -1154,12 +1204,13 @@ def fork_check(runtime, body):
     hidden = [text for text in _area_facts(source, area, False) if not _unsafe(text) and _SENSORY.search(text)]
     if hidden:
         return None
-    spoken = 'Kit: Which part of this are you on?'
+    question = _fork_question(source, area)
+    spoken = 'Kit: %s' % question
     events = [{'type': 'beat', 'tags': ['clarify'],
                'evidence': 'No Check or Find in this span. One question, no roll.'}]
     committed = runtime.commit('fork-%s' % revision, revision, events)
     return {'stage': 'clarify', 'committed': True, 'calls': 1, 'spoken': spoken,
-            'public_event': 'Which part of this are you on?', 'revision': committed}
+            'public_event': question, 'revision': committed}
 
 
 def rescue_roll(runtime, action):
@@ -1185,8 +1236,8 @@ def rescue_roll(runtime, action):
         spoken = 'Kit: %s' % success_line(source, area, 'perception', (rows or hidden)[0])
         public = (rows or hidden)[0]
     else:
-        spoken = 'Kit: Which part of this are you on?'
-        public = 'Which part of this are you on?'
+        public = _fork_question(source, area)
+        spoken = 'Kit: %s' % public
     events = [{'type': 'beat', 'tags': ['clarify'],
                'evidence': 'A roll arrived with no check waiting. The page answers or asks which part.'}]
     committed = runtime.commit('roll-%s' % revision, revision, events)
@@ -1433,19 +1484,39 @@ def _crumb_rows(source, area):
     return rows
 
 
+def _fork_question(source, area):
+    """A concrete choice from what the player can already see. Not a note that the page is empty."""
+    nouns = []
+    for text in _area_facts(source, area, True):
+        for word in re.findall(r"[A-Za-z']{4,}", text):
+            folded = word.casefold().strip("'")
+            if len(folded) < 4 or folded in _FORK_STOP or folded in nouns:
+                continue
+            nouns.append(folded)
+            if len(nouns) >= 3:
+                break
+        if len(nouns) >= 3:
+            break
+    if len(nouns) >= 2:
+        return '%s, or %s. Which are you on?' % (nouns[0], nouns[1])
+    if nouns:
+        return 'The %s. What about it?' % nouns[0]
+    return 'Which part of this are you on?'
+
+
 def success_line(source, area, skill_name, cited):
-    """A high check speaks a new crumb or a fork. Never the opening, a tip, or 'comes up clean'."""
-    rows = _crumb_rows(source, area)
+    """A high check speaks a new crumb or a fork from this scene."""
+    rows = [row for row in _crumb_rows(source, area) if not _unsafe(row)]
     cited = normalize(cited)
-    if cited and not _marked(cited) and not _replay(source, area, cited) and cited not in rows:
+    if cited and not _unsafe(cited) and not _marked(cited) and not _replay(source, area, cited) and cited not in rows:
         rows.insert(0, cited)
     if rows:
-        line = 'The %s check turns up this: %s' % (skill_name, rows[0])
-    else:
-        line = _sensory_or_fork(source, area, skill_name)
-    if 'comes up clean' in line.casefold():
-        line = 'The %s check adds nothing new on the page. Which part of this are you on?' % skill_name
-    return line
+        return rows[0]
+    hidden = [text for text in _area_facts(source, area, False)
+              if text and not _unsafe(text) and _SENSORY.search(text)]
+    if hidden:
+        return hidden[0]
+    return _fork_question(source, area)
 
 
 def _area_facts(source, area, visible):
@@ -1461,12 +1532,47 @@ def _area_facts(source, area, visible):
     return out
 
 
-def _sensory_or_fork(source, area, skill_name):
-    # Hidden sensory text is new. Visible lines are the opening, so they are not a crumb.
-    hidden = [text for text in _area_facts(source, area, False) if not _marked(text)]
-    sensory = [text for text in hidden if _SENSORY.search(text)]
-    if sensory:
-        return 'The %s check turns up this: %s' % (skill_name, sensory[0])
-    if len(hidden) >= 2:
-        return '%s — or %s. Which do you mean?' % (hidden[0], hidden[1])
-    return 'The %s check adds nothing new on the page. Which part of this are you on?' % skill_name
+def named_start(runtime, action):
+    """A title typed before the opening is a start command, not a ruling."""
+    text = normalize(action or '').strip(' .!')
+    if not text or len(text.split()) > 8:
+        return None
+    try:
+        path = runtime.path
+    except Exception:
+        return None
+    data = _read(path)
+    if data.get('burst_spoken'):
+        return None
+    folded = text.casefold()
+    titles = []
+    for alt in data.get('alt_starts') or []:
+        if alt.get('title'):
+            titles.append(alt['title'])
+    try:
+        from .kit_adventure import _load
+        index, _text = _load(path)
+    except Exception:
+        index = {}
+    for item in index.get('starts') or []:
+        for key in ('pick', 'line'):
+            if item.get(key):
+                titles.append(item[key])
+    if index.get('title'):
+        titles.append(index['title'])
+    hit = None
+    for title in titles:
+        candidate = normalize(title).casefold()
+        if candidate and (folded == candidate or candidate.endswith(' ' + folded)):
+            hit = title
+            break
+    if hit is None:
+        return None
+    import shlex
+    return {
+        'stage': 'use_start', 'committed': False, 'spoken': None, 'character_loaded': False,
+        'start_title': hit,
+        'table_line': 'That is a start, not a turn. Nothing is committed until the opening is player fiction.',
+        'next_command': 'python3 -m runtime.kit_agent start --db %s --sheet <sheet> --start %s' % (
+            shlex.quote(str(path)), shlex.quote(str(hit))),
+    }

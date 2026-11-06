@@ -716,12 +716,17 @@ class SkimRound6(unittest.TestCase):
         bridge.prepare('Yes.')
         heard = bridge.prepare('I search the trees.')
         spoken = heard.get('spoken') or ''
-        self.assertIn('which part of this are you on', spoken.casefold())
+        self.assertIn('which', spoken.casefold())
+        self.assertNotIn('adds nothing', spoken.casefold())
+        self.assertNotIn('on the page', spoken.casefold())
         self.assertNotIn('You search', spoken)
         self.assertNotEqual(heard.get('stage'), 'pending_ruling')
         rolled = bridge.prepare('Perception 18')
         self.assertNotEqual(rolled.get('stage'), 'pending_ruling')
-        self.assertIn('which part of this are you on', (rolled.get('spoken') or '').casefold())
+        rolled_text = (rolled.get('spoken') or '').casefold()
+        self.assertNotIn('adds nothing', rolled_text)
+        self.assertNotIn('on the page', rolled_text)
+        self.assertTrue('wagon' in rolled_text or 'which' in rolled_text)
 
     def test_the_rest_of_the_book_waits_until_the_opening_is_spoken(self):
         self._ingest(
@@ -737,3 +742,103 @@ class SkimRound6(unittest.TestCase):
         later = kit_adventure.deepen_index(self.db)
         self.assertEqual(later['stage'], 'index_later')
         self.assertIsNone(kit_labels.next_request(self.db))
+
+    def test_an_accented_word_in_order_is_the_same_token(self):
+        self._ingest(
+            'The North Road\n'
+            '> The caf\u00e9 on the lane gutters as the rain starts.\n'
+            'The Square\n'
+            '> A baker waves from the stall.\n'
+        )
+        done = kit_skim.accept(self.db, _reply(
+            burst='The caf\u00e9 on the lane gutters as the rain starts.',
+            source_quote='The caf\u00e9 on the lane gutters as the rain starts.',
+        ))
+        self.assertEqual(done['stage'], 'skim_accepted', done)
+
+    def test_go_on_does_not_speak_prep_or_a_rule(self):
+        self._ingest(
+            'The North Road\n'
+            '> The wagon stops in the ruts under the trees.\n'
+            '> Captain Mara steps out and raises a hand.\n'
+            '> Character introductions come before play. Their patron hired the wagon.\n'
+            '> Set the marching order before the first mile.\n'
+            '> If the fight starts, the scouts win and the danger returns later in the hills.\n'
+            '> Call for a Wisdom (Perception) check to notice the ruts.\n'
+            'The Square\n'
+            '> A baker waves from the stall.\n'
+        )
+        done = kit_skim.accept(self.db, _reply(
+            burst='The wagon stops in the ruts under the trees.',
+            source_quote='The wagon stops in the ruts under the trees.',
+        ))
+        self.assertEqual(done['stage'], 'skim_accepted', done)
+        start_session(str(self.db), str(NIK))
+        runtime = Runtime(str(self.db))
+        self.addCleanup(runtime.close)
+        bridge = KitChatBridge(runtime, RoomAdjudicator())
+        bridge.prepare('Yes.')
+        more = bridge.prepare('Go on')
+        spoken = (more.get('spoken') or '').casefold()
+        self.assertIn('mara', spoken)
+        for banned in ('introduction', 'patron', 'marching', 'if the fight', 'later in', 'perception'):
+            self.assertNotIn(banned, spoken, banned)
+        from runtime.scene_discernment import check_improv_read, discernment_candidates
+        room = runtime.source()
+        area = runtime.load()[1]['area']
+        candidates = discernment_candidates({
+            'scene': {'current_area': area},
+            'dm_only': {'actors': room.get('actors') or {}},
+        })
+        key = next(k for k, actor in (room.get('actors') or {}).items()
+                   if 'mara' in (actor.get('name') or '').casefold())
+        self.assertIn(key, candidates['actor_bases'])
+        check_improv_read({
+            'story_anchor': 'scene', 'story_basis': 'scene_state',
+            'actor_ref': key, 'actor_basis': 'motive',
+            'kit_choice': 'Kit lets her answer the hail.',
+        }, candidates)
+
+    def test_an_unboxed_backstory_title_is_not_spoken(self):
+        self._ingest(
+            'The North Road\n'
+            '> The wagon stops in the ruts under the trees.\n'
+            'The Old Tale\n'
+            'Years ago a family built a house on this hill. The youngest still walks.\n'
+            'The Square\n'
+            '> A baker waves from the stall.\n'
+        )
+        refused = kit_skim.accept(self.db, _reply(
+            burst='A dragon lands on the bakery and the crowd cheers.',
+            source_quote='A dragon lands on the bakery and the crowd cheers.',
+            alt_starts=[
+                {'title': 'The North Road', 'page': 1},
+                {'title': 'The Old Tale', 'page': 1},
+                {'title': 'The Square', 'page': 1},
+            ],
+        ))
+        self.assertEqual(refused['stage'], 'skim_rejected')
+        titles = [item.get('line') or item.get('title') for item in refused['start_picker']['places']]
+        self.assertNotIn('The Old Tale', titles)
+        picked = kit_adventure.choose_start(self.db, 'The Old Tale')
+        self.assertEqual(picked.get('stage'), 'pick_start')
+        self.assertFalse(picked.get('committed'))
+        self.assertIsNone(picked.get('spoken'))
+        self.assertNotIn('years ago', json.dumps(picked).casefold())
+
+    def test_a_typed_title_is_a_start_not_a_ruling(self):
+        self._ingest(
+            'The North Road\n> The wagon stops in the ruts under the trees.\n'
+            'The Square\n> A baker waves from the stall.\n'
+        )
+        kit_skim.accept(self.db, _reply(
+            burst='A dragon lands on the bakery and the crowd cheers.',
+            source_quote='A dragon lands on the bakery and the crowd cheers.',
+        ))
+        runtime = Runtime(str(self.db))
+        self.addCleanup(runtime.close)
+        hinted = kit_skim.named_start(runtime, 'The Square')
+        self.assertEqual(hinted['stage'], 'use_start')
+        self.assertFalse(hinted['committed'])
+        self.assertIsNone(hinted['spoken'])
+        self.assertIn('--start', hinted['next_command'])

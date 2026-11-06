@@ -1740,7 +1740,7 @@ class RoomAdjudicator:
                  'evidence': f'Player attempts: {action[:300]}. Nothing rolled yet; Kit rules the outcome '
                              'as an ordinary turn and may call a check (roll_call). Nothing hidden is learned '
                              'unless a called check succeeds.'}
-        return Resolution('kit_ruling', 'The attempt stands.', [event])
+        return Resolution('kit_ruling', 'The moment holds.', [event])
 
     def _feature_act(self, action, offer):
         """A turn about a watched feature: nothing is resolved from the words; Kit's decision
@@ -4627,8 +4627,8 @@ def assign_roll_call_policy(body, source):
                    if kit_skim._SENSORY.search(text)]
         policy = 'combined' if rows or sensory else 'clarify'
         if policy == 'clarify':
-            body['clarify_fork'] = ('The %s check adds nothing new on the page. Which part of this are you on?'
-                                    % 'check')
+            body['clarify_fork'] = kit_skim._fork_question(
+                source, ((body.get('public_view') or {}).get('area')))
     elif body.get('kind') == 'check_request':
         policy = 'combined'
     else:
@@ -7356,10 +7356,27 @@ class KitChatBridge:
         """prepare() for hosts: a pending ruling never crashes the turn. It comes back as a
         structured result (stage pending_ruling, nothing committed) that the host shows the
         player; the CLI uses this too, so every host handles a ruling the same way."""
+        action = kwargs.get('action', args[0] if args else None)
         try:
+            from . import kit_skim
+            if not kwargs.get('opening'):
+                hinted = kit_skim.named_start(self.runtime, action)
+                if hinted:
+                    return hinted
             return self.prepare(*args, **kwargs)
         except PendingRuling as exc:
+            from . import kit_skim
+            hinted = kit_skim.named_start(self.runtime, action)
+            if hinted:
+                return hinted
             return pending_ruling_result(exc)
+        except InvalidChange as exc:
+            if 'Initialize a session first' in str(exc):
+                from . import kit_skim
+                hinted = kit_skim.named_start(self.runtime, action)
+                if hinted:
+                    return hinted
+            raise
 
     @_stale_guided
     def prepare(self, action=None, turn_id=None, use_memory=True, one_pass=False, opening=False,

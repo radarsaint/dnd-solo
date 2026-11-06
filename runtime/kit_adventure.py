@@ -1467,7 +1467,9 @@ def draft_room(db, key, index, text, span=None):
         if akey in actors:
             continue
         actors[akey] = {'name': name, 'location': here, 'status': 'alive', 'visible': True,
-                        'role': 'speaker'}
+                        'role': 'speaker',
+                        'immediate_goal': 'Answer whoever speaks to them here.',
+                        'motive': 'They are in this scene.'}
         prov[f'actors.{akey}'] = {'offset': off, 'quote': sentence}
     room = {'id': f"adv-{index['sha256'][:8]}-{_slug(key)}",
             'source_ref': f"{index['title']} / {key}. {loc['name']} (p. {loc['page']})",
