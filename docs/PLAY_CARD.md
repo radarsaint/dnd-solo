@@ -36,7 +36,7 @@ On a pass, say the result's `table_line`: "We're set. Default is the book's star
 
 Before a scene exists, do not `prepare` a title. Run `start --db kit.sqlite --sheet <sheet> --start "<title>"`. If `prepare` says `Initialize a session first` or returns `use_start`, run `next_command`. Show `table_line`. The picker lists `places`. An empty list is a bug; do not invent a scene.
 
-Talking to someone on stage: `move` is `npc_reply`. `actor_ref` is their id from the scene. `actor_basis` is `immediate_goal` or `motive`. `turn_mode` is `description`. Scope is `feature`: at least 80 words across non-Kit segments, in at least 2 segments. One of those segments is that person speaking. Show `spoken`, not an engine fallback. Do not say "The moment holds." or "The attempt stands."
+Talking to someone on stage: `move` is `npc_reply`. `actor_ref` is their id from the scene. `actor_basis` is `immediate_goal` or `motive`. `turn_mode` is `description`. Scope is `feature`: at least 80 words across non-Kit segments, in at least 2 segments. One of those segments is that person speaking. Show `spoken`, not an engine fallback. Do not say "The moment holds.", "The attempt stands.", or "Ruled as an ordinary turn."
 
 Later sections are labeled during a clarify or a roll, in the same exchange as the line they already heard. That pass is for the middle of the book. It is not how the opening is chosen. A rejected label speaks nothing from that section.
 

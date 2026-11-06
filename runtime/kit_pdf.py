@@ -132,8 +132,13 @@ def extract(data, max_pages=None):
     if not isinstance(data, (bytes, bytearray)) or not bytes(data).startswith(b'%PDF'):
         return {'text': '', 'kind': 'not_pdf', 'pages': 0, 'text_ops': 0}
     data = bytes(data)
-    opened = _load_opening(data) if max_pages else None
-    objects, root = opened if opened else _load_documents(data)
+    if max_pages:
+        opened = _load_opening(data)
+        if not opened:
+            return {'text': '', 'kind': 'poor', 'pages': 0, 'text_ops': 0, 'truncated': True}
+        objects, root = opened
+    else:
+        objects, root = _load_documents(data)
     catalog = root if isinstance(root, dict) and root.get('/Type') == '/Catalog' else None
     if catalog is None:
         catalog = next((obj for obj in objects.values()

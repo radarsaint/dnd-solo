@@ -115,7 +115,7 @@ _DM_NOTE = re.compile(
     re.I)
 # Go on only. A street box may say "you may" or "long ago". These still end a read.
 _GO_EXTRA = re.compile(
-    r'\bplayers\b'
+    r'\bplayers?\b'
     r'|\btheir own\b'
     r'|\bconcoct'
     r'|\bbackstor'
@@ -124,7 +124,35 @@ _GO_EXTRA = re.compile(
     r'|\bcharacter (?:creation|setup|background)'
     r'|\bsurprise round\b'
     r'|\bcombat\b'
-    r'|\btracking\b',
+    r'|\btracking\b'
+    r'|\b(?:attack|damage) rolls?\b'
+    r'|\bhit points\b',
+    re.I)
+_META = re.compile(
+    r'\b(?:trademark|copyright|synopsis|credits?|legal notice|published by|'
+    r'level advancement|levels? up|experience points|\bxp\b)\b',
+    re.I)
+_QUOTE_HARD = re.compile(
+    r'\bDC\s*\d+\b'
+    r'|\bhit points\b'
+    r'|\bthe players\b'
+    r'|\bplayers?\b'
+    r'|\bsecret\b'
+    r'|\bintroduc'
+    r'|\bpatrons?\b'
+    r'|\bmarching\b'
+    r'|\btracking\b'
+    r'|\bprocedures?\b'
+    r'|\b(?:ability|skill|group) checks?\b'
+    r'|\(\s*(?:perception|investigation|survival|insight|athletics|acrobatics|stealth)\s*\)'
+    r'|\bif the characters\b'
+    r'|\bsecretly\b'
+    r'|\bthe truth is\b'
+    r'|\bxp\b',
+    re.I)
+_SCENE_VERB = re.compile(
+    r'\b(?:stops?|stands?|walks?|sits?|lies?|rises?|falls?|hangs?|glows?|creaks?|'
+    r'waits?|waves?|steps?|hears?|sees?|rains?|gutters?|closes?|opens?|leads?)\b',
     re.I)
 _FORK_STOP = frozenset(
     'that this with from they have been were when your into over under after before where '
@@ -224,6 +252,20 @@ def _match_tokens(text):
     text = unicodedata.normalize('NFKD', text)
     text = ''.join(ch for ch in text if not unicodedata.combining(ch))
     return [word.casefold() for word in re.findall(r"[A-Za-z0-9']+", text)]
+
+
+def _ordered_near(have, want):
+    """Content words in order, allowing one of them to be missing from the extract."""
+    content = [word for word in want if len(word) > 3]
+    if len(content) < 8:
+        return False
+    if _ordered_flex(have, content):
+        return True
+    for skip in range(len(content)):
+        trial = content[:skip] + content[skip + 1:]
+        if len(trial) >= 8 and _ordered_flex(have, trial):
+            return True
+    return False
 
 
 def _ordered_loose(have, want):
@@ -495,7 +537,7 @@ def _search_stream(stream, want):
     width = len(want)
     if width and any(flex[index:index + width] == want for index in range(max(0, len(flex) - width + 1))):
         return 'contiguous'
-    if _ordered_flex(flex, want) or _ordered_loose(flex, want):
+    if _ordered_flex(flex, want) or _ordered_loose(flex, want) or _ordered_near(flex, want):
         return 'ordered'
     if _local_cover(flex, want):
         return 'covered'
@@ -555,7 +597,7 @@ def _fiction_after(window, title):
             if not stripped.startswith('>'):
                 continue
             for sentence in _sentences(stripped.lstrip('>').strip()):
-                if _unsafe(sentence):
+                if not _playerish(sentence):
                     continue
                 kept.append(sentence)
                 if len(kept) >= 2:
@@ -583,11 +625,11 @@ def _harvest_starts(window):
             if _heading_line(stripped):
                 title = stripped.lstrip('>').strip()
                 continue
-            if not title or title.casefold() in seen:
+            if not title or title.casefold() in seen or not stripped.startswith('>'):
                 continue
             piece = stripped.lstrip('>').strip()
             for sentence in _sentences(piece):
-                if _go_fail(sentence) or len(_words(sentence)) < 6:
+                if not _playerish(sentence):
                     continue
                 found.append({'title': title, 'page': page, 'quote': sentence})
                 seen.add(title.casefold())
@@ -612,7 +654,7 @@ def _filter_alts(alts, window, end_page):
         if not _contiguous(title, window) and find_quote(window, title) is None:
             continue
         quote = _fiction_after(window, title)
-        if not quote or _unsafe(quote):
+        if not quote or not _playerish(quote):
             continue
         key = title.casefold()
         if key in seen:
@@ -678,16 +720,39 @@ def _headerish(text):
     return caps >= 2 and caps * 2 >= len(words)
 
 
+def _blocks_quote(text):
+    """Hard prep. A street line that says "hidden" or "you may" is still an opening."""
+    cleaned = normalize(text)
+    if not cleaned:
+        return True
+    return bool(_META.search(cleaned) or _QUOTE_HARD.search(cleaned))
+
+
+def _playerish(text):
+    """A sentence a player can be standing in. Synopsis, credits, and level notes are not."""
+    cleaned = normalize(text)
+    if not cleaned or _blocks_quote(cleaned) or _go_fail(cleaned):
+        return False
+    if len(_words(cleaned)) < 6:
+        return False
+    if re.search(r'\byou\b', cleaned, re.I):
+        return True
+    return bool(_SCENE_VERB.search(cleaned))
+
+
 def _go_fail(text):
     """True when this next read is prep, a procedure, a header, or a rule."""
     cleaned = normalize(text)
     if not cleaned or _unsafe(cleaned) or _headerish(cleaned):
         return True
-    if _GO_EXTRA.search(cleaned):
+    if _GO_EXTRA.search(cleaned) or _META.search(cleaned):
         return True
     for clause in _clauses(cleaned):
-        if _unsafe(clause) or _headerish(clause) or _GO_EXTRA.search(clause):
+        if _unsafe(clause) or _headerish(clause) or _GO_EXTRA.search(clause) or _META.search(clause):
             return True
+    # A long block that never puts the listener in the scene is a note, not a box.
+    if len(_words(cleaned)) > 45 and not re.search(r'\byou\b', cleaned, re.I):
+        return True
     return False
 
 
@@ -922,7 +987,7 @@ def _opening_span(page_text, book_quote):
     a synopsis, or a mechanics line does not.
     """
     base = [sentence for sentence in (_sentences(book_quote) or [normalize(book_quote)])
-            if sentence and not _unsafe(sentence)]
+            if sentence and not _go_fail(sentence) and not _blocks_quote(sentence)]
     want = _words(book_quote)[:4]
     started = False
     extra = []
@@ -945,7 +1010,7 @@ def _opening_span(page_text, book_quote):
             continue
         piece = stripped.lstrip('>').strip()
         for sentence in _sentences(piece):
-            if _unsafe(sentence) or _contiguous(sentence, held):
+            if _go_fail(sentence) or _blocks_quote(sentence) or _contiguous(sentence, held):
                 continue
             extra.append(sentence)
             held = (held + ' ' + sentence).strip()
@@ -1109,7 +1174,7 @@ def accept(db, reply):
         return _reject(db, ['burst is not in source_quote'], alts, expanded)
     if find_quote(window, name) is None and not _contiguous(name, window):
         return _reject(db, ['design_start_name is not in the skim window'], alts, expanded)
-    if _unsafe(burst) or _unsafe(book_quote):
+    if _blocks_quote(burst) or _blocks_quote(book_quote):
         return _reject(db, ['the burst quotes a tip, a secret, or a note to the DM'], alts, expanded)
     span_text = _opening_span(page_text, book_quote) or book_quote
     spoken, remainder = _split_burst(span_text, burst)
@@ -1183,7 +1248,7 @@ def _boxed_player(db, source):
         if not stripped.startswith('>'):
             continue
         piece = stripped.lstrip('>').strip()
-        if piece and not _unsafe(piece):
+        if piece and not _blocks_quote(piece) and not _META.search(piece):
             lines.append(piece)
     return lines
 
@@ -1201,7 +1266,7 @@ def opening_screen(db, source, *, honor_burst=True):
             visible.append(fact['text'])
     safe = [line for line in visible if not _unsafe(line)]
     burst = peek_burst(db) if honor_burst else ''
-    if burst and _unsafe(burst):
+    if burst and (_blocks_quote(burst) or _META.search(burst)):
         return 'burst'
     blob = ' '.join(safe or visible)
     if burst and blob and (_contiguous(burst, blob) or _contiguous(blob, burst)):
@@ -1226,8 +1291,9 @@ def landing_holds(db):
 
 
 def _cast_people(room_path, text):
-    """People introduced in this player span become actors on the room."""
-    from .kit_adventure import _introduced_names, _slug
+    """People, greeters, and creatures in this span become actors on the room."""
+    from .kit_adventure import _GREET, _creatures, _introduced_names, _slug
+    from .srd_creatures import CREATURES
     path = Path(room_path) if room_path else None
     if path is None or not path.is_file() or not text:
         return
@@ -1253,6 +1319,39 @@ def _cast_people(room_path, text):
             'motive': 'They are in this scene.',
         }
         changed = True
+    if _GREET.search(text or '') and not any(
+            'greet' in (actor.get('name') or '').casefold()
+            for actor in actors.values() if isinstance(actor, dict)):
+        actors['greeter'] = {
+            'name': 'Greeter', 'location': here, 'status': 'alive', 'visible': True,
+            'role': 'speaker',
+            'immediate_goal': 'Answer whoever speaks to them here.',
+            'motive': 'They are in this scene.',
+        }
+        changed = True
+    triggers = room.setdefault('triggers', [])
+    have_trigger = {item.get('id') for item in triggers if isinstance(item, dict)}
+    for creature in _creatures(text or '', 0, {}):
+        name = creature.get('name') or ''
+        key = _slug(name)
+        if not key:
+            continue
+        if key not in actors and name.casefold() in CREATURES:
+            actors[key] = {
+                'name': name.title(), 'location': here, 'status': 'hidden', 'visible': False,
+                'stat_block': {'srd': name.casefold()},
+                'immediate_goal': 'They are the pressure in this opening.',
+                'motive': 'They are in this scene.',
+            }
+            changed = True
+        trig = 'reveal_%s' % key
+        if trig not in have_trigger and key in actors:
+            triggers.append({
+                'id': trig, 'on': {'enter': here}, 'actors': [key],
+                'reveal': '%s reveals itself.' % name.title(),
+            })
+            have_trigger.add(trig)
+            changed = True
     if changed:
         path.write_text(json.dumps(room, ensure_ascii=False), encoding='utf-8')
 
@@ -1405,7 +1504,7 @@ def opening_line(db):
     if data.get('status') != 'accepted':
         return None
     burst = (data.get('burst') or '').strip()
-    if not burst or _unsafe(burst):
+    if not burst or _blocks_quote(burst) or _META.search(burst):
         data['screen_failed'] = True
         _write(db, data)
         return None
@@ -1444,6 +1543,8 @@ def release(runtime, action):
                 'public_event': data.get('burst') or '', 'revision': committed}
     rest = (data.get('remainder') or '').strip()
     chunk, left, stopped = _read_on(rest, BURST_WORDS)
+    if chunk and _go_fail(chunk):
+        chunk, left, stopped = '', '', True
     data['remainder'] = '' if stopped else left
     if not chunk:
         spoken = 'Kit: %s' % OPENING_DONE
@@ -1505,7 +1606,7 @@ def open_title(db, token):
     if chosen is None:
         return None
     quote = chosen.get('quote') or ''
-    if not quote or _unsafe(quote):
+    if not quote or not _playerish(quote):
         raise IngestError(['%s is not player fiction' % chosen.get('title')])
     page = chosen.get('page') or 1
     done = accept(db, {
@@ -1622,6 +1723,9 @@ def success_line(source, area, skill_name, cited):
     cited = normalize(cited)
     if cited and not _unsafe(cited) and not _marked(cited) and not _replay(source, area, cited) and cited not in rows:
         rows.insert(0, cited)
+    finds = [row for row in rows if row.lower().startswith('find')]
+    if finds:
+        return finds[0]
     if rows:
         return rows[0]
     hidden = [text for text in _area_facts(source, area, False)

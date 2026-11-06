@@ -190,6 +190,12 @@ def read_pdf(path, reader='auto', max_pages=None):
     if not data.startswith(b'%PDF'):
         raise IngestError([NOT_PDF])
     from .kit_pdf import extract, text_readable
+    # The opening window is a short read. A full-file parse is not part of landing.
+    if reader == 'auto' and max_pages:
+        alt, name = optional_pdf_text(path, 'pdftotext', max_pages=max_pages)
+        if alt and pdf_yield_ok(alt):
+            parts = alt.split('\f')
+            return '\f'.join(parts[:int(max_pages)]), name
     found = extract(data, max_pages=max_pages) if reader in ('auto', 'stdlib') else {'kind': 'poor', 'text': ''}
     # Letter-spaced stdlib text ('T h e', 'F o llo wi n') is a weak read. pdftotext, when the
     # host has it, is the fallback. --reader stdlib never takes that path.

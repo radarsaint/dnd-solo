@@ -921,6 +921,49 @@ class SkimRound6(unittest.TestCase):
         self.assertIn('--start', hinted['next_command'])
         self.assertNotIn('Initialize a session', json.dumps(hinted))
 
+    def test_a_synopsis_title_is_not_a_start(self):
+        self._ingest(
+            'The North Road\n'
+            '> The wagon stops in the ruts under the trees.\n'
+            'Level Notes\n'
+            'Level advancement grants experience points after the credits.\n'
+            'The Square\n'
+            '> A baker waves from the stall by the corner.\n'
+        )
+        refused = kit_skim.accept(self.db, _reply(
+            burst='A dragon lands on the bakery and the crowd cheers.',
+            source_quote='A dragon lands on the bakery and the crowd cheers.',
+            alt_starts=[
+                {'title': 'The North Road', 'page': 1},
+                {'title': 'Level Notes', 'page': 1},
+                {'title': 'The Square', 'page': 1},
+            ],
+        ))
+        self.assertEqual(refused['stage'], 'skim_rejected')
+        titles = [item.get('line') or item.get('title') or item.get('pick')
+                  for item in refused['start_picker']['places']]
+        self.assertNotIn('Level Notes', titles)
+        self.assertTrue(any('North Road' in (item or '') or 'Square' in (item or '') for item in titles))
+        picked = kit_adventure.choose_start(self.db, 'Level Notes')
+        self.assertEqual(picked.get('stage'), 'pick_start')
+        self.assertFalse(picked.get('committed'))
+        self.assertIsNone(picked.get('spoken'))
+        self.assertNotIn('experience', json.dumps(picked).casefold())
+
+    def test_one_missing_content_word_still_accepts_the_line(self):
+        self._ingest(
+            'The North Road\n'
+            '> You stand on the quiet lane as the heavy rain starts across the street tonight.\n'
+            'The Square\n'
+            '> A baker waves from the stall by the corner.\n'
+        )
+        done = kit_skim.accept(self.db, _reply(
+            burst='You stand on the quiet lane as the heavy rain begins across the street tonight.',
+            source_quote='You stand on the quiet lane as the heavy rain begins across the street tonight.',
+        ))
+        self.assertEqual(done['stage'], 'skim_accepted', done)
+        self.assertIn('begins', Path(done['room']).read_text(encoding='utf-8').casefold())
+
     def test_a_greeter_in_the_opening_is_an_actor(self):
         self._ingest(
             'The North Road\n'

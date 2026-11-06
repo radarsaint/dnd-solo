@@ -1740,7 +1740,7 @@ class RoomAdjudicator:
                  'evidence': f'Player attempts: {action[:300]}. Nothing rolled yet; Kit rules the outcome '
                              'as an ordinary turn and may call a check (roll_call). Nothing hidden is learned '
                              'unless a called check succeeds.'}
-        return Resolution('kit_ruling', 'Ruled as an ordinary turn.', [event])
+        return Resolution('kit_ruling', 'In the scene.', [event])
 
     def _feature_act(self, action, offer):
         """A turn about a watched feature: nothing is resolved from the words; Kit's decision
