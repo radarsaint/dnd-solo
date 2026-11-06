@@ -48,8 +48,10 @@ def discernment_candidates(dm_context):
         if actor.get('location') != current_area or actor.get('status') in ('dead', 'fled', 'hidden'):
             continue
         bases = [key for key in ('immediate_goal', 'motive') if actor.get(key)]
-        if bases:
-            actor_bases[actor_id] = bases
+        # A person on stage can be spoken to even before a motive is written down.
+        if not bases:
+            bases = ['none']
+        actor_bases[actor_id] = bases
     return {'story_bases': story_bases, 'actor_bases': actor_bases}
 
 

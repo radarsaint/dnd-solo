@@ -9,8 +9,13 @@ published adventure text is in this repo.
 
 ## Host commands
 
-One step, then begin. `ingest` reads the PDF (or pasted text), writes the index, and compiles
-the first scene. `status` prints `next_command`; run it when the player says begin.
+One step, then the host skims. `ingest` reads the PDF (or pasted text) and writes the index.
+It does not choose the opening. The host reads the first pages and returns one JSON object
+to `adventure skim`. Python checks that the quote is a contiguous substring of that page
+window, and refuses a tip, a secret, a DC, or a paraphrase. A refusal offers the early
+titles from that window. It does not open the next section. `Yes.` speaks the validated
+burst. `Go on` speaks the next chunk of the same span. Labels run later, during patter,
+for the middle of the book. `status` prints `next_command`; run it when the player says begin.
 
 ```sh
 python3 -m runtime.kit_agent ingest adventure.pdf --db kit.sqlite
@@ -48,7 +53,7 @@ Keyed numbers are reused across sites. A **PART** heading names the site (`Part 
 Trail` → `trail-1`). A bare integer is kept only when no PART is known (a single-chapter
 book stays `1`, `2`, `3`). A letter-spaced fake chapter (`F o llo wi n g`) is not a site.
 A reference to "area 4" stays inside the site that said it. The start is the first keyed
-area of part 1 / chapter 1 / the introduction. A contents line (`4. Goblin Arrows .... 5`)
+area of part 1 / chapter 1 / the introduction. A contents line (`4. North Watch .... 5`)
 is not a room and is not the adventure title. A running header repeated at the edge of
 later pages is one chapter, not one per page.
 

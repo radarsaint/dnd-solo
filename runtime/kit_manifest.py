@@ -32,11 +32,12 @@ ROOM_DM_KEYS = ('source_id', 'source_ref', 'map_ref', 'fixture_only', 'level_con
                 'constraints', 'dm_only', 'missing_production_layers')
 FULL_EVERY = 8               # re-send both bodies at least every 8 committed turns
 REJECT_STREAK = 2            # after this many rejections the next packet gets rejection_notice
-MANIFEST_RULE = ('session_manifest and room_manifest hold this session\'s core, instructions, output '
-                 'contract and the room\'s static truth. "cached": true means unchanged since you were '
-                 'sent the body; use that copy. Echo both hashes with your output as "manifest": '
-                 '{"session": ..., "room": ...}. If you no longer have a body, do not guess: run rehydrate '
-                 'for this turn_id (CLI: rehydrate --turn-id T) and you get both in full.')
+MANIFEST_ECHO = '{"session": "<session_manifest.hash>", "room": "<room_manifest.hash>"}'
+MANIFEST_RULE = ('session_manifest and room_manifest are copies you keep. "cached": true means use the '
+                 'copy you were sent. Your output\'s "manifest" is ONLY the two hashes, exactly '
+                 + MANIFEST_ECHO + '. Never put session_manifest, room_manifest, "body", or "cached" in '
+                 'that field. If you no longer have a body, do not guess and do not reread docs: run '
+                 'rehydrate for this turn_id (CLI: rehydrate --turn-id T) and you get both in full.')
 
 
 class ManifestMismatch(InvalidChange):
@@ -239,10 +240,21 @@ def check_echo(output, record):
     echo = output.get('manifest')
     expected = {'session': record['session'], 'room': record['room']}
     if echo != expected:
-        raise ManifestMismatch(
+        sent_body = isinstance(echo, dict) and (
+            'body' in echo or 'room_manifest' in echo or 'session_manifest' in echo or 'cached' in echo
+            or any(isinstance(value, dict) for value in echo.values()))
+        paste = {'manifest': expected}
+        exc = ManifestMismatch(
             f'manifest echo {json.dumps(echo)} does not match this turn\'s manifests '
-            f'{json.dumps(expected)}. If you lost a manifest body, run rehydrate for this turn_id '
-            '(CLI: rehydrate --turn-id T), then resubmit the same output with "manifest" set to these hashes.')
+            f'{json.dumps(expected)}. Expected shape is exactly {MANIFEST_ECHO}: the two hashes only, '
+            'never the manifest body.'
+            + (' You sent a manifest body or a cached wrapper.' if sent_body else '')
+            + ' Paste this and complete the same turn_id once (do not prepare again): '
+            + json.dumps(paste)
+            + ' If you lost a manifest body, run rehydrate for this turn_id '
+            '(CLI: rehydrate --turn-id T), then resubmit with "manifest" set to these hashes.')
+        exc.fix = paste
+        raise exc
 
 
 # Compact output contract (latency PR): the one-pass JSON Schema is ~9.5 KB, most of it

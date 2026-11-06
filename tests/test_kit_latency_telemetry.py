@@ -120,7 +120,7 @@ class AdventureOpening(unittest.TestCase):
 
     def test_compact_reveal_ids_all_resolve(self):
         private = self.packet('compact')['input']['private']
-        self.assertEqual(private['reveal'], self.packet('full')['input']['private']['reveal'])
+        self.assertEqual(private.get('reveal'), self.packet('full')['input']['private'].get('reveal'))
         self.assertEqual(private['story_brief'], self.packet('full')['input']['private']['story_brief'])
 
     # -- stable prefix --

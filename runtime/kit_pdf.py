@@ -59,7 +59,71 @@ def text_readable(text):
     return singles / float(len(words)) < 0.22 and mean >= 2.8
 
 
-def extract(data):
+class _LazyObjects(dict):
+    """Parse xref objects on demand. A first-pages read does not inflate the rest of the file."""
+
+    def __init__(self, data, entries):
+        super().__init__()
+        self._data = data
+        self._entries = entries
+        offsets = sorted((off, num) for num, (typ, off, _gen) in entries.items() if typ == 1 and off > 0)
+        offs = [off for off, _num in offsets]
+        self._off = {num: off for off, num in offsets}
+        self._limit = {}
+        for i, (off, num) in enumerate(offsets):
+            self._limit[num] = offs[i + 1] if i + 1 < len(offs) else len(data)
+        self._busy = set()
+
+    def get(self, num, default=None):
+        if not isinstance(num, int):
+            return super().get(num, default)
+        if num in self:
+            got = super().__getitem__(num)
+            return default if got is None else got
+        if num in self._busy:
+            return default
+        self._busy.add(num)
+        try:
+            value = self._materialize(num)
+        except (ValueError, IndexError, KeyError, zlib.error):
+            value = None
+        finally:
+            self._busy.discard(num)
+        super().__setitem__(num, value)
+        return default if value is None else value
+
+    def _materialize(self, num):
+        entry = self._entries.get(num)
+        if not entry:
+            return None
+        typ, a, b = entry
+        if typ == 1:
+            return _parse_bounded(self._data, self._off.get(num, a), self._limit.get(num, len(self._data)))
+        if typ == 2:
+            stream = self.get(a)
+            got = _objstm_at(stream, b)
+            if not got:
+                return None
+            obj_num, value = got
+            if obj_num not in self:
+                super().__setitem__(obj_num, value)
+            return value
+        return None
+
+
+def _load_opening(data):
+    """Catalog and page objects only. None when the xref cannot name a root."""
+    entries, root_ref = _read_xref_chain(data)
+    if not entries or not isinstance(root_ref, Ref):
+        return None
+    objects = _LazyObjects(data, entries)
+    root = _resolve(root_ref, objects)
+    if not isinstance(root, dict):
+        return None
+    return objects, root
+
+
+def extract(data, max_pages=None):
     """``{text, kind, pages, text_ops}``. ``kind`` is text, poor, no_text_layer, or not_pdf.
 
     ``text`` is UTF-8-able str with a form feed between pages. Boxed lines and italic prose
@@ -68,7 +132,13 @@ def extract(data):
     if not isinstance(data, (bytes, bytearray)) or not bytes(data).startswith(b'%PDF'):
         return {'text': '', 'kind': 'not_pdf', 'pages': 0, 'text_ops': 0}
     data = bytes(data)
-    objects, root = _load_documents(data)
+    if max_pages:
+        opened = _load_opening(data)
+        if not opened:
+            return {'text': '', 'kind': 'poor', 'pages': 0, 'text_ops': 0, 'truncated': True}
+        objects, root = opened
+    else:
+        objects, root = _load_documents(data)
     catalog = root if isinstance(root, dict) and root.get('/Type') == '/Catalog' else None
     if catalog is None:
         catalog = next((obj for obj in objects.values()
@@ -78,7 +148,11 @@ def extract(data):
         kind = 'poor' if seen else 'no_text_layer'
         return {'text': '', 'kind': kind, 'pages': 0, 'text_ops': seen}
     pages, text_ops = [], 0
+    truncated = False
     for node in _walk_pages(_resolve(catalog.get('/Pages'), objects), objects):
+        if max_pages and len(pages) >= max_pages:
+            truncated = True
+            break
         chunks, rects, ops, width, height = _read_page(node, objects)
         text_ops += ops
         pages.append({'chunks': chunks, 'rects': rects, 'width': width, 'height': height})
@@ -88,7 +162,7 @@ def extract(data):
         return {'text': '', 'kind': kind, 'pages': len(pages), 'text_ops': seen}
     text = _layout(pages)
     return {'text': text, 'kind': 'text' if text_usable(text) else 'poor',
-            'pages': len(pages), 'text_ops': text_ops}
+            'pages': len(pages), 'text_ops': text_ops, 'truncated': truncated}
 
 
 # ---------------------------------------------------------------- objects
@@ -433,6 +507,37 @@ def _expand_objstm(obj, objects):
         except (ValueError, IndexError, KeyError):
             continue
         objects[num] = value
+
+
+def _objstm_at(obj, index):
+    """One object from an object stream. The rest of the stream stays unread."""
+    if not isinstance(obj, dict) or obj.get('/Type') != '/ObjStm':
+        return None
+    data = obj.get('_decoded')
+    if not isinstance(data, (bytes, bytearray)):
+        return None
+    try:
+        count = int(obj.get('/N') or 0)
+        first = int(obj.get('/First') or 0)
+        index = int(index)
+    except (TypeError, ValueError):
+        return None
+    if count <= 0 or index < 0 or index >= count or first < 0 or first > len(data):
+        return None
+    try:
+        nums = [int(piece) for piece in data[:first].split()]
+    except ValueError:
+        return None
+    if len(nums) < (index + 1) * 2:
+        return None
+    start = first + nums[index * 2 + 1]
+    if start < 0 or start >= len(data):
+        return None
+    try:
+        value, _end = _parse_value(data, start)
+    except (ValueError, IndexError, KeyError):
+        return None
+    return nums[index * 2], value
 
 
 def _expand_all_objstms(objects):

@@ -20,7 +20,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from runtime import kit_adventure, kit_pdf  # noqa: E402
+from runtime import kit_adventure, kit_campaign, kit_pdf  # noqa: E402
 from runtime.kit_agent import KitChatBridge, RoomAdjudicator, start_session  # noqa: E402
 from runtime.state_context import CONTEXT_BUDGET_BYTES, Runtime  # noqa: E402
 
@@ -29,7 +29,7 @@ NIK = ROOT / 'tests/fixtures/characters/nik.json'
 
 # Flush-left read-aloud (no indent, no '> ', no italic cue). Second person marks it.
 FLUSH_RA = """\
-PART 1: GOBLIN ARROWS
+PART 1: NORTH WATCH
 
 1. Cave Mouth
 The trail from the ambush leads to the hideout entrance.
@@ -48,8 +48,8 @@ The thicket overlooks area 1.
 HYGIENE = """\
 4. Tower Room .... 9
 
-PART 1: GOBLIN ARROWS
-Part 1, "Goblin Arrows," provides the characters with a road encounter.
+PART 1: NORTH WATCH
+Part 1, "North Watch," gives the party a road encounter.
 
 1. Cave Mouth
 > You stand before a dark cave mouth beside a cold stream.
@@ -59,9 +59,9 @@ The path leads to area 2.
 > Briars hide two scouts.
 The path leads back to area 1.
 
-PART 2: PHANDALlN
-Part 2: PHAN DALlN
-PART 2: PHANDALIN
+PART 2: MILLHAVEN
+Part 2: MILL HAVEN
+PART 2: MILLHAVEN
 
 1. Town Square
 > Market stalls crowd the town square.
@@ -71,7 +71,7 @@ The road leads to area 2.
 > A stone manor overlooks the square.
 The road leads back to area 1.
 
-PART 4: WAVE ECHO CAVE
+PART 4: OLD QUARRY
 
 1. Cave Entrance
 > Damp air rolls from the cave entrance.
@@ -89,7 +89,7 @@ appendix A). The brazier cannot be removed from the
 altar without a check.
 
 16. Fake Orphan
-This should stay under Wave Echo, not go bare.
+This should stay under Old Quarry, not go bare.
 
 APPENDIX: SPELLS
 
@@ -119,6 +119,48 @@ The trail leads to area 3.
 3. Web Bridge
 > A bridge of webs spans the gorge.
 The trail leads back to area 1.
+"""
+
+# Unnumbered road fight, a cave whose way is split over a layout newline, counted goblins,
+# and back-matter headings that are not scenes. Original sentences only.
+GREEN_MINE = """\
+GREEN MINE OF THE NORTH
+
+A northern road, a cave, and the journeys that come after.
+
+PART 1: GREEN ARROWS
+
+You are driving a wagon along the north road when arrows hiss out of the brush.
+Four goblins rush the wagon from both sides and the fight is on.
+The track leads on toward a cave mouth.
+
+1. Cave Mouth
+You stand at a dark cave mouth where a cold stream comes out of the hill.
+The track leads into the cave
+and on to area 2.
+Six goblins watch this mouth from the brush.
+The goblins on the ledge signal.
+More goblins wait inside.
+The goblins here keep the mouth.
+The goblins know the stream.
+The goblins do not come out until the bell rings.
+The goblins own this cave.
+
+2. Kennel
+> A kennel sits in the dark past the cave.
+The track leads back
+to area 1.
+
+PART 3: THE LATER WEB
+
+Introduction
+This part tells you how the later journeys fit together and who you meet on the way.
+
+Glossary
+A short glossary of the names you will hear when you travel on.
+
+Rests
+A short rest and a long rest are yours to call when you camp between fights.
 """
 
 
@@ -197,18 +239,17 @@ class BookShape(unittest.TestCase):
         self.assertNotIn('> The trail from the ambush', prepared)
         self.assertNotIn('> The thicket in area 2', prepared)
         report = kit_adventure.ingest_adventure(self.db, text=FLUSH_RA)
-        self.assertEqual(report['start_location'], 'goblin_arrows-1')
+        self.assertEqual(report['start_location'], 'north_watch-1')
         room = json.loads(Path(report['start_room']).read_text(encoding='utf-8'))
         visible = ' '.join(f['text'] for f in room['facts'].values() if f['visible'])
         self.assertIn('you come across', visible.lower())
         self.assertNotIn('DC ', visible)
         self.assertNotIn('impassable', visible.lower())
         started = start_session(self.db, NIK, room=report['start_room'])
-        runtime = Runtime(self.db)
-        self.addCleanup(runtime.close)
-        held = KitChatBridge(runtime, RoomAdjudicator(roll=lambda: 10)).try_prepare('Yes.', one_pass=True)
-        self.assertTrue(held.get('committed'))
-        spoken = held.get('spoken') or ''
+        self.assertTrue(started.get('committed'))
+        self.assertTrue(started.get('character_loaded'))
+        self.assertEqual(started.get('opened_room'), started.get('room_id'))
+        spoken = started.get('spoken') or ''
         self.assertIn('cave', spoken.lower())
         self.assertNotIn('The newcomer arrives', spoken)
         self.assertGreaterEqual(len(re.findall(r"[A-Za-z']+", spoken)), 12)
@@ -221,19 +262,19 @@ class BookShape(unittest.TestCase):
         self.assertNotIn('16', keys)
         self.assertNotIn('2', keys)
         sites = {k.split('-')[0] for k in keys}
-        self.assertIn('goblin_arrows', sites)
-        self.assertIn('phandalin', sites)
-        self.assertIn('wave_echo_cave', sites)
-        self.assertFalse(any('phan_dalln' == s or 'phan_da' in s for s in sites), sites)
+        self.assertIn('north_watch', sites)
+        self.assertIn('millhaven', sites)
+        self.assertIn('old_quarry', sites)
+        self.assertFalse(any(s == 'mill_haven' or s.startswith('mill_ha') for s in sites), sites)
         titles = [c['title'] for c in index['chapters']]
         self.assertFalse(any('provides the characters' in t for t in titles), titles)
         self.assertFalse(any('brazier cannot' in t for t in titles), titles)
         # Spell-line "2. Paralyzing Ray..." is not a room.
         self.assertFalse(any('paralyzing' in (index['locations'][k].get('name') or '').lower()
                              for k in keys))
-        self.assertEqual(index['start'], 'goblin_arrows-1')
+        self.assertEqual(index['start'], 'north_watch-1')
         report = kit_adventure.ingest_adventure(self.db, text=HYGIENE)
-        self.assertEqual(report['start_location'], 'goblin_arrows-1')
+        self.assertEqual(report['start_location'], 'north_watch-1')
 
     def test_area_refs_stay_inside_their_site(self):
         index = kit_adventure.build_index(kit_adventure.prepare_source(CROSS_SITE))
@@ -247,6 +288,32 @@ class BookShape(unittest.TestCase):
         web_targets = {c['to'] for c in web['connections']}
         self.assertTrue(all(t.startswith(web['site'] + '-') for t in web_targets), web_targets)
         self.assertNotIn('hideout-3', web_targets)
+
+    def test_the_road_fight_is_the_start_and_the_cave_is_not_empty(self):
+        report = kit_adventure.ingest_adventure(self.db, text=GREEN_MINE)
+        self.assertIn('GREEN MINE', report['title'].upper())
+        self.assertNotIn('PART 1', report['title'].upper())
+        self.assertTrue(str(report['start_location']).startswith('scene:'), report['start_location'])
+        index = json.loads((kit_adventure.folder_for(self.db) / 'index.json').read_text(encoding='utf-8'))
+        names = [loc.get('name') for loc in index['locations'].values()]
+        for banned in ('Introduction', 'Glossary', 'Rests'):
+            self.assertNotIn(banned, names)
+        cave_key = next(key for key, loc in index['locations'].items() if loc.get('name') == 'Cave Mouth')
+        compiled = kit_adventure.compile_location(self.db, cave_key, neighbours=False)
+        room = json.loads(Path(compiled['room']).read_text(encoding='utf-8'))
+        goblin_facts = sum(str(fact.get('text') or '').casefold().count('goblin')
+                           for fact in room['facts'].values())
+        self.assertGreaterEqual(goblin_facts, 7, goblin_facts)
+        self.assertTrue(room['actors'], room['actors'])
+        self.assertTrue(any('goblin' in key for key in room['actors']), room['actors'])
+        self.assertTrue(room['exits'], room['exits'])
+        empty = self.folder / 'empty-rooms'
+        empty.mkdir()
+        offered = kit_campaign.campaign_entry(self.db, rooms_dir=empty)
+        starts = [item for item in offered['executable_starts'] if item.get('ingested')]
+        self.assertTrue(starts, offered['executable_starts'])
+        self.assertTrue(any(item.get('default') and item.get('path') for item in starts), starts)
+        self.assertTrue(any(item.get('pick') in ('1', '2') for item in starts), starts)
 
     def test_png_predictor_xref_loads_without_full_scan(self):
         data = predictor_xref_pdf()

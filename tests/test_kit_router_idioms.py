@@ -77,8 +77,9 @@ class SixCRouting(unittest.TestCase):
         self.assertEqual(self.kind(line), 'social')
         bridge = KitChatBridge(self.runtime, self.adjudicator)
         event = bridge.prepare(line, 'quoted')['input']['accepted_public_event']
-        self.assertEqual(event, 'You declare: "\'Deal me in,\' I say."')
-        self.assertEqual(event.count('"'), 2)
+        self.assertEqual(event, 'They speak to the room.')
+        self.assertNotIn('Deal me in', event)
+        self.assertNotIn('You declare', event)
 
     def test_literal_acts_still_route(self):
         self.assertIn('attack', self.kind('I attack the dealer.'))
@@ -113,7 +114,8 @@ class AnyRoomRouting(unittest.TestCase):
         self.assertEqual(room_intent('I kill some time by the hearth.'), 'social')
 
     def test_quoted_speech_keeps_one_pair_of_quotes(self):
-        self.assertEqual(social_event('She says "fine" and sits.'), 'You declare: "She says \'fine\' and sits."')
+        self.assertEqual(social_event('She says "fine" and sits.'), 'They speak to the room.')
+        self.assertNotIn('fine', social_event('She says "fine" and sits.'))
 
     def test_a_covert_clause_marks_a_take_covert(self):
         for text in ("while nobody's looking", 'while no one is watching', 'when their backs are turned',
