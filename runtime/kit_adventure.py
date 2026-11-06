@@ -133,13 +133,16 @@ def pdf_yield_ok(text):
     return text_usable(text)
 
 
-def _pdftotext(path):
+def _pdftotext(path, max_pages=None):
     tool = shutil.which('pdftotext')
     if not tool:
         return None
+    cmd = [tool, '-layout', '-enc', 'UTF-8', '-f', '1']
+    if max_pages:
+        cmd += ['-l', str(int(max_pages))]
+    cmd += [str(path), '-']
     try:
-        done = subprocess.run([tool, '-layout', '-enc', 'UTF-8', str(path), '-'],
-                              capture_output=True, timeout=60)
+        done = subprocess.run(cmd, capture_output=True, timeout=20)
     except (OSError, subprocess.TimeoutExpired):
         return None
     if done.returncode != 0:
@@ -147,19 +150,20 @@ def _pdftotext(path):
     return done.stdout.decode('utf-8', errors='replace')
 
 
-def _pypdf_text(path):
+def _pypdf_text(path, max_pages=None):
     try:
         try:
             from pypdf import PdfReader
         except ImportError:
             from PyPDF2 import PdfReader
         reader = PdfReader(str(path))
-        return '\f'.join((page.extract_text() or '') for page in reader.pages)
+        pages = reader.pages[:int(max_pages)] if max_pages else reader.pages
+        return '\f'.join((page.extract_text() or '') for page in pages)
     except Exception:
         return None
 
 
-def optional_pdf_text(path, reader='auto'):
+def optional_pdf_text(path, reader='auto', max_pages=None):
     """``(text, name)`` from pdftotext and/or pypdf when the host has them, else ``(None, None)``.
 
     The built-in reader is the default. These run only when it cannot read the text layer,
@@ -167,7 +171,8 @@ def optional_pdf_text(path, reader='auto'):
     """
     order = ('pdftotext', 'pypdf') if reader == 'auto' else (reader,)
     for name in order:
-        text = _pdftotext(path) if name == 'pdftotext' else _pypdf_text(path) if name == 'pypdf' else None
+        text = _pdftotext(path, max_pages) if name == 'pdftotext' else (
+            _pypdf_text(path, max_pages) if name == 'pypdf' else None)
         if text and pdf_yield_ok(text):
             return text, name
     return None, None
@@ -189,7 +194,7 @@ def read_pdf(path, reader='auto', max_pages=None):
     # Letter-spaced stdlib text ('T h e', 'F o llo wi n') is a weak read. pdftotext, when the
     # host has it, is the fallback. --reader stdlib never takes that path.
     if reader == 'auto' and found.get('kind') == 'text' and not text_readable(found.get('text')):
-        alt, name = optional_pdf_text(path, 'pdftotext')
+        alt, name = optional_pdf_text(path, 'pdftotext', max_pages=max_pages)
         if alt and text_readable(alt):
             return alt, name
     if reader == 'stdlib' or (reader == 'auto' and found['kind'] == 'text'):
@@ -199,11 +204,11 @@ def read_pdf(path, reader='auto', max_pages=None):
             raise IngestError([POOR_TEXT])
         return found['text'], 'stdlib'
     if reader == 'auto' and found['kind'] == 'no_text_layer':
-        text, name = optional_pdf_text(path, 'auto')
+        text, name = optional_pdf_text(path, 'auto', max_pages=max_pages)
         if text:
             return text, name
         raise IngestError([NO_TEXT_LAYER])
-    text, name = optional_pdf_text(path, 'auto' if reader == 'auto' else reader)
+    text, name = optional_pdf_text(path, 'auto' if reader == 'auto' else reader, max_pages=max_pages)
     if text:
         return text, name
     if found.get('kind') == 'no_text_layer':
@@ -1228,6 +1233,13 @@ def _creature_belongs_here(sentence, loc, index):
 _SPEAKER_NAME = re.compile(
     r'\b([A-Z][a-z]{2,}(?:\s+[A-Z][a-z]{2,})?)\s+'
     r'(?:says?|asks?|calls?|shouts?|whispers?|replies?|answers?|tells?|greets?|waves?|nods?)\b')
+_TITLE_NAME = re.compile(
+    r'\b((?:Captain|Sergeant|Lieutenant|Commander|Lady|Lord|Sir|Dame|Master|Mistress|'
+    r'Brother|Sister|Father|Mother|Doctor|Mayor|King|Queen|Prince|Princess)\s+[A-Z][a-z]+)\b')
+_NAMED_PERSON = re.compile(r'\bnamed\s+([A-Z][a-z]{2,}(?:\s+[A-Z][a-z]{2,})?)\b')
+_ARRIVING = re.compile(
+    r'\b([A-Z][a-z]{2,}(?:\s+[A-Z][a-z]{2,})?)\s+'
+    r'(?:steps|stands|waits|walks|approaches|raises|draws|smiles|watches|enters|comes)\b')
 _SPEAKER_SKIP = re.compile(
     r'^(?:door|gate|road|street|room|hall|crowd|group|guards?|corpses?|bodies|body|'
     r'men|man|woman|people|party|wagon|cart|table|chest|wall|floor)$', re.I)
@@ -1246,21 +1258,41 @@ def _outcome_row(sentence, n):
     return '%s_%d' % (kind, n)
 
 
+def _name_ok(name):
+    if not name or _SPEAKER_SKIP.match(name) or _SPEAKER_SKIP.match(name.split()[-1]):
+        return False
+    return True
+
+
+def _introduced_names(text):
+    """People a player-facing sentence puts on stage. A title counts as part of the name."""
+    found = []
+    seen = set()
+    for sentence in re.findall(r'[^.!?]+[.!?]+', text or '') or [text or '']:
+        for pattern in (_TITLE_NAME, _NAMED_PERSON, _ARRIVING, _SPEAKER_NAME):
+            for match in pattern.finditer(sentence):
+                name = match.group(1)
+                if not _name_ok(name) or name.casefold() in seen:
+                    continue
+                seen.add(name.casefold())
+                found.append(name)
+    return found
+
+
 def _speaker_stubs(read):
-    """Up to four proper-name speakers in the player read-aloud. Props and groups are not people."""
+    """Up to four people in the player read-aloud. Props and groups are not people."""
     found = []
     seen = set()
     for off, sentence in read or []:
-        for match in _SPEAKER_NAME.finditer(sentence or ''):
-            name = match.group(1)
-            if not name or _SPEAKER_SKIP.match(name) or _SPEAKER_SKIP.match(name.split()[-1]):
-                continue
-            if name.casefold() in seen:
-                continue
-            seen.add(name.casefold())
-            found.append((off, name, sentence))
-            if len(found) >= 4:
-                return found
+        for pattern in (_TITLE_NAME, _NAMED_PERSON, _ARRIVING, _SPEAKER_NAME):
+            for match in pattern.finditer(sentence or ''):
+                name = match.group(1)
+                if not _name_ok(name) or name.casefold() in seen:
+                    continue
+                seen.add(name.casefold())
+                found.append((off, name, sentence))
+                if len(found) >= 4:
+                    return found
     return found
 
 
@@ -1302,9 +1334,10 @@ def draft_room(db, key, index, text, span=None):
     else:
         read, dm = raw_read, raw_dm
     from . import kit_labels as _labels
+    from .kit_skim import _unsafe
     kept_read, pushed = [], list(dm)
     for item in read:
-        if _labels.leak(item[1]):
+        if _labels.leak(item[1]) or _unsafe(item[1]):
             pushed.append(item)
         else:
             kept_read.append(item)
@@ -1734,6 +1767,12 @@ def ingest_adventure(db, text=None, pdf=None, title=None, reader='auto'):
 
 def deepen_index(db):
     """Read the rest of a PDF after the opening window. The landing does not wait on this."""
+    from .kit_skim import landing_holds
+    if landing_holds(db):
+        return {
+            'stage': 'index_later', 'deferred': True, 'committed': False,
+            'table_line': 'The opening is already in hand. Do not read the rest of the book yet.',
+        }
     ref = folder_for(db) / 'source.pdf.path'
     if not ref.is_file():
         return {'stage': 'index_idle'}
@@ -1756,6 +1795,27 @@ def deepen_index(db):
 
 def choose_start(db, token=None):
     """Compile the book's default scene, or the scene or room the host named (A, 1, a label)."""
+    try:
+        return _choose_start(db, token)
+    except IngestError:
+        if (token or '').strip():
+            from .kit_skim import _read, refused_start
+            skim = _read(db)
+            if skim.get('alt_starts') or skim.get('status') in ('accepted', 'rejected'):
+                return refused_start(db)
+        raise
+    except Exception:
+        # A title, including the book's own name, must not traceback. The picker stays.
+        if (token or '').strip():
+            from .kit_skim import refused_start
+            try:
+                return refused_start(db)
+            except Exception:
+                raise
+        raise
+
+
+def _choose_start(db, token=None):
     want = (token or '').strip()
     if want:
         from .kit_skim import open_title, refused_start

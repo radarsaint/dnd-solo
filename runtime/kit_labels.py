@@ -492,6 +492,9 @@ def request_for_room(db, room_id):
 
 def next_request(db):
     """The opening section before play. Once a room is mounted, the section play is in."""
+    from .kit_skim import landing_holds
+    if landing_holds(db):
+        return None
     from .kit_adventure import _load
     from .kit_lifecycle import mounted_room_id
     mounted = request_for_room(db, mounted_room_id(db))

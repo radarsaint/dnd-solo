@@ -313,7 +313,7 @@ class Layout(PdfCase):
         self.assertNotIn('no text layer', problem)
         self.assertIn('pdftotext', problem)
 
-        def fake(path, reader='auto'):
+        def fake(path, reader='auto', max_pages=None):
             return PASTED, 'pdftotext'
 
         with mock.patch('runtime.kit_adventure.optional_pdf_text', fake):

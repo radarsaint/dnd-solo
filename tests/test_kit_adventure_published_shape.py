@@ -324,7 +324,7 @@ class PublishedShape(unittest.TestCase):
         path = self.folder / 'pad.pdf'
         path.write_bytes(b'%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n%%EOF\n')
 
-        def fake(pdf_path):
+        def fake(pdf_path, max_pages=None):
             return text
 
         with mock.patch('runtime.kit_adventure._pdftotext', fake):

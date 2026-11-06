@@ -5867,6 +5867,11 @@ def _opening_spoken(runtime, body):
                 facts = list(hears)
     except (AttributeError, KeyError, TypeError):
         pass
+    try:
+        from .kit_skim import _unsafe
+        facts = [text for text in facts if text and not _unsafe(text)]
+    except Exception:
+        pass
     facts = [_complete_spoken(text) for text in facts]
     facts = [text for text in facts if text]
     spoken = ' '.join(facts).strip()
@@ -7398,7 +7403,13 @@ class KitChatBridge:
             except WindowAnswer as asked:
                 return self._window_answer(turn_id, action, asked, started, clock, stamps)
             except PendingRuling as exc:
+                rescued = kit_skim.rescue_roll(self.runtime, action)
+                if rescued is not None:
+                    return rescued
                 self._held(action, exc)
+        forked = kit_skim.fork_check(self.runtime, body)
+        if forked is not None:
+            return forked
         return self._stage(turn_id, revision, body, planning_input, one_pass, performance_variant, started, clock,
                            stamps)
 
