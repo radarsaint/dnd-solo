@@ -101,9 +101,13 @@ class _LazyObjects(dict):
             return _parse_bounded(self._data, self._off.get(num, a), self._limit.get(num, len(self._data)))
         if typ == 2:
             stream = self.get(a)
-            _expand_objstm(stream, self)
-            if num in self:
-                return super().__getitem__(num)
+            got = _objstm_at(stream, b)
+            if not got:
+                return None
+            obj_num, value = got
+            if obj_num not in self:
+                super().__setitem__(obj_num, value)
+            return value
         return None
 
 
@@ -498,6 +502,37 @@ def _expand_objstm(obj, objects):
         except (ValueError, IndexError, KeyError):
             continue
         objects[num] = value
+
+
+def _objstm_at(obj, index):
+    """One object from an object stream. The rest of the stream stays unread."""
+    if not isinstance(obj, dict) or obj.get('/Type') != '/ObjStm':
+        return None
+    data = obj.get('_decoded')
+    if not isinstance(data, (bytes, bytearray)):
+        return None
+    try:
+        count = int(obj.get('/N') or 0)
+        first = int(obj.get('/First') or 0)
+        index = int(index)
+    except (TypeError, ValueError):
+        return None
+    if count <= 0 or index < 0 or index >= count or first < 0 or first > len(data):
+        return None
+    try:
+        nums = [int(piece) for piece in data[:first].split()]
+    except ValueError:
+        return None
+    if len(nums) < (index + 1) * 2:
+        return None
+    start = first + nums[index * 2 + 1]
+    if start < 0 or start >= len(data):
+        return None
+    try:
+        value, _end = _parse_value(data, start)
+    except (ValueError, IndexError, KeyError):
+        return None
+    return nums[index * 2], value
 
 
 def _expand_all_objstms(objects):

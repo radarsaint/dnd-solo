@@ -1740,7 +1740,7 @@ class RoomAdjudicator:
                  'evidence': f'Player attempts: {action[:300]}. Nothing rolled yet; Kit rules the outcome '
                              'as an ordinary turn and may call a check (roll_call). Nothing hidden is learned '
                              'unless a called check succeeds.'}
-        return Resolution('kit_ruling', 'The moment holds.', [event])
+        return Resolution('kit_ruling', 'Ruled as an ordinary turn.', [event])
 
     def _feature_act(self, action, offer):
         """A turn about a watched feature: nothing is resolved from the words; Kit's decision
@@ -8871,6 +8871,13 @@ def _main():
             except PendingRuling as exc:
                 result = pending_ruling_result(exc)
             except InvalidChange as exc:
+                if args.command == 'prepare' and 'Initialize a session first' in str(exc):
+                    from . import kit_skim
+                    hinted = kit_skim.host_before_session(args.db, locals().get('action'))
+                    if hinted:
+                        print(_dumps(hinted, ensure_ascii=False,
+                                     **({'indent': 2} if args.pretty else {'separators': (',', ':')})))
+                        return 0
                 message = str(exc).rstrip()
                 if 'Fix:' not in message:
                     message = message + ' ' + rejection_fix_line(exc)

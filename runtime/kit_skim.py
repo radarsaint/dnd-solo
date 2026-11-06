@@ -88,14 +88,16 @@ _DM_NOTE = re.compile(
     r'|\bbackground\b'
     r'|\byears ago\b'
     r'|\blong ago\b'
-    r'|\byou (?:should|may|must|might|need to|decide)\b'
+    r'|\byou (?:should|must|need to|decide)\b'
+    r'|\byou (?:may|might) (?:want|decide|award|give|tell)\b'
     r'|\b(?:ask|tell|have|let|allow|determine|establish)\s+'
     r'(?:the\s+)?(?:players|characters|party|each)\b'
-    r'|\b(?:each|the)\s+(?:players|characters|adventurers|heroes|party)\b'
+    r'|\b(?:each|the)\s+players\b'
+    r'|\beach (?:character|player)\b'
     r'|\binitiative\b'
     r'|\b(?:if|when)\s+(?:a\s+|the\s+)?(?:fight|combat|battle)\b'
     r'|\bon a (?:success|failure|hit|miss)\b'
-    r'|\blater (?:in|on)\b'
+    r'|\blater in the (?:adventure|chapter|module)\b'
     r'|\bforeshadow'
     r'|\b(?:ability|skill|group) checks?\b'
     r'|\(\s*(?:perception|investigation|survival|insight|athletics|acrobatics|stealth)\s*\)'
@@ -110,6 +112,19 @@ _DM_NOTE = re.compile(
     r'|\bbelow is\b'
     r'|\bsee (?:area|chapter|page)\b'
     r'|\bnpcs?\b',
+    re.I)
+# Go on only. A street box may say "you may" or "long ago". These still end a read.
+_GO_EXTRA = re.compile(
+    r'\bplayers\b'
+    r'|\btheir own\b'
+    r'|\bconcoct'
+    r'|\bbackstor'
+    r'|\bcome up with\b'
+    r'|\bmake up (?:a |an |their )'
+    r'|\bcharacter (?:creation|setup|background)'
+    r'|\bsurprise round\b'
+    r'|\bcombat\b'
+    r'|\btracking\b',
     re.I)
 _FORK_STOP = frozenset(
     'that this with from they have been were when your into over under after before where '
@@ -209,6 +224,14 @@ def _match_tokens(text):
     text = unicodedata.normalize('NFKD', text)
     text = ''.join(ch for ch in text if not unicodedata.combining(ch))
     return [word.casefold() for word in re.findall(r"[A-Za-z0-9']+", text)]
+
+
+def _ordered_loose(have, want):
+    """Content words in order. One missing short word does not refuse a real line."""
+    content = [word for word in want if len(word) > 3]
+    if len(content) < 8 or content == list(want):
+        return False
+    return _ordered_flex(have, content)
 
 
 def _ordered_flex(have, want):
@@ -472,7 +495,7 @@ def _search_stream(stream, want):
     width = len(want)
     if width and any(flex[index:index + width] == want for index in range(max(0, len(flex) - width + 1))):
         return 'contiguous'
-    if _ordered_flex(flex, want):
+    if _ordered_flex(flex, want) or _ordered_loose(flex, want):
         return 'ordered'
     if _local_cover(flex, want):
         return 'covered'
@@ -542,6 +565,39 @@ def _fiction_after(window, title):
     return ''
 
 
+def _harvest_starts(window):
+    """Early titles that open onto a safe sentence, when the host's list did not."""
+    found = []
+    seen = set()
+    page = 1
+    title = None
+    for raw in re.split(r'(\f)', window or ''):
+        if raw == '\f':
+            page += 1
+            title = None
+            continue
+        for line in raw.split('\n'):
+            stripped = line.strip()
+            if not stripped:
+                continue
+            if _heading_line(stripped):
+                title = stripped.lstrip('>').strip()
+                continue
+            if not title or title.casefold() in seen:
+                continue
+            piece = stripped.lstrip('>').strip()
+            for sentence in _sentences(piece):
+                if _go_fail(sentence) or len(_words(sentence)) < 6:
+                    continue
+                found.append({'title': title, 'page': page, 'quote': sentence})
+                seen.add(title.casefold())
+                title = None
+                break
+            if len(found) >= PICK_MAX:
+                return found
+    return found
+
+
 def _filter_alts(alts, window, end_page):
     """Early titles inside the window that open onto player fiction, not a secret."""
     kept = []
@@ -564,7 +620,9 @@ def _filter_alts(alts, window, end_page):
         seen.add(key)
         kept.append({'title': title, 'page': page, 'quote': quote})
     kept.sort(key=lambda item: (item['page'], item['title'].casefold()))
-    return kept[:PICK_MAX]
+    if kept:
+        return kept[:PICK_MAX]
+    return _harvest_starts(window)[:PICK_MAX]
 
 
 def picker_line(alts):
@@ -607,9 +665,62 @@ def _handoff(text, name):
     return "That's the book's start. Go on for the rest, or say what you do."
 
 
+def _clauses(text):
+    return [part.strip() for part in re.split(r'[.!?;:\n]+', text or '') if part.strip()]
+
+
+def _headerish(text):
+    """A running header glued into a line, not a sentence of the scene."""
+    words = re.findall(r"[A-Za-z']+", text or '')
+    if not words or len(words) > 8:
+        return False
+    caps = sum(1 for word in words if word.isupper() and len(word) > 1)
+    return caps >= 2 and caps * 2 >= len(words)
+
+
+def _go_fail(text):
+    """True when this next read is prep, a procedure, a header, or a rule."""
+    cleaned = normalize(text)
+    if not cleaned or _unsafe(cleaned) or _headerish(cleaned):
+        return True
+    if _GO_EXTRA.search(cleaned):
+        return True
+    for clause in _clauses(cleaned):
+        if _unsafe(clause) or _headerish(clause) or _GO_EXTRA.search(clause):
+            return True
+    return False
+
+
 def _player_sentences(text):
     """Sentences a player can hear. A DM note in the same span is dropped."""
-    return [sentence for sentence in _sentences(text) if sentence and not _unsafe(sentence)]
+    return [sentence for sentence in _sentences(text) if sentence and not _go_fail(sentence)]
+
+
+def _read_on(text, limit):
+    """(chunk, rest, stopped). The first line that fails the gate ends the read.
+
+    Later player lines after that failure are not spoken. Skipping them was how
+    a prep note and the header after it still reached the table.
+    """
+    sentences = _sentences(text)
+    if not sentences and normalize(text):
+        sentences = [normalize(text)]
+    kept = []
+    count = 0
+    index = 0
+    while index < len(sentences):
+        sentence = sentences[index]
+        if _go_fail(sentence):
+            return ' '.join(kept).strip(), '', True
+        words = len(_words(sentence))
+        if kept and count + words > limit:
+            break
+        kept.append(sentence)
+        count += words
+        index += 1
+        if count >= limit:
+            break
+    return ' '.join(kept).strip(), ' '.join(sentences[index:]).strip(), False
 
 
 def _take(text, limit):
@@ -1332,8 +1443,8 @@ def release(runtime, action):
         return {'stage': 'read_on', 'committed': True, 'calls': 1, 'spoken': spoken,
                 'public_event': data.get('burst') or '', 'revision': committed}
     rest = (data.get('remainder') or '').strip()
-    chunk, left = _take(rest, BURST_WORDS)
-    data['remainder'] = left
+    chunk, left, stopped = _read_on(rest, BURST_WORDS)
+    data['remainder'] = '' if stopped else left
     if not chunk:
         spoken = 'Kit: %s' % OPENING_DONE
     else:
@@ -1485,23 +1596,24 @@ def _crumb_rows(source, area):
 
 
 def _fork_question(source, area):
-    """A concrete choice from what the player can already see. Not a note that the page is empty."""
-    nouns = []
-    for text in _area_facts(source, area, True):
-        for word in re.findall(r"[A-Za-z']{4,}", text):
-            folded = word.casefold().strip("'")
-            if len(folded) < 4 or folded in _FORK_STOP or folded in nouns:
-                continue
-            nouns.append(folded)
-            if len(nouns) >= 3:
-                break
-        if len(nouns) >= 3:
-            break
-    if len(nouns) >= 2:
-        return '%s, or %s. Which are you on?' % (nouns[0], nouns[1])
-    if nouns:
-        return 'The %s. What about it?' % nouns[0]
-    return 'Which part of this are you on?'
+    """A move from who is here. Not a list of words cut from the opening line."""
+    names = []
+    for actor in ((source or {}).get('actors') or {}).values():
+        if not isinstance(actor, dict):
+            continue
+        if actor.get('status') in ('dead', 'fled', 'hidden'):
+            continue
+        if area and actor.get('location') not in (area, None, 'here'):
+            continue
+        name = (actor.get('name') or '').strip()
+        if name and name.casefold() not in {item.casefold() for item in names}:
+            names.append(name)
+    if names:
+        return '%s is here. Speak to them, or look again.' % names[0]
+    rows = [row for row in _crumb_rows(source, area) if row and not _go_fail(row)]
+    if rows:
+        return rows[0]
+    return 'Look again, or speak to someone here.'
 
 
 def success_line(source, area, skill_name, cited):
@@ -1575,4 +1687,28 @@ def named_start(runtime, action):
         'table_line': 'That is a start, not a turn. Nothing is committed until the opening is player fiction.',
         'next_command': 'python3 -m runtime.kit_agent start --db %s --sheet <sheet> --start %s' % (
             shlex.quote(str(path)), shlex.quote(str(hit))),
+    }
+
+
+def host_before_session(db, action):
+    """No scene yet. A typed title is a start command, and the picker stays usable."""
+    class _Save(object):
+        def __init__(self, path):
+            self.path = path
+    hinted = named_start(_Save(db), action)
+    if hinted:
+        return hinted
+    data = _read(db)
+    alts = [item for item in (data.get('alt_starts') or []) if item.get('title') and item.get('quote')]
+    if not data and not alts:
+        return None
+    import shlex
+    return {
+        'stage': 'use_start', 'committed': False, 'spoken': None, 'character_loaded': False,
+        'places': [{'pick': item.get('title'), 'line': item.get('title'), 'page': item.get('page')}
+                   for item in alts],
+        'start_picker': {'table_line': data.get('table_line') or picker_line(alts), 'places': alts},
+        'table_line': data.get('table_line') or picker_line(alts),
+        'next_command': 'python3 -m runtime.kit_agent start --db %s --sheet <sheet> --start "<title>"' % (
+            shlex.quote(str(db))),
     }

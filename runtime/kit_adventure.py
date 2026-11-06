@@ -1240,6 +1240,7 @@ _NAMED_PERSON = re.compile(r'\bnamed\s+([A-Z][a-z]{2,}(?:\s+[A-Z][a-z]{2,})?)\b'
 _ARRIVING = re.compile(
     r'\b([A-Z][a-z]{2,}(?:\s+[A-Z][a-z]{2,})?)\s+'
     r'(?:steps|stands|waits|walks|approaches|raises|draws|smiles|watches|enters|comes)\b')
+_GREET = re.compile(r'\b(?:greets?|welcomes?|hails?)\b')
 _SPEAKER_SKIP = re.compile(
     r'^(?:door|gate|road|street|room|hall|crowd|group|guards?|corpses?|bodies|body|'
     r'men|man|woman|people|party|wagon|cart|table|chest|wall|floor)$', re.I)
@@ -1284,6 +1285,7 @@ def _speaker_stubs(read):
     found = []
     seen = set()
     for off, sentence in read or []:
+        named = False
         for pattern in (_TITLE_NAME, _NAMED_PERSON, _ARRIVING, _SPEAKER_NAME):
             for match in pattern.finditer(sentence or ''):
                 name = match.group(1)
@@ -1291,8 +1293,14 @@ def _speaker_stubs(read):
                     continue
                 seen.add(name.casefold())
                 found.append((off, name, sentence))
+                named = True
                 if len(found) >= 4:
                     return found
+        if not named and _GREET.search(sentence or '') and 'greeter' not in seen:
+            seen.add('greeter')
+            found.append((off, 'Greeter', sentence))
+            if len(found) >= 4:
+                return found
     return found
 
 
