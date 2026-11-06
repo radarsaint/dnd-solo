@@ -9,7 +9,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from runtime import kit_adventure, kit_labels  # noqa: E402
+from runtime import kit_adventure, kit_labels, kit_skim  # noqa: E402
 from runtime.kit_agent import (assign_roll_call_policy, check_combined_call, check_reveal_text,
                                start_session)  # noqa: E402
 from runtime.state_context import InvalidChange  # noqa: E402
@@ -113,7 +113,7 @@ class Round4(unittest.TestCase):
 
     def test_a_tip_is_cut_before_the_box_and_cannot_open(self):
         report = kit_adventure.ingest_adventure(self.db, text=TIP)
-        request = report['label_request']
+        request = kit_labels.next_request(self.db)
         texts = [block['text'].casefold() for block in request['blocks']]
         self.assertTrue(any('wagon stops' in text and 'when you' not in text for text in texts), texts)
         self.assertTrue(all(not block.get('fused') or 'wagon stops' not in block['text'].casefold()
@@ -131,7 +131,7 @@ class Round4(unittest.TestCase):
 
     def test_front_matter_is_not_a_label_call(self):
         report = kit_adventure.ingest_adventure(self.db, text=FRONT)
-        request = report['label_request']
+        request = kit_labels.next_request(self.db)
         blob = ' '.join(block['text'] for block in request['blocks']).casefold()
         self.assertNotIn('printed for the table', blob)
         self.assertNotIn('a list of what follows', blob)
@@ -142,7 +142,7 @@ class Round4(unittest.TestCase):
         paras = '\n\n'.join('You walk the lane and count the stones at marker %d.' % n for n in range(40))
         text = 'PART 1: THE LANE\n\nThe Lane\n' + paras + '\n\n1. The End\nA last room. The lane leads back.\n'
         report = kit_adventure.ingest_adventure(self.db, text=text)
-        request = report['label_request']
+        request = kit_labels.next_request(self.db)
         self.assertLessEqual(len(request['blocks']), 20)
         self.assertLessEqual(sum(len(block['text'].encode()) for block in request['blocks']), 6000)
         self.assertGreater(len(request['blocks']), 0)
@@ -152,7 +152,7 @@ class Round4(unittest.TestCase):
         index = json.loads((kit_adventure.folder_for(self.db) / 'index.json').read_text(encoding='utf-8'))
         start = index['locations'][index['start']]
         self.assertIn('patrol', (start.get('name') or '').casefold())
-        request = report['label_request']
+        request = kit_labels.next_request(self.db)
         blob = ' '.join(block['text'] for block in request['blocks']).casefold()
         self.assertNotIn('lower levels', blob)
         self.assertNotIn('old wars', blob)
@@ -161,11 +161,30 @@ class Round4(unittest.TestCase):
     def test_scenes_and_no_numbered_places_open_with_the_sheet(self):
         report = kit_adventure.ingest_adventure(self.db, text=CHAIN)
         self.assertTrue(str(report['start_location']).startswith('scene:'))
+        done = kit_skim.accept(self.db, {
+            'burst': 'The camp stirs as first light reaches the trees and the wagon is packed.',
+            'source_quote': 'The camp stirs as first light reaches the trees and the wagon is packed.',
+            'page_start': 1, 'page_end': 1,
+            'alt_starts': [{'title': 'First Light', 'page': 1}, {'title': 'Camp', 'page': 1},
+                           {'title': 'The Road', 'page': 1}],
+            'design_start_name': 'First Light',
+        })
+        self.assertEqual(done['stage'], 'skim_accepted', done)
+        index = json.loads((kit_adventure.folder_for(self.db) / 'index.json').read_text(encoding='utf-8'))
+        self.assertFalse(any(loc.get('type') == 'room' for loc in index['locations'].values()
+                             if str(loc.get('number') or '').isdigit() and loc.get('type') != 'scene'))
         opened = start_session(str(self.db), str(NIK))
         self.assertEqual(opened.get('stage'), 'started')
         self.assertTrue(opened.get('character_loaded'))
         self.assertNotEqual(opened.get('stage'), 'greeting')
-        self.assertIn('camp', (opened.get('spoken') or '').casefold())
+        from runtime.kit_agent import KitChatBridge, RoomAdjudicator
+        from runtime.state_context import Runtime
+        runtime = Runtime(str(self.db))
+        try:
+            heard = KitChatBridge(runtime, RoomAdjudicator()).prepare('Yes.')
+        finally:
+            runtime.close()
+        self.assertIn('camp', (heard.get('spoken') or '').casefold())
 
     def test_a_speaker_is_a_stub_and_a_door_is_not(self):
         report = kit_adventure.ingest_adventure(self.db, text=FRONT)

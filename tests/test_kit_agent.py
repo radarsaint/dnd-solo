@@ -858,19 +858,20 @@ class SocialEventTests(unittest.TestCase):
         self.adjudicator = RoomAdjudicator(perception=0, insight=0, roll=lambda: 20, source=self.runtime.source())
         self.bridge = KitChatBridge(self.runtime, self.adjudicator)
 
-    def test_social_event_restates_the_players_words(self):
+    def test_social_event_does_not_echo_the_players_words(self):
         prepared = self.bridge.prepare(NIK_GREETING, 'nik')
         self.assertEqual(prepared['input']['action_kind'], 'social')
-        self.assertEqual(prepared['input']['accepted_public_event'], f'You declare: "{NIK_GREETING}"')
+        self.assertEqual(prepared['input']['accepted_public_event'], 'They speak to the room.')
+        self.assertNotIn(NIK_GREETING, prepared['input']['accepted_public_event'])
+        self.assertNotIn('You declare', prepared['input']['accepted_public_event'])
         other = self.bridge.prepare('Ten gold for passage? What happens if I say no?', 'price')
-        self.assertEqual(other['input']['accepted_public_event'],
-                         'You declare: "Ten gold for passage? What happens if I say no?"')
+        self.assertEqual(other['input']['accepted_public_event'], 'They speak to the room.')
         self.assertNotIn('address the figures', json.dumps(prepared, ensure_ascii=False))
 
     def test_restated_event_reaches_appraisal_performer_and_memory(self):
         agent = KitAgent(self.runtime, self.model, self.adjudicator)
         result = agent.turn(NIK_GREETING, 'nik')
-        expected = f'You declare: "{NIK_GREETING}"'
+        expected = 'They speak to the room.'
         self.assertEqual(self.model.plans[0]['accepted_public_event'], expected)
         self.assertEqual(self.model.performances[0]['accepted_public_event'], expected)
         record = self.runtime.recent_kit_turns()[0]
@@ -903,9 +904,10 @@ class SocialEventTests(unittest.TestCase):
         prepared = self.bridge.prepare(action, 'long', one_pass=True)
         event = prepared['input']['private']['accepted_public_event']
         self.assertLessEqual(len(event), EVENT_MAX_CHARS)
-        self.assertTrue(event.startswith('You declare: "Deal me in? word0 word1'))
-        self.assertTrue(event.endswith('..."'))
+        self.assertEqual(event, 'They speak to the room.')
+        self.assertNotIn('Deal me in', event)
         self.assertNotIn('word99', event)
+        self.assertNotIn('You declare', event)
         body = self.runtime.pending_kit_turn('long')['body']
         self.assertIn(action, body['events'][0]['evidence'])
         plan = self.model.plan(prepared['input']['private'])
@@ -920,7 +922,9 @@ class SocialEventTests(unittest.TestCase):
 
     def test_typography_and_whitespace_are_normalized_but_words_kept(self):
         action = 'I wasn’t  expecting\n this. “Deal me in?”'
-        self.assertEqual(social_event(action), 'You declare: "I wasn\'t expecting this. \'Deal me in?\'"')
+        self.assertEqual(social_event(action), 'They speak to the room.')
+        self.assertNotIn('expecting', social_event(action))
+        self.assertNotIn('You declare', social_event(action))
         prepared = self.bridge.prepare(action, 'typed')
         plan = self.model.plan(prepared['input'])
         plan['public_brief']['reply_to'] = 'I wasn’t expecting this.'
@@ -932,8 +936,9 @@ class SocialEventTests(unittest.TestCase):
                        'What if I offered you a deal?', 'I wait and listen.'):
             with self.subTest(action=action):
                 event = self.adjudicator.resolve(action, 0, self.runtime.load()[1]).public_event
-                # Nothing but the player's own words inside a fixed frame.
-                self.assertEqual(event, f'You declare: "{action}"')
+                self.assertEqual(event, 'They speak to the room.')
+                self.assertNotIn(action, event)
+                self.assertNotIn('You declare', event)
                 check_public_content(event, public_view, '', phrases=PHRASES)
         # Physical and check turns keep their adjudicated public results unchanged.
         self.assertEqual(self.adjudicator.resolve('I tip the stone tub over.', 0, self.runtime.load()[1]).public_event,
@@ -941,7 +946,8 @@ class SocialEventTests(unittest.TestCase):
         # A player naming a secret word is echoed only as their words; the performance leak check still applies.
         accused = self.adjudicator.resolve('I accuse that player of being a doppelganger.', 0,
                                            self.runtime.load()[1])
-        self.assertEqual(accused.public_event, 'You declare: "I accuse that player of being a doppelganger."')
+        self.assertEqual(accused.public_event, 'They speak to the room.')
+        self.assertNotIn('doppelganger', accused.public_event)
         self.assertNotIn('fact', accused.events[0])
 
     def test_many_long_declarations_stay_inside_the_context_budget(self):

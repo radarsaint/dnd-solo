@@ -14,8 +14,9 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from runtime import kit_adventure, kit_labels  # noqa: E402
-from runtime.kit_agent import start_session  # noqa: E402
+from runtime import kit_adventure, kit_labels, kit_skim  # noqa: E402
+from runtime.kit_agent import KitChatBridge, RoomAdjudicator, start_session  # noqa: E402
+from runtime.state_context import Runtime  # noqa: E402
 
 NIK = ROOT / 'tests/fixtures/characters/nik.json'
 
@@ -126,8 +127,25 @@ class LabelPass(unittest.TestCase):
         report = kit_adventure.ingest_adventure(self.db, text=text)
         self.assertIn('landing', report)
         self.assertIn('who\'s walking in', report['landing']['table_line'].casefold())
-        self.assertEqual(report['landing']['opening_after'], 'their answer')
+        self.assertEqual(report['landing']['opening_after'], 'Yes.')
+        self.assertIn('skim', report['landing']['same_exchange'])
+        report['label_request'] = kit_labels.next_request(self.db)
         return report
+
+    def _yes(self, burst, quote, name, alts):
+        done = kit_skim.accept(self.db, {
+            'burst': burst, 'source_quote': quote, 'page_start': 1, 'page_end': 1,
+            'alt_starts': alts, 'design_start_name': name,
+        })
+        self.assertEqual(done['stage'], 'skim_accepted', done)
+        opened = start_session(str(self.db), str(NIK))
+        runtime = Runtime(str(self.db))
+        try:
+            heard = KitChatBridge(runtime, RoomAdjudicator()).prepare('Yes.')
+        finally:
+            runtime.close()
+        opened['spoken'] = heard.get('spoken')
+        return opened
 
     def test_boxed_road_text_opens_ahead_of_tips_and_room_one(self):
         report = self._ingest(ROAD)
@@ -144,11 +162,15 @@ class LabelPass(unittest.TestCase):
         self.assertIn('arrows whisper', heard)
         self.assertNotIn('leave the next room', heard)
         self.assertNotIn('cave mouth', heard)
-        opened = start_session(str(self.db), str(NIK))
+        opened = self._yes(
+            'Arrows whisper out of the brush and the wagon lurches to a stop.',
+            'Arrows whisper out of the brush and the wagon lurches to a stop.',
+            'The North Road',
+            [{'title': 'The North Road', 'page': 1}, {'title': 'Cave Mouth', 'page': 1}])
         spoken = (opened.get('spoken') or '').casefold()
         self.assertIn('arrows whisper', spoken)
         self.assertNotIn('leave the next room', spoken)
-        self.assertEqual(opened.get('player_hears'), done['player_hears'])
+        self.assertNotIn('cave mouth', spoken)
 
     def test_a_social_beat_on_room_ones_page_comes_first(self):
         report = self._ingest(SOCIAL)
@@ -170,8 +192,8 @@ class LabelPass(unittest.TestCase):
     def test_two_columns_stay_separate_blocks(self):
         path = self.db.parent / 'street.pdf'
         path.write_bytes(_column_pdf())
-        report = kit_adventure.ingest_adventure(self.db, pdf=path, reader='stdlib')
-        request = report['label_request']
+        kit_adventure.ingest_adventure(self.db, pdf=path, reader='stdlib')
+        request = kit_labels.next_request(self.db)
         for block in request['blocks']:
             text = block['text'].casefold()
             self.assertFalse('village street' in text and 'the gate' in text, text)
@@ -190,10 +212,15 @@ class LabelPass(unittest.TestCase):
         self.assertIn('cart sits', heard)
         self.assertNotIn('if the characters', heard)
         self.assertNotIn('sealed letter', heard)
-        opened = start_session(str(self.db), str(NIK))
+        opened = self._yes(
+            'The cart sits in the ruts with its canvas tied down.',
+            'The cart sits in the ruts with its canvas tied down.',
+            'The Cart',
+            [{'title': 'The Cart', 'page': 1}, {'title': 'The Shed', 'page': 1}])
         spoken = (opened.get('spoken') or '').casefold()
         self.assertIn('cart sits', spoken)
         self.assertNotIn('sealed letter', spoken)
+        self.assertNotIn('if the characters', spoken)
 
     def test_an_unknown_block_id_speaks_nothing_from_that_section(self):
         report = self._ingest(CART)
@@ -205,8 +232,10 @@ class LabelPass(unittest.TestCase):
         done = kit_labels.accept(self.db, reply)
         self.assertEqual(done['stage'], 'labels_rejected', done)
         self.assertEqual(done['player_hears'], [])
-        self.assertTrue(done.get('start_picker') or done.get('soft_start'))
+        self.assertFalse(done.get('soft_start'))
         opened = start_session(str(self.db), str(NIK))
+        self.assertNotEqual(opened.get('stage'), 'greeting')
+        self.assertIsNone(opened.get('opened_room'))
         spoken = (opened.get('spoken') or opened.get('table_line') or '').casefold()
         self.assertNotIn('cart sits', spoken)
 

@@ -65,9 +65,10 @@ class Index(Base):
         self.assertTrue((kit_adventure.folder_for(self.db) / 'source.txt').is_file())
         self.assertIn('*.adventure/', (ROOT / '.gitignore').read_text())
 
-    def test_no_locations_is_refused(self):
-        with self.assertRaises(kit_adventure.IngestError):
-            kit_adventure.import_adventure(self.folder / 'x.sqlite', text='Just some prose.\n')
+    def test_prose_without_a_place_still_imports_for_a_skim(self):
+        report = kit_adventure.import_adventure(self.folder / 'x.sqlite', text='Just some prose.\n')
+        self.assertEqual(report['locations'], 0)
+        self.assertIsNone(report['start_location'])
 
 
 class Compile(Base):

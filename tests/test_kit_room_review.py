@@ -556,8 +556,10 @@ class LiveWatchroomPlaytest(Base):
             with self.subTest(line):
                 result = self.resolve(self.runtime, line)
                 self.assertEqual(result.kind, 'social')
-                self.assertIn('threshold', result.public_event)
-                self.assertIn('"', result.public_event)  # the quoted line is kept
+                # The words stay in the evidence. The public line does not quote the player back.
+                self.assertIn('threshold', result.events[0]['evidence'])
+                self.assertNotIn('You declare', result.public_event)
+                self.assertNotIn('You try', result.public_event)
                 self.assertFalse([e for e in result.events if e.get('type') == 'move'])
 
     def test_f_narration_around_quoted_speech_is_kept(self):
@@ -565,7 +567,8 @@ class LiveWatchroomPlaytest(Base):
         result = self.resolve(self.runtime, line)
         self.assertEqual(result.kind, 'social')
         for part in ('pack by the door', 'Who keeps this post?', 'hands open'):
-            self.assertIn(part, result.public_event)
+            self.assertIn(part, result.events[0]['evidence'])
+        self.assertNotIn('You declare', result.public_event)
 
     def test_b_steps_and_goes_are_movement(self):
         for line in ('Nik steps through the iron door.', 'Nik goes through the iron door.', 'I step in.',

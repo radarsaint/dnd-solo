@@ -43,6 +43,15 @@ NOT_A_CAMPAIGN_LINE = (
     "That isn't a campaign room. It's a test file, and I won't start the adventure there.")
 
 
+def _book_in(db):
+    """True when this save already holds an imported adventure."""
+    from .kit_adventure import folder_for
+    try:
+        return (folder_for(db) / 'index.json').is_file()
+    except OSError:
+        return False
+
+
 def campaign_entry(db, sheet_path=None, rooms_dir=None, campaign=None, intent=None, table=None,
                    saves_db=None):
     """No room was named.
@@ -54,6 +63,11 @@ def campaign_entry(db, sheet_path=None, rooms_dir=None, campaign=None, intent=No
     saved = saved_game(db)
     if saved is not None:
         return _resume(saved, campaign)
+    if campaign is None and intent != 'build' and _book_in(db):
+        # A PDF this session is already the game. Do not drop them in the empty lobby,
+        # and do not open a later room the extract happened to compile.
+        from . import kit_skim
+        return kit_skim.player_start(db, sheet_path, table=table)
     executable, blocked = inspect_rooms(rooms_dir or (PROJECT_ROOT / 'rooms'))
     blocked = _with_regression(blocked)
     executable = _with_book(db, executable)

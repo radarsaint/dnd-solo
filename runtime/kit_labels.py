@@ -557,10 +557,13 @@ def _problems(req, reply):
             problems.append('a block cannot be pulled onto another scene')
         if body.get('opening') is True:
             openings.append(block_id)
-    if len(openings) != 1:
-        problems.append('exactly one opening')
-    elif reply.get('opening_block') != openings[0]:
+    # An opening mark is optional. The book's start is the host skim, not this pass.
+    if len(openings) > 1:
+        problems.append('at most one opening')
+    elif len(openings) == 1 and reply.get('opening_block') != openings[0]:
         problems.append('opening_block must be the one opening')
+    elif not openings and reply.get('opening_block') not in (None, ''):
+        problems.append('opening_block must be empty when nothing opens')
     return problems
 
 
@@ -615,7 +618,11 @@ def _drop_room(db, section):
 
 
 def _soft_start(db, skipped):
-    """The next playable section after one that cannot be spoken. None leaves the picker."""
+    """Move off a front-matter section that cannot be spoken.
+
+    Used when the indexed start is credits or a title. A rejected skim, and a rejected
+    label of a real section, do not call this: they must not open the next room.
+    """
     from .kit_adventure import _load, compile_location
     index, text = _load(db)
     data = _read(db)
@@ -643,18 +650,16 @@ def _soft_start(db, skipped):
         except Exception:
             pass
         return key
-    _set_opening(db, None)
     return None
 
 
 def _silence(db, section):
+    """The section is not spoken. The compiled scene, if any, stays where it is."""
     data = _read(db)
     if section not in data['silent']:
         data['silent'].append(section)
-    data['frozen'].pop(section, None)
     _write(db, data)
-    _drop_room(db, section)
-    return _soft_start(db, section)
+    return None
 
 
 def _recompile(db, section):
@@ -706,7 +711,7 @@ def accept(db, reply):
     if problems:
         fallback = _silence(db, req['section'])
         return {'stage': 'labels_rejected', 'problems': problems, 'label_request': next_request(db),
-                'soft_start': fallback, 'start_picker': _picker(db), 'player_hears': []}
+                'soft_start': fallback, 'start_picker': None, 'player_hears': []}
     clamped = _clamp(req, reply)
     issued = {block['id']: block for block in req.get('blocks') or []}
     named = issued.get(reply.get('opening_block')) or {}
@@ -720,18 +725,18 @@ def accept(db, reply):
             return {'stage': 'labels_rejected',
                     'problems': ['a fused tip cannot open, and no clean player block follows'],
                     'label_request': next_request(db), 'soft_start': fallback,
-                    'start_picker': _picker(db), 'player_hears': []}
+                    'start_picker': None, 'player_hears': []}
         else:
             fallback = _silence(db, req['section'])
             return {'stage': 'labels_rejected',
                     'problems': ['the opening must be the first player read-aloud, or player prose'],
                     'label_request': next_request(db), 'soft_start': fallback,
-                    'start_picker': _picker(db), 'player_hears': []}
+                    'start_picker': None, 'player_hears': []}
     if any(body.get('audience') == 'front' and body.get('opening') for body in clamped['blocks'].values()):
         fallback = _silence(db, req['section'])
         return {'stage': 'labels_rejected', 'problems': ['front matter is never the opening'],
                 'label_request': next_request(db), 'soft_start': fallback,
-                'start_picker': _picker(db), 'player_hears': []}
+                'start_picker': None, 'player_hears': []}
     data = _read(db)
     prior = (data.get('frozen') or {}).get(req['section'])
     if prior:
@@ -745,12 +750,11 @@ def accept(db, reply):
     data.setdefault('frozen', {})[req['section']] = clamped
     opening = clamped.get('opening_block')
     if opening and any(body.get('audience') == 'player' for body in clamped['blocks'].values()):
+        # Recorded for this section's player text. It does not retarget the book's start.
         data['opening'] = req['section']
         data['want'] = None
-        _set_opening(db, req['section'])
     elif not opening:
         data['want'] = None
-        _soft_start(db, req['section'])
     if req['section'] in data.get('silent') or []:
         data['silent'] = [key for key in data.get('silent') or [] if key != req['section']]
     _write(db, data)

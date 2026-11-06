@@ -19,9 +19,9 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from runtime import kit_adventure, kit_pdf  # noqa: E402
-from runtime.kit_agent import _spoken_sentence, start_session  # noqa: E402
-from runtime.state_context import CONTEXT_BUDGET_BYTES  # noqa: E402
+from runtime import kit_adventure, kit_labels, kit_pdf, kit_skim  # noqa: E402
+from runtime.kit_agent import KitChatBridge, RoomAdjudicator, _spoken_sentence, start_session  # noqa: E402
+from runtime.state_context import CONTEXT_BUDGET_BYTES, Runtime  # noqa: E402
 
 NIK = ROOT / 'tests/fixtures/characters/nik.json'
 
@@ -238,6 +238,21 @@ def _street_pdf():
     return bytes(out)
 
 
+def _hear(db, burst, quote, name, alts, page_start=1, page_end=1):
+    """Validate a host skim, open with the sheet, and take the bare Yes."""
+    done = kit_skim.accept(db, {
+        'burst': burst, 'source_quote': quote, 'page_start': page_start, 'page_end': page_end,
+        'alt_starts': alts, 'design_start_name': name,
+    })
+    opened = start_session(str(db), str(NIK))
+    runtime = Runtime(str(db))
+    try:
+        heard = KitChatBridge(runtime, RoomAdjudicator()).prepare('Yes.')
+    finally:
+        runtime.close()
+    return done, opened, heard
+
+
 class ModuleLayout(unittest.TestCase):
     def setUp(self):
         warnings.simplefilter('ignore')
@@ -262,13 +277,19 @@ class ModuleLayout(unittest.TestCase):
         room = json.loads(Path(report['start_room']).read_text(encoding='utf-8'))
         visible = ' '.join(fact.get('text') or '' for fact in room['facts'].values() if fact.get('visible'))
         self.assertIn('wagon road', visible.casefold())
-        opened = start_session(str(self.db), str(NIK))
+        _done, opened, heard = _hear(
+            self.db,
+            'You have been on the wagon road for two days when the trees close in.',
+            'You have been on the wagon road for two days when the trees close in.',
+            'Ambush on the Road',
+            [{'title': 'Ambush on the Road', 'page': 2}, {'title': 'Stone Arch', 'page': 2}],
+            page_start=2, page_end=2)
         self.assertEqual(opened.get('stage'), 'started')
         self.assertEqual((opened.get('character') or {}).get('name'), 'Nik')
         self.assertTrue(opened.get('character_loaded'))
-        self.assertEqual(opened.get('opened_room'), opened.get('room_id'))
-        self.assertTrue(opened.get('committed'))
-        self.assertIn('wagon', (opened.get('spoken') or '').casefold())
+        self.assertNotEqual(opened.get('stage'), 'greeting')
+        self.assertIn('wagon', (heard.get('spoken') or '').casefold())
+        self.assertNotIn('stone arch', (heard.get('spoken') or '').casefold())
         self.assertIn('road', (opened.get('room_id') or '').casefold())
 
     def test_a_town_hub_with_no_numbered_rooms_still_opens(self):
@@ -293,12 +314,17 @@ class ModuleLayout(unittest.TestCase):
         room = json.loads(Path(report['start_room']).read_text(encoding='utf-8'))
         self.assertTrue(room.get('facts'))
         self.assertTrue(room.get('exits'))
-        opened = start_session(str(self.db), str(NIK))
+        _done, opened, heard = _hear(
+            self.db,
+            'A guard waits at a wooden gate.',
+            'A guard waits at a wooden gate. The path leads to encounter 2.',
+            'The Gate',
+            [{'title': 'The Gate', 'page': 1}, {'title': 'The Yard', 'page': 1}])
         self.assertEqual(opened.get('stage'), 'started')
         self.assertTrue(opened.get('character_loaded'))
-        self.assertEqual(opened.get('opened_room'), opened.get('room_id'))
-        self.assertTrue(opened.get('committed'))
-        self.assertIn('gate', (opened.get('spoken') or '').casefold())
+        self.assertNotEqual(opened.get('stage'), 'greeting')
+        self.assertIn('gate', (heard.get('spoken') or '').casefold())
+        self.assertNotIn('cellar', (heard.get('spoken') or '').casefold())
 
     def test_a_linear_chain_of_scenes_opens(self):
         report = kit_adventure.ingest_adventure(self.db, text=JOURNEY)
@@ -310,10 +336,16 @@ class ModuleLayout(unittest.TestCase):
         self.assertTrue(any('far bank' in name for name in names), names)
         room = json.loads(Path(report['start_room']).read_text(encoding='utf-8'))
         self.assertTrue(room.get('exits'))
-        opened = start_session(str(self.db), str(NIK))
-        self.assertTrue(opened.get('committed'))
+        _done, opened, heard = _hear(
+            self.db,
+            'The wagon rolls north along a rutted track.',
+            'The wagon rolls north along a rutted track. The track leads on to the river ferry.',
+            'The North Road',
+            [{'title': 'The North Road', 'page': 1}, {'title': 'The River Ferry', 'page': 1}])
         self.assertTrue(opened.get('character_loaded'))
-        self.assertIn('wagon', (opened.get('spoken') or '').casefold())
+        self.assertNotEqual(opened.get('stage'), 'greeting')
+        self.assertIn('wagon', (heard.get('spoken') or '').casefold())
+        self.assertIn('road', (heard.get('spoken') or '').casefold())
 
     def test_two_columns_keep_the_street_ahead_of_the_crawl(self):
         data = _street_pdf()
@@ -328,22 +360,29 @@ class ModuleLayout(unittest.TestCase):
         visible = ' '.join(fact.get('text') or '' for fact in room['facts'].values() if fact.get('visible'))
         self.assertIn('village street', visible.casefold())
         self.assertTrue(room.get('facts'))
-        opened = start_session(str(self.db), str(NIK))
-        self.assertEqual(opened.get('opened_room'), opened.get('room_id'))
+        source = (kit_adventure.folder_for(self.db) / 'source.txt').read_text(encoding='utf-8')
+        self.assertIn('village street', source.casefold())
+        _done, opened, heard = _hear(
+            self.db,
+            'You stand on the village street as the shops close.',
+            'You stand on the village street as the shops close.',
+            'The Gate',
+            [{'title': 'The Gate', 'page': 1}, {'title': 'The Yard', 'page': 1}])
         self.assertTrue(opened.get('character_loaded'))
-        self.assertTrue(opened.get('committed'))
-        self.assertIn('village street', (opened.get('spoken') or '').casefold())
+        self.assertNotEqual(opened.get('stage'), 'greeting')
+        self.assertIn('village street', (heard.get('spoken') or '').casefold())
+        self.assertNotIn('the yard', (heard.get('spoken') or '').casefold())
 
     def test_an_empty_room_is_never_staged(self):
         report = kit_adventure.ingest_adventure(self.db, text=BLANK)
         self.assertIsNone(report.get('start_room'))
         self.assertTrue(report.get('places') or report.get('starts'))
         opened = start_session(str(self.db), str(NIK))
-        self.assertEqual(opened.get('stage'), 'pick_start')
+        self.assertIn(opened.get('stage'), ('awaiting_skim', 'pick_start'))
         self.assertIsNone(opened.get('opened_room'))
-        self.assertFalse(opened.get('character_loaded'))
-        self.assertIn('places', (opened.get('table_line') or '').casefold())
-        self.assertTrue(opened.get('places'))
+        self.assertNotEqual(opened.get('stage'), 'greeting')
+        self.assertTrue(opened.get('sheet_kept'))
+        self.assertNotIn('play or build', (opened.get('table_line') or '').casefold())
 
     def test_a_wrapped_sentence_is_joined_and_not_cut_off(self):
         long_sentence = 'You walk ' + ' '.join(['onward'] * 90) + ' until the gate appears.'
@@ -360,13 +399,17 @@ class ModuleLayout(unittest.TestCase):
         self.assertNotIn('sword-', visible)
         self.assertNotIn('…', visible)
         self.assertTrue(visible.rstrip()[-1] in '.!?')
-        opened = start_session(str(self.db), str(NIK))
-        spoken = opened.get('spoken') or ''
+        _done, _opened, heard = _hear(
+            self.db,
+            'You find a broken swordhand in the ruts, and the wagon rolls on toward the trees with a softwood staff.',
+            'You find a broken swordhand in the ruts, and the wagon rolls on toward the trees with a softwood staff.',
+            'The Broken Sword',
+            [{'title': 'The Broken Sword', 'page': 1}, {'title': 'Stone Arch', 'page': 1}])
+        spoken = heard.get('spoken') or ''
         body = spoken.split('\nKit:')[0].rstrip()
         self.assertTrue(body[-1] in '.!?')
         self.assertIn('swordhand', spoken.casefold())
-        self.assertIn('start_picker', opened)
-        request = report['label_request']
+        request = kit_labels.next_request(self.db)
         self.assertEqual(request['section'], report['start_location'])
         self.assertTrue(request.get('blocks'))
         self.assertGreaterEqual(len(request['instructions'].encode('utf-8')), 1000)
@@ -396,7 +439,7 @@ class ModuleLayout(unittest.TestCase):
         self.assertIn('camp', names)
         self.assertTrue(any(name == 'the road' for name in names), names)
         self.assertIn('light', (index['locations'][index['start']].get('name') or '').casefold())
-        self.assertGreaterEqual(len(report['start_picker']['places']), 3)
+        self.assertGreaterEqual(len(report.get('starts') or report.get('places') or []), 3)
 
     def test_a_village_heading_before_area_one_is_the_opening(self):
         report = kit_adventure.ingest_adventure(self.db, text=STREET)
@@ -408,9 +451,16 @@ class ModuleLayout(unittest.TestCase):
         visible = ' '.join(fact.get('text') or '' for fact in room['facts'].values() if fact.get('visible'))
         self.assertIn('stalls', visible.casefold())
         self.assertNotIn('shut tight', visible.casefold())
-        opened = start_session(str(self.db), str(NIK))
-        self.assertIn('stalls', (opened.get('spoken') or '').casefold())
-        self.assertIn('start_picker', opened)
+        _done, opened, heard = _hear(
+            self.db,
+            'Stalls line the lane and the shops are shuttered for the night.',
+            'Stalls line the lane and the shops are shuttered for the night.',
+            'Market Street',
+            [{'title': 'Market Street', 'page': 1}, {'title': 'The Gate', 'page': 1}])
+        self.assertTrue(opened.get('character_loaded'))
+        self.assertNotEqual(opened.get('stage'), 'greeting')
+        self.assertIn('stalls', (heard.get('spoken') or '').casefold())
+        self.assertNotIn('shut tight', (heard.get('spoken') or '').casefold())
 
     def test_labeling_stays_in_the_host_process(self):
         text = (ROOT / 'runtime' / 'kit_labels.py').read_text(encoding='utf-8')
@@ -425,13 +475,14 @@ class ModuleLayout(unittest.TestCase):
         self.assertIn('give me a second, checking the page', card.casefold())
         self.assertIn('same line', card.casefold())
 
-    def test_missing_labels_keep_the_heuristic_opening_and_the_picker(self):
+    def test_a_missing_skim_does_not_open_a_heuristic_room_or_the_lobby(self):
         report = kit_adventure.ingest_adventure(self.db, text=LESSON)
-        self.assertIsNotNone(report['label_request'])
-        self.assertGreaterEqual(len(report['start_picker']['places']), 2)
+        self.assertIn('skim_request', report)
+        self.assertNotIn('label_request', report)
+        self.assertGreaterEqual(len(report.get('places') or report.get('starts') or []), 2)
         opened = start_session(str(self.db), str(NIK))
-        self.assertEqual(opened.get('stage'), 'started')
-        self.assertTrue(opened.get('committed'))
-        self.assertIn('start_picker', opened)
-        self.assertTrue(opened['start_picker']['places'])
-        self.assertIn('places', opened['start_picker']['table_line'].casefold())
+        self.assertEqual(opened.get('stage'), 'awaiting_skim')
+        self.assertFalse(opened.get('committed'))
+        self.assertIsNone(opened.get('opened_room'))
+        self.assertTrue(opened.get('sheet_kept'))
+        self.assertNotEqual(opened.get('stage'), 'greeting')

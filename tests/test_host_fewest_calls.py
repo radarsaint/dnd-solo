@@ -5,6 +5,7 @@ A rejection names a pasteable fix. Validators stay as strict as they were.
 Synthetic adventures only. No published text.
 """
 import json
+import re
 import subprocess
 import sys
 import tempfile
@@ -163,10 +164,24 @@ class StartAndIngest(unittest.TestCase):
         folder = tempfile.mkdtemp()
         db = str(Path(folder) / 'kit.sqlite')
         kit_adventure.import_adventure(db, text=CORPUS.read_text(encoding='utf-8'))
+        from runtime import kit_skim
         from runtime.kit_campaign import campaign_entry
+        _index, text = kit_adventure._load(db)
+        sentence = re.search(r'>\s*([^>\n]{12,180}?[.!?])', text)
+        self.assertIsNotNone(sentence)
+        line = ' '.join(sentence.group(1).split())
+        name = re.search(r'(?m)^([A-Z][A-Za-z][A-Za-z \']{2,40})$', text)
+        title = name.group(1).strip() if name else line.split()[0]
+        accepted = kit_skim.accept(db, {
+            'burst': line, 'source_quote': line, 'page_start': 1, 'page_end': 1,
+            'alt_starts': [{'title': title, 'page': 1}, {'title': line.split()[0], 'page': 1}],
+            'design_start_name': title,
+        })
+        self.assertEqual(accepted['stage'], 'skim_accepted', accepted)
         result = campaign_entry(db, sheet_path=str(NIK), intent='play', table='solo')
         self.assertEqual(result.get('stage'), 'started')
         self.assertTrue(str(result.get('room_id', '')).startswith('adv-'))
+        self.assertTrue(result.get('character_loaded'))
 
 
 class ManifestHash(unittest.TestCase):

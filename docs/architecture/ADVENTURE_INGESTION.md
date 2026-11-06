@@ -9,8 +9,13 @@ published adventure text is in this repo.
 
 ## Host commands
 
-One step, then begin. `ingest` reads the PDF (or pasted text), writes the index, and compiles
-the first scene. `status` prints `next_command`; run it when the player says begin.
+One step, then the host skims. `ingest` reads the PDF (or pasted text) and writes the index.
+It does not choose the opening. The host reads the first pages and returns one JSON object
+to `adventure skim`. Python checks that the quote is a contiguous substring of that page
+window, and refuses a tip, a secret, a DC, or a paraphrase. A refusal offers the early
+titles from that window. It does not open the next section. `Yes.` speaks the validated
+burst. `Go on` speaks the next chunk of the same span. Labels run later, during patter,
+for the middle of the book. `status` prints `next_command`; run it when the player says begin.
 
 ```sh
 python3 -m runtime.kit_agent ingest adventure.pdf --db kit.sqlite

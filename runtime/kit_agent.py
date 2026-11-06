@@ -170,30 +170,29 @@ CARD_EVENT_MAX_CHARS = 1200
 # Kinds whose accepted event may run to CARD_EVENT_MAX_CHARS: a card round, a combat round
 # (the PC's act and every NPC turn after it), and a physical act with its consequences.
 LONG_EVENT_KINDS = ('card_', 'combat_', 'physical_')
-SOCIAL_EVENT_PREFIX = 'You declare: '
 # Words an unlabelled roll may carry and still answer Kit's called check ("Deal, 2d20kh1 ...").
 CALLED_ROLL_CHATTER_WORDS = 4
 RITUAL_EXTRA_SECONDS = 600  # a ritual adds 10 minutes to the casting time
 _TYPOGRAPHIC = str.maketrans({'‘': "'", '’': "'", '“': '"', '”': '"'})
 
 
-def social_event(action):
-    """Public restatement of a social bid: the player's own words, nothing added.
-
-    Whitespace is collapsed and curly quotes become straight quotes so the private
-    stage can copy the event exactly; the words themselves are not changed. Text
-    past the event bound is cut at a word boundary and marked with '...'. It says
-    nothing about how anyone responds; the full declaration stays in the evidence.
-    """
-    # Speech the player already quoted stays speech: its double quotes become single quotes
-    # inside the one outer pair ('You declare: "\'Deal me in,\' I say."'), never doubled.
-    words = ' '.join(action.translate(_TYPOGRAPHIC).split()).replace('"', "'")
-    room = EVENT_MAX_CHARS - len(SOCIAL_EVENT_PREFIX) - 2
+def _spoken_words(action):
+    """The player's words, normalized, for a table-talk record. Not a public echo."""
+    words = ' '.join(str(action or '').translate(_TYPOGRAPHIC).split()).replace('"', "'")
+    room = EVENT_MAX_CHARS - len(TABLE_TALK_PREFIX) - 2
     if len(words) > room:
-        cut = words[:room - 3]
+        cut = words[:max(0, room - 3)]
         cut = cut[:cut.rfind(' ')] if ' ' in cut else cut
         words = cut.rstrip(' ,;:') + '...'
-    return f'{SOCIAL_EVENT_PREFIX}"{words}"'
+    return words
+
+
+def social_event(action):
+    """Public line for a social bid. The player's words stay in the evidence, not here.
+
+    Lookup and off-script turns must not come back as 'You declare: \"...\"'.
+    """
+    return 'They speak to the room.'
 
 
 # Host-declared table talk (prepare --table-talk): the player talking to Kit, not the PC to
@@ -208,7 +207,7 @@ TABLE_TALK_NOTE = ('Table talk: the player is talking to you, Kit, not the PC to
 
 def table_talk_event(action):
     """Public record of a table-talk line: the player's words to Kit, never 'You declare'."""
-    return TABLE_TALK_PREFIX + social_event(action)[len(SOCIAL_EVENT_PREFIX):]
+    return TABLE_TALK_PREFIX + '"' + _spoken_words(action) + '"'
 
 
 def table_talk_resolution(action):
@@ -310,13 +309,10 @@ CHECK_REQUEST = _lazy.regex(
     r"(?:\w+\s+){0,4}?(?:roll|rolls|check|checks|test|(?:a|an|the|my|\w+ing)\s+(?:\w+\s+)?save|saving throw)\b[^?]*\?"
     r"|\b(?:is|would) (?:that|this|there) (?:a|an) (?:\w+\s+)?(?:check|roll)\b[^?]*\?"
     r"|\bdo i (?:need|get|have) (?:to )?(?:make |roll )?(?:a|an) (?:\w+\s+)?(?:check|roll)\b", re.I)
-CHECK_REQUEST_PREFIX = 'You ask for a check: '
 # 'Can I investigate the door?', 'Let me search the lid', 'Time to search the chest': asking
 # to search is a search.
 CHECK_ASK = _lazy.regex(r"^\s*(?:can|could|may|might)\s+i\b|^\s*let\s+me\b|^\s*time\s+to\b|^\s*i(?:'d| would)\s+like\s+to\b")
-SEARCH_PREFIX = 'You search: '
 SIMPLE_ACT_LINE = 'You go ahead.'
-ATTEMPT_PREFIX = 'You try: '
 DETECT_MAGIC_SECONDS = 600  # Detect Magic: concentration, up to 10 minutes
 # 'regular casting, no ritual', 'not as a ritual', 'without the ritual': a slotted casting
 # (#150 retest: read as a ritual, 10 minutes passed).
@@ -1165,6 +1161,7 @@ class RoomAdjudicator:
             result = self._offer_handles(result, action, state)
             # Only arrival fires on the engine's own read; a disturbance needs Kit's declared
             # handles (runtime/kit_acts.py), resolved at commit by declared_handling.
+            # No trigger in this scene: a look does not invent a fight.
             fired = kit_triggers.entered(self.source, state, result)
             if fired:
                 result = self._spring(result, *fired, action, revision, state)
@@ -1743,7 +1740,7 @@ class RoomAdjudicator:
                  'evidence': f'Player attempts: {action[:300]}. Nothing rolled yet; Kit rules the outcome '
                              'as an ordinary turn and may call a check (roll_call). Nothing hidden is learned '
                              'unless a called check succeeds.'}
-        return Resolution('kit_ruling', 'You try that.', [event])
+        return Resolution('kit_ruling', 'The attempt stands.', [event])
 
     def _feature_act(self, action, offer):
         """A turn about a watched feature: nothing is resolved from the words; Kit's decision
@@ -5026,13 +5023,14 @@ def turn_events(runtime, body, plan, turn_id, record=None):
         name = skill.replace('_', ' ')
         area = runtime.load()[1].get('area')
         cited = check_reveal_text(runtime.source(), area)
+        from . import kit_skim
         events.append({'type': 'prepared_roll', 'roll': {
             'skill': skill, 'dc': pending['check'].get('dc') or 12,
             'called_turn': pending['check'].get('called_turn'),
             'bands': {
                 'fail': "The %s check doesn't turn anything up." % name,
                 'pass': ("The %s check comes up. %s" % (name, cited)).strip(),
-                'high': ("The %s check comes up clean. %s" % (name, cited)).strip(),
+                'high': kit_skim.success_line(runtime.source(), area, name, cited),
             }}, 'evidence': 'The outcome of this %s check is prepared for the roll.' % name})
     if plan.get('claims'):
         events += kit_claims.said_events(plan['claims'], turn_id, body.get('claims_here'),
@@ -5828,6 +5826,13 @@ def _complete_spoken(text):
 
 def _opening_spoken(runtime, body):
     """Player-visible text for an opening the player just agreed to begin. Hidden facts stay out."""
+    try:
+        from . import kit_skim
+        skimmed = kit_skim.opening_line(runtime.path)
+    except Exception:
+        skimmed = None
+    if skimmed:
+        return skimmed
     view = body.get('public_view') or {}
     facts = [text for text in (view.get('known_facts_here') or []) if isinstance(text, str) and text.strip()]
     if not facts:
@@ -7367,6 +7372,10 @@ class KitChatBridge:
         ready = self._prepared_answer(action)
         if ready is not None:
             return ready
+        from . import kit_skim
+        more = kit_skim.release(self.runtime, action)
+        if more is not None:
+            return more
         self.runtime.flush_queued_attempts()  # refused attempts held while a turn was waiting
         if opening:
             require(action is None and not table_talk, 'Room opening does not take a player action')
@@ -8229,26 +8238,26 @@ def start_session(db, sheet_path=None, runtime=None, room=None, area=None, manif
                              '(rehydrate --turn-id T if you lost it).' if manifests else '')),
         }
         # An ingested book speaks its own opening. The host does not draft it.
+        # A validated skim waits for Yes. A label pass is not required before that.
         if str(source.get('id') or '').startswith('adv-'):
-            done = bridge._commit_pending_opening(turn, '[scene entry]')
-            opened.update(spoken=done.get('spoken'), committed=True, turn_id=turn,
-                          public_event=done.get('public_event'))
-            opened['next_step'] = ('Show spoken. The opening is already committed. Do not draft it. '
-                                   'Later turns: prepare the player\'s words, then complete unless prepare '
-                                   'already returned spoken.')
-            from . import kit_labels
-            if not kit_labels.opening_labeled(db):
-                try:
-                    index, _text = kit_adventure._load(db)
-                    places = index.get('starts') or []
-                except kit_adventure.IngestError:
-                    places = []
-                opened['places'] = places
-                opened['start_picker'] = kit_adventure.start_picker(places)
-                opened['next_step'] += (' The opening is not labeled yet. Say start_picker.table_line and '
-                                        'let them choose, or begin the opening already spoken. '
-                                        'A labeling reply belongs on adventure label, before start when you can.')
-            opened['player_hears'] = kit_labels.player_hears(db, source) or []
+            from . import kit_labels, kit_skim
+            if kit_skim.awaits_yes(db, source.get('id')):
+                opened['table_line'] = kit_skim.READY_LINE
+                opened['awaiting_yes'] = True
+                opened['committed'] = False
+                opened['next_step'] = (
+                    'Show table_line. Do not speak the opening yet. A bare Yes. is prepare, '
+                    'which returns spoken. Show spoken. Do not draft it. '
+                    'Go on, after that, releases the next chunk of the same span.')
+                opened['player_hears'] = []
+            else:
+                done = bridge._commit_pending_opening(turn, '[scene entry]')
+                opened.update(spoken=done.get('spoken'), committed=True, turn_id=turn,
+                              public_event=done.get('public_event'))
+                opened['next_step'] = ('Show spoken. The opening is already committed. Do not draft it. '
+                                       'Later turns: prepare the player\'s words, then complete unless prepare '
+                                       'already returned spoken.')
+                opened['player_hears'] = kit_labels.player_hears(db, source) or []
         return opened
     finally:
         if own:

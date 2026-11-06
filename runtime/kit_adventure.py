@@ -1128,9 +1128,10 @@ def import_adventure(db, text=None, pdf=None, title=None, reader='auto'):
         text, _how = read_pdf(pdf, reader=reader)
     text = prepare_source(text)
     index = build_index(text, title)
-    # Places (numbered rooms) are optional. A Site or a Scene is enough to open.
-    if not index['locations']:
-        raise IngestError(['no site or scene found (a part, an Encounter, a Scene, or a Section)'])
+    # Places are optional. A book with none still imports: the host skim emits scenes
+    # from the titles it read. An empty index is not a reason to drop the source.
+    index.setdefault('locations', {})
+    index.setdefault('start', None)
     folder = folder_for(db)
     (folder / 'rooms').mkdir(parents=True, exist_ok=True)
     (folder / 'source.txt').write_text(text, encoding='utf-8')
@@ -1262,11 +1263,32 @@ def _speaker_stubs(read):
     return found
 
 
-def draft_room(db, key, index, text):
-    """The deterministic room draft and its provenance for one keyed location."""
+def draft_room(db, key, index, text, span=None):
+    """The deterministic room draft and its provenance for one keyed location.
+
+    ``span`` limits facts, actors, and triggers to that character range. The host skim
+    passes the validated opening pages so a later room on the same extract cannot arm
+    this scene.
+    """
     loc = index['locations'].get(key)
     if loc is None:
         raise IngestError([f'no keyed location {key!r} in the index'])
+    if span is not None:
+        loc = dict(loc)
+        loc['body'] = [int(span[0]), int(span[1])]
+        loc['creatures'] = [c for c in (loc.get('creatures') or [])
+                            if span[0] <= int(c.get('mention_offset') or -1) < span[1]]
+        loc['connections'] = [c for c in (loc.get('connections') or [])
+                              if span[0] <= int(c.get('offset') or -1) < span[1]]
+        have = {c['name'] for c in loc['creatures']}
+        piece = text[span[0]:span[1]]
+        for creature in _creatures(piece, span[0], index.get('stat_blocks') or {}):
+            if creature['name'] in have:
+                continue
+            rel = creature['mention_offset'] - span[0]
+            if _creature_belongs_here(_sentence_around(piece, rel), loc, index):
+                loc['creatures'].append(creature)
+                have.add(creature['name'])
     start, end = loc['body']
     raw_read, raw_dm = _split(text[start:end], start)
     from . import kit_labels
@@ -1537,14 +1559,18 @@ def _canon_key(key, locations):
     return upper if upper in locations else text
 
 
-def compile_location(db, key, draft=None, neighbours=True):
+def compile_location(db, key, draft=None, neighbours=True, span=None):
     """Compile (or accept a host draft for) one location, validate it, cache it. Then
-    pre-compile the locations it connects to, so the next move is already executable."""
+    pre-compile the locations it connects to, so the next move is already executable.
+
+    ``span`` is the validated opening range. Actors and triggers outside it are not
+    compiled into this scene.
+    """
     index, text = _load(db)
     key = _canon_key(key, index['locations'])
     clock = time.perf_counter()
     if draft is None:
-        room, sidecar = draft_room(db, key, index, text)
+        room, sidecar = draft_room(db, key, index, text, span=span)
     else:
         room, sidecar = draft.get('room'), draft.get('provenance')
         if not (isinstance(room, dict) and isinstance(sidecar, dict)):
@@ -1638,15 +1664,15 @@ def ingest_adventure(db, text=None, pdf=None, title=None, reader='auto'):
     q = shlex.quote(str(db))
     room = shlex.quote(compiled['room']) if compiled else ''
     places = _read_json(folder_for(db) / 'index.json').get('starts') or []
-    from . import kit_labels
-    label_request = kit_labels.next_request(db)
-    label_command = (f'python3 -m runtime.kit_agent adventure label --db {q} --file labels.json'
-                     if label_request else None)
-    picker = None if kit_labels.opening_labeled(db) else start_picker(places)
+    from . import kit_skim
+    skim_request = kit_skim.request_for(db)
+    # The opening is the host skim, not a label pass. Labels stay available later,
+    # during patter, and are not part of this exchange.
     landing = {
-        'table_line': ("Got it. Who's walking in? A sentence or two about them, or hand me the sheet."),
-        'same_exchange': ['ingest', 'label_request'],
-        'opening_after': 'their answer',
+        'table_line': kit_skim.LANDING,
+        'same_exchange': ['ingest', 'skim'],
+        'opening_after': 'Yes.',
+        'then_line': kit_skim.READY_LINE,
     }
     if not compiled:
         return {
@@ -1654,10 +1680,9 @@ def ingest_adventure(db, text=None, pdf=None, title=None, reader='auto'):
             'locations': report['locations'], 'chapters': report['chapters'],
             'start_location': None, 'start_room': None, 'starts': places, 'places': places,
             'opened_room': None, 'character_loaded': False, 'committed': False,
-            'table_line': ('I couldn\'t open a scene from that book. Here are the places I found. '
-                           'Tell me which one to start.'),
-            'label_request': label_request, 'label_command': label_command,
-            'landing': landing, 'start_picker': picker,
+            'table_line': kit_skim.LANDING,
+            'landing': landing, 'skim_request': skim_request,
+            'skim_command': skim_request.get('command'),
             'ingest_ms': ingest_ms,
             'source_bytes': (folder_for(db) / 'source.txt').stat().st_size,
             'index_bytes': (folder_for(db) / 'index.json').stat().st_size,
@@ -1679,8 +1704,8 @@ def ingest_adventure(db, text=None, pdf=None, title=None, reader='auto'):
         'begin': ('When the player says begin, run next_command with their sheet. '
                   'The next scene compiles on arrival; do not hand-build rooms.'),
         'ask_player': compiled.get('ask_player', []), 'flags': compiled.get('flags', []),
-        'label_request': label_request, 'label_command': label_command,
-        'landing': landing, 'start_picker': picker,
+        'landing': landing, 'skim_request': skim_request,
+        'skim_command': skim_request.get('command'),
         'places': places,
         **readiness(db),
     }
@@ -1759,7 +1784,7 @@ def readiness(db, mounted_id=None):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(prog='kit_agent adventure', description=__doc__.split('\n\n')[0])
-    parser.add_argument('action', choices=['import', 'compile', 'status', 'ingest', 'label'])
+    parser.add_argument('action', choices=['import', 'compile', 'status', 'ingest', 'label', 'skim'])
     parser.add_argument('--file', help='label: the host reply JSON (section, opening, labels)')
     parser.add_argument('path', nargs='?', help='ingest: the adventure PDF (or pass --pdf)')
     parser.add_argument('--db', default='kit.sqlite')
@@ -1794,6 +1819,13 @@ def main(argv=None):
                 result = kit_labels.accept(args.db, reply)
             else:
                 result = {'stage': 'label_section', 'label_request': kit_labels.next_request(args.db)}
+        elif args.action == 'skim':
+            from . import kit_skim
+            if args.file:
+                reply = _read_json(args.file)
+                result = kit_skim.accept(args.db, reply)
+            else:
+                result = kit_skim.request_for(args.db)
         elif args.action == 'compile':
             if not args.location:
                 raise IngestError(['compile needs --location'])
