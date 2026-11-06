@@ -169,7 +169,11 @@ def optional_pdf_text(path, reader='auto', max_pages=None):
     The built-in reader is the default. These run only when it cannot read the text layer,
     or when the host names one with ``--reader``.
     """
-    order = ('pdftotext', 'pypdf') if reader == 'auto' else (reader,)
+    # A capped read never opens the whole file in pypdf. That is the multi-minute ingest.
+    if max_pages and reader == 'auto':
+        order = ('pdftotext',)
+    else:
+        order = ('pdftotext', 'pypdf') if reader == 'auto' else (reader,)
     for name in order:
         text = _pdftotext(path, max_pages) if name == 'pdftotext' else (
             _pypdf_text(path, max_pages) if name == 'pypdf' else None)

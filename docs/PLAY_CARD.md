@@ -36,7 +36,11 @@ On a pass, say the result's `table_line`: "We're set. Default is the book's star
 
 Before a scene exists, do not `prepare` a title. Run `start --db kit.sqlite --sheet <sheet> --start "<title>"`. If `prepare` says `Initialize a session first` or returns `use_start`, run `next_command`. Show `table_line`. The picker lists `places`. An empty list is a bug; do not invent a scene.
 
-Talking to someone on stage: `move` is `npc_reply`. `actor_ref` is their id from the scene. `actor_basis` is `immediate_goal` or `motive`. `turn_mode` is `description`. Scope is `feature`: at least 80 words across non-Kit segments, in at least 2 segments. One of those segments is that person speaking. Show `spoken`, not an engine fallback. Do not say "The moment holds.", "The attempt stands.", or "Ruled as an ordinary turn."
+Talking to someone on stage: `move` is `npc_reply`. `actor_ref` is their id from the scene. `actor_basis` is `immediate_goal` or `motive`. `turn_mode` is `description`. Scope is `feature`: at least 80 words across non-Kit segments, in at least 2 segments. One of those segments is that person speaking. Show `spoken`, not an engine fallback. Do not say "In the scene.", "The moment holds.", "The attempt stands.", or "Ruled as an ordinary turn."
+
+A look that starts `combat_round` has found this scene's own pressure. Roll initiative and play the round. Talk, lookup, and wandering wait until that round is resolved. Do not start a second scene action in the same breath. An open road is not "the room": say the place the scene is named.
+
+A question to Kit ("Kit, ...?") is a lookup. The line is `Kit: Give me a second, checking the page.` A strong look speaks a Find line when this scene has one. Otherwise who is here, or "Look again, or speak to someone here."
 
 Later sections are labeled during a clarify or a roll, in the same exchange as the line they already heard. That pass is for the middle of the book. It is not how the opening is chosen. A rejected label speaks nothing from that section.
 

@@ -964,6 +964,79 @@ class SkimRound6(unittest.TestCase):
         self.assertEqual(done['stage'], 'skim_accepted', done)
         self.assertIn('begins', Path(done['room']).read_text(encoding='utf-8').casefold())
 
+    def test_go_on_does_not_replay_the_opening_or_read_prep(self):
+        self._ingest(
+            'The North Road\n'
+            '> The wagon stops in the ruts under the trees.\n'
+            '> The wagon stops in the ruts under the trees.\n'
+            '> The players concoct their own stories before the mile.\n'
+            '> Decide the marching order before you leave the trees.\n'
+            '> A crow calls once from the pines.\n'
+        )
+        done = kit_skim.accept(self.db, _reply(
+            burst='The wagon stops in the ruts under the trees.',
+            source_quote='The wagon stops in the ruts under the trees. '
+            'The players concoct their own stories before the mile.',
+        ))
+        self.assertEqual(done['stage'], 'skim_accepted', done)
+        start_session(str(self.db), str(NIK))
+        runtime = Runtime(str(self.db))
+        self.addCleanup(runtime.close)
+        bridge = KitChatBridge(runtime, RoomAdjudicator())
+        first = bridge.prepare('Yes.')
+        self.assertIn('wagon', (first.get('spoken') or '').casefold())
+        self.assertNotIn('concoct', (first.get('spoken') or '').casefold())
+        more = bridge.prepare('Go on')
+        spoken = (more.get('spoken') or '').casefold()
+        self.assertNotIn('concoct', spoken)
+        self.assertNotIn('players', spoken)
+        self.assertNotIn('marching', spoken)
+        self.assertIn("that's the opening", spoken)
+
+    def test_a_later_room_is_not_a_listed_start(self):
+        self._ingest(
+            'The North Road\n'
+            '> The wagon stops in the ruts under the trees.\n'
+            '1. The Vault\n'
+            '> You stand in a later vault of cold stone.\n'
+            'Level Notes\n'
+            'Level advancement grants experience points after the credits.\n'
+        )
+        refused = kit_skim.accept(self.db, _reply(
+            burst='A dragon lands on the bakery and the crowd cheers.',
+            source_quote='A dragon lands on the bakery and the crowd cheers.',
+            alt_starts=[
+                {'title': 'The North Road', 'page': 1},
+                {'title': 'The Vault', 'page': 1},
+                {'title': 'Level Notes', 'page': 1},
+            ],
+        ))
+        titles = ' '.join(
+            (item.get('line') or item.get('title') or item.get('pick') or '')
+            for item in refused['start_picker']['places'])
+        self.assertNotIn('Vault', titles)
+        self.assertNotIn('Level', titles)
+        self.assertIn('North Road', titles)
+
+    def test_children_on_a_street_can_be_spoken_to(self):
+        self._ingest(
+            'The North Road\n'
+            '> The wagon stops in the ruts under the trees.\n'
+            'Two children watch from a doorway in the rain.\n'
+            'Wolves are common in these woods and are not here.\n'
+            'Two bandits wait in the brush.\n'
+        )
+        done = kit_skim.accept(self.db, _reply(
+            burst='The wagon stops in the ruts under the trees.',
+            source_quote='The wagon stops in the ruts under the trees.',
+        ))
+        room = json.loads(Path(done['room']).read_text(encoding='utf-8'))
+        names = [actor.get('name', '').casefold() for actor in (room.get('actors') or {}).values()]
+        self.assertTrue(any('child' in name for name in names), names)
+        blob = json.dumps(room).casefold()
+        self.assertIn('bandit', blob)
+        self.assertNotIn('wolf', blob)
+
     def test_a_greeter_in_the_opening_is_an_actor(self):
         self._ingest(
             'The North Road\n'

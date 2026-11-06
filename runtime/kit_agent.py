@@ -1740,7 +1740,7 @@ class RoomAdjudicator:
                  'evidence': f'Player attempts: {action[:300]}. Nothing rolled yet; Kit rules the outcome '
                              'as an ordinary turn and may call a check (roll_call). Nothing hidden is learned '
                              'unless a called check succeeds.'}
-        return Resolution('kit_ruling', 'In the scene.', [event])
+        return Resolution('kit_ruling', 'Kit rules the act.', [event])
 
     def _feature_act(self, action, offer):
         """A turn about a watched feature: nothing is resolved from the words; Kit's decision
@@ -1849,6 +1849,21 @@ class RoomAdjudicator:
             event['evidence'] += ' Nobody left to wake: spent, no fight restarted.'
             return dataclasses.replace(result, events=list(result.events) + [event])
         kit_triggers.apply_event(after, self.source, event)
+        # A look that the book asks someone to notice does not skip straight to initiative.
+        notice = trigger.get('notice')
+        rolled = bool(re.search(r'\b\d{1,2}\b', action or ''))
+        if notice and result.kind == 'observe' and not rolled:
+            check = {'skill': 'perception', 'ability': 'wis', 'target': 'none',
+                     'called_turn': f'revision {revision}', 'action': (action or '')[:300]}
+            events = list(result.events) + [
+                {'type': 'beat', 'tags': ['check_called', 'notice'],
+                 'evidence': f'Player declared: {action[:300]}. The opening asks for a notice '
+                             f'before {trigger["id"]} shows itself.'},
+                {'type': 'pending_check', 'check': check,
+                 'evidence': 'Perception, before the arrival shows itself.'},
+            ]
+            public = (result.public_event + ' You might not be alone. Roll Perception.').strip()
+            return dataclasses.replace(result, kind='check_called', public_event=public, events=events)
         try:
             _, passive = self._pc_numbers('perception', after, '')
         except PendingRuling:
@@ -2041,7 +2056,21 @@ class RoomAdjudicator:
             if re.search(r'\b(?:listen\w*|sniff\w*|smell\w*)\b', action.lower()) and \
                     not re.search(r'\b(?:look\w*|peer\w*|peek\w*|glanc\w*|gaz\w*|watch\w*|scan\w*)\b', action.lower()):
                 return Resolution(kind, 'You listen.' if 'listen' in action.lower() else 'You breathe in the air.', [event])
-            return Resolution(kind, 'You look around the room.' if around else 'You take a look.', [event])
+            called = ''
+            try:
+                called = ((self.source.get('areas') or {}).get(state.get('area')) or {}).get('called') or ''
+            except Exception:
+                called = ''
+            outdoors = re.search(
+                r'\b(?:road|street|lane|trail|path|clearing|field|wood|forest|bridge|ferry|hill)\b',
+                called, re.I)
+            if outdoors:
+                public = f'You look along {called}.'
+            elif around:
+                public = 'You look around the room.'
+            else:
+                public = 'You take a look.'
+            return Resolution(kind, public, [event])
         if kind == 'exit':
             key = self._exit_taken(action, state)
             blocked = self._exit_blocked(key, state, revision)

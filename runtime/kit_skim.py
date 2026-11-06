@@ -58,7 +58,9 @@ _KEYED = re.compile(r'(?m)^(?:area\s+)?[A-Z]?\d{1,3}[a-z]?\s*[.:]\s+\S')
 _GO_ON = re.compile(
     r"^\s*(?:go on|continue|keep going|read on)\s*[.!]?\s*$", re.I)
 _LOOKUP = re.compile(
-    r"\b(?:check the page|look that up|look up|what does the book say|on the page)\b", re.I)
+    r"\b(?:check the page|look that up|look up|what does the book say|on the page)\b"
+    r"|\bkit\b[^?\n]{0,80}\?",
+    re.I)
 _CHECKLIST = re.compile(
     r'^(?:features|treasure|developments|general features|xp awards?)\b'
     r'|\bfollowing features\b|\bhouse features?\b',
@@ -152,8 +154,24 @@ _QUOTE_HARD = re.compile(
     re.I)
 _SCENE_VERB = re.compile(
     r'\b(?:stops?|stands?|walks?|sits?|lies?|rises?|falls?|hangs?|glows?|creaks?|'
-    r'waits?|waves?|steps?|hears?|sees?|rains?|gutters?|closes?|opens?|leads?)\b',
+    r'waits?|waves?|steps?|hears?|sees?|rains?|gutters?|closes?|opens?|leads?|'
+    r'calls?|bumps?|rolls?|rides?|goes|flies|circles)\b',
     re.I)
+_NOT_A_START = re.compile(
+    r'\b(?:this (?:adventure|module|book)|trademark|copyright|credits|synopsis|'
+    r'level|advancement|experience|backstory|designed for|published|'
+    r'a party of|character levels?)\b',
+    re.I)
+_LATER = re.compile(r'(?m)^(?:area\s+)?[A-Z]?\d{1,3}[a-z]?\s*[.:]\s+\S')
+_NOTICE = re.compile(r'\b(?:perception|notice|notices|spot(?:s|ted)?|stealth)\b', re.I)
+_ARRIVAL = re.compile(
+    r'\b(?:wait(?:s|ing)?|ambush(?:es|ed)?|hid(?:e|es|ing)|step(?:s|ped)?|'
+    r'attack(?:s|ed|ing)?|bar(?:s|red)?|surround(?:s|ed)?|leap(?:s|ed)?|spring(?:s|ing)?)\b',
+    re.I)
+_WARNING = re.compile(
+    r'\b(?:common|sometimes|may be|might be|are known|in general|other monsters|beware)\b',
+    re.I)
+_CHILD = re.compile(r'\b(?:child|children|boys?|girls?)\b', re.I)
 _FORK_STOP = frozenset(
     'that this with from they have been were when your into over under after before where '
     'what which there their about would could should then than them these those only just '
@@ -257,13 +275,13 @@ def _match_tokens(text):
 def _ordered_near(have, want):
     """Content words in order, allowing one of them to be missing from the extract."""
     content = [word for word in want if len(word) > 3]
-    if len(content) < 8:
+    if len(content) < 6:
         return False
     if _ordered_flex(have, content):
         return True
     for skip in range(len(content)):
         trial = content[:skip] + content[skip + 1:]
-        if len(trial) >= 8 and _ordered_flex(have, trial):
+        if len(trial) >= 6 and _ordered_flex(have, trial):
             return True
     return False
 
@@ -622,8 +640,13 @@ def _harvest_starts(window):
             stripped = line.strip()
             if not stripped:
                 continue
+            if _LATER.match(stripped.lstrip('>').strip()):
+                title = None
+                continue
             if _heading_line(stripped):
                 title = stripped.lstrip('>').strip()
+                if _bad_title(title) or _after_keyed(window, title):
+                    title = None
                 continue
             if not title or title.casefold() in seen or not stripped.startswith('>'):
                 continue
@@ -649,7 +672,7 @@ def _filter_alts(alts, window, end_page):
         page = item.get('page') if isinstance(item, dict) else None
         if not title or not isinstance(page, int) or isinstance(page, bool):
             continue
-        if page < 1 or page > end_page:
+        if page < 1 or page > end_page or _bad_title(title) or _after_keyed(window, title):
             continue
         if not _contiguous(title, window) and find_quote(window, title) is None:
             continue
@@ -721,11 +744,15 @@ def _headerish(text):
 
 
 def _blocks_quote(text):
-    """Hard prep. A street line that says "hidden" or "you may" is still an opening."""
+    """Hard prep in most of the quote. One atmospheric word does not refuse a street line."""
     cleaned = normalize(text)
     if not cleaned:
         return True
-    return bool(_META.search(cleaned) or _QUOTE_HARD.search(cleaned))
+    sentences = _sentences(cleaned) or [cleaned]
+    bad = [sentence for sentence in sentences if _META.search(sentence) or _QUOTE_HARD.search(sentence)]
+    if not bad:
+        return False
+    return len(bad) * 2 >= len(sentences)
 
 
 def _playerish(text):
@@ -735,9 +762,54 @@ def _playerish(text):
         return False
     if len(_words(cleaned)) < 6:
         return False
+    if _NOT_A_START.search(cleaned):
+        return False
     if re.search(r'\byou\b', cleaned, re.I):
         return True
     return bool(_SCENE_VERB.search(cleaned))
+
+
+def _bad_title(title):
+    """A credit line, a level note, or a numbered later room is not a start."""
+    text = (title or '').strip()
+    if not text or _KEYED.match(text) or _LATER.match(text):
+        return True
+    return bool(_META.search(text) or _NOT_A_START.search(text) or re.search(r'\blevel\b', text, re.I))
+
+
+def _after_keyed(window, title):
+    """True when this title is a numbered room, or sits after one."""
+    want = (title or '').strip().lower()
+    if not want:
+        return False
+    seen_keyed = False
+    for line in (window or '').split('\n'):
+        stripped = line.strip()
+        if _LATER.match(stripped):
+            seen_keyed = True
+            if want in stripped.lower():
+                return True
+        elif seen_keyed and want in stripped.lower() and _heading_line(stripped):
+            return True
+    return False
+
+
+def _unread(rest, burst):
+    """Sentences the opening has not already spoken."""
+    kept = []
+    burst_words = _words(burst)
+    for sentence in _sentences(rest):
+        if _contiguous(sentence, burst) or _contiguous(burst, sentence):
+            continue
+        words = _words(sentence)
+        if len(words) >= 6 and len(burst_words) >= 6:
+            span = 6
+            if any(words[i:i + span] == burst_words[j:j + span]
+                   for i in range(len(words) - span + 1)
+                   for j in range(len(burst_words) - span + 1)):
+                continue
+        kept.append(sentence)
+    return ' '.join(kept)
 
 
 def _go_fail(text):
@@ -775,7 +847,7 @@ def _read_on(text, limit):
     index = 0
     while index < len(sentences):
         sentence = sentences[index]
-        if _go_fail(sentence):
+        if _go_fail(sentence) or not _playerish(sentence):
             return ' '.join(kept).strip(), '', True
         words = len(_words(sentence))
         if kept and count + words > limit:
@@ -1010,7 +1082,10 @@ def _opening_span(page_text, book_quote):
             continue
         piece = stripped.lstrip('>').strip()
         for sentence in _sentences(piece):
-            if _go_fail(sentence) or _blocks_quote(sentence) or _contiguous(sentence, held):
+            if _go_fail(sentence) or _blocks_quote(sentence) or not _playerish(sentence):
+                # The read ends here. A later safe line is not a reason to keep going.
+                return ' '.join(base + extra).strip()
+            if _contiguous(sentence, held):
                 continue
             extra.append(sentence)
             held = (held + ' ' + sentence).strip()
@@ -1174,10 +1249,17 @@ def accept(db, reply):
         return _reject(db, ['burst is not in source_quote'], alts, expanded)
     if find_quote(window, name) is None and not _contiguous(name, window):
         return _reject(db, ['design_start_name is not in the skim window'], alts, expanded)
-    if _blocks_quote(burst) or _blocks_quote(book_quote):
+    if _blocks_quote(burst):
         return _reject(db, ['the burst quotes a tip, a secret, or a note to the DM'], alts, expanded)
     span_text = _opening_span(page_text, book_quote) or book_quote
     spoken, remainder = _split_burst(span_text, burst)
+    remainder = _unread(remainder, spoken)
+    kept_rest = []
+    for sentence in _sentences(remainder):
+        if _go_fail(sentence) or not _playerish(sentence):
+            break
+        kept_rest.append(sentence)
+    remainder = ' '.join(kept_rest)
     if not spoken:
         spoken = normalize(burst)
         remainder = _split_burst(span_text, spoken)[1]
@@ -1200,7 +1282,7 @@ def accept(db, reply):
     except Exception as exc:
         return _reject(db, ['the opening could not be bound: %s' % exc], alts, expanded)
     handoff = _handoff(spoken + ' ' + book_quote, name)
-    _cast_people(compiled.get('room'), span_text)
+    _cast_people(compiled.get('room'), page_text)
     stored = {
         'status': 'accepted', 'burst': spoken, 'source_quote': book_quote,
         'remainder': remainder, 'match': how, 'page_start': page_start,
@@ -1336,6 +1418,19 @@ def _cast_people(room_path, text):
         key = _slug(name)
         if not key:
             continue
+        sent = ''
+        try:
+            from .kit_adventure import _sentence_around
+            sent = _sentence_around(text or '', creature.get('mention_offset') or 0)
+        except Exception:
+            sent = ''
+        if _WARNING.search(sent) and not _ARRIVAL.search(sent):
+            continue
+        if sent and not _ARRIVAL.search(sent):
+            continue
+        if any(name.casefold() in (actor.get('name') or '').casefold()
+               for actor in actors.values() if isinstance(actor, dict)):
+            continue
         if key not in actors and name.casefold() in CREATURES:
             actors[key] = {
                 'name': name.title(), 'location': here, 'status': 'hidden', 'visible': False,
@@ -1352,6 +1447,20 @@ def _cast_people(room_path, text):
             })
             have_trigger.add(trig)
             changed = True
+        if _NOTICE.search(text or '') and trig in have_trigger:
+            for item in triggers:
+                if isinstance(item, dict) and item.get('id') == trig:
+                    item['notice'] = True
+    if _CHILD.search(text or '') and not any(
+            'child' in (actor.get('name') or '').casefold()
+            for actor in actors.values() if isinstance(actor, dict)):
+        actors['children'] = {
+            'name': 'Children', 'location': here, 'status': 'alive', 'visible': True,
+            'role': 'speaker',
+            'immediate_goal': 'Answer whoever speaks to them here.',
+            'motive': 'They are in this scene.',
+        }
+        changed = True
     if changed:
         path.write_text(json.dumps(room, ensure_ascii=False), encoding='utf-8')
 
@@ -1541,7 +1650,7 @@ def release(runtime, action):
         committed = runtime.commit('read-%s' % revision, revision, events)
         return {'stage': 'read_on', 'committed': True, 'calls': 1, 'spoken': spoken,
                 'public_event': data.get('burst') or '', 'revision': committed}
-    rest = (data.get('remainder') or '').strip()
+    rest = _unread((data.get('remainder') or '').strip(), data.get('burst') or '')
     chunk, left, stopped = _read_on(rest, BURST_WORDS)
     if chunk and _go_fail(chunk):
         chunk, left, stopped = '', '', True
