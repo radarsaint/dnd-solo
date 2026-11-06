@@ -272,6 +272,22 @@ def _match_tokens(text):
     return [word.casefold() for word in re.findall(r"[A-Za-z0-9']+", text)]
 
 
+def _ordered_ratio(have, want):
+    """Most of the quote's content words, in order. A few extract mismatches still count."""
+    content = [word for word in want if len(word) > 3]
+    if len(content) < 6:
+        return False
+    pos = 0
+    hit = 0
+    for word in content:
+        for index in range(pos, len(have)):
+            if have[index] == word:
+                hit += 1
+                pos = index + 1
+                break
+    return hit >= 6 and hit * 5 >= len(content) * 4
+
+
 def _ordered_near(have, want):
     """Content words in order, allowing one of them to be missing from the extract."""
     content = [word for word in want if len(word) > 3]
@@ -555,7 +571,7 @@ def _search_stream(stream, want):
     width = len(want)
     if width and any(flex[index:index + width] == want for index in range(max(0, len(flex) - width + 1))):
         return 'contiguous'
-    if _ordered_flex(flex, want) or _ordered_loose(flex, want) or _ordered_near(flex, want):
+    if _ordered_flex(flex, want) or _ordered_loose(flex, want) or _ordered_near(flex, want) or _ordered_ratio(flex, want):
         return 'ordered'
     if _local_cover(flex, want):
         return 'covered'
@@ -615,7 +631,7 @@ def _fiction_after(window, title):
             if not stripped.startswith('>'):
                 continue
             for sentence in _sentences(stripped.lstrip('>').strip()):
-                if not _playerish(sentence):
+                if not _safe_box(sentence):
                     continue
                 kept.append(sentence)
                 if len(kept) >= 2:
@@ -652,7 +668,7 @@ def _harvest_starts(window):
                 continue
             piece = stripped.lstrip('>').strip()
             for sentence in _sentences(piece):
-                if not _playerish(sentence):
+                if not _safe_box(sentence):
                     continue
                 found.append({'title': title, 'page': page, 'quote': sentence})
                 seen.add(title.casefold())
@@ -677,7 +693,7 @@ def _filter_alts(alts, window, end_page):
         if not _contiguous(title, window) and find_quote(window, title) is None:
             continue
         quote = _fiction_after(window, title)
-        if not quote or not _playerish(quote):
+        if not quote or not _safe_box(quote):
             continue
         key = title.casefold()
         if key in seen:
@@ -822,10 +838,39 @@ def _go_fail(text):
     for clause in _clauses(cleaned):
         if _unsafe(clause) or _headerish(clause) or _GO_EXTRA.search(clause) or _META.search(clause):
             return True
-    # A long block that never puts the listener in the scene is a note, not a box.
-    if len(_words(cleaned)) > 45 and not re.search(r'\byou\b', cleaned, re.I):
+    # A long block that never puts anyone in the scene is a note, not a box.
+    # A named introduction of ordinary length is the scene, not that note.
+    named = re.search(
+        r'\b(?:Captain|Sergeant|Lieutenant|Commander|Lady|Lord|Sir|Dame|Master|Mistress)\s+[A-Z]',
+        text or '')
+    if len(_words(cleaned)) > 90 and not re.search(r'\byou\b', cleaned, re.I) and not named:
         return True
     return False
+
+
+def _scene_line(text):
+    """Unread player fiction. Prep fails. A named person in the scene does not."""
+    if _go_fail(text):
+        return False
+    if _playerish(text):
+        return True
+    if re.search(
+            r'\b(?:Captain|Sergeant|Lieutenant|Commander|Lady|Lord|Sir|Dame|Master|Mistress)\s+[A-Z]',
+            text or ''):
+        return True
+    return bool(re.search(
+        r'\b[A-Z][a-z]{2,}\s+(?:is|stands|steps|waits|says|calls|raises|greets|watches)\b',
+        text or ''))
+
+
+def _safe_box(text):
+    """A boxed sentence that can be a start. Not a synopsis, a credit, or a rule."""
+    cleaned = normalize(text)
+    if not cleaned or _go_fail(cleaned) or _blocks_quote(cleaned):
+        return False
+    if _NOT_A_START.search(cleaned) or _META.search(cleaned):
+        return False
+    return len(_words(cleaned)) >= 6
 
 
 def _player_sentences(text):
@@ -847,7 +892,7 @@ def _read_on(text, limit):
     index = 0
     while index < len(sentences):
         sentence = sentences[index]
-        if _go_fail(sentence) or not _playerish(sentence):
+        if _go_fail(sentence) or not _scene_line(sentence):
             return ' '.join(kept).strip(), '', True
         words = len(_words(sentence))
         if kept and count + words > limit:
@@ -1082,10 +1127,10 @@ def _opening_span(page_text, book_quote):
             continue
         piece = stripped.lstrip('>').strip()
         for sentence in _sentences(piece):
-            if _go_fail(sentence) or _blocks_quote(sentence) or not _playerish(sentence):
-                # The read ends here. A later safe line is not a reason to keep going.
+            if _go_fail(sentence) or _blocks_quote(sentence):
+                # Prep ends the read. A named introduction is not prep.
                 return ' '.join(base + extra).strip()
-            if _contiguous(sentence, held):
+            if not _scene_line(sentence) or _contiguous(sentence, held):
                 continue
             extra.append(sentence)
             held = (held + ' ' + sentence).strip()
@@ -1256,8 +1301,10 @@ def accept(db, reply):
     remainder = _unread(remainder, spoken)
     kept_rest = []
     for sentence in _sentences(remainder):
-        if _go_fail(sentence) or not _playerish(sentence):
+        if _go_fail(sentence):
             break
+        if not _scene_line(sentence):
+            continue
         kept_rest.append(sentence)
     remainder = ' '.join(kept_rest)
     if not spoken:
@@ -1715,7 +1762,7 @@ def open_title(db, token):
     if chosen is None:
         return None
     quote = chosen.get('quote') or ''
-    if not quote or not _playerish(quote):
+    if not quote or not _safe_box(quote):
         raise IngestError(['%s is not player fiction' % chosen.get('title')])
     page = chosen.get('page') or 1
     done = accept(db, {
@@ -1799,10 +1846,12 @@ def _crumb_rows(source, area):
             continue
         if not str(fact.get('row') or '').startswith(('check', 'find')):
             continue
+        kind = str(fact.get('row') or '')
         text = normalize(fact.get('text') or '')
         if text and not _marked(text) and not _replay(source, area, text):
-            rows.append(text)
-    return rows
+            rows.append((0 if kind.startswith('find') else 1, text))
+    rows.sort(key=lambda item: item[0])
+    return [text for _order, text in rows]
 
 
 def _fork_question(source, area):

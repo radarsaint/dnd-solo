@@ -1037,6 +1037,56 @@ class SkimRound6(unittest.TestCase):
         self.assertIn('bandit', blob)
         self.assertNotIn('wolf', blob)
 
+    def test_go_on_releases_a_named_introduction(self):
+        intro = (
+            'Captain Mara keeps the watch on this road and she knows every wagon '
+            'that passes the trees when the rain has made the lane soft under the '
+            'wheels tonight and the watch is hers alone.'
+        )
+        self._ingest(
+            'The North Road\n'
+            '> The wagon stops in the ruts under the trees.\n'
+            '> ' + intro + '\n'
+            '> The players concoct their own stories before the mile.\n'
+        )
+        done = kit_skim.accept(self.db, _reply(
+            burst='The wagon stops in the ruts under the trees.',
+            source_quote='The wagon stops in the ruts under the trees.',
+        ))
+        self.assertEqual(done['stage'], 'skim_accepted', done)
+        start_session(str(self.db), str(NIK))
+        runtime = Runtime(str(self.db))
+        self.addCleanup(runtime.close)
+        bridge = KitChatBridge(runtime, RoomAdjudicator())
+        bridge.prepare('Yes.')
+        more = bridge.prepare('Go on')
+        spoken = (more.get('spoken') or '').casefold()
+        self.assertIn('mara', spoken)
+        self.assertNotIn('concoct', spoken)
+        self.assertNotIn('players', spoken)
+        again = bridge.prepare('Go on')
+        self.assertIn("that's the opening", (again.get('spoken') or '').casefold())
+        self.assertNotIn('concoct', (again.get('spoken') or '').casefold())
+
+    def test_a_plain_boxed_line_is_still_a_start(self):
+        self._ingest(
+            'The North Road\n'
+            '> Thick fog covers the cobbles while the lamps stay dark tonight.\n'
+            '1. The Vault\n'
+            '> You stand in a later vault of cold stone.\n'
+        )
+        refused = kit_skim.accept(self.db, _reply(
+            burst='A dragon lands on the bakery and the crowd cheers.',
+            source_quote='A dragon lands on the bakery and the crowd cheers.',
+            alt_starts=[],
+        ))
+        titles = ' '.join(
+            (item.get('line') or item.get('title') or item.get('pick') or '')
+            for item in refused['start_picker']['places'])
+        self.assertIn('North Road', titles)
+        self.assertNotIn('Vault', titles)
+        self.assertGreaterEqual(len(refused['start_picker']['places']), 1)
+
     def test_a_greeter_in_the_opening_is_an_actor(self):
         self._ingest(
             'The North Road\n'

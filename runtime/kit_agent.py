@@ -1852,9 +1852,11 @@ class RoomAdjudicator:
         # A look that the book asks someone to notice does not skip straight to initiative.
         notice = trigger.get('notice')
         rolled = bool(re.search(r'\b\d{1,2}\b', action or ''))
-        if notice and result.kind == 'observe' and not rolled:
+        asked = (state.get('pending_check') or {}).get('notice_trigger')
+        if notice and result.kind == 'observe' and not rolled and asked != trigger['id']:
             check = {'skill': 'perception', 'ability': 'wis', 'target': 'none',
-                     'called_turn': f'revision {revision}', 'action': (action or '')[:300]}
+                     'called_turn': f'revision {revision}', 'action': (action or '')[:300],
+                     'notice_trigger': trigger['id']}
             events = list(result.events) + [
                 {'type': 'beat', 'tags': ['check_called', 'notice'],
                  'evidence': f'Player declared: {action[:300]}. The opening asks for a notice '
@@ -2061,15 +2063,14 @@ class RoomAdjudicator:
                 called = ((self.source.get('areas') or {}).get(state.get('area')) or {}).get('called') or ''
             except Exception:
                 called = ''
-            outdoors = re.search(
-                r'\b(?:road|street|lane|trail|path|clearing|field|wood|forest|bridge|ferry|hill)\b',
-                called, re.I)
-            if outdoors:
-                public = f'You look along {called}.'
-            elif around:
+            interior = re.search(
+                r'\b(?:room|cellar|hall|chamber|crypt|cave|kitchen|bedroom)\b', called, re.I)
+            if called and called.casefold() not in ('here', 'the here', 'the room') and not interior:
+                public = f'You look around {called}.'
+            elif around and (not called or interior or 'room' in called.casefold()):
                 public = 'You look around the room.'
             else:
-                public = 'You take a look.'
+                public = 'You look around.'
             return Resolution(kind, public, [event])
         if kind == 'exit':
             key = self._exit_taken(action, state)

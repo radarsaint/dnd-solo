@@ -142,7 +142,7 @@ def _pdftotext(path, max_pages=None):
         cmd += ['-l', str(int(max_pages))]
     cmd += [str(path), '-']
     try:
-        done = subprocess.run(cmd, capture_output=True, timeout=20)
+        done = subprocess.run(cmd, capture_output=True, timeout=6 if max_pages else 20)
     except (OSError, subprocess.TimeoutExpired):
         return None
     if done.returncode != 0:
@@ -197,9 +197,12 @@ def read_pdf(path, reader='auto', max_pages=None):
     # The opening window is a short read. A full-file parse is not part of landing.
     if reader == 'auto' and max_pages:
         alt, name = optional_pdf_text(path, 'pdftotext', max_pages=max_pages)
-        if alt and pdf_yield_ok(alt):
+        if alt and (pdf_yield_ok(alt) or sum(ch.isalpha() for ch in alt) >= 40):
             parts = alt.split('\f')
             return '\f'.join(parts[:int(max_pages)]), name
+        # A large file is not parsed in Python after the short extract. That was the long wait.
+        if path.stat().st_size > 1_500_000:
+            raise IngestError([POOR_TEXT])
     found = extract(data, max_pages=max_pages) if reader in ('auto', 'stdlib') else {'kind': 'poor', 'text': ''}
     # Letter-spaced stdlib text ('T h e', 'F o llo wi n') is a weak read. pdftotext, when the
     # host has it, is the fallback. --reader stdlib never takes that path.
