@@ -60,8 +60,15 @@ _CHECKLIST = re.compile(
     r'^(?:features|treasure|developments|general features|xp awards?)\b'
     r'|\bfollowing features\b|\bhouse features?\b',
     re.I)
-# Other-column words that may sit between two tokens of one read-aloud line.
-_COLUMN_GAP = 28
+_SYNOPSIS = re.compile(
+    r'\b(?:this (?:chapter|section|adventure|part)|in this (?:chapter|section)|'
+    r'the adventure|the following|read aloud|boxed text|as the dm|'
+    r'the characters (?:can|must|should|are|have)|'
+    r'players (?:can|should|must)|'
+    r'the party (?:can|should|must|has)|'
+    r'skill checks?|saving throws?|advantage|disadvantage|'
+    r'armor class|hit points|experience points)\b',
+    re.I)
 OPENING_PAGES = FIRST_WINDOW + EXPAND_ONCE
 _MODES = ('road', 'street', 'patrol', 'trail')
 _SENSORY = re.compile(
@@ -84,8 +91,9 @@ INSTRUCTIONS = (
     'No later keyed room and no climax. design_start_name is the heading the book '
     'uses for this start.\n'
     'To expand once, return {"expand": true} and nothing else, then skim the longer window.\n'
-    'Python checks the quote as a contiguous substring of its own page extract. '
-    'A paraphrase is refused. On a refusal, say the picker. Do not open a later room.'
+    'Python checks that the quote\'s words occur in order on those pages. '
+    'A column may sit between the words. A paraphrase is refused. '
+    'On a refusal, say the picker. Do not open a later room.'
     % (FIRST_WINDOW, EXPAND_ONCE, BURST_WORDS))
 
 
@@ -148,6 +156,14 @@ def _marked(text):
     """A tip, a secret, a checklist, or a note to the DM. Not player fiction."""
     cleaned = normalize(text)
     return bool(cleaned and (_MARK.search(cleaned) or _CHECKLIST.search(cleaned)))
+
+
+def _unsafe(text):
+    """DM prep, secrets, a synopsis, or mechanics. Never Narrator text."""
+    cleaned = normalize(text)
+    if not cleaned:
+        return True
+    return _marked(cleaned) or bool(_SYNOPSIS.search(cleaned))
 
 
 def _sentence_bounded(text):
@@ -266,50 +282,69 @@ def _locate(norm, spans, start_i, end_i):
     return norm[begin:cut].strip(), begin, cut
 
 
+def _ordered_span(words, want):
+    """(first, last) index when want's words occur in order, gaps allowed. None otherwise."""
+    pos = 0
+    first = None
+    last = None
+    for word in want:
+        found = None
+        for index in range(pos, len(words)):
+            if words[index] == word:
+                found = index
+                break
+        if found is None:
+            return None
+        if first is None:
+            first = found
+        last = found
+        pos = found + 1
+    if first is None:
+        return None
+    return first, last
+
+
+def _search_stream(stream, want):
+    """(spoken, how) on one column or one page. Contiguous wins. Ordered is the proof
+    when the other column sits between the words. The spoken line never adds those words."""
+    norm, spans = _word_spans(stream)
+    words = [item[0] for item in spans]
+    width = len(want)
+    for index in range(max(0, len(words) - width + 1)):
+        if words[index:index + width] == want:
+            spoken, _b, _e = _locate(norm, spans, index, index + width - 1)
+            return spoken, 'contiguous'
+    hit = _ordered_span(words, want)
+    if hit is None:
+        return None
+    return None, 'ordered'
+
+
 def find_quote(page_text, quote):
     """(clean text, how) when the quote's words are on these pages.
 
-    ``how`` is ``contiguous`` or ``column``. None when the words are not in the
-    window. Nothing is invented: every word of the quote has to be here.
+    Each page and each column is tried on its own. Words must occur in order.
+    A paraphrase, or a line from a later page, is not a match. Nothing is invented.
     """
     want = _words(quote)
     if not want:
         return None
-    gap_hit = None
-    for stream in column_streams(page_text):
-        norm, spans = _word_spans(stream)
-        words = [item[0] for item in spans]
-        width = len(want)
-        for index in range(max(0, len(words) - width + 1)):
-            if words[index:index + width] == want:
-                spoken, _b, _e = _locate(norm, spans, index, index + width - 1)
-                return spoken, 'contiguous'
-        # A mixed line can put the other column between two halves of one sentence.
-        pos = 0
-        first = None
-        last = None
-        for word in want:
-            found = None
-            begin = 0 if first is None else pos
-            limit = len(words) if first is None else min(len(words), pos + _COLUMN_GAP)
-            for index in range(begin, limit):
-                if words[index] == word:
-                    found = index
-                    break
-            if found is None:
-                first = None
-                break
-            if first is None:
-                first = found
-            last = found
-            pos = found + 1
-        if first is not None and last is not None and gap_hit is None:
-            gap_hit = (norm, spans, first, last)
-    if gap_hit is None:
-        return None
-    norm, spans, first, last = gap_hit
-    # The spoken line is the quote's own words, not the other column that sat between them.
-    return normalize(quote), 'column'
+    pages = [page for page in (page_text or '').split('\f')] or ['']
+    ordered = None
+    streams = []
+    for page in pages:
+        streams.extend(column_streams(page))
+    streams.append(page_text or '')
+    for stream in streams:
+        found = _search_stream(stream, want)
+        if not found:
+            continue
+        _spoken, how = found
+        if how == 'contiguous':
+            return _spoken, how
+        if ordered is None:
+            ordered = (normalize(quote), how)
+    return ordered
 
 
 def _fiction_after(window, title):
@@ -327,7 +362,7 @@ def _fiction_after(window, title):
         _spoken, _b, end = _locate(norm, spans, at, at + width - 1)
         kept = []
         for sentence in _sentences(norm[end:]):
-            if _KEYED.match(sentence) or _marked(sentence):
+            if _KEYED.match(sentence) or _unsafe(sentence):
                 break
             if len(sentence.split()) <= 2 and sentence[:1].isupper() and not sentence.endswith('.'):
                 break
@@ -353,7 +388,7 @@ def _filter_alts(alts, window, end_page):
         if not _contiguous(title, window) and find_quote(window, title) is None:
             continue
         quote = _fiction_after(window, title)
-        if not quote or _marked(quote):
+        if not quote or _unsafe(quote):
             continue
         key = title.casefold()
         if key in seen:
@@ -528,6 +563,17 @@ def _emit_scene(index, text, name, span, letter):
     return key
 
 
+def _pressure(page_slice, book_quote):
+    """Creature sentences in this span that are not the spoken box and not a secret."""
+    from .kit_adventure import _creatures, _sentence_around
+    found = []
+    for creature in _creatures(page_slice or '', 0, {}):
+        sent = normalize(_sentence_around(page_slice, creature['mention_offset']))
+        if sent and not _unsafe(sent) and not _contiguous(sent, book_quote) and sent not in found:
+            found.append(sent)
+    return found
+
+
 def _visible_blob(room):
     return normalize(' '.join(
         fact.get('text') or '' for fact in (room.get('facts') or {}).values()
@@ -540,7 +586,7 @@ def _playable(room, burst):
     if not blob or not _contiguous(burst, blob):
         return False
     sentences = _sentences(blob) or [blob]
-    player = [line for line in sentences if not _marked(line)]
+    player = [line for line in sentences if not _unsafe(line)]
     return bool(player)
 
 
@@ -556,14 +602,74 @@ def _write_source(db, index, text):
 
 
 def _clean_body(player_quote):
-    """Boxed player sentences only. A secret in the quote is left out, not spoken."""
+    """Boxed player sentences only. A secret or a synopsis is left out, not spoken."""
     lines = []
     for sentence in _sentences(player_quote) or [normalize(player_quote)]:
-        if sentence and not _marked(sentence):
+        if sentence and not _unsafe(sentence):
             lines.append('> ' + sentence)
-    if not lines and player_quote and not _marked(player_quote):
+    if not lines and player_quote and not _unsafe(player_quote):
         lines.append('> ' + normalize(player_quote))
     return '\n'.join(lines) + ('\n' if lines else '')
+
+
+def _boxed_lines(page_text):
+    """Read-aloud lines on this page, each column on its own."""
+    bits = []
+    for line in (page_text or '').split('\n'):
+        pieces = line.split(' | ') if ' | ' in line else [line]
+        for piece in pieces:
+            piece = piece.strip()
+            if piece.startswith('>'):
+                bits.append(piece.lstrip('>').strip())
+    return bits
+
+
+def _heading_line(line):
+    """A title or a keyed room, not a sentence of fiction."""
+    text = (line or '').strip().lstrip('>').strip()
+    if not text or text.endswith(('.', '!', '?')):
+        return False
+    if _KEYED.match(text):
+        return True
+    words = text.split()
+    return 1 <= len(words) <= 8 and text[:1].isupper()
+
+
+def _opening_span(page_text, book_quote):
+    """The printed player passage that contains the quote, through the next heading.
+
+    Later boxed sentences of this opening stay for Go on. The next title, a secret,
+    a synopsis, or a mechanics line does not.
+    """
+    base = [sentence for sentence in (_sentences(book_quote) or [normalize(book_quote)])
+            if sentence and not _unsafe(sentence)]
+    want = _words(book_quote)[:4]
+    started = False
+    extra = []
+    held = ' '.join(base)
+    for line in (page_text or '').split('\n'):
+        stripped = line.strip()
+        if not stripped:
+            continue
+        words = _words(stripped)
+        if not started:
+            head = _ordered_span(words, want) if want else None
+            if head is None and not _contiguous(book_quote, normalize(stripped)):
+                continue
+            started = True
+        elif _heading_line(stripped):
+            break
+        # Only a boxed line is player text. The other column, and a creature
+        # sentence under the box, stay out of what Go on will speak.
+        if not stripped.startswith('>'):
+            continue
+        piece = stripped.lstrip('>').strip()
+        for sentence in _sentences(piece):
+            if _unsafe(sentence) or _contiguous(sentence, held):
+                continue
+            extra.append(sentence)
+            held = (held + ' ' + sentence).strip()
+    return ' '.join(base + extra).strip()
 
 
 def _append_body(db, index, text, block):
@@ -596,7 +702,10 @@ def _bind(db, index, text, name, span, alts, burst, book_quote):
         try:
             compiled = compile_location(db, key, neighbours=False, span=narrowed)
             room = json.loads(open(compiled['room'], encoding='utf-8').read())
-            if not _playable(room, burst):
+            page_slice = text[span[0]:span[1]]
+            # A playable box with no trigger, while this span names a creature, is hollow.
+            # Rebuild so the designed pressure is in the scene and still not spoken.
+            if not _playable(room, burst) or (not room.get('triggers') and _pressure(page_slice, book_quote)):
                 compiled = None
         except (IngestError, OSError, ValueError, KeyError):
             compiled = None
@@ -607,7 +716,7 @@ def _bind(db, index, text, name, span, alts, burst, book_quote):
         seen_extra = set()
         for creature in _creatures(page_slice, 0, index.get('stat_blocks') or {}):
             sent = normalize(_sentence_around(page_slice, creature['mention_offset']))
-            if not sent or _marked(sent) or _contiguous(sent, book_quote) or sent in seen_extra:
+            if not sent or _unsafe(sent) or _contiguous(sent, book_quote) or sent in seen_extra:
                 continue
             seen_extra.add(sent)
             block += sent + '\n'
@@ -712,11 +821,13 @@ def accept(db, reply):
         return _reject(db, ['burst is not in source_quote'], alts, expanded)
     if find_quote(window, name) is None and not _contiguous(name, window):
         return _reject(db, ['design_start_name is not in the skim window'], alts, expanded)
-    if _marked(burst) or _marked(book_quote):
+    if _unsafe(burst) or _unsafe(book_quote):
         return _reject(db, ['the burst quotes a tip, a secret, or a note to the DM'], alts, expanded)
-    spoken, remainder = _split_burst(book_quote, burst)
+    span_text = _opening_span(page_text, book_quote) or book_quote
+    spoken, remainder = _split_burst(span_text, burst)
     if not spoken:
         spoken = normalize(burst)
+        remainder = _split_burst(span_text, spoken)[1]
     if len(_words(spoken)) > BURST_WORDS:
         return _reject(db, ['burst is over %d words' % BURST_WORDS], alts, expanded)
     if not _sentence_bounded(spoken):
@@ -756,6 +867,75 @@ def accept(db, reply):
     }
 
 
+def peek_burst(db):
+    return (_read(db).get('burst') or '').strip()
+
+
+def opening_screen(db, source, *, honor_burst=True):
+    """A reason the opening must not be spoken, or None when player fiction is there.
+
+    A safe validated burst may be spoken. A room whose text is only DM prep, secrets,
+    a synopsis, or mechanics may not, and loading a character does not make it a pass.
+    """
+    if honor_burst:
+        burst = peek_burst(db)
+        if burst and not _unsafe(burst):
+            return None
+        if burst and _unsafe(burst):
+            return 'burst'
+    texts = []
+    safe = False
+    for fact in ((source or {}).get('facts') or {}).values():
+        if not isinstance(fact, dict):
+            continue
+        text = fact.get('text')
+        if not isinstance(text, str) or not text.strip():
+            continue
+        texts.append(text)
+        if fact.get('visible') and not _unsafe(text):
+            safe = True
+    if texts and not safe:
+        return 'room'
+    return None
+
+
+def screen_failed(db):
+    return bool(_read(db).get('screen_failed'))
+
+
+def refused_start(db):
+    """The sheet can stay noted. The opening is not committed, and the picker stays.
+
+    A safe burst that was already accepted is left alone. Naming a DM title does not
+    erase it and does not speak that title.
+    """
+    data = _read(db)
+    alts = [item for item in (data.get('alt_starts') or [])
+            if item.get('quote') and not _unsafe(item.get('quote') or '')]
+    safe_burst = data.get('status') == 'accepted' and bool(data.get('burst')) and not _unsafe(data.get('burst'))
+    if not safe_burst:
+        data['status'] = 'rejected'
+        data['screen_failed'] = True
+        data['burst_spoken'] = False
+        data['table_line'] = picker_line(alts)
+        data['alt_starts'] = alts
+        _write(db, data)
+    elif alts != (data.get('alt_starts') or []):
+        data['alt_starts'] = alts
+        _write(db, data)
+    line = picker_line(alts) or data.get('table_line') or ''
+    return {
+        'stage': 'pick_start', 'committed': False, 'opened_room': None,
+        'character_loaded': False, 'sheet': data.get('sheet'), 'sheet_kept': bool(data.get('sheet')),
+        'places': [{'pick': item.get('title'), 'line': item.get('title'), 'page': item.get('page')}
+                   for item in alts],
+        'start_picker': {'table_line': line, 'places': alts},
+        'table_line': line,
+        'spoken': None,
+        'screen_failed': True,
+    }
+
+
 def awaits_yes(db, room_id):
     data = _read(db)
     return bool(data.get('status') == 'accepted' and data.get('room_id') == room_id
@@ -768,7 +948,9 @@ def opening_line(db):
     if data.get('status') != 'accepted':
         return None
     burst = (data.get('burst') or '').strip()
-    if not burst:
+    if not burst or _unsafe(burst):
+        data['screen_failed'] = True
+        _write(db, data)
         return None
     handoff = data.get('handoff') or "Say what you do."
     data['burst_spoken'] = True
@@ -804,13 +986,15 @@ def release(runtime, action):
         return {'stage': 'read_on', 'committed': True, 'calls': 1, 'spoken': spoken,
                 'public_event': data.get('burst') or '', 'revision': committed}
     rest = (data.get('remainder') or '').strip()
-    if not rest or _marked(rest):
+    if not rest or _unsafe(rest):
         spoken = "Kit: That's the span. What do you do?"
         chunk = ''
         data['remainder'] = ''
     else:
         chunk, left = _take(rest, BURST_WORDS)
-        if _marked(chunk):
+        while chunk and _unsafe(chunk) and left:
+            chunk, left = _take(left, BURST_WORDS)
+        if _unsafe(chunk):
             chunk, left = '', ''
         data['remainder'] = left
         if not chunk:
@@ -872,7 +1056,7 @@ def open_title(db, token):
     if chosen is None:
         return None
     quote = chosen.get('quote') or ''
-    if not quote or _marked(quote):
+    if not quote or _unsafe(quote):
         raise IngestError(['%s is not player fiction' % chosen.get('title')])
     page = chosen.get('page') or 1
     done = accept(db, {

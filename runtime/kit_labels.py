@@ -867,5 +867,7 @@ def player_hears(db, source):
     lines = []
     for fact in (room.get('facts') or {}).values():
         if isinstance(fact, dict) and fact.get('visible') and fact.get('text') and not leak(fact.get('text')):
-            lines.append(fact['text'])
+            from .kit_skim import _unsafe
+            if not _unsafe(fact.get('text')):
+                lines.append(fact['text'])
     return lines

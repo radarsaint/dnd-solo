@@ -4621,10 +4621,14 @@ def assign_roll_call_policy(body, source):
         policy = 'deliver'
     elif body.get('kind') == 'check_request' and str((source or {}).get('id') or '').startswith('adv-'):
         area = ((body.get('public_view') or {}).get('area'))
-        rows = [fact for fact in ((source or {}).get('facts') or {}).values()
-                if isinstance(fact, dict) and fact.get('area') == area
-                and str(fact.get('row') or '').startswith(('check', 'find'))]
-        policy = 'combined' if rows else 'clarify'
+        from . import kit_skim
+        rows = kit_skim._crumb_rows(source, area)
+        sensory = [text for text in kit_skim._area_facts(source, area, False)
+                   if kit_skim._SENSORY.search(text)]
+        policy = 'combined' if rows or sensory else 'clarify'
+        if policy == 'clarify':
+            body['clarify_fork'] = ('The %s check adds nothing new on the page. Which part of this are you on?'
+                                    % 'check')
     elif body.get('kind') == 'check_request':
         policy = 'combined'
     else:
@@ -4646,7 +4650,8 @@ def check_combined_call(segments, plan, action_kind, policy=None):
         return
     if policy == 'clarify':
         require(not plan.get('roll_call'),
-                'No Check or Find in this scene. Ask one question, with no roll call.')
+                'No Check or Find in this scene. Ask one question, with no roll call: '
+                '"Which part of this are you on?"')
         return
     require(_WHICH_SKILL.search(text) is None,
             'Ask what they are focusing on, not which skill. You pick the skill. DCs stay hidden.')
@@ -8192,6 +8197,11 @@ def start_session(db, sheet_path=None, runtime=None, room=None, area=None, manif
     from . import kit_adventure
     if kit_adventure.room_is_empty(source):
         return kit_campaign.place_picker(db)
+    # A character on the sheet is not an opening. DM text never becomes the Narrator.
+    if str(source.get('id') or '').startswith('adv-'):
+        from . import kit_skim
+        if kit_skim.opening_screen(db, source):
+            return kit_skim.refused_start(db)
     if area is not None and area not in source['areas']:
         raise kit_rooms.RoomMountError(room, [f'no area {area!r} in this room'])
     own = runtime is None
@@ -8243,7 +8253,7 @@ def start_session(db, sheet_path=None, runtime=None, room=None, area=None, manif
         # An ingested book speaks its own opening. The host does not draft it.
         # A validated skim waits for Yes. A label pass is not required before that.
         if str(source.get('id') or '').startswith('adv-'):
-            from . import kit_labels, kit_skim
+            from . import kit_skim
             if kit_skim.awaits_yes(db, source.get('id')) and not kit_skim.take_speak_now(db):
                 opened['table_line'] = kit_skim.READY_LINE
                 opened['awaiting_yes'] = True
@@ -8260,6 +8270,7 @@ def start_session(db, sheet_path=None, runtime=None, room=None, area=None, manif
                 opened['next_step'] = ('Show spoken. The opening is already committed. Do not draft it. '
                                        'Later turns: prepare the player\'s words, then complete unless prepare '
                                        'already returned spoken.')
+                from . import kit_labels
                 opened['player_hears'] = kit_labels.player_hears(db, source) or []
         return opened
     finally:
@@ -8661,6 +8672,10 @@ def _main():
             if args.start and not args.room:
                 from . import kit_adventure
                 chosen = kit_adventure.choose_start(args.db, args.start)
+                if chosen.get('stage') == 'pick_start':
+                    print(_dumps(chosen, ensure_ascii=False,
+                                 **({'indent': 2} if args.pretty else {'separators': (',', ':')})))
+                    return 0
                 args.room = chosen['room']
             if args.room and not args.regression:
                 source = kit_rooms.load_room(args.room)

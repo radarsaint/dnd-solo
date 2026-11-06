@@ -1758,8 +1758,13 @@ def choose_start(db, token=None):
     """Compile the book's default scene, or the scene or room the host named (A, 1, a label)."""
     want = (token or '').strip()
     if want:
-        from .kit_skim import open_title
-        picked = open_title(db, want)
+        from .kit_skim import open_title, refused_start
+        try:
+            picked = open_title(db, want)
+        except IngestError as exc:
+            if any('not player fiction' in item for item in exc.problems):
+                return refused_start(db)
+            raise
         if picked:
             return picked
     index, _text = _load(db)
@@ -1775,12 +1780,23 @@ def choose_start(db, token=None):
                 found = item
                 break
         if found is None:
+            from .kit_skim import _read, refused_start
+            skim = _read(db)
+            if skim.get('alt_starts') or skim.get('status') in ('accepted', 'rejected'):
+                return refused_start(db)
             shown = '; '.join(item.get('line') or item.get('pick') or '' for item in starts[:16])
             raise IngestError(['no start %r. %s' % (token, shown or 'no scenes indexed')])
         key = found['id']
     if not key:
         raise IngestError(['this book has no start'])
     compiled = compile_location(db, key, neighbours=False)
+    try:
+        room = json.loads(Path(compiled['room']).read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        room = {}
+    from .kit_skim import opening_screen, refused_start
+    if opening_screen(db, room, honor_burst=False):
+        return refused_start(db)
     compiled['pick'] = next((item.get('pick') for item in starts if item.get('id') == key), None)
     compiled['line'] = next((item.get('line') for item in starts if item.get('id') == key), None)
     compiled['starts'] = starts
