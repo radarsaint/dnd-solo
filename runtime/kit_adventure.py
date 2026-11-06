@@ -173,7 +173,7 @@ def optional_pdf_text(path, reader='auto'):
     return None, None
 
 
-def read_pdf(path, reader='auto'):
+def read_pdf(path, reader='auto', max_pages=None):
     """``(text, reader_name)`` from a PDF. Refuses a missing file, a non-PDF, a scan, or
     a text layer the chosen reader cannot decode. ``reader`` is auto, stdlib, pdftotext, or pypdf."""
     path = Path(path)
@@ -185,7 +185,7 @@ def read_pdf(path, reader='auto'):
     if not data.startswith(b'%PDF'):
         raise IngestError([NOT_PDF])
     from .kit_pdf import extract, text_readable
-    found = extract(data) if reader in ('auto', 'stdlib') else {'kind': 'poor', 'text': ''}
+    found = extract(data, max_pages=max_pages) if reader in ('auto', 'stdlib') else {'kind': 'poor', 'text': ''}
     # Letter-spaced stdlib text ('T h e', 'F o llo wi n') is a weak read. pdftotext, when the
     # host has it, is the fallback. --reader stdlib never takes that path.
     if reader == 'auto' and found.get('kind') == 'text' and not text_readable(found.get('text')):
@@ -1180,6 +1180,7 @@ def _cut(text):
 
 def _split(span, base):
     """(read_aloud, dm) lists of (offset, sentence) from a location's body."""
+    from . import kit_labels
     read, dm, at = [], [], 0
     for line in span.split('\n'):
         stripped = line.strip()
@@ -1198,7 +1199,7 @@ def _split(span, base):
     if not read and dm:
         shown, kept = [], []
         for item in dm:
-            if _KEEP_HIDDEN.search(item[1]):
+            if _KEEP_HIDDEN.search(item[1]) or kit_labels.leak(item[1]):
                 kept.append(item)
             else:
                 shown.append(item)
@@ -1300,12 +1301,26 @@ def draft_room(db, key, index, text, span=None):
         read, dm = kit_labels.apply_blocks(raw_read, raw_dm, blocks)
     else:
         read, dm = raw_read, raw_dm
+    from . import kit_labels as _labels
+    kept_read, pushed = [], list(dm)
+    for item in read:
+        if _labels.leak(item[1]):
+            pushed.append(item)
+        else:
+            kept_read.append(item)
+    read, dm = kept_read, pushed
     here = 'here'
-    called = loc['name'].lower()
-    areas = {here: {'name': loc['name'], 'called': called if called.startswith('the ') else 'the ' + called}}
+    place = re.sub(r'^(?:part|chapter)\s+\S+\s*[:.\-]\s*', '', (loc.get('name') or '').strip(), flags=re.I)
+    place = re.sub(r'\s*\|\s*.*$', '', place).strip() or (loc.get('name') or 'here')
+    called = place.lower()
+    areas = {here: {'name': place, 'called': called if called.startswith('the ') else 'the ' + called}}
     prov = {'areas.here.name': {'offset': loc['offset'], 'quote': loc['name']}}
     exits, facts, flags = {}, {}, []
+    seen_to = set()
     for c in loc['connections']:
+        if c['to'] in seen_to:
+            continue
+        seen_to.add(c['to'])
         other = index['locations'][c['to']]
         side = f'to_{_slug(c["to"])}'
         areas[side] = {'name': f'Outside {loc["name"]}', 'outside': True, 'beyond': True,
@@ -1638,7 +1653,13 @@ def ingest_adventure(db, text=None, pdf=None, title=None, reader='auto'):
     clock = time.perf_counter()
     how = 'text'
     if text is None:
-        text, how = read_pdf(pdf, reader=reader)
+        from .kit_skim import OPENING_PAGES
+        text, how = read_pdf(pdf, reader=reader, max_pages=OPENING_PAGES)
+        try:
+            folder_for(db).mkdir(parents=True, exist_ok=True)
+            (folder_for(db) / 'source.pdf.path').write_text(str(Path(pdf).resolve()), encoding='utf-8')
+        except OSError:
+            pass
     report = import_adventure(db, text=text, title=title)
     from . import kit_labels
     kit_labels.mark_leading_front(db)
@@ -1711,12 +1732,39 @@ def ingest_adventure(db, text=None, pdf=None, title=None, reader='auto'):
     }
 
 
+def deepen_index(db):
+    """Read the rest of a PDF after the opening window. The landing does not wait on this."""
+    ref = folder_for(db) / 'source.pdf.path'
+    if not ref.is_file():
+        return {'stage': 'index_idle'}
+    path = ref.read_text(encoding='utf-8').strip()
+    from .kit_skim import _read, accept
+    prior = _read(db)
+    text, how = read_pdf(path, reader='auto')
+    report = import_adventure(db, text=text)
+    if prior.get('status') == 'accepted' and prior.get('source_quote') and prior.get('design_start_name'):
+        accept(db, {
+            'burst': prior.get('burst') or prior.get('source_quote'),
+            'source_quote': prior.get('source_quote'),
+            'page_start': prior.get('page_start') or 1,
+            'page_end': prior.get('page_end') or prior.get('page_start') or 1,
+            'alt_starts': prior.get('alt_starts') or [],
+            'design_start_name': prior.get('design_start_name'),
+        })
+    return {'stage': 'index_deep', 'reader': how, 'locations': report.get('locations')}
+
+
 def choose_start(db, token=None):
     """Compile the book's default scene, or the scene or room the host named (A, 1, a label)."""
+    want = (token or '').strip()
+    if want:
+        from .kit_skim import open_title
+        picked = open_title(db, want)
+        if picked:
+            return picked
     index, _text = _load(db)
     starts = index.get('starts') or []
     key = index.get('start')
-    want = (token or '').strip()
     if want:
         folded = want.casefold()
         found = None
@@ -1784,7 +1832,7 @@ def readiness(db, mounted_id=None):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(prog='kit_agent adventure', description=__doc__.split('\n\n')[0])
-    parser.add_argument('action', choices=['import', 'compile', 'status', 'ingest', 'label', 'skim'])
+    parser.add_argument('action', choices=['import', 'compile', 'status', 'ingest', 'label', 'skim', 'index'])
     parser.add_argument('--file', help='label: the host reply JSON (section, opening, labels)')
     parser.add_argument('path', nargs='?', help='ingest: the adventure PDF (or pass --pdf)')
     parser.add_argument('--db', default='kit.sqlite')
@@ -1826,6 +1874,8 @@ def main(argv=None):
                 result = kit_skim.accept(args.db, reply)
             else:
                 result = kit_skim.request_for(args.db)
+        elif args.action == 'index':
+            result = deepen_index(args.db)
         elif args.action == 'compile':
             if not args.location:
                 raise IngestError(['compile needs --location'])

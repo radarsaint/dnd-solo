@@ -59,7 +59,7 @@ def text_readable(text):
     return singles / float(len(words)) < 0.22 and mean >= 2.8
 
 
-def extract(data):
+def extract(data, max_pages=None):
     """``{text, kind, pages, text_ops}``. ``kind`` is text, poor, no_text_layer, or not_pdf.
 
     ``text`` is UTF-8-able str with a form feed between pages. Boxed lines and italic prose
@@ -78,7 +78,11 @@ def extract(data):
         kind = 'poor' if seen else 'no_text_layer'
         return {'text': '', 'kind': kind, 'pages': 0, 'text_ops': seen}
     pages, text_ops = [], 0
+    truncated = False
     for node in _walk_pages(_resolve(catalog.get('/Pages'), objects), objects):
+        if max_pages and len(pages) >= max_pages:
+            truncated = True
+            break
         chunks, rects, ops, width, height = _read_page(node, objects)
         text_ops += ops
         pages.append({'chunks': chunks, 'rects': rects, 'width': width, 'height': height})
@@ -88,7 +92,7 @@ def extract(data):
         return {'text': '', 'kind': kind, 'pages': len(pages), 'text_ops': seen}
     text = _layout(pages)
     return {'text': text, 'kind': 'text' if text_usable(text) else 'poor',
-            'pages': len(pages), 'text_ops': text_ops}
+            'pages': len(pages), 'text_ops': text_ops, 'truncated': truncated}
 
 
 # ---------------------------------------------------------------- objects

@@ -176,7 +176,7 @@ class Glyphs(unittest.TestCase):
         path = self.folder / 'weak.pdf'
         path.write_bytes(b'%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\n%%EOF\n')
 
-        def fake_extract(data):
+        def fake_extract(data, max_pages=None):
             return {'text': weak, 'kind': 'text', 'pages': 1, 'text_ops': 40}
 
         with mock.patch('runtime.kit_pdf.extract', fake_extract):

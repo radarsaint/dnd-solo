@@ -20,7 +20,13 @@ LEAK_RE = re.compile(
     r'|\bhit points\b'
     r'|\bif the characters\b'
     r'|\bread when\b'
-    r'|\b(?:secret|hidden|concealed)\b',
+    r'|\b(?:secret|hidden|concealed)\b'
+    r'|\b(?:reward the (?:party|characters)|give the (?:party|characters)|xp awards?)\b'
+    r'|\bgeneral features\b'
+    r'|\bfollowing features\b'
+    r'|\bhouse features?\b'
+    r'|when you(?:\'re| are) ready'
+    r'|\bread the (?:following )?boxed',
     re.I)
 # A DM tip in front of boxed fiction. Cut before the box. A block that stays fused
 # cannot open, and is not painted dm (that would delete the only box).

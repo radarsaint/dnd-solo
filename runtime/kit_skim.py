@@ -54,6 +54,15 @@ _MARK = re.compile(
 _KEYED = re.compile(r'(?m)^(?:area\s+)?[A-Z]?\d{1,3}[a-z]?\s*[.:]\s+\S')
 _GO_ON = re.compile(
     r"^\s*(?:go on|continue|keep going|read on)\s*[.!]?\s*$", re.I)
+_LOOKUP = re.compile(
+    r"\b(?:check the page|look that up|look up|what does the book say|on the page)\b", re.I)
+_CHECKLIST = re.compile(
+    r'^(?:features|treasure|developments|general features|xp awards?)\b'
+    r'|\bfollowing features\b|\bhouse features?\b',
+    re.I)
+# Other-column words that may sit between two tokens of one read-aloud line.
+_COLUMN_GAP = 28
+OPENING_PAGES = FIRST_WINDOW + EXPAND_ONCE
 _MODES = ('road', 'street', 'patrol', 'trail')
 _SENSORY = re.compile(
     r"\b(?:sound|sounds|smell|smells|light|shadow|cold|wind|creak|glint|mud|ruts|"
@@ -101,12 +110,23 @@ def _write(db, data):
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding='utf-8')
 
 
+# Curly quotes and the like become straight marks before either side is compared.
+_APOSTROPHE = {
+    '\u2019': "'", '\u2018': "'", '\u2032': "'", '\u02bc': "'", '\u02bb': "'",
+    '\u201c': '"', '\u201d': '"', '\u00a0': ' ', '\u2009': ' ', '\u202f': ' ',
+}
+
+
 def normalize(text):
-    """Whitespace, soft hyphens, and a wrapped hyphen. Not a paraphrase."""
-    text = (text or '').replace('\u00ad', '')
-    text = text.replace('\u2019', "'").replace('\u2018', "'")
-    text = text.replace('\u201c', '"').replace('\u201d', '"')
-    text = text.replace('>', ' ')
+    """Apostrophes, quotes, whitespace, and a wrapped hyphen. Both sides of a match.
+
+    This is not a paraphrase. The words stay in order; only the ink changes.
+    """
+    text = text or ''
+    text = text.replace('\u00ad', '')
+    for src, dst in _APOSTROPHE.items():
+        text = text.replace(src, dst)
+    text = text.replace('>', ' ').replace('|', ' ')
     text = re.sub(r'(\w)-\s+([A-Za-z])', r'\1\2', text)
     return re.sub(r'\s+', ' ', text).strip()
 
@@ -125,7 +145,9 @@ def _contiguous(needle, haystack):
 
 
 def _marked(text):
-    return bool(_MARK.search(normalize(text)))
+    """A tip, a secret, a checklist, or a note to the DM. Not player fiction."""
+    cleaned = normalize(text)
+    return bool(cleaned and (_MARK.search(cleaned) or _CHECKLIST.search(cleaned)))
 
 
 def _sentence_bounded(text):
@@ -201,8 +223,124 @@ def _title_of(item):
     return title or None
 
 
+def _sentences(text):
+    return [part.strip() for part in re.findall(r'[^.!?]+[.!?]+', normalize(text)) if part.strip()]
+
+
+def column_streams(page_text):
+    """The page as stored, plus each side of a mixed-column line (`left | right`).
+
+    A printed read-aloud is contiguous on its own side even when the extract
+    alternates the two columns on one line.
+    """
+    streams = [page_text or '']
+    if ' | ' not in (page_text or ''):
+        return streams
+    columns = []
+    for line in (page_text or '').split('\n'):
+        parts = line.split(' | ')
+        for index, part in enumerate(parts):
+            while len(columns) <= index:
+                columns.append([])
+            columns[index].append(part.strip())
+    for column in columns:
+        if any(column):
+            streams.append('\n'.join(column))
+    return streams
+
+
+def _word_spans(text):
+    """(normalized text, [(word, start, end), ...]) after apostrophes are straightened."""
+    norm = normalize(text)
+    spans = [(match.group(0).casefold(), match.start(), match.end())
+             for match in re.finditer(r"[A-Za-z0-9']+", norm)]
+    return norm, spans
+
+
+def _locate(norm, spans, start_i, end_i):
+    """Character slice of a word run, extended through its closing punctuation."""
+    begin = spans[start_i][1]
+    cut = spans[end_i][2]
+    while cut < len(norm) and norm[cut] in '.!?"\')]}':
+        cut += 1
+    return norm[begin:cut].strip(), begin, cut
+
+
+def find_quote(page_text, quote):
+    """(clean text, how) when the quote's words are on these pages.
+
+    ``how`` is ``contiguous`` or ``column``. None when the words are not in the
+    window. Nothing is invented: every word of the quote has to be here.
+    """
+    want = _words(quote)
+    if not want:
+        return None
+    gap_hit = None
+    for stream in column_streams(page_text):
+        norm, spans = _word_spans(stream)
+        words = [item[0] for item in spans]
+        width = len(want)
+        for index in range(max(0, len(words) - width + 1)):
+            if words[index:index + width] == want:
+                spoken, _b, _e = _locate(norm, spans, index, index + width - 1)
+                return spoken, 'contiguous'
+        # A mixed line can put the other column between two halves of one sentence.
+        pos = 0
+        first = None
+        last = None
+        for word in want:
+            found = None
+            begin = 0 if first is None else pos
+            limit = len(words) if first is None else min(len(words), pos + _COLUMN_GAP)
+            for index in range(begin, limit):
+                if words[index] == word:
+                    found = index
+                    break
+            if found is None:
+                first = None
+                break
+            if first is None:
+                first = found
+            last = found
+            pos = found + 1
+        if first is not None and last is not None and gap_hit is None:
+            gap_hit = (norm, spans, first, last)
+    if gap_hit is None:
+        return None
+    norm, spans, first, last = gap_hit
+    # The spoken line is the quote's own words, not the other column that sat between them.
+    return normalize(quote), 'column'
+
+
+def _fiction_after(window, title):
+    """Player sentences under a heading. Empty when the heading only leads into a secret."""
+    want = _words(title)
+    if not want:
+        return ''
+    for stream in column_streams(window):
+        norm, spans = _word_spans(stream)
+        words = [item[0] for item in spans]
+        width = len(want)
+        at = next((i for i in range(max(0, len(words) - width + 1)) if words[i:i + width] == want), None)
+        if at is None:
+            continue
+        _spoken, _b, end = _locate(norm, spans, at, at + width - 1)
+        kept = []
+        for sentence in _sentences(norm[end:]):
+            if _KEYED.match(sentence) or _marked(sentence):
+                break
+            if len(sentence.split()) <= 2 and sentence[:1].isupper() and not sentence.endswith('.'):
+                break
+            kept.append(sentence)
+            if len(kept) >= 2:
+                break
+        if kept:
+            return ' '.join(kept)
+    return ''
+
+
 def _filter_alts(alts, window, end_page):
-    """Early titles whose page is inside the window and whose words are in that extract."""
+    """Early titles inside the window that open onto player fiction, not a secret."""
     kept = []
     seen = set()
     for item in alts or []:
@@ -212,13 +350,16 @@ def _filter_alts(alts, window, end_page):
             continue
         if page < 1 or page > end_page:
             continue
-        if not _contiguous(title, window):
+        if not _contiguous(title, window) and find_quote(window, title) is None:
+            continue
+        quote = _fiction_after(window, title)
+        if not quote or _marked(quote):
             continue
         key = title.casefold()
         if key in seen:
             continue
         seen.add(key)
-        kept.append({'title': title, 'page': page})
+        kept.append({'title': title, 'page': page, 'quote': quote})
     kept.sort(key=lambda item: (item['page'], item['title'].casefold()))
     return kept[:PICK_MAX]
 
@@ -317,6 +458,22 @@ def _reject(db, problems, alts, expanded):
     }
 
 
+def _anchor(page_text, quote):
+    """Offset of the quote in the raw page, apostrophes allowed to curl."""
+    words = _words(quote)
+    if not words:
+        return 0
+    parts = []
+    for word in words:
+        pieces = [re.escape(piece) for piece in word.split("'")]
+        parts.append("['\u2019\u2018]?".join(pieces))
+    match = re.search(r'\W+'.join(parts), page_text or '', re.I)
+    if match:
+        return match.start()
+    first = re.search(r'\b' + parts[0], page_text or '', re.I)
+    return first.start() if first else 0
+
+
 def _clip(text, quote_end, page_end_off):
     """Stop the opening body at the next numbered heading. Do not swallow a later room."""
     if page_end_off <= quote_end:
@@ -371,41 +528,121 @@ def _emit_scene(index, text, name, span, letter):
     return key
 
 
-def _bind(db, index, text, name, span, alts):
-    """Attach the accepted quote to a scene id. Numbered places are optional."""
+def _visible_blob(room):
+    return normalize(' '.join(
+        fact.get('text') or '' for fact in (room.get('facts') or {}).values()
+        if isinstance(fact, dict) and fact.get('visible')))
+
+
+def _playable(room, burst):
+    """The room can be spoken, and what it shows is the burst rather than a secret."""
+    blob = _visible_blob(room)
+    if not blob or not _contiguous(burst, blob):
+        return False
+    sentences = _sentences(blob) or [blob]
+    player = [line for line in sentences if not _marked(line)]
+    return bool(player)
+
+
+def _write_source(db, index, text):
+    import hashlib
+    from .kit_adventure import _write_json, folder_for
+    folder = folder_for(db)
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / 'source.txt').write_text(text, encoding='utf-8')
+    index['sha256'] = hashlib.sha256(text.encode('utf-8')).hexdigest()
+    index['chars'] = len(text)
+    _write_json(folder / 'index.json', index)
+
+
+def _clean_body(player_quote):
+    """Boxed player sentences only. A secret in the quote is left out, not spoken."""
+    lines = []
+    for sentence in _sentences(player_quote) or [normalize(player_quote)]:
+        if sentence and not _marked(sentence):
+            lines.append('> ' + sentence)
+    if not lines and player_quote and not _marked(player_quote):
+        lines.append('> ' + normalize(player_quote))
+    return '\n'.join(lines) + ('\n' if lines else '')
+
+
+def _append_body(db, index, text, block):
+    """Put a clean copy of the validated quote where the compiler can read it.
+
+    The words were already found in the skim window. The copy is those words in
+    order, so a mixed column or an empty front-matter scene cannot erase them.
+    """
+    if not block.strip():
+        return text, (len(text), len(text))
+    if text and not text.endswith('\n'):
+        text += '\n'
+    start = len(text)
+    text = text + block
+    _write_source(db, index, text)
+    return text, (start, len(text))
+
+
+def _bind(db, index, text, name, span, alts, burst, book_quote):
+    """Attach the accepted quote to a scene that has player text to compile."""
     from . import kit_scenes
-    from .kit_adventure import _write_json, compile_location, folder_for
+    from .kit_adventure import IngestError, _write_json, compile_location, folder_for
     key = _containing(index, span[0])
-    numbered = [loc for loc in (index.get('locations') or {}).values() if loc.get('type') != 'scene']
+    compiled = None
     if key is not None:
         body = (index['locations'][key].get('body') or span)
-        span = (max(span[0], body[0]), min(span[1], body[1]))
-        if span[1] <= span[0]:
-            span = (body[0], body[1])
-    if key is None:
+        narrowed = (max(span[0], body[0]), min(span[1], body[1]))
+        if narrowed[1] <= narrowed[0]:
+            narrowed = (body[0], body[1])
+        try:
+            compiled = compile_location(db, key, neighbours=False, span=narrowed)
+            room = json.loads(open(compiled['room'], encoding='utf-8').read())
+            if not _playable(room, burst):
+                compiled = None
+        except (IngestError, OSError, ValueError, KeyError):
+            compiled = None
+    if compiled is None:
+        block = _clean_body(book_quote)
+        page_slice = text[span[0]:span[1]]
+        from .kit_adventure import _creatures, _sentence_around
+        seen_extra = set()
+        for creature in _creatures(page_slice, 0, index.get('stat_blocks') or {}):
+            sent = normalize(_sentence_around(page_slice, creature['mention_offset']))
+            if not sent or _marked(sent) or _contiguous(sent, book_quote) or sent in seen_extra:
+                continue
+            seen_extra.add(sent)
+            block += sent + '\n'
+        text, span = _append_body(db, index, text, block)
         used = {loc.get('letter') for loc in (index.get('locations') or {}).values()}
         letter = next((ch for ch in 'ABCDEFGH' if ch not in used), 'A')
         key = _emit_scene(index, text, name, span, letter)
+        _write_json(folder_for(db) / 'index.json', index)
+        compiled = compile_location(db, key, neighbours=False, span=span)
+        room = json.loads(open(compiled['room'], encoding='utf-8').read())
+        if not _playable(room, burst):
+            raise IngestError(['the opening has no player text to compile'])
+    numbered = [loc for loc in (index.get('locations') or {}).values() if loc.get('type') != 'scene']
     if not numbered:
         used = {loc.get('letter') for loc in index['locations'].values()}
         for item in alts:
-            if item['title'].casefold() == name.casefold():
+            if item['title'].casefold() == name.casefold() or item.get('quote') and _marked(item.get('quote')):
                 continue
             letter = next((ch for ch in 'ABCDEFGH' if ch not in used), None)
             if letter is None:
                 break
-            # A sibling scene named by the host, not compiled and not opened.
-            offset = text.casefold().find(item['title'].casefold())
-            if offset < 0:
+            quote = item.get('quote') or ''
+            if not quote:
                 continue
-            _emit_scene(index, text, item['title'], (offset, offset + len(item['title'])), letter)
+            block = _clean_body(quote)
+            text, sib = _append_body(db, index, text, block)
+            _emit_scene(index, text, item['title'], sib, letter)
             used.add(letter)
     index['start'] = key
     kit_scenes.finish(index, text)
     for item in index.get('starts') or []:
         item['default'] = item.get('id') == key
+        if _marked(item.get('line') or ''):
+            item['default'] = False
     _write_json(folder_for(db) / 'index.json', index)
-    compiled = compile_location(db, key, neighbours=False, span=span)
     return key, compiled
 
 
@@ -467,45 +704,41 @@ def accept(db, reply):
     if page_start > page_end or page_end > end_page or page_start > end_page:
         return _reject(db, ['pages are outside the skim window'], alts, expanded)
     page_text, page_at, page_to = _window_text(text, page_start, page_end)
-    words = _words(quote)
-    if not words:
-        return _reject(db, ['source_quote is not in the page extract'], alts, expanded)
-    pattern = r'\W+'.join(re.escape(word) for word in words)
-    match = re.search(pattern, page_text, re.I)
-    if match is None:
-        return _reject(db, ['source_quote is not a contiguous substring of the page extract'], alts, expanded)
-    end = match.end()
-    while end < len(page_text) and page_text[end] in '.!?"\')]}':
-        end += 1
-    book_quote = normalize(page_text[match.start():end])
-    if not _contiguous(burst, book_quote):
-        return _reject(db, ['burst is not a contiguous substring of source_quote'], alts, expanded)
-    if not _contiguous(name, window):
+    found = find_quote(page_text, quote)
+    if found is None:
+        return _reject(db, ['source_quote is not in the skim window'], alts, expanded)
+    book_quote, how = found
+    if not _contiguous(burst, book_quote) and find_quote(book_quote, burst) is None:
+        return _reject(db, ['burst is not in source_quote'], alts, expanded)
+    if find_quote(window, name) is None and not _contiguous(name, window):
         return _reject(db, ['design_start_name is not in the skim window'], alts, expanded)
     if _marked(burst) or _marked(book_quote):
         return _reject(db, ['the burst quotes a tip, a secret, or a note to the DM'], alts, expanded)
-    spoken, _rest = _split_burst(book_quote, burst)
+    spoken, remainder = _split_burst(book_quote, burst)
+    if not spoken:
+        spoken = normalize(burst)
     if len(_words(spoken)) > BURST_WORDS:
         return _reject(db, ['burst is over %d words' % BURST_WORDS], alts, expanded)
     if not _sentence_bounded(spoken):
         return _reject(db, ['burst must end on a sentence'], alts, expanded)
-    abs_quote_end = page_at + match.end()
-    span_start = page_at + match.start()
-    # Keep the line's read-aloud mark. Starting mid-line drops it and the
-    # following DM notes get spoken as if they were the box.
+    # Anchor on the quote, not the top of the page, so a credits scene in front
+    # of the read-aloud is not the scene we try to compile.
+    span_start = page_at + _anchor(page_text, book_quote)
+    # Keep a leading "> " on that line. Starting at the first word drops the mark
+    # and the next DM sentence is spoken as if it were the box.
     line_at = text.rfind('\n', 0, span_start)
     span_start = 0 if line_at < 0 else line_at + 1
-    span_end = _clip(text, abs_quote_end, page_to)
-    if span_end < abs_quote_end:
-        span_end = abs_quote_end
+    span_end = _clip(text, span_start + 1, page_to)
+    if span_end <= span_start:
+        span_end = page_to
     try:
-        key, compiled = _bind(db, index, text, normalize(name), (span_start, span_end), alts)
+        key, compiled = _bind(db, index, text, normalize(name), (span_start, span_end), alts, spoken, book_quote)
     except Exception as exc:
         return _reject(db, ['the opening could not be bound: %s' % exc], alts, expanded)
     handoff = _handoff(spoken + ' ' + book_quote, name)
     stored = {
         'status': 'accepted', 'burst': spoken, 'source_quote': book_quote,
-        'remainder': _split_burst(book_quote, spoken)[1], 'page_start': page_start,
+        'remainder': remainder, 'match': how, 'page_start': page_start,
         'page_end': page_end, 'alt_starts': alts, 'design_start_name': normalize(name),
         'scene_key': key, 'room': compiled.get('room'), 'room_id': compiled.get('room_id'),
         'handoff': handoff, 'expanded': expanded, 'burst_spoken': False,
@@ -548,7 +781,7 @@ def opening_line(db):
 
 def release(runtime, action):
     """'Go on' speaks the next chunk of the same validated span. It does not echo the player."""
-    if not _GO_ON.match(str(action or '')):
+    if not _GO_ON.match(normalize(action)):
         return None
     try:
         path = runtime.path
@@ -558,26 +791,105 @@ def release(runtime, action):
     if (state.get('combat') or {}).get('status') == 'running':
         return None
     data = _read(path)
-    if data.get('status') != 'accepted' or not data.get('burst_spoken'):
+    if data.get('status') != 'accepted':
         return None
+    if not data.get('burst_spoken'):
+        # The burst was never shown. Speaking it is the first chunk, not a social line.
+        spoken = opening_line(path)
+        if not spoken:
+            return None
+        events = [{'type': 'beat', 'tags': ['read_on'],
+                   'evidence': 'The validated opening, spoken because they said go on.'}]
+        committed = runtime.commit('read-%s' % revision, revision, events)
+        return {'stage': 'read_on', 'committed': True, 'calls': 1, 'spoken': spoken,
+                'public_event': data.get('burst') or '', 'revision': committed}
     rest = (data.get('remainder') or '').strip()
-    if not rest:
-        return None
-    chunk, left = _take(rest, BURST_WORDS)
-    if not chunk:
-        return None
-    data['remainder'] = left
-    _write(path, data)
-    if left:
-        hand = 'Go on for the rest, or say what you do.'
+    if not rest or _marked(rest):
+        spoken = "Kit: That's the span. What do you do?"
+        chunk = ''
+        data['remainder'] = ''
     else:
-        hand = data.get('handoff') or 'Say what you do.'
-    spoken = 'Narrator: %s\nKit: %s' % (chunk, hand)
+        chunk, left = _take(rest, BURST_WORDS)
+        if _marked(chunk):
+            chunk, left = '', ''
+        data['remainder'] = left
+        if not chunk:
+            spoken = "Kit: That's the span. What do you do?"
+        else:
+            hand = 'Go on for the rest, or say what you do.' if left else (
+                data.get('handoff') or 'Say what you do.')
+            spoken = 'Narrator: %s\nKit: %s' % (chunk, hand)
+    _write(path, data)
     events = [{'type': 'beat', 'tags': ['read_on'],
                'evidence': 'The next sentences of the validated opening span.'}]
     committed = runtime.commit('read-%s' % revision, revision, events)
     return {'stage': 'read_on', 'committed': True, 'calls': 1, 'spoken': spoken,
-            'public_event': chunk, 'revision': committed}
+            'public_event': chunk or "That's the span.", 'revision': committed}
+
+
+def lookup_beat(runtime, action):
+    """A page lookup is one Kit line, not the player's words said back."""
+    if not _LOOKUP.search(str(action or '')):
+        return None
+    try:
+        path = runtime.path
+        revision, _state = runtime.load()
+    except Exception:
+        return None
+    if not _path(path).is_file() and not ( _read(path) ):
+        return None
+    spoken = 'Kit: Give me a second, checking the page.'
+    events = [{'type': 'beat', 'tags': ['lookup'],
+               'evidence': 'The player asked for the page. Nothing in the fiction changed.'}]
+    committed = runtime.commit('look-%s' % revision, revision, events)
+    return {'stage': 'lookup', 'committed': True, 'calls': 1, 'spoken': spoken,
+            'public_event': 'Checking the page.', 'revision': committed}
+
+
+def take_speak_now(db):
+    """True once, when a picked title should be spoken immediately."""
+    data = _read(db)
+    if not data.get('speak_now'):
+        return False
+    data['speak_now'] = False
+    _write(db, data)
+    return True
+
+
+def open_title(db, token):
+    """A picker title becomes that scene's player fiction. Secrets are not a start."""
+    from .kit_adventure import IngestError
+    data = _read(db)
+    want = normalize(token).casefold()
+    if not want:
+        return None
+    chosen = None
+    for alt in data.get('alt_starts') or []:
+        title = normalize(alt.get('title') or '').casefold()
+        if title == want or title.endswith(' ' + want):
+            chosen = alt
+            break
+    if chosen is None:
+        return None
+    quote = chosen.get('quote') or ''
+    if not quote or _marked(quote):
+        raise IngestError(['%s is not player fiction' % chosen.get('title')])
+    page = chosen.get('page') or 1
+    done = accept(db, {
+        'burst': quote, 'source_quote': quote, 'page_start': page, 'page_end': page,
+        'alt_starts': data.get('alt_starts') or [],
+        'design_start_name': chosen.get('title'),
+    })
+    if done.get('stage') != 'skim_accepted':
+        raise IngestError(done.get('problems') or ['that title did not open'])
+    fresh = _read(db)
+    fresh['speak_now'] = True
+    _write(db, fresh)
+    return {
+        'room': done['room'], 'room_id': done['room_id'], 'location': done['scene_key'],
+        'pick': chosen.get('title'), 'line': chosen.get('title'), 'starts': [],
+        'speak_now': True,
+    }
 
 
 def _note_sheet(db, sheet_path):
@@ -627,17 +939,40 @@ def player_start(db, sheet_path=None, table=None):
     }
 
 
+def _replay(source, area, text):
+    """True when this sentence is the opening line, not a later Check row."""
+    folded = normalize(text).casefold()
+    visible = _area_facts(source, area, True)
+    if not folded or not visible:
+        return False
+    opener = visible[0].casefold()
+    return folded == opener or folded in opener
+
+
+def _crumb_rows(source, area):
+    rows = []
+    for fact in ((source or {}).get('facts') or {}).values():
+        if not isinstance(fact, dict) or fact.get('area') != area:
+            continue
+        if not str(fact.get('row') or '').startswith(('check', 'find')):
+            continue
+        text = normalize(fact.get('text') or '')
+        if text and not _marked(text) and not _replay(source, area, text):
+            rows.append(text)
+    return rows
+
+
 def success_line(source, area, skill_name, cited):
-    """A high check speaks a crumb or a fork from this span. Never a bare 'comes up clean'."""
+    """A high check speaks a new crumb or a fork. Never the opening, a tip, or 'comes up clean'."""
+    rows = _crumb_rows(source, area)
     cited = normalize(cited)
-    if cited and not _marked(cited):
-        line = 'The %s check turns up this: %s' % (skill_name, cited)
+    if cited and not _marked(cited) and not _replay(source, area, cited) and cited not in rows:
+        rows.insert(0, cited)
+    if rows:
+        line = 'The %s check turns up this: %s' % (skill_name, rows[0])
     else:
         line = _sensory_or_fork(source, area, skill_name)
-    if line.strip().casefold() in (
-            'the %s check comes up clean.' % skill_name, 'comes up clean'):
-        line = 'The %s check adds nothing new on the page. Which part of this are you on?' % skill_name
-    if 'comes up clean' in line.casefold() and cited.casefold() not in line.casefold():
+    if 'comes up clean' in line.casefold():
         line = 'The %s check adds nothing new on the page. Which part of this are you on?' % skill_name
     return line
 
@@ -656,14 +991,11 @@ def _area_facts(source, area, visible):
 
 
 def _sensory_or_fork(source, area, skill_name):
-    visible = _area_facts(source, area, True)
-    sensory = [text for text in visible if _SENSORY.search(text)]
-    if sensory:
-        return 'The %s check turns up this: %s' % (skill_name, sensory[0])
-    hidden = _area_facts(source, area, False)
+    # Hidden sensory text is new. Visible lines are the opening, so they are not a crumb.
+    hidden = [text for text in _area_facts(source, area, False) if not _marked(text)]
     sensory = [text for text in hidden if _SENSORY.search(text)]
     if sensory:
         return 'The %s check turns up this: %s' % (skill_name, sensory[0])
-    if len(visible) >= 2:
-        return '%s — or %s. Which do you mean?' % (visible[0], visible[1])
+    if len(hidden) >= 2:
+        return '%s — or %s. Which do you mean?' % (hidden[0], hidden[1])
     return 'The %s check adds nothing new on the page. Which part of this are you on?' % skill_name

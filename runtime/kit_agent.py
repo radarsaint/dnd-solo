@@ -7376,6 +7376,9 @@ class KitChatBridge:
         more = kit_skim.release(self.runtime, action)
         if more is not None:
             return more
+        looked = kit_skim.lookup_beat(self.runtime, action)
+        if looked is not None:
+            return looked
         self.runtime.flush_queued_attempts()  # refused attempts held while a turn was waiting
         if opening:
             require(action is None and not table_talk, 'Room opening does not take a player action')
@@ -8241,7 +8244,7 @@ def start_session(db, sheet_path=None, runtime=None, room=None, area=None, manif
         # A validated skim waits for Yes. A label pass is not required before that.
         if str(source.get('id') or '').startswith('adv-'):
             from . import kit_labels, kit_skim
-            if kit_skim.awaits_yes(db, source.get('id')):
+            if kit_skim.awaits_yes(db, source.get('id')) and not kit_skim.take_speak_now(db):
                 opened['table_line'] = kit_skim.READY_LINE
                 opened['awaiting_yes'] = True
                 opened['committed'] = False
