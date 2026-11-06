@@ -38,7 +38,7 @@ Before a scene exists, do not `prepare` a title. Run `start --db kit.sqlite --sh
 
 Talking to someone on stage: `move` is `npc_reply`. `actor_ref` is their id from the scene. `actor_basis` is `immediate_goal` or `motive`. `turn_mode` is `description`. Scope is `feature`: at least 80 words across non-Kit segments, in at least 2 segments. One of those segments is that person speaking. Show `spoken`, not an engine fallback. Do not say "In the scene.", "The moment holds.", "The attempt stands.", or "Ruled as an ordinary turn."
 
-A look that starts `combat_round` has found this scene's own pressure. Roll initiative and play the round. Talk, lookup, and wandering wait until that round is resolved. Do not start a second scene action in the same breath. An open road is not "the room": say the place the scene is named.
+A look that the page asks someone to notice calls Perception before initiative. The roll, or the next look, then brings in that beat's creatures. Do not drop them. A look that starts `combat_round` has found this scene's own pressure. Roll initiative and play the round. Talk, lookup, and wandering wait until that round is resolved. Do not start a second scene action in the same breath. An open road is not "the room": say the place the scene is named.
 
 A question to Kit ("Kit, ...?") is a lookup. The line is `Kit: Give me a second, checking the page.` A strong look speaks a Find line when this scene has one. Otherwise who is here, or "Look again, or speak to someone here."
 
