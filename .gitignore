@@ -29,6 +29,9 @@ kit_appraise.json
 *.telemetry.jsonl
 *.latency.jsonl
 
+# Local table-host state (campaign databases, model keys, logs). Never commit.
+.kit-home/
+
 # Player save folders written by `kit_agent save` (never committed).
 saves/
 
