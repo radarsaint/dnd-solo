@@ -46,7 +46,7 @@ class EncounterColumnReconstruction(unittest.TestCase):
         self.assertNotIn('guide gives directions', span)
         self.assertNotIn('guide waits in the square', span)
 
-    def test_right_column_continuation_stays_in_the_opening(self):
+    def test_facing_column_without_a_key_is_not_assumed_to_be_this_room(self):
         burst = 'The lantern sways above a narrow stone gate.'
         source = (
             _row('1. Gate Road', 'A silent watchman waits beyond the gate.')
@@ -56,8 +56,8 @@ class EncounterColumnReconstruction(unittest.TestCase):
         )
         span = kit_skim._same_column_encounter(source, burst)
         self.assertIn('cracked step', span)
-        self.assertIn('silent watchman', span)
-        self.assertIn('only opens', span)
+        self.assertNotIn('silent watchman', span)
+        self.assertNotIn('only opens', span)
 
     def test_marked_pipe_separates_an_unrelated_next_room(self):
         burst = 'A wooden bridge shakes beneath your feet.'
