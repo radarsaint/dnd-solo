@@ -1938,19 +1938,22 @@ def deepen_index(db):
     path = retained_pdf_source(db)
     if path is None:
         return {'stage': 'index_idle'}
-    from .kit_skim import _read, accept
+    from .kit_skim import _read
     prior = _read(db)
     text, how = read_pdf(path, reader='auto')
     report = import_adventure(db, text=text)
-    if prior.get('status') == 'accepted' and prior.get('source_quote') and prior.get('design_start_name'):
-        accept(db, {
-            'burst': prior.get('burst') or prior.get('source_quote'),
-            'source_quote': prior.get('source_quote'),
-            'page_start': prior.get('page_start') or 1,
-            'page_end': prior.get('page_end') or prior.get('page_start') or 1,
-            'alt_starts': prior.get('alt_starts') or [],
-            'design_start_name': prior.get('design_start_name'),
-        })
+    # The opening has already been accepted and may have been spoken or played.
+    # Re-running accept() without its source-attested scene sends real PDFs back
+    # to scene_required; even re-running it WITH the scene resets the read-aloud
+    # cursor and active actor state. The new index is reference material, not a
+    # new opening. Keep the accepted skim and mounted room intact.
+    if prior.get('status') == 'accepted':
+        key = prior.get('scene_key')
+        if key:
+            index, _ = _load(db)
+            if key in index.get('locations', {}):
+                index['start'] = key
+                _write_json(folder_for(db) / 'index.json', index)
     return {'stage': 'index_deep', 'reader': how, 'locations': report.get('locations')}
 
 

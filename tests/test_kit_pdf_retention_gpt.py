@@ -35,6 +35,37 @@ class RetainedPdfTests(unittest.TestCase):
         self.assertEqual(report['stage'], 'index_deep')
         self.assertEqual(Path(reader.call_args.args[0]), stored)
 
+    def test_full_index_preserves_the_accepted_pdf_scene_and_spoken_cursor(self):
+        self._ingest()
+        opening = 'A lantern swings above the road.'
+        scene = {
+            'place': {'name': 'road', 'quote': opening},
+            'people': [], 'discoveries': [], 'pressures': [],
+        }
+        result = kit_skim.accept(self.db, {
+            'burst': opening, 'source_quote': opening,
+            'page_start': 1, 'page_end': 1,
+            'alt_starts': [], 'design_start_name': 'Entry Road',
+            'scene': scene,
+        })
+        self.assertEqual(result['stage'], 'skim_accepted', result)
+        self.assertIn(opening, kit_skim.opening_line(self.db))
+        before = kit_skim._read(self.db)
+        self.assertTrue(before['burst_spoken'])
+        self.assertTrue(before['beat']['source_verified'])
+
+        full_text = ('1. Entry Road\\n> A lantern swings above the road.\\n'
+                     '2. Lookout\\n> A bell rings.\\n'
+                     '3. Depot\\n> Crates fill the depot.\\n')
+        with mock.patch('runtime.kit_adventure.read_pdf',
+                        return_value=(full_text, 'test')):
+            indexed = kit_adventure.deepen_index(self.db)
+        self.assertEqual(indexed['stage'], 'index_deep')
+        self.assertEqual(kit_skim._read(self.db), before)
+        index, source = kit_adventure._load(self.db)
+        self.assertIn('3. Depot', source)
+        self.assertEqual(index['start'], before['scene_key'])
+
     def test_landing_parses_the_retained_bytes_not_mutable_upload_path(self):
         original = Path(self.tmp.name) / 'host-upload.pdf'
         initial = b'%PDF-1.4\n' + b'original synthetic source\n' * 4
