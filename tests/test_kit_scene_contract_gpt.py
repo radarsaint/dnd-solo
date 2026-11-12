@@ -232,5 +232,59 @@ class NativeOpeningPathTests(ScenePlayerPathTests):
         self.assertFalse(runtime.load()[1].get('opening_cursor'))
 
 
+class PdfHostContractTests(unittest.TestCase):
+    @unittest.skipUnless(__import__('shutil').which('pdftotext'), 'pdftotext is not installed')
+    def test_two_column_dot_leader_pdf_opens_and_recovers_later_pages(self):
+        import time
+        from test_kit_adventure_pdf import make_pdf
+        with tempfile.TemporaryDirectory() as root:
+            folder = Path(root)
+            pdf = folder / 'synthetic.pdf'
+            pdf.write_bytes(make_pdf([
+                [('text', 70, 700, 'Contents ' + '.' * 80 + ' 2', 10)],
+                [('text', 70, 735, '1. The North Road', 11),
+                 ('text', 70, 700, FICTION, 9),
+                 ('text', 323, 700, 'A sidebar explains how to use the road.', 9),
+                 ('text', 70, 670, 'Two bandits hide by the ditch and want the caravan supplies.', 9),
+                 ('text', 70, 630, 'A careful look notices the broken branches under the pine.', 9),
+                 ('text', 70, 555, '2. The Tower', 11),
+                 ('text', 70, 525, 'A bell rings on a high tower.', 9)],
+            ]))
+            db = folder / 'kit.sqlite'
+            started = time.perf_counter()
+            report = kit_adventure.ingest_adventure(db, pdf=str(pdf), reader='pdftotext')
+            elapsed = time.perf_counter() - started
+            self.assertEqual(report['reader'], 'pdftotext')
+            self.assertLess(elapsed, 8.0, 'synthetic local file only; not a published book benchmark')
+            self.assertEqual(report['locations'], 2)
+            skim = kit_skim.accept(db, {
+                'burst': FICTION, 'source_quote': FICTION,
+                'page_start': 2, 'page_end': 2,
+                'alt_starts': [{'title': 'The North Road', 'page': 2}],
+                'design_start_name': 'The North Road', 'scene': _copy(SCENE),
+            })
+            self.assertEqual(skim['stage'], 'skim_accepted', skim)
+            self.assertEqual(kit_skim._read(db)['beat']['place_noun'], 'road')
+            start_session(str(db), str(SHEET))
+            runtime = Runtime(str(db))
+            try:
+                first = KitChatBridge(runtime, RoomAdjudicator()).prepare('Yes.')
+                self.assertIn(FICTION, first['spoken'])
+            finally:
+                runtime.close()
+            pdf.unlink()
+            # Later chapters remain available even if the original upload is gone.
+            deep = kit_adventure.deepen_index(db)
+            self.assertEqual(deep['stage'], 'index_deep')
+            self.assertEqual(deep['locations'], 2)
+            compiled = kit_adventure.compile_location(db, '2', neighbours=False)
+            self.assertTrue(Path(compiled['room']).is_file())
+            recovered = Runtime(str(db))
+            try:
+                self.assertTrue(recovered.source())
+            finally:
+                recovered.close()
+
+
 if __name__ == '__main__':
     unittest.main()
