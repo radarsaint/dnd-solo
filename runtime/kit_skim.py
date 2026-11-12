@@ -1681,10 +1681,15 @@ def _stamp_beat(room_path, beat):
         room['_opening_unresolved_people'] = unresolved
         room['_opening_staged_people'] = [person.get('id') for person in beat.get('people') or ()
                                            if person.get('staged')]
-    # A patron named only in the setup is not this beat's person.
-    if ids:
+    # A source-verified scene is the authority for who is actually HERE.
+    # Compiler guesses are never allowed to reintroduce an unattested foe,
+    # even when the source mentioned a stat block elsewhere on the page.
+    # The immutable book and its index remain available for later scenes.
+    # Legacy pasted-text compatibility keeps its older unstat'd pruning.
+    if verified or ids:
         drop = [key for key, actor in actors.items()
-                if key not in ids and isinstance(actor, dict) and not actor.get('stat_block')]
+                if key not in ids and (verified or
+                                       (isinstance(actor, dict) and not actor.get('stat_block')))]
         for key in drop:
             actors.pop(key, None)
         kept = []

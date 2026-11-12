@@ -38,6 +38,7 @@ jobs:
         run: |
           python -m unittest discover -s tests -p 'test_kit_scene_contract_gpt.py' -v
           python -m unittest discover -s tests -p 'test_kit_source_scope_gpt.py' -v
+          python -m unittest discover -s tests -p 'test_kit_unattested_actors_gpt.py' -v
           python -m unittest discover -s tests -p 'test_kit_source_ambush_gpt.py' -v
           python -m unittest discover -s tests -p 'test_kit_pdf_retention_gpt.py' -v
           python -m unittest discover -s tests -p 'test_kit_host_contract_round2.py' -v
