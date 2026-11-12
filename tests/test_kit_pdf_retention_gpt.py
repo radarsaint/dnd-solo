@@ -54,9 +54,9 @@ class RetainedPdfTests(unittest.TestCase):
         self.assertTrue(before['burst_spoken'])
         self.assertTrue(before['beat']['source_verified'])
 
-        full_text = ('1. Entry Road\\n> A lantern swings above the road.\\n'
-                     '2. Lookout\\n> A bell rings.\\n'
-                     '3. Depot\\n> Crates fill the depot.\\n')
+        full_text = ('1. Entry Road\n> A lantern swings above the road.\n'
+                     '2. Lookout\n> A bell rings.\n'
+                     '3. Depot\n> Crates fill the depot.\n')
         with mock.patch('runtime.kit_adventure.read_pdf',
                         return_value=(full_text, 'test')):
             indexed = kit_adventure.deepen_index(self.db)
