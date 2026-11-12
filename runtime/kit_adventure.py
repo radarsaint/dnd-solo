@@ -1098,25 +1098,57 @@ def stat_block_span(text, entry):
 
 
 def parse_stat_block(text, entry):
-    """(engine stat block, provenance {field: {quote, offset}}, unsupported) from the book's own
-    stat block, or (None, {}, reasons) when it lacks AC, hit points or a usable attack. Only
-    what the text states: initiative, grapple and saves keep the engine's defaults."""
+    """Source-grounded attacks for one ordinary action or a recognized Multiattack.
+
+    Different listed actions are alternatives, not automatically attacks in a
+    single turn. Only explicitly parsed, simple Multiattack combinations may
+    contain several swings. Complex wording stays flagged rather than invented.
+    """
     start, end = stat_block_span(text, entry)
     block = text[start:end]
     prov, problems = {}, []
     ac, hp = AC_RE.search(block), HP_RE.search(block)
-    attacks = []
-    for n, m in enumerate(ATTACK_RE.finditer(block)):
-        attacks.append({'name': m.group(1).strip().lower(), 'to_hit': int(m.group(2)),
-                        'damage': int(m.group(3)), 'type': m.group(4)})
-        prov[f'attacks.{n}'] = {'offset': start + m.start(), 'quote': m.group(0)}
+    choices = []
+    for match in ATTACK_RE.finditer(block):
+        choices.append(({'name': match.group(1).strip().lower(), 'to_hit': int(match.group(2)),
+                         'damage': int(match.group(3)), 'type': match.group(4)},
+                        {'offset': start + match.start(), 'quote': match.group(0)}))
     unsupported = [m.group(1) for m in UNSUPPORTED_RE.finditer(block)]
-    if not (ac and hp and attacks):
+    if not (ac and hp and choices):
         problems.append('no Armor Class, Hit Points and attack line the engine can use')
         return None, {}, problems + unsupported
+
+    attacks = [choices[0]]
+    multi = re.search(r'(?im)^Multiattack\.\s*([^\n]+)', block)
+    if multi:
+        description = multi.group(1)
+        stated_count = re.search(r'\bmakes?\s+(two|three|four|five|six)\s+attacks?\b', description, re.I)
+        mentions = re.findall(r'\b(one|two|three|four|five|six)\s+with\s+(?:its|his|her|the)\s+'
+                              r'([a-z][a-z -]*?)(?=\s*(?:,|\.|;|\band\b|$))', description, re.I)
+        quantities = {'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5, 'six': 6}
+        by_name = {a['name']: (a, source) for a, source in choices}
+        sequence = []
+        for count_word, attack_name in mentions:
+            name = attack_name.strip().casefold()
+            name = re.sub(r'^(?:its |the )', '', name)
+            found = by_name.get(name)
+            if found is None:
+                sequence = []
+                break
+            sequence.extend([found] * quantities[count_word.casefold()])
+        if stated_count and sequence and len(sequence) == quantities[stated_count.group(1).casefold()]:
+            attacks = sequence
+            unsupported = [s for s in unsupported if s.casefold() != 'multiattack']
+        else:
+            problems.append('Multiattack wording cannot be safely executed; one listed attack only')
+    elif len(choices) > 1:
+        problems.append('multiple action choices are alternatives; using the first attack only')
+
+    prov = {f'attacks.{i}': dict(source) for i, (_, source) in enumerate(attacks)}
     prov['ac'] = {'offset': start + ac.start(), 'quote': ac.group(0)}
     prov['hp'] = {'offset': start + hp.start(), 'quote': hp.group(0)}
-    return {'ac': int(ac.group(1)), 'hp': int(hp.group(1)), 'attacks': attacks}, prov, unsupported
+    return {'ac': int(ac.group(1)), 'hp': int(hp.group(1)),
+            'attacks': [dict(attack) for attack, _ in attacks]}, prov, problems + unsupported
 
 
 def _present(span, name):

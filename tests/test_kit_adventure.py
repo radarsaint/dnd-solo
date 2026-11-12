@@ -102,6 +102,30 @@ class SourceVersioning(Base):
         self.assertFalse(Path(link['room']).exists())
 
 
+class MultiattackActionEconomy(Base):
+    def test_simple_multiattack_runs_only_its_named_sequence(self):
+        block, prov, unsupported = kit_adventure.parse_stat_block(self.text, self.index['stat_blocks']['reed lurker'])
+        self.assertEqual([a['name'] for a in block['attacks']], ['bite', 'tail'])
+        self.assertNotIn('Multiattack', unsupported)
+        self.assertEqual(sorted(k for k in prov if k.startswith('attacks.')), ['attacks.0', 'attacks.1'])
+
+    def test_unparsable_multiattack_falls_back_to_one_attack(self):
+        text = self.text.replace('one with its bite and one with its tail', 'either its bite or its tail')
+        index = kit_adventure.build_index(kit_adventure.prepare_source(text))
+        block, prov, reasons = kit_adventure.parse_stat_block(text, index['stat_blocks']['reed lurker'])
+        self.assertEqual(len(block['attacks']), 1)
+        self.assertTrue(any('cannot be safely executed' in reason for reason in reasons), reasons)
+        self.assertEqual(len([k for k in prov if k.startswith('attacks.')]), 1)
+
+    def test_multiple_attacks_are_alternatives_without_multiattack(self):
+        text = self.text.replace('Multiattack. The lurker makes two attacks: one with its bite and one with its tail.',
+                                 'The lurker watches the approaching boat.')
+        index = kit_adventure.build_index(kit_adventure.prepare_source(text))
+        block, _, reasons = kit_adventure.parse_stat_block(text, index['stat_blocks']['reed lurker'])
+        self.assertEqual(len(block['attacks']), 1)
+        self.assertTrue(any('alternatives' in reason for reason in reasons), reasons)
+
+
 class SourceAuthority(Base):
     """Adversarial REF002 claims against the newer compiled-room schema."""
 
@@ -283,7 +307,8 @@ class Combatants(Base):
     def test_unsupported_features_are_flagged(self):
         room, side = self.room('4')
         self.assertEqual(len(room['actors']['reed_lurker']['stat_block']['attacks']), 2)
-        self.assertTrue(any('Multiattack' in f and 'Recharge' in f for f in side['flags']))
+        self.assertTrue(any('Recharge' in f for f in side['flags']))
+        self.assertFalse(any('Multiattack' in f for f in side['flags']))
 
     def _draft(self, key='3'):
         return kit_adventure.draft_room(self.db, key, self.index, self.text)
