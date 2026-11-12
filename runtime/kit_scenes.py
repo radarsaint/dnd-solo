@@ -81,10 +81,25 @@ def _core(stripped):
     return text, kind
 
 
+def _strip_dot_leader(core):
+    """Drop a trailing dot leader. Linear in the length of the line.
+
+    ``(?:\\.{2,}|…)+`` backtracks on a long row of dots. A contents line of a few
+    dozen dots was taking tens of milliseconds, and a longer one blew up.
+    """
+    text = (core or '').rstrip()
+    while text.endswith('…') or text.endswith('..'):
+        if text.endswith('…'):
+            text = text[:-1].rstrip()
+        else:
+            text = text.rstrip('.').rstrip()
+    return text
+
+
 def _fragment(core):
     if not core or _CHAPTER.match(core) or _LOCATION.match(core) or _DM.match(core):
         return False
-    core = re.sub(r'(?:\.{2,}|…)+\s*$', '', core).strip()
+    core = _strip_dot_leader(core).strip()
     if not core:
         return False
     if any(ch in core for ch in '.?!;'):

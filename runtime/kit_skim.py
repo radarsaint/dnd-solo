@@ -1312,7 +1312,7 @@ def accept(db, reply):
     except Exception as exc:
         return _reject(db, ['the opening could not be bound: %s' % exc], alts, expanded)
     handoff = _handoff(spoken + ' ' + book_quote, name)
-    _cast_people(compiled.get('room'), opening_text(page_text, spoken))
+    _cast_people(compiled.get('room'), opening_text(page_text, spoken) or spoken)
     _stamp_beat(compiled.get('room'), beat)
     stored = {
         'status': 'accepted', 'burst': spoken, 'source_quote': book_quote,
@@ -1412,9 +1412,33 @@ def _stamp_beat(room_path, beat):
         room = json.loads(path.read_text(encoding='utf-8'))
     except (OSError, ValueError):
         return
-    room['_opening_people'] = [person.get('id') for person in beat.get('people') or [] if person.get('id')]
+    ids = [person.get('id') for person in beat.get('people') or [] if person.get('id')]
+    room['_opening_people'] = ids
     room['_opening_place'] = beat.get('place_noun') or ''
+    noun = beat.get('place_noun') or ''
+    areas = room.setdefault('areas', {})
+    here = room.get('starting_area') or 'here'
+    if noun and noun != 'room' and isinstance(areas.get(here), dict):
+        areas[here]['called'] = 'the ' + noun
     actors = room.setdefault('actors', {})
+    # A patron named only in the setup is not this beat's person.
+    if ids:
+        drop = [key for key, actor in actors.items()
+                if key not in ids and isinstance(actor, dict) and not actor.get('stat_block')]
+        for key in drop:
+            actors.pop(key, None)
+        kept = []
+        for item in room.get('triggers') or []:
+            if not isinstance(item, dict):
+                continue
+            waking = [key for key in item.get('actors') or [] if key in actors]
+            if not waking:
+                continue
+            item = dict(item)
+            item['actors'] = waking
+            kept.append(item)
+        if room.get('triggers') is not None:
+            room['triggers'] = kept
     for person in beat.get('people') or []:
         actor = actors.get(person.get('id'))
         if not isinstance(actor, dict):

@@ -3,6 +3,8 @@
 Synthetic pages only. No published book, no page numbers, no proper nouns from one.
 """
 import json
+import subprocess
+import sys
 import tempfile
 import time
 import unittest
@@ -410,3 +412,210 @@ class OpeningBeat(unittest.TestCase):
         self.assertEqual(beat['private']['tactics'], 'from cover')
         self.assertNotIn('goblin', ' '.join(beat['observed']['seen']))
         self.assertTrue(beat['notice']['find'])
+
+
+def _pdf(pages):
+    import test_kit_adventure_pdf as pdfs
+    return pdfs.make_pdf(pages, compress=False)
+
+
+class PlayerPath(unittest.TestCase):
+    """The host's commands, on PDFs read back by pdftotext -layout."""
+
+    def setUp(self):
+        warnings.simplefilter('ignore')
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.db = Path(self.tmp.name) / 'kit.sqlite'
+
+    def _cli(self, *args):
+        proc = subprocess.run(
+            [sys.executable, '-m', 'runtime.kit_agent', *args],
+            cwd=str(ROOT), capture_output=True, text=True)
+        self.assertEqual(proc.returncode, 0, proc.stderr[-2000:] + proc.stdout[-2000:])
+        text = proc.stdout.strip()
+        return json.loads(text) if text else {}
+
+    def _ingest(self, pdf):
+        started = time.perf_counter()
+        report = self._cli('ingest', str(pdf), '--db', str(self.db), '--reader', 'pdftotext')
+        report['_elapsed'] = time.perf_counter() - started
+        return report
+
+    def _skim(self, burst, name, page_end=1):
+        reply = Path(self.tmp.name) / 'skim.json'
+        reply.write_text(json.dumps({
+            'burst': burst, 'source_quote': burst, 'page_start': 1, 'page_end': page_end,
+            'alt_starts': [], 'design_start_name': name,
+        }), encoding='utf-8')
+        return self._cli('adventure', 'skim', '--db', str(self.db), '--file', str(reply))
+
+    def _beat(self):
+        path = kit_adventure.folder_for(self.db) / 'skim.json'
+        return json.loads(path.read_text(encoding='utf-8'))['beat']
+
+    def _start(self, room):
+        self._cli('start', '--db', str(self.db), '--room', room, '--sheet', str(NIK))
+
+    def _say(self, words):
+        packet = self._cli('prepare', '--db', str(self.db), '--action', words)
+        return (packet.get('spoken') or packet.get('public_event') or ''), packet
+
+    def test_a_dot_leader_imports_quickly(self):
+        text = '1. First Yard\n> The wagon stops on the road.\nContents %s 4\n' % ('.' * 2000)
+        started = time.perf_counter()
+        kit_adventure.import_adventure(self.db, text=text, title='Dots')
+        self.assertLess(time.perf_counter() - started, 0.05)
+
+    def test_dotted_contents_pdf_lands_quickly(self):
+        dots = '.' * 80
+        pages = [[
+            ('text', 72, 740, 'Contents', 14),
+            ('text', 48, 700, 'First Yard %s 3' % dots, 8),
+        ], [
+            ('text', 72, 720, '1. First Yard', 12),
+            ('text', 72, 690, 'The wagon stops on the road under the trees.', 11),
+        ]]
+        path = Path(self.tmp.name) / 'dots.pdf'
+        path.write_bytes(_pdf(pages))
+        report = self._ingest(path)
+        self.assertLess(report['_elapsed'], 8, report)
+        source = (kit_adventure.folder_for(self.db) / 'source.txt').read_text(encoding='utf-8')
+        self.assertIn('First Yard', source)
+        self.assertIn('..', source)
+
+    def test_two_column_ambush_through_the_player_commands(self):
+        # The box is the left column. The sidebar and the stat-block reference
+        # sit in the other column. The encounter under the box continues on the
+        # next page. pdftotext -layout is what the player path reads back.
+        left, right = 48, 360
+        pages = [[
+            ('text', left, 740, 'You stand on the road under the trees.', 11),
+            ('text', right, 740, 'Sidebar. Patrons Iarno and Sildar hired the party.', 9),
+            ('text', right, 700, 'How to Play. A DC 15 check is the procedure.', 9),
+            ('text', right, 660, '(see the Goblin stat block).', 9),
+        ], [
+            ('text', left, 740, 'Four goblins hide and want the wagon supplies.', 11),
+            ('text', left, 700, 'A look notices the broken branches.', 11),
+            ('text', right, 740, '1. Later Vault', 12),
+            ('text', right, 700, 'You stand in a later vault of cold stone.', 11),
+        ]]
+        path = Path(self.tmp.name) / 'columns.pdf'
+        path.write_bytes(_pdf(pages))
+        self._ingest(path)
+        burst = 'You stand on the road under the trees.'
+        done = self._skim(burst, 'The road', page_end=2)
+        beat = self._beat()
+        names = ' '.join(person['name'] for person in beat['people']).casefold()
+        self.assertEqual(beat['place_noun'], 'road', beat)
+        self.assertNotIn('vault', ' '.join(beat['fiction']).casefold())
+        self.assertIn('goblin', names, beat['people'])
+        self.assertNotIn('iarno', names)
+        self.assertNotIn('sildar', names)
+        self.assertTrue(beat['notice']['holds'])
+        self.assertIn('broken branches', beat['notice']['find'].casefold())
+        self.assertIn('wagon', beat['pressure']['goal'].casefold())
+        self.assertFalse(beat['pressure']['goal_generic'])
+        self._start(done['room'])
+        yes, _packet = self._say('Yes.')
+        self.assertIn('road', yes.casefold())
+        look, _packet = self._say('I look around.')
+        self.assertIn('perception', look.casefold())
+        self.assertNotIn('initiative', look.casefold())
+        self.assertNotIn('the room', look.casefold())
+        low, _packet = self._say('4')
+        low_l = low.casefold()
+        self.assertIn('goblin', low_l)
+        self.assertIn('surprised', low_l)
+        self.assertIn('initiative', low_l)
+        self.assertIn('what do you do', low_l)
+        self.assertNotIn('the room', low_l)
+
+    def test_patrol_go_on_and_talk_through_the_player_commands(self):
+        pages = [[
+            ('text', 72, 720, 'The wagon stops in the ruts under the trees.', 11),
+            ('text', 72, 690, 'Captain Mara steps out on the road and hails the wagon.', 11),
+            ('text', 72, 660, 'She has orders to hold the road until the wagons pass.', 11),
+        ]]
+        path = Path(self.tmp.name) / 'patrol.pdf'
+        path.write_bytes(_pdf(pages))
+        self._ingest(path)
+        done = self._skim('The wagon stops in the ruts under the trees.', 'The road')
+        beat = self._beat()
+        names = [person['name'].casefold() for person in beat['people']]
+        self.assertTrue(any('mara' in name for name in names), beat)
+        self.assertFalse(any(name == 'greeter' for name in names), names)
+        self.assertIn('hold the road', beat['pressure']['goal'].casefold())
+        self.assertFalse(beat['pressure']['goal_generic'])
+        self._start(done['room'])
+        self._say('Yes.')
+        more, _packet = self._say('Go on')
+        self.assertIn('mara', more.casefold())
+        talk, _packet = self._say('I talk to Captain Mara.')
+        self.assertIn('mara', talk.casefold())
+        self.assertIn('hold the road', talk.casefold())
+        self.assertNotIn('initiative', talk.casefold())
+
+    def test_slip_past_uses_the_encounter_want(self):
+        left, right = 48, 360
+        pages = [[
+            ('text', left, 720, 'You stand on the road under the trees.', 11),
+            ('text', left, 680, 'Four goblins hide and want the wagon supplies.', 11),
+            ('text', right, 720, 'How to Play. A DC 12 check is the procedure.', 9),
+        ]]
+        path = Path(self.tmp.name) / 'slip.pdf'
+        path.write_bytes(_pdf(pages))
+        self._ingest(path)
+        done = self._skim('You stand on the road under the trees.', 'The road')
+        self._start(done['room'])
+        self._say('Yes.')
+        slipped, _packet = self._say('I sneak past.')
+        self.assertIn('wagon', slipped.casefold())
+        self.assertNotIn('initiative', slipped.casefold())
+
+    def test_a_call_out_before_the_roll_speaks_the_want(self):
+        left, right = 48, 360
+        pages = [[
+            ('text', left, 740, 'You stand on the road under the trees.', 11),
+            ('text', right, 740, 'Sidebar. Patrons Iarno and Sildar hired the party.', 9),
+            ('text', right, 700, '(see the Goblin stat block).', 9),
+        ], [
+            ('text', left, 740, 'Four goblins hide and want the wagon supplies.', 11),
+            ('text', right, 740, '1. Later Vault', 12),
+        ]]
+        path = Path(self.tmp.name) / 'call.pdf'
+        path.write_bytes(_pdf(pages))
+        self._ingest(path)
+        done = self._skim('You stand on the road under the trees.', 'The road', page_end=2)
+        self._start(done['room'])
+        self._say('Yes.')
+        spoken, packet = self._say('I call out.')
+        folded = spoken.casefold()
+        self.assertIn('wagon', folded)
+        self.assertIn('what do you say', folded)
+        self.assertNotIn('initiative', folded)
+        self.assertNotIn('the room', folded)
+        self.assertTrue(packet.get('spoken'))
+
+    def test_a_failed_quote_lists_only_the_read_aloud(self):
+        pages = [[
+            ('text', 72, 740, 'How to Play', 14),
+            ('text', 72, 710, 'A DC 15 check is the procedure.', 11),
+            ('text', 72, 660, 'The Market Street', 14),
+            ('text', 72, 630, 'You stand in the street while the lamps stay dark.', 11),
+            ('text', 72, 560, '1. Later Vault', 14),
+            ('text', 72, 530, 'You stand in a later vault of cold stone.', 11),
+            ('text', 72, 480, 'Appendix', 14),
+            ('text', 72, 450, 'The villain wants the valley.', 11),
+        ]]
+        path = Path(self.tmp.name) / 'front.pdf'
+        path.write_bytes(_pdf(pages))
+        self._ingest(path)
+        done = self._skim('A dragon lands on the bakery and the crowd cheers.', 'How to Play')
+        blob = json.dumps(done).casefold()
+        self.assertIn('street', blob)
+        for banned in ('how to', 'procedure', 'appendix', 'villain', 'later vault', 'dc 15'):
+            self.assertNotIn(banned, blob, banned)
+        bare = self._cli('start', '--db', str(self.db), '--start', 'A')
+        self.assertEqual(bare.get('stage'), 'pick_start')
+        self.assertIsNone(bare.get('spoken'))

@@ -46,7 +46,7 @@ def player_line(text):
 _FRONT = re.compile(
     r'\b(?:credits?|licen[sc]e|copyright|how to|how-to|rules|procedure|synopsis|'
     r'introduction|preface|foreword|contents|front matter|legal notice|trademark|'
-    r'published by|villain|background)\b',
+    r'published by|villain|background|appendix)\b|\bDC\b',
     re.I)
 _NOT_CREATURE = re.compile(
     r'^(?:wisdom|check|hour|hours|day|days|mile|miles|gold|foot|feet|word|words|'
@@ -66,8 +66,7 @@ _ORDERS = re.compile(
     r'|\b(?:has orders to|ordered to|orders to)\s+([^.]{3,80})',
     re.I)
 _CUE = re.compile(
-    r'\b(?:hid(?:e|es|ing|den)|wait(?:s|ing)?|ambush(?:es|ed|ing)?|attack(?:s|ed|ing)?|'
-    r'approach(?:es|ed|ing)?|steps?|hails?|greets?)\b',
+    r'\b(?:hid(?:e|es|ing|den)|wait(?:s|ing)?|ambush(?:es|ed|ing)?|attack(?:s|ed|ing)?)\b',
     re.I)
 
 
@@ -158,11 +157,13 @@ def _people(fiction, encounter):
     seen = set()
 
     def add(key, name, hidden, kind):
-        if not key or key in seen or _NOT_CREATURE.match(name or ''):
+        stem = key[:-1] if key and key.endswith('s') and len(key) > 4 else key
+        if not key or key in seen or stem in seen or _NOT_CREATURE.match(name or ''):
             return
         if _FRONT.search(name or ''):
             return
         seen.add(key)
+        seen.add(stem)
         people.append({
             'id': key, 'name': name, 'hidden': bool(hidden), 'kind': kind,
             'revealed': not hidden, 'addressable': not hidden,
@@ -172,6 +173,12 @@ def _people(fiction, encounter):
         add(_slug(name), name, False, 'speaker')
     if skim._CHILD.search(heard):
         add('children', 'Children', False, 'speaker')
+    from .kit_adventure import _GREET
+    # A named person who hails is already on the list. A nameless greeting still is.
+    for sentence in skim._sentences(' '.join(fiction)) or fiction:
+        if _GREET.search(sentence) and not _introduced_names(sentence):
+            add('greeter', 'Greeter', False, 'speaker')
+            break
     for name in _introduced_names(encounter or ''):
         add(_slug(name), name, name.casefold() not in heard, 'speaker')
     blob = encounter or ''
@@ -190,22 +197,94 @@ def _people(fiction, encounter):
     return people
 
 
+def _layout_stream(page_text):
+    """Left column, then right column, when a wide gap splits the extract.
+
+    pdftotext -layout puts two columns on one line. The read-aloud is down one
+    side. The other side is a sidebar and is not the encounter under the box.
+    """
+    pages = []
+    for page in (page_text or '').split('\f'):
+        lefts, rights, gapped = [], [], False
+        for line in page.split('\n'):
+            parts = [part.strip() for part in re.split(r'\s{3,}', line.rstrip()) if part.strip()]
+            if len(parts) >= 2:
+                gapped = True
+                lefts.append(parts[0])
+                rights.append(' '.join(parts[1:]))
+            elif parts:
+                lefts.append(parts[0])
+        if gapped:
+            pages.append('\n'.join(lefts + [''] + rights))
+        else:
+            pages.append(page)
+    return '\f'.join(pages)
+
+
+def _best_stream(page_text, burst):
+    """The extract order in which the host's read-aloud is one contiguous span."""
+    skim = _skim()
+    burst_norm = skim.normalize(burst or '')
+    layout = _layout_stream(page_text)
+    for stream in (layout, page_text or ''):
+        if not burst_norm or skim._contiguous(burst_norm, skim.normalize(stream)):
+            return stream
+    return page_text or ''
+
+
+def _stops_unit(plain):
+    """A new location or an appendix ends this opening. A sidebar does not."""
+    skim = _skim()
+    if not plain:
+        return False
+    if skim._LATER.match(plain) or skim._KEYED.match(plain):
+        return True
+    if re.match(r'^appendix\b', plain, re.I):
+        return True
+    return False
+
+
+def _sidebar_line(plain):
+    """How-to, a procedure, or a contents line sitting in the other column."""
+    if not plain:
+        return False
+    if re.match(
+            r'^(?:how to|how-to|procedure|contents|credits|synopsis|sidebar)\b',
+            plain, re.I):
+        return True
+    if _skim()._heading_line(plain) and (_FRONT.search(plain) or re.search(r'\bDC\b', plain)):
+        return True
+    return False
+
+
+def _encounter_sentence(sentence):
+    """A creature, an order, or a notice in the text under the read-aloud."""
+    from .kit_adventure import SEE_RE
+    if SEE_RE.search(sentence or ''):
+        return True
+    if _ORDERS.search(sentence or ''):
+        return True
+    if _COUNT.search(sentence or '') and _CUE.search(sentence or ''):
+        return True
+    if re.search(r'\b(?:notices?|spots?|finds?)\b', sentence or '', re.I) and not _skim()._SCENE_VERB.search(
+            re.sub(r'\b(?:notices?|spots?|finds?)\b', '', sentence or '', flags=re.I)):
+        return True
+    return False
+
+
 def _split_opening(page_text, burst):
     """The read-aloud that holds the burst, and the encounter text after it.
 
-    Setup before that block is not part of the beat. The next location or the
-    next read-aloud ends the encounter.
+    Works on a boxed extract and on pdftotext -layout, which does not write ``>``.
+    Setup before the read-aloud, and a sidebar in the other column, are not the beat.
     """
     skim = _skim()
-    lines = (page_text or '').split('\n')
-    start = None
+    stream = _best_stream(page_text, burst).replace('\f', '\n')
+    lines = stream.split('\n')
     burst_norm = skim.normalize(burst or '')
+    start = None
     for index, line in enumerate(lines):
-        stripped = line.strip()
-        if not stripped:
-            continue
-        plain = skim.normalize(stripped.lstrip('>').strip())
-        # The burst has to sit in this line. A short heading inside the burst is not the block.
+        plain = skim.normalize(line.strip().lstrip('>').strip())
         if burst_norm and skim._contiguous(burst_norm, plain):
             start = index
             break
@@ -218,50 +297,48 @@ def _split_opening(page_text, burst):
         return [], ''
     while start > 0 and lines[start - 1].strip().startswith('>'):
         start -= 1
-    index = start
-    box = []
-    while index < len(lines) and lines[index].strip().startswith('>'):
-        box.append(lines[index].strip().lstrip('>').strip())
-        index += 1
-    if not box and burst_norm:
-        box = [burst_norm]
+    fiction = []
     encounter = []
+    fiction_closed = False
+    index = start
     while index < len(lines):
-        stripped = lines[index].strip()
+        raw = lines[index].strip()
         index += 1
-        if not stripped:
+        if not raw:
             continue
-        if stripped.startswith('>'):
-            break
-        plain = stripped.lstrip('>').strip()
-        if skim._LATER.match(plain) or skim._KEYED.match(plain) or skim._heading_line(plain):
-            break
-        encounter.append(plain)
-    return box, '\n'.join(encounter)
+        plain = raw.lstrip('>').strip()
+        if _stops_unit(plain) or (skim._heading_line(plain) and not raw.startswith('>')
+                                  and not _sidebar_line(plain)):
+            if fiction or encounter:
+                break
+            continue
+        if _sidebar_line(plain):
+            continue
+        for sentence in skim._sentences(plain) or ([skim.normalize(plain)] if skim.normalize(plain) else []):
+            if not sentence:
+                continue
+            # Prep ends the read-aloud. A later player line is not this opening.
+            # The encounter can still sit past a sidebar, on the next page.
+            if skim._go_fail(sentence) or _SCREENISH.search(sentence):
+                fiction_closed = True
+                continue
+            if skim._blocks_quote(sentence) and not _encounter_sentence(sentence):
+                continue
+            if _encounter_sentence(sentence) and not skim._contiguous(burst_norm, skim.normalize(sentence)):
+                if skim._blocks_quote(sentence) and not _COUNT.search(sentence) and 'stat' not in sentence.casefold():
+                    continue
+                encounter.append(sentence)
+            elif not fiction_closed and (
+                    player_line(sentence) or skim._contiguous(burst_norm, skim.normalize(sentence))):
+                if sentence not in fiction:
+                    fiction.append(skim.normalize(sentence))
+    return fiction, '\n'.join(encounter)
 
 
 def fiction_lines(page_text, burst):
-    """Player lines from the opening read-aloud only. Later boxes are not this beat."""
-    skim = _skim()
-    box, _encounter = _split_opening(page_text, burst)
-    lines = []
-
-    def take(sentence):
-        sentence = skim.normalize(sentence)
-        if not sentence or sentence in lines:
-            return
-        if not player_line(sentence):
-            return
-        lines.append(sentence)
-
-    for sentence in skim._sentences(burst or ''):
-        take(sentence)
-    for bit in box:
-        for sentence in skim._sentences(bit):
-            if skim._go_fail(sentence) or skim._blocks_quote(sentence) or _SCREENISH.search(sentence):
-                return lines
-            take(sentence)
-    return lines
+    """Player lines from this opening, in order. A later location is not included."""
+    fiction, _encounter = _split_opening(page_text, burst)
+    return fiction
 
 
 def opening_text(page_text, burst):
@@ -324,6 +401,14 @@ def build_beat(page_text, burst, place_name):
             'find': '',
         },
     }
+
+
+def _scrub_place(beat, text):
+    """An open road is not called a room."""
+    noun = (beat or {}).get('place_noun') or ''
+    if noun and noun != 'room':
+        return re.sub(r'\bthe room\b', 'the %s' % noun, text or '', flags=re.I)
+    return text or ''
 
 
 def look_line(beat):
@@ -407,6 +492,34 @@ def read_aloud_picks(window):
                 return picks
     if picks:
         return picks
+    # pdftotext -layout does not write ">". A player sentence is still a read-aloud.
+    stream = _layout_stream(window or '')
+    bucket = []
+    skipping = False
+    for line in stream.split('\n'):
+        plain = line.strip().lstrip('>').strip()
+        if not plain:
+            continue
+        if skim._LATER.match(plain) or skim._KEYED.match(plain) or re.match(
+                r'^(?:appendix|contents)\b', plain, re.I):
+            break
+        if _FRONT.search(plain) and skim._heading_line(plain):
+            skipping = True
+            continue
+        if skipping and skim._heading_line(plain):
+            skipping = False
+        if skipping:
+            continue
+        for sentence in skim._sentences(plain):
+            if _encounter_sentence(sentence) or not player_line(sentence):
+                continue
+            if not re.search(r'\byou\b', sentence, re.I) and not re.search(
+                    r'\b(?:Captain|Sergeant)\s+[A-Z]', sentence):
+                continue
+            bucket.append(skim.normalize(sentence))
+    if bucket:
+        title = _title_for('', bucket)
+        return [{'title': title, 'page': 1, 'quote': ' '.join(bucket[:2])}]
     for line in (window or '').split('\n'):
         plain = line.strip().lstrip('>').strip()
         if not skim._heading_line(plain):
@@ -607,7 +720,12 @@ def _answer_roll(runtime, data, beat, total):
     pressure['acted'] = True
     if pressure.get('means') == 'ambush':
         _reveal(beat, ids)
-        spoken = 'They spring from cover. You are surprised. Roll initiative.'
+        names = [person['name'] for person in people]
+        arrival = ''
+        if names:
+            arrival = '%s %s here. ' % (', '.join(names), 'are' if len(names) != 1 else 'is')
+        spoken = _scrub_place(
+            beat, 'They spring from cover. %sYou are surprised. Roll initiative. What do you do?' % arrival)
         data['beat'] = beat
         _save(runtime, data)
         events = [
@@ -617,12 +735,13 @@ def _answer_roll(runtime, data, beat, total):
         ]
         events.extend(_status_events(runtime, beat, ids))
         fight = _maybe_fight(runtime, total)
+        fight_events = []
         if fight is not None:
-            events = [event for event in fight.events
-                      if event.get('type') != 'pending_check'] + events
-            if 'initiative' in (fight.public_event or '').lower():
-                spoken = 'You are surprised. %s' % fight.public_event
-        return _commit(runtime, 'pressure', events, 'Kit: %s' % spoken, spoken)
+            fight_events = [event for event in fight.events if event.get('type') != 'pending_check']
+        try:
+            return _commit(runtime, 'pressure', fight_events + events, 'Kit: %s' % spoken, spoken)
+        except Exception:
+            return _commit(runtime, 'pressure', events, 'Kit: %s' % spoken, spoken)
     data['beat'] = beat
     _save(runtime, data)
     spoken = 'Nothing shows itself. What do you do?'
