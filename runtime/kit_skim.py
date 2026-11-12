@@ -212,7 +212,7 @@ INSTRUCTIONS = (
     'Each quote must be contiguous within this opening, not the book setup or later room. '
     'For a pressure use {"kind":"ambush|conversation|hazard|none",'
     '"quote":verbatim_encounter,"status":"conditional|established|inferred",'
-    '"actors":[person_id],"activation":"entry|disturb|deferred"}. Do not choose DCs, damage, surprise, initiative, '
+    '"actors":[person_id],"activation":"entry|disturb|deferred|failed_notice"}. For failed_notice, quote the whole explicit source condition saying the threats attack if not noticed. Do not invent a fight from a failed check alone. Do not choose DCs, damage, surprise, initiative, '
     'or player outcomes: those belong to the existing rules engine.\n'
     'To expand once, return {"expand": true} and nothing else, then skim the longer window.\n'
     'Python checks that the quote\'s words occur in order on those pages. '
@@ -1574,6 +1574,7 @@ def _stamp_beat(room_path, beat):
         value = re.sub(r'[^a-z0-9]+', '_', value).strip('_')
         return value[:-1] if value.endswith('s') else value
     unresolved = []
+    bound_actor_ids = {}
     for person in beat.get('people') or []:
         pid = person.get('id')
         if not pid:
@@ -1592,6 +1593,8 @@ def _stamp_beat(room_path, beat):
             matches = [pid]
         if verified and not matches:
             unresolved.append(pid)
+        if verified:
+            bound_actor_ids[pid] = list(matches)
         for key in matches:
             if key not in ids:
                 ids.append(key)
@@ -1632,7 +1635,13 @@ def _stamp_beat(room_path, beat):
         # interpretation explicitly supports that timing. Defer the existing
         # trigger instead of deleting its actors or inventing an outcome.
         room['_opening_verified'] = True
-        room['_opening_pressures'] = list(beat.get('source_contract', {}).get('pressures') or ())
+        room['_opening_pressures'] = []
+        for source_pressure in beat.get('source_contract', {}).get('pressures') or ():
+            pressure = dict(source_pressure)
+            pressure['actors'] = list(dict.fromkeys(
+                key for identity in source_pressure.get('actors') or ()
+                for key in bound_actor_ids.get(identity, ())))
+            room['_opening_pressures'].append(pressure)
         room['_opening_discoveries'] = list(beat.get('discoveries') or ())
         immediate = any(p.get('activation') == 'entry' and p.get('kind') == 'ambush'
                         for p in room['_opening_pressures'])

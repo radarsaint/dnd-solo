@@ -1870,7 +1870,7 @@ class RoomAdjudicator:
         return dataclasses.replace(result, kind='combat_round', events=events,
                                    public_event=f'{result.public_event} {fight.public()}'.strip())
 
-    def _spring(self, result, trigger, area, action, revision, state):
+    def _spring(self, result, trigger, area, action, revision, state, surprise_override=None):
         """A room trigger fires on this resolution (runtime/kit_triggers.py): its hidden actors
         show themselves and, with ``starts_combat``, the fight starts without the PC attacking.
         A trigger whose actors are all dead, gone or already fighting is spent quietly."""
@@ -1909,8 +1909,14 @@ class RoomAdjudicator:
             _, passive = self._pc_numbers('perception', after, '')
         except PendingRuling:
             passive = None
-        surprised, trace = kit_triggers.pc_surprised(self.source, state, revision,
-                                                     trigger, 10 if passive is None else passive, self.npc_roll)
+        if surprise_override is None:
+            surprised, trace = kit_triggers.pc_surprised(self.source, state, revision,
+                                                         trigger, 10 if passive is None else passive, self.npc_roll)
+        else:
+            # The player already supplied an active notice roll. Reuse its
+            # outcome instead of rolling fresh NPC checks or using passive.
+            surprised = bool(surprise_override)
+            trace = 'surprise determined by the already resolved active notice check'
         event['evidence'] += f' {trace}.'
         events, public, kind_now = list(result.events) + [event], result.public_event, result.kind
         if trigger.get('starts_combat', True) and kit_combat.config(self.source):
@@ -2681,27 +2687,50 @@ class RoomAdjudicator:
                       if key in (self.source.get('_opening_people') or ())
                       and actor.get('status') == 'hidden' and actor.get('location') == area}
             if hidden:
-                # The target is an actual source-attested actor. An active
-                # Perception total challenges their Stealth, not a fixed opening
-                # threshold. The encounter still chooses whether to attack.
-                dc = max(kit_claims.npc_passive(actor, 'stealth') for actor in hidden.values())
-                witnessed = total >= dc
-                evidence = ('Player made the called Perception check for hidden actors: '
-                            '%s against source-actor Stealth %s. %s.' % (
-                                total, dc, 'Noticed' if witnessed else 'Not noticed'))
-                events = [{'type': 'beat', 'tags': ['notice', 'success' if witnessed else 'fail'],
+                # Perception has to beat a creature's Stealth for THAT creature.
+                # Noticing one ambusher prevents surprise even if others remain
+                # concealed; it does not magically reveal the entire group.
+                stealth = {key: kit_claims.npc_passive(actor, 'stealth')
+                           for key, actor in hidden.items()}
+                noticed = [key for key, dc in stealth.items() if total >= dc]
+                missed = [key for key in hidden if key not in noticed]
+                evidence = ('Player made the called Perception check for source-attested hidden actors: '
+                            'roll %s, checked each actor against its own Stealth; '
+                            'noticed %s; missed %s.' % (total, noticed, missed))
+                events = [{'type': 'beat', 'tags': ['notice', 'success' if noticed else 'fail'],
                            'evidence': evidence}]
-                if witnessed:
-                    revealing = [t for t in kit_triggers.pending(self.source, state)
-                                 if t.get('_deferred') and any(k in hidden for k in t.get('actors') or ())]
-                    for trig in revealing:
-                        events.append({'type': 'trigger_fired', 'trigger': trig['id'],
-                                       'evidence': evidence + ' The player sees the previously concealed actors.'})
-                    labels = [actor.get('name') or key for key, actor in hidden.items()]
+                if noticed:
+                    events += [{'type': 'actor_status', 'actor': key, 'status': 'alive',
+                                'evidence': evidence + ' This actor was perceived.'}
+                               for key in noticed]
+                    labels = [hidden[key].get('name') or key for key in noticed]
                     public = 'You spot %s before they act. What do you do?' % ', '.join(labels)
-                else:
-                    public = 'You do not catch anyone in the open. What do you do?'
-                return Resolution('called_check', public, events + [clear])
+                    return Resolution('called_check', public, events + [clear])
+
+                # An unseen actor does not automatically attack. Only a verified
+                # conditional authored for FAILED notice can activate a fight.
+                # The source contract holds its full quote; do not infer an
+                # ambush from the hidden status or a failed numeric check.
+                pressures = [p for p in (self.source.get('_opening_pressures') or ())
+                             if p.get('kind') == 'ambush' and p.get('activation') == 'failed_notice'
+                             and p.get('status') in ('established', 'conditional')
+                             and p.get('actors') and set(p['actors']).issubset(hidden)]
+                for pressure in pressures:
+                    matches = [t for t in kit_triggers.pending(self.source, state)
+                               if t.get('_deferred') and set(pressure['actors']).issubset(t.get('actors') or ())]
+                    if not matches:
+                        continue
+                    trigger = dict(matches[0], starts_combat=True, notice=False)
+                    labels = ', '.join(hidden[key].get('name') or key for key in pressure['actors'])
+                    arrival = '%s break from hiding.' % labels
+                    base = Resolution('called_check', arrival, events + [clear])
+                    resolved = self._spring(base, trigger, area, action, revision, state,
+                                            surprise_override=True)
+                    # No host-supplied combat or surprise event: the normal
+                    # Fight/trigger engine produced it and owns the result.
+                    return resolved
+                return Resolution('called_check', 'You do not spot anyone. What do you do?',
+                                  events + [clear])
         if pending.get('action'):
             # The engine called this roll for an act: the roll resolves that act now.
             calm = {k: v for k, v in state.items() if k not in ('pending_check', 'standing_check')}
@@ -7592,7 +7621,7 @@ class KitChatBridge:
                     'revision': committed, 'public_event': 'The roll is not assigned.'}
         self.adjudicator.mount(source)
         resolution = self.adjudicator.resolve(action, revision, state)
-        if resolution.kind not in ('called_check', 'stealth', 'check', 'combat_interstitial'):
+        if resolution.kind not in ('called_check', 'stealth', 'check', 'combat_interstitial', 'combat_round'):
             return None
         # The returned events, not this handler, determine reveal and mechanics.
         events = list(resolution.events)

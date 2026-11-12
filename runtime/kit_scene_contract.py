@@ -19,7 +19,7 @@ MAX_PRESSURES = 8
 STATUSES = ('established', 'conditional', 'inferred', 'unsupported')
 KINDS = ('person', 'creature')
 PRESSURE_KINDS = ('ambush', 'conversation', 'hazard', 'none')
-ACTIVATIONS = ('entry', 'disturb', 'deferred')
+ACTIVATIONS = ('entry', 'disturb', 'deferred', 'failed_notice')
 _ID = re.compile(r'^[a-z][a-z0-9_]{0,30}$')
 
 
@@ -186,6 +186,17 @@ def validate(scene, raw_span, read_aloud, layout_span=None):
             problems.append('%s activation is invalid' % label)
         elif pressure['activation'] == 'entry' and pressure.get('status') not in ('established', 'conditional'):
             problems.append('%s entry trigger requires explicit source support' % label)
+        if pressure.get('activation') == 'failed_notice':
+            # In particular, the presence of a hidden enemy is not proof that
+            # they attack after a missed check. That consequence needs an
+            # explicit conditional statement from the book, not a guess.
+            condition = _norm(pressure.get('quote'))
+            if pressure.get('kind') != 'ambush' or pressure.get('status') not in ('conditional', 'established'):
+                problems.append('%s failed notice requires a source-attested ambush' % label)
+            if not re.search(r'\b(?:if|unless|when|should|upon)\b', condition) or not re.search(
+                    r'\b(?:unnoticed|undetected|unseen|unaware|fail|fails|failed|miss|misses|missed|'
+                    r'notice|noticed|detect|detected|spot|spotted|see|sees|saw)\b', condition):
+                problems.append('%s failed notice needs the full conditional source sentence' % label)
         if pressure.get('status') not in STATUSES or pressure.get('status') == 'unsupported':
             problems.append('%s status is invalid or unsupported' % label)
         if not _valid_quote(pressure.get('quote'), sources):

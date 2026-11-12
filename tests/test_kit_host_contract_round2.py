@@ -5,6 +5,7 @@ Each test starts from a PDF, uses pdftotext, stages the host form, then drives
 start -> prepare -> complete -> bare-roll prepare through Kit's own CLI.
 """
 import json
+import copy
 import subprocess
 import sys
 import tempfile
@@ -20,6 +21,7 @@ ROOT = Path(__file__).resolve().parents[1]
 PRESENCE = 'Two bandits hide by the ditch and want the caravan supplies.'
 FIND = 'A careful look notices the broken branches under the pine.'
 AFTER = '2. The Tower'
+COND_ATTACK = 'If the bandits go unnoticed, they spring from their hiding place and attack.'
 
 
 def call(*args):
@@ -57,6 +59,8 @@ class NormalHostPath(unittest.TestCase):
             layout = [('text', 70, 700, PRESENCE, 9),
                       ('text', 70, 670, FICTION, 9),
                       ('text', 70, 640, FIND, 9)]
+        if getattr(self, 'attack_if_unnoticed', False):
+            layout.append(('text', 70, 610, COND_ATTACK, 9))
         self.pdf.write_bytes(make_pdf([
             [('text', 70, 700, 'Contents ' + '.' * 80 + ' 2', 10)],
             [('text', 70, 735, '1. The North Road', 11),
@@ -87,13 +91,14 @@ class NormalHostPath(unittest.TestCase):
         self.assertFalse(missing.get('committed'))
         # The host is given exact field errors and a source excerpt; the repair
         # is a scene-only JSON object, not a new room or a new skim.
-        bad = json.loads(json.dumps(SCENE))
+        scene = getattr(self, 'scene', SCENE)
+        bad = json.loads(json.dumps(scene))
         bad['people'][0]['quote'] = 'A fabricated sentry.'
         form.write_text(json.dumps({'scene': bad}))
         repair = call('adventure', 'skim', '--db', self.db, '--file', form)
         self.assertEqual(repair['stage'], 'scene_required', repair)
         self.assertIn('people[0]', ' '.join(repair['scene_request']['problems']))
-        form.write_text(json.dumps({'scene': SCENE}))
+        form.write_text(json.dumps({'scene': scene}))
         accepted = call('adventure', 'skim', '--db', self.db, '--file', form)
         self.assertEqual(accepted['stage'], 'skim_accepted', accepted)
         self.assertNotIn('source_span', json.dumps(accepted))
@@ -156,6 +161,31 @@ class NormalHostPath(unittest.TestCase):
                 again = self.action('18')
                 self.assertEqual(again['stage'], 'roll_clarify', again)
                 self.assertIn('What is the 18 for?', again['spoken'])
+    def test_authored_failed_notice_starts_fight_through_real_host_path(self):
+        # A failure is never permission for Python to invent an ambush.
+        # Here the actual source, and then the host's sourced condition,
+        # explicitly state what the hidden creatures do if unnoticed.
+        self.attack_if_unnoticed = True
+        self.scene = copy.deepcopy(SCENE)
+        self.scene['pressures'][0].update(
+            quote=COND_ATTACK, status='conditional', activation='failed_notice')
+        self.skim('before')
+        self.start()
+        self.complete_check(self.action('I look around.'))
+        outcome = self.action('4')
+        self.assertEqual(outcome.get('stage'), 'called_roll', outcome)
+        self.assertIn('Roll initiative', outcome.get('spoken') or '')
+        self.assertNotIn('DC', outcome.get('spoken') or '')
+        from runtime.state_context import Runtime
+        runtime = Runtime(str(self.db))
+        try:
+            state = runtime.load()[1]
+            self.assertEqual(state['combat']['status'], 'awaiting_initiative')
+            self.assertEqual(state['combat']['surprised'], ['pc'])
+            self.assertEqual(len(state.get('triggers_fired') or []), 1)
+        finally:
+            runtime.close()
+
     def test_unwritten_action_reaches_a_committed_table_ready_clarification(self):
         self.skim('before')
         self.start()
