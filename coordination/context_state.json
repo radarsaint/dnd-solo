@@ -2,16 +2,16 @@
   "schema": "kit_project_gardener_state/v1",
   "purpose": "RESUMABILITY_CURSOR_NOT_KNOWLEDGE_STORE",
   "canonical_location": "radarsaint/dnd-solo/coordination/context_state.json",
-  "state_revision": 61,
+  "state_revision": 62,
   "semantic_brain": {
     "repo": "radarsaint/dnd-solo",
     "path": "docs/PROJECT_UNDERSTANDING.md",
-    "last_semantic_commit": "afaf31198bf9eb54059a5415fcf162a4173c4c9e",
+    "last_semantic_commit": "3c96353aa9e9831cd0b74123c2a12f76c65e2032",
     "last_reviewed_on": "2026-11-12"
   },
   "checkpoint": {
     "reviewed_against_main": {
-      "radarsaint/dnd-solo": "afaf31198bf9eb54059a5415fcf162a4173c4c9e",
+      "radarsaint/dnd-solo": "3c96353aa9e9831cd0b74123c2a12f76c65e2032",
       "radarsaint/bfdm-corpus": "cf65ec04572b2a033383344d1f2583e3380686f7"
     },
     "context_inbox": {
@@ -25,9 +25,9 @@
   "last_completed_pass": {
     "kind": "BOUNDED_SEMANTIC_RECONCILIATION",
     "completed_on": "2026-11-12",
-    "scope": "Reviewed dnd-solo main after #204 merge (1b3b9d81 / 5fc4ae7); no new #115 comments beyond 6598407850.",
-    "result": "Accept narrow: #204 source-attested scene contract and native adjudication for verified openings, durable PDF retention. Lexical guessers not used for source-verified scenes; opening verbs route through RoomAdjudicator. Local synthetic tests passed; full suite not certified; private PDFs and human playthrough not verified. Interpretation of goals/triggers still requires human review. Brain updated on main. No bfdm-corpus change. Unresolved items unchanged.",
-    "resulting_brain_commit": "afaf31198bf9eb54059a5415fcf162a4173c4c9e",
+    "scope": "Reviewed dnd-solo main after #206 merge (c1c9034 / c7478c9); no new #115 comments beyond 6598407850.",
+    "result": "Accept narrow: #206 reconstructs plausible two-column gutters, binds source span to containing heading, and fails closed when the whole opening cannot be recovered. Repairs hollow openings from Blind Run 18. Synthetic layout tests added. Remaining Blind Run 18 defects and real private-PDF retest not addressed. Brain updated on main. No bfdm-corpus change. Unresolved items unchanged.",
+    "resulting_brain_commit": "3c96353aa9e9831cd0b74123c2a12f76c65e2032",
     "reconciled_comment_id": 6598407850
   },
   "active_pass": null,
