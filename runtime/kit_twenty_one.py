@@ -381,7 +381,10 @@ class TwentyOneTable:
                 not re.search(r'\bhit or stand\b', spoken):
             # "Twenty, and I'll play it out. Hit." The hit in the same breath is played.
             more, _ = self._hit(action, revision, public, private)
-            text = f'{text.removesuffix("Hit or stand?").strip()} {more}'
+            suffix = "Hit or stand?"
+            if text.endswith(suffix):
+                text = text[:-len(suffix)]
+            text = f'{text.strip()} {more}'
         return text, reveals
 
     def _stake(self, action, public):

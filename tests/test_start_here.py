@@ -63,7 +63,7 @@ class StartHereTests(unittest.TestCase):
     def test_tests_note_names_the_runtime_fixtures(self):
         note = (ROOT / 'tests/README_FOR_GPT.md').read_text(encoding='utf-8')
         for path in paths('runtime-fixtures'):
-            self.assertIn(path.removeprefix('tests/'), note, path)
+            self.assertIn(path[len('tests/'):] if path.startswith('tests/') else path, note, path)
 
     def test_agents_and_readme_point_here_first(self):
         for doc in ('AGENTS.md', 'README.md'):

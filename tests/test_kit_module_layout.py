@@ -362,16 +362,21 @@ class ModuleLayout(unittest.TestCase):
         self.assertTrue(room.get('facts'))
         source = (kit_adventure.folder_for(self.db) / 'source.txt').read_text(encoding='utf-8')
         self.assertIn('village street', source.casefold())
-        _done, opened, heard = _hear(
-            self.db,
-            'You stand on the village street as the shops close.',
-            'You stand on the village street as the shops close.',
-            'The Gate',
-            [{'title': 'The Gate', 'page': 1}, {'title': 'The Yard', 'page': 1}])
-        self.assertTrue(opened.get('character_loaded'))
-        self.assertNotEqual(opened.get('stage'), 'greeting')
-        self.assertIn('village street', (heard.get('spoken') or '').casefold())
-        self.assertNotIn('the yard', (heard.get('spoken') or '').casefold())
+        # The importer can index/compile its first location, but a real PDF
+        # must not become a playable session until the host attests the scene.
+        # The legacy six-field skim belongs only to pasted-text compatibility.
+        pending = kit_skim.accept(self.db, {
+            'burst': 'You stand on the village street as the shops close.',
+            'source_quote': 'You stand on the village street as the shops close.',
+            'page_start': 1, 'page_end': 1,
+            'alt_starts': [{'title': 'The Gate', 'page': 1}, {'title': 'The Yard', 'page': 1}],
+            'design_start_name': 'The Gate',
+        })
+        self.assertEqual(pending.get('stage'), 'scene_required', pending)
+        self.assertIn('village street', pending['scene_request']['source_span'].casefold())
+        opened = start_session(str(self.db), str(NIK))
+        self.assertEqual(opened.get('stage'), 'awaiting_scene', opened)
+        self.assertNotIn('spoken', opened)
 
     def test_an_empty_room_is_never_staged(self):
         report = kit_adventure.ingest_adventure(self.db, text=BLANK)

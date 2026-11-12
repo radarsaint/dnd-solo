@@ -272,7 +272,7 @@ def _encounter_sentence(sentence):
     return False
 
 
-def _split_opening(page_text, burst):
+def _split_opening(page_text, burst, allow_rejoin=False):
     """The read-aloud that holds the burst, and the encounter text after it.
 
     Works on a boxed extract and on pdftotext -layout, which does not write ``>``.
@@ -314,10 +314,14 @@ def _split_opening(page_text, burst):
             continue
         if _sidebar_line(plain):
             continue
+        if allow_rejoin and raw.startswith('>'):
+            # A second marked read-aloud block resumes the printed fiction after
+            # an intervening DM instruction; those instructions are never spoken.
+            fiction_closed = False
         for sentence in skim._sentences(plain) or ([skim.normalize(plain)] if skim.normalize(plain) else []):
             if not sentence:
                 continue
-            # Prep ends the read-aloud. A later player line is not this opening.
+            # Prep ends the current box, not a later explicitly marked player box.
             # The encounter can still sit past a sidebar, on the next page.
             if skim._go_fail(sentence) or _SCREENISH.search(sentence):
                 fiction_closed = True
@@ -335,9 +339,9 @@ def _split_opening(page_text, burst):
     return fiction, '\n'.join(encounter)
 
 
-def fiction_lines(page_text, burst):
+def fiction_lines(page_text, burst, allow_rejoin=False):
     """Player lines from this opening, in order. A later location is not included."""
-    fiction, _encounter = _split_opening(page_text, burst)
+    fiction, _encounter = _split_opening(page_text, burst, allow_rejoin=allow_rejoin)
     return fiction
 
 
@@ -460,9 +464,19 @@ def read_aloud_picks(window):
                 index += 1
                 continue
             plain = stripped.lstrip('>').strip()
-            if skim._LATER.match(plain) or skim._KEYED.match(plain):
+            if skim._LATER.match(plain):
                 stopped = True
                 break
+            if skim._KEYED.match(plain):
+                # The first numbered location can itself be the opening.
+                # Later keyed rooms are not substitutes for its missing box.
+                at = re.match(r'^(?:area\s+)?[A-Z]?(\d+)', plain, re.I)
+                if picks or (at and int(at.group(1)) > 1):
+                    stopped = True
+                    break
+                heading = plain
+                index += 1
+                continue
             if skim._heading_line(plain):
                 heading = '' if _FRONT.search(plain) else plain
                 index += 1
@@ -643,6 +657,7 @@ def _status_events(runtime, beat, ids):
         if live.get('status') == 'hidden':
             events.append({
                 'type': 'actor_status', 'actor': key, 'status': 'alive',
+                'reveal': True,
                 'evidence': 'The player has met them. This is observed, not inferred.',
             })
     return events
@@ -792,6 +807,10 @@ def opening_turn(runtime, action):
         return None
     data, beat = _load(runtime)
     if not beat or data.get('status') != 'accepted':
+        return None
+    if beat.get('source_verified'):
+        # All player deeds enter the general adjudicator, never the opening's
+        # old fixed notice threshold, auto-bypass, or forced-initiative path.
         return None
     try:
         runtime.load()

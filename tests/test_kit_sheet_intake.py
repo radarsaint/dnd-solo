@@ -245,7 +245,27 @@ class Questions(unittest.TestCase):
 
 class Portable(unittest.TestCase):
     def test_new_runtime_modules_import_only_the_standard_library(self):
-        allowed = set(sys.stdlib_module_names) | {'runtime'}
+        # sys.stdlib_module_names was introduced in Python 3.10. Resolve
+        # top-level modules to the running interpreter's own stdlib without
+        # accidentally accepting third-party modules from site-packages.
+        import importlib.util
+        import sysconfig
+        stdlib = Path(sysconfig.get_path('stdlib')).resolve()
+        def is_stdlib(name):
+            if name == 'runtime':
+                return True
+            spec = importlib.util.find_spec(name)
+            if spec is None:
+                return False
+            if spec.origin in ('built-in', 'frozen'):
+                return True
+            if not spec.origin:
+                return False
+            try:
+                path = Path(spec.origin).resolve().relative_to(stdlib)
+            except ValueError:
+                return False
+            return not any(x in ('site-packages', 'dist-packages') for x in path.parts)
         for name in ('sheet_intake', 'kit_save', 'kit_resume'):
             tree = ast.parse((ROOT / 'runtime' / f'{name}.py').read_text(encoding='utf-8'))
             for node in ast.walk(tree):
@@ -256,7 +276,7 @@ class Portable(unittest.TestCase):
                 else:
                     continue
                 for mod in mods:
-                    self.assertIn(mod, allowed, f'{name} imports {mod}')
+                    self.assertTrue(is_stdlib(mod), f'{name} imports non-stdlib {mod}')
 
     def test_import_sheet_from_the_bare_runtime_zip(self):
         with tempfile.TemporaryDirectory() as tmp:

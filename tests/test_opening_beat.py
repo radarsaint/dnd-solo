@@ -484,14 +484,14 @@ class PlayerPath(unittest.TestCase):
         self.assertIn('First Yard', source)
         self.assertIn('..', source)
 
-    def test_two_column_ambush_through_the_player_commands(self):
-        # The box is the left column. The sidebar and the stat-block reference
-        # sit in the other column. The encounter under the box continues on the
-        # next page. pdftotext -layout is what the player path reads back.
+    def test_two_column_ambush_requires_source_attested_scene(self):
+        # A real PDF no longer accepts the old six-field skim silently. The
+        # dedicated host-path suite tests the subsequent structured repair,
+        # native check, and player-visible outcome end to end.
         left, right = 48, 360
         pages = [[
             ('text', left, 740, 'You stand on the road under the trees.', 11),
-            ('text', right, 740, 'Sidebar. Patrons Iarno and Sildar hired the party.', 9),
+            ('text', right, 740, 'Sidebar. Patrons from the distant city hired the party.', 9),
             ('text', right, 700, 'How to Play. A DC 15 check is the procedure.', 9),
             ('text', right, 660, '(see the Goblin stat block).', 9),
         ], [
@@ -503,35 +503,16 @@ class PlayerPath(unittest.TestCase):
         path = Path(self.tmp.name) / 'columns.pdf'
         path.write_bytes(_pdf(pages))
         self._ingest(path)
-        burst = 'You stand on the road under the trees.'
-        done = self._skim(burst, 'The road', page_end=2)
-        beat = self._beat()
-        names = ' '.join(person['name'] for person in beat['people']).casefold()
-        self.assertEqual(beat['place_noun'], 'road', beat)
-        self.assertNotIn('vault', ' '.join(beat['fiction']).casefold())
-        self.assertIn('goblin', names, beat['people'])
-        self.assertNotIn('iarno', names)
-        self.assertNotIn('sildar', names)
-        self.assertTrue(beat['notice']['holds'])
-        self.assertIn('broken branches', beat['notice']['find'].casefold())
-        self.assertIn('wagon', beat['pressure']['goal'].casefold())
-        self.assertFalse(beat['pressure']['goal_generic'])
-        self._start(done['room'])
-        yes, _packet = self._say('Yes.')
-        self.assertIn('road', yes.casefold())
-        look, _packet = self._say('I look around.')
-        self.assertIn('perception', look.casefold())
-        self.assertNotIn('initiative', look.casefold())
-        self.assertNotIn('the room', look.casefold())
-        low, _packet = self._say('4')
-        low_l = low.casefold()
-        self.assertIn('goblin', low_l)
-        self.assertIn('surprised', low_l)
-        self.assertIn('initiative', low_l)
-        self.assertIn('what do you do', low_l)
-        self.assertNotIn('the room', low_l)
+        done = self._skim('You stand on the road under the trees.', 'The road', page_end=2)
+        self.assertEqual(done.get('stage'), 'scene_required', done)
+        source = done['scene_request']['source_span']
+        self.assertIn('Four goblins hide', source)
+        self.assertNotIn('You stand in a later vault', source)
+        self.assertNotIn('room', done)
+        self.assertFalse(done.get('committed'))
+        self.assertNotIn('beat', kit_skim._read(self.db))
 
-    def test_patrol_go_on_and_talk_through_the_player_commands(self):
+    def test_patrol_requires_source_attested_people_and_orders(self):
         pages = [[
             ('text', 72, 720, 'The wagon stops in the ruts under the trees.', 11),
             ('text', 72, 690, 'Captain Mara steps out on the road and hails the wagon.', 11),
@@ -541,22 +522,14 @@ class PlayerPath(unittest.TestCase):
         path.write_bytes(_pdf(pages))
         self._ingest(path)
         done = self._skim('The wagon stops in the ruts under the trees.', 'The road')
-        beat = self._beat()
-        names = [person['name'].casefold() for person in beat['people']]
-        self.assertTrue(any('mara' in name for name in names), beat)
-        self.assertFalse(any(name == 'greeter' for name in names), names)
-        self.assertIn('hold the road', beat['pressure']['goal'].casefold())
-        self.assertFalse(beat['pressure']['goal_generic'])
-        self._start(done['room'])
-        self._say('Yes.')
-        more, _packet = self._say('Go on')
-        self.assertIn('mara', more.casefold())
-        talk, _packet = self._say('I talk to Captain Mara.')
-        self.assertIn('mara', talk.casefold())
-        self.assertIn('hold the road', talk.casefold())
-        self.assertNotIn('initiative', talk.casefold())
+        self.assertEqual(done.get('stage'), 'scene_required', done)
+        source = done['scene_request']['source_span']
+        self.assertIn('Captain Mara', source)
+        self.assertIn('orders to hold the road', source)
+        self.assertNotIn('beat', kit_skim._read(self.db))
+        # The source-verified staged-NPC sequence has its own full CLI test.
 
-    def test_slip_past_uses_the_encounter_want(self):
+    def test_slip_cannot_bypass_before_scene_is_interpreted(self):
         left, right = 48, 360
         pages = [[
             ('text', left, 720, 'You stand on the road under the trees.', 11),
@@ -567,17 +540,16 @@ class PlayerPath(unittest.TestCase):
         path.write_bytes(_pdf(pages))
         self._ingest(path)
         done = self._skim('You stand on the road under the trees.', 'The road')
-        self._start(done['room'])
-        self._say('Yes.')
-        slipped, _packet = self._say('I sneak past.')
-        self.assertIn('wagon', slipped.casefold())
-        self.assertNotIn('initiative', slipped.casefold())
+        self.assertEqual(done.get('stage'), 'scene_required', done)
+        self.assertIn('Four goblins hide', done['scene_request']['source_span'])
+        self.assertNotIn('beat', kit_skim._read(self.db))
+        # No automatic success; the native Stealth path is tested in Round 2.
 
-    def test_a_call_out_before_the_roll_speaks_the_want(self):
+    def test_call_out_cannot_leak_setup_through_uninterpreted_pdf(self):
         left, right = 48, 360
         pages = [[
             ('text', left, 740, 'You stand on the road under the trees.', 11),
-            ('text', right, 740, 'Sidebar. Patrons Iarno and Sildar hired the party.', 9),
+            ('text', right, 740, 'Sidebar. Distant patrons hired the party.', 9),
             ('text', right, 700, '(see the Goblin stat block).', 9),
         ], [
             ('text', left, 740, 'Four goblins hide and want the wagon supplies.', 11),
@@ -587,15 +559,10 @@ class PlayerPath(unittest.TestCase):
         path.write_bytes(_pdf(pages))
         self._ingest(path)
         done = self._skim('You stand on the road under the trees.', 'The road', page_end=2)
-        self._start(done['room'])
-        self._say('Yes.')
-        spoken, packet = self._say('I call out.')
-        folded = spoken.casefold()
-        self.assertIn('wagon', folded)
-        self.assertIn('what do you say', folded)
-        self.assertNotIn('initiative', folded)
-        self.assertNotIn('the room', folded)
-        self.assertTrue(packet.get('spoken'))
+        self.assertEqual(done.get('stage'), 'scene_required', done)
+        self.assertFalse(done.get('committed'))
+        self.assertIn('scene', done['scene_request']['instructions'])
+        self.assertNotIn('beat', kit_skim._read(self.db))
 
     def test_a_failed_quote_lists_only_the_read_aloud(self):
         pages = [[

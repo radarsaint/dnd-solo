@@ -407,9 +407,21 @@ def later_stage_problems(source):
     if not any(problem.startswith('triggers:') for problem in problems):
         # Hidden is left only by a trigger: a hidden actor no trigger wakes would never appear.
         woken = {key for trigger in (source.get('triggers') or ()) for key in trigger['actors']}
+        # A source-checked opening can introduce a speaker on a later, marked
+        # read-aloud chunk. Its introduction is committed by opening_cursor and
+        # actor_status, not a combat/enter trigger; it is not an orphan.
+        staged = (set(source.get('_opening_staged_people') or ())
+                  if source.get('_opening_verified') is True else set())
+        # In a source-attested opening, the native Perception/Stealth path can
+        # reveal actors through actor_status even without an entry trigger.
+        # These are not orphan actors: the accepted scene gives them an explicit
+        # discovery path, and its staged people have a read-aloud reveal path.
+        discoverable = (set(source.get('_opening_people') or ())
+                        if source.get('_opening_verified') is True else set())
         problems += [f'actor {key} is hidden but no trigger wakes it (an orphan: it would never appear)'
                      for key, actor in (source.get('actors') or {}).items()
-                     if isinstance(actor, dict) and actor.get('status') == 'hidden' and key not in woken]
+                     if isinstance(actor, dict) and actor.get('status') == 'hidden'
+                     and key not in woken and key not in staged and key not in discoverable]
     for key, config in (source.get('procedures') or {}).items():
         if not key.startswith('_') and isinstance(config, dict) and config.get('kind') == 'card_game':
             try:

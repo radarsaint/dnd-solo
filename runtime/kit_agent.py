@@ -1157,6 +1157,42 @@ class RoomAdjudicator:
                                                self.npc_roll)
             if hidden:
                 result = dataclasses.replace(result, events=list(result.events) + hidden)
+        if (self.source or {}).get('_opening_verified') and result.public_event == 'They speak to the room.':
+            # The source-attested people, not guessed prose, determine whom a
+            # conversation can address. An unrevealed NPC is never treated as a
+            # cooperative visible speaker; the host still resolves their response.
+            mentioned = None
+            for key in (self.source.get('_opening_people') or ()):
+                actor = (state.get('actors') or {}).get(key) or (self.source.get('actors') or {}).get(key) or {}
+                name = str(actor.get('name') or '').strip()
+                state_actor = (state.get('actors') or {}).get(key) or {}
+                if (name and name.casefold() in str(action or '').casefold() and
+                        state_actor.get('status') != 'hidden' and
+                        state_actor.get('visible', True)):
+                    mentioned = name
+                    break
+            # Speech already in the player's declaration was spoken. Never ask
+            # the player to repeat it; Kit's next reply can be the NPC's answer
+            # when that answer is justified by this scene and the actor's goals.
+            already_spoke = bool(QUOTED_SPEECH.search(action.translate(_TYPOGRAPHIC)))
+            if mentioned:
+                public = ('You address %s.' if already_spoke else
+                          'You address %s. What do you say?') % mentioned
+            else:
+                where = (self.source.get('_opening_place') or '').strip()
+                place = ' across the %s' % where if where else ''
+                public = ('You call out%s.' if already_spoke else
+                          'You call out%s. What do you say?') % place
+            result = dataclasses.replace(result, public_event=public)
+        if (self.source or {}).get('_opening_verified') and result.kind == 'observe' and not (
+                state.get('pending_check') or kit_rolls.stated_skill(action)):
+            hidden = [key for key in (self.source.get('_opening_people') or ())
+                      if key not in (self.source.get('_opening_staged_people') or ())
+                      and (state.get('actors', {}).get(key) or {}).get('status') == 'hidden']
+            if hidden:
+                # A look at source-attested hidden people is a normal called
+                # Perception check, not the former opening's hard-coded DC 10.
+                result = self._call_roll(RollNeeded('perception'), action, revision, state)
         if (self.source or {}).get('triggers'):
             result = self._offer_handles(result, action, state)
             # Only arrival fires on the engine's own read; a disturbance needs Kit's declared
@@ -1735,12 +1771,21 @@ class RoomAdjudicator:
         return kit_triggers.handles_offer(self.source, state, action, area, kind)
 
     def _kit_ruling(self, action):
-        """An attempt Kit rules as an ordinary turn: committed as tried, outcome hers."""
+        """A real, unresolved player attempt; give Kit a playable clarification, not a slogan.
+
+        The statement does not award success or narrate an unsupported consequence.
+        The host may answer using the established scene, or call a check when justified.
+        """
         event = {'type': 'beat', 'tags': ['attempt', 'kit_ruling'],
                  'evidence': f'Player attempts: {action[:300]}. Nothing rolled yet; Kit rules the outcome '
                              'as an ordinary turn and may call a check (roll_call). Nothing hidden is learned '
                              'unless a called check succeeds.'}
-        return Resolution('kit_ruling', 'Kit rules the act.', [event])
+        words = str(action or '')
+        if re.search(r'\b(?:burn|ignite|set fire|light on fire)\b', words, re.I):
+            spoken = 'How are you going to set it alight, and what are you using?'
+        else:
+            spoken = 'How are you doing that, and what are you using?'
+        return Resolution('kit_ruling', spoken, [event])
 
     def _feature_act(self, action, offer):
         """A turn about a watched feature: nothing is resolved from the words; Kit's decision
@@ -1831,7 +1876,7 @@ class RoomAdjudicator:
         return dataclasses.replace(result, kind='combat_round', events=events,
                                    public_event=f'{result.public_event} {fight.public()}'.strip())
 
-    def _spring(self, result, trigger, area, action, revision, state):
+    def _spring(self, result, trigger, area, action, revision, state, surprise_override=None):
         """A room trigger fires on this resolution (runtime/kit_triggers.py): its hidden actors
         show themselves and, with ``starts_combat``, the fight starts without the PC attacking.
         A trigger whose actors are all dead, gone or already fighting is spent quietly."""
@@ -1870,8 +1915,14 @@ class RoomAdjudicator:
             _, passive = self._pc_numbers('perception', after, '')
         except PendingRuling:
             passive = None
-        surprised, trace = kit_triggers.pc_surprised(self.source, state, revision,
-                                                     trigger, 10 if passive is None else passive, self.npc_roll)
+        if surprise_override is None:
+            surprised, trace = kit_triggers.pc_surprised(self.source, state, revision,
+                                                         trigger, 10 if passive is None else passive, self.npc_roll)
+        else:
+            # The player already supplied an active notice roll. Reuse its
+            # outcome instead of rolling fresh NPC checks or using passive.
+            surprised = bool(surprise_override)
+            trace = 'surprise determined by the already resolved active notice check'
         event['evidence'] += f' {trace}.'
         events, public, kind_now = list(result.events) + [event], result.public_event, result.kind
         if trigger.get('starts_combat', True) and kit_combat.config(self.source):
@@ -2635,10 +2686,69 @@ class RoomAdjudicator:
         target, area = pending['target'], state.get('area')
         if pending.get('exit'):
             return self._resolve_held_exit(pending, roll_text, revision, state)
+        if pending.get('action') and (self.source or {}).get('_opening_verified') and \
+                skill == 'perception':
+            from . import kit_triggers
+            hidden = {key: actor for key, actor in (state.get('actors') or {}).items()
+                      if key in (self.source.get('_opening_people') or ())
+                      and actor.get('status') == 'hidden' and actor.get('location') == area}
+            if hidden:
+                # Perception has to beat a creature's Stealth for THAT creature.
+                # Noticing one ambusher prevents surprise even if others remain
+                # concealed; it does not magically reveal the entire group.
+                stealth = {key: kit_claims.npc_passive(actor, 'stealth')
+                           for key, actor in hidden.items()}
+                noticed = [key for key, dc in stealth.items() if total >= dc]
+                missed = [key for key in hidden if key not in noticed]
+                evidence = ('Player made the called Perception check for source-attested hidden actors: '
+                            'roll %s, checked each actor against its own Stealth; '
+                            'noticed %s; missed %s.' % (total, noticed, missed))
+                events = [{'type': 'beat', 'tags': ['notice', 'success' if noticed else 'fail'],
+                           'evidence': evidence}]
+                if noticed:
+                    events += [{'type': 'actor_status', 'actor': key, 'status': 'alive',
+                                'reveal': True,
+                                'evidence': evidence + ' This actor was perceived.'}
+                               for key in noticed]
+                    labels = [hidden[key].get('name') or key for key in noticed]
+                    public = 'You spot %s before they act. What do you do?' % ', '.join(labels)
+                    return Resolution('called_check', public, events + [clear])
+
+                # An unseen actor does not automatically attack. Only a verified
+                # conditional authored for FAILED notice can activate a fight.
+                # The source contract holds its full quote; do not infer an
+                # ambush from the hidden status or a failed numeric check.
+                pressures = [p for p in (self.source.get('_opening_pressures') or ())
+                             if p.get('kind') == 'ambush' and p.get('activation') == 'failed_notice'
+                             and p.get('status') in ('established', 'conditional')
+                             and p.get('actors') and set(p['actors']).issubset(hidden)]
+                for pressure in pressures:
+                    matches = [t for t in kit_triggers.pending(self.source, state)
+                               if t.get('_deferred') and set(pressure['actors']).issubset(t.get('actors') or ())]
+                    if not matches:
+                        continue
+                    trigger = dict(matches[0], starts_combat=True, notice=False)
+                    labels = ', '.join(hidden[key].get('name') or key for key in pressure['actors'])
+                    arrival = '%s break from hiding.' % labels
+                    base = Resolution('called_check', arrival, events + [clear])
+                    resolved = self._spring(base, trigger, area, action, revision, state,
+                                            surprise_override=True)
+                    # No host-supplied combat or surprise event: the normal
+                    # Fight/trigger engine produced it and owns the result.
+                    return resolved
+                return Resolution('called_check', 'You do not spot anyone. What do you do?',
+                                  events + [clear])
         if pending.get('action'):
             # The engine called this roll for an act: the roll resolves that act now.
             calm = {k: v for k, v in state.items() if k not in ('pending_check', 'standing_check')}
-            result = self._resolve(f'{pending["action"]}\n{roll_text}', revision, calm)
+            attempt = f'{pending["action"]}\n{roll_text}'
+            if pending.get('notice_trigger'):
+                # A source-authored encounter trigger lives in the adjudicator's
+                # _resolve_open path, not in its primitive _resolve routine.
+                # Re-evaluate the attempted look there, with the supplied roll.
+                result = self._resolve_open(attempt, revision, calm, False, None)
+            else:
+                result = self._resolve(attempt, revision, calm)
             extra = [] if any(e.get('type') == 'pending_check' for e in result.events) else [clear]
             return Resolution(result.kind, result.public_event, list(result.events) + extra)
         if skill in SOCIAL_CHECK_SKILLS:
@@ -2834,6 +2944,14 @@ class RoomAdjudicator:
         words = room_words(self.source, state)
         leaving = bool(re.search(r'\b(door|out|leave|past)\b', narration, re.I) or any(
             re.search(r'\b' + re.escape(word) + r'\b', narration, re.I) for word, _ in words.exits))
+        # In an open starting scene, the fiction may offer a way past an ambush
+        # without a keyed room exit. Stealth is still a real attempt against the
+        # ambushers; only an actual known exit authorizes a move event.
+        known_here = [k for k in (state.get('known_exits') or ())
+                      if state.get('area') in ((self.source.get('exits') or {}).get(k) or {}).get('areas', ())]
+        crossing_open = leaving and not known_here
+        if crossing_open:
+            leaving = False
         key = self._exit_taken(action, state) if leaving and not watchers else None
         exit_event = {'type': 'move', 'exit': key, 'evidence': f'The player left by the known exit {key}, unnoticed.'}
         if not watchers:
@@ -2874,11 +2992,15 @@ class RoomAdjudicator:
                           [{'type': 'beat', 'tags': ['stealth', 'noticed'], 'evidence': evidence}] + record)
 
     def _stealth_watchers(self, state):
-        """Who here could notice the PC, with their passive Perception: present actors able to
-        perceive (a sleeping or unconscious guard watches nobody)."""
+        """Everyone here who can notice the PC, including unseen ambushers.
+
+        Hidden from the player is not blind. This private check must not reveal
+        names of hidden actors in public text, but their perception still counts.
+        """
         return {key: kit_claims.npc_passive(actor, 'perception')
-                for key, actor in self._present_actors(state).items()
-                if actor.get('status') not in self.BLOCKERS_UNABLE}
+                for key, actor in (state.get('actors') or {}).items()
+                if actor.get('location') == state.get('area')
+                and actor.get('status') not in ('fled', 'dead') + self.BLOCKERS_UNABLE}
 
     def _standing_event(self, state, revision, die, modifier, watchers, evidence):
         """An established Stealth result: its total, its scope (this area) and what it beat."""
@@ -7435,6 +7557,9 @@ class KitChatBridge:
         if held is not None:
             return held
         from . import kit_skim
+        answered = self._verified_roll_answer(action)
+        if answered is not None:
+            return answered
         opened = kit_skim.opening_turn(self.runtime, action)
         if opened is not None:
             return opened
@@ -7471,6 +7596,47 @@ class KitChatBridge:
             return forked
         return self._stage(turn_id, revision, body, planning_input, one_pass, performance_variant, started, clock,
                            stamps)
+
+    def _verified_roll_answer(self, action):
+        """Source-attested checks resolve through prepare, with one authoritative commit.
+
+        This is the same bridge used by a real chat host. A pre-existing roll call
+        is the authority for assigning the player's bare number to a skill.
+        Without that call, a number is a question, not a phantom check.
+        """
+        if action is None or not isinstance(action, str) or not action.strip():
+            return None
+        try:
+            source = self.runtime.source()
+            if source.get('_opening_verified') is not True:
+                return None
+            revision, state = self.runtime.load()
+        except (KeyError, InvalidChange):
+            return None
+        pending = state.get('pending_check') or {}
+        total = roll_total(action)
+        if total is None and pending:
+            total = _answer_total(action, str(pending.get('skill') or ''))
+        if total is None:
+            return None
+        if not pending:
+            spoken = 'Kit: What is the %d for? Tell me which roll you made.' % total
+            events = [{'type': 'beat', 'tags': ['clarify', 'unassigned_roll'],
+                       'evidence': 'An unassigned roll was supplied. No fictional action or check was resolved.'}]
+            committed = self.runtime.commit('roll-query-%s' % revision, revision, events)
+            return {'stage': 'roll_clarify', 'committed': True, 'spoken': spoken,
+                    'revision': committed, 'public_event': 'The roll is not assigned.'}
+        self.adjudicator.mount(source)
+        resolution = self.adjudicator.resolve(action, revision, state)
+        if resolution.kind not in ('called_check', 'stealth', 'check', 'combat_interstitial', 'combat_round'):
+            return None
+        # The returned events, not this handler, determine reveal and mechanics.
+        events = list(resolution.events)
+        committed = self.runtime.commit('called-roll-%s' % revision, revision, events)
+        spoken = 'Kit: %s' % (resolution.public_event or 'What do you do?')
+        return {'stage': 'called_roll', 'committed': True, 'spoken': spoken,
+                'public_event': resolution.public_event, 'revision': committed,
+                'check_outcome': {'kind': resolution.kind}}
 
     def _prepared_answer(self, action):
         """The roll that answers a prepared check: one commit, the outcome already stored.

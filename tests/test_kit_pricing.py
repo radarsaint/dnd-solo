@@ -60,7 +60,8 @@ class FormulaExampleTests(unittest.TestCase):
         from runtime import kit_detail
         self.assertIs(kit_detail.parse_magic('impact_kind=charged; renews=no')['renews'], False)
         with self.assertRaisesRegex(InvalidChange, 'must say whether its charges renew'):
-            pricing.price({key: value for key, value in wand.items() if key != 'renews'} | {'category': 'Utility'})
+            pricing.price({**{key: value for key, value in wand.items() if key != 'renews'},
+                           'category': 'Utility'})
 
     def test_potion_of_healing_is_a_single_use_of_2d4_plus_2(self):
         result = pricing.price({'item': 'Potion of Healing', 'impact_kind': 'consumable', 'dice': '2d4+2',

@@ -1,6 +1,8 @@
 # Vendored from radarsaint/goldscale@a0a18c6 goldscale/parser.py (Brendon's Goldscale bot).
 # Package imports are relative. Quantity phrases go through runtime.kit_text so the shop
 # and Goldscale read "3 torches", "qty 3", and "torches x3" as the same count.
+from __future__ import annotations
+
 import re
 from dataclasses import dataclass, field
 from typing import Optional
