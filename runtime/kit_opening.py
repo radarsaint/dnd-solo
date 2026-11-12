@@ -38,18 +38,56 @@ def player_line(text):
     skim = _skim()
     if skim._go_fail(text) or skim._unsafe(text) or skim._blocks_quote(text):
         return False
-    if _SCREENISH.search(text or ''):
+    if _SCREENISH.search(text or '') or _FRONT.search(text or ''):
         return False
     return skim._scene_line(text)
 
 
+_FRONT = re.compile(
+    r'\b(?:credits?|licen[sc]e|copyright|how to|how-to|rules|procedure|synopsis|'
+    r'introduction|preface|foreword|contents|front matter|legal notice|trademark|'
+    r'published by|villain|background)\b',
+    re.I)
+_NOT_CREATURE = re.compile(
+    r'^(?:wisdom|check|hour|hours|day|days|mile|miles|gold|foot|feet|word|words|'
+    r'page|pages|character|characters|player|players|party|time|times|level|'
+    r'section|chapter|part|area|room|dc)$',
+    re.I)
+_COUNT = re.compile(
+    r'\b(?:a|an|one|two|three|four|five|six|seven|eight|nine|ten|\d+)\s+'
+    r'([A-Za-z][A-Za-z]+)\b',
+    re.I)
+_NOT_CREATURE = re.compile(
+    _NOT_CREATURE.pattern[:-2] + r'|hide|hides|hiding|wait|waits|waiting|attack|attacks|'
+    r'look|looks|notice|notices|come|comes|close|anyone|careful)$',
+    re.I)
+_ORDERS = re.compile(
+    r'\b(?:wants?|wanted)\s+(?:to\s+)?([^.]{3,80})'
+    r'|\b(?:has orders to|ordered to|orders to)\s+([^.]{3,80})',
+    re.I)
+_CUE = re.compile(
+    r'\b(?:hid(?:e|es|ing|den)|wait(?:s|ing)?|ambush(?:es|ed|ing)?|attack(?:s|ed|ing)?|'
+    r'approach(?:es|ed|ing)?|steps?|hails?|greets?)\b',
+    re.I)
+
+
 def place_noun(name, fiction):
-    """What the place is, from the book's own words. Room only when it says room."""
-    blob = '%s %s' % (name or '', fiction or '')
+    """The place word inside the read-aloud. A heading is not consulted."""
+    return _place_in(fiction)
+
+
+def _place_in(text):
+    """Earliest place word in this text. Room only when the text says room."""
+    found = ''
+    at = None
     for noun in _PLACE:
-        if re.search(r'\b%s\b' % noun, blob, re.I):
-            return noun
-    return ''
+        match = re.search(r'\b%s\b' % noun, text or '', re.I)
+        if not match:
+            continue
+        if at is None or match.start() < at:
+            at = match.start()
+            found = noun
+    return found
 
 
 def kit_line(title):
@@ -75,25 +113,54 @@ def _find_clause(text):
     return 'You notice %s.' % clause
 
 
-def _goal(means, noun):
-    where = noun or 'place'
+def _goal_from(encounter, fiction, means):
+    """What the encounter text says they want. The generic line is a last resort."""
+    blob = encounter or ''
+    match = _ORDERS.search(blob)
+    if match:
+        piece = (match.group(1) or match.group(2) or '').strip().rstrip('.')
+        if match.group(1):
+            return 'They want %s.' % piece, False
+        return 'They have orders to %s.' % piece, False
+    match = _CUE.search(blob)
+    if match:
+        sentence = _skim().normalize(match.string[max(0, match.start() - 40):match.end() + 60])
+        sentence = sentence.split('.')[0].strip()
+        if sentence:
+            if not sentence[0].isupper():
+                sentence = sentence[0].upper() + sentence[1:]
+            return sentence.rstrip('.') + '.', False
     if means == 'ambush':
-        return 'They want whoever comes along this %s.' % where
-    if means == 'meet':
-        return 'They want to meet whoever is here.'
-    return ''
+        return 'They are waiting in ambush.', False
+    if fiction or encounter:
+        return 'They want to meet whoever is here.', True
+    return '', True
 
 
-def _people(text, fiction):
-    from .kit_adventure import _GREET, _creatures, _introduced_names, _sentence_around, _slug
-    from .srd_creatures import CREATURES
+def _creature_name(phrase):
+    words = [word for word in phrase.split() if word]
+    if not words:
+        return ''
+    head = words[-1]
+    if _NOT_CREATURE.match(head):
+        return ''
+    if len(head) < 3:
+        return ''
+    return head
+
+
+def _people(fiction, encounter):
+    """Creatures and NPCs the encounter puts here. Setup patrons are not among them."""
+    from .kit_adventure import SEE_RE, _introduced_names, _slug
     skim = _skim()
     heard = ' '.join(fiction).casefold()
     people = []
     seen = set()
 
     def add(key, name, hidden, kind):
-        if not key or key in seen:
+        if not key or key in seen or _NOT_CREATURE.match(name or ''):
+            return
+        if _FRONT.search(name or ''):
             return
         seen.add(key)
         people.append({
@@ -101,33 +168,82 @@ def _people(text, fiction):
             'revealed': not hidden, 'addressable': not hidden,
         })
 
-    for name in _introduced_names(text or ''):
+    for name in _introduced_names(' '.join(fiction)):
+        add(_slug(name), name, False, 'speaker')
+    if skim._CHILD.search(heard):
+        add('children', 'Children', False, 'speaker')
+    for name in _introduced_names(encounter or ''):
         add(_slug(name), name, name.casefold() not in heard, 'speaker')
-    if skim._CHILD.search(text or '') or skim._CHILD.search(heard):
-        add('children', 'Children', not bool(skim._CHILD.search(heard)), 'speaker')
-    if _GREET.search(heard) and 'greeter' not in seen:
-        add('greeter', 'Greeter', False, 'speaker')
-    for creature in _creatures(text or '', 0, {}):
-        name = creature.get('name') or ''
-        key = _slug(name)
-        if name.casefold() not in CREATURES:
+    blob = encounter or ''
+    for match in SEE_RE.finditer(blob):
+        name = _creature_name(match.group(1))
+        if name:
+            add(_slug(name), name.title(), name.casefold() not in heard, 'creature')
+    for match in _COUNT.finditer(blob):
+        name = _creature_name(match.group(1))
+        if not name:
             continue
-        sent = ''
-        try:
-            sent = _sentence_around(text or '', creature.get('mention_offset') or 0)
-        except Exception:
-            sent = ''
-        if skim._WARNING.search(sent) and not skim._ARRIVAL.search(sent):
+        sentence = skim.normalize(blob[max(0, match.start() - 20):match.end() + 80])
+        if not _CUE.search(sentence) and 'stat' not in sentence.casefold():
             continue
-        if sent and not skim._ARRIVAL.search(sent) and not skim._NOTICE.search(sent):
-            continue
-        add(key, name.title(), name.casefold() not in heard, 'creature')
+        add(_slug(name), name.title(), name.casefold() not in heard, 'creature')
     return people
 
 
-def fiction_lines(page_text, burst):
-    """Ordered player lines. A screen sentence ends the list."""
+def _split_opening(page_text, burst):
+    """The read-aloud that holds the burst, and the encounter text after it.
+
+    Setup before that block is not part of the beat. The next location or the
+    next read-aloud ends the encounter.
+    """
     skim = _skim()
+    lines = (page_text or '').split('\n')
+    start = None
+    burst_norm = skim.normalize(burst or '')
+    for index, line in enumerate(lines):
+        stripped = line.strip()
+        if not stripped:
+            continue
+        plain = skim.normalize(stripped.lstrip('>').strip())
+        # The burst has to sit in this line. A short heading inside the burst is not the block.
+        if burst_norm and skim._contiguous(burst_norm, plain):
+            start = index
+            break
+    if start is None:
+        for index, line in enumerate(lines):
+            if line.strip().startswith('>'):
+                start = index
+                break
+    if start is None:
+        return [], ''
+    while start > 0 and lines[start - 1].strip().startswith('>'):
+        start -= 1
+    index = start
+    box = []
+    while index < len(lines) and lines[index].strip().startswith('>'):
+        box.append(lines[index].strip().lstrip('>').strip())
+        index += 1
+    if not box and burst_norm:
+        box = [burst_norm]
+    encounter = []
+    while index < len(lines):
+        stripped = lines[index].strip()
+        index += 1
+        if not stripped:
+            continue
+        if stripped.startswith('>'):
+            break
+        plain = stripped.lstrip('>').strip()
+        if skim._LATER.match(plain) or skim._KEYED.match(plain) or skim._heading_line(plain):
+            break
+        encounter.append(plain)
+    return box, '\n'.join(encounter)
+
+
+def fiction_lines(page_text, burst):
+    """Player lines from the opening read-aloud only. Later boxes are not this beat."""
+    skim = _skim()
+    box, _encounter = _split_opening(page_text, burst)
     lines = []
 
     def take(sentence):
@@ -140,12 +256,18 @@ def fiction_lines(page_text, burst):
 
     for sentence in skim._sentences(burst or ''):
         take(sentence)
-    for bit in skim._boxed_lines(page_text or ''):
+    for bit in box:
         for sentence in skim._sentences(bit):
             if skim._go_fail(sentence) or skim._blocks_quote(sentence) or _SCREENISH.search(sentence):
                 return lines
             take(sentence)
     return lines
+
+
+def opening_text(page_text, burst):
+    """The read-aloud plus the encounter under it. Setup before the box is left out."""
+    box, encounter = _split_opening(page_text, burst)
+    return '\n'.join(box + ([encounter] if encounter else []))
 
 
 def screen_lines(page_text, fiction):
@@ -162,20 +284,19 @@ def screen_lines(page_text, fiction):
 
 
 def build_beat(page_text, burst, place_name):
-    """The one record for this opening. Observed facts start empty of inferences."""
+    """The one record for this opening, read from the box and the encounter under it.
+
+    An empty location index does not matter. The text is enough.
+    """
+    _box, encounter = _split_opening(page_text, burst)
     fiction = fiction_lines(page_text, burst)
-    noun = place_noun(place_name, ' '.join(fiction))
-    people = _people(page_text, fiction)
+    noun = _place_in(' '.join(fiction))
+    people = _people(fiction, encounter)
     means = 'ambush' if any(person['kind'] == 'creature' and person['hidden'] for person in people) else (
         'meet' if people else 'none')
-    goal = _goal(means, noun)
-    find = ''
-    for sentence in screen_lines(page_text, fiction) + [page_text or '']:
-        find = _find_clause(sentence)
-        if find:
-            break
-    holds = bool(means == 'ambush' or find or any(person['hidden'] for person in people)
-                 or _skim()._NOTICE.search(page_text or ''))
+    goal, generic = _goal_from(encounter, fiction, means)
+    find = _find_clause(encounter)
+    holds = any(person.get('hidden') for person in people)
     for person in people:
         person['goal'] = goal or 'They are in this scene.'
         person['motive'] = person['goal']
@@ -189,7 +310,10 @@ def build_beat(page_text, burst, place_name):
             'holds': holds, 'pending': False, 'resolved': False, 'find': find,
         },
         'people': people,
-        'pressure': {'goal': goal, 'means': means, 'acted': False, 'bypassed': False},
+        'pressure': {
+            'goal': goal, 'means': means, 'acted': False, 'bypassed': False,
+            'goal_generic': bool(generic),
+        },
         'private': {
             'tactics': 'from cover' if means == 'ambush' else '',
             'intent': goal,
@@ -216,17 +340,103 @@ def look_line(beat):
     return 'You look around.'
 
 
-def fallback_titles(window):
-    """A place name from the window, in Kit's voice, when no boxed fiction qualified."""
+def _title_for(heading, sentences):
+    """A read-aloud's title: a clean place heading, else the place word, else first words."""
+    if heading and not _FRONT.search(heading) and not _skim()._bad_title(heading):
+        return heading
+    noun = _place_in(' '.join(sentences))
+    if noun:
+        return 'The %s' % noun
+    words = (sentences[0] if sentences else '').split()[:6]
+    title = ' '.join(words).rstrip(' ,.;:')
+    return title or 'Here'
+
+
+def read_aloud_picks(window):
+    """Picker entries are read-aloud blocks only. Front matter is not a start."""
     skim = _skim()
+    picks = []
+    seen = set()
+    heading = ''
+    page = 1
+    stopped = False
+    for raw in re.split(r'(\f)', window or ''):
+        if raw == '\f':
+            page += 1
+            heading = ''
+            continue
+        if stopped:
+            continue
+        lines = raw.split('\n')
+        index = 0
+        while index < len(lines):
+            stripped = lines[index].strip()
+            if not stripped:
+                index += 1
+                continue
+            plain = stripped.lstrip('>').strip()
+            if skim._LATER.match(plain) or skim._KEYED.match(plain):
+                stopped = True
+                break
+            if skim._heading_line(plain):
+                heading = '' if _FRONT.search(plain) else plain
+                index += 1
+                continue
+            if not stripped.startswith('>'):
+                index += 1
+                continue
+            block = []
+            while index < len(lines) and lines[index].strip().startswith('>'):
+                block.append(lines[index].strip().lstrip('>').strip())
+                index += 1
+            sentences = []
+            for bit in block:
+                for sentence in skim._sentences(bit):
+                    if player_line(sentence):
+                        sentences.append(skim.normalize(sentence))
+            if not sentences:
+                heading = ''
+                continue
+            title = _title_for(heading, sentences)
+            heading = ''
+            if not title or title.casefold() in seen or _FRONT.search(title):
+                continue
+            seen.add(title.casefold())
+            picks.append({'title': title, 'page': page, 'quote': ' '.join(sentences[:2])})
+            if len(picks) >= 4:
+                return picks
+    if picks:
+        return picks
     for line in (window or '').split('\n'):
-        stripped = line.strip().lstrip('>').strip()
-        if not skim._heading_line(stripped):
+        plain = line.strip().lstrip('>').strip()
+        if not skim._heading_line(plain):
             continue
-        if skim._bad_title(stripped) or skim._after_keyed(window, stripped) or skim._LATER.match(stripped):
+        if _FRONT.search(plain) or skim._bad_title(plain) or skim._LATER.match(plain) or skim._KEYED.match(plain):
             continue
-        return [{'title': stripped, 'page': 1, 'quote': '', 'kit_line': kit_line(stripped)}]
+        return [{'title': plain, 'page': 1, 'quote': '', 'kit_line': kit_line(plain)}]
+    noun = _place_in(window or '')
+    if noun:
+        return [{'title': 'The %s' % noun, 'page': 1, 'quote': '', 'kit_line': kit_line('the %s' % noun)}]
     return [{'title': 'Here', 'page': 1, 'quote': '', 'kit_line': kit_line('here')}]
+
+
+def letter_slot(alts, token):
+    """A one-letter pick matches a slot on the picker. Nothing else."""
+    if not re.fullmatch(r'[A-Za-z]', (token or '').strip()):
+        return None
+    letter = token.strip().casefold()
+    for alt in alts or []:
+        title = (alt.get('title') or '').strip()
+        if title.casefold() == letter:
+            return alt
+        if re.match(r'^%s[.)](?:\s|$)' % letter, title, re.I):
+            return alt
+    return None
+
+
+def fallback_titles(window):
+    """One Kit-voiced start when no read-aloud qualified."""
+    return read_aloud_picks(window)[:1]
 
 
 def _load(runtime):
@@ -503,6 +713,26 @@ def opening_turn(runtime, action):
                 'You leave the %s. %s The beat is behind you.' % (where, goal))
         if _LOOK.search(text):
             return _ask_notice(runtime, data, beat)
+    elif not pressure.get('bypassed') and not pressure.get('acted'):
+        # Visible people are already on stage. Look, sneak, and leave still use the beat.
+        goal = pressure.get('goal') or 'They keep their aim.'
+        where = beat.get('place_noun') or 'place'
+        if _SNEAK.search(text):
+            return _bypass(
+                runtime, data, beat,
+                'The player slipped past. The goal stands. The means change.',
+                'You slip past. %s They do not spring. What do you do?' % goal)
+        if _LEAVE.search(text):
+            return _bypass(
+                runtime, data, beat,
+                'The player left the beat. That is a resolution. The fight is not dragged forward.',
+                'You leave the %s. %s The beat is behind you.' % (where, goal))
+        if _LOOK.search(text):
+            line = '%s What do you do?' % look_line(beat)
+            return _commit(runtime, 'look', [{
+                'type': 'beat', 'tags': ['observe'],
+                'evidence': 'A look at a beat whose people are already on stage. No notice roll is owed.',
+            }], 'Kit: %s' % line, line)
     if _TALK.search(text):
         named = _named(beat, text)
         if not named:

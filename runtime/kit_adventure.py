@@ -154,11 +154,11 @@ def _pdftotext(path, max_pages=None):
     cmd += [str(path), '-']
     limit = shutil.which('timeout')
     if limit and max_pages:
-        cmd = [limit, '-k', '1', '5'] + cmd
+        cmd = [limit, '-k', '1', '4'] + cmd
     proc = subprocess.Popen(
         cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, start_new_session=True)
     try:
-        out, _ = proc.communicate(timeout=6 if max_pages else 20)
+        out, _ = proc.communicate(timeout=4 if max_pages else 20)
     except subprocess.TimeoutExpired:
         try:
             os.killpg(proc.pid, signal.SIGKILL)
@@ -1721,6 +1721,49 @@ def room_is_empty(room):
     return not texts and not exits
 
 
+def _first_pages(text, count):
+    parts = (text or '').split('\f')
+    return '\f'.join(parts[:int(count)])
+
+
+def read_opening(path, reader='auto'):
+    """The player ingest path for a PDF: the first pages only, on a short clock.
+
+    ``python3 -m runtime.kit_agent ingest`` calls ``ingest_adventure``, which calls this.
+    A full-book extract is not part of landing.
+    """
+    path = Path(path)
+    if not path.is_file():
+        raise IngestError(['no PDF at %s' % path])
+    if not path.read_bytes()[:5].startswith(b'%PDF'):
+        raise IngestError([NOT_PDF])
+    from .kit_skim import OPENING_PAGES
+    started = time.monotonic()
+    budget = 7.0
+    if reader in ('auto', 'pdftotext'):
+        text = _pdftotext(path, OPENING_PAGES)
+        if text and (pdf_yield_ok(text) or sum(ch.isalpha() for ch in text) >= 40):
+            return _cap_pages(text, OPENING_PAGES), 'pdftotext'
+    if reader == 'pypdf' or (reader == 'auto' and time.monotonic() - started < budget):
+        text = _pypdf_text(path, OPENING_PAGES) if reader == 'pypdf' else None
+        if text and pdf_yield_ok(text):
+            return _cap_pages(text, OPENING_PAGES), 'pypdf'
+    if time.monotonic() - started >= budget:
+        raise IngestError([POOR_TEXT])
+    data = Path(path).read_bytes()
+    from .kit_pdf import extract
+    found = extract(data, max_pages=OPENING_PAGES, deadline=started + budget)
+    if found.get('kind') == 'text' and found.get('text'):
+        return _cap_pages(found['text'], OPENING_PAGES), 'stdlib'
+    alt, name = optional_pdf_text(path, 'pdftotext' if reader == 'auto' else reader,
+                                  max_pages=OPENING_PAGES)
+    if alt and (pdf_yield_ok(alt) or sum(ch.isalpha() for ch in alt) >= 40):
+        return _cap_pages(alt, OPENING_PAGES), name
+    if found.get('kind') == 'no_text_layer':
+        raise IngestError([NO_TEXT_LAYER])
+    raise IngestError([POOR_TEXT])
+
+
 def ingest_adventure(db, text=None, pdf=None, title=None, reader='auto'):
     """One host step: a PDF or pasted text -> the private index and the first scene.
 
@@ -1735,13 +1778,16 @@ def ingest_adventure(db, text=None, pdf=None, title=None, reader='auto'):
     clock = time.perf_counter()
     how = 'text'
     if text is None:
-        from .kit_skim import OPENING_PAGES
-        text, how = read_pdf(pdf, reader=reader, max_pages=OPENING_PAGES)
+        text, how = read_opening(pdf, reader=reader)
         try:
             folder_for(db).mkdir(parents=True, exist_ok=True)
             (folder_for(db) / 'source.pdf.path').write_text(str(Path(pdf).resolve()), encoding='utf-8')
         except OSError:
             pass
+    else:
+        from .kit_skim import OPENING_PAGES
+        text = _first_pages(text, OPENING_PAGES)
+        how = 'text'
     report = import_adventure(db, text=text, title=title)
     from . import kit_labels
     kit_labels.mark_leading_front(db)
@@ -1867,14 +1913,26 @@ def choose_start(db, token=None):
 def _choose_start(db, token=None):
     want = (token or '').strip()
     if want:
-        from .kit_skim import open_title, refused_start
+        from .kit_skim import open_title, refused_start, _read
+        from .kit_opening import letter_slot
+        if re.fullmatch(r'[A-Za-z]', want):
+            shown = _read(db).get('alt_starts') or []
+            if shown:
+                slot = letter_slot(shown, want)
+                if not slot:
+                    return refused_start(db)
+                want = slot.get('title') or want
         try:
             picked = open_title(db, want)
-        except IngestError as exc:
-            if any('not player fiction' in item for item in exc.problems):
+        except (IngestError, KeyError) as exc:
+            if isinstance(exc, KeyError) or any('not player fiction' in item for item in getattr(exc, 'problems', ())):
                 return refused_start(db)
             raise
         if picked:
+            if not picked.get('room'):
+                picked.setdefault('stage', 'kit_named')
+                picked.setdefault('spoken', picked.get('table_line'))
+                picked['committed'] = False
             return picked
     index, _text = _load(db)
     starts = index.get('starts') or []

@@ -10,6 +10,7 @@ that decodes to almost no letters is ``poor`` (custom encoding this reader canno
 Neither path invents words.
 """
 import re
+import time
 import zlib
 
 # A line this close in y (points) is the same baseline. Pinned: synthetic pages use 11 pt type.
@@ -123,7 +124,7 @@ def _load_opening(data):
     return objects, root
 
 
-def extract(data, max_pages=None):
+def extract(data, max_pages=None, deadline=None):
     """``{text, kind, pages, text_ops}``. ``kind`` is text, poor, no_text_layer, or not_pdf.
 
     ``text`` is UTF-8-able str with a form feed between pages. Boxed lines and italic prose
@@ -150,6 +151,9 @@ def extract(data, max_pages=None):
     pages, text_ops = [], 0
     truncated = False
     for node in _walk_pages(_resolve(catalog.get('/Pages'), objects), objects):
+        if deadline is not None and time.monotonic() > deadline:
+            truncated = True
+            break
         if max_pages and len(pages) >= max_pages:
             truncated = True
             break

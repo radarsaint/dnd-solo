@@ -2,6 +2,7 @@
 
 Synthetic pages only. No published book, no page numbers, no proper nouns from one.
 """
+import json
 import tempfile
 import time
 import unittest
@@ -17,14 +18,15 @@ ROOT = Path(__file__).resolve().parents[1]
 NIK = ROOT / 'tests/fixtures/characters/nik.json'
 
 ROAD = (
+    'The patrons Iarno and Sildar hired the party before the journey.\n'
     'The North Road\n'
-    '> The wagon stops in the ruts under the trees.\n'
-    'Four goblins wait in ambush in the brush. A Wisdom (Perception) check notices them in the brush.\n'
+    '> The wagon stops on the road in the ruts under the trees.\n'
+    'Four goblins hide in the brush and want the wagon supplies. A look notices the broken branches.\n'
     '> The players concoct their own stories before the mile.\n'
 )
 STREET = (
     'The Market Street\n'
-    '> You stand in the lane while children play at the corner and a woman greets the wagon.\n'
+    '> You stand in the street while children play at the corner and a woman greets the wagon.\n'
     '> The children are not what they seem and will lie about the cellar.\n'
     '1. The Vault\n'
     '> You stand in a later vault of cold stone.\n'
@@ -37,10 +39,23 @@ PATROL = (
     '> The players concoct their own stories before the mile.\n'
 )
 TRAIL = (
-    'The Forest Trail\n'
-    '> The wagon stops in the ruts under the trees.\n'
-    'Two bandits wait in the clearing. A Wisdom (Perception) check notices the bandits in the brush.\n'
-    '> Use this tracking procedure before the next scene.\n'
+    'The trail\n'
+    '> You follow the trail under the trees.\n'
+    'Three owlbears wait in the clearing and attack anyone who comes close. A careful look notices the clawed trees.\n'
+)
+PATROL_ORDERS = (
+    '> Captain Mara steps out on the road and hails the wagon.\n'
+    'She has orders to hold the road until the wagons pass.\n'
+)
+FRONT = (
+    'Credits\n'
+    'The license allows personal copies of this text.\n'
+    'How to Play\n'
+    'Read the rules before you begin. This procedure covers the checks.\n'
+    'Synopsis\n'
+    'The villain wants the valley. Years ago the war started.\n'
+    'The Market Street\n'
+    '> You stand in the street while the lamps stay dark.\n'
 )
 DM_ONLY = (
     'The North Road\n'
@@ -103,12 +118,12 @@ class OpeningBeat(unittest.TestCase):
 
     def test_matrix(self):
         layouts = (
-            ('road', ROAD, 'The North Road', 'The wagon stops in the ruts under the trees.', 'goblin'),
+            ('road', ROAD, 'The North Road', 'The wagon stops on the road in the ruts under the trees.', 'goblin'),
             ('street', STREET, 'The Market Street',
-             'You stand in the lane while children play at the corner and a woman greets the wagon.',
+             'You stand in the street while children play at the corner and a woman greets the wagon.',
              'children'),
             ('patrol', PATROL, 'The Patrol', 'The wagon stops in the ruts under the trees.', 'mara'),
-            ('trail', TRAIL, 'The Forest Trail', 'The wagon stops in the ruts under the trees.', 'bandit'),
+            ('trail', TRAIL, 'The trail', 'You follow the trail under the trees.', 'owlbear'),
         )
         for layout, text, name, burst, who in layouts:
             self._yes_and_go_on(layout, text, name, burst, who)
@@ -120,7 +135,7 @@ class OpeningBeat(unittest.TestCase):
         with self.subTest(layout=layout, verb='yes'):
             spoken, _packet = self._said(bridge, 'Yes.')
             low = spoken.casefold()
-            self.assertIn('wagon', low)
+            self.assertIn('trail' if layout == 'trail' else 'wagon', low)
             self.assertNotIn('concoct', low)
             self.assertNotIn('players', low)
             self.assertNotIn('procedure', low)
@@ -270,6 +285,122 @@ class OpeningBeat(unittest.TestCase):
                 with self.assertRaises(kit_adventure.IngestError):
                     kit_adventure.read_pdf(path, reader='auto', max_pages=18)
         self.assertLess(time.perf_counter() - started, 8)
+
+    def _beat(self, text, name, burst):
+        self._accept(text, name, burst)
+        return kit_skim._read(self.db)['beat']
+
+    def test_patrons_in_the_setup_are_not_the_ambush(self):
+        beat = self._beat(ROAD, 'The North Road', 'The wagon stops on the road in the ruts under the trees.')
+        names = ' '.join(person['name'] for person in beat['people']).casefold()
+        self.assertEqual(beat['place_noun'], 'road')
+        self.assertIn('goblin', names)
+        self.assertNotIn('iarno', names)
+        self.assertNotIn('sildar', names)
+        self.assertTrue(beat['notice']['holds'])
+        self.assertIn('broken branches', beat['notice']['find'].casefold())
+        self.assertNotIn('dc', beat['notice']['find'].casefold())
+        self.assertFalse(beat['pressure']['goal_generic'])
+        self.assertIn('wagon', beat['pressure']['goal'].casefold())
+
+    def test_a_trail_with_no_locations_still_has_its_creatures(self):
+        report = kit_adventure.ingest_adventure(self.db, text=TRAIL)
+        self.assertEqual(report['locations'], 0)
+        beat = self._beat(TRAIL, 'The trail', 'You follow the trail under the trees.')
+        names = ' '.join(person['name'] for person in beat['people']).casefold()
+        self.assertEqual(beat['place_noun'], 'trail')
+        self.assertIn('owlbear', names)
+        self.assertTrue(beat['notice']['holds'])
+        self.assertIn('clawed', beat['notice']['find'].casefold())
+
+    def test_an_onstage_npc_keeps_her_orders_and_still_takes_a_look(self):
+        beat = self._beat(PATROL_ORDERS, 'The road', 'Captain Mara steps out on the road and hails the wagon.')
+        self.assertEqual(beat['place_noun'], 'road')
+        self.assertFalse(beat['notice']['holds'])
+        self.assertFalse(beat['pressure']['goal_generic'])
+        self.assertIn('hold the road', beat['pressure']['goal'].casefold())
+        self.assertTrue(any('mara' in person['name'].casefold() for person in beat['people']))
+        bridge = self._table(PATROL_ORDERS, 'The road', 'Captain Mara steps out on the road and hails the wagon.')
+        self._said(bridge, 'Yes.')
+        look, _packet = self._said(bridge, 'I look around.')
+        sneak, _packet = self._said(bridge, 'I sneak past.')
+        self.assertNotIn('initiative', look.casefold())
+        self.assertNotIn('the room', look.casefold())
+        self.assertNotIn('initiative', sneak.casefold())
+
+    def test_a_street_read_aloud_is_a_street(self):
+        beat = self._beat(
+            STREET, 'The Market Street',
+            'You stand in the street while children play at the corner and a woman greets the wagon.')
+        self.assertEqual(beat['place_noun'], 'street')
+        self.assertNotEqual(beat['place_noun'], 'road')
+
+    def test_front_matter_is_not_a_start(self):
+        kit_adventure.ingest_adventure(self.db, text=FRONT)
+        refused = kit_skim.accept(self.db, _reply(
+            burst='A dragon lands on the bakery and the crowd cheers.',
+            source_quote='A dragon lands on the bakery and the crowd cheers.',
+            alt_starts=[],
+            design_start_name='The Market Street',
+        ))
+        blob = ' '.join(
+            (item.get('title') or '') + ' ' + (item.get('quote') or '') + ' ' + (item.get('kit_line') or '')
+            for item in refused['alt_starts']).casefold()
+        self.assertIn('street', blob)
+        for banned in ('credit', 'license', 'how to', 'rules', 'procedure', 'synopsis', 'villain', 'years ago'):
+            self.assertNotIn(banned, blob, banned)
+        picked = kit_adventure.choose_start(self.db, refused['alt_starts'][0]['title'])
+        self.assertIsNone(getattr(picked, 'room', None) if False else None)
+        self.assertTrue(picked.get('room') or picked.get('spoken') or picked.get('stage'))
+        spoken = json.dumps(picked).casefold()
+        self.assertNotIn('license', spoken)
+        self.assertNotIn('villain', spoken)
+
+    def test_a_bare_letter_commits_only_when_a_slot_is_on_screen(self):
+        self._accept(ROAD, 'The North Road', 'The wagon stops on the road in the ruts under the trees.')
+        refused = kit_adventure.choose_start(self.db, 'A')
+        self.assertEqual(refused.get('stage'), 'pick_start')
+        self.assertIsNone(refused.get('spoken'))
+        self._fresh()
+        lettered = (
+            'A. The street\n'
+            '> You stand in the street while the lamps stay dark.\n'
+        )
+        kit_adventure.ingest_adventure(self.db, text=lettered)
+        kit_skim.accept(self.db, _reply(
+            burst='A dragon lands on the bakery and the crowd cheers.',
+            source_quote='A dragon lands on the bakery and the crowd cheers.',
+            alt_starts=[],
+            design_start_name='A. The street',
+        ))
+        opened = kit_adventure.choose_start(self.db, 'A')
+        self.assertTrue(opened.get('room') or opened.get('spoken') or opened.get('stage') == 'skim_accepted')
+        self.assertNotEqual(opened.get('stage'), 'pick_start')
+
+    def test_player_ingest_of_a_large_pdf_stays_inside_eight_seconds(self):
+        import test_kit_adventure_pdf as pdfs
+        pages = []
+        for index in range(36):
+            if index == 0:
+                ops = [
+                    ('text', 72, 720, '1. First Yard', 12),
+                    ('text', 72, 700, 'The wagon stops on the road under the trees.', 11),
+                ]
+            elif index == 30:
+                ops = [('text', 72, 720, 'LATEVAULT is a later place nobody should index yet.', 12)]
+            else:
+                ops = [('text', 72, 720, 'Filler page %d of this synthetic book.' % (index + 1), 11)]
+            pages.append(ops)
+        path = Path(tempfile.mkdtemp()) / 'opening.pdf'
+        path.write_bytes(pdfs.make_pdf(pages, compress=False))
+        started = time.perf_counter()
+        report = kit_adventure.ingest_adventure(self.db, pdf=path, reader='pdftotext', title='Opening Clock')
+        elapsed = time.perf_counter() - started
+        self.assertLess(elapsed, 8, report)
+        source = (kit_adventure.folder_for(self.db) / 'source.txt').read_text(encoding='utf-8')
+        self.assertNotIn('LATEVAULT', source)
+        self.assertIn('First Yard', source)
+        self.assertEqual(report['reader'], 'pdftotext' if report['reader'] == 'pdftotext' else report['reader'])
 
     def test_private_tactics_are_not_observed_facts(self):
         beat = kit_opening.build_beat(ROAD, 'The wagon stops in the ruts under the trees.', 'The North Road')

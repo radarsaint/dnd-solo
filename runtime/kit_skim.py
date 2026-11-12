@@ -682,33 +682,9 @@ def _harvest_starts(window):
 
 
 def _filter_alts(alts, window, end_page):
-    """Early titles inside the window that open onto player fiction, not a secret."""
-    kept = []
-    seen = set()
-    for item in alts or []:
-        title = _title_of(item)
-        page = item.get('page') if isinstance(item, dict) else None
-        if not title or not isinstance(page, int) or isinstance(page, bool):
-            continue
-        if page < 1 or page > end_page or _bad_title(title) or _after_keyed(window, title):
-            continue
-        if not _contiguous(title, window) and find_quote(window, title) is None:
-            continue
-        quote = _fiction_after(window, title)
-        from .kit_opening import player_line
-        key = title.casefold()
-        if key in seen or not quote or not player_line(quote):
-            continue
-        kept.append({'title': title, 'page': page, 'quote': quote})
-        seen.add(key)
-    kept.sort(key=lambda item: (item['page'], item['title'].casefold()))
-    if kept:
-        return kept[:PICK_MAX]
-    harvested = _harvest_starts(window)
-    if harvested:
-        return harvested[:PICK_MAX]
-    from .kit_opening import fallback_titles
-    return fallback_titles(window)[:PICK_MAX]
+    """Read-aloud blocks in the window. Front matter and later rooms are not starts."""
+    from .kit_opening import read_aloud_picks
+    return read_aloud_picks(window)[:PICK_MAX]
 
 
 def picker_line(alts):
@@ -1329,14 +1305,14 @@ def accept(db, reply):
     span_end = _clip(text, span_start + 1, page_to)
     if span_end <= span_start:
         span_end = page_to
+    from .kit_opening import build_beat, opening_text
+    beat = build_beat(page_text, spoken, name)
     try:
         key, compiled = _bind(db, index, text, normalize(name), (span_start, span_end), alts, spoken, book_quote)
     except Exception as exc:
         return _reject(db, ['the opening could not be bound: %s' % exc], alts, expanded)
     handoff = _handoff(spoken + ' ' + book_quote, name)
-    _cast_people(compiled.get('room'), page_text)
-    from .kit_opening import build_beat
-    beat = build_beat(page_text, spoken, name)
+    _cast_people(compiled.get('room'), opening_text(page_text, spoken))
     _stamp_beat(compiled.get('room'), beat)
     stored = {
         'status': 'accepted', 'burst': spoken, 'source_quote': book_quote,
@@ -1915,13 +1891,18 @@ def open_title(db, token):
         'alt_starts': data.get('alt_starts') or [],
         'design_start_name': chosen.get('title'),
     })
-    if done.get('stage') != 'skim_accepted':
-        raise IngestError(done.get('problems') or ['that title did not open'])
+    if done.get('stage') != 'skim_accepted' or not done.get('room'):
+        from .kit_opening import kit_line
+        return _open_named(db, {
+            'title': chosen.get('title') or 'Here',
+            'kit_line': chosen.get('kit_line') or kit_line(chosen.get('title') or 'here'),
+            'page': page,
+        })
     fresh = _read(db)
     fresh['speak_now'] = True
     _write(db, fresh)
     return {
-        'room': done['room'], 'room_id': done['room_id'], 'location': done['scene_key'],
+        'room': done.get('room'), 'room_id': done.get('room_id'), 'location': done.get('scene_key'),
         'pick': chosen.get('title'), 'line': chosen.get('title'), 'starts': [],
         'speak_now': True,
     }
@@ -2064,21 +2045,34 @@ def named_start(runtime, action):
     if data.get('burst_spoken'):
         return None
     folded = text.casefold()
-    titles = []
-    for alt in data.get('alt_starts') or []:
-        if alt.get('title'):
-            titles.append(alt['title'])
-    try:
-        from .kit_adventure import _load
-        index, _text = _load(path)
-    except Exception:
-        index = {}
-    for item in index.get('starts') or []:
-        for key in ('pick', 'line'):
-            if item.get(key):
-                titles.append(item[key])
-    if index.get('title'):
-        titles.append(index['title'])
+    if re.fullmatch(r'[a-z]', folded):
+        from .kit_opening import letter_slot
+        slot = letter_slot(data.get('alt_starts'), folded)
+        if not slot:
+            return {
+                'stage': 'pick_start', 'committed': False, 'spoken': None,
+                'character_loaded': False,
+                'table_line': 'That letter is not on the picker.',
+                'places': [{'pick': item.get('title'), 'line': item.get('title')}
+                           for item in data.get('alt_starts') or []],
+            }
+        titles = [slot.get('title')]
+    else:
+        titles = []
+        for alt in data.get('alt_starts') or []:
+            if alt.get('title'):
+                titles.append(alt['title'])
+        try:
+            from .kit_adventure import _load
+            index, _text = _load(path)
+        except Exception:
+            index = {}
+        for item in index.get('starts') or []:
+            for key in ('pick', 'line'):
+                if item.get(key):
+                    titles.append(item[key])
+        if index.get('title'):
+            titles.append(index['title'])
     hit = None
     for title in titles:
         candidate = normalize(title).casefold()

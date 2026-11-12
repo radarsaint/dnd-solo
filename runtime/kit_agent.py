@@ -8745,7 +8745,7 @@ def _main():
             if args.start and not args.room:
                 from . import kit_adventure
                 chosen = kit_adventure.choose_start(args.db, args.start)
-                if chosen.get('stage') == 'pick_start':
+                if chosen.get('stage') in ('pick_start', 'kit_named') or not chosen.get('room'):
                     print(_dumps(chosen, ensure_ascii=False,
                                  **({'indent': 2} if args.pretty else {'separators': (',', ':')})))
                     return 0
