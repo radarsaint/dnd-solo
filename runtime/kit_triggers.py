@@ -37,7 +37,7 @@ from .state_context import InvalidChange, require, reveal_actor, unperceived
 
 KINDS = ('disturb', 'enter')
 FEATURE_KINDS = ('move_feature', 'inspect_feature', 'enter_feature')
-FIELDS = {'id', 'on', 'starts_combat', 'actors', 'surprise', 'reveal'}
+FIELDS = {'id', 'on', 'starts_combat', 'actors', 'surprise', 'reveal', 'notice'}
 
 
 def compile_triggers(source):
@@ -77,6 +77,8 @@ def compile_triggers(source):
         reveal = trigger.get('reveal')
         require(reveal is None or (isinstance(reveal, str) and 0 < len(reveal) <= 300),
                 f'trigger {tid}: reveal is one public line (up to 300 characters)')
+        require(trigger.get('notice', False) is True or trigger.get('notice', False) is False,
+                f'trigger {tid}: notice is true or false')
     return triggers
 
 

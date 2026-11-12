@@ -631,7 +631,8 @@ def _fiction_after(window, title):
             if not stripped.startswith('>'):
                 continue
             for sentence in _sentences(stripped.lstrip('>').strip()):
-                if not _safe_box(sentence):
+                from .kit_opening import player_line
+                if not player_line(sentence):
                     continue
                 kept.append(sentence)
                 if len(kept) >= 2:
@@ -668,7 +669,8 @@ def _harvest_starts(window):
                 continue
             piece = stripped.lstrip('>').strip()
             for sentence in _sentences(piece):
-                if not _safe_box(sentence):
+                from .kit_opening import player_line
+                if not player_line(sentence):
                     continue
                 found.append({'title': title, 'page': page, 'quote': sentence})
                 seen.add(title.casefold())
@@ -693,17 +695,20 @@ def _filter_alts(alts, window, end_page):
         if not _contiguous(title, window) and find_quote(window, title) is None:
             continue
         quote = _fiction_after(window, title)
-        if not quote or not _safe_box(quote):
-            continue
+        from .kit_opening import player_line
         key = title.casefold()
-        if key in seen:
+        if key in seen or not quote or not player_line(quote):
             continue
-        seen.add(key)
         kept.append({'title': title, 'page': page, 'quote': quote})
+        seen.add(key)
     kept.sort(key=lambda item: (item['page'], item['title'].casefold()))
     if kept:
         return kept[:PICK_MAX]
-    return _harvest_starts(window)[:PICK_MAX]
+    harvested = _harvest_starts(window)
+    if harvested:
+        return harvested[:PICK_MAX]
+    from .kit_opening import fallback_titles
+    return fallback_titles(window)[:PICK_MAX]
 
 
 def picker_line(alts):
@@ -1330,13 +1335,16 @@ def accept(db, reply):
         return _reject(db, ['the opening could not be bound: %s' % exc], alts, expanded)
     handoff = _handoff(spoken + ' ' + book_quote, name)
     _cast_people(compiled.get('room'), page_text)
+    from .kit_opening import build_beat
+    beat = build_beat(page_text, spoken, name)
+    _stamp_beat(compiled.get('room'), beat)
     stored = {
         'status': 'accepted', 'burst': spoken, 'source_quote': book_quote,
         'remainder': remainder, 'match': how, 'page_start': page_start,
         'page_end': page_end, 'alt_starts': alts, 'design_start_name': normalize(name),
         'scene_key': key, 'room': compiled.get('room'), 'room_id': compiled.get('room_id'),
         'handoff': handoff, 'expanded': expanded, 'burst_spoken': False,
-        'table_line': READY_LINE,
+        'table_line': READY_LINE, 'beat': beat,
     }
     if data.get('sheet'):
         stored['sheet'] = data['sheet']
@@ -1417,6 +1425,32 @@ def landing_holds(db):
     if not data or data.get('burst_spoken'):
         return False
     return data.get('status') in ('accepted', 'rejected', 'expanded')
+
+
+def _stamp_beat(room_path, beat):
+    """Goals and who may be spoken to, on the room. Tactics stay off this file."""
+    path = Path(room_path) if room_path else None
+    if path is None or not path.is_file() or not isinstance(beat, dict):
+        return
+    try:
+        room = json.loads(path.read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        return
+    room['_opening_people'] = [person.get('id') for person in beat.get('people') or [] if person.get('id')]
+    room['_opening_place'] = beat.get('place_noun') or ''
+    actors = room.setdefault('actors', {})
+    for person in beat.get('people') or []:
+        actor = actors.get(person.get('id'))
+        if not isinstance(actor, dict):
+            continue
+        if person.get('goal'):
+            actor['immediate_goal'] = person['goal']
+            actor['motive'] = person.get('motive') or person['goal']
+    if (beat.get('notice') or {}).get('holds'):
+        for item in room.get('triggers') or []:
+            if isinstance(item, dict) and 'enter' in (item.get('on') or {}):
+                item['notice'] = True
+    path.write_text(json.dumps(room, ensure_ascii=False), encoding='utf-8')
 
 
 def _cast_people(room_path, text):
@@ -1666,6 +1700,11 @@ def opening_line(db):
         return None
     handoff = data.get('handoff') or "Say what you do."
     data['burst_spoken'] = True
+    beat = data.get('beat')
+    if isinstance(beat, dict):
+        from .kit_opening import player_line, _mark_heard
+        _mark_heard(beat, [sentence for sentence in _sentences(burst) if player_line(sentence)])
+        data['beat'] = beat
     _write(db, data)
     spoken = 'Narrator: %s' % burst
     if '?' not in spoken:
@@ -1687,6 +1726,8 @@ def release(runtime, action):
     data = _read(path)
     if data.get('status') != 'accepted':
         return None
+    if isinstance(data.get('beat'), dict):
+        return _release_beat(runtime, data, revision)
     if not data.get('burst_spoken'):
         # The burst was never shown. Speaking it is the first chunk, not a social line.
         spoken = opening_line(path)
@@ -1715,6 +1756,65 @@ def release(runtime, action):
     committed = runtime.commit('read-%s' % revision, revision, events)
     return {'stage': 'read_on', 'committed': True, 'calls': 1, 'spoken': spoken,
             'public_event': chunk or OPENING_DONE, 'revision': committed}
+
+
+def _release_beat(runtime, data, revision):
+    """Go on reads the fiction cursor. Heard lines are not read again. Screen lines are not in it."""
+    from .kit_opening import player_line
+    beat = data['beat']
+    lines = [sentence for sentence in (beat.get('fiction') or []) if player_line(sentence)]
+    if not data.get('burst_spoken'):
+        spoken = opening_line(runtime.path)
+        if not spoken:
+            return None
+        events = [{'type': 'beat', 'tags': ['read_on'],
+                   'evidence': 'The validated opening, spoken because they said go on.'}]
+        committed = runtime.commit('read-%s' % revision, revision, events)
+        fresh = _read(runtime.path)
+        return {'stage': 'read_on', 'committed': True, 'calls': 1, 'spoken': spoken,
+                'public_event': fresh.get('burst') or '', 'revision': committed}
+    heard = int(beat.get('heard') or 0)
+    if heard == 0 and data.get('burst_spoken'):
+        heard = len([sentence for sentence in _sentences(data.get('burst') or '') if player_line(sentence)])
+    chunk_lines = []
+    count = 0
+    for sentence in lines[heard:]:
+        words = len(_words(sentence))
+        if chunk_lines and count + words > BURST_WORDS:
+            break
+        chunk_lines.append(sentence)
+        count += words
+        if count >= BURST_WORDS:
+            break
+    beat['heard'] = heard + len(chunk_lines)
+    observed = beat.setdefault('observed', {'heard': [], 'seen': [], 'find': ''})
+    heard_lines = observed.setdefault('heard', [])
+    for sentence in chunk_lines:
+        if sentence not in heard_lines:
+            heard_lines.append(sentence)
+    data['beat'] = beat
+    data['remainder'] = ' '.join(lines[beat['heard']:])
+    _write(runtime.path, data)
+    if not chunk_lines:
+        spoken = 'Kit: %s' % OPENING_DONE
+        public = OPENING_DONE
+    else:
+        chunk = ' '.join(chunk_lines)
+        left = lines[beat['heard']:]
+        hand = 'Go on for the rest, or say what you do.' if left else (data.get('handoff') or 'Say what you do.')
+        spoken = 'Narrator: %s\nKit: %s' % (chunk, hand)
+        public = chunk
+        _note_people(runtime, chunk)
+    events = [{'type': 'beat', 'tags': ['read_on'],
+               'evidence': 'Unread player lines from the opening beat. Screen text stays back.'}]
+    committed = runtime.commit('read-%s' % revision, revision, events)
+    return {'stage': 'read_on', 'committed': True, 'calls': 1, 'spoken': spoken,
+            'public_event': public, 'revision': committed}
+
+
+def opening_turn(runtime, action):
+    from .kit_opening import opening_turn as turn
+    return turn(runtime, action)
 
 
 def lookup_beat(runtime, action):
@@ -1746,6 +1846,48 @@ def take_speak_now(db):
     return True
 
 
+def _open_named(db, chosen):
+    """A place name with no safe box. Kit starts there. The notes under it are not spoken."""
+    from .kit_adventure import IngestError
+    title = chosen.get('title') or 'Here'
+    line = chosen.get('kit_line') or ''
+    data = _read(db)
+    page = chosen.get('page') or 1
+    try:
+        done = accept(db, {
+            'burst': title if str(title).endswith('.') else '%s.' % title,
+            'source_quote': title,
+            'page_start': page, 'page_end': page,
+            'alt_starts': data.get('alt_starts') or [],
+            'design_start_name': title,
+        })
+    except IngestError:
+        done = {'stage': 'skim_rejected'}
+    if done.get('stage') == 'skim_accepted':
+        fresh = _read(db)
+        fresh['speak_now'] = True
+        fresh['kit_line'] = line
+        fresh['handoff'] = line or fresh.get('handoff')
+        beat = fresh.get('beat') if isinstance(fresh.get('beat'), dict) else {}
+        beat['fiction'] = [sentence for sentence in (beat.get('fiction') or [])
+                           if sentence and 'seem' not in sentence.casefold() and 'will lie' not in sentence.casefold()]
+        fresh['beat'] = beat
+        _write(db, fresh)
+        return {
+            'room': done.get('room'), 'room_id': done.get('room_id'), 'location': done.get('scene_key'),
+            'pick': title, 'line': title, 'starts': [], 'speak_now': True,
+            'spoken': 'Kit: %s' % line if line else None,
+        }
+    data['kit_line'] = line
+    data['table_line'] = line
+    data['status'] = 'rejected'
+    _write(db, data)
+    return {
+        'stage': 'kit_named', 'committed': False, 'opened_room': None, 'spoken': 'Kit: %s' % line,
+        'pick': title, 'line': title, 'table_line': line,
+    }
+
+
 def open_title(db, token):
     """A picker title becomes that scene's player fiction. Secrets are not a start."""
     from .kit_adventure import IngestError
@@ -1762,7 +1904,10 @@ def open_title(db, token):
     if chosen is None:
         return None
     quote = chosen.get('quote') or ''
-    if not quote or not _safe_box(quote):
+    if not quote and chosen.get('kit_line'):
+        return _open_named(db, chosen)
+    from .kit_opening import player_line
+    if not quote or not player_line(quote):
         raise IngestError(['%s is not player fiction' % chosen.get('title')])
     page = chosen.get('page') or 1
     done = accept(db, {

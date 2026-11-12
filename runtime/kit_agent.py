@@ -4710,6 +4710,13 @@ def check_scope(segments, plan, guards=None):
     rejected. Anything shorter still fails. Segment counts are unchanged.
     """
     scope = plan['public_brief']['scope']
+    people = set((guards or {}).get('opening_people') or ())
+    ref = ''
+    read = plan.get('improv_read') if isinstance(plan.get('improv_read'), dict) else {}
+    ref = read.get('actor_ref') or ''
+    if plan.get('move') == 'npc_reply' and ref and ref in people:
+        # A person this beat already has can be spoken to. The feature floor does not block it.
+        return None
     # Showtime: Kit's theatrical narration in her own segments is scene material.
     showtime = plan.get('table_presence') == 'showtime'
     performed = [segment for segment in segments if segment['speaker'] != 'Kit' or showtime]
@@ -6175,7 +6182,8 @@ def guard_context(source, body):
             'raisers': tuple(item['by'] for item in body.get('story_due') or ()),
             'table_talk': bool(body.get('table_talk')),
             'fact_text': ' '.join(str((fact or {}).get('text') or '')
-                                  for fact in ((source or {}).get('facts') or {}).values())}
+                                  for fact in ((source or {}).get('facts') or {}).values()),
+            'opening_people': tuple((source or {}).get('_opening_people') or ())}
 
 
 def _area_id(source, view):
@@ -7426,6 +7434,10 @@ class KitChatBridge:
         held = self._turn_waiting(turn_id, action)
         if held is not None:
             return held
+        from . import kit_skim
+        opened = kit_skim.opening_turn(self.runtime, action)
+        if opened is not None:
+            return opened
         ready = self._prepared_answer(action)
         if ready is not None:
             return ready
@@ -8205,6 +8217,9 @@ class KitChatBridge:
         # Turns staged before variants reached one-pass ran the `current` instructions.
         variant = body.get('performance_variant', 'current')
         record = self._checked_or_log(turn_id, body, plan, output['performance'], variant, degraded)
+        from . import kit_opening
+        record['spoken'] = kit_opening.guard_runtime(self.runtime, record.get('spoken') or '')
+        record['public_event'] = kit_opening.guard_runtime(self.runtime, record.get('public_event') or '')
         record.update(kit_interstitial.describe(record['trace'], turn_id))
         if record.get('engine_interstitial'):
             record.update(turn_role='interstitial', interstitial=record['engine_interstitial'])

@@ -32,8 +32,10 @@ creature the book does not stat resolves to SRD 5.1 if listed, else it is flagge
 import argparse
 import hashlib
 import json
+import os
 import re
 import shutil
+import signal
 import subprocess
 import sys
 import time
@@ -133,6 +135,15 @@ def pdf_yield_ok(text):
     return text_usable(text)
 
 
+def _cap_pages(text, max_pages):
+    """The opening window only, even if a reader hands back the rest of the file."""
+    parts = (text or '').split('\f')
+    kept = '\f'.join(parts[:int(max_pages or 1)])
+    if len(kept) > 100_000:
+        kept = kept[:100_000]
+    return kept
+
+
 def _pdftotext(path, max_pages=None):
     tool = shutil.which('pdftotext')
     if not tool:
@@ -141,13 +152,29 @@ def _pdftotext(path, max_pages=None):
     if max_pages:
         cmd += ['-l', str(int(max_pages))]
     cmd += [str(path), '-']
+    limit = shutil.which('timeout')
+    if limit and max_pages:
+        cmd = [limit, '-k', '1', '5'] + cmd
+    proc = subprocess.Popen(
+        cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, start_new_session=True)
     try:
-        done = subprocess.run(cmd, capture_output=True, timeout=6 if max_pages else 20)
-    except (OSError, subprocess.TimeoutExpired):
+        out, _ = proc.communicate(timeout=6 if max_pages else 20)
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except OSError:
+            proc.kill()
+        try:
+            proc.wait(timeout=1)
+        except subprocess.TimeoutExpired:
+            pass
         return None
-    if done.returncode != 0:
+    except OSError:
         return None
-    return done.stdout.decode('utf-8', errors='replace')
+    if proc.returncode != 0 or out is None:
+        return None
+    text = out.decode('utf-8', errors='replace')
+    return _cap_pages(text, max_pages) if max_pages else text
 
 
 def _pypdf_text(path, max_pages=None):
@@ -198,10 +225,9 @@ def read_pdf(path, reader='auto', max_pages=None):
     if reader == 'auto' and max_pages:
         alt, name = optional_pdf_text(path, 'pdftotext', max_pages=max_pages)
         if alt and (pdf_yield_ok(alt) or sum(ch.isalpha() for ch in alt) >= 40):
-            parts = alt.split('\f')
-            return '\f'.join(parts[:int(max_pages)]), name
-        # A large file is not parsed in Python after the short extract. That was the long wait.
-        if path.stat().st_size > 1_500_000:
+            return _cap_pages(alt, max_pages), name
+        # The rest of a large file is not parsed on the way to the opening.
+        if path.stat().st_size > 800_000:
             raise IngestError([POOR_TEXT])
     found = extract(data, max_pages=max_pages) if reader in ('auto', 'stdlib') else {'kind': 'poor', 'text': ''}
     # Letter-spaced stdlib text ('T h e', 'F o llo wi n') is a weak read. pdftotext, when the
