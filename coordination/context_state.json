@@ -2,16 +2,16 @@
   "schema": "kit_project_gardener_state/v1",
   "purpose": "RESUMABILITY_CURSOR_NOT_KNOWLEDGE_STORE",
   "canonical_location": "radarsaint/dnd-solo/coordination/context_state.json",
-  "state_revision": 60,
+  "state_revision": 61,
   "semantic_brain": {
     "repo": "radarsaint/dnd-solo",
     "path": "docs/PROJECT_UNDERSTANDING.md",
-    "last_semantic_commit": "210885b69e6b7efdb7aeab1824aa5708cfa29ad9",
+    "last_semantic_commit": "afaf31198bf9eb54059a5415fcf162a4173c4c9e",
     "last_reviewed_on": "2026-11-12"
   },
   "checkpoint": {
     "reviewed_against_main": {
-      "radarsaint/dnd-solo": "210885b69e6b7efdb7aeab1824aa5708cfa29ad9",
+      "radarsaint/dnd-solo": "afaf31198bf9eb54059a5415fcf162a4173c4c9e",
       "radarsaint/bfdm-corpus": "cf65ec04572b2a033383344d1f2583e3380686f7"
     },
     "context_inbox": {
@@ -25,9 +25,9 @@
   "last_completed_pass": {
     "kind": "BOUNDED_SEMANTIC_RECONCILIATION",
     "completed_on": "2026-11-12",
-    "scope": "Reviewed dnd-solo main after #205 merge (aba4b93); no new #115 comments beyond 6598407850.",
-    "result": "Accept: #205 lifecycle repair and scheduling change for adventure PDF indexing. Full structural index during preparation before skim; deepen_index preserves accepted skim/scene/cursor. Brain updated on main. No bfdm-corpus change. Unresolved items unchanged.",
-    "resulting_brain_commit": "210885b69e6b7efdb7aeab1824aa5708cfa29ad9",
+    "scope": "Reviewed dnd-solo main after #204 merge (1b3b9d81 / 5fc4ae7); no new #115 comments beyond 6598407850.",
+    "result": "Accept narrow: #204 source-attested scene contract and native adjudication for verified openings, durable PDF retention. Lexical guessers not used for source-verified scenes; opening verbs route through RoomAdjudicator. Local synthetic tests passed; full suite not certified; private PDFs and human playthrough not verified. Interpretation of goals/triggers still requires human review. Brain updated on main. No bfdm-corpus change. Unresolved items unchanged.",
+    "resulting_brain_commit": "afaf31198bf9eb54059a5415fcf162a4173c4c9e",
     "reconciled_comment_id": 6598407850
   },
   "active_pass": null,
