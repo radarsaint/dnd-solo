@@ -1580,7 +1580,79 @@ def draft_room(db, key, index, text, span=None):
     return room, sidecar
 
 
-def validate(room, sidecar, index, text):
+def _quote_at_source_offset(text, quote, offset, within=None):
+    """A citation offset must identify this exact quote, not a nearby or later statement."""
+    if type(offset) is not int or offset < 0 or offset >= len(text):
+        return False
+    words = str(quote).strip().lstrip('> ').split()
+    if not words:
+        return False
+    pattern = r'\s+'.join(re.escape(word) for word in words)
+    start = max(0, offset - len(quote) - 8)
+    end = min(len(text), offset + len(quote) + 8)
+    lo, hi = within if within is not None else (0, len(text))
+    return any(start + m.start() <= offset < start + m.end() and
+               lo <= start + m.start() and start + m.end() <= hi
+               for m in re.finditer(pattern, text[start:end]))
+
+
+def _validate_source_topology(room, sidecar, loc, index, text, expected_room, expected_sidecar, db=None):
+    """Prevent host drafts from changing sourced navigation, actors or encounter mechanics."""
+    problems = []
+    expected_connections = {f'way_{_slug(c["to"])}': c for c in loc['connections']}
+    exits = room.get('exits') or {}
+    if set(exits) != set(expected_room.get('exits') or {}):
+        problems.append('draft exits differ from source-defined connections')
+    for key, conn in expected_connections.items():
+        cand = exits.get(key)
+        if not isinstance(cand, dict):
+            continue
+        if cand.get('secret') is not conn.get('secret'):
+            problems.append(f'exits.{key} secret flag disagrees with the source')
+        if cand.get('areas') != ['here', f'to_{_slug(conn["to"])}']:
+            problems.append(f'exits.{key} changes source connection endpoints')
+        cited = (sidecar.get('fields') or {}).get(f'exits.{key}') or {}
+        if cited.get('offset') != conn['offset'] or _norm(str(cited.get('quote') or '')) != _norm(conn['quote']):
+            problems.append(f'exits.{key} does not cite its indexed connection')
+    extra = set(room) - set(expected_room)
+    if extra:
+        problems.append('draft adds unsourced room blocks: ' + ', '.join(sorted(extra)))
+    if room.get('id') != expected_room['id'] or room.get('starting_area') != expected_room['starting_area']:
+        problems.append('draft changes source room identity or starting area')
+    if room.get('source_ref') != expected_room['source_ref']:
+        problems.append('draft changes source reference')
+    if set(room.get('areas') or {}) != set(expected_room['areas']):
+        problems.append('draft changes source-defined area set')
+    for name, expected in expected_room['areas'].items():
+        candidate = (room.get('areas') or {}).get(name)
+        if not isinstance(candidate, dict):
+            continue
+        if db is not None or name == 'here':
+            if candidate != expected:
+                problems.append(f'areas.{name} changes source-defined area or navigation')
+        else:
+            # Direct validation without a DB still rejects tampering with link source/identity.
+            e = dict(expected)
+            c = dict(candidate)
+            e.pop('room_link', None)
+            link = c.pop('room_link', None)
+            if c != e or not isinstance(link, dict) or \
+                    (link.get('adventure') or {}).get('source_sha256') != index['sha256']:
+                problems.append(f'areas.{name} changes source-defined area or navigation')
+    for key, expected in expected_room.get('exits', {}).items():
+        if exits.get(key) != expected:
+            problems.append(f'exits.{key} changes source-defined exit details')
+    if (room.get('actors') or {}) != (expected_room.get('actors') or {}):
+        problems.append('draft actors differ from source-derived identities and stat blocks')
+    if (room.get('triggers') or []) != (expected_room.get('triggers') or []):
+        problems.append('draft triggers differ from source-derived encounter triggers')
+    if sidecar.get('ask_player') != expected_sidecar.get('ask_player') or \
+            sidecar.get('creatures') != expected_sidecar.get('creatures'):
+        problems.append('draft changes source-derived gaps or creature references')
+    return problems
+
+
+def validate(room, sidecar, index, text, db=None, span=None):
     """The runtime's checks on any draft, deterministic or model-assisted. Names every
     problem: a field with no source, a quote not in the location's text, a visible fact
     that quotes DM-only text, a fact that leaves its location, or a room the loader refuses."""
@@ -1591,11 +1663,15 @@ def validate(room, sidecar, index, text):
         return [f"provenance names no keyed location {sidecar.get('location')!r}"]
     if sidecar.get('source_sha256') != index['sha256']:
         problems.append('provenance is for a different source text')
-    span = text[loc['body'][0]:loc['body'][1]]
-    flat, flat_read = _norm(span.replace('>', ' ')), _norm(' '.join(
-        l.strip().lstrip('>') for l in span.split('\n') if l.strip().startswith('>')))
+    location_text = text[loc['body'][0]:loc['body'][1]]
+    flat, flat_read = _norm(location_text.replace('>', ' ')), _norm(' '.join(
+        l.strip().lstrip('>') for l in location_text.split('\n') if l.strip().startswith('>')))
     conn_quotes = {_norm(c['quote']) for c in loc['connections']}
     fields = sidecar.get('fields') or {}
+    expected_room, expected_sidecar = draft_room(
+        db if db is not None else '__validate_only__.sqlite',
+        sidecar['location'], index, text, span=span)
+    expected_facts = expected_room['facts']
     must = ['areas.here.name'] + [f'areas.{a}' for a in room.get('areas', {}) if a != 'here'] + \
         [f'exits.{e}' for e in room.get('exits', {})] + [f'facts.{f}' for f in room.get('facts', {})]
     for path in must:
@@ -1608,10 +1684,16 @@ def validate(room, sidecar, index, text):
         if path == 'areas.here.name':
             if quote != _norm(loc['name']):
                 problems.append(f'{path} does not match the location heading')
-        elif path.startswith(('areas.', 'exits.')):
+            if entry['offset'] != loc['offset']:
+                problems.append(f'{path} source offset does not point to the location heading')
+        elif path.startswith('facts.') and not _quote_at_source_offset(text, entry['quote'], entry['offset'], loc['body']):
+            problems.append(f'{path} source offset does not identify a quote in its location')
+        elif not path.startswith('facts.') and not _quote_at_source_offset(text, entry['quote'], entry['offset']):
+            problems.append(f'{path} source offset does not identify its quoted text')
+        if path.startswith(('areas.', 'exits.')) and path != 'areas.here.name':
             if quote not in conn_quotes:
                 problems.append(f'{path} quotes no connection stated in the source')
-        elif quote not in flat:
+        elif path.startswith('facts.') and quote not in flat:
             problems.append(f'{path} quote is not in location {loc["key"]}\'s text')
     for key, fact in (room.get('facts') or {}).items():
         entry = fields.get(f'facts.{key}') or {}
@@ -1625,9 +1707,18 @@ def validate(room, sidecar, index, text):
             if quote not in flat or _KEEP_HIDDEN.search(quote):
                 problems.append(f'fact {key} is visible but quotes DM-only text (secrets stay hidden)')
         body = _norm(str(fact.get('text', '')).rstrip('…'))
-        if quote and body and body not in quote and not _words_from(body, quote):
-            problems.append(f'fact {key} text says more than its quote')
-    problems += _actor_problems(room, fields, flat, index, text)
+        if quote and body and body.casefold() not in quote.casefold():
+            problems.append(f'fact {key} text says more than its quote or changes its wording')
+        extra = set(fact) - {'area', 'visible', 'text', 'handling', 'row', 'layer'}
+        if extra:
+            problems.append(f'fact {key} adds unsourced mechanics: {sorted(extra)}')
+        expected_fact = expected_facts.get(key) or {}
+        for owned in ('handling', 'row'):
+            if fact.get(owned) != expected_fact.get(owned):
+                problems.append(f'fact {key} changes source-derived {owned}')
+    problems += _actor_problems(room, fields, flat, index, text, loc)
+    problems += _validate_source_topology(room, sidecar, loc, index, text,
+                                          expected_room, expected_sidecar, db)
     if not problems:
         import warnings
         with warnings.catch_warnings(record=True) as caught:
@@ -1643,7 +1734,7 @@ def validate(room, sidecar, index, text):
     return problems
 
 
-def _actor_problems(room, fields, flat, index, text):
+def _actor_problems(room, fields, flat, index, text, loc):
     """Every combatant is sourced: its presence quotes this location, and every stat quotes the
     book's own stat block for it (and states that number) or names an SRD creature the runtime ships."""
     from .srd_creatures import CREATURES
@@ -1652,6 +1743,8 @@ def _actor_problems(room, fields, flat, index, text):
         where = fields.get(f'actors.{key}') or {}
         if not (isinstance(where.get('quote'), str) and _norm(where['quote']) in flat):
             problems.append(f'actors.{key} has no source quote in this location')
+        if not _quote_at_source_offset(text, where.get('quote', ''), where.get('offset'), loc['body']):
+            problems.append(f'actors.{key} source offset does not identify its quoted text')
         if isinstance(actor, dict) and actor.get('role') == 'speaker' and not actor.get('stat_block'):
             continue
         block = actor.get('stat_block') if isinstance(actor, dict) else None
@@ -1679,6 +1772,9 @@ def _actor_problems(room, fields, flat, index, text):
             if not quote or quote not in book:
                 problems.append(f'actors.{key}.stat_block.{field} has no source quote in its stat block')
                 continue
+            stat_where = fields.get(f'actors.{key}.stat_block.{field}') or {}
+            if not _quote_at_source_offset(text, stat_where.get('quote', ''), stat_where.get('offset'), (lo, hi)):
+                problems.append(f'actors.{key}.stat_block.{field} offset does not identify its source quote')
             numbers = [value] if isinstance(value, int) else \
                 [value.get('to_hit'), value.get('damage')] if isinstance(value, dict) else [None]
             if not all(isinstance(v, int) and re.search(rf'(?<![\d]){v}(?![\d])', quote) for v in numbers):
@@ -1721,7 +1817,7 @@ def compile_location(db, key, draft=None, neighbours=True, span=None, source_sha
         if not (isinstance(room, dict) and isinstance(sidecar, dict)):
             raise IngestError(['a draft is {"room": {...}, "provenance": {"location", "source_sha256", "fields"}}'])
         sidecar = {**sidecar, 'location': key, 'compiled_by': 'host_draft'}
-    problems = validate(room, sidecar, index, text)
+    problems = validate(room, sidecar, index, text, db=db, span=span)
     if problems:
         raise IngestError(problems)
     path = room_file(db, key, index['sha256'])

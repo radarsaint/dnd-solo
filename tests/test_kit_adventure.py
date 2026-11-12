@@ -102,6 +102,46 @@ class SourceVersioning(Base):
         self.assertFalse(Path(link['room']).exists())
 
 
+class SourceAuthority(Base):
+    """Adversarial REF002 claims against the newer compiled-room schema."""
+
+    def _draft(self, key='1'):
+        return kit_adventure.draft_room(self.db, key, self.index, self.text)
+
+    def _problems(self, room, side):
+        return kit_adventure.validate(room, side, self.index, self.text, db=self.db)
+
+    def test_secret_exit_cannot_be_reclassified(self):
+        room, side = self._draft('2')
+        room['exits']['way_3']['secret'] = False
+        self.assertTrue(any('secret' in s for s in self._problems(room, side)))
+
+    def test_room_link_cannot_be_redirected(self):
+        room, side = self._draft('1')
+        room['areas']['to_2']['room_link']['room'] = '/tmp/unrelated.json'
+        self.assertTrue(any('navigation' in s for s in self._problems(room, side)))
+
+    def test_source_offset_must_be_true(self):
+        room, side = self._draft('1')
+        side['fields']['facts.seen_1']['offset'] = self.index['locations']['2']['offset']
+        self.assertTrue(any('offset' in s for s in self._problems(room, side)))
+
+    def test_source_negation_is_not_optional(self):
+        room, side = self._draft('1')
+        key = next(k for k, fact in room['facts'].items() if 'will not cross' in fact['text'])
+        room['facts'][key]['text'] = room['facts'][key]['text'].replace('will not cross', 'will cross')
+        self.assertTrue(any('wording' in s for s in self._problems(room, side)))
+
+    def test_actors_and_triggers_are_source_owned(self):
+        room, side = self._draft('2')
+        self.assertTrue(room['actors'])
+        room['actors'].clear()
+        room['triggers'] = [{'id': 'made_up', 'on': {'enter': 'here'}, 'actors': [], 'reveal': 'Nothing.'}]
+        p = self._problems(room, side)
+        self.assertTrue(any('actors' in item for item in p), p)
+        self.assertTrue(any('triggers' in item for item in p), p)
+
+
 class Compile(Base):
     def test_compile_caches_and_precompiles_neighbours(self):
         out = kit_adventure.compile_location(self.db, '1')
