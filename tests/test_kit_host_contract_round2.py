@@ -161,6 +161,10 @@ class NormalHostPath(unittest.TestCase):
                 again = self.action('18')
                 self.assertEqual(again['stage'], 'roll_clarify', again)
                 self.assertIn('What is the 18 for?', again['spoken'])
+                status = call('status', '--db', self.db)
+                self.assertEqual(status.get('state'), 'playing', status)
+                self.assertIn('kit_agent prepare', status.get('next_command') or '')
+                self.assertNotIn('kit_agent start', status.get('next_command') or '')
     def test_authored_failed_notice_starts_fight_through_real_host_path(self):
         # A failure is never permission for Python to invent an ambush.
         # Here the actual source, and then the host's sourced condition,
@@ -290,6 +294,32 @@ class StagedSceneTests(unittest.TestCase):
             self.assertIn('Captain Mara', event)
             self.assertNotIn('the room', event)
             self.assertNotIn('call out across', event)
-            fourth = bridge.prepare('Go on')
-            self.assertNotIn(next_line, fourth.get('spoken') or '')
+            # Complete the NPC exchange through the actual one-pass contract,
+            # not merely the adjudicator's prepared event.
+            def reply(prepared, action, words):
+                plan = RecordingModel().plan(prepared['input']['private'])
+                plan.update(move='npc_reply', focus_actor='captain_mara',
+                            table_presence='brief')
+                plan['improv_read'].update(actor_ref='captain_mara',
+                                           actor_basis='immediate_goal')
+                plan['public_brief'].update(reply_to=action, scope='exchange')
+                return bridge.complete(prepared['turn_id'], {
+                    'decision': plan,
+                    'performance': {'segments': [{'speaker': 'Captain Mara',
+                                                  'text': words}]},
+                })
+            greeted = reply(third, 'I talk to Captain Mara.',
+                            'What can I do for you?')
+            self.assertIn('Captain Mara: What can I do for you?', greeted['spoken'])
+            question = '"Why are you holding the road?" I ask Captain Mara.'
+            fourth = bridge.prepare(question, one_pass=True)
+            self.assertEqual(fourth.get('stage'), 'one_pass', fourth)
+            answered = reply(fourth, question,
+                             'I have orders to hold the road until the wagons pass.')
+            self.assertIn('Captain Mara:', answered['spoken'])
+            self.assertIn('orders to hold the road', answered['spoken'])
+            self.assertNotIn('the room', answered['spoken'])
+            self.assertEqual(runtime.load()[1]['actors']['captain_mara']['status'], 'alive')
+            again = bridge.prepare('Go on')
+            self.assertNotIn(next_line, again.get('spoken') or '')
 
