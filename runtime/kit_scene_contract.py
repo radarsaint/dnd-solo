@@ -123,9 +123,13 @@ def validate(scene, raw_span, read_aloud, layout_span=None):
             problems.append('%s name is absent from its source quote' % label)
         if person.get('visibility') not in ('visible', 'hidden'):
             problems.append('%s visibility is invalid' % label)
-        elif person['visibility'] == 'visible' and not re.search(
-                r'\b' + re.escape(_norm(name or '')) + r'\b', _norm(read_aloud)):
-            problems.append('%s claims player visibility absent from the read-aloud' % label)
+        else:
+            in_read_aloud = bool(name and re.search(
+                r'\b' + re.escape(_norm(name)) + r'\b', _norm(read_aloud)))
+            if person['visibility'] == 'visible' and not in_read_aloud:
+                problems.append('%s claims player visibility absent from the read-aloud' % label)
+            if person['visibility'] == 'hidden' and in_read_aloud:
+                problems.append('%s hides a character the player-facing text already names' % label)
         if person.get('kind') not in KINDS:
             problems.append('%s kind is invalid' % label)
         goal = person.get('goal')

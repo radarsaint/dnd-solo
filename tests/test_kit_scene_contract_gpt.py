@@ -60,6 +60,14 @@ class SceneContractTests(unittest.TestCase):
         self.assertTrue(any('visibility' in p for p in kit_scene_contract.validate(
             changed, FICTION + '\n' + ENCOUNTER, FICTION)))
 
+    def test_visible_source_character_cannot_be_reclassified_as_hidden(self):
+        changed = _copy(SCENE)
+        changed['people'][0].update(name='caravan', quote=FICTION,
+                                    visibility='hidden', kind='person', goal=None)
+        changed['pressures'] = []
+        problems = kit_scene_contract.validate(changed, FICTION + '\n' + ENCOUNTER, FICTION)
+        self.assertTrue(any('hides' in item for item in problems), problems)
+
     def test_conditional_fact_cannot_drop_its_if_clause(self):
         condition = 'If the warning bell rings, the sentries lower the barrier.'
         new_scene = _copy(SCENE)
