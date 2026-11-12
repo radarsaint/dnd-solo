@@ -2,16 +2,16 @@
   "schema": "kit_project_gardener_state/v1",
   "purpose": "RESUMABILITY_CURSOR_NOT_KNOWLEDGE_STORE",
   "canonical_location": "radarsaint/dnd-solo/coordination/context_state.json",
-  "state_revision": 59,
+  "state_revision": 60,
   "semantic_brain": {
     "repo": "radarsaint/dnd-solo",
     "path": "docs/PROJECT_UNDERSTANDING.md",
-    "last_semantic_commit": "14b403c4ad5ef5f0bf8c0c60943ab65f115f9fad",
-    "last_reviewed_on": "2026-11-03"
+    "last_semantic_commit": "210885b69e6b7efdb7aeab1824aa5708cfa29ad9",
+    "last_reviewed_on": "2026-11-12"
   },
   "checkpoint": {
     "reviewed_against_main": {
-      "radarsaint/dnd-solo": "14b403c4ad5ef5f0bf8c0c60943ab65f115f9fad",
+      "radarsaint/dnd-solo": "210885b69e6b7efdb7aeab1824aa5708cfa29ad9",
       "radarsaint/bfdm-corpus": "cf65ec04572b2a033383344d1f2583e3380686f7"
     },
     "context_inbox": {
@@ -24,10 +24,10 @@
   },
   "last_completed_pass": {
     "kind": "BOUNDED_SEMANTIC_RECONCILIATION",
-    "completed_on": "2026-11-03",
-    "scope": "Reviewed #115 comment 6598407850 provisional non-DM creative-judgment observation.",
-    "result": "Accept narrow: one provisional self-reported case of non-DM creative collaboration with task reframing and decomposition leading to user approval; caveats on audit, confounds, and non-generalization recorded. No change to North Star, KRABS, or runtime. Brain updated. No bfdm-corpus change.",
-    "resulting_brain_commit": "14b403c4ad5ef5f0bf8c0c60943ab65f115f9fad",
+    "completed_on": "2026-11-12",
+    "scope": "Reviewed dnd-solo main after #205 merge (aba4b93); no new #115 comments beyond 6598407850.",
+    "result": "Accept: #205 lifecycle repair and scheduling change for adventure PDF indexing. Full structural index during preparation before skim; deepen_index preserves accepted skim/scene/cursor. Brain updated on main. No bfdm-corpus change. Unresolved items unchanged.",
+    "resulting_brain_commit": "210885b69e6b7efdb7aeab1824aa5708cfa29ad9",
     "reconciled_comment_id": 6598407850
   },
   "active_pass": null,
