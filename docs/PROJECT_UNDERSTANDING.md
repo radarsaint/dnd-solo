@@ -4,8 +4,8 @@
 **Status:** canonical on `dnd-solo/main` after Brendon-approved merges of #113 and #117 on 2026-10-08. It is no longer a proposed side-branch draft.  
 **Canonical location:** `radarsaint/dnd-solo/docs/PROJECT_UNDERSTANDING.md`  
 **Sibling repository:** `radarsaint/bfdm-corpus`  
-**Last substantive refresh:** 2026-11-12 (adventure PDF indexing lifecycle from merged #205: full structural index during preparation before skim; preserves accepted opening)
-**Context reviewed against:** `dnd-solo/main @ aba4b93b4a06464aeeb7989efe6b9a6ab6acf1c2`; `bfdm-corpus/main @ cf65ec04572b2a033383344d1f2583e3380686f7`
+**Last substantive refresh:** 2026-11-12 (source-attested opening/native adjudication from merged #204; adventure PDF indexing lifecycle from merged #205)
+**Context reviewed against:** `dnd-solo/main @ 8551bc276b7bbe91f36e85524d034d4fba41f55e`; `bfdm-corpus/main @ cf65ec04572b2a033383344d1f2583e3380686f7`
 
 **2026-10-21 bounded update:** Brendon's mount-to-North-Star developmental handoff and explicit assignment of its repository integration to ChatGPT Work. Runtime/corpus audits retain the boundaries recorded below; this update does not re-certify them.
 
@@ -60,5 +60,8 @@ Not supported: Kit has a superior image model; a complete/verified Kit runtime w
 
 **2026-11-12 adventure indexing lifecycle (merged #205 / aba4b93):**
 Full-book structural indexing of a retained PDF now occurs during preparation, after the fast opening-window extract and before the opening skim is submitted, via the returned `index_command`. It indexes the whole book structurally without sending the rest of the book to the model. An already-accepted skim, heard cursor, and mounted scene are preserved by `deepen_index()`; a verified opening is not reset to `scene_required`. Player Yes., Go on, or in-fiction action does not trigger full indexing. This is a lifecycle repair plus scheduling change on main; Mad Mage rooms remain unauthored and room-format expressiveness open. No change to North Star, KRABS, or non-adventure paths.
+
+**2026-11-12 source-attested opening and native adjudication (merged #204 / 1b3b9d81):**
+Source-verified openings use a host-proposed compact scene contract (place/people/goal/knowledge/discovery/pressure analysis with source quotes and evidence status). Python validates shape, contiguous location-bounded quotations, visible text scope, and complete conditional sentences; rejects unquoted extra mechanics. Source-verified scenes no longer use the lexical goal/people/place guessers. Verified opening verbs route through existing RoomAdjudicator rather than the opening-specific fixed Perception threshold, auto-bypass or forced surprise handler. Source-attested hidden actors participate in native Perception/Stealth handling; prospective entry attacks deferred unless explicitly represented as entry activation. Read-aloud progress is carried by an opening_cursor event in the authoritative SQLite transaction (sidecar is a convenience cache after successful commit). The entire supplied PDF is retained private, content-addressed, and SHA-256-checked next to the save. Local synthetic tests (203 selected) passed on Python 3.13.5; complete unittest discovery timed out at 150s; full suite is NOT CERTIFIED. Owner's private adventure PDFs, answer keys, second/third-book results, and a fresh independent human-host playthrough are NOT VERIFIED. Text-matched citations constrain inventions but cannot prove the model interpreted a person's actual goal or trigger timing correctly; human review and adversarial semantic cases remain necessary. Legacy skim requests without scene still follow existing logic for compatibility. No change to North Star or KRABS.
 
 (The remainder of the document continues with the established sections on workstreams, risks, acceptance, and history. The updates above are the only semantic changes required by the recent merges and this provisional observation.)
