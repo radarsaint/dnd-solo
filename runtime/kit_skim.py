@@ -1157,11 +1157,11 @@ def _append_body(db, index, text, block):
     return text, (start, len(text))
 
 
-def _bind(db, index, text, name, span, alts, burst, book_quote):
+def _bind(db, index, text, name, span, alts, burst, book_quote, verified=False, anchor=None):
     """Attach the accepted quote to a scene that has player text to compile."""
     from . import kit_scenes
     from .kit_adventure import IngestError, _write_json, compile_location, folder_for
-    key = _containing(index, span[0])
+    key = _containing(index, span[0] if anchor is None else anchor)
     compiled = None
     if key is not None:
         body = (index['locations'][key].get('body') or span)
@@ -1174,7 +1174,7 @@ def _bind(db, index, text, name, span, alts, burst, book_quote):
             page_slice = text[span[0]:span[1]]
             # A playable box with no trigger, while this span names a creature, is hollow.
             # Rebuild so the designed pressure is in the scene and still not spoken.
-            if not _playable(room, burst) or (not room.get('triggers') and _pressure(page_slice, book_quote)):
+            if not _playable(room, burst) or (not verified and not room.get('triggers') and _pressure(page_slice, book_quote)):
                 compiled = None
         except (IngestError, OSError, ValueError, KeyError):
             compiled = None
@@ -1486,6 +1486,7 @@ def accept(db, reply):
     span_end = _clip(text, span_start + 1, page_to)
     if span_end <= span_start:
         span_end = page_to
+    anchored_quote_offset = span_start
     from .kit_opening import build_beat, opening_text, _layout_stream
     if _pdf_requires_scene(db):
         # Require host interpretation on all real PDFs. Never silently fall back.
@@ -1521,7 +1522,8 @@ def accept(db, reply):
         # Explicit legacy compatibility is confined to unbundled pasted text.
         beat = build_beat(page_text, spoken, name)
     try:
-        key, compiled = _bind(db, index, text, normalize(name), (span_start, span_end), alts, spoken, book_quote)
+        key, compiled = _bind(db, index, text, normalize(name), (span_start, span_end), alts, spoken, book_quote,
+                              verified=bool(beat.get('source_verified')), anchor=anchored_quote_offset)
     except Exception as exc:
         return _reject(db, ['the opening could not be bound: %s' % exc], alts, expanded)
     handoff = _handoff(spoken + ' ' + book_quote, name)
