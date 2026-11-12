@@ -4,8 +4,8 @@
 **Status:** canonical on `dnd-solo/main` after Brendon-approved merges of #113 and #117 on 2026-10-08. It is no longer a proposed side-branch draft.  
 **Canonical location:** `radarsaint/dnd-solo/docs/PROJECT_UNDERSTANDING.md`  
 **Sibling repository:** `radarsaint/bfdm-corpus`  
-**Last substantive refresh:** 2026-11-03 (provisional non-DM creative-judgment observation from #115 comment 6598407850)
-**Context reviewed against:** `dnd-solo/main @ 86bed060b2844afc1fd33aff813266ff59f3c010`; `bfdm-corpus/main @ cf65ec04572b2a033383344d1f2583e3380686f7`
+**Last substantive refresh:** 2026-11-12 (adventure PDF indexing lifecycle from merged #205: full structural index during preparation before skim; preserves accepted opening)
+**Context reviewed against:** `dnd-solo/main @ aba4b93b4a06464aeeb7989efe6b9a6ab6acf1c2`; `bfdm-corpus/main @ cf65ec04572b2a033383344d1f2583e3380686f7`
 
 **2026-10-21 bounded update:** Brendon's mount-to-North-Star developmental handoff and explicit assignment of its repository integration to ChatGPT Work. Runtime/corpus audits retain the boundaries recorded below; this update does not re-certify them.
 
@@ -57,5 +57,8 @@ A single self-reported trajectory in a Warden's Creations homebrew remaster coll
 Supported: one reported case where protection of prior successful decisions and recognition of the whole creative objective (rather than local correction alone) coincided with user satisfaction. Consistent with KRABS emphasis on situation recognition, whole-task purpose, intervention choice, and preservation of accepted state.
 
 Not supported: Kit has a superior image model; a complete/verified Kit runtime was active; Kit's persona alone caused the improvement; the behavior reliably generalizes; non-DM satisfaction is solved; the homebrew was completed. Full transcript, runtime identity/manifest verification, image-generation conditions, and controlled comparison have not been independently audited. Archive retrieval from Drive lacked established complete manifest verification. Treat as one case/possible future regression probe, not a conclusive architectural result or change to North Star, KRABS, or runtime architecture. Confounds include additional references, repeated corrections, and framing change.
+
+**2026-11-12 adventure indexing lifecycle (merged #205 / aba4b93):**
+Full-book structural indexing of a retained PDF now occurs during preparation, after the fast opening-window extract and before the opening skim is submitted, via the returned `index_command`. It indexes the whole book structurally without sending the rest of the book to the model. An already-accepted skim, heard cursor, and mounted scene are preserved by `deepen_index()`; a verified opening is not reset to `scene_required`. Player Yes., Go on, or in-fiction action does not trigger full indexing. This is a lifecycle repair plus scheduling change on main; Mad Mage rooms remain unauthored and room-format expressiveness open. No change to North Star, KRABS, or non-adventure paths.
 
 (The remainder of the document continues with the established sections on workstreams, risks, acceptance, and history. The updates above are the only semantic changes required by the recent merges and this provisional observation.)
