@@ -36,6 +36,11 @@ jobs:
           python -c 'import sys; assert sys.version_info[:2] == (3, 8), sys.version'
           python -m runtime.kit_agent --help > /dev/null
           python -m unittest discover -s tests -p 'test_kit_py38_runtime_gpt.py' -v
+      - name: Verify the complete offline Kit mount on Python 3.8
+        run: |
+          python scripts/kit_host.py build --repo . --output "$RUNNER_TEMP/kit-py38.zip"
+          python scripts/kit_host.py mount --archive "$RUNNER_TEMP/kit-py38.zip" --destination "$RUNNER_TEMP/kit-py38-mounted" --expected-commit "$(git rev-parse HEAD)"
+          python scripts/kit_host.py verify --root "$RUNNER_TEMP/kit-py38-mounted/kit-$(git rev-parse HEAD)" --expected-commit "$(git rev-parse HEAD)"
       - name: Run the source-contract, secrecy and host-path regressions
         run: |
           python -m unittest discover -s tests -p 'test_kit_scene_contract_gpt.py' -v

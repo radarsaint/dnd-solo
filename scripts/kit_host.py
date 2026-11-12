@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build, mount, and verify a complete Kit source snapshot. Python stdlib only.
 
-Building requires git. Mounting needs only the downloaded ZIP and Python 3.10+;
+Building requires git. Mounting needs only the downloaded ZIP and Python 3.8+;
 it never needs network access, an API key, or a selected game.
 """
 import argparse
