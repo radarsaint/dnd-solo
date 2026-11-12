@@ -22,7 +22,7 @@ FIRST_WINDOW = 10
 EXPAND_ONCE = 8
 BURST_WORDS = 100
 PICK_MAX = 4
-KEYS = ('burst', 'source_quote', 'page_start', 'page_end', 'alt_starts', 'design_start_name')
+KEYS = ('burst', 'source_quote', 'page_start', 'page_end', 'alt_starts', 'design_start_name', 'scene')
 
 LANDING = "Got it. Who's walking in? A sentence or two about them, or hand me the sheet."
 READY_LINE = "We're set. Default is the book's start — Yes. begins."
@@ -194,7 +194,7 @@ INSTRUCTIONS = (
     'If that window has no playable heading and no boxed fiction, expand once by the '
     'next %d pages and stop. A second expand is refused.\n'
     'Return one JSON object and nothing else. Keys: burst, source_quote, page_start, '
-    'page_end, alt_starts, design_start_name.\n'
+    'page_end, alt_starts, design_start_name, scene.\n'
     'burst is the first player-facing sentences only, at most %d words, ending on a '
     'sentence. source_quote is the verbatim span those sentences come from, copied '
     'from those pages, with no tip, DC, secret, reward instruction, or note to the DM. '
@@ -202,6 +202,17 @@ INSTRUCTIONS = (
     'alt_starts is 2 to 4 early titles in this same window, each {"title","page"}. '
     'No later keyed room and no climax. design_start_name is the heading the book '
     'uses for this start.\n'
+    'scene is required for playable host interpretation: '
+    '{"place":{"name":word_in_read_aloud,"quote":verbatim_read_aloud},'
+    '"people":[{"id":lowercase_id,"name":literal_name,"quote":verbatim_presence,'
+    '"visibility":"visible|hidden","kind":"person|creature",'
+    '"goal":{"quote":verbatim_goal,"status":"established|conditional|inferred"}|null,'
+    '"knowledge":[]}],"discoveries":[],"pressures":[]}. '
+    'Each quote must be contiguous within this opening, not the book setup or later room. '
+    'For a pressure use {"kind":"ambush|conversation|hazard|none",'
+    '"quote":verbatim_encounter,"status":"conditional|established|inferred",'
+    '"actors":[person_id],"activation":"entry|disturb|deferred"}. Do not choose DCs, damage, surprise, initiative, '
+    'or player outcomes: those belong to the existing rules engine.\n'
     'To expand once, return {"expand": true} and nothing else, then skim the longer window.\n'
     'Python checks that the quote\'s words occur in order on those pages. '
     'A column may sit between the words. A paraphrase is refused. '
@@ -1147,7 +1158,7 @@ def _bind(db, index, text, name, span, alts, burst, book_quote):
             narrowed = (body[0], body[1])
         try:
             compiled = compile_location(db, key, neighbours=False, span=narrowed)
-            room = json.loads(open(compiled['room'], encoding='utf-8').read())
+            room = json.loads(Path(compiled['room']).read_text(encoding='utf-8'))
             page_slice = text[span[0]:span[1]]
             # A playable box with no trigger, while this span names a creature, is hollow.
             # Rebuild so the designed pressure is in the scene and still not spoken.
@@ -1172,7 +1183,7 @@ def _bind(db, index, text, name, span, alts, burst, book_quote):
         key = _emit_scene(index, text, name, span, letter)
         _write_json(folder_for(db) / 'index.json', index)
         compiled = compile_location(db, key, neighbours=False, span=span)
-        room = json.loads(open(compiled['room'], encoding='utf-8').read())
+        room = json.loads(Path(compiled['room']).read_text(encoding='utf-8'))
         if not _playable(room, burst):
             raise IngestError(['the opening has no player text to compile'])
     numbered = [loc for loc in (index.get('locations') or {}).values() if loc.get('type') != 'scene']
@@ -1305,14 +1316,28 @@ def accept(db, reply):
     span_end = _clip(text, span_start + 1, page_to)
     if span_end <= span_start:
         span_end = page_to
-    from .kit_opening import build_beat, opening_text
-    beat = build_beat(page_text, spoken, name)
+    from .kit_opening import build_beat, opening_text, _layout_stream
+    if 'scene' in reply:
+        from . import kit_scene_contract
+        scoped = text[span_start:span_end]
+        scene_problems = kit_scene_contract.validate(
+            reply['scene'], scoped, spoken, _layout_stream(scoped))
+        if scene_problems:
+            return _reject(db, scene_problems, alts, expanded)
+        from .kit_opening import fiction_lines
+        beat = kit_scene_contract.build_beat(
+            reply['scene'], spoken, name, fiction=fiction_lines(page_text, spoken))
+    else:
+        # Backward compatibility for existing host tests. The real host instruction
+        # requires a scene: lexical inference is not an accepted new design.
+        beat = build_beat(page_text, spoken, name)
     try:
         key, compiled = _bind(db, index, text, normalize(name), (span_start, span_end), alts, spoken, book_quote)
     except Exception as exc:
         return _reject(db, ['the opening could not be bound: %s' % exc], alts, expanded)
     handoff = _handoff(spoken + ' ' + book_quote, name)
-    _cast_people(compiled.get('room'), opening_text(page_text, spoken) or spoken)
+    if not beat.get('source_verified'):
+        _cast_people(compiled.get('room'), opening_text(page_text, spoken) or spoken)
     _stamp_beat(compiled.get('room'), beat)
     stored = {
         'status': 'accepted', 'burst': spoken, 'source_quote': book_quote,
@@ -1321,6 +1346,7 @@ def accept(db, reply):
         'scene_key': key, 'room': compiled.get('room'), 'room_id': compiled.get('room_id'),
         'handoff': handoff, 'expanded': expanded, 'burst_spoken': False,
         'table_line': READY_LINE, 'beat': beat,
+        **({'scene': reply['scene']} if beat.get('source_verified') else {}),
     }
     if data.get('sheet'):
         stored['sheet'] = data['sheet']
@@ -1412,15 +1438,53 @@ def _stamp_beat(room_path, beat):
         room = json.loads(path.read_text(encoding='utf-8'))
     except (OSError, ValueError):
         return
-    ids = [person.get('id') for person in beat.get('people') or [] if person.get('id')]
-    room['_opening_people'] = ids
-    room['_opening_place'] = beat.get('place_noun') or ''
     noun = beat.get('place_noun') or ''
+    room['_opening_place'] = noun
     areas = room.setdefault('areas', {})
     here = room.get('starting_area') or 'here'
     if noun and noun != 'room' and isinstance(areas.get(here), dict):
         areas[here]['called'] = 'the ' + noun
     actors = room.setdefault('actors', {})
+    ids = []
+    verified = bool(beat.get('source_verified'))
+    def stem(value):
+        value = re.sub(r'\s+\d+$', '', str(value or '').casefold())
+        value = re.sub(r'[^a-z0-9]+', '_', value).strip('_')
+        return value[:-1] if value.endswith('s') else value
+    unresolved = []
+    for person in beat.get('people') or []:
+        pid = person.get('id')
+        if not pid:
+            continue
+        matches = ([key for key, actor in actors.items()
+                    if key == pid or (verified and stem(actor.get('name')) == stem(person.get('name')))]
+                   if verified else [pid] if pid in actors else [])
+        # Source-attested speakers may be represented without a combat stat block.
+        # Source-attested creatures without any book/SRD stat must not be invented.
+        if verified and not matches and person.get('kind') == 'speaker':
+            actors[pid] = {
+                'name': person['name'], 'location': here,
+                'status': 'hidden' if person.get('hidden') else 'alive',
+                'visible': not person.get('hidden'), 'role': 'speaker',
+            }
+            matches = [pid]
+        if verified and not matches:
+            unresolved.append(pid)
+        for key in matches:
+            if key not in ids:
+                ids.append(key)
+            actor = actors.get(key)
+            if not isinstance(actor, dict):
+                continue
+            if verified and actor.get('status') in ('alive', 'hidden'):
+                actor['status'] = 'hidden' if person.get('hidden') else 'alive'
+                actor['visible'] = not person.get('hidden')
+            if person.get('goal'):
+                actor['immediate_goal'] = person['goal']
+                actor['motive'] = person.get('motive') or person['goal']
+    room['_opening_people'] = ids
+    if verified:
+        room['_opening_unresolved_people'] = unresolved
     # A patron named only in the setup is not this beat's person.
     if ids:
         drop = [key for key, actor in actors.items()
@@ -1439,14 +1503,21 @@ def _stamp_beat(room_path, beat):
             kept.append(item)
         if room.get('triggers') is not None:
             room['triggers'] = kept
-    for person in beat.get('people') or []:
-        actor = actors.get(person.get('id'))
-        if not isinstance(actor, dict):
-            continue
-        if person.get('goal'):
-            actor['immediate_goal'] = person['goal']
-            actor['motive'] = person.get('motive') or person['goal']
-    if (beat.get('notice') or {}).get('holds'):
+    if verified:
+        # A host-attested prospect is not an on-entry attack unless the source
+        # interpretation explicitly supports that timing. Defer the existing
+        # trigger instead of deleting its actors or inventing an outcome.
+        room['_opening_verified'] = True
+        room['_opening_pressures'] = list(beat.get('source_contract', {}).get('pressures') or ())
+        room['_opening_discoveries'] = list(beat.get('discoveries') or ())
+        immediate = any(p.get('activation') == 'entry' and p.get('kind') == 'ambush'
+                        for p in room['_opening_pressures'])
+        for trigger in room.get('triggers') or []:
+            if isinstance(trigger, dict) and 'enter' in (trigger.get('on') or {}) and not immediate:
+                trigger['_deferred'] = True
+                trigger['starts_combat'] = False
+                trigger['notice'] = False
+    elif (beat.get('notice') or {}).get('holds'):
         for item in room.get('triggers') or []:
             if isinstance(item, dict) and 'enter' in (item.get('on') or {}):
                 item['notice'] = True
@@ -1703,7 +1774,16 @@ def opening_line(db):
     beat = data.get('beat')
     if isinstance(beat, dict):
         from .kit_opening import player_line, _mark_heard
-        _mark_heard(beat, [sentence for sentence in _sentences(burst) if player_line(sentence)])
+        if beat.get('source_verified'):
+            # This burst was source-checked; it need not match the old pattern
+            # recognizer's idea of a 'scene line' to count as spoken.
+            initial = [_norm for _norm in _sentences(burst) if _norm]
+            fiction = beat.get('fiction') or []
+            beat['heard'] = len([line for line in fiction if normalize(line) in
+                                 {normalize(item) for item in initial}])
+            beat.setdefault('observed', {}).setdefault('heard', []).extend(initial)
+        else:
+            _mark_heard(beat, [sentence for sentence in _sentences(burst) if player_line(sentence)])
         data['beat'] = beat
     _write(db, data)
     spoken = 'Narrator: %s' % burst
@@ -1762,7 +1842,8 @@ def _release_beat(runtime, data, revision):
     """Go on reads the fiction cursor. Heard lines are not read again. Screen lines are not in it."""
     from .kit_opening import player_line
     beat = data['beat']
-    lines = [sentence for sentence in (beat.get('fiction') or []) if player_line(sentence)]
+    lines = (list(beat.get('fiction') or []) if beat.get('source_verified')
+             else [sentence for sentence in (beat.get('fiction') or []) if player_line(sentence)])
     if not data.get('burst_spoken'):
         spoken = opening_line(runtime.path)
         if not spoken:
@@ -1774,6 +1855,13 @@ def _release_beat(runtime, data, revision):
         return {'stage': 'read_on', 'committed': True, 'calls': 1, 'spoken': spoken,
                 'public_event': fresh.get('burst') or '', 'revision': committed}
     heard = int(beat.get('heard') or 0)
+    verified = beat.get('source_verified') is True
+    if verified:
+        # SQLite is the authority after a crash between commit and sidecar cache.
+        _revision, state = runtime.load()
+        cursor = state.get('opening_cursor') or {}
+        if cursor.get('room_id') == runtime.source().get('id'):
+            heard = max(heard, int(cursor.get('heard', 0)))
     if heard == 0 and data.get('burst_spoken'):
         heard = len([sentence for sentence in _sentences(data.get('burst') or '') if player_line(sentence)])
     chunk_lines = []
@@ -1794,7 +1882,6 @@ def _release_beat(runtime, data, revision):
             heard_lines.append(sentence)
     data['beat'] = beat
     data['remainder'] = ' '.join(lines[beat['heard']:])
-    _write(runtime.path, data)
     if not chunk_lines:
         spoken = 'Kit: %s' % OPENING_DONE
         public = OPENING_DONE
@@ -1804,10 +1891,22 @@ def _release_beat(runtime, data, revision):
         hand = 'Go on for the rest, or say what you do.' if left else (data.get('handoff') or 'Say what you do.')
         spoken = 'Narrator: %s\nKit: %s' % (chunk, hand)
         public = chunk
-        _note_people(runtime, chunk)
+        if not verified:
+            _note_people(runtime, chunk)
     events = [{'type': 'beat', 'tags': ['read_on'],
                'evidence': 'Unread player lines from the opening beat. Screen text stays back.'}]
+    if verified:
+        events.append({'type': 'opening_cursor', 'room_id': runtime.source().get('id'),
+                       'heard': int(beat['heard']),
+                       'evidence': 'The accepted opening read-aloud cursor advances with the turn.'})
     committed = runtime.commit('read-%s' % revision, revision, events)
+    # This file is only a convenience cache. A failed commit must never advance
+    # it, and a successful commit survives losing the cache write.
+    try:
+        _write(runtime.path, data)
+    except OSError:
+        if not verified:
+            raise
     return {'stage': 'read_on', 'committed': True, 'calls': 1, 'spoken': spoken,
             'public_event': public, 'revision': committed}
 

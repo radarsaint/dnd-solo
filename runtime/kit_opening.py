@@ -793,6 +793,10 @@ def opening_turn(runtime, action):
     data, beat = _load(runtime)
     if not beat or data.get('status') != 'accepted':
         return None
+    if beat.get('source_verified'):
+        # All player deeds enter the general adjudicator, never the opening's
+        # old fixed notice threshold, auto-bypass, or forced-initiative path.
+        return None
     try:
         runtime.load()
     except Exception:

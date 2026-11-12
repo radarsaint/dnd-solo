@@ -1721,6 +1721,73 @@ def room_is_empty(room):
     return not texts and not exits
 
 
+def preserve_pdf_source(db, pdf):
+    """Keep the complete private PDF next to the save, with content identity.
+
+    The opening parser is intentionally bounded. Its original input must not be
+    a temporary path: deeper reads after a host reset use this immutable copy.
+    Copying is streamed, not a second PDF parse. No adventure bytes enter Git.
+    """
+    import tempfile
+    folder = folder_for(db)
+    copies = folder / 'pdf_sources'
+    copies.mkdir(parents=True, exist_ok=True)
+    digest = hashlib.sha256()
+    pending = None
+    try:
+        with tempfile.NamedTemporaryFile(prefix='.pdf-', suffix='.pending',
+                                         dir=str(copies), delete=False) as output:
+            pending = Path(output.name)
+            with Path(pdf).open('rb') as source:
+                while True:
+                    chunk = source.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    digest.update(chunk)
+                    output.write(chunk)
+        sha = digest.hexdigest()
+        destination = copies / (sha + '.pdf')
+        if destination.is_file():
+            pending.unlink()
+        else:
+            os.replace(str(pending), str(destination))
+        receipt = {'sha256': sha, 'file': destination.name}
+        _write_json(folder / 'source.pdf.json', receipt)
+        return receipt
+    except OSError as exc:
+        raise IngestError(['could not retain the complete private adventure PDF: %s' % exc])
+    finally:
+        if pending is not None and pending.exists():
+            pending.unlink()
+
+
+def retained_pdf_source(db):
+    """Read a verified private PDF; never chase a stale host filesystem path."""
+    folder = folder_for(db)
+    metadata = folder / 'source.pdf.json'
+    if not metadata.is_file():
+        return None
+    receipt = _read_json(metadata)
+    sha = receipt.get('sha256')
+    if not isinstance(sha, str) or not re.fullmatch('[0-9a-f]{64}', sha):
+        raise IngestError(['invalid retained PDF identity'])
+    if receipt.get('file') != sha + '.pdf':
+        raise IngestError(['retained PDF name does not match its identity'])
+    path = folder / 'pdf_sources' / (sha + '.pdf')
+    if not path.is_file():
+        raise IngestError(['retained adventure PDF is unavailable'])
+    digest = hashlib.sha256()
+    with path.open('rb') as source:
+        while True:
+            chunk = source.read(1024 * 1024)
+            if not chunk:
+                break
+            digest.update(chunk)
+    if digest.hexdigest() != sha:
+        raise IngestError(['retained adventure PDF checksum does not match'])
+    return path
+
+
 def _first_pages(text, count):
     parts = (text or '').split('\f')
     return '\f'.join(parts[:int(count)])
@@ -1779,16 +1846,14 @@ def ingest_adventure(db, text=None, pdf=None, title=None, reader='auto'):
     how = 'text'
     if text is None:
         text, how = read_opening(pdf, reader=reader)
-        try:
-            folder_for(db).mkdir(parents=True, exist_ok=True)
-            (folder_for(db) / 'source.pdf.path').write_text(str(Path(pdf).resolve()), encoding='utf-8')
-        except OSError:
-            pass
+        preserved = preserve_pdf_source(db, pdf)
     else:
         from .kit_skim import OPENING_PAGES
         text = _first_pages(text, OPENING_PAGES)
         how = 'text'
     report = import_adventure(db, text=text, title=title)
+    if pdf is not None:
+        report['source_pdf_sha256'] = preserved['sha256']
     from . import kit_labels
     kit_labels.mark_leading_front(db)
     try:
@@ -1825,7 +1890,7 @@ def ingest_adventure(db, text=None, pdf=None, title=None, reader='auto'):
     }
     if not compiled:
         return {
-            'stage': 'adventure_ingested', 'reader': how, 'title': report['title'],
+            'stage': 'adventure_ingested', 'reader': how, 'source_pdf_sha256': preserved['sha256'] if pdf else None, 'title': report['title'],
             'locations': report['locations'], 'chapters': report['chapters'],
             'start_location': None, 'start_room': None, 'starts': places, 'places': places,
             'opened_room': None, 'character_loaded': False, 'committed': False,
@@ -1839,7 +1904,7 @@ def ingest_adventure(db, text=None, pdf=None, title=None, reader='auto'):
             **readiness(db),
         }
     return {
-        'stage': 'adventure_ingested', 'reader': how, 'title': report['title'],
+        'stage': 'adventure_ingested', 'reader': how, 'source_pdf_sha256': preserved['sha256'] if pdf else None, 'title': report['title'],
         'locations': report['locations'], 'chapters': report['chapters'],
         'start_location': report['start_location'], 'start_room': compiled['room'],
         'starts': _read_json(folder_for(db) / 'index.json').get('starts') or [],
@@ -1868,10 +1933,9 @@ def deepen_index(db):
             'stage': 'index_later', 'deferred': True, 'committed': False,
             'table_line': 'The opening is already in hand. Do not read the rest of the book yet.',
         }
-    ref = folder_for(db) / 'source.pdf.path'
-    if not ref.is_file():
+    path = retained_pdf_source(db)
+    if path is None:
         return {'stage': 'index_idle'}
-    path = ref.read_text(encoding='utf-8').strip()
     from .kit_skim import _read, accept
     prior = _read(db)
     text, how = read_pdf(path, reader='auto')

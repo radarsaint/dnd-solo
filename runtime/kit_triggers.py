@@ -263,6 +263,8 @@ def entered(source, state, result):
     landed = arrived(source, state, result)
     here = landed or state.get('area')
     for trigger in pending(source, state):
+        if trigger.get('_deferred'):
+            continue  # A source-attested possibility is not an entry event.
         kind, target = next(iter(trigger['on'].items()))
         if kind == 'enter' and target == here:
             return trigger, here

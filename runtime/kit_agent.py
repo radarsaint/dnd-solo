@@ -1157,6 +1157,21 @@ class RoomAdjudicator:
                                                self.npc_roll)
             if hidden:
                 result = dataclasses.replace(result, events=list(result.events) + hidden)
+        if (self.source or {}).get('_opening_verified') and result.public_event == 'They speak to the room.':
+            # The old generic social fallback names an indoor room even on a road.
+            # A declaration creates a conversational opening, not an NPC response.
+            where = (self.source.get('_opening_place') or '').strip()
+            place = ' across the %s' % where if where else ''
+            result = dataclasses.replace(result,
+                                         public_event='You call out%s. What do you say?' % place)
+        if (self.source or {}).get('_opening_verified') and result.kind == 'observe' and not (
+                state.get('pending_check') or kit_rolls.stated_skill(action)):
+            hidden = [key for key in (self.source.get('_opening_people') or ())
+                      if (state.get('actors', {}).get(key) or {}).get('status') == 'hidden']
+            if hidden:
+                # A look at source-attested hidden people is a normal called
+                # Perception check, not the former opening's hard-coded DC 10.
+                result = self._call_roll(RollNeeded('perception'), action, revision, state)
         if (self.source or {}).get('triggers'):
             result = self._offer_handles(result, action, state)
             # Only arrival fires on the engine's own read; a disturbance needs Kit's declared
@@ -2635,10 +2650,45 @@ class RoomAdjudicator:
         target, area = pending['target'], state.get('area')
         if pending.get('exit'):
             return self._resolve_held_exit(pending, roll_text, revision, state)
+        if pending.get('action') and (self.source or {}).get('_opening_verified') and \
+                skill == 'perception':
+            from . import kit_triggers
+            hidden = {key: actor for key, actor in (state.get('actors') or {}).items()
+                      if key in (self.source.get('_opening_people') or ())
+                      and actor.get('status') == 'hidden' and actor.get('location') == area}
+            if hidden:
+                # The target is an actual source-attested actor. An active
+                # Perception total challenges their Stealth, not a fixed opening
+                # threshold. The encounter still chooses whether to attack.
+                dc = max(kit_claims.npc_passive(actor, 'stealth') for actor in hidden.values())
+                witnessed = total >= dc
+                evidence = ('Player made the called Perception check for hidden actors: '
+                            '%s against source-actor Stealth %s. %s.' % (
+                                total, dc, 'Noticed' if witnessed else 'Not noticed'))
+                events = [{'type': 'beat', 'tags': ['notice', 'success' if witnessed else 'fail'],
+                           'evidence': evidence}]
+                if witnessed:
+                    revealing = [t for t in kit_triggers.pending(self.source, state)
+                                 if t.get('_deferred') and any(k in hidden for k in t.get('actors') or ())]
+                    for trig in revealing:
+                        events.append({'type': 'trigger_fired', 'trigger': trig['id'],
+                                       'evidence': evidence + ' The player sees the previously concealed actors.'})
+                    labels = [actor.get('name') or key for key, actor in hidden.items()]
+                    public = 'You spot %s before they act. What do you do?' % ', '.join(labels)
+                else:
+                    public = 'You do not catch anyone in the open. What do you do?'
+                return Resolution('called_check', public, events + [clear])
         if pending.get('action'):
             # The engine called this roll for an act: the roll resolves that act now.
             calm = {k: v for k, v in state.items() if k not in ('pending_check', 'standing_check')}
-            result = self._resolve(f'{pending["action"]}\n{roll_text}', revision, calm)
+            attempt = f'{pending["action"]}\n{roll_text}'
+            if pending.get('notice_trigger'):
+                # A source-authored encounter trigger lives in the adjudicator's
+                # _resolve_open path, not in its primitive _resolve routine.
+                # Re-evaluate the attempted look there, with the supplied roll.
+                result = self._resolve_open(attempt, revision, calm, False, None)
+            else:
+                result = self._resolve(attempt, revision, calm)
             extra = [] if any(e.get('type') == 'pending_check' for e in result.events) else [clear]
             return Resolution(result.kind, result.public_event, list(result.events) + extra)
         if skill in SOCIAL_CHECK_SKILLS:
@@ -2834,6 +2884,14 @@ class RoomAdjudicator:
         words = room_words(self.source, state)
         leaving = bool(re.search(r'\b(door|out|leave|past)\b', narration, re.I) or any(
             re.search(r'\b' + re.escape(word) + r'\b', narration, re.I) for word, _ in words.exits))
+        # In an open starting scene, the fiction may offer a way past an ambush
+        # without a keyed room exit. Stealth is still a real attempt against the
+        # ambushers; only an actual known exit authorizes a move event.
+        known_here = [k for k in (state.get('known_exits') or ())
+                      if state.get('area') in ((self.source.get('exits') or {}).get(k) or {}).get('areas', ())]
+        crossing_open = leaving and not known_here
+        if crossing_open:
+            leaving = False
         key = self._exit_taken(action, state) if leaving and not watchers else None
         exit_event = {'type': 'move', 'exit': key, 'evidence': f'The player left by the known exit {key}, unnoticed.'}
         if not watchers:
@@ -2874,11 +2932,15 @@ class RoomAdjudicator:
                           [{'type': 'beat', 'tags': ['stealth', 'noticed'], 'evidence': evidence}] + record)
 
     def _stealth_watchers(self, state):
-        """Who here could notice the PC, with their passive Perception: present actors able to
-        perceive (a sleeping or unconscious guard watches nobody)."""
+        """Everyone here who can notice the PC, including unseen ambushers.
+
+        Hidden from the player is not blind. This private check must not reveal
+        names of hidden actors in public text, but their perception still counts.
+        """
         return {key: kit_claims.npc_passive(actor, 'perception')
-                for key, actor in self._present_actors(state).items()
-                if actor.get('status') not in self.BLOCKERS_UNABLE}
+                for key, actor in (state.get('actors') or {}).items()
+                if actor.get('location') == state.get('area')
+                and actor.get('status') not in ('fled', 'dead') + self.BLOCKERS_UNABLE}
 
     def _standing_event(self, state, revision, die, modifier, watchers, evidence):
         """An established Stealth result: its total, its scope (this area) and what it beat."""

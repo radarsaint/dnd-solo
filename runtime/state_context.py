@@ -111,7 +111,7 @@ KEEPS_PENDING_CHECK = BOOKKEEPING_EVENTS + ('refused_attempt',)
 # A pending check's optional fields: a held exit, and room for the check-calling follow-up's
 # quiet DC adjustment for creative use of the scene (Brendon: about -2) with its reason. Not
 # applied anywhere yet.
-PENDING_CHECK_OPTIONAL = {'exit', 'dc_adjust', 'reason', 'threshold', 'held', 'dc', 'action'}
+PENDING_CHECK_OPTIONAL = {'exit', 'dc_adjust', 'reason', 'threshold', 'held', 'dc', 'action', 'notice_trigger'}
 # ``action``: the act a check the engine itself called waits on (the act needs the PC's roll and
 # the engine never rolls for them); the player's roll resolves it (LET_IT_RIDE.md).
 # A standing check (Let It Ride): an established result that holds while the PC keeps at the same
@@ -1173,6 +1173,11 @@ class Runtime:
                                                                  len(check['reason']) <= 200)) and
                                       ('action' not in check or (isinstance(check['action'], str) and
                                                                  0 < len(check['action']) <= 2000)) and
+                                      ('notice_trigger' not in check or
+                                       (check['skill'] == 'perception' and
+                                        check['notice_trigger'] in {
+                                            trig.get('id') for trig in (source.get('triggers') or ())
+                                            if isinstance(trig, dict) and trig.get('notice') is True})) and
                                       pc_sheet.SKILLS.get(check['skill']) == check['ability'] and
                                       isinstance(check['target'], str) and isinstance(check['called_turn'], str)),
                     'pending_check is {skill, ability, target, called_turn[, exit, threshold, held, dc, dc_adjust, reason, action]} or None')
@@ -1367,6 +1372,18 @@ class Runtime:
             require(isinstance(event.get('what'), str) and event.get('what').strip(),
                     'place_change names what changed')
             kit_scenes.log_change(state, source.get('id'), change, event['what'], event.get('detail') or '')
+        elif kind == 'opening_cursor':
+            # A validated read-aloud cursor is game state, not a sidecar file update.
+            # Apply it inside the same SQLite transaction as the spoken beat.
+            require(source.get('_opening_verified') is True and
+                    event.get('room_id') == source.get('id'),
+                    'opening_cursor requires this verified opening room')
+            heard = event.get('heard')
+            prior = state.get('opening_cursor') or {}
+            require(type(heard) is int and 0 <= heard <= 256 and
+                    heard >= prior.get('heard', 0),
+                    'opening_cursor may only advance')
+            state['opening_cursor'] = {'room_id': source['id'], 'heard': heard}
         elif kind == 'beat':
             tags = event.get('tags')
             require(isinstance(tags, list) and all(isinstance(t, str) for t in tags), 'Invalid beat tags')
