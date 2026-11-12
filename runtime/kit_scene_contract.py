@@ -53,6 +53,16 @@ def _whole_sentence(quote, sources):
     if not proposed:
         return False
     for source in sources:
+        # Print layout has independent headings and boxed paragraphs. Preserve
+        # source line boundaries before normalizing whitespace; otherwise a
+        # location header can be glued to the following complete sentence.
+        for line in source.splitlines():
+            for sentence in re.split(r'(?<=[.!?])\s+', _norm(line)):
+                if proposed == sentence.strip(' .!?'):
+                    return True
+        # Wrapped sentences may span multiple lines. If a source sentence is
+        # intact after joining, accept it only when it starts at a real sentence
+        # boundary, not midway through a governing conditional clause.
         for sentence in re.split(r'(?<=[.!?])\s+', _norm(source)):
             if proposed == sentence.strip(' .!?'):
                 return True
@@ -121,7 +131,7 @@ def validate(scene, raw_span, read_aloud, layout_span=None):
             problems.append('%s presence quote is outside the bounded encounter' % label)
         if not name or not re.search(r'\b' + re.escape(_norm(name)) + r'\b', _norm(person['quote'])):
             problems.append('%s name is absent from its source quote' % label)
-        if person.get('visibility') not in ('visible', 'hidden'):
+        if person.get('visibility') not in ('visible', 'hidden', 'staged'):
             problems.append('%s visibility is invalid' % label)
         else:
             in_read_aloud = bool(name and re.search(
@@ -130,6 +140,15 @@ def validate(scene, raw_span, read_aloud, layout_span=None):
                 problems.append('%s claims player visibility absent from the read-aloud' % label)
             if person['visibility'] == 'hidden' and in_read_aloud:
                 problems.append('%s hides a character the player-facing text already names' % label)
+            if person['visibility'] == 'staged':
+                # A person first introduced by Go on is not on stage when the
+                # opening burst is spoken. Only explicit later read-aloud text
+                # can certify this staging, not a DM-only narrative sentence.
+                marked = any(line.strip().startswith('>') and re.search(
+                    r'\b' + re.escape(_norm(name or '')) + r'\b', _norm(line))
+                    for line in raw_span.splitlines())
+                if in_read_aloud or not marked:
+                    problems.append('%s staged actor needs later marked player read-aloud' % label)
         if person.get('kind') not in KINDS:
             problems.append('%s kind is invalid' % label)
         goal = person.get('goal')
@@ -184,14 +203,15 @@ def build_beat(scene, burst, place_heading, fiction=None):
     from . import kit_skim
     people = []
     for person in scene['people']:
-        hidden = person['visibility'] == 'hidden'
+        hidden = person['visibility'] != 'visible'
+        staged = person['visibility'] == 'staged'
         goal = person.get('goal') or {}
         # A conditional or inferred motive is not a new authoritative world fact.
         accepted_goal = goal.get('quote', '') if goal.get('status') == 'established' else ''
         people.append({
             'id': person['id'], 'name': person['name'], 'hidden': hidden,
             'kind': 'creature' if person['kind'] == 'creature' else 'speaker',
-            'revealed': not hidden, 'addressable': not hidden,
+            'revealed': not hidden, 'addressable': not hidden, 'staged': staged,
             'goal': accepted_goal, 'motive': accepted_goal,
             'knowledge_evidence': person['knowledge'],
         })

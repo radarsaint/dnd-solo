@@ -2074,6 +2074,13 @@ def readiness(db, mounted_id=None):
             level = 'campaign_playable'
         out['mounted_location'] = here
     out['adventure_readiness'] = level
+    from . import kit_skim
+    state = kit_skim._read(db)
+    out['scene_contract'] = {
+        'required': (folder / 'source.pdf.json').is_file(),
+        'status': ('verified' if (state.get('beat') or {}).get('source_verified')
+                   else state.get('status') or 'not_started'),
+    }
     return out
 
 

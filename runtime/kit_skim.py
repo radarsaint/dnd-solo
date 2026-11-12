@@ -205,9 +205,10 @@ INSTRUCTIONS = (
     'scene is required for playable host interpretation: '
     '{"place":{"name":word_in_read_aloud,"quote":verbatim_read_aloud},'
     '"people":[{"id":lowercase_id,"name":literal_name,"quote":verbatim_presence,'
-    '"visibility":"visible|hidden","kind":"person|creature",'
+    '"visibility":"visible|hidden|staged","kind":"person|creature",'
     '"goal":{"quote":verbatim_goal,"status":"established|conditional|inferred"}|null,'
     '"knowledge":[]}],"discoveries":[],"pressures":[]}. '
+    'A staged person is first named in a later marked read-aloud line (Go on), not the first burst. '
     'Each quote must be contiguous within this opening, not the book setup or later room. '
     'For a pressure use {"kind":"ambush|conversation|hazard|none",'
     '"quote":verbatim_encounter,"status":"conditional|established|inferred",'
@@ -496,6 +497,17 @@ def request_for(db):
         'expanded': expanded,
         'burst_words': BURST_WORDS,
         'instructions': INSTRUCTIONS,
+        'source_verified_required': _pdf_requires_scene(db),
+        'scene_contract_status': (_read(db).get('status') or 'not_started'),
+        'scene_shape': {
+            'place': {'name': 'noun from read-aloud', 'quote': 'contiguous read-aloud quote'},
+            'people': [{'id': 'short_id', 'name': 'source name',
+                        'quote': 'contiguous presence quote',
+                        'visibility': 'visible|hidden|staged', 'kind': 'person|creature',
+                        'goal': {'quote': 'complete sentence', 'status': 'established|conditional|inferred'},
+                        'knowledge': []}],
+            'discoveries': [], 'pressures': [],
+        },
         'command': command,
     }
 
@@ -1212,11 +1224,101 @@ def _bind(db, index, text, name, span, alts, burst, book_quote):
     return key, compiled
 
 
+def _pdf_requires_scene(db):
+    """Only PDF-based sessions require a host-attested scene, including after reset.
+
+    Legacy pasted-text scenes retain their explicit compatibility mode. A damaged
+    PDF receipt is NOT an excuse to use lexical inference; the receipt's existence
+    alone keeps the fail-closed contract active.
+    """
+    return (folder_for(db) / 'source.pdf.json').is_file()
+
+
+def _encounter_bounds(text, page_start, page_end, quote_offset, title=''):
+    """Keep the entire local encounter, even if pdftotext orders DM prose before its box.
+
+    Heading boundaries are determined from the source's own line breaks, not from
+    guessed creature names or encounter semantics. A later keyed location is a
+    hard boundary. The printed layout may place a sidebar or the next page's
+    encounter on either side of the read-aloud.
+    """
+    lo = max(0, page_start)
+    hi = min(len(text), page_end + 9000)
+    # Allow the adjacent page when the opening is at a page edge; never go
+    # beyond the first selected window's end by reading unrelated later chapters.
+    if hi < quote_offset:
+        hi = quote_offset
+    prefix = text[lo:quote_offset]
+    before = []
+    off = lo
+    for line in prefix.splitlines(True):
+        stripped = line.strip()
+        if (stripped and not stripped.startswith('>') and
+                (_KEYED.match(stripped) or
+                 (_heading_line(stripped) and not _bad_title(stripped) and
+                  not _META.search(stripped)))):
+            before.append((off, stripped))
+        off += len(line)
+    if before:
+        # Prefer the start of the printed location enclosing the read-aloud.
+        # Generic front-matter headings are excluded.
+        lo = before[-1][0]
+    else:
+        # Never reach back farther than the immediate prior page without a heading.
+        lo = max(lo, quote_offset - 5000)
+    # Stop at the next keyed location or clearly separated section heading;
+    # never include another published location merely because it shares a page.
+    suffix = text[quote_offset:hi]
+    off = quote_offset
+    past_quote = False
+    for line in suffix.splitlines(True):
+        stripped = line.strip()
+        if past_quote and stripped and not stripped.startswith('>') and (
+                _KEYED.match(stripped) or
+                (_heading_line(stripped) and not _bad_title(stripped) and
+                 not _META.search(stripped) and not stripped.endswith(('.', '!', '?')))):
+            hi = off
+            break
+        if off >= quote_offset + 1:
+            past_quote = True
+        off += len(line)
+    return lo, min(hi, len(text))
+
+
+def _scene_request(db, data, candidate, source, spoken, problems=None):
+    """Return an actionable, DM-only repair packet; no start is accepted yet."""
+    data.update(status='scene_required', pending_candidate=candidate,
+                scene_errors=list(problems or ()), table_line=LANDING)
+    _write(db, data)
+    return {
+        'stage': 'scene_required', 'committed': False, 'advanced': False,
+        'source_verified': False, 'scene_required': True,
+        'table_line': LANDING,
+        'scene_request': {
+            'read_aloud': spoken, 'source_span': source[:16000],
+            'instructions': (
+                'Private DM preparation, not text to show the player. Interpret the '
+                'people actually in this encounter, visible or hidden; omit patrons '
+                'mentioned only in setup. Every asserted fact needs a full contiguous '
+                'quote inside source_span and its evidence status. Do not choose a DC, '
+                'surprise, combat, or a successful player action. Copy the scene form '
+                'from skim_request; write only {"scene": ...} to skim.json and rerun '
+                'the same skim_command. Do not start or speak the book until accepted.'),
+            'problems': list(problems or ()),
+            'command': request_for(db)['command'],
+        },
+    }
+
+
 def accept(db, reply):
     """Validate one skim. Failure returns the early-title picker and opens nothing."""
     from .kit_adventure import _load
     index, text = _load(db)
     data = _read(db)
+    if isinstance(reply, dict) and set(reply) == {'scene'} and data.get('status') == 'scene_required':
+        saved = data.get('pending_candidate')
+        if isinstance(saved, dict):
+            reply = dict(saved, scene=reply['scene'])
     expanded = bool(data.get('expanded'))
     bounds = page_bounds(text)
     count = len(bounds)
@@ -1317,7 +1419,26 @@ def accept(db, reply):
     if span_end <= span_start:
         span_end = page_to
     from .kit_opening import build_beat, opening_text, _layout_stream
-    if 'scene' in reply:
+    if _pdf_requires_scene(db):
+        # Require host interpretation on all real PDFs. Never silently fall back.
+        scope_start, scope_end = _encounter_bounds(text, page_at, page_to,
+                                                   span_start, name)
+        scoped = text[scope_start:scope_end]
+        candidate = {key: reply[key] for key in KEYS if key != 'scene' and key in reply}
+        if 'scene' not in reply:
+            return _scene_request(db, data, candidate, scoped, spoken,
+                                  ['scene must be interpreted from the printed encounter'])
+        from . import kit_scene_contract
+        scene_problems = kit_scene_contract.validate(
+            reply['scene'], scoped, spoken, _layout_stream(scoped))
+        if scene_problems:
+            return _scene_request(db, data, candidate, scoped, spoken, scene_problems)
+        from .kit_opening import fiction_lines
+        beat = kit_scene_contract.build_beat(
+            reply['scene'], spoken, name, fiction=fiction_lines(page_text, spoken, allow_rejoin=True))
+        # Give the compiler the complete scoped encounter, not just the box tail.
+        span_start, span_end = scope_start, scope_end
+    elif 'scene' in reply:
         from . import kit_scene_contract
         scoped = text[span_start:span_end]
         scene_problems = kit_scene_contract.validate(
@@ -1326,10 +1447,9 @@ def accept(db, reply):
             return _reject(db, scene_problems, alts, expanded)
         from .kit_opening import fiction_lines
         beat = kit_scene_contract.build_beat(
-            reply['scene'], spoken, name, fiction=fiction_lines(page_text, spoken))
+            reply['scene'], spoken, name, fiction=fiction_lines(page_text, spoken, allow_rejoin=True))
     else:
-        # Backward compatibility for existing host tests. The real host instruction
-        # requires a scene: lexical inference is not an accepted new design.
+        # Explicit legacy compatibility is confined to unbundled pasted text.
         beat = build_beat(page_text, spoken, name)
     try:
         key, compiled = _bind(db, index, text, normalize(name), (span_start, span_end), alts, spoken, book_quote)
@@ -1356,6 +1476,8 @@ def accept(db, reply):
         'scene_key': key, 'room': compiled.get('room'), 'room_id': compiled.get('room_id'),
         'page_start': page_start, 'page_end': page_end, 'burst_words': len(_words(spoken)),
         'alt_starts': alts, 'expanded': expanded, 'advanced': False,
+        'source_verified': bool(beat.get('source_verified')),
+        'scene_contract_status': 'verified' if beat.get('source_verified') else 'legacy_text',
         'handoff': handoff,
     }
 
@@ -1485,6 +1607,8 @@ def _stamp_beat(room_path, beat):
     room['_opening_people'] = ids
     if verified:
         room['_opening_unresolved_people'] = unresolved
+        room['_opening_staged_people'] = [person.get('id') for person in beat.get('people') or ()
+                                           if person.get('staged')]
     # A patron named only in the setup is not this beat's person.
     if ids:
         drop = [key for key, actor in actors.items()
@@ -1896,10 +2020,31 @@ def _release_beat(runtime, data, revision):
     events = [{'type': 'beat', 'tags': ['read_on'],
                'evidence': 'Unread player lines from the opening beat. Screen text stays back.'}]
     if verified:
+        # Staged speakers become addressable only when their printed
+        # introduction is read, in the same transaction as the cursor.
+        staged = []
+        state_actors = (runtime.load()[1].get('actors') or {})
+        for person in beat.get('people') or ():
+            if (person.get('staged') and not person.get('revealed') and
+                    person.get('name') and
+                    re.search(r'\b' + re.escape(person['name']) + r'\b', public, re.I)):
+                key = person.get('id')
+                if key in state_actors and state_actors[key].get('status') == 'hidden':
+                    staged.append(key)
+                    events.append({'type': 'actor_status', 'actor': key, 'status': 'alive',
+                                   'evidence': 'The read-aloud has now introduced this source-attested NPC.'})
         events.append({'type': 'opening_cursor', 'room_id': runtime.source().get('id'),
                        'heard': int(beat['heard']),
                        'evidence': 'The accepted opening read-aloud cursor advances with the turn.'})
     committed = runtime.commit('read-%s' % revision, revision, events)
+    if verified:
+        for person in beat.get('people') or ():
+            if person.get('id') in staged:
+                person.update(revealed=True, addressable=True, hidden=False, staged=False)
+                seen = beat.setdefault('observed', {}).setdefault('seen', [])
+                if person['id'] not in seen:
+                    seen.append(person['id'])
+        data['beat'] = beat
     # This file is only a convenience cache. A failed commit must never advance
     # it, and a successful commit survives losing the cache write.
     try:
@@ -2056,6 +2201,13 @@ def player_start(db, sheet_path=None, table=None):
             'character_loaded': False, 'sheet': sheet, 'sheet_kept': bool(sheet),
             'table_line': "We're set. Default is the book's start. Hand me the sheet, then Yes. begins.",
             'design_start_name': data.get('design_start_name'), 'scene_key': data.get('scene_key'),
+        }
+    if data.get('status') == 'scene_required':
+        return {
+            'stage': 'awaiting_scene', 'committed': False, 'opened_room': None,
+            'table_line': LANDING, 'scene_required': True,
+            'skim_request': request_for(db),
+            'next_step': 'Repair the private scene form with adventure skim; do not start play.',
         }
     if data.get('status') == 'rejected':
         alts = data.get('alt_starts') or []

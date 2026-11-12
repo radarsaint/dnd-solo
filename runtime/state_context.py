@@ -996,7 +996,10 @@ class Runtime:
             status = event.get('status')
             require(status in {'alive', 'unconscious', 'dead', 'fled'}, 'Unknown status')
             require(actor['status'] != 'dead' or status == 'dead', 'Resurrection needs a future explicit rules operation')
-            actor['status'] = status
+            if status == 'alive' and actor['status'] == 'hidden':
+                reveal_actor(actor, (source.get('actors') or {}).get(key))
+            else:
+                actor['status'] = status
             from . import kit_scenes
             if status == 'dead':
                 kit_scenes.log_change(state, source.get('id'), 'dead', actor.get('name') or key, 'stays dead')

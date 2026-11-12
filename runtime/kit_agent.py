@@ -1158,16 +1158,31 @@ class RoomAdjudicator:
             if hidden:
                 result = dataclasses.replace(result, events=list(result.events) + hidden)
         if (self.source or {}).get('_opening_verified') and result.public_event == 'They speak to the room.':
-            # The old generic social fallback names an indoor room even on a road.
-            # A declaration creates a conversational opening, not an NPC response.
-            where = (self.source.get('_opening_place') or '').strip()
-            place = ' across the %s' % where if where else ''
-            result = dataclasses.replace(result,
-                                         public_event='You call out%s. What do you say?' % place)
+            # The source-attested people, not guessed prose, determine whom a
+            # conversation can address. An unrevealed NPC is never treated as a
+            # cooperative visible speaker; the host still resolves their response.
+            mentioned = None
+            for key in (self.source.get('_opening_people') or ()):
+                actor = (state.get('actors') or {}).get(key) or (self.source.get('actors') or {}).get(key) or {}
+                name = str(actor.get('name') or '').strip()
+                state_actor = (state.get('actors') or {}).get(key) or {}
+                if (name and name.casefold() in str(action or '').casefold() and
+                        state_actor.get('status') != 'hidden' and
+                        state_actor.get('visible', True)):
+                    mentioned = name
+                    break
+            if mentioned:
+                public = 'You address %s. What do you say?' % mentioned
+            else:
+                where = (self.source.get('_opening_place') or '').strip()
+                place = ' across the %s' % where if where else ''
+                public = 'You call out%s. What do you say?' % place
+            result = dataclasses.replace(result, public_event=public)
         if (self.source or {}).get('_opening_verified') and result.kind == 'observe' and not (
                 state.get('pending_check') or kit_rolls.stated_skill(action)):
             hidden = [key for key in (self.source.get('_opening_people') or ())
-                      if (state.get('actors', {}).get(key) or {}).get('status') == 'hidden']
+                      if key not in (self.source.get('_opening_staged_people') or ())
+                      and (state.get('actors', {}).get(key) or {}).get('status') == 'hidden']
             if hidden:
                 # A look at source-attested hidden people is a normal called
                 # Perception check, not the former opening's hard-coded DC 10.
@@ -1750,12 +1765,21 @@ class RoomAdjudicator:
         return kit_triggers.handles_offer(self.source, state, action, area, kind)
 
     def _kit_ruling(self, action):
-        """An attempt Kit rules as an ordinary turn: committed as tried, outcome hers."""
+        """A real, unresolved player attempt; give Kit a playable clarification, not a slogan.
+
+        The statement does not award success or narrate an unsupported consequence.
+        The host may answer using the established scene, or call a check when justified.
+        """
         event = {'type': 'beat', 'tags': ['attempt', 'kit_ruling'],
                  'evidence': f'Player attempts: {action[:300]}. Nothing rolled yet; Kit rules the outcome '
                              'as an ordinary turn and may call a check (roll_call). Nothing hidden is learned '
                              'unless a called check succeeds.'}
-        return Resolution('kit_ruling', 'Kit rules the act.', [event])
+        words = str(action or '')
+        if re.search(r'\b(?:burn|ignite|set fire|light on fire)\b', words, re.I):
+            spoken = 'How are you going to set it alight, and what are you using?'
+        else:
+            spoken = 'How are you doing that, and what are you using?'
+        return Resolution('kit_ruling', spoken, [event])
 
     def _feature_act(self, action, offer):
         """A turn about a watched feature: nothing is resolved from the words; Kit's decision
@@ -7497,6 +7521,9 @@ class KitChatBridge:
         if held is not None:
             return held
         from . import kit_skim
+        answered = self._verified_roll_answer(action)
+        if answered is not None:
+            return answered
         opened = kit_skim.opening_turn(self.runtime, action)
         if opened is not None:
             return opened
@@ -7533,6 +7560,47 @@ class KitChatBridge:
             return forked
         return self._stage(turn_id, revision, body, planning_input, one_pass, performance_variant, started, clock,
                            stamps)
+
+    def _verified_roll_answer(self, action):
+        """Source-attested checks resolve through prepare, with one authoritative commit.
+
+        This is the same bridge used by a real chat host. A pre-existing roll call
+        is the authority for assigning the player's bare number to a skill.
+        Without that call, a number is a question, not a phantom check.
+        """
+        if action is None or not isinstance(action, str) or not action.strip():
+            return None
+        try:
+            source = self.runtime.source()
+            if source.get('_opening_verified') is not True:
+                return None
+            revision, state = self.runtime.load()
+        except (KeyError, InvalidChange):
+            return None
+        pending = state.get('pending_check') or {}
+        total = roll_total(action)
+        if total is None and pending:
+            total = _answer_total(action, str(pending.get('skill') or ''))
+        if total is None:
+            return None
+        if not pending:
+            spoken = 'Kit: What is the %d for? Tell me which roll you made.' % total
+            events = [{'type': 'beat', 'tags': ['clarify', 'unassigned_roll'],
+                       'evidence': 'An unassigned roll was supplied. No fictional action or check was resolved.'}]
+            committed = self.runtime.commit('roll-query-%s' % revision, revision, events)
+            return {'stage': 'roll_clarify', 'committed': True, 'spoken': spoken,
+                    'revision': committed, 'public_event': 'The roll is not assigned.'}
+        self.adjudicator.mount(source)
+        resolution = self.adjudicator.resolve(action, revision, state)
+        if resolution.kind not in ('called_check', 'stealth', 'check', 'combat_interstitial'):
+            return None
+        # The returned events, not this handler, determine reveal and mechanics.
+        events = list(resolution.events)
+        committed = self.runtime.commit('called-roll-%s' % revision, revision, events)
+        spoken = 'Kit: %s' % (resolution.public_event or 'What do you do?')
+        return {'stage': 'called_roll', 'committed': True, 'spoken': spoken,
+                'public_event': resolution.public_event, 'revision': committed,
+                'check_outcome': {'kind': resolution.kind}}
 
     def _prepared_answer(self, action):
         """The roll that answers a prepared check: one commit, the outcome already stored.
