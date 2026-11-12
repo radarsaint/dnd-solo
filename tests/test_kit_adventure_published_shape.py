@@ -324,7 +324,7 @@ class PublishedShape(unittest.TestCase):
         path = self.folder / 'pad.pdf'
         path.write_bytes(b'%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n%%EOF\n')
 
-        def fake(pdf_path):
+        def fake(pdf_path, max_pages=None):
             return text
 
         with mock.patch('runtime.kit_adventure._pdftotext', fake):
@@ -358,16 +358,14 @@ class PublishedShape(unittest.TestCase):
         report = kit_adventure.ingest_adventure(self.db, text=TWO_SITES, title='Two Sites')
         self.assertEqual(report['start_location'], 'hideout-1')
         started = start_session(self.db, NIK, room=report['start_room'])
-        self.assertEqual(kit_lifecycle.status(self.db)['pending_kind'], 'opening')
+        self.assertTrue(started.get('committed'))
+        self.assertTrue(started.get('character_loaded'))
+        self.assertEqual(started.get('opened_room'), started.get('room_id'))
+        self.assertIn('hideout gate', (started.get('spoken') or '').lower())
+        self.assertNotIn('DC 13', started.get('spoken') or '')
+        self.assertNotIn('Armor Class', started.get('spoken') or '')
         runtime = Runtime(self.db)
         self.addCleanup(runtime.close)
-        bridge = KitChatBridge(runtime, RoomAdjudicator(roll=lambda: 10, npc_roll=lambda: 10))
-        held = bridge.try_prepare('Yes.', one_pass=True)
-        self.assertNotEqual(held.get('stage'), 'turn_pending')
-        self.assertTrue(held.get('committed'))
-        self.assertIn('hideout gate', held.get('spoken', '').lower())
-        self.assertNotIn('DC 13', held.get('spoken', ''))
-        self.assertNotIn('Armor Class', held.get('spoken', ''))
         status = kit_lifecycle.status(self.db)
         self.assertEqual(status['state'], 'playing')
         self.assertEqual(status['committed_turns'], 1)

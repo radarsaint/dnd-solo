@@ -33,7 +33,9 @@ class PlayLoopRule(unittest.TestCase):
         # #169 had this rule only in docs; the runtime now enforces it (turn_pending), and the docs
         # say what to do with that answer.
         self.assertIn('If `prepare` returns `turn_pending`', BLOCK)
-        self.assertIn('complete the pending opening now', BLOCK)
+        self.assertIn('docs/PLAY_CARD.md', BLOCK)
+        self.assertIn('one prepare and one complete', BLOCK)
+        self.assertIn('A bare yes completes the pending opening', BLOCK)
         self.assertIn('never an in-fiction action', BLOCK)
 
     def test_adventure_import_rule(self):

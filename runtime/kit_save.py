@@ -214,6 +214,7 @@ def collect(runtime):
         'rooms': [{'room_id': r['room_id'], 'status': r['status'], 'areas': r['areas'],
                    **({'carry': r['carry']} if r['status'] != 'current' and r.get('carry') else {})} for r in rooms],
         'pc_state': pc_state(state),
+        'places': copy.deepcopy(state.get('places') or {}),
         **({'party': copy.deepcopy(state['party'])} if state.get('party') else {}),
         'npcs_met': [{**n, 'room_id': r['room_id']} for r in rooms for n in r['npcs_met']],
         'learned': [{'text': t, 'room_id': r['room_id']} for r in rooms for t in r['learned']],

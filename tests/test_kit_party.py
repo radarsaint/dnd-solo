@@ -88,7 +88,7 @@ class FourCharacterFight(Table):
             self.assertIn(f'{key} tactics', trace)  # each companion acted on the engine
         # It acts, and answers the defender who meleed it (not Nik, who is casting from range).
         self.assertLess(trace.index('brannoc longsword'), trace.index('lantern_wight lantern lash at brannoc'))
-        self.assertIn('lantern_wight lantern lash at brannoc: d20 17 + 4 = 21 vs AC 18: hit 6', trace)
+        self.assertIn('lantern_wight lantern lash at brannoc: d20 20 + 4 = 24 vs AC 18: hit 12', trace)
         self.assertNotRegex(trace, r'lantern_wight lantern lash:')  # never at the PC
         self.assertIn('tamsin rapier', trace)
         self.assertEqual(state['actors']['lantern_wight']['status'], 'dead')

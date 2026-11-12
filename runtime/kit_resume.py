@@ -145,8 +145,9 @@ def _restore(campaign, current_id):
         except kit_canon.CanonError as exc:
             raise ResumeError(str(exc)) from exc
     log = {'rooms': rooms, **({'facts': facts} if facts else {})}
+    places = campaign.get('places') if isinstance(campaign.get('places'), dict) else None
     return {'log': log, 'carried': carried, **({'pc_state': pc} if pc else {}),
-            **({'party': party} if party else {})}
+            **({'party': party} if party else {}), **({'places': places} if places else {})}
 
 
 ADVENTURE_ROOM = re.compile(r'^adv-([0-9a-f]{8})-(.+)$')

@@ -65,9 +65,10 @@ class Index(Base):
         self.assertTrue((kit_adventure.folder_for(self.db) / 'source.txt').is_file())
         self.assertIn('*.adventure/', (ROOT / '.gitignore').read_text())
 
-    def test_no_locations_is_refused(self):
-        with self.assertRaises(kit_adventure.IngestError):
-            kit_adventure.import_adventure(self.folder / 'x.sqlite', text='Just some prose.\n')
+    def test_prose_without_a_place_still_imports_for_a_skim(self):
+        report = kit_adventure.import_adventure(self.folder / 'x.sqlite', text='Just some prose.\n')
+        self.assertEqual(report['locations'], 0)
+        self.assertIsNone(report['start_location'])
 
 
 class Compile(Base):
@@ -148,7 +149,8 @@ class Transition(Base):
         self.addCleanup(runtime.close)
         adjudicator = RoomAdjudicator(roll=lambda: 10, npc_roll=lambda: 10)
         bridge = KitChatBridge(runtime, adjudicator)
-        bridge.abandon(started['prepared']['turn_id'])
+        if not started.get('committed'):
+            bridge.abandon(started['prepared']['turn_id'])
         self.assertEqual(kit_lifecycle.status(self.db)['adventure']['adventure_readiness'], 'campaign_playable')
 
         def step(line):
@@ -239,7 +241,8 @@ class Combatants(Base):
         runtime = Runtime(self.db)
         self.addCleanup(runtime.close)
         adjudicator = RoomAdjudicator(roll=lambda: 10, npc_roll=lambda: 10, source=runtime.source())
-        KitChatBridge(runtime, adjudicator).abandon(started['prepared']['turn_id'])
+        if not started.get('committed'):
+            KitChatBridge(runtime, adjudicator).abandon(started['prepared']['turn_id'])
 
         def act(line):
             revision, state = runtime.load()

@@ -1,0 +1,16 @@
+Part 1: The Wagon Road
+
+This short adventure is original synthetic text written for Kit. It is not from any published book.
+
+Road Ambush
+> Dust hangs over a dry wagon road. A broken wheel blocks the ruts.
+Two bandits crouch in the ditch. They attack anyone who steps off the road.
+A dry path runs on to the hideout, area 1.
+
+1. Timber Mouth
+> A timbered mouth opens in a sandy bank.
+A ladder drops to area 2.
+
+2. Store Niche
+> Crates are stacked against the wall.
+The ladder climbs back to area 1.

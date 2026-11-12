@@ -6,7 +6,7 @@ This short adventure is original synthetic test text written for Kit. It is not 
 > Rain hisses on a tarred plank landing. A rope bell hangs from a crooked post, and a flat-bottomed ferry knocks against the pilings.
 > Up the bank, a stone tollhouse shows one lit window.
 Oswin Tarr, a nervous ferryman, waits under the eaves. He will not cross tonight unless paid three silver.
-A path climbs the bank to area 2. The ferry itself crosses to area 4.
+A dry path climbs the bank to area 2. The ferry itself crosses to area 4.
 The bell rope is frayed; a DC 12 Strength (Athletics) check pulls it loose.
 
 2. Tollhouse
