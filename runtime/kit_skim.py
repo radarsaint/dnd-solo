@@ -1349,13 +1349,13 @@ def _bounded_encounter(stream, burst):
 
 
 def _same_column_encounter(source, burst):
-    """Reconstruct the printed encounter from PDF layout, then bind its limits.
+    """Recover the read-aloud's printed lane, not its facing sidebar/room.
 
-    A single guessed column boundary is unsafe: a centered heading or a wide
-    space inside one column can shift it, so the opening quote disappears.
-    Recover only a layout in which the *whole* opening is still present in
-    order. Preserve contiguous source sentences for scene attestation.
-    The selected source is a private view; the original PDF is unchanged.
+    Vary the candidate physical gutter instead of trusting the first long
+    space (which may merely justify text within one column). Select a lane
+    only if it contains the complete opening quote in order. The same lane
+    may continue across page breaks. Never grant claims from another lane
+    merely because its text shares a printed row or follows the first column.
     """
     raw = source or ''
     if not raw.strip() or not burst or not _words(burst):
@@ -1366,21 +1366,28 @@ def _same_column_encounter(source, burst):
         for hit in re.finditer(r'(?<=\S) {3,}(?=\S)', row):
             if hit.end() >= 20:
                 gaps.append(hit.end())
-    # Prefer repeated physical gutters, not the earliest incidental space.
-    # The cap bounds work even on a long, irregularly laid-out PDF window.
+    # Prefer repeated gutters; incidental spaces lose to the actual column.
     cutoffs = sorted(set(gaps), key=lambda p: (
         -sum(abs(p - other) <= 8 for other in gaps), p))[:16]
     for gutter in cutoffs + [None]:
-        ordered = []
+        lanes = [_page_columns(page, gutter) for page in pages]
+        left = '\n\f\n'.join(pair[0] for pair in lanes)
+        right = '\n\f\n'.join(pair[1] for pair in lanes)
+        # The quoted burst is the only authority for which lane owns the beat.
+        for stream in (left, right):
+            if _contiguous(burst, stream):
+                return _bounded_encounter(stream, burst)
+    # An opening that truly straddles both printed columns can be used only
+    # when its complete words are contiguous in the left-then-right reading
+    # order. The fallback is bounded at the next source-owned keyed location.
+    for gutter in cutoffs + [None]:
+        pages_in_order = []
         for page in pages:
             left, right = _page_columns(page, gutter)
-            # Print reading order is down the left column, then the right.
-            ordered.append(left + ('\n' + right if right.strip() else ''))
-        stream = '\n\f\n'.join(ordered)
+            pages_in_order.append(left + ('\n' + right if right.strip() else ''))
+        stream = '\n\f\n'.join(pages_in_order)
         if _contiguous(burst, stream):
             return _bounded_encounter(stream, burst)
-    # Never claim a source-verified empty scene, or borrow another location's
-    # characters merely because they share the same physical page.
     return ''
 
 def _scene_request(db, data, candidate, source, spoken, problems=None):
