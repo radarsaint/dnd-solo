@@ -657,6 +657,7 @@ def _status_events(runtime, beat, ids):
         if live.get('status') == 'hidden':
             events.append({
                 'type': 'actor_status', 'actor': key, 'status': 'alive',
+                'reveal': True,
                 'evidence': 'The player has met them. This is observed, not inferred.',
             })
     return events

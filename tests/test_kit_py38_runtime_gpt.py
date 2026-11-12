@@ -24,6 +24,28 @@ class RuntimePython38Portability(unittest.TestCase):
                         and n.attr in ('removeprefix', 'removesuffix')]
             self.assertFalse(obsolete, '%s uses Python 3.9-only string methods: %r' % (path, obsolete))
 
+    def test_kit_texture_oracle_renders_without_dictionary_union(self):
+        # A dictionary-union expression parses as Python 3.8 grammar but
+        # crashes at runtime on 3.8. Exercise the exact source of that failure.
+        from runtime import kit_texture
+        from inspect import getsource
+        source = getsource(kit_texture.model_view)
+        tree = ast.parse(source)
+        dict_unions = [node for node in ast.walk(tree)
+                       if isinstance(node, ast.BinOp) and isinstance(node.op, ast.BitOr)
+                       and (isinstance(node.left, ast.Dict) or isinstance(node.right, ast.Dict))]
+        self.assertFalse(dict_unions, 'model_view contains unsupported dictionary union')
+        payload = {
+            'deal': [{'draw_id': '1', 'entry': 'candidate', 'handle': 'c',
+                      'procedure': 'game', 'kit_lean': True}],
+            'status': 'selected',
+        }
+        result = kit_texture.model_view(payload)
+        self.assertEqual(result['deal'], [
+            {'draw_id': '1', 'entry': 'candidate', 'handle': 'c',
+             'procedure': 'game', 'kit_lean': True},
+        ])
+
     def test_goldscale_annotations_import_as_portable_types(self):
         pricing = importlib.import_module('runtime.goldscale.pricing')
         parser = importlib.import_module('runtime.goldscale.parser')

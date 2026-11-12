@@ -272,10 +272,17 @@ def model_view(packet):
     if packet.get('canon'):
         lean['canon'] = {'fact': packet['canon']['fact']}
     if packet.get('deal'):
-        lean['deal'] = [{key: card[key] for key in ('draw_id', 'entry', 'handle')} |
-                        ({'procedure': card['procedure']} if card.get('procedure') else {}) |
-                        ({'kit_lean': True} if card.get('kit_lean') else {})
-                        for card in packet['deal']]
+        # Keep the compact oracle shape, but do not use dict union (Python 3.9+).
+        # The portable runtime promises to execute on Python 3.8.
+        deal = []
+        for card in packet['deal']:
+            item = {key: card[key] for key in ('draw_id', 'entry', 'handle')}
+            if card.get('procedure'):
+                item['procedure'] = card['procedure']
+            if card.get('kit_lean'):
+                item['kit_lean'] = True
+            deal.append(item)
+        lean['deal'] = deal
     if packet.get('texture') and packet.get('status') == 'open_no_deck':
         # Texture only when the decision must write its own candidates; a deal already
         # carries the palette's material, and canon, source, and price need none.

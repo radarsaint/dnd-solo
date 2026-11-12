@@ -1285,6 +1285,74 @@ def _encounter_bounds(text, page_start, page_end, quote_offset, title=''):
     return lo, min(hi, len(text))
 
 
+
+def _same_column_encounter(source, burst):
+    """Give the host only the printed lane containing the opening.
+
+    pdftotext -layout can place the next keyed location (or a sidebar) to
+    the RIGHT of the current room on the SAME line. Offsets alone cannot
+    describe this boundary. Select the read-aloud's column and follow that
+    column across page breaks; retain original line boundaries for attested
+    sentences. Stop when that column actually reaches the next keyed area.
+
+    This is a *view* for attestation, never an edit of the stored source.
+    """
+    raw = source or ''
+    pages = raw.split('\f')
+    # A single-column source still needs the ordinary keyed-area stopping rule.
+    selected = None
+    lines_out = []
+    past_burst = False
+    cutoff = None
+    for page in pages:
+        rows = page.splitlines()
+        gaps = []
+        for row in rows:
+            gap = re.search(r'(?<=\S) {3,}(?=\S)', row)
+            if gap:
+                gaps.append(gap.end())
+        if gaps:
+            cutoff = min(gaps)
+        left, right = [], []
+        for row in rows:
+            gap = re.search(r'(?<=\S) {3,}(?=\S)', row)
+            if gap:
+                left.append(row[:gap.start()].strip())
+                right.append(row[gap.end():].strip())
+            elif (cutoff is not None and row.strip() and
+                  len(row) - len(row.lstrip(' ')) >= max(20, cutoff - 4)):
+                left.append('')
+                right.append(row.strip())
+            else:
+                left.append(row.strip())
+                right.append('')
+        lanes = ('\n'.join(left), '\n'.join(right))
+        if selected is None:
+            # Only an actual quote match establishes which lane owns this
+            # encounter. Before that, preserve no ambiguous sidebar words.
+            for i, lane in enumerate(lanes):
+                if _contiguous(burst, lane):
+                    selected = i
+                    break
+            if selected is None:
+                continue
+        chosen = lanes[selected]
+        # Non-layout single-column pages are always the left lane; if a book
+        # transitions from the right column onto a clean next page, follow it.
+        if not chosen.strip() and selected == 1 and not gaps and left:
+            chosen = lanes[0]
+            selected = 0
+        for line in chosen.splitlines():
+            stripped = line.strip()
+            if past_burst and (_KEYED.match(stripped) or _LATER.match(stripped)):
+                return '\n'.join(lines_out).strip()
+            lines_out.append(line)
+            if _contiguous(burst, '\n'.join(lines_out)):
+                past_burst = True
+        lines_out.append('\f')
+    return '\n'.join(lines_out).strip()
+
+
 def _scene_request(db, data, candidate, source, spoken, problems=None):
     """Return an actionable, DM-only repair packet; no start is accepted yet."""
     data.update(status='scene_required', pending_candidate=candidate,
@@ -1423,14 +1491,15 @@ def accept(db, reply):
         # Require host interpretation on all real PDFs. Never silently fall back.
         scope_start, scope_end = _encounter_bounds(text, page_at, page_to,
                                                    span_start, name)
-        scoped = text[scope_start:scope_end]
+        scoped_raw = text[scope_start:scope_end]
+        scoped = _same_column_encounter(scoped_raw, spoken)
         candidate = {key: reply[key] for key in KEYS if key != 'scene' and key in reply}
         if 'scene' not in reply:
             return _scene_request(db, data, candidate, scoped, spoken,
                                   ['scene must be interpreted from the printed encounter'])
         from . import kit_scene_contract
         scene_problems = kit_scene_contract.validate(
-            reply['scene'], scoped, spoken, _layout_stream(scoped))
+            reply['scene'], scoped, spoken)
         if scene_problems:
             return _scene_request(db, data, candidate, scoped, spoken, scene_problems)
         from .kit_opening import fiction_lines
@@ -2041,6 +2110,7 @@ def _release_beat(runtime, data, revision):
                 if key in state_actors and state_actors[key].get('status') == 'hidden':
                     staged.append(key)
                     events.append({'type': 'actor_status', 'actor': key, 'status': 'alive',
+                                   'reveal': True,
                                    'evidence': 'The read-aloud has now introduced this source-attested NPC.'})
         events.append({'type': 'opening_cursor', 'room_id': runtime.source().get('id'),
                        'heard': int(beat['heard']),

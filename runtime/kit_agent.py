@@ -2707,6 +2707,7 @@ class RoomAdjudicator:
                            'evidence': evidence}]
                 if noticed:
                     events += [{'type': 'actor_status', 'actor': key, 'status': 'alive',
+                                'reveal': True,
                                 'evidence': evidence + ' This actor was perceived.'}
                                for key in noticed]
                     labels = [hidden[key].get('name') or key for key in noticed]

@@ -1,16 +1,9 @@
-# Verify Kit's runtime against the minimum supported Python, not only 3.8 grammar.
-# Engineering checks only: no model, API key, private PDFs, or agent playthroughs.
+# Check the minimum supported host Python with the same PDF reader used by a host.
+# Engineering tests only; no model API, private books, or agent playthroughs.
 name: kit-python38
 
 on:
   pull_request:
-    paths:
-      - 'runtime/**'
-      - 'tests/**'
-      - '.github/workflows/kit-py38-portability.yml'
-  push:
-    branches:
-      - gpt/pr202-scene-contract-9abadcf
     paths:
       - 'runtime/**'
       - 'tests/**'
@@ -31,16 +24,23 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.8'
-      - name: Confirm supported Python and import the complete runtime
+      - name: Install the actual PDF text reader used by the host
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq poppler-utils
+          pdftotext -v
+      - name: Confirm Python 3.8 and import the complete runtime
         run: |
           python -c 'import sys; assert sys.version_info[:2] == (3, 8), sys.version'
           python -m runtime.kit_agent --help > /dev/null
           python -m unittest discover -s tests -p 'test_kit_py38_runtime_gpt.py' -v
-      - name: Run source-contract and host-path regression tests
+      - name: Run the source-contract, secrecy and host-path regressions
         run: |
           python -m unittest discover -s tests -p 'test_kit_scene_contract_gpt.py' -v
+          python -m unittest discover -s tests -p 'test_kit_source_scope_gpt.py' -v
           python -m unittest discover -s tests -p 'test_kit_source_ambush_gpt.py' -v
           python -m unittest discover -s tests -p 'test_kit_pdf_retention_gpt.py' -v
           python -m unittest discover -s tests -p 'test_kit_host_contract_round2.py' -v
+          python -m unittest discover -s tests -p 'test_kit_player_save.py' -v
       - name: Run complete repository tests on real Python 3.8
         run: python -m unittest discover -s tests -q

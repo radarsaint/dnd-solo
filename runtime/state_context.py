@@ -996,8 +996,18 @@ class Runtime:
             status = event.get('status')
             require(status in {'alive', 'unconscious', 'dead', 'fled'}, 'Unknown status')
             require(actor['status'] != 'dead' or status == 'dead', 'Resurrection needs a future explicit rules operation')
+            # Waking or changing an actor's status does not make the player
+            # perceive it. Only an explicitly observed reveal, or a room trigger,
+            # may lift hidden/visible=false. Player-safe saves rely on this.
+            reveal = event.get('reveal', False)
+            require(type(reveal) is bool and (not reveal or status == 'alive'),
+                    'Actor reveal must be a boolean on an alive status')
             if status == 'alive' and actor['status'] == 'hidden':
-                reveal_actor(actor, (source.get('actors') or {}).get(key))
+                if reveal:
+                    reveal_actor(actor, (source.get('actors') or {}).get(key))
+                else:
+                    actor['status'] = 'alive'
+                    actor['visible'] = False
             else:
                 actor['status'] = status
             from . import kit_scenes
