@@ -71,6 +71,101 @@ class Index(Base):
         self.assertIsNone(report['start_location'])
 
 
+class SourceVersioning(Base):
+    def test_previous_room_link_uses_previous_book_after_reimport(self):
+        old_hash = self.index['sha256']
+        first = kit_adventure.compile_location(self.db, '1', neighbours=False)
+        old_room = json.loads(Path(first['room']).read_text())
+        link = old_room['areas']['to_2']['room_link']
+        self.assertEqual(link['adventure']['source_sha256'], old_hash)
+        edited = self.text.replace('rope bell', 'brass bell')
+        self.assertNotEqual(edited, self.text)
+        kit_adventure.import_adventure(self.db, text=edited)
+        new = kit_adventure.compile_location(self.db, '1', neighbours=False)
+        self.assertNotEqual(Path(first['room']), Path(new['room']))
+        self.assertFalse(Path(link['room']).is_file())
+        kit_adventure.ensure_compiled(link)
+        old_destination = json.loads(Path(link['room']).read_text())
+        fresh_destination = kit_adventure.compile_location(self.db, '2', neighbours=False)
+        self.assertNotEqual(Path(link['room']), Path(fresh_destination['room']))
+        self.assertEqual(old_destination['source_ref'],
+                         json.loads(kit_adventure.room_file(self.db, '2', old_hash).read_text())['source_ref'])
+
+    def test_corrupt_old_source_snapshot_fails_closed(self):
+        old_hash = self.index['sha256']
+        first = kit_adventure.compile_location(self.db, '1', neighbours=False)
+        link = json.loads(Path(first['room']).read_text())['areas']['to_2']['room_link']
+        kit_adventure.import_adventure(self.db, text=self.text.replace('rope bell', 'brass bell'))
+        archive = kit_adventure.folder_for(self.db) / 'sources' / old_hash / 'source.txt'
+        archive.write_text('corrupted', encoding='utf-8')
+        kit_adventure.ensure_compiled(link)
+        self.assertFalse(Path(link['room']).exists())
+
+
+class MultiattackActionEconomy(Base):
+    def test_simple_multiattack_runs_only_its_named_sequence(self):
+        block, prov, unsupported = kit_adventure.parse_stat_block(self.text, self.index['stat_blocks']['reed lurker'])
+        self.assertEqual([a['name'] for a in block['attacks']], ['bite', 'tail'])
+        self.assertNotIn('Multiattack', unsupported)
+        self.assertEqual(sorted(k for k in prov if k.startswith('attacks.')), ['attacks.0', 'attacks.1'])
+
+    def test_unparsable_multiattack_falls_back_to_one_attack(self):
+        text = self.text.replace('one with its bite and one with its tail', 'either its bite or its tail')
+        index = kit_adventure.build_index(kit_adventure.prepare_source(text))
+        block, prov, reasons = kit_adventure.parse_stat_block(text, index['stat_blocks']['reed lurker'])
+        self.assertEqual(len(block['attacks']), 1)
+        self.assertTrue(any('cannot be safely executed' in reason for reason in reasons), reasons)
+        self.assertEqual(len([k for k in prov if k.startswith('attacks.')]), 1)
+
+    def test_multiple_attacks_are_alternatives_without_multiattack(self):
+        text = self.text.replace('Multiattack. The lurker makes two attacks: one with its bite and one with its tail.',
+                                 'The lurker watches the approaching boat.')
+        index = kit_adventure.build_index(kit_adventure.prepare_source(text))
+        block, _, reasons = kit_adventure.parse_stat_block(text, index['stat_blocks']['reed lurker'])
+        self.assertEqual(len(block['attacks']), 1)
+        self.assertTrue(any('alternatives' in reason for reason in reasons), reasons)
+
+
+class SourceAuthority(Base):
+    """Adversarial REF002 claims against the newer compiled-room schema."""
+
+    def _draft(self, key='1'):
+        return kit_adventure.draft_room(self.db, key, self.index, self.text)
+
+    def _problems(self, room, side):
+        return kit_adventure.validate(room, side, self.index, self.text, db=self.db)
+
+    def test_secret_exit_cannot_be_reclassified(self):
+        room, side = self._draft('2')
+        room['exits']['way_3']['secret'] = False
+        self.assertTrue(any('secret' in s for s in self._problems(room, side)))
+
+    def test_room_link_cannot_be_redirected(self):
+        room, side = self._draft('1')
+        room['areas']['to_2']['room_link']['room'] = '/tmp/unrelated.json'
+        self.assertTrue(any('navigation' in s for s in self._problems(room, side)))
+
+    def test_source_offset_must_be_true(self):
+        room, side = self._draft('1')
+        side['fields']['facts.seen_1']['offset'] = self.index['locations']['2']['offset']
+        self.assertTrue(any('offset' in s for s in self._problems(room, side)))
+
+    def test_source_negation_is_not_optional(self):
+        room, side = self._draft('1')
+        key = next(k for k, fact in room['facts'].items() if 'will not cross' in fact['text'])
+        room['facts'][key]['text'] = room['facts'][key]['text'].replace('will not cross', 'will cross')
+        self.assertTrue(any('wording' in s for s in self._problems(room, side)))
+
+    def test_actors_and_triggers_are_source_owned(self):
+        room, side = self._draft('2')
+        self.assertTrue(room['actors'])
+        room['actors'].clear()
+        room['triggers'] = [{'id': 'made_up', 'on': {'enter': 'here'}, 'actors': [], 'reveal': 'Nothing.'}]
+        p = self._problems(room, side)
+        self.assertTrue(any('actors' in item for item in p), p)
+        self.assertTrue(any('triggers' in item for item in p), p)
+
+
 class Compile(Base):
     def test_compile_caches_and_precompiles_neighbours(self):
         out = kit_adventure.compile_location(self.db, '1')
@@ -212,7 +307,8 @@ class Combatants(Base):
     def test_unsupported_features_are_flagged(self):
         room, side = self.room('4')
         self.assertEqual(len(room['actors']['reed_lurker']['stat_block']['attacks']), 2)
-        self.assertTrue(any('Multiattack' in f and 'Recharge' in f for f in side['flags']))
+        self.assertTrue(any('Recharge' in f for f in side['flags']))
+        self.assertFalse(any('Multiattack' in f for f in side['flags']))
 
     def _draft(self, key='3'):
         return kit_adventure.draft_room(self.db, key, self.index, self.text)

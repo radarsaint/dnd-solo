@@ -1098,25 +1098,57 @@ def stat_block_span(text, entry):
 
 
 def parse_stat_block(text, entry):
-    """(engine stat block, provenance {field: {quote, offset}}, unsupported) from the book's own
-    stat block, or (None, {}, reasons) when it lacks AC, hit points or a usable attack. Only
-    what the text states: initiative, grapple and saves keep the engine's defaults."""
+    """Source-grounded attacks for one ordinary action or a recognized Multiattack.
+
+    Different listed actions are alternatives, not automatically attacks in a
+    single turn. Only explicitly parsed, simple Multiattack combinations may
+    contain several swings. Complex wording stays flagged rather than invented.
+    """
     start, end = stat_block_span(text, entry)
     block = text[start:end]
     prov, problems = {}, []
     ac, hp = AC_RE.search(block), HP_RE.search(block)
-    attacks = []
-    for n, m in enumerate(ATTACK_RE.finditer(block)):
-        attacks.append({'name': m.group(1).strip().lower(), 'to_hit': int(m.group(2)),
-                        'damage': int(m.group(3)), 'type': m.group(4)})
-        prov[f'attacks.{n}'] = {'offset': start + m.start(), 'quote': m.group(0)}
+    choices = []
+    for match in ATTACK_RE.finditer(block):
+        choices.append(({'name': match.group(1).strip().lower(), 'to_hit': int(match.group(2)),
+                         'damage': int(match.group(3)), 'type': match.group(4)},
+                        {'offset': start + match.start(), 'quote': match.group(0)}))
     unsupported = [m.group(1) for m in UNSUPPORTED_RE.finditer(block)]
-    if not (ac and hp and attacks):
+    if not (ac and hp and choices):
         problems.append('no Armor Class, Hit Points and attack line the engine can use')
         return None, {}, problems + unsupported
+
+    attacks = [choices[0]]
+    multi = re.search(r'(?im)^Multiattack\.\s*([^\n]+)', block)
+    if multi:
+        description = multi.group(1)
+        stated_count = re.search(r'\bmakes?\s+(two|three|four|five|six)\s+attacks?\b', description, re.I)
+        mentions = re.findall(r'\b(one|two|three|four|five|six)\s+with\s+(?:its|his|her|the)\s+'
+                              r'([a-z][a-z -]*?)(?=\s*(?:,|\.|;|\band\b|$))', description, re.I)
+        quantities = {'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5, 'six': 6}
+        by_name = {a['name']: (a, source) for a, source in choices}
+        sequence = []
+        for count_word, attack_name in mentions:
+            name = attack_name.strip().casefold()
+            name = re.sub(r'^(?:its |the )', '', name)
+            found = by_name.get(name)
+            if found is None:
+                sequence = []
+                break
+            sequence.extend([found] * quantities[count_word.casefold()])
+        if stated_count and sequence and len(sequence) == quantities[stated_count.group(1).casefold()]:
+            attacks = sequence
+            unsupported = [s for s in unsupported if s.casefold() != 'multiattack']
+        else:
+            problems.append('Multiattack wording cannot be safely executed; one listed attack only')
+    elif len(choices) > 1:
+        problems.append('multiple action choices are alternatives; using the first attack only')
+
+    prov = {f'attacks.{i}': dict(source) for i, (_, source) in enumerate(attacks)}
     prov['ac'] = {'offset': start + ac.start(), 'quote': ac.group(0)}
     prov['hp'] = {'offset': start + hp.start(), 'quote': hp.group(0)}
-    return {'ac': int(ac.group(1)), 'hp': int(hp.group(1)), 'attacks': attacks}, prov, unsupported
+    return {'ac': int(ac.group(1)), 'hp': int(hp.group(1)),
+            'attacks': [dict(attack) for attack, _ in attacks]}, prov, problems + unsupported
 
 
 def _present(span, name):
@@ -1164,7 +1196,7 @@ def _creatures(span, base, stat_blocks):
     return out
 
 
-def import_adventure(db, text=None, pdf=None, title=None, reader='auto'):
+def import_adventure(db, text=None, pdf=None, title=None, reader='auto', complete=True):
     """Write the private source and its index next to the save. Returns the import report."""
     if text is None and pdf is None:
         raise IngestError(['give --text-file (extracted text) or --pdf'])
@@ -1178,8 +1210,15 @@ def import_adventure(db, text=None, pdf=None, title=None, reader='auto'):
     index.setdefault('start', None)
     folder = folder_for(db)
     (folder / 'rooms').mkdir(parents=True, exist_ok=True)
-    (folder / 'source.txt').write_text(text, encoding='utf-8')
-    _write_json(folder / 'index.json', index)
+    old_index_file, old_text_file = folder / 'index.json', folder / 'source.txt'
+    if old_index_file.is_file() and old_text_file.is_file():
+        _save_source_version(folder, _read_json(old_index_file), old_text_file.read_text(encoding='utf-8'))
+    _save_source_version(folder, index, text)
+    # Index is the publication marker. A mismatched pair fails closed on subsequent reads.
+    old_text_file.write_text(text, encoding='utf-8')
+    _write_json(old_index_file, index)
+    _write_json(folder / 'index_coverage.json',
+                {'source_sha256': index['sha256'], 'complete': bool(complete)})
     from . import kit_scenes
     kit_scenes.write_side(folder, index)
     return {'stage': 'adventure_imported', 'title': index['title'], 'locations': len(index['locations']),
@@ -1190,15 +1229,57 @@ def import_adventure(db, text=None, pdf=None, title=None, reader='auto'):
 
 # ---------------------------------------------------------------- compile
 
-def room_file(db, key):
-    return folder_for(db) / 'rooms' / f'{_slug(key)}.json'
+def _verified_source(index, text):
+    """A source/index mismatch cannot silently change a compiled room's meaning."""
+    sha = index.get('sha256') if isinstance(index, dict) else None
+    if not isinstance(sha, str) or not re.fullmatch(r'[0-9a-f]{64}', sha) or \
+            hashlib.sha256(text.encode('utf-8')).hexdigest() != sha:
+        raise IngestError(['adventure source and index hash do not match'])
+    return sha
 
 
-def _load(db):
+def _save_source_version(folder, index, text):
+    """Preserve verified source versions for the lifetime of active room links."""
+    sha = _verified_source(index, text)
+    path = folder / 'sources' / sha
+    path.mkdir(parents=True, exist_ok=True)
+    source_file, index_file = path / 'source.txt', path / 'index.json'
+    if source_file.exists() or index_file.exists():
+        if not source_file.exists() or not index_file.exists() or \
+                source_file.read_text(encoding='utf-8') != text or _read_json(index_file) != index:
+            raise IngestError(['immutable adventure source snapshot mismatch: ' + sha])
+    else:
+        source_file.write_text(text, encoding='utf-8')
+        _write_json(index_file, index)
+
+
+def room_file(db, key, sha=None):
+    """A room compiled from one source cannot be reused for another source."""
     folder = folder_for(db)
-    if not (folder / 'index.json').is_file():
+    index_path = folder / 'index.json'
+    sha = sha if sha is not None else (_read_json(index_path).get('sha256') if index_path.is_file() else None)
+    if not isinstance(sha, str) or not re.fullmatch(r'[0-9a-f]{64}', sha):
+        raise IngestError(['adventure index has no valid source hash'])
+    return folder / 'rooms' / sha / f'{_slug(key)}.json'
+
+
+def _load(db, source_sha=None):
+    folder = folder_for(db)
+    current_index = folder / 'index.json'
+    if not current_index.is_file():
         raise IngestError(['no adventure imported for this save; run adventure import first'])
-    return _read_json(folder / 'index.json'), (folder / 'source.txt').read_text(encoding='utf-8')
+    if source_sha is not None and not re.fullmatch(r'[0-9a-f]{64}', str(source_sha)):
+        raise IngestError(['invalid adventure source version'])
+    if source_sha is not None and _read_json(current_index).get('sha256') != source_sha:
+        folder = folder / 'sources' / source_sha
+    index_path, source_path = folder / 'index.json', folder / 'source.txt'
+    if not index_path.is_file() or not source_path.is_file():
+        raise IngestError(['no archived adventure source for version ' + str(source_sha)])
+    index, text = _read_json(index_path), source_path.read_text(encoding='utf-8')
+    sha = _verified_source(index, text)
+    if source_sha is not None and sha != source_sha:
+        raise IngestError(['archived adventure source version mismatch'])
+    return index, text
 
 
 def _cut(text):
@@ -1404,8 +1485,9 @@ def draft_room(db, key, index, text, span=None):
         other = index['locations'][c['to']]
         side = f'to_{_slug(c["to"])}'
         areas[side] = {'name': f'Outside {loc["name"]}', 'outside': True, 'beyond': True,
-                       'room_link': {'room': str(room_file(db, c['to'])), 'area': f'to_{_slug(key)}',
-                                     'adventure': {'db': str(db), 'location': c['to']}}}
+                       'room_link': {'room': str(room_file(db, c['to'], index['sha256'])), 'area': f'to_{_slug(key)}',
+                                     'adventure': {'db': str(db), 'location': c['to'],
+                                                   'source_sha256': index['sha256']}}}
         here_words = set(re.findall(r'[a-z0-9]+', loc['name'].casefold()))
         aliases = []
         for word in re.findall(r'[a-z0-9]+', (other.get('name') or '').casefold()):
@@ -1532,7 +1614,79 @@ def draft_room(db, key, index, text, span=None):
     return room, sidecar
 
 
-def validate(room, sidecar, index, text):
+def _quote_at_source_offset(text, quote, offset, within=None):
+    """A citation offset must identify this exact quote, not a nearby or later statement."""
+    if type(offset) is not int or offset < 0 or offset >= len(text):
+        return False
+    words = str(quote).strip().lstrip('> ').split()
+    if not words:
+        return False
+    pattern = r'\s+'.join(re.escape(word) for word in words)
+    start = max(0, offset - len(quote) - 8)
+    end = min(len(text), offset + len(quote) + 8)
+    lo, hi = within if within is not None else (0, len(text))
+    return any(start + m.start() <= offset < start + m.end() and
+               lo <= start + m.start() and start + m.end() <= hi
+               for m in re.finditer(pattern, text[start:end]))
+
+
+def _validate_source_topology(room, sidecar, loc, index, text, expected_room, expected_sidecar, db=None):
+    """Prevent host drafts from changing sourced navigation, actors or encounter mechanics."""
+    problems = []
+    expected_connections = {f'way_{_slug(c["to"])}': c for c in loc['connections']}
+    exits = room.get('exits') or {}
+    if set(exits) != set(expected_room.get('exits') or {}):
+        problems.append('draft exits differ from source-defined connections')
+    for key, conn in expected_connections.items():
+        cand = exits.get(key)
+        if not isinstance(cand, dict):
+            continue
+        if cand.get('secret') is not conn.get('secret'):
+            problems.append(f'exits.{key} secret flag disagrees with the source')
+        if cand.get('areas') != ['here', f'to_{_slug(conn["to"])}']:
+            problems.append(f'exits.{key} changes source connection endpoints')
+        cited = (sidecar.get('fields') or {}).get(f'exits.{key}') or {}
+        if cited.get('offset') != conn['offset'] or _norm(str(cited.get('quote') or '')) != _norm(conn['quote']):
+            problems.append(f'exits.{key} does not cite its indexed connection')
+    extra = set(room) - set(expected_room)
+    if extra:
+        problems.append('draft adds unsourced room blocks: ' + ', '.join(sorted(extra)))
+    if room.get('id') != expected_room['id'] or room.get('starting_area') != expected_room['starting_area']:
+        problems.append('draft changes source room identity or starting area')
+    if room.get('source_ref') != expected_room['source_ref']:
+        problems.append('draft changes source reference')
+    if set(room.get('areas') or {}) != set(expected_room['areas']):
+        problems.append('draft changes source-defined area set')
+    for name, expected in expected_room['areas'].items():
+        candidate = (room.get('areas') or {}).get(name)
+        if not isinstance(candidate, dict):
+            continue
+        if db is not None or name == 'here':
+            if candidate != expected:
+                problems.append(f'areas.{name} changes source-defined area or navigation')
+        else:
+            # Direct validation without a DB still rejects tampering with link source/identity.
+            e = dict(expected)
+            c = dict(candidate)
+            e.pop('room_link', None)
+            link = c.pop('room_link', None)
+            if c != e or not isinstance(link, dict) or \
+                    (link.get('adventure') or {}).get('source_sha256') != index['sha256']:
+                problems.append(f'areas.{name} changes source-defined area or navigation')
+    for key, expected in expected_room.get('exits', {}).items():
+        if exits.get(key) != expected:
+            problems.append(f'exits.{key} changes source-defined exit details')
+    if (room.get('actors') or {}) != (expected_room.get('actors') or {}):
+        problems.append('draft actors differ from source-derived identities and stat blocks')
+    if (room.get('triggers') or []) != (expected_room.get('triggers') or []):
+        problems.append('draft triggers differ from source-derived encounter triggers')
+    if sidecar.get('ask_player') != expected_sidecar.get('ask_player') or \
+            sidecar.get('creatures') != expected_sidecar.get('creatures'):
+        problems.append('draft changes source-derived gaps or creature references')
+    return problems
+
+
+def validate(room, sidecar, index, text, db=None, span=None):
     """The runtime's checks on any draft, deterministic or model-assisted. Names every
     problem: a field with no source, a quote not in the location's text, a visible fact
     that quotes DM-only text, a fact that leaves its location, or a room the loader refuses."""
@@ -1543,11 +1697,15 @@ def validate(room, sidecar, index, text):
         return [f"provenance names no keyed location {sidecar.get('location')!r}"]
     if sidecar.get('source_sha256') != index['sha256']:
         problems.append('provenance is for a different source text')
-    span = text[loc['body'][0]:loc['body'][1]]
-    flat, flat_read = _norm(span.replace('>', ' ')), _norm(' '.join(
-        l.strip().lstrip('>') for l in span.split('\n') if l.strip().startswith('>')))
+    location_text = text[loc['body'][0]:loc['body'][1]]
+    flat, flat_read = _norm(location_text.replace('>', ' ')), _norm(' '.join(
+        l.strip().lstrip('>') for l in location_text.split('\n') if l.strip().startswith('>')))
     conn_quotes = {_norm(c['quote']) for c in loc['connections']}
     fields = sidecar.get('fields') or {}
+    expected_room, expected_sidecar = draft_room(
+        db if db is not None else '__validate_only__.sqlite',
+        sidecar['location'], index, text, span=span)
+    expected_facts = expected_room['facts']
     must = ['areas.here.name'] + [f'areas.{a}' for a in room.get('areas', {}) if a != 'here'] + \
         [f'exits.{e}' for e in room.get('exits', {})] + [f'facts.{f}' for f in room.get('facts', {})]
     for path in must:
@@ -1560,10 +1718,16 @@ def validate(room, sidecar, index, text):
         if path == 'areas.here.name':
             if quote != _norm(loc['name']):
                 problems.append(f'{path} does not match the location heading')
-        elif path.startswith(('areas.', 'exits.')):
+            if entry['offset'] != loc['offset']:
+                problems.append(f'{path} source offset does not point to the location heading')
+        elif path.startswith('facts.') and not _quote_at_source_offset(text, entry['quote'], entry['offset'], loc['body']):
+            problems.append(f'{path} source offset does not identify a quote in its location')
+        elif not path.startswith('facts.') and not _quote_at_source_offset(text, entry['quote'], entry['offset']):
+            problems.append(f'{path} source offset does not identify its quoted text')
+        if path.startswith(('areas.', 'exits.')) and path != 'areas.here.name':
             if quote not in conn_quotes:
                 problems.append(f'{path} quotes no connection stated in the source')
-        elif quote not in flat:
+        elif path.startswith('facts.') and quote not in flat:
             problems.append(f'{path} quote is not in location {loc["key"]}\'s text')
     for key, fact in (room.get('facts') or {}).items():
         entry = fields.get(f'facts.{key}') or {}
@@ -1577,9 +1741,18 @@ def validate(room, sidecar, index, text):
             if quote not in flat or _KEEP_HIDDEN.search(quote):
                 problems.append(f'fact {key} is visible but quotes DM-only text (secrets stay hidden)')
         body = _norm(str(fact.get('text', '')).rstrip('…'))
-        if quote and body and body not in quote and not _words_from(body, quote):
-            problems.append(f'fact {key} text says more than its quote')
-    problems += _actor_problems(room, fields, flat, index, text)
+        if quote and body and body.casefold() not in quote.casefold():
+            problems.append(f'fact {key} text says more than its quote or changes its wording')
+        extra = set(fact) - {'area', 'visible', 'text', 'handling', 'row', 'layer'}
+        if extra:
+            problems.append(f'fact {key} adds unsourced mechanics: {sorted(extra)}')
+        expected_fact = expected_facts.get(key) or {}
+        for owned in ('handling', 'row'):
+            if fact.get(owned) != expected_fact.get(owned):
+                problems.append(f'fact {key} changes source-derived {owned}')
+    problems += _actor_problems(room, fields, flat, index, text, loc)
+    problems += _validate_source_topology(room, sidecar, loc, index, text,
+                                          expected_room, expected_sidecar, db)
     if not problems:
         import warnings
         with warnings.catch_warnings(record=True) as caught:
@@ -1595,7 +1768,7 @@ def validate(room, sidecar, index, text):
     return problems
 
 
-def _actor_problems(room, fields, flat, index, text):
+def _actor_problems(room, fields, flat, index, text, loc):
     """Every combatant is sourced: its presence quotes this location, and every stat quotes the
     book's own stat block for it (and states that number) or names an SRD creature the runtime ships."""
     from .srd_creatures import CREATURES
@@ -1604,6 +1777,8 @@ def _actor_problems(room, fields, flat, index, text):
         where = fields.get(f'actors.{key}') or {}
         if not (isinstance(where.get('quote'), str) and _norm(where['quote']) in flat):
             problems.append(f'actors.{key} has no source quote in this location')
+        if not _quote_at_source_offset(text, where.get('quote', ''), where.get('offset'), loc['body']):
+            problems.append(f'actors.{key} source offset does not identify its quoted text')
         if isinstance(actor, dict) and actor.get('role') == 'speaker' and not actor.get('stat_block'):
             continue
         block = actor.get('stat_block') if isinstance(actor, dict) else None
@@ -1631,6 +1806,9 @@ def _actor_problems(room, fields, flat, index, text):
             if not quote or quote not in book:
                 problems.append(f'actors.{key}.stat_block.{field} has no source quote in its stat block')
                 continue
+            stat_where = fields.get(f'actors.{key}.stat_block.{field}') or {}
+            if not _quote_at_source_offset(text, stat_where.get('quote', ''), stat_where.get('offset'), (lo, hi)):
+                problems.append(f'actors.{key}.stat_block.{field} offset does not identify its source quote')
             numbers = [value] if isinstance(value, int) else \
                 [value.get('to_hit'), value.get('damage')] if isinstance(value, dict) else [None]
             if not all(isinstance(v, int) and re.search(rf'(?<![\d]){v}(?![\d])', quote) for v in numbers):
@@ -1656,14 +1834,14 @@ def _canon_key(key, locations):
     return upper if upper in locations else text
 
 
-def compile_location(db, key, draft=None, neighbours=True, span=None):
+def compile_location(db, key, draft=None, neighbours=True, span=None, source_sha=None):
     """Compile (or accept a host draft for) one location, validate it, cache it. Then
     pre-compile the locations it connects to, so the next move is already executable.
 
     ``span`` is the validated opening range. Actors and triggers outside it are not
     compiled into this scene.
     """
-    index, text = _load(db)
+    index, text = _load(db, source_sha)
     key = _canon_key(key, index['locations'])
     clock = time.perf_counter()
     if draft is None:
@@ -1673,10 +1851,10 @@ def compile_location(db, key, draft=None, neighbours=True, span=None):
         if not (isinstance(room, dict) and isinstance(sidecar, dict)):
             raise IngestError(['a draft is {"room": {...}, "provenance": {"location", "source_sha256", "fields"}}'])
         sidecar = {**sidecar, 'location': key, 'compiled_by': 'host_draft'}
-    problems = validate(room, sidecar, index, text)
+    problems = validate(room, sidecar, index, text, db=db, span=span)
     if problems:
         raise IngestError(problems)
-    path = room_file(db, key)
+    path = room_file(db, key, index['sha256'])
     path.parent.mkdir(parents=True, exist_ok=True)
     _write_json(path, room)
     scene_ms = round((time.perf_counter() - clock) * 1000, 3)
@@ -1689,9 +1867,9 @@ def compile_location(db, key, draft=None, neighbours=True, span=None):
     precompiled = []
     if neighbours:
         for c in index['locations'][key]['connections']:
-            if not room_file(db, c['to']).is_file():
+            if not room_file(db, c['to'], index['sha256']).is_file():
                 try:
-                    compile_location(db, c['to'], neighbours=False)
+                    compile_location(db, c['to'], neighbours=False, source_sha=index['sha256'])
                     precompiled.append(c['to'])
                 except IngestError:
                     pass
@@ -1850,10 +2028,10 @@ def ingest_adventure(db, text=None, pdf=None, title=None, reader='auto'):
         preserved = preserve_pdf_source(db, pdf)
         text, how = read_opening(retained_pdf_source(db), reader=reader)
     else:
-        from .kit_skim import OPENING_PAGES
-        text = _first_pages(text, OPENING_PAGES)
+        # Pasted text is already present: retain and index the entire manuscript.
+        # Unlike a PDF, no extraction step can hold up the opening.
         how = 'text'
-    report = import_adventure(db, text=text, title=title)
+    report = import_adventure(db, text=text, title=title, complete=(pdf is None))
     if pdf is not None:
         report['source_pdf_sha256'] = preserved['sha256']
     from . import kit_labels
@@ -1886,10 +2064,13 @@ def ingest_adventure(db, text=None, pdf=None, title=None, reader='auto'):
     # during patter, and are not part of this exchange.
     landing = {
         'table_line': kit_skim.LANDING,
-        'same_exchange': ['ingest', 'skim'],
+        'same_exchange': ['ingest', 'index', 'skim'] if pdf else ['ingest', 'skim'],
         'opening_after': 'Yes.',
         'then_line': kit_skim.READY_LINE,
     }
+    index_command = (f'python3 -m runtime.kit_agent adventure index --db {q} --reader {how}'
+                     if pdf else None)
+    landing['index_command'] = index_command
     if not compiled:
         return {
             'stage': 'adventure_ingested', 'reader': how, 'source_pdf_sha256': preserved['sha256'] if pdf else None, 'title': report['title'],
@@ -1897,7 +2078,7 @@ def ingest_adventure(db, text=None, pdf=None, title=None, reader='auto'):
             'start_location': None, 'start_room': None, 'starts': places, 'places': places,
             'opened_room': None, 'character_loaded': False, 'committed': False,
             'table_line': kit_skim.LANDING,
-            'landing': landing, 'skim_request': skim_request,
+            'landing': landing, 'index_command': index_command, 'skim_request': skim_request,
             'skim_command': skim_request.get('command'),
             'ingest_ms': ingest_ms,
             'source_bytes': (folder_for(db) / 'source.txt').stat().st_size,
@@ -1920,38 +2101,42 @@ def ingest_adventure(db, text=None, pdf=None, title=None, reader='auto'):
         'begin': ('When the player says begin, run next_command with their sheet. '
                   'The next scene compiles on arrival; do not hand-build rooms.'),
         'ask_player': compiled.get('ask_player', []), 'flags': compiled.get('flags', []),
-        'landing': landing, 'skim_request': skim_request,
+        'landing': landing, 'index_command': index_command, 'skim_request': skim_request,
         'skim_command': skim_request.get('command'),
         'places': places,
         **readiness(db),
     }
 
 
-def deepen_index(db):
-    """Read the rest of a PDF after the opening window. The landing does not wait on this."""
-    from .kit_skim import landing_holds
-    if landing_holds(db):
-        return {
-            'stage': 'index_later', 'deferred': True, 'committed': False,
-            'table_line': 'The opening is already in hand. Do not read the rest of the book yet.',
-        }
+def deepen_index(db, reader='auto'):
+    """Finish structural PDF indexing during preparation, before the host accepts its skim.
+
+    The opening remains a bounded initial extract; the full source is indexed in a
+    second explicit preparation command, not on Yes., Go on, or a player action.
+    Existing accepted scenes are never accepted again or overwritten here.
+    """
     path = retained_pdf_source(db)
     if path is None:
         return {'stage': 'index_idle'}
-    from .kit_skim import _read, accept
+    from .kit_skim import _read
     prior = _read(db)
-    text, how = read_pdf(path, reader='auto')
-    report = import_adventure(db, text=text)
-    if prior.get('status') == 'accepted' and prior.get('source_quote') and prior.get('design_start_name'):
-        accept(db, {
-            'burst': prior.get('burst') or prior.get('source_quote'),
-            'source_quote': prior.get('source_quote'),
-            'page_start': prior.get('page_start') or 1,
-            'page_end': prior.get('page_end') or prior.get('page_start') or 1,
-            'alt_starts': prior.get('alt_starts') or [],
-            'design_start_name': prior.get('design_start_name'),
-        })
-    return {'stage': 'index_deep', 'reader': how, 'locations': report.get('locations')}
+    folder = folder_for(db)
+    previous = _read_json(folder / 'index_coverage.json') if (folder / 'index_coverage.json').is_file() else {}
+    index, _ = _load(db)
+    if previous.get('complete') is True and previous.get('source_sha256') == index['sha256']:
+        return {'stage': 'index_deep', 'cached': True, 'locations': len(index['locations']),
+                'source_sha256': index['sha256'], 'index_complete': True}
+    # Reuse the opening reader when supplied so first-page source offsets do not
+    # change between extraction passes.
+    if reader == 'auto' and shutil.which('pdftotext'):
+        reader = 'pdftotext'
+    text, how = read_pdf(path, reader=reader)
+    report = import_adventure(db, text=text, complete=True)
+    # The accepted skim, if any, is untouched. Source-versioned room links still
+    # reference the exact earlier source and never silently migrate to this one.
+    return {'stage': 'index_deep', 'reader': how, 'locations': report.get('locations'),
+            'source_sha256': _read_json(folder / 'index.json')['sha256'],
+            'index_complete': True, 'accepted_scene_retained': prior.get('status') == 'accepted'}
 
 
 def choose_start(db, token=None):
@@ -2037,15 +2222,21 @@ def _choose_start(db, token=None):
 
 
 def ensure_compiled(link):
-    """Loader hook: a room_link into an adventure location whose room is not cached yet is
-    compiled now (deterministically), so moving on never needs the host to engineer it."""
+    """Compile a missing linked room only from its pinned immutable source version."""
     meta = link.get('adventure') if isinstance(link, dict) else None
     if not isinstance(meta, dict) or Path(link['room']).is_file():
         return
     try:
-        compile_location(meta['db'], meta['location'])
-    except (IngestError, OSError, KeyError):
-        pass  # the loader then reports the missing room in its plain way
+        target = Path(link['room'])
+        sha = meta.get('source_sha256') or target.parent.name
+        if not isinstance(sha, str) or not re.fullmatch(r'[0-9a-f]{64}', sha):
+            return
+        authoritative_target = room_file(meta['db'], meta['location'], sha)
+        if target.resolve() != authoritative_target.resolve():
+            return
+        compile_location(meta['db'], meta['location'], neighbours=False, source_sha=sha)
+    except (IngestError, OSError, KeyError, TypeError):
+        pass  # Fail closed; never silently retarget to the newest import.
 
 
 # ---------------------------------------------------------------- readiness
@@ -2059,8 +2250,11 @@ def readiness(db, mounted_id=None):
     if not (folder / 'index.json').is_file():
         return {'adventure_readiness': 'none'}
     index = _read_json(folder / 'index.json')
+    coverage = _read_json(folder / 'index_coverage.json') if (folder / 'index_coverage.json').is_file() else {}
+    complete = coverage.get('complete') is True and coverage.get('source_sha256') == index['sha256']
     compiled = sorted(k for k in index['locations'] if room_file(db, k).is_file())
-    out = {'adventure_title': index['title'], 'locations_total': len(index['locations']),
+    out = {'adventure_title': index['title'], 'index_complete': complete,
+           'locations_total': len(index['locations']),
            'locations_compiled': compiled, 'map_pages': index['map_pages'],
            'start_room': str(room_file(db, index['start'])) if index['start'] in compiled else None}
     if not compiled:
@@ -2131,7 +2325,7 @@ def main(argv=None):
             else:
                 result = kit_skim.request_for(args.db)
         elif args.action == 'index':
-            result = deepen_index(args.db)
+            result = deepen_index(args.db, reader=args.reader)
         elif args.action == 'compile':
             if not args.location:
                 raise IngestError(['compile needs --location'])

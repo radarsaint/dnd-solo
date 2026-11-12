@@ -571,7 +571,8 @@ class SkimRound6(unittest.TestCase):
         self.assertNotIn('label', ' '.join(report['landing']['same_exchange']))
         card = (ROOT / 'docs' / 'PLAY_CARD.md').read_text(encoding='utf-8').casefold()
         self.assertIn('do not label the book', card)
-        self.assertIn('before `go on`', card)
+        self.assertIn('not be triggered by `yes.`, `go on`', card)
+        self.assertIn('before accepting the first skim', card)
 
     def test_a_span_trigger_can_fire_and_a_later_monster_cannot(self):
         self._ingest(
@@ -729,19 +730,25 @@ class SkimRound6(unittest.TestCase):
         self.assertNotIn('wagon, or', rolled_text)
         self.assertTrue('look' in rolled_text or 'speak' in rolled_text)
 
-    def test_the_rest_of_the_book_waits_until_the_opening_is_spoken(self):
-        self._ingest(
+    def test_full_text_is_indexed_at_ingest_not_on_player_turn(self):
+        report = self._ingest(
             'The North Road\n> The wagon stops in the ruts under the trees.\n'
             'The Square\n> A baker waves from the stall.\n'
         )
+        self.assertTrue(report['index_complete'])
+        index, text = kit_adventure._load(self.db)
+        self.assertIn('The Square', text)
+        self.assertTrue(index['locations'])
         kit_skim.accept(self.db, _reply(
             burst='The wagon stops in the ruts under the trees.',
             source_quote='The wagon stops in the ruts under the trees.',
         ))
         from runtime import kit_labels
         self.assertTrue(kit_skim.landing_holds(self.db))
+        prior = kit_skim._read(self.db)
         later = kit_adventure.deepen_index(self.db)
-        self.assertEqual(later['stage'], 'index_later')
+        self.assertEqual(later['stage'], 'index_idle')  # no retained PDF: nothing to reindex
+        self.assertEqual(kit_skim._read(self.db), prior)
         self.assertIsNone(kit_labels.next_request(self.db))
 
     def test_an_accented_word_in_order_is_the_same_token(self):
