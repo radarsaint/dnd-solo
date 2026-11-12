@@ -66,6 +66,39 @@ class RetainedPdfTests(unittest.TestCase):
         self.assertIn('3. Depot', source)
         self.assertEqual(index['start'], before['scene_key'])
 
+    def test_full_text_ingest_keeps_later_chapters(self):
+        full = ('1. Port Arrival\n> A lantern lights the pier.\n'
+                + '\f' * 12 + '\n2. Watch House\n> A brass clock ticks.\n'
+                + '\f3. Warehouse\n> Wooden crates rise to the ceiling.\n')
+        report = kit_adventure.ingest_adventure(self.db, text=full)
+        self.assertTrue(report['index_complete'])
+        index, text = kit_adventure._load(self.db)
+        self.assertIn('3. Warehouse', text)
+        self.assertGreaterEqual(report['locations'], 3)
+        self.assertIn('3', index['locations'])
+
+    def test_full_pdf_index_is_preparation_before_skim(self):
+        from test_kit_adventure_pdf import make_pdf
+        from runtime import kit_skim
+        pdf = Path(self.tmp.name) / 'book.pdf'
+        pdf.write_bytes(make_pdf([
+            [('text', 70, 735, '1. North Road', 11),
+             ('text', 70, 700, 'A lantern lights the wagon road.', 9)],
+            [('text', 70, 735, '2. Bridge', 11),
+             ('text', 70, 700, 'A river roars beneath the bridge.', 9)],
+            [('text', 70, 735, '3. Tower', 11),
+             ('text', 70, 700, 'A bell rings above the stairs.', 9)],
+        ]))
+        report = kit_adventure.ingest_adventure(self.db, pdf=str(pdf), reader='pdftotext')
+        self.assertFalse(report['index_complete'])
+        self.assertIn('adventure index', report['index_command'])
+        deep = kit_adventure.deepen_index(self.db, reader=report['reader'])
+        self.assertTrue(deep['index_complete'])
+        self.assertEqual(deep['locations'], 3)
+        self.assertTrue(kit_adventure.readiness(self.db)['index_complete'])
+        self.assertFalse(kit_skim._read(self.db).get('status') == 'accepted')
+        self.assertTrue(kit_adventure.deepen_index(self.db)['cached'])
+
     def test_landing_parses_the_retained_bytes_not_mutable_upload_path(self):
         original = Path(self.tmp.name) / 'host-upload.pdf'
         initial = b'%PDF-1.4\n' + b'original synthetic source\n' * 4

@@ -1164,7 +1164,7 @@ def _creatures(span, base, stat_blocks):
     return out
 
 
-def import_adventure(db, text=None, pdf=None, title=None, reader='auto'):
+def import_adventure(db, text=None, pdf=None, title=None, reader='auto', complete=True):
     """Write the private source and its index next to the save. Returns the import report."""
     if text is None and pdf is None:
         raise IngestError(['give --text-file (extracted text) or --pdf'])
@@ -1185,6 +1185,8 @@ def import_adventure(db, text=None, pdf=None, title=None, reader='auto'):
     # Index is the publication marker. A mismatched pair fails closed on subsequent reads.
     old_text_file.write_text(text, encoding='utf-8')
     _write_json(old_index_file, index)
+    _write_json(folder / 'index_coverage.json',
+                {'source_sha256': index['sha256'], 'complete': bool(complete)})
     from . import kit_scenes
     kit_scenes.write_side(folder, index)
     return {'stage': 'adventure_imported', 'title': index['title'], 'locations': len(index['locations']),
@@ -1994,10 +1996,10 @@ def ingest_adventure(db, text=None, pdf=None, title=None, reader='auto'):
         preserved = preserve_pdf_source(db, pdf)
         text, how = read_opening(retained_pdf_source(db), reader=reader)
     else:
-        from .kit_skim import OPENING_PAGES
-        text = _first_pages(text, OPENING_PAGES)
+        # Pasted text is already present: retain and index the entire manuscript.
+        # Unlike a PDF, no extraction step can hold up the opening.
         how = 'text'
-    report = import_adventure(db, text=text, title=title)
+    report = import_adventure(db, text=text, title=title, complete=(pdf is None))
     if pdf is not None:
         report['source_pdf_sha256'] = preserved['sha256']
     from . import kit_labels
@@ -2030,10 +2032,13 @@ def ingest_adventure(db, text=None, pdf=None, title=None, reader='auto'):
     # during patter, and are not part of this exchange.
     landing = {
         'table_line': kit_skim.LANDING,
-        'same_exchange': ['ingest', 'skim'],
+        'same_exchange': ['ingest', 'index', 'skim'] if pdf else ['ingest', 'skim'],
         'opening_after': 'Yes.',
         'then_line': kit_skim.READY_LINE,
     }
+    index_command = (f'python3 -m runtime.kit_agent adventure index --db {q} --reader {how}'
+                     if pdf else None)
+    landing['index_command'] = index_command
     if not compiled:
         return {
             'stage': 'adventure_ingested', 'reader': how, 'source_pdf_sha256': preserved['sha256'] if pdf else None, 'title': report['title'],
@@ -2041,7 +2046,7 @@ def ingest_adventure(db, text=None, pdf=None, title=None, reader='auto'):
             'start_location': None, 'start_room': None, 'starts': places, 'places': places,
             'opened_room': None, 'character_loaded': False, 'committed': False,
             'table_line': kit_skim.LANDING,
-            'landing': landing, 'skim_request': skim_request,
+            'landing': landing, 'index_command': index_command, 'skim_request': skim_request,
             'skim_command': skim_request.get('command'),
             'ingest_ms': ingest_ms,
             'source_bytes': (folder_for(db) / 'source.txt').stat().st_size,
@@ -2064,36 +2069,42 @@ def ingest_adventure(db, text=None, pdf=None, title=None, reader='auto'):
         'begin': ('When the player says begin, run next_command with their sheet. '
                   'The next scene compiles on arrival; do not hand-build rooms.'),
         'ask_player': compiled.get('ask_player', []), 'flags': compiled.get('flags', []),
-        'landing': landing, 'skim_request': skim_request,
+        'landing': landing, 'index_command': index_command, 'skim_request': skim_request,
         'skim_command': skim_request.get('command'),
         'places': places,
         **readiness(db),
     }
 
 
-def deepen_index(db):
-    """Read the rest of a PDF after the opening window. The landing does not wait on this."""
-    from .kit_skim import landing_holds
-    if landing_holds(db):
-        return {
-            'stage': 'index_later', 'deferred': True, 'committed': False,
-            'table_line': 'The opening is already in hand. Do not read the rest of the book yet.',
-        }
+def deepen_index(db, reader='auto'):
+    """Finish structural PDF indexing during preparation, before the host accepts its skim.
+
+    The opening remains a bounded initial extract; the full source is indexed in a
+    second explicit preparation command, not on Yes., Go on, or a player action.
+    Existing accepted scenes are never accepted again or overwritten here.
+    """
     path = retained_pdf_source(db)
     if path is None:
         return {'stage': 'index_idle'}
     from .kit_skim import _read
     prior = _read(db)
-    text, how = read_pdf(path, reader='auto')
-    report = import_adventure(db, text=text)
-    # The opening has already been accepted and may have been spoken or played.
-    # Re-running accept() without its source-attested scene sends real PDFs back
-    # to scene_required; even re-running it WITH the scene resets the read-aloud
-    # cursor and active actor state. The new index is reference material, not a
-    # new opening. Keep the accepted skim and mounted room intact.
-    # The canonical source index is immutable for this hash; an alternate player
-    # starting point remains in the accepted skim sidecar, not in index.json.
-    return {'stage': 'index_deep', 'reader': how, 'locations': report.get('locations')}
+    folder = folder_for(db)
+    previous = _read_json(folder / 'index_coverage.json') if (folder / 'index_coverage.json').is_file() else {}
+    index, _ = _load(db)
+    if previous.get('complete') is True and previous.get('source_sha256') == index['sha256']:
+        return {'stage': 'index_deep', 'cached': True, 'locations': len(index['locations']),
+                'source_sha256': index['sha256'], 'index_complete': True}
+    # Reuse the opening reader when supplied so first-page source offsets do not
+    # change between extraction passes.
+    if reader == 'auto' and shutil.which('pdftotext'):
+        reader = 'pdftotext'
+    text, how = read_pdf(path, reader=reader)
+    report = import_adventure(db, text=text, complete=True)
+    # The accepted skim, if any, is untouched. Source-versioned room links still
+    # reference the exact earlier source and never silently migrate to this one.
+    return {'stage': 'index_deep', 'reader': how, 'locations': report.get('locations'),
+            'source_sha256': _read_json(folder / 'index.json')['sha256'],
+            'index_complete': True, 'accepted_scene_retained': prior.get('status') == 'accepted'}
 
 
 def choose_start(db, token=None):
@@ -2207,8 +2218,11 @@ def readiness(db, mounted_id=None):
     if not (folder / 'index.json').is_file():
         return {'adventure_readiness': 'none'}
     index = _read_json(folder / 'index.json')
+    coverage = _read_json(folder / 'index_coverage.json') if (folder / 'index_coverage.json').is_file() else {}
+    complete = coverage.get('complete') is True and coverage.get('source_sha256') == index['sha256']
     compiled = sorted(k for k in index['locations'] if room_file(db, k).is_file())
-    out = {'adventure_title': index['title'], 'locations_total': len(index['locations']),
+    out = {'adventure_title': index['title'], 'index_complete': complete,
+           'locations_total': len(index['locations']),
            'locations_compiled': compiled, 'map_pages': index['map_pages'],
            'start_room': str(room_file(db, index['start'])) if index['start'] in compiled else None}
     if not compiled:
@@ -2279,7 +2293,7 @@ def main(argv=None):
             else:
                 result = kit_skim.request_for(args.db)
         elif args.action == 'index':
-            result = deepen_index(args.db)
+            result = deepen_index(args.db, reader=args.reader)
         elif args.action == 'compile':
             if not args.location:
                 raise IngestError(['compile needs --location'])
