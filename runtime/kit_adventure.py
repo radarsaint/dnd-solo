@@ -1178,8 +1178,13 @@ def import_adventure(db, text=None, pdf=None, title=None, reader='auto'):
     index.setdefault('start', None)
     folder = folder_for(db)
     (folder / 'rooms').mkdir(parents=True, exist_ok=True)
-    (folder / 'source.txt').write_text(text, encoding='utf-8')
-    _write_json(folder / 'index.json', index)
+    old_index_file, old_text_file = folder / 'index.json', folder / 'source.txt'
+    if old_index_file.is_file() and old_text_file.is_file():
+        _save_source_version(folder, _read_json(old_index_file), old_text_file.read_text(encoding='utf-8'))
+    _save_source_version(folder, index, text)
+    # Index is the publication marker. A mismatched pair fails closed on subsequent reads.
+    old_text_file.write_text(text, encoding='utf-8')
+    _write_json(old_index_file, index)
     from . import kit_scenes
     kit_scenes.write_side(folder, index)
     return {'stage': 'adventure_imported', 'title': index['title'], 'locations': len(index['locations']),
@@ -1190,15 +1195,57 @@ def import_adventure(db, text=None, pdf=None, title=None, reader='auto'):
 
 # ---------------------------------------------------------------- compile
 
-def room_file(db, key):
-    return folder_for(db) / 'rooms' / f'{_slug(key)}.json'
+def _verified_source(index, text):
+    """A source/index mismatch cannot silently change a compiled room's meaning."""
+    sha = index.get('sha256') if isinstance(index, dict) else None
+    if not isinstance(sha, str) or not re.fullmatch(r'[0-9a-f]{64}', sha) or \
+            hashlib.sha256(text.encode('utf-8')).hexdigest() != sha:
+        raise IngestError(['adventure source and index hash do not match'])
+    return sha
 
 
-def _load(db):
+def _save_source_version(folder, index, text):
+    """Preserve verified source versions for the lifetime of active room links."""
+    sha = _verified_source(index, text)
+    path = folder / 'sources' / sha
+    path.mkdir(parents=True, exist_ok=True)
+    source_file, index_file = path / 'source.txt', path / 'index.json'
+    if source_file.exists() or index_file.exists():
+        if not source_file.exists() or not index_file.exists() or \
+                source_file.read_text(encoding='utf-8') != text or _read_json(index_file) != index:
+            raise IngestError(['immutable adventure source snapshot mismatch: ' + sha])
+    else:
+        source_file.write_text(text, encoding='utf-8')
+        _write_json(index_file, index)
+
+
+def room_file(db, key, sha=None):
+    """A room compiled from one source cannot be reused for another source."""
     folder = folder_for(db)
-    if not (folder / 'index.json').is_file():
+    index_path = folder / 'index.json'
+    sha = sha if sha is not None else (_read_json(index_path).get('sha256') if index_path.is_file() else None)
+    if not isinstance(sha, str) or not re.fullmatch(r'[0-9a-f]{64}', sha):
+        raise IngestError(['adventure index has no valid source hash'])
+    return folder / 'rooms' / sha / f'{_slug(key)}.json'
+
+
+def _load(db, source_sha=None):
+    folder = folder_for(db)
+    current_index = folder / 'index.json'
+    if not current_index.is_file():
         raise IngestError(['no adventure imported for this save; run adventure import first'])
-    return _read_json(folder / 'index.json'), (folder / 'source.txt').read_text(encoding='utf-8')
+    if source_sha is not None and not re.fullmatch(r'[0-9a-f]{64}', str(source_sha)):
+        raise IngestError(['invalid adventure source version'])
+    if source_sha is not None and _read_json(current_index).get('sha256') != source_sha:
+        folder = folder / 'sources' / source_sha
+    index_path, source_path = folder / 'index.json', folder / 'source.txt'
+    if not index_path.is_file() or not source_path.is_file():
+        raise IngestError(['no archived adventure source for version ' + str(source_sha)])
+    index, text = _read_json(index_path), source_path.read_text(encoding='utf-8')
+    sha = _verified_source(index, text)
+    if source_sha is not None and sha != source_sha:
+        raise IngestError(['archived adventure source version mismatch'])
+    return index, text
 
 
 def _cut(text):
@@ -1404,8 +1451,9 @@ def draft_room(db, key, index, text, span=None):
         other = index['locations'][c['to']]
         side = f'to_{_slug(c["to"])}'
         areas[side] = {'name': f'Outside {loc["name"]}', 'outside': True, 'beyond': True,
-                       'room_link': {'room': str(room_file(db, c['to'])), 'area': f'to_{_slug(key)}',
-                                     'adventure': {'db': str(db), 'location': c['to']}}}
+                       'room_link': {'room': str(room_file(db, c['to'], index['sha256'])), 'area': f'to_{_slug(key)}',
+                                     'adventure': {'db': str(db), 'location': c['to'],
+                                                   'source_sha256': index['sha256']}}}
         here_words = set(re.findall(r'[a-z0-9]+', loc['name'].casefold()))
         aliases = []
         for word in re.findall(r'[a-z0-9]+', (other.get('name') or '').casefold()):
@@ -1656,14 +1704,14 @@ def _canon_key(key, locations):
     return upper if upper in locations else text
 
 
-def compile_location(db, key, draft=None, neighbours=True, span=None):
+def compile_location(db, key, draft=None, neighbours=True, span=None, source_sha=None):
     """Compile (or accept a host draft for) one location, validate it, cache it. Then
     pre-compile the locations it connects to, so the next move is already executable.
 
     ``span`` is the validated opening range. Actors and triggers outside it are not
     compiled into this scene.
     """
-    index, text = _load(db)
+    index, text = _load(db, source_sha)
     key = _canon_key(key, index['locations'])
     clock = time.perf_counter()
     if draft is None:
@@ -1676,7 +1724,7 @@ def compile_location(db, key, draft=None, neighbours=True, span=None):
     problems = validate(room, sidecar, index, text)
     if problems:
         raise IngestError(problems)
-    path = room_file(db, key)
+    path = room_file(db, key, index['sha256'])
     path.parent.mkdir(parents=True, exist_ok=True)
     _write_json(path, room)
     scene_ms = round((time.perf_counter() - clock) * 1000, 3)
@@ -1689,9 +1737,9 @@ def compile_location(db, key, draft=None, neighbours=True, span=None):
     precompiled = []
     if neighbours:
         for c in index['locations'][key]['connections']:
-            if not room_file(db, c['to']).is_file():
+            if not room_file(db, c['to'], index['sha256']).is_file():
                 try:
-                    compile_location(db, c['to'], neighbours=False)
+                    compile_location(db, c['to'], neighbours=False, source_sha=index['sha256'])
                     precompiled.append(c['to'])
                 except IngestError:
                     pass
@@ -1947,13 +1995,8 @@ def deepen_index(db):
     # to scene_required; even re-running it WITH the scene resets the read-aloud
     # cursor and active actor state. The new index is reference material, not a
     # new opening. Keep the accepted skim and mounted room intact.
-    if prior.get('status') == 'accepted':
-        key = prior.get('scene_key')
-        if key:
-            index, _ = _load(db)
-            if key in index.get('locations', {}):
-                index['start'] = key
-                _write_json(folder_for(db) / 'index.json', index)
+    # The canonical source index is immutable for this hash; an alternate player
+    # starting point remains in the accepted skim sidecar, not in index.json.
     return {'stage': 'index_deep', 'reader': how, 'locations': report.get('locations')}
 
 
@@ -2040,15 +2083,21 @@ def _choose_start(db, token=None):
 
 
 def ensure_compiled(link):
-    """Loader hook: a room_link into an adventure location whose room is not cached yet is
-    compiled now (deterministically), so moving on never needs the host to engineer it."""
+    """Compile a missing linked room only from its pinned immutable source version."""
     meta = link.get('adventure') if isinstance(link, dict) else None
     if not isinstance(meta, dict) or Path(link['room']).is_file():
         return
     try:
-        compile_location(meta['db'], meta['location'])
-    except (IngestError, OSError, KeyError):
-        pass  # the loader then reports the missing room in its plain way
+        target = Path(link['room'])
+        sha = meta.get('source_sha256') or target.parent.name
+        if not isinstance(sha, str) or not re.fullmatch(r'[0-9a-f]{64}', sha):
+            return
+        authoritative_target = room_file(meta['db'], meta['location'], sha)
+        if target.resolve() != authoritative_target.resolve():
+            return
+        compile_location(meta['db'], meta['location'], neighbours=False, source_sha=sha)
+    except (IngestError, OSError, KeyError, TypeError):
+        pass  # Fail closed; never silently retarget to the newest import.
 
 
 # ---------------------------------------------------------------- readiness

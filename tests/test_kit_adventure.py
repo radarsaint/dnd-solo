@@ -71,6 +71,37 @@ class Index(Base):
         self.assertIsNone(report['start_location'])
 
 
+class SourceVersioning(Base):
+    def test_previous_room_link_uses_previous_book_after_reimport(self):
+        old_hash = self.index['sha256']
+        first = kit_adventure.compile_location(self.db, '1', neighbours=False)
+        old_room = json.loads(Path(first['room']).read_text())
+        link = old_room['areas']['to_2']['room_link']
+        self.assertEqual(link['adventure']['source_sha256'], old_hash)
+        edited = self.text.replace('rope bell', 'brass bell')
+        self.assertNotEqual(edited, self.text)
+        kit_adventure.import_adventure(self.db, text=edited)
+        new = kit_adventure.compile_location(self.db, '1', neighbours=False)
+        self.assertNotEqual(Path(first['room']), Path(new['room']))
+        self.assertFalse(Path(link['room']).is_file())
+        kit_adventure.ensure_compiled(link)
+        old_destination = json.loads(Path(link['room']).read_text())
+        fresh_destination = kit_adventure.compile_location(self.db, '2', neighbours=False)
+        self.assertNotEqual(Path(link['room']), Path(fresh_destination['room']))
+        self.assertEqual(old_destination['source_ref'],
+                         json.loads(kit_adventure.room_file(self.db, '2', old_hash).read_text())['source_ref'])
+
+    def test_corrupt_old_source_snapshot_fails_closed(self):
+        old_hash = self.index['sha256']
+        first = kit_adventure.compile_location(self.db, '1', neighbours=False)
+        link = json.loads(Path(first['room']).read_text())['areas']['to_2']['room_link']
+        kit_adventure.import_adventure(self.db, text=self.text.replace('rope bell', 'brass bell'))
+        archive = kit_adventure.folder_for(self.db) / 'sources' / old_hash / 'source.txt'
+        archive.write_text('corrupted', encoding='utf-8')
+        kit_adventure.ensure_compiled(link)
+        self.assertFalse(Path(link['room']).exists())
+
+
 class Compile(Base):
     def test_compile_caches_and_precompiles_neighbours(self):
         out = kit_adventure.compile_location(self.db, '1')
