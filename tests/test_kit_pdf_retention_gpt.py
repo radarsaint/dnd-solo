@@ -35,6 +35,21 @@ class RetainedPdfTests(unittest.TestCase):
         self.assertEqual(report['stage'], 'index_deep')
         self.assertEqual(Path(reader.call_args.args[0]), stored)
 
+    def test_landing_parses_the_retained_bytes_not_mutable_upload_path(self):
+        original = Path(self.tmp.name) / 'host-upload.pdf'
+        initial = b'%PDF-1.4\n' + b'original synthetic source\n' * 4
+        original.write_bytes(initial)
+        text = '1. Entry Road\n> A lantern swings above the road.\n'
+        def read_this_exact_source(path, reader='auto'):
+            self.assertNotEqual(Path(path), original)
+            self.assertEqual(Path(path).read_bytes(), initial)
+            original.write_bytes(b'%PDF-1.4\nmodified by outside process')
+            return text, 'test'
+        with mock.patch('runtime.kit_adventure.read_opening', side_effect=read_this_exact_source):
+            report = kit_adventure.ingest_adventure(self.db, pdf=str(original))
+        self.assertEqual(kit_adventure.retained_pdf_source(self.db).read_bytes(), initial)
+        self.assertEqual(report['source_pdf_sha256'], hashlib.sha256(initial).hexdigest())
+
     def test_corrupted_retained_pdf_refuses_before_deepening(self):
         _, _, _ = self._ingest()
         copy = kit_adventure.retained_pdf_source(self.db)

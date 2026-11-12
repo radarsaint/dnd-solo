@@ -1845,8 +1845,10 @@ def ingest_adventure(db, text=None, pdf=None, title=None, reader='auto'):
     clock = time.perf_counter()
     how = 'text'
     if text is None:
-        text, how = read_opening(pdf, reader=reader)
+        # Capture first, then parse *that exact immutable source*. Otherwise a
+        # replaced upload can give the first scene one book and later pages another.
         preserved = preserve_pdf_source(db, pdf)
+        text, how = read_opening(retained_pdf_source(db), reader=reader)
     else:
         from .kit_skim import OPENING_PAGES
         text = _first_pages(text, OPENING_PAGES)
