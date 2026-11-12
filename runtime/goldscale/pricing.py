@@ -1,5 +1,7 @@
 # Vendored verbatim from radarsaint/goldscale@a0a18c6 goldscale/pricing.py (Brendon's Goldscale bot).
 # Only change: package imports made relative. Do not edit here; re-vendor from Goldscale.
+from __future__ import annotations
+
 import re
 from dataclasses import dataclass
 from typing import Optional

@@ -1,9 +1,11 @@
 # Vendored verbatim from radarsaint/goldscale@a0a18c6 goldscale/clarification.py (Brendon's Goldscale bot).
 # Only change: package imports made relative. Do not edit here; re-vendor from Goldscale.
+from __future__ import annotations
+
 import re
 from dataclasses import dataclass
 from time import time
-from typing import Optional
+from typing import Optional, Tuple
 
 from .formatting import format_missing, format_result, should_request_description
 from .parser import ItemData, find_aoe, find_damage_or_healing, parse_item_text, title_item_name
@@ -13,7 +15,7 @@ from .pricing import calculate_price, has_impact, missing_fields
 PENDING_TTL_SECONDS = 300
 
 
-PendingKey = tuple[Optional[int], int, int]
+PendingKey = Tuple[Optional[int], int, int]
 
 
 @dataclass
