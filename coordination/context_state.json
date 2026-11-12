@@ -2,7 +2,7 @@
   "schema": "kit_project_gardener_state/v1",
   "purpose": "RESUMABILITY_CURSOR_NOT_KNOWLEDGE_STORE",
   "canonical_location": "radarsaint/dnd-solo/coordination/context_state.json",
-  "state_revision": 62,
+  "state_revision": 63,
   "semantic_brain": {
     "repo": "radarsaint/dnd-solo",
     "path": "docs/PROJECT_UNDERSTANDING.md",
@@ -11,8 +11,8 @@
   },
   "checkpoint": {
     "reviewed_against_main": {
-      "radarsaint/dnd-solo": "3c96353aa9e9831cd0b74123c2a12f76c65e2032",
-      "radarsaint/bfdm-corpus": "cf65ec04572b2a033383344d1f2583e3380686f7"
+      "radarsaint/dnd-solo": "9c356aba8f45d8a52d9bf9c7e8dbe4b8a3daba3b",
+      "radarsaint/bfdm-corpus": "66f3c62fb87976224174180db0a57e50d129587e"
     },
     "context_inbox": {
       "repo": "radarsaint/dnd-solo",
@@ -25,8 +25,8 @@
   "last_completed_pass": {
     "kind": "BOUNDED_SEMANTIC_RECONCILIATION",
     "completed_on": "2026-11-12",
-    "scope": "Reviewed dnd-solo main after #206 merge (c1c9034 / c7478c9); no new #115 comments beyond 6598407850.",
-    "result": "Accept narrow: #206 reconstructs plausible two-column gutters, binds source span to containing heading, and fails closed when the whole opening cannot be recovered. Repairs hollow openings from Blind Run 18. Synthetic layout tests added. Remaining Blind Run 18 defects and real private-PDF retest not addressed. Brain updated on main. No bfdm-corpus change. Unresolved items unchanged.",
+    "scope": "Reviewed bfdm-corpus main after #60 merge (66f3c62 / b0a47fd); no new #115 comments beyond 6598407850. Concurrent dnd-solo checkpoint already advanced for #206.",
+    "result": "Accept narrow: #60 regenerates the Roanoke S3 review packet so the integrity check passes. Only dependency_commit pointer updates (to 3055884 from #27); evidence digests, payload hash, and state hash identical. No change to research conclusions, propositions, or what a collaborator should believe. No brain edit. No bfdm-corpus control edit. Unresolved items unchanged.",
     "resulting_brain_commit": "3c96353aa9e9831cd0b74123c2a12f76c65e2032",
     "reconciled_comment_id": 6598407850
   },
