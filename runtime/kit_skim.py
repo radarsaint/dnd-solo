@@ -1286,72 +1286,102 @@ def _encounter_bounds(text, page_start, page_end, quote_offset, title=''):
 
 
 
+def _page_columns(page, gutter):
+    """Separate layout columns without treating an arbitrary long space as a gutter.
+
+    A publisher can justify one paragraph or indent a boxed line. Try actual
+    gutter positions, retaining the original words and line boundaries.
+    """
+    left, right = [], []
+    for row in page.splitlines():
+        pipe = re.search(r'\s+\|\s+', row)
+        if pipe:
+            left.append(row[:pipe.start()].strip())
+            right.append(row[pipe.end():].strip())
+            continue
+        gaps = list(re.finditer(r'(?<=\S) {3,}(?=\S)', row))
+        at = min(gaps, key=lambda hit: abs(hit.end() - gutter)) if (
+            gaps and gutter is not None) else None
+        if at is not None and abs(at.end() - gutter) <= 8:
+            left.append(row[:at.start()].strip())
+            right.append(row[at.end():].strip())
+        elif (gutter is not None and row.strip() and
+              len(row) - len(row.lstrip(' ')) >= max(20, gutter - 8)):
+            left.append('')
+            right.append(row.strip())
+        else:
+            left.append(row.strip())
+            right.append('')
+    return '\n'.join(left), '\n'.join(right)
+
+
+def _bounded_encounter(stream, burst):
+    """Keep the local location, not earlier setup or the next keyed location."""
+    lines = stream.splitlines()
+    seen = False
+    seen_at = None
+    running = []
+    for number, line in enumerate(lines):
+        running.append(line)
+        if _contiguous(burst, '\n'.join(running)):
+            seen = True
+            seen_at = number
+            break
+    if not seen:
+        return ''
+    # The boxed text may occur after the encounter's DM-only setup. Its
+    # containing heading, not the first word of the box, starts the context.
+    begin = 0
+    for number in range(seen_at + 1):
+        line = lines[number].strip()
+        if (_KEYED.match(line) or
+                (_heading_line(line) and not _bad_title(line) and
+                 not _META.search(line))):
+            begin = number
+    finish = len(lines)
+    for number in range(seen_at + 1, len(lines)):
+        line = lines[number].strip()
+        if (_KEYED.match(line) or _LATER.match(line) or
+                re.match(r'(?i)^(?:chapter|part)\s+\d+\b', line)):
+            finish = number
+            break
+    return '\n'.join(lines[begin:finish]).strip()
+
+
 def _same_column_encounter(source, burst):
-    """Give the host only the printed lane containing the opening.
+    """Reconstruct the printed encounter from PDF layout, then bind its limits.
 
-    pdftotext -layout can place the next keyed location (or a sidebar) to
-    the RIGHT of the current room on the SAME line. Offsets alone cannot
-    describe this boundary. Select the read-aloud's column and follow that
-    column across page breaks; retain original line boundaries for attested
-    sentences. Stop when that column actually reaches the next keyed area.
-
-    This is a *view* for attestation, never an edit of the stored source.
+    A single guessed column boundary is unsafe: a centered heading or a wide
+    space inside one column can shift it, so the opening quote disappears.
+    Recover only a layout in which the *whole* opening is still present in
+    order. Preserve contiguous source sentences for scene attestation.
+    The selected source is a private view; the original PDF is unchanged.
     """
     raw = source or ''
+    if not raw.strip() or not burst or not _words(burst):
+        return ''
     pages = raw.split('\f')
-    # A single-column source still needs the ordinary keyed-area stopping rule.
-    selected = None
-    lines_out = []
-    past_burst = False
-    cutoff = None
-    for page in pages:
-        rows = page.splitlines()
-        gaps = []
-        for row in rows:
-            gap = re.search(r'(?<=\S) {3,}(?=\S)', row)
-            if gap:
-                gaps.append(gap.end())
-        if gaps:
-            cutoff = min(gaps)
-        left, right = [], []
-        for row in rows:
-            gap = re.search(r'(?<=\S) {3,}(?=\S)', row)
-            if gap:
-                left.append(row[:gap.start()].strip())
-                right.append(row[gap.end():].strip())
-            elif (cutoff is not None and row.strip() and
-                  len(row) - len(row.lstrip(' ')) >= max(20, cutoff - 4)):
-                left.append('')
-                right.append(row.strip())
-            else:
-                left.append(row.strip())
-                right.append('')
-        lanes = ('\n'.join(left), '\n'.join(right))
-        if selected is None:
-            # Only an actual quote match establishes which lane owns this
-            # encounter. Before that, preserve no ambiguous sidebar words.
-            for i, lane in enumerate(lanes):
-                if _contiguous(burst, lane):
-                    selected = i
-                    break
-            if selected is None:
-                continue
-        chosen = lanes[selected]
-        # Non-layout single-column pages are always the left lane; if a book
-        # transitions from the right column onto a clean next page, follow it.
-        if not chosen.strip() and selected == 1 and not gaps and left:
-            chosen = lanes[0]
-            selected = 0
-        for line in chosen.splitlines():
-            stripped = line.strip()
-            if past_burst and (_KEYED.match(stripped) or _LATER.match(stripped)):
-                return '\n'.join(lines_out).strip()
-            lines_out.append(line)
-            if _contiguous(burst, '\n'.join(lines_out)):
-                past_burst = True
-        lines_out.append('\f')
-    return '\n'.join(lines_out).strip()
-
+    gaps = []
+    for row in raw.splitlines():
+        for hit in re.finditer(r'(?<=\S) {3,}(?=\S)', row):
+            if hit.end() >= 20:
+                gaps.append(hit.end())
+    # Prefer repeated physical gutters, not the earliest incidental space.
+    # The cap bounds work even on a long, irregularly laid-out PDF window.
+    cutoffs = sorted(set(gaps), key=lambda p: (
+        -sum(abs(p - other) <= 8 for other in gaps), p))[:16]
+    for gutter in cutoffs + [None]:
+        ordered = []
+        for page in pages:
+            left, right = _page_columns(page, gutter)
+            # Print reading order is down the left column, then the right.
+            ordered.append(left + ('\n' + right if right.strip() else ''))
+        stream = '\n\f\n'.join(ordered)
+        if _contiguous(burst, stream):
+            return _bounded_encounter(stream, burst)
+    # Never claim a source-verified empty scene, or borrow another location's
+    # characters merely because they share the same physical page.
+    return ''
 
 def _scene_request(db, data, candidate, source, spoken, problems=None):
     """Return an actionable, DM-only repair packet; no start is accepted yet."""
@@ -1492,9 +1522,17 @@ def accept(db, reply):
         # Require host interpretation on all real PDFs. Never silently fall back.
         scope_start, scope_end = _encounter_bounds(text, page_at, page_to,
                                                    span_start, name)
-        scoped_raw = text[scope_start:scope_end]
+        # Physical pages can interleave columns before and after the opening.
+        # Let the layout-aware extractor establish the real location boundary;
+        # the raw offset heuristic alone can stop on the other column's heading.
+        scoped_raw = text[min(scope_start, page_at):max(scope_end, page_to)]
         scoped = _same_column_encounter(scoped_raw, spoken)
         candidate = {key: reply[key] for key in KEYS if key != 'scene' and key in reply}
+        if not scoped or not _contiguous(spoken, scoped):
+            return _scene_request(
+                db, data, candidate, '', spoken,
+                ['opening encounter cannot be reconstructed from the PDF layout; '
+                 'no scene facts may be attested'])
         if 'scene' not in reply:
             return _scene_request(db, data, candidate, scoped, spoken,
                                   ['scene must be interpreted from the printed encounter'])
