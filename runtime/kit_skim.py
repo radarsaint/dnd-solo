@@ -1719,13 +1719,45 @@ def _stamp_beat(room_path, beat):
                 for key in bound_actor_ids.get(identity, ())))
             room['_opening_pressures'].append(pressure)
         room['_opening_discoveries'] = list(beat.get('discoveries') or ())
-        immediate = any(p.get('activation') == 'entry' and p.get('kind') == 'ambush'
-                        for p in room['_opening_pressures'])
-        for trigger in room.get('triggers') or []:
-            if isinstance(trigger, dict) and 'enter' in (trigger.get('on') or {}) and not immediate:
+        # The encounter compiler may recognize the creature's stat block but
+        # not build a trigger from the author's conditional prose. Preserve the
+        # actual indexed room (and its exits) and derive only trigger TIMING from
+        # source-attested pressure. The native trigger/fight code owns combat.
+        triggers = room.setdefault('triggers', [])
+        immediate_ids = set(key for pressure in room['_opening_pressures']
+                            if pressure.get('kind') == 'ambush'
+                            and pressure.get('activation') == 'entry'
+                            for key in pressure.get('actors') or ())
+        for trigger in triggers:
+            if not isinstance(trigger, dict) or 'enter' not in (trigger.get('on') or {}):
+                continue
+            if not set(trigger.get('actors') or ()).issubset(immediate_ids):
                 trigger['_deferred'] = True
                 trigger['starts_combat'] = False
                 trigger['notice'] = False
+        known_ids = {t.get('id') for t in triggers if isinstance(t, dict)}
+        for number, pressure in enumerate(room['_opening_pressures'], 1):
+            activation = pressure.get('activation')
+            actors_here = set(pressure.get('actors') or ())
+            if (pressure.get('kind') != 'ambush' or activation not in ('entry', 'failed_notice')
+                    or not actors_here or not actors_here.issubset(actors)):
+                continue
+            covered = any(isinstance(t, dict) and t.get('on') == {'enter': here}
+                          and actors_here.issubset(set(t.get('actors') or ()))
+                          and ((activation == 'entry' and not t.get('_deferred'))
+                               or (activation == 'failed_notice' and t.get('_deferred')))
+                          for t in triggers)
+            if covered:
+                continue
+            tid = 'source_opening_pressure_%s' % number
+            while tid in known_ids:
+                tid += '_next'
+            known_ids.add(tid)
+            triggers.append({
+                'id': tid, 'on': {'enter': here}, 'actors': sorted(actors_here),
+                'starts_combat': activation == 'entry', 'notice': False,
+                **({'_deferred': True} if activation == 'failed_notice' else {}),
+            })
     elif (beat.get('notice') or {}).get('holds'):
         for item in room.get('triggers') or []:
             if isinstance(item, dict) and 'enter' in (item.get('on') or {}):
