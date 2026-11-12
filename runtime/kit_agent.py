@@ -1171,12 +1171,18 @@ class RoomAdjudicator:
                         state_actor.get('visible', True)):
                     mentioned = name
                     break
+            # Speech already in the player's declaration was spoken. Never ask
+            # the player to repeat it; Kit's next reply can be the NPC's answer
+            # when that answer is justified by this scene and the actor's goals.
+            already_spoke = bool(QUOTED_SPEECH.search(action.translate(_TYPOGRAPHIC)))
             if mentioned:
-                public = 'You address %s. What do you say?' % mentioned
+                public = ('You address %s.' if already_spoke else
+                          'You address %s. What do you say?') % mentioned
             else:
                 where = (self.source.get('_opening_place') or '').strip()
                 place = ' across the %s' % where if where else ''
-                public = 'You call out%s. What do you say?' % place
+                public = ('You call out%s.' if already_spoke else
+                          'You call out%s. What do you say?') % place
             result = dataclasses.replace(result, public_event=public)
         if (self.source or {}).get('_opening_verified') and result.kind == 'observe' and not (
                 state.get('pending_check') or kit_rolls.stated_skill(action)):

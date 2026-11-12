@@ -86,6 +86,19 @@ class SourceAuthoredAmbush(unittest.TestCase):
         self.assertNotIn('initiative', result['spoken'].casefold())
         self.assertFalse(self.runtime.load()[1].get('combat'))
 
+    def test_speaking_to_hidden_people_does_not_ask_to_repeat_quoted_words(self):
+        self._room(True)
+        prepared = self.bridge.prepare('I call out to whoever is hiding, "Come out and talk!"',
+                                       one_pass=True)
+        self.assertEqual(prepared['stage'], 'one_pass', prepared)
+        public = prepared['input']['private']['accepted_public_event']
+        self.assertIn('call out', public)
+        self.assertNotIn('What do you say?', public)
+        state = self.runtime.load()[1]
+        self.assertFalse(state.get('combat'))
+        self.assertEqual(state['actors']['bandit_1']['status'], 'hidden')
+        self.assertEqual(state['actors']['bandit_2']['status'], 'hidden')
+
     def test_unsupported_failed_notice_activation_is_refused(self):
         bad = copy.deepcopy(SCENE)
         bad['pressures'][0]['activation'] = 'failed_notice'

@@ -314,6 +314,8 @@ class StagedSceneTests(unittest.TestCase):
             question = '"Why are you holding the road?" I ask Captain Mara.'
             fourth = bridge.prepare(question, one_pass=True)
             self.assertEqual(fourth.get('stage'), 'one_pass', fourth)
+            self.assertNotIn('What do you say?',
+                             fourth['input']['private']['accepted_public_event'])
             answered = reply(fourth, question,
                              'I have orders to hold the road until the wagons pass.')
             self.assertIn('Captain Mara:', answered['spoken'])
