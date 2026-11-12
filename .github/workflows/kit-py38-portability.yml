@@ -44,6 +44,7 @@ jobs:
           python -m unittest discover -s tests -p 'test_kit_source_ambush_gpt.py' -v
           python -m unittest discover -s tests -p 'test_kit_pdf_retention_gpt.py' -v
           python -m unittest discover -s tests -p 'test_kit_host_contract_round2.py' -v
+          python -m unittest discover -s tests -p 'test_kit_indexed_opening_gpt.py' -v
           python -m unittest discover -s tests -p 'test_kit_player_save.py' -v
       - name: Run complete repository tests on real Python 3.8
         run: python -m unittest discover -s tests -q
