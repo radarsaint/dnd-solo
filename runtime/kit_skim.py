@@ -1168,28 +1168,72 @@ def _append_body(db, index, text, block):
     return text, (start, len(text))
 
 
+def _compile_recorded_section(db, key, burst):
+    """Compile the recorded body of ``key``. Keep this identity if the burst is in it."""
+    from .kit_adventure import IngestError, _load, compile_location
+    try:
+        index, text = _load(db)
+        body = (index.get('locations') or {}).get(key, {}).get('body') or [0, 0]
+        if body[1] <= body[0]:
+            return None
+        compiled = compile_location(db, key, neighbours=False, span=(body[0], body[1]))
+        room = json.loads(Path(compiled['room']).read_text(encoding='utf-8'))
+        section = text[body[0]:body[1]]
+        # A typography miss can hide a real boxed burst from _playable; the
+        # burst must still be player-facing, not a fused tip or a secret.
+        if _playable(room, burst):
+            return compiled
+        if (_has_burst(section, burst) and _safe_box(burst)
+                and not _unsafe(burst) and not _go_fail(burst) and not _blocks_quote(burst)):
+            return compiled
+    except (IngestError, OSError, ValueError, KeyError):
+        return None
+    return None
+
+
+def _try_compile_opening(db, key, text, span, burst, book_quote, verified=False):
+    """Compile one opening under ``key``. None when the room is unplayable or hollow."""
+    from .kit_adventure import IngestError, compile_location
+    try:
+        compiled = compile_location(db, key, neighbours=False, span=span)
+        room = json.loads(Path(compiled['room']).read_text(encoding='utf-8'))
+        page_slice = text[span[0]:span[1]]
+        # A playable box with no trigger, while this span names a creature, is hollow.
+        # Rebuild so the designed pressure is in the scene and still not spoken.
+        if not _playable(room, burst) or (
+                not verified and not room.get('triggers') and _pressure(page_slice, book_quote)):
+            return None
+        return compiled
+    except (IngestError, OSError, ValueError, KeyError):
+        return None
+
+
 def _bind(db, index, text, name, span, alts, burst, book_quote, verified=False, anchor=None):
-    """Attach the accepted quote to a scene that has player text to compile."""
+    """Attach the accepted quote to the canonical recorded section, one key only."""
     from . import kit_scenes
     from .kit_adventure import IngestError, _write_json, compile_location, folder_for
-    key = _containing(index, span[0] if anchor is None else anchor)
+    origin = span[0] if anchor is None else anchor
+    # The recorded heading-through-next-keyed-area location is the section
+    # identity for landing, the picker, Yes, and the link graph. A later
+    # derived scene key is not a second start.
+    key = _containing(index, origin)
     compiled = None
     if key is not None:
         body = (index['locations'][key].get('body') or span)
         narrowed = (max(span[0], body[0]), min(span[1], body[1]))
         if narrowed[1] <= narrowed[0]:
             narrowed = (body[0], body[1])
-        try:
-            compiled = compile_location(db, key, neighbours=False, span=narrowed)
-            room = json.loads(Path(compiled['room']).read_text(encoding='utf-8'))
-            page_slice = text[span[0]:span[1]]
-            # A playable box with no trigger, while this span names a creature, is hollow.
-            # Rebuild so the designed pressure is in the scene and still not spoken.
-            if not _playable(room, burst) or (not verified and not room.get('triggers') and _pressure(page_slice, book_quote)):
-                compiled = None
-        except (IngestError, OSError, ValueError, KeyError):
-            compiled = None
+        compiled = _try_compile_opening(db, key, text, narrowed, burst, book_quote, verified)
+        if compiled is None and (body[0], body[1]) != tuple(narrowed):
+            compiled = _try_compile_opening(db, key, text, (body[0], body[1]), burst, book_quote, verified)
+    if compiled is None and key is not None:
+        # Typography or a hollow first draft must not mint a second start key.
+        # Compile the recorded body under the same section identity. The
+        # accepted burst is already in that body.
+        compiled = _compile_recorded_section(db, key, burst)
     if compiled is None:
+        if key is not None:
+            raise IngestError(['the opening could not be compiled in its recorded section'])
         block = _clean_body(book_quote)
         page_slice = text[span[0]:span[1]]
         from .kit_adventure import _creatures, _sentence_around
@@ -1200,12 +1244,12 @@ def _bind(db, index, text, name, span, alts, burst, book_quote, verified=False, 
                 continue
             seen_extra.add(sent)
             block += sent + '\n'
-        text, span = _append_body(db, index, text, block)
+        text, built = _append_body(db, index, text, block)
         used = {loc.get('letter') for loc in (index.get('locations') or {}).values()}
         letter = next((ch for ch in 'ABCDEFGH' if ch not in used), 'A')
-        key = _emit_scene(index, text, name, span, letter)
+        key = _emit_scene(index, text, name, built, letter)
         _write_json(folder_for(db) / 'index.json', index)
-        compiled = compile_location(db, key, neighbours=False, span=span)
+        compiled = compile_location(db, key, neighbours=False, span=built)
         room = json.loads(Path(compiled['room']).read_text(encoding='utf-8'))
         if not _playable(room, burst):
             raise IngestError(['the opening has no player text to compile'])

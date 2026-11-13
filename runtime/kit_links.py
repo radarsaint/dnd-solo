@@ -47,12 +47,33 @@ def counts(index):
     return {'confirmed': confirmed, 'likely': likely, 'unlinked': unlinked}
 
 
+def section_key(index, key=None):
+    """The one recorded section this key names.
+
+    Derived or leftover start names alias to ``index['start']``, the
+    canonical section the session starts from. A real location keeps
+    its own key, unless it records ``section`` as that canonical id.
+    """
+    locations = index.get('locations') or {}
+    start = index.get('start')
+    if not key:
+        return start
+    loc = locations.get(key)
+    if loc:
+        alias = loc.get('section')
+        if alias and alias in locations:
+            return alias
+        return key
+    return start
+
+
 def links_from(index, key):
     """One-hop links already recorded from this section. No target text."""
+    key = section_key(index, key)
     if not key:
         return []
     return [dict(link) for link in (index.get('links') or [])
-            if link.get('from') == key]
+            if section_key(index, link.get('from')) == key]
 
 
 def summary_for(index, key=None):
@@ -183,15 +204,10 @@ def answer(db, action, scene_key=None):
         index, text = _load(db)
     except Exception:
         return None
-    key = scene_key or index.get('start')
+    key = section_key(index, scene_key or index.get('start'))
     link = match_touch(action, links_from(index, key))
     if link is None:
-        # A confirmed hop from the start opening may still be the subject
-        # when the session key is a derived skim scene covering the same body.
-        if key != index.get('start'):
-            link = match_touch(action, links_from(index, index.get('start')))
-        if link is None:
-            return None
+        return None
     span = load_hop(index, text, link)
     if not span:
         return None
@@ -583,7 +599,7 @@ def prefetch_confirmed(db, scene_key=None):
         index, text = _load(db)
     except Exception:
         return []
-    key = scene_key or index.get('start')
+    key = section_key(index, scene_key or index.get('start'))
     found = []
     for link in links_from(index, key):
         if link.get('confidence') != CONFIRMED:

@@ -271,5 +271,71 @@ class LinkLandingBound(unittest.TestCase):
         self.assertEqual(holder['load'], 1, holder)
 
 
+
+class CanonicalSectionIdentity(unittest.TestCase):
+    """The session starts from the recorded heading key, even if compile rebuilds."""
+
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.db = Path(temporary.name) / 'kit.sqlite'
+        self.source = _book()
+        pdf = Path(temporary.name) / 'owned.pdf'
+        pdf.write_bytes(b'%PDF-1.4\nsynthetic private source\n')
+        with mock.patch('runtime.kit_adventure.read_opening',
+                        return_value=(self.source, 'test')):
+            kit_adventure.ingest_adventure(self.db, pdf=str(pdf))
+        self.burst = (
+            'You step into the ford. Two marsh hounds (see the Marsh Hound '
+            'stat block) wait on the far bank. A stone heron stands in the silt.'
+        )
+        self.index, _text = kit_adventure._load(self.db)
+        self.heading = self.index['start']
+        self.assertTrue(self.heading)
+        self.assertFalse(str(self.heading).startswith('scene:skim:'), self.heading)
+
+    def _honest(self):
+        return {
+            'burst': self.burst,
+            'source_quote': self.burst,
+            'page_start': 1,
+            'page_end': 2,
+            'alt_starts': [],
+            'design_start_name': 'The Ford',
+        }
+
+    def _scene(self, request):
+        spoken = (request.get('read_aloud') or self.burst).strip()
+        return {
+            'place': {'name': 'ford', 'quote': spoken},
+            'people': [],
+            'discoveries': [],
+            'pressures': [],
+        }
+
+    def test_lookup_is_a_one_hop_touch_when_start_would_differ_from_the_heading_key(self):
+        first = kit_skim.accept(self.db, self._honest())
+        self.assertEqual(first.get('stage'), 'scene_required', first)
+        request = first.get('scene_request') or {}
+        # Force the rebuild path that used to emit a derived scene:skim start.
+        with mock.patch.object(kit_skim, '_try_compile_opening', return_value=None):
+            second = kit_skim.accept(self.db, {'scene': self._scene(request)})
+        self.assertEqual(second.get('stage'), 'skim_accepted', second)
+        self.assertEqual(second.get('scene_key'), self.heading, second)
+        index, _text = kit_adventure._load(self.db)
+        self.assertEqual(index.get('start'), self.heading)
+        self.assertFalse(str(index.get('start')).startswith('scene:skim:'))
+        action = 'Kit, what does the book say about marsh hound?'
+        hit = kit_links.answer(self.db, action, second.get('scene_key'))
+        self.assertIsNotNone(hit)
+        self.assertTrue(hit.get('source_verified'))
+        self.assertNotIn('give me a second', (hit.get('spoken') or '').casefold())
+        # A leftover derived start name is the same section, not a second graph.
+        aliased = kit_links.answer(self.db, action, 'scene:skim:A')
+        self.assertIsNotNone(aliased)
+        self.assertEqual(aliased.get('link'), hit.get('link'))
+        self.assertEqual(kit_links.section_key(index, 'scene:skim:A'), self.heading)
+
+
 if __name__ == '__main__':
     unittest.main()
