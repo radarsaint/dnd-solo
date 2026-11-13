@@ -432,7 +432,7 @@ FIELD_SHAPES = {
         'callback': 'none',
         'mirror': 'steady energy, standard, dry humor: meet the even pace and let the answer land.',
         'npc_notice': 'none'},
-    'reacts_to': 'at least 2 words, verbatim, one not a small word (a/the/and); Narrator uses "none"',
+    'reacts_to': 'Kit only: 2+ words quoting a public line (the player on npc_reply); other speakers use "none"',
     'feature_floor': 'at least 80 words across non-Kit segments, in at least 2 segments',
     'kit_segment': {'speaker': 'Kit', 'text': 'Where next?', 'reacts_to': 'the landing stays wet'},
 }
@@ -7372,7 +7372,7 @@ def first_try_lines(runtime, body, planning_input):
         'appraisal.label: ' + ', '.join(APPRAISAL_LABELS) + ' (none needs intensity 0).',
         'Speakers this turn: ' + ', '.join(speakers['speakers'])
         + (f"; heard only, not here: {', '.join(h['speaker'] for h in speakers['heard'])}" if speakers.get('heard') else '')
-        + '. Every Kit segment needs reacts_to (a short verbatim quote of a public line this turn).',
+        + '. reacts_to is Kit-only (quote the player on npc_reply); other speakers use none.',
     ]
     if terse:
         lines.append(f'Terse is fine for {", ".join(terse)}: one short line meets the actor side; do not pad. '

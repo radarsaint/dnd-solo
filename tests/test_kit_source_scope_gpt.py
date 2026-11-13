@@ -64,10 +64,12 @@ class BoundedColumnSource(unittest.TestCase):
             source = result['scene_request']['source_span']
             self.assertIn('Two bandits hide', source)
             self.assertIn('broken branches', source)
+            # The next keyed area is outside this section.
             self.assertNotIn('silver key', source)
             self.assertNotIn('Locked Vault', source)
-            self.assertNotIn('distant patron', source)
-            self.assertNotIn('How to Play', source)
+            # Facing-column setup in the same section may be handed to the
+            # host to read; Python no longer guesses it away. It must not
+            # become a compiled beat on its own.
             self.assertNotIn('beat', kit_skim._read(db))
 
 

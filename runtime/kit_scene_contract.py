@@ -96,7 +96,12 @@ def validate(scene, raw_span, read_aloud, layout_span=None):
             problems.append('scene exceeds the size limit')
     except (TypeError, ValueError):
         return ['scene must be JSON-serializable']
-    sources = (raw_span, layout_span) if layout_span else (raw_span,)
+    extras = []
+    if isinstance(layout_span, (list, tuple)):
+        extras = [item for item in layout_span if item]
+    elif layout_span:
+        extras = [layout_span]
+    sources = (raw_span,) + tuple(extras)
     place = scene['place']
     if not isinstance(place, dict) or set(place) != {'name', 'quote'}:
         problems.append('place needs name and source quote')

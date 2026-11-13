@@ -152,8 +152,8 @@ class PublicPdfSceneBoundary(unittest.TestCase):
             'place': {'name': 'cart', 'quote': self.burst},
             'people': [], 'discoveries': [], 'pressures': [],
         }
-        with mock.patch.object(kit_skim, 'recover_encounter_span',
-                               return_value=''):
+        with mock.patch.object(kit_skim, 'recover_opening_section',
+                               return_value=('', [])):
             first = self._skim()
             self.assertEqual(first['stage'], 'skim_accepted', first)
             self.assertEqual(first.get('layout_recovery'), 'burst_only')

@@ -49,7 +49,11 @@ _FRONT = re.compile(
     r'introduction|preface|foreword|contents|front matter|legal notice|trademark|'
     r'published by|villain|background|appendix|dungeon master|for the dm|'
     r'using this (?:book|adventure)|getting started|character creation|'
-    r'ability scores?)\b|\bDC\b',
+    r'ability scores?|make sure you|ask (?:the|each) players?|'
+    r'read the (?:following|boxed|rules)|this is the number|'
+    r'advantage or disadvantage|(?:\d+-)?sided die|\bd(?:4|6|8|10|12|20)\b|'
+    r'your character|character sheets?|roleplaying|estimated time|'
+    r'starting the (?:adventure|game)|dungeons?\s*(?:and|&)\s*dragons)\b|\bDC\b',
     re.I)
 _NOT_CREATURE = re.compile(
     r'^(?:wisdom|check|hour|hours|day|days|mile|miles|gold|foot|feet|word|words|'
@@ -434,7 +438,8 @@ def look_line(beat):
 
 def _title_for(heading, sentences):
     """A read-aloud's title: a clean place heading, else the place word, else first words."""
-    if heading and not _FRONT.search(heading) and not _skim()._bad_title(heading):
+    if (heading and not _FRONT.search(heading) and not _skim()._bad_title(heading)
+            and not _skim()._procedural_title(heading)):
         return heading
     noun = _place_in(' '.join(sentences))
     if noun:
@@ -502,7 +507,8 @@ def read_aloud_picks(window):
             title = _title_for(heading, sentences)
             heading = ''
             if (not title or title.casefold() in seen or _FRONT.search(title)
-                    or _skim()._bad_title(title) or _skim()._NOT_A_START.search(title)):
+                    or _skim()._bad_title(title) or _skim()._NOT_A_START.search(title)
+                    or _skim()._procedural_title(title)):
                 continue
             seen.add(title.casefold())
             picks.append({'title': title, 'page': page, 'quote': ' '.join(sentences[:2])})

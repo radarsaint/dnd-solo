@@ -100,7 +100,7 @@ class RetainedPdfAndHostCycle(unittest.TestCase):
 
     def test_failed_recovery_is_a_playable_burst_only_start(self):
         self._ingest()
-        with mock.patch.object(kit_skim, 'recover_encounter_span', return_value=''):
+        with mock.patch.object(kit_skim, 'recover_opening_section', return_value=('', [])):
             result = kit_skim.accept(self.db, self._form())
         self.assertEqual(result['stage'], 'skim_accepted', result)
         self.assertEqual(result.get('layout_recovery'), 'burst_only')
@@ -254,6 +254,158 @@ class PresentNpcReplyCycle(unittest.TestCase):
         self.assertNotIn('Invalid spoken segment', json.dumps(answered))
         self.assertNotEqual(answered.get('stage'), 'rejected')
         self.assertEqual(runtime.load()[1]['actors']['captain_mara']['status'], 'alive')
+
+
+
+
+class TwoColumnSectionHandoff(unittest.TestCase):
+    """The host receives both columns of the opening section, not a guessed slice.
+
+    Hidden ambushers in the facing column after the read-aloud stay in the
+    section. A later keyed room does not.
+    """
+
+    def _layout(self):
+        burst = 'The cart halts near a bent tree.'
+        presence = 'Two scouts hide in the brush beside the path.'
+        notice = 'A careful look notices broken twigs under the tree.'
+        condition = 'If the scouts go unnoticed, they spring from hiding and attack.'
+        later = 'A bell rings on a high tower.'
+        raw = (
+            kit_skim_row('1. Marsh Road', 'Trail notes')
+            + kit_skim_row('> ' + burst, presence)
+            + kit_skim_row('The road bends west.', notice)
+            + kit_skim_row('Dust hangs in the afternoon light.', condition)
+            + kit_skim_row('2. Far Chapel', 'The chapel door is locked.')
+            + kit_skim_row('> ' + later, 'A rope hangs in the belfry.')
+        )
+        return raw, burst, presence, notice, condition, later
+
+    def test_section_includes_facing_column_hidden_presence(self):
+        raw, burst, presence, notice, condition, later = self._layout()
+        span, columns = kit_skim.opening_section_from_text(raw, burst)
+        blob = ' '.join((span or '').split())
+        lanes = ' '.join((item.get('text') or '') for item in columns)
+        combined = blob + ' ' + ' '.join(lanes.split())
+        self.assertIn(burst, combined)
+        self.assertIn('Two scouts hide', combined)
+        self.assertIn('broken twigs', combined)
+        self.assertIn('spring from hiding', combined)
+        self.assertNotIn('chapel door', combined)
+        self.assertNotIn('bell rings', combined)
+        self.assertNotIn('belfry', combined)
+        self.assertGreaterEqual(len(columns), 2, columns)
+
+    def test_host_form_from_facing_column_asks_look_and_sneak(self):
+        raw, burst, presence, notice, condition, later = self._layout()
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        root = Path(folder.name)
+        db = root / 'game.sqlite'
+        # A real PDF keeps the host-attested scene contract (not legacy text).
+        # Hidden ambushers sit in the facing column under the same heading.
+        pdf = root / 'source.pdf'
+        pdf.write_bytes(make_pdf([[
+            ('text', 70, 740, '1. Marsh Road', 11),
+            ('text', 70, 705, '> ' + burst, 10),
+            ('text', 70, 670, 'The road bends west.', 10),
+            ('text', 70, 635, 'Dust hangs in the afternoon light.', 10),
+            ('text', 340, 740, 'Trail notes', 11),
+            ('text', 340, 705, presence, 10),
+            ('text', 340, 670, notice, 10),
+            ('text', 340, 635, condition, 10),
+        ], [
+            ('text', 70, 740, '2. Far Chapel', 11),
+            ('text', 70, 705, '> ' + later, 10),
+            ('text', 340, 740, 'The chapel door is locked.', 10),
+        ]]))
+        kit_adventure.ingest_adventure(db, pdf=str(pdf))
+        first = kit_skim.accept(db, {
+            'burst': burst, 'source_quote': burst,
+            'page_start': 1, 'page_end': 2, 'alt_starts': [],
+            'design_start_name': 'Marsh Road',
+        })
+        self.assertEqual(first['stage'], 'scene_required', first)
+        span = first['scene_request']['source_span']
+        lanes = first['scene_request'].get('source_columns') or []
+        combined = span + ' ' + ' '.join(item.get('text') or '' for item in lanes)
+        self.assertIn('Two scouts hide', combined)
+        self.assertNotIn('chapel door', combined)
+        scene = {
+            'place': {'name': 'tree', 'quote': burst},
+            'people': [{
+                'id': 'scout_1', 'name': 'scouts',
+                'quote': presence, 'visibility': 'hidden', 'kind': 'creature',
+                'goal': None, 'knowledge': [],
+            }],
+            'discoveries': [{'quote': notice, 'status': 'established'}],
+            'pressures': [{
+                'kind': 'ambush', 'quote': condition, 'status': 'conditional',
+                'actors': ['scout_1'], 'activation': 'failed_notice',
+            }],
+        }
+        accepted = kit_skim.accept(db, {'scene': scene})
+        self.assertEqual(accepted['stage'], 'skim_accepted', accepted)
+        start_session(str(db), str(SHEET))
+        runtime = Runtime(str(db))
+        self.addCleanup(runtime.close)
+        bridge = KitChatBridge(runtime, RoomAdjudicator())
+        opening = bridge.prepare('Yes.')
+        self.assertIn(burst, opening.get('spoken') or '')
+        looked = bridge.prepare('I look around carefully.', one_pass=True)
+        self.assertEqual(looked.get('stage'), 'called_roll', looked)
+        self.assertIn('Roll Perception', looked.get('spoken') or '')
+        self.assertNotIn('DC', looked.get('spoken') or '')
+        sneak_runtime = Runtime(str(db))
+        self.addCleanup(sneak_runtime.close)
+        sneaked = KitChatBridge(sneak_runtime, RoomAdjudicator()).prepare(
+            'I sneak around the edges and slip past.', one_pass=True)
+        self.assertEqual(sneaked.get('stage'), 'called_roll', sneaked)
+        self.assertIn('Roll Stealth', sneaked.get('spoken') or '')
+        self.assertNotIn('DC', sneaked.get('spoken') or '')
+
+
+class RulesHeadingFictionPicker(unittest.TestCase):
+    """Boxed or second-person fiction may be offered even under a rules heading."""
+
+    def setUp(self):
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        self.db = Path(folder.name) / 'picker.sqlite'
+        self.source = (
+            'How to Play\n'
+            '> You stand in the street while the lamps stay dark.\n'
+            'Make sure you look around the trail\n'
+            'This procedure explains a 6-sided die and advantage or disadvantage.\n'
+        )
+        kit_adventure.ingest_adventure(self.db, text=self.source)
+
+    def _refuse(self):
+        return kit_skim.accept(self.db, {
+            'burst': 'A dragon lands on the bakery and the crowd cheers.',
+            'source_quote': 'A dragon lands on the bakery and the crowd cheers.',
+            'page_start': 1, 'page_end': 1, 'alt_starts': [],
+            'design_start_name': 'How to Play',
+        })
+
+    def test_fiction_under_a_rules_heading_is_offered_without_that_title(self):
+        refused = self._refuse()
+        titles = [item.get('title') or '' for item in refused.get('alt_starts') or []]
+        blob = ' '.join(titles).casefold()
+        self.assertTrue(titles, refused)
+        self.assertTrue(any('street' in title.casefold() or 'lamp' in title.casefold()
+                            for title in titles), titles)
+        for banned in ('how to', 'make sure', 'look around the trail', 'sided die',
+                       'advantage', 'procedure'):
+            self.assertNotIn(banned, blob, titles)
+
+    def test_naming_a_coaching_heading_commits_nothing(self):
+        self._refuse()
+        picked = kit_adventure.choose_start(self.db, 'Make sure you look around the trail')
+        self.assertEqual(picked.get('stage'), 'pick_start', picked)
+        self.assertFalse(picked.get('committed'))
+        self.assertFalse(picked.get('room'))
+        self.assertIsNone(picked.get('spoken'))
 
 
 if __name__ == '__main__':

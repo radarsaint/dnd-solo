@@ -104,8 +104,8 @@ class PdfSceneIntegration(unittest.TestCase):
         self.assertNotIn('Far Chapel', span)
 
     def test_missing_scope_accepts_a_burst_only_start_instead_of_stalling(self):
-        with mock.patch.object(kit_skim, '_same_column_encounter',
-                               return_value=''):
+        with mock.patch.object(kit_skim, 'recover_opening_section',
+                               return_value=('', [])):
             first = kit_skim.accept(self.db, {
                 'burst': self.burst, 'source_quote': self.burst,
                 'page_start': 1, 'page_end': 1,
