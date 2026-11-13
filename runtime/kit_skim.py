@@ -160,7 +160,8 @@ _SCENE_VERB = re.compile(
 _NOT_A_START = re.compile(
     r'\b(?:this (?:adventure|module|book)|trademark|copyright|credits|synopsis|'
     r'level|advancement|experience|backstory|designed for|published|'
-    r'a party of|character levels?)\b',
+    r'a party of|character levels?|guidelines?|arbitrat(?:e|ion|ing)|'
+    r'how to (?:play|run|use|read)|dungeon master|for the dm)\b',
     re.I)
 _LATER = re.compile(r'(?m)^(?:area\s+)?[A-Z]?\d{1,3}[a-z]?\s*[.:]\s+\S')
 _NOTICE = re.compile(r'\b(?:perception|notice|notices|spot(?:s|ted)?|stealth)\b', re.I)
@@ -1342,7 +1343,8 @@ def _bounded_encounter(stream, burst):
     for number in range(seen_at + 1, len(lines)):
         line = lines[number].strip()
         if (_KEYED.match(line) or _LATER.match(line) or
-                re.match(r'(?i)^(?:chapter|part)\s+\d+\b', line)):
+                re.match(r'(?i)^(?:chapter|part)\s+\d+\b', line) or
+                _front_matter_break(line)):
             finish = number
             break
     return '\n'.join(lines[begin:finish]).strip()
@@ -1378,17 +1380,19 @@ def _same_column_encounter(source, burst):
         for stream in (left, right):
             if _contiguous(burst, stream):
                 found = _preferred_span(found, _bounded_encounter(stream, burst), burst)
-    # An opening that truly straddles both printed columns can be used only
-    # when its complete words are contiguous in the left-then-right reading
-    # order. The fallback is bounded at the next source-owned keyed location.
-    for gutter in cutoffs + [None]:
-        pages_in_order = []
-        for page in pages:
-            left, right = _page_columns(page, gutter)
-            pages_in_order.append(left + ('\n' + right if right.strip() else ''))
-        stream = '\n\f\n'.join(pages_in_order)
-        if _contiguous(burst, stream):
-            found = _preferred_span(found, _bounded_encounter(stream, burst), burst)
+    # An opening that truly straddles both printed columns is a fallback
+    # only when no single lane already holds the burst and the encounter
+    # body under it. Joining left-then-right otherwise imports a facing
+    # sidebar that has no heading of its own.
+    if not (found and _follow_on_words(found, burst) >= 3):
+        for gutter in cutoffs + [None]:
+            pages_in_order = []
+            for page in pages:
+                left, right = _page_columns(page, gutter)
+                pages_in_order.append(left + ('\n' + right if right.strip() else ''))
+            stream = '\n\f\n'.join(pages_in_order)
+            if _contiguous(burst, stream):
+                found = _preferred_span(found, _bounded_encounter(stream, burst), burst)
     boxed = _boxed_line_stream(raw)
     if boxed and _contiguous(burst, boxed):
         found = _preferred_span(found, _bounded_encounter(boxed, burst), burst)
@@ -1398,37 +1402,75 @@ def _same_column_encounter(source, burst):
 
 
 
+# A numbered location title at the start of a line or after a gutter/space,
+# so a facing "2. Later Room" glued onto the boxed line still counts as a leak.
+_KEYED_IN_TEXT = re.compile(
+    r'(?:^|[\s>])(?:area\s+)?[A-Z]?\d{1,3}[a-z]?\s*[.:]\s+\S')
+
+
+def _front_matter_break(line):
+    """A how-to, rules, or front-matter line is not encounter body."""
+    text = (line or '').strip().lstrip('>').strip()
+    if not text:
+        return False
+    head = re.split(r'[.:]', text, maxsplit=1)[0].strip()
+    if not head or len(head.split()) > 8:
+        return False
+    return bool(re.search(
+        r'^(?:(?:how to|how-to)\b|using this (?:book|adventure)\b|'
+        r'getting started\b|credits?\b|synopsis\b|(?:some )?guidelines?\b|'
+        r'(?:for the )?dungeon master\b|for the dm\b|character creation\b|'
+        r'ability scores?\b|this (?:adventure|module|book)\b)',
+        normalize(head), re.I))
+
+
+def _front_matter_count(span):
+    return sum(1 for line in (span or '').splitlines() if _front_matter_break(line))
+
+
 def _keyed_count(span):
     """How many source-owned location headings sit in this span."""
-    count = 0
-    for line in (span or '').splitlines():
-        # A mixed layout row can carry two location titles.
-        for part in re.split(r'\s{3,}', line):
-            stripped = part.strip()
-            if not stripped:
-                continue
-            # Only numbered location titles, not ordinary sentences that look tall.
-            if _KEYED.match(stripped) or _LATER.match(stripped):
-                count += 1
-    return count
+    return len(_KEYED_IN_TEXT.findall(span or ''))
+
+
+def _gutter_rows(span):
+    """Rows that still carry two printed lanes (a leftover facing column)."""
+    return sum(1 for line in (span or '').splitlines()
+               if re.search(r'\S {3,}\S', line))
 
 
 def _preferred_span(current, candidate, burst):
-    """Prefer a recovered span that still has the burst and fewer later locations."""
+    """Prefer a recovered span that still has the burst and the whole encounter.
+
+    A second location heading is a leak. When two spans describe the same
+    location, keep the one with more follow-on encounter text rather than a
+    clipped boxed line.
+    """
     if not candidate or not _contiguous(burst, candidate):
         return current or ''
     if not current:
         return candidate
     current_keys, new_keys = _keyed_count(current), _keyed_count(candidate)
-    # A second location heading is a leak. A span with no heading is often just
-    # the boxed line, missing the rest of the encounter.
     if 1 <= new_keys < current_keys:
         return candidate
-    if new_keys == current_keys and new_keys >= 1:
-        # Same location, narrower lane: keep follow-on encounter lines.
-        if (_follow_on_words(candidate, burst) >= 3 and
-                len(candidate) < len(current)):
-            return candidate
+    if current_keys >= 1 and new_keys == 0:
+        return current
+    if new_keys != current_keys:
+        return current
+    new_mix, cur_mix = _gutter_rows(candidate), _gutter_rows(current)
+    if new_mix < cur_mix:
+        return candidate
+    if new_mix > cur_mix:
+        return current
+    new_front, cur_front = _front_matter_count(candidate), _front_matter_count(current)
+    if new_front < cur_front:
+        return candidate
+    if new_front > cur_front:
+        return current
+    new_follow = _follow_on_words(candidate, burst)
+    cur_follow = _follow_on_words(current, burst)
+    if new_follow > cur_follow:
+        return candidate
     return current
 
 
@@ -1553,31 +1595,33 @@ def recover_encounter_span(db, spoken, ingested_scope):
     pdftotext -raw, which keep a printed lane in reading order. Nothing is
     invented; the burst still has to be present in the recovered span.
     """
-    span = _same_column_encounter(ingested_scope, spoken)
-    if span and _contiguous(spoken, span):
-        return span
+    found = ''
+    ingested = _same_column_encounter(ingested_scope, spoken)
+    if ingested and _contiguous(spoken, ingested):
+        found = ingested
+    # Always also try the retained PDF. A contiguous ingested lane can still
+    # clip the encounter if pdftotext -layout interleaved the follow-on text.
     from . import kit_adventure
     try:
         path = kit_adventure.retained_pdf_source(db)
     except Exception:
         path = None
-    if path is None:
-        return span or ''
-    try:
-        data = path.read_bytes()
-    except OSError:
-        return span or ''
-    import time
-    from . import kit_pdf
-    found = kit_pdf.extract(data, max_pages=OPENING_PAGES, deadline=time.monotonic() + 3)
-    recovered = _span_from_extract(found.get('text') or '', spoken)
-    if recovered:
-        return recovered
-    raw = kit_adventure._pdftotext_raw(path, OPENING_PAGES)
-    recovered = _span_from_extract(raw or '', spoken)
-    if recovered:
-        return recovered
-    return span or ''
+    if path is not None:
+        try:
+            data = path.read_bytes()
+        except OSError:
+            data = None
+        if data is not None:
+            import time
+            from . import kit_pdf
+            extracted = kit_pdf.extract(
+                data, max_pages=OPENING_PAGES, deadline=time.monotonic() + 3)
+            found = _preferred_span(
+                found, _span_from_extract(extracted.get('text') or '', spoken), spoken)
+            raw = kit_adventure._pdftotext_raw(path, OPENING_PAGES)
+            found = _preferred_span(
+                found, _span_from_extract(raw or '', spoken), spoken)
+    return found or ingested or ''
 
 
 BURST_ONLY_PREFIX = (
@@ -1945,17 +1989,17 @@ def _stamp_beat(room_path, beat):
         matches = ([key for key, actor in actors.items()
                     if key == pid or (verified and stem(actor.get('name')) == stem(person.get('name')))]
                    if verified else [pid] if pid in actors else [])
-        # Source-attested speakers may be represented without a combat stat block.
-        # Source-attested creatures without any book/SRD stat must not be invented.
-        if verified and not matches and person.get('kind') == 'speaker':
+        # Source-attested people may be present without a combat stat block.
+        # Presence-only: no invented stats, damage, or combat abilities.
+        if verified and not matches:
+            kind = str(person.get('kind') or '')
+            role = 'speaker' if kind in ('speaker', 'person', 'npc') else 'creature'
             actors[pid] = {
-                'name': person['name'], 'location': here,
+                'name': person.get('name') or pid, 'location': here,
                 'status': 'hidden' if person.get('hidden') else 'alive',
-                'visible': not person.get('hidden'), 'role': 'speaker',
+                'visible': not person.get('hidden'), 'role': role,
             }
             matches = [pid]
-        if verified and not matches:
-            unresolved.append(pid)
         if verified:
             bound_actor_ids[pid] = list(matches)
         for key in matches:
@@ -2501,11 +2545,25 @@ def take_speak_now(db):
     return True
 
 
+def _procedural_title(title):
+    """A rules, how-to, or front-matter heading is never a playable opening."""
+    text = normalize(title or '')
+    if not text:
+        return True
+    return bool(_bad_title(text) or _NOT_A_START.search(text) or _META.search(text)
+                or re.search(
+                    r'\b(?:guidelines?|arbitrat(?:e|ion|ing)|how to|how-to|rules|'
+                    r'procedure|credits?|synopsis|dungeon master|for the dm)\b',
+                    text, re.I))
+
+
 def _open_named(db, chosen):
     """A place name with no safe box. Kit starts there. The notes under it are not spoken."""
     from .kit_adventure import IngestError
     title = chosen.get('title') or 'Here'
     line = chosen.get('kit_line') or ''
+    if _procedural_title(title):
+        return refused_start(db)
     data = _read(db)
     page = chosen.get('page') or 1
     try:
@@ -2558,6 +2616,8 @@ def open_title(db, token):
             break
     if chosen is None:
         return None
+    if _procedural_title(chosen.get('title') or token):
+        raise IngestError(['%s is not player fiction' % (chosen.get('title') or token)])
     quote = chosen.get('quote') or ''
     if not quote and chosen.get('kit_line'):
         return _open_named(db, chosen)

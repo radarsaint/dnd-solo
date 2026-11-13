@@ -44,9 +44,12 @@ def player_line(text):
 
 
 _FRONT = re.compile(
-    r'\b(?:credits?|licen[sc]e|copyright|how to|how-to|rules|procedure|synopsis|'
+    r'\b(?:credits?|licen[sc]e|copyright|how to|how-to|how to (?:play|run|use|read)|'
+    r'guidelines?|arbitrat(?:e|ion|ing)|rules|procedure|synopsis|'
     r'introduction|preface|foreword|contents|front matter|legal notice|trademark|'
-    r'published by|villain|background|appendix)\b|\bDC\b',
+    r'published by|villain|background|appendix|dungeon master|for the dm|'
+    r'using this (?:book|adventure)|getting started|character creation|'
+    r'ability scores?)\b|\bDC\b',
     re.I)
 _NOT_CREATURE = re.compile(
     r'^(?:wisdom|check|hour|hours|day|days|mile|miles|gold|foot|feet|word|words|'
@@ -498,7 +501,8 @@ def read_aloud_picks(window):
                 continue
             title = _title_for(heading, sentences)
             heading = ''
-            if not title or title.casefold() in seen or _FRONT.search(title):
+            if (not title or title.casefold() in seen or _FRONT.search(title)
+                    or _skim()._bad_title(title) or _skim()._NOT_A_START.search(title)):
                 continue
             seen.add(title.casefold())
             picks.append({'title': title, 'page': page, 'quote': ' '.join(sentences[:2])})
@@ -534,17 +538,20 @@ def read_aloud_picks(window):
     if bucket:
         title = _title_for('', bucket)
         return [{'title': title, 'page': 1, 'quote': ' '.join(bucket[:2])}]
+    # A clean place heading may be offered when no boxed player line survived.
+    # Rules, how-to, and front-matter headings are never starts.
     for line in (window or '').split('\n'):
         plain = line.strip().lstrip('>').strip()
         if not skim._heading_line(plain):
             continue
-        if _FRONT.search(plain) or skim._bad_title(plain) or skim._LATER.match(plain) or skim._KEYED.match(plain):
+        if (skim._procedural_title(plain) or _FRONT.search(plain) or skim._bad_title(plain)
+                or skim._LATER.match(plain) or skim._KEYED.match(plain)):
             continue
         return [{'title': plain, 'page': 1, 'quote': '', 'kit_line': kit_line(plain)}]
     noun = _place_in(window or '')
     if noun:
         return [{'title': 'The %s' % noun, 'page': 1, 'quote': '', 'kit_line': kit_line('the %s' % noun)}]
-    return [{'title': 'Here', 'page': 1, 'quote': '', 'kit_line': kit_line('here')}]
+    return []
 
 
 def letter_slot(alts, token):

@@ -2217,7 +2217,9 @@ def choose_start(db, token=None):
 def _choose_start(db, token=None):
     want = (token or '').strip()
     if want:
-        from .kit_skim import open_title, refused_start, _read
+        from .kit_skim import open_title, refused_start, _read, _procedural_title
+        if _procedural_title(want):
+            return refused_start(db)
         from .kit_opening import letter_slot
         if re.fullmatch(r'[A-Za-z]', want):
             shown = _read(db).get('alt_starts') or []
