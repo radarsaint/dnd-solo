@@ -44,7 +44,7 @@ class LazyNetwork(unittest.TestCase):
     def test_kit_agent_does_not_import_urllib_request_http_or_ssl(self):
         code = ('import sys; import runtime.kit_agent; '
                 'print(sorted(m for m in ("urllib.request", "http.client", "ssl") if m in sys.modules))')
-        out = subprocess.run([sys.executable, '-c', code], cwd=ROOT, capture_output=True, text=True, check=True)
+        out = subprocess.run([sys.executable, '-S', '-c', code], cwd=ROOT, capture_output=True, text=True, check=True)
         self.assertEqual(out.stdout.strip(), '[]')
 
     def test_urllib_still_resolves_when_used(self):

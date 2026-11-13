@@ -1245,8 +1245,22 @@ def _save_source_version(folder, index, text):
     path.mkdir(parents=True, exist_ok=True)
     source_file, index_file = path / 'source.txt', path / 'index.json'
     if source_file.exists() or index_file.exists():
-        if not source_file.exists() or not index_file.exists() or \
-                source_file.read_text(encoding='utf-8') != text or _read_json(index_file) != index:
+        if not source_file.exists() or not index_file.exists():
+            raise IngestError(['immutable adventure source snapshot mismatch: ' + sha])
+        archived_text = source_file.read_text(encoding='utf-8')
+        archived_index = _read_json(index_file)
+        # Source snapshots are immutable. The active index is NOT: accepting
+        # an opening can change its selected start, add a derived scene, and
+        # update entry metadata without changing a single byte of source.
+        # Comparing the entire mutable index against the preserved snapshot
+        # falsely rejects the next full-book index. Still reject any changed
+        # source bytes or alterations to source-derived structural records.
+        _verified_source(archived_index, archived_text)
+        if archived_text != text or any(
+                archived_index.get(field) != index.get(field)
+                for field in ('version', 'sha256', 'chars', 'chapters',
+                              'pages', 'map_pages', 'stat_blocks', 'npcs',
+                              'checks')):
             raise IngestError(['immutable adventure source snapshot mismatch: ' + sha])
     else:
         source_file.write_text(text, encoding='utf-8')
