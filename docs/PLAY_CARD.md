@@ -2,6 +2,28 @@
 
 Read this once at mount. During play, do not reread repo docs, the runtime, or a log. This page is also `play_card` on the opening packet.
 
+## Checks
+
+On almost any turn, map the player's intent to one skill, then decide roll or no roll. Do not ask which skill. Do not say a DC. You may override the mapped skill if you state a reason. When nothing fits better, call Investigation. History is only for past events, places, people, kingdoms, or wars.
+
+- Athletics: climbing, jumping, swimming, pushing, or breaking
+- Acrobatics: balancing, tumbling, or slipping through tight spaces
+- Sleight of Hand: picking pockets, palming, or planting an object
+- Stealth: hiding, sneaking, or moving unseen
+- Animal Handling: calming or reading an animal
+- Medicine: wounds, illness, or cause of death
+- Survival: tracking, navigation, or foraging
+- Perception: noticing, spotting, or listening
+- Insight: reading a person's intent, mood, or lies
+- Intimidation: threats, coercion, or a show of force
+- Deception: lying, bluffing, or disguising intent
+- Persuasion: convincing, bargaining, or appealing
+- Religion: gods, rites, holy symbols, undead, or cults
+- Arcana: magic, spells, planes, or magic items
+- Nature: terrain, weather, plants, animals, or natural creatures
+- History: past events, places, people, kingdoms, or wars
+- Investigation (fallback): deducing from clues or searching objects
+
 ## Rhythm
 
 The table's back-and-forth hides prep. Patter never adds a round trip.
@@ -40,11 +62,11 @@ Talking to someone on stage: `move` is `npc_reply`. `actor_ref` is their id from
 
 For a source-verified opening, a look, sneak, talk, leaving and any other player act go to the **existing runtime adjudicator**, and they read from the validated scene form. Look calls Perception at prepare when an attested hidden person or notice entry exists. When there is nothing to roll for, the packet carries `host_facts` with what is already visible in the section (player-facing text the player has heard, visible people, and any link-web notes). You write the description in your own words. Python does not assemble a Look from sentence fragments. Python validates only that every claimed book fact is quoted or attested, that no DC or bonus shows, and that no instruction vocabulary appears. Sneaking asks Stealth at prepare when attested watchers exist. A failed Perception springs pressure only when the quoted governing sentence says so. Talk addresses an attested present or revealed person. A declaration of stealth is not success: call for its roll. An ambush or surprise requires the actual scene trigger and adjudication, never a hardcoded result of noticing or failing to notice. An on-stage person is addressable from the attested scene; a hidden opponent is not automatically an agreeable conversational partner. If a roll is pending, a bare number answers that roll. If there is no pending roll, ask what the number is for in one table-ready turn. A free-form act that needs detail gets a brief Kit question instead of silence. The older scripted look/ambush behavior is available only for legacy pasted-text skims. Do not drag the fight forward after that. Say the place the book names. Say "the room" only when the book calls it a room.
 
-A question to Kit ("Kit, ...?") is a lookup. When play touches a recorded one-hop link (a creature entry, a rumor, a handout, a continuation), Kit answers in one line drawn from that attested text, or the packet includes that hop in `host_facts`. No invented facts, no DC, no bonus. When no such hop is touched, do not stall and do not say you are checking the page. If the current section itself answers the question, answer from that section: the packet carries `host_facts` with the section's playable fiction and player-facing facts (the same playable classification the picker uses, including character-background lines the section establishes), plus a hop when one matches. How-to-play and DM-tip fragments are not section facts. Otherwise answer from plain knowledge of what the character would know. A lookup should never stall when the section itself answers it.
+A question to Kit ("Kit, ...?", "what do I know about ...") is a lookup. When play touches a recorded one-hop link (a creature entry, a rumor, a handout, a continuation), Kit answers in one line drawn from that attested text, or the packet includes that hop in `host_facts`. No invented facts, no DC, no bonus. When no such hop is touched, do not stall and do not say you are checking the page. What a character knows about a place or topic is a judgment about their background, not a dump of book lines. Use the sheet's background, origin, class, and stated history, plus what the current section establishes about the party (for example, that they are locals of the opening village). If a background thread answers the question, answer it as known, with no roll. If not, an adventure fact the characters would already know also answers with no roll. If neither gives a thread, call the skill the Checks map picks for this intent (Investigation when nothing fits better). Ask in one line, take the roll, and write the answer from the prepared outcome. Never show a DC. You may override the mapped skill if you state a reason. Scale the improvisation with the result: a low roll is common knowledge only; a middling roll may add one useful detail; a high roll may add a real lead or hook. Stay consistent with the book's facts. Never reveal fenced material: later-encounter twists, creature reveals, or unexplored areas the characters have not encountered, unless a matching link hop is in the packet and the check result earns a hint. The packet carries the sheet's background fields, the current section's playable fiction and party/place facts (from that section's own recorded body only), visible people, a spoiler fence of later names and areas, and the baseline-or-check decision. How-to-play, DM coaching, and malformed column fragments are not section facts. A lookup should never stall when the section or the character's background answers it, and should never go silent when neither does.
 
 Later sections are labeled during a clarify or a roll, in the same exchange as the line they already heard. That pass is for the middle of the book. It is not how the opening is chosen. A rejected label speaks nothing from that section.
 
-Mid-play, a lookup is the same shape. If the subject is a recorded one-hop link, they hear one attested Kit line immediately, or you write the answer from that hop in `host_facts`; do not stall and do not invent. If it is not a hop, answer from the section when the section itself answers, or from what the character would know. Never stall with a "checking the page" line when the section answers the question. Linked material is not walked or loaded on the landing path; a section's own text is handed over first, and a confirmed hop loads on first touch.
+Mid-play, a lookup is the same shape. If the subject is a recorded one-hop link, they hear one attested Kit line immediately, or you write the answer from that hop in `host_facts`; do not stall and do not invent. If it is not a hop, answer from a background thread or a known adventure fact when those cover it; otherwise call the skill the Checks map picks, with Investigation as the fallback. Scale the improv with the roll. Never reveal fenced material. Never stall with a "checking the page" line when the background or the section answers the question, and never go silent when they do not. Linked material is not walked or loaded on the landing path; a section's own text is handed over first, and a confirmed hop loads on first touch.
 
 The book's own "if" rulings are indexed at prep, attached to their section and, where possible, to a trigger already in the link web (a check, a trap, an NPC, an item). Only real conditionals with a player- or world-facing condition, an outcome, and a trigger kind are kept. DM instructions, bullets, appendix or page pointers, copyright and footer lines, and formulas whose outcome is boilerplate are dropped; the index reports how many were dropped. Each kept ruling is confirmed or likely. When the player's action matches a recorded condition, the packet carries `book_ruling` with the book's wording, validated word for word. If that ruling was prefetched with the next move, `prefetched` is true. Use that ruling. Do not invent one when the book has one. Never speak a DC or a bonus.
 

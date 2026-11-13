@@ -293,6 +293,7 @@ class SourceVerifiedLookAndVoice(unittest.TestCase):
         self.db = Path(folder.name) / 'play.sqlite'
         source = (
             '1. The Clock Loft\n> ' + self.intro + '\n' + self.orders + '\n'
+            'You are from the town of Lampwick, a small harbor below the glassworks.\n'
             'If a character searches the cabinet, they find a bent eyepiece.\n'
             '2. The Annex\n> A chime rings in a side annex.\n'
         )
@@ -400,22 +401,23 @@ class SourceVerifiedLookAndVoice(unittest.TestCase):
         self.assertIn('storm', second.casefold())
 
     def test_a_section_backed_lookup_does_not_stall(self):
-        prepared = self.bridge.prepare('Kit, what can you tell me about this loft?', one_pass=True)
+        prepared = self.bridge.prepare('Kit, what do I know about this town?', one_pass=True)
         spoken = (prepared.get('spoken') or '').casefold()
         self.assertNotIn('checking the page', spoken)
         self.assertNotIn('give me a second', spoken)
         facts = prepared.get('host_facts') or {}
-        # Either the host will complete from facts, or a hop already answered.
+        # A local baseline is answered by the host, not a hop stall.
         if prepared.get('committed') and prepared.get('stage') == 'lookup':
             self.assertNotIn('checking the page', spoken)
             return
         self.assertEqual(prepared.get('stage'), 'one_pass', prepared)
         self.assertEqual(facts.get('kind'), 'lookup', facts)
+        self.assertEqual((facts.get('knowledge') or {}).get('mode'), 'baseline', facts)
         corpus = ' '.join((facts.get('section') or []) + (facts.get('visible') or [])).casefold()
-        self.assertTrue('loft' in corpus or 'quill' in corpus or 'rail' in corpus, facts)
+        self.assertTrue('lampwick' in corpus or 'loft' in corpus or 'quill' in corpus, facts)
         answered = self._complete_kit(
             prepared,
-            'This is the clock loft, where Warden Quill stands to tap the case.',
+            'This is the town you are from, and the clock loft is where Warden Quill stands to tap the case.',
         )
         out = (answered.get('spoken') or '').casefold()
         self.assertNotEqual(answered.get('stage'), 'rejected', answered)
@@ -440,13 +442,13 @@ class SourceVerifiedLookAndVoice(unittest.TestCase):
         plan = RecordingModel().plan(prepared['input']['private'])
         plan.update(move='ruling', focus_actor='none', table_presence='present', turn_mode='meta')
         plan['improv_read'].update(actor_ref='none', actor_basis='none')
-        plan['public_brief'].update(reply_to='what can you tell me about this loft', scope='call')
+        plan['public_brief'].update(reply_to='what do I know about this town', scope='call')
         return self.bridge.complete(prepared['turn_id'], {
             'decision': plan,
             'performance': {'segments': [
                 {'speaker': 'Kit',
                  'text': line,
-                 'reacts_to': 'what can you tell me'},
+                 'reacts_to': 'what do I know'},
             ]},
         })
 
@@ -578,7 +580,8 @@ class PerformHelpers(unittest.TestCase):
         self.assertIn('step into the loft', joined)
         for banned in (
                 'dm tip', 'for instance', 'fun of playing', 'can you hit',
-                'ability scores', 'your character can'):
+                'ability scores', 'your character can', 'you can each',
+                'tell me the total', 'try not to', 'if you want to'):
             self.assertNotIn(banned, joined)
         self.assertTrue(kit_perform.is_character_background(
             'You are from the town of Lampwick, a small harbor below the glassworks.'))
@@ -586,6 +589,279 @@ class PerformHelpers(unittest.TestCase):
             'DM Tip: For instance, can you hit a monster if you roll well?'))
 
 
+
+
+def _knowledge_book(local=True):
+    """Synthetic loft book: opening coaching, a later-encounter spoiler, then a later area."""
+    opening = (
+        "1. The Clock Loft\n\n"
+        "> You step into the loft and feel the draft. Warden Quill stands "
+        "in the loft by the brass rail and taps the case.\n"
+        "Warden Quill has orders to keep the loft shut until the storm passes.\n"
+    )
+    if local:
+        opening += (
+            "You are from the town of Lampwick, a small harbor below the glassworks.\n"
+            "Today, it's your turn to check the loft.\n"
+        )
+    else:
+        opening += "You arrive at the loft as travelers and wait by the rail.\n"
+    opening += (
+        "You can each have one character to play.\n"
+        "When the action is somewhere between easy and impossible, trying to do it "
+        "could lead to success or failure.\n"
+        "Tell me the total, and I'll tell you if the attack hit or missed.\n"
+        "Try not to use outside help very often.\n"
+        "If you want to make a ranged Some monsters carry treasure, so it is often "
+        "a good idea for attack, you can stay back.\n"
+        "If you are playing want the excitement to lead to certain character death.\n"
+        "Encounter 1: The Cistern\n"
+        "You see a hatch opening not far ahead.\n"
+        "This is a glass wyrm. The brine vaults lie beyond the cistern.\n"
+    )
+    later = (
+        "2. The Underwork\n\n"
+        "The underwork is quiet. A glass wyrm sleeps in the dark cistern.\n"
+    )
+    return "Chapter 1: The Copper Span\n\n" + opening + "\n\\f\n" + later
+
+
+class KnowledgeLookup(unittest.TestCase):
+    """Background baseline, a knowledge check, tiers, a spoiler fence, and dropped coaching."""
+
+    intro = 'Warden Quill stands in the loft by the brass rail and taps the case.'
+
+    def _ingest(self, local=True):
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        db = Path(folder.name) / 'know.sqlite'
+        source = _knowledge_book(local=local).replace('\\f', '\f')
+        kit_adventure.ingest_adventure(db, text=source)
+        return db
+
+    def _bridge(self, local=True):
+        db = self._ingest(local=local)
+        scene = {
+            'place': {'name': 'loft', 'quote': self.intro},
+            'people': [{
+                'id': 'warden_quill', 'name': 'Warden Quill',
+                'quote': self.intro, 'visibility': 'visible', 'kind': 'person',
+                'goal': {'quote': 'Warden Quill has orders to keep the loft shut until the storm passes.',
+                         'status': 'established'},
+                'knowledge': [],
+            }],
+            'discoveries': [], 'pressures': [],
+        }
+        accepted = kit_skim.accept(db, {
+            'burst': self.intro, 'source_quote': self.intro,
+            'page_start': 1, 'page_end': 1, 'alt_starts': [],
+            'design_start_name': 'The Clock Loft', 'scene': scene,
+        })
+        self.assertEqual(accepted['stage'], 'skim_accepted', accepted)
+        start_session(str(db), str(SHEET))
+        runtime = Runtime(str(db))
+        self.addCleanup(runtime.close)
+        bridge = KitChatBridge(runtime, RoomAdjudicator())
+        opening = bridge.prepare('Yes.')
+        self.assertIn(self.intro, opening.get('spoken') or '')
+        return db, runtime, bridge
+
+    def test_coaching_and_later_encounter_stay_out_of_opening_facts(self):
+        db = self._ingest(local=True)
+        quotes = kit_perform._section_player_quotes(db)
+        joined = ' '.join(quotes).casefold()
+        self.assertTrue(quotes, quotes)
+        self.assertIn('lampwick', joined)
+        self.assertIn('from the town', joined)
+        for banned in (
+                'you can each', 'success or failure', 'tell me the total',
+                'try not to', 'if you want to', 'ranged some monsters',
+                'character death', 'glass wyrm', 'brine vaults',
+                'hatch opening', 'encounter 1', 'the cistern'):
+            self.assertNotIn(banned, joined)
+        current, later, _book = kit_perform._section_windows(db)
+        fence = kit_perform._spoiler_fence(current, later, quotes)
+        fence_joined = ' '.join(fence).casefold()
+        self.assertTrue(
+            'glass wyrm' in fence_joined or 'wyrm' in fence_joined, fence)
+        self.assertTrue(
+            'cistern' in fence_joined or 'brine' in fence_joined
+            or 'underwork' in fence_joined or 'hatch' in fence_joined, fence)
+
+    def test_a_local_baseline_is_answered_with_no_roll(self):
+        _db, _runtime, bridge = self._bridge(local=True)
+        prepared = bridge.prepare('Kit, what do I know about this town?', one_pass=True)
+        self.assertNotEqual(prepared.get('stage'), 'called_roll', prepared)
+        self.assertEqual(prepared.get('stage'), 'one_pass', prepared)
+        facts = prepared.get('host_facts') or {}
+        self.assertEqual(facts.get('kind'), 'lookup', facts)
+        knowledge = facts.get('knowledge') or {}
+        self.assertEqual(knowledge.get('mode'), 'baseline', knowledge)
+        self.assertIsNone(knowledge.get('skill'), knowledge)
+        self.assertIn('lampwick', ' '.join(facts.get('section') or []).casefold())
+        self.assertTrue(facts.get('sheet'), facts)
+        spoken = (prepared.get('spoken') or '').casefold()
+        self.assertNotIn('checking the page', spoken)
+        self.assertNotIn('roll history', spoken)
+
+    def test_an_outsider_question_is_routed_to_a_check(self):
+        _db, _runtime, bridge = self._bridge(local=False)
+        prepared = bridge.prepare(
+            'Kit, what do I know about the old wars that carved this ridge?',
+            one_pass=True)
+        self.assertEqual(prepared.get('stage'), 'called_roll', prepared)
+        spoken = (prepared.get('spoken') or '').casefold()
+        self.assertIn('roll history', spoken)
+        self.assertNotIn('dc', spoken)
+        self.assertNotIn('checking the page', spoken)
+        facts = prepared.get('host_facts') or {}
+        knowledge = facts.get('knowledge') or {}
+        self.assertEqual(knowledge.get('mode'), 'check', knowledge)
+        self.assertEqual(knowledge.get('gate'), 'check', knowledge)
+        self.assertEqual(knowledge.get('skill'), 'history', knowledge)
+        self.assertIn('low', knowledge.get('outcomes') or {})
+        self.assertTrue(
+            'middle' in (knowledge.get('outcomes') or {})
+            or 'mid' in (knowledge.get('outcomes') or {}),
+            knowledge.get('outcomes'))
+        self.assertIn('high', knowledge.get('outcomes') or {})
+
+    def test_no_threads_falls_back_to_investigation(self):
+        _db, _runtime, bridge = self._bridge(local=False)
+        prepared = bridge.prepare('Kit, what do I know about any of this?', one_pass=True)
+        self.assertEqual(prepared.get('stage'), 'called_roll', prepared)
+        spoken = (prepared.get('spoken') or '').casefold()
+        self.assertIn('roll investigation', spoken)
+        self.assertNotIn('roll history', spoken)
+        self.assertNotIn('dc', spoken)
+        self.assertNotIn('checking the page', spoken)
+        knowledge = (prepared.get('host_facts') or {}).get('knowledge') or {}
+        self.assertEqual(knowledge.get('gate') or knowledge.get('mode'), 'check', knowledge)
+        self.assertEqual(knowledge.get('skill'), 'investigation', knowledge)
+
+    def test_knowledge_tiers_scale_the_improv(self):
+        self.assertEqual(kit_perform.knowledge_tier(6), 'low')
+        self.assertEqual(kit_perform.knowledge_tier(10), 'low')
+        self.assertEqual(kit_perform.knowledge_tier(11), 'middle')
+        self.assertEqual(kit_perform.knowledge_tier(16), 'middle')
+        self.assertEqual(kit_perform.knowledge_tier(17), 'high')
+        self.assertEqual(kit_perform.knowledge_tier(18), 'high')
+        _db, runtime, bridge = self._bridge(local=False)
+        called = bridge.prepare('Kit, what do I know about any of this?', one_pass=True)
+        self.assertEqual(called.get('stage'), 'called_roll', called)
+        self.assertIn('investigation', (called.get('spoken') or '').casefold())
+        answered = bridge.prepare('18', one_pass=True)
+        facts = answered.get('host_facts') or {}
+        self.assertEqual((facts.get('knowledge') or {}).get('result_tier'), 'high', answered)
+        self.assertEqual((answered.get('check_outcome') or {}).get('tier'), 'high', answered)
+        self.assertNotEqual(answered.get('stage'), 'called_roll', answered)
+        spoken = (answered.get('spoken') or '').casefold()
+        self.assertNotIn('dc', spoken)
+
+    def test_a_spoiler_term_is_fenced_out(self):
+        db = self._ingest(local=True)
+        quotes = kit_perform._section_player_quotes(db)
+        current, later, _book = kit_perform._section_windows(db)
+        fence = kit_perform._spoiler_fence(current, later, quotes)
+        self.assertTrue(fence, fence)
+        facts = {
+            'kind': 'lookup',
+            'visible': [self.intro],
+            'section': quotes,
+            'people': [],
+            'link_notes': [],
+            'spoiler_fence': fence,
+            'knowledge': {'mode': 'baseline', 'skill': None, 'result_tier': None},
+        }
+        beat = {'source_verified': True, 'people': []}
+        clean = {'segments': [
+            {'speaker': 'Kit',
+             'text': 'You are from the town of Lampwick, a harbor below the glassworks.',
+             'reacts_to': 'what do I know'},
+        ]}
+        self.assertEqual(
+            kit_perform.performance_problems(
+                clean, facts, beat=beat, action='Kit, what do I know about this town?'),
+            [])
+        leak = {'segments': [
+            {'speaker': 'Kit',
+             'text': 'A glass wyrm sleeps in the brine vaults beyond the cistern.',
+             'reacts_to': 'what do I know'},
+        ]}
+        problems = kit_perform.performance_problems(
+            leak, facts, beat=beat, action='Kit, what do I know about this town?')
+        self.assertTrue(any('fenced spoiler' in item for item in problems), problems)
+
+
+
+
+class SkillMap(unittest.TestCase):
+    """The shared intent-to-skill map, used on every check, not only lookups."""
+
+    def test_intents_route_to_the_right_skill(self):
+        from runtime import kit_skills
+        cases = (
+            ('What do I know about the old wars of this kingdom?', 'history'),
+            ('What do I know about this village?', 'history'),
+            ('What do I recall about that spell and the magic item?', 'arcana'),
+            ('What do I know about the planes?', 'arcana'),
+            ('What do I know about this weather and these plants?', 'nature'),
+            ('What do I know about this god and the cult?', 'religion'),
+            ('Are the undead tied to that holy symbol?', 'religion'),
+            ('I search the chest for a hidden clue.', 'investigation'),
+            ('Is she lying about her intent?', 'insight'),
+            ('I look around carefully.', 'perception'),
+            ('I try to notice anything hidden.', 'perception'),
+            ('I track the trail and forage as we go.', 'survival'),
+            ('What was the cause of death from this wound?', 'medicine'),
+            ('I try to calm the horse.', 'animal_handling'),
+            ('I try to convince the warden to let us through.', 'persuasion'),
+            ('I lie to the warden with a cover story.', 'deception'),
+            ('I threaten him with a show of force.', 'intimidation'),
+            ('I sneak past and stay out of sight.', 'stealth'),
+            ('I pick pockets as I pass.', 'sleight_of_hand'),
+            ('I climb the wall and jump the gap.', 'athletics'),
+            ('I keep my footing on the tightrope.', 'acrobatics'),
+            ('Kit, what do I know about any of this?', 'investigation'),
+            ('What do I make of this?', 'investigation'),
+        )
+        for action, skill in cases:
+            self.assertEqual(
+                kit_skills.skill_for_intent(action), skill, action)
+
+    def test_a_stated_skill_overrides_the_map(self):
+        from runtime import kit_skills
+        action = (
+            "I'd like to use Arcana for this because I study magic. "
+            "What do I know about any of this?"
+        )
+        self.assertEqual(kit_skills.skill_for_intent(action), 'arcana')
+        self.assertEqual(
+            kit_skills.skill_for_intent(
+                'Kit, what do I know about any of this?', stated='religion'),
+            'religion')
+
+    def test_investigation_is_the_fallback(self):
+        from runtime import kit_skills
+        self.assertEqual(kit_skills.FALLBACK, 'investigation')
+        self.assertEqual(kit_skills.skill_for_intent('What do I know?'), 'investigation')
+        self.assertEqual(kit_skills.skill_for_intent(''), 'investigation')
+
+    def test_the_play_card_carries_the_map_near_the_top(self):
+        from runtime import kit_skills
+        from runtime.kit_agent import play_card_text
+        card = play_card_text()
+        head = card.split('## Rhythm', 1)[0]
+        self.assertIn('## Checks', head)
+        self.assertIn('Investigation (fallback)', head)
+        self.assertIn('map the player', head.casefold())
+        for skill, use, _pattern in kit_skills.SKILL_USES:
+            label = skill.replace('_', ' ')
+            if skill == 'investigation':
+                self.assertIn('Investigation (fallback)', head)
+            else:
+                self.assertIn(label.casefold(), head.casefold(), skill)
+            self.assertIn(use.split(',')[0], head, use)
 
 
 if __name__ == '__main__':

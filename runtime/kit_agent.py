@@ -1204,9 +1204,11 @@ class RoomAdjudicator:
             notice_holds = bool((self.source.get('_opening_notice') or {}).get('holds')) or bool(
                 discoveries)
             if hidden or notice_holds:
-                # A look at a source-attested notice beat is a called Perception
-                # check, not the former opening's hard-coded DC 10.
-                result = self._call_roll(RollNeeded('perception'), action, revision, state)
+                # A look at a source-attested notice beat is a called check
+                # from the shared skill map, not the former opening's hard-coded DC 10.
+                from . import kit_skills
+                skill = kit_skills.skill_for_intent(action)
+                result = self._call_roll(RollNeeded(skill), action, revision, state)
         if (self.source or {}).get('triggers'):
             result = self._offer_handles(result, action, state)
             # Only arrival fires on the engine's own read; a disturbance needs Kit's declared
@@ -7629,9 +7631,17 @@ class KitChatBridge:
         looked = kit_skim.lookup_beat(self.runtime, action)
         if looked is not None:
             return looked
-        if action and kit_skim._LOOKUP.search(str(action)):
-            # No hop matched. Do not stall: the host answers from the section
-            # or from what the character would know, as table talk.
+        from . import kit_perform
+        knowledge_ask = bool(
+            action and (kit_skim._LOOKUP.search(str(action))
+                        or kit_perform.is_knowledge_question(action)))
+        if knowledge_ask:
+            # No hop matched. Do not stall. A local baseline is table talk
+            # for the host to answer. A question beyond the baseline calls
+            # one knowledge check, with no DC shown.
+            asked = self._knowledge_lookup_ask(action)
+            if asked is not None:
+                return asked
             table_talk = True
         self.runtime.flush_queued_attempts()  # refused attempts held while a turn was waiting
         if opening:
@@ -7675,7 +7685,11 @@ class KitChatBridge:
         if not public:
             return None
         ask = kind == 'check_called' and re.search(
-            r'^Roll (?:Perception|Stealth)\b', public)
+            r'^Roll (?:Perception|Stealth|History|Nature|Religion|Arcana|'
+            r'Investigation|Insight|Survival|Medicine|Athletics|Acrobatics|'
+            r'Sleight of Hand|Animal Handling|Persuasion|Deception|'
+            r'Intimidation)\b',
+            public)
         lowered = asked_away(QUOTED_SPEECH.sub(
             ' ', str(action or '').translate(_TYPOGRAPHIC)).lower())
         ruling = kind == 'kit_ruling' and BURN_ACT.search(lowered)
@@ -7713,6 +7727,8 @@ class KitChatBridge:
             total = _answer_total(action, str(pending.get('skill') or ''))
         if total is None:
             return None
+        if (pending.get('reason') == 'knowledge' or pending.get('called_turn') == 'knowledge'):
+            return self._resolve_knowledge_recall(action, total, pending, revision)
         if not pending:
             spoken = 'Kit: What is the %d for? Tell me which roll you made.' % total
             events = [{'type': 'beat', 'tags': ['clarify', 'unassigned_roll'],
@@ -7868,6 +7884,66 @@ class KitChatBridge:
         packet = dict(packet)
         packet['book_ruling'] = hit
         packet['source_verified'] = True
+        return packet
+
+    def _knowledge_lookup_ask(self, action):
+        """Call one knowledge check when the question goes beyond the baseline."""
+        from . import kit_perform, pc_sheet, kit_skim
+        try:
+            facts = kit_perform.host_facts_for(self.runtime, action, kind='lookup')
+        except Exception:
+            facts = None
+        decision = (facts or {}).get('knowledge') or {}
+        if decision.get('mode') != 'check' or not decision.get('skill'):
+            return None
+        skill = decision['skill']
+        ability = (pc_sheet.SKILLS or {}).get(skill) or 'int'
+        revision, _state = self.runtime.load()
+        public = 'Roll %s.' % skill.replace('_', ' ').title()
+        events = [
+            {'type': 'beat', 'tags': ['check_called', 'knowledge'],
+             'evidence': 'The question goes beyond the character baseline. The DC stays back here.'},
+            {'type': 'pending_check', 'check': {
+                'skill': skill, 'ability': ability, 'target': 'none',
+                'called_turn': 'knowledge', 'action': action,
+                'reason': 'knowledge',
+            }, 'evidence': 'A knowledge check was called. The DC is not shown.'},
+        ]
+        turn_id = 'knowledge-%s' % revision
+        committed = self.runtime.commit(turn_id, revision, events)
+        return {
+            'stage': 'called_roll', 'committed': True,
+            'spoken': 'Kit: %s' % public,
+            'turn_id': turn_id, 'public_event': public, 'revision': committed,
+            'host_facts': facts,
+        }
+
+    def _resolve_knowledge_recall(self, action, total, pending, revision):
+        """Record the check tier and hand the host the packet to write the answer."""
+        from . import kit_perform, kit_skim
+        import uuid as _uuid
+        tier = kit_perform.knowledge_tier(total)
+        original = pending.get('action') or action
+        events = [
+            {'type': 'beat', 'tags': ['knowledge', tier],
+             'evidence': 'A knowledge check was answered. The tier is recorded; no DC is spoken.'},
+            {'type': 'pending_check', 'check': None,
+             'evidence': 'The knowledge check is rolled.'},
+        ]
+        committed = self.runtime.commit('knowledge-roll-%s' % revision, revision, events)
+        data = kit_skim._read(self.runtime.path) or {}
+        data['knowledge_result'] = {
+            'tier': tier, 'skill': pending.get('skill'), 'question': original,
+        }
+        kit_skim._write(self.runtime.path, data)
+        turn_id = str(_uuid.uuid4())
+        revision2, body, planning_input = prepare_turn(
+            self.runtime, self.adjudicator, original, True, one_pass=True, table_talk=True)
+        packet = self._stage(turn_id, revision2, body, planning_input, True,
+                             DEFAULT_BRIDGE_VARIANT, time.time(), time.perf_counter(), {})
+        packet = self._with_host_facts(packet, original)
+        packet['revision'] = committed
+        packet['check_outcome'] = {'tier': tier, 'skill': pending.get('skill')}
         return packet
 
     def _with_host_facts(self, packet, action):

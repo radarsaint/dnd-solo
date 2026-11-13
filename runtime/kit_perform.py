@@ -90,12 +90,83 @@ _HOWTO_TIP = re.compile(
     r"|^\s*can you\b"
 )
 
+# Second-person coaching to the reader or the DM, not in-world fiction.
+_COACHING = re.compile(
+    r"(?i)(?:\byou can\b|\byou can each\b|\byou can tell them\b|"
+    r"\byou can even\b|\byou can describe\b|\btry not to\b|"
+    r"\bif you want to\b|\bif you are playing\b|\bif you're playing\b|"
+    r"\btell me the total\b|\bi'll tell you\b|\bi will tell you\b|"
+    r"\byour character\b|\bthe characters would\b|\bthey can reveal\b|"
+    r"\bcharacter death\b|\boutside help\b|\bif the attack hit\b|"
+    r"\bsuccess or failure\b|\beach have one character\b|"
+    r"\bone character to play\b|\bwant the excitement\b|"
+    r"\bwe need perception\b|\bperception checks?\b|"
+    r"\bexplain what attacks\b|\bmaybe even describe their\b)"
+)
+
+# Column-merged mid-sentence break: a new sentence capital after a lowercase word.
+_COLUMN_MERGE = re.compile(
+    r'(?<=[a-z,])\s+(?:The|This|It|You|If|When|Some|They|A|An|But|For|'
+    r'And|We|Tell|Your|There|These|Those)\b'
+)
+
+_FRAGMENT_START = re.compile(
+    r"^(?:stops?|holds?|open|opens|rake|tears?|adds?|using|including|"
+    r"coming|stops and|open a)\b",
+    re.I,
+)
+
 # In-world character background the section establishes (where they are from).
 _CHARACTER_BACKGROUND = re.compile(
     r"(?i)\b(?:you are from|you're from|you come from|you came from|"
     r"you were born|you grew up|you live in|you hail from|"
     r"your home (?:is|was|village|town|city)|"
-    r"today,? it(?:'|’)s your turn)\b"
+    r"today,? it(?:'|’)s your turn|"
+    r"your patrol today)\b"
+)
+
+_KNOWLEDGE_QUESTION = re.compile(
+    r"(?i)\bwhat do (?:i|we) (?:know|recall|remember) about\b|"
+    r"\bwhat (?:can|do) (?:you|kit) tell (?:me|us) about\b|"
+    r"\bdo i know (?:anything |something )?(?:about|of)\b|"
+    r"\bwould (?:i|we) know\b|"
+    r"\bhave (?:i|we) (?:heard|learned) (?:of|about)\b|"
+    r"\bwhat (?:is|do i know of) this (?:village|town|city|place|area)\b"
+)
+
+_HOME_PLACE = re.compile(
+    r"(?i)\b(?:from|in)\s+the\s+(?:village|town|city|settlement|hamlet)\s+of\s+([A-Z][A-Za-z']+)"
+    r"|\byou (?:are|come|hail) from\s+([A-Z][A-Za-z']+)"
+    r"|\byou live in\s+(?:the\s+)?([A-Z][A-Za-z']+)"
+)
+
+_ASKS_HOME = re.compile(
+    r"(?i)\b(?:this|the|our|my)\s+(?:village|town|city|settlement|home|hamlet)\b"
+)
+
+_BEYOND_BASELINE = re.compile(
+    r"(?i)\b(?:beyond|dungeon|lair|ruin|cave|what lies|deeper|"
+    r"unexplored|old wars?|ancient|forgotten|centuries|"
+    r"the mountains?(?:\s+beyond)?)\b"
+)
+
+_RULES_VOICE = re.compile(
+    r"(?i)\b(?:when the action is|somewhere between easy and impossible|"
+    r"trying to do it could lead|open a wound or rake|harmlessly off armor)\b"
+)
+
+_LATER_ENCOUNTER = re.compile(
+    r'^(?:encounter|scene|section)\s+[A-Z]?\d{1,3}[a-z]?\b',
+    re.I,
+)
+
+_FUNCTION = frozenset(
+    "a an the and or but if so then of to in on at by for from with "
+    "this that these those you your we they them their it its is are "
+    "was were be been being do does did has have had will can "
+    "may might must shall should about into over after before when "
+    "where what which there than them also more some such very once "
+    "here still back down away even much many well just only not no".split()
 )
 
 
@@ -112,13 +183,89 @@ def is_visible_action(text):
 
 
 def is_howto_or_tip(text):
-    """True when the line is how-to-play or a DM tip, not playable fiction."""
-    return bool(text and _HOWTO_TIP.search(text))
+    """True when the line is how-to-play, a DM tip, or rules coaching."""
+    return bool(text and (_HOWTO_TIP.search(text) or is_coaching(text)
+                          or _RULES_VOICE.search(text)))
 
 
 def is_character_background(text):
     """True when the line establishes where the characters are from, or similar."""
-    return bool(text and _CHARACTER_BACKGROUND.search(text) and not is_howto_or_tip(text))
+    return bool(text and _CHARACTER_BACKGROUND.search(text) and not is_howto_or_tip(text)
+                and not is_coaching(text))
+
+
+def is_coaching(text):
+    """True when the line coaches the reader or the DM in the second person."""
+    return bool(text and _COACHING.search(text))
+
+
+def is_well_formed(text):
+    """True when the line is a complete sentence, not a column-merged fragment."""
+    line = _plain(text)
+    if not line or len(line.split()) < 5:
+        return False
+    if not re.match(r"""^[\s"“'‘A-Z]""", line):
+        return False
+    if not re.search(r"""[.!?!”"']\s*$""", line):
+        return False
+    if _COLUMN_MERGE.search(line):
+        return False
+    stripped = line.strip().strip('"“”\'‘’')
+    if _FRAGMENT_START.search(stripped):
+        return False
+    if not re.search(
+            r"(?i)\b(?:is|are|was|were|be|been|being|am|do|does|did|"
+            r"has|have|had|will|can|cannot|can't|may|might|must|"
+            r"shall|should|need|know|see|sees|stand|stands|"
+            r"glance|glances|nod|nods|ask|asks|say|says|tell|tells|"
+            r"lead|led|live|lives|grew|come|came|step|steps|"
+            r"feel|feels|want|wants|look|looks|patrol|patrolled|"
+            r"arrive|arrives|enter|enters|wait|waits|check|checks|"
+            r"it(?:'s|’s)|that(?:'s|’s))\b",
+            line):
+        return False
+    return True
+
+
+def is_knowledge_question(action):
+    """True when the player is asking what the character knows about a topic."""
+    return bool(action and _KNOWLEDGE_QUESTION.search(action))
+
+
+def knowledge_tier(total):
+    """Map a check total to a low / middle / high improv band. The bar is never shown."""
+    try:
+        score = int(total)
+    except (TypeError, ValueError):
+        return 'low'
+    if score <= 10:
+        return 'low'
+    if score <= 16:
+        return 'middle'
+    return 'high'
+
+
+def knowledge_skill(action):
+    """Pick the skill that fits this question or act. Same map as every check."""
+    from . import kit_skills
+    return kit_skills.skill_for_intent(action)
+
+
+def sheet_background_fields(sheet):
+    """Player-facing background fields from the sheet. No bonuses or DCs."""
+    sheet = sheet or {}
+    history = (sheet.get('history') or sheet.get('backstory')
+               or sheet.get('stated_history') or '')
+    origin = sheet.get('origin') or sheet.get('home') or ''
+    race = sheet.get('race') or sheet.get('ancestry') or sheet.get('species') or ''
+    return {
+        'name': sheet.get('name') or '',
+        'background': sheet.get('background') or '',
+        'origin': origin if isinstance(origin, str) else '',
+        'class': sheet.get('class') or '',
+        'race': race if isinstance(race, str) else '',
+        'history': history if isinstance(history, str) else '',
+    }
 
 
 def _goal_text(person):
@@ -194,70 +341,343 @@ def link_notes_for(index, person):
     return notes
 
 
-def _is_section_fact(line, boxed=False):
-    """Playable fiction or a character-background line, never a how-to or DM tip.
-
-    Uses the same gates the picker uses (player_line, and _safe_box for unboxed
-    lines), plus an explicit keep for section-established background.
-    """
+def _is_later_section_heading(line):
+    """True for a later encounter or keyed-area heading, not the current title."""
     from . import kit_skim
-    line = _plain(line)
-    if not line or len(line.split()) < 4:
+    from . import kit_adventure
+    text = (line or '').strip().lstrip('>').strip()
+    if not text:
         return False
-    if is_howto_or_tip(line) or _HOWTO.search(line):
-        return False
-    if kit_skim._blocks_quote(line) or kit_skim._unsafe(line):
-        return False
-    if is_character_background(line):
+    if _LATER_ENCOUNTER.match(text):
         return True
-    if not kit_opening.player_line(line):
-        return False
-    if boxed:
+    labeled = getattr(kit_adventure, '_LABELED_RE', None)
+    if labeled is not None and labeled.match(text):
         return True
-    return bool(kit_skim._safe_box(line))
+    if kit_skim._KEYED.match(text) or kit_skim._LATER.match(text):
+        return True
+    if re.match(r'(?i)^(?:chapter|part)\s+\d+\b', text):
+        return True
+    return False
 
 
-def _section_player_quotes(db, scene_key=None, cap=80):
-    """Playable fiction and player-facing facts from the current section.
+def _cut_at_later_heading(text):
+    """Keep the current section only; stop at the next encounter or keyed heading."""
+    kept = []
+    started = False
+    for line in (text or '').splitlines():
+        stripped = line.strip().lstrip('>').strip()
+        if started and _is_later_section_heading(stripped):
+            break
+        if stripped:
+            started = True
+        kept.append(line)
+    return '\n'.join(kept)
 
-    How-to-play and DM-tip fragments are dropped. Character-background
-    lines the section establishes (where the characters are from) are kept,
-    so a question about the home place can be answered from the packet.
+
+def _section_windows(db, scene_key=None):
+    """(current_body, later_body, book) using the landing recorded-body bound, then a heading cut.
+
+    Later material is everything after that cut in the same recorded span, plus later keyed areas.
     """
     from .kit_adventure import _load
     from . import kit_links, kit_skim
-    quotes = []
     try:
         index, book = _load(db)
     except Exception:
-        return quotes
+        return '', '', ''
+    book = book or ''
     key = kit_links.section_key(index, scene_key or index.get('start'))
     loc = (index.get('locations') or {}).get(key) or {}
-    span = kit_links._recorded_span(loc, len(book or ''))
-    boxed = []
+    span = kit_links._recorded_span(loc, len(book))
+    if not span:
+        return '', '', book
+    recorded = book[span[0]:span[1]]
+    lanes = []
     try:
-        boxed = [ _plain(line) for line in kit_opening._boxed_lines(loc, book) if _plain(line)]
+        lanes = kit_skim._section_lanes(recorded) or []
     except Exception:
-        boxed = []
-    boxed_set = set(boxed)
+        lanes = []
+    if not lanes:
+        lanes = [('section', recorded)]
+    current_parts = []
+    later_parts = []
+    for _label, stream in lanes:
+        cut = _cut_at_later_heading(stream)
+        current_parts.append(cut)
+        if stream[len(cut):].strip():
+            later_parts.append(stream[len(cut):])
+        elif len(cut) < len(stream):
+            later_parts.append(stream[len(cut):])
+        # When the heading sits on its own line, leftover is after the break.
+        if cut and cut in stream:
+            rest = stream.split(cut, 1)[-1]
+            # More reliable: find the heading line in the raw lane.
+    # Recompute later text from the first later heading in the recorded span.
+    later_from_recorded = ''
+    started = False
+    later_lines = []
+    seen_body = False
+    for line in recorded.splitlines():
+        stripped = line.strip().lstrip('>').strip()
+        if seen_body and _is_later_section_heading(stripped):
+            started = True
+        if stripped:
+            seen_body = True
+        if started:
+            later_lines.append(line)
+    later_from_recorded = '\n'.join(later_lines)
+    current = '\n'.join(current_parts)
+    # Later keyed locations after this span.
+    later = [later_from_recorded]
+    for other in (index.get('locations') or {}).values():
+        other_span = kit_links._recorded_span(other, len(book))
+        if not other_span:
+            continue
+        # Later than the current section, including areas that start inside
+        # an over-wide recorded span.
+        if other is not loc and other_span[0] > span[0]:
+            later.append(book[other_span[0]:other_span[1]])
+    return current, '\n'.join(later), book
 
-    def add(sentence, from_box=False):
+
+def _is_section_fact(line, boxed=False):
+    """Keep player-facing fiction and character background; drop rules, coaching, and junk.
+
+    Dropping a good line beats keeping a how-to, a DM tip, or a merged fragment.
+    boxed is accepted for compatibility; it does not relax the well-formedness gate.
+    """
+    from . import kit_skim
+    line = _plain(line).lstrip('>').strip()
+    if not line or len(line.split()) < 5:
+        return False
+    if is_howto_or_tip(line) or is_coaching(line) or _HOWTO.search(line):
+        return False
+    if kit_skim._blocks_quote(line) or kit_skim._unsafe(line):
+        return False
+    if not is_well_formed(line):
+        return False
+    if is_character_background(line):
+        return True
+    # Quoted NPC or party speech.
+    if re.search(r'[“"][A-Z].+[”"]', line) or re.match(r'^[“"\'].+[”"\']$', line):
+        return True
+    # In-world second-person fiction, not an instruction.
+    if re.search(
+            r"(?i)\b(?:you are from|you're from|you (?:step|stand|see|follow|"
+            r"enter|arrive|live|grew|come|feel|walk|look around|are on|"
+            r"are from)|today,? it(?:'|’)s your turn)\b",
+            line):
+        return True
+    # Third-person description of the place or a present person.
+    if re.search(
+            r"(?i)\b(?:stands?|glances?|nods?|hails?|waits?|leads?|led by|"
+            r"patrol(?:s|ed)?|taps?|watches?)\b",
+            line):
+        return True
+    return False
+
+
+def _fiction_stream(text):
+    """Drop headings and box marks so they cannot glue onto the next sentence."""
+    lines = []
+    for line in (text or '').splitlines():
+        stripped = line.strip()
+        if not stripped:
+            lines.append('')
+            continue
+        bare = stripped.lstrip('>').strip()
+        if _is_later_section_heading(bare) or re.match(
+                r'^(?:area\s+)?[A-Z]?\d{1,3}[a-z]?\s*[.:]\s+\S', bare, re.I):
+            continue
+        lines.append(bare)
+    return '\n'.join(lines)
+
+
+def _section_player_quotes(db, scene_key=None, cap=80):
+    """Playable fiction and party/place facts from the current section body only.
+
+    How-to-play, DM coaching, and malformed column fragments are dropped.
+    Later encounters in the same recorded span are not included.
+    """
+    from . import kit_skim
+    quotes = []
+    current, _later, _book = _section_windows(db, scene_key)
+    if not current.strip():
+        return quotes
+
+    def add(sentence):
         line = _plain(sentence)
         if not line or line in quotes:
             return
-        if not _is_section_fact(line, boxed=from_box or line in boxed_set):
+        if not _is_section_fact(line):
             return
         quotes.append(line)
 
-    for line in boxed:
-        add(line, from_box=True)
-    if span:
-        body = book[span[0]:span[1]]
+    for _label, stream in (kit_skim._section_lanes(current) or [('section', current)]):
+        body = _fiction_stream(_cut_at_later_heading(stream))
         for sentence in kit_skim._sentences(body) or []:
-            add(sentence, from_box=False)
+            add(sentence)
             if len(quotes) >= cap:
-                break
+                return quotes[:cap]
     return quotes[:cap]
+
+
+def _established_homes(section_lines):
+    """Place names the current section says the characters are from or live in."""
+    found = []
+    for line in section_lines or []:
+        hit = _HOME_PLACE.search(line or '')
+        if not hit:
+            continue
+        name = next((g for g in hit.groups() if g), '')
+        if name and name.casefold() not in found:
+            found.append(name.casefold())
+    return found
+
+
+def _sheet_homes(sheet):
+    """Place names the sheet itself gives as origin or home."""
+    found = []
+    fields = sheet or {}
+    for key in ('origin', 'home', 'history'):
+        value = fields.get(key) or ''
+        if not isinstance(value, str) or not value.strip():
+            continue
+        hit = _HOME_PLACE.search(value)
+        if hit:
+            name = next((g for g in hit.groups() if g), '')
+            if name and name.casefold() not in found:
+                found.append(name.casefold())
+        # A short proper place sitting in origin or home.
+        if key in ('origin', 'home') and re.match(r"^[A-Z][A-Za-z' ]{2,30}$", value.strip()):
+            folded = value.strip().casefold()
+            if folded not in found:
+                found.append(folded)
+    return found
+
+
+def _topic_tokens(question):
+    """Significant words from a 'what do I know about X' question."""
+    text = question or ''
+    match = re.search(
+        r"(?i)(?:know|recall|remember|tell (?:me|us)) about\s+(.+?)[?.!]*$",
+        text)
+    blob = match.group(1) if match else text
+    tokens = []
+    for word in re.findall(r"[A-Za-z']+", blob):
+        folded = word.casefold()
+        if folded in _FUNCTION or folded in _COMMON_NAMES or len(folded) < 4:
+            continue
+        if folded not in tokens:
+            tokens.append(folded)
+    return tokens
+
+
+def baseline_cover(action, sheet, section_lines):
+    """Why the background covers this question, or None if a check is needed.
+
+    A local of the asked-about place, or a question the current section already
+    answers about the immediate scene, is known with no roll. Settlement lore
+    without that tie, or a question that goes beyond everyday knowledge,
+    returns None so a check is called.
+    """
+    question = action or ''
+    if _BEYOND_BASELINE.search(question):
+        return None
+    if re.search(r'(?i)\bmountains?\b', question) and not _ASKS_HOME.search(question):
+        return None
+    homes = _established_homes(section_lines) + _sheet_homes(sheet)
+    if homes and _ASKS_HOME.search(question):
+        return 'local'
+    folded = question.casefold()
+    if homes and any(name in folded for name in homes if len(name) > 3):
+        return 'local'
+    # Settlement lore without a local or sheet tie needs a check.
+    if _ASKS_HOME.search(question):
+        return None
+    section_fold = ' '.join(section_lines or []).casefold()
+    tokens = _topic_tokens(question)
+    if tokens and section_fold and any(token in section_fold for token in tokens):
+        return 'section'
+    return None
+
+
+def knowledge_decision(action, sheet, section_lines, result_tier=None):
+    """Baseline versus a knowledge check, with prepared improv tiers."""
+    cover = baseline_cover(action, sheet, section_lines)
+    outcomes = {
+        'low': 'Answer with common knowledge only. Add no new lead or hook.',
+        'middle': 'You may add one useful detail consistent with the section facts.',
+        'mid': 'You may add one useful detail consistent with the section facts.',
+        'high': 'You may add a real lead or hook consistent with the section facts, '
+                'never a fenced spoiler.',
+    }
+    if cover:
+        return {
+            'gate': 'baseline',
+            'mode': 'baseline',
+            'skill': None,
+            'covered_by': cover,
+            'result_tier': None,
+            'outcomes': outcomes,
+        }
+    return {
+        'gate': 'check',
+        'mode': 'check',
+        'skill': knowledge_skill(action),
+        'covered_by': None,
+        'result_tier': result_tier,
+        'outcomes': outcomes,
+    }
+
+
+def _spoiler_fence(current_text, later_text, section_lines=None):
+    """Names, creatures, and areas from later sections that must not be spoken."""
+    current = (current_text or '') + '\n' + ' '.join(section_lines or [])
+    current_fold = current.casefold()
+    later = later_text or ''
+    terms = []
+
+    def keep(term):
+        term = _plain(term)
+        if not term or len(term) < 4:
+            return
+        folded = term.casefold()
+        if folded in current_fold:
+            return
+        if folded in _FUNCTION or folded in _COMMON_NAMES:
+            return
+        if any(folded == existing.casefold() for existing in terms):
+            return
+        terms.append(term)
+
+    for line in later.splitlines():
+        stripped = line.strip().lstrip('>').strip()
+        if _is_later_section_heading(stripped):
+            # Keep the heading's title words, not the "Encounter 1" label alone.
+            title = re.sub(r'(?i)^(?:encounter|scene|section)\s+[A-Z]?\d{1,3}[a-z]?\s*[:.\-]?\s*',
+                           '', stripped).strip()
+            if title:
+                keep(title)
+        for name in _proper_names(stripped):
+            keep(name)
+    # Distinctive two- or three-word phrases that never appear in the current section.
+    words = re.findall(r"[A-Za-z']+", later)
+    for n in (3, 2):
+        for i in range(len(words) - n + 1):
+            run = words[i:i + n]
+            if any(w.casefold() in _FUNCTION or len(w) < 4 for w in run):
+                continue
+            if not any(len(w) >= 5 for w in run):
+                continue
+            phrase = ' '.join(run)
+            if phrase.casefold() not in current_fold:
+                keep(phrase)
+            if len(terms) >= 40:
+                break
+        if len(terms) >= 40:
+            break
+    return terms[:40]
 
 
 def _heard_quotes(beat, burst=None):
@@ -364,8 +784,28 @@ def host_facts_for(runtime, action=None, kind=None, hop=None):
     }
     if kind == 'lookup':
         scene_key = (data or {}).get('scene_key') or (data or {}).get('design_start_name')
+        current, later, _book = _section_windows(runtime.path, scene_key)
         section = _section_player_quotes(runtime.path, scene_key)
+        sheet = {}
+        result = {}
+        try:
+            _revision, state = runtime.load()
+            sheet = sheet_background_fields((state or {}).get('player_sheet'))
+        except Exception:
+            sheet = {}
+        try:
+            from . import kit_skim
+            result = (kit_skim._read(runtime.path) or {}).get('knowledge_result') or {}
+        except Exception:
+            result = {}
         packet['section'] = section
+        packet['party'] = [line for line in section if is_character_background(line)]
+        packet['sheet'] = sheet
+        packet['spoiler_fence'] = _spoiler_fence(current, later, section)
+        decision = knowledge_decision(
+            action, sheet, section, result_tier=result.get('tier'))
+        packet['knowledge'] = decision
+        packet['gate'] = decision.get('gate')
         if hop:
             packet['hop'] = {
                 'kind': (hop.get('link') or {}).get('kind') if isinstance(hop.get('link'), dict)
@@ -381,7 +821,7 @@ def infer_kind(beat, action):
     if not text.strip():
         return None
     from . import kit_skim
-    if kit_skim._LOOKUP.search(text):
+    if kit_skim._LOOKUP.search(text) or is_knowledge_question(text):
         return 'lookup'
     talking = bool(kit_opening._TALK.search(text) or kit_opening._named(beat, text))
     if talking:
@@ -495,6 +935,16 @@ def performance_problems(performance, facts, beat=None, action=None):
             problems.append('instruction vocabulary in %s' % (speaker or 'a line'))
         if shows_dc_or_bonus(text):
             problems.append('a DC or bonus was spoken')
+        for term in (facts or {}).get('spoiler_fence') or []:
+            if not term or not re.search(r'\b' + re.escape(term) + r'\b', text, re.I):
+                continue
+            hop = (facts or {}).get('hop') or {}
+            hop_text = hop.get('spoken') or ''
+            tier = ((facts or {}).get('knowledge') or {}).get('result_tier')
+            if hop_text and term.casefold() in hop_text.casefold() and tier == 'high':
+                continue
+            problems.append('fenced spoiler')
+            break
         if speaker and speaker not in ('Narrator', 'Kit'):
             key = speaker.casefold()
             if allowed and key not in allowed and not any(
