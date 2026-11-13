@@ -501,6 +501,26 @@ def _opening_cluster(locations, start_key):
     return keys
 
 
+def _player_quotes(loc, text):
+    """Player-facing lines from this recorded section, including typography without '>'."""
+    lines = [line for line in _boxed_lines(loc, text) if player_line(line)]
+    if lines:
+        return lines
+    from .kit_skim import _sentences, _safe_box
+    body = loc.get('body') or [0, 0]
+    if not (isinstance(body, (list, tuple)) and len(body) >= 2 and body[1] > body[0]):
+        return []
+    found = []
+    for sentence in _sentences((text or '')[body[0]:body[1]]):
+        text_line = re.sub(r'\s+', ' ', sentence).strip()
+        if not text_line or not _safe_box(text_line) or not player_line(text_line):
+            continue
+        found.append(text_line)
+        if len(found) >= 2:
+            break
+    return found
+
+
 def playable_picker_starts(db, end_page=None):
     """Picker entries from sections the index has already classified as playable.
 
@@ -525,7 +545,7 @@ def playable_picker_starts(db, end_page=None):
         page = loc.get('page') or 1
         if end_page is not None and page > end_page:
             continue
-        lines = [line for line in _boxed_lines(loc, text) if player_line(line)]
+        lines = _player_quotes(loc, text)
         if not lines:
             continue
         # Tell accept the page of the attested boxed line. A cross-page

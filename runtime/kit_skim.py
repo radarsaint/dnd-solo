@@ -3051,6 +3051,18 @@ def open_title(db, token):
     if _procedural_title(chosen.get('title') or token):
         raise IngestError(['%s is not player fiction' % (chosen.get('title') or token)])
     quote = chosen.get('quote') or ''
+    if not quote:
+        from . import kit_opening, kit_adventure
+        try:
+            index, text = kit_adventure._load(db)
+        except Exception:
+            index, text = {}, ''
+        loc = (index.get('locations') or {}).get(chosen.get('id')) or {}
+        lines = kit_opening._player_quotes(loc, text) if loc else []
+        quote = ' '.join(lines[:2])
+        if quote:
+            chosen = dict(chosen)
+            chosen['quote'] = quote
     if not quote and chosen.get('kit_line'):
         return _open_named(db, chosen)
     from .kit_opening import player_line

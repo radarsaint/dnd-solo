@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from runtime import kit_adventure, kit_links, kit_skim
+from runtime import kit_adventure, kit_links, kit_opening, kit_skim
 
 
 def _book():
@@ -57,6 +57,43 @@ def _book():
     )
     front = "Chapter 1: The Green Cut\n\n"
     return orphan + front + opening + "\n\f\n" + continued + "\n" + later
+
+
+
+def _book_without_usable_boxes():
+    """Same web as _book, but the opening has no player-facing '>' line.
+
+    A boxed DC/procedure line keeps the section playable in the index, while
+    the actual start the player can stand in lives in the recorded body.
+    """
+    opening = (
+        "1. The Ford\n\n"
+        "> If the players read this, the DC is 15 and they roll a d20.\n\n"
+        "You step into the ford and feel the silt. Two marsh hounds wait on the far bank. "
+        "A stone heron stands in the silt.\n\n"
+        "The planks run on toward the far side."
+    )
+    continued = (
+        "The water is still past the knee. A way leads to area 2 "
+        "(see area 2). If the characters search the reeds, they find a wet satchel.\n\n"
+        "Sidebar: The Wet Satchel\n"
+        "If the characters search the reeds, the satchel holds a folded note "
+        "about the bell. The note is damp and unsigned.\n"
+    )
+    later = (
+        "2. The Mill\n\n"
+        "The mill is quiet. A rusty wheel turns in the dark sluice. "
+        "A later mention of a ridge wolf does not belong to the opening.\n\n"
+        "Appendix: Creatures\n\n"
+        "Marsh Hound\n"
+        "Armor Class 13\n"
+        "Hit Points 22 (4d8+4)\n"
+        "Speed 40 ft.\n"
+        "Bite. Melee Weapon Attack: +4 to hit, reach 5 ft., one target. "
+        "Hit: 6 (1d6 + 3) piercing damage.\n\n"
+        "The marsh hound is a gaunt hunting dog with weed in its coat.\n"
+    )
+    return "Chapter 1: The Green Cut\n\n" + opening + "\n\f\n" + continued + "\n" + later
 
 
 class LinkGraph(unittest.TestCase):
@@ -335,6 +372,56 @@ class CanonicalSectionIdentity(unittest.TestCase):
         self.assertIsNotNone(aliased)
         self.assertEqual(aliased.get('link'), hit.get('link'))
         self.assertEqual(kit_links.section_key(index, 'scene:skim:A'), self.heading)
+
+
+
+
+class CanonicalPickWithoutBoxedMarkers(unittest.TestCase):
+    """A typography-messy opening still picks and looks up on the heading key."""
+
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.db = Path(temporary.name) / 'kit.sqlite'
+        self.source = _book_without_usable_boxes()
+        pdf = Path(temporary.name) / 'owned.pdf'
+        pdf.write_bytes(b'%PDF-1.4\nsynthetic private source\n')
+        with mock.patch('runtime.kit_adventure.read_opening',
+                        return_value=(self.source, 'test')):
+            kit_adventure.ingest_adventure(self.db, pdf=str(pdf))
+        self.index, self.text = kit_adventure._load(self.db)
+        self.heading = self.index['start']
+        self.assertTrue(self.heading)
+        self.assertFalse(str(self.heading).startswith('scene:skim:'), self.heading)
+
+    def test_pick_reaches_the_heading_key_and_lookup_is_a_one_hop_touch(self):
+        picks = kit_opening.playable_picker_starts(self.db)
+        self.assertTrue(picks)
+        chosen = next((item for item in picks if item.get('id') == self.heading), picks[0])
+        self.assertEqual(chosen.get('id'), self.heading, chosen)
+        self.assertTrue((chosen.get('quote') or '').strip(), chosen)
+        self.assertFalse(chosen.get('kit_line'), chosen)
+        self.assertIn('step into the ford', chosen['quote'])
+        data = kit_skim._read(self.db)
+        data['alt_starts'] = picks
+        kit_skim._write(self.db, data)
+        first = kit_skim.open_title(self.db, chosen.get('title'))
+        self.assertEqual(first.get('stage'), 'scene_required', first)
+        spoken = (first.get('scene_request') or {}).get('read_aloud') or chosen['quote']
+        scene = {
+            'place': {'name': 'ford', 'quote': spoken},
+            'people': [],
+            'discoveries': [],
+            'pressures': [],
+        }
+        second = kit_skim.accept(self.db, {'scene': scene})
+        self.assertEqual(second.get('stage'), 'skim_accepted', second)
+        self.assertEqual(second.get('scene_key'), self.heading, second)
+        hit = kit_links.answer(self.db, 'Kit, what does the book say about marsh hound?',
+                               second.get('scene_key'))
+        self.assertIsNotNone(hit)
+        self.assertTrue(hit.get('source_verified'))
+        self.assertNotIn('give me a second', (hit.get('spoken') or '').casefold())
 
 
 if __name__ == '__main__':
