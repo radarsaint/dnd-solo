@@ -1950,11 +1950,12 @@ def _index_body_for_burst(db, spoken):
 
 
 def attested_burst(section, columns, fallback=''):
-    """The player opening inside a recovered section: typography-rejoined boxed fiction.
+    """The first substantial typography-rejoined boxed player opening.
 
     A short facing-column box may have been used only to bound the section.
-    The spoken opening is the first substantial boxed player passage in that
-    section, the same attested burst landing would speak.
+    Later boxes in the same section are not the opening. Following unboxed
+    lines are not glued onto a boxed line. The spoken opening is that boxed
+    unit, the same attested burst landing would speak, capped at BURST_WORDS.
     """
     from .kit_opening import player_line
     pools = []
@@ -1963,60 +1964,58 @@ def attested_burst(section, columns, fallback=''):
             pools.append(item.get('text') or '')
     if section:
         pools.append(section)
-    best = fallback or ''
+    substantial = 20
+    found = fallback or ''
     for pool in pools:
-        boxed = []
-        run = []
         for raw in (pool or '').splitlines():
             stripped = raw.strip()
-            if stripped.startswith('>'):
-                if run and not run[-1].startswith('>'):
-                    boxed.append(run)
-                    run = []
-                run.append(stripped)
-            elif run and stripped and not _heading_line(stripped):
-                run.append(stripped)
-            elif run:
-                boxed.append(run)
-                run = []
-        if run:
-            boxed.append(run)
-        for group in boxed:
-            words = []
-            for line in group:
-                piece = line.lstrip('>').strip()
-                if piece:
-                    words.append(piece)
-            blob = ' '.join(words)
-            blob = re.sub(r'\s+', ' ', blob).strip()
-            kept = []
-            count = 0
-            for sentence in _sentences(blob) or ([blob] if blob else []):
-                if not sentence or not _safe_box(sentence) or not player_line(sentence):
-                    if kept:
+            if not stripped.startswith('>'):
+                continue
+            piece = re.sub(r'\s+', ' ', stripped.lstrip('>').strip()).strip()
+            if not piece or len(_words(piece)) < 6 or not _safe_box(piece):
+                continue
+            sentences = _sentences(piece) or ([piece] if piece else [])
+            if not any(player_line(sentence) and _safe_box(sentence) for sentence in sentences):
+                continue
+            if player_line(piece):
+                candidate = piece
+            elif sentences and player_line(sentences[0]):
+                kept = []
+                count = 0
+                for sentence in sentences:
+                    words_n = len(_words(sentence))
+                    if kept and count + words_n > BURST_WORDS:
                         break
-                    continue
-                words_n = len(_words(sentence))
-                if kept and count + words_n > BURST_WORDS:
-                    break
-                kept.append(sentence)
-                count += words_n
-                if count >= BURST_WORDS:
-                    break
-            candidate = ' '.join(kept).strip()
+                    kept.append(sentence)
+                    count += words_n
+                    if count >= BURST_WORDS:
+                        break
+                candidate = ' '.join(kept).strip()
+            else:
+                continue
+            if not candidate:
+                continue
+            if len(_words(candidate)) > BURST_WORDS:
+                kept = []
+                count = 0
+                for sentence in _sentences(candidate) or [candidate]:
+                    words_n = len(_words(sentence))
+                    if kept and count + words_n > BURST_WORDS:
+                        break
+                    kept.append(sentence)
+                    count += words_n
+                    if count >= BURST_WORDS:
+                        break
+                candidate = ' '.join(kept).strip()
             if not candidate:
                 continue
             if not (_has_burst(section or pool, candidate) or _contiguous(candidate, section or pool)):
                 continue
-            if (not best or not player_line(best)
-                    or (len(candidate.split()) > len(best.split()) and len(best.split()) < 20)
-                    or (len(candidate.split()) >= len(best.split()) and len(candidate) > len(best))):
-                # Prefer a complete boxed opening over a short bound-only box.
-                if len(candidate.split()) >= len((best or '').split()) or len((best or '').split()) < 20:
-                    if not (best and player_line(best) and len(best.split()) >= 20
-                            and len(candidate.split()) < len(best.split())):
-                        best = candidate
-    return best
+            if len(_words(candidate)) >= substantial:
+                return candidate
+            if not found or not player_line(found) or len(_words(candidate)) > len(_words(found)):
+                found = candidate
+    return found
 
 
 def recorded_opening(db, key, spoken=None):

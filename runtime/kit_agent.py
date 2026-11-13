@@ -7567,13 +7567,13 @@ class KitChatBridge:
                 hinted = kit_skim.named_start(self.runtime, action)
                 if hinted:
                     return hinted
-            return self.prepare(*args, **kwargs)
+            return self._with_book_ruling(self.prepare(*args, **kwargs), action)
         except PendingRuling as exc:
             from . import kit_skim
             hinted = kit_skim.named_start(self.runtime, action)
             if hinted:
                 return hinted
-            return pending_ruling_result(exc)
+            return self._with_book_ruling(pending_ruling_result(exc), action)
         except InvalidChange as exc:
             if 'Initialize a session first' in str(exc):
                 from . import kit_skim
