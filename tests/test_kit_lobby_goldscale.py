@@ -99,7 +99,9 @@ class LobbyTests(unittest.TestCase):
         self.assertEqual(out['stage'], 'build')
         self.assertIn('kit_appraise', out['tools']['price_item'])
         self.assertIn('kit_chargen', out['tools']['character_building'])
-        self.assertIn('core rules', out['table_line'])
+        self.assertIn('Characters', out['table_line'])
+        self.assertIn('homebrew', out['tools']['character_building'])
+        self.assertNotIn('beyond SRD', out['tools']['character_building'])
         self.assertIsNone(out['opened_room'])
 
     def test_play_without_module_or_sheet_asks_for_both(self):
@@ -187,32 +189,41 @@ class LineTests(unittest.TestCase):
 
 
 class NeverGuessChargenTests(unittest.TestCase):
-    def test_non_srd_options_ask_for_rules_or_sheet(self):
+    def test_non_srd_options_do_not_trigger_blanket_refusal(self):
         for text in ('help me build a Twilight cleric', 'build a battle master fighter',
                      'create an Oath of Vengeance paladin', 'make a Hexblade warlock',
                      'I want to make a character with the Eldritch Adept feat',
                      "which feat should my rogue take from Tasha's",
                      'build an Astral Elf from Monsters of the Multiverse',
-                     'make a level 5 wizard using the 2024 rules'):
+                     'make a level 5 wizard using the 2024 rules',
+                     'build a homebrew Moonblade species',
+                     'build a third-party Runebinder class'):
             with self.subTest(text=text):
                 out = kit_chargen.chargen(text)
                 self.assertEqual(out['stage'], 'chargen')
-                self.assertFalse(out['srd_only'])
                 self.assertTrue(out['never_guess'])
-                self.assertIn("won't guess", out['table_line'])
-                self.assertIn('paste me the exact rules', out['table_line'].lower())
-                self.assertIn('sheet', out['table_line'])
+                self.assertEqual(out['needs'], [])
+                self.assertEqual(out['table_line'], kit_chargen.CHARGEN_LINE)
+                self.assertNotIn('srd_only', out)
+                self.assertNotIn('unknown_options', out)
+                self.assertIn('only when a rule cannot be verified', out['next_step'])
+                self.assertIn('unimplemented mechanic', out['next_step'])
 
     def test_srd_options_are_fine(self):
         for text in ('build a fighter champion', 'make a level 3 wizard, school of evocation',
                      "let's build a hill dwarf cleric with the life domain", 'build a 5th level human fighter'):
             with self.subTest(text=text):
                 out = kit_chargen.chargen(text)
-                self.assertTrue(out['srd_only'], out)
                 self.assertTrue(out['never_guess'])
+                self.assertEqual(out['needs'], [])
+                self.assertEqual(out['table_line'], kit_chargen.CHARGEN_LINE)
 
-    def test_named_option_appears_in_line(self):
-        self.assertIn('Twilight Cleric', kit_chargen.chargen('help me build a Twilight cleric')['table_line'])
+    def test_named_options_are_requests_not_missing_source_claims(self):
+        out = kit_chargen.chargen('help me build a Twilight cleric', sheet_given=True)
+        self.assertIn('twilight cleric', out['requested_options'])
+        self.assertTrue(out['sheet_given'])
+        self.assertEqual(out['needs'], [])
+        self.assertIn('2014 and 2024', out['next_step'])
 
     def test_not_chargen(self):
         for text in ("what's in this room", 'I attack the goblin', 'price a +1 sword'):
@@ -223,6 +234,9 @@ class NeverGuessChargenTests(unittest.TestCase):
         agents = (ROOT / 'AGENTS.md').read_text(encoding='utf-8')
         self.assertIn('never guesses at character generation', core)
         self.assertIn('Never guess at character generation', agents)
+        for text in (core, agents, (ROOT / 'KIT_PORTABLE.md').read_text(encoding='utf-8')):
+            self.assertIn('there is no SRD-only boundary', text)
+            self.assertNotIn('She carries the SRD 5.1 core options', text)
 
 
 if __name__ == '__main__':
@@ -247,18 +261,22 @@ class PlaytestFixTests(unittest.TestCase):
             with self.subTest(text=text):
                 out = kit_chargen.chargen(text)
                 self.assertIsNotNone(out, text)
-                self.assertFalse(out['srd_only'], out)
-                self.assertTrue(any(name in u for u in out['unknown_options']), out)
-                self.assertIn("won't guess", out['table_line'])
+                self.assertTrue(any(name in u for u in out['requested_options']), out)
+                self.assertEqual(out['needs'], [])
+                self.assertTrue(out['never_guess'])
 
     def test_chargen_cli_reports_chargen(self):
         run = subprocess.run([sys.executable, '-m', 'runtime.kit_chargen', 'can I take the Sharpshooter feat'],
                              cwd=ROOT, capture_output=True, text=True)
-        self.assertEqual(json.loads(run.stdout)['stage'], 'chargen')
+        self.assertEqual(run.returncode, 0, run.stderr)
+        out = json.loads(run.stdout)
+        self.assertEqual(out['stage'], 'chargen')
+        self.assertEqual(out['needs'], [])
+        self.assertIn('sharpshooter feat', out['requested_options'])
 
     def test_chargen_srd_asks_and_table_talk_stay_put(self):
         for text in ('can I take the grappler feat', 'can I play a hill dwarf cleric'):
-            self.assertTrue(kit_chargen.chargen(text)['srd_only'], text)
+            self.assertEqual(kit_chargen.chargen(text)['needs'], [], text)
         for text in ('I attack the goblin', 'can I take the sword', 'is the goblin dead',
                      'can I use my action to hide', 'I want to play'):
             self.assertIsNone(kit_chargen.chargen(text), text)

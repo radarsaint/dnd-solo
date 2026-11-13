@@ -29,8 +29,8 @@ PLAY_NEEDS_LINES = {
 TABLE_LINE = "Just you tonight, or a full table taking turns?"
 SOLO_LINE = "Just us, then. Settle in."
 SHARED_LINE = "A full table. Tell me who's talking and I'll get to everyone."
-BUILD_LINE = ("Building, then. Encounters, NPCs, rulings, what that loot's worth: that's my wheelhouse. "
-              "Character options past the core rules, hand me the text and I'll check it.")
+BUILD_LINE = ("Building, then. Characters, encounters, NPCs, rulings, homebrew, what that loot's worth: "
+              "that's my wheelhouse. What are we making?")
 TABLE_MODES = ('solo', 'shared')
 INTENTS = ('play', 'build')
 SHARED_NOTE = ('Shared table is recorded, but turn-taking is basic for now: the host prefixes each '
@@ -714,8 +714,9 @@ def _build(sheet_path):
             'design_talk': 'Scenes, NPCs, encounters, rulings, homebrew: talk, no bridge command.',
             'price_item': ('python -m runtime.kit_appraise "<item description>" (Goldscale formula; '
                            'answer its questions with --answer "<reply>"; --formula shows the math).'),
-            'character_building': ('python -m runtime.kit_chargen "<request>". Never guess: beyond SRD 5.1, '
-                                   'ask for the exact rules text or the finished sheet, then check it.'),
+            'character_building': ('python -m runtime.kit_chargen "<request>". Use available rules sources '
+                                   'for published, third-party, or homebrew options. Verify the rules version; '
+                                   'ask for missing text only when needed. Never invent mechanics.'),
         },
         'table_line': BUILD_LINE,
         'next_step': ('Say table_line in your own voice. Never guess at character generation (runtime/kit_chargen.py). For a price, run the price_item tool and give '
