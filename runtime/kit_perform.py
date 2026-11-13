@@ -53,6 +53,74 @@ def _plain(text):
     return re.sub(r'\s+', ' ', str(text or '')).strip()
 
 
+# A want, duty, order, or purpose — not a description of what someone is doing.
+_GOAL_MARK = re.compile(
+    r"(?i)\b(?:orders?|ordered|commanded|instructed|"
+    r"tasked with|charged with|charge is|duty is|mission is|"
+    r"wants?|wanted|wishes?|intends?|intended|"
+    r"means to|meant to|purpose is|aim is|aims to|"
+    r"has been told|have been told|"
+    r"must (?:hold|keep|guard|wait|stay|protect|stop|cover|watch)|"
+    r"is to (?:hold|keep|guard|wait|stay|protect|cover|watch))\b"
+)
+
+# Observed bodily or spoken action: a stage direction, not a goal.
+_STAGE_ACTION = re.compile(
+    r"(?i)\b(?:glances?|glanced|nods?|nodded|stands?|stood|"
+    r"hails?|hailed|leans?|leaned|smiles?|smiled|"
+    r"turns?|turned|waves?|waved|gestures?|gestured|"
+    r"points?|pointed|peers?|peered|paces?|paced|"
+    r"steps?|stepped|sits?|sat|kneels?|knelt|"
+    r"looks? (?:at|toward|towards|around|down|up|over)|"
+    r"watches?|watched|calls? out|called out|"
+    r"raises? (?:a |an |the |her |his |their )|"
+    r"asks?|asked|says?|said|tells?|told)\b"
+)
+
+# How-to-play and DM-tip voice. These are not section facts.
+_HOWTO_TIP = re.compile(
+    r"(?i)\b(?:dm tip|dungeon master tip|tip for the dm|for the dm|"
+    r"how to play|how-to-play|fun of playing|spoiled for you|"
+    r"for instance|for example|"
+    r"this reflects|this is the number|"
+    r"your character can|character sheets?|"
+    r"rolls? to use skills?|ability scores?|"
+    r"communicating with monsters|"
+    r"can you (?:hit|balance|convince|sneak|hide|climb|jump|cast|roll))\b"
+    r"|^\s*can you\b"
+)
+
+# In-world character background the section establishes (where they are from).
+_CHARACTER_BACKGROUND = re.compile(
+    r"(?i)\b(?:you are from|you're from|you come from|you came from|"
+    r"you were born|you grew up|you live in|you hail from|"
+    r"your home (?:is|was|village|town|city)|"
+    r"today,? it(?:'|’)s your turn)\b"
+)
+
+
+def is_attested_goal(text):
+    """True when the quote states a want, duty, order, or purpose."""
+    return bool(text and _GOAL_MARK.search(text))
+
+
+def is_visible_action(text):
+    """True when the quote describes an observed action, not a purpose."""
+    if not text or is_attested_goal(text):
+        return False
+    return bool(_STAGE_ACTION.search(text))
+
+
+def is_howto_or_tip(text):
+    """True when the line is how-to-play or a DM tip, not playable fiction."""
+    return bool(text and _HOWTO_TIP.search(text))
+
+
+def is_character_background(text):
+    """True when the line establishes where the characters are from, or similar."""
+    return bool(text and _CHARACTER_BACKGROUND.search(text) and not is_howto_or_tip(text))
+
+
 def _goal_text(person):
     goal = (person or {}).get('goal') or (person or {}).get('motive') or ''
     if isinstance(goal, dict):
@@ -126,32 +194,70 @@ def link_notes_for(index, person):
     return notes
 
 
+def _is_section_fact(line, boxed=False):
+    """Playable fiction or a character-background line, never a how-to or DM tip.
+
+    Uses the same gates the picker uses (player_line, and _safe_box for unboxed
+    lines), plus an explicit keep for section-established background.
+    """
+    from . import kit_skim
+    line = _plain(line)
+    if not line or len(line.split()) < 4:
+        return False
+    if is_howto_or_tip(line) or _HOWTO.search(line):
+        return False
+    if kit_skim._blocks_quote(line) or kit_skim._unsafe(line):
+        return False
+    if is_character_background(line):
+        return True
+    if not kit_opening.player_line(line):
+        return False
+    if boxed:
+        return True
+    return bool(kit_skim._safe_box(line))
+
+
 def _section_player_quotes(db, scene_key=None, cap=80):
-    """Player-facing sentences from the current section, not screen notes."""
+    """Playable fiction and player-facing facts from the current section.
+
+    How-to-play and DM-tip fragments are dropped. Character-background
+    lines the section establishes (where the characters are from) are kept,
+    so a question about the home place can be answered from the packet.
+    """
     from .kit_adventure import _load
     from . import kit_links, kit_skim
     quotes = []
     try:
-        index, text = _load(db)
+        index, book = _load(db)
     except Exception:
         return quotes
     key = kit_links.section_key(index, scene_key or index.get('start'))
     loc = (index.get('locations') or {}).get(key) or {}
-    span = kit_links._recorded_span(loc, len(text or ''))
-    if not span:
-        return quotes
-    body = text[span[0]:span[1]]
-    for sentence in kit_skim._sentences(body) or []:
-        if not sentence or len(sentence.split()) < 4:
-            continue
-        if _HOWTO.search(sentence) or not kit_opening.player_line(sentence):
-            continue
-        if kit_skim._blocks_quote(sentence) or kit_skim._unsafe(sentence):
-            continue
-        quotes.append(_plain(sentence))
-        if len(quotes) >= cap:
-            break
-    return quotes
+    span = kit_links._recorded_span(loc, len(book or ''))
+    boxed = []
+    try:
+        boxed = [ _plain(line) for line in kit_opening._boxed_lines(loc, book) if _plain(line)]
+    except Exception:
+        boxed = []
+    boxed_set = set(boxed)
+
+    def add(sentence, from_box=False):
+        line = _plain(sentence)
+        if not line or line in quotes:
+            return
+        if not _is_section_fact(line, boxed=from_box or line in boxed_set):
+            return
+        quotes.append(line)
+
+    for line in boxed:
+        add(line, from_box=True)
+    if span:
+        body = book[span[0]:span[1]]
+        for sentence in kit_skim._sentences(body) or []:
+            add(sentence, from_box=False)
+            if len(quotes) >= cap:
+                break
+    return quotes[:cap]
 
 
 def _heard_quotes(beat, burst=None):
@@ -198,6 +304,16 @@ def _person_facts(person, index=None):
     goal = _goal_text(person)
     knowledge = _knowledge_quotes(person)
     visible = _visible_state(person)
+    action = _plain((person or {}).get('action') or '')
+    # A stage direction or description must never sit in goal.
+    if goal and not is_attested_goal(goal):
+        if not visible:
+            visible = goal
+        if is_visible_action(goal) and not action:
+            action = goal
+        goal = ''
+    if not action and is_visible_action(visible):
+        action = visible
     notes = link_notes_for(index, person) if index is not None else []
     return {
         'id': person.get('id') or '',
@@ -205,6 +321,7 @@ def _person_facts(person, index=None):
         'goal': goal,
         'knowledge': knowledge,
         'visible_state': visible,
+        'action': action,
         'addressable': bool(person.get('addressable') or person.get('revealed')
                             or not person.get('hidden')),
         'link_notes': notes,
@@ -284,7 +401,7 @@ def attested_corpus(facts, beat=None, action=None):
         for item in facts.get(key) or []:
             parts.append(item)
     for person in facts.get('people') or []:
-        for key in ('goal', 'visible_state'):
+        for key in ('goal', 'visible_state', 'action'):
             if person.get(key):
                 parts.append(person[key])
         for item in (person.get('knowledge') or []) + (person.get('link_notes') or []):
