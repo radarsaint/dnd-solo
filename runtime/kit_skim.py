@@ -2017,6 +2017,16 @@ def recover_opening_section(db, spoken, ingested_scope):
         if text and (_has_burst(text, spoken) or any(
                 _has_burst(item.get('text') or '', spoken) for item in columns)):
             return text, columns
+    try:
+        from .kit_adventure import _load
+        index, _ignored = _load(db)
+        start_key = index.get('start')
+    except Exception:
+        start_key = None
+    if start_key:
+        text, columns, _burst = recorded_opening(db, start_key, spoken=spoken)
+        if text:
+            return text, columns
     chosen_text, chosen_cols, chosen_lanes = '', [], 0
     for extract in _section_sources(db, ingested_scope):
         text, columns = opening_section_from_text(extract, spoken)
@@ -2234,7 +2244,8 @@ def accept(db, reply):
         cached_cols = data.get('opening_columns')
         cached_text = data.get('opening_section')
         cached_hit = bool(cached_text or cached_cols) and (
-            (data.get('status') == 'scene_required' and 'scene' in reply)
+            data.get('opening_section_cached')
+            or (data.get('status') == 'scene_required' and 'scene' in reply)
             or (cached_text and (_has_burst(cached_text, spoken)
                                  or _contiguous(spoken, cached_text)))
             or any(_has_burst(item.get('text') or '', spoken)
@@ -3118,6 +3129,7 @@ def open_title(db, token):
             chosen['quote'] = quote
             data['opening_section'] = section
             data['opening_columns'] = list(columns or ())
+            data['opening_section_cached'] = True
             _write(db, data)
     if not quote:
         from . import kit_opening, kit_adventure
