@@ -177,6 +177,45 @@ def _pdftotext(path, max_pages=None):
     return _cap_pages(text, max_pages) if max_pages else text
 
 
+def _pdftotext_raw(path, max_pages=None):
+    """pdftotext without -layout: stream order, not printed rows.
+
+    A two-column page with a full-width boxed read-aloud is often contiguous
+    in raw stream order even when -layout interleaves the facing lane.
+    """
+    tool = shutil.which('pdftotext')
+    if not tool:
+        return None
+    cmd = [tool, '-raw', '-enc', 'UTF-8', '-f', '1']
+    if max_pages:
+        cmd += ['-l', str(int(max_pages))]
+    cmd += [str(path), '-']
+    limit = shutil.which('timeout')
+    if limit and max_pages:
+        cmd = [limit, '-k', '1', '4'] + cmd
+    proc = subprocess.Popen(
+        cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, start_new_session=True)
+    try:
+        out, _ = proc.communicate(timeout=4 if max_pages else 20)
+    except (subprocess.TimeoutExpired, OSError):
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except OSError:
+            try:
+                proc.kill()
+            except OSError:
+                pass
+        try:
+            proc.wait(timeout=1)
+        except (subprocess.TimeoutExpired, OSError):
+            pass
+        return None
+    if proc.returncode != 0 or out is None:
+        return None
+    text = out.decode('utf-8', errors='replace')
+    return _cap_pages(text, max_pages) if max_pages else text
+
+
 def _pypdf_text(path, max_pages=None):
     try:
         try:

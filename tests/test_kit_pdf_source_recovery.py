@@ -103,22 +103,19 @@ class PdfSceneIntegration(unittest.TestCase):
         self.assertIn('Two scouts', span)
         self.assertNotIn('Far Chapel', span)
 
-    def test_missing_scope_refuses_a_validly_shaped_scene_on_retry(self):
-        scene = {'place': {'name': 'cart', 'quote': self.burst},
-                 'people': [], 'discoveries': [], 'pressures': []}
+    def test_missing_scope_accepts_a_burst_only_start_instead_of_stalling(self):
         with mock.patch.object(kit_skim, '_same_column_encounter',
                                return_value=''):
             first = kit_skim.accept(self.db, {
                 'burst': self.burst, 'source_quote': self.burst,
                 'page_start': 1, 'page_end': 1,
                 'alt_starts': [], 'design_start_name': 'Marsh Road'})
-            self.assertEqual(first['stage'], 'scene_required', first)
-            self.assertIn('cannot be reconstructed',
-                          ' '.join(first['scene_request']['problems']))
-            retry = kit_skim.accept(self.db, {'scene': scene})
-            self.assertEqual(retry['stage'], 'scene_required', retry)
-            self.assertFalse(retry['source_verified'])
-            self.assertNotEqual(kit_skim._read(self.db).get('status'), 'accepted')
+            self.assertEqual(first['stage'], 'skim_accepted', first)
+            self.assertEqual(first.get('layout_recovery'), 'burst_only')
+            self.assertFalse(first.get('people_attested'))
+            self.assertIn('read-aloud only', first.get('table_line') or '')
+            self.assertIn('start_picker', first)
+            self.assertEqual(kit_skim._read(self.db).get('status'), 'accepted')
 
 
 if __name__ == '__main__':

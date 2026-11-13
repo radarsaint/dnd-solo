@@ -117,27 +117,13 @@ class NormalHostPath(unittest.TestCase):
         return opening
 
     def complete_check(self, packet):
-        self.assertEqual(packet.get('stage'), 'one_pass', packet)
-        private = packet['input']['private']
-        plan = RecordingModel().plan(private)
-        plan.update(move='ruling', table_presence='brief', focus_actor='none', roll_call={
-            'skill': 'perception', 'mode': 'normal', 'target': 'none',
-            'cause': {'kind': 'position', 'ref': 'none', 'roots': []}})
-        plan['improv_read'].update(actor_ref='none', actor_basis='none')
-        plan['public_brief'].update(reply_to='look around', scope='call')
-        payload = {'decision': plan,
-                   'performance': {'segments': [
-                       {'speaker': 'Kit', 'text': 'Roll Perception for it.', 'reacts_to': 'look around'}]}}
-        # The real host response supplies the manifest when the CLI sends it.
-        session = packet.get('session_manifest') or {}
-        room = packet.get('room_manifest') or {}
-        if session.get('hash') and room.get('hash'):
-            payload['manifest'] = {'session': session['hash'], 'room': room['hash']}
-        file = self.dir / 'output.json'
-        file.write_text(json.dumps(payload))
-        response = call('complete', '--db', self.db, '--turn-id', packet['turn_id'], '--input-file', file)
-        self.assertIn('Roll Perception', response.get('spoken') or '')
-        return response
+        # The called Perception ask is spoken at prepare time so the player
+        # does not wait on a host complete for the roll call.
+        self.assertEqual(packet.get('stage'), 'called_roll', packet)
+        self.assertTrue(packet.get('committed'), packet)
+        self.assertTrue(packet.get('turn_id'), packet)
+        self.assertIn('Roll Perception', packet.get('spoken') or '')
+        return packet
 
     def test_normal_host_path_handles_missing_form_repair_roll_and_restart(self):
         for order in ('before', 'after', 'middle'):
@@ -194,53 +180,22 @@ class NormalHostPath(unittest.TestCase):
         self.skim('before')
         self.start()
         packet = self.action('I burn the wagon.')
-        self.assertEqual(packet.get('stage'), 'one_pass', packet)
-        goal = packet['input']['private']['accepted_public_event']
-        self.assertIn('set it alight', goal)
-        self.assertNotIn('rules the act', goal)
-        plan = RecordingModel().plan(packet['input']['private'])
-        plan.update(move='ruling', table_presence='brief', focus_actor='none')
-        plan['improv_read'].update(actor_ref='none', actor_basis='none')
-        plan['public_brief'].update(reply_to='I burn the wagon.', scope='call')
-        payload = {'decision': plan, 'performance': {'segments': [
-            {'speaker': 'Kit', 'text': goal, 'reacts_to': 'I burn the wagon.'}]}}
-        session = packet.get('session_manifest') or {}
-        room = packet.get('room_manifest') or {}
-        if session.get('hash') and room.get('hash'):
-            payload['manifest'] = {'session': session['hash'], 'room': room['hash']}
-        out = self.dir / 'clarify.json'
-        out.write_text(json.dumps(payload))
-        result = call('complete', '--db', self.db, '--turn-id', packet['turn_id'], '--input-file', out)
-        self.assertIn('set it alight', result.get('spoken') or '')
-        self.assertEqual((result.get('timing') or {}).get('outcome'), 'committed', result)
-        self.assertNotIn('rules the act', result.get('spoken') or '')
+        self.assertEqual(packet.get('stage'), 'engine_ruling', packet)
+        self.assertTrue(packet.get('committed'), packet)
+        self.assertTrue(packet.get('turn_id'), packet)
+        self.assertIn('set it alight', packet.get('spoken') or '')
+        self.assertNotIn('rules the act', packet.get('spoken') or '')
+        self.assertNotEqual(packet.get('stage'), 'pending_ruling')
 
 
     def test_sneak_and_roll_use_real_complete_path_without_free_bypass(self):
         self.skim('middle')
         self.start()
         packet = self.action('I sneak past the bandits.')
-        self.assertEqual(packet.get('stage'), 'one_pass', packet)
-        self.assertIn('Roll Stealth', packet['input']['private']['accepted_public_event'])
-        plan = RecordingModel().plan(packet['input']['private'])
-        plan.update(move='ruling', table_presence='brief', focus_actor='none', roll_call={
-            'skill': 'stealth', 'mode': 'normal', 'target': 'none',
-            'cause': {'kind': 'position', 'ref': 'none', 'roots': []}})
-        plan['improv_read'].update(actor_ref='none', actor_basis='none')
-        plan['public_brief'].update(reply_to='I sneak past the bandits.', scope='call')
-        payload = {'decision': plan, 'performance': {'segments': [
-            {'speaker': 'Kit', 'text': 'Roll Stealth for it.',
-             'reacts_to': 'I sneak past the bandits.'}]}}
-        session = packet.get('session_manifest') or {}
-        room = packet.get('room_manifest') or {}
-        if session.get('hash') and room.get('hash'):
-            payload['manifest'] = {'session': session['hash'], 'room': room['hash']}
-        output = self.dir / 'stealth.json'
-        output.write_text(json.dumps(payload))
-        completed = call('complete', '--db', self.db, '--turn-id', packet['turn_id'],
-                         '--input-file', output)
-        self.assertIn('Roll Stealth', completed.get('spoken') or '')
-        self.assertEqual(completed['timing']['outcome'], 'committed')
+        self.assertEqual(packet.get('stage'), 'called_roll', packet)
+        self.assertTrue(packet.get('committed'), packet)
+        self.assertTrue(packet.get('turn_id'), packet)
+        self.assertIn('Roll Stealth', packet.get('spoken') or '')
         rolled = self.action('18')
         self.assertEqual(rolled['stage'], 'called_roll', rolled)
         self.assertNotIn('You slip past.', rolled.get('spoken') or '')

@@ -1360,6 +1360,7 @@ def _same_column_encounter(source, burst):
     raw = source or ''
     if not raw.strip() or not burst or not _words(burst):
         return ''
+    found = ''
     pages = raw.split('\f')
     gaps = []
     for row in raw.splitlines():
@@ -1376,7 +1377,7 @@ def _same_column_encounter(source, burst):
         # The quoted burst is the only authority for which lane owns the beat.
         for stream in (left, right):
             if _contiguous(burst, stream):
-                return _bounded_encounter(stream, burst)
+                found = _preferred_span(found, _bounded_encounter(stream, burst), burst)
     # An opening that truly straddles both printed columns can be used only
     # when its complete words are contiguous in the left-then-right reading
     # order. The fallback is bounded at the next source-owned keyed location.
@@ -1387,8 +1388,234 @@ def _same_column_encounter(source, burst):
             pages_in_order.append(left + ('\n' + right if right.strip() else ''))
         stream = '\n\f\n'.join(pages_in_order)
         if _contiguous(burst, stream):
-            return _bounded_encounter(stream, burst)
+            found = _preferred_span(found, _bounded_encounter(stream, burst), burst)
+    boxed = _boxed_line_stream(raw)
+    if boxed and _contiguous(burst, boxed):
+        found = _preferred_span(found, _bounded_encounter(boxed, burst), burst)
+    multi = _multi_lane_encounter(raw, burst, cutoffs)
+    found = _preferred_span(found, multi, burst)
+    return found or ''
+
+
+
+def _keyed_count(span):
+    """How many source-owned location headings sit in this span."""
+    count = 0
+    for line in (span or '').splitlines():
+        # A mixed layout row can carry two location titles.
+        for part in re.split(r'\s{3,}', line):
+            stripped = part.strip()
+            if not stripped:
+                continue
+            # Only numbered location titles, not ordinary sentences that look tall.
+            if _KEYED.match(stripped) or _LATER.match(stripped):
+                count += 1
+    return count
+
+
+def _preferred_span(current, candidate, burst):
+    """Prefer a recovered span that still has the burst and fewer later locations."""
+    if not candidate or not _contiguous(burst, candidate):
+        return current or ''
+    if not current:
+        return candidate
+    current_keys, new_keys = _keyed_count(current), _keyed_count(candidate)
+    # A second location heading is a leak. A span with no heading is often just
+    # the boxed line, missing the rest of the encounter.
+    if 1 <= new_keys < current_keys:
+        return candidate
+    if new_keys == current_keys and new_keys >= 1:
+        # Same location, narrower lane: keep follow-on encounter lines.
+        if (_follow_on_words(candidate, burst) >= 3 and
+                len(candidate) < len(current)):
+            return candidate
+    return current
+
+
+def _follow_on_words(span, burst):
+    have, want = _words(span), _words(burst)
+    width = len(want)
+    if not width:
+        return 0
+    for index in range(0, max(0, len(have) - width + 1)):
+        if have[index:index + width] == want:
+            return len(have) - (index + width)
+    return 0
+
+
+def _boxed_line_stream(source):
+    """The marked read-aloud lines only, when a box survived extraction."""
+    kept = []
+    for line in (source or '').splitlines():
+        stripped = line.lstrip('\f').strip()
+        if stripped.startswith('>'):
+            kept.append(stripped)
+    return '\n'.join(kept)
+
+
+def _lane_cut_row(row, cuts):
+    """Split one layout row at the given gutter positions, left to right."""
+    if not cuts:
+        return [row]
+    parts = []
+    last = 0
+    for cut in cuts:
+        if cut <= last or cut >= len(row):
+            continue
+        window = row[last:cut]
+        # Prefer a real space near the cut so a word is not sliced in half.
+        pad = window.rfind(' ')
+        if pad >= max(0, len(window) - 12):
+            cut = last + pad
+        parts.append(row[last:cut].strip())
+        last = cut
+    parts.append(row[last:].strip())
+    while len(parts) < len(cuts) + 1:
+        parts.append('')
+    return parts
+
+
+def _multi_lane_encounter(source, burst, cutoffs):
+    """Recover a burst that lives in one of three or more printed lanes."""
+    if not cutoffs or not burst:
+        return ''
+    # Frequent gutters, in page-x order, define every printed lane.
+    ranked = sorted(cutoffs)
+    clustered = []
+    for pos in ranked:
+        if clustered and abs(pos - clustered[-1]) <= 8:
+            continue
+        clustered.append(pos)
+    if len(clustered) < 2:
+        return ''
+    pages = (source or '').split('\f')
+    # Try two-gutter (three-lane) and all-gutter splits.
+    trials = []
+    if len(clustered) >= 2:
+        trials.append(clustered[:2])
+    if len(clustered) >= 3:
+        trials.append(clustered[:3])
+    trials.append(clustered)
+    for cuts in trials:
+        lanes = [[] for _ in range(len(cuts) + 1)]
+        for page in pages:
+            page_lanes = [[] for _ in range(len(cuts) + 1)]
+            for row in page.splitlines():
+                pieces = _lane_cut_row(row, cuts)
+                for index, piece in enumerate(pieces):
+                    if index < len(page_lanes):
+                        page_lanes[index].append(piece)
+            for index, bucket in enumerate(page_lanes):
+                lanes[index].append('\n'.join(bucket))
+        streams = ['\n\f\n'.join(lane) for lane in lanes]
+        for stream in streams:
+            if _contiguous(burst, stream):
+                return _bounded_encounter(stream, burst)
+        # Left-to-right reading of every lane, still bounded at the next location.
+        ordered = '\n\f\n'.join(
+            '\n'.join(part for part in pieces if part.strip())
+            for pieces in zip(*[[p for p in stream.split('\n\f\n')] for stream in streams])
+        )
+        if _contiguous(burst, ordered):
+            return _bounded_encounter(ordered, burst)
     return ''
+
+
+def _page_containing(text, burst):
+    for page in (text or '').split('\f'):
+        if _contiguous(burst, page):
+            return page
+    return text or ''
+
+
+def _span_from_extract(text, burst):
+    """Bound the encounter in a recovered extract when the burst is present."""
+    if not text or not burst:
+        return ''
+    if _contiguous(burst, text):
+        span = _same_column_encounter(text, burst)
+        if span and _contiguous(burst, span):
+            return span
+        return _bounded_encounter(_page_containing(text, burst), burst)
+    if find_quote(text, burst) is not None:
+        span = _same_column_encounter(text, burst)
+        if span and (_contiguous(burst, span) or find_quote(span, burst) is not None):
+            return span
+    return ''
+
+
+def recover_encounter_span(db, spoken, ingested_scope):
+    """Recover the local encounter: ingested lanes first, then the retained PDF.
+
+    A pdftotext -layout extract can interleave a boxed read-aloud with facing
+    columns so no text gutter yields a contiguous quote. The private retained
+    PDF is then re-read with the spatial stdlib extractor, and if needed with
+    pdftotext -raw, which keep a printed lane in reading order. Nothing is
+    invented; the burst still has to be present in the recovered span.
+    """
+    span = _same_column_encounter(ingested_scope, spoken)
+    if span and _contiguous(spoken, span):
+        return span
+    from . import kit_adventure
+    try:
+        path = kit_adventure.retained_pdf_source(db)
+    except Exception:
+        path = None
+    if path is None:
+        return span or ''
+    try:
+        data = path.read_bytes()
+    except OSError:
+        return span or ''
+    import time
+    from . import kit_pdf
+    found = kit_pdf.extract(data, max_pages=OPENING_PAGES, deadline=time.monotonic() + 3)
+    recovered = _span_from_extract(found.get('text') or '', spoken)
+    if recovered:
+        return recovered
+    raw = kit_adventure._pdftotext_raw(path, OPENING_PAGES)
+    recovered = _span_from_extract(raw or '', spoken)
+    if recovered:
+        return recovered
+    return span or ''
+
+
+BURST_ONLY_PREFIX = (
+    "The printed encounter could not be reconstructed from the page layout, "
+    "so this start is the read-aloud only — no people are attested."
+)
+
+
+def _burst_only_line(alts):
+    extra = picker_line(alts)
+    if alts:
+        return "%s Play this opening, or pick another. %s" % (BURST_ONLY_PREFIX, extra)
+    return "%s Play this opening, or describe how you arrive." % BURST_ONLY_PREFIX
+
+
+def _burst_only_scene(spoken, name):
+    """A legal scene when the encounter span cannot be recovered: burst only."""
+    folded = normalize(spoken)
+    heading = normalize(name or '')
+    place = heading if heading and re.search(r'\b' + re.escape(heading) + r'\b', folded, re.I) else ''
+    if not place:
+        stop = {
+            'the', 'and', 'for', 'with', 'from', 'that', 'this', 'your', 'you',
+            'are', 'was', 'were', 'have', 'has', 'had', 'into', 'onto', 'over',
+            'near', 'along', 'toward', 'towards', 'after', 'before',
+        }
+        words = re.findall(r"[A-Za-z][A-Za-z']{2,}", spoken or '')
+        place = next((word for word in words if word.casefold() not in stop), '') or 'here'
+        if place.casefold() not in folded.casefold() and 'here' in folded.casefold():
+            place = 'here'
+        elif place.casefold() not in folded.casefold():
+            # Last resort: the first word actually in the burst.
+            place = (re.findall(r"[A-Za-z][A-Za-z']+", spoken or '') or ['here'])[0]
+    return {
+        'place': {'name': place, 'quote': spoken},
+        'people': [], 'discoveries': [], 'pressures': [],
+    }
+
 
 def _scene_request(db, data, candidate, source, spoken, problems=None):
     """Return an actionable, DM-only repair packet; no start is accepted yet."""
@@ -1525,6 +1752,7 @@ def accept(db, reply):
         span_end = page_to
     anchored_quote_offset = span_start
     from .kit_opening import build_beat, opening_text, _layout_stream
+    burst_only = False
     if _pdf_requires_scene(db):
         # Require host interpretation on all real PDFs. Never silently fall back.
         scope_start, scope_end = _encounter_bounds(text, page_at, page_to,
@@ -1533,13 +1761,15 @@ def accept(db, reply):
         # Let the layout-aware extractor establish the real location boundary;
         # the raw offset heuristic alone can stop on the other column's heading.
         scoped_raw = text[min(scope_start, page_at):max(scope_end, page_to)]
-        scoped = _same_column_encounter(scoped_raw, spoken)
+        scoped = recover_encounter_span(db, spoken, scoped_raw)
         candidate = {key: reply[key] for key in KEYS if key != 'scene' and key in reply}
+        burst_only = False
         if not scoped or not _contiguous(spoken, scoped):
-            return _scene_request(
-                db, data, candidate, '', spoken,
-                ['opening encounter cannot be reconstructed from the PDF layout; '
-                 'no scene facts may be attested'])
+            # Never stall on an unfillable empty span. The host may play the
+            # read-aloud with no attested people, and may pick another opening.
+            burst_only = True
+            scoped = spoken
+            reply = dict(candidate, scene=_burst_only_scene(spoken, name))
         if 'scene' not in reply:
             return _scene_request(db, data, candidate, scoped, spoken,
                                   ['scene must be interpreted from the printed encounter'])
@@ -1552,7 +1782,10 @@ def accept(db, reply):
         beat = kit_scene_contract.build_beat(
             reply['scene'], spoken, name, fiction=fiction_lines(page_text, spoken, allow_rejoin=True))
         # Give the compiler the complete scoped encounter, not just the box tail.
-        span_start, span_end = scope_start, scope_end
+        # A burst-only start stays on the read-aloud itself so facing-column
+        # text cannot become a compiled room.
+        if not burst_only:
+            span_start, span_end = scope_start, scope_end
     elif 'scene' in reply:
         from . import kit_scene_contract
         scoped = text[span_start:span_end]
@@ -1586,9 +1819,14 @@ def accept(db, reply):
     }
     if data.get('sheet'):
         stored['sheet'] = data['sheet']
+    if burst_only:
+        stored['layout_recovery'] = 'burst_only'
+        stored['alt_starts'] = alts
+        stored['table_line'] = _burst_only_line(alts)
     _write(db, stored)
-    return {
-        'stage': 'skim_accepted', 'table_line': READY_LINE, 'design_start_name': stored['design_start_name'],
+    result = {
+        'stage': 'skim_accepted', 'table_line': stored.get('table_line', READY_LINE),
+        'design_start_name': stored['design_start_name'],
         'scene_key': key, 'room': compiled.get('room'), 'room_id': compiled.get('room_id'),
         'page_start': page_start, 'page_end': page_end, 'burst_words': len(_words(spoken)),
         'alt_starts': alts, 'expanded': expanded, 'advanced': False,
@@ -1596,6 +1834,15 @@ def accept(db, reply):
         'scene_contract_status': 'verified' if beat.get('source_verified') else 'legacy_text',
         'handoff': handoff,
     }
+    if burst_only:
+        result['layout_recovery'] = 'burst_only'
+        result['start_picker'] = {
+            'table_line': result['table_line'],
+            'places': [{'pick': item['title'], 'line': item['title'], 'page': item['page']}
+                       for item in alts],
+        }
+        result['people_attested'] = False
+    return result
 
 
 def peek_burst(db):
@@ -1764,6 +2011,7 @@ def _stamp_beat(room_path, beat):
                 for key in bound_actor_ids.get(identity, ())))
             room['_opening_pressures'].append(pressure)
         room['_opening_discoveries'] = list(beat.get('discoveries') or ())
+        room['_opening_notice'] = dict(beat.get('notice') or {})
         # The encounter compiler may recognize the creature's stat block but
         # not build a trigger from the author's conditional prose. Preserve the
         # actual indexed room (and its exits) and derive only trigger TIMING from

@@ -236,8 +236,11 @@ def build_beat(scene, burst, place_heading, fiction=None):
         'heard': 0,
         'place_noun': scene['place']['name'], 'place_name': place_heading,
         'screen': [],
-        'notice': {'holds': bool(ambush), 'pending': False, 'resolved': False,
-                   'find': ''},
+        'notice': {'holds': bool(ambush) or bool(scene.get('discoveries')),
+                   'pending': False, 'resolved': False,
+                   'find': ((scene.get('discoveries') or [{}])[0].get('quote')
+                            if scene.get('discoveries') and isinstance(scene['discoveries'][0], dict)
+                            else '')},
         'people': people,
         'pressure': {'goal': goals[0] if goals else '',
                      'means': 'ambush' if ambush else 'none',

@@ -776,10 +776,10 @@ class RefusedAttemptTests(BridgeCase):
 
     def test_refused_spell_is_recorded_and_reaches_the_next_turn(self):
         with self.assertRaisesRegex(PendingRuling, 'noted in the public history'):
-            self.bridge.prepare('I set the table on fire.', 'spell')
+            self.bridge.prepare('I wish for infinite gold.', 'spell')
         self.assertEqual(self.runtime.load()[0], 1)
         attempts = self.runtime.load()[1]['refused_attempts']
-        self.assertEqual(attempts[0]['action'], 'I set the table on fire.')
+        self.assertEqual(attempts[0]['action'], 'I wish for infinite gold.')
         self.assertIn(kit_agent.UNSUPPORTED_RULING, attempts[0]['ruling'])
         self.assertNotIn('Combat', attempts[0]['ruling'])
         prepared = self.bridge.prepare('Fine. What are you all playing?', 'after', one_pass=True)
@@ -798,7 +798,7 @@ class RefusedAttemptTests(BridgeCase):
         self.runtime.close()
         out = io.StringIO()
         with patch('sys.argv', ['kit_agent', 'prepare', '--db', str(self.path),
-                                '--action', 'I set the table on fire.']), contextlib.redirect_stdout(out):
+                                '--action', 'I wish for infinite gold.']), contextlib.redirect_stdout(out):
             self.assertEqual(kit_agent.main(), 0)
         result = json.loads(out.getvalue())
         self.assertEqual((result['stage'], result['attempt_recorded']), ('pending_ruling', True))
