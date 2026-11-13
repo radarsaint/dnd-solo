@@ -7607,6 +7607,10 @@ class KitChatBridge:
         opened = kit_skim.opening_turn(self.runtime, action)
         if opened is not None:
             return opened
+        from . import kit_opening
+        sourced = kit_opening.sourced_play(self.runtime, action)
+        if sourced is not None:
+            return sourced
         ready = self._prepared_answer(action)
         if ready is not None:
             return ready
@@ -8457,6 +8461,9 @@ class KitChatBridge:
             return self._complete_window(turn_id, pending, output)
         body, plan = pending['body'], output['decision']
         self._mains_if_undeclared(turn_id, pending, plan)
+        output = dict(output)
+        output['performance'] = _repair_sourced_performance(
+            self.runtime, body, plan, output.get('performance'))
         if body['host_mode'] != 'one_pass':
             raise HostSequenceError('Use decide and finish for a staged turn', 'decide')
         revision, state = self.runtime.load()
@@ -8492,6 +8499,7 @@ class KitChatBridge:
         from . import kit_opening
         record['spoken'] = kit_opening.guard_runtime(self.runtime, record.get('spoken') or '')
         record['public_event'] = kit_opening.guard_runtime(self.runtime, record.get('public_event') or '')
+        _remember_npc_replies(self.runtime, record.get('spoken') or '')
         record.update(kit_interstitial.describe(record['trace'], turn_id))
         if record.get('engine_interstitial'):
             record.update(turn_role='interstitial', interstitial=record['engine_interstitial'])
@@ -9267,6 +9275,76 @@ def _main():
         runtime.close()
     return 0
 
+def _repair_sourced_performance(runtime, body, plan, performance):
+    """Replace instruction-flavored NPC lines with a sourced in-character reply."""
+    from . import kit_opening, kit_perform
+    if not isinstance(performance, dict):
+        return performance
+    segments = list(performance.get('segments') or [])
+    if not segments:
+        return performance
+    try:
+        _data, beat = kit_opening._load(runtime)
+    except Exception:
+        return performance
+    action = (body or {}).get('action') or ''
+    focus = (plan or {}).get('focus_actor') or ((plan or {}).get('improv_read') or {}).get('actor_ref')
+    changed = False
+    out = []
+    for segment in segments:
+        segment = dict(segment)
+        speaker = segment.get('speaker') or ''
+        if speaker and speaker not in ('Narrator', 'Kit'):
+            person = kit_opening._person_named(beat, speaker)
+            if not person and focus and beat:
+                for item in beat.get('people') or []:
+                    if item.get('id') == focus or item.get('name') == focus:
+                        person = item
+                        break
+            if person:
+                prior = ((beat or {}).get('replies') or {}).get(person.get('id') or speaker) or []
+                repaired = kit_perform.repair_npc_text(
+                    segment.get('text') or '', person, action, beat=beat, prior=prior)
+                if repaired != (segment.get('text') or ''):
+                    segment['text'] = repaired
+                    changed = True
+            elif kit_perform.instruction_vocab(segment.get('text') or ''):
+                segment['text'] = kit_perform._unused_generic([])
+                changed = True
+        out.append(segment)
+    if not changed:
+        return performance
+    fresh = dict(performance)
+    fresh['segments'] = out
+    return fresh
+
+
+def _remember_npc_replies(runtime, spoken):
+    from . import kit_opening, kit_perform
+    try:
+        data, beat = kit_opening._load(runtime)
+    except Exception:
+        return
+    if not beat:
+        return
+    replies = beat.setdefault('replies', {})
+    changed = False
+    for raw in (spoken or '').splitlines():
+        if ':' not in raw:
+            continue
+        speaker, body = raw.split(':', 1)
+        speaker, body = speaker.strip(), body.strip()
+        if not speaker or speaker in ('Narrator', 'Kit') or not body:
+            continue
+        person = kit_opening._person_named(beat, speaker)
+        key = (person or {}).get('id') or speaker
+        bucket = replies.setdefault(key, [])
+        if kit_perform._norm(body) not in {kit_perform._norm(item) for item in bucket}:
+            bucket.append(body)
+            changed = True
+    if changed:
+        data['beat'] = beat
+        kit_opening._save(runtime, data)
 
 if __name__ == '__main__':
     sys.exit(main())

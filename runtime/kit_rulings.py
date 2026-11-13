@@ -32,8 +32,25 @@ _LEAD = re.compile(
 _MECHANICS = re.compile(
     r'\b(?:armor|armour)\s+class\b|\bhit points?\b|\bDC\s*\d+\b|'
     r'\b(?:\+|-)\s*\d+\s+(?:bonus|penalty|to hit|to the)\b|'
-    r'\bto hit\b|\bchallenge rating\b|\b\d+\s*\(\d+d\d+',
+    r'\bto hit\b|\bchallenge rating\b|\b\d+\s*\(\d+d\d+|'
+    r'\bsucceed(?:s|ed)?\s+on\s+a\s+DC\b|\b(?:strength|dexterity|constitution|'
+    r'intelligence|wisdom|charisma|athletics|acrobatics|stealth|perception|'
+    r'investigation|insight|survival)\s+check\b',
     re.I)
+_DM_IMPERATIVE = re.compile(
+    r'(?i)\b(?:review|refer(?:\s+the|\s+to)?|consult|see(?:\s+the|\s+appendix|'
+    r'\s+page|\s+chapter|\s+stat)|as described(?:\s+in|\s+on)?|'
+    r'described (?:in|on)|turn to|look up|stat blocks?)\b')
+_APPENDIX_PAGE = re.compile(
+    r'(?i)\bappendix\b|\bpage\s+\d+\b|\bpp?\.\s*\d+\b|\bon page\b|'
+    r'\bsee page\b')
+_FOOTER = re.compile(
+    r'(?i)(?:©|\(c\)|copyright|\ball rights reserved\b|\breproduced\b|'
+    r'\bpermission to (?:copy|photocopy|reproduce)\b|\bisbn\b|'
+    r'\bwizards of the coast\b|\btrademark|all rights reserved)')
+_BULLET_LEAD = re.compile(
+    r'^(?:[\u2022\u2023\u25E6\u2043\u2219•●○►▸\-–—*]+|\d+[.)])\s+')
+_BULLET_MID = re.compile(r'[\u2022\u2023\u25E6\u2043\u2219•●○►▸]')
 _STOP = {
     'the', 'and', 'for', 'with', 'from', 'that', 'this', 'they', 'them',
     'their', 'a', 'an', 'of', 'to', 'in', 'on', 'at', 'as', 'or', 'by',
@@ -50,14 +67,20 @@ _CHECK = re.compile(
 
 
 def counts(index):
-    """Structural tallies only: confirmed and likely."""
+    """Structural tallies only: confirmed, likely, and junk dropped."""
     confirmed = likely = 0
     for ruling in index.get('rulings') or []:
         if ruling.get('confidence') == CONFIRMED:
             confirmed += 1
         elif ruling.get('confidence') == LIKELY:
             likely += 1
-    return {'confirmed': confirmed, 'likely': likely}
+    dropped = int(index.get('ruling_dropped') or 0)
+    return {
+        'confirmed': confirmed,
+        'likely': likely,
+        'dropped': dropped,
+        'candidates': confirmed + likely + dropped,
+    }
 
 
 def rulings_from(index, key):
@@ -92,6 +115,7 @@ def build(index, text):
     locations = index.get('locations') or {}
     found = []
     seen = set()
+    dropped = 0
     for loc in locations.values():
         span = _recorded_span(loc, len(text))
         if not span:
@@ -99,30 +123,46 @@ def build(index, text):
         start, end = span
         piece = text[start:end]
         for match in _IF.finditer(piece):
-            quote = re.sub(r'\s+', ' ', match.group('full')).strip()
+            raw = match.group('full')
+            quote = re.sub(r'\s+', ' ', raw).strip()
+            dropped += 1
             if len(quote.split()) < 6:
+                continue
+            if not _is_real_ruling(quote, raw):
                 continue
             offset = start + match.start()
             key = (loc.get('key'), offset, quote.casefold())
             if key in seen:
                 continue
             seen.add(key)
-            condition = _condition_clause(quote)
+            condition, outcome = _clauses(quote)
             trigger = _attach_trigger(index, loc, quote, offset, start, end)
+            kind = (trigger or {}).get('kind') or _infer_kind(quote, condition)
             classic = bool(_LEAD.match(quote) and re.match(r'(?i)if\s+', quote))
-            confidence = CONFIRMED if (trigger or classic) else LIKELY
+            if not kind:
+                # A real conditional with no classifiable trigger is only likely,
+                # and only kept if we can still name a generic act.
+                kind = 'act'
+                confidence = LIKELY
+            else:
+                confidence = CONFIRMED if (trigger or classic) else LIKELY
+                if not trigger and kind == 'act':
+                    confidence = LIKELY
+            dropped -= 1
             found.append({
                 'from': loc.get('key'),
                 'confidence': confidence,
                 'condition': condition,
+                'outcome': outcome,
                 'quote': quote,
                 'span': [start + match.start(), start + match.end()],
                 'offset': offset,
-                'trigger_kind': (trigger or {}).get('kind') or '',
+                'trigger_kind': kind,
                 'trigger': (trigger or {}).get('name') or '',
                 'has_mechanics': bool(_MECHANICS.search(quote)),
             })
     index['rulings'] = found
+    index['ruling_dropped'] = dropped
     index['ruling_counts'] = counts(index)
     return index
 
@@ -139,12 +179,16 @@ def for_action(db, action, scene_key=None):
     except Exception:
         return None
     key = section_key(index, scene_key or index.get('start'))
-    hit = match_action(action, rulings_from(index, key))
+    stashed, stash_hit = _stashed_match(db, action, key)
+    hit = stash_hit if stash_hit is not None else match_action(action, rulings_from(index, key))
     if hit is None:
         return None
     span = _span_text(text, hit.get('span'))
     quote = hit.get('quote') or ''
     if not quote or not valid_quote(span or quote, quote):
+        return None
+    kind = hit.get('trigger_kind') or ''
+    if not kind:
         return None
     out = {
         'source_verified': True,
@@ -152,9 +196,10 @@ def for_action(db, action, scene_key=None):
         'quote': quote,
         'quote_words': len(quote.split()),
         'condition_words': len(str(hit.get('condition') or '').split()),
-        'trigger_kind': hit.get('trigger_kind') or '',
+        'outcome_words': len(str(hit.get('outcome') or '').split()),
+        'trigger_kind': kind,
         'has_mechanics': bool(hit.get('has_mechanics') or _MECHANICS.search(quote)),
-        'prefetched': False,
+        'prefetched': bool(stashed and stash_hit is not None),
     }
     return out
 
@@ -200,6 +245,98 @@ def obvious_kinds(ruling):
     if _CHECK.search(blob) or (ruling.get('trigger_kind') or '') in ('check', 'trap'):
         kinds.append('check')
     return kinds
+
+
+
+def _stashed_match(db, action, key):
+    """A ruling already sitting on next-move prep, if the action matches it."""
+    try:
+        from . import kit_skim
+        stash = (kit_skim._read(db).get('next_move_prep') or {}).get('ruling_records') or []
+    except Exception:
+        return False, None
+    if not stash:
+        return False, None
+    hit = match_action(action, stash)
+    return True, hit
+
+
+def _is_real_ruling(quote, raw=''):
+    """A player- or world-facing if/when with a condition and an outcome.
+
+    DM instructions, bullets, appendix or page pointers, copyright and
+    footer lines, and formulas whose outcome is boilerplate are refused.
+    """
+    text = (quote or '').strip()
+    lead = (raw or text).lstrip()
+    if _BULLET_LEAD.search(lead) or _BULLET_MID.search(text):
+        return False
+    if _FOOTER.search(text):
+        # A real sentence may sit beside a footer; only refuse when the
+        # outcome (or the whole line) is the boilerplate itself.
+        condition, outcome = _clauses(text)
+        if not outcome or _FOOTER.search(outcome) or _FOOTER.search(condition):
+            return False
+        # Strip a trailing footer sentence and re-check later clauses.
+        text = re.sub(r'(?i)(?:©|\(c\)|copyright|all rights reserved).*$', '', text).strip()
+    condition, outcome = _clauses(text)
+    if not condition or not outcome:
+        return False
+    if len(condition.split()) < 2 or len(outcome.split()) < 2:
+        return False
+    if _DM_IMPERATIVE.search(outcome) or _DM_IMPERATIVE.search(text):
+        # "they must succeed on a check" is an outcome, not a DM "see/review".
+        if _DM_IMPERATIVE.search(outcome):
+            return False
+        # Imperative in the condition ("if the DM reviews") is also junk.
+        if _DM_IMPERATIVE.search(condition):
+            return False
+    if _APPENDIX_PAGE.search(text):
+        return False
+    if _FOOTER.search(outcome):
+        return False
+    return True
+
+
+def _clauses(quote):
+    text = (quote or '').strip()
+    # Prefer an explicit then / comma split after the condition lead.
+    match = re.split(r'\s+then\s+|,\s+', text, maxsplit=1, flags=re.I)
+    if len(match) == 2 and match[0].strip() and match[1].strip():
+        head, tail = match[0].strip(), match[1].strip()
+        return _condition_clause(head) or head, tail.rstrip('.!?')
+    # "Creatures that drink X grow still." — predicate after the that-clause.
+    that = re.match(
+        r'(?is)(creatures?\s+that\b[^.!?,]{3,120}?)\s+((?:grow|become|are|take|fall|die|flee|suffer|remain|turn|gain|lose)\b[^.!?]*)',
+        text)
+    if that:
+        return that.group(1).strip(), that.group(2).strip().rstrip('.!?')
+    # Fallback: condition is the lead, outcome is the rest of the sentence after the verb phrase.
+    condition = _condition_clause(text)
+    rest = text
+    if condition and condition.casefold() in text.casefold():
+        at = text.casefold().find(condition.casefold())
+        rest = text[at + len(condition):].strip(' ,.')
+    return condition, rest.rstrip('.!?') if rest != text else ''
+
+
+def _infer_kind(quote, condition):
+    blob = '%s %s' % (condition or '', quote or '')
+    if _TALK.search(blob):
+        return 'npc'
+    if _LOOK.search(blob):
+        return 'search'
+    if _TRAP.search(blob):
+        return 'trap'
+    if _ITEM.search(blob):
+        return 'item'
+    if _CHECK.search(blob) or re.search(
+            r'(?i)\b(?:drink|pry|force|climb|open|sneak|listen|jump|hide|steal|'
+            r'lift|push|search|searches|examine)\b', blob):
+        return 'check'
+    if re.search(r'(?i)creatures?\s+that\b', blob):
+        return 'hazard'
+    return ''
 
 
 def _condition_clause(quote):

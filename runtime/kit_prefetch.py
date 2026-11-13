@@ -23,6 +23,7 @@ def prepare_next(db, scene_key=None, beat=None):
     hops = kit_links.prefetch_confirmed(db, key)
     look_talk_check = {'look': 0, 'talk': 0, 'check': 0}
     ruling_hits = []
+    records = []
     visible = set()
     for person in (beat or {}).get('people') or []:
         if person.get('addressable') and not person.get('hidden') and person.get('name'):
@@ -42,6 +43,27 @@ def prepare_next(db, scene_key=None, beat=None):
             'quote_words': len(str(ruling.get('quote') or '').split()),
             'has_mechanics': bool(ruling.get('has_mechanics')),
         })
+        records.append({
+            'from': ruling.get('from'),
+            'confidence': ruling.get('confidence'),
+            'condition': ruling.get('condition') or '',
+            'outcome': ruling.get('outcome') or '',
+            'quote': ruling.get('quote') or '',
+            'span': ruling.get('span'),
+            'trigger_kind': ruling.get('trigger_kind') or '',
+            'has_mechanics': bool(ruling.get('has_mechanics')),
+        })
+    look_line = ''
+    try:
+        from . import kit_perform, kit_skim
+        burst = ''
+        try:
+            burst = (kit_skim._read(db).get('burst') or '') if db else ''
+        except Exception:
+            burst = ''
+        look_line = kit_perform.visible_description(beat, burst)
+    except Exception:
+        look_line = ''
     return {
         'ready': True,
         'area_key': key,
@@ -52,6 +74,10 @@ def prepare_next(db, scene_key=None, beat=None):
         'ruling_n': len(ruling_hits),
         'obvious': look_talk_check,
         'rulings': ruling_hits,
+        'ruling_records': records,
+        'look_ready': bool(look_line),
+        'look_line': look_line,
+        'talk_ready': sorted(visible),
     }
 
 
