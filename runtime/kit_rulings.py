@@ -225,7 +225,7 @@ def _stem(word):
         return word[:-3]
     if word.endswith('ers') and len(word) > 6:
         return word[:-3]
-    if word.endswith('ies') and len(word) > 5:
+    if word.endswith('ies') and len(word) > 4:
         return word[:-3] + 'y'
     if word.endswith('es') and len(word) > 4:
         if word[:-2].endswith(('ch', 'sh')) or word[-3] in 'sxz':

@@ -2,7 +2,16 @@
 import tempfile
 import unittest
 from pathlib import Path
+
+import json
+import subprocess
+import sys
+
+ROOT = Path(__file__).resolve().parents[1]
+NIK = ROOT / 'tests/fixtures/characters/nik.json'
 from runtime import kit_adventure, kit_links, kit_prefetch, kit_rulings, kit_skim
+from runtime.kit_agent import KitChatBridge, RoomAdjudicator, start_session
+from runtime.state_context import Runtime
 
 
 def _book():
@@ -16,6 +25,7 @@ def _book():
         "If the party talks to the miller, he warns them about the latch.\n"
         "Creatures that drink the sluice water grow still.\n"
         "If a character forces the gate, they must succeed on a DC 15 Strength check.\n"
+        "If a character pries the latch, a hidden catch clicks open.\n"
         "The planks run on toward the far side.\n"
     )
     later = (
@@ -145,6 +155,66 @@ class NextMovePrep(unittest.TestCase):
         # Second call does not rebuild.
         again = kit_prefetch.stash(self.db)
         self.assertEqual(again.get('area_key'), found.get('area_key'))
+
+
+
+
+class PreparePacketCarriesBookRuling(unittest.TestCase):
+    """When a matching book ruling exists, it is on the prepare packet.
+
+    Reproduces the host CLI path: prepare --one-pass, including when the
+    engine holds the turn as pending_ruling because the room has no procedure.
+    """
+
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.db = Path(temporary.name) / 'kit.sqlite'
+        self.source = _book().replace('\\f', '\f')
+        kit_adventure.import_adventure(self.db, text=self.source)
+        burst = (
+            'You step into the ford and feel the silt. Two marsh hounds wait '
+            'on the far bank. A stone heron stands in the silt.'
+        )
+        done = kit_skim.accept(self.db, {
+            'burst': burst, 'source_quote': burst,
+            'page_start': 1, 'page_end': 1, 'alt_starts': [],
+            'design_start_name': 'The Ford',
+        })
+        self.assertEqual(done.get('stage'), 'skim_accepted', done)
+        start_session(str(self.db), str(NIK), room=done.get('room'))
+        runtime = Runtime(str(self.db))
+        self.bridge = KitChatBridge(runtime, RoomAdjudicator())
+        opened = self.bridge.try_prepare('Yes.', one_pass=True)
+        self.assertTrue(opened.get('committed') or opened.get('stage') == 'opening_committed', opened)
+
+    def test_cli_prepare_puts_the_book_ruling_on_a_pending_packet(self):
+        """A matching physical act that the engine cannot play still carries book_ruling."""
+        action = Path(self.db).parent / 'action.txt'
+        action.write_text('I pry the latch on the sluice.')
+        completed = subprocess.run(
+            [sys.executable, '-m', 'runtime.kit_agent', 'prepare', '--one-pass',
+             '--db', str(self.db), '--action-file', str(action)],
+            cwd=str(ROOT),
+            capture_output=True, text=True, timeout=30,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        packet = json.loads(completed.stdout)
+        hit = packet.get('book_ruling')
+        self.assertTrue(hit, {k: packet.get(k) for k in list(packet)[:20]})
+        self.assertTrue(hit.get('source_verified'))
+        self.assertIn('hidden catch', hit.get('quote') or '')
+        self.assertFalse(hit.get('has_mechanics'))
+        spoken = ' '.join(str(packet.get(k) or '') for k in ('spoken', 'player_message', 'message'))
+        self.assertNotRegex(spoken, r'\bDC\s*\d+\b')
+
+    def test_try_prepare_attaches_the_ruling_when_the_engine_holds(self):
+        packet = self.bridge.try_prepare('I pry the latch on the sluice.', one_pass=True)
+        hit = packet.get('book_ruling')
+        self.assertTrue(hit, {k: packet.get(k) for k in list(packet)[:20]})
+        self.assertTrue(hit.get('source_verified'))
+        self.assertIn('hidden catch', hit.get('quote') or '')
+
 
 
 if __name__ == '__main__':

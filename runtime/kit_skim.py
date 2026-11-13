@@ -427,8 +427,8 @@ def _contiguous(needle, haystack):
     got, want = _words(haystack), _words(needle)
     if not want or len(want) > len(got):
         return False
-    span = len(want)
-    return any(got[i:i + span] == want for i in range(len(got) - span + 1))
+    # Joined tokens are a unique serialization of the sliding-window test.
+    return ' '.join(want) in ' '.join(got)
 
 
 def _marked(text):
@@ -619,6 +619,9 @@ def find_quote(page_text, quote):
     want = _match_tokens(quote)
     if not want:
         return None
+    if quote and page_text:
+        if quote in page_text or normalize(quote) in normalize(page_text):
+            return normalize(quote), 'contiguous'
     pages = [page for page in (page_text or '').split('\f')] or ['']
     ordered = None
     streams = []
@@ -1644,6 +1647,16 @@ def _has_burst(text, burst):
     """True when the burst occurs in this text, allowing typography and wrap."""
     if not text or not burst:
         return False
+    if burst in text:
+        return True
+    folded = text.casefold()
+    want = burst.casefold()
+    if want in folded:
+        return True
+    normalized = normalize(text)
+    target = normalize(burst)
+    if target and target in normalized:
+        return True
     return _contiguous(burst, text) or find_quote(text, burst) is not None
 
 
@@ -1952,10 +1965,13 @@ def _index_body_for_burst(db, spoken):
 def attested_burst(section, columns, fallback=''):
     """The first substantial typography-rejoined boxed player opening.
 
-    A short facing-column box may have been used only to bound the section.
+    A short facing-column box may have been used only to bound the section,
+    and a picker quote may fuse a facing column onto the official box.
     Later boxes in the same section are not the opening. Following unboxed
-    lines are not glued onto a boxed line. The spoken opening is that boxed
-    unit, the same attested burst landing would speak, capped at BURST_WORDS.
+    lines are not glued onto a boxed line. The spoken opening is the first
+    substantial boxed player unit in the main lane, or the first boxed
+    player unit if none is that long — the same attested burst landing
+    would speak, capped at BURST_WORDS.
     """
     from .kit_opening import player_line
     pools = []
@@ -1965,66 +1981,88 @@ def attested_burst(section, columns, fallback=''):
     if section:
         pools.append(section)
     substantial = 20
-    found = fallback or ''
+
+    def _boxed_candidate(piece):
+        if not piece or len(_words(piece)) < 6 or not _safe_box(piece):
+            return ''
+        sentences = _sentences(piece) or ([piece] if piece else [])
+        if not any(player_line(sentence) and _safe_box(sentence) for sentence in sentences):
+            return ''
+        if player_line(piece):
+            candidate = piece
+        elif sentences and player_line(sentences[0]):
+            kept = []
+            count = 0
+            for sentence in sentences:
+                words_n = len(_words(sentence))
+                if kept and count + words_n > BURST_WORDS:
+                    break
+                kept.append(sentence)
+                count += words_n
+                if count >= BURST_WORDS:
+                    break
+            candidate = ' '.join(kept).strip()
+        else:
+            return ''
+        if not candidate:
+            return ''
+        if len(_words(candidate)) > BURST_WORDS:
+            kept = []
+            count = 0
+            for sentence in _sentences(candidate) or [candidate]:
+                words_n = len(_words(sentence))
+                if kept and count + words_n > BURST_WORDS:
+                    break
+                kept.append(sentence)
+                count += words_n
+                if count >= BURST_WORDS:
+                    break
+            candidate = ' '.join(kept).strip()
+        if not candidate:
+            return ''
+        if not (_has_burst(section or '', candidate) or _contiguous(candidate, section or '')
+                or any(_has_burst(item.get('text') or '', candidate) or _contiguous(candidate, item.get('text') or '')
+                       for item in (columns or []) if isinstance(item, dict))):
+            return ''
+        return candidate
+
+    first_short = ''
     for pool in pools:
+        lane_short = ''
         for raw in (pool or '').splitlines():
             stripped = raw.strip()
             if not stripped.startswith('>'):
                 continue
             piece = re.sub(r'\s+', ' ', stripped.lstrip('>').strip()).strip()
-            if not piece or len(_words(piece)) < 6 or not _safe_box(piece):
-                continue
-            sentences = _sentences(piece) or ([piece] if piece else [])
-            if not any(player_line(sentence) and _safe_box(sentence) for sentence in sentences):
-                continue
-            if player_line(piece):
-                candidate = piece
-            elif sentences and player_line(sentences[0]):
-                kept = []
-                count = 0
-                for sentence in sentences:
-                    words_n = len(_words(sentence))
-                    if kept and count + words_n > BURST_WORDS:
-                        break
-                    kept.append(sentence)
-                    count += words_n
-                    if count >= BURST_WORDS:
-                        break
-                candidate = ' '.join(kept).strip()
-            else:
-                continue
+            candidate = _boxed_candidate(piece)
             if not candidate:
-                continue
-            if len(_words(candidate)) > BURST_WORDS:
-                kept = []
-                count = 0
-                for sentence in _sentences(candidate) or [candidate]:
-                    words_n = len(_words(sentence))
-                    if kept and count + words_n > BURST_WORDS:
-                        break
-                    kept.append(sentence)
-                    count += words_n
-                    if count >= BURST_WORDS:
-                        break
-                candidate = ' '.join(kept).strip()
-            if not candidate:
-                continue
-            if not (_has_burst(section or pool, candidate) or _contiguous(candidate, section or pool)):
                 continue
             if len(_words(candidate)) >= substantial:
                 return candidate
-            if not found or not player_line(found) or len(_words(candidate)) > len(_words(found)):
-                found = candidate
-    return found
+            if not lane_short:
+                lane_short = candidate
+        if lane_short:
+            return lane_short
+        if not first_short:
+            first_short = lane_short
+    if fallback:
+        candidate = _boxed_candidate(re.sub(r'\s+', ' ', (fallback or '').strip()))
+        if candidate:
+            return candidate
+    return first_short or ''
+
+
 
 
 def recorded_opening(db, key, spoken=None):
     """The prep-time recorded section for one canonical key, as landing would hand it over.
 
     The body is the heading-through-next-keyed-area span already stored at
-    prep. Typography lanes supply a boxed player opening when the picker
-    quote would bound a different window. Later PDF sources are not walked.
-    Returns (section, columns, burst).
+    prep. Short typography-lane boxed lines are used only to bound that
+    already-recorded window (the longest two-lane recovery wins). The spoken
+    opening is the first substantial typography-rejoined boxed player unit in
+    the main lane, not a later box and not a fused facing-column quote.
+    Later PDF sources are not walked. Returns (section, columns, burst).
     """
     from .kit_adventure import _load
     from .kit_opening import player_line
@@ -2040,8 +2078,9 @@ def recorded_opening(db, key, spoken=None):
     if not recorded:
         return '', [], ''
     candidates = []
-    if spoken and (_safe_box(spoken) and player_line(spoken)
-                   and (_has_burst(recorded, spoken) or _contiguous(spoken, recorded))):
+    # A picker quote may fuse a facing column; only a short official box is a bound seed.
+    if (spoken and len(_words(spoken)) < 20 and _safe_box(spoken) and player_line(spoken)
+            and (_has_burst(recorded, spoken) or _contiguous(spoken, recorded))):
         candidates.append(spoken)
     for _label, stream in _section_lanes(recorded):
         for line in stream.splitlines():
@@ -2053,24 +2092,37 @@ def recorded_opening(db, key, spoken=None):
                 if piece not in candidates:
                     candidates.append(piece)
                 break
-    best_text, best_cols, best_burst = '', [], ''
+    best_text, best_cols, best_seed = '', [], ''
     best_lanes = 0
-    for burst in candidates:
-        section, columns = opening_section_from_text(recorded, burst)
-        # The formatter already required the burst in the recorded stream.
-        # A typography-safe rematch on the lane-formatted text can miss a
-        # facing-column box that still produced the whole opening section.
+    for seed in candidates:
+        section, columns = opening_section_from_text(recorded, seed)
         if not section:
             continue
         lane_n = len(columns)
         if lane_n > best_lanes or (lane_n == best_lanes and len(section) > len(best_text)):
-            best_text, best_cols, best_burst = section, columns, burst
+            best_text, best_cols, best_seed = section, columns, seed
             best_lanes = lane_n
-    if best_text:
-        spoken_burst = attested_burst(best_text, best_cols, best_burst)
-        if spoken_burst:
-            best_burst = spoken_burst
-    return best_text, best_cols, best_burst
+    if not best_text:
+        columns = []
+        for label, stream in _section_lanes(recorded):
+            piece = '\n'.join((stream or '').splitlines()).strip()[:SECTION_CAP_CHARS]
+            if piece:
+                columns.append({'lane': label, 'text': piece})
+        if not columns:
+            columns = [{'lane': 'section', 'text': recorded[:SECTION_CAP_CHARS]}]
+        if len(columns) == 1:
+            best_text = columns[0]['text'][:SECTION_CAP_CHARS]
+        else:
+            best_text = '\n\n'.join(
+                '[%s]\n%s' % (item['lane'], item['text']) for item in columns
+            )[:SECTION_CAP_CHARS]
+        best_cols = columns
+    burst = attested_burst(best_text, best_cols, best_seed)
+    if not burst:
+        burst = best_seed
+    return best_text, best_cols, burst
+
+
 
 
 def recover_opening_section(db, spoken, ingested_scope):

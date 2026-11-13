@@ -9170,10 +9170,10 @@ def _main():
                     if args.performance_variant and not args.one_pass:
                         parser.error('--performance-variant on prepare needs --one-pass; '
                                      'staged turns choose it at decide')
-                    result = bridge.prepare(action, args.turn_id, use_memory=not args.no_memory,
-                                            one_pass=args.one_pass, opening=args.opening,
-                                            performance_variant=args.performance_variant,
-                                            table_talk=args.table_talk, host_stamps=_cli_stamps(args.stamp))
+                    result = bridge.try_prepare(action, args.turn_id, use_memory=not args.no_memory,
+                                                one_pass=args.one_pass, opening=args.opening,
+                                                performance_variant=args.performance_variant,
+                                                table_talk=args.table_talk, host_stamps=_cli_stamps(args.stamp))
                 else:
                     if not args.turn_id or not args.input_file:
                         parser.error(f'{args.command} requires --turn-id and --input-file')
@@ -9187,6 +9187,8 @@ def _main():
                                               host_stamps=_cli_stamps(args.stamp)))
             except PendingRuling as exc:
                 result = pending_ruling_result(exc)
+                if args.command == 'prepare':
+                    result = bridge._with_book_ruling(result, locals().get('action'))
             except InvalidChange as exc:
                 if args.command == 'prepare' and 'Initialize a session first' in str(exc):
                     from . import kit_skim
