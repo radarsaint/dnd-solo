@@ -1947,6 +1947,58 @@ def _index_body_for_burst(db, spoken):
     return text[start:end]
 
 
+
+def recorded_opening(db, key, spoken=None):
+    """The prep-time recorded section for one canonical key, as landing would hand it over.
+
+    The body is the heading-through-next-keyed-area span already stored at
+    prep. Typography lanes supply a boxed player opening when the picker
+    quote would bound a different window. Later PDF sources are not walked.
+    Returns (section, columns, burst).
+    """
+    from .kit_adventure import _load
+    from .kit_opening import player_line
+    try:
+        index, text = _load(db)
+    except Exception:
+        return '', [], ''
+    loc = (index.get('locations') or {}).get(key) or {}
+    span = _recorded_span(loc, len(text))
+    if not span:
+        return '', [], ''
+    recorded = text[span[0]:span[1]]
+    if not recorded:
+        return '', [], ''
+    candidates = []
+    if spoken and (_safe_box(spoken) and player_line(spoken)
+                   and (_has_burst(recorded, spoken) or _contiguous(spoken, recorded))):
+        candidates.append(spoken)
+    for _label, stream in _section_lanes(recorded):
+        for line in stream.splitlines():
+            stripped = line.strip()
+            if not stripped.startswith('>'):
+                continue
+            piece = stripped.lstrip('>').strip()
+            if piece and _safe_box(piece) and player_line(piece):
+                if piece not in candidates:
+                    candidates.append(piece)
+                break
+    best_text, best_cols, best_burst = '', [], ''
+    best_lanes = 0
+    for burst in candidates:
+        section, columns = opening_section_from_text(recorded, burst)
+        # The formatter already required the burst in the recorded stream.
+        # A typography-safe rematch on the lane-formatted text can miss a
+        # facing-column box that still produced the whole opening section.
+        if not section:
+            continue
+        lane_n = len(columns)
+        if lane_n > best_lanes or (lane_n == best_lanes and len(section) > len(best_text)):
+            best_text, best_cols, best_burst = section, columns, burst
+            best_lanes = lane_n
+    return best_text, best_cols, best_burst
+
+
 def recover_opening_section(db, spoken, ingested_scope):
     """Hand the host the whole opening section from the retained source.
 
@@ -2181,8 +2233,14 @@ def accept(db, reply):
         # fill must not re-walk recorded bodies or later pages.
         cached_cols = data.get('opening_columns')
         cached_text = data.get('opening_section')
-        if (data.get('status') == 'scene_required' and 'scene' in reply
-                and (cached_text or cached_cols)):
+        cached_hit = bool(cached_text or cached_cols) and (
+            (data.get('status') == 'scene_required' and 'scene' in reply)
+            or (cached_text and (_has_burst(cached_text, spoken)
+                                 or _contiguous(spoken, cached_text)))
+            or any(_has_burst(item.get('text') or '', spoken)
+                   for item in (cached_cols or []) if isinstance(item, dict))
+        )
+        if cached_hit:
             columns = list(cached_cols or [])
             scoped = cached_text or _section_from_columns(columns)
             scope_start, scope_end = _encounter_bounds(
@@ -3051,6 +3109,16 @@ def open_title(db, token):
     if _procedural_title(chosen.get('title') or token):
         raise IngestError(['%s is not player fiction' % (chosen.get('title') or token)])
     quote = chosen.get('quote') or ''
+    key = chosen.get('id')
+    if key:
+        section, columns, opening = recorded_opening(db, key, spoken=quote)
+        if opening:
+            quote = opening
+            chosen = dict(chosen)
+            chosen['quote'] = quote
+            data['opening_section'] = section
+            data['opening_columns'] = list(columns or ())
+            _write(db, data)
     if not quote:
         from . import kit_opening, kit_adventure
         try:

@@ -67,6 +67,32 @@ def _cross_page_book(later_pages=0, interleave=False):
     return ''.join(pages), burst
 
 
+
+def _two_column_canonical_book():
+    """Two-column official opening plus a decoy line in the same recorded section.
+
+    An unsplit picker quote fuses the boxed left opening with the facing
+    column, which would recover a different window than landing. Landing
+    uses the official burst. Pick of the same heading key must return
+    those exact bytes.
+    """
+    burst = 'You reach the stepping stones while the current pulls at the reeds.'
+    decoy = 'A painted sign names the crossing for travelers passing through.'
+    pages = ['Part 1: The Long Ridge\n']
+    pages.append('The Willow Crossing\n')
+    pages.append(_row(decoy, 'Fare notices hang from a nail.'))
+    pages.append(_row('> ' + burst, 'A clerk lists fares for the crossing.'))
+    pages.append('\f')
+    pages.append(_row(
+        'Two herons stand in the shallows below the crossing.',
+        'The clerk keeps the ledger dry.'))
+    pages.append('1. The Brick Kiln\n')
+    pages.append(_row(
+        'The kiln door is still, and you smell damp clay.',
+        'A sealed latch hides the vault.'))
+    return ''.join(pages), burst, decoy
+
+
 class BoundSectionStreamWork(unittest.TestCase):
 
     def test_large_stream_finds_the_burst_without_a_prefix_scan(self):
@@ -280,6 +306,92 @@ class LandingPathWork(unittest.TestCase):
         self.assertTrue(second.get('source_verified'), second)
         self.assertEqual(holder['recover'], 1, holder)
         self.assertEqual(holder['find_quote_big'], 0, holder)
+
+
+
+class CanonicalKeyPickMatchesLanding(unittest.TestCase):
+    """Pick of the canonical heading reuses the exact recorded section landing hands over."""
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.source, self.burst, self.decoy = _two_column_canonical_book()
+        self.pdf = Path(self.temp.name) / 'owned.pdf'
+        self.pdf.write_bytes(b'%PDF-1.4\nsynthetic private source\n')
+        self.land_db = Path(self.temp.name) / 'land' / 'kit.sqlite'
+        self.pick_db = Path(self.temp.name) / 'pick' / 'kit.sqlite'
+        self.land_db.parent.mkdir()
+        self.pick_db.parent.mkdir()
+        with mock.patch('runtime.kit_adventure.read_opening',
+                        return_value=(self.source, 'test')):
+            kit_adventure.ingest_adventure(self.land_db, pdf=str(self.pdf))
+            kit_adventure.ingest_adventure(self.pick_db, pdf=str(self.pdf))
+        self.index, _text = kit_adventure._load(self.land_db)
+        self.heading = self.index['start']
+        self.assertTrue(self.heading)
+        self.assertFalse(str(self.heading).startswith('scene:skim:'), self.heading)
+
+    def _honest(self):
+        return {
+            'burst': self.burst,
+            'source_quote': self.burst,
+            'page_start': 1,
+            'page_end': 2,
+            'alt_starts': [],
+            'design_start_name': 'The Willow Crossing',
+        }
+
+    def test_pick_and_landing_return_the_identical_recorded_section(self):
+        holder = {'sources': 0, 'has_burst': 0, 'recover': 0}
+        real_sources = kit_skim._section_sources
+        real_burst = kit_skim._has_burst
+        real_recover = kit_skim.recover_opening_section
+
+        def wrap_recover(*args, **kwargs):
+            holder['recover'] += 1
+            return real_recover(*args, **kwargs)
+
+        with mock.patch.object(
+                kit_skim, '_section_sources',
+                _count_calls(real_sources, holder, 'sources')):
+            with mock.patch.object(
+                    kit_skim, '_has_burst',
+                    _count_calls(real_burst, holder, 'has_burst')):
+                with mock.patch.object(
+                        kit_skim, 'recover_opening_section', wrap_recover):
+                    landed = kit_skim.accept(self.land_db, self._honest())
+                    self.assertEqual(landed.get('stage'), 'scene_required', landed)
+                    land_req = landed.get('scene_request') or {}
+                    land_span = land_req.get('source_span') or ''
+                    land_cols = land_req.get('source_columns') or []
+                    self.assertIn(self.burst, ' '.join(land_span.split()))
+                    self.assertIn('herons stand in the shallows', land_span)
+                    self.assertNotIn('sealed latch', land_span)
+                    self.assertGreaterEqual(len(land_cols), 2, land_cols)
+
+                    from runtime import kit_opening
+                    picks = kit_opening.playable_picker_starts(self.pick_db)
+                    self.assertTrue(picks)
+                    chosen = next((item for item in picks if item.get('id') == self.heading), picks[0])
+                    self.assertEqual(chosen.get('id'), self.heading, chosen)
+                    data = kit_skim._read(self.pick_db)
+                    data['alt_starts'] = picks
+                    kit_skim._write(self.pick_db, data)
+                    picked = kit_skim.open_title(self.pick_db, chosen.get('title'))
+                    self.assertEqual(picked.get('stage'), 'scene_required', picked)
+                    pick_req = picked.get('scene_request') or {}
+                    pick_span = pick_req.get('source_span') or ''
+                    pick_cols = pick_req.get('source_columns') or []
+
+        self.assertEqual(pick_span, land_span)
+        self.assertEqual(
+            [(c.get('lane'), c.get('text')) for c in pick_cols],
+            [(c.get('lane'), c.get('text')) for c in land_cols],
+        )
+        self.assertEqual(holder['sources'], 0, holder)
+        # Landing recovers once. Pick reuses the recorded section, no later-source walk.
+        self.assertLess(holder['has_burst'], 80, holder)
+        self.assertEqual(holder['recover'], 1, holder)
 
 
 if __name__ == '__main__':
