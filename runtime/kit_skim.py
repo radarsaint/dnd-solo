@@ -711,20 +711,24 @@ def _harvest_starts(window):
     return found
 
 
-def _filter_alts(alts, window, end_page):
-    """Read-aloud blocks in the window. Front matter and later rooms are not starts."""
-    from .kit_opening import read_aloud_picks
-    return read_aloud_picks(window)[:PICK_MAX]
+def _filter_alts(db, end_page=None):
+    """Picker entries from index-classified playable sections only."""
+    from .kit_opening import playable_picker_starts
+    return playable_picker_starts(db, end_page=end_page)[:PICK_MAX]
 
 
 def picker_line(alts):
     titles = [item['title'] for item in alts or [] if item.get('title')][:PICK_MAX]
+    only_working = (
+        len(titles) == 1 and titles[0].casefold() in ('here', 'the start')
+        and any(item.get('kit_line') and not item.get('quote') for item in alts or [])
+    )
+    if only_working or not titles:
+        return "%s We'll start here. What do you do?" % MUDDY
     if len(titles) >= 2:
         listed = ', '.join(titles[:-1]) + ', or ' + titles[-1]
         return "%s Pick: %s, or describe how you arrive." % (MUDDY, listed)
-    if len(titles) == 1:
-        return "%s Pick: %s, or describe how you arrive." % (MUDDY, titles[0])
-    return "%s Describe how you arrive." % MUDDY
+    return "%s Pick: %s, or describe how you arrive." % (MUDDY, titles[0])
 
 
 def _split_burst(quote, burst):
@@ -1655,24 +1659,50 @@ def _first_line_of_page(lines, page):
     return 0
 
 
+def _first_burst_line(lines, burst, stream=None):
+    """First line index where the burst appears, or None. One search of the stream."""
+    if not lines or not burst:
+        return None
+    blob = stream if stream is not None else '\n'.join(lines)
+    if not _has_burst(blob, burst):
+        return None
+    at = _anchor(blob, burst)
+    line_at = blob[:at].count('\n') if at is not None else 0
+    # Confirm the anchored line is the first prefix that actually holds the burst.
+    # _anchor may land on the first word alone; fall back to a short binary search.
+    prefix = '\n'.join(lines[:line_at + 1])
+    prior = '\n'.join(lines[:line_at]) if line_at else ''
+    if (0 <= line_at < len(lines)
+            and _has_burst(prefix, burst)
+            and (line_at == 0 or not _has_burst(prior, burst))):
+        return line_at
+    lo, hi = 0, len(lines) - 1
+    while lo < hi:
+        mid = (lo + hi) // 2
+        if _has_burst('\n'.join(lines[:mid + 1]), burst):
+            hi = mid
+        else:
+            lo = mid + 1
+    return lo
+
+
 def _bound_section_stream(stream, burst, force_start=None, force_finish=None):
     """One lane, from the opening heading through the next same-level bound.
 
     force_start / force_finish align a facing lane to the burst lane's section
     so a keyed heading in one column also ends the other.
+    The burst is located with one search of the stream, not a growing prefix
+    scan. A facing lane with force_start already set is not scanned for the burst.
     Returns (text, begin, finish).
     """
     if not (stream or '').strip():
         return '', 0, 0
     lines = stream.splitlines()
-    seen_at = None
-    running = []
-    for index, line in enumerate(lines):
-        running.append(line)
-        blob = '\n'.join(running)
-        if _has_burst(blob, burst):
-            seen_at = index
-            break
+    # A facing lane is already aligned; do not search it for a burst it may not hold.
+    if force_start is not None:
+        seen_at = None
+    else:
+        seen_at = _first_burst_line(lines, burst, stream)
     if seen_at is None and force_start is None:
         return '', 0, 0
     if force_start is not None:
@@ -1792,6 +1822,87 @@ def _section_sources(db, ingested_scope):
     return found
 
 
+def _recorded_span(loc, text_len):
+    """Heading-through-next-keyed-area span already stored on one location."""
+    body = loc.get('body') or [0, 0]
+    if not isinstance(body, (list, tuple)) or len(body) < 2:
+        return None
+    start = body[0]
+    off = loc.get('offset')
+    if off is not None and 0 <= off <= start:
+        start = off
+    end = min(body[1], text_len)
+    if end <= start or start < 0:
+        return None
+    return start, end
+
+
+def _burst_offset_in_index(index, text, spoken):
+    """First source offset of the burst, using recorded bodies only.
+
+    Never searches later pages of the whole book. Typography is resolved
+    inside the prep-time location span that already ends at the next keyed area.
+    A later short location that repeats the boxed words is not the first hit.
+    """
+    if not text or not spoken:
+        return None
+    if _contiguous(spoken, text):
+        return _anchor(text, spoken)
+    locations = list((index.get('locations') or {}).values())
+    locations.sort(key=lambda loc: (loc.get('offset') or 0,
+                                    (loc.get('body') or [0])[0]))
+    for loc in locations:
+        span = _recorded_span(loc, len(text))
+        if not span:
+            continue
+        start, end = span
+        piece = text[start:end]
+        if not piece:
+            continue
+        if _contiguous(spoken, piece) or _has_burst(piece, spoken):
+            return start + _anchor(piece, spoken)
+    return None
+
+
+def _section_from_columns(columns):
+    """Rebuild the host section text already recovered into opening_columns."""
+    bound = [item for item in (columns or []) if isinstance(item, dict)]
+    if not bound:
+        return ''
+    if len(bound) == 1:
+        return (bound[0].get('text') or '')[:SECTION_CAP_CHARS]
+    parts = ['[%s]\n%s' % (item.get('lane'), item.get('text') or '') for item in bound]
+    return '\n\n'.join(parts)[:SECTION_CAP_CHARS]
+
+
+def _index_body_for_burst(db, spoken):
+    """Ingested source slice the index already bounded for this burst.
+
+    The span runs from the location heading through the next keyed area
+    recorded at prep, including a continuation that already crossed a page.
+    Returns the slice, or None when the index does not hold the burst.
+    """
+    from .kit_adventure import _load
+    try:
+        index, text = _load(db)
+    except Exception:
+        return None
+    if not text or not spoken:
+        return None
+    at = _burst_offset_in_index(index, text, spoken)
+    if at is None:
+        return None
+    key = _containing(index, at)
+    loc = (index.get('locations') or {}).get(key) if key else None
+    if not loc:
+        return None
+    span = _recorded_span(loc, len(text))
+    if not span:
+        return None
+    start, end = span
+    return text[start:end]
+
+
 def recover_opening_section(db, spoken, ingested_scope):
     """Hand the host the whole opening section from the retained source.
 
@@ -1799,7 +1910,17 @@ def recover_opening_section(db, spoken, ingested_scope):
     from the opening heading through the next keyed area or a heading of the
     same level, with a character cap. Two-column layout is returned as both
     lanes in reading order. Returns (text, columns).
+
+    When the prep-time index already recorded that next-keyed-area end,
+    including a cross-page continuation, recovery uses that ingested slice
+    and does not re-extract later pages or later sources.
     """
+    indexed = _index_body_for_burst(db, spoken)
+    if indexed:
+        text, columns = opening_section_from_text(indexed, spoken)
+        if text and (_has_burst(text, spoken) or any(
+                _has_burst(item.get('text') or '', spoken) for item in columns)):
+            return text, columns
     chosen_text, chosen_cols, chosen_lanes = '', [], 0
     for extract in _section_sources(db, ingested_scope):
         text, columns = opening_section_from_text(extract, spoken)
@@ -1865,7 +1986,8 @@ def _scene_request(db, data, candidate, source, spoken, problems=None, columns=N
     """Return an actionable, DM-only repair packet; no start is accepted yet."""
     data.update(status='scene_required', pending_candidate=candidate,
                 scene_errors=list(problems or ()), table_line=LANDING,
-                opening_columns=list(columns or ()))
+                opening_columns=list(columns or ()),
+                opening_section=(source or '')[:SECTION_CAP_CHARS])
     _write(db, data)
     request = {
         'read_aloud': spoken, 'source_span': (source or '')[:SECTION_CAP_CHARS],
@@ -1916,7 +2038,7 @@ def accept(db, reply):
         if expanded:
             wider, _at, _to = _window_text(text, 1, window_end(count, True))
             return _reject(db, ['the skim window expands once'], _filter_alts(
-                reply.get('alt_starts'), wider, window_end(count, True)), True)
+                db, window_end(count, True)), True)
         data['expanded'] = True
         data['status'] = 'expanded'
         _write(db, data)
@@ -1941,7 +2063,7 @@ def accept(db, reply):
             expanded = True
             end_page = window_end(count, True)
     window, win_at, _win_to = _window_text(text, 1, end_page)
-    alts = _filter_alts(reply.get('alt_starts'), window, end_page)
+    alts = _filter_alts(db, end_page)
     burst = reply.get('burst')
     quote = reply.get('source_quote')
     name = reply.get('design_start_name')
@@ -2011,13 +2133,24 @@ def accept(db, reply):
     burst_only = False
     if _pdf_requires_scene(db):
         # Require host interpretation on all real PDFs. Never silently fall back.
-        scope_start, scope_end = _encounter_bounds(text, page_at, page_to,
-                                                   span_start, name)
-        # Physical pages can interleave columns before and after the opening.
-        # Let the layout-aware extractor establish the real location boundary;
-        # the raw offset heuristic alone can stop on the other column's heading.
-        scoped_raw = text[min(scope_start, page_at):max(scope_end, page_to)]
-        scoped, columns = recover_opening_section(db, spoken, scoped_raw)
+        # Reuse the section recovered on the scene_required pass. The form
+        # fill must not re-walk recorded bodies or later pages.
+        cached_cols = data.get('opening_columns')
+        cached_text = data.get('opening_section')
+        if (data.get('status') == 'scene_required' and 'scene' in reply
+                and (cached_text or cached_cols)):
+            columns = list(cached_cols or [])
+            scoped = cached_text or _section_from_columns(columns)
+            scope_start, scope_end = _encounter_bounds(
+                text, page_at, page_to, span_start, name)
+        else:
+            scope_start, scope_end = _encounter_bounds(text, page_at, page_to,
+                                                       span_start, name)
+            # Physical pages can interleave columns before and after the opening.
+            # Let the layout-aware extractor establish the real location boundary;
+            # the raw offset heuristic alone can stop on the other column's heading.
+            scoped_raw = text[min(scope_start, page_at):max(scope_end, page_to)]
+            scoped, columns = recover_opening_section(db, spoken, scoped_raw)
         candidate = {key: reply[key] for key in KEYS if key != 'scene' and key in reply}
         burst_only = False
         if not scoped or not (
@@ -2524,7 +2657,8 @@ def refused_start(db):
     """
     data = _read(db)
     alts = [item for item in (data.get('alt_starts') or [])
-            if item.get('quote') and not _unsafe(item.get('quote') or '')]
+            if (item.get('quote') and not _unsafe(item.get('quote') or ''))
+            or (item.get('kit_line') and not _procedural_title(item.get('title') or ''))]
     safe_burst = data.get('status') == 'accepted' and bool(data.get('burst')) and not _unsafe(data.get('burst'))
     if not safe_burst:
         data['status'] = 'rejected'
@@ -2768,6 +2902,12 @@ def _procedural_title(title):
     text = normalize(title or '')
     if not text:
         return True
+    if re.search(
+            r"^(?:if|when|whenever|how|why|to|make|ask|read|use|using|try|"
+            r"be sure|remember|note|example|for example|that's|that is|"
+            r"in this|this (?:section|chapter|part)|appendix|credits?)\b",
+            text, re.I):
+        return True
     return bool(_bad_title(text) or _NOT_A_START.search(text) or _META.search(text)
                 or re.search(
                     r'\b(?:guidelines?|arbitrat(?:e|ion|ing)|how to|how-to|rules|'
@@ -2779,7 +2919,11 @@ def _procedural_title(title):
                     r'read the (?:following|boxed|rules)|this is the number|'
                     r'your character|character sheets?|roleplaying|'
                     r'estimated time|starting the (?:adventure|game)|'
-                    r'dungeons?\s*(?:and|&)\s*dragons)\b',
+                    r'dungeons?\s*(?:and|&)\s*dragons|'
+                    r"that's up to you|up to you|for example|"
+                    r"a character (?:can|can't|cannot|must|may|should)|"
+                    r'if the (?:fun|players?|characters?|party)|'
+                    r'when the (?:players?|characters?|party|fun))\b',
                     text, re.I))
 
 
@@ -2856,13 +3000,10 @@ def open_title(db, token):
         'alt_starts': data.get('alt_starts') or [],
         'design_start_name': chosen.get('title'),
     })
+    if done.get('stage') == 'scene_required':
+        return done
     if done.get('stage') != 'skim_accepted' or not done.get('room'):
-        from .kit_opening import kit_line
-        return _open_named(db, {
-            'title': chosen.get('title') or 'Here',
-            'kit_line': chosen.get('kit_line') or kit_line(chosen.get('title') or 'here'),
-            'page': page,
-        })
+        return refused_start(db)
     fresh = _read(db)
     fresh['speak_now'] = True
     _write(db, fresh)

@@ -53,8 +53,14 @@ _FRONT = re.compile(
     r'read the (?:following|boxed|rules)|this is the number|'
     r'advantage or disadvantage|(?:\d+-)?sided die|\bd(?:4|6|8|10|12|20)\b|'
     r'your character|character sheets?|roleplaying|estimated time|'
-    r'starting the (?:adventure|game)|dungeons?\s*(?:and|&)\s*dragons)\b|\bDC\b',
+    r'starting the (?:adventure|game)|dungeons?\s*(?:and|&)\s*dragons|'
+    r"that's up to you|up to you|for example|"
+    r"a character (?:can|can't|cannot|must|may|should)|"
+    r'if the (?:fun|players?|characters?|party)|'
+    r'when the (?:players?|characters?|party|fun)|'
+    r'appendix)\b|\bDC\b',
     re.I)
+_SPEAKER_LINE = re.compile(r'^([^:]{1,48}): (.*)$')
 _NOT_CREATURE = re.compile(
     r'^(?:wisdom|check|hour|hours|day|days|mile|miles|gold|foot|feet|word|words|'
     r'page|pages|character|characters|player|players|party|time|times|level|'
@@ -436,128 +442,133 @@ def look_line(beat):
     return 'You look around.'
 
 
-def _title_for(heading, sentences):
-    """A read-aloud's title: a clean place heading, else the place word, else first words."""
-    if (heading and not _FRONT.search(heading) and not _skim()._bad_title(heading)
-            and not _skim()._procedural_title(heading)):
-        return heading
-    noun = _place_in(' '.join(sentences))
-    if noun:
-        return 'The %s' % noun
-    words = (sentences[0] if sentences else '').split()[:6]
-    title = ' '.join(words).rstrip(' ,.;:')
-    return title or 'Here'
+
+def _working_start():
+    """Honest last resort: a Kit-voiced start, not a stall and not a rules title."""
+    return [{'title': 'Here', 'page': 1, 'quote': '', 'kit_line': kit_line('here')}]
 
 
-def read_aloud_picks(window):
-    """Picker entries are read-aloud blocks only. Front matter is not a start."""
-    skim = _skim()
+def _boxed_lines(loc, text):
+    """Attested boxed read-aloud already stored on the location, or in its span."""
+    contents = loc.get('contents') or {}
+    lines = [re.sub(r'\s+', ' ', line).strip()
+             for line in (contents.get('read_aloud') or []) if str(line).strip()]
+    if lines:
+        return lines
+    body = loc.get('body') or [0, 0]
+    span = (text or '')[body[0]:body[1]]
+    found = []
+    for raw in span.split('\n'):
+        stripped = raw.strip()
+        if stripped.startswith('>'):
+            found.append(re.sub(r'\s+', ' ', stripped.lstrip('>').strip()))
+    return [line for line in found if line]
+
+
+def _opening_cluster(locations, start_key):
+    """The adventure opening and the first keyed area around it, in book order."""
+    start_loc = locations.get(start_key) or {}
+    start_off = start_loc.get('offset') or 0
+    first_room = None
+    for loc in locations.values():
+        if loc.get('type') != 'room':
+            continue
+        off = loc.get('offset') or 0
+        if off >= start_off and (first_room is None or off < first_room):
+            first_room = off
+    start_chapter = start_loc.get('chapter')
+    keys = []
+    for loc in sorted(locations.values(), key=lambda item: item.get('offset') or 0):
+        key = loc.get('key')
+        off = loc.get('offset') or 0
+        if key == start_key:
+            keys.append(key)
+            continue
+        if loc.get('type') == 'scene':
+            if first_room is not None and off > first_room:
+                continue
+            chapter = loc.get('chapter')
+            if start_chapter and chapter and chapter != start_chapter and off > start_off:
+                continue
+            keys.append(key)
+            continue
+        if loc.get('type') == 'room' and first_room is not None and off == first_room:
+            # A later numbered area is not an alternate opening when a scene
+            # already sits in front of it. The first room is an opening only
+            # when it is the book's start.
+            if key == start_key or start_loc.get('type') == 'room' or start_off >= off:
+                keys.append(key)
+    return keys
+
+
+def playable_picker_starts(db, end_page=None):
+    """Picker entries from sections the index has already classified as playable.
+
+    Playable means an adventure opening or a keyed area or encounter that has
+    attested boxed read-aloud. Candidates are never invented by scanning or
+    filtering heading text. If the index has no such section, one working
+    start is returned so the table never stalls.
+    """
+    from .kit_adventure import _load
+    try:
+        index, text = _load(db)
+    except Exception:
+        return _working_start()
+    locations = index.get('locations') or {}
+    start_key = index.get('start')
     picks = []
     seen = set()
-    heading = ''
-    page = 1
-    stopped = False
-    for raw in re.split(r'(\f)', window or ''):
-        if raw == '\f':
-            page += 1
-            heading = ''
+    for key in _opening_cluster(locations, start_key):
+        loc = locations.get(key) or {}
+        if not loc.get('playable_start'):
             continue
-        if stopped:
+        page = loc.get('page') or 1
+        if end_page is not None and page > end_page:
             continue
-        lines = raw.split('\n')
-        index = 0
-        while index < len(lines):
-            stripped = lines[index].strip()
-            if not stripped:
-                index += 1
-                continue
-            plain = stripped.lstrip('>').strip()
-            if skim._LATER.match(plain):
-                stopped = True
-                break
-            if skim._KEYED.match(plain):
-                # The first numbered location can itself be the opening.
-                # Later keyed rooms are not substitutes for its missing box.
-                at = re.match(r'^(?:area\s+)?[A-Z]?(\d+)', plain, re.I)
-                if picks or (at and int(at.group(1)) > 1):
-                    stopped = True
+        lines = [line for line in _boxed_lines(loc, text) if player_line(line)]
+        if not lines:
+            continue
+        # Tell accept the page of the attested boxed line. A cross-page
+        # section may open on an earlier page than its box; filtering still
+        # uses the location heading page so the pick stays in window.
+        body = loc.get('body') or [0, 0]
+        if isinstance(body, (list, tuple)) and len(body) >= 2 and body[1] > body[0]:
+            from .kit_skim import _anchor
+            at = body[0] + _anchor(text[body[0]:body[1]], lines[0])
+            for item in index.get('pages') or []:
+                if item.get('start', 0) <= at <= item.get('end', at):
+                    page = item.get('page') or page
                     break
-                heading = plain
-                index += 1
+        title = (loc.get('name') or loc.get('pick') or '').strip()
+        if title and (_skim()._procedural_title(title) or _FRONT.search(title)):
+            noun = _place_in(' '.join(lines))
+            title = ('The %s' % noun) if noun else ''
+            if not title and lines:
+                title = ' '.join(lines[0].split()[:6]).rstrip(' ,.;:')
+            if title and (_skim()._procedural_title(title) or _FRONT.search(title)):
                 continue
-            if skim._heading_line(plain):
-                heading = '' if _FRONT.search(plain) else plain
-                index += 1
-                continue
-            if not stripped.startswith('>'):
-                index += 1
-                continue
-            block = []
-            while index < len(lines) and lines[index].strip().startswith('>'):
-                block.append(lines[index].strip().lstrip('>').strip())
-                index += 1
-            sentences = []
-            for bit in block:
-                for sentence in skim._sentences(bit):
-                    if player_line(sentence):
-                        sentences.append(skim.normalize(sentence))
-            if not sentences:
-                heading = ''
-                continue
-            title = _title_for(heading, sentences)
-            heading = ''
-            if (not title or title.casefold() in seen or _FRONT.search(title)
-                    or _skim()._bad_title(title) or _skim()._NOT_A_START.search(title)
-                    or _skim()._procedural_title(title)):
-                continue
-            seen.add(title.casefold())
-            picks.append({'title': title, 'page': page, 'quote': ' '.join(sentences[:2])})
-            if len(picks) >= 4:
-                return picks
+        if not title:
+            continue
+        fold = title.casefold()
+        if fold in seen:
+            continue
+        seen.add(fold)
+        picks.append({
+            'title': title,
+            'page': page,
+            'quote': ' '.join(lines[:2]),
+            'id': loc.get('key'),
+        })
+        if len(picks) >= 4:
+            break
     if picks:
         return picks
-    # pdftotext -layout does not write ">". A player sentence is still a read-aloud.
-    stream = _layout_stream(window or '')
-    bucket = []
-    skipping = False
-    for line in stream.split('\n'):
-        plain = line.strip().lstrip('>').strip()
-        if not plain:
-            continue
-        if skim._LATER.match(plain) or skim._KEYED.match(plain) or re.match(
-                r'^(?:appendix|contents)\b', plain, re.I):
-            break
-        if _FRONT.search(plain) and skim._heading_line(plain):
-            skipping = True
-            continue
-        if skipping and skim._heading_line(plain):
-            skipping = False
-        if skipping:
-            continue
-        for sentence in skim._sentences(plain):
-            if _encounter_sentence(sentence) or not player_line(sentence):
-                continue
-            if not re.search(r'\byou\b', sentence, re.I) and not re.search(
-                    r'\b(?:Captain|Sergeant)\s+[A-Z]', sentence):
-                continue
-            bucket.append(skim.normalize(sentence))
-    if bucket:
-        title = _title_for('', bucket)
-        return [{'title': title, 'page': 1, 'quote': ' '.join(bucket[:2])}]
-    # A clean place heading may be offered when no boxed player line survived.
-    # Rules, how-to, and front-matter headings are never starts.
-    for line in (window or '').split('\n'):
-        plain = line.strip().lstrip('>').strip()
-        if not skim._heading_line(plain):
-            continue
-        if (skim._procedural_title(plain) or _FRONT.search(plain) or skim._bad_title(plain)
-                or skim._LATER.match(plain) or skim._KEYED.match(plain)):
-            continue
-        return [{'title': plain, 'page': 1, 'quote': '', 'kit_line': kit_line(plain)}]
-    noun = _place_in(window or '')
-    if noun:
-        return [{'title': 'The %s' % noun, 'page': 1, 'quote': '', 'kit_line': kit_line('the %s' % noun)}]
-    return []
+    start_loc = locations.get(start_key) or {}
+    title = (start_loc.get('name') or '').strip()
+    if (title and not _skim()._procedural_title(title) and not _FRONT.search(title)):
+        return [{'title': title, 'page': start_loc.get('page') or 1, 'quote': '',
+                 'kit_line': kit_line(title), 'id': start_loc.get('key') or start_key}]
+    return _working_start()
 
 
 def letter_slot(alts, token):
@@ -572,11 +583,6 @@ def letter_slot(alts, token):
         if re.match(r'^%s[.)](?:\s|$)' % letter, title, re.I):
             return alt
     return None
-
-
-def fallback_titles(window):
-    """One Kit-voiced start when no read-aloud qualified."""
-    return read_aloud_picks(window)[:1]
 
 
 def _load(runtime):
@@ -913,10 +919,58 @@ def _overlap(sentence, other):
                for j in range(len(have) - span + 1))
 
 
+def _labelled_spoken(text):
+    """Speaker-labelled lines, or None when the text is an unlabelled paragraph."""
+    rows = []
+    found = False
+    for raw in (text or '').split('\n'):
+        line = raw.strip()
+        if not line:
+            continue
+        match = _SPEAKER_LINE.match(line)
+        speaker = match.group(1).strip() if match else ''
+        if (match and speaker and not speaker.endswith('.')
+                and len(speaker.split()) <= 5
+                and (speaker in ('Kit', 'Narrator') or speaker[:1].isupper())):
+            rows.append((speaker, match.group(2)))
+            found = True
+        else:
+            rows.append(('', line))
+    return rows if found else None
+
+
+def _guard_body(beat, text, skim, pending, hidden_names, private):
+    kept = []
+    for sentence in skim._sentences(text) or ([text] if (text or '').strip() else []):
+        if any(_overlap(sentence, screen) for screen in beat.get('screen') or []):
+            continue
+        if private and private.casefold() in sentence.casefold() and private.casefold() not in (
+                (beat.get('observed') or {}).get('find') or '').casefold():
+            continue
+        if pending and _INITIATIVE.search(sentence):
+            continue
+        if pending and any(re.search(r'\b%s\b' % re.escape(name), sentence, re.I) for name in hidden_names):
+            continue
+        kept.append(sentence)
+    cleaned = ' '.join(kept).strip()
+    noun = beat.get('place_noun') or ''
+    if noun and noun != 'room':
+        cleaned = re.sub(r'\bthe room\b', 'the %s' % noun, cleaned, flags=re.I)
+    return cleaned
+
+
+def _hidden_named(speaker, hidden_names):
+    if not speaker or not hidden_names:
+        return False
+    return any(re.search(r'\b%s\b' % re.escape(name), speaker, re.I) for name in hidden_names)
+
+
 def guard_spoken(beat, text):
     """Correct a host line that speaks the screen, jumps the notice, or names the unrevealed.
 
     Observed facts may stay. Kit's private tactics may not be said as if the player knew them.
+    Speaker-labelled performances keep each speaker on their own line; an accepted
+    NPC reply is never folded into a Narrator paragraph.
     """
     if not beat or not text:
         return text
@@ -933,26 +987,37 @@ def guard_spoken(beat, text):
             hidden_names.append(person['name'])
     private = ' '.join(
         part for part in ((beat.get('private') or {}).get('tactics'),) if part)
-    kept = []
-    for sentence in skim._sentences(text) or [text]:
-        if any(_overlap(sentence, screen) for screen in beat.get('screen') or []):
+    rows = _labelled_spoken(text)
+    if rows is None:
+        cleaned = _guard_body(beat, text, skim, pending, hidden_names, private)
+        if pending and _INITIATIVE.search(text or '') and 'perception' not in cleaned.casefold():
+            cleaned = (cleaned + ' Roll Perception.').strip()
+        if not cleaned:
+            cleaned = "That's as far as the page goes. What do you do?"
+        return cleaned
+    kept_lines = []
+    for speaker, body in rows:
+        if _hidden_named(speaker, hidden_names) and pending:
             continue
-        if private and private.casefold() in sentence.casefold() and private.casefold() not in (
-                (beat.get('observed') or {}).get('find') or '').casefold():
+        cleaned = _guard_body(beat, body, skim, pending, hidden_names, private)
+        if not cleaned:
             continue
-        if pending and _INITIATIVE.search(sentence):
-            continue
-        if pending and any(re.search(r'\b%s\b' % re.escape(name), sentence, re.I) for name in hidden_names):
-            continue
-        kept.append(sentence)
-    cleaned = ' '.join(kept).strip()
-    noun = beat.get('place_noun') or ''
-    if noun and noun != 'room':
-        cleaned = re.sub(r'\bthe room\b', 'the %s' % noun, cleaned, flags=re.I)
+        kept_lines.append('%s: %s' % (speaker, cleaned) if speaker else cleaned)
+    cleaned = '\n'.join(kept_lines).strip()
     if pending and _INITIATIVE.search(text or '') and 'perception' not in cleaned.casefold():
-        cleaned = (cleaned + ' Roll Perception.').strip()
+        added = False
+        out = []
+        for line in kept_lines:
+            if line.startswith('Kit: ') and not added:
+                out.append(line.rstrip('.!?') + '. Roll Perception.')
+                added = True
+            else:
+                out.append(line)
+        if not added:
+            out.append('Kit: Roll Perception.')
+        cleaned = '\n'.join(out).strip()
     if not cleaned:
-        cleaned = "That's as far as the page goes. What do you do?"
+        cleaned = "Kit: That's as far as the page goes. What do you do?"
     return cleaned
 
 
