@@ -863,7 +863,7 @@ def opening_turn(runtime, action):
         return _answer_roll(runtime, data, beat, int(number.group(1)))
     if pressure.get('bypassed') or pressure.get('acted'):
         if _LOOK.search(text) and not notice.get('pending'):
-            line = look_line(beat) + ' What do you do?'
+            line = _visible_look_line(beat, data)
             return _commit(runtime, 'look', [{
                 'type': 'beat', 'tags': ['observe'],
                 'evidence': 'The pressure is already resolved. A look does not restart it.',
@@ -905,7 +905,7 @@ def opening_turn(runtime, action):
                 'The player left the beat. That is a resolution. The fight is not dragged forward.',
                 'You leave the %s. %s The beat is behind you.' % (where, goal))
         if _LOOK.search(text):
-            line = '%s What do you do?' % look_line(beat)
+            line = _visible_look_line(beat, data)
             return _commit(runtime, 'look', [{
                 'type': 'beat', 'tags': ['observe'],
                 'evidence': 'A look at a beat whose people are already on stage. No notice roll is owed.',
@@ -1020,6 +1020,8 @@ def guard_spoken(beat, text):
         if _hidden_named(speaker, hidden_names) and pending:
             continue
         cleaned = _guard_body(beat, body, skim, pending, hidden_names, private)
+        if speaker and speaker not in ('Narrator', 'Kit'):
+            cleaned = _repair_npc_body(beat, speaker, cleaned)
         if not cleaned:
             continue
         kept_lines.append('%s: %s' % (speaker, cleaned) if speaker else cleaned)
@@ -1044,3 +1046,42 @@ def guard_spoken(beat, text):
 def guard_runtime(runtime, text):
     _data, beat = _load(runtime)
     return guard_spoken(beat, text)
+
+
+def _visible_look_line(beat, data=None):
+    """The visible scene, then a hand-back. Not a generic 'you look around' stub."""
+    from . import kit_perform
+    burst = (data or {}).get('burst') if isinstance(data, dict) else None
+    description = kit_perform.visible_description(beat, burst)
+    if not description.endswith(('.', '!', '?')):
+        description = description + '.'
+    return '%s What do you do?' % description
+
+
+def _repair_npc_body(beat, speaker, body):
+    """Do not rewrite NPC speech. Instruction vocabulary is rejected later."""
+    return body
+
+
+def _person_named(beat, speaker):
+    want = (speaker or '').casefold()
+    if not want:
+        return None
+    for person in (beat or {}).get('people') or []:
+        name = (person.get('name') or '').casefold()
+        ident = (person.get('id') or '').casefold()
+        if not name:
+            continue
+        if want == name or want == ident or want in name or name in want:
+            return person
+    return None
+
+
+def sourced_play(runtime, action):
+    """Source-verified Look and Talk are host-performed from host_facts.
+
+    Python does not commit a Look description or recast book sentences
+    into speech. Returning None leaves the turn on the host complete path.
+    """
+    return None
+

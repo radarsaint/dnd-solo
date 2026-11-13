@@ -1204,9 +1204,11 @@ class RoomAdjudicator:
             notice_holds = bool((self.source.get('_opening_notice') or {}).get('holds')) or bool(
                 discoveries)
             if hidden or notice_holds:
-                # A look at a source-attested notice beat is a called Perception
-                # check, not the former opening's hard-coded DC 10.
-                result = self._call_roll(RollNeeded('perception'), action, revision, state)
+                # A look at a source-attested notice beat is a called check
+                # from the shared skill map, not the former opening's hard-coded DC 10.
+                from . import kit_skills
+                skill = kit_skills.skill_for_intent(action)
+                result = self._call_roll(RollNeeded(skill), action, revision, state)
         if (self.source or {}).get('triggers'):
             result = self._offer_handles(result, action, state)
             # Only arrival fires on the engine's own read; a disturbance needs Kit's declared
@@ -4560,10 +4562,11 @@ def check_plan(plan, episodes, public_event, action_kind=None, candidates=None, 
         kit_voice.check_voice_plan(plan, action_kind, player_action, table_talk or is_ooc(player_action),
                                    player_notes, has_history=bool(committed_turn_ids))
     with part():
-        kit_detail.check_detail(plan['detail'], player_action, action_kind, source, state,
-                                supported_procedures(source), established=established,
-                                owners=[key for key in candidates['actor_bases'] if key != 'none'],
-                                oracle=oracle)
+        if not table_talk:
+            kit_detail.check_detail(plan['detail'], player_action, action_kind, source, state,
+                                    supported_procedures(source), established=established,
+                                    owners=[key for key in candidates['actor_bases'] if key != 'none'],
+                                    oracle=oracle)
     with part():
         if plan.get('pc_oddity'):
             kit_agenda.check_pc_oddity(plan['pc_oddity'], plan, state or {})
@@ -4880,6 +4883,12 @@ def check_scope(segments, plan, guards=None):
     if plan.get('move') == 'npc_reply' and ref and ref in people:
         # A person this beat already has can be spoken to. The feature floor does not block it.
         return None
+    action = (guards or {}).get('player_action') or ''
+    if action and plan.get('move') == 'world_description':
+        from . import kit_opening
+        if kit_opening._LOOK.search(action) and not kit_opening._TALK.search(action):
+            # A no-roll Look is a short visible description, not an 80-word feature.
+            return None
     # Showtime: Kit's theatrical narration in her own segments is scene material.
     showtime = plan.get('table_presence') == 'showtime'
     performed = [segment for segment in segments if segment['speaker'] != 'Kit' or showtime]
@@ -6349,7 +6358,8 @@ def guard_context(source, body):
             'table_talk': bool(body.get('table_talk')),
             'fact_text': ' '.join(str((fact or {}).get('text') or '')
                                   for fact in ((source or {}).get('facts') or {}).values()),
-            'opening_people': tuple((source or {}).get('_opening_people') or ())}
+            'opening_people': tuple((source or {}).get('_opening_people') or ()),
+            'player_action': body.get('action') or ''}
 
 
 def _area_id(source, view):
@@ -7567,13 +7577,13 @@ class KitChatBridge:
                 hinted = kit_skim.named_start(self.runtime, action)
                 if hinted:
                     return hinted
-            return self.prepare(*args, **kwargs)
+            return self._with_book_ruling(self.prepare(*args, **kwargs), action)
         except PendingRuling as exc:
             from . import kit_skim
             hinted = kit_skim.named_start(self.runtime, action)
             if hinted:
                 return hinted
-            return pending_ruling_result(exc)
+            return self._with_book_ruling(pending_ruling_result(exc), action)
         except InvalidChange as exc:
             if 'Initialize a session first' in str(exc):
                 from . import kit_skim
@@ -7607,6 +7617,10 @@ class KitChatBridge:
         opened = kit_skim.opening_turn(self.runtime, action)
         if opened is not None:
             return opened
+        from . import kit_opening
+        sourced = kit_opening.sourced_play(self.runtime, action)
+        if sourced is not None:
+            return sourced
         ready = self._prepared_answer(action)
         if ready is not None:
             return ready
@@ -7617,6 +7631,18 @@ class KitChatBridge:
         looked = kit_skim.lookup_beat(self.runtime, action)
         if looked is not None:
             return looked
+        from . import kit_perform
+        knowledge_ask = bool(
+            action and (kit_skim._LOOKUP.search(str(action))
+                        or kit_perform.is_knowledge_question(action)))
+        if knowledge_ask:
+            # No hop matched. Do not stall. A local baseline is table talk
+            # for the host to answer. A question beyond the baseline calls
+            # one knowledge check, with no DC shown.
+            asked = self._knowledge_lookup_ask(action)
+            if asked is not None:
+                return asked
+            table_talk = True
         self.runtime.flush_queued_attempts()  # refused attempts held while a turn was waiting
         if opening:
             require(action is None and not table_talk, 'Room opening does not take a player action')
@@ -7640,9 +7666,11 @@ class KitChatBridge:
             return forked
         spoken_now = self._speak_prepared_engine_line(turn_id, revision, body, action)
         if spoken_now is not None:
-            return spoken_now
-        return self._stage(turn_id, revision, body, planning_input, one_pass, performance_variant, started, clock,
-                           stamps)
+            return self._with_book_ruling(spoken_now, action)
+        return self._with_book_ruling(
+            self._stage(turn_id, revision, body, planning_input, one_pass, performance_variant, started, clock,
+                        stamps),
+            action)
 
     def _speak_prepared_engine_line(self, turn_id, revision, body, action=None):
         """Speak finished Perception/Stealth asks and off-script fire rulings at prepare.
@@ -7657,7 +7685,11 @@ class KitChatBridge:
         if not public:
             return None
         ask = kind == 'check_called' and re.search(
-            r'^Roll (?:Perception|Stealth)\b', public)
+            r'^Roll (?:Perception|Stealth|History|Nature|Religion|Arcana|'
+            r'Investigation|Insight|Survival|Medicine|Athletics|Acrobatics|'
+            r'Sleight of Hand|Animal Handling|Persuasion|Deception|'
+            r'Intimidation)\b',
+            public)
         lowered = asked_away(QUOTED_SPEECH.sub(
             ' ', str(action or '').translate(_TYPOGRAPHIC)).lower())
         ruling = kind == 'kit_ruling' and BURN_ACT.search(lowered)
@@ -7695,6 +7727,8 @@ class KitChatBridge:
             total = _answer_total(action, str(pending.get('skill') or ''))
         if total is None:
             return None
+        if (pending.get('reason') == 'knowledge' or pending.get('called_turn') == 'knowledge'):
+            return self._resolve_knowledge_recall(action, total, pending, revision)
         if not pending:
             spoken = 'Kit: What is the %d for? Tell me which roll you made.' % total
             events = [{'type': 'beat', 'tags': ['clarify', 'unassigned_roll'],
@@ -7794,6 +7828,13 @@ class KitChatBridge:
             turn_id, pending['revision'], events, record, consume_pending=False)
         with self.runtime.db:
             self.runtime.db.execute('DELETE FROM kit_pending WHERE turn_id=?', (turn_id,))
+        try:
+            from . import kit_prefetch, kit_skim
+            data = kit_skim._read(self.runtime.path)
+            kit_prefetch.stash(self.runtime.path, data.get('scene_key'),
+                               data.get('beat') if isinstance(data.get('beat'), dict) else None)
+        except Exception:
+            pass
         return {'stage': 'opening_committed', 'committed': True, 'turn_id': turn_id,
                 'pending_kind': 'opening', 'confirmation': True, 'spoken': spoken,
                 'public_event': public, 'revision': revision, 'input_recorded': False}
@@ -7822,6 +7863,108 @@ class KitChatBridge:
             return
         self.runtime.discard_pending_kit_turn(turn_id)
         self._held(body['action'], exc)
+
+    def _with_book_ruling(self, packet, action):
+        """Hand the host the book's own ruling when the action matches one."""
+        packet = self._with_host_facts(packet, action)
+        if not isinstance(packet, dict) or not action:
+            return packet
+        if packet.get('stage') in ('opening_committed', 'lookup', 'turn_pending'):
+            return packet
+        try:
+            from . import kit_rulings, kit_skim
+            data = kit_skim._read(self.runtime.path)
+            hit = kit_rulings.for_action(
+                self.runtime.path, action,
+                data.get('scene_key') or data.get('design_start_name'))
+        except Exception:
+            hit = None
+        if not hit:
+            return packet
+        packet = dict(packet)
+        packet['book_ruling'] = hit
+        packet['source_verified'] = True
+        return packet
+
+    def _knowledge_lookup_ask(self, action):
+        """Call one knowledge check when the question goes beyond the baseline."""
+        from . import kit_perform, pc_sheet, kit_skim
+        try:
+            facts = kit_perform.host_facts_for(self.runtime, action, kind='lookup')
+        except Exception:
+            facts = None
+        decision = (facts or {}).get('knowledge') or {}
+        if decision.get('mode') != 'check' or not decision.get('skill'):
+            return None
+        skill = decision['skill']
+        ability = (pc_sheet.SKILLS or {}).get(skill) or 'int'
+        revision, _state = self.runtime.load()
+        public = 'Roll %s.' % skill.replace('_', ' ').title()
+        events = [
+            {'type': 'beat', 'tags': ['check_called', 'knowledge'],
+             'evidence': 'The question goes beyond the character baseline. The DC stays back here.'},
+            {'type': 'pending_check', 'check': {
+                'skill': skill, 'ability': ability, 'target': 'none',
+                'called_turn': 'knowledge', 'action': action,
+                'reason': 'knowledge',
+            }, 'evidence': 'A knowledge check was called. The DC is not shown.'},
+        ]
+        turn_id = 'knowledge-%s' % revision
+        committed = self.runtime.commit(turn_id, revision, events)
+        return {
+            'stage': 'called_roll', 'committed': True,
+            'spoken': 'Kit: %s' % public,
+            'turn_id': turn_id, 'public_event': public, 'revision': committed,
+            'host_facts': facts,
+        }
+
+    def _resolve_knowledge_recall(self, action, total, pending, revision):
+        """Record the check tier and hand the host the packet to write the answer."""
+        from . import kit_perform, kit_skim
+        import uuid as _uuid
+        tier = kit_perform.knowledge_tier(total)
+        original = pending.get('action') or action
+        events = [
+            {'type': 'beat', 'tags': ['knowledge', tier],
+             'evidence': 'A knowledge check was answered. The tier is recorded; no DC is spoken.'},
+            {'type': 'pending_check', 'check': None,
+             'evidence': 'The knowledge check is rolled.'},
+        ]
+        committed = self.runtime.commit('knowledge-roll-%s' % revision, revision, events)
+        data = kit_skim._read(self.runtime.path) or {}
+        data['knowledge_result'] = {
+            'tier': tier, 'skill': pending.get('skill'), 'question': original,
+        }
+        kit_skim._write(self.runtime.path, data)
+        turn_id = str(_uuid.uuid4())
+        revision2, body, planning_input = prepare_turn(
+            self.runtime, self.adjudicator, original, True, one_pass=True, table_talk=True)
+        packet = self._stage(turn_id, revision2, body, planning_input, True,
+                             DEFAULT_BRIDGE_VARIANT, time.time(), time.perf_counter(), {})
+        packet = self._with_host_facts(packet, original)
+        packet['revision'] = committed
+        packet['check_outcome'] = {'tier': tier, 'skill': pending.get('skill')}
+        return packet
+
+    def _with_host_facts(self, packet, action):
+        """Hand the host source-quoted facts for a Look, NPC reply, or lookup."""
+        if not isinstance(packet, dict) or not action:
+            return packet
+        if packet.get('stage') in ('opening_committed', 'turn_pending'):
+            return packet
+        # A committed hop lookup already has its attested line.
+        if packet.get('stage') == 'lookup' and packet.get('committed'):
+            return packet
+        try:
+            from . import kit_perform
+            facts = kit_perform.host_facts_for(self.runtime, action)
+        except Exception:
+            facts = None
+        if not facts:
+            return packet
+        packet = dict(packet)
+        packet['host_facts'] = facts
+        return packet
 
     def _stage(self, turn_id, revision, body, planning_input, one_pass, performance_variant, started, clock, stamps):
         """Stage a prepared turn and build its model packet."""
@@ -8427,6 +8570,9 @@ class KitChatBridge:
             return self._complete_window(turn_id, pending, output)
         body, plan = pending['body'], output['decision']
         self._mains_if_undeclared(turn_id, pending, plan)
+        output = dict(output)
+        output['performance'] = _validate_sourced_performance(
+            self.runtime, body, plan, output.get('performance'))
         if body['host_mode'] != 'one_pass':
             raise HostSequenceError('Use decide and finish for a staged turn', 'decide')
         revision, state = self.runtime.load()
@@ -8462,6 +8608,7 @@ class KitChatBridge:
         from . import kit_opening
         record['spoken'] = kit_opening.guard_runtime(self.runtime, record.get('spoken') or '')
         record['public_event'] = kit_opening.guard_runtime(self.runtime, record.get('public_event') or '')
+        _remember_npc_replies(self.runtime, record.get('spoken') or '')
         record.update(kit_interstitial.describe(record['trace'], turn_id))
         if record.get('engine_interstitial'):
             record.update(turn_role='interstitial', interstitial=record['engine_interstitial'])
@@ -9140,10 +9287,10 @@ def _main():
                     if args.performance_variant and not args.one_pass:
                         parser.error('--performance-variant on prepare needs --one-pass; '
                                      'staged turns choose it at decide')
-                    result = bridge.prepare(action, args.turn_id, use_memory=not args.no_memory,
-                                            one_pass=args.one_pass, opening=args.opening,
-                                            performance_variant=args.performance_variant,
-                                            table_talk=args.table_talk, host_stamps=_cli_stamps(args.stamp))
+                    result = bridge.try_prepare(action, args.turn_id, use_memory=not args.no_memory,
+                                                one_pass=args.one_pass, opening=args.opening,
+                                                performance_variant=args.performance_variant,
+                                                table_talk=args.table_talk, host_stamps=_cli_stamps(args.stamp))
                 else:
                     if not args.turn_id or not args.input_file:
                         parser.error(f'{args.command} requires --turn-id and --input-file')
@@ -9157,6 +9304,8 @@ def _main():
                                               host_stamps=_cli_stamps(args.stamp)))
             except PendingRuling as exc:
                 result = pending_ruling_result(exc)
+                if args.command == 'prepare':
+                    result = bridge._with_book_ruling(result, locals().get('action'))
             except InvalidChange as exc:
                 if args.command == 'prepare' and 'Initialize a session first' in str(exc):
                     from . import kit_skim
@@ -9235,6 +9384,60 @@ def _main():
         runtime.close()
     return 0
 
+def _validate_sourced_performance(runtime, body, plan, performance):
+    """Reject a Look or NPC line that invents book facts or uses instruction vocabulary.
+
+    The host writes the line. Python does not recast book sentences into speech.
+    """
+    from . import kit_opening, kit_perform
+    if not isinstance(performance, dict):
+        return performance
+    try:
+        _data, beat = kit_opening._load(runtime)
+    except Exception:
+        return performance
+    if not beat or not beat.get('source_verified'):
+        return performance
+    action = (body or {}).get('action') or ''
+    try:
+        facts = kit_perform.host_facts_for(runtime, action)
+    except Exception:
+        facts = None
+    if not facts:
+        # Still reject instruction vocabulary and DCs on sourced turns.
+        facts = {'kind': kit_perform.infer_kind(beat, action)}
+    problems = kit_perform.performance_problems(performance, facts, beat=beat, action=action)
+    if problems:
+        raise InvalidChange('; '.join(problems))
+    return performance
+
+
+def _remember_npc_replies(runtime, spoken):
+    from . import kit_opening, kit_perform
+    try:
+        data, beat = kit_opening._load(runtime)
+    except Exception:
+        return
+    if not beat:
+        return
+    replies = beat.setdefault('replies', {})
+    changed = False
+    for raw in (spoken or '').splitlines():
+        if ':' not in raw:
+            continue
+        speaker, body = raw.split(':', 1)
+        speaker, body = speaker.strip(), body.strip()
+        if not speaker or speaker in ('Narrator', 'Kit') or not body:
+            continue
+        person = kit_opening._person_named(beat, speaker)
+        key = (person or {}).get('id') or speaker
+        bucket = replies.setdefault(key, [])
+        if kit_perform._norm(body) not in {kit_perform._norm(item) for item in bucket}:
+            bucket.append(body)
+            changed = True
+    if changed:
+        data['beat'] = beat
+        kit_opening._save(runtime, data)
 
 if __name__ == '__main__':
     sys.exit(main())
