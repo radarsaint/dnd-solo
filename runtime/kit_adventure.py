@@ -1286,6 +1286,7 @@ def import_adventure(db, text=None, pdf=None, title=None, reader='auto', complet
             'stat_blocks_in_book': len(index['stat_blocks']), 'map_pages': index['map_pages'],
             'start_location': index['start'], 'folder': str(folder),
             'link_counts': index.get('link_counts') or kit_links.counts(index),
+            'opening_links': kit_links.summary_for(index, index.get('start')).get('hops') or [],
             **readiness(db)}
 
 
@@ -2203,7 +2204,8 @@ def deepen_index(db, reader='auto'):
         from . import kit_links
         return {'stage': 'index_deep', 'cached': True, 'locations': len(index['locations']),
                 'source_sha256': index['sha256'], 'index_complete': True,
-                'link_counts': index.get('link_counts') or kit_links.counts(index)}
+                'link_counts': index.get('link_counts') or kit_links.counts(index),
+                'opening_links': kit_links.summary_for(index, index.get('start')).get('hops') or []}
     # Reuse the opening reader when supplied so first-page source offsets do not
     # change between extraction passes.
     if reader == 'auto' and shutil.which('pdftotext'):
@@ -2217,7 +2219,8 @@ def deepen_index(db, reader='auto'):
     return {'stage': 'index_deep', 'reader': how, 'locations': report.get('locations'),
             'source_sha256': indexed['sha256'],
             'index_complete': True, 'accepted_scene_retained': prior.get('status') == 'accepted',
-            'link_counts': indexed.get('link_counts') or kit_links.counts(indexed)}
+            'link_counts': indexed.get('link_counts') or kit_links.counts(indexed),
+            'opening_links': kit_links.summary_for(indexed, indexed.get('start')).get('hops') or []}
 
 
 def choose_start(db, token=None):
