@@ -151,8 +151,13 @@ _BEYOND_BASELINE = re.compile(
 )
 
 _RULES_VOICE = re.compile(
-    r"(?i)\b(?:when the action is|somewhere between easy and impossible|"
-    r"trying to do it could lead|open a wound or rake|harmlessly off armor)\b"
+    r"(?i)(?:\bwhen the action is\b|\bsomewhere between easy and impossible\b|"
+    r"\btrying to do it could lead\b|\bopen a wound or rake\b|"
+    r"\bharmlessly off armor\b|\bdamage\s*\d+\s*d\s*\d+\b|\b\d+d\d+\b|"
+    r"\bdc\s*\d+\b|\bshortbow attack\b|\bmelee weapon\b|"
+    r"\ba question like\b|\byou explain\b|\byou tell them\b|"
+    r"\bhit points?\b|\bchallenge rating\b|\bability scores?\b|"
+    r"\bor higher, you\b|\byou explain that they\b)"
 )
 
 _LATER_ENCOUNTER = re.compile(
@@ -452,25 +457,28 @@ def _is_section_fact(line, boxed=False):
         return False
     if is_howto_or_tip(line) or is_coaching(line) or _HOWTO.search(line):
         return False
+    if _RULES_VOICE.search(line):
+        return False
     if kit_skim._blocks_quote(line) or kit_skim._unsafe(line):
         return False
     if not is_well_formed(line):
         return False
     if is_character_background(line):
         return True
-    # Quoted NPC or party speech.
-    if re.search(r'[“"][A-Z].+[”"]', line) or re.match(r'^[“"\'].+[”"\']$', line):
+    # A line that is itself spoken dialogue, not a line that merely contains a quote.
+    stripped = line.strip()
+    if re.match(r'^[“"\'].+[”"\']$', stripped):
         return True
-    # In-world second-person fiction, not an instruction.
+    # In-world second-person fiction, not an instruction to the reader.
     if re.search(
             r"(?i)\b(?:you are from|you're from|you (?:step|stand|see|follow|"
             r"enter|arrive|live|grew|come|feel|walk|look around|are on|"
             r"are from)|today,? it(?:'|’)s your turn)\b",
-            line):
+            line) and not re.search(r'(?i)\byou explain\b', line):
         return True
     # Third-person description of the place or a present person.
     if re.search(
-            r"(?i)\b(?:stands?|glances?|nods?|hails?|waits?|leads?|led by|"
+            r"(?i)\b(?:stands?|glances?|nods?|hails?|waits?|led by|"
             r"patrol(?:s|ed)?|taps?|watches?)\b",
             line):
         return True
@@ -631,6 +639,16 @@ def knowledge_decision(action, sheet, section_lines, result_tier=None):
     }
 
 
+
+_FENCE_STOP = re.compile(
+    r"(?i)\b(?:dc|perception|history|arcana|religion|athletics|acrobatics|"
+    r"survival|medicine|investigation|insight|stealth|persuasion|"
+    r"check|checks|attack|damage|wizard|wizards|tm|treasure|"
+    r"healing|injured|wounds?|challenge|climbing|information|"
+    r"characters?|alternatively|continue|melee|weapon|dividing|"
+    r"equipment|practically|fearsome|comber|copyright|reserved)\b"
+)
+
 def _spoiler_fence(current_text, later_text, section_lines=None):
     """Names, creatures, and areas from later sections that must not be spoken."""
     current = (current_text or '') + '\n' + ' '.join(section_lines or [])
@@ -646,6 +664,8 @@ def _spoiler_fence(current_text, later_text, section_lines=None):
         if folded in current_fold:
             return
         if folded in _FUNCTION or folded in _COMMON_NAMES:
+            return
+        if _FENCE_STOP.search(term):
             return
         if any(folded == existing.casefold() for existing in terms):
             return
@@ -799,11 +819,15 @@ def host_facts_for(runtime, action=None, kind=None, hop=None):
         except Exception:
             result = {}
         packet['section'] = section
-        packet['party'] = [line for line in section if is_character_background(line)]
+        established = []
+        for line in list(section) + list(visible):
+            if is_character_background(line) and line not in established:
+                established.append(line)
+        packet['party'] = established
         packet['sheet'] = sheet
-        packet['spoiler_fence'] = _spoiler_fence(current, later, section)
+        packet['spoiler_fence'] = _spoiler_fence(current, later, section + visible + established)
         decision = knowledge_decision(
-            action, sheet, section, result_tier=result.get('tier'))
+            action, sheet, section + visible + established, result_tier=result.get('tier'))
         packet['knowledge'] = decision
         packet['gate'] = decision.get('gate')
         if hop:

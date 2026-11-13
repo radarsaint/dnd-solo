@@ -615,6 +615,10 @@ def _knowledge_book(local=True):
         "If you want to make a ranged Some monsters carry treasure, so it is often "
         "a good idea for attack, you can stay back.\n"
         "If you are playing want the excitement to lead to certain character death.\n"
+        "If it does, Wren's shortbow attack also says \"Damage 1d6 + 3.\"\n"
+        "A question like, \"Where did this glass wyrm come from?\"\n"
+        "Trails in the wood lead or higher, you explain that they hear a noise "
+        "coming from the right up to the ridge.\n"
         "Encounter 1: The Cistern\n"
         "You see a hatch opening not far ahead.\n"
         "This is a glass wyrm. The brine vaults lie beyond the cistern.\n"
@@ -677,7 +681,9 @@ class KnowledgeLookup(unittest.TestCase):
                 'you can each', 'success or failure', 'tell me the total',
                 'try not to', 'if you want to', 'ranged some monsters',
                 'character death', 'glass wyrm', 'brine vaults',
-                'hatch opening', 'encounter 1', 'the cistern'):
+                'hatch opening', 'encounter 1', 'the cistern',
+                'damage 1d6', 'shortbow attack', 'a question like',
+                'you explain', 'baby dragon', 'or higher, you'):
             self.assertNotIn(banned, joined)
         current, later, _book = kit_perform._section_windows(db)
         fence = kit_perform._spoiler_fence(current, later, quotes)
