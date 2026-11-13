@@ -657,7 +657,20 @@ _FENCE_VERB = frozenset(
     "follow following provide allow hear hears happen happens ask let "
     "taking take find finding reach reached tell tells explain come "
     "comes going go make made use used see seen look looks once after "
-    "before although".split()
+    "before although react talk speculate bother visible feeding "
+    "obvious total defeated contain rest rests chased chase watches "
+    "watch speaks speak falling fall trained train leaving leave "
+    "breaks break broke came stand stands standing hatched quickly "
+    "slowly remain remains remaining carried carry waiting waits "
+    "open opens opened opening closed known know knew calls call "
+    "called saying said says begins begin started start starts hatch hatches".split()
+)
+
+# General place or creature nouns, used only to keep a later phrase.
+_FENCE_ENTITY = re.compile(
+    r"(?i)\b(?:dragon|dragons|wyrm|wyrmlings?|lair|vaults?|cistern|"
+    r"hatch|underwork|caves?|ruins?|temple|shrine|dungeon|eggs?|"
+    r"icicles?|snatchers?)\b"
 )
 
 def _spoiler_fence(current_text, later_text, section_lines=None):
@@ -700,6 +713,8 @@ def _spoiler_fence(current_text, later_text, section_lines=None):
                 return
         if any(folded == existing.casefold() for existing in terms):
             return
+        if folded.endswith("'s") and any(existing.casefold() == folded[:-2] for existing in terms):
+            return
         terms.append(term)
 
     for line in later.splitlines():
@@ -708,11 +723,12 @@ def _spoiler_fence(current_text, later_text, section_lines=None):
             # Keep the heading's title words, not the "Encounter 1" label alone.
             title = re.sub(r'(?i)^(?:encounter|scene|section)\s+[A-Z]?\d{1,3}[a-z]?\s*[:.\-]?\s*',
                            '', stripped).strip()
+            title = re.sub(r'(?i)\s+taking turns\b.*$', '', title).strip()
             if title:
                 keep(title)
         for name in _proper_names(stripped):
             keep(name)
-    # Distinctive two- or three-word phrases (lowercase creature or place names).
+    # Later creature or place phrases, not an open walk of every word run.
     words = re.findall(r"[A-Za-z']+", later)
     for n in (3, 2):
         for i in range(len(words) - n + 1):
@@ -723,13 +739,11 @@ def _spoiler_fence(current_text, later_text, section_lines=None):
             if not any(len(w) >= 5 for w in run):
                 continue
             phrase = ' '.join(run)
+            if not _FENCE_ENTITY.search(phrase):
+                continue
             if phrase.casefold() not in current_fold:
                 keep(phrase)
-            if len(terms) >= 24:
-                break
-        if len(terms) >= 24:
-            break
-    return terms[:24]
+    return terms
 
 
 def _heard_quotes(beat, burst=None):
