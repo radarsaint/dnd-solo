@@ -1836,26 +1836,11 @@ def _index_body_for_burst(db, spoken):
         return None
     if not text or not spoken:
         return None
-    hits = []
-    for loc in (index.get('locations') or {}).values():
-        body = loc.get('body') or [0, 0]
-        if not isinstance(body, (list, tuple)) or len(body) < 2:
-            continue
-        start = body[0]
-        off = loc.get('offset')
-        if off is not None and 0 <= off <= start:
-            start = off
-        end = body[1]
-        if end <= start or start < 0 or end > len(text):
-            continue
-        span = text[start:end]
-        if _contiguous(spoken, span):
-            hits.append((end - start, start, end))
-    if hits:
-        _width, start, end = min(hits, key=lambda item: (item[0], item[1]))
-        return text[start:end]
-    # Typography may wrap the burst; place it once in the ingested source.
-    if not _has_burst(text, spoken):
+    # Place the burst in the ingested source once. A later short location may
+    # repeat the same boxed words; the index location that contains the first
+    # source offset is the section, and its body already ends at the next
+    # keyed area recorded at prep.
+    if not (_contiguous(spoken, text) or _has_burst(text, spoken)):
         return None
     key = _containing(index, _anchor(text, spoken))
     loc = (index.get('locations') or {}).get(key) if key else None

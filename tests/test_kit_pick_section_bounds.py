@@ -168,6 +168,34 @@ class IndexBoundedPickRecovery(unittest.TestCase):
         # prefix walk of the filler pages.
         self.assertLess(holder['has_burst'], 80, holder)
 
+    def test_a_later_short_duplicate_does_not_replace_the_section(self):
+        # After a start, the index may grow a short derived scene that repeats
+        # the boxed words. The section is still the earlier body that contains
+        # the first source offset, through the recorded keyed-area end.
+        index, text = kit_adventure._load(self.db)
+        extra = '\nThe Later Copy\n> ' + self.burst + '\n'
+        combined = text + extra
+        start = len(text)
+        locations = dict(index.get('locations') or {})
+        locations['scene:skim:Z'] = {
+            'key': 'scene:skim:Z', 'type': 'scene', 'name': 'The Later Copy',
+            'offset': start, 'body': [start, start + len(extra)],
+            'page': 99, 'playable_start': True,
+        }
+        index = dict(index)
+        index['locations'] = locations
+        with mock.patch('runtime.kit_adventure._load', return_value=(index, combined)):
+            slice_text = kit_skim._index_body_for_burst(self.db, self.burst)
+            recovered, columns = kit_skim.recover_opening_section(
+                self.db, self.burst, combined)
+        self.assertTrue(slice_text)
+        self.assertIn('herons stand in the shallows', slice_text)
+        self.assertNotIn('The Later Copy', slice_text)
+        self.assertIn(self.burst, ' '.join((recovered or '').split()))
+        self.assertIn('herons stand in the shallows', recovered)
+        self.assertNotIn('sealed latch', recovered)
+        self.assertGreater(len(slice_text), len(extra) * 4)
+
 
 if __name__ == '__main__':
     unittest.main()
