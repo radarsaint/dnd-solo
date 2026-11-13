@@ -2,16 +2,16 @@
   "schema": "kit_project_gardener_state/v1",
   "purpose": "RESUMABILITY_CURSOR_NOT_KNOWLEDGE_STORE",
   "canonical_location": "radarsaint/dnd-solo/coordination/context_state.json",
-  "state_revision": 63,
+  "state_revision": 64,
   "semantic_brain": {
     "repo": "radarsaint/dnd-solo",
     "path": "docs/PROJECT_UNDERSTANDING.md",
-    "last_semantic_commit": "3c96353aa9e9831cd0b74123c2a12f76c65e2032",
-    "last_reviewed_on": "2026-11-12"
+    "last_semantic_commit": "90d0e27d7529d5b5fd4a0b0a6cfb786bd3ba805b",
+    "last_reviewed_on": "2026-11-13"
   },
   "checkpoint": {
     "reviewed_against_main": {
-      "radarsaint/dnd-solo": "9c356aba8f45d8a52d9bf9c7e8dbe4b8a3daba3b",
+      "radarsaint/dnd-solo": "abe8e1346fb6ae5f609adb2d70748d4cdbf627c4",
       "radarsaint/bfdm-corpus": "66f3c62fb87976224174180db0a57e50d129587e"
     },
     "context_inbox": {
@@ -24,10 +24,10 @@
   },
   "last_completed_pass": {
     "kind": "BOUNDED_SEMANTIC_RECONCILIATION",
-    "completed_on": "2026-11-12",
-    "scope": "Reviewed bfdm-corpus main after #60 merge (66f3c62 / b0a47fd); no new #115 comments beyond 6598407850. Concurrent dnd-solo checkpoint already advanced for #206.",
-    "result": "Accept narrow: #60 regenerates the Roanoke S3 review packet so the integrity check passes. Only dependency_commit pointer updates (to 3055884 from #27); evidence digests, payload hash, and state hash identical. No change to research conclusions, propositions, or what a collaborator should believe. No brain edit. No bfdm-corpus control edit. Unresolved items unchanged.",
-    "resulting_brain_commit": "3c96353aa9e9831cd0b74123c2a12f76c65e2032",
+    "completed_on": "2026-11-13",
+    "scope": "Reviewed dnd-solo main after #208 merge (abe8e134) and preceding #207 (547199d); no new #115 comments beyond 6598407850. bfdm-corpus main unchanged.",
+    "result": "Accept: #207 fixes snapshot comparison to source-derived structural records only, resolving the Blind run 18 index rejection. #208 adds playable burst-only fallback on unrecoverable spans, whole-section handoff with validation-only authority, prepare-time Perception/Stealth asks, NPC alias replies, and kit rulings for off-script fire/dousing acts. These address remaining Blind Run 18 defects. Brain updated. No bfdm-corpus control edit. Unresolved items unchanged.",
+    "resulting_brain_commit": "90d0e27d7529d5b5fd4a0b0a6cfb786bd3ba805b",
     "reconciled_comment_id": 6598407850
   },
   "active_pass": null,
