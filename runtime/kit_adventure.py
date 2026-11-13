@@ -1280,10 +1280,13 @@ def import_adventure(db, text=None, pdf=None, title=None, reader='auto', complet
                 {'source_sha256': index['sha256'], 'complete': bool(complete)})
     from . import kit_scenes
     kit_scenes.write_side(folder, index)
+    from . import kit_links
     return {'stage': 'adventure_imported', 'title': index['title'], 'locations': len(index['locations']),
             'chapters': len(index['chapters']), 'npcs': len(index['npcs']),
             'stat_blocks_in_book': len(index['stat_blocks']), 'map_pages': index['map_pages'],
-            'start_location': index['start'], 'folder': str(folder), **readiness(db)}
+            'start_location': index['start'], 'folder': str(folder),
+            'link_counts': index.get('link_counts') or kit_links.counts(index),
+            **readiness(db)}
 
 
 # ---------------------------------------------------------------- compile
@@ -2197,8 +2200,10 @@ def deepen_index(db, reader='auto'):
     previous = _read_json(folder / 'index_coverage.json') if (folder / 'index_coverage.json').is_file() else {}
     index, _ = _load(db)
     if previous.get('complete') is True and previous.get('source_sha256') == index['sha256']:
+        from . import kit_links
         return {'stage': 'index_deep', 'cached': True, 'locations': len(index['locations']),
-                'source_sha256': index['sha256'], 'index_complete': True}
+                'source_sha256': index['sha256'], 'index_complete': True,
+                'link_counts': index.get('link_counts') or kit_links.counts(index)}
     # Reuse the opening reader when supplied so first-page source offsets do not
     # change between extraction passes.
     if reader == 'auto' and shutil.which('pdftotext'):
@@ -2207,9 +2212,12 @@ def deepen_index(db, reader='auto'):
     report = import_adventure(db, text=text, complete=True)
     # The accepted skim, if any, is untouched. Source-versioned room links still
     # reference the exact earlier source and never silently migrate to this one.
+    from . import kit_links
+    indexed = _read_json(folder / 'index.json')
     return {'stage': 'index_deep', 'reader': how, 'locations': report.get('locations'),
-            'source_sha256': _read_json(folder / 'index.json')['sha256'],
-            'index_complete': True, 'accepted_scene_retained': prior.get('status') == 'accepted'}
+            'source_sha256': indexed['sha256'],
+            'index_complete': True, 'accepted_scene_retained': prior.get('status') == 'accepted',
+            'link_counts': indexed.get('link_counts') or kit_links.counts(indexed)}
 
 
 def choose_start(db, token=None):

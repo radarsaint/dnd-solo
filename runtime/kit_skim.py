@@ -2880,11 +2880,29 @@ def lookup_beat(runtime, action):
     if not _path(path).is_file() and not ( _read(path) ):
         return None
     spoken = 'Kit: Give me a second, checking the page.'
-    events = [{'type': 'beat', 'tags': ['lookup'],
+    tags = ['lookup']
+    public = 'Checking the page.'
+    link_info = None
+    try:
+        from . import kit_links
+        data = _read(path)
+        hit = kit_links.answer(path, action, data.get('scene_key') or data.get('design_start_name'))
+        if hit and hit.get('spoken'):
+            spoken = hit['spoken']
+            tags = ['lookup', 'linked']
+            public = 'Checking a linked entry.'
+            link_info = hit.get('link')
+    except Exception:
+        hit = None
+    events = [{'type': 'beat', 'tags': tags,
                'evidence': 'The player asked for the page. Nothing in the fiction changed.'}]
     committed = runtime.commit('look-%s' % revision, revision, events)
-    return {'stage': 'lookup', 'committed': True, 'calls': 1, 'spoken': spoken,
-            'public_event': 'Checking the page.', 'revision': committed}
+    out = {'stage': 'lookup', 'committed': True, 'calls': 1, 'spoken': spoken,
+           'public_event': public, 'revision': committed}
+    if link_info:
+        out['link_lookup'] = link_info
+        out['source_verified'] = True
+    return out
 
 
 def take_speak_now(db):
