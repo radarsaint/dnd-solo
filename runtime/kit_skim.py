@@ -2266,9 +2266,12 @@ def accept(db, reply):
             scoped, columns = recover_opening_section(db, spoken, scoped_raw)
         candidate = {key: reply[key] for key in KEYS if key != 'scene' and key in reply}
         burst_only = False
-        if not scoped or not (
+        # A recorded-section cache is already the prep-time opening. A
+        # typography-safe rematch of a facing-column box can miss that
+        # formatted text; do not discard the cache for a burst-only start.
+        if not cached_hit and (not scoped or not (
                 _has_burst(scoped, spoken)
-                or any(_has_burst((item.get('text') or ''), spoken) for item in columns)):
+                or any(_has_burst((item.get('text') or ''), spoken) for item in columns))):
             # Never stall on an unfillable section. The host may play the
             # read-aloud with no attested people, and may pick another opening.
             burst_only = True
