@@ -1796,54 +1796,26 @@ def _section_sources(db, ingested_scope):
     return found
 
 
-def _lane_torn(text):
-    """True when a gutter split likely tore sentences into unfinished fragments."""
-    lines = [line.strip() for line in (text or '').splitlines()
-             if line.strip() and '\f' not in line]
-    body = []
-    for line in lines:
-        if _heading_line(line) or _KEYED.match(line) or _LATER.match(line):
-            continue
-        body.append(line)
-    if len(body) < 4:
-        return False
-    unfinished = 0
-    for index, line in enumerate(body):
-        if re.search(r'[.!?:]$', line.rstrip('>"\'\u201d\u2019')):
-            continue
-        nxt = body[index + 1] if index + 1 < len(body) else ''
-        if nxt and nxt[:1].islower():
-            continue
-        unfinished += 1
-    return unfinished * 2 >= len(body)
-
-
 def recover_opening_section(db, spoken, ingested_scope):
     """Hand the host the whole opening section from the retained source.
 
     Python does not guess which slice is "the encounter." The section runs
     from the opening heading through the next keyed area or a heading of the
     same level, with a character cap. Two-column layout is returned as both
-    lanes in reading order when those lanes keep sentences intact. A torn
-    gutter split yields to a cleaner reading-order extract. Returns (text, columns).
+    lanes in reading order. Returns (text, columns).
     """
-    chosen_text, chosen_cols, chosen_score = '', [], -1
+    chosen_text, chosen_cols, chosen_lanes = '', [], 0
     for extract in _section_sources(db, ingested_scope):
         text, columns = opening_section_from_text(extract, spoken)
         if not text or not _has_burst(text, spoken) and not any(
                 _has_burst(item.get('text') or '', spoken) for item in columns):
             continue
-        torn = any(_lane_torn(item.get('text') or '')
-                   for item in columns
-                   if isinstance(item, dict) and item.get('lane') in ('left', 'right'))
-        lanes = len(columns)
-        if torn:
-            score = 1 if lanes >= 2 else 0
-        else:
-            score = 3 if lanes >= 2 else 2
-        if score > chosen_score:
-            chosen_text, chosen_cols, chosen_score = text, columns, score
-            if score >= 3:
+        lane_n = len(columns)
+        # Prefer a two-lane presentation when the page actually has columns;
+        # never score a shorter "encounter" guess against a longer one.
+        if lane_n > chosen_lanes or not chosen_text:
+            chosen_text, chosen_cols, chosen_lanes = text, columns, lane_n
+            if chosen_lanes >= 2:
                 break
     if chosen_text:
         return chosen_text, chosen_cols
