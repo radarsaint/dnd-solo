@@ -1,9 +1,8 @@
-"""Kit never guesses at character generation (Brendon, 2026-10-25).
+"""Source-grounded character generation without an SRD-only boundary.
 
-She carries the SRD 5.1 core options and nothing later. For any class feature, subclass,
-species, background, feat, or spell list beyond the SRD, she says she doesn't have that
-text and asks the player to paste the exact rules or hand her the finished sheet. She reads
-and checks sheets; she never invents options, features, or numbers.
+Published, third-party and homebrew options are eligible. The host checks available
+rules sources and the selected rules version; it asks for missing text only when
+needed. This router neither retrieves books nor certifies mechanical support.
 
     python -m runtime.kit_chargen "help me build a Twilight cleric"
 """
@@ -29,9 +28,8 @@ SRD_OPTIONS = {
 }
 _SRD_WORDS = {name for names in SRD_OPTIONS.values() for name in names}
 
-# Well-known player options that are NOT in SRD 5.1 (names only, no rules text). A hit here
-# always means "paste the rules or hand me the sheet". Not exhaustive: the pattern checks
-# below catch named options that aren't listed.
+# Additional player-option names, used only to recognize requests, never to exclude
+# an option or infer that its rules are missing. These are names, not rules text.
 NON_SRD_NAMES = {
     'feat': ('sharpshooter', 'great weapon master', 'polearm master', 'war caster', 'lucky', 'alert',
              'sentinel', 'crossbow expert', 'resilient', 'fey touched', 'fey-touched', 'shadow touched',
@@ -123,12 +121,8 @@ _FILLER = {'a', 'an', 'the', 'my', 'new', 'level', 'srd', 'first', 'second', 'th
            'instead', 'maybe', 'also', 'one', 'cool', 'fun', 'your', 'his', 'her', 'their', 'our'}
 _FILLER |= {f'{n}th' for n in range(1, 21)} | {'1st', '2nd', '3rd'}
 
-NEED_RULES_NAMED = ("I don't carry {name} in my books, and I won't guess at it. Paste me the exact rules, "
-                    "or hand me your finished sheet and I'll check it line by line.")
-NEED_RULES = ("That's past the core rules I carry, and I won't guess at it. Paste me the exact rules, "
-              "or hand me your finished sheet and I'll check it line by line.")
-SRD_LINE = ("That's core rules, so I can walk you through it. Anything from a later book, "
-            "paste me the text first.")
+CHARGEN_LINE = ("Let's build it. I'll check the options against the rules we're using, "
+                "and ask for any source text I can't verify.")
 
 
 def is_srd(name):
@@ -188,18 +182,19 @@ def chargen(text, sheet_given=False):
         return None
     found = list(dict.fromkeys(_known_non_srd(text) + _unknown_names(text)))
     # Keep the fullest name: 'gloom stalker ranger' over 'gloom stalker'.
-    unknown = sorted((n for n in found if not any(n != o and n in o for o in found)), key=len, reverse=True)
-    beyond = _BEYOND.search(text)
-    base = {'stage': 'chargen', 'never_guess': True, 'sheet_given': bool(sheet_given),
-            'next_step': ('Do not invent class features, subclass features, species traits, feats, spells, '
-                          'or numbers beyond the SRD 5.1. Use only text the player pasted or their sheet. '
-                          'With a sheet, read it and check each entry against its source.')}
-    if unknown or beyond:
-        name = unknown[0] if unknown else None
-        line = NEED_RULES_NAMED.format(name=name.title()) if name else NEED_RULES
-        return {**base, 'srd_only': False, 'unknown_options': unknown or [beyond.group(0)],
-                'needs': ['exact_rules_text', 'or_finished_sheet'], 'table_line': line}
-    return {**base, 'srd_only': True, 'unknown_options': [], 'needs': [], 'table_line': SRD_LINE}
+    requested = sorted((n for n in found if not any(n != o and n in o for o in found)), key=len, reverse=True)
+    return {
+        'stage': 'chargen', 'never_guess': True, 'sheet_given': bool(sheet_given),
+        'requested_options': requested, 'needs': [], 'table_line': CHARGEN_LINE,
+        'next_step': (
+            'Help build the character using available rules sources, supplied text, or the finished sheet. '
+            'Published, third-party, and homebrew options are eligible; do not restrict options to the SRD '
+            'or assume a source is unavailable because of its name. Confirm the rules version when it '
+            'matters, preserve prerequisites and complete mechanics, and ask for exact missing text '
+            'only when a rule cannot be verified. Do not invent features or numbers, silently combine '
+            '2014 and 2024 versions, or claim runtime support for an unimplemented mechanic. '
+            'With a sheet, read it and check each entry against its source.'),
+    }
 
 
 # Proficiency sources (fix: PR 145 playtest #5). Names only, from SRD 5.1 and SRD 5.2 class tables.
