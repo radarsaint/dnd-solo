@@ -147,22 +147,24 @@ class PublicPdfSceneBoundary(unittest.TestCase):
         self.assertIn('Two scouts wait beside the path.', source)
         self.assertNotIn('Far Chapel', source)
 
-    def test_missing_reconstruction_blocks_both_skim_and_scene_retry(self):
+    def test_missing_reconstruction_accepts_burst_only_and_offers_a_picker(self):
         scene = {
             'place': {'name': 'cart', 'quote': self.burst},
             'people': [], 'discoveries': [], 'pressures': [],
         }
-        with mock.patch.object(kit_skim, '_same_column_encounter',
-                               return_value=''):
+        with mock.patch.object(kit_skim, 'recover_opening_section',
+                               return_value=('', [])):
             first = self._skim()
-            self.assertEqual(first['stage'], 'scene_required', first)
-            self.assertEqual(first['scene_request']['source_span'], '')
-            self.assertIn('cannot be reconstructed',
-                          ' '.join(first['scene_request']['problems']))
+            self.assertEqual(first['stage'], 'skim_accepted', first)
+            self.assertEqual(first.get('layout_recovery'), 'burst_only')
+            self.assertTrue(first.get('source_verified'), first)
+            self.assertFalse(first.get('people_attested'))
+            self.assertIn('read-aloud only', first.get('table_line') or '')
+            self.assertIn('start_picker', first)
             retried = kit_skim.accept(self.db, {'scene': scene})
-            self.assertEqual(retried['stage'], 'scene_required', retried)
-            self.assertFalse(retried['source_verified'])
-            self.assertNotEqual(kit_skim._read(self.db).get('status'), 'accepted')
+            # A second form is not required; the burst-only start already stood.
+            self.assertEqual(kit_skim._read(self.db).get('status'), 'accepted')
+            self.assertNotEqual(retried.get('stage'), 'scene_required')
 
 
 if __name__ == '__main__':

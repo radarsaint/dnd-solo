@@ -432,7 +432,7 @@ FIELD_SHAPES = {
         'callback': 'none',
         'mirror': 'steady energy, standard, dry humor: meet the even pace and let the answer land.',
         'npc_notice': 'none'},
-    'reacts_to': 'at least 2 words, verbatim, one not a small word (a/the/and); Narrator uses "none"',
+    'reacts_to': 'Kit only: 2+ words quoting a public line (the player on npc_reply); other speakers use "none"',
     'feature_floor': 'at least 80 words across non-Kit segments, in at least 2 segments',
     'kit_segment': {'speaker': 'Kit', 'text': 'Where next?', 'reacts_to': 'the landing stays wet'},
 }
@@ -728,17 +728,28 @@ SEARCH_INTENT = _lazy.regex(r"\b(?:search\w*|investigat\w*|examin\w*|inspect\w*|
 # call a check. It beats talk words around it ("wait") (#150 retest 3).
 OBJECT_ACT = _lazy.regex(r"(?:^|[.!;,]\s*|\band\s+)i\s+(?:\w+ly\s+)?(?:yank|pull|rip|tear|wrench|pry|prise|lift|heave|push|"
                         r"drag|kick|twist|turn|pour|cut|tie|throw|toss|dig|scrape|wedge|jam|pound|hammer|unscrew|"
-                        r"shake|rattle|tug|smash|break|force|climb|grab|pick up|scratch|wipe|rub|press|pull on)"
+                        r"shake|rattle|tug|smash|break|force|climb|grab|pick up|scratch|wipe|rub|press|pull on|"
+                        r"burn|ignite|douse|extinguish)"
                         r"(?:s|ed|ing)?\b[^.!?]*?\b(?:the|a|an|some|this|that|those|these|its|each)\b")
+# Off-script fire or dousing: a playable ruling, not a silent pending_ruling.
+# "Light" is only a fire-making verb when a flame or fuel is the object, so
+# "I hold up a light" stays a simple act.
+BURN_ACT = _lazy.regex(
+    r"(?:^|[.!;,]\s*|\band\s+)(?:i\s+)?(?:\w+ly\s+)?(?:"
+    r"burn|ignite|douse|extinguish|set\s+fire\s+to|"
+    r"set\s+(?:the|a|an|this|that)\s+\w+(?:\s+\w+){0,2}\s+on\s+fire|"
+    r"light(?:s|ed|ing)?\s+(?:the|a|an|some|this|that)\s+"
+    r"(?:fire|torch|lamp|lantern|candle|brazier|wagon|cart|fuse|kindling)"
+    r")\b")
 # A thing in the room the act is aimed at, not a person: an article and a noun.
 AIMED_AT_THING = _lazy.regex(r"\b(?:the|a|an|this|that|those|these|each|every)\s+(?:\w+\s+){0,2}?\w{3,}")
 # Refusals stay only for exploits and impossibilities (and attempts on a person, which
 # need the fight or social machinery): stealing, pocketing, killing everyone, wishing.
 EXPLOIT = _lazy.regex(r"\b(?:steal|steals|stealing|pocket|pockets|pocketing|all (?:the )?(?:gold|treasure|loot)|"
                      r"every(?:thing|one)|instantly|automatically|infinite|wish|teleport\w*|fly|flies|levitat\w*|"
-                     r"on fire|set fire|ablaze|kill\w*|dead|dies|falls dead)\b|"
+                     r"kill\w*|dead|dies|falls dead)\b|"
                      r"\b(?:him|them|guard|warden|man|woman|dealer|orc|goblin|person|throat|neck|heart)\b")
-PHYSICAL_VERBS = r'(steal|pocket|grab|pick up|smash|break|hide|climb|force|open|disarm)'
+PHYSICAL_VERBS = r'(steal|pocket|grab|pick up|smash|break|hide|climb|force|open|disarm|burn|ignite|douse|extinguish)'
 # A declared physical act: "I grab the ring", "I quickly open the door". When an NPC has
 # just asked the player something, only this shape still counts as physical; a verb
 # inside an answer ("I was hoping to find something to steal") is speech.
@@ -1189,9 +1200,12 @@ class RoomAdjudicator:
             hidden = [key for key in (self.source.get('_opening_people') or ())
                       if key not in (self.source.get('_opening_staged_people') or ())
                       and (state.get('actors', {}).get(key) or {}).get('status') == 'hidden']
-            if hidden:
-                # A look at source-attested hidden people is a normal called
-                # Perception check, not the former opening's hard-coded DC 10.
+            discoveries = list(self.source.get('_opening_discoveries') or ())
+            notice_holds = bool((self.source.get('_opening_notice') or {}).get('holds')) or bool(
+                discoveries)
+            if hidden or notice_holds:
+                # A look at a source-attested notice beat is a called Perception
+                # check, not the former opening's hard-coded DC 10.
                 result = self._call_roll(RollNeeded('perception'), action, revision, state)
         if (self.source or {}).get('triggers'):
             result = self._offer_handles(result, action, state)
@@ -2091,6 +2105,9 @@ class RoomAdjudicator:
             # A short neutral line, not the player's whole message read back (pr150d feel).
             return Resolution('observe', SIMPLE_ACT_LINE, [event])
         if kind == 'unsupported_action':
+            lowered = asked_away(QUOTED_SPEECH.sub(' ', action.translate(_TYPOGRAPHIC)).lower())
+            if BURN_ACT.search(lowered):
+                return self._kit_ruling(action)
             exc = PendingRuling(f'{UNSUPPORTED_RULING} No turn was committed.', attempt=True)
             exc.player_line = unsupported_line(action, state)
             raise exc
@@ -3551,6 +3568,30 @@ def speech_speakers(source):
     return NON_NPC_SPEAKERS + tuple(actor_speakers(source).values())
 
 
+def canonical_speaker(name, guards):
+    """Map a host speaker to the room's canonical label (aliases and short names allowed)."""
+    if not name or not isinstance(name, str):
+        return name
+    labels = [item for item in (guards.get('labels') or ()) if item]
+    speakers = guards.get('speakers') or {}
+    if name in labels or name in NON_NPC_SPEAKERS:
+        return name
+    folded = name.strip().casefold()
+    if folded.startswith('the '):
+        folded = folded[4:].strip()
+    for label in list(labels) + list(speakers.values()):
+        if not label:
+            continue
+        lf = label.casefold()
+        bare = lf[4:].strip() if lf.startswith('the ') else lf
+        if folded == lf or folded == bare:
+            return label
+        parts = [part for part in bare.replace('-', ' ').split() if len(part) > 2]
+        if folded in parts:
+            return label
+    return name
+
+
 def focus_actor_id(plan):
     """The plan's focus actor id, or None. focus_actor is any present actor id; the older
     value 'other' still means the improv_read's actor_ref."""
@@ -4984,9 +5025,12 @@ def check_speech(speech, plan, public_view, player_action, action_kind=None, gua
     for segment in segments:
         require(isinstance(segment, dict) and set(segment) in ({'speaker', 'text'},
                                                               {'speaker', 'text', 'reacts_to'}) and
-                isinstance(segment['speaker'], str) and segment['speaker'].strip() and
-                ('labels' not in guards or segment['speaker'] in guards['labels']) and
-                isinstance(segment['text'], str) and 0 < len(segment['text'].strip()) <= 900,
+                isinstance(segment.get('speaker'), str) and segment['speaker'].strip() and
+                isinstance(segment.get('text'), str) and 0 < len(segment['text'].strip()) <= 900,
+                'Invalid spoken segment')
+        if guards:
+            segment['speaker'] = canonical_speaker(segment['speaker'], guards)
+        require('labels' not in guards or segment['speaker'] in guards['labels'],
                 'Invalid spoken segment')
     kit_count = sum(segment['speaker'] == 'Kit' for segment in segments)
     require(plan['table_presence'] != 'quiet' or kit_count == 0, 'Quiet Kit spoke directly')
@@ -7328,7 +7372,7 @@ def first_try_lines(runtime, body, planning_input):
         'appraisal.label: ' + ', '.join(APPRAISAL_LABELS) + ' (none needs intensity 0).',
         'Speakers this turn: ' + ', '.join(speakers['speakers'])
         + (f"; heard only, not here: {', '.join(h['speaker'] for h in speakers['heard'])}" if speakers.get('heard') else '')
-        + '. Every Kit segment needs reacts_to (a short verbatim quote of a public line this turn).',
+        + '. reacts_to is Kit-only (quote the player on npc_reply); other speakers use none.',
     ]
     if terse:
         lines.append(f'Terse is fine for {", ".join(terse)}: one short line meets the actor side; do not pad. '
@@ -7594,8 +7638,40 @@ class KitChatBridge:
         forked = kit_skim.fork_check(self.runtime, body)
         if forked is not None:
             return forked
+        spoken_now = self._speak_prepared_engine_line(turn_id, revision, body, action)
+        if spoken_now is not None:
+            return spoken_now
         return self._stage(turn_id, revision, body, planning_input, one_pass, performance_variant, started, clock,
                            stamps)
+
+    def _speak_prepared_engine_line(self, turn_id, revision, body, action=None):
+        """Speak finished Perception/Stealth asks and off-script fire rulings at prepare.
+
+        Other checks and rulings still go through the staged prepare/complete
+        cycle so existing host paths keep their pending turn.
+        """
+        if not body or body.get('table_talk'):
+            return None
+        kind = body.get('kind')
+        public = (body.get('public_event') or '').strip()
+        if not public:
+            return None
+        ask = kind == 'check_called' and re.search(
+            r'^Roll (?:Perception|Stealth)\b', public)
+        lowered = asked_away(QUOTED_SPEECH.sub(
+            ' ', str(action or '').translate(_TYPOGRAPHIC)).lower())
+        ruling = kind == 'kit_ruling' and BURN_ACT.search(lowered)
+        if not ask and not ruling:
+            return None
+        events = list(body.get('events') or [])
+        spoken = 'Kit: %s' % public
+        committed = self.runtime.commit(turn_id, revision, events)
+        stage = 'called_roll' if kind == 'check_called' else 'engine_ruling'
+        return {
+            'stage': stage, 'committed': True, 'spoken': spoken,
+            'turn_id': turn_id, 'public_event': public, 'revision': committed,
+            'advanced': False,
+        }
 
     def _verified_roll_answer(self, action):
         """Source-attested checks resolve through prepare, with one authoritative commit.

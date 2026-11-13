@@ -160,7 +160,12 @@ _SCENE_VERB = re.compile(
 _NOT_A_START = re.compile(
     r'\b(?:this (?:adventure|module|book)|trademark|copyright|credits|synopsis|'
     r'level|advancement|experience|backstory|designed for|published|'
-    r'a party of|character levels?)\b',
+    r'a party of|character levels?|guidelines?|arbitrat(?:e|ion|ing)|'
+    r'how to (?:play|run|use|read)|dungeon master|for the dm|'
+    r'make sure you|ask (?:the|each) players?|read the (?:following|boxed|rules)|'
+    r'this is the number|advantage or disadvantage|(?:\d+-)?sided die|'
+    r'your character|character sheets?|roleplaying|estimated time|'
+    r'starting the (?:adventure|game))\b',
     re.I)
 _LATER = re.compile(r'(?m)^(?:area\s+)?[A-Z]?\d{1,3}[a-z]?\s*[.:]\s+\S')
 _NOTICE = re.compile(r'\b(?:perception|notice|notices|spot(?:s|ted)?|stealth)\b', re.I)
@@ -182,6 +187,8 @@ _LIGATURE = {
 }
 OPENING_DONE = "That's the opening — what do you do?"
 OPENING_PAGES = FIRST_WINDOW + EXPAND_ONCE
+# Whole opening section handed to the host, not a guessed encounter slice.
+SECTION_CAP_CHARS = 24000
 _MODES = ('road', 'street', 'patrol', 'trail')
 _SENSORY = re.compile(
     r"\b(?:sound|sounds|smell|smells|light|shadow|cold|wind|creak|glint|mud|ruts|"
@@ -1342,7 +1349,8 @@ def _bounded_encounter(stream, burst):
     for number in range(seen_at + 1, len(lines)):
         line = lines[number].strip()
         if (_KEYED.match(line) or _LATER.match(line) or
-                re.match(r'(?i)^(?:chapter|part)\s+\d+\b', line)):
+                re.match(r'(?i)^(?:chapter|part)\s+\d+\b', line) or
+                _front_matter_break(line)):
             finish = number
             break
     return '\n'.join(lines[begin:finish]).strip()
@@ -1360,6 +1368,7 @@ def _same_column_encounter(source, burst):
     raw = source or ''
     if not raw.strip() or not burst or not _words(burst):
         return ''
+    found = ''
     pages = raw.split('\f')
     gaps = []
     for row in raw.splitlines():
@@ -1376,42 +1385,516 @@ def _same_column_encounter(source, burst):
         # The quoted burst is the only authority for which lane owns the beat.
         for stream in (left, right):
             if _contiguous(burst, stream):
-                return _bounded_encounter(stream, burst)
-    # An opening that truly straddles both printed columns can be used only
-    # when its complete words are contiguous in the left-then-right reading
-    # order. The fallback is bounded at the next source-owned keyed location.
-    for gutter in cutoffs + [None]:
-        pages_in_order = []
+                found = _preferred_span(found, _bounded_encounter(stream, burst), burst)
+    # An opening that truly straddles both printed columns is a fallback
+    # only when no single lane already holds the burst and the encounter
+    # body under it. Joining left-then-right otherwise imports a facing
+    # sidebar that has no heading of its own.
+    if not (found and _follow_on_words(found, burst) >= 3):
+        for gutter in cutoffs + [None]:
+            pages_in_order = []
+            for page in pages:
+                left, right = _page_columns(page, gutter)
+                pages_in_order.append(left + ('\n' + right if right.strip() else ''))
+            stream = '\n\f\n'.join(pages_in_order)
+            if _contiguous(burst, stream):
+                found = _preferred_span(found, _bounded_encounter(stream, burst), burst)
+    boxed = _boxed_line_stream(raw)
+    if boxed and _contiguous(burst, boxed):
+        found = _preferred_span(found, _bounded_encounter(boxed, burst), burst)
+    multi = _multi_lane_encounter(raw, burst, cutoffs)
+    found = _preferred_span(found, multi, burst)
+    return found or ''
+
+
+
+# A numbered location title at the start of a line or after a gutter/space,
+# so a facing "2. Later Room" glued onto the boxed line still counts as a leak.
+_KEYED_IN_TEXT = re.compile(
+    r'(?:^|[\s>])(?:area\s+)?[A-Z]?\d{1,3}[a-z]?\s*[.:]\s+\S')
+
+
+def _front_matter_break(line):
+    """A how-to, rules, or front-matter line is not encounter body."""
+    text = (line or '').strip().lstrip('>').strip()
+    if not text:
+        return False
+    head = re.split(r'[.:]', text, maxsplit=1)[0].strip()
+    if not head or len(head.split()) > 8:
+        return False
+    return bool(re.search(
+        r'^(?:(?:how to|how-to)\b|using this (?:book|adventure)\b|'
+        r'getting started\b|credits?\b|synopsis\b|(?:some )?guidelines?\b|'
+        r'(?:for the )?dungeon master\b|for the dm\b|character creation\b|'
+        r'ability scores?\b|this (?:adventure|module|book)\b)',
+        normalize(head), re.I))
+
+
+def _front_matter_count(span):
+    return sum(1 for line in (span or '').splitlines() if _front_matter_break(line))
+
+
+def _keyed_count(span):
+    """How many source-owned location headings sit in this span."""
+    return len(_KEYED_IN_TEXT.findall(span or ''))
+
+
+def _gutter_rows(span):
+    """Rows that still carry two printed lanes (a leftover facing column)."""
+    return sum(1 for line in (span or '').splitlines()
+               if re.search(r'\S {3,}\S', line))
+
+
+def _preferred_span(current, candidate, burst):
+    """Prefer a recovered span that still has the burst and the whole encounter.
+
+    A second location heading is a leak. When two spans describe the same
+    location, keep the one with more follow-on encounter text rather than a
+    clipped boxed line.
+    """
+    if not candidate or not _contiguous(burst, candidate):
+        return current or ''
+    if not current:
+        return candidate
+    current_keys, new_keys = _keyed_count(current), _keyed_count(candidate)
+    if 1 <= new_keys < current_keys:
+        return candidate
+    if current_keys >= 1 and new_keys == 0:
+        return current
+    if new_keys != current_keys:
+        return current
+    new_mix, cur_mix = _gutter_rows(candidate), _gutter_rows(current)
+    if new_mix < cur_mix:
+        return candidate
+    if new_mix > cur_mix:
+        return current
+    new_front, cur_front = _front_matter_count(candidate), _front_matter_count(current)
+    if new_front < cur_front:
+        return candidate
+    if new_front > cur_front:
+        return current
+    new_follow = _follow_on_words(candidate, burst)
+    cur_follow = _follow_on_words(current, burst)
+    if new_follow > cur_follow:
+        return candidate
+    return current
+
+
+def _follow_on_words(span, burst):
+    have, want = _words(span), _words(burst)
+    width = len(want)
+    if not width:
+        return 0
+    for index in range(0, max(0, len(have) - width + 1)):
+        if have[index:index + width] == want:
+            return len(have) - (index + width)
+    return 0
+
+
+def _boxed_line_stream(source):
+    """The marked read-aloud lines only, when a box survived extraction."""
+    kept = []
+    for line in (source or '').splitlines():
+        stripped = line.lstrip('\f').strip()
+        if stripped.startswith('>'):
+            kept.append(stripped)
+    return '\n'.join(kept)
+
+
+def _lane_cut_row(row, cuts):
+    """Split one layout row at the given gutter positions, left to right."""
+    if not cuts:
+        return [row]
+    parts = []
+    last = 0
+    for cut in cuts:
+        if cut <= last or cut >= len(row):
+            continue
+        window = row[last:cut]
+        # Prefer a real space near the cut so a word is not sliced in half.
+        pad = window.rfind(' ')
+        if pad >= max(0, len(window) - 12):
+            cut = last + pad
+        parts.append(row[last:cut].strip())
+        last = cut
+    parts.append(row[last:].strip())
+    while len(parts) < len(cuts) + 1:
+        parts.append('')
+    return parts
+
+
+def _multi_lane_encounter(source, burst, cutoffs):
+    """Recover a burst that lives in one of three or more printed lanes."""
+    if not cutoffs or not burst:
+        return ''
+    # Frequent gutters, in page-x order, define every printed lane.
+    ranked = sorted(cutoffs)
+    clustered = []
+    for pos in ranked:
+        if clustered and abs(pos - clustered[-1]) <= 8:
+            continue
+        clustered.append(pos)
+    if len(clustered) < 2:
+        return ''
+    pages = (source or '').split('\f')
+    # Try two-gutter (three-lane) and all-gutter splits.
+    trials = []
+    if len(clustered) >= 2:
+        trials.append(clustered[:2])
+    if len(clustered) >= 3:
+        trials.append(clustered[:3])
+    trials.append(clustered)
+    for cuts in trials:
+        lanes = [[] for _ in range(len(cuts) + 1)]
         for page in pages:
-            left, right = _page_columns(page, gutter)
-            pages_in_order.append(left + ('\n' + right if right.strip() else ''))
-        stream = '\n\f\n'.join(pages_in_order)
-        if _contiguous(burst, stream):
-            return _bounded_encounter(stream, burst)
+            page_lanes = [[] for _ in range(len(cuts) + 1)]
+            for row in page.splitlines():
+                pieces = _lane_cut_row(row, cuts)
+                for index, piece in enumerate(pieces):
+                    if index < len(page_lanes):
+                        page_lanes[index].append(piece)
+            for index, bucket in enumerate(page_lanes):
+                lanes[index].append('\n'.join(bucket))
+        streams = ['\n\f\n'.join(lane) for lane in lanes]
+        for stream in streams:
+            if _contiguous(burst, stream):
+                return _bounded_encounter(stream, burst)
+        # Left-to-right reading of every lane, still bounded at the next location.
+        ordered = '\n\f\n'.join(
+            '\n'.join(part for part in pieces if part.strip())
+            for pieces in zip(*[[p for p in stream.split('\n\f\n')] for stream in streams])
+        )
+        if _contiguous(burst, ordered):
+            return _bounded_encounter(ordered, burst)
     return ''
 
-def _scene_request(db, data, candidate, source, spoken, problems=None):
+
+def _page_containing(text, burst):
+    for page in (text or '').split('\f'):
+        if _contiguous(burst, page):
+            return page
+    return text or ''
+
+
+def _span_from_extract(text, burst):
+    """Bound the encounter in a recovered extract when the burst is present."""
+    if not text or not burst:
+        return ''
+    if _contiguous(burst, text):
+        span = _same_column_encounter(text, burst)
+        if span and _contiguous(burst, span):
+            return span
+        return _bounded_encounter(_page_containing(text, burst), burst)
+    if find_quote(text, burst) is not None:
+        span = _same_column_encounter(text, burst)
+        if span and (_contiguous(burst, span) or find_quote(span, burst) is not None):
+            return span
+    return ''
+
+
+def _has_burst(text, burst):
+    """True when the burst occurs in this text, allowing typography and wrap."""
+    if not text or not burst:
+        return False
+    return _contiguous(burst, text) or find_quote(text, burst) is not None
+
+
+def _section_rank(line):
+    """0=chapter/part, 1=keyed area, 2=unnumbered section title, None=not a bound."""
+    text = (line or '').strip().lstrip('>').strip()
+    if not text:
+        return None
+    if re.match(r'(?i)^(?:chapter|part)\s+\d+\b', text):
+        return 0
+    if _KEYED.match(text) or _LATER.match(text):
+        return 1
+    if (_procedural_title(text) or _front_matter_break(text)
+            or _bad_title(text) or _META.search(text)):
+        return None
+    if _heading_line(text):
+        return 2
+    return None
+
+
+def _gutter_cutoffs(raw):
+    gaps = []
+    for row in (raw or '').splitlines():
+        for hit in re.finditer(r'(?<=\S) {3,}(?=\S)', row):
+            if hit.end() >= 20:
+                gaps.append(hit.end())
+    return sorted(set(gaps), key=lambda pos: (
+        -sum(abs(pos - other) <= 8 for other in gaps), pos))[:16]
+
+
+def _section_lanes(text):
+    """Split a layout extract into reading-order lanes when a gutter repeats."""
+    raw = text or ''
+    cutoffs = _gutter_cutoffs(raw)
+    if not cutoffs:
+        return [('section', raw)]
+    pages = raw.split('\f')
+    gutter = cutoffs[0]
+    left = '\n\f\n'.join(_page_columns(page, gutter)[0] for page in pages)
+    right = '\n\f\n'.join(_page_columns(page, gutter)[1] for page in pages)
+    if not right.strip():
+        return [('section', left or raw)]
+    return [('left', left), ('right', right)]
+
+
+def _line_page(lines, index):
+    return sum(1 for line in lines[:max(0, index)] if '\f' in line)
+
+
+def _first_line_of_page(lines, page):
+    current = 0
+    for index, line in enumerate(lines):
+        if current >= page:
+            return index
+        if '\f' in line:
+            current += 1
+    return 0
+
+
+def _bound_section_stream(stream, burst, force_start=None, force_finish=None):
+    """One lane, from the opening heading through the next same-level bound.
+
+    force_start / force_finish align a facing lane to the burst lane's section
+    so a keyed heading in one column also ends the other.
+    Returns (text, begin, finish).
+    """
+    if not (stream or '').strip():
+        return '', 0, 0
+    lines = stream.splitlines()
+    seen_at = None
+    running = []
+    for index, line in enumerate(lines):
+        running.append(line)
+        blob = '\n'.join(running)
+        if _has_burst(blob, burst):
+            seen_at = index
+            break
+    if seen_at is None and force_start is None:
+        return '', 0, 0
+    if force_start is not None:
+        begin = max(0, min(force_start, len(lines) - 1 if lines else 0))
+        start_rank = 2
+        for index in range(begin, -1, -1):
+            rank = _section_rank(lines[index])
+            if rank is not None:
+                start_rank = rank
+                break
+    else:
+        begin = 0
+        start_rank = 2
+        for index in range(seen_at + 1):
+            rank = _section_rank(lines[index])
+            if rank is not None:
+                begin = index
+                start_rank = rank
+    finish = len(lines)
+    scan_from = begin + 1
+    if seen_at is not None:
+        scan_from = max(scan_from, seen_at + 1 if force_start is None else begin + 1)
+    for index in range(scan_from, len(lines)):
+        rank = _section_rank(lines[index])
+        if rank is not None and rank <= start_rank:
+            finish = index
+            break
+    if force_finish is not None:
+        finish = min(finish, max(begin, force_finish))
+    text = '\n'.join(lines[begin:finish]).strip()[:SECTION_CAP_CHARS]
+    return text, begin, finish
+
+
+def opening_section_from_text(text, burst):
+    """Whole opening section in this extract: both lanes, not a guessed slice."""
+    if not text or not burst:
+        return '', []
+    lanes = _section_lanes(text)
+    bound = []
+    burst_at = None
+    start_page = 0
+    burst_finish = None
+    for index, (label, stream) in enumerate(lanes):
+        if _has_burst(stream, burst):
+            piece, begin, finish = _bound_section_stream(stream, burst)
+            if not piece:
+                continue
+            lines = stream.splitlines()
+            heading = begin
+            start_page = _line_page(lines, heading)
+            bound.append({'lane': label, 'text': piece})
+            burst_at = index
+            burst_finish = finish
+            break
+    if burst_at is None:
+        piece, _b, _f = _bound_section_stream(text, burst)
+        if piece and _has_burst(piece, burst):
+            return piece, [{'lane': 'section', 'text': piece}]
+        return '', []
+    for index, (label, stream) in enumerate(lanes):
+        if index == burst_at:
+            continue
+        lines = stream.splitlines()
+        force = _first_line_of_page(lines, start_page) if lines else 0
+        piece, _b, _f = _bound_section_stream(
+            stream, burst, force_start=force, force_finish=burst_finish)
+        if piece.strip():
+            bound.append({'lane': label, 'text': piece})
+    if not bound:
+        return '', []
+    if len(bound) == 1:
+        text_out = bound[0]['text'][:SECTION_CAP_CHARS]
+        return text_out, bound
+    parts = ['[%s]\n%s' % (item['lane'], item['text']) for item in bound]
+    return '\n\n'.join(parts)[:SECTION_CAP_CHARS], bound
+
+
+def _section_sources(db, ingested_scope):
+    """Candidate retained-PDF and ingested extracts, without ranking slices."""
+    found = []
+    if ingested_scope:
+        found.append(ingested_scope)
+    from . import kit_adventure
+    try:
+        path = kit_adventure.retained_pdf_source(db)
+    except Exception:
+        path = None
+    if path is None:
+        return found
+    try:
+        layout = kit_adventure._pdftotext(path, OPENING_PAGES)
+    except Exception:
+        layout = None
+    if layout:
+        found.append(layout)
+    try:
+        data = path.read_bytes()
+    except OSError:
+        data = None
+    if data is not None:
+        import time
+        from . import kit_pdf
+        try:
+            extracted = kit_pdf.extract(
+                data, max_pages=OPENING_PAGES, deadline=time.monotonic() + 3)
+            spatial = extracted.get('text') or ''
+        except Exception:
+            spatial = ''
+        if spatial:
+            found.append(spatial)
+        try:
+            raw = kit_adventure._pdftotext_raw(path, OPENING_PAGES)
+        except Exception:
+            raw = None
+        if raw:
+            found.append(raw)
+    return found
+
+
+def recover_opening_section(db, spoken, ingested_scope):
+    """Hand the host the whole opening section from the retained source.
+
+    Python does not guess which slice is "the encounter." The section runs
+    from the opening heading through the next keyed area or a heading of the
+    same level, with a character cap. Two-column layout is returned as both
+    lanes in reading order. Returns (text, columns).
+    """
+    chosen_text, chosen_cols, chosen_lanes = '', [], 0
+    for extract in _section_sources(db, ingested_scope):
+        text, columns = opening_section_from_text(extract, spoken)
+        if not text or not _has_burst(text, spoken) and not any(
+                _has_burst(item.get('text') or '', spoken) for item in columns):
+            continue
+        lane_n = len(columns)
+        # Prefer a two-lane presentation when the page actually has columns;
+        # never score a shorter "encounter" guess against a longer one.
+        if lane_n > chosen_lanes or not chosen_text:
+            chosen_text, chosen_cols, chosen_lanes = text, columns, lane_n
+            if chosen_lanes >= 2:
+                break
+    if chosen_text:
+        return chosen_text, chosen_cols
+    return '', []
+
+
+def recover_encounter_span(db, spoken, ingested_scope):
+    """Compatibility wrapper around recover_opening_section (the section text)."""
+    text, _columns = recover_opening_section(db, spoken, ingested_scope)
+    return text or ''
+
+
+BURST_ONLY_PREFIX = (
+    "The printed encounter could not be reconstructed from the page layout, "
+    "so this start is the read-aloud only — no people are attested."
+)
+
+
+def _burst_only_line(alts):
+    extra = picker_line(alts)
+    if alts:
+        return "%s Play this opening, or pick another. %s" % (BURST_ONLY_PREFIX, extra)
+    return "%s Play this opening, or describe how you arrive." % BURST_ONLY_PREFIX
+
+
+def _burst_only_scene(spoken, name):
+    """A legal scene when the encounter span cannot be recovered: burst only."""
+    folded = normalize(spoken)
+    heading = normalize(name or '')
+    place = heading if heading and re.search(r'\b' + re.escape(heading) + r'\b', folded, re.I) else ''
+    if not place:
+        stop = {
+            'the', 'and', 'for', 'with', 'from', 'that', 'this', 'your', 'you',
+            'are', 'was', 'were', 'have', 'has', 'had', 'into', 'onto', 'over',
+            'near', 'along', 'toward', 'towards', 'after', 'before',
+        }
+        words = re.findall(r"[A-Za-z][A-Za-z']{2,}", spoken or '')
+        place = next((word for word in words if word.casefold() not in stop), '') or 'here'
+        if place.casefold() not in folded.casefold() and 'here' in folded.casefold():
+            place = 'here'
+        elif place.casefold() not in folded.casefold():
+            # Last resort: the first word actually in the burst.
+            place = (re.findall(r"[A-Za-z][A-Za-z']+", spoken or '') or ['here'])[0]
+    return {
+        'place': {'name': place, 'quote': spoken},
+        'people': [], 'discoveries': [], 'pressures': [],
+    }
+
+
+def _scene_request(db, data, candidate, source, spoken, problems=None, columns=None):
     """Return an actionable, DM-only repair packet; no start is accepted yet."""
     data.update(status='scene_required', pending_candidate=candidate,
-                scene_errors=list(problems or ()), table_line=LANDING)
+                scene_errors=list(problems or ()), table_line=LANDING,
+                opening_columns=list(columns or ()))
     _write(db, data)
+    request = {
+        'read_aloud': spoken, 'source_span': (source or '')[:SECTION_CAP_CHARS],
+        'instructions': (
+            'Private DM preparation, not text to show the player. source_span is '
+            'the whole opening section: from the opening heading through the next '
+            'keyed area or a heading of the same level, with a cap. On a two-column '
+            'page, lanes are given separately in reading order under source_columns; '
+            'read both. Interpret the people actually in this encounter, visible or '
+            'hidden, plus notice, pressure, and goals; omit patrons mentioned only '
+            'in setup. Every asserted fact needs a full quote that occurs word for '
+            'word in this section (a column may wrap or sit beside the words) and '
+            'its evidence status. Do not choose a DC, surprise, combat, or a '
+            'successful player action. Copy the scene form from skim_request; write '
+            'only {"scene": ...} to skim.json and rerun the same skim_command. Do '
+            'not start or speak the book until accepted.'),
+        'problems': list(problems or ()),
+        'command': request_for(db)['command'],
+    }
+    if columns:
+        request['source_columns'] = [
+            {'lane': item.get('lane'), 'text': (item.get('text') or '')[:SECTION_CAP_CHARS]}
+            for item in columns if isinstance(item, dict)
+        ]
     return {
         'stage': 'scene_required', 'committed': False, 'advanced': False,
         'source_verified': False, 'scene_required': True,
         'table_line': LANDING,
-        'scene_request': {
-            'read_aloud': spoken, 'source_span': source[:16000],
-            'instructions': (
-                'Private DM preparation, not text to show the player. Interpret the '
-                'people actually in this encounter, visible or hidden; omit patrons '
-                'mentioned only in setup. Every asserted fact needs a full contiguous '
-                'quote inside source_span and its evidence status. Do not choose a DC, '
-                'surprise, combat, or a successful player action. Copy the scene form '
-                'from skim_request; write only {"scene": ...} to skim.json and rerun '
-                'the same skim_command. Do not start or speak the book until accepted.'),
-            'problems': list(problems or ()),
-            'command': request_for(db)['command'],
-        },
+        'scene_request': request,
     }
 
 
@@ -1525,6 +2008,7 @@ def accept(db, reply):
         span_end = page_to
     anchored_quote_offset = span_start
     from .kit_opening import build_beat, opening_text, _layout_stream
+    burst_only = False
     if _pdf_requires_scene(db):
         # Require host interpretation on all real PDFs. Never silently fall back.
         scope_start, scope_end = _encounter_bounds(text, page_at, page_to,
@@ -1533,26 +2017,37 @@ def accept(db, reply):
         # Let the layout-aware extractor establish the real location boundary;
         # the raw offset heuristic alone can stop on the other column's heading.
         scoped_raw = text[min(scope_start, page_at):max(scope_end, page_to)]
-        scoped = _same_column_encounter(scoped_raw, spoken)
+        scoped, columns = recover_opening_section(db, spoken, scoped_raw)
         candidate = {key: reply[key] for key in KEYS if key != 'scene' and key in reply}
-        if not scoped or not _contiguous(spoken, scoped):
-            return _scene_request(
-                db, data, candidate, '', spoken,
-                ['opening encounter cannot be reconstructed from the PDF layout; '
-                 'no scene facts may be attested'])
+        burst_only = False
+        if not scoped or not (
+                _has_burst(scoped, spoken)
+                or any(_has_burst((item.get('text') or ''), spoken) for item in columns)):
+            # Never stall on an unfillable section. The host may play the
+            # read-aloud with no attested people, and may pick another opening.
+            burst_only = True
+            scoped = spoken
+            columns = []
+            reply = dict(candidate, scene=_burst_only_scene(spoken, name))
         if 'scene' not in reply:
             return _scene_request(db, data, candidate, scoped, spoken,
-                                  ['scene must be interpreted from the printed encounter'])
+                                  ['scene must be interpreted from the printed encounter'],
+                                  columns=columns)
         from . import kit_scene_contract
+        extras = [item.get('text') or '' for item in columns if isinstance(item, dict)]
         scene_problems = kit_scene_contract.validate(
-            reply['scene'], scoped, spoken)
+            reply['scene'], scoped, spoken, extras or None)
         if scene_problems:
-            return _scene_request(db, data, candidate, scoped, spoken, scene_problems)
+            return _scene_request(db, data, candidate, scoped, spoken, scene_problems,
+                                  columns=columns)
         from .kit_opening import fiction_lines
         beat = kit_scene_contract.build_beat(
             reply['scene'], spoken, name, fiction=fiction_lines(page_text, spoken, allow_rejoin=True))
         # Give the compiler the complete scoped encounter, not just the box tail.
-        span_start, span_end = scope_start, scope_end
+        # A burst-only start stays on the read-aloud itself so facing-column
+        # text cannot become a compiled room.
+        if not burst_only:
+            span_start, span_end = scope_start, scope_end
     elif 'scene' in reply:
         from . import kit_scene_contract
         scoped = text[span_start:span_end]
@@ -1586,9 +2081,14 @@ def accept(db, reply):
     }
     if data.get('sheet'):
         stored['sheet'] = data['sheet']
+    if burst_only:
+        stored['layout_recovery'] = 'burst_only'
+        stored['alt_starts'] = alts
+        stored['table_line'] = _burst_only_line(alts)
     _write(db, stored)
-    return {
-        'stage': 'skim_accepted', 'table_line': READY_LINE, 'design_start_name': stored['design_start_name'],
+    result = {
+        'stage': 'skim_accepted', 'table_line': stored.get('table_line', READY_LINE),
+        'design_start_name': stored['design_start_name'],
         'scene_key': key, 'room': compiled.get('room'), 'room_id': compiled.get('room_id'),
         'page_start': page_start, 'page_end': page_end, 'burst_words': len(_words(spoken)),
         'alt_starts': alts, 'expanded': expanded, 'advanced': False,
@@ -1596,6 +2096,15 @@ def accept(db, reply):
         'scene_contract_status': 'verified' if beat.get('source_verified') else 'legacy_text',
         'handoff': handoff,
     }
+    if burst_only:
+        result['layout_recovery'] = 'burst_only'
+        result['start_picker'] = {
+            'table_line': result['table_line'],
+            'places': [{'pick': item['title'], 'line': item['title'], 'page': item['page']}
+                       for item in alts],
+        }
+        result['people_attested'] = False
+    return result
 
 
 def peek_burst(db):
@@ -1698,17 +2207,17 @@ def _stamp_beat(room_path, beat):
         matches = ([key for key, actor in actors.items()
                     if key == pid or (verified and stem(actor.get('name')) == stem(person.get('name')))]
                    if verified else [pid] if pid in actors else [])
-        # Source-attested speakers may be represented without a combat stat block.
-        # Source-attested creatures without any book/SRD stat must not be invented.
-        if verified and not matches and person.get('kind') == 'speaker':
+        # Source-attested people may be present without a combat stat block.
+        # Presence-only: no invented stats, damage, or combat abilities.
+        if verified and not matches:
+            kind = str(person.get('kind') or '')
+            role = 'speaker' if kind in ('speaker', 'person', 'npc') else 'creature'
             actors[pid] = {
-                'name': person['name'], 'location': here,
+                'name': person.get('name') or pid, 'location': here,
                 'status': 'hidden' if person.get('hidden') else 'alive',
-                'visible': not person.get('hidden'), 'role': 'speaker',
+                'visible': not person.get('hidden'), 'role': role,
             }
             matches = [pid]
-        if verified and not matches:
-            unresolved.append(pid)
         if verified:
             bound_actor_ids[pid] = list(matches)
         for key in matches:
@@ -1764,6 +2273,7 @@ def _stamp_beat(room_path, beat):
                 for key in bound_actor_ids.get(identity, ())))
             room['_opening_pressures'].append(pressure)
         room['_opening_discoveries'] = list(beat.get('discoveries') or ())
+        room['_opening_notice'] = dict(beat.get('notice') or {})
         # The encounter compiler may recognize the creature's stat block but
         # not build a trigger from the author's conditional prose. Preserve the
         # actual indexed room (and its exits) and derive only trigger TIMING from
@@ -2253,11 +2763,33 @@ def take_speak_now(db):
     return True
 
 
+def _procedural_title(title):
+    """A rules, how-to, or front-matter heading is never a playable opening."""
+    text = normalize(title or '')
+    if not text:
+        return True
+    return bool(_bad_title(text) or _NOT_A_START.search(text) or _META.search(text)
+                or re.search(
+                    r'\b(?:guidelines?|arbitrat(?:e|ion|ing)|how to|how-to|rules|'
+                    r'procedure|credits?|synopsis|dungeon master|for the dm|'
+                    r'using this (?:book|adventure)|getting started|'
+                    r'character creation|ability scores?|'
+                    r'advantage or disadvantage|(?:\d+-)?sided die|\bd(?:4|6|8|10|12|20)\b|'
+                    r'make sure you|ask (?:the|each) players?|'
+                    r'read the (?:following|boxed|rules)|this is the number|'
+                    r'your character|character sheets?|roleplaying|'
+                    r'estimated time|starting the (?:adventure|game)|'
+                    r'dungeons?\s*(?:and|&)\s*dragons)\b',
+                    text, re.I))
+
+
 def _open_named(db, chosen):
     """A place name with no safe box. Kit starts there. The notes under it are not spoken."""
     from .kit_adventure import IngestError
     title = chosen.get('title') or 'Here'
     line = chosen.get('kit_line') or ''
+    if _procedural_title(title):
+        return refused_start(db)
     data = _read(db)
     page = chosen.get('page') or 1
     try:
@@ -2310,6 +2842,8 @@ def open_title(db, token):
             break
     if chosen is None:
         return None
+    if _procedural_title(chosen.get('title') or token):
+        raise IngestError(['%s is not player fiction' % (chosen.get('title') or token)])
     quote = chosen.get('quote') or ''
     if not quote and chosen.get('kit_line'):
         return _open_named(db, chosen)
