@@ -719,12 +719,16 @@ def _filter_alts(alts, window, end_page):
 
 def picker_line(alts):
     titles = [item['title'] for item in alts or [] if item.get('title')][:PICK_MAX]
+    only_working = (
+        len(titles) == 1 and titles[0].casefold() in ('here', 'the start')
+        and any(item.get('kit_line') and not item.get('quote') for item in alts or [])
+    )
+    if only_working or not titles:
+        return "%s We'll start here. What do you do?" % MUDDY
     if len(titles) >= 2:
         listed = ', '.join(titles[:-1]) + ', or ' + titles[-1]
         return "%s Pick: %s, or describe how you arrive." % (MUDDY, listed)
-    if len(titles) == 1:
-        return "%s Pick: %s, or describe how you arrive." % (MUDDY, titles[0])
-    return "%s Describe how you arrive." % MUDDY
+    return "%s Pick: %s, or describe how you arrive." % (MUDDY, titles[0])
 
 
 def _split_burst(quote, burst):
@@ -1792,26 +1796,54 @@ def _section_sources(db, ingested_scope):
     return found
 
 
+def _lane_torn(text):
+    """True when a gutter split likely tore sentences into unfinished fragments."""
+    lines = [line.strip() for line in (text or '').splitlines()
+             if line.strip() and '\f' not in line]
+    body = []
+    for line in lines:
+        if _heading_line(line) or _KEYED.match(line) or _LATER.match(line):
+            continue
+        body.append(line)
+    if len(body) < 4:
+        return False
+    unfinished = 0
+    for index, line in enumerate(body):
+        if re.search(r'[.!?:]$', line.rstrip('>"\'\u201d\u2019')):
+            continue
+        nxt = body[index + 1] if index + 1 < len(body) else ''
+        if nxt and nxt[:1].islower():
+            continue
+        unfinished += 1
+    return unfinished * 2 >= len(body)
+
+
 def recover_opening_section(db, spoken, ingested_scope):
     """Hand the host the whole opening section from the retained source.
 
     Python does not guess which slice is "the encounter." The section runs
     from the opening heading through the next keyed area or a heading of the
     same level, with a character cap. Two-column layout is returned as both
-    lanes in reading order. Returns (text, columns).
+    lanes in reading order when those lanes keep sentences intact. A torn
+    gutter split yields to a cleaner reading-order extract. Returns (text, columns).
     """
-    chosen_text, chosen_cols, chosen_lanes = '', [], 0
+    chosen_text, chosen_cols, chosen_score = '', [], -1
     for extract in _section_sources(db, ingested_scope):
         text, columns = opening_section_from_text(extract, spoken)
         if not text or not _has_burst(text, spoken) and not any(
                 _has_burst(item.get('text') or '', spoken) for item in columns):
             continue
-        lane_n = len(columns)
-        # Prefer a two-lane presentation when the page actually has columns;
-        # never score a shorter "encounter" guess against a longer one.
-        if lane_n > chosen_lanes or not chosen_text:
-            chosen_text, chosen_cols, chosen_lanes = text, columns, lane_n
-            if chosen_lanes >= 2:
+        torn = any(_lane_torn(item.get('text') or '')
+                   for item in columns
+                   if isinstance(item, dict) and item.get('lane') in ('left', 'right'))
+        lanes = len(columns)
+        if torn:
+            score = 1 if lanes >= 2 else 0
+        else:
+            score = 3 if lanes >= 2 else 2
+        if score > chosen_score:
+            chosen_text, chosen_cols, chosen_score = text, columns, score
+            if score >= 3:
                 break
     if chosen_text:
         return chosen_text, chosen_cols
@@ -2524,7 +2556,8 @@ def refused_start(db):
     """
     data = _read(db)
     alts = [item for item in (data.get('alt_starts') or [])
-            if item.get('quote') and not _unsafe(item.get('quote') or '')]
+            if (item.get('quote') and not _unsafe(item.get('quote') or ''))
+            or (item.get('kit_line') and not _procedural_title(item.get('title') or ''))]
     safe_burst = data.get('status') == 'accepted' and bool(data.get('burst')) and not _unsafe(data.get('burst'))
     if not safe_burst:
         data['status'] = 'rejected'
@@ -2768,6 +2801,12 @@ def _procedural_title(title):
     text = normalize(title or '')
     if not text:
         return True
+    if re.search(
+            r"^(?:if|when|whenever|how|why|to|make|ask|read|use|using|try|"
+            r"be sure|remember|note|example|for example|that's|that is|"
+            r"in this|this (?:section|chapter|part)|appendix|credits?)\b",
+            text, re.I):
+        return True
     return bool(_bad_title(text) or _NOT_A_START.search(text) or _META.search(text)
                 or re.search(
                     r'\b(?:guidelines?|arbitrat(?:e|ion|ing)|how to|how-to|rules|'
@@ -2779,7 +2818,11 @@ def _procedural_title(title):
                     r'read the (?:following|boxed|rules)|this is the number|'
                     r'your character|character sheets?|roleplaying|'
                     r'estimated time|starting the (?:adventure|game)|'
-                    r'dungeons?\s*(?:and|&)\s*dragons)\b',
+                    r'dungeons?\s*(?:and|&)\s*dragons|'
+                    r"that's up to you|up to you|for example|"
+                    r"a character (?:can|can't|cannot|must|may|should)|"
+                    r'if the (?:fun|players?|characters?|party)|'
+                    r'when the (?:players?|characters?|party|fun))\b',
                     text, re.I))
 
 

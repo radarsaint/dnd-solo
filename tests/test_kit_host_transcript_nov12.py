@@ -594,18 +594,226 @@ class VisibleNpcReplyCycle(unittest.TestCase):
         answered = bridge.complete(third['turn_id'], {
             'decision': plan,
             'performance': {'segments': [
+                {'speaker': 'Narrator',
+                 'text': 'Captain Mara keeps her post in the road and answers you.',
+                 'reacts_to': 'none'},
                 {'speaker': 'Captain Mara',
-                 'text': 'I have orders to hold the road until the wagons pass.'},
+                 'text': 'I have orders to hold the road until the wagons pass.',
+                 'reacts_to': 'none'},
                 {'speaker': 'Kit',
                  'text': 'What do you say back?',
                  'reacts_to': 'ask Captain Mara what'},
             ]},
         })
         spoken = answered.get('spoken') or ''
+        lines = [part for part in spoken.splitlines() if part.strip()]
+        prefixes = [part.split(':', 1)[0] for part in lines]
         self.assertNotEqual(answered.get('stage'), 'rejected', answered)
-        self.assertIn('Captain Mara:', spoken)
+        self.assertFalse(answered.get('engine_line'), answered)
+        self.assertIn('Captain Mara', prefixes, spoken)
+        self.assertIn('Kit', prefixes, spoken)
         self.assertIn('orders to hold the road', spoken)
-        # The officer spoke; this is not a narrator-only fallback.
-        self.assertTrue(
-            any(part.startswith('Captain Mara:') for part in spoken.splitlines()),
-            spoken)
+        # The officer's line is their own speaker line, not folded into Narrator.
+        officer = [part for part in lines if part.startswith('Captain Mara:')]
+        self.assertTrue(officer, spoken)
+        narrator = [part for part in lines if part.startswith('Narrator:')]
+        for line in narrator:
+            self.assertNotIn('orders to hold the road', line)
+        self.assertTrue(any(part.startswith('Kit:') for part in lines), spoken)
+
+
+    def test_an_invented_speaker_is_refused(self):
+        intro = 'Captain Mara stands in the road and hails the caravan.'
+        orders = 'Captain Mara has orders to hold the road until the wagons pass.'
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        db = Path(folder.name) / 'talk.sqlite'
+        source = (
+            '1. The North Road\n> ' + intro + '\n' + orders + '\n'
+            '2. The Tower\n> A bell rings on a high tower.\n'
+        )
+        kit_adventure.ingest_adventure(db, text=source)
+        scene = {
+            'place': {'name': 'road', 'quote': intro},
+            'people': [{
+                'id': 'captain_mara', 'name': 'Captain Mara',
+                'quote': intro, 'visibility': 'visible', 'kind': 'person',
+                'goal': {'quote': orders, 'status': 'established'},
+                'knowledge': [],
+            }],
+            'discoveries': [], 'pressures': [],
+        }
+        accepted = kit_skim.accept(db, {
+            'burst': intro, 'source_quote': intro,
+            'page_start': 1, 'page_end': 1, 'alt_starts': [],
+            'design_start_name': 'The North Road', 'scene': scene,
+        })
+        self.assertEqual(accepted['stage'], 'skim_accepted', accepted)
+        start_session(str(db), str(SHEET))
+        runtime = Runtime(str(db))
+        self.addCleanup(runtime.close)
+        bridge = KitChatBridge(runtime, RoomAdjudicator())
+        bridge.prepare('Yes.')
+        line = 'I ask Captain Mara what we should do next.'
+        third = bridge.prepare(line, one_pass=True)
+        self.assertEqual(third.get('stage'), 'one_pass', third)
+        plan = RecordingModel().plan(third['input']['private'])
+        plan.update(move='npc_reply', focus_actor='captain_mara',
+                    table_presence='brief')
+        plan['improv_read'].update(actor_ref='captain_mara',
+                                   actor_basis='immediate_goal')
+        plan['public_brief'].update(reply_to=line, scope='exchange')
+        from runtime.kit_agent import InvalidChange
+        with self.assertRaises(InvalidChange):
+            bridge.complete(third['turn_id'], {
+                'decision': plan,
+                'performance': {'segments': [
+                    {'speaker': 'Invented Sage',
+                     'text': 'I am not on this road and should not speak.',
+                     'reacts_to': 'none'},
+                    {'speaker': 'Kit',
+                     'text': 'What do you say back?',
+                     'reacts_to': 'ask Captain Mara what'},
+                ]},
+            })
+
+
+class PlayablePickerOnly(unittest.TestCase):
+    """The fallback picker never offers rules, how-to, or coaching headings."""
+
+    def _titles(self, source, design='The Market Street'):
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        db = Path(folder.name) / 'picker.sqlite'
+        kit_adventure.ingest_adventure(db, text=source)
+        refused = kit_skim.accept(db, {
+            'burst': 'A dragon lands on the bakery and the crowd cheers.',
+            'source_quote': 'A dragon lands on the bakery and the crowd cheers.',
+            'page_start': 1, 'page_end': 1, 'alt_starts': [],
+            'design_start_name': design,
+        })
+        return refused, [item.get('title') or '' for item in refused.get('alt_starts') or []]
+
+    def test_coaching_and_instruction_titles_are_not_offered(self):
+        source = (
+            'If the fun is waning tonight\n'
+            'That is up to you when the players ask.\n'
+            'Example a character cannot walk through a wall.\n'
+            'If you do some of the checks, use a 20-sided die.\n'
+            'How to Play\n'
+            'Appendix\n'
+            'Credits\n'
+            'The Market Street\n'
+            '> You stand in the street while the lamps stay dark.\n'
+        )
+        refused, titles = self._titles(source)
+        blob = ' '.join(titles).casefold()
+        self.assertTrue(any('street' in title.casefold() or 'lamp' in title.casefold()
+                            for title in titles), titles)
+        for banned in ('fun is waning', 'up to you', 'example', 'if you',
+                       'sided die', 'how to', 'appendix', 'credits', 'character cannot'):
+            self.assertNotIn(banned, blob, titles)
+
+    def test_naming_a_coaching_heading_still_commits_nothing(self):
+        source = (
+            'If the fun is waning tonight\n'
+            'The Market Street\n'
+            '> You stand in the street while the lamps stay dark.\n'
+        )
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        db = Path(folder.name) / 'picker.sqlite'
+        kit_adventure.ingest_adventure(db, text=source)
+        kit_skim.accept(db, {
+            'burst': 'A dragon lands on the bakery and the crowd cheers.',
+            'source_quote': 'A dragon lands on the bakery and the crowd cheers.',
+            'page_start': 1, 'page_end': 1, 'alt_starts': [],
+            'design_start_name': 'The Market Street',
+        })
+        picked = kit_adventure.choose_start(db, 'If the fun is waning tonight')
+        self.assertEqual(picked.get('stage'), 'pick_start', picked)
+        self.assertFalse(picked.get('committed'))
+        self.assertFalse(picked.get('room'))
+        self.assertIsNone(picked.get('spoken'))
+
+    def test_rules_only_window_gives_a_working_start(self):
+        source = (
+            'How to Play\n'
+            'Read the rules before you begin.\n'
+            'This procedure explains advantage or disadvantage and a 20-sided die.\n'
+            'That is up to you when the players ask.\n'
+        )
+        refused, titles = self._titles(source, design='How to Play')
+        blob = ' '.join(titles).casefold()
+        for banned in ('how to', 'sided die', 'advantage', 'up to you', 'procedure'):
+            self.assertNotIn(banned, blob, titles)
+        line = (refused.get('table_line') or '').casefold()
+        self.assertIn("we'll start here", line)
+        self.assertTrue(titles, refused)
+        folder_line = ' '.join(
+            (item.get('kit_line') or '') for item in refused.get('alt_starts') or []).casefold()
+        self.assertIn("we'll start", folder_line or line)
+
+
+class GuardSpokenKeepsSpeakers(unittest.TestCase):
+
+    def test_labelled_npc_reply_is_not_folded_into_narrator(self):
+        from runtime import kit_opening
+        beat = {
+            'place_noun': 'road',
+            'screen': [],
+            'notice': {'pending': False, 'resolved': True, 'holds': False},
+            'pressure': {'bypassed': True},
+            'people': [{'id': 'captain_mara', 'name': 'Captain Mara',
+                        'hidden': False, 'revealed': True}],
+            'observed': {'heard': [], 'seen': ['captain_mara'], 'find': ''},
+            'private': {},
+        }
+        spoken = kit_opening.guard_spoken(beat, (
+            'Narrator: Captain Mara keeps her post in the road and answers you.\n'
+            'Captain Mara: I have orders to hold the road until the wagons pass.\n'
+            'Kit: What do you say back?'
+        ))
+        lines = [part for part in spoken.splitlines() if part.strip()]
+        self.assertTrue(any(part.startswith('Captain Mara:') for part in lines), spoken)
+        self.assertTrue(any(part.startswith('Kit:') for part in lines), spoken)
+        for line in lines:
+            if line.startswith('Narrator:'):
+                self.assertNotIn('orders to hold the road', line)
+
+
+class TornLaneYieldsToReadingOrder(unittest.TestCase):
+    """A torn two-column gutter yields to a cleaner reading-order extract."""
+
+    def _torn_row(self, left, right, width=36):
+        return left.ljust(width) + '    ' + right
+
+    def test_torn_gutter_does_not_beat_a_clean_later_extract(self):
+        burst = 'The cart halts near a bent tree.'
+        presence = 'Two scouts hide in the brush beside the path.'
+        # Consistent wide gutter that splits each sentence mid-thought.
+        torn = '\n'.join((
+            self._torn_row('1. Marsh Road', 'Side notes'),
+            self._torn_row('> The cart halts near a', 'bent tree.'),
+            self._torn_row('Two scouts hide in the', 'brush beside the path.'),
+            self._torn_row('A careful look notices', 'broken twigs under it.'),
+            self._torn_row('If they go unnoticed they', 'spring from hiding now.'),
+        ))
+        clean = (
+            '1. Marsh Road\n'
+            '> ' + burst + '\n'
+            + presence + '\n'
+            'A careful look notices broken twigs under it.\n'
+            'If they go unnoticed they spring from hiding now.\n'
+        )
+        with mock.patch.object(kit_skim, '_section_sources', return_value=[torn, clean]):
+            text, columns = kit_skim.recover_opening_section(
+                Path('unused.sqlite'), burst, torn)
+        joined = ' '.join((text or '').split())
+        self.assertIn(presence, joined)
+        lanes = [item.get('lane') for item in columns or []]
+        if 'left' in lanes or 'right' in lanes:
+            # A two-lane result is only acceptable when a lane holds the full sentence.
+            held = any(presence in ' '.join((item.get('text') or '').split())
+                       for item in columns)
+            self.assertTrue(held, columns)
