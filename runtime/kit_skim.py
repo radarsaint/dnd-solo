@@ -1822,6 +1822,59 @@ def _section_sources(db, ingested_scope):
     return found
 
 
+def _recorded_span(loc, text_len):
+    """Heading-through-next-keyed-area span already stored on one location."""
+    body = loc.get('body') or [0, 0]
+    if not isinstance(body, (list, tuple)) or len(body) < 2:
+        return None
+    start = body[0]
+    off = loc.get('offset')
+    if off is not None and 0 <= off <= start:
+        start = off
+    end = min(body[1], text_len)
+    if end <= start or start < 0:
+        return None
+    return start, end
+
+
+def _burst_offset_in_index(index, text, spoken):
+    """First source offset of the burst, using recorded bodies only.
+
+    Never searches later pages of the whole book. Typography is resolved
+    inside the prep-time location span that already ends at the next keyed area.
+    A later short location that repeats the boxed words is not the first hit.
+    """
+    if not text or not spoken:
+        return None
+    if _contiguous(spoken, text):
+        return _anchor(text, spoken)
+    locations = list((index.get('locations') or {}).values())
+    locations.sort(key=lambda loc: (loc.get('offset') or 0,
+                                    (loc.get('body') or [0])[0]))
+    for loc in locations:
+        span = _recorded_span(loc, len(text))
+        if not span:
+            continue
+        start, end = span
+        piece = text[start:end]
+        if not piece:
+            continue
+        if _contiguous(spoken, piece) or _has_burst(piece, spoken):
+            return start + _anchor(piece, spoken)
+    return None
+
+
+def _section_from_columns(columns):
+    """Rebuild the host section text already recovered into opening_columns."""
+    bound = [item for item in (columns or []) if isinstance(item, dict)]
+    if not bound:
+        return ''
+    if len(bound) == 1:
+        return (bound[0].get('text') or '')[:SECTION_CAP_CHARS]
+    parts = ['[%s]\n%s' % (item.get('lane'), item.get('text') or '') for item in bound]
+    return '\n\n'.join(parts)[:SECTION_CAP_CHARS]
+
+
 def _index_body_for_burst(db, spoken):
     """Ingested source slice the index already bounded for this burst.
 
@@ -1836,26 +1889,17 @@ def _index_body_for_burst(db, spoken):
         return None
     if not text or not spoken:
         return None
-    # Place the burst in the ingested source once. A later short location may
-    # repeat the same boxed words; the index location that contains the first
-    # source offset is the section, and its body already ends at the next
-    # keyed area recorded at prep.
-    if not (_contiguous(spoken, text) or _has_burst(text, spoken)):
+    at = _burst_offset_in_index(index, text, spoken)
+    if at is None:
         return None
-    key = _containing(index, _anchor(text, spoken))
+    key = _containing(index, at)
     loc = (index.get('locations') or {}).get(key) if key else None
     if not loc:
         return None
-    body = loc.get('body') or [0, 0]
-    if not isinstance(body, (list, tuple)) or len(body) < 2:
+    span = _recorded_span(loc, len(text))
+    if not span:
         return None
-    start = body[0]
-    off = loc.get('offset')
-    if off is not None and 0 <= off <= start:
-        start = off
-    end = min(body[1], len(text))
-    if end <= start:
-        return None
+    start, end = span
     return text[start:end]
 
 
@@ -1942,7 +1986,8 @@ def _scene_request(db, data, candidate, source, spoken, problems=None, columns=N
     """Return an actionable, DM-only repair packet; no start is accepted yet."""
     data.update(status='scene_required', pending_candidate=candidate,
                 scene_errors=list(problems or ()), table_line=LANDING,
-                opening_columns=list(columns or ()))
+                opening_columns=list(columns or ()),
+                opening_section=(source or '')[:SECTION_CAP_CHARS])
     _write(db, data)
     request = {
         'read_aloud': spoken, 'source_span': (source or '')[:SECTION_CAP_CHARS],
@@ -2088,13 +2133,24 @@ def accept(db, reply):
     burst_only = False
     if _pdf_requires_scene(db):
         # Require host interpretation on all real PDFs. Never silently fall back.
-        scope_start, scope_end = _encounter_bounds(text, page_at, page_to,
-                                                   span_start, name)
-        # Physical pages can interleave columns before and after the opening.
-        # Let the layout-aware extractor establish the real location boundary;
-        # the raw offset heuristic alone can stop on the other column's heading.
-        scoped_raw = text[min(scope_start, page_at):max(scope_end, page_to)]
-        scoped, columns = recover_opening_section(db, spoken, scoped_raw)
+        # Reuse the section recovered on the scene_required pass. The form
+        # fill must not re-walk recorded bodies or later pages.
+        cached_cols = data.get('opening_columns')
+        cached_text = data.get('opening_section')
+        if (data.get('status') == 'scene_required' and 'scene' in reply
+                and (cached_text or cached_cols)):
+            columns = list(cached_cols or [])
+            scoped = cached_text or _section_from_columns(columns)
+            scope_start, scope_end = _encounter_bounds(
+                text, page_at, page_to, span_start, name)
+        else:
+            scope_start, scope_end = _encounter_bounds(text, page_at, page_to,
+                                                       span_start, name)
+            # Physical pages can interleave columns before and after the opening.
+            # Let the layout-aware extractor establish the real location boundary;
+            # the raw offset heuristic alone can stop on the other column's heading.
+            scoped_raw = text[min(scope_start, page_at):max(scope_end, page_to)]
+            scoped, columns = recover_opening_section(db, spoken, scoped_raw)
         candidate = {key: reply[key] for key in KEYS if key != 'scene' and key in reply}
         burst_only = False
         if not scoped or not (

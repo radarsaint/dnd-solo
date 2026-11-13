@@ -30,9 +30,14 @@ def _filler_page(tag, rows=40):
     return ''.join(out)
 
 
-def _cross_page_book():
+def _cross_page_book(later_pages=0, interleave=False):
     """A long two-column book: filler pages, then a boxed opening that
-    continues after a page break, then a later keyed area."""
+    continues after a page break, then a later keyed area.
+
+    later_pages adds trailing layout after the keyed area so a whole-book
+    search would walk far past the recorded body. interleave puts facing
+    column words between boxed words so a contiguous full-source scan fails.
+    """
     burst = 'You reach the stepping stones while the current pulls at the reeds.'
     pages = ['Part 1: The Long Ridge\n']
     for tag in range(1, 7):
@@ -41,7 +46,13 @@ def _cross_page_book():
     # Headings stand on their own line so the index can record them; body
     # rows stay two-column, and the boxed opening continues after a break.
     pages.append('The Willow Crossing\n')
-    pages.append(_row('> ' + burst, 'A clerk lists fares for the crossing.'))
+    if interleave:
+        pages.append(_row('> You reach the stepping stones',
+                          'A clerk lists fares'))
+        pages.append(_row('while the current pulls at the reeds.',
+                          'for the crossing today.'))
+    else:
+        pages.append(_row('> ' + burst, 'A clerk lists fares for the crossing.'))
     pages.append('\f')
     pages.append(_row(
         'Two herons stand in the shallows below the crossing.',
@@ -50,6 +61,9 @@ def _cross_page_book():
     pages.append(_row(
         'The kiln door is still, and you smell damp clay.',
         'A sealed latch hides the vault.'))
+    for tag in range(100, 100 + later_pages):
+        pages.append('\f')
+        pages.append(_filler_page(tag))
     return ''.join(pages), burst
 
 
@@ -195,6 +209,77 @@ class IndexBoundedPickRecovery(unittest.TestCase):
         self.assertIn('herons stand in the shallows', recovered)
         self.assertNotIn('sealed latch', recovered)
         self.assertGreater(len(slice_text), len(extra) * 4)
+
+
+class LandingPathWork(unittest.TestCase):
+    """Landing recovers the recorded section once and does not search later pages."""
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.db = Path(self.temp.name) / 'case.sqlite'
+        self.source, self.burst = _cross_page_book(later_pages=40, interleave=True)
+        pdf = Path(self.temp.name) / 'owned.pdf'
+        pdf.write_bytes(b'%PDF-1.4\nsynthetic private source\n')
+        with mock.patch('runtime.kit_adventure.read_opening',
+                        return_value=(self.source, 'test')):
+            kit_adventure.ingest_adventure(self.db, pdf=str(pdf))
+        self.source_len = len(kit_adventure._load(self.db)[1])
+
+    def _honest(self):
+        return {
+            'burst': self.burst,
+            'source_quote': self.burst,
+            'page_start': 1,
+            'page_end': 1,
+            'alt_starts': [],
+            'design_start_name': 'The Willow Crossing',
+        }
+
+    def _scene(self, request):
+        spoken = (request.get('read_aloud') or self.burst).strip()
+        return {
+            'place': {'name': 'stones', 'quote': spoken},
+            'people': [],
+            'discoveries': [],
+            'pressures': [],
+        }
+
+    def test_landing_recovers_once_and_does_not_search_the_whole_source(self):
+        holder = {'recover': 0, 'find_quote_big': 0, 'find_quote': 0}
+        source_len = self.source_len
+        real_recover = kit_skim.recover_opening_section
+        real_quote = kit_skim.find_quote
+
+        def wrap_recover(*args, **kwargs):
+            holder['recover'] += 1
+            return real_recover(*args, **kwargs)
+
+        def wrap_quote(page_text, quote):
+            holder['find_quote'] += 1
+            if len(page_text or '') >= (source_len * 8) // 10:
+                holder['find_quote_big'] += 1
+            return real_quote(page_text, quote)
+
+        with mock.patch.object(kit_skim, 'recover_opening_section', wrap_recover):
+            with mock.patch.object(kit_skim, 'find_quote', wrap_quote):
+                first = kit_skim.accept(self.db, self._honest())
+                self.assertEqual(first.get('stage'), 'scene_required', first)
+                request = first.get('scene_request') or {}
+                source = request.get('source_span') or ''
+                columns = request.get('source_columns') or []
+                self.assertTrue(
+                    kit_skim._has_burst(source, self.burst) or any(
+                        kit_skim._has_burst(item.get('text') or '', self.burst)
+                        for item in columns if isinstance(item, dict)),
+                    'burst missing from recovered section')
+                self.assertIn('herons stand in the shallows', source)
+                self.assertNotIn('sealed latch', source)
+                second = kit_skim.accept(self.db, {'scene': self._scene(request)})
+        self.assertEqual(second.get('stage'), 'skim_accepted', second)
+        self.assertTrue(second.get('source_verified'), second)
+        self.assertEqual(holder['recover'], 1, holder)
+        self.assertEqual(holder['find_quote_big'], 0, holder)
 
 
 if __name__ == '__main__':
