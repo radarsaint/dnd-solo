@@ -477,7 +477,8 @@ class ModuleLayout(unittest.TestCase):
         self.assertIn('Case and punctuation may differ', card)
         self.assertIn('player_hears', card)
         self.assertIn('same exchange', card.casefold())
-        self.assertIn('give me a second, checking the page', card.casefold())
+        self.assertIn('never stall', card.casefold())
+        self.assertIn('host_facts', card)
         self.assertIn('same line', card.casefold())
 
     def test_a_missing_skim_does_not_open_a_heuristic_room_or_the_lobby(self):

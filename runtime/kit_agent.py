@@ -4560,10 +4560,11 @@ def check_plan(plan, episodes, public_event, action_kind=None, candidates=None, 
         kit_voice.check_voice_plan(plan, action_kind, player_action, table_talk or is_ooc(player_action),
                                    player_notes, has_history=bool(committed_turn_ids))
     with part():
-        kit_detail.check_detail(plan['detail'], player_action, action_kind, source, state,
-                                supported_procedures(source), established=established,
-                                owners=[key for key in candidates['actor_bases'] if key != 'none'],
-                                oracle=oracle)
+        if not table_talk:
+            kit_detail.check_detail(plan['detail'], player_action, action_kind, source, state,
+                                    supported_procedures(source), established=established,
+                                    owners=[key for key in candidates['actor_bases'] if key != 'none'],
+                                    oracle=oracle)
     with part():
         if plan.get('pc_oddity'):
             kit_agenda.check_pc_oddity(plan['pc_oddity'], plan, state or {})
@@ -4880,6 +4881,12 @@ def check_scope(segments, plan, guards=None):
     if plan.get('move') == 'npc_reply' and ref and ref in people:
         # A person this beat already has can be spoken to. The feature floor does not block it.
         return None
+    action = (guards or {}).get('player_action') or ''
+    if action and plan.get('move') == 'world_description':
+        from . import kit_opening
+        if kit_opening._LOOK.search(action) and not kit_opening._TALK.search(action):
+            # A no-roll Look is a short visible description, not an 80-word feature.
+            return None
     # Showtime: Kit's theatrical narration in her own segments is scene material.
     showtime = plan.get('table_presence') == 'showtime'
     performed = [segment for segment in segments if segment['speaker'] != 'Kit' or showtime]
@@ -6349,7 +6356,8 @@ def guard_context(source, body):
             'table_talk': bool(body.get('table_talk')),
             'fact_text': ' '.join(str((fact or {}).get('text') or '')
                                   for fact in ((source or {}).get('facts') or {}).values()),
-            'opening_people': tuple((source or {}).get('_opening_people') or ())}
+            'opening_people': tuple((source or {}).get('_opening_people') or ()),
+            'player_action': body.get('action') or ''}
 
 
 def _area_id(source, view):
@@ -7621,6 +7629,10 @@ class KitChatBridge:
         looked = kit_skim.lookup_beat(self.runtime, action)
         if looked is not None:
             return looked
+        if action and kit_skim._LOOKUP.search(str(action)):
+            # No hop matched. Do not stall: the host answers from the section
+            # or from what the character would know, as table talk.
+            table_talk = True
         self.runtime.flush_queued_attempts()  # refused attempts held while a turn was waiting
         if opening:
             require(action is None and not table_talk, 'Room opening does not take a player action')
@@ -7838,6 +7850,7 @@ class KitChatBridge:
 
     def _with_book_ruling(self, packet, action):
         """Hand the host the book's own ruling when the action matches one."""
+        packet = self._with_host_facts(packet, action)
         if not isinstance(packet, dict) or not action:
             return packet
         if packet.get('stage') in ('opening_committed', 'lookup', 'turn_pending'):
@@ -7855,6 +7868,26 @@ class KitChatBridge:
         packet = dict(packet)
         packet['book_ruling'] = hit
         packet['source_verified'] = True
+        return packet
+
+    def _with_host_facts(self, packet, action):
+        """Hand the host source-quoted facts for a Look, NPC reply, or lookup."""
+        if not isinstance(packet, dict) or not action:
+            return packet
+        if packet.get('stage') in ('opening_committed', 'turn_pending'):
+            return packet
+        # A committed hop lookup already has its attested line.
+        if packet.get('stage') == 'lookup' and packet.get('committed'):
+            return packet
+        try:
+            from . import kit_perform
+            facts = kit_perform.host_facts_for(self.runtime, action)
+        except Exception:
+            facts = None
+        if not facts:
+            return packet
+        packet = dict(packet)
+        packet['host_facts'] = facts
         return packet
 
     def _stage(self, turn_id, revision, body, planning_input, one_pass, performance_variant, started, clock, stamps):
@@ -8462,7 +8495,7 @@ class KitChatBridge:
         body, plan = pending['body'], output['decision']
         self._mains_if_undeclared(turn_id, pending, plan)
         output = dict(output)
-        output['performance'] = _repair_sourced_performance(
+        output['performance'] = _validate_sourced_performance(
             self.runtime, body, plan, output.get('performance'))
         if body['host_mode'] != 'one_pass':
             raise HostSequenceError('Use decide and finish for a staged turn', 'decide')
@@ -9275,48 +9308,32 @@ def _main():
         runtime.close()
     return 0
 
-def _repair_sourced_performance(runtime, body, plan, performance):
-    """Replace instruction-flavored NPC lines with a sourced in-character reply."""
+def _validate_sourced_performance(runtime, body, plan, performance):
+    """Reject a Look or NPC line that invents book facts or uses instruction vocabulary.
+
+    The host writes the line. Python does not recast book sentences into speech.
+    """
     from . import kit_opening, kit_perform
     if not isinstance(performance, dict):
-        return performance
-    segments = list(performance.get('segments') or [])
-    if not segments:
         return performance
     try:
         _data, beat = kit_opening._load(runtime)
     except Exception:
         return performance
-    action = (body or {}).get('action') or ''
-    focus = (plan or {}).get('focus_actor') or ((plan or {}).get('improv_read') or {}).get('actor_ref')
-    changed = False
-    out = []
-    for segment in segments:
-        segment = dict(segment)
-        speaker = segment.get('speaker') or ''
-        if speaker and speaker not in ('Narrator', 'Kit'):
-            person = kit_opening._person_named(beat, speaker)
-            if not person and focus and beat:
-                for item in beat.get('people') or []:
-                    if item.get('id') == focus or item.get('name') == focus:
-                        person = item
-                        break
-            if person:
-                prior = ((beat or {}).get('replies') or {}).get(person.get('id') or speaker) or []
-                repaired = kit_perform.repair_npc_text(
-                    segment.get('text') or '', person, action, beat=beat, prior=prior)
-                if repaired != (segment.get('text') or ''):
-                    segment['text'] = repaired
-                    changed = True
-            elif kit_perform.instruction_vocab(segment.get('text') or ''):
-                segment['text'] = kit_perform._unused_generic([])
-                changed = True
-        out.append(segment)
-    if not changed:
+    if not beat or not beat.get('source_verified'):
         return performance
-    fresh = dict(performance)
-    fresh['segments'] = out
-    return fresh
+    action = (body or {}).get('action') or ''
+    try:
+        facts = kit_perform.host_facts_for(runtime, action)
+    except Exception:
+        facts = None
+    if not facts:
+        # Still reject instruction vocabulary and DCs on sourced turns.
+        facts = {'kind': kit_perform.infer_kind(beat, action)}
+    problems = kit_perform.performance_problems(performance, facts, beat=beat, action=action)
+    if problems:
+        raise InvalidChange('; '.join(problems))
+    return performance
 
 
 def _remember_npc_replies(runtime, spoken):

@@ -58,7 +58,9 @@ _KEYED = re.compile(r'(?m)^(?:area\s+)?[A-Z]?\d{1,3}[a-z]?\s*[.:]\s+\S')
 _GO_ON = re.compile(
     r"^\s*(?:go on|continue|keep going|read on)\s*[.!]?\s*$", re.I)
 _LOOKUP = re.compile(
-    r"\b(?:check the page|look that up|look up|what does the book say|on the page)\b"
+    r"\b(?:check the page|look that up|look it up|look this up|"
+    r"look up (?:the|a|an|this|that|whether|what|who|where|how)|"
+    r"what does the book say|on the page)\b"
     r"|\bkit\b[^?\n]{0,80}\?",
     re.I)
 _CHECKLIST = re.compile(
@@ -530,7 +532,146 @@ def _title_of(item):
 
 
 def _sentences(text):
-    return [part.strip() for part in re.findall(r'[^.!?]+[.!?]+', normalize(text)) if part.strip()]
+    """Split on sentence punctuation that is not inside quotation marks."""
+    norm = normalize(text)
+    if not norm:
+        return []
+    out = []
+    start = 0
+    i = 0
+    quoted = False
+    n = len(norm)
+    while i < n:
+        ch = norm[i]
+        if ch == '"':
+            quoted = not quoted
+            i += 1
+            if not quoted:
+                k = i - 2
+                while k >= start and norm[k] == ' ':
+                    k -= 1
+                if k >= start and norm[k] in '.!?':
+                    piece = norm[start:i].strip()
+                    if piece:
+                        out.append(piece)
+                    start = i
+            continue
+        if (not quoted) and ch in '.!?':
+            j = i + 1
+            while j < n and norm[j] in '.!?':
+                j += 1
+            piece = norm[start:j].strip()
+            if piece:
+                out.append(piece)
+            start = j
+            i = j
+            continue
+        i += 1
+    tail = norm[start:].strip()
+    if tail:
+        out.append(tail)
+    return out
+
+
+def _open_quote_at(text):
+    """Index of an unclosed quotation mark, or -1. Uses normalized quotes."""
+    norm = normalize(text)
+    open_at = -1
+    for i, ch in enumerate(norm):
+        if ch == '"':
+            open_at = -1 if open_at >= 0 else i
+    return open_at
+
+
+def _quote_safe_chunk(sentences, limit):
+    """Join sentences up to `limit` words without cutting inside a quotation.
+
+    If the cap falls inside an open quote, keep taking sentences through the
+    closing quote. If a new quote will not close and would blow the cap,
+    end the chunk before that quote begins.
+    """
+    sentences = [item for item in (sentences or []) if (item or '').strip()]
+    if not sentences:
+        return '', []
+    kept = []
+    count = 0
+    for index, sentence in enumerate(sentences):
+        words = len(_words(sentence))
+        trial = kept + [sentence]
+        trial_text = ' '.join(trial).strip()
+        over = bool(kept) and (count + words > limit)
+        mid_quote = _open_quote_at(' '.join(kept).strip()) >= 0 if kept else False
+        if over and not mid_quote:
+            # Do not start a quote that will not close within a reasonable span.
+            break
+        kept.append(sentence)
+        count += words
+        closed = _open_quote_at(' '.join(kept).strip()) < 0
+        if count >= limit and closed:
+            break
+        if mid_quote or _open_quote_at(trial_text) >= 0:
+            # Keep extending until the quote closes or the text ends.
+            continue
+    chunk = ' '.join(kept).strip()
+    if _open_quote_at(chunk) >= 0 and kept:
+        # Unclosed through the rest: keep the whole remaining quote so we
+        # do not speak a half line, unless the open quote started in this
+        # chunk after earlier complete sentences — then end before it.
+        open_at = _open_quote_at(chunk)
+        if open_at > 0 and len(kept) > 1:
+            # Drop trailing sentences from the first that opened the quote.
+            trimmed = []
+            for sentence in kept:
+                trial = ' '.join(trimmed + [sentence]).strip()
+                if trimmed and _open_quote_at(trial) >= 0 and _open_quote_at(' '.join(trimmed).strip()) < 0:
+                    break
+                trimmed.append(sentence)
+            if trimmed and _open_quote_at(' '.join(trimmed).strip()) < 0:
+                rest = sentences[len(trimmed):]
+                return ' '.join(trimmed).strip(), rest
+        # Quote started this chunk and never closed: speak through the end.
+        return ' '.join(sentences).strip(), []
+    return chunk, sentences[len(kept):]
+
+
+def _close_or_trim(chunk, rest):
+    """Never leave `chunk` inside an open quotation.
+
+    Extend through the closing quote in `rest`, or end the chunk before
+    the quote begins and leave that quote on `rest`.
+    """
+    chunk = (chunk or '').strip()
+    rest = (rest or '').strip()
+    if not chunk or _open_quote_at(chunk) < 0:
+        return chunk, rest
+    if rest:
+        # The first quotation mark in rest closes the open quote.
+        idx = normalize(rest).find('"')
+        # Work on the raw rest: find the first " after normalizing is awkward
+        # because offsets can shift. Search the raw string for quote marks.
+        raw_idx = -1
+        for src in ('"', '“', '”', '‘', '’'):
+            pos = rest.find(src)
+            if pos >= 0 and (raw_idx < 0 or pos < raw_idx):
+                raw_idx = pos
+        if raw_idx >= 0:
+            end = raw_idx + 1
+            while end < len(rest) and rest[end] in '.!?"\')]}':
+                end += 1
+            extended = (chunk + ' ' + rest[:end]).strip()
+            leftover = rest[end:].strip()
+            if _open_quote_at(extended) < 0:
+                return extended, leftover
+            return _close_or_trim(extended, leftover)
+        # No closer in rest: the quote runs to the end of the available text.
+        return (chunk + ' ' + rest).strip(), ''
+    open_at = _open_quote_at(chunk)
+    if open_at > 0:
+        before = chunk[:open_at].strip()
+        after = chunk[open_at:].strip()
+        if before:
+            return before, after
+    return chunk, rest
 
 
 def column_streams(page_text):
@@ -753,7 +894,8 @@ def _split_burst(quote, burst):
     cut = ends[start + span - 1]
     while cut < len(norm) and norm[cut] in '.!?"\')]}':
         cut += 1
-    return norm[begin:cut].strip(), norm[cut:].strip()
+    spoken, leftover = _close_or_trim(norm[begin:cut].strip(), norm[cut:].strip())
+    return spoken, leftover
 
 
 def _handoff(text, name):
@@ -900,27 +1042,20 @@ def _read_on(text, limit):
     """(chunk, rest, stopped). The first line that fails the gate ends the read.
 
     Later player lines after that failure are not spoken. Skipping them was how
-    a prep note and the header after it still reached the table.
+    a prep note and the header after it still reached the table. A cut never
+    falls inside an open quotation.
     """
     sentences = _sentences(text)
     if not sentences and normalize(text):
         sentences = [normalize(text)]
-    kept = []
-    count = 0
-    index = 0
-    while index < len(sentences):
-        sentence = sentences[index]
+    usable = []
+    for index, sentence in enumerate(sentences):
         if _go_fail(sentence) or not _scene_line(sentence):
-            return ' '.join(kept).strip(), '', True
-        words = len(_words(sentence))
-        if kept and count + words > limit:
-            break
-        kept.append(sentence)
-        count += words
-        index += 1
-        if count >= limit:
-            break
-    return ' '.join(kept).strip(), ' '.join(sentences[index:]).strip(), False
+            chunk, _rest = _quote_safe_chunk(usable, limit)
+            return chunk, '', True
+        usable.append(sentence)
+    chunk, rest_list = _quote_safe_chunk(usable, limit)
+    return chunk, ' '.join(rest_list).strip(), False
 
 
 def _take(text, limit):
@@ -931,19 +1066,7 @@ def _take(text, limit):
     sentences = _player_sentences(text)
     if not sentences:
         return '', ''
-    chunk = []
-    count = 0
-    for sentence in sentences:
-        words = len(_words(sentence))
-        if chunk and count + words > limit:
-            break
-        chunk.append(sentence)
-        count += words
-        if count >= limit:
-            break
-    used = ' '.join(chunk).strip()
-    # Drop the used sentences and any DM notes in front of what remains.
-    rest_sentences = sentences[len(chunk):]
+    used, rest_sentences = _quote_safe_chunk(sentences, limit)
     return used, ' '.join(rest_sentences).strip()
 
 
@@ -2020,6 +2143,15 @@ def attested_burst(section, columns, fallback=''):
             candidate = ' '.join(kept).strip()
         if not candidate:
             return ''
+        # A word cap must not leave the burst inside an open quotation.
+        remainder_src = piece if piece.startswith(candidate) else (section or piece or '')
+        after = ''
+        if remainder_src:
+            spoken, after = _split_burst(remainder_src, candidate)
+            if spoken:
+                candidate = spoken
+        if not candidate:
+            return ''
         if not (_has_burst(section or '', candidate) or _contiguous(candidate, section or '')
                 or any(_has_burst(item.get('text') or '', candidate) or _contiguous(candidate, item.get('text') or '')
                        for item in (columns or []) if isinstance(item, dict))):
@@ -3041,16 +3173,35 @@ def _release_beat(runtime, data, revision):
             heard = max(heard, int(cursor.get('heard', 0)))
     if heard == 0 and data.get('burst_spoken'):
         heard = len([sentence for sentence in _sentences(data.get('burst') or '') if player_line(sentence)])
-    chunk_lines = []
-    count = 0
-    for sentence in lines[heard:]:
-        words = len(_words(sentence))
-        if chunk_lines and count + words > BURST_WORDS:
-            break
-        chunk_lines.append(sentence)
-        count += words
-        if count >= BURST_WORDS:
-            break
+    chunk_text, rest_lines = _quote_safe_chunk(lines[heard:], BURST_WORDS)
+    chunk_lines = _sentences(chunk_text) if chunk_text else []
+    # Prefer the original line objects so the cursor stays aligned with fiction.
+    if chunk_text:
+        used = 0
+        rebuilt = []
+        consumed = chunk_text
+        for sentence in lines[heard:]:
+            plain = normalize(sentence)
+            if not plain:
+                continue
+            if normalize(consumed).startswith(plain) or plain.startswith(normalize(consumed)):
+                rebuilt.append(sentence)
+                used += 1
+                # Nibble the used sentence off the consumed text.
+                if normalize(consumed).startswith(plain):
+                    consumed = normalize(consumed)[len(plain):].strip()
+                else:
+                    consumed = ''
+                if not consumed:
+                    break
+            else:
+                break
+        if rebuilt:
+            chunk_lines = rebuilt
+        rest_lines = lines[heard + len(chunk_lines):]
+    else:
+        chunk_lines = []
+        rest_lines = list(lines[heard:])
     beat['heard'] = heard + len(chunk_lines)
     observed = beat.setdefault('observed', {'heard': [], 'seen': [], 'find': ''})
     heard_lines = observed.setdefault('heard', [])
@@ -3126,21 +3277,21 @@ def lookup_beat(runtime, action):
         return None
     if not _path(path).is_file() and not ( _read(path) ):
         return None
-    spoken = 'Kit: Give me a second, checking the page.'
-    tags = ['lookup']
-    public = 'Checking the page.'
-    link_info = None
+    # A hop still answers immediately from attested text. When no hop
+    # matches, do not stall: fall through so the host can answer from the
+    # section or from what the character would know.
     try:
         from . import kit_links
         data = _read(path)
         hit = kit_links.answer(path, action, data.get('scene_key') or data.get('design_start_name'))
-        if hit and hit.get('spoken'):
-            spoken = hit['spoken']
-            tags = ['lookup', 'linked']
-            public = 'Checking a linked entry.'
-            link_info = hit.get('link')
     except Exception:
         hit = None
+    if not (hit and hit.get('spoken')):
+        return None
+    spoken = hit['spoken']
+    tags = ['lookup', 'linked']
+    public = 'Checking a linked entry.'
+    link_info = hit.get('link')
     events = [{'type': 'beat', 'tags': tags,
                'evidence': 'The player asked for the page. Nothing in the fiction changed.'}]
     committed = runtime.commit('look-%s' % revision, revision, events)

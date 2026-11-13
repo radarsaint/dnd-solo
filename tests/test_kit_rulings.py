@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 NIK = ROOT / 'tests/fixtures/characters/nik.json'
 from runtime import kit_adventure, kit_links, kit_prefetch, kit_rulings, kit_skim
 from runtime.kit_agent import KitChatBridge, RoomAdjudicator, start_session
-from runtime.state_context import Runtime
+from runtime.state_context import InvalidChange, Runtime
 from test_kit_agent import RecordingModel
 from test_kit_scene_contract_gpt import SHEET
 from runtime import kit_perform, kit_opening, kit_scene_contract
@@ -280,8 +280,9 @@ class JunkRulingsAreDropped(unittest.TestCase):
         self.assertIn('wet satchel', hit.get('quote') or '')
 
 
+
 class SourceVerifiedLookAndVoice(unittest.TestCase):
-    """A visible officer, no ambush: Look describes the scene; Talk is in character."""
+    """Look and Talk hand the host facts; the host writes the line."""
 
     intro = 'Captain Mara stands in the road and hails the caravan.'
     orders = 'Captain Mara has orders to hold the road until the wagons pass.'
@@ -319,140 +320,215 @@ class SourceVerifiedLookAndVoice(unittest.TestCase):
         opening = self.bridge.prepare('Yes.')
         self.assertIn(self.intro, opening.get('spoken') or '')
 
-    def test_look_with_nothing_to_roll_describes_what_is_visible(self):
-        looked = self.bridge.prepare('I look around carefully.', one_pass=True)
+    def test_look_with_nothing_to_roll_hands_facts_and_the_host_describes(self):
+        prepared = self.bridge.prepare('I look around carefully.', one_pass=True)
+        self.assertNotEqual(prepared.get('stage'), 'called_roll', prepared)
+        self.assertFalse(prepared.get('committed'), prepared)
+        self.assertEqual(prepared.get('stage'), 'one_pass', prepared)
+        facts = prepared.get('host_facts') or {}
+        self.assertEqual(facts.get('kind'), 'look', facts)
+        visible = ' '.join(facts.get('visible') or [])
+        self.assertIn('stands in the road', visible)
+        self.assertTrue(any(person.get('name') == 'Captain Mara' for person in facts.get('people') or []), facts)
+        # Python must not have spoken a chopped description already.
+        self.assertFalse((prepared.get('spoken') or '').strip())
+        looked = self._complete_look(
+            prepared,
+            'Captain Mara is in the road, hailing the caravan as you take in the stretch ahead.',
+        )
         spoken = looked.get('spoken') or ''
-        self.assertTrue(looked.get('committed'), looked)
-        self.assertNotEqual(looked.get('stage'), 'called_roll', looked)
-        self.assertIn('Captain Mara stands in the road', spoken)
+        self.assertNotEqual(looked.get('stage'), 'rejected', looked)
+        self.assertNotIn(looked.get('stage'), ('rejected', 'one_pass'), looked)
+        self.assertIn('hailing the caravan', (looked.get('spoken') or '').casefold())
+        self.assertIn('hailing the caravan', spoken.casefold())
         self.assertNotIn('Roll Perception', spoken)
         self.assertNotRegex(spoken, r'\bDC\s*\d+\b')
         low = spoken.casefold()
         for banned in ('this beat', 'the beat stays', 'off-stage', 'invent', 'off the page'):
             self.assertNotIn(banned, low)
-        # After the opening, this look is the prepared next move.
-        self.assertTrue(looked.get('served_from_prefetch'), looked)
 
-    def test_instruction_flavored_npc_line_is_replaced_with_a_sourced_reply(self):
-        line = 'I ask Captain Mara what we should do next.'
-        prepared = self.bridge.prepare(line, one_pass=True)
+    def test_a_look_that_invents_an_unattested_name_is_rejected(self):
+        prepared = self.bridge.prepare('I look around carefully.', one_pass=True)
         self.assertEqual(prepared.get('stage'), 'one_pass', prepared)
+        with self.assertRaises(InvalidChange) as raised:
+            self._complete_look(
+                prepared,
+                'The wizard Thalric stands over a gilded basilisk in the ditch.',
+            )
+        self.assertIn('unattested', str(raised.exception).casefold())
+
+    def test_instruction_flavored_npc_line_is_rejected_not_rewritten(self):
+        prepared = self.bridge.prepare('I ask Captain Mara what we should do next.', one_pass=True)
+        self.assertEqual(prepared.get('stage'), 'one_pass', prepared)
+        facts = prepared.get('host_facts') or {}
+        self.assertEqual(facts.get('kind'), 'npc_reply', facts)
+        people = facts.get('people') or []
+        self.assertTrue(any('hold the road' in (person.get('goal') or '').casefold() for person in people), facts)
+        with self.assertRaises(InvalidChange) as raised:
+            self._talk_complete(
+                prepared,
+                'I am not leaving this beat, and I am not bringing anyone else into it.',
+            )
+        message = str(raised.exception).casefold()
+        self.assertTrue('instruction' in message or 'beat' in message, raised.exception)
+
+    def test_the_host_writes_an_in_character_reply_from_the_facts(self):
+        line = self._talk(
+            'I ask Captain Mara what we should do next.',
+            'Hold the road with me until the wagons have passed. That is my charge.',
+        )
+        self.assertIn('hold the road', line.casefold())
+        self.assertIn('wagons', line.casefold())
+        self.assertFalse(kit_perform.instruction_vocab(line))
+        self.assertNotRegex(line, r'\bDC\s*\d+\b')
+
+    def test_two_different_questions_keep_the_hosts_different_replies(self):
+        first = self._talk(
+            'I ask Captain Mara what we should do next.',
+            'Hold the road with me until the wagons have passed. That is my charge.',
+        )
+        second = self._talk(
+            'I ask Captain Mara who she is waiting for.',
+            'I am waiting on the wagons. They have not come through yet.',
+        )
+        self.assertNotEqual(kit_perform._norm(first), kit_perform._norm(second), (first, second))
+        self.assertIn('wagons', second.casefold())
+
+    def test_a_section_backed_lookup_does_not_stall(self):
+        prepared = self.bridge.prepare('Kit, what can you tell me about this road?', one_pass=True)
+        spoken = (prepared.get('spoken') or '').casefold()
+        self.assertNotIn('checking the page', spoken)
+        self.assertNotIn('give me a second', spoken)
+        facts = prepared.get('host_facts') or {}
+        # Either the host will complete from facts, or a hop already answered.
+        if prepared.get('committed') and prepared.get('stage') == 'lookup':
+            self.assertNotIn('checking the page', spoken)
+            return
+        self.assertEqual(prepared.get('stage'), 'one_pass', prepared)
+        self.assertEqual(facts.get('kind'), 'lookup', facts)
+        corpus = ' '.join((facts.get('section') or []) + (facts.get('visible') or [])).casefold()
+        self.assertTrue('road' in corpus or 'caravan' in corpus or 'mara' in corpus, facts)
+        answered = self._complete_kit(
+            prepared,
+            'This is the north road, where Captain Mara stands to hail the caravan.',
+        )
+        out = (answered.get('spoken') or '').casefold()
+        self.assertNotEqual(answered.get('stage'), 'rejected', answered)
+        self.assertNotIn(answered.get('stage'), ('rejected', 'one_pass'), answered)
+        self.assertIn('captain mara', out)
+        self.assertNotIn('checking the page', out)
+
+    def _complete_look(self, prepared, description):
         plan = RecordingModel().plan(prepared['input']['private'])
-        plan.update(move='npc_reply', focus_actor='captain_mara', table_presence='brief')
-        plan['improv_read'].update(actor_ref='captain_mara', actor_basis='immediate_goal')
-        plan['public_brief'].update(reply_to=line, scope='exchange')
-        answered = self.bridge.complete(prepared['turn_id'], {
+        plan.update(move='world_description', focus_actor='none', table_presence='brief')
+        plan['improv_read'].update(actor_ref='none', actor_basis='none')
+        plan['public_brief'].update(reply_to='I look around carefully.', scope='feature')
+        return self.bridge.complete(prepared['turn_id'], {
             'decision': plan,
             'performance': {'segments': [
-                {'speaker': 'Narrator',
-                 'text': 'Captain Mara keeps her post in the road and answers you.',
-                 'reacts_to': 'none'},
-                {'speaker': 'Captain Mara',
-                 'text': 'I am not leaving this beat, and I am not bringing anyone else into it.',
-                 'reacts_to': 'none'},
-                {'speaker': 'Kit',
-                 'text': 'What do you say back?',
-                 'reacts_to': 'ask Captain Mara what'},
+                {'speaker': 'Narrator', 'text': description, 'reacts_to': 'none'},
+                {'speaker': 'Kit', 'text': 'What do you do?', 'reacts_to': 'look around carefully'},
             ]},
         })
-        spoken = answered.get('spoken') or ''
-        self.assertNotEqual(answered.get('stage'), 'rejected', answered)
-        self.assertIn('Captain Mara:', spoken)
-        officer = [part.split(':', 1)[1].strip()
-                   for part in spoken.splitlines() if part.startswith('Captain Mara:')]
-        self.assertTrue(officer, spoken)
-        body = officer[0].casefold()
-        self.assertNotIn('this beat', body)
-        self.assertNotIn('invent', body)
-        self.assertNotIn('off-stage', body)
-        self.assertIn('hold the road', body)
-        self.assertNotRegex(spoken, r'\bDC\s*\d+\b')
 
-    def test_two_different_questions_get_different_replies(self):
-        first = self._talk('I ask Captain Mara what we should do next.',
-                           'I am not leaving this beat, and I am not bringing anyone else into it.')
-        second_prep = self.bridge.prepare('I ask Captain Mara who she is waiting for.', one_pass=True)
-        self.assertEqual(second_prep.get('stage'), 'one_pass', second_prep)
-        plan = RecordingModel().plan(second_prep['input']['private'])
-        plan.update(move='npc_reply', focus_actor='captain_mara', table_presence='brief')
-        plan['improv_read'].update(actor_ref='captain_mara', actor_basis='immediate_goal')
-        plan['public_brief'].update(reply_to='I ask Captain Mara who she is waiting for.',
-                                    scope='exchange')
-        # Same canned officer line the host might reuse. Narration around it is new.
-        answered = self.bridge.complete(second_prep['turn_id'], {
+    def _complete_kit(self, prepared, line):
+        plan = RecordingModel().plan(prepared['input']['private'])
+        plan.update(move='ruling', focus_actor='none', table_presence='present', turn_mode='meta')
+        plan['improv_read'].update(actor_ref='none', actor_basis='none')
+        plan['public_brief'].update(reply_to='what can you tell me about this road', scope='call')
+        return self.bridge.complete(prepared['turn_id'], {
             'decision': plan,
             'performance': {'segments': [
-                {'speaker': 'Narrator',
-                 'text': 'She considers the question and answers from her post.',
-                 'reacts_to': 'none'},
-                {'speaker': 'Captain Mara',
-                 'text': 'I am not leaving this beat, and I am not bringing anyone else into it.',
-                 'reacts_to': 'none'},
                 {'speaker': 'Kit',
-                 'text': 'What do you say back?',
-                 'reacts_to': 'ask Captain Mara who'},
+                 'text': line,
+                 'reacts_to': 'what can you tell me'},
             ]},
         })
-        spoken = answered.get('spoken') or ''
-        self.assertNotEqual(answered.get('stage'), 'rejected', answered)
-        second = [part.split(':', 1)[1].strip()
-                  for part in spoken.splitlines() if part.startswith('Captain Mara:')]
-        self.assertTrue(second, spoken)
-        self.assertNotEqual(kit_perform._norm(first), kit_perform._norm(second[0]), (first, second[0]))
-        self.assertNotIn('this beat', second[0].casefold())
 
-    def _talk(self, action, canned):
-        prepared = self.bridge.prepare(action, one_pass=True)
-        self.assertEqual(prepared.get('stage'), 'one_pass', prepared)
+    def _talk_complete(self, prepared, canned, action=None):
+        action = action or 'I ask Captain Mara what we should do next.'
         plan = RecordingModel().plan(prepared['input']['private'])
         plan.update(move='npc_reply', focus_actor='captain_mara', table_presence='brief')
         plan['improv_read'].update(actor_ref='captain_mara', actor_basis='immediate_goal')
         plan['public_brief'].update(reply_to=action, scope='exchange')
-        answered = self.bridge.complete(prepared['turn_id'], {
+        return self.bridge.complete(prepared['turn_id'], {
             'decision': plan,
             'performance': {'segments': [
                 {'speaker': 'Narrator',
-                 'text': 'Captain Mara keeps her post in the road and answers you.',
+                 'text': (
+                     'She stays on the road and gives you a straight answer.'
+                     if 'should do next' in action
+                     else 'She glances down the expected line of wagons, then speaks.'
+                 ),
                  'reacts_to': 'none'},
                 {'speaker': 'Captain Mara', 'text': canned, 'reacts_to': 'none'},
                 {'speaker': 'Kit', 'text': 'What do you say back?',
                  'reacts_to': ' '.join(action.split()[:5])},
             ]},
         })
+
+    def _talk(self, action, line):
+        prepared = self.bridge.prepare(action, one_pass=True)
+        self.assertEqual(prepared.get('stage'), 'one_pass', prepared)
+        answered = self._talk_complete(prepared, line, action=action)
         spoken = answered.get('spoken') or ''
         self.assertNotEqual(answered.get('stage'), 'rejected', answered)
         officer = [part.split(':', 1)[1].strip()
                    for part in spoken.splitlines() if part.startswith('Captain Mara:')]
         self.assertTrue(officer, spoken)
+        self.assertEqual(kit_perform._norm(officer[0]), kit_perform._norm(line))
         return officer[0]
 
 
 class PerformHelpers(unittest.TestCase):
-    def test_instruction_vocab_is_detected_and_not_spoken(self):
+    def test_instruction_vocab_is_detected(self):
         self.assertTrue(kit_perform.instruction_vocab(
             'I am not leaving this beat, and I am not bringing anyone else into it.'))
         self.assertFalse(kit_perform.instruction_vocab(
             'I have orders to hold the road until the wagons pass.'))
 
-    def test_a_goal_quote_becomes_a_first_person_line(self):
+    def test_host_facts_list_the_goal_and_visible_state(self):
         person = {
             'id': 'captain_mara', 'name': 'Captain Mara',
-            'goal': 'Captain Mara has orders to hold the road until the wagons pass.',
-            'knowledge_evidence': [],
+            'quote': 'Captain Mara stands in the road and hails the caravan.',
+            'goal': {'quote': 'Captain Mara has orders to hold the road until the wagons pass.',
+                     'status': 'established'},
+            'knowledge': [],
+            'addressable': True,
         }
-        line = kit_perform.npc_answer(person, 'I ask what we should do next.')
-        self.assertIn('hold the road', line.casefold())
-        self.assertFalse(kit_perform.instruction_vocab(line))
-        self.assertTrue(line.startswith('I '))
+        facts = kit_perform._person_facts(person, index=None)
+        self.assertIn('hold the road', facts['goal'].casefold())
+        self.assertIn('stands in the road', facts['visible_state'].casefold())
+        self.assertEqual(facts['name'], 'Captain Mara')
 
-    def test_empty_book_facts_still_hand_the_turn_back_with_a_varied_line(self):
-        person = {'id': 'guard', 'name': 'Guard', 'goal': '', 'knowledge_evidence': []}
-        first = kit_perform.npc_answer(person, 'I ask what is going on.')
-        second = kit_perform.npc_answer(person, 'Who are you waiting for?', prior=[first])
-        self.assertTrue(first and second)
-        self.assertNotEqual(kit_perform._norm(first), kit_perform._norm(second))
-        self.assertFalse(kit_perform.instruction_vocab(first))
-        self.assertFalse(kit_perform.instruction_vocab(second))
+    def test_an_unattested_name_is_a_problem_and_a_paraphrase_is_not(self):
+        facts = {
+            'kind': 'npc_reply',
+            'visible': ['Captain Mara stands in the road and hails the caravan.'],
+            'people': [{
+                'id': 'captain_mara', 'name': 'Captain Mara',
+                'goal': 'Captain Mara has orders to hold the road until the wagons pass.',
+                'knowledge': [], 'visible_state': 'Captain Mara stands in the road and hails the caravan.',
+                'addressable': True, 'link_notes': [],
+            }],
+            'link_notes': [],
+        }
+        beat = {'source_verified': True, 'people': [{'id': 'captain_mara', 'name': 'Captain Mara',
+                                                     'addressable': True}]}
+        good = {'segments': [
+            {'speaker': 'Captain Mara',
+             'text': 'Hold the road with me until the wagons have passed.',
+             'reacts_to': 'none'},
+        ]}
+        self.assertEqual(kit_perform.performance_problems(good, facts, beat=beat, action='I ask.'), [])
+        bad = {'segments': [
+            {'speaker': 'Captain Mara',
+             'text': 'The wizard Thalric told me fifty wolves wait in the hills.',
+             'reacts_to': 'none'},
+        ]}
+        problems = kit_perform.performance_problems(bad, facts, beat=beat, action='I ask.')
+        self.assertTrue(any('unattested' in item for item in problems), problems)
+
 
 
 if __name__ == '__main__':

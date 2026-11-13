@@ -1059,21 +1059,8 @@ def _visible_look_line(beat, data=None):
 
 
 def _repair_npc_body(beat, speaker, body):
-    """An NPC line may not carry Kit's instruction vocabulary or a repeated canned line."""
-    from . import kit_perform
-    if not kit_perform.instruction_vocab(body or '') and body:
-        # Still refuse an exact prior repeat of a canned line.
-        person = _person_named(beat, speaker)
-        prior = ((beat or {}).get('replies') or {}).get((person or {}).get('id') or speaker) or []
-        if not prior or not any(kit_perform._norm(body) == kit_perform._norm(item) for item in prior):
-            return body
-    person = _person_named(beat, speaker)
-    if not person:
-        if kit_perform.instruction_vocab(body or ''):
-            return kit_perform._unused_generic([])
-        return body
-    prior = ((beat or {}).get('replies') or {}).get(person.get('id') or speaker) or []
-    return kit_perform.repair_npc_text(body, person, '', beat=beat, prior=prior)
+    """Do not rewrite NPC speech. Instruction vocabulary is rejected later."""
+    return body
 
 
 def _person_named(beat, speaker):
@@ -1091,54 +1078,10 @@ def _person_named(beat, speaker):
 
 
 def sourced_play(runtime, action):
-    """Look with nothing to roll, performed from the scene's visible text.
+    """Source-verified Look and Talk are host-performed from host_facts.
 
-    Source-verified openings skip the legacy opening_turn path, so a look
-    that is not a notice check must still describe what the player can see.
-    Talk stays on the host complete path, with instruction-vocab repair.
+    Python does not commit a Look description or recast book sentences
+    into speech. Returning None leaves the turn on the host complete path.
     """
-    data, beat = _load(runtime)
-    if not beat or (data or {}).get('status') != 'accepted':
-        return None
-    if not beat.get('source_verified'):
-        return None
-    text = str(action or '')
-    if not text.strip():
-        return None
-    notice = beat.get('notice') or {}
-    if notice.get('pending'):
-        return None
-    if _SNEAK.search(text) or _LEAVE.search(text):
-        return None
-    talking = bool(_TALK.search(text) or _named(beat, text))
-    if not _LOOK.search(text) or talking:
-        return None
-    threats = [person for person in beat.get('people') or []
-               if person.get('hidden') and not person.get('revealed') and not person.get('staged')]
-    if (notice.get('holds') and not notice.get('resolved')) or threats:
-        return None
-    stash = (data or {}).get('next_move_prep') or {}
-    served = False
-    desc = ''
-    if stash.get('look_line'):
-        desc = stash.get('look_line')
-        served = True
-    if not desc:
-        from . import kit_perform
-        desc = kit_perform.visible_description(beat, (data or {}).get('burst'))
-    if not desc:
-        return None
-    if not desc.endswith(('.', '!', '?')):
-        desc = desc + '.'
-    spoken = 'Kit: %s What do you do?' % desc
-    spoken = guard_spoken(beat, spoken)
-    _mark_heard(beat, [desc])
-    data['beat'] = beat
-    _save(runtime, data)
-    out = _commit(runtime, 'look', [{
-        'type': 'beat', 'tags': ['observe'],
-        'evidence': 'A look at what is already visible. No notice roll is owed.',
-    }], spoken, desc)
-    if served:
-        out['served_from_prefetch'] = True
-    return out
+    return None
+

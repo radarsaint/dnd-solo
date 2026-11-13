@@ -53,17 +53,10 @@ def prepare_next(db, scene_key=None, beat=None):
             'trigger_kind': ruling.get('trigger_kind') or '',
             'has_mechanics': bool(ruling.get('has_mechanics')),
         })
-    look_line = ''
-    try:
-        from . import kit_perform, kit_skim
-        burst = ''
-        try:
-            burst = (kit_skim._read(db).get('burst') or '') if db else ''
-        except Exception:
-            burst = ''
-        look_line = kit_perform.visible_description(beat, burst)
-    except Exception:
-        look_line = ''
+    fiction_n = 0
+    for item in (beat or {}).get('fiction') or []:
+        if item:
+            fiction_n += 1
     return {
         'ready': True,
         'area_key': key,
@@ -75,8 +68,7 @@ def prepare_next(db, scene_key=None, beat=None):
         'obvious': look_talk_check,
         'rulings': ruling_hits,
         'ruling_records': records,
-        'look_ready': bool(look_line),
-        'look_line': look_line,
+        'look_ready': bool(fiction_n or visible),
         'talk_ready': sorted(visible),
     }
 

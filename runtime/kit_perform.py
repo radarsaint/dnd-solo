@@ -1,8 +1,10 @@
-"""Source-grounded Look descriptions and in-character NPC replies.
+"""Facts the host needs to write Look and NPC lines, and checks on what it wrote.
 
-Python assembles these from the validated scene form and any link-web
-NPC notes. Book facts in a line must already be quoted in that
-material. Kit's instruction vocabulary never appears in an NPC's mouth.
+Python does not recast book sentences into speech or glue fiction
+fragments into a description. The packet hands the host source-quoted
+facts; the host writes in its own words. Python only checks that
+claimed book facts are attested, that no DC or bonus shows, that
+instruction vocabulary is absent, and that the speaker is present.
 """
 import re
 
@@ -16,24 +18,21 @@ _INSTRUCTION = re.compile(
     r"source span|scene form|do not invent)\b"
 )
 
+_DC_OR_BONUS = re.compile(
+    r"(?i)\bDC\s*\d+\b|\bdifficulty class\b|\b[+-]\s*\d+\s*"
+    r"(?:bonus|penalty|to hit|to the (?:roll|check|save))\b"
+)
+
 _HOWTO = kit_opening._FRONT
 
-# Closed first-person tissue used to turn a third-person quote into speech.
-_TISSUE = frozenset("""
-    i i'm i've i'd i'll me my mine myself we we're we've our you your
-    am is are was were be been being have has had do does did will would
-    can could shall should may might must to of the a an and or but if
-    in on at for with from that this it its as not no yes here there
-    what who whom whose which when where why how about just still now
-    then well so all any some that that's that's
-    have has
+# Words that may appear capitalized without being a book name.
+_COMMON_NAMES = frozenset("""
+    i you your yours we they them their the a an and or but if so then
+    now here there this that these those what who whom whose which when
+    where why how kit narrator dm dungeon master captain sergeant sir
+    madam miss mister lady lord yes no well just still all any some
+    none one two three four five six he she it his her its our
 """.split())
-
-_GENERIC = (
-    "I'm right here. Say what you need.",
-    "You've got my attention. What's this about?",
-    "I can hear you. Make it plain.",
-)
 
 
 def instruction_vocab(text):
@@ -41,92 +40,17 @@ def instruction_vocab(text):
     return bool(_INSTRUCTION.search(text or ''))
 
 
-def visible_description(beat, burst=None):
-    """What is already visible, from the scene's player-facing fiction.
-
-    How-to-play lines, DM notes, and examples are left out. Hidden or
-    still-staged people are not described.
-    """
-    sentences = [re.sub(r'\s+', ' ', str(item)).strip()
-                 for item in (beat or {}).get('fiction') or [] if str(item).strip()]
-    if not sentences and burst:
-        from . import kit_skim
-        sentences = [re.sub(r'\s+', ' ', item).strip()
-                     for item in kit_skim._sentences(burst) if item]
-    kept = []
-    hidden_names = [person.get('name') for person in (beat or {}).get('people') or []
-                    if person.get('name') and person.get('hidden') and not person.get('revealed')]
-    for sentence in sentences:
-        if not sentence or _HOWTO.search(sentence) or not kit_opening.player_line(sentence):
-            continue
-        if any(re.search(r'\b%s\b' % re.escape(name), sentence, re.I) for name in hidden_names):
-            continue
-        if sentence not in kept:
-            kept.append(sentence)
-    if kept:
-        return ' '.join(kept)
-    fallback = kit_opening.look_line(beat)
-    return fallback
+def shows_dc_or_bonus(text):
+    """True when a DC or a numeric bonus/penalty is spoken."""
+    return bool(_DC_OR_BONUS.search(text or ''))
 
 
-def look_spoken(beat, burst=None):
-    """Kit speaks the visible description and hands the turn back."""
-    description = visible_description(beat, burst)
-    if not description.endswith(('.', '!', '?')):
-        description = description + '.'
-    return 'Kit: %s What do you do?' % description
+def _norm(text):
+    return re.sub(r'[^a-z0-9]+', ' ', (text or '').casefold()).strip()
 
 
-def npc_answer(person, action, beat=None, prior=None, notes=None):
-    """An in-character line from what the book says this person knows or wants.
-
-    When the book gives no established fact, the line is short, plausible,
-    and consistent with their stated goal. Identical repeats are refused.
-    """
-    sources = fact_sources(person, notes)
-    prior = [re.sub(r'\s+', ' ', str(item)).strip() for item in (prior or []) if item]
-    line = _from_sources(sources, action)
-    if not line:
-        line = _generic_line(action, _goal_text(person), prior)
-    if instruction_vocab(line):
-        line = _generic_line(action, '', prior)
-    line = _avoid_repeat(line, action, sources, prior)
-    if instruction_vocab(line):
-        line = _unused_generic(prior)
-    return line
-
-
-def talk_spoken(person, action, beat=None, prior=None, notes=None):
-    """Named speaker line, then a short Kit handoff."""
-    name = (person or {}).get('name') or 'They'
-    line = npc_answer(person, action, beat=beat, prior=prior, notes=notes)
-    return '%s: %s\nKit: What do you say back?' % (name, line)
-
-
-def fact_sources(person, notes=None):
-    """Established quotes this person may speak from."""
-    found = []
-    goal = _goal_text(person)
-    if goal:
-        found.append(goal)
-    for item in (person or {}).get('knowledge_evidence') or []:
-        quote = item.get('quote') if isinstance(item, dict) else item
-        if quote and str(quote).strip():
-            found.append(re.sub(r'\s+', ' ', str(quote)).strip())
-    for note in notes or []:
-        text = note.get('quote') if isinstance(note, dict) else note
-        if text and str(text).strip():
-            found.append(re.sub(r'\s+', ' ', str(text)).strip())
-    return found
-
-
-def repair_npc_text(text, person, action, beat=None, prior=None, notes=None):
-    """Replace an instruction-flavored or empty NPC line with a sourced one."""
-    body = text or ''
-    if (not body.strip() or instruction_vocab(body)
-            or _same_as_prior(body, prior)):
-        return npc_answer(person, action, beat=beat, prior=prior, notes=notes)
-    return body
+def _plain(text):
+    return re.sub(r'\s+', ' ', str(text or '')).strip()
 
 
 def _goal_text(person):
@@ -135,8 +59,7 @@ def _goal_text(person):
         if goal.get('status') and goal.get('status') != 'established':
             return ''
         goal = goal.get('quote') or ''
-    goal = re.sub(r'\s+', ' ', str(goal)).strip()
-    # A generic compiled default is not a book fact.
+    goal = _plain(goal)
     if goal.casefold() in (
             'answer whoever speaks to them here.',
             'they are in this scene.',
@@ -147,90 +70,38 @@ def _goal_text(person):
     return goal
 
 
-def _from_sources(sources, action):
-    if not sources:
-        return ''
-    terms = _terms(action)
-    ranked = sorted(sources, key=lambda quote: -len(_terms(quote) & terms))
-    quote = ranked[0]
-    return _in_character(quote)
+def _knowledge_quotes(person):
+    found = []
+    for item in (person or {}).get('knowledge') or (person or {}).get('knowledge_evidence') or []:
+        quote = item.get('quote') if isinstance(item, dict) else item
+        status = item.get('status') if isinstance(item, dict) else 'established'
+        if status and status != 'established':
+            continue
+        if quote and _plain(quote):
+            found.append(_plain(quote))
+    return found
 
 
-def _in_character(quote):
-    text = re.sub(r'\s+', ' ', quote or '').strip()
-    if not text:
-        return ''
-    # Drop a leading name so "Mara has orders to hold the road" becomes first person.
-    text = re.sub(
-        r"^(?:[A-Z][A-Za-z]+(?:\s+[A-Z][A-Za-z]+){0,3})\s+"
-        r"(?:has |have |had |wants? |wanted |is |are |was |were )",
-        '',
-        text, count=1)
-    text = re.sub(r"^(?:has orders to|have orders to|orders to|ordered to)\s+",
-                  'I have orders to ', text, flags=re.I)
-    text = re.sub(r"^(?:wants? to|wanted to)\s+", 'I mean to ', text, flags=re.I)
-    if not re.match(r"(?i)^i\b", text):
-        if re.match(r"(?i)^(?:to|hold|keep|watch|guard|stay|wait|answer)\b", text):
-            text = 'I ' + text[0].lower() + text[1:] if text else text
-        else:
-            text = 'I know this: ' + text[0].lower() + text[1:] if text else text
-    if text and text[0].islower():
-        text = text[0].upper() + text[1:]
-    if text and text[-1] not in '.!?':
-        text = text + '.'
-    if instruction_vocab(text):
-        return ''
-    return text
+def _visible_state(person):
+    for key in ('quote', 'visible', 'visible_state', 'appearance'):
+        value = (person or {}).get(key)
+        if isinstance(value, dict):
+            value = value.get('quote') or ''
+        if _plain(value):
+            return _plain(value)
+    return ''
 
 
-def _generic_line(action, goal, prior):
-    if goal:
-        line = _in_character(goal)
-        if line and not _same_as_prior(line, prior) and not instruction_vocab(line):
-            return line
-    return _unused_generic(prior, action)
-
-
-def _unused_generic(prior, action=None):
-    used = {_norm(item) for item in (prior or [])}
-    # Prefer a generic that shares a question word with the action, else the first unused.
-    terms = _terms(action)
-    ranked = list(_GENERIC)
-    if terms & {'who', 'name'}:
-        ranked = ["You've got my attention. What's this about?"] + ranked
-    elif terms & {'do', 'next', 'should', 'what'}:
-        ranked = ["I'm right here. Say what you need."] + ranked
-    for line in ranked:
-        if _norm(line) not in used:
-            return line
-    # Last resort: lean on a word from the question so the line is not identical.
-    hook = next(iter(terms), 'this')
-    return "I'm still here. Ask me plainly about %s." % hook
-
-
-def _avoid_repeat(line, action, sources, prior):
-    if not _same_as_prior(line, prior):
-        return line
-    for quote in sources[1:]:
-        alt = _in_character(quote)
-        if alt and not _same_as_prior(alt, prior) and not instruction_vocab(alt):
-            return alt
-    return _generic_line(action, '', prior)
-
-
-def _same_as_prior(line, prior):
-    key = _norm(line)
-    if not key:
+def _person_ready(person, kind):
+    """Whether this person belongs on a fact packet for this kind of turn."""
+    if not person or not person.get('name'):
         return False
-    return any(_norm(item) == key for item in (prior or []))
-
-
-def _norm(text):
-    return re.sub(r'[^a-z0-9]+', ' ', (text or '').casefold()).strip()
-
-
-def _terms(text):
-    return set(re.findall(r"[a-z][a-z']{2,}", (text or '').casefold()))
+    hidden = bool(person.get('hidden') and not person.get('revealed'))
+    if kind == 'look' and hidden:
+        return False
+    if hidden and not person.get('addressable') and not person.get('revealed'):
+        return False
+    return True
 
 
 def link_notes_for(index, person):
@@ -240,16 +111,326 @@ def link_notes_for(index, person):
     if not name:
         return []
     notes = []
-    key = None
-    if index:
-        key = kit_links.section_key(index, index.get('start'))
-        for link in kit_links.links_from(index, key):
-            subject = (link.get('subject') or '').strip()
-            kind = link.get('kind') or ''
-            if not subject:
-                continue
-            if subject.casefold() == name.casefold() or name.casefold() in subject.casefold():
-                if kind in ('npc', 'name', 'npc_note', 'pointer') or link.get('quote'):
-                    if link.get('quote'):
-                        notes.append(link.get('quote'))
+    if not index:
+        return notes
+    key = kit_links.section_key(index, index.get('start'))
+    for link in kit_links.links_from(index, key):
+        subject = (link.get('subject') or '').strip()
+        kind = link.get('kind') or ''
+        if not subject:
+            continue
+        if subject.casefold() == name.casefold() or name.casefold() in subject.casefold():
+            if kind in ('npc', 'name', 'npc_note', 'pointer') or link.get('quote'):
+                if link.get('quote'):
+                    notes.append(_plain(link.get('quote')))
     return notes
+
+
+def _section_player_quotes(db, scene_key=None, cap=80):
+    """Player-facing sentences from the current section, not screen notes."""
+    from .kit_adventure import _load
+    from . import kit_links, kit_skim
+    quotes = []
+    try:
+        index, text = _load(db)
+    except Exception:
+        return quotes
+    key = kit_links.section_key(index, scene_key or index.get('start'))
+    loc = (index.get('locations') or {}).get(key) or {}
+    span = kit_links._recorded_span(loc, len(text or ''))
+    if not span:
+        return quotes
+    body = text[span[0]:span[1]]
+    for sentence in kit_skim._sentences(body) or []:
+        if not sentence or len(sentence.split()) < 4:
+            continue
+        if _HOWTO.search(sentence) or not kit_opening.player_line(sentence):
+            continue
+        if kit_skim._blocks_quote(sentence) or kit_skim._unsafe(sentence):
+            continue
+        quotes.append(_plain(sentence))
+        if len(quotes) >= cap:
+            break
+    return quotes
+
+
+def _heard_quotes(beat, burst=None):
+    """What the player has already heard, plus visible fiction already marked heard."""
+    from . import kit_skim
+    seen = []
+
+    def add(sentence):
+        text = _plain(sentence)
+        if not text:
+            return
+        if _HOWTO.search(text) or not kit_opening.player_line(text):
+            return
+        if text not in seen:
+            seen.append(text)
+
+    observed = (beat or {}).get('observed') or {}
+    for item in observed.get('heard') or []:
+        add(item)
+    heard_n = int((beat or {}).get('heard') or 0)
+    fiction = list((beat or {}).get('fiction') or [])
+    if heard_n and fiction:
+        for item in fiction[:heard_n]:
+            add(item)
+    if not seen and burst:
+        for item in kit_skim._sentences(burst) or [burst]:
+            add(item)
+    if not seen:
+        for item in fiction:
+            add(item)
+    hidden_names = [person.get('name') for person in (beat or {}).get('people') or []
+                    if person.get('name') and person.get('hidden') and not person.get('revealed')]
+    if hidden_names:
+        kept = []
+        for sentence in seen:
+            if any(re.search(r'\b%s\b' % re.escape(name), sentence, re.I) for name in hidden_names):
+                continue
+            kept.append(sentence)
+        return kept
+    return seen
+
+
+def _person_facts(person, index=None):
+    goal = _goal_text(person)
+    knowledge = _knowledge_quotes(person)
+    visible = _visible_state(person)
+    notes = link_notes_for(index, person) if index is not None else []
+    return {
+        'id': person.get('id') or '',
+        'name': person.get('name') or '',
+        'goal': goal,
+        'knowledge': knowledge,
+        'visible_state': visible,
+        'addressable': bool(person.get('addressable') or person.get('revealed')
+                            or not person.get('hidden')),
+        'link_notes': notes,
+    }
+
+
+def host_facts_for(runtime, action=None, kind=None, hop=None):
+    """The fact packet for a Look, an NPC reply, or a section-backed lookup."""
+    data, beat = kit_opening._load(runtime)
+    if not beat:
+        return None
+    text = str(action or '')
+    if kind is None:
+        kind = infer_kind(beat, text)
+    if not kind:
+        return None
+    burst = (data or {}).get('burst') or ''
+    visible = _heard_quotes(beat, burst)
+    index = None
+    try:
+        from .kit_adventure import _load
+        index, _text = _load(runtime.path)
+    except Exception:
+        index = None
+    people = []
+    for person in beat.get('people') or []:
+        if not _person_ready(person, kind):
+            continue
+        people.append(_person_facts(person, index))
+    notes = []
+    for person in people:
+        for note in person.get('link_notes') or []:
+            if note not in notes:
+                notes.append(note)
+    packet = {
+        'kind': kind,
+        'visible': visible,
+        'people': people,
+        'link_notes': notes,
+    }
+    if kind == 'lookup':
+        scene_key = (data or {}).get('scene_key') or (data or {}).get('design_start_name')
+        section = _section_player_quotes(runtime.path, scene_key)
+        packet['section'] = section
+        if hop:
+            packet['hop'] = {
+                'kind': (hop.get('link') or {}).get('kind') if isinstance(hop.get('link'), dict)
+                else hop.get('kind'),
+                'span_chars': hop.get('span_chars'),
+                'spoken': hop.get('spoken') or '',
+            }
+    return packet
+
+
+def infer_kind(beat, action):
+    text = str(action or '')
+    if not text.strip():
+        return None
+    from . import kit_skim
+    if kit_skim._LOOKUP.search(text):
+        return 'lookup'
+    talking = bool(kit_opening._TALK.search(text) or kit_opening._named(beat, text))
+    if talking:
+        return 'npc_reply'
+    if kit_opening._LOOK.search(text):
+        return 'look'
+    return None
+
+
+def attested_corpus(facts, beat=None, action=None):
+    """All source-quoted text the host may draw a book fact from."""
+    parts = []
+    if action:
+        parts.append(str(action))
+    facts = facts or {}
+    for key in ('visible', 'section', 'link_notes'):
+        for item in facts.get(key) or []:
+            parts.append(item)
+    for person in facts.get('people') or []:
+        for key in ('goal', 'visible_state'):
+            if person.get(key):
+                parts.append(person[key])
+        for item in (person.get('knowledge') or []) + (person.get('link_notes') or []):
+            parts.append(item)
+        if person.get('name'):
+            parts.append(person['name'])
+    hop = facts.get('hop') or {}
+    if hop.get('spoken'):
+        parts.append(hop['spoken'])
+    if beat:
+        place = beat.get('place') or {}
+        if isinstance(place, dict) and place.get('name'):
+            parts.append(place.get('name'))
+        elif isinstance(place, str):
+            parts.append(place)
+        if beat.get('place_noun'):
+            parts.append(beat.get('place_noun'))
+        for person in beat.get('people') or []:
+            if person.get('name'):
+                parts.append(person['name'])
+    return ' '.join(_plain(part) for part in parts if _plain(part))
+
+
+def hidden_names(beat):
+    names = []
+    for person in (beat or {}).get('people') or []:
+        if person.get('name') and person.get('hidden') and not person.get('revealed'):
+            names.append(person['name'])
+    return names
+
+
+def present_speakers(beat, facts=None):
+    names = set()
+    for person in (facts or {}).get('people') or []:
+        if person.get('addressable') and person.get('name'):
+            names.add(person['name'].casefold())
+            if person.get('id'):
+                names.add(person['id'].casefold())
+    for person in (beat or {}).get('people') or []:
+        if not person.get('name'):
+            continue
+        if person.get('addressable') or person.get('revealed') or not person.get('hidden'):
+            names.add(person['name'].casefold())
+            if person.get('id'):
+                names.add(person['id'].casefold())
+    return names
+
+
+def _proper_names(text):
+    """Capitalized names in speech, skipping ordinary sentence starts."""
+    found = []
+    for raw in re.split(r'[.!?]+', text or ''):
+        words = re.findall(r"[A-Za-z][A-Za-z']*", raw)
+        i = 0
+        while i < len(words):
+            word = words[i]
+            # Skip the first word of a sentence unless it continues a multi-word name.
+            if i == 0 and (i + 1 >= len(words) or not words[i + 1][:1].isupper()):
+                i += 1
+                continue
+            if not word[:1].isupper():
+                i += 1
+                continue
+            if word.casefold() in _COMMON_NAMES:
+                i += 1
+                continue
+            run = [word]
+            j = i + 1
+            while j < len(words) and words[j][:1].isupper() and words[j].casefold() not in _COMMON_NAMES:
+                run.append(words[j])
+                j += 1
+            found.append(' '.join(run))
+            i = j
+    return found
+
+
+def performance_problems(performance, facts, beat=None, action=None):
+    """Reasons the host's Look or NPC line must not be committed. Empty means clean."""
+    if not isinstance(performance, dict):
+        return ['performance is missing']
+    segments = list(performance.get('segments') or [])
+    problems = []
+    corpus = attested_corpus(facts, beat=beat, action=action).casefold()
+    allowed = present_speakers(beat, facts)
+    hidden = hidden_names(beat)
+    kind = (facts or {}).get('kind')
+    for segment in segments:
+        speaker = (segment.get('speaker') or '').strip()
+        text = segment.get('text') or ''
+        if instruction_vocab(text):
+            problems.append('instruction vocabulary in %s' % (speaker or 'a line'))
+        if shows_dc_or_bonus(text):
+            problems.append('a DC or bonus was spoken')
+        if speaker and speaker not in ('Narrator', 'Kit'):
+            key = speaker.casefold()
+            if allowed and key not in allowed and not any(
+                    key in name or name in key for name in allowed):
+                problems.append('%s is not present' % speaker)
+        if kind == 'look' or speaker == 'Narrator':
+            for name in hidden:
+                if re.search(r'\b%s\b' % re.escape(name), text, re.I):
+                    problems.append('an unrevealed person was named')
+                    break
+        for name in _proper_names(text):
+            if name.casefold() in _COMMON_NAMES:
+                continue
+            if name.casefold() in corpus or all(
+                    part.casefold() in corpus for part in name.split()):
+                continue
+            # A name the player just used is not an invented book fact.
+            if action and name.casefold() in (action or '').casefold():
+                continue
+            problems.append('unattested name %s' % name)
+    # Unique, stable order.
+    seen = set()
+    out = []
+    for item in problems:
+        if item not in seen:
+            seen.add(item)
+            out.append(item)
+    return out
+
+
+# Legacy pasted-text Look only. Source-verified play does not speak this.
+def visible_description(beat, burst=None):
+    """What is already visible, from the scene's player-facing fiction.
+
+    Kept for the legacy pasted-text opening path. Source-verified Look
+    does not assemble or commit this string.
+    """
+    sentences = [re.sub(r'\s+', ' ', str(item)).strip()
+                 for item in (beat or {}).get('fiction') or [] if str(item).strip()]
+    if not sentences and burst:
+        from . import kit_skim
+        sentences = [re.sub(r'\s+', ' ', item).strip()
+                     for item in kit_skim._sentences(burst) if item]
+    kept = []
+    hidden_names_ = [person.get('name') for person in (beat or {}).get('people') or []
+                     if person.get('name') and person.get('hidden') and not person.get('revealed')]
+    for sentence in sentences:
+        if not sentence or _HOWTO.search(sentence) or not kit_opening.player_line(sentence):
+            continue
+        if any(re.search(r'\b%s\b' % re.escape(name), sentence, re.I) for name in hidden_names_):
+            continue
+        if sentence not in kept:
+            kept.append(sentence)
+    if kept:
+        return ' '.join(kept)
+    return kit_opening.look_line(beat)
