@@ -51,6 +51,19 @@ _FOOTER = re.compile(
 _BULLET_LEAD = re.compile(
     r'^(?:[\u2022\u2023\u25E6\u2043\u2219•●○►▸\-–—*]+|\d+[.)])\s+')
 _BULLET_MID = re.compile(r'[\u2022\u2023\u25E6\u2043\u2219•●○►▸]')
+_DM_ADVICE = re.compile(
+    r'(?i)\b(?:you can have|you may want|you should|suggest that|'
+    r'remind the|tell the players|for the dm|the dungeon master|'
+    r'proceed to|go on to|move on to (?:chapter|part|section)|'
+    r'character sheets?|try something unexpected|'
+    r"skill that isn'?t on|say through the action|the best way to)\b")
+_OUTCOME_IMPERATIVE = re.compile(
+    r'(?i)^(?:use|have|suggest|remind|tell|proceed|make|let|'
+    r'give|ask the players|add|roll|head back)\b')
+_GENERIC_HP = re.compile(
+    r'(?i)\b(?:subtract (?:that )?damage from|they are (?:unconscious|defeated)|'
+    r"(?:a character'?s |the character'?s |their )?hit points? reach(?:es)? 0|"
+    r'reaches 0 hit points)\b')
 _STOP = {
     'the', 'and', 'for', 'with', 'from', 'that', 'this', 'they', 'them',
     'their', 'a', 'an', 'of', 'to', 'in', 'on', 'at', 'as', 'or', 'by',
@@ -295,6 +308,25 @@ def _is_real_ruling(quote, raw=''):
         return False
     if _FOOTER.search(outcome):
         return False
+    if _DM_ADVICE.search(text) or _DM_ADVICE.search(outcome):
+        return False
+    lead = re.sub(r'(?i)^then\s+', '', (outcome or '').strip())
+    if _OUTCOME_IMPERATIVE.search(lead):
+        return False
+    if re.search(r"(?i)\b(?:read each other|haven'?t done so already|introduce your characters?)\b", text):
+        return False
+    # A mid-sentence box mark is typography junk, not a ruling.
+    if '>' in text:
+        return False
+    # Generic hit-point procedure with no local world outcome is a rules reminder.
+    if _GENERIC_HP.search(text) and _GENERIC_HP.search(outcome or text):
+        # Keep it only when the outcome is a local world change, not unconscious/defeated/subtract.
+        if re.search(r'(?i)\b(?:unconscious|defeated|subtract)\b', outcome or ''):
+            return False
+        if re.search(r'(?i)reaches? 0 hit points', condition or '') and not re.search(
+                r'(?i)\b(?:opens?|closes?|collapses?|flees?|reveals?|stops?|triggers?|'
+                r'drops?|falls?|appears?|vanishes?|unlocks?|locks?)\b', outcome or ''):
+            return False
     return True
 
 

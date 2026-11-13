@@ -29,6 +29,11 @@ def _book():
         "Creatures that drink the sluice water grow still.\n"
         "If a character forces the gate, they must succeed on a DC 15 Strength check.\n"
         "If a character pries the latch, a hidden catch clicks open.\n"
+        "If they need help, suggest that they search the area.\n"
+        "If a character's hit points reach 0, they are unconscious.\n"
+        "If a character wants to try something unexpected, try to say through the action.\n"
+        "If they are ready, proceed to Chapter 3: A Quiet Ford.\nIf they start to argue over who gets what, use the lantern to calm everyone down.\n"
+        "If a character reduces the heron to 0 hit points, the sluice gate slams shut.\n"
         "If the characters are near the woods, review the wolf stat block in the appendix.\n"
         "• If the party is ready, see page 14.\n"
         "If a character succeeds on a Strength check. All rights reserved.\n"
@@ -237,10 +242,18 @@ class JunkRulingsAreDropped(unittest.TestCase):
 
     def test_dm_instructions_footers_and_page_pointers_are_dropped(self):
         quotes = ' '.join(item.get('quote') or '' for item in kit_rulings.rulings_from(self.index, self.start)).casefold()
-        for banned in ('review the wolf', 'see page 14', 'all rights reserved', 'refer to the appendix'):
+        for banned in (
+                'review the wolf', 'see page 14', 'all rights reserved',
+                'refer to the appendix', 'suggest that they search',
+                'they are unconscious', 'try something unexpected',
+                'proceed to chapter', 'use the lantern to calm'):
             self.assertNotIn(banned, quotes)
         counts = kit_rulings.counts(self.index)
-        self.assertGreaterEqual(counts['dropped'], 4, counts)
+        self.assertGreaterEqual(counts['dropped'], 9, counts)
+        # A local 0-HP world outcome is kept.
+        hit = kit_rulings.for_action(self.db, 'I reduce the heron to 0 hit points.', self.start)
+        self.assertIsNotNone(hit)
+        self.assertIn('sluice gate slams shut', hit.get('quote') or '')
         self.assertEqual(counts['candidates'], counts['confirmed'] + counts['likely'] + counts['dropped'])
         # The real if-sentences are still there.
         self.assertIsNotNone(kit_rulings.for_action(self.db, 'I search the reeds for a satchel.', self.start))
