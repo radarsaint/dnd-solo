@@ -2,16 +2,16 @@
   "schema": "kit_project_gardener_state/v1",
   "purpose": "RESUMABILITY_CURSOR_NOT_KNOWLEDGE_STORE",
   "canonical_location": "radarsaint/dnd-solo/coordination/context_state.json",
-  "state_revision": 64,
+  "state_revision": 65,
   "semantic_brain": {
     "repo": "radarsaint/dnd-solo",
     "path": "docs/PROJECT_UNDERSTANDING.md",
-    "last_semantic_commit": "90d0e27d7529d5b5fd4a0b0a6cfb786bd3ba805b",
+    "last_semantic_commit": "018c51b8fc2e6ad955872357a4b48b89e2d4e47c",
     "last_reviewed_on": "2026-11-13"
   },
   "checkpoint": {
     "reviewed_against_main": {
-      "radarsaint/dnd-solo": "abe8e1346fb6ae5f609adb2d70748d4cdbf627c4",
+      "radarsaint/dnd-solo": "ecaec0309e5b73756dbe24fed033f385ba03ea4f",
       "radarsaint/bfdm-corpus": "66f3c62fb87976224174180db0a57e50d129587e"
     },
     "context_inbox": {
@@ -25,9 +25,9 @@
   "last_completed_pass": {
     "kind": "BOUNDED_SEMANTIC_RECONCILIATION",
     "completed_on": "2026-11-13",
-    "scope": "Reviewed dnd-solo main after #208 merge (abe8e134) and preceding #207 (547199d); no new #115 comments beyond 6598407850. bfdm-corpus main unchanged.",
-    "result": "Accept: #207 fixes snapshot comparison to source-derived structural records only, resolving the Blind run 18 index rejection. #208 adds playable burst-only fallback on unrecoverable spans, whole-section handoff with validation-only authority, prepare-time Perception/Stealth asks, NPC alias replies, and kit rulings for off-script fire/dousing acts. These address remaining Blind Run 18 defects. Brain updated. No bfdm-corpus control edit. Unresolved items unchanged.",
-    "resulting_brain_commit": "90d0e27d7529d5b5fd4a0b0a6cfb786bd3ba805b",
+    "scope": "Reviewed dnd-solo main after #209 merge (ecaec030) on top of prior #208 (abe8e134); no new #115 comments beyond 6598407850. bfdm-corpus main unchanged.",
+    "result": "Accept: #209 builds the failed-quote picker only from index-classified playable sections with attested boxed read-aloud (removes heading-text scan that invented candidates; contents/rules/front-matter never offered; honest burst-only fallback if none). Performs accepted npc_reply as named speaker line in voice then player handoff (guard_spoken no longer folds to Narrator). Optimizes pick/landing section recovery to reuse prep-time index body bounded by next keyed area, one-search burst locate, no later-page walk or double recovery. Preserves Blind run 23 passes and prior few-second landing. Brain updated. No bfdm-corpus control edit. Unresolved items unchanged.",
+    "resulting_brain_commit": "018c51b8fc2e6ad955872357a4b48b89e2d4e47c",
     "reconciled_comment_id": 6598407850
   },
   "active_pass": null,
