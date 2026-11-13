@@ -71,7 +71,8 @@ SKILL_USES = (
     ('nature',
      'terrain, weather, plants, animals, or natural creatures',
      r"(?i)\b(?:terrain|weather|plant|plants|animal|animals|beast|"
-     r"wilderness|nature|forest|storm|herb|natural creature)\b"),
+     r"wilderness|nature|forest|storm|herb|natural creature|"
+    r"mountain|mountains|hills?|caves?)\b"),
     ('history',
      'past events, places, people, kingdoms, or wars',
      r"(?i)\b(?:history|historical|past events?|war|wars|kingdom|"

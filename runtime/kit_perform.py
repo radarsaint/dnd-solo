@@ -643,10 +643,21 @@ def knowledge_decision(action, sheet, section_lines, result_tier=None):
 _FENCE_STOP = re.compile(
     r"(?i)\b(?:dc|perception|history|arcana|religion|athletics|acrobatics|"
     r"survival|medicine|investigation|insight|stealth|persuasion|"
+    r"animal|handling|performance|initiative|armor|class|points|"
     r"check|checks|attack|damage|wizard|wizards|tm|treasure|"
     r"healing|injured|wounds?|challenge|climbing|information|"
     r"characters?|alternatively|continue|melee|weapon|dividing|"
-    r"equipment|practically|fearsome|comber|copyright|reserved)\b"
+    r"equipment|practically|fearsome|comber|copyright|reserved|"
+    r"estimated|conclusion|although|happens|following|follow|"
+    r"provide|allow|hears|finding|taking|turns|encounter|scene|"
+    r"chapter|hit)\b"
+)
+
+_FENCE_VERB = frozenset(
+    "follow following provide allow hear hears happen happens ask let "
+    "taking take find finding reach reached tell tells explain come "
+    "comes going go make made use used see seen look looks once after "
+    "before although".split()
 )
 
 def _spoiler_fence(current_text, later_text, section_lines=None):
@@ -655,6 +666,12 @@ def _spoiler_fence(current_text, later_text, section_lines=None):
     current_fold = current.casefold()
     later = later_text or ''
     terms = []
+    current_names = [name for name in _proper_names(current) if len(name) >= 3]
+    for word in re.findall(r"[A-Z][A-Za-z']{2,}", current):
+        if word.casefold() in _FUNCTION or word.casefold() in _COMMON_NAMES:
+            continue
+        if word not in current_names:
+            current_names.append(word)
 
     def keep(term):
         term = _plain(term)
@@ -667,6 +684,20 @@ def _spoiler_fence(current_text, later_text, section_lines=None):
             return
         if _FENCE_STOP.search(term):
             return
+        tokens = re.findall(r"[A-Za-z']+", term)
+        if not tokens or len(tokens) > 6 or term.endswith(('.', '!', '?')):
+            return
+        content = [w for w in tokens
+                   if w.casefold() not in _FUNCTION
+                   and w.casefold() not in _COMMON_NAMES
+                   and len(w) >= 3]
+        if not content:
+            return
+        if any(w.casefold() in _FENCE_VERB for w in tokens):
+            return
+        for name in current_names:
+            if re.search(r'\b' + re.escape(name) + r'\b', term, re.I):
+                return
         if any(folded == existing.casefold() for existing in terms):
             return
         terms.append(term)
@@ -681,23 +712,24 @@ def _spoiler_fence(current_text, later_text, section_lines=None):
                 keep(title)
         for name in _proper_names(stripped):
             keep(name)
-    # Distinctive two- or three-word phrases that never appear in the current section.
+    # Distinctive two- or three-word phrases (lowercase creature or place names).
     words = re.findall(r"[A-Za-z']+", later)
     for n in (3, 2):
         for i in range(len(words) - n + 1):
             run = words[i:i + n]
-            if any(w.casefold() in _FUNCTION or len(w) < 4 for w in run):
+            if any(w.casefold() in _FUNCTION or w.casefold() in _FENCE_VERB
+                   or len(w) < 4 for w in run):
                 continue
             if not any(len(w) >= 5 for w in run):
                 continue
             phrase = ' '.join(run)
             if phrase.casefold() not in current_fold:
                 keep(phrase)
-            if len(terms) >= 40:
+            if len(terms) >= 24:
                 break
-        if len(terms) >= 40:
+        if len(terms) >= 24:
             break
-    return terms[:40]
+    return terms[:24]
 
 
 def _heard_quotes(beat, burst=None):

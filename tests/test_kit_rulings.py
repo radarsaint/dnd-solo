@@ -693,6 +693,9 @@ class KnowledgeLookup(unittest.TestCase):
         self.assertTrue(
             'cistern' in fence_joined or 'brine' in fence_joined
             or 'underwork' in fence_joined or 'hatch' in fence_joined, fence)
+        for banned in ('armor class', 'hit points', 'animal handling',
+                       'warden quill', 'damage 1d6', 'shortbow'):
+            self.assertNotIn(banned, fence_joined, fence)
 
     def test_a_local_baseline_is_answered_with_no_roll(self):
         _db, _runtime, bridge = self._bridge(local=True)
@@ -812,6 +815,7 @@ class SkillMap(unittest.TestCase):
             ('What do I recall about that spell and the magic item?', 'arcana'),
             ('What do I know about the planes?', 'arcana'),
             ('What do I know about this weather and these plants?', 'nature'),
+            ('Kit, what do I know about the mountains beyond the village?', 'nature'),
             ('What do I know about this god and the cult?', 'religion'),
             ('Are the undead tied to that holy symbol?', 'religion'),
             ('I search the chest for a hidden clue.', 'investigation'),
