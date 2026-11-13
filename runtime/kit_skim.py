@@ -1948,6 +1948,77 @@ def _index_body_for_burst(db, spoken):
 
 
 
+
+def attested_burst(section, columns, fallback=''):
+    """The player opening inside a recovered section: typography-rejoined boxed fiction.
+
+    A short facing-column box may have been used only to bound the section.
+    The spoken opening is the first substantial boxed player passage in that
+    section, the same attested burst landing would speak.
+    """
+    from .kit_opening import player_line
+    pools = []
+    for item in columns or []:
+        if isinstance(item, dict) and (item.get('text') or '').strip():
+            pools.append(item.get('text') or '')
+    if section:
+        pools.append(section)
+    best = fallback or ''
+    for pool in pools:
+        boxed = []
+        run = []
+        for raw in (pool or '').splitlines():
+            stripped = raw.strip()
+            if stripped.startswith('>'):
+                if run and not run[-1].startswith('>'):
+                    boxed.append(run)
+                    run = []
+                run.append(stripped)
+            elif run and stripped and not _heading_line(stripped):
+                run.append(stripped)
+            elif run:
+                boxed.append(run)
+                run = []
+        if run:
+            boxed.append(run)
+        for group in boxed:
+            words = []
+            for line in group:
+                piece = line.lstrip('>').strip()
+                if piece:
+                    words.append(piece)
+            blob = ' '.join(words)
+            blob = re.sub(r'\s+', ' ', blob).strip()
+            kept = []
+            count = 0
+            for sentence in _sentences(blob) or ([blob] if blob else []):
+                if not sentence or not _safe_box(sentence) or not player_line(sentence):
+                    if kept:
+                        break
+                    continue
+                words_n = len(_words(sentence))
+                if kept and count + words_n > BURST_WORDS:
+                    break
+                kept.append(sentence)
+                count += words_n
+                if count >= BURST_WORDS:
+                    break
+            candidate = ' '.join(kept).strip()
+            if not candidate:
+                continue
+            if not (_has_burst(section or pool, candidate) or _contiguous(candidate, section or pool)):
+                continue
+            if (not best or not player_line(best)
+                    or (len(candidate.split()) > len(best.split()) and len(best.split()) < 20)
+                    or (len(candidate.split()) >= len(best.split()) and len(candidate) > len(best))):
+                # Prefer a complete boxed opening over a short bound-only box.
+                if len(candidate.split()) >= len((best or '').split()) or len((best or '').split()) < 20:
+                    if not (best and player_line(best) and len(best.split()) >= 20
+                            and len(candidate.split()) < len(best.split())):
+                        best = candidate
+    return best
+
+
 def recorded_opening(db, key, spoken=None):
     """The prep-time recorded section for one canonical key, as landing would hand it over.
 
@@ -1996,6 +2067,10 @@ def recorded_opening(db, key, spoken=None):
         if lane_n > best_lanes or (lane_n == best_lanes and len(section) > len(best_text)):
             best_text, best_cols, best_burst = section, columns, burst
             best_lanes = lane_n
+    if best_text:
+        spoken_burst = attested_burst(best_text, best_cols, best_burst)
+        if spoken_burst:
+            best_burst = spoken_burst
     return best_text, best_cols, best_burst
 
 
@@ -2832,6 +2907,11 @@ def opening_line(db):
             _mark_heard(beat, [sentence for sentence in _sentences(burst) if player_line(sentence)])
         data['beat'] = beat
     _write(db, data)
+    try:
+        from . import kit_prefetch
+        kit_prefetch.stash(db, data.get('scene_key'), data.get('beat') if isinstance(data.get('beat'), dict) else None)
+    except Exception:
+        pass
     spoken = 'Narrator: %s' % burst
     if '?' not in spoken:
         spoken += '\nKit: %s' % handoff

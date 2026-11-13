@@ -7640,9 +7640,11 @@ class KitChatBridge:
             return forked
         spoken_now = self._speak_prepared_engine_line(turn_id, revision, body, action)
         if spoken_now is not None:
-            return spoken_now
-        return self._stage(turn_id, revision, body, planning_input, one_pass, performance_variant, started, clock,
-                           stamps)
+            return self._with_book_ruling(spoken_now, action)
+        return self._with_book_ruling(
+            self._stage(turn_id, revision, body, planning_input, one_pass, performance_variant, started, clock,
+                        stamps),
+            action)
 
     def _speak_prepared_engine_line(self, turn_id, revision, body, action=None):
         """Speak finished Perception/Stealth asks and off-script fire rulings at prepare.
@@ -7794,6 +7796,13 @@ class KitChatBridge:
             turn_id, pending['revision'], events, record, consume_pending=False)
         with self.runtime.db:
             self.runtime.db.execute('DELETE FROM kit_pending WHERE turn_id=?', (turn_id,))
+        try:
+            from . import kit_prefetch, kit_skim
+            data = kit_skim._read(self.runtime.path)
+            kit_prefetch.stash(self.runtime.path, data.get('scene_key'),
+                               data.get('beat') if isinstance(data.get('beat'), dict) else None)
+        except Exception:
+            pass
         return {'stage': 'opening_committed', 'committed': True, 'turn_id': turn_id,
                 'pending_kind': 'opening', 'confirmation': True, 'spoken': spoken,
                 'public_event': public, 'revision': revision, 'input_recorded': False}
@@ -7822,6 +7831,27 @@ class KitChatBridge:
             return
         self.runtime.discard_pending_kit_turn(turn_id)
         self._held(body['action'], exc)
+
+    def _with_book_ruling(self, packet, action):
+        """Hand the host the book's own ruling when the action matches one."""
+        if not isinstance(packet, dict) or not action:
+            return packet
+        if packet.get('stage') in ('opening_committed', 'lookup', 'turn_pending'):
+            return packet
+        try:
+            from . import kit_rulings, kit_skim
+            data = kit_skim._read(self.runtime.path)
+            hit = kit_rulings.for_action(
+                self.runtime.path, action,
+                data.get('scene_key') or data.get('design_start_name'))
+        except Exception:
+            hit = None
+        if not hit:
+            return packet
+        packet = dict(packet)
+        packet['book_ruling'] = hit
+        packet['source_verified'] = True
+        return packet
 
     def _stage(self, turn_id, revision, body, planning_input, one_pass, performance_variant, started, clock, stamps):
         """Stage a prepared turn and build its model packet."""
