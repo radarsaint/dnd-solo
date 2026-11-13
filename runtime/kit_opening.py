@@ -528,6 +528,17 @@ def playable_picker_starts(db, end_page=None):
         lines = [line for line in _boxed_lines(loc, text) if player_line(line)]
         if not lines:
             continue
+        # Tell accept the page of the attested boxed line. A cross-page
+        # section may open on an earlier page than its box; filtering still
+        # uses the location heading page so the pick stays in window.
+        body = loc.get('body') or [0, 0]
+        if isinstance(body, (list, tuple)) and len(body) >= 2 and body[1] > body[0]:
+            from .kit_skim import _anchor
+            at = body[0] + _anchor(text[body[0]:body[1]], lines[0])
+            for item in index.get('pages') or []:
+                if item.get('start', 0) <= at <= item.get('end', at):
+                    page = item.get('page') or page
+                    break
         title = (loc.get('name') or loc.get('pick') or '').strip()
         if title and (_skim()._procedural_title(title) or _FRONT.search(title)):
             noun = _place_in(' '.join(lines))

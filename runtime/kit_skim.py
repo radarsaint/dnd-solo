@@ -1659,24 +1659,50 @@ def _first_line_of_page(lines, page):
     return 0
 
 
+def _first_burst_line(lines, burst, stream=None):
+    """First line index where the burst appears, or None. One search of the stream."""
+    if not lines or not burst:
+        return None
+    blob = stream if stream is not None else '\n'.join(lines)
+    if not _has_burst(blob, burst):
+        return None
+    at = _anchor(blob, burst)
+    line_at = blob[:at].count('\n') if at is not None else 0
+    # Confirm the anchored line is the first prefix that actually holds the burst.
+    # _anchor may land on the first word alone; fall back to a short binary search.
+    prefix = '\n'.join(lines[:line_at + 1])
+    prior = '\n'.join(lines[:line_at]) if line_at else ''
+    if (0 <= line_at < len(lines)
+            and _has_burst(prefix, burst)
+            and (line_at == 0 or not _has_burst(prior, burst))):
+        return line_at
+    lo, hi = 0, len(lines) - 1
+    while lo < hi:
+        mid = (lo + hi) // 2
+        if _has_burst('\n'.join(lines[:mid + 1]), burst):
+            hi = mid
+        else:
+            lo = mid + 1
+    return lo
+
+
 def _bound_section_stream(stream, burst, force_start=None, force_finish=None):
     """One lane, from the opening heading through the next same-level bound.
 
     force_start / force_finish align a facing lane to the burst lane's section
     so a keyed heading in one column also ends the other.
+    The burst is located with one search of the stream, not a growing prefix
+    scan. A facing lane with force_start already set is not scanned for the burst.
     Returns (text, begin, finish).
     """
     if not (stream or '').strip():
         return '', 0, 0
     lines = stream.splitlines()
-    seen_at = None
-    running = []
-    for index, line in enumerate(lines):
-        running.append(line)
-        blob = '\n'.join(running)
-        if _has_burst(blob, burst):
-            seen_at = index
-            break
+    # A facing lane is already aligned; do not search it for a burst it may not hold.
+    if force_start is not None:
+        seen_at = None
+    else:
+        seen_at = _first_burst_line(lines, burst, stream)
     if seen_at is None and force_start is None:
         return '', 0, 0
     if force_start is not None:
@@ -1796,6 +1822,58 @@ def _section_sources(db, ingested_scope):
     return found
 
 
+def _index_body_for_burst(db, spoken):
+    """Ingested source slice the index already bounded for this burst.
+
+    The span runs from the location heading through the next keyed area
+    recorded at prep, including a continuation that already crossed a page.
+    Returns the slice, or None when the index does not hold the burst.
+    """
+    from .kit_adventure import _load
+    try:
+        index, text = _load(db)
+    except Exception:
+        return None
+    if not text or not spoken:
+        return None
+    hits = []
+    for loc in (index.get('locations') or {}).values():
+        body = loc.get('body') or [0, 0]
+        if not isinstance(body, (list, tuple)) or len(body) < 2:
+            continue
+        start = body[0]
+        off = loc.get('offset')
+        if off is not None and 0 <= off <= start:
+            start = off
+        end = body[1]
+        if end <= start or start < 0 or end > len(text):
+            continue
+        span = text[start:end]
+        if _contiguous(spoken, span):
+            hits.append((end - start, start, end))
+    if hits:
+        _width, start, end = min(hits, key=lambda item: (item[0], item[1]))
+        return text[start:end]
+    # Typography may wrap the burst; place it once in the ingested source.
+    if not _has_burst(text, spoken):
+        return None
+    key = _containing(index, _anchor(text, spoken))
+    loc = (index.get('locations') or {}).get(key) if key else None
+    if not loc:
+        return None
+    body = loc.get('body') or [0, 0]
+    if not isinstance(body, (list, tuple)) or len(body) < 2:
+        return None
+    start = body[0]
+    off = loc.get('offset')
+    if off is not None and 0 <= off <= start:
+        start = off
+    end = min(body[1], len(text))
+    if end <= start:
+        return None
+    return text[start:end]
+
+
 def recover_opening_section(db, spoken, ingested_scope):
     """Hand the host the whole opening section from the retained source.
 
@@ -1803,7 +1881,17 @@ def recover_opening_section(db, spoken, ingested_scope):
     from the opening heading through the next keyed area or a heading of the
     same level, with a character cap. Two-column layout is returned as both
     lanes in reading order. Returns (text, columns).
+
+    When the prep-time index already recorded that next-keyed-area end,
+    including a cross-page continuation, recovery uses that ingested slice
+    and does not re-extract later pages or later sources.
     """
+    indexed = _index_body_for_burst(db, spoken)
+    if indexed:
+        text, columns = opening_section_from_text(indexed, spoken)
+        if text and (_has_burst(text, spoken) or any(
+                _has_burst(item.get('text') or '', spoken) for item in columns)):
+            return text, columns
     chosen_text, chosen_cols, chosen_lanes = '', [], 0
     for extract in _section_sources(db, ingested_scope):
         text, columns = opening_section_from_text(extract, spoken)
