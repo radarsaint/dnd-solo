@@ -711,10 +711,10 @@ def _harvest_starts(window):
     return found
 
 
-def _filter_alts(alts, window, end_page):
-    """Read-aloud blocks in the window. Front matter and later rooms are not starts."""
-    from .kit_opening import read_aloud_picks
-    return read_aloud_picks(window)[:PICK_MAX]
+def _filter_alts(db, end_page=None):
+    """Picker entries from index-classified playable sections only."""
+    from .kit_opening import playable_picker_starts
+    return playable_picker_starts(db, end_page=end_page)[:PICK_MAX]
 
 
 def picker_line(alts):
@@ -1920,7 +1920,7 @@ def accept(db, reply):
         if expanded:
             wider, _at, _to = _window_text(text, 1, window_end(count, True))
             return _reject(db, ['the skim window expands once'], _filter_alts(
-                reply.get('alt_starts'), wider, window_end(count, True)), True)
+                db, window_end(count, True)), True)
         data['expanded'] = True
         data['status'] = 'expanded'
         _write(db, data)
@@ -1945,7 +1945,7 @@ def accept(db, reply):
             expanded = True
             end_page = window_end(count, True)
     window, win_at, _win_to = _window_text(text, 1, end_page)
-    alts = _filter_alts(reply.get('alt_starts'), window, end_page)
+    alts = _filter_alts(db, end_page)
     burst = reply.get('burst')
     quote = reply.get('source_quote')
     name = reply.get('design_start_name')
@@ -2871,13 +2871,10 @@ def open_title(db, token):
         'alt_starts': data.get('alt_starts') or [],
         'design_start_name': chosen.get('title'),
     })
+    if done.get('stage') == 'scene_required':
+        return done
     if done.get('stage') != 'skim_accepted' or not done.get('room'):
-        from .kit_opening import kit_line
-        return _open_named(db, {
-            'title': chosen.get('title') or 'Here',
-            'kit_line': chosen.get('kit_line') or kit_line(chosen.get('title') or 'here'),
-            'page': page,
-        })
+        return refused_start(db)
     fresh = _read(db)
     fresh['speak_now'] = True
     _write(db, fresh)

@@ -30,6 +30,7 @@ _HEAD_WORD = re.compile(r"^[A-Z][A-Za-z'’-]{2,24}$")
 # Short words that still belong in a place or encounter heading ("on the road", "of the inn").
 _SMALL_WORD = frozenset('a an the of on to and in for or by at'.split())
 _PREFIX = re.compile(r'^(encounter|event|travel|random encounter)\s*:\s*(.+)$', re.I)
+_LETTER_HEAD = re.compile(r'^([A-Z])\.\s+(\S.*)$')
 _DM = re.compile(
     r'^(?:developments|features|treasure|creatures|tactics|roleplaying|adjusting|xp awards|'
     r'setup|background|map|introduction|glossary|rests|contents|index|credits|preface|'
@@ -215,6 +216,12 @@ def _heading_at(rows, index):
     if not stripped or stripped.startswith('>') or _CHAPTER.match(stripped) or _LOCATION.match(stripped):
         return None
     indent = len(line) - len(line.lstrip(' '))
+    lettered = _LETTER_HEAD.match(stripped)
+    if lettered:
+        rest = lettered.group(2).strip()
+        if rest and not rest.endswith(('.', '!', '?')) and 1 <= len(rest.split()) <= 8:
+            return {'offset': off, 'end': off + len(line), 'name': stripped,
+                    'kind': None, 'indent': indent, 'consumed': 1}
     core, kind = _core(stripped)
     if not _fragment(core) and kind is None:
         return None
@@ -404,6 +411,10 @@ def collect(text, heads, chapters, page_of, listed=None):
         before_keys = first_room_off is not None and found['offset'] < first_room_off
         if not playable and not inside and prose and len(found['name'].split()) >= 1 and (
                 explicit or not numbered or before_keys):
+            playable = True
+        # A heading with attested boxed read-aloud is a playable section even
+        # when the boxed body is shorter than the usual prose floor.
+        if not playable and not inside and (body.lstrip().startswith('>') or '\n>' in body):
             playable = True
         anchor, relation = _relation(found['offset'], found['indent'], body, rooms, title, 'travel_event' in signals)
         body_at = found['end'] + 1 if found['end'] < len(text) else found['end']
@@ -609,6 +620,15 @@ def finish(index, text):
             loc['pick'] = number if not (multi and part_n > 1) else 'Part %s, Room %s' % (part_n, number)
         order.append(loc)
     order.sort(key=lambda loc: loc.get('offset') or 0)
+    for loc in order:
+        boxed = bool(loc.get('read_aloud'))
+        if loc.get('type') == 'scene':
+            boxed = boxed or bool((loc.get('contents') or {}).get('read_aloud'))
+        loc['playable_start'] = bool(
+            loc.get('type') in ('scene', 'room')
+            and boxed
+            and 'appendix' not in (loc.get('chapter') or '').casefold()
+        )
     index['starts'] = [{'pick': loc.get('pick'), 'line': loc.get('label'), 'id': loc.get('key'),
                         'type': loc.get('type'), 'default': loc.get('key') == index.get('start')}
                        for loc in order if loc.get('pick')]

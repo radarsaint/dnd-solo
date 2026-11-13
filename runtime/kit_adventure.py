@@ -390,6 +390,25 @@ def _location_name_ok(stripped):
     return True
 
 
+def _appendix_list_label(text, at, stripped):
+    """A bare 'Appendix' line in a heading list is not the appendix chapter."""
+    if not re.fullmatch(r'appendix', stripped, re.I):
+        return False
+    rest = (text or '')[at + len(stripped):]
+    for line in rest.splitlines():
+        nxt = line.strip()
+        if not nxt:
+            continue
+        if LOCATION_RE.match(nxt):
+            return False
+        if CHAPTER_RE.match(nxt) and not re.fullmatch(r'appendix', nxt, re.I):
+            return True
+        if len(nxt.split()) <= 8 and nxt[:1].isupper() and nxt[-1:] not in '.!?':
+            return True
+        return False
+    return False
+
+
 def _is_real_chapter(title):
     """A PART/Chapter heading, not a TOC crumb or a mid-sentence body bleed."""
     stripped = (title or '').strip()
@@ -414,7 +433,7 @@ def _is_real_chapter(title):
 
 
 _READ_CUE = re.compile(
-    r'\b(?:read(?:\s+or\s+paraphrase|\s+aloud|\s+the\s+following)?|boxed text)\b', re.I)
+    r'\b(?:read(?:\s+or\s+paraphrase|\s+aloud|\s+the\s+following)|boxed text)\b', re.I)
 
 
 def mark_read_aloud(text):
@@ -883,7 +902,8 @@ def contents_ranges(text):
     for line in flat.split('\n'):
         stripped = line.strip()
         if (stripped and CHAPTER_RE.match(stripped) and _is_real_chapter(stripped)
-                and not re.search(r'-{4,}', stripped)):
+                and not re.search(r'-{4,}', stripped)
+                and not _appendix_list_label(flat, at, stripped)):
             chapters.append(at)
         elif stripped and LOCATION_RE.match(stripped) and _location_name_ok(stripped):
             locations.append(at)
@@ -938,8 +958,8 @@ def build_index(text, title=None):
         at = off + lead
         chapter = CHAPTER_RE.match(stripped)
         if chapter:
-            if not _is_real_chapter(stripped):
-                continue  # TOC crumb, body bleed, or letter-spaced fake
+            if not _is_real_chapter(stripped) or _appendix_list_label(text, at, stripped):
+                continue  # TOC crumb, body bleed, list-label Appendix, or letter-spaced fake
             if re.search(r'-{4,}', stripped):
                 continue  # a rule under a running header, not a new part
             if any(start <= at < end for start, end in listed):
@@ -2235,6 +2255,8 @@ def _choose_start(db, token=None):
                 return refused_start(db)
             raise
         if picked:
+            if picked.get('stage') == 'scene_required':
+                return picked
             if not picked.get('room'):
                 picked.setdefault('stage', 'kit_named')
                 picked.setdefault('spoken', picked.get('table_line'))

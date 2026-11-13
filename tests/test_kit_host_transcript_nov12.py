@@ -679,7 +679,7 @@ class VisibleNpcReplyCycle(unittest.TestCase):
 
 
 class PlayablePickerOnly(unittest.TestCase):
-    """The fallback picker never offers rules, how-to, or coaching headings."""
+    """The failed-quote picker lists only index-classified playable sections."""
 
     def _titles(self, source, design='The Market Street'):
         folder = tempfile.TemporaryDirectory()
@@ -753,6 +753,63 @@ class PlayablePickerOnly(unittest.TestCase):
         folder_line = ' '.join(
             (item.get('kit_line') or '') for item in refused.get('alt_starts') or []).casefold()
         self.assertIn("we'll start", folder_line or line)
+
+    def test_contents_and_howto_pages_never_become_candidates(self):
+        # Numbered contents entries and a how-to chapter would pass a heading
+        # filter that only looks at title text. They are not index playable
+        # sections, so they must never appear on the picker.
+        source = (
+            'Contents\n'
+            '1. The Old Mill ................ 4\n'
+            '2. The River Ford .............. 7\n'
+            'How to Play This Adventure\n'
+            'You can have advantage or disadvantage, for instance when you hide.\n'
+            'That is up to you when the players ask.\n'
+            'Using This Book\n'
+            'A character can walk along the road in this example.\n'
+            'Part 1: The Long Road\n'
+            'The River Ford\n'
+            '> You reach the stones while the water runs loud around them.\n'
+            '1. The Old Mill\n'
+            '> The mill wheel is still, and you smell damp grain.\n'
+        )
+        refused, titles = self._titles(source, design='The River Ford')
+        blob = ' '.join(titles).casefold()
+        self.assertTrue(any('ford' in title.casefold() or 'mill' in title.casefold()
+                            or 'stone' in title.casefold() or 'wheel' in title.casefold()
+                            for title in titles), titles)
+        for banned in ('contents', 'how to', 'using this', 'advantage', 'for instance',
+                       'up to you', 'character can', 'example', 'hide'):
+            self.assertNotIn(banned, blob, titles)
+
+    def test_naming_a_listed_playable_title_starts_that_section(self):
+        source = (
+            'Part 1: The Long Road\n'
+            'The River Ford\n'
+            '> You reach the stones while the water runs loud around them.\n'
+            '1. The Old Mill\n'
+            '> The mill wheel is still, and you smell damp grain.\n'
+        )
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        db = Path(folder.name) / 'picker.sqlite'
+        kit_adventure.ingest_adventure(db, text=source)
+        refused = kit_skim.accept(db, {
+            'burst': 'A dragon lands on the bakery and the crowd cheers.',
+            'source_quote': 'A dragon lands on the bakery and the crowd cheers.',
+            'page_start': 1, 'page_end': 1, 'alt_starts': [],
+            'design_start_name': 'The River Ford',
+        })
+        titles = [item.get('title') or '' for item in refused.get('alt_starts') or []]
+        self.assertTrue(titles, refused)
+        self.assertNotIn('here', titles[0].casefold())
+        picked = kit_adventure.choose_start(db, titles[0])
+        self.assertNotEqual(picked.get('stage'), 'pick_start', picked)
+        self.assertTrue(
+            picked.get('room') or picked.get('stage') in ('skim_accepted', 'scene_required'),
+            picked)
+        if picked.get('stage') != 'scene_required':
+            self.assertTrue(picked.get('room'), picked)
 
 
 class GuardSpokenKeepsSpeakers(unittest.TestCase):
