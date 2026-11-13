@@ -969,7 +969,10 @@ class SkimRound6(unittest.TestCase):
             source_quote='You stand on the quiet lane as the heavy rain begins across the street tonight.',
         ))
         self.assertEqual(done['stage'], 'skim_accepted', done)
-        self.assertIn('begins', Path(done['room']).read_text(encoding='utf-8').casefold())
+        stored = kit_skim._read(self.db)
+        self.assertIn('begins', (stored.get('burst') or '').casefold())
+        # The compiled room stays on the recorded section wording.
+        self.assertIn('starts', Path(done['room']).read_text(encoding='utf-8').casefold())
 
     def test_go_on_does_not_replay_the_opening_or_read_prep(self):
         self._ingest(

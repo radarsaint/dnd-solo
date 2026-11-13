@@ -1168,28 +1168,72 @@ def _append_body(db, index, text, block):
     return text, (start, len(text))
 
 
+def _compile_recorded_section(db, key, burst):
+    """Compile the recorded body of ``key``. Keep this identity if the burst is in it."""
+    from .kit_adventure import IngestError, _load, compile_location
+    try:
+        index, text = _load(db)
+        body = (index.get('locations') or {}).get(key, {}).get('body') or [0, 0]
+        if body[1] <= body[0]:
+            return None
+        compiled = compile_location(db, key, neighbours=False, span=(body[0], body[1]))
+        room = json.loads(Path(compiled['room']).read_text(encoding='utf-8'))
+        section = text[body[0]:body[1]]
+        # A typography miss can hide a real boxed burst from _playable; the
+        # burst must still be player-facing, not a fused tip or a secret.
+        if _playable(room, burst):
+            return compiled
+        if (_has_burst(section, burst) and _safe_box(burst)
+                and not _unsafe(burst) and not _go_fail(burst) and not _blocks_quote(burst)):
+            return compiled
+    except (IngestError, OSError, ValueError, KeyError):
+        return None
+    return None
+
+
+def _try_compile_opening(db, key, text, span, burst, book_quote, verified=False):
+    """Compile one opening under ``key``. None when the room is unplayable or hollow."""
+    from .kit_adventure import IngestError, compile_location
+    try:
+        compiled = compile_location(db, key, neighbours=False, span=span)
+        room = json.loads(Path(compiled['room']).read_text(encoding='utf-8'))
+        page_slice = text[span[0]:span[1]]
+        # A playable box with no trigger, while this span names a creature, is hollow.
+        # Rebuild so the designed pressure is in the scene and still not spoken.
+        if not _playable(room, burst) or (
+                not verified and not room.get('triggers') and _pressure(page_slice, book_quote)):
+            return None
+        return compiled
+    except (IngestError, OSError, ValueError, KeyError):
+        return None
+
+
 def _bind(db, index, text, name, span, alts, burst, book_quote, verified=False, anchor=None):
-    """Attach the accepted quote to a scene that has player text to compile."""
+    """Attach the accepted quote to the canonical recorded section, one key only."""
     from . import kit_scenes
     from .kit_adventure import IngestError, _write_json, compile_location, folder_for
-    key = _containing(index, span[0] if anchor is None else anchor)
+    origin = span[0] if anchor is None else anchor
+    # The recorded heading-through-next-keyed-area location is the section
+    # identity for landing, the picker, Yes, and the link graph. A later
+    # derived scene key is not a second start.
+    key = _containing(index, origin)
     compiled = None
     if key is not None:
         body = (index['locations'][key].get('body') or span)
         narrowed = (max(span[0], body[0]), min(span[1], body[1]))
         if narrowed[1] <= narrowed[0]:
             narrowed = (body[0], body[1])
-        try:
-            compiled = compile_location(db, key, neighbours=False, span=narrowed)
-            room = json.loads(Path(compiled['room']).read_text(encoding='utf-8'))
-            page_slice = text[span[0]:span[1]]
-            # A playable box with no trigger, while this span names a creature, is hollow.
-            # Rebuild so the designed pressure is in the scene and still not spoken.
-            if not _playable(room, burst) or (not verified and not room.get('triggers') and _pressure(page_slice, book_quote)):
-                compiled = None
-        except (IngestError, OSError, ValueError, KeyError):
-            compiled = None
+        compiled = _try_compile_opening(db, key, text, narrowed, burst, book_quote, verified)
+        if compiled is None and (body[0], body[1]) != tuple(narrowed):
+            compiled = _try_compile_opening(db, key, text, (body[0], body[1]), burst, book_quote, verified)
+    if compiled is None and key is not None:
+        # Typography or a hollow first draft must not mint a second start key.
+        # Compile the recorded body under the same section identity. The
+        # accepted burst is already in that body.
+        compiled = _compile_recorded_section(db, key, burst)
     if compiled is None:
+        if key is not None:
+            raise IngestError(['the opening could not be compiled in its recorded section'])
         block = _clean_body(book_quote)
         page_slice = text[span[0]:span[1]]
         from .kit_adventure import _creatures, _sentence_around
@@ -1200,12 +1244,12 @@ def _bind(db, index, text, name, span, alts, burst, book_quote, verified=False, 
                 continue
             seen_extra.add(sent)
             block += sent + '\n'
-        text, span = _append_body(db, index, text, block)
+        text, built = _append_body(db, index, text, block)
         used = {loc.get('letter') for loc in (index.get('locations') or {}).values()}
         letter = next((ch for ch in 'ABCDEFGH' if ch not in used), 'A')
-        key = _emit_scene(index, text, name, span, letter)
+        key = _emit_scene(index, text, name, built, letter)
         _write_json(folder_for(db) / 'index.json', index)
-        compiled = compile_location(db, key, neighbours=False, span=span)
+        compiled = compile_location(db, key, neighbours=False, span=built)
         room = json.loads(Path(compiled['room']).read_text(encoding='utf-8'))
         if not _playable(room, burst):
             raise IngestError(['the opening has no player text to compile'])
@@ -1903,6 +1947,58 @@ def _index_body_for_burst(db, spoken):
     return text[start:end]
 
 
+
+def recorded_opening(db, key, spoken=None):
+    """The prep-time recorded section for one canonical key, as landing would hand it over.
+
+    The body is the heading-through-next-keyed-area span already stored at
+    prep. Typography lanes supply a boxed player opening when the picker
+    quote would bound a different window. Later PDF sources are not walked.
+    Returns (section, columns, burst).
+    """
+    from .kit_adventure import _load
+    from .kit_opening import player_line
+    try:
+        index, text = _load(db)
+    except Exception:
+        return '', [], ''
+    loc = (index.get('locations') or {}).get(key) or {}
+    span = _recorded_span(loc, len(text))
+    if not span:
+        return '', [], ''
+    recorded = text[span[0]:span[1]]
+    if not recorded:
+        return '', [], ''
+    candidates = []
+    if spoken and (_safe_box(spoken) and player_line(spoken)
+                   and (_has_burst(recorded, spoken) or _contiguous(spoken, recorded))):
+        candidates.append(spoken)
+    for _label, stream in _section_lanes(recorded):
+        for line in stream.splitlines():
+            stripped = line.strip()
+            if not stripped.startswith('>'):
+                continue
+            piece = stripped.lstrip('>').strip()
+            if piece and _safe_box(piece) and player_line(piece):
+                if piece not in candidates:
+                    candidates.append(piece)
+                break
+    best_text, best_cols, best_burst = '', [], ''
+    best_lanes = 0
+    for burst in candidates:
+        section, columns = opening_section_from_text(recorded, burst)
+        # The formatter already required the burst in the recorded stream.
+        # A typography-safe rematch on the lane-formatted text can miss a
+        # facing-column box that still produced the whole opening section.
+        if not section:
+            continue
+        lane_n = len(columns)
+        if lane_n > best_lanes or (lane_n == best_lanes and len(section) > len(best_text)):
+            best_text, best_cols, best_burst = section, columns, burst
+            best_lanes = lane_n
+    return best_text, best_cols, best_burst
+
+
 def recover_opening_section(db, spoken, ingested_scope):
     """Hand the host the whole opening section from the retained source.
 
@@ -1920,6 +2016,16 @@ def recover_opening_section(db, spoken, ingested_scope):
         text, columns = opening_section_from_text(indexed, spoken)
         if text and (_has_burst(text, spoken) or any(
                 _has_burst(item.get('text') or '', spoken) for item in columns)):
+            return text, columns
+    try:
+        from .kit_adventure import _load
+        index, _ignored = _load(db)
+        start_key = index.get('start')
+    except Exception:
+        start_key = None
+    if start_key:
+        text, columns, _burst = recorded_opening(db, start_key, spoken=spoken)
+        if text:
             return text, columns
     chosen_text, chosen_cols, chosen_lanes = '', [], 0
     for extract in _section_sources(db, ingested_scope):
@@ -2137,8 +2243,15 @@ def accept(db, reply):
         # fill must not re-walk recorded bodies or later pages.
         cached_cols = data.get('opening_columns')
         cached_text = data.get('opening_section')
-        if (data.get('status') == 'scene_required' and 'scene' in reply
-                and (cached_text or cached_cols)):
+        cached_hit = bool(cached_text or cached_cols) and (
+            data.get('opening_section_cached')
+            or (data.get('status') == 'scene_required' and 'scene' in reply)
+            or (cached_text and (_has_burst(cached_text, spoken)
+                                 or _contiguous(spoken, cached_text)))
+            or any(_has_burst(item.get('text') or '', spoken)
+                   for item in (cached_cols or []) if isinstance(item, dict))
+        )
+        if cached_hit:
             columns = list(cached_cols or [])
             scoped = cached_text or _section_from_columns(columns)
             scope_start, scope_end = _encounter_bounds(
@@ -2153,9 +2266,12 @@ def accept(db, reply):
             scoped, columns = recover_opening_section(db, spoken, scoped_raw)
         candidate = {key: reply[key] for key in KEYS if key != 'scene' and key in reply}
         burst_only = False
-        if not scoped or not (
+        # A recorded-section cache is already the prep-time opening. A
+        # typography-safe rematch of a facing-column box can miss that
+        # formatted text; do not discard the cache for a burst-only start.
+        if not cached_hit and (not scoped or not (
                 _has_burst(scoped, spoken)
-                or any(_has_burst((item.get('text') or ''), spoken) for item in columns)):
+                or any(_has_burst((item.get('text') or ''), spoken) for item in columns))):
             # Never stall on an unfillable section. The host may play the
             # read-aloud with no attested people, and may pick another opening.
             burst_only = True
@@ -2880,11 +2996,29 @@ def lookup_beat(runtime, action):
     if not _path(path).is_file() and not ( _read(path) ):
         return None
     spoken = 'Kit: Give me a second, checking the page.'
-    events = [{'type': 'beat', 'tags': ['lookup'],
+    tags = ['lookup']
+    public = 'Checking the page.'
+    link_info = None
+    try:
+        from . import kit_links
+        data = _read(path)
+        hit = kit_links.answer(path, action, data.get('scene_key') or data.get('design_start_name'))
+        if hit and hit.get('spoken'):
+            spoken = hit['spoken']
+            tags = ['lookup', 'linked']
+            public = 'Checking a linked entry.'
+            link_info = hit.get('link')
+    except Exception:
+        hit = None
+    events = [{'type': 'beat', 'tags': tags,
                'evidence': 'The player asked for the page. Nothing in the fiction changed.'}]
     committed = runtime.commit('look-%s' % revision, revision, events)
-    return {'stage': 'lookup', 'committed': True, 'calls': 1, 'spoken': spoken,
-            'public_event': 'Checking the page.', 'revision': committed}
+    out = {'stage': 'lookup', 'committed': True, 'calls': 1, 'spoken': spoken,
+           'public_event': public, 'revision': committed}
+    if link_info:
+        out['link_lookup'] = link_info
+        out['source_verified'] = True
+    return out
 
 
 def take_speak_now(db):
@@ -2989,6 +3123,29 @@ def open_title(db, token):
     if _procedural_title(chosen.get('title') or token):
         raise IngestError(['%s is not player fiction' % (chosen.get('title') or token)])
     quote = chosen.get('quote') or ''
+    key = chosen.get('id')
+    if key:
+        section, columns, opening = recorded_opening(db, key, spoken=quote)
+        if opening:
+            quote = opening
+            chosen = dict(chosen)
+            chosen['quote'] = quote
+            data['opening_section'] = section
+            data['opening_columns'] = list(columns or ())
+            data['opening_section_cached'] = True
+            _write(db, data)
+    if not quote:
+        from . import kit_opening, kit_adventure
+        try:
+            index, text = kit_adventure._load(db)
+        except Exception:
+            index, text = {}, ''
+        loc = (index.get('locations') or {}).get(chosen.get('id')) or {}
+        lines = kit_opening._player_quotes(loc, text) if loc else []
+        quote = ' '.join(lines[:2])
+        if quote:
+            chosen = dict(chosen)
+            chosen['quote'] = quote
     if not quote and chosen.get('kit_line'):
         return _open_named(db, chosen)
     from .kit_opening import player_line
