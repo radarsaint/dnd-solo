@@ -20,7 +20,8 @@ CREATURES = {
     # SRD 5.1 Goblin: AC 15, 7 (2d6) hp, Dex 14. Scimitar +4, 5 (1d6+2) slashing. Stealth +6.
     'goblin': {'ac': 15, 'hp': 7, 'initiative': 2, 'grapple': -1, 'saves': {}, 'stealth': 6,
                'attacks': [_ATTACK('scimitar', 'cuts', 4, 5, 'slashing')]},
-    'scout': {'ac': 13, 'hp': 16, 'initiative': 2, 'grapple': 0, 'saves': {},
+    # SRD 5.1 Scout: Dex 14, Stealth +6 (listed).
+    'scout': {'ac': 13, 'hp': 16, 'initiative': 2, 'grapple': 0, 'saves': {}, 'stealth': 6,
               'attacks': [_ATTACK('shortsword', 'stabs', 4, 5, 'piercing')]},
     'thug': {'ac': 11, 'hp': 32, 'initiative': 0, 'grapple': 2, 'saves': {},
              'attacks': [_ATTACK('mace', 'clubs', 4, 5, 'bludgeoning'), _ATTACK('mace', 'clubs', 4, 5, 'bludgeoning')]},

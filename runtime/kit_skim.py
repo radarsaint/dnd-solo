@@ -25,7 +25,7 @@ PICK_MAX = 4
 KEYS = ('burst', 'source_quote', 'page_start', 'page_end', 'alt_starts', 'design_start_name', 'scene')
 
 LANDING = "Got it. Who's walking in? A sentence or two about them, or hand me the sheet."
-READY_LINE = "We're set. Default is the book's start — Yes. begins."
+READY_LINE = "We're set. Say Yes and we start at the beginning of the book."
 MUDDY = "Opening's muddy on my copy."
 
 # Spoken text that is still a DM instruction, a secret, or an overview, even when
@@ -3476,7 +3476,7 @@ def player_start(db, sheet_path=None, table=None):
         return {
             'stage': 'awaiting_sheet', 'committed': False, 'opened_room': None,
             'character_loaded': False, 'sheet': sheet, 'sheet_kept': bool(sheet),
-            'table_line': "We're set. Default is the book's start. Hand me the sheet, then Yes. begins.",
+            'table_line': "We're set. Hand me the sheet, then say Yes and we start at the beginning of the book.",
             'design_start_name': data.get('design_start_name'), 'scene_key': data.get('scene_key'),
         }
     if data.get('status') == 'scene_required':

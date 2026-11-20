@@ -76,6 +76,7 @@ kit_twenty_one = _lazy.module('.kit_twenty_one', __package__)
 from . import kit_guards
 from . import kit_interstitial
 from . import kit_voice
+kit_moves = _lazy.module('.kit_moves', __package__)  # the turn spine: moves, open ask, speaking contract
 from .scene_discernment import IMPROV_READ_SCHEMA, check_improv_read, discernment_candidates
 from .state_context import (ASKED_EVENT_PREFIX, CONTEXT_BUDGET_BYTES, HostSequenceError, InvalidChange,
                             PERSONALITY_CORE, PLAYER_NOTE_MAX_EVIDENCE, PROJECT_ROOT, Runtime,
@@ -234,8 +235,9 @@ TABLE_TALK_HANDOFF = "Kit: Tell me a bit more about what you're after, or what y
 def check_no_internal_labels(spoken):
     """HARD: an engine label ('Table talk to Kit:') is bookkeeping, never player-facing."""
     found = INTERNAL_LABELS.search(spoken or '')
-    if found:
-        raise InvalidChange(f'Internal label: "{found.group(0)}" is engine bookkeeping and never reaches '
+    label = found.group(0) if found else kit_moves.internal_label(spoken)
+    if label:
+        raise InvalidChange(f'Internal label: "{label}" is engine bookkeeping and never reaches '
                             'the player. Answer the player in your own words; do not repeat their line.')
 
 
@@ -267,7 +269,9 @@ def is_knowledge_roll(pending):
 def check_not_only_roll(spoken):
     """HARD: a reply that only restates the roll ('You roll History: 12.') answers nothing."""
     lines = [line for line in (spoken or '').splitlines() if line.strip()]
-    if lines and all(ROLL_ECHO.match(line.strip()) for line in lines):
+    # The speaking contract's bare-result class (runtime/kit_moves.py) covers every shape of it:
+    # "You roll History: 12.", "15.", "Initiative: 14.", "Perception 15".
+    if lines and (all(ROLL_ECHO.match(line.strip()) for line in lines) or kit_moves.bare_result(spoken)):
         raise InvalidChange('Roll echo: the reply only restates the roll. Say what the roll gets them '
                             '(what they recall, find, or manage), then hand the turn back.')
 
@@ -413,7 +417,9 @@ CHECK_REQUEST = _lazy.regex(
 # 'Can I investigate the door?', 'Let me search the lid', 'Time to search the chest': asking
 # to search is a search.
 CHECK_ASK = _lazy.regex(r"^\s*(?:can|could|may|might)\s+i\b|^\s*let\s+me\b|^\s*time\s+to\b|^\s*i(?:'d| would)\s+like\s+to\b")
-SIMPLE_ACT_LINE = 'You go ahead.'
+# Neutral: the act happens where the PC is. Never 'You go ahead.', which reads as moving him on
+# (fullrun-01: the PC had said he stays back).
+SIMPLE_ACT_LINE = 'You do that.'
 DETECT_MAGIC_SECONDS = 600  # Detect Magic: concentration, up to 10 minutes
 # 'regular casting, no ritual', 'not as a ritual', 'without the ritual': a slotted casting
 # (#150 retest: read as a ritual, 10 minutes passed).
@@ -1269,7 +1275,8 @@ class RoomAdjudicator:
                                                self.npc_roll)
             if hidden:
                 result = dataclasses.replace(result, events=list(result.events) + hidden)
-        if (self.source or {}).get('_opening_verified') and result.public_event == 'They speak to the room.':
+        if (self.source or {}).get('_opening_verified') and result.public_event == 'They speak to the room.' \
+                and not is_ooc(action):  # a rules question to Kit is table talk, never a call across the road
             # The source-attested people, not guessed prose, determine whom a
             # conversation can address. An unrevealed NPC is never treated as a
             # cooperative visible speaker; the host still resolves their response.
@@ -1305,11 +1312,16 @@ class RoomAdjudicator:
             notice_holds = bool((self.source.get('_opening_notice') or {}).get('holds')) or bool(
                 discoveries)
             if hidden or notice_holds:
-                # A look at a source-attested notice beat is a called check
-                # from the shared skill map, not the former opening's hard-coded DC 10.
-                from . import kit_skills
-                skill = kit_skills.skill_for_intent(action)
-                result = self._call_roll(RollNeeded(skill), action, revision, state)
+                # A look at a source-attested notice beat goes through the one skill picker
+                # (runtime/kit_moves.py): looking for anything hidden is Perception, never the
+                # Investigation fallback (fullrun-01 T4). Passive first: a passive Perception
+                # that meets a hidden creature's Stealth spots it with no roll.
+                from . import kit_moves
+                skill, _why = kit_moves.pick_skill(action)
+                spotted = self._opening_notice(None, action, revision, state, None, how='passive') \
+                    if hidden and skill == 'perception' else None
+                result = spotted if spotted is not None else \
+                    self._call_roll(RollNeeded(skill), action, revision, state)
         if (self.source or {}).get('triggers'):
             result = self._offer_handles(result, action, state)
             # Only arrival fires on the engine's own read; a disturbance needs Kit's declared
@@ -2603,7 +2615,10 @@ class RoomAdjudicator:
         name = needed.skill.replace('_', ' ').title()
         public = (needed.reason + ' ' if needed.reason else '') + f'Roll {name} for it.'
         check = {'skill': needed.skill, 'ability': pc_sheet.SKILLS[needed.skill], 'target': needed.target,
-                 'called_turn': f'revision {revision}', 'action': action[:2000]}
+                 'called_turn': f'revision {revision}', 'action': action[:2000],
+                 # The open ask carries its own reason: the roll that comes back resolves THIS act.
+                 'open_ask': kit_moves.open_ask('roll', action, action, skill=needed.skill,
+                                                why=needed.reason or 'the act needs a roll')}
         held = (state.get('pending_check') or {}).get('held')
         if held:
             check['held'] = copy.deepcopy(held)  # a held description stays owed
@@ -2772,6 +2787,103 @@ class RoomAdjudicator:
             f"{where(a)}: {a['text']}" for a in auras)
         return public, private
 
+
+    def _opening_hidden(self, state):
+        """Source-attested opening people still hidden where the PC is."""
+        area = state.get('area')
+        return {key: actor for key, actor in (state.get('actors') or {}).items()
+                if key in ((self.source or {}).get('_opening_people') or ())
+                and actor.get('status') == 'hidden' and actor.get('location') == area}
+
+    def _opening_notice(self, total, action, revision, state, clear, how='roll'):
+        """Perception against the opening's hidden people, each against its own Stealth.
+
+        ``how='roll'``: the player's called roll, never below his passive (an active look does
+        not come out worse than what he notices without trying). ``how='passive'``: no roll was
+        made; only a success is returned (a passive miss calls the roll, it never springs an
+        ambush). None when nobody is hidden here."""
+        from . import kit_triggers, kit_moves
+        area = state.get('area')
+        hidden = self._opening_hidden(state)
+        if not hidden:
+            return None
+        try:
+            _modifier, passive = self._pc_numbers('perception', state, '')
+        except PendingRuling:
+            passive = None
+        rolled = total
+        # Perception has to beat a creature's Stealth for THAT creature.
+        # Noticing one ambusher prevents surprise even if others remain
+        # concealed; it does not magically reveal the entire group.
+        stealth = {key: kit_claims.npc_passive(actor, 'stealth')
+                   for key, actor in hidden.items()}
+        # Passive first only against a Stealth the stat block actually gives. A creature with no
+        # known Stealth keeps the engine's default number for a roll, but a passive never beats a
+        # number nobody stated.
+        attested = set()
+        for key, actor in hidden.items():
+            block = actor.get('stat_block') or (((self.source or {}).get('actors') or {}).get(key) or {}).get('stat_block')
+            bonus = kit_moves.known_stealth(block)
+            if bonus is not None:
+                stealth[key] = 10 + bonus
+                attested.add(key)
+            elif (actor.get('stats') or {}).get('skills') or (actor.get('stats') or {}).get('abilities'):
+                attested.add(key)
+        if how == 'passive':
+            if passive is None:
+                return None
+            noticed = [key for key in hidden if key in attested and kit_moves.passive_reveals(passive, stealth[key])]
+            total = passive
+        else:
+            noticed = [key for key, dc in stealth.items()
+                       if (kit_moves.notice_total(total, passive) if key in attested else total) >= dc]
+        missed = [key for key in hidden if key not in noticed]
+        if how == 'passive' and not noticed:
+            return None
+        if how == 'passive':
+            evidence = ('The PC looked for hidden things; his passive Perception %s met the Stealth of %s, '
+                        'so no roll was needed. Missed %s.' % (total, noticed, missed))
+        else:
+            evidence = ('Player made the called Perception check for source-attested hidden actors: '
+                        'roll %s (passive %s, the higher counts), checked each actor against its own Stealth; '
+                        'noticed %s; missed %s.' % (rolled, passive, noticed, missed))
+        events = [{'type': 'beat', 'tags': ['notice', 'success' if noticed else 'fail'],
+                   'evidence': evidence}]
+        clear = [clear] if clear else []
+        if noticed:
+            events += [{'type': 'actor_status', 'actor': key, 'status': 'alive',
+                        'reveal': True,
+                        'evidence': evidence + ' This actor was perceived.'}
+                       for key in noticed]
+            labels = [hidden[key].get('name') or key for key in noticed]
+            public = 'You spot %s before they act. What do you do?' % ', '.join(labels)
+            return Resolution('called_check', public, events + clear)
+
+        # An unseen actor does not automatically attack. Only a verified
+        # conditional authored for FAILED notice can activate a fight.
+        # The source contract holds its full quote; do not infer an
+        # ambush from the hidden status or a failed numeric check.
+        pressures = [p for p in (self.source.get('_opening_pressures') or ())
+                     if p.get('kind') == 'ambush' and p.get('activation') == 'failed_notice'
+                     and p.get('status') in ('established', 'conditional')
+                     and p.get('actors') and set(p['actors']).issubset(hidden)]
+        for pressure in pressures:
+            matches = [t for t in kit_triggers.pending(self.source, state)
+                       if t.get('_deferred') and set(pressure['actors']).issubset(t.get('actors') or ())]
+            if not matches:
+                continue
+            trigger = dict(matches[0], starts_combat=True, notice=False)
+            labels = ', '.join(hidden[key].get('name') or key for key in pressure['actors'])
+            arrival = '%s break from hiding.' % labels
+            base = Resolution('called_check', arrival, events + clear)
+            resolved = self._spring(base, trigger, area, action, revision, state,
+                                    surprise_override=True)
+            # No host-supplied combat or surprise event: the normal
+            # Fight/trigger engine produced it and owns the result.
+            return resolved
+        return Resolution('called_check', 'You do not spot anyone. What do you do?',
+                          events + clear)
+
     def _resolve_called(self, action, revision, state):
         """A bare roll ("Perception 22", "22", "I rolled a 22") answering the check Kit called
         last turn (watchroom playtest: the roll stalled). It resolves against the one hidden
@@ -2808,56 +2920,9 @@ class RoomAdjudicator:
             return self._resolve_held_exit(pending, roll_text, revision, state)
         if pending.get('action') and (self.source or {}).get('_opening_verified') and \
                 skill == 'perception':
-            from . import kit_triggers
-            hidden = {key: actor for key, actor in (state.get('actors') or {}).items()
-                      if key in (self.source.get('_opening_people') or ())
-                      and actor.get('status') == 'hidden' and actor.get('location') == area}
-            if hidden:
-                # Perception has to beat a creature's Stealth for THAT creature.
-                # Noticing one ambusher prevents surprise even if others remain
-                # concealed; it does not magically reveal the entire group.
-                stealth = {key: kit_claims.npc_passive(actor, 'stealth')
-                           for key, actor in hidden.items()}
-                noticed = [key for key, dc in stealth.items() if total >= dc]
-                missed = [key for key in hidden if key not in noticed]
-                evidence = ('Player made the called Perception check for source-attested hidden actors: '
-                            'roll %s, checked each actor against its own Stealth; '
-                            'noticed %s; missed %s.' % (total, noticed, missed))
-                events = [{'type': 'beat', 'tags': ['notice', 'success' if noticed else 'fail'],
-                           'evidence': evidence}]
-                if noticed:
-                    events += [{'type': 'actor_status', 'actor': key, 'status': 'alive',
-                                'reveal': True,
-                                'evidence': evidence + ' This actor was perceived.'}
-                               for key in noticed]
-                    labels = [hidden[key].get('name') or key for key in noticed]
-                    public = 'You spot %s before they act. What do you do?' % ', '.join(labels)
-                    return Resolution('called_check', public, events + [clear])
-
-                # An unseen actor does not automatically attack. Only a verified
-                # conditional authored for FAILED notice can activate a fight.
-                # The source contract holds its full quote; do not infer an
-                # ambush from the hidden status or a failed numeric check.
-                pressures = [p for p in (self.source.get('_opening_pressures') or ())
-                             if p.get('kind') == 'ambush' and p.get('activation') == 'failed_notice'
-                             and p.get('status') in ('established', 'conditional')
-                             and p.get('actors') and set(p['actors']).issubset(hidden)]
-                for pressure in pressures:
-                    matches = [t for t in kit_triggers.pending(self.source, state)
-                               if t.get('_deferred') and set(pressure['actors']).issubset(t.get('actors') or ())]
-                    if not matches:
-                        continue
-                    trigger = dict(matches[0], starts_combat=True, notice=False)
-                    labels = ', '.join(hidden[key].get('name') or key for key in pressure['actors'])
-                    arrival = '%s break from hiding.' % labels
-                    base = Resolution('called_check', arrival, events + [clear])
-                    resolved = self._spring(base, trigger, area, action, revision, state,
-                                            surprise_override=True)
-                    # No host-supplied combat or surprise event: the normal
-                    # Fight/trigger engine produced it and owns the result.
-                    return resolved
-                return Resolution('called_check', 'You do not spot anyone. What do you do?',
-                                  events + [clear])
+            noticed = self._opening_notice(total, action, revision, state, clear, how='roll')
+            if noticed is not None:
+                return noticed
         if pending.get('action'):
             # The engine called this roll for an act: the roll resolves that act now.
             calm = {k: v for k, v in state.items() if k not in ('pending_check', 'standing_check')}
@@ -3566,6 +3631,15 @@ PLAN_SCHEMA = {
         'plan': kit_plan.PLAN_SCHEMA,
         # Hints and hooks Kit plants, pays off, or drops this turn (runtime/kit_threads.py).
         'open_threads': kit_threads.OPEN_THREADS_SCHEMA,
+        # The player's move as Kit read it (runtime/kit_moves.py), when it differs from the
+        # engine's turn_spine read or adds the target. Optional.
+        'player_move': {
+            'type': 'object', 'additionalProperties': False, 'required': ['kind'],
+            'properties': {
+                'kind': {'type': 'string', 'enum': ['look', 'talk', 'recall', 'move', 'use', 'fight', 'rest',
+                                                    'ask_dm']},
+                'target': {'type': 'string'},
+                'stance': {'type': 'string', 'enum': ['none', 'hold', 'advance', 'withdraw']}}},
         # Structured player acts (runtime/kit_acts.py): only when the packet's acts offers one.
         **kit_acts.SCHEMAS,
     },
@@ -3576,10 +3650,11 @@ PLAN_SCHEMA = {
 # The strict API schema needs every property required.
 API_PLAN_SCHEMA = json.loads(json.dumps(PLAN_SCHEMA))
 OPTIONAL_PLAN_KEYS = ('claims', 'agenda', 'salience', 'roll_call', 'pc_state', 'pc_oddity', 'ask_player', 'risk_confirm', 'plan',
-                      'open_threads', 'observed_event', 'detail', 'reveal_entry') + tuple(kit_acts.SCHEMAS)  # the engine fills these when left out (PR3 a, c)
+                      'open_threads', 'observed_event', 'detail', 'reveal_entry', 'player_move') + tuple(kit_acts.SCHEMAS)  # the engine fills these when left out (PR3 a, c)
 # Strict mode cannot leave an object out, so the chat-only paths (a PC state change, an
 # oddity reaction, a question to the player) are not offered to the API model at all.
-CHAT_ONLY_PLAN_KEYS = ('pc_state', 'pc_oddity', 'ask_player', 'risk_confirm', 'plan', 'open_threads', 'reveal_entry')
+CHAT_ONLY_PLAN_KEYS = ('pc_state', 'pc_oddity', 'ask_player', 'risk_confirm', 'plan', 'open_threads', 'reveal_entry',
+                       'player_move')
 for _key in CHAT_ONLY_PLAN_KEYS:
     API_PLAN_SCHEMA['properties'].pop(_key)
 # Strict mode: handles always carries reason ("none" on a declaration; kit_acts.NONE_REASONS on none).
@@ -3851,6 +3926,8 @@ VALIDATOR_KINDS = {
     'check_detail_answer': 'style', 'check_carriers_spoken': 'style', 'check_held_delivered': 'style',
     'check_raised': 'style', 'check_ask_spoken': 'style', 'check_about_brendon': 'style',
     'check_no_internal_labels': 'style', 'check_not_only_roll': 'style',
+    # the turn spine's speaking contract (runtime/kit_moves.py)
+    'kit_moves.check_turn_shape': 'style', 'kit_moves.check_stance': 'agency',
 }
 ENGINE_LINE_AT_ONCE = frozenset({'secrecy', 'agency'})
 
@@ -4689,7 +4766,7 @@ def is_ooc(player_action):
     question about the rules themselves. Quoted speech is in character and never counts."""
     text = QUOTED_SPEECH.sub(' ', (player_action or '').translate(_TYPOGRAPHIC))
     return bool(OOC_MARKER.search(text) or KIT_ADDRESS.search(text) or
-                ('?' in text and RULES_NOUNS.search(text)))
+                ('?' in text and (RULES_NOUNS.search(text) or kit_moves.classify(text) == 'ask_dm')))
 
 
 def keywords(text):
@@ -5234,6 +5311,14 @@ def check_speech(speech, plan, public_view, player_action, action_kind=None, gua
             lambda: check_callback_used(segments, plan),
             lambda: kit_voice.check_voice_style(segments, plan),
             lambda: kit_detail.check_detail_answer(segments, plan.get('detail'), player_action))
+    # HARD: the speaking contract (runtime/kit_moves.py): never a bare number or rule, never an
+    # internal label, never a question this reply already answers or a roll already given, and
+    # never the PC moved against his stated position (fullrun-01 T4-T7).
+    declared_stance = ((plan.get('player_move') or {}).get('stance') if isinstance(plan, dict) else None)
+    hard(kit_moves.check_stance, segments, player_action or '',
+         declared_stance if declared_stance not in (None, 'none') else guards.get('stance'))
+    hard(kit_moves.check_turn_shape, segments, player_action or '', guards.get('open_ask'),
+         call=bool(kit_interstitial.kit_kind(plan)))
     if kit_interstitial.kit_kind(plan):
         # An interstitial (roll_call, clarify, risk_confirm) gets structural checks only: the
         # call cap and a question for the player; no style check rejects it (PR-H).
@@ -5631,6 +5716,9 @@ def check_decision(runtime, plan, memory, body):
         check_short_beat(plan, body, runtime.load()[1])
     with part():
         kit_acts.check(plan, body)  # a declared act names only what this turn offered
+    with part():
+        found = kit_moves.check_declared(plan.get('player_move'), body.get('action') or '')
+        require(not found, '; '.join(found))
     with part():
         if plan.get('open_threads') is not None:
             kit_threads.check(plan['open_threads'], runtime.load()[1])
@@ -6412,6 +6500,25 @@ def check_table_narration(segments, public_view, configs):
     require(not problems, ' '.join(problems))
 
 
+# What the host does with the spine is in docs/PLAY_CARD.md (Moves and open asks); the per-turn
+# packet carries only the read itself, so it stays small.
+
+
+def turn_spine(action, state):
+    """The turn spine for one player message: the move read, his stance, and the open ask."""
+    if not action or not str(action).strip():
+        return None
+    move = {'kind': kit_moves.classify(action)}
+    stance = kit_moves.stance_of(action)
+    if stance != 'none':
+        move['stance'] = stance
+    spine = {'player_move': move}
+    ask = kit_moves.open_ask_from_state(state)
+    if ask:
+        spine['open_ask'] = {key: value for key, value in ask.items() if key != 'from'}
+    return spine
+
+
 def guard_context(source, body):
     """What the style and leak guards need beyond the performance: DM-only paraphrase
     sets and public voice contracts from the room source, and recent public turns."""
@@ -6464,6 +6571,8 @@ def guard_context(source, body):
             'fact_text': ' '.join(str((fact or {}).get('text') or '')
                                   for fact in ((source or {}).get('facts') or {}).values()),
             'opening_people': tuple((source or {}).get('_opening_people') or ()),
+            'open_ask': (body.get('turn_spine') or {}).get('open_ask'),
+            'stance': ((body.get('turn_spine') or {}).get('player_move') or {}).get('stance'),
             'player_action': body.get('action') or ''}
 
 
@@ -7729,6 +7838,9 @@ class KitChatBridge:
         if held is not None:
             return held
         from . import kit_skim
+        pushed = self._open_ask_pushback(action)
+        if pushed is not None:
+            return pushed
         answered = self._verified_roll_answer(action)
         if answered is not None:
             return answered
@@ -7826,6 +7938,55 @@ class KitChatBridge:
             'advanced': False,
         }
 
+    def _open_ask_pushback(self, action):
+        """The player argues the skill of the roll Kit is waiting on ("shouldn't scanning the brush
+        be Perception?"), with or without the number. One exchange: Kit weighs it and makes the
+        call (Brendon, 2026-10-04), and a number that came with it resolves the stored act at
+        once. The open ask keeps its reason, so the act is never re-read from the new words and
+        the PC never moves (fullrun-01 T5: "You go ahead.")."""
+        if not action or not isinstance(action, str) or not action.strip():
+            return None
+        try:
+            revision, state = self.runtime.load()
+        except (KeyError, InvalidChange):
+            return None
+        pending = state.get('pending_check') or {}
+        if not pending.get('skill') or pending.get('exit') or pending.get('held'):
+            return None
+        ask = kit_moves.open_ask_from_state(state)
+        given = kit_moves.answer_of(action, ask)
+        if not given['pushback']:
+            return None
+        called = pending['skill']
+        stored = pending.get('action') or pending.get('asked') or ''
+        skill, accepted, why = kit_moves.rule_pushback(called, given['pushback'], stored)
+        name = skill.replace('_', ' ').title()
+        if not accepted:
+            # Kit's call stands. A number rolled for the other skill does not answer this ask,
+            # and the check stays waiting (re-committed: a called check otherwise lapses).
+            kept = called.replace('_', ' ').title()
+            spoken = ('Kit: I hear you, but this one is %s: %s. Roll %s.' % (kept, why, kept) if why
+                      else 'Kit: I hear you, but this one stays %s. Roll %s.' % (kept, kept))
+            events = [{'type': 'pending_check', 'check': dict(pending),
+                       'evidence': 'The player asked for %s instead of %s; Kit kept %s. The check is '
+                                   'still waiting.' % (given['pushback'], called, called)}]
+            committed = self.runtime.commit('pushback-%s' % revision, revision, events)
+            return {'stage': 'called_roll', 'committed': True, 'spoken': spoken, 'revision': committed,
+                    'public_event': spoken[5:], 'open_ask': kit_moves.open_ask_from_state(self.runtime.load()[1])}
+        check = {key: value for key, value in pending.items()}
+        check.update(skill=skill, ability=pc_sheet.SKILLS[skill])
+        check['open_ask'] = kit_moves.open_ask(
+            'roll', stored, stored, skill=skill, why='the player asked for %s and Kit agreed: %s' % (name, why))
+        events = [{'type': 'pending_check', 'check': check,
+                   'evidence': 'The player pushed back on %s for this act; Kit agreed it is %s (%s).' % (
+                       called, skill, why)}]
+        committed = self.runtime.commit('pushback-%s' % revision, revision, events)
+        if given['total'] is None:
+            spoken = 'Kit: Fair, that is %s. Roll it.' % name
+            return {'stage': 'called_roll', 'committed': True, 'spoken': spoken, 'revision': committed,
+                    'public_event': spoken[5:], 'open_ask': check['open_ask']}
+        return self._verified_roll_answer('%s %d' % (skill.replace('_', ' '), given['total']))
+
     def _verified_roll_answer(self, action):
         """Source-attested checks resolve through prepare, with one authoritative commit.
 
@@ -7859,7 +8020,14 @@ class KitChatBridge:
                     'revision': committed, 'public_event': 'The roll is not assigned.'}
         self.adjudicator.mount(source)
         resolution = self.adjudicator.resolve(action, revision, state)
-        if resolution.kind not in ('called_check', 'stealth', 'check', 'combat_interstitial', 'combat_round'):
+        answers = ('called_check', 'stealth', 'check', 'combat_interstitial', 'combat_round')
+        if resolution.kind not in answers and pending.get('skill') and not pending.get('exit'):
+            # The open ask carries its reason: a number that came wrapped in a question or table
+            # talk ("shouldn't that be Perception? I rolled a 15") resolves the act Kit asked
+            # about, never a fresh reading of the new words (fullrun-01 T5).
+            roll_only = '%s %d' % (str(pending['skill']).replace('_', ' '), total)
+            resolution = self.adjudicator.resolve(roll_only, revision, state)
+        if resolution.kind not in answers:
             return None
         # The returned events, not this handler, determine reveal and mechanics.
         events = list(resolution.events)
@@ -8036,6 +8204,8 @@ class KitChatBridge:
                 'skill': skill, 'ability': ability, 'target': 'none',
                 'called_turn': 'knowledge', 'action': action,
                 'reason': 'knowledge',
+                'open_ask': kit_moves.open_ask('roll', action, action, skill=skill,
+                                               why='what the character knows, beyond the baseline'),
             }, 'evidence': 'A knowledge check was called. The DC is not shown.'},
         ]
         turn_id = 'knowledge-%s' % revision
@@ -8113,6 +8283,9 @@ class KitChatBridge:
             body['compute'] = compute_tier(self.runtime, body, planning_input)
             if body['compute']['tier'] == 'routine':  # only a routine turn changes what Kit writes
                 planning_input['compute'] = body['compute']
+        spine = turn_spine(body.get('action'), self.runtime.load()[1])
+        if spine:
+            body['turn_spine'] = spine
         self.runtime.stage_kit_turn(turn_id, revision, body)
         # Wall clock, not monotonic: stages may run in separate processes.
         # A fresh prepare starts the rejection count over (an abandoned turn prepared again).
@@ -8150,6 +8323,12 @@ class KitChatBridge:
                       'instructions': PRIVATE_INSTRUCTIONS, 'schema': PLAN_SCHEMA,
                       'performance_limits': performance_limits(), 'host_retry': HOST_RETRY_NOTE,
                       'input': planning_input}
+        if spine:
+            # Compact for the host (docs/PLAY_CARD.md): "look", or "move hold" with the stance.
+            move = spine['player_move']
+            packet['player_move'] = ' '.join(filter(None, (move['kind'], move.get('stance'))))
+            if spine.get('open_ask'):
+                packet['open_ask'] = spine['open_ask']
         withheld = kit_reveal.held_texts(self.runtime.source(), body.get('progressive_reveal'))
         if withheld:
             packet['input'] = kit_reveal.withhold(packet['input'], withheld)

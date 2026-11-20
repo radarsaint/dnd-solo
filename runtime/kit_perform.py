@@ -1030,6 +1030,11 @@ def performance_problems(performance, facts, beat=None, action=None):
         for name in _proper_names(text):
             if name.casefold() in _COMMON_NAMES:
                 continue
+            # Rules words by class, not one string at a time: "Roll History.", "Roll
+            # Initiative.", "a Dexterity Saving Throw" are mechanics, not invented people.
+            from . import kit_moves
+            if kit_moves.is_mechanic_run(name):
+                continue
             if name.casefold() in corpus or all(
                     part.casefold() in corpus for part in name.split()):
                 continue
