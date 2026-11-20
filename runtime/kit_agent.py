@@ -239,6 +239,63 @@ def check_no_internal_labels(spoken):
                             'the player. Answer the player in your own words; do not repeat their line.')
 
 
+KNOWLEDGE_ROLL_NOTE = ('Knowledge roll made (%s tier; the bar is never shown). Answer in 1-3 sentences what '
+                       'the character recalls, scaled to the tier in host_facts.knowledge.outcomes: low is '
+                       'common knowledge or a half-remembered rumor, never silence; middle adds one useful '
+                       'detail; high may add a real lead. Stay consistent with the book and the setting, '
+                       'improvise where it is silent, never say a spoiler_fence name, then hand the turn back. '
+                       'Never answer with only the roll.')
+# Skills a player rolls to recall what they know (Investigation recalls only on a knowledge question).
+RECALL_SKILLS = frozenset({'history', 'arcana', 'religion', 'nature'})
+ROLL_ECHO = re.compile(r"^\W*(?:(?:kit|narrator)\s*:\s*)?you roll(?:ed)? [a-z _']+:?\s*\d+\W*$", re.I)
+
+
+def is_knowledge_roll(pending):
+    """Whether this waiting check is a knowledge check: one Kit called for a knowledge question,
+    a recall skill rolled about something the player asked, or any skill rolled on a knowledge
+    question."""
+    pending = pending or {}
+    if pending.get('reason') == 'knowledge' or pending.get('called_turn') == 'knowledge':
+        return True
+    asked = pending.get('asked')
+    if not asked or pending.get('action'):
+        return False
+    from . import kit_perform
+    return pending.get('skill') in RECALL_SKILLS or kit_perform.is_knowledge_question(asked)
+
+
+def check_not_only_roll(spoken):
+    """HARD: a reply that only restates the roll ('You roll History: 12.') answers nothing."""
+    lines = [line for line in (spoken or '').splitlines() if line.strip()]
+    if lines and all(ROLL_ECHO.match(line.strip()) for line in lines):
+        raise InvalidChange('Roll echo: the reply only restates the roll. Say what the roll gets them '
+                            '(what they recall, find, or manage), then hand the turn back.')
+
+
+def knowledge_recall_line(facts, tier, question=''):
+    """The engine's answer to a rolled knowledge check if Kit's narration fails: something for
+    every tier (never silence, never only the roll), a topic-matching current-section fact on a
+    middle or high roll (fence-checked), then a handoff."""
+    facts = facts or {}
+    if tier in ('middle', 'mid', 'high'):
+        fence = [str(term).casefold() for term in facts.get('spoiler_fence') or () if term]
+        words = {w[:5] for w in re.findall(r"[a-z]{4,}", (question or '').casefold()) if w not in _STOP}
+        heard = {' '.join(str(x or '').split()) for x in list(facts.get('visible') or ()) + list(facts.get('party') or ())}
+        for line in facts.get('section') or ():
+            text = ' '.join(str(line or '').split())
+            if not text or text in heard or INTERNAL_LABELS.search(text) or any(t in text.casefold() for t in fence):
+                continue
+            if words & {w[:5] for w in re.findall(r"[a-z]{4,}", text.casefold())}:
+                return f'Kit: That stirs something. {_full_stop(text)} What do you do?'
+        if tier == 'high':
+            return ('Kit: The old tales come back clearly, and you know they were told as warnings, not '
+                    'bedtime stories. Nothing you have seen yet bears them out. What do you do?')
+        return ('Kit: A few old tales come back to you, more than tavern talk but nothing you could '
+                'swear to. What do you do?')
+    return ("Kit: Nothing solid comes back to you, just tavern talk you never paid much mind. "
+            'What do you do?')
+
+
 def knowledge_answer_line(facts):
     """The engine's no-roll answer to a knowledge question the character's background covers:
     one or two current-section facts about the party or place (never a fenced later name),
@@ -3793,7 +3850,7 @@ VALIDATOR_KINDS = {
     'check_kit_tics': 'style', 'check_callback_used': 'style', 'check_voice_style': 'style',
     'check_detail_answer': 'style', 'check_carriers_spoken': 'style', 'check_held_delivered': 'style',
     'check_raised': 'style', 'check_ask_spoken': 'style', 'check_about_brendon': 'style',
-    'check_no_internal_labels': 'style',
+    'check_no_internal_labels': 'style', 'check_not_only_roll': 'style',
 }
 ENGINE_LINE_AT_ONCE = frozenset({'secrecy', 'agency'})
 
@@ -5264,6 +5321,9 @@ def turn_events(runtime, body, plan, turn_id, record=None):
     if plan.get('open_threads'):
         events.append(kit_threads.event(plan['open_threads'], turn_id, runtime.load()[1].get('area')))
     pending = kit_agenda.pending_check_event(plan.get('roll_call'), turn_id) if plan.get('roll_call') else None
+    if pending and pending.get('check') and body.get('action'):
+        # The line the check answers, so a knowledge roll can resolve into what the PC recalls.
+        pending = {**pending, 'check': {**pending['check'], 'asked': str(body['action'])[:300]}}
     looked = threshold_exit(body['events'])
     if pending and pending.get('check') and looked:
         # A check called on a look through a threshold keeps that view for the roll (watchroom T2).
@@ -6987,6 +7047,7 @@ def checked_record(body, plan, speech, performance_variant, source=None, degrade
         kinded(kit_reveal.check_spoken, body.get('progressive_reveal'), speech['segments'], source, plan,
                action=body.get('action') or '')
     kinded(check_no_internal_labels, spoken)
+    kinded(check_not_only_roll, spoken)
     kinded(check_sealed, spoken, body.get('sealed'))  # after the held layer, so its errors come first
     if body.get('story_due') and not ask:
         # An undelivered primary hook is overdue: its NPC raises it now (runtime/kit_brief.py).
@@ -7063,6 +7124,10 @@ def engine_line_record(body, plan, performance_variant, rejected, rejections):
         spoken = public_fallback(body) or f'Narrator: {public_event}'
         if INTERNAL_LABELS.search(spoken):
             spoken = TABLE_TALK_HANDOFF  # an engine label never reaches the player
+        try:
+            check_not_only_roll(spoken)
+        except InvalidChange:
+            spoken = f'{spoken}\nKit: What do you do?'  # the roll alone is never the whole reply
         declared = body.get('declared')
     if declared and declared.get('public'):
         spoken = f"{spoken}\nNarrator: {declared['public']}"
@@ -7783,7 +7848,7 @@ class KitChatBridge:
             total = _answer_total(action, str(pending.get('skill') or ''))
         if total is None:
             return None
-        if (pending.get('reason') == 'knowledge' or pending.get('called_turn') == 'knowledge'):
+        if is_knowledge_roll(pending):
             return self._resolve_knowledge_recall(action, total, pending, revision)
         if not pending:
             spoken = 'Kit: What is the %d for? Tell me which roll you made.' % total
@@ -7987,7 +8052,7 @@ class KitChatBridge:
         from . import kit_perform, kit_skim
         import uuid as _uuid
         tier = kit_perform.knowledge_tier(total)
-        original = pending.get('action') or action
+        original = pending.get('action') or pending.get('asked') or action
         events = [
             {'type': 'beat', 'tags': ['knowledge', tier],
              'evidence': 'A knowledge check was answered. The tier is recorded; no DC is spoken.'},
@@ -8003,9 +8068,17 @@ class KitChatBridge:
         turn_id = str(_uuid.uuid4())
         revision2, body, planning_input = prepare_turn(
             self.runtime, self.adjudicator, original, True, one_pass=True, table_talk=True)
+        try:
+            facts = kit_perform.host_facts_for(self.runtime, original, kind='lookup')
+        except Exception:
+            facts = None
+        body['knowledge_tier'] = tier
+        body['knowledge_answer'] = knowledge_recall_line(facts, tier, original)
         packet = self._stage(turn_id, revision2, body, planning_input, True,
                              DEFAULT_BRIDGE_VARIANT, time.time(), time.perf_counter(), {})
         packet = self._with_host_facts(packet, original)
+        if facts and not packet.get('host_facts'):
+            packet['host_facts'] = facts
         packet['revision'] = committed
         packet['check_outcome'] = {'tier': tier, 'skill': pending.get('skill')}
         return packet
@@ -8056,7 +8129,9 @@ class KitChatBridge:
             notice['context_warning'] = MEMORY_TRIMMED_NOTE
         if body.get('table_talk'):
             notice['table_talk'] = TABLE_TALK_NOTE
-        if body.get('knowledge_answer'):
+        if body.get('knowledge_tier'):
+            notice['knowledge'] = KNOWLEDGE_ROLL_NOTE % body['knowledge_tier']
+        elif body.get('knowledge_answer'):
             notice['knowledge'] = KNOWLEDGE_NOTE
         first_try = first_try_lines(self.runtime, body, planning_input)
         if one_pass:

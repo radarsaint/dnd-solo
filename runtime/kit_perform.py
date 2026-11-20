@@ -128,7 +128,8 @@ _CHARACTER_BACKGROUND = re.compile(
 _KNOWLEDGE_QUESTION = re.compile(
     r"(?i)\bwhat do (?:i|we) (?:know|recall|remember) about\b|"
     r"\bwhat (?:can|do) (?:you|kit) tell (?:me|us) about\b|"
-    r"\bdo i know (?:anything |something )?(?:about|of)\b|"
+    r"\bdo (?:i|we) know (?:anything |something )?(?:about|of)\b|"
+    r"\bdo (?:i|we) (?:know|recall|remember) (?:any|the|some)\b[^?.!]{0,40}\b(?:about|of)\b|"
     r"\bwould (?:i|we) know\b|"
     r"\bhave (?:i|we) (?:heard|learned) (?:of|about)\b|"
     r"\bwhat (?:is|do i know of) this (?:village|town|city|place|area)\b"
@@ -146,7 +147,8 @@ _ASKS_HOME = re.compile(
 
 _BEYOND_BASELINE = re.compile(
     r"(?i)\b(?:beyond|dungeon|lair|ruin|cave|what lies|deeper|"
-    r"unexplored|old wars?|ancient|forgotten|centuries|"
+    r"unexplored|old wars?|ancient|forgotten|centuries|legends?|myths?|lore|"
+    r"(?:old )?(?:stories|tales)|what lives|"
     r"the mountains?(?:\s+beyond)?)\b"
 )
 

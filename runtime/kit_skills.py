@@ -76,7 +76,7 @@ SKILL_USES = (
     ('history',
      'past events, places, people, kingdoms, or wars',
      r"(?i)\b(?:history|historical|past events?|war|wars|kingdom|"
-     r"kingdoms|empire|dynasty|legend|legends|founded|centuries|"
+     r"kingdoms|empire|dynasty|legend|legends|founded|centuries|stories|tales|lore|folklore|myths?|"
      r"who ruled|the old wars?|heritage|"
      r"this (?:village|town|city|kingdom|empire|realm))\b"),
     ('investigation',
