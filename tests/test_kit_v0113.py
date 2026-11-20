@@ -218,3 +218,40 @@ class InitiativeReadsTheCombatState(Scene):
         said = self._resolve('I roll initiative: 14')
         self.assertEqual(said, INITIATIVE_PENDING_LINE)
         self.assertNotIn('Nobody', said)
+
+
+class InitiativeNumberBindsWhileTheFightIsOn(Scene):
+    """v0.11.5: through the host CLI, a number answers the pending initiative of a recorded fight."""
+
+    def _session(self, started):
+        self._start(LOW_SHEET)
+        db = self.runtime.path
+        folder = Path(db).parent
+        if started:
+            beat = folder / 'beat.json'
+            beat.write_text(json.dumps({'happened': 'The bandits charge.', 'encounter': 'started'}))
+            self.assertEqual(call('record', '--db', db, '--input-file', beat)['stage'], 'recorded')
+        action = folder / 'a.txt'
+
+        def prepare(line):
+            action.write_text(line)
+            return call('prepare', '--one-pass', '--db', db, '--action-file', action)
+        return prepare
+
+    def test_initiative_line_binds(self):
+        result = self._session(True)('Initiative 14')
+        self.assertEqual(result['stage'], 'initiative_rolled', result)
+        self.assertNotIn('What is the', result['spoken'])
+        self.assertIn('Initiative 14', result['spoken'])
+        encounter = self.runtime.load()[1]['encounter']
+        self.assertEqual((encounter['initiative'], encounter['initiative_total']), ('rolled', 14))
+
+    def test_bare_number_binds(self):
+        result = self._session(True)('14')
+        self.assertEqual(result['stage'], 'initiative_rolled', result)
+        self.assertNotIn('What is the', result['spoken'])
+
+    def test_off_keeps_todays_reply(self):
+        result = self._session(False)('14')
+        self.assertEqual(result['stage'], 'roll_clarify', result)
+        self.assertIn('What is the 14 for?', result['spoken'])

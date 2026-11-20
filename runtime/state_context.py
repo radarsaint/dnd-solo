@@ -1480,6 +1480,12 @@ class Runtime:
                 evidence = evidence[:RHYTHM_EVIDENCE_MAX_CHARS - 3] + '...'
             state['rhythm'].append({'tags': tags, 'evidence': evidence})
             state['rhythm'] = state['rhythm'][-12:]
+        elif kind == 'initiative_rolled':
+            # The PC's initiative for a fight the host recorded (no engine fight data yet, v0.13).
+            total = event.get('total')
+            require(type(total) is int and -10 <= total <= 60, 'initiative_rolled.total is the rolled number')
+            require((state.get('encounter') or {}).get('active'), 'initiative_rolled needs a fight that is on')
+            state['encounter'].update(initiative='rolled', initiative_total=total)
         elif kind == 'hand_beat':
             # A beat the host resolved by hand (kit_agent record): what happened, what the
             # table now knows, and whether a fight or encounter is on. The engine never

@@ -10,6 +10,10 @@ Versioning rule:
 
 The current version is in `VERSION`.
 
+## v0.11.5
+
+- While a recorded fight is on with initiative pending, a bare number or "Initiative 14" is the PC's initiative (`initiative_rolled`), never "What is the 14 for?". With combat off the reply is unchanged. Tested through the host CLI (record, then prepare).
+
 ## v0.11.4
 
 - The initiative guard reads the one combat state, not the line: when a fight is on (an engine fight or a recorded encounter with no engine fight data) it says initiative is pending, never "Nobody here is fighting you"; when off, the reply is unchanged. The per-line fight parse it used is gone.

@@ -8092,6 +8092,15 @@ class KitChatBridge:
             return None
         if is_knowledge_roll(pending):
             return self._resolve_knowledge_recall(action, total, pending, revision)
+        if not pending and state_context.combat_view(state).get('initiative_pending') and \
+                not (state.get('combat') or {}).get('status'):
+            # The fight is on (a recorded encounter) and initiative is owed: the number is it.
+            events = [{'type': 'initiative_rolled', 'total': total,
+                       'evidence': 'The player rolled initiative %d for the fight in progress.' % total}]
+            committed = self.runtime.commit('initiative-%s' % revision, revision, events)
+            return {'stage': 'initiative_rolled', 'committed': True, 'revision': committed,
+                    'spoken': 'Kit: Initiative %d. The fight goes on from there.' % total,
+                    'public_event': 'Initiative %d.' % total, 'check_outcome': {'initiative': total}}
         if not pending:
             spoken = 'Kit: What is the %d for? Tell me which roll you made.' % total
             events = [{'type': 'beat', 'tags': ['clarify', 'unassigned_roll'],
