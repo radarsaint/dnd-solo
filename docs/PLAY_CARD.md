@@ -79,6 +79,12 @@ Speak only the validated burst and, later, `player_hears` lines from the scene y
 
 A bare `Yes.` answers the waiting opening. The scene is staged and Kit is waiting for a go-ahead to begin. It is not a yes to anyone in the fiction. `prepare` commits it and returns `spoken`. Show `spoken`. Do not draft it.
 
+## Time caps
+
+Never work silently. Setup has a 3-minute total cap: mount, `adventure prepare` (about 2 seconds), the opening skim, `start`. A turn has a 90-second cap. When a step passes its cap, stop it and tell the player in one line what you were doing, then continue or ask. During setup, post a one-line progress note at least every 60 seconds. Say the landing `table_line` as soon as `adventure prepare` returns; skim while the player answers. The skim request's `scene_shape` shows every item shape, so never open the runtime to learn one.
+
+`player_perceivable.actors` lists only who the PC can see. Hidden creatures are in `room_manifest.body.dm_only.actors`, and the engine runs them. An empty `player_perceivable.actors` at an ambush is correct.
+
 ## Moves and open asks
 
 The packet's `player_move` is the engine's read of the message: `look`, `talk`, `recall`, `move`, `use`, `fight`, `rest` or `ask_dm`, with `hold`, `advance` or `withdraw` when the player said where his character stands (`look hold`). If you read it differently, add `player_move` (`kind`, optional `target`, `stance`) to the decision. Python rejects a fight or a rest he never asked for, and an advance when he said he holds back.
