@@ -10,6 +10,16 @@ Versioning rule:
 
 The current version is in `VERSION`.
 
+## v0.11.2
+
+- Using an object at a place ("toss a stone into the thicket", "knock on the door", "poke the brush with my staff") is the use move and simply happens; an attack needs a target creature and intent to harm. "Ready to cast" is a stance, not a cast. A named object and place no longer get "How are you doing that?".
+- No host-tool, file or field names reach the player: refusals are scrubbed (`kit_moves.player_safe`), and the speaking check (`internal_label`, `check_no_internal_labels`) rejects them.
+- Every refusal names its exact field. Performance problems name `performance.segments[i].text`, quote the offending words and give a fix; a changed pending event names `player_input`, `public_event` or `events[i]`; the generic "change only the field named above" is gone.
+- `kit_agent record --db <db> --input-file beat.json` records a hand-resolved beat (`happened`, `revealed`, `facts`, `encounter`): revealed names leave the spoiler fence, matching hidden actors come out, and an encounter flag reaches later rules answers. No combat is run (v0.13). Documented in AGENTS, LOAD_KIT, PLAY_CARD and KIT_PORTABLE.
+- A pending roll survives table talk and rules questions; the next bare number or "I rolled N" answers it until it resolves or a new call replaces it.
+- Rules questions ("Do I need to roll...", "Can I stay hidden if I use my bonus action...?") route to ask_dm (table talk) whatever the stance.
+- A missed scan still shows the scene: one visible fact here instead of "You do not spot anyone."
+
 ## v0.11.1
 
 - Faster first play: `adventure prepare <book.pdf> --db kit.sqlite` does the whole engine side of setup in one step, about a second. It times each part and keeps the result per book, so the same book never prepares twice. A fresh save for a book already prepared, with its opening accepted, is ready in under half a second.
