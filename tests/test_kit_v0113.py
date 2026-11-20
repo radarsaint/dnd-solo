@@ -192,3 +192,29 @@ class RecordedFightReachesEveryTurn(Scene):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class InitiativeReadsTheCombatState(Scene):
+    """v0.11.4: the initiative guard reads the one combat state, never the line."""
+
+    def _resolve(self, line):
+        from runtime.kit_agent import PendingRuling
+        adjudicator = self.bridge.adjudicator
+        adjudicator.mount(self.runtime.source())
+        revision, state = self.runtime.load()
+        with self.assertRaises(PendingRuling) as raised:
+            adjudicator.resolve(line, revision, state)
+        return str(raised.exception)
+
+    def test_off_nobody_is_fighting(self):
+        self._start(LOW_SHEET)
+        self.assertIn('Nobody here is fighting you', self._resolve('I roll initiative: 14'))
+
+    def test_recorded_encounter_initiative_is_pending(self):
+        self._start(LOW_SHEET)
+        from runtime.kit_agent import INITIATIVE_PENDING_LINE, record_hand_beat
+        record_hand_beat(self.runtime.path, {'happened': 'The bandits charge.', 'encounter': 'started'})
+        self.assertNotIn('combat', self.runtime.load()[1])  # no engine fight data
+        said = self._resolve('I roll initiative: 14')
+        self.assertEqual(said, INITIATIVE_PENDING_LINE)
+        self.assertNotIn('Nobody', said)

@@ -10,6 +10,10 @@ Versioning rule:
 
 The current version is in `VERSION`.
 
+## v0.11.4
+
+- The initiative guard reads the one combat state, not the line: when a fight is on (an engine fight or a recorded encounter with no engine fight data) it says initiative is pending, never "Nobody here is fighting you"; when off, the reply is unchanged. The per-line fight parse it used is gone.
+
 ## v0.11.3
 
 - A rolled knowledge check answers with the roll line itself as the turn's player input ("12"), the earlier question carried as what it answers; it was replaying the question as the input. A one-word line is quoted whole in `reacts_to`. Tested end to end through the host CLI (record, rules question, the History call, "12", complete).

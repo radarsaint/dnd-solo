@@ -1202,6 +1202,10 @@ def perceivable_lines(runtime):
         return ()
 
 
+INITIATIVE_PENDING_LINE = ('The fight is on and initiative is pending. Kit takes your initiative roll and '
+                           'runs the order from there. No turn was committed.')
+
+
 class RoomAdjudicator:
     def __init__(self, perception=None, insight=None, roll=None, sleight_of_hand=None, source=None,
                  npc_roll=None):
@@ -2239,8 +2243,11 @@ class RoomAdjudicator:
                 return self._resolve_check(action, revision, state, *claim)
             raise PendingRuling('What are you reading with Insight: whether someone is telling the truth, '
                                 'or something about how they look or act? No turn was committed.')
-        if kind == 'combat' and kit_rolls.initiative(action) is not None and not kit_combat.parse(
-                action, self.source, state):
+        if kind == 'combat' and kit_rolls.initiative(action) is not None:
+            # The one combat state decides, never the line: a fight that is on (an engine fight or
+            # an encounter the host recorded) has initiative pending.
+            if state_context.in_combat(state):
+                raise PendingRuling(INITIATIVE_PENDING_LINE)
             raise PendingRuling('Nobody here is fighting you, so there is no initiative to roll yet. '
                                 'No turn was committed.')
         if kind == 'combat':
