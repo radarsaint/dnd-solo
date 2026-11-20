@@ -4,7 +4,7 @@ Read this once at mount. During play, do not reread repo docs, the runtime, or a
 
 ## Checks
 
-On almost any turn, map the player's intent to one skill, then decide roll or no roll. Do not ask which skill. Do not say a DC. You may override the mapped skill if you state a reason. When nothing fits better, call Investigation. History is only for past events, places, people, kingdoms, or wars.
+On almost any turn, map the player's intent to one skill, then decide roll or no roll. Do not ask which skill. Do not say a DC. You may override the mapped skill if you state a reason. Looking or listening for anything that may be hidden (scanning brush, watching a treeline) is Perception, never Investigation; the engine checks passive Perception first and calls a roll only when the passive does not settle it. When nothing fits better, call Investigation. History is only for past events, places, people, kingdoms, or wars.
 
 - Athletics: climbing, jumping, swimming, pushing, or breaking
 - Acrobatics: balancing, tumbling, or slipping through tight spaces
@@ -54,7 +54,7 @@ Python's authority is validation only. Every scene-form quote must occur word fo
 
 Do not label the book to find the opening. `adventure index` is now a PREPARATION command: run it once using the reader returned by ingest, before accepting the first skim, and check `index_complete`. It reads and indexes the entire retained PDF deterministically, without prompting the model to digest the full book. It must not be triggered by `Yes.`, `Go on`, or another player turn. The opening quote and private scene form still use only the first bounded window. On an indexing failure, keep the player-facing landing brief and report preparation incomplete; never silently continue into unindexed future rooms.
 
-On a pass, say the result's `table_line`: "We're set. Default is the book's start — Yes. begins." Do not speak the opening yet. When they answer with a sheet, run `start --sheet`. The sheet stays. The scene opens only when the opening text is player fiction. A bare `Yes.` is prepare: show `spoken`. That line is the burst, then a short handoff (the road, the street, the patrol, or the trail, when the page says so). Do not draft it. `Go on` releases the next unread boxed player lines of that same printed opening. If the next line is prep, a procedure, a header, or a rule, stop. The line is "That's the opening — what do you do?" Do not read past that line. A person introduced in a chunk that was spoken is on stage. It is not a new label pass.
+On a pass, say the result's `table_line`: "We're set. Say Yes and we start at the beginning of the book." Do not speak the opening yet. When they answer with a sheet, run `start --sheet`. The sheet stays. The scene opens only when the opening text is player fiction. A bare `Yes.` is prepare: show `spoken`. That line is the burst, then a short handoff (the road, the street, the patrol, or the trail, when the page says so). Do not draft it. `Go on` releases the next unread boxed player lines of that same printed opening. If the next line is prep, a procedure, a header, or a rule, stop. The line is "That's the opening — what do you do?" Do not read past that line. A person introduced in a chunk that was spoken is on stage. It is not a new label pass.
 
 Before a scene exists, do not `prepare` a title. Run `start --db kit.sqlite --sheet <sheet> --start "<title>"`. If `prepare` says `Initialize a session first` or returns `use_start`, run `next_command`. Show `table_line`. The picker lists `places`. Those entries are index-classified playable sections only. If the only start is the working "Here" line, show that `table_line` and do not invent a scene from a rules heading.
 
@@ -78,6 +78,14 @@ Speak only the validated burst and, later, `player_hears` lines from the scene y
 `observed_event` copies `accepted_public_event` word for word. Case and punctuation may differ. The words may not.
 
 A bare `Yes.` answers the waiting opening. The scene is staged and Kit is waiting for a go-ahead to begin. It is not a yes to anyone in the fiction. `prepare` commits it and returns `spoken`. Show `spoken`. Do not draft it.
+
+## Moves and open asks
+
+The packet's `player_move` is the engine's read of the message: `look`, `talk`, `recall`, `move`, `use`, `fight`, `rest` or `ask_dm`, with `hold`, `advance` or `withdraw` when the player said where his character stands (`look hold`). If you read it differently, add `player_move` (`kind`, optional `target`, `stance`) to the decision. Python rejects a fight or a rest he never asked for, and an advance when he said he holds back.
+
+`open_ask` is what Kit is waiting on and why (a roll, a choice, initiative). Read the player's answer against it first: a number answers it even inside a question (`Perception? I rolled a 15.`). If he argues the skill, Kit weighs it once and makes the call; the engine answers that turn.
+
+Speaking contract (Python rejects the reply): never a bare number or roll result, never an internal label or field name, never a question the same reply already answers (ask or resolve, not both), never re-ask a roll or a choice he already gave, and never move the PC against his stated position (`You go ahead.` when he holds back).
 
 ## One message
 
