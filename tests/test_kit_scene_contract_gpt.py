@@ -12,6 +12,9 @@ from runtime.state_context import Runtime
 
 ROOT = Path(__file__).resolve().parents[1]
 SHEET = ROOT / 'tests' / 'fixtures' / 'characters' / 'nik.json'
+# Passive Perception 9: a look at hidden bandits needs the called roll (a passive that meets their
+# Stealth would spot them with no roll; runtime/kit_moves.py).
+LOW_SHEET = ROOT / 'tests' / 'fixtures' / 'characters' / 'low_perception.json'
 FICTION = 'The caravan halts on the road beneath a leaning pine.'
 ENCOUNTER = ('Two bandits hide by the ditch and want the caravan supplies. '
              'A careful look notices the broken branches under the pine.')
@@ -151,7 +154,7 @@ class ScenePlayerPathTests(unittest.TestCase):
 class NativeOpeningPathTests(ScenePlayerPathTests):
     def _play(self, action, roll=None):
         self.assertEqual(self._accept()['stage'], 'skim_accepted')
-        start_session(str(self.db), str(SHEET))
+        start_session(str(self.db), str(LOW_SHEET))
         runtime = Runtime(str(self.db))
         self.addCleanup(runtime.close)
         bridge = KitChatBridge(runtime, RoomAdjudicator())

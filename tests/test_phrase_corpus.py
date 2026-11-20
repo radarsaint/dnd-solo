@@ -9,7 +9,7 @@ intent label let a search that ended in a refusal pass (#150 retest). Precedence
 overlapping intents: docs/INTENT_PRECEDENCE.md. Watchroom, inside, dice pinned."""
 import unittest
 
-from runtime.kit_agent import PendingRuling
+from runtime.kit_agent import PendingRuling, SIMPLE_ACT_LINE
 from test_kit_watchroom_stalls import Stalls
 
 CHECK, LOOK, ACT, MOVE, SPELL, SPEECH, REFUSED, RULED = 'check', 'look', 'act', 'move', 'spell', 'speech', 'refused', 'ruled'
@@ -138,7 +138,7 @@ def outcome(case, line, turn='c'):
     except PendingRuling:
         return REFUSED
     public = packet['input']['public']
-    if public['accepted_public_event'].startswith('You go ahead'):
+    if public['accepted_public_event'].startswith(SIMPLE_ACT_LINE):
         return ACT
     return _KINDS.get(public['action_kind'], public['action_kind'])
 
