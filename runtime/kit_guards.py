@@ -164,7 +164,8 @@ NPC_META_PATTERN = _lazy.regex(
     r"\b(dungeon master|game master|the dm|your character|the narrator|npcs?|nat(ural)? ?20|"
     r"d20|d12|d10|d8|d6|d4|saving throw|hit points|initiative|ability check|skill check|"
     r"roll (a|for|initiative|insight|perception|stealth|athletics)|make (a|an) \w+ check|"
-    r"dc ?\d+|fourth wall|this scene|the story so far|plot twist|table presence|player character)\b")
+    r"dc ?\d+|fourth wall|this scene|this beat|the beat|off-?stage|off the page|"
+    r"invent(?:s|ed|ing)?|the story so far|plot twist|table presence|player character)\b")
 # SOFT: Kit's signature register. Her voice guidance has her deliver short verdicts on
 # the bid ("Bold.") and table-side asides. From an NPC, a sentence that is only such a
 # verdict, or one of these table-side phrases, sounds like Kit, not like the character.

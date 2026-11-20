@@ -224,10 +224,17 @@ def build_beat(scene, burst, place_heading, fiction=None):
         goal = person.get('goal') or {}
         # A conditional or inferred motive is not a new authoritative world fact.
         accepted_goal = goal.get('quote', '') if goal.get('status') == 'established' else ''
+        quote = ''
+        raw_quote = person.get('quote')
+        if isinstance(raw_quote, dict):
+            quote = (raw_quote.get('quote') or '').strip()
+        elif raw_quote:
+            quote = str(raw_quote).strip()
         people.append({
             'id': person['id'], 'name': person['name'], 'hidden': hidden,
             'kind': 'creature' if person['kind'] == 'creature' else 'speaker',
             'revealed': not hidden, 'addressable': not hidden, 'staged': staged,
+            'quote': quote, 'visible_state': quote,
             'goal': accepted_goal, 'motive': accepted_goal,
             'knowledge_evidence': person['knowledge'],
         })

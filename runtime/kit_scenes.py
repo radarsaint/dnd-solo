@@ -639,8 +639,9 @@ def finish(index, text):
                                    item.get('relation'), anchor.get('number'))
     index['triggers'] = _triggers(index)
     index['by_slug'] = {_slug(key): key for key in locations}
-    from . import kit_links
+    from . import kit_links, kit_rulings
     kit_links.build(index, text)
+    kit_rulings.build(index, text)
     return index
 
 

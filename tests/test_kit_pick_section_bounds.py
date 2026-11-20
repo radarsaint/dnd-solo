@@ -368,6 +368,9 @@ class CanonicalKeyPickMatchesLanding(unittest.TestCase):
                     self.assertIn('herons stand in the shallows', land_span)
                     self.assertNotIn('sealed latch', land_span)
                     self.assertGreaterEqual(len(land_cols), 2, land_cols)
+                    land_burst = land_req.get('read_aloud') or ''
+                    self.assertTrue(land_burst)
+                    self.assertIn(self.burst, ' '.join(land_burst.split()))
 
                     from runtime import kit_opening
                     picks = kit_opening.playable_picker_starts(self.pick_db)
@@ -388,6 +391,8 @@ class CanonicalKeyPickMatchesLanding(unittest.TestCase):
             [(c.get('lane'), c.get('text')) for c in pick_cols],
             [(c.get('lane'), c.get('text')) for c in land_cols],
         )
+        pick_burst = pick_req.get('read_aloud') or ''
+        self.assertEqual(pick_burst, land_burst)
         self.assertEqual(holder['sources'], 0, holder)
         # Landing recovers once. Pick reuses the recorded section, no later-source walk.
         self.assertLess(holder['has_burst'], 80, holder)

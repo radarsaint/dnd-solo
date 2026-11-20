@@ -111,7 +111,7 @@ KEEPS_PENDING_CHECK = BOOKKEEPING_EVENTS + ('refused_attempt',)
 # A pending check's optional fields: a held exit, and room for the check-calling follow-up's
 # quiet DC adjustment for creative use of the scene (Brendon: about -2) with its reason. Not
 # applied anywhere yet.
-PENDING_CHECK_OPTIONAL = {'exit', 'dc_adjust', 'reason', 'threshold', 'held', 'dc', 'action', 'notice_trigger'}
+PENDING_CHECK_OPTIONAL = {'exit', 'dc_adjust', 'reason', 'threshold', 'held', 'dc', 'action', 'notice_trigger', 'asked'}
 # ``action``: the act a check the engine itself called waits on (the act needs the PC's roll and
 # the engine never rolls for them); the player's roll resolves it (LET_IT_RIDE.md).
 # A standing check (Let It Ride): an established result that holds while the PC keeps at the same
@@ -1186,6 +1186,8 @@ class Runtime:
                                                                  len(check['reason']) <= 200)) and
                                       ('action' not in check or (isinstance(check['action'], str) and
                                                                  0 < len(check['action']) <= 2000)) and
+                                      ('asked' not in check or (isinstance(check['asked'], str) and
+                                                                0 < len(check['asked']) <= 300)) and
                                       ('notice_trigger' not in check or
                                        (check['skill'] == 'perception' and
                                         check['notice_trigger'] in {
@@ -1193,7 +1195,7 @@ class Runtime:
                                             if isinstance(trig, dict) and trig.get('notice') is True})) and
                                       pc_sheet.SKILLS.get(check['skill']) == check['ability'] and
                                       isinstance(check['target'], str) and isinstance(check['called_turn'], str)),
-                    'pending_check is {skill, ability, target, called_turn[, exit, threshold, held, dc, dc_adjust, reason, action]} or None')
+                    'pending_check is {skill, ability, target, called_turn[, exit, threshold, held, dc, dc_adjust, reason, action, asked]} or None')
             if check is None:
                 state.pop('pending_check', None)
                 state.pop('prepared_roll', None)

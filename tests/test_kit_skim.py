@@ -1113,3 +1113,96 @@ class SkimRound6(unittest.TestCase):
         names = [actor.get('name', '').casefold() for actor in (room.get('actors') or {}).values()]
         self.assertTrue(any('greet' in name for name in names), names)
         self.assertIn('bandit', json.dumps(room).casefold())
+
+
+
+class QuoteSafeSplits(unittest.TestCase):
+    """Burst and Go on never cut inside an open quotation."""
+
+    def test_sentences_do_not_split_inside_a_quotation(self):
+        text = 'The miller calls, "Keep off the sluice. Do not wade past the heron." The hounds wait.'
+        parts = kit_skim._sentences(text)
+        self.assertEqual(len(parts), 2, parts)
+        self.assertEqual(parts[0].count('"'), 2, parts[0])
+        self.assertIn('heron', parts[0].casefold())
+        self.assertTrue(parts[1].casefold().startswith('the hounds'), parts[1])
+
+    def test_a_word_cap_ends_before_a_new_quotation(self):
+        lead = ' '.join(['The lane is wet.'] * 24)
+        quoted = (
+            'A miller calls, "Keep off the sluice until I check the latch, '
+            'and do not wade past the heron." The hounds wait on the bank.'
+        )
+        chunk, rest = kit_skim._quote_safe_chunk(
+            kit_skim._sentences(lead + ' ' + quoted), kit_skim.BURST_WORDS)
+        self.assertEqual(kit_skim._open_quote_at(chunk), -1, chunk)
+        self.assertIn('miller', ' '.join(rest).casefold())
+        self.assertNotIn('keep off the sluice', chunk.casefold())
+
+    def test_an_open_quote_extends_to_the_closing_mark(self):
+        text = (
+            'You reach the ford and a miller calls, "'
+            + ('Wait by the gate and keep your boots dry. ' * 15)
+            + 'The latch is set." The hounds wait on the bank.'
+        )
+        parts = kit_skim._sentences(text)
+        chunk, rest = kit_skim._quote_safe_chunk(parts, 40)
+        self.assertEqual(kit_skim._open_quote_at(chunk), -1, chunk)
+        self.assertIn('latch is set', chunk.casefold())
+        self.assertIn('hounds', ' '.join(rest).casefold())
+
+    def test_close_or_trim_extends_through_the_closing_quote(self):
+        chunk, rest = kit_skim._close_or_trim(
+            'A miller calls, "Keep off the sluice.',
+            'and do not wade past the heron." The hounds wait.')
+        self.assertIn('heron."', chunk)
+        self.assertEqual(kit_skim._open_quote_at(chunk), -1, chunk)
+        self.assertIn('hounds', rest.casefold())
+
+    def test_go_on_speaks_a_quoted_line_in_full(self):
+        import tempfile
+        lead = ' '.join(['The lane is wet.'] * 20)
+        spoken_quote = (
+            'A miller calls, "Keep off the sluice until I check the latch, '
+            'and do not wade past the heron."'
+        )
+        tail = 'The hounds wait on the bank.'
+        burst_src = lead + ' ' + spoken_quote + ' ' + tail
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        db = Path(folder.name) / 'kit.sqlite'
+        page = 'The Ford\n> ' + burst_src + '\nThe mill is quiet.\n'
+        kit_adventure.ingest_adventure(db, text=page)
+        # Accept only the lead as the burst so Go on has to speak the quoted line.
+        lead_text = ' '.join(kit_skim._sentences(lead))
+        done = kit_skim.accept(db, _reply(
+            burst=lead_text,
+            source_quote=lead_text,
+            design_start_name='The Ford',
+            alt_starts=[{'title': 'The Ford', 'page': 1}],
+        ))
+        self.assertEqual(done['stage'], 'skim_accepted', done)
+        start_session(str(db), str(NIK))
+        runtime = Runtime(str(db))
+        self.addCleanup(runtime.close)
+        bridge = KitChatBridge(runtime, RoomAdjudicator())
+        opening = bridge.prepare('Yes.')
+        self.assertIn('lane is wet', (opening.get('spoken') or '').casefold())
+        self.assertNotIn('keep off the sluice', (opening.get('spoken') or '').casefold())
+        more = bridge.prepare('Go on.')
+        spoken = more.get('spoken') or ''
+        self.assertIn('keep off the sluice', spoken.casefold())
+        # The spoken Go on must not leave an opening quote hanging.
+        # Use the narrator portion only.
+        narrator = ' '.join(
+            line.split(':', 1)[1].strip()
+            for line in spoken.splitlines() if line.startswith('Narrator:')
+        )
+        self.assertEqual(kit_skim._open_quote_at(narrator), -1, spoken)
+        self.assertIn('heron', narrator.casefold())
+
+
+    def test_looking_up_at_the_ceiling_is_not_a_page_lookup(self):
+        self.assertIsNone(kit_skim._LOOKUP.search('I look up at the ceiling.'))
+        self.assertTrue(kit_skim._LOOKUP.search('Look up the miller.'))
+        self.assertTrue(kit_skim._LOOKUP.search('Kit, what can you tell me about this road?'))
