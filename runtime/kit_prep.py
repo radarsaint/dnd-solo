@@ -108,7 +108,31 @@ def restore(db, sha, root=None):
     _rewrite(folder, meta.get('folder'), folder.resolve(), meta.get('db'), Path(db).resolve())
     (folder / META).write_text(json.dumps({'root': str(cache_root(root)), 'sha256': sha,
                                            'stage': meta.get('stage')}), encoding='utf-8')
+    _fresh_session(db)
     return meta.get('stage')
+
+
+# What one session did with the opening, never part of the book's preparation: a restored
+# save starts like a cold one (landing, sheet, the ready line, Yes, then the opening).
+SESSION_FLAGS = ('speak_now', 'burst_spoken', 'sheet', 'knowledge_result', 'screen_failed')
+
+
+def _fresh_session(db):
+    from . import kit_skim
+    data = kit_skim._read(db)
+    if not data:
+        return
+    changed = False
+    for key in SESSION_FLAGS:
+        if key in data:
+            data.pop(key)
+            changed = True
+    beat = data.get('beat')
+    if isinstance(beat, dict) and beat.get('heard'):
+        beat['heard'] = 0
+        changed = True
+    if changed:
+        kit_skim._write(db, data)
 
 
 def prepare(db, pdf, reader='auto', root=None):
@@ -129,7 +153,9 @@ def prepare(db, pdf, reader='auto', root=None):
             'stage': 'adventure_prepared', 'cached': True, 'source_pdf_sha256': sha,
             'skim_status': skim.get('status') or 'not_started',
             'index_complete': readiness.get('index_complete'),
-            'table_line': kit_skim.READY_LINE if accepted else kit_skim.LANDING,
+            # The same first line as a cold prepare: the player hands over the sheet first;
+            # the ready line comes from start, and the opening only after Yes.
+            'table_line': kit_skim.LANDING,
             'next': ('Opening already accepted for this book. Run status, then start with the sheet.'
                      if accepted else 'Index ready. Skim the opening next (skim_request).'),
             'skim_request': None if accepted else kit_skim.request_for(db),

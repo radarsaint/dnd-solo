@@ -1177,6 +1177,31 @@ def combine(first, second):
     return Resolution(kind, public, list(first.events) + list(second.events))
 
 
+def _clean_sentence(text):
+    """One whole, player-facing sentence: capitalised, at least four words, ends a sentence."""
+    text = ' '.join(str(text or '').split())
+    return bool(re.match(r"^[\"'(]?[A-Z]", text)) and len(text.split()) >= 4 and \
+        text.endswith(('.', '!', '?', '."', ".'")) and not INTERNAL_LABELS.search(text)
+
+
+def perceivable_lines(runtime):
+    """What the player has perceived here: the read-aloud heard so far (kit_perform)."""
+    from . import kit_opening, kit_perform
+    try:
+        data, beat = kit_opening._load(runtime)
+        if not beat:
+            return ()
+        heard = tuple(kit_perform._heard_quotes(beat, (data or {}).get('burst') or ''))
+        if heard:
+            return heard
+        # The source-checked read-aloud burst the opening speaks, sentence by sentence.
+        from . import kit_skim
+        burst = (data or {}).get('burst') or ''
+        return tuple(line for line in (kit_skim._sentences(burst) or ()) if line) if data.get('status') == 'accepted' else ()
+    except Exception:
+        return ()
+
+
 class RoomAdjudicator:
     def __init__(self, perception=None, insight=None, roll=None, sleight_of_hand=None, source=None,
                  npc_roll=None):
@@ -1244,7 +1269,7 @@ class RoomAdjudicator:
                 return offered
             elif str(exc).startswith(UNSUPPORTED_RULING) and ordinary_attempt(action, self.source, state):
                 # An ordinary attempt on a thing in the room is Kit's turn to rule (#150 retest 2b).
-                result = self._kit_ruling(action)
+                result = self._kit_ruling(action, state)
             else:
                 raise
         if state.get('standing_check') and result.kind not in STANDING_KEEPS and \
@@ -1904,7 +1929,7 @@ class RoomAdjudicator:
             return None
         return kit_triggers.handles_offer(self.source, state, action, area, kind)
 
-    def _kit_ruling(self, action):
+    def _kit_ruling(self, action, state=None):
         """A real, unresolved player attempt; give Kit a playable clarification, not a slogan.
 
         The statement does not award success or narrate an unsupported consequence.
@@ -1919,11 +1944,18 @@ class RoomAdjudicator:
             spoken = 'How are you going to set it alight, and what are you using?'
         elif kit_moves.object_act(words):
             # The player already said what and where ("toss a stone into the left thicket"):
-            # never ask how. The act happens; Kit narrates what follows in the scene,
-            # including any hidden creature's source-attested reaction.
+            # never ask how. Out of combat it just happens; in combat (the engine's one
+            # state) one object interaction is free this turn and another costs the action.
             spoken = SIMPLE_ACT_LINE
             event['evidence'] += (' The player named the object and where it goes; do not ask how. '
                                   'Narrate what follows here.')
+            if state is not None and state_context.in_combat(state):
+                if kit_moves.object_acts(words) > 1:
+                    spoken = 'That takes your action: one object interaction is free, the second costs it.'
+                    event['tags'].append('action_spent')
+                else:
+                    event['tags'].append('free_object_interaction')
+                event['evidence'] += ' In combat: ' + state_context.combat_view(state)['object_interaction'] + '.'
         else:
             spoken = 'How are you doing that, and what are you using?'
         return Resolution('kit_ruling', spoken, [event])
@@ -2234,7 +2266,7 @@ class RoomAdjudicator:
         if kind == 'unsupported_action':
             lowered = asked_away(QUOTED_SPEECH.sub(' ', action.translate(_TYPOGRAPHIC)).lower())
             if BURN_ACT.search(lowered):
-                return self._kit_ruling(action)
+                return self._kit_ruling(action, state)
             exc = PendingRuling(f'{UNSUPPORTED_RULING} No turn was committed.', attempt=True)
             exc.player_line = unsupported_line(action, state)
             raise exc
@@ -2281,7 +2313,7 @@ class RoomAdjudicator:
             text = handling.get({'move_feature': 'move', 'inspect_feature': 'look',
                                  'enter_feature': 'enter'}[kind])
             if not text and ordinary_attempt(action, self.source, state):
-                return self._kit_ruling(action)  # an act the file has no line for: Kit rules it
+                return self._kit_ruling(action, state)  # an act the file has no line for: Kit rules it
             if not text:
                 raise PendingRuling(f'The room file gives no ruling for that with the {noun}. No turn was committed.',
                                     attempt=True)
@@ -2896,20 +2928,22 @@ class RoomAdjudicator:
         return Resolution('called_check', self._miss_texture(action, state) + ' What do you do?',
                           events + clear)
 
+    # Lines the player has perceived (read-aloud heard so far, facts the table recorded). The
+    # bridge sets it before each turn; a miss is textured from these only, never DM notes.
+    perceivable = ()
+
     def _miss_texture(self, action, state):
-        """A missed scan still shows the scene: one visible fact here, the one nearest what
-        the player watched, never a bare "nobody". Only player-visible facts are used."""
+        """A missed scan still shows the scene: one line the player has already perceived,
+        the one nearest what they watched, never a bare "nobody" and never a DM-only note."""
         area = state.get('area')
-        seen = [str(fact.get('text') or '').strip() for fact in (self.source.get('facts') or {}).values()
-                if isinstance(fact, dict) and fact.get('visible') and fact.get('area') in (area, 'here', None)
-                and str(fact.get('text') or '').strip()]
+        seen = [line for line in (list(self.perceivable or ()) + list(state.get('table_facts') or ()))
+                if _clean_sentence(line)]
         if not seen:
             place = ((self.source.get('areas') or {}).get(area) or {}).get('called') or 'the place'
             return 'Nothing moves that you can see; %s keeps its quiet.' % place
         asked = set(re.findall(r"[a-z]{4,}", str(action or '').casefold()))
         best = max(seen, key=lambda text: len(asked & set(re.findall(r"[a-z]{4,}", text.casefold()))))
-        best = best if best.endswith(('.', '!', '?')) else best + '.'
-        return 'Nothing moves that you can see. %s' % best
+        return 'Nothing moves that you can see. %s' % ' '.join(best.split())
 
     def _resolve_called(self, action, revision, state):
         """A bare roll ("Perception 22", "22", "I rolled a 22") answering the check Kit called
@@ -3233,7 +3267,7 @@ class RoomAdjudicator:
             return f'{" and ".join(labels)} {"is" if len(labels) == 1 else "are"} watching now.'
         if DIFFERENT_APPROACH.search(narration):
             return 'That is a different approach.'
-        if (state.get('combat') or {}).get('status') in ('awaiting_initiative', 'running') or \
+        if state_context.in_combat(state) or \
                 dc > standing['against'].get('dc', dc):
             return 'Things just got complicated.'
         return ''
@@ -6042,13 +6076,14 @@ def detail_oracle(runtime, state, action, action_kind):
                                      price_lookup=lambda text: kit_prices.lookup_hint(text, source_prices))
 
 
-def prepare_turn(runtime, adjudicator, action, use_memory=True, one_pass=False, table_talk=False, choice=None):
+def prepare_turn(runtime, adjudicator, action, use_memory=True, one_pass=False, table_talk=False, choice=None,
+                 resolution=None):
     require(isinstance(action, str) and 0 < len(action.strip()) <= 1000,
             'Player action must be 1–1000 characters')
     revision, state = runtime.load()
     if table_talk:
         # The host decided this is not a game turn: nothing is adjudicated.
-        return prepare_inputs(runtime, revision, state, action, table_talk_resolution(action),
+        return prepare_inputs(runtime, revision, state, action, resolution or table_talk_resolution(action),
                               use_memory, one_pass, table_talk=True)
     if isinstance(adjudicator, RoomAdjudicator):
         # Every turn, not once: a commit may have mounted another room since the last one.
@@ -7858,6 +7893,8 @@ class KitChatBridge:
         DEFAULT_BRIDGE_VARIANT); staged turns choose it at decide. ``table_talk``: the host
         marks the line as the player talking to Kit mid-scene (meta mode, never adjudicated,
         recorded as table talk); the hidden-information guards still apply."""
+        if isinstance(self.adjudicator, RoomAdjudicator):
+            self.adjudicator.perceivable = perceivable_lines(self.runtime)
         turn_id = turn_id or str(uuid.uuid4())
         started = time.time()
         clock = time.perf_counter()
@@ -8273,8 +8310,16 @@ class KitChatBridge:
         }
         kit_skim._write(self.runtime.path, data)
         turn_id = str(_uuid.uuid4())
+        # The turn's player input is the line just said (the roll), never the earlier question:
+        # the question rides along as what the roll answers (v0.11.2 recheck T8).
+        said = str(action).strip()
+        recall = Resolution('knowledge', 'You think back on what you know.', [
+            {'type': 'beat', 'tags': ['table_talk', 'knowledge_recall'],
+             'evidence': 'Knowledge roll %s (%s tier) answers the earlier question: %s'
+                         % (said[:40], tier, str(original)[:300])}])
         revision2, body, planning_input = prepare_turn(
-            self.runtime, self.adjudicator, original, True, one_pass=True, table_talk=True)
+            self.runtime, self.adjudicator, said, True, one_pass=True, table_talk=True, resolution=recall)
+        body['knowledge_question'] = str(original)[:300]
         try:
             facts = kit_perform.host_facts_for(self.runtime, original, kind='lookup')
         except Exception:
@@ -8339,12 +8384,17 @@ class KitChatBridge:
             notice['context_warning'] = MEMORY_TRIMMED_NOTE
         if body.get('table_talk'):
             notice['table_talk'] = TABLE_TALK_NOTE
-            encounter = (self.runtime.load()[1].get('encounter') or {})
-            if encounter.get('active'):
-                notice['encounter'] = ('An encounter is on (recorded by the host: %s). Answer the rules '
-                                       'question for that situation.' % encounter.get('since', ''))
+            if state_context.in_combat(self.runtime.load()[1]):
+                notice['encounter'] = 'A fight is on (see combat). Answer the rules question for that situation.'
+        fight = state_context.combat_view(self.runtime.load()[1])
+        if fight['on']:
+            # Every turn reads the one combat state (prep notes and the turn reading).
+            notice['combat'] = fight
         if body.get('knowledge_tier'):
             notice['knowledge'] = KNOWLEDGE_ROLL_NOTE % body['knowledge_tier']
+            if body.get('knowledge_question'):
+                notice['knowledge'] += (' The roll answers the earlier question: "%s". Quote the roll line '
+                                        'the player just said in reply_to.' % body['knowledge_question'])
         elif body.get('knowledge_answer'):
             notice['knowledge'] = KNOWLEDGE_NOTE
         first_try = first_try_lines(self.runtime, body, planning_input)

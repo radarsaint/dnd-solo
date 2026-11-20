@@ -25,9 +25,11 @@ class RolledKnowledgeCheck(unittest.TestCase):
         plan = RecordingModel().plan(prepared['input']['private'])
         plan.update(move='ruling', focus_actor='none', table_presence='present', turn_mode='meta')
         plan['improv_read'].update(actor_ref='none', actor_basis='none')
-        plan['public_brief'].update(reply_to='any old stories', scope='call')
+        # v0.11.3: the turn's player words are the roll line, not the earlier question.
+        said = 'I rolled a %d' % total
+        plan['public_brief'].update(reply_to=said, scope='call')
         output = {'decision': plan, 'performance': {'segments': [
-            {'speaker': 'Kit', 'text': 'You roll a %d.' % total, 'reacts_to': 'any old stories'}]}}
+            {'speaker': 'Kit', 'text': 'You roll a %d.' % total, 'reacts_to': said}]}}
         for _ in range(4):
             try:
                 return bridge.complete(prepared['turn_id'], output)

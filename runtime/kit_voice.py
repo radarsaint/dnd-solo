@@ -415,10 +415,14 @@ def check_kit_asides(segments, player_action, public_event, action_kind):
                 'her remark answers.')
         excerpt = _norm(quote).strip(' .,!?;:"\'')
         content = [word for word in re.findall(r"[\w']+", excerpt) if word not in _REACT_SMALL]
-        require(len(quote) <= REACTS_TO_MAX_CHARS and len(excerpt.split()) >= REACTS_TO_MIN_WORDS
-                and content,
-                f'reacts_to must quote at least {REACTS_TO_MIN_WORDS} words (one distinctive) and at '
-                f'most {REACTS_TO_MAX_CHARS} characters')
+        # A line shorter than the minimum ("12", "Yes.") is quoted whole.
+        whole = _norm(player_action or '').strip(' .,!?;:"\'')
+        require(len(quote) <= REACTS_TO_MAX_CHARS and (
+                    len(excerpt.split()) >= REACTS_TO_MIN_WORDS and content or
+                    excerpt and excerpt == whole and len(whole.split()) < REACTS_TO_MIN_WORDS),
+                f'performance.segments[].reacts_to must quote at least {REACTS_TO_MIN_WORDS} words (one '
+                f'distinctive) and at most {REACTS_TO_MAX_CHARS} characters, or the whole player line '
+                f'when it is shorter (e.g. "{(player_action or "").strip()[:40]}")')
         require(any(excerpt in unit for unit in units),
                 'reacts_to must quote words actually said or shown this turn (the player\'s words, the '
                 'accepted event, or a Narrator or NPC line in this performance). Kit reacts to what '
