@@ -131,7 +131,8 @@ class RecordHandResolvedBeat(Scene):
         result, text = self.say('Can I stay hidden if I use my bonus action to hide?')
         self.assertTrue(result.get('player_move', '').startswith('ask_dm'), result.get('player_move'))
         self.assertNotIn('speak to the room', text)
-        self.assertIn('An encounter is on', json.dumps(result))
+        self.assertIn('A fight is on', json.dumps(result))
+        self.assertTrue(result['combat']['on'])
 
     def test_cli(self):
         self._start(LOW_SHEET)

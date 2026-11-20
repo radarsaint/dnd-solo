@@ -294,7 +294,8 @@ def pc_surprised(source, state, revision, trigger, passive, npc_roll=None):
     ambusher whose Stealth is unknown (a compiled stat block that states none); with neither,
     Stealth +0 is rolled, as before."""
     rule = trigger.get('surprise')
-    if not rule or (state.get('combat') or {}).get('status') in ('awaiting_initiative', 'running'):
+    from .state_context import in_combat
+    if not rule or in_combat(state):
         return False, 'no surprise'
     from . import kit_combat
     stats = kit_combat.config(source).get('actors') or {}

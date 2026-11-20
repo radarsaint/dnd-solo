@@ -10,6 +10,13 @@ Versioning rule:
 
 The current version is in `VERSION`.
 
+## v0.11.3
+
+- A rolled knowledge check answers with the roll line itself as the turn's player input ("12"), the earlier question carried as what it answers; it was replaying the question as the input. A one-word line is quoted whole in `reacts_to`. Tested end to end through the host CLI (record, rules question, the History call, "12", complete).
+- A missed scan is textured only from what the player has perceived (the read-aloud heard, facts the table recorded), never from DM-only or skimmed scene notes.
+- A restored (cached) book starts like a cold one: prepare says the landing line, start says the ready line, Yes speaks the opening. One session's opening flags are no longer carried in the cache.
+- In combat or not is one engine-owned state (`state_context.in_combat` / `combat_view`): ON when initiative is called or a record step starts an encounter, OFF when the fight ends or a record step ends it. Every turn carries it (`combat` in the turn packet, the router's reasons), with a pending initiative shown. Object interactions: out of combat they just happen; in combat one is free per turn and a second costs the action. The brief, reveal, trigger-surprise and scene-close checks read it instead of their own copies.
+
 ## v0.11.2
 
 - Using an object at a place ("toss a stone into the thicket", "knock on the door", "poke the brush with my staff") is the use move and simply happens; an attack needs a target creature and intent to harm. "Ready to cast" is a stance, not a cast. A named object and place no longer get "How are you doing that?".

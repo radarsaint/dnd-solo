@@ -120,6 +120,32 @@ def keeps_pending_check(event):
     return event.get('type') == 'beat' and bool(TALK_TAGS & set(event.get('tags') or ()))
 
 
+FIGHT_ON = ('awaiting_initiative', 'running')
+
+
+def in_combat(state):
+    """The one engine-owned answer to "is a fight on?". ON when initiative is called (the
+    engine or a book trigger: state['combat'] awaiting initiative or running) or a record step
+    set the encounter on; OFF only when the fight ends or a record step ends it. Never read
+    from the player's line."""
+    return (state.get('combat') or {}).get('status') in FIGHT_ON or \
+        bool((state.get('encounter') or {}).get('active'))
+
+
+def combat_view(state):
+    """What every turn reads about the fight: on/off, whether initiative is still owed, and
+    what an object interaction costs now."""
+    if not in_combat(state):
+        return {'on': False, 'object_interaction': 'just happens'}
+    fight = state.get('combat') or {}
+    engine = fight.get('status') in FIGHT_ON
+    return {'on': True, 'source': 'engine fight' if engine else 'recorded by the host',
+            'since': None if engine else (state.get('encounter') or {}).get('since'),
+            'initiative_pending': fight.get('status') == 'awaiting_initiative' if engine else
+            (state.get('encounter') or {}).get('initiative') == 'pending',
+            'object_interaction': 'one free object interaction this turn; another costs the action'}
+
+
 # A pending check's optional fields: a held exit, and room for the check-calling follow-up's
 # quiet DC adjustment for creative use of the scene (Brendon: about -2) with its reason. Not
 # applied anywhere yet.
@@ -1148,8 +1174,7 @@ class Runtime:
             # scene-local state (who is hidden from whom) end with it.
             closing = current_scene(state)
             require(event.get('scene') == closing, f'scene_close names the open scene ({closing})')
-            require((state.get('combat') or {}).get('status') not in ('awaiting_initiative', 'running'),
-                    'A scene cannot close in the middle of a fight')
+            require(not in_combat(state), 'A scene cannot close in the middle of a fight')
             state['canon'] = {slot: entry for slot, entry in (state.get('canon') or {}).items()
                               if not (entry.get('scope') == 'scene' and entry.get('scene', FIRST_SCENE) == closing)}
             state.pop('scene', None)
@@ -1312,6 +1337,8 @@ class Runtime:
             from . import kit_combat
             kit_combat.check_fight(event.get('state'))
             state['combat'] = copy.deepcopy(event['state'])
+            if event['state'].get('status') not in FIGHT_ON:
+                state.pop('encounter', None)  # the fight ended: combat is off, one state
             if event['state'].get('pc_conditions'):
                 # Conditions are the PC's, not the fight's: they outlast it until they end by rule.
                 state['pc_conditions'] = list(dict.fromkeys(list(state.get('pc_conditions') or ()) +
@@ -1480,7 +1507,9 @@ class Runtime:
             table.extend(fact.strip() for fact in facts if fact.strip() not in table)
             state['table_facts'] = table[-30:]
             if encounter == 'started':
-                state['encounter'] = {'active': True, 'since': happened.strip()[:200]}
+                fight = state.get('combat') or {}
+                state['encounter'] = {'active': True, 'since': happened.strip()[:200],
+                                      'initiative': 'rolled' if fight.get('status') == 'running' else 'pending'}
             elif encounter == 'ended':
                 state.pop('encounter', None)
             folded = [term.strip().casefold() for term in revealed]

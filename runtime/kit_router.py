@@ -52,6 +52,10 @@ def route(kind, events, state, speakers=(), important=(), due=(), threads_due=Fa
         why.append('a due hook lands')
     if threads_due:
         why.append('open threads are due')
+    from .state_context import combat_view
+    fight = combat_view(state or {})
+    if fight['on']:
+        why.append('in combat (%s)%s' % (fight['source'], '; initiative pending' if fight.get('initiative_pending') else ''))
     changed = sorted({event.get('type') for event in events or ()} - set(QUIET_EVENT_TYPES))
     if changed:
         why.append('state changes: ' + ', '.join(changed))

@@ -176,6 +176,15 @@ def object_act(action):
     return bool(_OBJECT_ACT_RE.search(text)) and not _HARM_RE.search(text)
 
 
+def object_acts(action):
+    """How many object interactions one line declares ("draw my dagger and kick the stool" is two)."""
+    text = _plain(action)
+    if _HARM_RE.search(text):
+        return 0
+    return len(_OBJECT_ACT_RE.findall(text)) + len(_lazy.regex(
+        r"(?i)\b(?:draw|stow|sheathe|pick up|grab|open|close)\w*\s+(?:my|a|an|the)\b").findall(text))
+
+
 def classify(action):
     """The move a message most plausibly is (the deterministic default; a host declaration wins)."""
     text = _plain(action)

@@ -364,7 +364,8 @@ def _says(line, phrase):
 
 
 def _fighting(state):
-    return (state.get('combat') or {}).get('status') in ('awaiting_initiative', 'running')
+    from .state_context import in_combat
+    return in_combat(state)
 
 
 def brief(source, state):
