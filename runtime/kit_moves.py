@@ -150,17 +150,45 @@ _ASK_DM_RE = _lazy.regex(r"(?i)^\s*(?:\(|ooc\b|kit,|q:)|\b(?:shouldn'?t|wouldn'?
                         r"|\bdo (?:i|we) (?:need|have) to roll\b|\bis my (?:passive )?\w+ (?:enough|high enough)\b")
 
 
+# A question put as a rules question ("Can I stay hidden if I use my bonus action?", "Does
+# hiding end when I cast?") asks the DM, whatever the stance in it.
+_RULES_QUESTION_RE = _lazy.regex(
+    r"(?i)(?:^|[.!]\s+)(?:can|could|do|does|did|is|am|are|would|will|should|if|how|when|what)\b[^.!?]*\b(?:"
+    r"bonus action|reaction|(?:an |my |the )action|advantage|disadvantage|stay hidden|still hidden|"
+    r"remain hidden|stealth|dc|saving throw|save|spell slot|concentration|opportunity attack|movement|cover|"
+    r"prone|surprised?|initiative|ability check|proficien\w*|rule)\b[^?]*\?")
+_OBJECT_VERB = (r"toss\w*|throw\w*|threw|lob\w*|push\w*|shov\w*|pok\w*|prod\w*|knock\w*|drop\w*|"
+                r"kick\w*|roll\w*|tap\w*|nudg\w*|flick\w*|slid\w*|set\w*|plac\w*|pour\w*")
+_OBJECT_ACT_RE = _lazy.regex(
+    r"(?i)\b(?:" + _OBJECT_VERB + r")\s+(?:a|an|the|my|his|her|some|one|that|this)\s+[\w-]+(?:\s+[\w-]+)?"
+    r"\s+(?:into|onto|on|at|against|in|over|across|under|down|through|toward|towards)\s+(?:the|a|an|that|this)\b"
+    r"|\b(?:knock\w*|tap\w*|pok\w*|prod\w*)\s+(?:on|at)\s+(?:the|a|an|that|this)\b"
+    r"|\b(?:pok\w*|prod\w*|tap\w*|nudg\w*|push\w*|shov\w*)\s+(?:the|a|an|that|this)\s+[\w-]+(?:\s+[\w-]+)?"
+    r"\s+with\s+(?:my|a|an|the|his|her)\b")
+_HARM_RE = _lazy.regex(r"(?i)\b(?:attack\w*|hit\w*|stab\w*|slash\w*|shoot\w*|kill\w*|hurt\w*|strike\w*|"
+                      r"smash\w* (?:him|her|them)|to (?:hit|hurt|kill|wound|knock (?:him|her|them) out))\b")
+
+
+def object_act(action):
+    """An object put to use at a place ("toss a stone into the thicket", "knock on the door"),
+    with no harm meant to anyone. An attack needs a target creature and intent to harm."""
+    text = _plain(action)
+    return bool(_OBJECT_ACT_RE.search(text)) and not _HARM_RE.search(text)
+
+
 def classify(action):
     """The move a message most plausibly is (the deterministic default; a host declaration wins)."""
     text = _plain(action)
     if not text:
         return 'look'
-    if _ASK_DM_RE.search(text):
+    if _ASK_DM_RE.search(text) or _RULES_QUESTION_RE.search(text):
         return 'ask_dm'
     if _RECALL_RE.search(text):
         return 'recall'
     if _REST_RE.search(text):
         return 'rest'
+    if object_act(text):
+        return 'use'
     if _FIGHT_RE.search(text):
         return 'fight'
     if _TALK_RE.search(text):
@@ -400,10 +428,33 @@ def bare_result(text):
     return bool(lines) and all(_BARE_RESULT.match(line) for line in lines)
 
 
+# Host tools and engine files are the host's business: their names never reach the player
+# ("roll it and tell me the total", not "roll it in <dice bot>").
+HOST_TOOL = _lazy.regex(
+    r"(?i)\bavrae(?:'s)?\b|\bkit[._](?:sqlite|agent|prep|moves|perform)\w*|\b[\w-]+\.(?:sqlite|json|py|txt)\b|"
+    r"\b(?:validator|turn record)\b")
+_HOST_TOOL_PHRASES = (
+    (r"\s*\((?:with )?the avrae roll if you have it\)", ''),
+    (r"\s+(?:in|from|with|on|via|using)\s+avrae\b", ''),
+    (r"\b(?:the|its|your)\s+avrae\s+", lambda m: m.group(0).split()[0] + ' '),
+    (r"\bavrae's\b", 'your'),
+    (r"\bavrae\b", 'your dice'),
+)
+
+
 def internal_label(text):
-    """The first internal label or field name in a reply, or None."""
-    found = INTERNAL_LABEL.search(_body(text))
+    """The first internal label, field name or host-tool name in a reply, or None."""
+    body = _body(text)
+    found = INTERNAL_LABEL.search(body) or HOST_TOOL.search(body)
     return found.group(0) if found else None
+
+
+def player_safe(text):
+    """Player-facing engine text with any host-tool name taken out (refusals, asks)."""
+    out = str(text or '')
+    for pattern, repl in _HOST_TOOL_PHRASES:
+        out = re.sub('(?i)' + pattern, repl, out)
+    return re.sub(r'  +', ' ', out)
 
 
 def shape_problems(text, player_action='', ask=None, call=False):
@@ -452,7 +503,8 @@ def speaking_problems(text, player_action='', ask=None, stance=None, call=False)
         problems.append('Fix: a bare number or roll result is not a reply. Say what the roll means in the scene, '
                         'then hand the turn back.')
     if internal_label(text):
-        problems.append('Fix: no internal labels, field names, or turn records in speech. Say it in the scene.')
+        problems.append('Fix: no internal labels, field names, host-tool names (%s) or turn records in speech. '
+                        'Say it in the scene.' % internal_label(text))
     problems += stance_problems(text, player_action, stance)
     problems += shape_problems(text, player_action, ask, call)
     return list(dict.fromkeys(problems))

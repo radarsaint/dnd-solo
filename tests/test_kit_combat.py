@@ -91,7 +91,7 @@ class PhysicalActTests(unittest.TestCase):
 class FightTests(unittest.TestCase):
     def test_an_attack_without_its_roll_waits_and_commits_nothing(self):
         room = Room(self)
-        with self.assertRaisesRegex(PendingRuling, 'Roll the attack for your dagger in Avrae'):
+        with self.assertRaisesRegex(PendingRuling, 'Roll the attack for your dagger'):
             room.act('I stab the dealer with my dagger.')
         self.assertIsNone(room.state.get('combat'))
         self.assertEqual(room.runtime.load()[0], 1, 'only the sheet load is committed')

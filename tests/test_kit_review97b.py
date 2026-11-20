@@ -375,7 +375,7 @@ class DownedPCTests(unittest.TestCase):
         room, _ = self.dropped('nik')
         for line in ('I hope I live.', 'Initiative 3'):
             with self.subTest(line=line):
-                with self.assertRaisesRegex(PendingRuling, 'death saving throw in Avrae first'):
+                with self.assertRaisesRegex(PendingRuling, 'death saving throw first'):
                     room.resolve(line)
         self.assertEqual(kit_combat.save_total('Death Save: 1d20 (13) = `13`', 'death'), 13)
 

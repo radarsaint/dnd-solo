@@ -115,7 +115,7 @@ class PendingRuling(Exception):
     unsupported physical act), as opposed to a host input problem such as a
     missing modifier. The bridge records attempts in public history."""
     def __init__(self, message, attempt=False):
-        super().__init__(message)
+        super().__init__(kit_moves.player_safe(message))
         self.attempt = attempt
 
 
@@ -946,13 +946,18 @@ def room_intent(action, addressed=False, room=None):
     words = NEGATED.sub(' ', words)
     words = re.sub(r"\b(?:hands|palms|arms)\s+(?:open|wide)\b|\bopen\s+(?:hands|palms|arms)\b", ' ', words)
     words = re.sub(r"\bchek", 'check', words).replace('trapz', 'traps')
+    # A readied stance ("ready to cast", "poised to strike") is not the act itself.
+    words = re.sub(r"\b(?:ready|readying|readied|prepared|poised|set)\s+to\s+(?:cast|attack|strike|fire|shoot|"
+                   r"fight|swing|throw)\b", ' ', words)
     violent = re.compile(r'\b(attack|attacks|stab|stabs|shoot|shoots|kill|kills)\b')
     # A capitalized name mid-sentence is someone ("I attack Uktarl"), in any room.
     names = tuple(word.casefold() for word in re.findall(r"(?<![.!?]\s)(?<!^)\b([A-Z][a-z'-]+)",
                                                           QUOTED_SPEECH.sub(' ', text)) if word != 'I')
     if any(kit_combat.aimed_attack(words, verb, names) for verb in violent.finditer(words)) or \
             re.search(r'\b(initiative|fireball)\b', words) or (
-            re.search(r'\bcast\b', words) and re.search(r'\b(at|on|against|into)\s+(him|her|them|the|it|his)\b', words)
+            # The target follows the cast ("cast fire bolt at the goblin"); "toss a stone into the
+            # thicket, ready to cast" is an object thrown at a place, not a spell at someone.
+            re.search(r'\bcast\b(?:\s+[\w-]+){0,4}?\s+(at|on|against|into)\s+(him|her|them|the|it|his)\b', words)
             and not re.search(r'\b(?:detect magic|light|identify|mending|prestidigitation|guidance)\b', words)):
         return 'combat'
     if re.search(r'\b(cast|casts|casting)\b', words) or re.search(r'\bdetect(?:s|ing)?\s+magic\b', words) and \
@@ -1912,6 +1917,13 @@ class RoomAdjudicator:
         words = str(action or '')
         if re.search(r'\b(?:burn|ignite|set fire|light on fire)\b', words, re.I):
             spoken = 'How are you going to set it alight, and what are you using?'
+        elif kit_moves.object_act(words):
+            # The player already said what and where ("toss a stone into the left thicket"):
+            # never ask how. The act happens; Kit narrates what follows in the scene,
+            # including any hidden creature's source-attested reaction.
+            spoken = SIMPLE_ACT_LINE
+            event['evidence'] += (' The player named the object and where it goes; do not ask how. '
+                                  'Narrate what follows here.')
         else:
             spoken = 'How are you doing that, and what are you using?'
         return Resolution('kit_ruling', spoken, [event])
@@ -2201,7 +2213,7 @@ class RoomAdjudicator:
                                 'No turn was committed.')
         if kind == 'combat':
             raise PendingRuling('Who are you attacking, and with what? Name the target and the weapon or '
-                                'spell (with the Avrae roll if you have it). No turn was committed.')
+                                'spell (with your roll if you have it). No turn was committed.')
         if kind == 'spell':
             return self._cast_out_of_combat(action, state)
         if kind == 'threshold_look':
@@ -2492,7 +2504,7 @@ class RoomAdjudicator:
         if healed and kit_combat.config(self.source):
             amount = HEAL_AMOUNT.search(narration)
             if not amount:
-                raise PendingRuling('Roll the healing in Avrae and say how much (e.g. "potion of healing: '
+                raise PendingRuling('Roll the healing and say how much (e.g. "potion of healing: '
                                     '7"). No turn was committed.')
             own = bool(re.match(r"\s*(?:i|nik)\b", narration, re.I)) and not re.search(
                 r"\b(?:heals?|casts?|pours?|gives?|feeds?)\s+(?:me|him|nik)\b", narration, re.I)
@@ -2524,7 +2536,7 @@ class RoomAdjudicator:
         d4 = re.search(r'\b1?d4\b[^0-9\n]{0,12}?(?:=\s*)?(\d)\b', narration, re.I)
         if stable and not d4 and (seconds or 0) < 4 * 3600:
             raise PendingRuling('Stable at 0 hit points, you come to with 1 hit point after 1d4 hours. Roll '
-                                '1d4 in Avrae and say it (e.g. "I wait, 1d4: 3"). No turn was committed.')
+                                '1d4 and say it (e.g. "I wait, 1d4: 3"). No turn was committed.')
         if stable:
             seconds = max(seconds or 0, int(d4.group(1)) * 3600 if d4 else 0)
         seconds = seconds or timed or 60
@@ -2606,7 +2618,7 @@ class RoomAdjudicator:
         if self.roll:
             return self.roll()
         if skill not in pc_sheet.SKILLS:
-            raise PendingRuling('Roll it in Avrae and tell me the total. No turn was committed.')
+            raise PendingRuling('Roll it and tell me the total. No turn was committed.')
         raise RollNeeded(skill)
 
     def _call_roll(self, needed, action, revision, state):
@@ -2651,7 +2663,7 @@ class RoomAdjudicator:
             passive = passive if passive is not None else 10 + modifier
         if modifier is None:
             name = skill.replace('_', ' ').title()
-            raise PendingRuling(f'Load a character sheet or state the {name} roll from Avrae '
+            raise PendingRuling(f'Load a character sheet or state the {name} roll '
                                 f'(e.g. "{name} 16") before this check. No turn was committed.')
         return modifier, passive
 
@@ -2881,8 +2893,23 @@ class RoomAdjudicator:
             # No host-supplied combat or surprise event: the normal
             # Fight/trigger engine produced it and owns the result.
             return resolved
-        return Resolution('called_check', 'You do not spot anyone. What do you do?',
+        return Resolution('called_check', self._miss_texture(action, state) + ' What do you do?',
                           events + clear)
+
+    def _miss_texture(self, action, state):
+        """A missed scan still shows the scene: one visible fact here, the one nearest what
+        the player watched, never a bare "nobody". Only player-visible facts are used."""
+        area = state.get('area')
+        seen = [str(fact.get('text') or '').strip() for fact in (self.source.get('facts') or {}).values()
+                if isinstance(fact, dict) and fact.get('visible') and fact.get('area') in (area, 'here', None)
+                and str(fact.get('text') or '').strip()]
+        if not seen:
+            place = ((self.source.get('areas') or {}).get(area) or {}).get('called') or 'the place'
+            return 'Nothing moves that you can see; %s keeps its quiet.' % place
+        asked = set(re.findall(r"[a-z]{4,}", str(action or '').casefold()))
+        best = max(seen, key=lambda text: len(asked & set(re.findall(r"[a-z]{4,}", text.casefold()))))
+        best = best if best.endswith(('.', '!', '?')) else best + '.'
+        return 'Nothing moves that you can see. %s' % best
 
     def _resolve_called(self, action, revision, state):
         """A bare roll ("Perception 22", "22", "I rolled a 22") answering the check Kit called
@@ -3315,7 +3342,7 @@ class RoomAdjudicator:
         modifier = pc_sheet.skill_bonus(sheet, skill) if sheet else None
         supplied = kit_cards.supplied_roll(action, modifier, skill)
         require(sheet is not None or supplied, f'Load a character sheet or state the {skill} roll '
-                'from Avrae (e.g. "History 19"). No turn was committed.')
+                '(e.g. "History 19"). No turn was committed.')
         if supplied:
             die = supplied[0]
             modifier = supplied[1] if supplied[1] is not None else (modifier or 0)
@@ -6071,15 +6098,15 @@ WINDOW_VOICE_RULE = (
     'You are Kit. The fight stopped at a checkpoint the engine holds (window). In a few short lines of your own: '
     'first narrate narrate_first (what just happened: the PC\'s hit or kill, the blow coming at them), then hand '
     'the floor to the player. A reaction window: name what they can do now from window.options (a spell is cast '
-    'in Avrae: give its avrae command) and ask. A roll call: ask for the save in Avrae (window.avrae), never the '
+    'first: give its roll command, window.avrae) and ask. A roll call: ask for the save (window.avrae), never the '
     'DC. A flourish: the outcome stands; invite them to describe how it looks. End on your question. Your own '
     'words: no stock line. Output {"decision": {"window": "voiced"}, "performance": {"segments": [...]}}.')
 WINDOW_ANSWER_RULE = (
     'You are Kit. A window is open (window) and the player replied (player_reply). Read the reply and declare '
     'one act field in decision (runtime/kit_acts.py): for a reaction window ' + kit_acts.REACT_RULE + ' For a '
     'flourish window, ' + kit_acts.FLOURISH_RULE + ' The engine checks it is legal and resolves it. '
-    'performance.segments stays [] unless you must ask: unclear, a spell not yet cast in Avrae (ask for its avrae '
-    'command), or an opportunity attack with no roll (ask for the attack and damage in Avrae); then one short '
+    'performance.segments stays [] unless you must ask: unclear, a spell not yet cast (ask for its roll '
+    'command), or an opportunity attack with no roll (ask for the attack and damage rolls); then one short '
     'question in your voice.')
 WINDOW_VOICE_SCHEMA = {'decision': {'window': 'voiced'},
                        'performance': {'segments': [{'speaker': 'Kit|Narrator', 'text': 'string'}]}}
@@ -6471,7 +6498,12 @@ def rejection_fix_line(exc):
     if fix is not None:
         body = json.dumps(fix, ensure_ascii=False) if not isinstance(fix, str) else fix
         return 'Fix: ' + body
-    return 'Fix: change only the field named above and complete this same turn_id once.'
+    field = re.search(r"\b(?:performance|decision|acts?|segments)(?:\.[\w\[\]]+|\[\d+\])+", text)
+    if field:
+        return f'Fix: change only {field.group(0)} as the reason says and complete this same turn once.'
+    # No field named by the check: name the spoken reply, which is what such checks read.
+    return ('Fix: rewrite only performance.segments so the problem above is gone (keep the decision as it '
+            'was) and complete this same turn once.')
 
 
 def retry_instruction(exc):
@@ -7873,6 +7905,11 @@ class KitChatBridge:
             if asked is not None:
                 return asked
             table_talk = True
+        elif action and not opening and kit_moves.classify(str(action)) == 'ask_dm':
+            # A rules question ("Do I need to roll...", "Can I use my bonus action...") is the
+            # player asking the DM, whatever the stance: Kit answers it; nothing in the room
+            # hears it and any pending roll still waits.
+            table_talk = True
         knowledge_answer = self._knowledge_answer(action) if knowledge_ask else None
         self.runtime.flush_queued_attempts()  # refused attempts held while a turn was waiting
         if opening:
@@ -8302,6 +8339,10 @@ class KitChatBridge:
             notice['context_warning'] = MEMORY_TRIMMED_NOTE
         if body.get('table_talk'):
             notice['table_talk'] = TABLE_TALK_NOTE
+            encounter = (self.runtime.load()[1].get('encounter') or {})
+            if encounter.get('active'):
+                notice['encounter'] = ('An encounter is on (recorded by the host: %s). Answer the rules '
+                                       'question for that situation.' % encounter.get('since', ''))
         if body.get('knowledge_tier'):
             notice['knowledge'] = KNOWLEDGE_ROLL_NOTE % body['knowledge_tier']
         elif body.get('knowledge_answer'):
@@ -9303,7 +9344,67 @@ def main():
                 engine_ns=total - (serial or 0), serialization_ns=serial, packet=text)
 
 
+RECORD_FIELDS = ('happened', 'revealed', 'facts', 'encounter')
+
+
+def record_hand_beat(db, beat):
+    """Bring a beat the host resolved by hand into the engine (one hand_beat event).
+
+    ``beat``: {"happened": what happened at the table, "revealed": [names or creatures the
+    player now knows], "facts": [facts the table established], "encounter": "started" |
+    "ended" | null}. Revealed names leave the spoiler fence and hidden actors who match come
+    out of hiding; an encounter flag lets later turns know a fight is on (rules questions go
+    to Kit). Nothing is adjudicated and no combat is run here (v0.13). Any prepared,
+    uncommitted turn is dropped: the hand ruling replaced it."""
+    require(isinstance(beat, dict), 'record input is a JSON object with ' + ', '.join(RECORD_FIELDS))
+    extra = sorted(set(beat) - set(RECORD_FIELDS))
+    require(not extra, 'record input has unknown field %s. Fix: use only %s.' % (
+        ', '.join(extra), ', '.join(RECORD_FIELDS)))
+    runtime = Runtime(str(db))
+    try:
+        for (turn_id,) in runtime.db.execute('SELECT turn_id FROM kit_pending').fetchall():
+            runtime.discard_pending_kit_turn(turn_id)
+        revision, _state = runtime.load()
+        event = {'type': 'hand_beat', 'happened': beat.get('happened'),
+                 'revealed': list(beat.get('revealed') or []), 'facts': list(beat.get('facts') or []),
+                 'encounter': beat.get('encounter'),
+                 'evidence': 'Resolved by hand at the table and recorded by the host.'}
+        committed = runtime.commit('record-%d' % revision, revision, [event])
+        from . import kit_opening, kit_skim
+        data, opening = kit_opening._load(runtime)
+        folded = [str(term).strip().casefold() for term in event['revealed']]
+        if opening and folded:
+            ids = [person['id'] for person in opening.get('people') or ()
+                   if person.get('id') and any(term in str(person.get(key) or '').casefold()
+                                               for term in folded for key in ('id', 'name'))]
+            if ids:
+                kit_opening._reveal(opening, ids)
+                data['beat'] = opening
+                kit_skim._write(runtime.path, data)
+        state = runtime.load()[1]
+        return {'stage': 'recorded', 'revision': committed if isinstance(committed, int) else runtime.load()[0],
+                'revealed': state.get('revealed_terms') or [], 'encounter': state.get('encounter')}
+    finally:
+        runtime.close()
+
+
+def _record_main(argv):
+    parser = argparse.ArgumentParser(prog='kit_agent record', description=record_hand_beat.__doc__)
+    parser.add_argument('--db', required=True)
+    parser.add_argument('--input-file', required=True, help='JSON: ' + ', '.join(RECORD_FIELDS))
+    args = parser.parse_args(argv)
+    try:
+        beat = json.loads(Path(args.input_file).read_text(encoding='utf-8'))
+        print(json.dumps(record_hand_beat(args.db, beat), ensure_ascii=False))
+        return 0
+    except (InvalidChange, ValueError, OSError) as exc:
+        print(json.dumps({'stage': 'error', 'error': str(exc)}, ensure_ascii=False))
+        return 2
+
+
 def _main():
+    if sys.argv[1:2] == ['record']:
+        return _record_main(sys.argv[2:])
     if sys.argv[1:2] == ['adventure']:
         # Adventure ingestion (runtime/kit_adventure.py): import, compile, status, ingest.
         from . import kit_adventure

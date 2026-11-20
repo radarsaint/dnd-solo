@@ -40,7 +40,8 @@ class DeclaredAttacks(unittest.TestCase):
         arena = bridge(self)
         before = copy.deepcopy(arena.fight)
         exc = arena.held('I stab the ogre.', combat_acts=[A('attack', 1, target='ogre', weapon='rapier')])
-        self.assertIn('Avrae', str(exc))
+        self.assertIn('Roll the attack', str(exc))
+        self.assertNotIn('Avrae', str(exc))  # v0.11.2: no host-tool names to the player
         self.assertEqual(arena.fight, before)
 
     def test_a_weapon_not_on_the_sheet_is_refused_and_said(self):

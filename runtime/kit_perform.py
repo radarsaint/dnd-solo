@@ -675,6 +675,21 @@ _FENCE_ENTITY = re.compile(
     r"icicles?|snatchers?)\b"
 )
 
+def _unfenced(runtime, terms):
+    """The fence minus what the table already revealed (kit_agent record)."""
+    try:
+        revealed = [str(t).casefold() for t in (runtime.load()[1].get('revealed_terms') or ())]
+    except Exception:
+        return terms
+    if not revealed:
+        return terms
+    def shown(term):
+        folded = str(term).casefold()
+        return any(r == folded or re.search(r'\b' + re.escape(r) + r's?\b', folded) or
+                   re.search(r'\b' + re.escape(folded) + r's?\b', r) for r in revealed)
+    return [term for term in terms if not shown(term)]
+
+
 def _spoiler_fence(current_text, later_text, section_lines=None):
     """Names, creatures, and areas from later sections that must not be spoken."""
     current = (current_text or '') + '\n' + ' '.join(section_lines or [])
@@ -873,7 +888,7 @@ def host_facts_for(runtime, action=None, kind=None, hop=None):
                 established.append(line)
         packet['party'] = established
         packet['sheet'] = sheet
-        packet['spoiler_fence'] = _spoiler_fence(current, later, section + visible + established)
+        packet['spoiler_fence'] = _unfenced(runtime, _spoiler_fence(current, later, section + visible + established))
         decision = knowledge_decision(
             action, sheet, section + visible + established, result_tier=result.get('tier'))
         packet['knowledge'] = decision
@@ -990,6 +1005,12 @@ def _proper_names(text):
     return found
 
 
+def _quoted(text, term):
+    """The offending words in their few words of context, for a fix the host can act on."""
+    found = re.search(r'(?:\S+\s+){0,3}\b' + re.escape(term) + r'\b(?:\s+\S+){0,3}', text or '', re.I)
+    return (found.group(0) if found else term).strip()
+
+
 def performance_problems(performance, facts, beat=None, action=None):
     """Reasons the host's Look or NPC line must not be committed. Empty means clean."""
     if not isinstance(performance, dict):
@@ -1000,13 +1021,15 @@ def performance_problems(performance, facts, beat=None, action=None):
     allowed = present_speakers(beat, facts)
     hidden = hidden_names(beat)
     kind = (facts or {}).get('kind')
-    for segment in segments:
+    for index, segment in enumerate(segments):
         speaker = (segment.get('speaker') or '').strip()
         text = segment.get('text') or ''
+        field = 'performance.segments[%d].text' % index
         if instruction_vocab(text):
-            problems.append('instruction vocabulary in %s' % (speaker or 'a line'))
+            problems.append('instruction vocabulary in %s (%s). Fix: say it as the scene, not as instructions'
+                            % (field, speaker or 'a line'))
         if shows_dc_or_bonus(text):
-            problems.append('a DC or bonus was spoken')
+            problems.append('a DC or bonus was spoken in %s. Fix: drop the number; say only what happens' % field)
         for term in (facts or {}).get('spoiler_fence') or []:
             if not term or not re.search(r'\b' + re.escape(term) + r'\b', text, re.I):
                 continue
@@ -1015,17 +1038,21 @@ def performance_problems(performance, facts, beat=None, action=None):
             tier = ((facts or {}).get('knowledge') or {}).get('result_tier')
             if hop_text and term.casefold() in hop_text.casefold() and tier == 'high':
                 continue
-            problems.append('fenced spoiler')
+            problems.append('fenced spoiler in %s: "%s". Fix: cut those words and say what the character '
+                            'sees instead; if the table already revealed it, record that beat first '
+                            '(kit_agent record) and complete again' % (field, _quoted(text, term)))
             break
         if speaker and speaker not in ('Narrator', 'Kit'):
             key = speaker.casefold()
             if allowed and key not in allowed and not any(
                     key in name or name in key for name in allowed):
-                problems.append('%s is not present' % speaker)
+                problems.append('%s is not present (%s.speaker). Fix: give the line to someone here, '
+                                'or to the Narrator' % (speaker, field.rsplit('.', 1)[0]))
         if kind == 'look' or speaker == 'Narrator':
             for name in hidden:
                 if re.search(r'\b%s\b' % re.escape(name), text, re.I):
-                    problems.append('an unrevealed person was named')
+                    problems.append('an unrevealed person was named in %s: "%s". Fix: describe what the '
+                                    'character sees, not who it is' % (field, _quoted(text, name)))
                     break
         for name in _proper_names(text):
             if name.casefold() in _COMMON_NAMES:
@@ -1041,7 +1068,8 @@ def performance_problems(performance, facts, beat=None, action=None):
             # A name the player just used is not an invented book fact.
             if action and name.casefold() in (action or '').casefold():
                 continue
-            problems.append('unattested name %s' % name)
+            problems.append('unattested name %s in %s: "%s". Fix: drop the name or use one the scene '
+                            'already gave' % (name, field, _quoted(text, name)))
     # Unique, stable order.
     seen = set()
     out = []

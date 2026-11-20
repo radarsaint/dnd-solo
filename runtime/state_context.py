@@ -108,6 +108,18 @@ BOOKKEEPING_EVENTS = ('party_roster', 'player_sheet', 'player_character', 'playe
 # A refused attempt changed nothing in the world, so it does not use up the check Kit just
 # called (PR 145 playtest: one refused line, then every roll was refused).
 KEEPS_PENDING_CHECK = BOOKKEEPING_EVENTS + ('refused_attempt',)
+# Table talk and rules questions are not the player's answer to a call, and not a new act:
+# the roll stays owed and the next bare number ("12", "I rolled 12") still answers it.
+TALK_TAGS = frozenset(('table_talk', 'ask_dm', 'open_ask', 'asked'))
+
+
+def keeps_pending_check(event):
+    """True when this event leaves a called check owed (bookkeeping, a refusal, table talk)."""
+    if event.get('type') in KEEPS_PENDING_CHECK:
+        return True
+    return event.get('type') == 'beat' and bool(TALK_TAGS & set(event.get('tags') or ()))
+
+
 # A pending check's optional fields: a held exit, and room for the check-calling follow-up's
 # quiet DC adjustment for creative use of the scene (Brendon: about -2) with its reason. Not
 # applied anywhere yet.
@@ -242,6 +254,31 @@ def reveal_actor(actor, spec=None):
 
 def encode(value):
     return json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+
+
+def _event_changed(staged, kit_record, events, prepared, asked, declared):
+    """Which field of a completed turn differs from what was prepared, and how to fix it."""
+    head = 'Pending Kit event changed: '
+    if staged['action'] != kit_record['player_input']:
+        return head + ('player_input is not the prepared action ("%s"). Fix: complete with the same action '
+                       'text the turn was prepared with.' % str(staged['action'])[:80])
+    if asked:
+        return head + ('an ask turn commits only its question (events must be the one "asked" beat, and '
+                       'public_event must start "%s"). Fix: drop any other event.' % ASKED_EVENT_PREFIX)
+    if not (staged['public_event'] == kit_record['public_event'] or
+            declared and kit_record['public_event'].startswith(staged['public_event'])):
+        return head + ('public_event differs from the prepared one ("%s"). Fix: copy the prepared '
+                       'public_event exactly.' % str(staged['public_event'])[:80])
+    for index, (got, want) in enumerate(zip(events, prepared)):
+        if got != want:
+            return head + 'events[%d] differs from the prepared event. Fix: keep the prepared events as they were.' % index
+    allowed = COMMIT_APPENDED_EVENTS + (DECLARED_EVENTS if declared else ())
+    for index, event in enumerate(events[len(prepared):], len(prepared)):
+        if event.get('type') in allowed:
+            continue
+        return head + ('events[%d] has type "%s", which this turn cannot add. Fix: drop events[%d].'
+                       % (index, event.get('type'), index))
+    return head + 'events are fewer than prepared. Fix: keep every prepared event.'
 
 
 def require(condition, message):
@@ -638,7 +675,8 @@ class Runtime:
                                         declared and kit_record['public_event'].startswith(staged['public_event'])) and
                          events[:len(prepared)] == prepared and
                          all(event.get('type') in COMMIT_APPENDED_EVENTS + (DECLARED_EVENTS if declared else ())
-                             for event in events[len(prepared):])), 'Pending Kit event changed')
+                             for event in events[len(prepared):])),
+                        _event_changed(staged, kit_record, events, prepared, asked, declared))
             source = self.source()
             acted_in = state['area']
             for event in events:
@@ -651,7 +689,7 @@ class Runtime:
             elif any(event.get('type') not in BOOKKEEPING_EVENTS for event in events):
                 room.setdefault('turns_in', {})[acted_in] = room.get('turns_in', {}).get(acted_in, 0) + 1
             if not any(event.get('type') == 'pending_check' for event in events) and \
-                    any(event.get('type') not in KEEPS_PENDING_CHECK for event in events):
+                    any(not keeps_pending_check(event) for event in events):
                 held = (state.get('pending_check') or {}).get('held')
                 if not (held and held.get('area', acted_in) == state['area']):
                     # A called check lasts one player turn. A held description is an obligation:
@@ -1414,6 +1452,45 @@ class Runtime:
             if len(evidence) > RHYTHM_EVIDENCE_MAX_CHARS:
                 evidence = evidence[:RHYTHM_EVIDENCE_MAX_CHARS - 3] + '...'
             state['rhythm'].append({'tags': tags, 'evidence': evidence})
+            state['rhythm'] = state['rhythm'][-12:]
+        elif kind == 'hand_beat':
+            # A beat the host resolved by hand (kit_agent record): what happened, what the
+            # table now knows, and whether a fight or encounter is on. The engine never
+            # resolves combat from it (v0.13); it only stops disagreeing with the table.
+            happened = event.get('happened')
+            revealed = event.get('revealed') or []
+            facts = event.get('facts') or []
+            encounter = event.get('encounter')
+            require(isinstance(happened, str) and 0 < len(happened.strip()) <= 500,
+                    'hand_beat.happened is one to 500 characters: what happened at the table')
+            require(isinstance(revealed, list) and len(revealed) <= 20 and
+                    all(isinstance(t, str) and 0 < len(t.strip()) <= 60 for t in revealed),
+                    'hand_beat.revealed is a list of up to 20 names or words (1-60 characters each)')
+            require(isinstance(facts, list) and len(facts) <= 10 and
+                    all(isinstance(t, str) and 0 < len(t.strip()) <= 200 for t in facts),
+                    'hand_beat.facts is a list of up to 10 facts (1-200 characters each)')
+            require(encounter in (None, 'started', 'ended'),
+                    'hand_beat.encounter is "started", "ended" or null')
+            known = state.setdefault('revealed_terms', [])
+            for term in revealed:
+                if term.strip().casefold() not in (k.casefold() for k in known):
+                    known.append(term.strip())
+            state['revealed_terms'] = known[-60:]
+            table = state.setdefault('table_facts', [])
+            table.extend(fact.strip() for fact in facts if fact.strip() not in table)
+            state['table_facts'] = table[-30:]
+            if encounter == 'started':
+                state['encounter'] = {'active': True, 'since': happened.strip()[:200]}
+            elif encounter == 'ended':
+                state.pop('encounter', None)
+            folded = [term.strip().casefold() for term in revealed]
+            for key, actor in (state.get('actors') or {}).items():
+                names = {key.casefold(), str(actor.get('name') or '').casefold()}
+                if actor.get('status') == 'hidden' and any(
+                        term and any(term in name or (name and name in term) for name in names if name)
+                        for term in folded):
+                    actor['status'] = 'alive'
+            state['rhythm'].append({'tags': ['hand_resolved'], 'evidence': happened.strip()[:RHYTHM_EVIDENCE_MAX_CHARS]})
             state['rhythm'] = state['rhythm'][-12:]
         elif kind == 'spell_running':
             # A lasting spell the PC keeps up (Detect Magic, 10 minutes): until when, in game
