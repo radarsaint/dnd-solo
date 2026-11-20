@@ -222,15 +222,17 @@ class ReviewAt79196b5(unittest.TestCase):
         for words in ('No wait, that 5 was for the captain', '5, and I yell at the captain'):
             with self.subTest(words=words):
                 spoken = TableTalkFallback.talk(self, words, mid_ask=True)
-                self.assertTrue(spoken.startswith('Narrator: '), spoken)
+                self.assertTrue(spoken.startswith('Kit: '), spoken)
                 self.assertNotIn('unhurt', spoken)
                 self.assertNotIn('way out', spoken)
-                self.assertIn('Table talk to Kit', spoken, 'the engine line')
+                # The engine's own line, minus the echo: no internal label, not the player's words.
+                self.assertNotIn('Table talk to Kit', spoken)
+                self.assertNotIn(words, spoken)
                 self.assertIn('still waits for its damage roll', spoken)
 
     def test_a_question_on_no_known_topic_gets_the_engines_own_line(self):
         spoken = TableTalkFallback.talk(self, "What's your favourite colour?")
-        self.assertTrue(spoken.startswith('Narrator: '), spoken)
+        self.assertEqual(spoken, kit_agent.TABLE_TALK_HANDOFF)  # a handoff, never the echo
         self.assertNotIn('way out', spoken)
 
     def test_a_big_pack_is_grouped_by_its_wound_state(self):

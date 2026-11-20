@@ -205,6 +205,12 @@ TABLE_TALK_NOTE = ('Table talk: the player is talking to you, Kit, not the PC to
                    'to ask back; no NPC hears or answers). Hidden facts stay hidden.')
 
 
+KNOWLEDGE_NOTE = ('Knowledge question the character\'s background covers: no roll. Answer it in a '
+                  'sentence or two from host_facts (section and party facts; never a spoiler_fence name), '
+                  'then hand the turn back. If the line also moves the character, say that in a few words '
+                  'too. Never repeat the player\'s words back.')
+
+
 def table_talk_event(action):
     """Public record of a table-talk line: the player's words to Kit, never 'You declare'."""
     return TABLE_TALK_PREFIX + '"' + _spoken_words(action) + '"'
@@ -217,6 +223,44 @@ def table_talk_resolution(action):
         {'type': 'beat', 'tags': ['table_talk'],
          'evidence': f'Host marked table talk: {action}. Out of character, answered by Kit; '
                      'no world state changed and no NPC heard it.'}])
+
+
+# Engine bookkeeping labels that must never reach the player (the knowledge-question echo:
+# 'Narrator: Table talk to Kit: "<the player's words>"').
+INTERNAL_LABELS = re.compile(r'\btable[ -]talk(?: to kit)?\s*:', re.I)
+TABLE_TALK_HANDOFF = "Kit: Tell me a bit more about what you're after, or what you do."
+
+
+def check_no_internal_labels(spoken):
+    """HARD: an engine label ('Table talk to Kit:') is bookkeeping, never player-facing."""
+    found = INTERNAL_LABELS.search(spoken or '')
+    if found:
+        raise InvalidChange(f'Internal label: "{found.group(0)}" is engine bookkeeping and never reaches '
+                            'the player. Answer the player in your own words; do not repeat their line.')
+
+
+def knowledge_answer_line(facts):
+    """The engine's no-roll answer to a knowledge question the character's background covers:
+    one or two current-section facts about the party or place (never a fenced later name),
+    then a handoff. None when the gate is not a baseline or no such fact exists."""
+    facts = facts or {}
+    decision = facts.get('knowledge') or {}
+    if decision.get('gate') != 'baseline':
+        return None
+    fence = [str(term).casefold() for term in facts.get('spoiler_fence') or () if term]
+    picked = []
+    for line in list(facts.get('party') or ()) + list(facts.get('section') or ()):
+        text = ' '.join(str(line or '').split())
+        if not text or text in picked or INTERNAL_LABELS.search(text):
+            continue
+        if any(term in text.casefold() for term in fence):
+            continue
+        picked.append(_full_stop(text))
+        if len(picked) == 2:
+            break
+    if not picked:
+        return None
+    return 'Kit: No roll needed; you know this much. ' + ' '.join(picked) + ' What do you do?'
 
 
 # Table talk addressed to Kit rather than the room: answered, never resolved as a check.
@@ -3749,6 +3793,7 @@ VALIDATOR_KINDS = {
     'check_kit_tics': 'style', 'check_callback_used': 'style', 'check_voice_style': 'style',
     'check_detail_answer': 'style', 'check_carriers_spoken': 'style', 'check_held_delivered': 'style',
     'check_raised': 'style', 'check_ask_spoken': 'style', 'check_about_brendon': 'style',
+    'check_no_internal_labels': 'style',
 }
 ENGINE_LINE_AT_ONCE = frozenset({'secrecy', 'agency'})
 
@@ -6941,6 +6986,7 @@ def checked_record(body, plan, speech, performance_variant, source=None, degrade
     if not ask and not stall_check(plan, body['kind']):
         kinded(kit_reveal.check_spoken, body.get('progressive_reveal'), speech['segments'], source, plan,
                action=body.get('action') or '')
+    kinded(check_no_internal_labels, spoken)
     kinded(check_sealed, spoken, body.get('sealed'))  # after the held layer, so its errors come first
     if body.get('story_due') and not ask:
         # An undelivered primary hook is overdue: its NPC raises it now (runtime/kit_brief.py).
@@ -7015,6 +7061,8 @@ def engine_line_record(body, plan, performance_variant, rejected, rejections):
     else:
         public_event = body['public_event']
         spoken = public_fallback(body) or f'Narrator: {public_event}'
+        if INTERNAL_LABELS.search(spoken):
+            spoken = TABLE_TALK_HANDOFF  # an engine label never reaches the player
         declared = body.get('declared')
     if declared and declared.get('public'):
         spoken = f"{spoken}\nNarrator: {declared['public']}"
@@ -7180,7 +7228,12 @@ def public_fallback(body):
         rest = (echo.group('rest') or '').strip() if echo else ''
         answer = table_talk_answer(view, question)
         if not answer:
-            return None
+            # A knowledge question the background covers: the prepared no-roll answer. Anything
+            # else: hand the turn back. Never the player's own words under an engine label.
+            if body.get('knowledge_answer'):
+                return body['knowledge_answer']
+            # Anything the engine still owes (a roll that waits) is kept; the echo is not.
+            return f'Kit: {rest}' if rest else TABLE_TALK_HANDOFF
         spoken = f"Kit: {' '.join(part for part in (answer, rest) if part)}"
     else:
         return None
@@ -7189,7 +7242,7 @@ def public_fallback(body):
         check_hidden_actors(spoken, body.get('hidden_actors'))
         check_sealed(spoken, body.get('sealed'))
     except InvalidChange:
-        return None
+        return TABLE_TALK_HANDOFF if body.get('table_talk') or event.startswith(TABLE_TALK_PREFIX) else None
     return spoken
 
 
@@ -7643,6 +7696,7 @@ class KitChatBridge:
             if asked is not None:
                 return asked
             table_talk = True
+        knowledge_answer = self._knowledge_answer(action) if knowledge_ask else None
         self.runtime.flush_queued_attempts()  # refused attempts held while a turn was waiting
         if opening:
             require(action is None and not table_talk, 'Room opening does not take a player action')
@@ -7664,6 +7718,8 @@ class KitChatBridge:
         forked = kit_skim.fork_check(self.runtime, body)
         if forked is not None:
             return forked
+        if knowledge_answer:
+            body['knowledge_answer'] = knowledge_answer  # the engine line's answer if narration fails
         spoken_now = self._speak_prepared_engine_line(turn_id, revision, body, action)
         if spoken_now is not None:
             return self._with_book_ruling(spoken_now, action)
@@ -7886,6 +7942,14 @@ class KitChatBridge:
         packet['source_verified'] = True
         return packet
 
+    def _knowledge_answer(self, action):
+        """The no-roll answer line for a knowledge question the background covers, or None."""
+        try:
+            from . import kit_perform
+            return knowledge_answer_line(kit_perform.host_facts_for(self.runtime, action, kind='lookup'))
+        except Exception:
+            return None
+
     def _knowledge_lookup_ask(self, action):
         """Call one knowledge check when the question goes beyond the baseline."""
         from . import kit_perform, pc_sheet, kit_skim
@@ -7992,6 +8056,8 @@ class KitChatBridge:
             notice['context_warning'] = MEMORY_TRIMMED_NOTE
         if body.get('table_talk'):
             notice['table_talk'] = TABLE_TALK_NOTE
+        if body.get('knowledge_answer'):
+            notice['knowledge'] = KNOWLEDGE_NOTE
         first_try = first_try_lines(self.runtime, body, planning_input)
         if one_pass:
             packet = {'first_try': first_try, 'turn_id': turn_id, 'stage': 'one_pass', **notice,
