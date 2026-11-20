@@ -2,16 +2,16 @@
   "schema": "kit_project_gardener_state/v1",
   "purpose": "RESUMABILITY_CURSOR_NOT_KNOWLEDGE_STORE",
   "canonical_location": "radarsaint/dnd-solo/coordination/context_state.json",
-  "state_revision": 66,
+  "state_revision": 67,
   "semantic_brain": {
     "repo": "radarsaint/dnd-solo",
     "path": "docs/PROJECT_UNDERSTANDING.md",
-    "last_semantic_commit": "3f4fd9585151f9d3e62cced3be3c00e8b62e832c",
-    "last_reviewed_on": "2026-11-13"
+    "last_semantic_commit": "bcfb07494d803bc66f0e82c0e8bd108429b7fe0c",
+    "last_reviewed_on": "2026-11-20"
   },
   "checkpoint": {
     "reviewed_against_main": {
-      "radarsaint/dnd-solo": "3f4fd9585151f9d3e62cced3be3c00e8b62e832c",
+      "radarsaint/dnd-solo": "bcfb07494d803bc66f0e82c0e8bd108429b7fe0c",
       "radarsaint/bfdm-corpus": "66f3c62fb87976224174180db0a57e50d129587e"
     },
     "context_inbox": {
@@ -24,10 +24,10 @@
   },
   "last_completed_pass": {
     "kind": "BOUNDED_SEMANTIC_RECONCILIATION",
-    "completed_on": "2026-11-13",
-    "scope": "Reviewed dnd-solo main after #210 merge (9fd048f0) on top of prior #209 (ecaec030); no new #115 comments beyond 6598407850. bfdm-corpus main unchanged.",
-    "result": "Accept: #210 adds destination-assumes-origin link web. At PREP the index records section links (continuations, explicit pointers, name matches to statblocks/items/NPCs starting with opening creatures, standalone boxes traced to anchors or marked unlinked) as confirmed or likely. Play hands section text immediately; one-hop linked material loads lazily (confirmed prefetchable after opening or on touch, likely on subject touch). Landing does not walk graph. Python word-for-word validates quotes from linked text; model cannot assert links as fact. Kit answers from attested text in one line on touch, no stall, no invented facts. Mechanics/DCs/bonuses off table. Suite 2181 tests, 1 skipped, 0 failed. Brain updated. No bfdm-corpus control edit. Unresolved items unchanged.",
-    "resulting_brain_commit": "3f4fd9585151f9d3e62cced3be3c00e8b62e832c",
+    "completed_on": "2026-11-20",
+    "scope": "Reviewed dnd-solo main after #211 merge (f00bacbe on top of prior #210 / 9fd048f0); no new #115 comments beyond 6598407850. bfdm-corpus main unchanged.",
+    "result": "Accept: #211 adds book if-rulings index at prep (real conditionals only, confirmed/likely, attached to section/triggers), next-move prefetch after opening (area/exits/hop/rulings for look/talk/check), Look from visible attested text when no roll, NPC replies as named own-voice lines grounded in source (or short plausible consistent with goal), post-pick spoken opening matches landing's attested burst, and knowledge questions resolve to tiered recall never just the roll or a DC. Host uses book_ruling when present, does not invent. Player-facing never shows DC/bonus. Suite 2205 tests, 1 skipped, 0 failed. Brain updated on main. No bfdm-corpus control edit. Unresolved items unchanged.",
+    "resulting_brain_commit": "bcfb07494d803bc66f0e82c0e8bd108429b7fe0c",
     "reconciled_comment_id": 6598407850
   },
   "active_pass": null,
