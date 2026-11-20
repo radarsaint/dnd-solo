@@ -417,6 +417,8 @@ def collect(text, heads, chapters, page_of, listed=None):
         if not playable and not inside and (body.lstrip().startswith('>') or '\n>' in body):
             playable = True
         anchor, relation = _relation(found['offset'], found['indent'], body, rooms, title, 'travel_event' in signals)
+        heading_name = found['name']
+        heading_page = page_of(found['offset'])
         body_at = found['end'] + 1 if found['end'] < len(text) else found['end']
         if chapter and not any(item.get('chapter') == title and item['offset'] < found['offset'] for item in raw):
             first_here = min((room['offset'] for room in rooms if room.get('chapter') == title), default=None)
@@ -425,12 +427,20 @@ def collect(text, heads, chapters, page_of, listed=None):
                 nl = text.find('\n', chapter['offset'])
                 if nl >= 0:
                     body_at = nl + 1
+                    lead = text[body_at:found['offset']]
+                    if _boxed_lead_in(lead):
+                        # An unnumbered opening with its own read-aloud sits before this
+                        # heading. The place the players start is the part's opening,
+                        # not the later site this heading names (a two-column page can
+                        # put that heading beside the opening).
+                        heading_name = _part_place(title) or heading_name
+                        heading_page = page_of(body_at)
         raw.append({
             'offset': found['offset'], 'body_at': body_at,
             'end': boundary if boundary is not None else min(len(text), found['end'] + len(body) + 1),
-            'name': found['name'], 'indent': found['indent'], 'signals': sorted(signals),
+            'name': heading_name, 'heading': found['name'], 'indent': found['indent'], 'signals': sorted(signals),
             'score': score, 'playable': playable, 'chapter': title,
-            'part': _part_number(title), 'site': _site(title), 'page': page_of(found['offset']),
+            'part': _part_number(title), 'site': _site(title), 'page': heading_page,
             'body': body, 'anchor_room': anchor, 'relation': relation or 'before',
             'travel': 'travel_event' in signals, 'npc': _npc_name(body),
         })
@@ -494,6 +504,7 @@ def collect(text, heads, chapters, page_of, listed=None):
             'trigger': item['trigger'], 'signals': item['signals'], 'score': item['score'],
             'confidence': 'high' if item['playable'] else 'low',
             'span': [item['body_at'], item['end']], 'offset': item['offset'],
+            'heading': item.get('heading') or item['name'],
             'body_at': item['body_at'], 'indent': item['indent'],
         }
         if item['playable']:
@@ -506,6 +517,19 @@ def collect(text, heads, chapters, page_of, listed=None):
     checks.sort(key=lambda item: item['offset'])
     front = _front(text, chapters)
     return scene_heads, checks, front
+
+
+def _boxed_lead_in(lead):
+    """True when a part's lead-in before its first heading carries its own read-aloud."""
+    boxed = [line for line in (lead or '').splitlines() if line.strip().startswith('>')]
+    return len(re.sub(r'\s+', '', ' '.join(boxed))) >= BODY_MIN
+
+
+def _part_place(title):
+    """'PART 1: THE LONG ROAD' -> 'The Long Road' (the part's own name), or ''."""
+    match = re.match(r'(?:part|chapter)\s+[\w-]+\s*[:.\-]?\s*(.+)$', (title or '').strip(), re.I)
+    name = match.group(1).strip() if match else ''
+    return name.title() if name.isupper() else name
 
 
 def _preamble_scenes(text, chapters, rooms, seen, page_of):

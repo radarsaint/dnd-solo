@@ -514,8 +514,12 @@ def request_for(db):
                         'quote': 'contiguous presence quote',
                         'visibility': 'visible|hidden|staged', 'kind': 'person|creature',
                         'goal': {'quote': 'complete sentence', 'status': 'established|conditional|inferred'},
-                        'knowledge': []}],
-            'discoveries': [], 'pressures': [],
+                        'knowledge': [{'quote': 'complete sentence', 'status': 'established|conditional|inferred'}]}],
+            # Every item shape, so a host never has to open the runtime to learn one.
+            'discoveries': [{'quote': 'complete sentence', 'status': 'established|conditional|inferred'}],
+            'pressures': [{'kind': 'ambush|conversation|hazard|none', 'quote': 'complete source sentence',
+                           'status': 'established|conditional|inferred', 'actors': ['short_id'],
+                           'activation': 'entry|disturb|deferred|failed_notice'}],
         },
         'command': command,
     }
@@ -2595,6 +2599,7 @@ def accept(db, reply):
     _write(db, stored)
     result = {
         'stage': 'skim_accepted', 'table_line': stored.get('table_line', READY_LINE),
+        'scene_verified': bool(beat.get('source_verified')),
         'design_start_name': stored['design_start_name'],
         'scene_key': key, 'room': compiled.get('room'), 'room_id': compiled.get('room_id'),
         'page_start': page_start, 'page_end': page_end, 'burst_words': len(_words(spoken)),
