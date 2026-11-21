@@ -631,17 +631,6 @@ def _mark_heard(beat, sentences):
     beat['heard'] = max(int(beat.get('heard') or 0), len(heard))
 
 
-def note_spoken(runtime, text):
-    """Record fiction the player was just given. Private tactics are not facts."""
-    data, beat = _load(runtime)
-    if not beat:
-        return
-    skim = _skim()
-    _mark_heard(beat, [line for line in skim._sentences(text or '') if player_line(line)])
-    data['beat'] = beat
-    _save(runtime, data)
-
-
 def _commit(runtime, tag, events, spoken, public):
     revision, _state = runtime.load()
     committed = runtime.commit('%s-%s' % (tag, revision), revision, events)

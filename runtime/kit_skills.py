@@ -160,12 +160,3 @@ def skill_for_intent(action, stated=None):
             return skill
     return FALLBACK
 
-
-def uses_for(skill):
-    """The short SRD use line for a skill, or empty."""
-    for name, use, _pattern in _COMPILED:
-        if name == skill:
-            return use
-    if skill == FALLBACK:
-        return 'deducing from clues or searching objects'
-    return ''

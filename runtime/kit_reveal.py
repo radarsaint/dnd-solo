@@ -143,11 +143,6 @@ def view(source, state, kind, table_talk=False, held=False, action=None):
             'hold_ids': split['detail']}
 
 
-def _gist(text):
-    words = text.split()
-    return ' '.join(words[:6]) + ('...' if len(words) > 6 else '')
-
-
 def _cues(text):
     return {w for w in re.findall(r"[a-z]{5,}", text.casefold()) if w not in _STOP}
 

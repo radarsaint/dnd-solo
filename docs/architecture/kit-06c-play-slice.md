@@ -124,7 +124,7 @@ Avrae and never an AC, DC, hit points, or a total. The fixture's `combat` block 
 captain, bandits, doppelganger) and the source's retreat rules: Uktarl flees toward area 7 when hurt or when an
 underling falls, and the rest flee toward area 8 once he is gone. The vampire act holds until a physical fact
 cracks it (a wound, burned paint, a wiped face, fitted fangs seen up close, a man grovelling for copper).
-`scripts/kit_engine_probe.py` runs the 6c variety scenarios through this engine offline (no model, no network).
+`scripts/kit_engine_probe.py` runs the 6c variety scenarios through this engine offline (no model, no network). (Removed in v0.13.0 with the 6c batch runner; superseded by the scripted host-command pass. See git history.)
 
 ## Intent, social rolls, cards, and validator noise (6c baseline items 2–5)
 

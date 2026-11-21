@@ -49,15 +49,6 @@ class PendingAppraisals:
         return self._items.pop(key, None) is not None
 
 
-def render_pricing_or_missing(data: ItemData) -> str:
-    try:
-        return format_result(calculate_price(data))
-    except ValueError as error:
-        if str(error) == "missing fields":
-            return format_missing(data)
-        raise
-
-
 def classify_question(data: ItemData, raw: str) -> Optional[str]:
     if data.formula_category_conflict:
         return "category_conflict"

@@ -134,12 +134,6 @@ def tier_of(name):
     return '_'.join(qualifier) if len(siblings) > 1 else None
 
 
-def closest_srd(text):
-    """(best entry, alternatives) that are the whole item asked about, or (None, [])."""
-    found = whole_item_matches(text)
-    return (found[0], found[1:]) if found else (None, [])
-
-
 def _srd_result(entry, item):
     bundle = f' per {entry["per"]}' if entry.get('per') else ''
     return {'item': item, 'amount': entry['amount'], 'unit': entry['unit'],

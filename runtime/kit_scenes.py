@@ -196,19 +196,6 @@ def _inside_room(offset, rooms):
     return None
 
 
-def _next_boundary(offset, rows, start_i):
-    for j in range(start_i, len(rows)):
-        off, line = rows[j]
-        if off <= offset:
-            continue
-        stripped = line.strip()
-        if not stripped or stripped.startswith('>'):
-            continue
-        if _CHAPTER.match(stripped) or _LOCATION.match(stripped) or _fragment(_core(stripped)[0]):
-            return off
-    return None
-
-
 def _heading_at(rows, index):
     """A heading starting at rows[index], possibly split across a page break. Or None."""
     off, line = rows[index]
@@ -825,33 +812,6 @@ def write_side(folder, index):
         sent.write_text('[]', encoding='utf-8')
 
 
-def take_entry(folder, scene_id):
-    """Full entry the first time this scene is sent, then None (the caller sends a delta)."""
-    folder = Path(folder)
-    path = folder / 'scenes_sent.json'
-    try:
-        sent = set(json.loads(path.read_text(encoding='utf-8'))) if path.is_file() else set()
-    except (OSError, ValueError):
-        sent = set()
-    if scene_id in sent:
-        return None
-    sent.add(scene_id)
-    path.write_text(json.dumps(sorted(sent)), encoding='utf-8')
-    triggers = {}
-    try:
-        triggers = json.loads((folder / 'triggers.json').read_text(encoding='utf-8'))
-    except (OSError, ValueError):
-        return None
-    return (triggers.get('entries') or {}).get(scene_id)
-
-
-def log_unscripted(folder, turn_id, action):
-    path = Path(folder) / 'unscripted.jsonl'
-    line = json.dumps({'turn_id': turn_id, 'action': action}, ensure_ascii=False)
-    with path.open('a', encoding='utf-8') as handle:
-        handle.write(line + '\n')
-
-
 def mark_scene_lines(text):
     """Prefix second-person lines under an unnumbered scene heading with ``> ``.
 
@@ -1035,19 +995,3 @@ def revisit_view(state, place_id):
             'actors': dict(rec.get('actors') or {}), 'trigger_fires': bool(rec.get('repeatable')),
             'narration': narration, 'read_aloud': False}
 
-
-def score_key(found, gold):
-    """Recall and precision of detected scene names against a private answer key.
-
-    ``found`` and ``gold`` are iterables of scene names. The key stays out of git;
-    this only does the arithmetic.
-    """
-    found_set = {re.sub(r'\s+', ' ', str(name).casefold()).strip() for name in found if name}
-    gold_set = {re.sub(r'\s+', ' ', str(name).casefold()).strip() for name in gold if name}
-    if not gold_set and not found_set:
-        return {'available': True, 'recall': 1.0, 'precision': 1.0, 'hit': 0, 'gold': 0, 'found': 0}
-    hit = len(found_set & gold_set)
-    recall = (hit / float(len(gold_set))) if gold_set else 0.0
-    precision = (hit / float(len(found_set))) if found_set else 0.0
-    return {'available': True, 'recall': recall, 'precision': precision,
-            'hit': hit, 'gold': len(gold_set), 'found': len(found_set)}

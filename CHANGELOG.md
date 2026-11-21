@@ -10,6 +10,13 @@ Versioning rule:
 
 The current version is in `VERSION`.
 
+## v0.13.0
+
+- Legacy removal, so the live host path (adventure prepare, start, the prepare/complete turn loop, record) is the one spine later work builds on. No player-visible change: the 8-line scripted host pass gives the same lines as v0.12.0.
+- Removed 34 runtime functions nothing calls (found by `vulture`, confirmed never executed by `coverage` over the full suite plus the scripted pass, and by a whole-repo name search), among them the old opening and span guessers in `kit_skim`, compatibility shims in `kit_labels` (`apply_labels`, `frozen_labels`, `_picker`), `recover_encounter_span`, and unhooked helpers in `kit_scenes`, `kit_triggers`, `kit_opening`, `kit_agent`, `kit_combat`, `kit_adventure`, `kit_prices`, `kit_skills`, `kit_reveal`, `kit_telemetry` and Goldscale. Unused imports removed with `ruff`.
+- Removed the area-6c batch harness and probe (`scripts/kit_batch_runner.py`, `kit_batch_grade.py`, `kit_engine_probe.py`, their README, the `6c_variety` scenarios and the harness-only test). The scripted host-command pass replaces them.
+- Kept: the stdlib reader fallback and `runtime/kit_readers.py`; the room-loader chain walkthrough and room stub (they back multi-room tests); the combat fallback golden and watchroom replay (they back live regression tests). The 6c card-table and toll procedures are the next removal: no ingested module reaches them, but they are wired through the room schema, brief checks and turn loop, so they get their own PR.
+
 ## v0.12.0
 
 - Adventure PDFs are read by a proven library first: pdfplumber (MIT, on pdfminer.six) gives each word's position and font, and `runtime/kit_readers.py` puts a two-column page in reading order (a full-width line stays in place; between full-width lines the left column is read, then the right) and marks italic or boxed prose as read-aloud. The opening scene's hidden creatures and their goal now read as whole sentences instead of being spliced with the facing column. pdfplumber is optional (`requirements.txt`); when it is missing or fails on a file, the stdlib reader and host tools run as before. `--reader stdlib` still forces the stdlib reader.

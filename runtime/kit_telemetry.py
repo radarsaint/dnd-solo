@@ -25,7 +25,6 @@ import json
 import os
 import sqlite3
 import statistics
-import time
 import uuid
 from pathlib import Path
 
@@ -230,6 +229,3 @@ def _by_condition(rows):
         groups.setdefault(row.get('condition') or '-', []).append(row)
     return groups
 
-
-def now_ns():
-    return time.perf_counter_ns()
