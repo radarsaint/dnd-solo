@@ -2,16 +2,16 @@
   "schema": "kit_project_gardener_state/v1",
   "purpose": "RESUMABILITY_CURSOR_NOT_KNOWLEDGE_STORE",
   "canonical_location": "radarsaint/dnd-solo/coordination/context_state.json",
-  "state_revision": 72,
+  "state_revision": 73,
   "semantic_brain": {
     "repo": "radarsaint/dnd-solo",
     "path": "docs/PROJECT_UNDERSTANDING.md",
-    "last_semantic_commit": "0758f7aee2d159b746cb820940d2fc8f5489b16d",
+    "last_semantic_commit": "bf59005a5202fe964003ca13cb5e3a8eac3c3fb8",
     "last_reviewed_on": "2026-11-21"
   },
   "checkpoint": {
     "reviewed_against_main": {
-      "radarsaint/dnd-solo": "0758f7aee2d159b746cb820940d2fc8f5489b16d",
+      "radarsaint/dnd-solo": "bf59005a5202fe964003ca13cb5e3a8eac3c3fb8",
       "radarsaint/bfdm-corpus": "66f3c62fb87976224174180db0a57e50d129587e"
     },
     "context_inbox": {
@@ -25,9 +25,9 @@
   "last_completed_pass": {
     "kind": "BOUNDED_SEMANTIC_RECONCILIATION",
     "completed_on": "2026-11-21",
-    "scope": "Reviewed dnd-solo main after #217 merge (0be041c / f5a2189a); no new #115 comments beyond 6598407850. bfdm-corpus main unchanged.",
-    "result": "Accept: #217 ships the full SRD 5.1 monster list (329 creatures with attack) so module creatures without local stat blocks can be cast as combatants. 11 hand lines remain as overrides. Player-visible host pass identical to v0.14.0. Brain updated on main. No bfdm-corpus control edit. Unresolved items unchanged.",
-    "resulting_brain_commit": "0758f7aee2d159b746cb820940d2fc8f5489b16d",
+    "scope": "Reviewed dnd-solo main after #218 merge (5470052 / b9e26ca5); no new #115 comments beyond 6598407850. bfdm-corpus main unchanged.",
+    "result": "Accept: #218 ships labelled player-move set with typo repair (pyspellchecker + rapidfuzz MIT, stdlib fallback) before move/skill readers and routing by existing skill rows. Move accuracy 75.6% \u2192 90.6% on synthetic set. Player-visible host pass identical to v0.15.0. Brain updated on main. No bfdm-corpus control edit. Unresolved items unchanged.",
+    "resulting_brain_commit": "bf59005a5202fe964003ca13cb5e3a8eac3c3fb8",
     "reconciled_comment_id": 6598407850
   },
   "active_pass": null,
