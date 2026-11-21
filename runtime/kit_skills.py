@@ -149,6 +149,12 @@ def skill_for_intent(action, stated=None):
     if chosen:
         return chosen
     text = action or ''
+    # Looking or listening for something that may be hidden is Perception, whatever words
+    # carry it ("scanning the brush for movement", "watch the trees for an ambush"). Without
+    # this the word list fell through to Investigation, or read "anyone hiding" as Stealth.
+    from . import kit_moves
+    if kit_moves.notice_intent(text):
+        return 'perception'
     for skill, _use, pattern in _COMPILED:
         if pattern.search(text):
             return skill

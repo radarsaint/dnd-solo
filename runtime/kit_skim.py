@@ -25,7 +25,7 @@ PICK_MAX = 4
 KEYS = ('burst', 'source_quote', 'page_start', 'page_end', 'alt_starts', 'design_start_name', 'scene')
 
 LANDING = "Got it. Who's walking in? A sentence or two about them, or hand me the sheet."
-READY_LINE = "We're set. Default is the book's start — Yes. begins."
+READY_LINE = "We're set. Say Yes and we start at the beginning of the book."
 MUDDY = "Opening's muddy on my copy."
 
 # Spoken text that is still a DM instruction, a secret, or an overview, even when
@@ -514,8 +514,12 @@ def request_for(db):
                         'quote': 'contiguous presence quote',
                         'visibility': 'visible|hidden|staged', 'kind': 'person|creature',
                         'goal': {'quote': 'complete sentence', 'status': 'established|conditional|inferred'},
-                        'knowledge': []}],
-            'discoveries': [], 'pressures': [],
+                        'knowledge': [{'quote': 'complete sentence', 'status': 'established|conditional|inferred'}]}],
+            # Every item shape, so a host never has to open the runtime to learn one.
+            'discoveries': [{'quote': 'complete sentence', 'status': 'established|conditional|inferred'}],
+            'pressures': [{'kind': 'ambush|conversation|hazard|none', 'quote': 'complete source sentence',
+                           'status': 'established|conditional|inferred', 'actors': ['short_id'],
+                           'activation': 'entry|disturb|deferred|failed_notice'}],
         },
         'command': command,
     }
@@ -2595,6 +2599,7 @@ def accept(db, reply):
     _write(db, stored)
     result = {
         'stage': 'skim_accepted', 'table_line': stored.get('table_line', READY_LINE),
+        'scene_verified': bool(beat.get('source_verified')),
         'design_start_name': stored['design_start_name'],
         'scene_key': key, 'room': compiled.get('room'), 'room_id': compiled.get('room_id'),
         'page_start': page_start, 'page_end': page_end, 'burst_words': len(_words(spoken)),
@@ -3461,6 +3466,22 @@ def _note_sheet(db, sheet_path):
     _write(db, data)
 
 
+def room_for(db, room):
+    """A stored room path, found under this save's own adventure folder: a path recorded
+    relative to another working folder (or another save) never decides where start looks."""
+    path = Path(str(room))
+    if path.is_absolute() and path.is_file():
+        return str(path)
+    from .kit_adventure import folder_for  # never the command's folder or the repo's
+    parts = path.parts
+    for index, part in enumerate(parts):
+        if part.endswith('.adventure'):
+            candidate = folder_for(db).joinpath(*parts[index + 1:])
+            if candidate.is_file():
+                return str(candidate.resolve())
+    return str(path)
+
+
 def player_start(db, sheet_path=None, table=None):
     """After a PDF this session, never the empty lobby. A sheet stays with the save."""
     _note_sheet(db, sheet_path)
@@ -3468,7 +3489,7 @@ def player_start(db, sheet_path=None, table=None):
     sheet = str(sheet_path) if sheet_path else data.get('sheet')
     if data.get('status') == 'accepted' and data.get('room') and sheet:
         from .kit_agent import start_session
-        opened = start_session(str(db), sheet, room=data['room'], table=table)
+        opened = start_session(str(db), sheet, room=room_for(db, data['room']), table=table)
         opened['table_line'] = READY_LINE
         opened['awaiting_yes'] = True
         return opened
@@ -3476,7 +3497,7 @@ def player_start(db, sheet_path=None, table=None):
         return {
             'stage': 'awaiting_sheet', 'committed': False, 'opened_room': None,
             'character_loaded': False, 'sheet': sheet, 'sheet_kept': bool(sheet),
-            'table_line': "We're set. Default is the book's start. Hand me the sheet, then Yes. begins.",
+            'table_line': "We're set. Hand me the sheet, then say Yes and we start at the beginning of the book.",
             'design_start_name': data.get('design_start_name'), 'scene_key': data.get('scene_key'),
         }
     if data.get('status') == 'scene_required':

@@ -38,7 +38,8 @@ class DeclaredPendingRulingCommitsNothing(unittest.TestCase):
         before = snapshot(arena.runtime)
         with self.assertRaises(PendingRuling) as caught:
             bridge.complete('t', {'decision': plan_for(packet, combat_acts=NO_ROLL), **SPOKEN})
-        self.assertIn('Avrae', str(caught.exception))
+        self.assertIn('Roll the attack', str(caught.exception))
+        self.assertNotIn('Avrae', str(caught.exception))
         self.assertFalse(pending_ruling_result(caught.exception)['committed'])
         self.assertEqual(snapshot(arena.runtime), before, 'an ask records nothing, as main\'s prepare')
         with self.assertRaises(HostSequenceError):  # the staged turn is gone

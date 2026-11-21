@@ -15,7 +15,7 @@ from shutil import which
 
 from test_kit_adventure_pdf import make_pdf
 from test_kit_agent import RecordingModel
-from test_kit_scene_contract_gpt import FICTION, SCENE, SHEET
+from test_kit_scene_contract_gpt import FICTION, LOW_SHEET, SCENE, SHEET
 
 ROOT = Path(__file__).resolve().parents[1]
 PRESENCE = 'Two bandits hide by the ditch and want the caravan supplies.'
@@ -110,7 +110,7 @@ class NormalHostPath(unittest.TestCase):
         return call('prepare', '--one-pass', '--db', self.db, '--action-file', path)
 
     def start(self):
-        started = call('start', '--db', self.db, '--sheet', SHEET)
+        started = call('start', '--db', self.db, '--sheet', LOW_SHEET)  # the roll path, not the passive
         self.assertEqual(started['stage'], 'started', started)
         opening = self.action('Yes.')
         self.assertIn(FICTION, opening.get('spoken') or '')

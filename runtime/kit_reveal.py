@@ -122,7 +122,8 @@ def view(source, state, kind, table_talk=False, held=False, action=None):
         return None
     if kit_rooms.stage(source, state) != 'first_look':
         return None
-    if ((state.get('combat') or {}).get('status')) in ('awaiting_initiative', 'running'):
+    from .state_context import in_combat
+    if in_combat(state):
         return None
     split = layers(source, state)
     if not split['detail']:

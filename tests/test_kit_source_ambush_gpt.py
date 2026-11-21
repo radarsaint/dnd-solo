@@ -11,7 +11,7 @@ from runtime import kit_adventure, kit_scene_contract, kit_skim
 from runtime.kit_agent import KitChatBridge, RoomAdjudicator, start_session
 from runtime.state_context import Runtime
 
-from test_kit_scene_contract_gpt import FICTION, ENCOUNTER, SCENE, SHEET
+from test_kit_scene_contract_gpt import FICTION, ENCOUNTER, LOW_SHEET as SHEET, SCENE
 
 CONDITION = 'If the bandits go unnoticed, they spring from their hiding place and attack.'
 

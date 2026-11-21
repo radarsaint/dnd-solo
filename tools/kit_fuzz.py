@@ -35,7 +35,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from runtime import kit_acts  # noqa: E402
-from runtime.kit_agent import KitChatBridge, PendingRuling, RoomAdjudicator, start_session  # noqa: E402
+from runtime.kit_agent import SIMPLE_ACT_LINE, KitChatBridge, PendingRuling, RoomAdjudicator, start_session  # noqa: E402
 from runtime.state_context import InvalidChange, Runtime  # noqa: E402
 
 CORPUS = ROOT / 'tests/corpus/player_lines.jsonl'
@@ -167,7 +167,7 @@ def expected(case):
 def classify(public):
     event = public.get('accepted_public_event', '')
     kind = public.get('action_kind')
-    if event.startswith('You go ahead'):
+    if event.startswith(SIMPLE_ACT_LINE):
         return 'act'
     if kind == 'check' and event.startswith('You roll '):
         return 'roll'

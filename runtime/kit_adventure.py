@@ -1007,7 +1007,8 @@ def build_index(text, title=None):
             # The next place's heading is the end of this scene, even if a later head sits closer.
             if span_end > end:
                 span_end = end
-            raw.append({'bare': meta.get('letter'), 'name': name, 'offset': off,
+            raw.append({'bare': meta.get('letter'), 'name': name, 'heading': meta.get('heading') or name,
+                        'offset': off,
                         'body': [body_start, span_end],
                         'page': meta.get('page') or page_of(off), 'chapter': chapter,
                         'site': meta.get('site') or _site_of(chapter), 'type': 'scene',
@@ -1418,11 +1419,15 @@ def _creature_belongs_here(sentence, loc, index):
     for match in AREA_REF_RE.finditer(sentence or ''):
         if match.group(1).lower() != here:
             return False
-    here_name = (loc.get('name') or '').casefold()
+    # The heading this place's own body sits under is not "another place" (an opening
+    # named for its part can still carry the later heading printed beside it).
+    here_names = {(loc.get('name') or '').casefold(), (loc.get('heading') or '').casefold()}
     folded = (sentence or '').casefold()
     for other in (index.get('locations') or {}).values():
         name = (other.get('name') or '').casefold()
-        if len(name) < 4 or name == here_name:
+        if other.get('heading') and other['heading'] != other.get('name'):
+            name = other['heading'].casefold()  # a part-named opening: its keyed heading is the place
+        if len(name) < 4 or name in here_names:
             continue
         if name in folded:
             return False
@@ -2376,7 +2381,9 @@ def readiness(db, mounted_id=None):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(prog='kit_agent adventure', description=__doc__.split('\n\n')[0])
-    parser.add_argument('action', choices=['import', 'compile', 'status', 'ingest', 'label', 'skim', 'index'])
+    parser.add_argument('action', choices=['import', 'compile', 'status', 'ingest', 'label', 'skim', 'index',
+                                           'prepare'])
+    parser.add_argument('--cache', help='prepare: the per-book preparation cache (default ~/.cache/kit-prep)')
     parser.add_argument('--file', help='label: the host reply JSON (section, opening, labels)')
     parser.add_argument('path', nargs='?', help='ingest: the adventure PDF (or pass --pdf)')
     parser.add_argument('--db', default='kit.sqlite')
@@ -2404,6 +2411,12 @@ def main(argv=None):
             if text is None and not pdf:
                 raise IngestError(['ingest needs a PDF path or --text-file'])
             result = ingest_adventure(args.db, text=text, pdf=pdf, title=args.title, reader=args.reader)
+        elif args.action == 'prepare':
+            pdf = args.pdf or args.path
+            if not pdf:
+                raise IngestError(['prepare needs a PDF path'])
+            from . import kit_prep
+            result = kit_prep.prepare(args.db, pdf, reader=args.reader, root=args.cache)
         elif args.action == 'label':
             from . import kit_labels
             if args.file:
@@ -2415,7 +2428,8 @@ def main(argv=None):
             from . import kit_skim
             if args.file:
                 reply = _read_json(args.file)
-                result = kit_skim.accept(args.db, reply)
+                from . import kit_prep
+                result = kit_prep.after_skim(args.db, kit_skim.accept(args.db, reply))
             else:
                 result = kit_skim.request_for(args.db)
         elif args.action == 'index':

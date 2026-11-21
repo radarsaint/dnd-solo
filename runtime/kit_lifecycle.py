@@ -40,6 +40,26 @@ def is_confirmation(text):
     return bool(words) and len(words) <= 60 and bool(CONFIRMATION.match(words))
 
 
+_QUOTED = re.compile(r'"[^"]*"|\u201c[^\u201d]*\u201d')
+_NOT_YET = re.compile(r"\b(?:no|nope|nah|not yet|wait|hold on|hang on|don'?t|stop|not ready|later)\b", re.I)
+_FILLER = re.compile(r"\b(?:when you are|when you're|whenever you are|whenever|then|now|already|i think|i guess|"
+                     r"of course|for real|totally|so)\b", re.I)
+
+
+def is_ready_yes(text):
+    """The ready step's go-ahead: any clear affirmative, with extra words or a quote around it
+    ('"That's the shield." Yes, let's start.', "Ready when you are, let's go"). A clear no
+    or a question keeps waiting."""
+    words = _QUOTED.sub(' ', str(text or '').replace('\u2019', "'")).strip()
+    if not words or '?' in words or _NOT_YET.search(words):
+        return False
+    for sentence in re.split(r'[.!;]+', words):
+        plain = _FILLER.sub(' ', sentence)
+        if plain.strip(' ,-:') and is_confirmation(re.sub(r'\s+', ' ', plain).strip(' ,-:')):
+            return True
+    return False
+
+
 def complete_command(db, turn_id, input_file='o.json'):
     return (f'python3 -m runtime.kit_agent complete --db {shlex.quote(str(db))} '
             f'--turn-id {turn_id} --input-file {input_file}')

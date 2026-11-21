@@ -546,7 +546,7 @@ class CardTableTests(unittest.TestCase):
         state['procedures'] = {'three_dragon_ante': table}
         adjudicator = RoomAdjudicator(perception=0, insight=0, sleight_of_hand=0, source=source)
         # A shot with no Avrae roll waits on the roll (no turn), and is never a card raise.
-        with self.assertRaisesRegex(kit_agent.PendingRuling, 'Roll the attack for your crossbow in Avrae'):
+        with self.assertRaisesRegex(kit_agent.PendingRuling, 'Roll the attack for your crossbow'):
             adjudicator.resolve('I raise my crossbow and shoot the dealer.', 1, state)
         with self.assertRaisesRegex(kit_agent.PendingRuling, 'Stealth'):
             adjudicator.resolve('I sneak out while they check their hands.', 1, state)

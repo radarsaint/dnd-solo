@@ -81,7 +81,7 @@ class DeclarationWinsOverAPendingRuling(unittest.TestCase):
 
     def test_a_missing_roll_is_still_an_ask_at_prepare(self):
         arena = ud_bridge(self)
-        with self.assertRaisesRegex(PendingRuling, 'Avrae'):
+        with self.assertRaisesRegex(PendingRuling, 'Roll the attack'):
             turn(arena, 'I stab the ogre.')
 
     def test_outside_a_fight_an_unread_deed_is_still_a_ruling(self):
