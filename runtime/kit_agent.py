@@ -8185,7 +8185,7 @@ class KitChatBridge:
         if pending is None or pending == turn_id:
             return None
         opening = waiting['state'] == 'ready'
-        if opening and kit_lifecycle.is_confirmation(action):
+        if opening and kit_lifecycle.is_ready_yes(action):
             # A bare "Yes." / "begin" is the player starting, not a new turn and not a
             # turn_pending the host has to notice. Commit the opening from its own read-aloud.
             return self._commit_pending_opening(pending, action)

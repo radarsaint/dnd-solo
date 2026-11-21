@@ -255,3 +255,39 @@ class InitiativeNumberBindsWhileTheFightIsOn(Scene):
         result = self._session(False)('14')
         self.assertEqual(result['stage'], 'roll_clarify', result)
         self.assertIn('What is the 14 for?', result['spoken'])
+
+
+class ReadyStepTakesAnyClearYes(CachedOpeningStartsLikeACold):
+    """v0.11.6: after "We're set. Say Yes...", any clear affirmative starts; a no or a question waits."""
+
+    def _ready(self, name):
+        db = self.root / name / 'kit.sqlite'
+        db.parent.mkdir()
+        kit_prep.prepare(str(db), str(self.pdf), reader='pdftotext', root=str(self.root / 'cache'))
+        scene = copy.deepcopy(SCENE)
+        scene['pressures'][0].update(quote=CONDITION, status='conditional', activation='failed_notice')
+        kit_skim.accept(db, {'burst': FICTION, 'source_quote': FICTION, 'page_start': 1, 'page_end': 1,
+                             'alt_starts': [], 'design_start_name': 'The Road', 'scene': scene})
+        started = call('start', '--db', db, '--sheet', LOW_SHEET)
+        self.assertTrue(started.get('awaiting_yes'), started)
+        return db
+
+    def _say(self, db, line):
+        action = db.parent / 'a.txt'
+        action.write_text(line)
+        return call('prepare', '--one-pass', '--db', db, '--action-file', action)
+
+    def test_affirmatives_start_the_opening(self):
+        for index, line in enumerate(("Yes, let's start", '"That\'s the shield." Yes, let\'s start.',
+                                      "Yeah, let's go!", "Ready when you are, let's go.", 'Sure.', 'Ready.')):
+            with self.subTest(line=line):
+                said = self._say(self._ready('yes%d' % index), line)
+                self.assertEqual(said['stage'], 'opening_committed', said)
+                self.assertIn(FICTION.split('.')[0], said['spoken'])
+
+    def test_a_no_or_a_question_keeps_waiting(self):
+        for index, line in enumerate(('No, wait.', 'Not yet.', 'What is the shield?', 'Yes? What happens first?')):
+            with self.subTest(line=line):
+                db = self._ready('wait%d' % index)
+                self.assertEqual(self._say(db, line)['stage'], 'turn_pending')
+                self.assertEqual(self._say(db, 'Yes.')['stage'], 'opening_committed')
