@@ -2,16 +2,16 @@
   "schema": "kit_project_gardener_state/v1",
   "purpose": "RESUMABILITY_CURSOR_NOT_KNOWLEDGE_STORE",
   "canonical_location": "radarsaint/dnd-solo/coordination/context_state.json",
-  "state_revision": 71,
+  "state_revision": 72,
   "semantic_brain": {
     "repo": "radarsaint/dnd-solo",
     "path": "docs/PROJECT_UNDERSTANDING.md",
-    "last_semantic_commit": "746cee5a99b4aeb007a65680159ef0d02783ab20",
+    "last_semantic_commit": "0758f7aee2d159b746cb820940d2fc8f5489b16d",
     "last_reviewed_on": "2026-11-21"
   },
   "checkpoint": {
     "reviewed_against_main": {
-      "radarsaint/dnd-solo": "746cee5a99b4aeb007a65680159ef0d02783ab20",
+      "radarsaint/dnd-solo": "0758f7aee2d159b746cb820940d2fc8f5489b16d",
       "radarsaint/bfdm-corpus": "66f3c62fb87976224174180db0a57e50d129587e"
     },
     "context_inbox": {
@@ -25,9 +25,9 @@
   "last_completed_pass": {
     "kind": "BOUNDED_SEMANTIC_RECONCILIATION",
     "completed_on": "2026-11-21",
-    "scope": "Reviewed dnd-solo main after #216 merge (e4355041); no new #115 comments beyond 6598407850. bfdm-corpus main unchanged.",
-    "result": "Accept: #216 removes the 6c card-table/toll second play path never reached by ingested modules or the live PDF path. Player-visible behavior unchanged. Brain updated on main. No bfdm-corpus control edit. Unresolved items unchanged.",
-    "resulting_brain_commit": "746cee5a99b4aeb007a65680159ef0d02783ab20",
+    "scope": "Reviewed dnd-solo main after #217 merge (0be041c / f5a2189a); no new #115 comments beyond 6598407850. bfdm-corpus main unchanged.",
+    "result": "Accept: #217 ships the full SRD 5.1 monster list (329 creatures with attack) so module creatures without local stat blocks can be cast as combatants. 11 hand lines remain as overrides. Player-visible host pass identical to v0.14.0. Brain updated on main. No bfdm-corpus control edit. Unresolved items unchanged.",
+    "resulting_brain_commit": "0758f7aee2d159b746cb820940d2fc8f5489b16d",
     "reconciled_comment_id": 6598407850
   },
   "active_pass": null,
