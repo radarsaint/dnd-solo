@@ -1053,6 +1053,11 @@ def room_intent(action, addressed=False, room=None):
         return 'search'
     if PLAIN_LOOK.search(words) and not quoted and not ADDRESS_WORDS.search(words):
         return 'observe'
+    if kit_moves.NOTICE_OBJECT_RE.search(words) and kit_moves.notice_intent(words) and not quoted and \
+            not ADDRESS_WORDS.search(words):
+        # Scanning or watching for someone hidden is a look ("I scan the thickets for anyone
+        # watching"): Perception, never talk, even though 'watching' is also a social word.
+        return 'observe'
     if re.match(r"\s*(?:what|how)\s+an?\b|\s*(?:wow|huh|ooh|hmm|ah|oh)\b[^a-z]*$", words):
         return 'social'  # an exclamation ('What a strange place.')
     if '?' in words and not quoted and not addressed and not door_business and declared.strip() and \

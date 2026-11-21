@@ -25,6 +25,12 @@ def cache_root(explicit=None):
     return Path(root)
 
 
+def _entry_name(sha):
+    """Cache entry for one book read by one reader: a prep made by another reader is not reused."""
+    from . import kit_readers
+    return '%s-%s' % (sha, kit_readers.cache_tag())
+
+
 def book_sha(pdf):
     digest = hashlib.sha256()
     with Path(pdf).open('rb') as source:
@@ -71,7 +77,7 @@ def save(db, stage, root=None):
     meta_here = folder / META
     if meta_here.is_file():
         root = root or json.loads(meta_here.read_text(encoding='utf-8')).get('root')
-    entry = cache_root(root) / sha
+    entry = cache_root(root) / _entry_name(sha)
     tmp = entry.with_name(sha + '.tmp-%d' % os.getpid())
     try:
         if tmp.exists():
@@ -94,7 +100,7 @@ def save(db, stage, root=None):
 
 def restore(db, sha, root=None):
     """Restore a cached preparation into a fresh save. Returns the cached stage or None."""
-    entry = cache_root(root) / sha
+    entry = cache_root(root) / _entry_name(sha)
     meta_path = entry / 'meta.json'
     folder = kit_adventure.folder_for(db)
     if not meta_path.is_file() or folder.exists():

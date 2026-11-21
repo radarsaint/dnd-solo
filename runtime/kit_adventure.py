@@ -9,8 +9,9 @@ What is deterministic and what is model-assisted:
 
 * ``ingest`` (one host step): a PDF or pasted text -> the index and the first scene.
   ``import`` (deterministic) is the index alone. A PDF is read with the stdlib text-layer
-  reader (``runtime/kit_pdf.py``); ``pdftotext`` or ``pypdf`` are used only when that
-  reader cannot, and only if the host has them. -> ``index.json``:
+  layout reader (``runtime/kit_readers.py``, pdfplumber) when it is installed, else the
+  stdlib text-layer reader (``runtime/kit_pdf.py``); ``pdftotext`` or ``pypdf`` are used
+  only when those cannot, and only if the host has them. -> ``index.json``:
   chapters, keyed locations with character offsets and pages, NPC mentions, stat-block
   references, connections between locations, and pages that are mostly map/image.
 * ``compile`` (deterministic by default): one keyed location -> a room draft. Read-aloud
@@ -254,11 +255,22 @@ def read_pdf(path, reader='auto', max_pages=None):
     path = Path(path)
     if not path.is_file():
         raise IngestError(['no PDF at %s' % path])
-    if reader not in ('auto', 'stdlib', 'pdftotext', 'pypdf'):
-        raise IngestError(['unknown PDF reader %r (auto, stdlib, pdftotext, pypdf)' % reader])
+    from . import kit_readers
+    known = ('auto', 'stdlib', 'pdftotext', 'pypdf') + tuple(r.name for r in kit_readers.READERS)
+    if reader not in known:
+        raise IngestError(['unknown PDF reader %r (%s)' % (reader, ', '.join(known))])
     data = path.read_bytes()
     if not data.startswith(b'%PDF'):
         raise IngestError([NOT_PDF])
+    # A layout library (runtime/kit_readers.py) reads columns and boxes first. If it is not
+    # installed or fails on this file, the stdlib reader and host tools below still run.
+    if reader == 'auto' or reader not in ('stdlib', 'pdftotext', 'pypdf'):
+        names = None if reader == 'auto' else (reader,)
+        text, name = kit_readers.read_with_readers(path, max_pages=max_pages, names=names)
+        if text:
+            return (_cap_pages(text, max_pages) if max_pages else text), name
+        if reader != 'auto':
+            raise IngestError(['PDF reader %r is not installed or could not read this file' % reader])
     from .kit_pdf import extract, text_readable
     # The opening window is a short read. A full-file parse is not part of landing.
     if reader == 'auto' and max_pages:
@@ -2069,6 +2081,15 @@ def read_opening(path, reader='auto'):
     from .kit_skim import OPENING_PAGES
     started = time.monotonic()
     budget = 7.0
+    if reader not in ('stdlib', 'pdftotext', 'pypdf'):
+        # The layout library first (runtime/kit_readers.py): two columns in reading order.
+        from . import kit_readers
+        names = None if reader == 'auto' else (reader,)
+        text, name = kit_readers.read_with_readers(path, max_pages=OPENING_PAGES, names=names)
+        if text:
+            return _cap_pages(text, OPENING_PAGES), name
+        if reader != 'auto':
+            raise IngestError(['PDF reader %r is not installed or could not read this file' % reader])
     if reader in ('auto', 'pdftotext'):
         text = _pdftotext(path, OPENING_PAGES)
         if text and (pdf_yield_ok(text) or sum(ch.isalpha() for ch in text) >= 40):
@@ -2391,7 +2412,7 @@ def main(argv=None):
                                              'boxed read-aloud lines prefixed "> ")')
     parser.add_argument('--pdf', help='import/ingest: a PDF. The built-in reader uses the text layer; '
                                       'pdftotext or pypdf run only when that reader cannot')
-    parser.add_argument('--reader', choices=['auto', 'stdlib', 'pdftotext', 'pypdf'], default='auto',
+    parser.add_argument('--reader', choices=['auto', 'stdlib', 'pdftotext', 'pypdf', 'pdfplumber'], default='auto',
                         help='PDF reader. auto uses the built-in text layer, then pdftotext, then pypdf')
     parser.add_argument('--title')
     parser.add_argument('--location', help='compile: the location key, e.g. 1 or A2')

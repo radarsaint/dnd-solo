@@ -10,6 +10,12 @@ Versioning rule:
 
 The current version is in `VERSION`.
 
+## v0.12.0
+
+- Adventure PDFs are read by a proven library first: pdfplumber (MIT, on pdfminer.six) gives each word's position and font, and `runtime/kit_readers.py` puts a two-column page in reading order (a full-width line stays in place; between full-width lines the left column is read, then the right) and marks italic or boxed prose as read-aloud. The opening scene's hidden creatures and their goal now read as whole sentences instead of being spliced with the facing column. pdfplumber is optional (`requirements.txt`); when it is missing or fails on a file, the stdlib reader and host tools run as before. `--reader stdlib` still forces the stdlib reader.
+- One reader interface for later layouts: subclass `kit_readers.PdfReader` and `kit_readers.register(reader, first=True)`; `--reader <name>` picks it. The prep cache is keyed by book and reader, so a prep made by another reader is not reused.
+- A look or scan for someone hidden ("I scan the thickets for anyone watching") is a look that calls Perception, never talk, even though "watching" is also a social word.
+
 ## v0.11.7
 
 - `start --sheet` takes a PDF sheet: it reads it with the same reader as `import-sheet`, so the player never needs to know which step reads it. The sheet is read before anything is written, so a failed start never half-mounts a game and the next start works. `start` without `--room` finds the opening room under the save's own `.adventure` folder, not the folder the command ran from. A question about what the character knows (lore, people, history, creatures) calls History, Nature, Religion or Arcana, whichever fits; Investigation stays the fallback.
