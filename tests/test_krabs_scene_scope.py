@@ -125,7 +125,6 @@ class SceneLocalStoryAndChecks(unittest.TestCase):
             made = kit_brief.brief(SOURCE, state)
             self.assertFalse(next(h for h in made['hooks'] if h['id'] == 'act_menace')['delivered'])
             self.assertNotIn('scene-2/area_06c', state.get('npc_checks') or {})  # the check is armed again
-            self.assertIsNone(kit_attitude.since_noticed(state, 'dealer_sees_reading', 'twenty_one'))
             # A global consequence stays: how the dealer regards the visitor.
             self.assertEqual(kit_attitude.level(SOURCE, state, 'uktarl'), 'unfriendly')
 

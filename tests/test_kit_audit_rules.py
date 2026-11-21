@@ -9,7 +9,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from runtime import kit_agent, kit_cards, kit_claims, pc_sheet
+from runtime import kit_agent, kit_claims, pc_sheet
 from runtime.kit_agent import PendingRuling, RoomAdjudicator
 from runtime.state_context import InvalidChange, Runtime
 from test_kit_agent import FIXTURE, RecordingModel
@@ -171,59 +171,6 @@ class PassiveAutoSucceedsTests(Case):
         self.assertFalse(kit_claims.pc_check(13, 3, 12, lambda: 9)['success'])
 
 
-class CardEngineFlatNumbersTests(unittest.TestCase):
-    """Rule 3: NPCs bring flat 10 + skill at the card table; ties go to the PC; one
-    number per secret."""
-
-    config = SOURCE['procedures']['three_dragon_ante']
-
-    def seated_cheat(self, passives=None, mods=None, dcs=None):
-        mods = mods or {'perception': 0, 'insight': 0, 'sleight_of_hand': 0}
-        for number in range(300):
-            table = kit_cards.CardTable('three_dragon_ante', self.config, dict(mods), f's{number}',
-                                        passives=passives, dcs=dcs)
-            state = table.resolve('card_join', 'I buy in with 30 gold.', 1, kit_cards.initial_state(self.config))[1]
-            probe = table.resolve('card_join', 'Deal me in.', 2, state)[1]
-            if probe['private']['cheated']:
-                return table, state
-        self.fail('no cheating seed')
-
-    def test_watching_meets_a_fixed_dc_and_never_an_npc_roll(self):
-        table, state = self.seated_cheat()
-        self.assertEqual(table.dcs['watch'], 13)
-        text, _, reveals = table.resolve('card_watch', 'I watch the deal. I rolled 13 + 0 = 13.', 2, state)
-        self.assertEqual(reveals, ['marked_deck'])           # 13 meets 13
-        self.assertIn('Perception d20 13 + 0 = 13 vs DC 13', ' '.join(table.trace))
-        self.assertNotRegex(text, r'\bDC\b|\bvs\b|\(Perception')
-
-    def test_a_passive_that_meets_the_watch_dc_catches_it_without_a_roll(self):
-        table, state = self.seated_cheat(passives={'perception': 13})
-        text, _, reveals = table.resolve('card_watch', 'I watch the deal.', 2, state)
-        self.assertEqual(reveals, ['marked_deck'])
-        self.assertIn('passive Perception 13', ' '.join(table.trace))
-        self.assertNotIn('passive', text)
-
-    def test_reading_him_is_flat_ten_plus_deception_and_a_miss_is_neutral(self):
-        table, state = self.seated_cheat()
-        state = table.resolve('card_watch', 'I watch the deal. I rolled 1 + 0 = 1.', 2, state)[1]
-        state = table.resolve('card_ante', 'I ante my strongest card.', 3, state)[1]
-        self.assertEqual(table.dcs['read'], 14)
-        text = table.resolve('card_read', 'I read him for a bluff. I rolled 5 + 0 = 5.', 4, state)[0]
-        self.assertTrue(text.startswith('He gives you nothing to read.'))
-        self.assertNotIn('performance', text)
-        self.assertNotIn('DC', text)
-
-    def test_the_watch_dc_is_the_marked_deck_claims_dc(self):
-        runtime = Runtime(Path(tempfile.mkdtemp()) / 'kit.sqlite')
-        self.addCleanup(runtime.close)
-        runtime.initialize(copy.deepcopy(SOURCE), 'area_06c')
-        state = runtime.load()[1]
-        adjudicator = RoomAdjudicator(source=SOURCE)
-        claim_dc = kit_claims.claims_here(SOURCE, state, None)['claims']['marked_deck']['dc']
-        self.assertEqual(adjudicator._card_dcs(self.config, state), {'watch': claim_dc})
-        self.assertEqual(claim_dc, 10 + SOURCE['actors']['uktarl']['stats']['skills']['sleight_of_hand'])
-
-
 class NoLeakyRefusalsTests(Case):
     """Rule 4: defaults instead of refusals; Stealth vs passive Perception; spells aren't combat."""
 
@@ -234,7 +181,7 @@ class NoLeakyRefusalsTests(Case):
         self.assertNotRegex(result.public_event, r'(?i)no (discovery )?dc|source gives')
 
     def test_no_player_facing_string_says_the_source_gives_no_dc(self):
-        for path in ('runtime/kit_agent.py', 'runtime/kit_cards.py'):
+        for path in ('runtime/kit_agent.py',):
             text = (Path(__file__).parent.parent / path).read_text()
             for raised in re.findall(r"(?:PendingRuling|NeedsRuling)\((.{0,300})", text):
                 self.assertNotRegex(raised, r'(?i)gives\s+no\b.{0,20}DC|no discovery DC', path)

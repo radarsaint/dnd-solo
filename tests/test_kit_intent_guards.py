@@ -17,8 +17,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from runtime import kit_cards, kit_combat, kit_rolls, kit_twenty_one
-from runtime.kit_agent import RoomAdjudicator, card_procedure
+from runtime import kit_combat, kit_rolls
+from runtime.kit_agent import RoomAdjudicator
 from runtime.state_context import Runtime
 from test_kit_agent import FIXTURE
 
@@ -86,72 +86,15 @@ class OwnThingsAreNotLoot(Base):
         self.assertNotIn('combat_state', types(result))
         self.assertNotIn('come away with the table coins', result.public_event)
 
-    def test_ears_and_a_look_at_his_face_are_not_a_face_act(self):
-        self.seat_in_a_hand()
-        result = self.resolve(T7)
-        self.assertEqual(result.kind, 'card_hit')
-        self.assertNotIn('scene_state', types(result))
-        self.assertNotIn('paint', result.public_event)
-
     def test_grabbing_the_pot_is_still_a_grab(self):
         result = self.resolve('I scoop the coins from the middle of the table into my bag.')
         self.assertEqual(result.kind, 'combat_round')
 
 
 class EveryIntentKept(Base):
-    def test_a_physical_act_keeps_the_card_call_made_with_it(self):
-        self.seat_in_a_hand()
-        result = self.resolve('Nik licks his thumb and wipes a streak of paint off the dealer\'s cheek. "Hit me."')
-        self.assertEqual(result.kind, 'card_hit')
-        self.assertIn('scene_state', types(result))
-        self.assertIn('procedure_state', types(result))
-        self.assertTrue(result.public_event.startswith('Your hand reaches the dealer'))
-        self.assertIn('You take the', result.public_event)
-
-    def test_the_games_name_and_an_insight_roll_both_resolve(self):
-        result = self.resolve(T2.replace('Nik takes the chair', 'Nik sits down in the chair'))
-        self.assertIn('procedure_state', types(result))
-        self.assertIn('claim_learned', types(result))
-        self.assertTrue(result.kind.startswith('card_'))
-
-    def test_a_bet_mid_hand_and_a_stated_read_of_the_backs_both_resolve(self):
-        self.seat_in_a_hand()
-        result = self.resolve(T4)
-        self.assertIn('procedure_state', types(result))
-        learned = [e['claim'] for e in result.events if e['type'] == 'claim_learned']
-        self.assertEqual(learned, ['marked_deck'])
-
     def test_speech_in_the_message_does_not_cancel_the_stated_roll(self):
         result = self.resolve('"Nice cards." Nik studies the card backs closely. Investigation check: 1d20 (16) + 7 = `23`')
         self.assertIn('claim_learned', types(result))
-
-
-class TheTableIsDeclared(Base):
-    def test_a_spoken_deal_seats_the_player_and_keeps_the_watch(self):
-        result = self.resolve(T3)
-        self.assertEqual(result.kind, 'card_watch')
-        state = next(e['state'] for e in result.events if e['type'] == 'procedure_state')
-        self.assertTrue(state['public']['watch_next_deal'])
-        self.assertTrue(state['public']['offered'])
-
-    def test_saying_the_games_name_starts_it_but_asking_or_counting_does_not(self):
-        self.assertIn('procedure_state', types(self.resolve('"Twenty-one." Nik pulls up a chair.')))
-        self.assertNotIn('procedure_state', types(self.resolve('"Is it twenty-one you play?"')))
-        config = self.runtime.source()['procedures']['twenty_one']
-        self.assertFalse(kit_cards.game_called(config, 'I count twenty-one gold on the table.'))
-
-    def test_a_canon_entry_with_the_procedure_declares_the_table(self):
-        revision, _ = self.runtime.load()
-        self.runtime.commit('canon', revision, [{
-            'type': 'canon_entry', 'slot': 'area_06c/card_table/game', 'kind': 'procedure',
-            'fact': 'The table plays Twenty-One Coffins.', 'basis': 'DM choice: twenty-one.', 'public': True,
-            'scope': 'location', 'procedure': 'twenty_one', 'roots': ['card_table'], 'choice': 'self',
-            'price': None, 'evidence': 'Kit named the game.'}])
-        table = card_procedure(self.runtime.source(), self.runtime.load()[1])
-        self.assertEqual(table[0], 'twenty_one')
-        result = self.resolve('I bet 10 gold.')
-        self.assertTrue(result.kind.startswith('card_'))
-        self.assertIn('procedure_state', types(result))
 
 
 class AvraeTitleRoll(Base):
@@ -190,18 +133,6 @@ class OtherNounsAndGames(unittest.TestCase):
         self.assertFalse(kit_combat.touched_face("mira tugs her hood and watches the guard's face.", pcs))
         self.assertTrue(kit_combat.touched_face("mira wipes the soot off the guard's cheek.", pcs))
         self.assertEqual(kit_combat.pc_names({'player_sheet': {'name': 'Mira Vey'}}), ('mira', 'vey'))
-
-    def test_a_games_own_name_declares_it(self):
-        config = {'name': "Three-Dragon Ante (Kit's table rules)"}
-        self.assertEqual(kit_cards.game_names(config), ('three-dragon ante',))
-        self.assertTrue(kit_cards.game_called(config, 'Fine. Three-dragon ante.'))
-        self.assertFalse(kit_cards.game_called(config, 'Is that three-dragon ante?'))
-        self.assertTrue(kit_cards.game_called({'name': 'x', 'called': ['liar\'s dice']}, "Liar's dice, then."))
-
-    def test_a_spoken_deal_is_only_the_bare_call(self):
-        self.assertTrue(kit_twenty_one.SPOKEN_DEAL.search('He nods. "Deal."'))
-        self.assertFalse(kit_twenty_one.SPOKEN_DEAL.search('"What a deal that was."'))
-
 
 if __name__ == '__main__':
     unittest.main()

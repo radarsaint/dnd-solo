@@ -401,10 +401,6 @@ def dice_totals(text):
             out.append(int(total.group(1)))
     return out
 
-# Avrae's title lines: "Wren makes an Investigation check!", "Brakka attacks with a Greataxe!",
-# "Nik casts Fireball!".
-AVRAE_TITLE = _lazy.regex(r"^[^\n!?.]{1,40}?\b(?:makes? an?\s+[a-z' ]{3,30}\s+(?:check|save|saving throw)|"
-                         r"attacks? with an?\s+[^\n!]{1,40}|casts?\s+[^\n!]{1,40})!\s*$", re.M | re.I)
 
 
 def without_rolls(text):
@@ -442,3 +438,18 @@ def roll_outcome(total, dc, save=False):
     """'pass' or 'fail' for a roll against a DC, for Kit only, never shown to the player.
     Ties go to the actor on a check (meet or beat); a saving throw that only ties the DC fails."""
     return 'pass' if (total > dc if save else total >= dc) else 'fail'
+
+
+def supplied_roll(action, modifier=None, skill=None):
+    """(die, modifier) for the check roll the player stated, or None.
+
+    A stated split (Avrae's line or "d + m = t") is used as given. An explicit natural is
+    (die, None): the caller adds the sheet's bonus once. A bare number is Avrae's total,
+    worked back with ``modifier`` (the sheet's bonus, 0 when unknown) so the bonus is never
+    added twice."""
+    roll = check_roll(action, skill)
+    if roll is None:
+        return None
+    if roll.die is not None and roll.modifier is None:
+        return roll.die, None
+    return roll.parts(modifier)

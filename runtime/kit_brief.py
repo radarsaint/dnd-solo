@@ -36,21 +36,11 @@ crossed (``threshold_crossed``, latched once per scene), the shift moves those N
 attitudes (runtime/kit_attitude.py), and the brief marks it ``crossing_now`` the turn it
 holds so Kit plays toward its ``then`` from this turn on: an agenda transition, not an
 automatic outcome. State-only conditions for triggers:
-{net_at_least: {procedure, gp}} (the PC is up that much at that table),
-{wins_running: {procedure, count}}, {won_round: {procedure, gp}} (the last round settled
-was a win of at least gp), {since_noticed: {procedure, check, wins, net_gp}} (since that
-hidden NPC check noticed the PC this scene: at least ``wins`` wins with a net gain, or a net
-gain of ``net_gp``; one win does not do it), {broke: <procedure>} (the buy-in, else the
-sheet's gold_gp, is gone), {toll_refused: <toll id>}, {exposed: <procedure>} (a cheat called out with proof, in front of
-the table), {actor_damaged: <actor id>}, {attitude_at_most: {actor, level}}.
+{actor_damaged: <actor id>}, {attitude_at_most: {actor, level}}.
 
-Conditions: {toll_raised: <toll id>}, {procedure_running: <procedure id>},
-{fact_known: <fact id>}, {claim_learned: <claim id>},
-{said: {by: [actor ids], any: [phrases], game: <procedure id>}} (an NPC line this turn; a
-phrase "a + b" needs both in the same line; game adds that procedure's own names: its
-``called`` list, else its name up to "(" or ","; a ``paired`` phrase ("a hand", "want in")
-counts only when the rest of the line has a game word or the game's name: "join us for a
-hand" counts, "give me a hand with this lantern" does not), {any: [conditions]}.
+Conditions: {fact_known: <fact id>}, {claim_learned: <claim id>},
+{said: {by: [actor ids], any: [phrases]}} (an NPC line this turn; a phrase "a + b" needs
+both in the same line), {any: [conditions]}.
 A hook's ``text`` is said to the performer when it is overdue, so it must be public-safe:
 it is checked against the room's leak phrases and keyword sets.
 
@@ -70,10 +60,9 @@ MAX_ITEMS = 6  # per list (purposes, hooks, thresholds, endings, an actor's trai
 DEFAULT_WITHIN = 3
 MAX_WITHIN = 12
 GONE = ('dead', 'fled', 'unconscious', 'defeated', 'gone', 'hidden')  # hidden: lurking until a trigger fires
-CONDITIONS = ('toll_raised', 'procedure_running', 'fact_known', 'claim_learned', 'said', 'any',
+CONDITIONS = ('fact_known', 'claim_learned', 'said', 'any',
               # state-only conditions for thresholds (never speakable):
-              'net_at_least', 'broke', 'toll_refused', 'exposed', 'actor_damaged', 'attitude_at_most',
-              'wins_running', 'won_round', 'since_noticed')
+              'actor_damaged', 'attitude_at_most')
 HOOK_ID = re.compile(r'^[a-z0-9_]{1,32}$')
 BRIEF_RULE = ('Private story brief for this scene, from the room source. Play toward it every '
               'turn: the NPCs pursue what they want rather than wait to be asked; an act or con '
@@ -88,9 +77,8 @@ def _text(value, label, limit=TEXT_MAX):
 def _roots(roots, source, label):
     require(isinstance(roots, list) and all(
         isinstance(r, str) and (r in source.get('facts', {}) or r in (source.get('claims') or {}) or
-                                r in source.get('actors', {}) or r in (source.get('tolls') or {}) or
-                                r in (source.get('procedures') or {}))
-        for r in roots), f'{label}: roots cite facts, claims, actors, tolls, or procedures')
+                                r in source.get('actors', {}))
+        for r in roots), f'{label}: roots cite facts, claims, or actors')
 
 
 def _check_condition(cond, source, label):
@@ -107,34 +95,10 @@ def _check_condition(cond, source, label):
                 isinstance(value.get('by'), list) and value['by'] and
                 all(b in source.get('actors', {}) for b in value['by']) and
                 all(part.strip() for p in value['any'] for part in p.split('+')) and
-                isinstance(value.get('paired', []), list) and
-                all(isinstance(p, str) and p.strip() for p in value.get('paired', [])) and
-                set(value) <= {'by', 'any', 'game', 'paired', 'challenge'} and
-                value.get('challenge', False) in (True, False) and
-                ('game' not in value or value['game'] in (source.get('procedures') or {})),
+                set(value) <= {'by', 'any', 'challenge'} and
+                value.get('challenge', False) in (True, False),
                 f'{label}: said needs by (actor ids) and any (phrases; "a + b" both in one line), '
-                'game names a procedure, and challenge is true or false')
-    elif kind == 'net_at_least':
-        require(isinstance(value, dict) and value.get('procedure') in (source.get('procedures') or {}) and
-                type(value.get('gp')) is int and value['gp'] > 0, f'{label}: net_at_least needs procedure and gp')
-    elif kind == 'wins_running':
-        require(isinstance(value, dict) and value.get('procedure') in (source.get('procedures') or {}) and
-                type(value.get('count')) is int and value['count'] >= 2, f'{label}: wins_running needs procedure and count (2+)')
-    elif kind == 'won_round':
-        require(isinstance(value, dict) and set(value) == {'procedure', 'gp'} and
-                value['procedure'] in (source.get('procedures') or {}) and
-                type(value['gp']) is int and value['gp'] > 0, f'{label}: won_round needs procedure and gp')
-    elif kind == 'since_noticed':
-        from .kit_attitude import compile_attitudes
-        require(isinstance(value, dict) and value.get('procedure') in (source.get('procedures') or {}) and
-                value.get('check') in (compile_attitudes(source).get('npc_checks') or {}) and
-                type(value.get('wins')) is int and value['wins'] >= 2 and
-                type(value.get('net_gp')) is int and value['net_gp'] > 0,
-                f'{label}: since_noticed needs procedure, check (an npc check), wins (2+), and net_gp')
-    elif kind in ('broke', 'exposed'):
-        require(value in (source.get('procedures') or {}), f'{label}: {kind} names a procedure')
-    elif kind == 'toll_refused':
-        require(value in (source.get('tolls') or {}), f'{label}: toll_refused names a toll')
+                'and challenge is true or false')
     elif kind == 'actor_damaged':
         require(value in source.get('actors', {}), f'{label}: actor_damaged names an actor')
     elif kind == 'attitude_at_most':
@@ -142,16 +106,15 @@ def _check_condition(cond, source, label):
         require(isinstance(value, dict) and value.get('actor') in source.get('actors', {}) and
                 value.get('level') in LEVELS, f'{label}: attitude_at_most needs actor and level')
     else:
-        pools = {'toll_raised': source.get('tolls') or {}, 'procedure_running': source.get('procedures') or {},
-                 'fact_known': source.get('facts') or {}, 'claim_learned': source.get('claims') or {}}
+        pools = {'fact_known': source.get('facts') or {}, 'claim_learned': source.get('claims') or {}}
         require(value in pools[kind] and not str(value).startswith('_'), f'{label}: unknown {kind} {value!r}')
 
 
-SPOKEN_CONDITIONS = ('said', 'toll_raised')
+SPOKEN_CONDITIONS = ('said',)
 
 
 def speakable(cond):
-    """True when an NPC line alone can meet the condition (said or toll_raised, directly or
+    """True when an NPC line alone can meet the condition (said, directly or
     inside any): the only kind a hook forced through raise_now can be held to."""
     kind, value = next(iter(cond.items()))
     if kind == 'any':
@@ -201,10 +164,10 @@ def compile_story(source):
             require(type(within) is int and 1 <= within <= MAX_WITHIN, f'{label} hook {hid}: within_beats 1-{MAX_WITHIN}')
             _check_condition(hook.get('delivered_when'), source, f'{label} hook {hid}')
             # An NPC raises an overdue primary hook by speaking; a condition speech cannot meet
-            # (only fact_known, claim_learned, procedure_running) would reject every turn.
+            # (only fact_known, claim_learned) would reject every turn.
             require(not hook.get('primary') or speakable(hook['delivered_when']),
                     f'{label} hook {hid}: a primary hook is delivered by what an NPC says '
-                    '(said or toll_raised, directly or inside any)')
+                    '(said, directly or inside any)')
             _roots(hook.get('roots', []), source, f'{label} hook {hid}')
             _public_safe(hook['text'], source, f'{label} hook {hid}')
         for index, item in enumerate(story.get('thresholds') or ()):
@@ -276,51 +239,10 @@ def holds(cond, source, state, spoken=''):
     if kind == 'said':
         lines = _spoken_by(spoken, source)
         said = [line.casefold().replace('\u2019', "'") for who in value['by'] for line in lines.get(who, ())]
-        names = game_names((source.get('procedures') or {}).get(value['game'])) if value.get('game') else []
         # challenge: any question the actor puts to the PC is the challenge, however it is
         # worded ("Who goes there?"), as the room's hook says (watchroom playtest).
         return any(_says(line, phrase) for line in said for phrase in said_phrases(value, source)) or \
-            any(_paired(line, phrase, names) for line in said for phrase in value.get('paired', ())) or \
             bool(value.get('challenge')) and any('?' in line for line in said)
-    if kind == 'toll_raised':
-        from . import kit_toll
-        body = (kit_toll.here(source, state).get(value) or (None, {}))[1] if state.get('area') else {}
-        if body and body.get('status') != 'not_raised':
-            return True
-        return bool(spoken) and kit_toll.names_toll(source, value, spoken)
-    if kind == 'procedure_running':
-        return value in (state.get('procedures') or {})
-    if kind in ('wins_running', 'won_round'):
-        public = ((state.get('procedures') or {}).get(value['procedure']) or {}).get('public') or {}
-        if kind == 'wins_running':
-            return (public.get('player') or {}).get('streak', 0) >= value['count']
-        last = public.get('last_result') or {}
-        return last.get('outcome') == 'win' and (last.get('stake') or 0) >= value['gp']
-    if kind == 'since_noticed':
-        from . import kit_attitude
-        since = kit_attitude.since_noticed(state, value['check'], value['procedure'])
-        if since is None:
-            return False
-        wins, net = since
-        return (wins >= value['wins'] and net > 0) or net >= value['net_gp']
-    if kind in ('net_at_least', 'broke', 'exposed'):
-        key = value['procedure'] if kind == 'net_at_least' else value
-        public = ((state.get('procedures') or {}).get(key) or {}).get('public') or {}
-        player = public.get('player') or {}
-        if kind == 'net_at_least':
-            return player.get('net', 0) >= value['gp']
-        if kind == 'broke':
-            # The buy-in, else the gold on the PC's sheet when no buy-in was declared.
-            purse = player.get('purse')
-            if purse is None:
-                gold = (state.get('player_sheet') or {}).get('gold_gp')
-                purse = gold if type(gold) is int else None
-            return bool(player) and purse is not None and purse + player.get('net', 0) <= 0
-        return any(item.get('backed') for item in public.get('accusations') or ())
-    if kind == 'toll_refused':
-        from . import kit_toll
-        body = (kit_toll.here(source, state).get(value) or (None, {}))[1] if state.get('area') else {}
-        return (body or {}).get('status') == 'refused'
     if kind == 'actor_damaged':
         fight = state.get('combat') or {}
         hp, full = fight.get('hp') or {}, fight.get('max_hp') or {}
@@ -335,27 +257,9 @@ def holds(cond, source, state, spoken=''):
     return value in ((state.get('claims') or {}).get('learned') or ())
 
 
-def game_names(config):
-    """A procedure's own names, as an NPC would say them (kit_cards.game_names: its ``called``
-    list, else its name up to "(" or ",")."""
-    from . import kit_cards
-    return list(kit_cards.game_names(config))
-
-
 def said_phrases(value, source):
     """The phrases a said condition accepts: its own plus the named game's names."""
-    game = value.get('game')
-    return list(value['any']) + (game_names((source.get('procedures') or {}).get(game)) if game else [])
-
-
-def _paired(line, phrase, names=()):
-    """The phrase is in the line and the rest of the line has a game word or the game's name."""
-    from .kit_toll import TOLL_GAME_WORDS  # the shared game-word list
-    pattern = r'\b' + re.escape(phrase.strip().casefold()) + r'\b'
-    if not re.search(pattern, line):
-        return False
-    rest = re.sub(pattern, ' ', line)
-    return bool(TOLL_GAME_WORDS.search(rest)) or any(re.search(r'\b' + re.escape(n) + r'\b', rest) for n in names)
+    return list(value['any'])
 
 
 def _says(line, phrase):
@@ -572,13 +476,8 @@ def _needs(cond, source):
     if kind == 'said':
         said = ', '.join('"' + '" with "'.join(part.strip() for part in p.split('+')) + '"'
                          for p in said_phrases(value, source))
-        paired = ', '.join(f'"{p}"' for p in value.get('paired', ()))
-        return 'says one of: ' + said + (f', or {paired} together with a game word' if paired else '') + \
+        return 'says one of: ' + said + \
             (', or puts any challenging question to the player character' if value.get('challenge') else '')
-    if kind == 'toll_raised':
-        toll = (source.get('tolls') or {}).get(value) or {}
-        return (f'names the amount ({toll.get("amount")} {toll.get("unit", "")}) together with a toll word '
-                '(toll, passage, fee, a head, the price, protection, to pass, way through)')
     return 'meets it'
 
 

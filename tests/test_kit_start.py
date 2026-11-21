@@ -7,6 +7,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+ROOM_6C_FIXTURE = Path(__file__).resolve().parent / "fixtures" / "level_01_area_06c.json"
 from unittest import mock
 
 from runtime import kit_agent, pc_sheet
@@ -34,7 +35,7 @@ class StartSessionTests(unittest.TestCase):
         self.assertFalse(Path(self.db).exists())
 
     def test_start_with_an_explicit_room_loads_the_example_sheet_and_stages_the_opening(self):
-        result = kit_agent.start_session(self.db, room=kit_agent.DEFAULT_ROOM)
+        result = kit_agent.start_session(self.db, room=ROOM_6C_FIXTURE)
         self.assertEqual(result['stage'], 'started')
         self.assertTrue(result['example_sheet'])
         self.assertEqual(result['character']['name'], 'Wren')
@@ -55,14 +56,14 @@ class StartSessionTests(unittest.TestCase):
         sheet['name'] = 'Pip'
         path = Path(self.tmp.name) / 'pip.json'
         path.write_text(json.dumps(sheet), encoding='utf-8')
-        result = kit_agent.start_session(self.db, str(path), room=kit_agent.DEFAULT_ROOM)
+        result = kit_agent.start_session(self.db, str(path), room=ROOM_6C_FIXTURE)
         self.assertFalse(result['example_sheet'])
         self.assertEqual(result['character']['name'], 'Pip')
 
     def test_start_refuses_a_database_with_a_game(self):
-        kit_agent.start_session(self.db, room=kit_agent.DEFAULT_ROOM)
+        kit_agent.start_session(self.db, room=ROOM_6C_FIXTURE)
         with self.assertRaisesRegex(InvalidChange, 'new --db'):
-            kit_agent.start_session(self.db, room=kit_agent.DEFAULT_ROOM)
+            kit_agent.start_session(self.db, room=ROOM_6C_FIXTURE)
 
     def test_cli_start_without_a_room_does_not_print_an_opening(self):
         out = io.StringIO()

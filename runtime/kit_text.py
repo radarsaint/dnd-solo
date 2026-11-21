@@ -17,7 +17,6 @@ _SPOKEN = (
     'fourteen fifteen sixteen seventeen eighteen nineteen twenty'
 ).split()
 WORD_NUMBERS: dict[str, int] = {word: index for index, word in enumerate(_SPOKEN)}
-CARD_WORDS: dict[str, int] = {word: WORD_NUMBERS[word] for word in _SPOKEN if 1 <= WORD_NUMBERS[word] <= 13}
 
 _SHOP_WORDS = {
     **WORD_NUMBERS,
@@ -45,13 +44,6 @@ _TRAILING_X = lazy_compile(
     r"^(?P<item>.+?)\s+x\s*(?P<n>\d+)\s*$",
     re.IGNORECASE,
 )
-
-
-def card_number(token: str) -> int:
-    """A card rank token: digits, or one through thirteen."""
-    if token.isdigit():
-        return int(token)
-    return CARD_WORDS[token]
 
 
 def _tidy(text: str) -> str:

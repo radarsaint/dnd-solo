@@ -4,7 +4,7 @@ forging a ledger (the why is Insight's; the ink tells are Perception's and Inves
 and a synthetic twenty-one table that marks its cards with nicks."""
 import unittest
 
-from runtime import kit_claims, kit_guards, kit_twenty_one
+from runtime import kit_claims, kit_guards
 from runtime.state_context import InvalidChange
 
 SCENE = {
@@ -125,21 +125,6 @@ class GeneralPerceptionSnapshotTests(unittest.TestCase):
             **self.SOURCE['claims']['forgery_tells'], 'perception_details': [{'min_margin': 0, 'fact': 'nope'}]}}}
         with self.assertRaises(InvalidChange):
             kit_claims.compile_claims(bad)
-
-
-class GeneralTableNarrationTests(unittest.TestCase):
-    CONFIG = {'cheat': {'marks': {'units': ['nick', 'nicks'], 'count': 'value_minus_one'}}}
-    PUBLIC = {'round': {'cards': ['king of hearts', '7 of clubs'], 'dealer_shows': '2 of spades'}}
-
-    def test_another_tables_marks_and_cards(self):
-        check = kit_twenty_one.check_narration
-        self.assertEqual(check('Six nicks on your seven, nine on your king.', self.PUBLIC, self.CONFIG), [])
-        self.assertTrue(check('Two nicks on your seven.', self.PUBLIC, self.CONFIG))
-        self.assertTrue(check('He turns the queen of hearts.', self.PUBLIC, self.CONFIG))
-        self.assertTrue(check('Your ace gleams.', self.PUBLIC, self.CONFIG))
-
-    def test_no_scheme_no_count_check(self):
-        self.assertEqual(kit_twenty_one.check_narration('Two pricks on your seven.', self.PUBLIC, {}), [])
 
 
 if __name__ == '__main__':
