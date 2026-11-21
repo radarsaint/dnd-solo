@@ -10,6 +10,10 @@ Versioning rule:
 
 The current version is in `VERSION`.
 
+## v0.11.7
+
+- `start --sheet` takes a PDF sheet: it reads it with the same reader as `import-sheet`, so the player never needs to know which step reads it. The sheet is read before anything is written, so a failed start never half-mounts a game and the next start works. `start` without `--room` finds the opening room under the save's own `.adventure` folder, not the folder the command ran from. A question about what the character knows (lore, people, history, creatures) calls History, Nature, Religion or Arcana, whichever fits; Investigation stays the fallback.
+
 ## v0.11.6
 
 - The ready step ("We're set. Say Yes...") starts on any clear affirmative, with extra words or a quote around it ("Yes, let's start", '"That's the shield." Yes, let's start.', "Ready when you are, let's go"); a clear no or a question keeps waiting (`kit_lifecycle.is_ready_yes`).

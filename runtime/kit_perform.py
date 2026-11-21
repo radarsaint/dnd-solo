@@ -252,10 +252,41 @@ def knowledge_tier(total):
     return 'high'
 
 
+KNOWLEDGE_SKILLS = ('history', 'nature', 'religion', 'arcana')
+_KNOWS_FRAME = re.compile(r"(?i)\b(?:what do (?:i|we) (?:know|recall|remember)|do (?:i|we) (?:know|recall|remember)|"
+                          r"what (?:have|has) (?:i|we) heard|have (?:i|we) heard (?:of|about|anything)|"
+                          r"(?:know|recall|remember) anything (?:about|of)|what does \w+ know about|"
+                          r"what would (?:i|we) know)\b")
+_LORE_WORDS = (
+    ('arcana', r"magic\w*|spells?|wizards?|arcane|runes?|enchant\w*|sorcer\w*|rituals?|portals?|planes?|"
+               r"constructs?|elementals?|artifacts?|wards?|glyphs?"),
+    ('religion', r"gods?|goddess\w*|deit\w*|temples?|shrines?|priests?|cults?|holy|unholy|undead|church\w*|"
+                 r"divine|demons?|devils?|fiends?|celestials?|saints?|prayers?"),
+    ('nature', r"beasts?|animals?|plants?|herbs?|weather|seasons?|wild ?life|wolves|wolf|bears?|birds?|"
+               r"trees?|fungus|fungi|mushrooms?|terrain|swamps?|rivers?"),
+)
+
+
 def knowledge_skill(action):
-    """Pick the skill that fits this question or act. Same map as every check."""
+    """Pick the skill that fits this question or act. A question about what the character
+    knows (lore, people, history, creatures) is a knowledge check: Arcana, Religion or Nature
+    when the subject is theirs, otherwise History. Anything else uses the map every check uses,
+    where Investigation is only the fallback."""
     from . import kit_skills
-    return kit_skills.skill_for_intent(action)
+    picked = kit_skills.skill_for_intent(action)
+    if not _KNOWS_FRAME.search(str(action or '')):
+        return picked
+    if picked in KNOWLEDGE_SKILLS:
+        return picked
+    text = str(action or '').casefold()
+    subject = re.search(r"\b(?:about|of|regarding)\s+(.+)", text)
+    if not subject or re.match(r"(?:any of |all of |all )?(?:this|that|it|these|those|here|everything|anything)\b"
+                               r"[\s?.!]*$", subject.group(1).strip()):
+        return picked  # no subject to have lore about: the ordinary map (Investigation fallback)
+    for skill, words in _LORE_WORDS:
+        if re.search(r"\b(?:" + words + r")\b", text):
+            return skill
+    return 'history'
 
 
 def sheet_background_fields(sheet):

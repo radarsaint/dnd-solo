@@ -9048,11 +9048,39 @@ class KitChatBridge:
 EXAMPLE_SHEET = PROJECT_ROOT / 'tests/fixtures/characters/example_pc.json'
 
 
+def sheet_for_start(db, sheet):
+    """A PDF sheet given to start goes through the same reader as import-sheet (import_sheet,
+    sheet_intake), and the JSON it writes is what start loads: the player never needs to know
+    which step reads a sheet. Nothing is written to the save when the reader cannot read it."""
+    if not sheet:
+        return sheet
+    path = Path(sheet)
+    try:
+        is_pdf = path.suffix.lower() == '.pdf' or path.read_bytes()[:5] == b'%PDF-'
+    except OSError:
+        return sheet
+    if not is_pdf:
+        return sheet
+    try:
+        result = import_sheet(db, str(path), None, None)
+    except sheet_intake.IntakeError as exc:
+        result = {'stage': 'rejected', 'message': str(exc)}
+    if result.get('stage') != 'sheet_imported' or not result.get('sheet_file'):
+        raise InvalidChange('Nothing was started: the sheet reader could not read this sheet (%s). Ask the '
+                            'player for the D&D Beyond PDF export or a few lines about the character.'
+                            % (result.get('message') or result.get('stage')))
+    return result['sheet_file']
+
+
 def read_character_sheet(path):
     """One character_sheet_v1 JSON file. Markdown is not a sheet, and a second file does not
     make a party: set_player_sheet says when it replaces the one PC."""
     path = Path(path)
-    text = path.read_text(encoding='utf-8')
+    try:
+        text = path.read_text(encoding='utf-8')
+    except UnicodeDecodeError as exc:
+        raise InvalidChange('The sheet at %s is not a character_sheet_v1 JSON file. For a PDF run '
+                            'import-sheet --pdf %s first.' % (path, path)) from exc
     stripped = text.lstrip()
     if path.suffix.lower() in ('.md', '.markdown') or stripped.startswith('#'):
         raise InvalidChange(
@@ -9104,13 +9132,14 @@ def start_session(db, sheet_path=None, runtime=None, room=None, area=None, manif
             return {'stage': 'reloaded', 'db': str(db), 'room_id': source.get('id'), 'room': str(room),
                     'revision': revision,
                     'next_step': 'The edited room file was reloaded mid-game; carry on with prepare.'}
+        # The sheet is read before anything is written: a bad sheet never half-mounts a game.
+        path = Path(sheet_path) if sheet_path else EXAMPLE_SHEET
+        sheet = read_character_sheet(path)
         try:
             runtime.initialize(source, area or source['starting_area'], room_path=room)
         except InvalidChange as exc:
             raise InvalidChange(f'{exc} Resume it with view and '
                                 'prepare, or pass a new --db to start fresh.') from exc
-        path = Path(sheet_path) if sheet_path else EXAMPLE_SHEET
-        sheet = read_character_sheet(path)
         loaded = runtime.set_player_sheet(sheet)
         if restore:  # resume from the player's save (runtime/kit_resume.py)
             runtime.restore_campaign(restore['log'], restore['carried'], restore.get('pc_state'),
@@ -9618,6 +9647,7 @@ def _main():
         return 0
     if args.command == 'start':
         try:
+            args.sheet = sheet_for_start(args.db, args.sheet)
             if args.start and not args.room:
                 from . import kit_adventure
                 chosen = kit_adventure.choose_start(args.db, args.start)

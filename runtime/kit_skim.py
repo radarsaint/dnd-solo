@@ -3466,6 +3466,22 @@ def _note_sheet(db, sheet_path):
     _write(db, data)
 
 
+def room_for(db, room):
+    """A stored room path, found under this save's own adventure folder: a path recorded
+    relative to another working folder (or another save) never decides where start looks."""
+    path = Path(str(room))
+    if path.is_absolute() and path.is_file():
+        return str(path)
+    from .kit_adventure import folder_for  # never the command's folder or the repo's
+    parts = path.parts
+    for index, part in enumerate(parts):
+        if part.endswith('.adventure'):
+            candidate = folder_for(db).joinpath(*parts[index + 1:])
+            if candidate.is_file():
+                return str(candidate.resolve())
+    return str(path)
+
+
 def player_start(db, sheet_path=None, table=None):
     """After a PDF this session, never the empty lobby. A sheet stays with the save."""
     _note_sheet(db, sheet_path)
@@ -3473,7 +3489,7 @@ def player_start(db, sheet_path=None, table=None):
     sheet = str(sheet_path) if sheet_path else data.get('sheet')
     if data.get('status') == 'accepted' and data.get('room') and sheet:
         from .kit_agent import start_session
-        opened = start_session(str(db), sheet, room=data['room'], table=table)
+        opened = start_session(str(db), sheet, room=room_for(db, data['room']), table=table)
         opened['table_line'] = READY_LINE
         opened['awaiting_yes'] = True
         return opened
