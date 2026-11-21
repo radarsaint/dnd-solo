@@ -7,7 +7,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from runtime import kit_agent, kit_cards, kit_detail, kit_guards, kit_texture
+from runtime import kit_agent, kit_detail, kit_guards, kit_texture
 from runtime.state_context import InvalidChange, Runtime
 from test_kit_agent import FIXTURE
 
@@ -127,55 +127,6 @@ class PlayerIdentityTests(unittest.TestCase):
                          self.NIK)
 
 
-class CleanDealTests(unittest.TestCase):
-    """Item 2b: narration can't describe a clean deal when the game state says the
-    dealer cheated it."""
-
-    def test_clean_deal_narration_is_rejected_on_a_cheated_deal(self):
-        for text in ('His fingers stay clear of the deck the whole deal.', 'A clean deal, every card off the top.',
-                     'The deal was honest.', 'He deals straight off the top.'):
-            with self.subTest(text), self.assertRaisesRegex(InvalidChange, 'clean deal'):
-                kit_guards.check_clean_deal([seg('Narrator', text)], True)
-        with self.assertRaises(InvalidChange):
-            kit_guards.check_clean_deal([seg('Kit', 'Clean deal. Boring.')], True)
-
-    def test_perception_npcs_and_honest_deals_pass(self):
-        kit_guards.check_clean_deal([seg('Narrator', 'Nothing about the deal looks wrong to you.'),
-                                     seg('Dealer', 'A clean deal, friend. Always.')], True)
-        kit_guards.check_clean_deal([seg('Narrator', 'His fingers stay clear of the deck.')], False)
-
-    def test_scene_facts_read_the_state_after_this_turns_events(self):
-        config = SOURCE['procedures']['three_dragon_ante']
-        for number in range(60):
-            table = kit_cards.CardTable('three_dragon_ante', config, {}, f'clean{number}')
-            text, body, _ = table.resolve('card_join', 'I buy in with 30 gold and deal me in.', 1,
-                                          kit_cards.initial_state(config))
-            events = [{'type': 'procedure_state', 'procedure': 'three_dragon_ante', 'state': body}]
-            facts = kit_agent.scene_facts({'procedures': {}}, events)
-            self.assertEqual(facts['dealer_cheated'], body['private']['cheated'])
-        self.assertEqual(kit_agent.scene_facts({}, [])['dealer_cheated'], False)
-
-    def test_guard_context_carries_the_flag_but_the_performer_input_does_not(self):
-        body = {'public_view': {}, 'scene_facts': {'dealer_cheated': True}}
-        self.assertTrue(kit_agent.guard_context(SOURCE, body)['dealer_cheated'])
-
-
-class StakeOfferTests(unittest.TestCase):
-    """Item 2c: NPCs can't offer to stake what the game can't carry (ring, toll)."""
-
-    def test_uncarried_stakes_are_rejected(self):
-        for text in ("I'll stake the ring against your purse.", 'The ring? Put it in the pot, then.',
-                     'Win a gambit and the toll is waived.', 'We could play for safe passage.',
-                     'Bet your sword on it.'):
-            with self.subTest(text), self.assertRaisesRegex(InvalidChange, 'stakes only gp'):
-                kit_guards.check_stake_offers([seg('Dealer', text)])
-
-    def test_gold_stakes_and_narration_pass(self):
-        kit_guards.check_stake_offers([seg('Dealer', 'Stakes are eleven gold a head. Ante a card.'),
-                                       seg('Narrator', 'The silver ring lies beside the stakes.'),
-                                       seg('Dealer', 'The ring stays where it is. Bet gold.')])
-
-
 class RunningGameGuardTests(unittest.TestCase):
     """Item 6: the rules/stakes guard stays on while a game runs, and stake amounts are
     never accepted as ring or toll prices."""
@@ -185,49 +136,17 @@ class RunningGameGuardTests(unittest.TestCase):
     def check(self, text, speaker='Dealer'):
         kit_detail.check_detail_performance([seg(speaker, text)], self.RUNNING, kit_cards.RULE_TERMS)
 
-    def test_another_games_rules_are_rejected_while_a_game_runs(self):
-        for text in ('Highest card takes the pot.', 'One card apiece, and the high card wins.',
-                     'Rules are simple: closest to twenty-one wins.'):
-            with self.subTest(text), self.assertRaisesRegex(InvalidChange, 'running game'):
-                self.check(text)
-
-    def test_the_running_games_own_rules_and_stakes_pass(self):
-        self.check('The stakes are whatever the strongest ante card says.')
-        self.check('Each player antes a card; the strongest flight takes the stakes.')
-        self.check('High card, low card, who cares.', speaker='Kit')
-
     def test_no_game_running_keeps_the_old_rule(self):
         with self.assertRaisesRegex(InvalidChange, 'Undeclared procedure'):
             kit_detail.check_detail_performance([seg('Dealer', 'The stakes are two gold.')], ())
 
     def numeric(self, text, stakes=(11,), asked=''):
         kit_guards.check_numeric_facts([seg('Dealer', text)], kit_guards.numeric_facts(SOURCE), asked,
-                                       stakes, kit_cards.RULE_TERMS)
-
-    def test_stake_amounts_are_not_ring_or_toll_prices(self):
-        self.numeric('Stakes are eleven gold a head.')
-        self.numeric('The strongest ante card was an eleven, so the stakes are 11 gold each.')
-        for text in ('The ring? Eleven gold, and the stakes are yours.', 'Passage through is 11 gold.',
-                     'Win the stakes and passage is 11 gold.'):
-            with self.subTest(text), self.assertRaisesRegex(InvalidChange, 'Source fact'):
-                self.numeric(text)
+                                       stakes, ())
 
     def test_the_ring_value_may_be_stated(self):
         """Brendon: NPCs may state the ring's 25 gp; small stuff isn't a secret."""
         self.numeric('That ring is worth 25 gold, no more.')
-
-    def test_an_answer_to_the_players_ring_question_is_about_the_ring(self):
-        # Fix-pass host play: "Thirty gold, bright-eyes, to a jeweler" answered "What is
-        # that silver ring worth?" without naming the ring, and committed.
-        asked = 'What is that silver ring worth?'
-        with self.assertRaisesRegex(InvalidChange, 'ring value'):
-            self.numeric('Thirty gold, bright-eyes, to a jeweler. It is not for sale.', asked=asked)
-        self.numeric('Twenty-five gold, bright-eyes, to a jeweler. It is not for sale.', asked=asked)
-        # Only an opening sentence that leads with the amount answers; a generic word
-        # ("cost") names no fact.
-        self.numeric('Not for sale. The stakes are eleven gold a head.', asked=asked)
-        self.numeric('I won thirty gold tonight from the last fool.', asked=asked)
-        self.numeric('A hundred and eighteen thousand gold.', asked='What does a wand of fireballs cost?')
 
     def test_guard_context_never_merges_stakes_into_fixed_amounts(self):
         view = {'table_procedures': {'three_dragon_ante': {'stacks': {'Dealer': 11}, 'player': {'gp': 7}}}}

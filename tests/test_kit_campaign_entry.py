@@ -8,6 +8,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+ROOM_6C_FIXTURE = Path(__file__).resolve().parent / "fixtures" / "level_01_area_06c.json"
 from unittest.mock import patch
 
 from runtime import kit_agent, kit_campaign
@@ -60,7 +61,7 @@ class CampaignEntryTests(unittest.TestCase):
         self.assertFalse(Path(self.db).exists())
 
     def test_explicit_regression_room_still_stages_the_fixture(self):
-        result = kit_agent.start_session(self.db, room=kit_agent.DEFAULT_ROOM)
+        result = kit_agent.start_session(self.db, room=ROOM_6C_FIXTURE)
         self.assertEqual(result['stage'], 'started')
         self.assertEqual(result['room_id'], 'dotmm-level-01-area-06c-testbed-v1')
         self.assertTrue(result['example_sheet'])
@@ -72,7 +73,7 @@ class CampaignEntryTests(unittest.TestCase):
             runtime.close()
 
     def test_a_save_resumes_instead_of_opening_another_room(self):
-        kit_agent.start_session(self.db, room=kit_agent.DEFAULT_ROOM)
+        kit_agent.start_session(self.db, room=ROOM_6C_FIXTURE)
         again = kit_agent.start_session(self.db)
         self.assertEqual(again['stage'], 'resume')
         self.assertEqual(again['room_id'], 'dotmm-level-01-area-06c-testbed-v1')

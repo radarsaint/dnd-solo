@@ -1,7 +1,7 @@
 """Stated rolls from Avrae (runtime/kit_rolls.py): the total counts, never the bonus twice."""
 import unittest
 
-from runtime import kit_cards, kit_rolls
+from runtime import kit_rolls
 from runtime.state_context import InvalidChange
 
 
@@ -13,18 +13,18 @@ class RollParsingTests(unittest.TestCase):
         self.assertEqual((roll.total, roll.die, roll.label), (18, 14, 'insight'))
 
     def test_bare_number_is_the_total_and_bonus_is_not_added_twice(self):
-        self.assertEqual(kit_cards.supplied_roll('I rolled 17', 4), (13, 4))
-        self.assertEqual(kit_cards.supplied_roll('Persuasion 22', 4, 'persuasion'), (18, 4))
+        self.assertEqual(kit_rolls.supplied_roll('I rolled 17', 4), (13, 4))
+        self.assertEqual(kit_rolls.supplied_roll('Persuasion 22', 4, 'persuasion'), (18, 4))
         # over 20 is a legal total, not an error
-        self.assertEqual(kit_cards.supplied_roll('I rolled 23', 5), (18, 5))
+        self.assertEqual(kit_rolls.supplied_roll('I rolled 23', 5), (18, 5))
 
     def test_natural_is_the_die_alone(self):
-        self.assertEqual(kit_cards.supplied_roll('natural 17'), (17, None))
+        self.assertEqual(kit_rolls.supplied_roll('natural 17'), (17, None))
         with self.assertRaises(InvalidChange):
             kit_rolls.rolls('nat 25')
 
     def test_sum_must_add_up(self):
-        self.assertEqual(kit_cards.supplied_roll('I rolled 14 + 3 = 17'), (14, 3))
+        self.assertEqual(kit_rolls.supplied_roll('I rolled 14 + 3 = 17'), (14, 3))
         with self.assertRaises(InvalidChange):
             kit_rolls.rolls('I rolled 14 + 3 = 19')
 
@@ -103,7 +103,7 @@ class AvraeOutputTests(unittest.TestCase):
                 roll = kit_rolls.check_roll(line, skill)
                 self.assertEqual((roll.label, roll.total), (skill, total))
                 self.assertEqual(kit_rolls.stated_skill(line), skill)
-                self.assertEqual(kit_cards.supplied_roll(line, 0, skill)[0] + kit_cards.supplied_roll(line, 0, skill)[1],
+                self.assertEqual(kit_rolls.supplied_roll(line, 0, skill)[0] + kit_rolls.supplied_roll(line, 0, skill)[1],
                                  total)
 
     def test_initiative_field(self):

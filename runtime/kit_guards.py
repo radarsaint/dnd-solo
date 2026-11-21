@@ -19,15 +19,6 @@ Checks come in two strengths:
 import re
 
 from . import _lazy
-kit_toll = _lazy.module('.kit_toll', __package__)  # one NPC-line toll test: detector and guard, imported on first use
-
-
-def __getattr__(name):
-    """kit_guards.npc_names_toll_words / TOLL_GAME_WORDS: the one toll test kit_toll owns
-    (shared by the detector and this guard), imported on first use."""
-    if name in ('npc_names_toll_words', 'TOLL_GAME_WORDS'):
-        return getattr(kit_toll, name)
-    raise AttributeError(name)
 from .state_context import InvalidChange, require
 
 # Every speaker label except these is an NPC voiced from the room source's actor cards.
@@ -868,64 +859,9 @@ def check_player_identity(segments, character):
                     '(public view your_character). Get who they are right.')
 
 
-CLEAN_DEAL = _lazy.regex(
-    r"\b(?:fingers|hands|wrists) (?:stay |stayed |are |were |kept |keep )?(?:clear|clean|honest|still)\b"
-    r"|\bdeals? (?:it |them |the cards )?(?:clean|straight|honest|fair)(?:ly)?\b"
-    r"|\bdealt (?:it |them )?(?:clean|straight|honest|honestly|fair|fairly)\b"
-    r"|\b(?:clean|honest|fair|straight) deal\b|\bnot a finger (?:near|on|out of place)\b"
-    r"|\bstraight off the top\b|\bevery card (?:from|off) the top\b|\boff the top,? (?:every|each) card\b"
-    r"|\bthe deal (?:is|was|looks|looked|seems|seemed) (?:clean|fair|honest|straight)\b"
-    r"|\bno (?:tricks?|sleight|funny business) (?:in|with) the deal\b|\bnothing (?:wrong|off|amiss) (?:with|about|in) the deal\b")
 _PERCEIVED = _lazy.regex(r"\b(?:to you|you see|you can see|you notice|you spot|you can tell|you catch|as far as you)\b")
 
 
-def check_clean_deal(segments, dealer_cheated):
-    """HARD: when the game state says the dealer cheated this deal, the Narrator and
-    Kit cannot describe a clean one ("his fingers stay clear of the deck", "a straight
-    deal"). What the player perceived may be said as perception ("nothing looks wrong
-    to you"). NPCs may lie; that is theirs."""
-    if not dealer_cheated:
-        return
-    for segment in segments:
-        if segment['speaker'] not in ('Narrator', 'Kit'):
-            continue
-        for sentence in sentences(segment['text']):
-            text = normalize(sentence)
-            if CLEAN_DEAL.search(text) and not _PERCEIVED.search(text):
-                raise InvalidChange(
-                    f'Scene fit: the {segment["speaker"]} describes a clean deal ("{sentence[:60]}"), '
-                    'but the game state says otherwise. Describe only what the player can see.')
-
-
-STAKE_CUE = _lazy.regex(
-    r"\b(?:wager|wagers|wagering|stake|staking|put up|puts up|putting up|play (?:you )?for|playing for|"
-    r"bet|bets|betting|throw in|throws in|toss in|in(?:to)? the (?:pot|stakes)|on the table as|as stakes|"
-    r"win (?:a|the|one|this|that) (?:gambit|hand|game|round))\b")
-UNCARRIED_STAKES = _lazy.regex(
-    r"\b(ring|rings|toll|tolls|passage|key|keys|bottle|cordial|door|way through|your (?:sword|blade|weapon|"
-    r"horse|boots|pack|cloak|bow)|favou?r|secret|secrets)\b")
-
-
-def check_stake_offers(segments, stake_unit='gp', carriable=()):
-    """HARD: the card game carries gold only. An NPC who offers to stake the ring, the
-    toll, passage, or anything else ("I'll stake the ring against your purse", "Win a
-    gambit and the toll's waived") offers a wager the runtime cannot pay out. A pronoun
-    ("put it in the pot") right after the item counts."""
-    for segment in segments:
-        if not is_npc(segment['speaker']):
-            continue
-        parts = sentences(segment['text'])
-        for index, sentence in enumerate(parts):
-            text = normalize(sentence)
-            if not STAKE_CUE.search(text):
-                continue
-            item = UNCARRIED_STAKES.search(text)
-            if not item and index and re.search(r"\b(it|that|them)\b", text):
-                item = UNCARRIED_STAKES.search(normalize(parts[index - 1]))
-            if item and item.group(1) not in carriable:
-                raise InvalidChange(
-                    f'Scene fit: the {segment["speaker"]} offers to stake "{item.group(1)}", but the table '
-                    f'game stakes only {stake_unit}. Offer only what the game can carry.')
 
 
 # ---------------------------------------------------------------------------
@@ -1021,24 +957,3 @@ def check_no_refreshment(segments):
 # 12. The toll is an exchange, not a price tag (Brendon's table call 6)
 # ---------------------------------------------------------------------------
 
-
-def check_toll_exchange(segments, amount, raised):
-    """HARD: the first time the toll is named with its amount, an NPC makes the demand
-    (never the Narrator or Kit), the line is not tossed in beside game talk, and it leaves
-    the player an opening (a question). Once raised, the exchange goes on in any words."""
-    if raised or not amount:
-        return
-    for segment in segments:
-        parts = sentences(segment['text'])
-        for index, sentence in enumerate(parts):
-            said = {value for value, _ in spoken_amounts(sentence)}
-            if amount not in said or not kit_toll.npc_names_toll_words(normalize(sentence)):
-                continue
-            require(is_npc(segment['speaker']),
-                    f'The toll is an NPC\'s demand: the {segment["speaker"]} names it ("{sentence[:60]}"). Let the '
-                    'NPC who wants it make the demand, with their reason.')
-            around = ' '.join(normalize(part) for part in parts[max(0, index - 1):index + 1])
-            require('?' in segment['text'] and not kit_toll.TOLL_GAME_WORDS.search(around),
-                    f'The toll is a real exchange, not a line beside the game: the {segment["speaker"]} names it '
-                    'in passing. Make the demand its own beat, with a reason in character and an opening '
-                    'for the player to answer.')

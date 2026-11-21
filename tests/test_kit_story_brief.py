@@ -12,7 +12,7 @@ import unittest
 import unittest.mock
 from pathlib import Path
 
-from runtime import kit_agent, kit_brief, kit_guards, kit_toll
+from runtime import kit_agent, kit_brief, kit_guards
 from runtime.kit_agent import KitAgent, Resolution, RoomAdjudicator
 from runtime.state_context import InvalidChange, Runtime
 from test_kit_agent import FIXTURE, MIRROR, RecordingModel, exchange_speech, with_raised_hooks
@@ -106,110 +106,6 @@ class Base(unittest.TestCase):
             'type': 'story_beat', 'area': state['area'], 'delivered': list(delivered), 'evidence': 'test beat'}])
 
 
-class EnteringTheRoom(Base):
-    def test_entering_6c_puts_the_motive_the_toll_hook_and_uktarls_traits_in_the_prompt(self):
-        self.start()
-        model = Entering()
-        self.agent(model).opening('entry')
-        brief = model.plans[0]['story_brief']
-        purposes = ' '.join(p['for'] for p in brief['purposes'])
-        self.assertIn('paying the 10 gp toll for safe passage', purposes)
-        self.assertIn('vampire act', ' '.join(p['what'] for p in brief['purposes']).casefold())
-        hooks = {h['id']: h for h in brief['hooks']}
-        self.assertTrue(hooks['toll_demand']['primary'])
-        self.assertFalse(hooks['toll_demand']['delivered'])
-        uktarl = next(p for p in brief['present'] if p['actor'] == 'uktarl')
-        self.assertIn('Lies and cheats for the fun of it (source).', uktarl['traits'])
-        self.assertIn('Blames others for his own failures (source).', uktarl['traits'])
-        self.assertTrue(any('scares newcomers' in want for want in uktarl['wants']))
-        self.assertTrue(any('30 gp' in t['when'] for t in brief['thresholds']))
-        self.assertTrue(brief['endings'])
-        # Every turn in the scene, not once.
-        self.agent(model).turn('I nod to the dealer.', 'next')
-        self.assertEqual(model.plans[-1]['story_brief']['beats_in_scene'], 1)
-        self.assertIn('toll_demand', {h['id'] for h in model.plans[-1]['story_brief']['hooks']})
-
-    def test_plan_beats_may_cite_a_hook(self):
-        self.start()
-        from runtime import kit_plan
-        block = {'beats': [{'id': 'toll', 'who': 'uktarl', 'toward': 'name the toll', 'when': 'soon',
-                            'why': 'the act exists to collect it', 'roots': ['hook:toll_demand'],
-                            'change': 'new', 'reason': 'none'}], 'dropped': []}
-        kit_plan.check_plan_block(block, self.runtime.source(), self.runtime.load()[1])
-        block['beats'][0]['roots'] = ['hook:no_such_hook']
-        with self.assertRaises(InvalidChange):
-            kit_plan.check_plan_block(block, self.runtime.source(), self.runtime.load()[1])
-
-
-class LiveFailuresSurface(Base):
-    """Replay of the live run: the toll and the act's purpose surface within N beats."""
-
-    @unittest.mock.patch.object(kit_agent, 'ENGINE_LINE_AFTER_REJECTIONS', 99)  # validator probe: rejections loop (see test_kit_open_ask)
-    def test_a_performer_that_lets_the_toll_slide_is_rejected_by_the_hooks_beat(self):
-        self.start()
-        model = IgnoresHooks()
-        agent = self.agent(model)
-        agent.opening('entry')
-        agent.turn(LIVE[0], 't1')
-        agent.turn(LIVE[1], 't2')
-        within = next(h['within_beats'] for h in SOURCE['story']['area_06c']['hooks'] if h['id'] == 'toll_demand')
-        self.assertEqual(self.runtime.load()[1]['story']['area_06c']['beats'], within)
-        with self.assertRaisesRegex(InvalidChange, 'Story hook overdue: the Dealer'):
-            agent.turn(LIVE[2], 't3')
-
-    @rejections_raise  # validator probe (tests/kit_policy.py)
-    def test_the_toll_and_the_acts_purpose_are_raised_in_character_within_n_beats(self):
-        self.start()
-        model = Entering()  # follows raise_now, as the instructions say
-        agent = self.agent(model)
-        agent.opening('entry')
-        for index, action in enumerate(LIVE):
-            agent.turn(action, f't{index + 1}')
-        state = self.runtime.load()[1]
-        self.assertLessEqual(state['story']['area_06c']['beats'], 4)
-        self.assertEqual(kit_toll.here(self.runtime.source(), state)['passage_toll'][1]['status'], 'demanded')
-        self.assertTrue({'toll_demand', 'act_menace', 'rigged_game'} <= set(state['story']['area_06c']['delivered']))
-        raised = [p for p in model.performances if p.get('raise_now')]
-        self.assertTrue(raised)
-        self.assertEqual(raised[0]['raise_now'][0]['speaker'], 'Dealer')
-        self.assertEqual(kit_brief.brief(self.runtime.source(), state)['raise_now'], [])
-
-
-class UndeliveredHookStaysFlagged(Base):
-    def test_flagged_until_delivered(self):
-        self.start()
-        source = self.runtime.source()
-        for beat in range(6):
-            brief = kit_brief.brief(source, self.runtime.load()[1])
-            toll = next(h for h in brief['hooks'] if h['id'] == 'toll_demand')
-            self.assertFalse(toll['delivered'])
-            self.assertEqual(toll['beats_waiting'], beat)
-            self.assertEqual('toll_demand' in brief['raise_now'], beat >= 3)
-            self.beat()
-        # The NPC names it: the toll is demanded, and the hook latches delivered.
-        revision, state = self.runtime.load()
-        body = dict(kit_toll.here(source, state)['passage_toll'][1], status='demanded', demanded_by='uktarl')
-        self.runtime.commit('raised', revision, [kit_toll.event('passage_toll', body, 'raised in test')])
-        self.beat(['toll_demand'])
-        brief = kit_brief.brief(source, self.runtime.load()[1])
-        self.assertTrue(next(h for h in brief['hooks'] if h['id'] == 'toll_demand')['delivered'])
-        self.assertNotIn('toll_demand', brief['raise_now'])
-        self.assertEqual(self.runtime.load()[1]['story']['area_06c']['delivered'], ['toll_demand'])
-
-    def test_nobody_raises_a_hook_when_its_npc_is_gone_or_a_fight_runs(self):
-        self.start()
-        for _ in range(3):
-            self.beat()
-        state = self.runtime.load()[1]
-        self.assertIn('toll_demand', kit_brief.brief(self.runtime.source(), state)['raise_now'])
-        gone = copy.deepcopy(state)
-        gone['actors']['uktarl']['status'] = 'fled'
-        self.assertNotIn('toll_demand', kit_brief.brief(self.runtime.source(), gone)['raise_now'])
-        fighting = copy.deepcopy(state)
-        fighting['combat'] = {'status': 'running'}
-        self.assertEqual(kit_brief.brief(self.runtime.source(), fighting)['raise_now'], [])
-
-
 class ReviewFixes(Base):
     """Nagatha's review of #55 at 96e279f: no stall, no stale hook, degraded mode clears it."""
 
@@ -228,141 +124,6 @@ class ReviewFixes(Base):
         hook.update(primary=False, delivered_when={'fact_known': 'cache_door'})
         kit_brief.compile_story(source)  # a secondary hook is only tracked, never forced
 
-    def test_a_waived_toll_retires_the_act_hook_too(self):
-        """V1/V3-style: the toll is settled by social play before its NPC names it; nobody is
-        then forced to sell the deadly dark."""
-        self.start()
-        model = IgnoresHooks()
-        agent = self.agent(model)
-        agent.opening('entry')
-        revision, state = self.runtime.load()
-        body = dict(kit_toll.here(self.runtime.source(), state)['passage_toll'][1], status='waived')
-        self.runtime.commit('waived', revision, [kit_toll.event('passage_toll', body, 'Waived through Harria.')])
-        for index, action in enumerate(LIVE):
-            agent.turn(action, f't{index + 1}')  # never rejected for an overdue hook
-        brief = kit_brief.brief(self.runtime.source(), self.runtime.load()[1])
-        delivered = {h['id'] for h in brief['hooks'] if h['delivered']}
-        self.assertTrue({'toll_demand', 'act_menace'} <= delivered)
-        self.assertEqual(brief['raise_now'], [] if 'rigged_game' in delivered else ['rigged_game'])
-        self.assertTrue(all('raise_now' not in p or not p['raise_now'] or
-                            all('passage' not in r['raises'] and 'dangerous' not in r['raises'] for r in p['raise_now'])
-                            for p in model.performances))
-
-    @unittest.mock.patch.object(kit_agent, 'ENGINE_LINE_AFTER_REJECTIONS', 99)  # validator probe: rejections loop (see test_kit_open_ask)
-    def test_a_degraded_performance_carrying_the_hook_commits(self):
-        self.start()
-        for _ in range(3):
-            self.beat()
-        bridge = kit_agent.KitChatBridge(self.runtime, RoomAdjudicator(perception=0, insight=0, roll=lambda: 15))
-        prepared = bridge.prepare('I nod to the dealer.', 'stuck')
-        self.assertTrue(prepared['input'].get('raise_now') or
-                        self.runtime.pending_kit_turn('stuck')['body'].get('story_due'))
-        payload = bridge.decide('stuck', RecordingModel().plan(prepared['input']))
-        self.assertIn('raise_now', kit_agent.DEGRADED_INSTRUCTION)
-        plain = exchange_speech(1)
-        for _ in range(kit_agent.DEGRADED_AFTER_REJECTIONS):
-            with self.assertRaisesRegex(InvalidChange, 'Story hook overdue') as caught:
-                bridge.finish('stuck', plain)
-        self.assertIn('names the amount (10 gp)', str(caught.exception))
-        due = self.runtime.pending_kit_turn('stuck')['body']['story_due']
-        speech = with_raised_hooks(plain, {'raise_now': kit_agent.raise_now_view(due)})
-        result = bridge.finish('stuck', speech, degraded=True)
-        self.assertEqual(result['revision'], self.runtime.load()[0])
-        state = self.runtime.load()[1]
-        self.assertIn('toll_demand', state['story']['area_06c']['delivered'])
-        self.assertEqual(kit_toll.here(self.runtime.source(), state)['passage_toll'][1]['status'], 'demanded')
-
-    def test_natural_toll_words_and_tight_phrases(self):
-        self.start()
-        source = self.runtime.source()
-        self.assertTrue(kit_toll.names_toll(source, 'passage_toll', 'Dealer: Ten gold and you walk out safe.'))
-        hooks = {h['id']: h for h in source['story']['area_06c']['hooks']}
-        state = self.runtime.load()[1]
-        for line in ('Dealer: The night is young; keep your hand still and deal with it.',
-                     'Dealer: It is dangerous to bet against the house, safely or not.'):
-            with self.subTest(line=line):
-                self.assertFalse(kit_brief.holds(hooks['act_menace']['delivered_when'], source, state, line))
-                self.assertFalse(kit_brief.holds(hooks['rigged_game']['delivered_when'], source, state, line))
-
-    def test_the_guard_and_the_detector_share_one_toll_test(self):
-        # #55 review: one test for "this NPC sentence names the toll", used by the detector
-        # and the call-6 guard. The stake and the toll are both 10 gp here, so loose words
-        # (walk out, go on, get through) count only in a sentence with no game words.
-        self.start()
-        source = self.runtime.source()
-
-        def named(line):
-            return kit_toll.names_toll(source, 'passage_toll', f'Dealer: {line}')
-
-        demand = 'Ten gold and you walk out safe.'
-        self.assertTrue(named(demand))
-        with self.assertRaises(InvalidChange):  # named in passing, no opening for the player
-            kit_guards.check_toll_exchange([{'speaker': 'Dealer', 'text': demand}], 10, False)
-        kit_guards.check_toll_exchange([{'speaker': 'Dealer', 'text': 'Down here the dark is not kind. '
-                                         'Ten gold and you walk out safe. Do we have an understanding?'}], 10, False)
-        # Strong words count anywhere, game talk or not.
-        self.assertTrue(named('Ten gold a head to pass, cards or no cards.'))
-        for line in ("Ten gold says you won't get through three hands. Brave enough?",
-                     'Bring ten gold and walk out richer, maybe. Interested?',
-                     'Ten gold is safe with me, friend. Shall we?',
-                     'Ten gold and you walk out safe, so ante up and play.'):
-            with self.subTest(line=line):
-                self.assertFalse(named(line))
-                kit_guards.check_toll_exchange([{'speaker': 'Dealer', 'text': line}], 10, False)
-        for line in ('Ten gold a round, go on and sit.', "The house plays ten gold, and you're safe at my table.",
-                     "I'll put up ten gold if you get through this hand."):
-            with self.subTest(line=line):  # stake talk before the toll is raised: not the guard's business
-                self.assertFalse(named(line))
-                kit_guards.check_toll_exchange([{'speaker': 'Dealer', 'text': line}], 10, False)
-        self.assertIs(kit_guards.npc_names_toll_words, kit_toll.npc_names_toll_words)
-
-    def test_natural_invitations_and_the_games_own_names_count(self):
-        self.start()
-        source = self.runtime.source()
-        hooks = {h['id']: h for h in source['story']['area_06c']['hooks']}
-        state = self.runtime.load()[1]
-        for line in ('Care to play?', 'Join us for a hand?', 'Twenty-one, friend. Want in?',
-                     'Cards are friendlier than the corridor. Sit.', 'Play a round, stranger.',
-                     'Twenty-one is all we play here.'):
-            with self.subTest(line=line):
-                self.assertTrue(kit_brief.holds(hooks['rigged_game']['delivered_when'], source, state,
-                                                f'Dealer: {line}'))
-        for line in ('Cards are old down here.', 'Sit wherever you like; the corridor is cold.',
-                     'Give me a hand with this lantern.', 'I want in on the gossip.',
-                     'The others will join us later.'):
-            with self.subTest(line=line):  # "cards + sit" needs both words in one line
-                self.assertFalse(kit_brief.holds(hooks['rigged_game']['delivered_when'], source, state,
-                                                 f'Dealer: {line}'))
-        for line in ('We protect you from what walks the halls.', 'This is no place for the living.'):
-            with self.subTest(line=line):
-                self.assertTrue(kit_brief.holds(hooks['act_menace']['delivered_when'], source, state,
-                                                f'Dealer: {line}'))
-
-    def test_a_new_scene_in_the_same_area_re_arms_the_hooks(self):
-        # Story memory belongs to the open scene (scene_id; scene-1 before scene ids exist).
-        self.start()
-        state = copy.deepcopy(self.runtime.load()[1])
-        source = self.runtime.source()
-        kit_brief.apply_event(state, source, {'type': 'story_beat', 'area': 'area_06c',
-                                              'delivered': ['toll_demand'], 'evidence': 'x'})
-        self.assertEqual(kit_brief.story_state(state, 'area_06c')['delivered'], ['toll_demand'])
-        self.assertEqual(state['story']['area_06c']['scene'], kit_brief.FIRST_SCENE)
-        state['scene_id'] = 'scene-2'
-        self.assertEqual(kit_brief.story_state(state, 'area_06c'), {'beats': 0, 'delivered': []})
-        made = kit_brief.brief(source, state)
-        self.assertFalse(next(h for h in made['hooks'] if h['id'] == 'toll_demand')['delivered'])
-        kit_brief.apply_event(state, source, {'type': 'story_beat', 'area': 'area_06c', 'delivered': [],
-                                              'evidence': 'x'})
-        self.assertEqual(state['story']['area_06c'], {'beats': 1, 'delivered': [], 'scene': 'scene-2'})
-
-    def test_game_names_from_a_called_list_or_the_name(self):
-        # Non-6c: any card procedure names itself; a said condition with game picks them up.
-        self.assertEqual(kit_brief.game_names({'name': 'Three-Dragon Ante (house rules)'}), ['three-dragon ante'])
-        self.assertEqual(kit_brief.game_names({'name': 'Dragonchess', 'called': ['Dragonchess', 'the board']}),
-                         ['dragonchess', 'the board'])
-        self.assertTrue(kit_brief._says('the board is set; sit', 'the board + sit'))
-        self.assertFalse(kit_brief._says('the board is set', 'the board + sit'))
-
     def test_the_brief_is_capped_and_fight_rounds_are_not_beats(self):
         self.start()
         source = self.runtime.source()
@@ -372,7 +133,7 @@ class ReviewFixes(Base):
         made = kit_brief.brief(source, state)
         self.assertLessEqual(len(json.dumps(made, ensure_ascii=False).encode()), kit_brief.BRIEF_MAX_BYTES)
         self.assertTrue(made.get('trimmed'))
-        self.assertEqual(len(made['hooks']), 3)
+        self.assertEqual(len(made['hooks']), len(source['story']['area_06c']['hooks']))
         fighting = dict(state, combat={'status': 'running'})
         self.assertIsNone(kit_brief.beat_event(self.runtime.source(), fighting, '', 'round'))
 

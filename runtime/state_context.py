@@ -164,8 +164,8 @@ DECLARED_EVENTS = ('beat', 'reveal_fact', 'trigger_fired', 'scene_state', 'comba
 # Kit's declared combat acts (runtime/kit_combat_acts.py, #122) replace the engine's read of the
 # words: the prepared events give way to the engine's outcome of her entries, which may hold only these.
 COMBAT_DECLARED_EVENTS = ('beat', 'combat_state', 'scene_state', 'actor_status', 'pc_conditions', 'pc_resources')
-COMMIT_APPENDED_EVENTS = ('canon_entry', 'oracle_draw', 'procedure_state', 'claim_said', 'agenda_turn',
-                          'pc_state', 'kit_plan', 'toll_state', 'story_beat', 'threshold_crossed',
+COMMIT_APPENDED_EVENTS = ('canon_entry', 'oracle_draw', 'claim_said', 'agenda_turn',
+                          'pc_state', 'kit_plan', 'story_beat', 'threshold_crossed',
                           'attitude_shift', 'pending_check', 'open_threads', 'risk_warned', 'prepared_roll')
 # A turn whose decision asks the player a question resolves nothing: its only event is a
 # rhythm beat tagged 'asked' whose evidence is the question.
@@ -408,16 +408,12 @@ class Runtime:
             require(actor['location'] in source['areas'], 'Unknown actor area')
         # DM prep is checked once, before play: the texture palette (roots, no prices, no
         # leaks) and every table procedure's config. Local import: both import this module.
-        from . import kit_agenda, kit_attitude, kit_cards, kit_claims, kit_toll
+        from . import kit_agenda, kit_attitude, kit_claims
         # The texture palette is checked lazily, per area, the first time play draws on it
         # (kit_texture.area_palette): it never delays the first framing (ROOM_LOADER.md).
         kit_attitude.compile_attitudes(source)
         kit_claims.compile_claims(source)
         kit_agenda.compile_agenda(source)
-        kit_toll.compile_tolls(source)
-        for key, config in (source.get('procedures') or {}).items():
-            if not key.startswith('_') and config.get('kind') == 'card_game':
-                kit_cards.check_config(config)
 
     def initialize(self, source, area, room_path=None):
         """Create a fresh fixture session. Refuse to overwrite a running game. ``room_path``:
@@ -1225,9 +1221,6 @@ class Runtime:
                 established.setdefault(subject, copy.deepcopy(definition))
                 claims['established'] = established
             claims['said'] = (claims['said'] + [copy.deepcopy(said)])[-kit_claims.SAID_LIMIT:]
-        elif kind == 'toll_state':
-            from . import kit_toll
-            kit_toll.apply_event(state, source, event)
         elif kind == 'agenda_turn':
             from . import kit_agenda
             kit_agenda.apply_event(state, source, event)
@@ -1373,15 +1366,6 @@ class Runtime:
                 used = oracle['used'].setdefault(state['area'], [])
                 if event['card'] not in used:
                     used.append(event['card'])
-        elif kind == 'procedure_state':
-            key = event.get('procedure')
-            require(key in {k for k in source.get('procedures', {}) if not k.startswith('_')},
-                    'Unknown table procedure')
-            body = event.get('state')
-            require(isinstance(body, dict) and set(body) == {'public', 'private'},
-                    'Procedure state needs public and private halves')
-            require(len(encode(body).encode()) <= 6000, 'Procedure state exceeds size limit')
-            state.setdefault('procedures', {})[key] = copy.deepcopy(body)
         elif kind == 'pc_position':
             key = event.get('at_exit')
             require(key in source['exits'] and state['area'] in source['exits'][key]['areas'],
@@ -1545,36 +1529,12 @@ class Runtime:
         return {'attitudes_here': here} if here else {}
 
     @staticmethod
-    def _tolls_here(source, state):
-        """DM-only: each toll in this area, its config and where the exchange stands."""
-        if not source.get('tolls'):
-            return {}
-        from . import kit_toll
-        return {key: {'state': body, 'demand': {k: toll[k] for k in ('demanded_by', 'amount', 'unit', 'per',
-                                                                      'floor', 'basis') if k in toll},
-                      'refusal': toll['refusal'], 'violence': toll.get('violence'),
-                      'note': ('A full exchange (Brendon\'s call 6): one NPC asks for it, with a motive that '
-                               'stays inside the act, and lets the player answer; pay, haggle, refuse, '
-                               'or steer back to the game each commit; a refusal\'s consequence persists; a '
-                               'deferred toll comes back later.')}
-                for key, (toll, body) in kit_toll.here(source, state).items()}
-
-    @staticmethod
     def _player_view(source, state):
         view = Runtime._base_player_view(source, state)
         established = [{'slot': key, 'fact': item['fact']}
                        for key, item in canon_in_scope(state).items() if item['public']]
         if established:
             view['established_details'] = established
-        from . import kit_cards  # local import: kit_cards imports this module
-        procedures = {key: kit_cards.public_view((source.get('procedures') or {}).get(key) or {}, body['public'])
-                      for key, body in (state.get('procedures') or {}).items()}
-        if procedures:
-            view['table_procedures'] = procedures
-        from . import kit_toll
-        tolls = kit_toll.public_view(source, state) if source.get('tolls') else {}
-        if tolls:
-            view['tolls'] = tolls
         from . import kit_combat
         if kit_combat.config(source) and (state.get('combat') or state.get('scene')):
             view.update(kit_combat.public_view(source, state))
@@ -1620,15 +1580,6 @@ class Runtime:
             'actors': {k: a for k, a in state['actors'].items()
                        if a['location'] == area and a['status'] != 'fled'},
             **({'canon_here': canon_in_scope(state)} if canon_in_scope(state) else {}),
-            **({'procedures_private': {k: body['private'] for k, body in
-                                       state['procedures'].items()}}
-               if state.get('procedures') else {}),
-            **({'supported_procedures': {
-                k: {'kind': p.get('kind'), 'name': p.get('name')}
-                for k, p in source['procedures'].items()
-                if not k.startswith('_') and p.get('offered', True)}}
-               if source.get('procedures') else {}),
-            **({'tolls_here': Runtime._tolls_here(source, state)} if Runtime._tolls_here(source, state) else {}),
             **Runtime._attitudes_here(source, state),
         }
 

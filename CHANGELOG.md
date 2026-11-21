@@ -10,6 +10,12 @@ Versioning rule:
 
 The current version is in `VERSION`.
 
+## v0.14.0
+
+- One play path. The area-6c card-table, toll and twenty-one games are gone (`runtime/kit_cards.py`, `kit_toll.py`, `kit_twenty_one.py`), along with every branch that existed only for them: the card and toll resolutions in the turn loop, the card and toll guards (clean deal, stake offers, toll exchange, table narration), Kit-declared table procedures, the card and toll story-hook conditions, procedure and toll state in the save, and the `procedures` and `tolls` room blocks. A room that declares either block is now refused as an unsupported block. No book read from a PDF ever reached any of this. The 8-line scripted host pass gives the same lines as v0.13.0.
+- `kit_agent.DEFAULT_ROOM` (the 6c fixture as a default room) is removed. Tests that mount that fixture name its path themselves.
+- Kept: the general systems both paths used (attitude, combat, the room loader, story hooks, claims), the stdlib reader fallback and `runtime/kit_readers.py`. Stated-roll parsing (`supplied_roll`), which the live check path uses, moved from `kit_cards` to `kit_rolls`. NPC speaker labels come only from each actor's own `speaker` or `name` now; the 6c fixture carries its seat labels on its actors.
+
 ## v0.13.0
 
 - Legacy removal, so the live host path (adventure prepare, start, the prepare/complete turn loop, record) is the one spine later work builds on. No player-visible change: the 8-line scripted host pass gives the same lines as v0.12.0.

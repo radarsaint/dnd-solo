@@ -602,17 +602,6 @@ class KitFocusAndScopeTests(unittest.TestCase):
         # The fixed decision still accepts a performance that actually plays the exchange.
         self.assertEqual(self.bridge.finish('nik', QUIET_EXCHANGE_SPEECH)['revision'], 1)
 
-    @rejections_raise  # validator probe (tests/kit_policy.py)
-    def test_the_t1_bare_toll_line_is_the_reference_fail(self):
-        # Table call 6, TC-6a: "Passage is ten gold a head" tossed in beside the game talk,
-        # with no opening, is rejected as a hard check (degraded mode cannot pass it).
-        prepared, plan = self._prepared_plan(NIK_GREETING, 'toll', reply_to='Whats going on here?')
-        plan.update(move='npc_reply', table_presence='quiet')
-        self.bridge.decide('toll', plan)
-        with self.assertRaisesRegex(InvalidChange, 'real exchange, not a line beside the game'):
-            self.bridge.finish('toll', NIK_REPLY)
-        self.assertEqual(self.runtime.load()[0], 0)
-
     def test_one_line_roll_prompt_is_accepted_as_a_call(self):
         prepared, plan = self._prepared_plan(
             'Can I tell if they are friendly?', 'roll', reply_to='Can I tell if they are friendly',

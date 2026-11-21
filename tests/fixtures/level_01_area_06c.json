@@ -157,32 +157,513 @@
   },
   "numeric_facts": {
     "_note": "DM-only. A public amount in unit_words, in a sentence with a context word, must be in allowed_amounts unless the player said that number first.",
-    "passage_toll": {"allowed_amounts": [10], "unit_words": ["gp", "gold", "gold pieces", "gold coins", "gold coin"], "context_words": ["passage", "toll", "door", "through", "pass", "price", "cost", "costs", "fee", "head", "each", "per", "way", "safe"], "specific_words": ["passage", "toll", "door", "through", "pass", "way", "safe"]},
-    "ring_value": {"allowed_amounts": [25], "unit_words": ["gp", "gold", "gold pieces", "gold coins", "gold coin"], "context_words": ["ring"], "specific_words": ["ring"], "_basis": "table_treasure: the silver ring is worth 25 gold pieces (source). No other price may be invented for it."}
+    "passage_toll": {
+      "allowed_amounts": [
+        10
+      ],
+      "unit_words": [
+        "gp",
+        "gold",
+        "gold pieces",
+        "gold coins",
+        "gold coin"
+      ],
+      "context_words": [
+        "passage",
+        "toll",
+        "door",
+        "through",
+        "pass",
+        "price",
+        "cost",
+        "costs",
+        "fee",
+        "head",
+        "each",
+        "per",
+        "way",
+        "safe"
+      ],
+      "specific_words": [
+        "passage",
+        "toll",
+        "door",
+        "through",
+        "pass",
+        "way",
+        "safe"
+      ]
+    },
+    "ring_value": {
+      "allowed_amounts": [
+        25
+      ],
+      "unit_words": [
+        "gp",
+        "gold",
+        "gold pieces",
+        "gold coins",
+        "gold coin"
+      ],
+      "context_words": [
+        "ring"
+      ],
+      "specific_words": [
+        "ring"
+      ],
+      "_basis": "table_treasure: the silver ring is worth 25 gold pieces (source). No other price may be invented for it."
+    }
   },
   "leak_phrases": {
     "_note": "DM-only. Literal phrases the public text may not contain until the phrase appears in the public view. A name in player_may_name is allowed once the player says it.",
-    "phrases": ["doppelganger", "area 14b", "stone key", "marked deck", "marked cards", "deck is marked",
-                "thieves\u2019 tools", "thieves' tools", "pretending to be vampires", "uktarl", "harria", "bandit"],
-    "player_may_name": ["uktarl", "harria"]
+    "phrases": [
+      "doppelganger",
+      "area 14b",
+      "stone key",
+      "marked deck",
+      "marked cards",
+      "deck is marked",
+      "thieves’ tools",
+      "thieves' tools",
+      "pretending to be vampires",
+      "uktarl",
+      "harria",
+      "bandit"
+    ],
+    "player_may_name": [
+      "uktarl",
+      "harria"
+    ]
   },
   "leak_keywords": {
     "_note": "DM-only. A set leaks when one public sentence contains a word from every group. Skipped once revealed_by is public, or when the player raised it.",
-    "marked_deck": {"revealed_by": "marked_deck", "groups": [["card", "cards", "deck", "decks", "hand", "deal", "dealing"], ["marked", "marks", "marking", "markings", "rigged", "cheat", "cheats", "cheating", "cheated", "doctored", "shine on the back"]]},
-    "deck_holes": {"revealed_by": ["marked_deck", "deck_backs_glance"], "groups": [["card", "cards", "deck", "decks", "back", "backs", "border"], ["nicked", "nicks", "crimped", "crimp", "shaved", "notched", "scuffed", "pinpricks", "pricked", "pricks", "holes", "pinholes"]]},
-    "false_vampires": {"revealed_by": ["false_vampires", "vampire_tells"], "groups": [["vampire", "vampires", "fang", "fangs", "pallor", "pale", "teeth", "undead", "bloodsucker", "bloodsuckers"], ["fake", "false", "theatrical", "theatrically", "disguise", "disguised", "pretend", "pretending", "pretenders", "glued", "sham", "mummer", "mummers", "playacting", "masquerade"]]},
-    "vampire_paint": {"revealed_by": ["false_vampires", "vampire_tells", "vampire_tells_glance"], "groups": [["vampire", "vampires", "fang", "fangs", "pallor", "pale", "teeth", "neck", "collar", "skin"], ["paint", "painted", "greasepaint", "makeup", "make-up", "powder", "powdered", "chalk", "chalked", "wax", "flour"]]},
-    "doppelganger": {"revealed_by": null, "groups": [["shapeshifter", "shapeshifters", "shape-shifter", "shapechanger", "changeling", "changelings", "mimic", "skinchanger", "face-stealer"]]},
-    "doppelganger_tell": {"revealed_by": null, "groups": [["face", "features", "skin", "flesh"], ["ripple", "ripples", "rippled", "rippling", "melt", "melts", "melted", "melting", "blur", "blurs", "blurred", "borrowed", "stolen", "runs like wax"]]},
-    "fresco_key": {"revealed_by": "fresco_key", "groups": [["key", "keys"], ["carving", "carved", "fresco", "dwarf", "dwarves", "dwarven", "figure", "figures", "figurine", "mountain", "wall"]]},
-    "tub_stash": {"revealed_by": "tub_stash", "groups": [["tub", "basin", "trough"], ["tools", "lockpicks", "picks", "bedroll", "gear", "pack", "stash", "stashed", "stolen", "loot", "bundle"]]},
-    "cheating": {"revealed_by": "marked_deck", "groups": [["cheat", "cheats", "cheating", "cheated", "cheater", "swindle", "swindled", "swindling", "crooked"]]},
-    "hidden_truth_hint": {"revealed_by": ["false_vampires", "vampire_tells"], "groups": [["not the truth", "the truth is", "what they really are", "what he really is", "what they seem", "what he seems", "what it seems", "more than meets the eye", "more to them than", "more to him than", "not what they appear", "isn't real", "aren't real", "is not real", "are not real", "not really vampires", "only an act", "just an act", "all an act"]]},
-    "concealment_hint": {"revealed_by": null, "groups": [["to cover something", "cover something", "covering something", "cover up something", "something else underneath", "hiding something", "hide something", "something to hide", "what's under", "what is under", "what's beneath", "what they're hiding", "what he's hiding", "what they are hiding", "what he is hiding", "masking something", "to mask the", "cover the smell", "cover the stink", "covering the smell", "covering for", "not all it seems", "keeping something", "are covering", "is covering", "what's covering"]]},
-    "fresco_key_loose": {"revealed_by": "fresco_key", "groups": [["dwarf", "dwarves", "dwarven", "figure", "figures", "carving", "carvings", "carved", "niche", "relief", "fresco"], ["loose", "looser", "lift", "lifts", "lifted", "lifting", "proud of the stone", "wobble", "wobbles", "wobbly", "pry", "pried", "prised", "removable", "comes out", "come out", "socket", "out of place", "rattles", "shifts", "gap around", "seam around", "sits wrong", "newer than", "fits badly", "not set", "unmortared"]]},
-    "performance_hint": {"revealed_by": ["false_vampires", "vampire_tells"], "groups": [["four", "they", "them", "table", "gamblers", "players", "teeth", "fangs", "pale", "pallor", "vampire", "vampires", "undertakers"], ["in character", "rehearsed", "rehearsal", "costume", "costumes", "costumed", "posing", "posed", "playing a part", "playing parts", "stagecraft", "staged", "on stage", "audience", "an act", "props", "prop", "playacted"]]},
-    "blood_prop": {"revealed_by": ["false_vampires", "vampire_tells"], "groups": [["pass for", "passes for", "could pass for", "looks like", "look like", "stand in for", "stands in for", "mistaken for", "fake"], ["blood", "gore", "something worse"]]},
-    "rivalry": {"revealed_by": null, "groups": [["rival", "rivals", "rivalry", "usurp", "usurper", "displace", "unseat", "depose", "overthrow", "mutiny", "coup"]]}
+    "marked_deck": {
+      "revealed_by": "marked_deck",
+      "groups": [
+        [
+          "card",
+          "cards",
+          "deck",
+          "decks",
+          "hand",
+          "deal",
+          "dealing"
+        ],
+        [
+          "marked",
+          "marks",
+          "marking",
+          "markings",
+          "rigged",
+          "cheat",
+          "cheats",
+          "cheating",
+          "cheated",
+          "doctored",
+          "shine on the back"
+        ]
+      ]
+    },
+    "deck_holes": {
+      "revealed_by": [
+        "marked_deck",
+        "deck_backs_glance"
+      ],
+      "groups": [
+        [
+          "card",
+          "cards",
+          "deck",
+          "decks",
+          "back",
+          "backs",
+          "border"
+        ],
+        [
+          "nicked",
+          "nicks",
+          "crimped",
+          "crimp",
+          "shaved",
+          "notched",
+          "scuffed",
+          "pinpricks",
+          "pricked",
+          "pricks",
+          "holes",
+          "pinholes"
+        ]
+      ]
+    },
+    "false_vampires": {
+      "revealed_by": [
+        "false_vampires",
+        "vampire_tells"
+      ],
+      "groups": [
+        [
+          "vampire",
+          "vampires",
+          "fang",
+          "fangs",
+          "pallor",
+          "pale",
+          "teeth",
+          "undead",
+          "bloodsucker",
+          "bloodsuckers"
+        ],
+        [
+          "fake",
+          "false",
+          "theatrical",
+          "theatrically",
+          "disguise",
+          "disguised",
+          "pretend",
+          "pretending",
+          "pretenders",
+          "glued",
+          "sham",
+          "mummer",
+          "mummers",
+          "playacting",
+          "masquerade"
+        ]
+      ]
+    },
+    "vampire_paint": {
+      "revealed_by": [
+        "false_vampires",
+        "vampire_tells",
+        "vampire_tells_glance"
+      ],
+      "groups": [
+        [
+          "vampire",
+          "vampires",
+          "fang",
+          "fangs",
+          "pallor",
+          "pale",
+          "teeth",
+          "neck",
+          "collar",
+          "skin"
+        ],
+        [
+          "paint",
+          "painted",
+          "greasepaint",
+          "makeup",
+          "make-up",
+          "powder",
+          "powdered",
+          "chalk",
+          "chalked",
+          "wax",
+          "flour"
+        ]
+      ]
+    },
+    "doppelganger": {
+      "revealed_by": null,
+      "groups": [
+        [
+          "shapeshifter",
+          "shapeshifters",
+          "shape-shifter",
+          "shapechanger",
+          "changeling",
+          "changelings",
+          "mimic",
+          "skinchanger",
+          "face-stealer"
+        ]
+      ]
+    },
+    "doppelganger_tell": {
+      "revealed_by": null,
+      "groups": [
+        [
+          "face",
+          "features",
+          "skin",
+          "flesh"
+        ],
+        [
+          "ripple",
+          "ripples",
+          "rippled",
+          "rippling",
+          "melt",
+          "melts",
+          "melted",
+          "melting",
+          "blur",
+          "blurs",
+          "blurred",
+          "borrowed",
+          "stolen",
+          "runs like wax"
+        ]
+      ]
+    },
+    "fresco_key": {
+      "revealed_by": "fresco_key",
+      "groups": [
+        [
+          "key",
+          "keys"
+        ],
+        [
+          "carving",
+          "carved",
+          "fresco",
+          "dwarf",
+          "dwarves",
+          "dwarven",
+          "figure",
+          "figures",
+          "figurine",
+          "mountain",
+          "wall"
+        ]
+      ]
+    },
+    "tub_stash": {
+      "revealed_by": "tub_stash",
+      "groups": [
+        [
+          "tub",
+          "basin",
+          "trough"
+        ],
+        [
+          "tools",
+          "lockpicks",
+          "picks",
+          "bedroll",
+          "gear",
+          "pack",
+          "stash",
+          "stashed",
+          "stolen",
+          "loot",
+          "bundle"
+        ]
+      ]
+    },
+    "cheating": {
+      "revealed_by": "marked_deck",
+      "groups": [
+        [
+          "cheat",
+          "cheats",
+          "cheating",
+          "cheated",
+          "cheater",
+          "swindle",
+          "swindled",
+          "swindling",
+          "crooked"
+        ]
+      ]
+    },
+    "hidden_truth_hint": {
+      "revealed_by": [
+        "false_vampires",
+        "vampire_tells"
+      ],
+      "groups": [
+        [
+          "not the truth",
+          "the truth is",
+          "what they really are",
+          "what he really is",
+          "what they seem",
+          "what he seems",
+          "what it seems",
+          "more than meets the eye",
+          "more to them than",
+          "more to him than",
+          "not what they appear",
+          "isn't real",
+          "aren't real",
+          "is not real",
+          "are not real",
+          "not really vampires",
+          "only an act",
+          "just an act",
+          "all an act"
+        ]
+      ]
+    },
+    "concealment_hint": {
+      "revealed_by": null,
+      "groups": [
+        [
+          "to cover something",
+          "cover something",
+          "covering something",
+          "cover up something",
+          "something else underneath",
+          "hiding something",
+          "hide something",
+          "something to hide",
+          "what's under",
+          "what is under",
+          "what's beneath",
+          "what they're hiding",
+          "what he's hiding",
+          "what they are hiding",
+          "what he is hiding",
+          "masking something",
+          "to mask the",
+          "cover the smell",
+          "cover the stink",
+          "covering the smell",
+          "covering for",
+          "not all it seems",
+          "keeping something",
+          "are covering",
+          "is covering",
+          "what's covering"
+        ]
+      ]
+    },
+    "fresco_key_loose": {
+      "revealed_by": "fresco_key",
+      "groups": [
+        [
+          "dwarf",
+          "dwarves",
+          "dwarven",
+          "figure",
+          "figures",
+          "carving",
+          "carvings",
+          "carved",
+          "niche",
+          "relief",
+          "fresco"
+        ],
+        [
+          "loose",
+          "looser",
+          "lift",
+          "lifts",
+          "lifted",
+          "lifting",
+          "proud of the stone",
+          "wobble",
+          "wobbles",
+          "wobbly",
+          "pry",
+          "pried",
+          "prised",
+          "removable",
+          "comes out",
+          "come out",
+          "socket",
+          "out of place",
+          "rattles",
+          "shifts",
+          "gap around",
+          "seam around",
+          "sits wrong",
+          "newer than",
+          "fits badly",
+          "not set",
+          "unmortared"
+        ]
+      ]
+    },
+    "performance_hint": {
+      "revealed_by": [
+        "false_vampires",
+        "vampire_tells"
+      ],
+      "groups": [
+        [
+          "four",
+          "they",
+          "them",
+          "table",
+          "gamblers",
+          "players",
+          "teeth",
+          "fangs",
+          "pale",
+          "pallor",
+          "vampire",
+          "vampires",
+          "undertakers"
+        ],
+        [
+          "in character",
+          "rehearsed",
+          "rehearsal",
+          "costume",
+          "costumes",
+          "costumed",
+          "posing",
+          "posed",
+          "playing a part",
+          "playing parts",
+          "stagecraft",
+          "staged",
+          "on stage",
+          "audience",
+          "an act",
+          "props",
+          "prop",
+          "playacted"
+        ]
+      ]
+    },
+    "blood_prop": {
+      "revealed_by": [
+        "false_vampires",
+        "vampire_tells"
+      ],
+      "groups": [
+        [
+          "pass for",
+          "passes for",
+          "could pass for",
+          "looks like",
+          "look like",
+          "stand in for",
+          "stands in for",
+          "mistaken for",
+          "fake"
+        ],
+        [
+          "blood",
+          "gore",
+          "something worse"
+        ]
+      ]
+    },
+    "rivalry": {
+      "revealed_by": null,
+      "groups": [
+        [
+          "rival",
+          "rivals",
+          "rivalry",
+          "usurp",
+          "usurper",
+          "displace",
+          "unseat",
+          "depose",
+          "overthrow",
+          "mutiny",
+          "coup"
+        ]
+      ]
+    }
   },
   "claims": {
     "_note": "DM-only. Claims and knowers (runtime/kit_claims.py). Keyed by the thing itself. holders are granted by the source (knowledge lists, role); everyone else's band is computed from stats. dc: the adventure's, else 10 + floor(dungeon floor level / 3). pc_access passive: the PC's passive skill is a shield (fingerprint); roll: only a player-initiated roll finds it.",
@@ -208,7 +689,21 @@
         "doppelganger": "knows"
       },
       "fingerprint": "Not a cup, crumb, or bottle anywhere on the table; the dealer's fangs sit a little proud of his lip.",
-      "subject_words": ["vampire", "vampires", "fang", "fangs", "pallor", "pale skin", "disguise", "disguises", "makeup", "make-up", "undead", "costume", "costumes"],
+      "subject_words": [
+        "vampire",
+        "vampires",
+        "fang",
+        "fangs",
+        "pallor",
+        "pale skin",
+        "disguise",
+        "disguises",
+        "makeup",
+        "make-up",
+        "undead",
+        "costume",
+        "costumes"
+      ],
       "learned_text": "They are no vampires. The act is meant to frighten you into paying 10 gp for safe passage, then keep you at the table losing coin. Underneath, they are thugs.",
       "_skills": "Table call 8: Insight reads the why (this claim); the physical tells are vampire_tells."
     },
@@ -217,19 +712,54 @@
       "truth": "The pallor is powder that stops at the collar, and the fangs are fitted pieces over their own teeth: a costume, not undead flesh.",
       "source": "adventure",
       "fact": "vampire_tells",
-      "roots": ["vampire_tells", "false_vampires"],
+      "roots": [
+        "vampire_tells",
+        "false_vampires"
+      ],
       "exposure": "hidden",
       "dc": 14,
       "_dc_basis": "The adventure's DC 14 for the act: the same disguise.",
       "concealer": "uktarl",
       "conceal_skill": "deception",
       "pc_check": "investigation",
-      "pc_checks": ["investigation", "perception"],
+      "pc_checks": [
+        "investigation",
+        "perception"
+      ],
       "pc_access": "roll",
-      "perception_details": [{"min_margin": 0, "fact": "vampire_tells_glance"}, {"min_margin": 5, "fact": "vampire_tells_close"}],
+      "perception_details": [
+        {
+          "min_margin": 0,
+          "fact": "vampire_tells_glance"
+        },
+        {
+          "min_margin": 5,
+          "fact": "vampire_tells_close"
+        }
+      ],
       "_skills": "Brendon's rule: Investigation deduces the what (a costume); Perception sees only details, sharper with the result; Insight reads the why (false_vampires).",
-      "holders": {"uktarl": "knows", "bandit_a": "knows", "bandit_b": "knows", "doppelganger": "knows"},
-      "subject_words": ["fang", "fangs", "teeth", "collar", "collars", "powder", "pallor", "pale skin", "makeup", "paint", "disguise", "costume", "vampire", "vampires"],
+      "holders": {
+        "uktarl": "knows",
+        "bandit_a": "knows",
+        "bandit_b": "knows",
+        "doppelganger": "knows"
+      },
+      "subject_words": [
+        "fang",
+        "fangs",
+        "teeth",
+        "collar",
+        "collars",
+        "powder",
+        "pallor",
+        "pale skin",
+        "makeup",
+        "paint",
+        "disguise",
+        "costume",
+        "vampire",
+        "vampires"
+      ],
       "learned_text": "The pallor is powder that stops at the collar, and the fangs are fitted pieces over their own teeth. It is a costume, not undead flesh."
     },
     "marked_deck": {
@@ -245,9 +775,21 @@
       "concealer": "uktarl",
       "conceal_skill": "sleight_of_hand",
       "pc_check": "perception",
-      "pc_checks": ["perception", "investigation"],
+      "pc_checks": [
+        "perception",
+        "investigation"
+      ],
       "pc_access": "passive",
-      "perception_details": [{"min_margin": 0, "fact": "deck_backs_glance"}, {"min_margin": 5, "fact": "deck_backs_close"}],
+      "perception_details": [
+        {
+          "min_margin": 0,
+          "fact": "deck_backs_glance"
+        },
+        {
+          "min_margin": 5,
+          "fact": "deck_backs_close"
+        }
+      ],
       "_skills": "Brendon's rule: an active Perception look sees only details (the holes), sharper with the result; Investigation works out the what (the marks).",
       "npc_check": "insight",
       "holders": {
@@ -259,7 +801,15 @@
       "anchored_version": "Dealer's luck; he always wins.",
       "fingerprint": "His eyes drop to the backs of the cards as he deals.",
       "_dc_basis": "No adventure DC: the dealer hides it with Sleight of Hand +3, so the flat 10 + 3 = 13 (claim_dc). Watching the deal at the table uses the same 13.",
-      "subject_words": ["deck", "the cards", "his cards", "dealer's cards", "card backs", "backs of the cards", "marks"],
+      "subject_words": [
+        "deck",
+        "the cards",
+        "his cards",
+        "dealer's cards",
+        "card backs",
+        "backs of the cards",
+        "marks"
+      ],
       "learned_text": "Faint marks run along the card backs, and the dealer reads them as he deals."
     },
     "fresco_key": {
@@ -282,7 +832,20 @@
         "bandit_b": "unaware",
         "doppelganger": "unaware"
       },
-      "subject_words": ["fresco", "carving", "carvings", "carved dwarves", "dwarven figures", "tiny dwarves", "tiny figures", "carved figures", "dwarf figures", "dwarf figure", "dwarves", "mountain"],
+      "subject_words": [
+        "fresco",
+        "carving",
+        "carvings",
+        "carved dwarves",
+        "dwarven figures",
+        "tiny dwarves",
+        "tiny figures",
+        "carved figures",
+        "dwarf figures",
+        "dwarf figure",
+        "dwarves",
+        "mountain"
+      ],
       "learned_text": "One carved dwarf lifts out of the fresco. It is a small stone key."
     },
     "ring_value": {
@@ -328,13 +891,27 @@
   ],
   "starting_area": "area_06c",
   "areas": {
-    "area_06c": {"name": "Card room", "arrival": "A newcomer has reached the card room.", "floor_level": 1, "no_refreshment": true, "_no_refreshment": "Brendon's table call 3 (2026-10-02): the four take no food or drink and serve none; the wine having run out is the clue. No public text serves or offers food or drink here."},
-    "south_passage": {"name": "Short passage south of area 6c", "called": "the short passage", "outside": true, "beyond": true}
+    "area_06c": {
+      "name": "Card room",
+      "arrival": "A newcomer has reached the card room.",
+      "floor_level": 1,
+      "no_refreshment": true,
+      "_no_refreshment": "Brendon's table call 3 (2026-10-02): the four take no food or drink and serve none; the wine having run out is the clue. No public text serves or offers food or drink here."
+    },
+    "south_passage": {
+      "name": "Short passage south of area 6c",
+      "called": "the short passage",
+      "outside": true,
+      "beyond": true
+    }
   },
   "exits": {
     "south_door": {
       "name": "the south door",
-      "areas": ["area_06c", "south_passage"],
+      "areas": [
+        "area_06c",
+        "south_passage"
+      ],
       "secret": false,
       "labels": {
         "area_06c": "A door near the card table opens into the short passage to the south.",
@@ -344,202 +921,283 @@
   },
   "facts": {
     "card_table": {
-      "area": "area_06c", "visible": true,
+      "area": "area_06c",
+      "visible": true,
       "text": "Four pale figures with pointed teeth and elaborate clothing sit at a worn table playing cards; each has coins in front of them."
     },
     "fresco": {
-      "area": "area_06c", "visible": true,
-      "layer": "obvious", "text": "A fresco covers the north wall: a carved mountain, with tiny dwarven figures in its caverns and rays of sunlight spreading outward."
+      "area": "area_06c",
+      "visible": true,
+      "layer": "obvious",
+      "text": "A fresco covers the north wall: a carved mountain, with tiny dwarven figures in its caverns and rays of sunlight spreading outward."
     },
     "tub": {
-      "area": "area_06c", "visible": true,
+      "area": "area_06c",
+      "visible": true,
       "text": "A stone tub about 8 feet long, 4 feet wide, and 2 feet deep is recessed into the floor beneath the carving.",
       "handling": {
-        "nouns": ["tub"], "holds": "tub_stash",
+        "nouns": [
+          "tub"
+        ],
+        "holds": "tub_stash",
         "look": "You look into the recessed tub and see a bedroll, thieves’ tools, and a bundle of stolen travel gear.",
         "enter": "You climb down into the recessed tub and find it already occupied: a bedroll, thieves’ tools, and a bundle of stolen travel gear are stored in it.",
         "move": "The stone tub is recessed into the floor and cannot be tipped over."
       }
     },
     "treasure_on_table": {
-      "area": "area_06c", "visible": true,
+      "area": "area_06c",
+      "visible": true,
       "text": "Several stacks of coins and a silver ring rest on the table."
     },
     "marked_deck": {
-      "area": "area_06c", "visible": false,
+      "area": "area_06c",
+      "visible": false,
       "text": "The dealer's card deck carries subtle marks."
     },
     "false_vampires": {
-      "area": "area_06c", "visible": false,
+      "area": "area_06c",
+      "visible": false,
       "text": "Not undead: the Undertakers are thugs in costume. The act scares newcomers into paying 10 gp for safe passage and keeps them losing coin at the card table."
     },
     "vampire_tells": {
-      "area": "area_06c", "visible": false,
+      "area": "area_06c",
+      "visible": false,
       "text": "The pallor is powder that stops at the collar, and the fangs are fitted pieces over their own teeth: a costume, not undead flesh."
     },
     "vampire_tells_glance": {
-      "area": "area_06c", "visible": false,
+      "area": "area_06c",
+      "visible": false,
       "text": "Where the dealer's collar shifts, the white on his neck stops in a hard line above ordinary pink skin."
     },
     "vampire_tells_close": {
-      "area": "area_06c", "visible": false,
+      "area": "area_06c",
+      "visible": false,
       "text": "His fangs sit a little proud of his lip and click faintly when he talks."
     },
     "deck_backs_glance": {
-      "area": "area_06c", "visible": false,
+      "area": "area_06c",
+      "visible": false,
       "text": "Near one corner of each card back, the faded vine border has tiny holes in it."
     },
     "deck_backs_close": {
-      "area": "area_06c", "visible": false,
+      "area": "area_06c",
+      "visible": false,
       "text": "The holes are not the same from card to card, and the dealer's eyes drop to the backs before each deal."
     },
     "fresco_key": {
-      "area": "area_06c", "visible": false,
+      "area": "area_06c",
+      "visible": false,
       "text": "One of the tiny carved dwarves can be lifted out; it is a stone key."
     },
     "key_function": {
-      "area": "area_06c", "visible": false,
+      "area": "area_06c",
+      "visible": false,
       "text": "The stone key fits a box in area 14b; its purpose is not apparent from finding it here."
     },
     "tub_stash": {
-      "area": "area_06c", "visible": false,
+      "area": "area_06c",
+      "visible": false,
       "text": "A bedroll, thieves' tools, and enough stolen gear to assemble one explorer's pack are stored in the tub."
     },
     "table_treasure": {
-      "area": "area_06c", "visible": false,
+      "area": "area_06c",
+      "visible": false,
       "text": "A count of the table coins gives 220 copper, 91 silver, and 85 gold pieces; the silver ring bears dwarven fertility symbols and is worth 25 gold pieces."
     }
   },
   "actors": {
     "uktarl": {
-      "name": "Pale man dealing cards", "dm_identity": "Uktarl Krannoc",
-      "type": "human bandit captain", "performance_bonus": 4,
-      "location": "area_06c", "status": "alive", "visible": true,
+      "name": "Pale man dealing cards",
+      "dm_identity": "Uktarl Krannoc",
+      "type": "human bandit captain",
+      "performance_bonus": 4,
+      "location": "area_06c",
+      "status": "alive",
+      "visible": true,
       "motive": "Keep the Undertakers' vampire act intact (it scares newcomers into paying the toll) and the visitor seated at his table, where he can profit from them; displace Harria as leader of the Undertakers.",
-      "traits": ["Lies and cheats for the fun of it (source).", "Blames others for his own failures (source).", "A showman: Performance +4, and he enjoys the act (source).", "Values his own safety; retreats rather than bleed (source).", "Wants Harria out of his way (source)."],
+      "traits": [
+        "Lies and cheats for the fun of it (source).",
+        "Blames others for his own failures (source).",
+        "A showman: Performance +4, and he enjoys the act (source).",
+        "Values his own safety; retreats rather than bleed (source).",
+        "Wants Harria out of his way (source)."
+      ],
       "immediate_goal": "Control the encounter without risking himself.",
-      "knowledge": ["The Undertakers' vampire appearance is a disguise.", "His deck is marked.", "Harria is his rival."],
-      "secrets": ["He is not a vampire.", "He cheats at cards."],
+      "knowledge": [
+        "The Undertakers' vampire appearance is a disguise.",
+        "His deck is marked.",
+        "Harria is his rival."
+      ],
+      "secrets": [
+        "He is not a vampire.",
+        "He cheats at cards."
+      ],
       "retreat_condition": "If damaged or if an underling is slaughtered, retreat toward area 7.",
-      "stats": {"srd_basis": "Bandit Captain, SRD 5.1 (CC-BY-4.0, Wizards of the Coast; https://creativecommons.org/licenses/by/4.0/)", "abilities": {"str": 15, "dex": 16, "con": 14, "int": 14, "wis": 11, "cha": 14}, "proficiency_bonus": 2, "skills": {"athletics": 4, "deception": 4, "sleight_of_hand": 3}, "domains": ["the Undertakers", "this card table", "gambling", "coin and loot"], "special": [], "_role": "Room source: Performance +4; sleight_of_hand +3 is the room's DM-choice Dexterity for the deal."},
+      "stats": {
+        "srd_basis": "Bandit Captain, SRD 5.1 (CC-BY-4.0, Wizards of the Coast; https://creativecommons.org/licenses/by/4.0/)",
+        "abilities": {
+          "str": 15,
+          "dex": 16,
+          "con": 14,
+          "int": 14,
+          "wis": 11,
+          "cha": 14
+        },
+        "proficiency_bonus": 2,
+        "skills": {
+          "athletics": 4,
+          "deception": 4,
+          "sleight_of_hand": 3
+        },
+        "domains": [
+          "the Undertakers",
+          "this card table",
+          "gambling",
+          "coin and loot"
+        ],
+        "special": [],
+        "_role": "Room source: Performance +4; sleight_of_hand +3 is the room's DM-choice Dexterity for the deal."
+      },
       "communication_profile": {
         "rhythm": "Performer with a practiced front; blames others when pressed.",
         "humor": "Unspecified by source; derive from his cheating and self-importance only when the moment earns it."
-      }
+      },
+      "speaker": "Dealer"
     },
     "bandit_a": {
-      "name": "Pale card player near the door", "type": "human bandit",
-      "location": "area_06c", "status": "alive", "visible": true,
+      "name": "Pale card player near the door",
+      "type": "human bandit",
+      "location": "area_06c",
+      "status": "alive",
+      "visible": true,
       "motive": "Keep the vampire act intact (it scares newcomers into paying the toll) and the visitor at the table; share in the Undertakers' take and survive this encounter.",
-      "traits": ["Follows Uktarl's lead; in it for a share of the take.", "Knife-ready, but wants to survive the night."],
-      "knowledge": ["The vampire appearance is a disguise."],
-      "secrets": ["Not a vampire."],
+      "traits": [
+        "Follows Uktarl's lead; in it for a share of the take.",
+        "Knife-ready, but wants to survive the night."
+      ],
+      "knowledge": [
+        "The vampire appearance is a disguise."
+      ],
+      "secrets": [
+        "Not a vampire."
+      ],
       "retreat_condition": "When Uktarl retreats, flee toward area 8 and join any bandits still there.",
-      "stats": {"srd_basis": "Bandit, SRD 5.1 (CC-BY-4.0, Wizards of the Coast; https://creativecommons.org/licenses/by/4.0/)", "abilities": {"str": 11, "dex": 12, "con": 12, "int": 10, "wis": 10, "cha": 10}, "proficiency_bonus": 2, "skills": {}, "domains": ["the Undertakers", "this card table", "knives"], "special": []},
-      "communication_profile": {"rhythm": "Unestablished", "humor": "Unestablished"}
+      "stats": {
+        "srd_basis": "Bandit, SRD 5.1 (CC-BY-4.0, Wizards of the Coast; https://creativecommons.org/licenses/by/4.0/)",
+        "abilities": {
+          "str": 11,
+          "dex": 12,
+          "con": 12,
+          "int": 10,
+          "wis": 10,
+          "cha": 10
+        },
+        "proficiency_bonus": 2,
+        "skills": {},
+        "domains": [
+          "the Undertakers",
+          "this card table",
+          "knives"
+        ],
+        "special": []
+      },
+      "communication_profile": {
+        "rhythm": "Unestablished",
+        "humor": "Unestablished"
+      },
+      "speaker": "Door-side player"
     },
     "bandit_b": {
-      "name": "Pale card player beside the fresco", "type": "human bandit",
-      "location": "area_06c", "status": "alive", "visible": true,
+      "name": "Pale card player beside the fresco",
+      "type": "human bandit",
+      "location": "area_06c",
+      "status": "alive",
+      "visible": true,
       "motive": "Keep the vampire act intact (it scares newcomers into paying the toll) and the visitor at the table; share in the Undertakers' take and survive this encounter.",
-      "traits": ["Follows Uktarl's lead; in it for a share of the take.", "The muscle at the table: leans in when money moves."],
-      "knowledge": ["The vampire appearance is a disguise."],
-      "secrets": ["Not a vampire."],
+      "traits": [
+        "Follows Uktarl's lead; in it for a share of the take.",
+        "The muscle at the table: leans in when money moves."
+      ],
+      "knowledge": [
+        "The vampire appearance is a disguise."
+      ],
+      "secrets": [
+        "Not a vampire."
+      ],
       "retreat_condition": "When Uktarl retreats, flee toward area 8 and join any bandits still there.",
-      "stats": {"srd_basis": "Bandit, SRD 5.1 (CC-BY-4.0, Wizards of the Coast; https://creativecommons.org/licenses/by/4.0/)", "abilities": {"str": 11, "dex": 12, "con": 12, "int": 10, "wis": 10, "cha": 10}, "proficiency_bonus": 2, "skills": {}, "domains": ["the Undertakers", "this card table", "knives"], "special": []},
-      "communication_profile": {"rhythm": "Unestablished", "humor": "Unestablished"}
+      "stats": {
+        "srd_basis": "Bandit, SRD 5.1 (CC-BY-4.0, Wizards of the Coast; https://creativecommons.org/licenses/by/4.0/)",
+        "abilities": {
+          "str": 11,
+          "dex": 12,
+          "con": 12,
+          "int": 10,
+          "wis": 10,
+          "cha": 10
+        },
+        "proficiency_bonus": 2,
+        "skills": {},
+        "domains": [
+          "the Undertakers",
+          "this card table",
+          "knives"
+        ],
+        "special": []
+      },
+      "communication_profile": {
+        "rhythm": "Unestablished",
+        "humor": "Unestablished"
+      },
+      "speaker": "Fresco-side player"
     },
     "doppelganger": {
-      "name": "Fourth pale card player", "type": "doppelganger",
-      "location": "area_06c", "status": "alive", "visible": true,
+      "name": "Fourth pale card player",
+      "type": "doppelganger",
+      "location": "area_06c",
+      "status": "alive",
+      "visible": true,
       "motive": "Keep the vampire act intact (it scares newcomers into paying the toll) and the visitor at the table; support the current Undertaker arrangement while preserving its own disguise and safety.",
-      "traits": ["Quiet and watchful; keeps its own disguise above everything.", "Backs the current arrangement while it suits it."],
-      "knowledge": ["The group's vampire identity is a performance.", "Its own true nature."],
-      "secrets": ["A doppelganger disguised as one of the apparent vampires."],
-      "retreat_condition": "When Uktarl retreats, flee toward area 8 and join any bandits still there.",
-      "stats": {"srd_basis": "Doppelganger, SRD 5.1 (CC-BY-4.0, Wizards of the Coast; https://creativecommons.org/licenses/by/4.0/)", "abilities": {"str": 11, "dex": 18, "con": 14, "int": 11, "wis": 12, "cha": 14}, "proficiency_bonus": 2, "skills": {"deception": 6, "insight": 3}, "domains": ["the Undertakers", "disguise"], "special": ["read_thoughts"]},
-      "communication_profile": {"rhythm": "Unestablished", "humor": "Unestablished"}
-    }
-  },
-  "procedures": {
-    "_note": "DM-only adapter. Table procedures the runtime can run in this room. The source names no game, rules, or stakes for area 6c; everything here is a declared DM choice, persisted as a canon entry (with its procedure) when first chosen.",
-    "twenty_one": {
-      "kind": "card_game",
-      "game": "twenty_one",
-      "name": "Twenty-one (blackjack), or one check a round",
-      "called": ["twenty-one", "blackjack", "twenty-one coffins"],
-      "dm_choice": "DM choice, not the adventure's: the adventure names no game, rules, or stakes for this table. Brendon's table call 7 (2026-10-02): the player picks the weight, one check a round or an easy, familiar game. Kit runs twenty-one (blackjack), which this table calls Twenty-One Coffins.",
-      "unit": "gp",
-      "seats": {"bandit_a": 15, "bandit_b": 18, "doppelganger": 22, "uktarl": 30},
-      "stacks_note": "The gold stacks are the table's gold split by seat (a DM choice). The player plays against the dealer's stack.",
-      "default_stake": 10,
-      "max_stake": 25,
-      "_stake_basis": "Brendon's table call 1: the stake is the player's bet or what the dealer will risk; a 10 gp default round is fine, a 1 gp high-card flip is not. 25 gp is the most the dealer risks on one round (DM choice, under his 30 gp stack).",
-      "carries": ["toll"],
-      "_carries_basis": "Brendon's table call 6: the toll can be played for only if the procedure can pay it out. A win waives it; a loss pays it from the stake.",
-      "labels": {"uktarl": "Dealer", "bandit_a": "Door-side player", "bandit_b": "Fresco-side player", "doppelganger": "Fourth player"},
-      "check": {"skill": "insight", "npc_bonus": 4, "basis": "DM choice: one check settles a round. The PC reads the table with Insight against the dealer's flat 10 + Performance 4 (room source); NPCs never roll."},
-      "cheat": {
-        "actor": "uktarl",
-        "method": "He reads the marks on the backs as he deals and deals himself the second card when it is better (dealing seconds).",
-        "sleight_bonus": 3,
-        "sleight_basis": "DM choice: bandit captain Dexterity +3 opposes a player watching the deal; the adventure gives no DC.",
-        "check_edge": 2,
-        "check_edge_basis": "DM choice: in one-check mode the marks are a +2 edge on the dealer's number until the player catches the cheat.",
-        "passive_perception": 10,
-        "reveals_fact": "marked_deck",
-        "marks": {"units": ["prick", "pricks", "pinprick", "pinpricks", "hole", "holes"], "count": "value_minus_one", "_basis": "DM choice, fixed after the live 6c table (2026-10-03): Kit invented pinpricks at one for a two, so each card carries its twenty-one value (ace 11, faces 10) less one. Narration must count them the same way."},
-        "caught_text": "You keep your eyes on the deck. He deals everyone else off the top, but whenever the card beneath is better for him, he slides it out for himself, neat as a conjurer. You catch it."
-      }
-    },
-    "three_dragon_ante": {
-      "offered": false,
-      "_offered": "Brendon's table call 7: the 6c game must be easy to understand. Three-Dragon Ante's engine stays available but is not offered at this table.",
-      "kind": "card_game",
-      "name": "Three-Dragon Ante (Kit's table rules)",
-      "dm_choice": "DM choice, not the adventure's: the adventure names no game, rules, or stakes for this table. Kit chose Three-Dragon Ante, a Forgotten Realms card game many D&D players know, and runs it in the published game's shape (card antes set the stakes, three rounds of flights, color powers) with her own short deck and power list, written in her own words. Texas hold 'em or blackjack would have been just as valid.",
-         "unit": "gp",
-      "seats": {"bandit_a": 15, "bandit_b": 18, "doppelganger": 22, "uktarl": 30},
-      "stacks_note": "The gold stacks are the table's gold split by seat (a DM choice). The silver and copper stay on the table as color, not stakes.",
-      "labels": {
-        "uktarl": "Dealer",
-        "bandit_a": "Door-side player",
-        "bandit_b": "Fresco-side player",
-        "doppelganger": "Fourth player"
-      },
-      "cheat": {
-        "actor": "uktarl",
-        "method": "He reads the marks on the backs as he deals: he knows roughly what you hold, and whenever the second card off the deck is stronger than the top one he deals himself the second (dealing seconds).",
-        "sleight_bonus": 3,
-        "sleight_basis": "DM choice: bandit captain Dexterity +3 opposes a player watching the deal; the adventure gives no DC.",
-        "deception_bonus": 4,
-        "deception_basis": "Room source: Uktarl has Performance +4; it opposes Insight read on his betting.",
-        "passive_perception": 10,
-        "passive_basis": "DM choice: bandit captain passive Perception 10 opposes a player's Sleight of Hand.",
-        "reveals_fact": "marked_deck",
-        "caught_text": "You catch it: his eyes read the backs of the cards as he deals, and he gives himself the second card instead of the top one."
-      }
-    }
-  },
-  "tolls": {
-    "_note": "DM-only. The toll is played as a conversation with stakes (runtime/kit_toll.py). Brendon's table call 6 (revised 2026-10-02): the toll stays, as a full exchange: one NPC asks for it with a motive, the player can pay, haggle, refuse, or turn the talk to the game, and refusing costs something.",
-    "passage_toll": {
-      "area": "area_06c",
-      "demanded_by": "uktarl",
-      "amount": 10,
-      "unit": "gp",
-      "per": "head",
-      "numeric_fact": "passage_toll",
-      "basis": "Room source: the gang demands 10 gp per character for safe passage.",
-      "floor": 5,
-      "floor_basis": "DM choice: half the source toll is the least Uktarl takes; below it he will not bargain.",
-      "haggle": {"skill": "persuasion", "npc_skill": "insight", "basis": "The PC's Persuasion against Uktarl's flat 10 + Insight (NPCs never roll)."},
-      "refusal": [
-        {"kind": "pressure", "text": "The table closes ranks: the dealer's courtesy goes cold, the others shift their chairs between you and the south door, and the demand is made again as a warning."},
-        {"kind": "source_fallback", "text": "Unable to extort you, they change tack: they try to turn you against the Xanathar goblinoids, the gang's real rivals down here."}
+      "traits": [
+        "Quiet and watchful; keeps its own disguise above everything.",
+        "Backs the current arrangement while it suits it."
       ],
-      "violence": "If it turns violent, the room's retreat rules apply: Uktarl retreats toward area 7 when damaged or when an underling is slaughtered; the others flee toward area 8.",
-      "stakeable_in": ["twenty_one"]
+      "knowledge": [
+        "The group's vampire identity is a performance.",
+        "Its own true nature."
+      ],
+      "secrets": [
+        "A doppelganger disguised as one of the apparent vampires."
+      ],
+      "retreat_condition": "When Uktarl retreats, flee toward area 8 and join any bandits still there.",
+      "stats": {
+        "srd_basis": "Doppelganger, SRD 5.1 (CC-BY-4.0, Wizards of the Coast; https://creativecommons.org/licenses/by/4.0/)",
+        "abilities": {
+          "str": 11,
+          "dex": 18,
+          "con": 14,
+          "int": 11,
+          "wis": 12,
+          "cha": 14
+        },
+        "proficiency_bonus": 2,
+        "skills": {
+          "deception": 6,
+          "insight": 3
+        },
+        "domains": [
+          "the Undertakers",
+          "disguise"
+        ],
+        "special": [
+          "read_thoughts"
+        ]
+      },
+      "communication_profile": {
+        "rhythm": "Unestablished",
+        "humor": "Unestablished"
+      },
+      "speaker": "Fourth player"
     }
   },
   "attitudes": {
@@ -598,16 +1256,14 @@
           "what": "The vampire act",
           "for": "Scares newcomers into paying the 10 gp toll for safe passage, and keeps them nervous while they lose coin at the table.",
           "roots": [
-            "false_vampires",
-            "passage_toll"
+            "false_vampires"
           ]
         },
         {
           "what": "The card game",
           "for": "Keeps a visitor seated where the gang can size them up, press the toll, and fleece them.",
           "roots": [
-            "card_table",
-            "twenty_one"
+            "card_table"
           ]
         },
         {
@@ -620,19 +1276,6 @@
       ],
       "hooks": [
         {
-          "id": "toll_demand",
-          "primary": true,
-          "by": "uktarl",
-          "within_beats": 3,
-          "text": "The dealer names the price of safe passage, 10 gp a head, with a reason in character and a question the visitor must answer.",
-          "delivered_when": {
-            "toll_raised": "passage_toll"
-          },
-          "roots": [
-            "passage_toll"
-          ]
-        },
-        {
           "id": "act_menace",
           "primary": true,
           "by": "uktarl",
@@ -640,9 +1283,6 @@
           "text": "The hosts make the dark sound dangerous for the living, and their protection the only safe passage.",
           "delivered_when": {
             "any": [
-              {
-                "toll_raised": "passage_toll"
-              },
               {
                 "said": {
                   "by": [
@@ -665,105 +1305,17 @@
             ]
           },
           "roots": [
-            "false_vampires",
-            "passage_toll"
-          ]
-        },
-        {
-          "id": "rigged_game",
-          "primary": true,
-          "by": "uktarl",
-          "within_beats": 2,
-          "text": "The dealer draws the visitor to his table and keeps them playing.",
-          "delivered_when": {
-            "any": [
-              {
-                "procedure_running": "twenty_one"
-              },
-              {
-                "said": {
-                  "by": [
-                    "uktarl"
-                  ],
-                  "any": [
-                    "the game",
-                    "a game",
-                    "the cards",
-                    "stake",
-                    "wager",
-                    "ante",
-                    "deal you in",
-                    "take a seat",
-                    "a seat at",
-                    "my table",
-                    "this table",
-                    "while i deal",
-                    "on the felt",
-                    "play a round",
-                    "care to play",
-                    "cards + sit",
-                    "cards + join",
-                    "cards + deal you"
-                  ],
-                  "paired": [
-                    "a hand",
-                    "want in",
-                    "join us"
-                  ],
-                  "game": "twenty_one"
-                }
-              }
-            ]
-          },
-          "roots": [
-            "card_table",
-            "twenty_one"
+            "false_vampires"
           ]
         }
       ],
       "thresholds": [
         {
-          "when": "The visitor is up about 30 gp, or wins two hands running.",
-          "then": "The gang grumbles; the fresco-side player leans in and the dealer cheats harder.",
-          "trigger": {"any": [{"net_at_least": {"procedure": "twenty_one", "gp": 30}}, {"wins_running": {"procedure": "twenty_one", "count": 2}}]},
-          "shift": {"actors": ["uktarl", "bandit_b"], "by": -1},
-          "roots": [
-            "bandit_b",
-            "uktarl"
-          ]
-        },
-        {
-          "when": "The visitor exposes the cheat publicly, takes the pot by force, or keeps winning after being caught reading the backs (two more wins, or 30 gp up since).",
-          "then": "Violence becomes likely: the dealer and the fresco-side player turn ugly and reach for leverage or blades; the room's retreat rules apply if it comes to blows.",
-          "trigger": {"any": [{"exposed": "twenty_one"}, {"since_noticed": {"procedure": "twenty_one", "check": "dealer_sees_reading", "wins": 2, "net_gp": 30}}]},
-          "shift": {"actors": ["uktarl", "bandit_b"], "to": "hostile"},
-          "roots": [
-            "uktarl",
-            "bandit_b",
-            "marked_deck"
-          ]
-        },
-        {
-          "when": "The visitor goes broke at the table.",
-          "then": "They show the visitor the passage; the toll still stands.",
-          "trigger": {"broke": "twenty_one"},
-          "roots": [
-            "passage_toll"
-          ]
-        },
-        {
-          "when": "The visitor refuses the toll.",
-          "then": "The table closes ranks; if they cannot extort or beat the visitor, they try to turn them against the Xanathar goblinoids.",
-          "trigger": {"toll_refused": "passage_toll"},
-          "shift": {"actors": ["uktarl", "bandit_a", "bandit_b", "doppelganger"], "by": -1},
-          "roots": [
-            "passage_toll"
-          ]
-        },
-        {
           "when": "Uktarl takes damage or sees an underling slaughtered.",
           "then": "He retreats toward area 7; the others flee toward area 8.",
-          "trigger": {"actor_damaged": "uktarl"},
+          "trigger": {
+            "actor_damaged": "uktarl"
+          },
           "roots": [
             "uktarl"
           ]
@@ -790,38 +1342,76 @@
           "the count of the table coins or what the ring is worth"
         ],
         "subjects": {
-          "actor:uktarl": ["dealer", "uktarl", "pale man"],
-          "actor:bandit_a": ["door-side", "near the door", "by the door"],
-          "actor:bandit_b": ["fresco-side", "beside the fresco", "by the fresco"],
-          "actor:doppelganger": ["fourth", "quiet one"],
-          "fresco": ["fresco", "carving", "carved", "mountain", "wall"],
-          "tub": ["tub"],
-          "card_table": ["table", "game", "cards", "playing", "deck"]
+          "actor:uktarl": [
+            "dealer",
+            "uktarl",
+            "pale man"
+          ],
+          "actor:bandit_a": [
+            "door-side",
+            "near the door",
+            "by the door"
+          ],
+          "actor:bandit_b": [
+            "fresco-side",
+            "beside the fresco",
+            "by the fresco"
+          ],
+          "actor:doppelganger": [
+            "fourth",
+            "quiet one"
+          ],
+          "fresco": [
+            "fresco",
+            "carving",
+            "carved",
+            "mountain",
+            "wall"
+          ],
+          "tub": [
+            "tub"
+          ],
+          "card_table": [
+            "table",
+            "game",
+            "cards",
+            "playing",
+            "deck"
+          ]
         },
         "items": [
           {
             "id": "candle_soot",
             "kind": "sense",
             "text": "Candle soot sits in the grooves of the sunrise rays.",
-            "roots": ["fresco"]
+            "roots": [
+              "fresco"
+            ]
           },
           {
             "id": "cold_copper",
             "kind": "sense",
             "text": "The table smells of cold copper and candle tallow.",
-            "roots": ["treasure_on_table"]
+            "roots": [
+              "treasure_on_table"
+            ]
           },
           {
             "id": "worn_felt",
             "kind": "material",
             "text": "The table's felt is worn to the grain where the dealer's wrists rest.",
-            "roots": ["card_table"]
+            "roots": [
+              "card_table"
+            ]
           },
           {
             "id": "costume_pride",
             "kind": "mood",
             "text": "The four sit close, elbows in, the way people do who have shared a table for a long time.",
-            "roots": ["card_table", "actor:uktarl"]
+            "roots": [
+              "card_table",
+              "actor:uktarl"
+            ]
           }
         ],
         "decks": {
@@ -830,8 +1420,15 @@
               "id": "three_dragon_ante",
               "entry": "Three-Dragon Ante: each player antes a dragon card, the strongest ante sets the stakes, and three rounds of flights decide who takes them",
               "basis": "published: Three-Dragon Ante, a Forgotten Realms card game",
-              "roots": ["card_table", "treasure_on_table"],
-              "tags": ["familiar", "watchable_cheat", "gives_player_a_handle"],
+              "roots": [
+                "card_table",
+                "treasure_on_table"
+              ],
+              "tags": [
+                "familiar",
+                "watchable_cheat",
+                "gives_player_a_handle"
+              ],
               "handle": "ask about the game",
               "procedure": null
             },
@@ -839,8 +1436,14 @@
               "id": "holdem_graves",
               "entry": "Texas hold 'em, which this table calls \"Graves\"",
               "basis": "real: Texas hold 'em",
-              "roots": ["card_table", "treasure_on_table"],
-              "tags": ["familiar", "grave_humor"],
+              "roots": [
+                "card_table",
+                "treasure_on_table"
+              ],
+              "tags": [
+                "familiar",
+                "grave_humor"
+              ],
               "handle": "ask about the game",
               "procedure": null
             },
@@ -848,17 +1451,30 @@
               "id": "blackjack_coffins",
               "entry": "Blackjack, called \"Twenty-One Coffins\" here",
               "basis": "real: blackjack",
-              "roots": ["card_table", "actor:uktarl"],
-              "tags": ["familiar", "watchable_cheat", "grave_humor"],
+              "roots": [
+                "card_table",
+                "actor:uktarl"
+              ],
+              "tags": [
+                "familiar",
+                "watchable_cheat",
+                "grave_humor"
+              ],
               "handle": "sit in for a hand, settle a round with one check, or watch how the dealer plays his own cards",
-              "procedure": "twenty_one"
+              "procedure": null
             },
             {
               "id": "last_widow",
               "entry": "A round of \"Last Widow\", the old-maid game",
               "basis": "real: Old Maid",
-              "roots": ["card_table", "treasure_on_table"],
-              "tags": ["familiar", "grave_humor"],
+              "roots": [
+                "card_table",
+                "treasure_on_table"
+              ],
+              "tags": [
+                "familiar",
+                "grave_humor"
+              ],
               "handle": "ask who is winning",
               "procedure": null
             }
@@ -868,8 +1484,12 @@
               "id": "soot_sunrise",
               "entry": "The sunrise rays are cut so deep that candle soot has settled black in every groove",
               "basis": "palette: the fresco's sunlight rays",
-              "roots": ["fresco"],
-              "tags": ["tactile"],
+              "roots": [
+                "fresco"
+              ],
+              "tags": [
+                "tactile"
+              ],
               "handle": "run a finger down a ray",
               "procedure": null
             },
@@ -877,8 +1497,13 @@
               "id": "singing_dwarves",
               "entry": "The tiny dwarves are cut mid-song, mouths open, beards braided into the rock seams",
               "basis": "palette: the fresco's dwarven figures",
-              "roots": ["fresco"],
-              "tags": ["specific_number", "tactile"],
+              "roots": [
+                "fresco"
+              ],
+              "tags": [
+                "specific_number",
+                "tactile"
+              ],
               "handle": "count them, or hum along",
               "procedure": null
             },
@@ -886,8 +1511,13 @@
               "id": "tally_scratch",
               "entry": "A tally of twelve scratches runs under the mountain's foot, each crossed through",
               "basis": "palette: the fresco's lower edge",
-              "roots": ["fresco"],
-              "tags": ["specific_number", "gives_player_a_handle"],
+              "roots": [
+                "fresco"
+              ],
+              "tags": [
+                "specific_number",
+                "gives_player_a_handle"
+              ],
               "handle": "ask what the tally counts",
               "procedure": null
             }
@@ -897,8 +1527,12 @@
               "id": "tallow_copper",
               "entry": "Candle tallow and cold copper from the coin stacks",
               "basis": "palette: the coins and candles on the table",
-              "roots": ["treasure_on_table"],
-              "tags": ["tactile"],
+              "roots": [
+                "treasure_on_table"
+              ],
+              "tags": [
+                "tactile"
+              ],
               "handle": "lean closer to the table",
               "procedure": null
             },
@@ -906,8 +1540,13 @@
               "id": "clove_smoke",
               "entry": "Cloves and orange peel smoldering in the brazier under the table, a card-room habit against the chill",
               "basis": "palette: the brazier under the table",
-              "roots": ["card_table"],
-              "tags": ["grave_humor", "owner_with_a_want"],
+              "roots": [
+                "card_table"
+              ],
+              "tags": [
+                "grave_humor",
+                "owner_with_a_want"
+              ],
               "handle": "warm your hands at the brazier, or ask for a clove",
               "procedure": null
             },
@@ -915,8 +1554,12 @@
               "id": "damp_stone",
               "entry": "Cold stone and lamp oil, the smell of an old bathhouse long since dry",
               "basis": "palette: the stone tub",
-              "roots": ["tub"],
-              "tags": ["tactile"],
+              "roots": [
+                "tub"
+              ],
+              "tags": [
+                "tactile"
+              ],
               "handle": "look at the recess in the floor",
               "procedure": null
             }

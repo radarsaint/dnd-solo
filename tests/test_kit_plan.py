@@ -180,7 +180,7 @@ class VoiceSlotTests(unittest.TestCase):
         self.folder({'voice.md': 'word ' * (size // 5)})
         self.assertIsNone(state_context.load_voice()[1])
         worst = unittest.defaultTestLoader.loadTestsFromName(
-            'test_kit_hardening.ContextBudgetTests.test_a_long_card_game_with_a_full_detail_ledger_fits')
+            'test_kit_hardening.ContextBudgetTests.test_a_detail_turn_after_a_long_game_fits_both_budgets')
         self.assertTrue(unittest.TextTestRunner(stream=open(os.devnull, 'w')).run(worst).wasSuccessful())
 
 

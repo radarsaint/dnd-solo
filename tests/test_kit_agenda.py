@@ -10,7 +10,7 @@ import unittest
 import unittest.mock
 from pathlib import Path
 
-from runtime import kit_agenda, kit_agent, kit_cards, kit_detail, pc_sheet
+from runtime import kit_agenda, kit_agent, kit_detail, pc_sheet
 from runtime.kit_agent import RoomAdjudicator, room_intent
 from runtime.state_context import InvalidChange, Runtime
 from test_kit_agent import FIXTURE, RecordingModel
@@ -241,18 +241,6 @@ class RoutingTests(unittest.TestCase):
         self.assertTrue(kit_detail.asks_for_detail('Whats the game?'))
         self.assertEqual(room_intent('I look around the room.'), 'observe')
         self.assertEqual(room_intent('What else is in here?'), 'observe')
-
-    def test_looking_away_backgrounds_a_live_card_procedure(self):
-        config = SIXC['procedures'][next(k for k, v in SIXC['procedures'].items()
-                                        if isinstance(v, dict) and v.get('kind') == 'card_game')]
-        body = kit_cards.initial_state(config)
-        key = next(k for k, v in SIXC['procedures'].items() if isinstance(v, dict) and v.get('kind') == 'card_game')
-        live = {'area': 'area_06c', 'roll_seed': 'x', 'known_facts': [], 'actors': SIXC['actors'],
-                'procedures': {key: body}}
-        result = RoomAdjudicator(source=SIXC).resolve('I look around the rest of the room.', 1, live)
-        self.assertEqual(result.kind, 'observe')
-        self.assertFalse(any(e['type'] == 'procedure_state' for e in result.events))
-
 
 class BridgeAgendaTests(unittest.TestCase):
     def setUp(self):

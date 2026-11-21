@@ -61,7 +61,6 @@ class ChainOfRooms(unittest.TestCase):
         self.assertEqual(last['stage'], 'resolution')
         archived = state['rooms']['dotmm-level-01-area-06c-testbed-v1']['state']
         self.assertIn('tub_stash', archived['known_facts'])
-        self.assertEqual(archived['procedures']['twenty_one']['public']['player']['net'], -10)
 
     def test_nothing_from_the_room_left_crosses_into_the_next(self):
         state = self.runtime.load()[1]
@@ -83,7 +82,7 @@ class ChainOfRooms(unittest.TestCase):
     def test_hp_gold_and_what_was_taken_carry_over(self):
         sheet = self.runtime.load()[1]['player_sheet']
         self.assertEqual(sheet['hp'], 32 - 14)       # the fourth player's two hits in 6c
-        self.assertEqual(sheet['gold_gp'], 805 - 10)  # the hand lost at the 6c table
+        self.assertEqual(sheet['gold_gp'], 805)  # no card table any more: the gold is untouched
         carried = self.runtime.load()[1]['carried']
         self.assertEqual([c['from'] for c in carried], ['dotmm-level-01-area-06c-testbed-v1'])
 
@@ -220,7 +219,6 @@ class Mounting(unittest.TestCase):
 
     def test_a_room_without_a_card_game_loads_no_card_machinery(self):
         runtime, _ = self.start(WATCH, area='watchroom')
-        self.assertIsNone(kit_agent.card_procedure(runtime.source(), runtime.load()[1]))
         revision, state = runtime.load()
         try:
             result = RoomAdjudicator(roll=lambda: 10, source=runtime.source()).resolve("I'll play a hand.", revision, state)
@@ -239,9 +237,9 @@ class Mounting(unittest.TestCase):
             (self.broken({'id': 'x', 'starting_area': 'a', 'areas': {'a': {'name': 'A'}}, 'exits': {}, 'facts': {}, 'actors': {},
                           'puzzles': {}}), "unsupported block 'puzzles'"),
             (self.broken({'id': 'x', 'starting_area': 'a', 'areas': {'a': {'name': 'A'}}, 'exits': {}, 'facts': {}, 'actors': {},
-                          'procedures': {'dice': {'kind': 'dice_game'}}}), "unsupported kind 'dice_game'"),
+                          'procedures': {'dice': {'kind': 'dice_game'}}}), "unsupported block 'procedures'"),
             (self.broken({'id': 'x', 'starting_area': 'a', 'areas': {'a': {'name': 'A'}}, 'exits': {}, 'facts': {}, 'actors': {},
-                          'procedures': {'p': {'kind': 'card_game', 'game': 'poker'}}}), "unsupported card game 'poker'"),
+                          'tolls': {'t': {'amount': 10}}}), "unsupported block 'tolls'"),
         ]
         for block in ('exits', 'facts', 'actors'):  # a list where an object belongs
             for value in ([], [{'areas': ['a', 'a']}]):

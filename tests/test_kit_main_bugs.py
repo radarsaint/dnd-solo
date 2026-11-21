@@ -4,7 +4,11 @@ import json
 import unittest
 import unittest.mock
 
+from pathlib import Path
+
 from runtime import kit_agent, kit_rooms
+
+ROOM_6C_FIXTURE = Path(__file__).resolve().parent / "fixtures" / "level_01_area_06c.json"
 from runtime.kit_agent import KitChatBridge, PendingRuling, RoomAdjudicator
 from runtime.state_context import InvalidChange, Runtime, encode
 from test_kit_watchroom_stalls import Stalls
@@ -242,7 +246,7 @@ class StartReloadsAnEditedRoom(unittest.TestCase):
         from pathlib import Path
         with tempfile.TemporaryDirectory() as tmp:
             room = Path(tmp) / 'room.json'
-            room.write_text(Path(kit_agent.DEFAULT_ROOM).read_text(encoding='utf-8'), encoding='utf-8')
+            room.write_text(Path(ROOM_6C_FIXTURE).read_text(encoding='utf-8'), encoding='utf-8')
             db = str(Path(tmp) / 'g.sqlite')
             kit_agent.start_session(db, room=str(room))
             with self.assertRaisesRegex(InvalidChange, 'new --db'):  # unchanged: still refused

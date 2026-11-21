@@ -46,7 +46,6 @@ from . import _lazy
 from . import state_context
 from . import kit_attitude
 from . import kit_brief
-from . import kit_cards
 from . import kit_reactions
 from . import kit_save
 kit_combat = _lazy.module('.kit_combat', __package__)  # lazy: only combat, attacks and spells need it
@@ -70,8 +69,6 @@ from . import kit_prices
 from . import kit_campaign
 from . import kit_rooms
 from . import kit_texture
-kit_toll = _lazy.module('.kit_toll', __package__)
-kit_twenty_one = _lazy.module('.kit_twenty_one', __package__)
 from . import kit_guards
 from . import kit_interstitial
 from . import kit_voice
@@ -86,7 +83,6 @@ from .state_context import HELD_KINDS as _HELD_KINDS
 
 # Regression fixture. Not the player-facing default. The CLI mounts it only with
 # --room and --regression. Python callers that pass this path are engineering tests.
-DEFAULT_ROOM = PROJECT_ROOT / 'tests/fixtures/level_01_area_06c.json'
 
 
 class EngineInterstitial(Exception):
@@ -355,11 +351,6 @@ OBSERVE = _lazy.regex(r"\b(look|looks|looking|glance|scan|survey|take in|gaze|pe
 GROUP_READ = _lazy.regex(r"\bsomething(?:'s| is)? (?:off|wrong|strange|weird|not right)\b|\bwhat'?s off\b"
                         r"|\b(?:study|studying|size up|sizing up|read|reading|scrutini[sz]e)\s+(?:them|the (?:four|table|"
                         r"players|group|gamblers|lot of them))\b|\bsize them up\b", re.I)
-# Asking to play the room's game (call 7: "I play the game." is a complete declaration).
-PLAY_REQUEST = _lazy.regex(r"\b(?:i(?:'ll| will)? play|let'?s play|join (?:the|your|you|in)|sit in|deal me in|"
-                          r"count me in|buy in|buy-in|i'?m in|play (?:a|the|one|your) (?:game|hand|round)|"
-                          r"play cards|play blackjack|play twenty[- ]one|just roll for it|dealt in|be dealt|"
-                          r"deal (?:me|us|her|him|myself) in|deal(?:s|ing)? in|take (?:the|a|an) (?:empty |open |free )?(?:chair|seat) at the table)\b")
 # Rolls a player makes in conversation, and what each outcome means for the NPC addressed.
 SOCIAL_CHECK_SKILLS = ('deception', 'persuasion', 'intimidation', 'performance', 'athletics')
 SOCIAL_OUTCOMES = {
@@ -369,8 +360,6 @@ SOCIAL_OUTCOMES = {
     'performance': ('{who} is taken in by the act.', '{who} is not taken in.'),
     'athletics': ('You overpower {who}.', '{who} holds firm against you.'),
 }
-# A bet named in speech or narration ("'I'll bet fifty gold.'") is asking to play.
-SPOKEN_BET = _lazy.regex(r"\b(?:bet|bets|betting|wager|stake)\b[^.?!]{0,20}\b(?:\d{1,4}|[a-z]+(?:-[a-z]+)?)\s+(?:gp|gold)\b")
 # Words inside quotation marks are speech; a threat or a noun spoken aloud is not a physical act.
 # Double or single quotes (the 6c baseline's V7: 'Ten gold just to walk through a room?'
 # inside single quotes was read as walking out the door). Apostrophes in words never open one.
@@ -1145,36 +1134,6 @@ def detect_magic_auras(source, area):
     return auras
 
 
-def card_procedure(source, state):
-    """(id, config, state) of the declared card-game procedure in this room, or None. A canon
-    entry Kit recorded with a runnable card-game procedure (a named house game,
-    procedure twenty_one) declares that table too: it starts from its initial state."""
-    for key, body in (state.get('procedures') or {}).items():
-        config = (source or {}).get('procedures', {}).get(key) or {}
-        if config.get('kind') == 'card_game':
-            return key, config, body
-    for entry in (state.get('canon') or {}).values():
-        key = entry.get('procedure')
-        config = (source or {}).get('procedures', {}).get(key) or {} if key else {}
-        if config.get('kind') == 'card_game' and entry.get('area', state.get('area')) == state.get('area'):
-            return key, config, kit_cards.initial_state(config)
-    return None
-
-
-def combine(first, second):
-    """One resolution for a message with two intents, in order: a card kind names it (the
-    table's checks and longer event bound), else the first's; both public results; both
-    event lists."""
-    if second is None:
-        return first
-    kinds = [first.kind, second.kind]
-    kind = next((k for k in kinds if str(k).startswith('card_')), None) or \
-        next((k for k in kinds if str(k).startswith(LONG_EVENT_KINDS)), first.kind)
-    public = f'{first.public_event} {second.public_event}'.strip()
-    require(len(public) <= CARD_EVENT_MAX_CHARS, 'Combined result exceeds the event bound')
-    return Resolution(kind, public, list(first.events) + list(second.events))
-
-
 def _clean_sentence(text):
     """One whole, player-facing sentence: capitalised, at least four words, ends a sentence."""
     text = ' '.join(str(text or '').split())
@@ -1253,7 +1212,7 @@ class RoomAdjudicator:
     def _resolve_open(self, action, revision, state, addressed, choice):
         try:
             try:
-                result = self._also_bet(self._resolve(action, revision, state, addressed), action, revision, state)
+                result = self._resolve(action, revision, state, addressed)
             except RollNeeded as needed:
                 result = self._call_roll(needed, action, revision, state)
         except PendingRuling as exc:
@@ -1296,10 +1255,6 @@ class RoomAdjudicator:
             rest = [e for e in result.events if e.get('type') != 'move']
             result = dataclasses.replace(result, kind=kind, public_event=f'{result.public_event} {public}'.strip(),
                                          events=rest + list(events) + moves)
-        if (self.source or {}).get('tolls'):
-            extra = self._toll_unstuck(result, state)
-            if extra:
-                result = dataclasses.replace(result, events=list(result.events) + extra)
         if (self.source or {}).get('attitudes') and not is_ooc(action):
             # Behind the screen: an NPC may notice what the PC is doing (runtime/kit_attitude.py).
             hidden = kit_attitude.check_events(self.source, state, action, revision,
@@ -2118,7 +2073,7 @@ class RoomAdjudicator:
             modifier, passive = self._pc_numbers(skill, state, action)
         except PendingRuling:
             return None
-        supplied = kit_cards.supplied_roll(action, modifier, skill) \
+        supplied = kit_rolls.supplied_roll(action, modifier, skill) \
             if kit_rolls.stated_skill(action) == skill else None
         if not supplied:
             return passive
@@ -2161,13 +2116,7 @@ class RoomAdjudicator:
             if physical:
                 # One message, several intents: an act that starts no fight still carries the
                 # card call made with it ("I wipe his cheek. Hit me.").
-                return self._also_card(physical, action, narration, revision, state)
-        # A toll on the table is a real exchange (call 6): paying, haggling, refusing, and
-        # steering back to the game each commit, spoken or not.
-        if not is_ooc(action):
-            toll = self._resolve_toll(action, revision, state)
-            if toll:
-                return toll
+                return physical
         if not is_ooc(action) and CHECK_REQUEST.search(narration):
             return self._check_request(action, narration, state)
         called = self._resolve_called(action, revision, state)
@@ -2175,39 +2124,17 @@ class RoomAdjudicator:
             return called
         target = kit_claims.roll_target(action, self.source)
         if target and not spoken:
-            return self._also_card(self._resolve_knowledge(action, revision, state, *target),
-                                   action, narration, revision, state)
+            return self._resolve_knowledge(action, revision, state, *target)
         # An Insight read on whether someone is lying is the lie rule, whatever it is about.
         if not spoken and kit_claims.is_lie_read(narration):
-            return self._also_card(self._resolve_lie_read(action, narration, revision, state),
-                                   action, narration, revision, state)
-        table, card_kind = self._card_call(action, narration, state)
-        if card_kind == 'card_accuse' and kit_attitude.quiet(narration) and \
-                kit_rolls.stated_skill(action) in SOCIAL_CHECK_SKILLS:
-            # A quiet word with a stated roll is a private accusation: a social check on the
-            # accused, not the table's public call (live 6c: a quiet word and a failed Intimidation).
-            return self._resolve_social_check(kit_rolls.stated_skill(action), action, narration, revision,
-                                              state, private=True)
+            return self._resolve_lie_read(action, narration, revision, state)
         kind = room_intent(action, addressed, room_words(self.source, state))
-        # Combat and stealth keep their rulings at the card table: "I raise my crossbow" is
-        # not a raise, and sneaking out "while they check their hands" is not a check.
-        # A sleight at the table ("unseen") stays a card swap.
-        # Looking around the room is about something else: the table procedure recedes
-        # (state kept, no forced choice) unless the player is watching the table itself.
-        overrides = kind in ('combat', 'observe', 'spell') and card_kind != 'card_watch' or \
-            (kind == 'stealth' and card_kind != 'card_swap')
-        if card_kind and not overrides:
-            card = self._resolve_card(card_kind, action, revision, state, table)
-            # A bet and a stated read in one message: both resolve (the read of the cards or
-            # the people the roll names), the card call first.
-            return combine(card, self._stated_read(action, narration, revision, state, kind, card_kind))
         # A roll the player makes in conversation counts (6c baseline item 3): Deception,
         # Persuasion, Intimidation, Performance, or Athletics against the NPC's flat number;
         # Insight reads whoever spoke (the lie rule) or the group's hidden claim.
         stated = kit_rolls.stated_skill(action)
         if stated in SOCIAL_CHECK_SKILLS and kind not in ('combat', 'stealth', 'exit', 'spell'):
-            return self._also_card(self._resolve_social_check(stated, action, narration, revision, state),
-                                   action, narration, revision, state)
+            return self._resolve_social_check(stated, action, narration, revision, state)
         if stated == 'insight' and spoken and kind not in ('combat', 'stealth', 'exit', 'spell'):
             who = self._lie_read_target(narration, state)
             if who and any(r.get('by') == who for r in (state.get('claims') or {}).get('said') or []):
@@ -2430,70 +2357,6 @@ class RoomAdjudicator:
 
     # -- physical acts and fights (runtime/kit_combat.py) -----------------------------
     # -- one message, several intents ----------------------------------------------
-    def _card_call(self, action, narration, state):
-        """(table, card kind) for this message: the running table, or the room's offered game
-        when the words declare it (call 7: "I play", a bet, the game's name, a spoken "Deal.").
-        A game in the room never starts on its own."""
-        table = card_procedure(self.source, state)
-        if table is None and not is_ooc(action) and ((PLAY_REQUEST.search(narration.casefold()) and
-                                                      '?' not in narration) or
-                                                     SPOKEN_BET.search(kit_rolls.without_rolls(action)) or
-                                                     kit_twenty_one.SPOKEN_DEAL.search(action.translate(_TYPOGRAPHIC)) or
-                                                     self._game_called(action)):
-            table = self._declared_table(state)
-        return table, (kit_cards.card_intent(action, table[2]) if table else None)
-
-    def _game_called(self, action):
-        declared = self._declared_table({})
-        return bool(declared and kit_cards.game_called(declared[1], kit_rolls.without_rolls(action)))
-
-    def _also_bet(self, result, action, revision, state):
-        """``result`` plus a new stake for the next hand named in the same message, when the
-        ruling was not a card call itself (a read, a check, talk) and started no fight. Seated
-        at a table, "Twenty gold on the next hand. Insight 14 on the dealer." keeps the bet
-        (6c backlog a: it was dropped) and says so."""
-        if str(result.kind).startswith(('card_', 'combat_')) or is_ooc(action):
-            return result
-        table = card_procedure(self.source, state)
-        if not table or not kit_cards.next_bet(action, table[2]):
-            return result
-        try:
-            return combine(result, self._resolve_card('card_bet', action, revision, state, table))
-        except PendingRuling:
-            return result
-
-    def _also_card(self, result, action, narration, revision, state):
-        """``result`` plus the card call made in the same message, when there is one and the
-        first ruling started no fight. The card call resolves on the same pre-turn state."""
-        if result is None or str(result.kind).startswith(('combat_', 'card_')) \
-                or is_ooc(action):
-            return result
-        table, card_kind = self._card_call(action, narration, state)
-        if not card_kind or card_kind in ('card_watch', 'card_leave', 'card_accuse'):
-            return result
-        try:
-            card = self._resolve_card(card_kind, action, revision, state, table)
-        except PendingRuling:
-            return result
-        return combine(result, card)
-
-    def _stated_read(self, action, narration, revision, state, kind, card_kind):
-        """A stated observation or Insight roll at a hidden claim, made in the same message as
-        a card call, or None. Watching the deal is the card call's own read."""
-        stated = kit_rolls.stated_skill(action)
-        if kind in ('combat', 'stealth', 'exit', 'spell') or stated is None or \
-                (card_kind == 'card_watch' and stated == 'perception'):
-            return None
-        check = kit_claims.check_target(narration, self.source, state)
-        if check is None and kit_rolls.stated_skill(action) == 'insight':
-            check = self._group_claim(state)
-        if check is None:
-            return None
-        try:
-            return self._resolve_check(action, revision, state, *check)
-        except PendingRuling:
-            return None
-
     def _fight(self, action, revision, state):
         return kit_combat.Fight(self.source, state, revision, action,
                                 check=lambda skill, dc, label: self._check(skill, dc, state, revision,
@@ -2628,10 +2491,6 @@ class RoomAdjudicator:
         owed = (current.get('awaiting') or {}).get('kind') in ('roll_call', 'kit_call')
         if not act and not (fighting and (kit_rolls.initiative(action) is not None or owed)):
             return None
-        if act and act['kind'] == 'grab' and act.get('wrist'):
-            table = card_procedure(self.source, state)
-            if table and kit_cards.card_intent(action, table[2]) == 'card_accuse':
-                return None  # catching the dealer's wrist mid-deal is the accusation itself
         fight = self._fight(action, revision, state)
         before = copy.deepcopy(state.get('combat'))
         public, events = fight.resolve(act)
@@ -2649,7 +2508,7 @@ class RoomAdjudicator:
         """The player's own stated d20 (an Avrae total is worked back with ``modifier``, so
         the bonus is never added twice), else the host's pinned die (tests, replays). With
         neither, nothing is rolled: players roll in Avrae, so the check is called (RollNeeded)."""
-        supplied = kit_cards.supplied_roll(action, modifier, skill)
+        supplied = kit_rolls.supplied_roll(action, modifier, skill)
         if supplied:
             return supplied[0]
         if self.roll:
@@ -2694,7 +2553,7 @@ class RoomAdjudicator:
             modifier, passive = pc_sheet.skill_bonus(sheet, skill), pc_sheet.passive(sheet, skill)
         else:
             modifier = passive = None
-        supplied = kit_cards.supplied_roll(action, modifier, skill)
+        supplied = kit_rolls.supplied_roll(action, modifier, skill)
         if supplied and supplied[1] is not None:
             modifier = supplied[1]
             passive = passive if passive is not None else 10 + modifier
@@ -3118,7 +2977,7 @@ class RoomAdjudicator:
             best = result['total']
             if result.get('auto'):
                 modifier, _ = self._pc_numbers(skill, state, action)
-                supplied = kit_cards.supplied_roll(action, modifier, skill)
+                supplied = kit_rolls.supplied_roll(action, modifier, skill)
                 if supplied:
                     best = max(best, supplied[0] + (supplied[1] if supplied[1] is not None else modifier))
             details = kit_claims.perception_details(claim, best - dc)
@@ -3214,7 +3073,7 @@ class RoomAdjudicator:
         modifier, _ = self._pc_numbers('stealth', state, action)
         standing = state.get('standing_check') or {}
         against = f'vs best passive Perception {dc} ({", ".join(f"{k} {v}" for k, v in watchers.items())})'
-        if standing.get('skill') == 'stealth' and not kit_cards.supplied_roll(action, modifier, 'stealth'):
+        if standing.get('skill') == 'stealth' and not kit_rolls.supplied_roll(action, modifier, 'stealth'):
             change = self._stealth_change(standing, watchers, dc, narration, state)
             if change:
                 raise RollNeeded('stealth', best, change)
@@ -3379,7 +3238,7 @@ class RoomAdjudicator:
         skill = claim['pc_check']
         sheet = state.get('player_sheet')
         modifier = pc_sheet.skill_bonus(sheet, skill) if sheet else None
-        supplied = kit_cards.supplied_roll(action, modifier, skill)
+        supplied = kit_rolls.supplied_roll(action, modifier, skill)
         require(sheet is not None or supplied, f'Load a character sheet or state the {skill} roll '
                 '(e.g. "History 19"). No turn was committed.')
         if supplied:
@@ -3402,16 +3261,6 @@ class RoomAdjudicator:
         return Resolution('knowledge', 'Nothing you know places it.',
                           [{'type': 'beat', 'tags': ['knowledge'], 'evidence': evidence}])
 
-    def _card_dcs(self, config, state):
-        """One number per secret: watching the deal uses the same DC as the hidden claim
-        the cheat reveals (claim_dc), so looking is never harder than not looking."""
-        fact = config['cheat'].get('reveals_fact')
-        for claim in kit_claims.compile_claims(self.source or {}).values():
-            if fact and claim.get('fact') == fact:
-                level = kit_claims.current_floor_level(self.source, state.get('area'))
-                return {'watch': kit_claims.claim_dc(claim, state.get('actors', {}), level)}
-        return {}
-
     def _group_claim(self, state):
         """The unlearned hidden Insight claim about the people here, when exactly one exists."""
         learned = set((state.get('claims') or {}).get('learned') or ())
@@ -3424,181 +3273,7 @@ class RoomAdjudicator:
                 found.append((key, claim))
         return found[0] if len(found) == 1 else None
 
-    def _declared_table(self, state):
-        """(id, config, initial state) of the room's offered table game, or None."""
-        for key in kit_cards.offered(self.source):
-            config = self.source['procedures'][key]
-            if config.get('kind') == 'card_game':
-                return key, config, kit_cards.initial_state(config)
-        return None
-
-    def _card_engine(self, key, config, state):
-        skills = {'perception', 'insight', 'sleight_of_hand', 'deception'} | {(config.get('check') or {}).get('skill') or 'insight'}
-        sheet = pc_sheet.sheet_now(state)  # seated at cards: hands on the cards
-        modifiers = {skill: self.skill_modifier(skill, state) for skill in skills}
-        passives = {skill: (pc_sheet.passive(sheet, skill) if getattr(self, skill, None) is None and sheet else
-                            (10 + modifiers[skill] if modifiers[skill] is not None else None))
-                    for skill in skills}
-        return kit_cards.engine_for(key, config, modifiers, state['roll_seed'], passives=passives,
-                                    dcs=self._card_dcs(config, state))
-
-    def skill_modifier(self, skill, state):
-        """Host override, else the currently loaded sheet; never cache a PC's stats."""
-        override = getattr(self, skill, None)
-        if override is not None:
-            return override
-        sheet = state.get('player_sheet')
-        return pc_sheet.skill_bonus(sheet, skill) if sheet else None
-
-    def _resolve_card(self, kind, action, revision, state, table, lead='', extra_events=()):
-        """One card-table action through the declared procedure (runtime/kit_cards.py,
-        runtime/kit_twenty_one.py). Numbers stay in the ledger evidence, never the event."""
-        key, config, body = table
-        require('roll_seed' in state, 'This session predates stable checks; start a fresh test database.')
-        engine = self._card_engine(key, config, state)
-        try:
-            public, new_state, reveals = engine.resolve(kind, action, revision, body)
-        except kit_cards.NeedsRuling as exc:
-            raise PendingRuling(str(exc), attempt=exc.attempt) from exc
-        public = f'{lead} {public}'.strip()
-        require(len(public) <= CARD_EVENT_MAX_CHARS, 'Card result exceeds the event bound')
-        numbers = '; '.join(engine.trace)
-        events = [{'type': 'procedure_state', 'procedure': key, 'state': new_state,
-                   'evidence': f'Player declared: {action[:300]}. {config["name"]}: {kind}.'
-                               + (f' Numbers: {numbers}.' if numbers else '')}]
-        events += [{'type': 'reveal_fact', 'fact': fact,
-                    'evidence': f'Seen during play of {config["name"]}: {public[:200]}'
-                                + (f' Numbers: {numbers}.' if numbers else '')}
-                   for fact in reveals if fact not in state['known_facts']]
-        events += list(extra_events)
-        if getattr(engine, 'toll_outcome', None):
-            # A toll staked this same action (extra_events) is the one that rode on the round.
-            staked = {event['toll']: event['state'] for event in extra_events if event.get('type') == 'toll_state'}
-            events += self._toll_settled(key, engine.toll_outcome, new_state, state, staked)
-        events.append({'type': 'beat', 'tags': [kind],
-                       'evidence': f'Player declared: {action}. Resolution: {public}'
-                                   + (f' Numbers: {numbers}.' if numbers else '')})
-        return Resolution(kind, public, events)
-
     # -- the toll: a real exchange (call 6) ------------------------------------------
-    def _resolve_toll(self, action, revision, state):
-        if not (self.source or {}).get('tolls'):
-            return None
-        for key, (toll, body) in kit_toll.here(self.source, state).items():
-            kind = kit_toll.intent(action, body)
-            if not kind:
-                continue
-            label = actor_speakers(self.source).get(toll['demanded_by'], toll['demanded_by'])
-            if kind in ('toll_play_for', 'toll_defer'):
-                return self._toll_to_game(kind, key, toll, body, action, revision, state)
-            actor = state['actors'][toll['demanded_by']]
-            engine = kit_toll.TollTable(
-                key, toll, label, lambda skill: self._pc_numbers(skill, state, action),
-                kit_claims.npc_passive(actor, toll['haggle']['npc_skill']),
-                lambda skill=None: self._die(state, revision, f'toll:{key}', action,
-                                             self._pc_numbers(skill, state, action)[0] if skill else None, skill))
-            text, new_body = engine.resolve(kind, action, body)
-            numbers = '; '.join(engine.trace)
-            evidence = f'Player declared: {action[:300]}. Toll {key}: {kind}.' + (f' Numbers: {numbers}.' if numbers else '')
-            return Resolution(kind, text, [kit_toll.event(key, new_body, evidence),
-                                           {'type': 'beat', 'tags': [kind], 'evidence': evidence}])
-        return None
-
-    def _toll_to_game(self, kind, key, toll, body, action, revision, state):
-        """Steering a toll back to the game: it rides on the next round only if the running
-        (or offered) game can pay it out; otherwise it stays pending and comes back."""
-        table = card_procedure(self.source, state) or self._declared_table(state)
-        new_body = dict(body, status=body['status'] if body['status'] != 'not_raised' else 'demanded')
-        carry = bool(table and kit_cards.can_carry(table[1], 'toll') and
-                     table[0] in toll.get('stakeable_in', [table[0]]) and
-                     not kit_cards.is_live(table[2]['public']))
-        amount = body.get('agreed') or body['asked']
-        if carry and table[0] in (state.get('procedures') or {}) and \
-                kit_cards.game_of(table[1]) == 'twenty_one' and \
-                not kit_twenty_one.can_cover(table[2]['public'], amount):
-            carry = False  # the same cap as any bet: the purse they brought, the table's most
-            short = True
-        else:
-            short = False
-        if kind == 'toll_play_for' and carry:
-            new_body['status'] = 'staked'
-            new_body['restore'] = body['status'] if body['status'] in kit_toll.OPEN else 'demanded'
-            game = copy.deepcopy(table[2])
-            game['public']['toll_stake'] = amount
-            event = kit_toll.event(key, new_body, f'Player declared: {action[:300]}. The toll rides on the next round.')
-            lead = (f'The toll rides on the next round: win and it is waived, lose and the {amount} '
-                    f'{toll["unit"]} is paid from the stake.')
-            card_kind = 'card_round' if game['public'].get('mode') else 'card_offer'
-            return self._resolve_card(card_kind, action, revision, state, (table[0], table[1], game),
-                                      lead=lead, extra_events=[event])
-        new_body['status'] = 'deferred'
-        why = ('you cannot cover it from what you brought to the table' if short and kind == 'toll_play_for'
-               else 'the game cannot carry it' if kind == 'toll_play_for' else 'the talk turned to the game')
-        event = kit_toll.event(key, new_body, f'Player declared: {action[:300]}. Toll deferred: {why}; it stays '
-                                              'pending and comes back.')
-        card_kind = kit_cards.card_intent(action, table[2]) if table and not short else None
-        if card_kind:
-            return self._resolve_card(card_kind, action, revision, state, table, extra_events=[event])
-        text = ('You cannot cover the toll from what you brought to the table; it stays owed.' if short and
-                kind == 'toll_play_for' else 'The toll stays on the table, unpaid, while the talk turns to the game.')
-        return Resolution('toll_defer', text, [event, {'type': 'beat', 'tags': ['toll_defer'],
-                                                       'evidence': event['evidence']}])
-
-    def _toll_unstuck(self, result, state):
-        """A staked toll must ride on a round the player can still play. When nothing will
-        carry it any more (they left the table or the room, the table will not deal to them,
-        or the game dropped the stake because they cannot cover it), it goes back to the
-        status it had before it was staked: owed again, never stranded."""
-        events = []
-        moved = any(event.get('type') == 'move' for event in result.events)
-        games = dict(state.get('procedures') or {})
-        tolls = {}
-        for event in result.events:
-            if event.get('type') == 'procedure_state':
-                games[event['procedure']] = event['state']
-            elif event.get('type') == 'toll_state':
-                tolls[event['toll']] = event['state']
-        for key, toll in kit_toll.compile_tolls(self.source).items():
-            body = tolls.get(key) or ((state.get('tolls') or {}).get(key))
-            if not body or body.get('status') != 'staked':
-                continue
-            riding = False
-            for procedure in toll.get('stakeable_in') or list(games):
-                public = (games.get(procedure) or {}).get('public') or {}
-                player = public.get('player')
-                if public.get('toll_stake') and player is not None and not player.get('unwelcome'):
-                    riding = True
-            if riding and not moved:
-                continue
-            restored = dict(body, status=body.get('restore') or 'demanded')
-            restored.pop('restore', None)
-            events.append(kit_toll.event(key, restored, 'The staked toll no longer rides on a round the player '
-                                         f'can play; it is {restored["status"]} again.'))
-            for procedure in toll.get('stakeable_in') or list(games):
-                game = games.get(procedure)
-                if game and (game.get('public') or {}).get('toll_stake'):
-                    cleared = copy.deepcopy(game)
-                    cleared['public']['toll_stake'] = None
-                    events.append({'type': 'procedure_state', 'procedure': procedure, 'state': cleared,
-                                   'evidence': f'The toll stake on {procedure} is cleared; the toll is owed again.'})
-        return events
-
-    def _toll_settled(self, procedure, outcome, new_state, state, staked=None):
-        events = []
-        if outcome not in ('won', 'lost'):
-            return events  # 'unstaked': _toll_unstuck puts it back to owed
-        for key, (toll, body) in kit_toll.here(self.source, state).items():
-            body = (staked or {}).get(key) or body
-            if body['status'] != 'staked' or procedure not in toll.get('stakeable_in', [procedure]):
-                continue
-            stake = (new_state['public'].get('last_result') or {}).get('stake') or body['asked']
-            new_body = dict(body, status='waived' if outcome == 'won' else 'paid',
-                            paid=0 if outcome == 'won' else stake, rode_on=procedure)
-            new_body.pop('restore', None)
-            events.append(kit_toll.event(key, new_body, f'The toll rode on a round of {procedure}: {outcome}.'))
-        return events
-
-
 # Appraisal labels: Kit's own feeling, or one she reads in an NPC (target npc). Common
 # emotions in any room, not one room's moods (watchroom playtest: "anger" was refused);
 # a near synonym is normalized to its label rather than rejected.
@@ -3780,17 +3455,13 @@ is_npc_speaker = kit_guards.is_npc
 def actor_speakers(source):
     """Room adapter, built from the room source: actor id -> public speaker label.
 
-    An actor's own ``speaker`` field wins; else a running procedure's ``labels`` (the card
-    table names its seats); else the actor's public ``name``. Each NPC has their own label
-    and card (approach-range playtest: one shared label made them interchangeable)."""
+    An actor's own ``speaker`` field wins; else the actor's public ``name``. Each NPC has
+    their own label and card (approach-range playtest: one shared label made them
+    interchangeable)."""
     source = source or {}
-    labels = {}
-    for config in (source.get('procedures') or {}).values():
-        if isinstance(config, dict):
-            labels.update(config.get('labels') or {})
     out = {}
     for key, actor in (source.get('actors') or {}).items():
-        out[key] = actor.get('speaker') or labels.get(key) or actor.get('name') or key
+        out[key] = actor.get('speaker') or actor.get('name') or key
     return out
 
 
@@ -4575,10 +4246,6 @@ class OpenAIResponsesModel:
         return speech
 
 
-def supported_procedures(source):
-    return kit_cards.offered(source)
-
-
 class DecisionProblems:
     """Collects every problem in one decision so the host fixes them in one correction (a fresh
     host's opening took seven attempts when each rejection named one). Each ``part`` is one
@@ -4809,7 +4476,7 @@ def check_plan(plan, episodes, public_event, action_kind=None, candidates=None, 
     with part():
         if not table_talk:
             kit_detail.check_detail(plan['detail'], player_action, action_kind, source, state,
-                                    supported_procedures(source), established=established,
+                                    (), established=established,
                                     owners=[key for key in candidates['actor_bases'] if key != 'none'],
                                     oracle=oracle)
     with part():
@@ -5340,14 +5007,12 @@ def check_speech(speech, plan, public_view, player_action, action_kind=None, gua
         hard(require, not any(is_npc_speaker(segment['speaker']) for segment in segments),
              'Table talk is the player talking to Kit; no NPC hears or answers it')
     running = declared_procedures(guards.get('declared_procedures', ()), plan)
-    configs = guards.get('procedure_configs') or {}
-    game_terms = kit_cards.rule_terms([configs.get(key, {}) for key in running]) if running else ()
+    game_terms = ()
     hard(check_claimed_numbers, segments, plan, guards, player_action, game_terms)
     # HARD: numbers stay in the ledger; no bonus reminders unless asked (call 4).
     hard(kit_guards.check_public_numbers, segments, rules_question=bool(is_ooc(player_action or '') or
                                                                         RULES_NOUNS.search(player_action or '')))
-    # HARD: the toll is an NPC's demand and a real exchange (call 6); no refreshment here (call 3).
-    hard(kit_guards.check_toll_exchange, segments, guards.get('toll_amount'), guards.get('toll_raised', True))
+    # HARD: no refreshment here (call 3).
     if guards.get('no_refreshment'):
         hard(kit_guards.check_no_refreshment, segments)
     hard(kit_guards.check_clarification_shape, segments, plan)
@@ -5355,10 +5020,6 @@ def check_speech(speech, plan, public_view, player_action, action_kind=None, gua
     hard(check_invented_lead, segments, guards.get('fact_text') or '')
     # HARD: scene fit. Who the player is, what the deal really was, what can be staked.
     hard(kit_guards.check_player_identity, segments, (public_view or {}).get('your_character'))
-    hard(kit_guards.check_clean_deal, segments, guards.get('dealer_cheated', False))
-    hard(kit_guards.check_stake_offers, segments, carriable=guards.get('carriable_stakes', ()))
-    # HARD: card names, held cards, and mark counts match the running table (item 8).
-    hard(check_table_narration, segments, public_view, guards.get('procedure_configs') or {})
     # HARD: Kit reacts to what actually happened this turn; no procedure the runtime
     # cannot carry is stated as settled.
     hard(kit_voice.check_kit_asides, segments, player_action, public_event, action_kind)
@@ -5370,7 +5031,7 @@ def check_speech(speech, plan, public_view, player_action, action_kind=None, gua
             lambda: kit_guards.check_padding(segments, player_action, action_kind, history,
                                              json.dumps((public_view or {}).get('table_procedures') or {},
                                                         ensure_ascii=False),
-                                             kit_cards.card_words() if running else ()),
+                                             ()),
             lambda: kit_guards.check_npc_voices(segments, guards.get('voice_contracts'), history),
             lambda: kit_guards.check_npc_repetition(segments, history),
             lambda: kit_guards.check_kit_tics(segments, history),
@@ -5451,9 +5112,6 @@ def turn_events(runtime, body, plan, turn_id, record=None):
                  'evidence': f"{ASKED_EVENT_PREFIX}{plan['ask_player']['question']}"}]
     events = list(body['events']) + list((body.get('declared') or {}).get('events') or ())
     table_talk = bool(body.get('table_talk'))  # no NPC spoke and no scene time passed
-    if record and not table_talk and runtime.source().get('tolls') and not any(e.get('type') == 'toll_state' for e in events):
-        # An NPC line that names the toll and its amount puts the demand on the table.
-        events += kit_toll.raised_events(runtime.source(), runtime.load()[1], record.get('spoken'), turn_id)
     if 'plan' in plan:
         events.append(kit_plan.plan_event(plan['plan'], turn_id))
     if runtime.source().get('story') and not table_talk:
@@ -5517,51 +5175,9 @@ def turn_events(runtime, body, plan, turn_id, record=None):
     if not detail:
         return events
     events += kit_detail.canon_events(detail, turn_id, body.get('detail_oracle'))
-    _, state = runtime.load()
-    source = runtime.source()
-    running = set(state.get('procedures') or {}) | {event['procedure'] for event in body['events']
-                                                    if event.get('type') == 'procedure_state'}
-    putoff = put_off_reason(plan)
-    for procedure in declared_procedures((), plan):
-        config = source.get('procedures', {}).get(procedure)
-        if config and procedure not in running and config.get('kind') == 'card_game':
-            kit_cards.check_config(config)
-            events.append({'type': 'procedure_state', 'procedure': procedure,
-                           'state': kit_cards.initial_state(config),
-                           'evidence': f'Declared as a table procedure with turn {turn_id}.'
-                                       + (f' NPC put-off move: {putoff}' if putoff and
-                                          not ASKS_ABOUT_GAME.search(body['action']) else '')})
-            running.add(procedure)
     return events
 
 
-# The player's words are about the game (asking to play, or about it): only then may a
-# decision start a table procedure (call 1: a game in the room is never a reason by itself).
-ASKS_ABOUT_GAME = _lazy.regex(r"\b(game|games|play|playing|cards?|deal|dealing|bet|bets|wager|ante|stakes?|gambl\w*|"
-                             r"join|rules|blackjack|twenty[- ]one|poker|hand|round|buy[- ]in|dealt)\b", re.I)
-PUT_OFF = _lazy.regex(r"\b(steer\w*|stall\w*|put (?:\w+ )?off|putting (?:\w+ )?off|distract\w*|divert\w*|"
-                     r"keep (?:\w+ ){0,2}(?:busy|seated|at the table|from)|draw (?:\w+ )?in)\b", re.I)
-
-
-def put_off_reason(plan):
-    """The recorded reason when an NPC agenda move uses the game to steer or stall the PCs."""
-    for item in ((plan or {}).get('agenda') or {}).get('advances') or ():
-        why = f"{item.get('does', '')} {item.get('why', '')}"
-        if PUT_OFF.search(why):
-            return f"{item.get('agent')}: {item.get('why') or item.get('does')}"
-    return None
-
-
-def check_procedure_start(plan, body, state):
-    """HARD (TC-1b): a decision starts a table procedure only when the player's words are
-    about the game, or an NPC agenda move records a reason of steering or stalling them."""
-    running = set((state or {}).get('procedures') or {}) | {event['procedure'] for event in body['events']
-                                                            if event.get('type') == 'procedure_state'}
-    new = [p for p in declared_procedures((), plan) if p not in running]
-    if new and not ASKS_ABOUT_GAME.search(body['action'] or ''):
-        require(put_off_reason(plan), 'A card game in the room is not a reason to start one: start a table '
-                'procedure only when the player asks to play or about the game, or record an NPC agenda '
-                'move whose why is steering or stalling the PCs.')
 
 
 def _named_actors(action, aliases=None):
@@ -5777,8 +5393,6 @@ def check_decision(runtime, plan, memory, body):
         check_brief_public(plan['public_brief'], body['public_view'], body['action'],
                            kit_guards.leak_sets(source), kit_guards.leak_phrases(source))
     with part():
-        check_procedure_start(plan, body, runtime.load()[1])
-    with part():
         check_short_beat(plan, body, runtime.load()[1])
     with part():
         kit_acts.check(plan, body)  # a declared act names only what this turn offered
@@ -5861,7 +5475,6 @@ def prepare_inputs(runtime, revision, state, action, resolution, use_memory, one
             'public_event': resolution.public_event, 'public_view': public_view,
             'use_memory': use_memory,
             'public_history': public_history,
-            'scene_facts': scene_facts(state, resolution.events),
             'player_named': player_named(runtime, action),
             'discernment_candidates': scene_candidates(context['dm_context'], runtime.source(), state,
                                                         post_event_state)}
@@ -6008,9 +5621,6 @@ def prepare_inputs(runtime, revision, state, action, resolution, use_memory, one
         # A due hook takes the entry instead: its NPC holds the floor (the challenge is the decision).
         body['progressive_reveal'] = reveal
         planning_input['reveal'] = {key: reveal[key] for key in ('rule', 'obvious', 'hold', 'pointed')}
-    table = card_procedure(source, post_event_state)
-    if table and not str(resolution.kind).startswith('card_') and resolution.kind != 'opening':
-        planning_input['activities'] = {table[0]: BACKGROUNDED}
     sealed_view = feature_state_view(source, post_event_state)
     if sealed_view:
         planning_input['feature_state'] = sealed_view  # the backstop (#97 review)
@@ -6036,8 +5646,6 @@ def prepare_inputs(runtime, revision, state, action, resolution, use_memory, one
 MEMORY_TRIMMED_NOTE = ("Kit's memory was trimmed to fit the context budget this turn "
                        '(input kit_state.memory_trimmed says what went). The session goes on; a long '
                        'session or a heavy room is the cause.')
-BACKGROUNDED = ('backgrounded: the player is doing something else. Its state is kept. Do not remind them '
-               'of it, prompt a choice in it, or make one for them; it resumes when they act in it again.')
 
 
 def episode_views(episodes, dialogue_history):
@@ -6056,19 +5664,6 @@ def episode_views(episodes, dialogue_history):
             view['spoken'] = f"same as dialogue_history[{shared[view['spoken']]}].spoken"
         views.append(view)
     return views
-
-
-def scene_facts(state, events):
-    """DM-only facts the scene-fit checks need (never shown to the performer): whether
-    the dealer cheated the deal now on the table, after this turn's events."""
-    procedures = {key: body for key, body in (state.get('procedures') or {}).items()}
-    for event in events or ():
-        if event.get('type') == 'procedure_state':
-            procedures[event['procedure']] = event['state']
-    cheated = any(bool((body.get('private') or {}).get('cheated')) and
-                  ((body.get('public') or {}).get('gambit') or (body.get('public') or {}).get('round'))
-                  for body in procedures.values())
-    return {'dealer_cheated': cheated}
 
 
 def detail_oracle(runtime, state, action, action_kind):
@@ -6514,11 +6109,6 @@ def performance_input(runtime, body, plan):
         # Who says what; never the stance or the truth behind it.
         payload['claim_lines'] = cues
     source = runtime.source()
-    for procedure in declared_procedures((), plan):
-        config = source.get('procedures', {}).get(procedure)
-        if config and config.get('kind') == 'card_game':
-            payload.setdefault('new_procedures', {})[procedure] = kit_cards.public_view(
-                config, kit_cards.initial_state(config)['public'])
     callback = plan['public_brief'].get('callback', 'none')
     if callback.strip().casefold() != 'none':
         # Public only: the earlier line the player already saw, so the performer knows
@@ -6561,17 +6151,6 @@ EVENT_AFTER_PERFORMANCE_KINDS = ('exit', FLOURISH_KIND)
 REWIND_REACTIONS = ('chronal_shift', 'silvery_barbs')  # rerolls: time hiccups before the new outcome
 
 
-def check_table_narration(segments, public_view, configs):
-    """Every running twenty-one table: the narration's cards and mark counts match its state."""
-    problems = []
-    text = ' '.join(segment['text'] for segment in segments)
-    for key, public in ((public_view or {}).get('table_procedures') or {}).items():
-        config = configs.get(key) or {}
-        if kit_cards.game_of(config) == 'twenty_one':
-            problems += kit_twenty_one.check_narration(text, public, config)
-    require(not problems, ' '.join(problems))
-
-
 # What the host does with the spine is in docs/PLAY_CARD.md (Moves and open asks); the per-turn
 # packet carries only the read itself, so it stays small.
 
@@ -6599,36 +6178,22 @@ def guard_context(source, body):
     procedures = view.get('table_procedures') or {}
     configs = {key: config for key, config in ((source or {}).get('procedures') or {}).items()
                if not key.startswith('_') and isinstance(config, dict)}
-    # Negotiated toll amounts are backed by toll state, so characters may name them (call 6).
     facts = kit_guards.numeric_facts(source)
-    tolls = kit_toll.compile_tolls(source) if (source or {}).get('tolls') else {}
-    toll_view = view.get('tolls') or {}
-    for key, toll in tolls.items():
-        name = toll.get('numeric_fact')
-        if name in facts and key in toll_view:
-            backed = kit_toll.amounts({key: toll_view[key]})
-            facts[name] = {**facts[name], 'allowed_amounts': sorted(set(facts[name]['allowed_amounts']) | backed)}
     area = _area_id(source, view)
-    here = [toll for key, toll in tolls.items() if toll['area'] == area]
     tease = ((((source or {}).get('areas') or {}).get(area) or {}).get('tease') or {})
     labels = actor_speakers(source)
     heard_only = tuple(labels.get(item.get('actor'), item.get('actor')) for item in tease.get('heard') or ()
                        if item.get('actor') not in (None, '', 'none') and
                        (((source or {}).get('actors') or {}).get(item.get('actor')) or {}).get('location') != area)
-    carriable = ('toll', 'tolls', 'passage') if any(kit_cards.can_carry(configs.get(key), 'toll')
-                                                    for key in procedures) else ()
     return {'leak_sets': kit_guards.leak_sets(source),
             'leak_phrases': {**kit_guards.leak_phrases(source), 'player_said': list(body.get('player_named') or ())},
             'numeric_facts': facts,
-            'procedure_configs': configs, 'carriable_stakes': carriable,
-            'toll_amount': here[0]['amount'] if here else None,
-            'toll_raised': not here or any(key in toll_view for key in tolls),
+            'procedure_configs': configs,
             'no_refreshment': bool(((source or {}).get('areas') or {}).get(_area_id(source, view) or '', {})
                                    .get('no_refreshment')),
             'numeric_claims': {key: claim.get('numeric_fact', key)
                                for key, claim in kit_claims.compile_claims(source).items()},
             'stake_amounts': sorted(stake_amounts(procedures)),
-            'dealer_cheated': bool((body.get('scene_facts') or {}).get('dealer_cheated')),
             'declared_procedures': tuple(procedures),
             'voice_contracts': {name: card.get('voice_contract') or {} for name, card in cards.items()},
             'roll_call_policy': body.get('roll_call_policy') or 'none',

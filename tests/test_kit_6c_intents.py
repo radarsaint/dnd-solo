@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from runtime import kit_agent, kit_guards, kit_toll, kit_twenty_one
+from runtime import kit_agent, kit_guards
 from runtime.kit_agent import RoomAdjudicator
 from runtime.state_context import InvalidChange, Runtime
 from test_kit_voice import HardeningGuardTests, SHOWTIME_SPEECH, VoiceTestCase
@@ -52,81 +52,6 @@ class Room:
         return self.state['procedures']['twenty_one']['public']
 
 
-class TollIntentTests(unittest.TestCase):
-    DEMANDED = {'status': 'demanded', 'asked': 10, 'agreed': None}
-
-    def intent(self, action, **body):
-        return kit_toll.intent(action, {**self.DEMANDED, **body})
-
-    def test_a_payment_made_with_a_weapon_is_a_threat(self):
-        for action in ("Toll? I slam my axe into the table. 'I pay with this. Who wants change?'",
-                       "'Here's your toll,' I say, and draw my sword.",
-                       "I pay you with steel."):
-            with self.subTest(action=action):
-                self.assertEqual(self.intent(action), 'toll_threaten')
-
-    def test_an_appeal_is_never_a_refusal(self):
-        for action in ("'Our kind look after our own. No toll between family, surely?'",
-                       "'Oh, the toll? Harria settled it for me at the well.'",
-                       "Could you waive it, just this once?"):
-            with self.subTest(action=action):
-                self.assertEqual(self.intent(action), 'toll_appeal')
-
-    def test_a_stated_social_roll_on_the_toll_is_the_contest_in_that_skill(self):
-        self.assertEqual(self.intent("'You'd hate for Harria to hear of this.' [Persuasion: 1d20 (9) + 5 = 14]"),
-                         'toll_appeal')
-        self.assertEqual(self.intent("'Move aside.' [Intimidation: I rolled 15 + 4 = 19]"), 'toll_threaten')
-        self.assertEqual(self.intent("'I'll give you three.' [Persuasion: 11]"), 'toll_haggle')
-
-    def test_a_greeting_with_kinship_words_is_not_a_bid_on_the_toll(self):
-        self.assertIsNone(kit_toll.intent("I step in. 'Cousins. Others of the blood this close to the surface.'",
-                                          {**self.DEMANDED, 'status': 'not_raised'}))
-
-    def test_a_question_ending_in_a_closing_quote_is_still_a_question(self):
-        self.assertTrue(kit_toll.is_question("'No toll, surely?'"))
-        self.assertNotEqual(self.intent("'Ten gold to pay? For what?' [Insight: 12]"), 'toll_refuse')
-
-    def test_only_steering_to_the_game_defers_the_toll(self):
-        self.assertEqual(self.intent("'I'll bet fifty gold.'"), 'toll_defer')
-        for action in ("Dwarves? I look back at the card players, then I search the little dwarf figures. "
-                       "[Perception: I rolled 13 + 4 = 17]",
-                       "'Please, go on with your game. I'm only admiring the stonework.'",
-                       "I pull up a chair. 'Do you lot play blackjack? I don't know your fancy games.'"):
-            with self.subTest(action=action):
-                self.assertIsNone(self.intent(action))
-
-    def test_plain_payment_and_refusal_still_read(self):
-        self.assertEqual(self.intent('I pay the toll.'), 'toll_pay')
-        self.assertEqual(self.intent("I'm not paying."), 'toll_refuse')
-
-
-class TollPlayTests(unittest.TestCase):
-    def test_a_threat_that_lands_waives_the_toll_and_one_that_fails_is_a_refusal(self):
-        room = Room(self, sheet='nik.json')
-        result = room.act("Toll? I slam my staff on the table. 'I pay with this.' [Intimidation: I rolled 18 + 1 = 19]")
-        self.assertEqual(result.kind, 'toll_threaten')
-        self.assertEqual(room.toll()['status'], 'waived')
-        room = Room(self, sheet='nik.json')
-        result = room.act("Toll? I slam my staff on the table. 'I pay with this.' [Intimidation: I rolled 1 + 1 = 2]")
-        self.assertEqual(room.toll()['status'], 'refused')
-        self.assertIn('does not land', result.public_event)
-        self.assertNotIn('2', result.public_event, 'no totals in public text')
-
-    def test_an_appeal_uses_the_deception_the_player_rolled(self):
-        room = Room(self, sheet='nik.json')
-        result = room.act("'Our kind look after our own. No toll between family, surely?' [Deception: 1d20 (17) + 1 = 18]")
-        self.assertEqual(result.kind, 'toll_appeal')
-        self.assertEqual(room.toll()['status'], 'waived')
-        evidence = json.dumps(result.events)
-        self.assertIn('Deception d20 17 + 1 = 18', evidence)
-
-    def test_stopping_at_the_door_to_question_the_toll_does_not_leave(self):
-        room = Room(self)
-        result = room.act("I stop at the door. 'Ten gold just to walk through a room? For what, exactly?'")
-        self.assertNotEqual(result.kind, 'exit')
-        self.assertEqual(room.state['area'], 'area_06c')
-
-
 class SocialCheckTests(unittest.TestCase):
     def test_avrae_format_counts_and_the_total_is_used(self):
         room = Room(self, toll=False)
@@ -156,137 +81,12 @@ class SocialCheckTests(unittest.TestCase):
         self.assertIn('false_vampires', room.state['known_facts'])
 
 
-class CardRobustnessTests(unittest.TestCase):
-    def test_being_dealt_in_is_joining(self):
-        room = Room(self, toll=False)
-        result = room.act('I take the empty chair and ask the dealer what a lady has to do to be dealt in.')
-        self.assertEqual(result.kind, 'card_offer')
-
-    def test_a_spoken_bet_over_the_table_limit_is_capped_and_said(self):
-        room = Room(self, toll=False)
-        result = room.act("'I'll bet fifty gold.'")
-        self.assertEqual(result.kind, 'card_offer')
-        self.assertEqual(room.game()['pending_bet'], 25)
-        self.assertIn('most this table plays is 25 gp', result.public_event)
-
-    def test_a_bet_over_the_purse_is_capped_at_the_purse(self):
-        room = Room(self, toll=False)
-        room.act('I buy in with 12 gold.')
-        result = room.act('I bet 20 gold.')
-        self.assertIn('all you brought', result.public_event)
-        self.assertEqual(room.game()['pending_bet'], 12)
-
-    def test_number_words_and_a_hit_in_the_same_breath(self):
-        room = Room(self, toll=False)
-        room.act("'I'll bet fifty gold.'")
-        result = room.act("'Fine, twenty, and I'll play it out. Hit.'")
-        self.assertEqual(room.game()['round']['stake'], 20)
-        self.assertIn('You take the', result.public_event)
-        self.assertEqual(len(room.game()['round']['cards']), 3)
-
-    def test_asking_whether_they_play_is_not_choosing_to_play(self):
-        room = Room(self)
-        result = room.act("I pull up a chair. 'Do you lot play blackjack? I don't know your fancy games.'")
-        self.assertEqual(result.kind, 'social')
-        self.assertNotIn('procedures', room.state)
-
-    def test_twenty_one_is_the_game_not_a_bet(self):
-        self.assertIsNone(kit_twenty_one.player_amount("Let's play twenty-one.", loose=True))
-        self.assertEqual(kit_twenty_one.player_amount('Fine, twenty.', loose=True), 20)
-        self.assertEqual(kit_twenty_one.player_amount('I bet twenty-five gold.'), 25)
-        self.assertIsNone(kit_twenty_one.player_amount('I rolled 1 + 0 = 1.', loose=True))
-
-    def test_mid_hand_accusations_and_talk_never_bring_back_the_menu(self):
-        room = Room(self, toll=False)
-        room.act('I bet 10 gold and play it out.')
-        self.assertEqual(room.game()['round']['phase'], 'play')
-        accused = room.act("I grab his wrist mid-deal. 'That one came from the bottom. Turn the deck over.'")
-        self.assertEqual(accused.kind, 'card_accuse')
-        self.assertNotIn('Which way?', accused.public_event)
-
-    def test_just_roll_mid_hand_settles_the_hand_on_a_check(self):
-        room = Room(self, toll=False)
-        room.act('I bet 10 gold and play it out.')
-        result = room.act("'Just roll for this one, I'm tired of counting.'")
-        self.assertEqual(result.kind, 'card_mode_check')
-        self.assertEqual(room.game()['round']['phase'], 'done')
-
-    def test_joining_and_watching_in_one_breath(self):
-        room = Room(self, toll=False)
-        result = room.act("I sit, put down ten gold, and say I'll play. I watch the dealer's hands the whole time.")
-        self.assertEqual(result.kind, 'card_watch')
-        self.assertIsNotNone(room.game()['player'])
-        self.assertTrue(room.game()['watch_next_deal'])
-        self.assertEqual(room.game()['pending_bet'], 10)
-
-
 class AvraeAtTheTableTests(unittest.TestCase):
     """6c rerun blockers (2026-10-03, Avrae's real output): a die face, modifier, or total is
     never a bet or an amount; a check title names the skill; "just roll" honors the skill
     the player chose."""
     INVESTIGATION = 'Wren makes an Investigation check! 1d20 (12) + 3 = `15`'
     SLEIGHT = 'Wren makes a Sleight of Hand check! 1d20 (6) + 7 = `13`'
-
-    def test_no_number_in_avrae_output_is_a_bet_or_an_amount(self):
-        shapes = (self.INVESTIGATION, self.SLEIGHT,
-                  'Wren makes a Sleight of Hand check! 2d20kh1 (13, ~~4~~) + 7 = `20`',
-                  'Wren attacks with a Rapier!\n**To Hit**: 1d20 (12) + 5 = `17`\n'
-                  '**Damage**: 1d8 (5) + 3 [piercing] = `8`',
-                  'Nik casts Fireball!\n**DC**: 15\n**Damage**: 8d6 (4, 3, 5, 2, 6, 1, 4, 3) [fire] = `28`',
-                  '**Initiative**: 1d20 (12) + 2 = `14`', 'I roll 1d20+3.')
-        for shape in shapes:
-            with self.subTest(shape=shape):
-                line = 'I flip the deck over.\n' + shape
-                self.assertIsNone(kit_twenty_one.player_amount(line, loose=True))
-                self.assertIsNone(kit_twenty_one.bet_amount(line, loose=True))
-                self.assertIsNone(kit_toll.offered_amount(line))
-        self.assertEqual(kit_twenty_one.player_amount('I bet 15 gold.\n' + self.SLEIGHT), 15)
-        self.assertEqual(kit_toll.offered_amount("'Five gold, no more.'\n" + self.SLEIGHT), 5)
-
-    def test_v5_marks_with_avrae_investigation_is_the_marks_not_a_bet(self):
-        room = Room(self, toll=False)
-        room.act("I sit, put down ten gold, and say I'll play. I watch the dealer's hands the whole time.\n"
-                 'Wren makes a Perception check! 1d20 (15) + 3 = `18`')
-        self.assertEqual(room.game()['pending_bet'], 10)
-        room.act("I grab his wrist mid-deal. 'That one came from the bottom. Turn the deck over.'")
-        result = room.act('I flip the deck face-down and show everyone the marks on the backs.\n'
-                          + self.INVESTIGATION)
-        self.assertEqual(result.kind, 'check')
-        self.assertIn('marks', result.public_event)
-        self.assertEqual(room.game()['pending_bet'], 10, 'the d20 face (12) is not a bet')
-
-    def test_v8_just_roll_uses_the_stated_sleight_of_hand_and_keeps_the_stake(self):
-        room = Room(self, toll=False)
-        room.act("'I'll bet fifty gold.'")
-        room.act("'Fine, twenty, and I'll play it out. Hit.'")
-        result = room.act("'Just roll for this one, I'm tired of counting.'\n" + self.SLEIGHT)
-        self.assertEqual(result.kind, 'card_mode_check')
-        self.assertIn('20 gp a side, settled on Sleight of Hand', result.public_event)
-        self.assertNotIn('6 gp', result.public_event)
-        self.assertIn('Sleight of Hand d20 6 + 7 = 13', json.dumps(result.events))
-
-    def test_a_fresh_check_round_stake_is_not_the_die_face(self):
-        room = Room(self, toll=False)
-        room.act('I bet 10 gold.')
-        result = room.act('Settle it with one check.\n' + self.SLEIGHT)
-        self.assertIn('10 gp a side', result.public_event)
-
-    def test_the_players_chosen_skill_in_words_settles_the_round(self):
-        for line, name in (("I palm an ace and we settle it with one check.", 'Sleight of Hand'),
-                           ("One check: I read the dealer's face.", 'Insight'),
-                           ("I bluff hard; settle it with one check.", 'Deception'),
-                           ("Settle it with one check.", 'Insight')):
-            with self.subTest(line=line):
-                room = Room(self, toll=False)
-                room.act('I bet 5 gold.')
-                result = room.act(line)
-                self.assertIn(f'settled on {name}.', result.public_event)
-
-    def test_an_irrelevant_stated_skill_does_not_change_the_table_skill(self):
-        room = Room(self, toll=False)
-        room.act('I bet 5 gold.')
-        result = room.act('Settle it with one check.\nWren makes an Athletics check! 1d20 (12) + 3 = `15`')
-        self.assertIn('settled on Insight.', result.public_event)
 
     def test_avrae_check_title_counts_as_the_social_skill(self):
         room = Room(self, toll=False)

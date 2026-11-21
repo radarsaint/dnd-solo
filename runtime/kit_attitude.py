@@ -258,17 +258,6 @@ def _tables(state):
     return out
 
 
-def since_noticed(state, check_id, procedure):
-    """(wins, net gp) the PC has taken at that table since the check noticed them this scene,
-    or None when it has not."""
-    noticed = ((state or {}).get('npc_noticed') or {}).get(check_id)
-    if not noticed or noticed.get('scene') != scene_of(state):
-        return None
-    then = (noticed.get('tables') or {}).get(procedure) or {'net': 0, 'wins': 0}
-    now = _tables(state).get(procedure) or {'net': 0, 'wins': 0}
-    return now['wins'] - then['wins'], now['net'] - then['net']
-
-
 def npc_die(state, revision, label, action):
     material = f"{(state or {}).get('roll_seed', '')}:{revision}:npc:{label}:{(action or '').casefold()}".encode()
     return int.from_bytes(hashlib.sha256(material).digest()[:8], 'big') % 20 + 1
@@ -316,6 +305,3 @@ def check_events(source, state, action, revision, pc_score, roll=None):
                                          'success': success, 'tables': tables}))
     return events
 
-
-def quiet(action):
-    return bool(QUIET.search((action or '').casefold().replace('\u2019', "'")))

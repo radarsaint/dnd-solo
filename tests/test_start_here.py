@@ -49,7 +49,7 @@ class StartHereTests(unittest.TestCase):
             self.assertTrue(covered(target, table), target)
         for voice in state_context.voice_files():
             self.assertTrue(covered(voice, table), voice)
-        for target in (kit_agent.DEFAULT_ROOM, kit_agent.EXAMPLE_SHEET):
+        for target in (kit_agent.EXAMPLE_SHEET,):
             self.assertTrue(covered(target, fixtures), target)
         self.assertTrue(all(p.startswith('tests/') for p in fixtures), fixtures)
 

@@ -15,8 +15,8 @@ docs/architecture/ROOM_LOADER.md is the design. The short version:
   resolution. Stages are read from state, not a rail: a PC may start in, barge into, or
   bypass any of them.
 
-Mechanic blocks are optional and turn on only from what the file declares (procedures,
-tolls, combat, claims, story, attitudes, agenda, texture_palette). No model calls.
+Mechanic blocks are optional and turn on only from what the file declares (combat,
+claims, story, attitudes, agenda, texture_palette). No model calls.
 """
 import copy
 import json
@@ -38,13 +38,12 @@ REQUIRED = ('id', 'starting_area', 'areas', 'exits', 'facts', 'actors')
 KNOWN_BLOCKS = set(REQUIRED) | {
     'resources', 'fixture_only', 'stub', 'source_ref', 'map_ref', 'test_precondition', 'level_context',
     'campaign_context', 'public_performance', 'numeric_facts', 'leak_phrases', 'leak_keywords', 'claims',
-    'room_rules', 'procedures', 'tolls', 'attitudes', 'story', 'texture_palette', 'combat', 'agenda',
+    'room_rules', 'attitudes', 'story', 'texture_palette', 'combat', 'agenda',
     'triggers'}
 # The JSON type of each block (anything not listed is an object). A wrong type is refused at
 # mount, before any engine reads it.
 BLOCK_TYPES = {'id': str, 'starting_area': str, 'source_ref': str, 'map_ref': str, 'test_precondition': str,
                'fixture_only': bool, 'stub': bool, 'room_rules': list, 'triggers': list}
-CARD_GAMES = ('twenty_one', 'three_dragon_ante')
 CARRIED_LIMIT = 24  # things taken out of rooms, kept as text; the oldest go first
 STAGES = ('approach', 'first_look', 'explore', 'resolution')
 
@@ -379,13 +378,6 @@ def _heard_item(item):
 
 def unsupported(source):
     problems = [f'unsupported block {key!r}' for key in source if not key.startswith('_') and key not in KNOWN_BLOCKS]
-    for key, config in (source.get('procedures') or {}).items():
-        if key.startswith('_'):
-            continue
-        if not isinstance(config, dict) or config.get('kind') != 'card_game':
-            problems.append(f'procedure {key}: unsupported kind {(config or {}).get("kind")!r}')
-        elif config.get('game', 'three_dragon_ante') not in CARD_GAMES:
-            problems.append(f'procedure {key}: unsupported card game {config.get("game")!r}')
     return problems
 
 
@@ -393,10 +385,10 @@ def later_stage_problems(source):
     """Every later-stage block, validated without being built: no card engine, no brief, no
     fight is created here. The texture palette is not checked here at all: it is checked per
     area the first time play draws on it (kit_texture.area_palette)."""
-    from . import kit_agenda, kit_attitude, kit_brief, kit_cards, kit_claims, kit_toll, kit_triggers
+    from . import kit_agenda, kit_attitude, kit_brief, kit_claims, kit_triggers
     problems = []
     checks = [('claims', kit_claims.compile_claims), ('attitudes', kit_attitude.compile_attitudes),
-              ('agenda', kit_agenda.compile_agenda), ('tolls', kit_toll.compile_tolls),
+              ('agenda', kit_agenda.compile_agenda),
               ('story', kit_brief.compile_story), ('triggers', kit_triggers.compile_triggers)]
     for block, check in checks:
         if source.get(block):
@@ -422,12 +414,6 @@ def later_stage_problems(source):
                      for key, actor in (source.get('actors') or {}).items()
                      if isinstance(actor, dict) and actor.get('status') == 'hidden'
                      and key not in woken and key not in staged and key not in discoverable]
-    for key, config in (source.get('procedures') or {}).items():
-        if not key.startswith('_') and isinstance(config, dict) and config.get('kind') == 'card_game':
-            try:
-                kit_cards.check_config(config)
-            except (InvalidChange, KeyError, TypeError) as exc:
-                problems.append(f'procedure {key}: {exc}')
     return problems
 
 
@@ -567,11 +553,6 @@ def stage(source, state):
 
 def _room_totals(state):
     gold = 0
-    for body in (state.get('procedures') or {}).values():
-        gold += int((((body or {}).get('public') or {}).get('player') or {}).get('net') or 0)
-    for body in (state.get('tolls') or {}).values():
-        if not body.get('rode_on'):  # a toll lost on a hand is already in that table's net
-            gold -= int(body.get('paid') or 0)
     took = list((state.get('scene') or {}).get('pc_took') or ())
     return {'gold': gold, 'damage': int((state.get('combat') or {}).get('pc_damage') or 0), 'took': len(took)}, took
 
