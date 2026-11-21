@@ -108,7 +108,7 @@ class PrepareCache(unittest.TestCase):
     def test_an_accepted_skim_is_cached_with_the_book(self):
         db, _ = self._prepare('a')
         kit_prep.after_skim(str(db), {'stage': 'skim_accepted'})
-        meta = json.loads((self.cache / kit_prep.book_sha(self.pdf) / 'meta.json').read_text())
+        meta = json.loads((self.cache / kit_prep._entry_name(kit_prep.book_sha(self.pdf)) / 'meta.json').read_text())
         self.assertEqual(meta['stage'], 'skim_accepted')
 
     def test_a_save_not_prepared_through_prepare_is_never_cached(self):

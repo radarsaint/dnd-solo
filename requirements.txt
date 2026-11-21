@@ -1,0 +1,4 @@
+# Optional. Kit runs on the standard library alone; with this installed, adventure PDFs are
+# read by pdfplumber (MIT) for column and box reading order (runtime/kit_readers.py).
+# Without it, Kit falls back to its stdlib reader. Install: python3 -m pip install -r requirements.txt
+pdfplumber>=0.10

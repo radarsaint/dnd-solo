@@ -1976,6 +1976,14 @@ def _section_sources(db, ingested_scope):
         path = None
     if path is None:
         return found
+    # The layout library's reading order first: columns in order, not interleaved.
+    try:
+        from . import kit_readers
+        ordered, _name = kit_readers.read_with_readers(path, max_pages=OPENING_PAGES)
+    except Exception:
+        ordered = None
+    if ordered:
+        found.append(ordered)
     try:
         layout = kit_adventure._pdftotext(path, OPENING_PAGES)
     except Exception:
