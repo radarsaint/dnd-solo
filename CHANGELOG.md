@@ -10,6 +10,12 @@ Versioning rule:
 
 The current version is in `VERSION`.
 
+## v0.16.1
+
+- Codex: preparation caches no longer share mutable JSON with sessions. Only retained content-addressed PDFs may be hard-linked; restoring paths or resetting an opening cannot modify another save or its cached preparation.
+- Preparation cache revision 2 bypasses legacy entries that may already contain shared session edits. Explicit PDF reader requests have separate cache identities; an accepted skim retains its original reader selection when re-cached.
+- Synthetic cache regressions cover writes after caching, restore into a second save, and reader separation. No new source format or design interpretation is claimed by this repair.
+
 ## v0.16.0
 
 - A labelled set of 174 synthetic player lines (`tests/fixtures/moves/labelled_moves.tsv`: look/scan, search, talk, recall, move, use, fight, rest, ask the DM, and the skill each check calls for, with typos, slang and run-ons) and a scorer (`tools/eval_moves.py`). Kit's move reader went from 121/160 (75.6%) to 145/160 (90.6%); its skill picker from 79/92 (85.9%) to 80/92 (87.0%). A test holds the floor.
