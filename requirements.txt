@@ -2,3 +2,8 @@
 # read by pdfplumber (MIT) for column and box reading order (runtime/kit_readers.py).
 # Without it, Kit falls back to its stdlib reader. Install: python3 -m pip install -r requirements.txt
 pdfplumber>=0.10
+# Optional. Typo repair before Kit reads what the player is trying to do (runtime/kit_lexicon.py):
+# pyspellchecker (MIT) knows real English words, rapidfuzz (MIT) measures typo distance. Without them
+# Kit falls back to difflib and repairs only long words one letter off.
+rapidfuzz>=3.0
+pyspellchecker>=0.7

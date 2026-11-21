@@ -1,0 +1,175 @@
+# Check requests ("can I make a check") are move * here: the engine answers them on its check_request path.
+# Synthetic labelled player moves (v0.16.0). No book text or names. move<TAB>skill (- = none)<TAB>player line
+look	perception	I look for anyone hiding
+look	perception	I scan the treeline for archers
+look	perception	i keep my eyes peeled for anything moving
+look	perception	I listen at the door
+look	perception	Anyone watching us from the ridge? I look around
+look	perception	I peer into the dark to see if something's there
+look	perception	scanning the brush for movement
+look	perception	I check the rooftops for lookouts
+look	perception	I keep watch while the others sleep... actually no, I just watch the road
+look	perception	i look arround for any ambush
+look	perception	I scna the thickets for anyone watching.
+look	perception	Do I notice anything weird about the hallway?
+look	perception	I glance up at the ceiling looking for anything lurking
+look	perception	I put my ear to the wall and listen for voices
+look	perception	I watch the crowd for pickpockets
+look	perception	lookin out for trouble as we walk
+look	perception	I stop and listen. Is anything coming?
+look	perception	I try to spot the sniper
+look	perception	keeping an eye out for guards
+look	perception	I survey the valley below
+look	-	I look at the statue
+look	-	What does the room look like?
+look	-	I check out the mural on the wall
+look	-	I take a closer look at the old map on the table
+look	-	whats on the shelves
+look	-	I look out the window
+look	investigation	I search the chest
+look	investigation	I search the body for anything useful
+look	investigation	I rummage through the desk drawers
+look	investigation	I go through his pockets
+look	investigation	I examine the lock for scratches
+look	investigation	I inspect the footprints to figure out how many there were
+look	investigation	I serch the room for a hidden lever
+look	investigation	I look for clues about who was here
+look	investigation	i pat down the corpse
+look	investigation	I check the crate for false bottoms
+look	investigation	I study the handout and try to work out the code
+look	investigation	I search the wagon
+look	investigation	Is there a secret door in this wall? I tap along it and check
+look	investigation	I examine the bodys
+look	investigation	I investigate the broken cart
+talk	-	"Who goes there?"
+talk	-	I ask the innkeeper about rooms for the night
+talk	-	I tell the guard we're just passing through
+talk	-	I greet the old woman
+talk	-	"Hey! Over here!"
+talk	-	I talk to the blacksmith
+talk	-	i aks the kid where his parents are
+talk	-	I whisper to my companion that we should leave
+talk	-	I call out to whoever is in the cave
+talk	-	I say hello to the merchant and ask what he's selling
+talk	-	I chat with the barkeep about the weather
+talk	-	I speak with the captain
+talk	insight	Is he lying?
+talk	insight	I try to read her face, is she hiding something
+talk	insight	Do I trust this guy? What's his angle?
+talk	insight	I want to know if he's telling the truth
+talk	insight	does the merchant seem sketchy to me
+talk	persuasion	I try to convince the guard to let us in
+talk	persuasion	I negotiate a better price
+talk	persuasion	I persuade the mayor to send help
+talk	persuasion	I try to talk them into helping us out
+talk	persuasion	I beg the priestess for aid, appealing to her kindness
+talk	deception	I lie to the guard and say we're merchants
+talk	deception	I bluff that the captain sent us
+talk	deception	I pretend to be a tax collector
+talk	deception	I tell him I'm his long lost cousin (I'm not)
+talk	intimidation	I threaten the thug until he talks
+talk	intimidation	I slam my fist on the table and glare at him
+talk	intimidation	I try to scare the kid into telling us
+talk	intimidation	I intimidate the bandit
+recall	history	What do I know about the old war?
+recall	history	Do I remember anything about this town's history?
+recall	history	What do I know about goblins raiding this road?
+recall	history	have i heard any legends about this castle
+recall	history	Do I recognize the crest on his shield?
+recall	religion	What do I know about undead?
+recall	religion	Do I recognise the holy symbol?
+recall	religion	what do i know about this temple's god
+recall	religion	Does my character know anything about the cult?
+recall	arcana	What do I know about this kind of magic?
+recall	arcana	Do I recognize the spell he cast?
+recall	arcana	do i know what this wand does
+recall	arcana	What do I know about the planes?
+recall	nature	What do I know about these plants?
+recall	nature	Do I know if this mushroom is poisonous to eat?
+recall	nature	what do i know about the weather in these mountains
+recall	nature	Do I know what kind of beast made these marks?
+move	-	I go through the door
+move	-	I head north along the road
+move	-	We walk to the village
+move	-	I enter the cave
+move	-	I leave the tavern
+move	-	I follow the trail into the woods
+move	-	I climb down into the pit
+move	-	I go back to the inn
+move	-	Lets head to the temple
+move	-	I walk up to the gate
+move	-	I approach the wagon slowly
+move	-	I back away from the edge
+move	-	im gonna go downstairs
+move	-	We travel to the next town
+move	-	I run to the bridge
+move	stealth	I hide behind the crates
+move	stealth	I sneak past the guards
+move	stealth	I creep along the wall trying not to be seen
+move	stealth	I try to stay out of sight and slip by
+move	stealth	sneakin up on the camp
+move	athletics	I climb the cliff
+move	athletics	I jump across the gap
+move	athletics	I swim across the river
+move	acrobatics	I balance along the narrow beam
+move	acrobatics	I tumble past the guard
+use	-	I drink a healing potion
+use	-	I light a torch
+use	-	I open the door
+use	-	I unlock the chest with the key
+use	-	I read the scroll
+use	-	I put on the ring
+use	-	I toss a stone into the left thicket.
+use	-	I throw a coin into the well
+use	-	I knock on the door
+use	-	I kick the stool over
+use	-	I pour the oil on the floor
+use	-	I use my rope to tie up the prisoner
+use	-	I cast light on my staff
+use	-	I poke the pile of bones with my staff
+use	-	I drop a pebble down the shaft
+*	athletics	I try to break down the door
+*	athletics	I force the gate open
+use	-	I pick the lock
+*	sleight_of_hand	I pickpocket the noble
+*	sleight_of_hand	I palm the gem while nobody's looking
+use	medicine	I bandage the wounded guard
+look	medicine	I check how he died
+*	animal_handling	I calm the horse
+*	animal_handling	I try to soothe the snarling dog
+*	survival	I track the goblins
+*	survival	I follow the tracks
+*	survival	I try to find water
+*	survival	Which way is the road from here?
+fight	-	I attack the goblin
+fight	-	I stab the bandit with my dagger
+fight	-	I shoot an arrow at the wolf
+fight	-	I swing at the skeleton
+fight	-	I cast fire bolt at the zombie
+fight	-	I hit him with my mace
+fight	-	I punch the drunk
+fight	-	I charge the orc and slash at it
+fight	-	I fire at the archer on the wall
+fight	-	i atack the guy closest to me
+fight	-	I strike the cultist
+fight	-	I smack the rat with my staff
+rest	-	We take a short rest
+rest	-	Let's make camp for the night
+rest	-	I want to take a long rest
+rest	-	We sleep here for the night
+rest	-	we set up camp and rest
+rest	-	Can we rest for an hour?
+ask_dm	-	Can I use my bonus action to hide?
+ask_dm	-	How does grappling work?
+ask_dm	-	What's the rule on cover?
+ask_dm	-	Do I need to roll for that?
+ask_dm	-	(ooc) how far can I move this turn?
+ask_dm	-	Does that provoke an opportunity attack?
+ask_dm	-	Shouldn't that be an Insight check?
+*	-	can I make a check
+*	-	Can I roll for it?
+*	-	what kind of check is that
+ask_dm	-	Kit, how many spell slots do I have left?
+ask_dm	-	Do I have advantage on this?
+ask_dm	-	How far can I jump?
+ask_dm	-	Wait, am I still hidden?

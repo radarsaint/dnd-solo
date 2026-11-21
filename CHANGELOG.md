@@ -10,6 +10,13 @@ Versioning rule:
 
 The current version is in `VERSION`.
 
+## v0.16.0
+
+- A labelled set of 174 synthetic player lines (`tests/fixtures/moves/labelled_moves.tsv`: look/scan, search, talk, recall, move, use, fight, rest, ask the DM, and the skill each check calls for, with typos, slang and run-ons) and a scorer (`tools/eval_moves.py`). Kit's move reader went from 121/160 (75.6%) to 145/160 (90.6%); its skill picker from 79/92 (85.9%) to 80/92 (87.0%). A test holds the floor.
+- Typo repair in front of the move and skill readers (`runtime/kit_lexicon.py`): pyspellchecker (MIT) tells a real word from a typo and rapidfuzz (MIT) finds the nearest word Kit reads, so "i atack the guy" is a fight and "i aks the kid" is talk. A real word, a capitalized name, or a short unknown word ("orc") is never changed, and only the reader sees the repair; the player's words are stored as typed. Both libraries are optional (requirements.txt); without them Kit uses difflib and repairs only long words one letter off.
+- Fixes the set exposed, using the skill rows Kit already has rather than new word lists: a line that calls for Insight, Persuasion, Deception or Intimidation is talk (was look: 11/30 talk lines right, now 25/30); one that calls for Athletics, Acrobatics or Stealth is a move; a line that would hurt someone ("I hit him with my mace") is a fight; "Wait, am I still hidden?" and "Shouldn't that be an Insight check?" ask the DM. A bare check request ("Can I make a check?") stays on the engine's check_request path, which already asks which kind.
+- The 8-line scripted host pass gives the same lines as v0.15.0.
+
 ## v0.15.0
 
 - Proven data over hand typing: Kit now ships the whole SRD 5.1 monster list (329 creatures with an attack) as `runtime/data/srd_5_1_monsters.json`, numbers only, converted by `tools/build_srd_monsters.py` from 5e-bits/5e-database (MIT; SRD 5.1 is CC-BY-4.0). Before this, Kit knew 11 hand-typed creatures, so a module creature with no stat block in the book itself (a wolf, a hobgoblin, a zombie, a dragon) was never cast as a combatant and its fight could not run. In the test book, 6 of 115 locations gain combatants they were missing; nothing already found changes.
