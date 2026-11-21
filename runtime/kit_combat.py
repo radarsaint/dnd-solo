@@ -455,26 +455,6 @@ def cast_level(text):
     return int(value) if value.isdigit() else _ORDINAL_WORDS[value.casefold()]
 
 
-def split_clause(action, names):
-    """(the clause naming the reaction, the rest of the message)."""
-    found = None
-    for n in names:
-        found = re.search(r'\b' + re.escape(n) + r'\b', action, re.I)
-        if found:
-            break
-    if not found:
-        return action, ''
-    # An Avrae aside ('(Avrae: !cast absorb elements -l 2)') and its '!' belong to the clause.
-    masked = re.sub(r'\([^)]*\)', lambda m: '_' * len(m.group(0)), action)
-    masked = re.sub(r'!(?=\w)', '_', masked)
-    start = 0
-    for m in _CLAUSE_OPEN.finditer(masked, 0, found.start()):
-        start = m.end()
-    close = _CLAUSE_CLOSE.search(masked, found.end())
-    end = close.end() if close else len(action)
-    return action[start:end], (action[:start] + ' ' + action[end:]).strip(' ,;')
-
-
 def late_reaction(text, source, state, here):
     """'I Uncanny Dodge that hit', 'Hellish Rebuke on the imp': a reaction the last foes' turns
     made legal without a prompt, named by the player."""

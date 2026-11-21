@@ -24,7 +24,7 @@ import hashlib
 import json
 import re
 
-from .state_context import InvalidChange, encode, require
+from .state_context import InvalidChange, encode
 
 SESSION_KEYS = ('performance_variant', 'instructions', 'schema', 'performance_limits', 'host_retry')
 SESSION_PRIVATE_KEYS = ('personality_core', 'available_reactions')

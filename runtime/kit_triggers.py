@@ -33,7 +33,7 @@ import hashlib
 import re
 
 from . import kit_rolls
-from .state_context import InvalidChange, require, reveal_actor, unperceived
+from .state_context import require, reveal_actor, unperceived
 
 KINDS = ('disturb', 'enter')
 FEATURE_KINDS = ('move_feature', 'inspect_feature', 'enter_feature')
@@ -217,19 +217,6 @@ def handles_offer(source, state, action, area=None, kind=None):
             info['held'] if guess['word'] in info['held_words'] else None)
         offer['hint'] = {'target': part or feature, 'act': guess['act']}
     return offer
-
-
-def named_feature(source, state, action, area=None):
-    """The watched feature the words name (for routing an engine feature read), else None."""
-    from .kit_agent import QUOTED_SPEECH
-    text = QUOTED_SPEECH.sub(' ', action or '').casefold()
-    best = None
-    for feature, info in disturb_targets(source, state, area).items():
-        for word in info['words']:
-            found = re.search(r'\b' + re.escape(word) + r's?\b', text)
-            if found and (best is None or found.start() < best[0]):
-                best = (found.start(), feature)
-    return best[1] if best else None
 
 
 def arrived(source, state, result):

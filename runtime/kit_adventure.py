@@ -835,27 +835,6 @@ def _stat_blocks(text, page_of):
     return found
 
 
-ENCOUNTER_RE = re.compile(r"^[A-Z][A-Za-z'’-]+(?: [A-Z][A-Za-z'’-]+){1,5}$")
-
-
-def _encounter_heading(line):
-    """A short title-case heading that is not an area number and not a chapter."""
-    if not line or LOCATION_RE.match(line) or CHAPTER_RE.match(line) or _toc_line(line):
-        return False
-    return bool(ENCOUNTER_RE.match(line))
-
-
-def _read_aloud_follows(text, at):
-    """True when a boxed read-aloud line comes before the next heading."""
-    for line in text[at:at + 1500].split('\n')[:18]:
-        stripped = line.strip()
-        if not stripped:
-            continue
-        if stripped.startswith('>'):
-            return True
-        if CHAPTER_RE.match(stripped) or LOCATION_RE.match(stripped) or ENCOUNTER_RE.match(stripped):
-            return False
-    return False
 
 
 def _opening_start(chapters, locations):
@@ -1912,12 +1891,6 @@ def _actor_problems(room, fields, flat, index, text, loc):
     return problems
 
 
-def _words_from(body, quote):
-    """A paraphrase may only reuse the quote's own words (no new nouns or numbers)."""
-    words = lambda s: set(re.findall(r"[a-z0-9']+", s.casefold()))  # noqa: E731
-    return words(body) <= words(quote)
-
-
 def _canon_key(key, locations):
     text = str(key)
     if text in locations:
@@ -2060,11 +2033,6 @@ def retained_pdf_source(db):
     if digest.hexdigest() != sha:
         raise IngestError(['retained adventure PDF checksum does not match'])
     return path
-
-
-def _first_pages(text, count):
-    parts = (text or '').split('\f')
-    return '\f'.join(parts[:int(count)])
 
 
 def read_opening(path, reader='auto'):

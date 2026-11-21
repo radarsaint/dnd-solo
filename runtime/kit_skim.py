@@ -525,16 +525,6 @@ def request_for(db):
     }
 
 
-def _title_of(item):
-    if not isinstance(item, dict):
-        return None
-    title = item.get('title') if isinstance(item.get('title'), str) else item.get('name')
-    if not isinstance(title, str):
-        return None
-    title = normalize(title)
-    return title or None
-
-
 def _sentences(text):
     """Split on sentence punctuation that is not inside quotation marks."""
     norm = normalize(text)
@@ -700,23 +690,6 @@ def column_streams(page_text):
     return streams
 
 
-def _word_spans(text):
-    """(normalized text, [(word, start, end), ...]) after apostrophes are straightened."""
-    norm = normalize(text)
-    spans = [(match.group(0).casefold(), match.start(), match.end())
-             for match in re.finditer(r"[A-Za-z0-9']+", norm)]
-    return norm, spans
-
-
-def _locate(norm, spans, start_i, end_i):
-    """Character slice of a word run, extended through its closing punctuation."""
-    begin = spans[start_i][1]
-    cut = spans[end_i][2]
-    while cut < len(norm) and norm[cut] in '.!?"\')]}':
-        cut += 1
-    return norm[begin:cut].strip(), begin, cut
-
-
 def _ordered_span(words, want):
     """(first, last) index when want's words occur in order, gaps allowed. None otherwise."""
     pos = 0
@@ -782,81 +755,6 @@ def find_quote(page_text, quote):
         if ordered is None or (ordered[1] != 'ordered' and how == 'ordered'):
             ordered = (normalize(quote), how)
     return ordered
-
-
-def _fiction_after(window, title):
-    """Boxed player sentences under a heading. Unmarked prose is not a start."""
-    want = _match_tokens(title)
-    if not want:
-        return ''
-    lines = []
-    for stream in _reading_orders(window):
-        lines.append(stream.split('\n'))
-    lines.append((window or '').split('\n'))
-    for stream_lines in lines:
-        started = False
-        kept = []
-        for line in stream_lines:
-            stripped = line.strip()
-            if not stripped:
-                continue
-            if not started:
-                if _ordered_flex(_match_tokens(stripped), want):
-                    started = True
-                continue
-            if _heading_line(stripped):
-                break
-            if not stripped.startswith('>'):
-                continue
-            for sentence in _sentences(stripped.lstrip('>').strip()):
-                from .kit_opening import player_line
-                if not player_line(sentence):
-                    continue
-                kept.append(sentence)
-                if len(kept) >= 2:
-                    return ' '.join(kept)
-        if kept:
-            return ' '.join(kept)
-    return ''
-
-
-def _harvest_starts(window):
-    """Early titles that open onto a safe sentence, when the host's list did not."""
-    found = []
-    seen = set()
-    page = 1
-    title = None
-    for raw in re.split(r'(\f)', window or ''):
-        if raw == '\f':
-            page += 1
-            title = None
-            continue
-        for line in raw.split('\n'):
-            stripped = line.strip()
-            if not stripped:
-                continue
-            if _LATER.match(stripped.lstrip('>').strip()):
-                title = None
-                continue
-            if _heading_line(stripped):
-                title = stripped.lstrip('>').strip()
-                if _bad_title(title) or _after_keyed(window, title):
-                    title = None
-                continue
-            if not title or title.casefold() in seen or not stripped.startswith('>'):
-                continue
-            piece = stripped.lstrip('>').strip()
-            for sentence in _sentences(piece):
-                from .kit_opening import player_line
-                if not player_line(sentence):
-                    continue
-                found.append({'title': title, 'page': page, 'quote': sentence})
-                seen.add(title.casefold())
-                title = None
-                break
-            if len(found) >= PICK_MAX:
-                return found
-    return found
 
 
 def _filter_alts(db, end_page=None):
@@ -957,23 +855,6 @@ def _bad_title(title):
     return bool(_META.search(text) or _NOT_A_START.search(text) or re.search(r'\blevel\b', text, re.I))
 
 
-def _after_keyed(window, title):
-    """True when this title is a numbered room, or sits after one."""
-    want = (title or '').strip().lower()
-    if not want:
-        return False
-    seen_keyed = False
-    for line in (window or '').split('\n'):
-        stripped = line.strip()
-        if _LATER.match(stripped):
-            seen_keyed = True
-            if want in stripped.lower():
-                return True
-        elif seen_keyed and want in stripped.lower() and _heading_line(stripped):
-            return True
-    return False
-
-
 def _unread(rest, burst):
     """Sentences the opening has not already spoken."""
     kept = []
@@ -1037,11 +918,6 @@ def _safe_box(text):
     return len(_words(cleaned)) >= 6
 
 
-def _player_sentences(text):
-    """Sentences a player can hear. A DM note in the same span is dropped."""
-    return [sentence for sentence in _sentences(text) if sentence and not _go_fail(sentence)]
-
-
 def _read_on(text, limit):
     """(chunk, rest, stopped). The first line that fails the gate ends the read.
 
@@ -1060,18 +936,6 @@ def _read_on(text, limit):
         usable.append(sentence)
     chunk, rest_list = _quote_safe_chunk(usable, limit)
     return chunk, ' '.join(rest_list).strip(), False
-
-
-def _take(text, limit):
-    """The next player-fiction chunk, at most `limit` words, and what stays frozen."""
-    text = normalize(text)
-    if not text:
-        return '', ''
-    sentences = _player_sentences(text)
-    if not sentences:
-        return '', ''
-    used, rest_sentences = _quote_safe_chunk(sentences, limit)
-    return used, ' '.join(rest_sentences).strip()
 
 
 def _reject(db, problems, alts, expanded):
@@ -1747,29 +1611,6 @@ def _multi_lane_encounter(source, burst, cutoffs):
     return ''
 
 
-def _page_containing(text, burst):
-    for page in (text or '').split('\f'):
-        if _contiguous(burst, page):
-            return page
-    return text or ''
-
-
-def _span_from_extract(text, burst):
-    """Bound the encounter in a recovered extract when the burst is present."""
-    if not text or not burst:
-        return ''
-    if _contiguous(burst, text):
-        span = _same_column_encounter(text, burst)
-        if span and _contiguous(burst, span):
-            return span
-        return _bounded_encounter(_page_containing(text, burst), burst)
-    if find_quote(text, burst) is not None:
-        span = _same_column_encounter(text, burst)
-        if span and (_contiguous(burst, span) or find_quote(span, burst) is not None):
-            return span
-    return ''
-
-
 def _has_burst(text, burst):
     """True when the burst occurs in this text, allowing typography and wrap."""
     if not text or not burst:
@@ -2313,12 +2154,6 @@ def recover_opening_section(db, spoken, ingested_scope):
     if chosen_text:
         return chosen_text, chosen_cols
     return '', []
-
-
-def recover_encounter_span(db, spoken, ingested_scope):
-    """Compatibility wrapper around recover_opening_section (the section text)."""
-    text, _columns = recover_opening_section(db, spoken, ingested_scope)
-    return text or ''
 
 
 BURST_ONLY_PREFIX = (

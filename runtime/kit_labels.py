@@ -452,12 +452,6 @@ def mark_leading_front(db):
         _freeze_front(db, key, blocks)
 
 
-def opening_labeled(db):
-    data = _read(db)
-    opening = data.get('opening')
-    return bool(opening and opening in (data.get('frozen') or {}))
-
-
 def is_silent(db, key):
     return key in (_read(db).get('silent') or [])
 
@@ -616,16 +610,6 @@ def _set_opening(db, key):
     _write_json(folder_for(db) / 'index.json', index)
 
 
-def _drop_room(db, section):
-    from .kit_adventure import room_file
-    path = room_file(db, section)
-    if path.is_file():
-        path.unlink()
-    side = path.with_suffix('.provenance.json')
-    if side.is_file():
-        side.unlink()
-
-
 def _soft_start(db, skipped):
     """Move off a front-matter section that cannot be spoken.
 
@@ -781,28 +765,11 @@ def _lines_from(stored):
     return [line for line in lines if line]
 
 
-def _picker(db):
-    from .kit_adventure import _load, start_picker
-    try:
-        index, _text = _load(db)
-    except Exception:
-        return None
-    return start_picker(index.get('starts') or [])
-
-
 def frozen_blocks(db, key):
     row = (_read(db).get('frozen') or {}).get(key)
     if not row:
         return None
     return row.get('blocks') or None
-
-
-def frozen_labels(db, key):
-    """Compatibility: audience by block id."""
-    blocks = frozen_blocks(db, key)
-    if not blocks:
-        return None
-    return {bid: body.get('audience') for bid, body in blocks.items()}
 
 
 def audience_for(blocks, offset, sentence):
@@ -838,13 +805,6 @@ def apply_blocks(read, dm, blocks):
             continue
         hidden.append((off, sent))
     return spoken, hidden
-
-
-def apply_labels(read, dm, labels):
-    """Older callers passed an audience map. Block records are the real input."""
-    if labels and isinstance(next(iter(labels.values()), None), dict):
-        return apply_blocks(read, dm, labels)
-    return read, dm
 
 
 def player_hears(db, source):

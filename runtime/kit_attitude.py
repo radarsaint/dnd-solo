@@ -36,7 +36,6 @@ Social rolls and hidden checks stop at unfriendly; only thresholds and combat re
 No model calls; deterministic Python (seeded dice).
 """
 import hashlib
-import re
 
 from . import _lazy
 from . import kit_rolls

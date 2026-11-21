@@ -21,7 +21,6 @@ import argparse
 import contextlib
 import copy
 import dataclasses
-import hashlib
 import json
 import os
 import re
@@ -79,7 +78,7 @@ from . import kit_voice
 kit_moves = _lazy.module('.kit_moves', __package__)  # the turn spine: moves, open ask, speaking contract
 from .scene_discernment import IMPROV_READ_SCHEMA, check_improv_read, discernment_candidates
 from .state_context import (ASKED_EVENT_PREFIX, CONTEXT_BUDGET_BYTES, HostSequenceError, InvalidChange,
-                            PERSONALITY_CORE, PLAYER_NOTE_MAX_EVIDENCE, PROJECT_ROOT, Runtime,
+                            PLAYER_NOTE_MAX_EVIDENCE, PROJECT_ROOT, Runtime,
                             StaleTurn, VOICE_MAX_BYTES, load_voice, personality_core_text,
                             check_player_note_text, encode, require)
 from .state_context import HELD_KINDS as _HELD_KINDS
@@ -671,12 +670,6 @@ GESTURE = _lazy.regex(
     r"(?:my|his|her|their|both|empty|open)\s+(?:\w+\s+)?(?:hands|palms)\b"
     r"|\b\w+\s+(?:my|his|her|their)\s+(?:\w+\s+)?(?:nails|fingernails|knuckles|fingers|ears|whiskers|nose|"
     r"chin|neck|feet|legs|arms|hair|beard|eyebrows?|brow|shoulders|teeth|lips)\b")
-def feature_owner(source, key):
-    """The feature that holds fact ``key`` (the claw's orb belongs to the carcass), else ``key``."""
-    for owner, fact in ((source or {}).get('facts') or {}).items():
-        if isinstance(fact, dict) and (fact.get('handling') or {}).get('holds') == key:
-            return owner
-    return key
 
 
 # A feature is moved only as the verb's own object ("tip the heavy tub over"), not as a place
@@ -6917,13 +6910,6 @@ def check_sealed(spoken, sealed):
                                         '{target, act}; if not, narrate handles.reason (it will not budge).')
 
 
-def unmoved_words(source, state, body, acts):
-    """The sealed features' names when nothing fired, else [] (kept for callers)."""
-    if (acts or {}).get('handles'):
-        return []
-    return sorted({w for terms in sealed_terms(source, state).values() for w in terms['names']})
-
-
 def check_unmoved(spoken, words):
     """check_sealed for a bare word list ("it" is always covered)."""
     if words:
@@ -8280,7 +8266,7 @@ class KitChatBridge:
 
     def _knowledge_lookup_ask(self, action):
         """Call one knowledge check when the question goes beyond the baseline."""
-        from . import kit_perform, pc_sheet, kit_skim
+        from . import kit_perform, pc_sheet
         try:
             facts = kit_perform.host_facts_for(self.runtime, action, kind='lookup')
         except Exception:
