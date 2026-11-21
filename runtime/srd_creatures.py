@@ -5,12 +5,19 @@ https://creativecommons.org/licenses/by/4.0/), in the combat engine's shape
 (runtime/kit_combat.py): AC, hit points, initiative (Dex modifier), grapple (Str
 modifier, Athletics when proficient), saves, attacks with average damage. Data only;
 add a creature here when a room cites one that is not yet listed.
+
+v0.15.0: the full SRD 5.1 monster list ships as data (runtime/data/srd_5_1_monsters.json, 329
+creatures, built by tools/build_srd_monsters.py from 5e-bits/5e-database, MIT; numbers only).
+The hand lines below stay as overrides where they carry riders the engine runs (save riders,
+the one swing a turn). ``CREATURES`` is the merged table; ``HAND`` is only the overrides.
 """
+import json
+from pathlib import Path
 
 _ATTACK = lambda name, verb, to_hit, damage, kind: {'name': name, 'verb': verb, 'to_hit': to_hit,
                                                      'damage': damage, 'type': kind}
 
-CREATURES = {
+HAND = {
     'commoner': {'ac': 10, 'hp': 4, 'initiative': 0, 'grapple': 0, 'saves': {},
                  'attacks': [_ATTACK('club', 'strikes', 2, 2, 'bludgeoning')]},
     'guard': {'ac': 16, 'hp': 11, 'initiative': 1, 'grapple': 1, 'saves': {},
@@ -48,6 +55,25 @@ CREATURES = {
     'skeleton': {'ac': 13, 'hp': 13, 'initiative': 2, 'grapple': 0, 'saves': {}, 'stealth': 2,
                  'attacks': [_ATTACK('shortsword', 'stabs', 4, 5, 'piercing')]},
 }
+
+
+def _load_srd():
+    path = Path(__file__).resolve().parent / 'data' / 'srd_5_1_monsters.json'
+    try:
+        table = json.loads(path.read_text(encoding='utf-8')).get('creatures') or {}
+    except (OSError, ValueError):
+        table = {}
+    return {str(k).casefold(): v for k, v in table.items() if isinstance(v, dict)}
+
+
+# Bump when the shipped table changes: prepared books index creatures against it (prep cache key).
+SRD_REVISION = 1
+SRD = _load_srd()
+CREATURES = {**SRD, **HAND}
+# Names Kit looks for in a book's text to cast a combatant. The SRD's NPC templates (Druid, Mage,
+# Noble, Priest, Spy...) are role words for people a book names and stats itself, so a bare
+# mention ("a friend of a druid") is not a creature in the room; a room may still cite them.
+DETECT = frozenset(name for name, line in CREATURES.items() if name in HAND or not line.get('npc_role'))
 
 INLINE_KEYS = ('ac', 'hp', 'attacks')
 

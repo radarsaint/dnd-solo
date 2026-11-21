@@ -10,6 +10,16 @@ Versioning rule:
 
 The current version is in `VERSION`.
 
+## v0.15.0
+
+- Proven data over hand typing: Kit now ships the whole SRD 5.1 monster list (329 creatures with an attack) as `runtime/data/srd_5_1_monsters.json`, numbers only, converted by `tools/build_srd_monsters.py` from 5e-bits/5e-database (MIT; SRD 5.1 is CC-BY-4.0). Before this, Kit knew 11 hand-typed creatures, so a module creature with no stat block in the book itself (a wolf, a hobgoblin, a zombie, a dragon) was never cast as a combatant and its fight could not run. In the test book, 6 of 115 locations gain combatants they were missing; nothing already found changes.
+- Each shipped line carries AC, hit points, initiative, grapple, all six saves, Stealth, Perception, ability scores, challenge rating, and one turn's swings (the best weapon attack, repeated for a Multiattack of N) with average damage from the dice. The 11 hand lines stay as overrides where they carry riders the engine runs (save riders, the one swing a turn).
+- The prep cache key now includes the SRD table revision (`srd_creatures.SRD_REVISION`), so a book prepared before this release is indexed again once against the full list.
+- The SRD's NPC templates (Druid, Mage, Noble, Priest, Spy and the rest of the "any race" humanoids not already hand-listed) resolve when a room cites them, but Kit does not look for them in book text: there they are role words for people the book names and stats itself ("a friend of a druid"), not creatures in the room (`srd_creatures.DETECT`).
+- Creature mentions now match f/fe -> ves and consonant-y -> ies plurals ("two wolves", "three harpies"), which the plain -s rule missed.
+- A room may cite any SRD 5.1 creature by name (`{"srd": "Wolf"}`); an unknown name is still refused at mount.
+- The 8-line scripted host pass gives the same lines as v0.14.0.
+
 ## v0.14.0
 
 - One play path. The area-6c card-table, toll and twenty-one games are gone (`runtime/kit_cards.py`, `kit_toll.py`, `kit_twenty_one.py`), along with every branch that existed only for them: the card and toll resolutions in the turn loop, the card and toll guards (clean deal, stake offers, toll exchange, table narration), Kit-declared table procedures, the card and toll story-hook conditions, procedure and toll state in the save, and the `procedures` and `tolls` room blocks. A room that declares either block is now refused as an unsupported block. No book read from a PDF ever reached any of this. The 8-line scripted host pass gives the same lines as v0.13.0.

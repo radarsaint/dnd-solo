@@ -810,9 +810,12 @@ class FightersHaveStatBlocks(Base):
         del body['actors']['warden']['stat_block']
         with self.assertRaisesRegex(kit_rooms.RoomMountError, 'warden can fight but has no usable stat_block'):
             kit_rooms.load_room(self.write(body))
-        body['actors']['warden']['stat_block'] = {'srd': 'Dragon Turtle'}
+        body['actors']['warden']['stat_block'] = {'srd': 'Made-up Horror'}
         with self.assertRaisesRegex(kit_rooms.RoomMountError, 'warden can fight'):
             kit_rooms.load_room(self.write(body))
+        # v0.15.0: the full SRD 5.1 list ships, so any SRD creature by name is a usable line.
+        body['actors']['warden']['stat_block'] = {'srd': 'Dragon Turtle'}
+        kit_rooms.load_room(self.write(body))
 
     def test_an_inline_stat_block_mounts(self):
         body = kit_rooms.read_room(WATCH)

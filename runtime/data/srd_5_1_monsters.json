@@ -1,0 +1,12605 @@
+{
+"_source": "SRD 5.1 (CC-BY-4.0, Wizards of the Coast) via 5e-bits/5e-database (MIT), numbers only; built by tools/build_srd_monsters.py",
+"creatures": {
+"aboleth": {
+"ac": 17,
+"hp": 135,
+"initiative": -1,
+"grapple": 5,
+"saves": {
+"str": 5,
+"dex": -1,
+"con": 6,
+"int": 8,
+"wis": 6,
+"cha": 4
+},
+"stealth": -1,
+"perception": 10,
+"abilities": {
+"str": 21,
+"dex": 9,
+"con": 15,
+"int": 18,
+"wis": 15,
+"cha": 18
+},
+"cr": 10,
+"attacks": [
+{
+"name": "tentacle",
+"verb": "lashes",
+"to_hit": 9,
+"damage": 18,
+"type": "bludgeoning"
+},
+{
+"name": "tentacle",
+"verb": "lashes",
+"to_hit": 9,
+"damage": 18,
+"type": "bludgeoning"
+},
+{
+"name": "tentacle",
+"verb": "lashes",
+"to_hit": 9,
+"damage": 18,
+"type": "bludgeoning"
+}
+]
+},
+"acolyte": {
+"ac": 10,
+"hp": 9,
+"initiative": 0,
+"grapple": 0,
+"saves": {
+"str": 0,
+"dex": 0,
+"con": 0,
+"int": 0,
+"wis": 2,
+"cha": 0
+},
+"stealth": 0,
+"perception": 2,
+"abilities": {
+"str": 10,
+"dex": 10,
+"con": 10,
+"int": 10,
+"wis": 14,
+"cha": 11
+},
+"cr": 0.25,
+"attacks": [
+{
+"name": "club",
+"verb": "strikes",
+"to_hit": 2,
+"damage": 2,
+"type": "bludgeoning"
+}
+],
+"npc_role": true
+},
+"adult black dragon": {
+"ac": 19,
+"hp": 195,
+"initiative": 2,
+"grapple": 6,
+"saves": {
+"str": 6,
+"dex": 7,
+"con": 10,
+"int": 2,
+"wis": 6,
+"cha": 8
+},
+"stealth": 7,
+"perception": 11,
+"abilities": {
+"str": 23,
+"dex": 14,
+"con": 21,
+"int": 14,
+"wis": 13,
+"cha": 17
+},
+"cr": 14,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 11,
+"damage": 21,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 11,
+"damage": 21,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 11,
+"damage": 21,
+"type": "piercing"
+}
+]
+},
+"adult blue dragon": {
+"ac": 19,
+"hp": 225,
+"initiative": 0,
+"grapple": 7,
+"saves": {
+"str": 7,
+"dex": 5,
+"con": 11,
+"int": 3,
+"wis": 7,
+"cha": 9
+},
+"stealth": 5,
+"perception": 12,
+"abilities": {
+"str": 25,
+"dex": 10,
+"con": 23,
+"int": 16,
+"wis": 15,
+"cha": 19
+},
+"cr": 16,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 12,
+"damage": 23,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 12,
+"damage": 23,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 12,
+"damage": 23,
+"type": "piercing"
+}
+]
+},
+"adult brass dragon": {
+"ac": 18,
+"hp": 172,
+"initiative": 0,
+"grapple": 6,
+"saves": {
+"str": 6,
+"dex": 5,
+"con": 10,
+"int": 2,
+"wis": 6,
+"cha": 8
+},
+"stealth": 5,
+"perception": 11,
+"abilities": {
+"str": 23,
+"dex": 10,
+"con": 21,
+"int": 14,
+"wis": 13,
+"cha": 17
+},
+"cr": 13,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 11,
+"damage": 17,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 11,
+"damage": 17,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 11,
+"damage": 17,
+"type": "piercing"
+}
+]
+},
+"adult bronze dragon": {
+"ac": 19,
+"hp": 212,
+"initiative": 0,
+"grapple": 7,
+"saves": {
+"str": 7,
+"dex": 5,
+"con": 11,
+"int": 3,
+"wis": 7,
+"cha": 9
+},
+"stealth": 5,
+"perception": 12,
+"abilities": {
+"str": 25,
+"dex": 10,
+"con": 23,
+"int": 16,
+"wis": 15,
+"cha": 19
+},
+"cr": 15,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 12,
+"damage": 18,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 12,
+"damage": 18,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 12,
+"damage": 18,
+"type": "piercing"
+}
+]
+},
+"adult copper dragon": {
+"ac": 18,
+"hp": 184,
+"initiative": 1,
+"grapple": 6,
+"saves": {
+"str": 6,
+"dex": 6,
+"con": 10,
+"int": 4,
+"wis": 7,
+"cha": 8
+},
+"stealth": 6,
+"perception": 12,
+"abilities": {
+"str": 23,
+"dex": 12,
+"con": 21,
+"int": 18,
+"wis": 15,
+"cha": 17
+},
+"cr": 14,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 11,
+"damage": 17,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 11,
+"damage": 17,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 11,
+"damage": 17,
+"type": "piercing"
+}
+]
+},
+"adult gold dragon": {
+"ac": 19,
+"hp": 256,
+"initiative": 2,
+"grapple": 8,
+"saves": {
+"str": 8,
+"dex": 8,
+"con": 13,
+"int": 3,
+"wis": 8,
+"cha": 13
+},
+"stealth": 8,
+"perception": 14,
+"abilities": {
+"str": 27,
+"dex": 14,
+"con": 25,
+"int": 16,
+"wis": 15,
+"cha": 24
+},
+"cr": 17,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 14,
+"damage": 19,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 14,
+"damage": 19,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 14,
+"damage": 19,
+"type": "piercing"
+}
+]
+},
+"adult green dragon": {
+"ac": 19,
+"hp": 207,
+"initiative": 1,
+"grapple": 6,
+"saves": {
+"str": 6,
+"dex": 6,
+"con": 10,
+"int": 4,
+"wis": 7,
+"cha": 8
+},
+"stealth": 6,
+"perception": 12,
+"abilities": {
+"str": 23,
+"dex": 12,
+"con": 21,
+"int": 18,
+"wis": 15,
+"cha": 17
+},
+"cr": 15,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 11,
+"damage": 24,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 11,
+"damage": 24,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 11,
+"damage": 24,
+"type": "piercing"
+}
+]
+},
+"adult red dragon": {
+"ac": 19,
+"hp": 256,
+"initiative": 0,
+"grapple": 8,
+"saves": {
+"str": 8,
+"dex": 6,
+"con": 13,
+"int": 3,
+"wis": 7,
+"cha": 11
+},
+"stealth": 6,
+"perception": 13,
+"abilities": {
+"str": 27,
+"dex": 10,
+"con": 25,
+"int": 16,
+"wis": 13,
+"cha": 21
+},
+"cr": 17,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 14,
+"damage": 26,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 14,
+"damage": 26,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 14,
+"damage": 26,
+"type": "piercing"
+}
+]
+},
+"adult silver dragon": {
+"ac": 19,
+"hp": 243,
+"initiative": 0,
+"grapple": 8,
+"saves": {
+"str": 8,
+"dex": 5,
+"con": 12,
+"int": 3,
+"wis": 6,
+"cha": 10
+},
+"stealth": 5,
+"perception": 11,
+"abilities": {
+"str": 27,
+"dex": 10,
+"con": 25,
+"int": 16,
+"wis": 13,
+"cha": 21
+},
+"cr": 16,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 13,
+"damage": 19,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 13,
+"damage": 19,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 13,
+"damage": 19,
+"type": "piercing"
+}
+]
+},
+"adult white dragon": {
+"ac": 18,
+"hp": 200,
+"initiative": 0,
+"grapple": 6,
+"saves": {
+"str": 6,
+"dex": 5,
+"con": 11,
+"int": -1,
+"wis": 6,
+"cha": 6
+},
+"stealth": 5,
+"perception": 11,
+"abilities": {
+"str": 22,
+"dex": 10,
+"con": 22,
+"int": 8,
+"wis": 12,
+"cha": 12
+},
+"cr": 13,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 11,
+"damage": 21,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 11,
+"damage": 21,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 11,
+"damage": 21,
+"type": "piercing"
+}
+]
+},
+"air elemental": {
+"ac": 15,
+"hp": 90,
+"initiative": 5,
+"grapple": 2,
+"saves": {
+"str": 2,
+"dex": 5,
+"con": 2,
+"int": -2,
+"wis": 0,
+"cha": -2
+},
+"stealth": 5,
+"perception": 0,
+"abilities": {
+"str": 14,
+"dex": 20,
+"con": 14,
+"int": 6,
+"wis": 10,
+"cha": 6
+},
+"cr": 5,
+"attacks": [
+{
+"name": "slam",
+"verb": "slams",
+"to_hit": 8,
+"damage": 14,
+"type": "bludgeoning"
+},
+{
+"name": "slam",
+"verb": "slams",
+"to_hit": 8,
+"damage": 14,
+"type": "bludgeoning"
+}
+]
+},
+"ancient black dragon": {
+"ac": 22,
+"hp": 367,
+"initiative": 2,
+"grapple": 8,
+"saves": {
+"str": 8,
+"dex": 9,
+"con": 14,
+"int": 3,
+"wis": 9,
+"cha": 11
+},
+"stealth": 9,
+"perception": 16,
+"abilities": {
+"str": 27,
+"dex": 14,
+"con": 25,
+"int": 16,
+"wis": 15,
+"cha": 19
+},
+"cr": 21,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 15,
+"damage": 28,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 15,
+"damage": 28,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 15,
+"damage": 28,
+"type": "piercing"
+}
+]
+},
+"ancient blue dragon": {
+"ac": 22,
+"hp": 481,
+"initiative": 0,
+"grapple": 9,
+"saves": {
+"str": 9,
+"dex": 7,
+"con": 15,
+"int": 4,
+"wis": 10,
+"cha": 12
+},
+"stealth": 7,
+"perception": 17,
+"abilities": {
+"str": 29,
+"dex": 10,
+"con": 27,
+"int": 18,
+"wis": 17,
+"cha": 21
+},
+"cr": 23,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 16,
+"damage": 31,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 16,
+"damage": 31,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 16,
+"damage": 31,
+"type": "piercing"
+}
+]
+},
+"ancient brass dragon": {
+"ac": 20,
+"hp": 297,
+"initiative": 0,
+"grapple": 8,
+"saves": {
+"str": 8,
+"dex": 6,
+"con": 13,
+"int": 3,
+"wis": 8,
+"cha": 10
+},
+"stealth": 6,
+"perception": 14,
+"abilities": {
+"str": 27,
+"dex": 10,
+"con": 25,
+"int": 16,
+"wis": 15,
+"cha": 19
+},
+"cr": 20,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 14,
+"damage": 19,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 14,
+"damage": 19,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 14,
+"damage": 19,
+"type": "piercing"
+}
+]
+},
+"ancient bronze dragon": {
+"ac": 22,
+"hp": 444,
+"initiative": 0,
+"grapple": 9,
+"saves": {
+"str": 9,
+"dex": 7,
+"con": 15,
+"int": 4,
+"wis": 10,
+"cha": 12
+},
+"stealth": 7,
+"perception": 17,
+"abilities": {
+"str": 29,
+"dex": 10,
+"con": 27,
+"int": 18,
+"wis": 17,
+"cha": 21
+},
+"cr": 22,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 16,
+"damage": 20,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 16,
+"damage": 20,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 16,
+"damage": 20,
+"type": "piercing"
+}
+]
+},
+"ancient copper dragon": {
+"ac": 21,
+"hp": 350,
+"initiative": 1,
+"grapple": 8,
+"saves": {
+"str": 8,
+"dex": 8,
+"con": 14,
+"int": 5,
+"wis": 10,
+"cha": 11
+},
+"stealth": 8,
+"perception": 17,
+"abilities": {
+"str": 27,
+"dex": 12,
+"con": 25,
+"int": 20,
+"wis": 17,
+"cha": 19
+},
+"cr": 21,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 15,
+"damage": 19,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 15,
+"damage": 19,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 15,
+"damage": 19,
+"type": "piercing"
+}
+]
+},
+"ancient gold dragon": {
+"ac": 22,
+"hp": 546,
+"initiative": 2,
+"grapple": 10,
+"saves": {
+"str": 10,
+"dex": 9,
+"con": 16,
+"int": 4,
+"wis": 10,
+"cha": 16
+},
+"stealth": 9,
+"perception": 17,
+"abilities": {
+"str": 30,
+"dex": 14,
+"con": 29,
+"int": 18,
+"wis": 17,
+"cha": 28
+},
+"cr": 24,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 17,
+"damage": 21,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 17,
+"damage": 21,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 17,
+"damage": 21,
+"type": "piercing"
+}
+]
+},
+"ancient green dragon": {
+"ac": 21,
+"hp": 385,
+"initiative": 1,
+"grapple": 8,
+"saves": {
+"str": 8,
+"dex": 8,
+"con": 14,
+"int": 5,
+"wis": 10,
+"cha": 11
+},
+"stealth": 8,
+"perception": 17,
+"abilities": {
+"str": 27,
+"dex": 12,
+"con": 25,
+"int": 20,
+"wis": 17,
+"cha": 19
+},
+"cr": 22,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 15,
+"damage": 29,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 15,
+"damage": 29,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 15,
+"damage": 29,
+"type": "piercing"
+}
+]
+},
+"ancient red dragon": {
+"ac": 22,
+"hp": 546,
+"initiative": 0,
+"grapple": 10,
+"saves": {
+"str": 10,
+"dex": 7,
+"con": 16,
+"int": 4,
+"wis": 9,
+"cha": 13
+},
+"stealth": 7,
+"perception": 16,
+"abilities": {
+"str": 30,
+"dex": 10,
+"con": 29,
+"int": 18,
+"wis": 15,
+"cha": 23
+},
+"cr": 24,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 17,
+"damage": 35,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 17,
+"damage": 35,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 17,
+"damage": 35,
+"type": "piercing"
+}
+]
+},
+"ancient silver dragon": {
+"ac": 22,
+"hp": 487,
+"initiative": 0,
+"grapple": 10,
+"saves": {
+"str": 10,
+"dex": 7,
+"con": 16,
+"int": 4,
+"wis": 9,
+"cha": 13
+},
+"stealth": 7,
+"perception": 16,
+"abilities": {
+"str": 30,
+"dex": 10,
+"con": 29,
+"int": 18,
+"wis": 15,
+"cha": 23
+},
+"cr": 23,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 17,
+"damage": 21,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 17,
+"damage": 21,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 17,
+"damage": 21,
+"type": "piercing"
+}
+]
+},
+"ancient white dragon": {
+"ac": 20,
+"hp": 333,
+"initiative": 0,
+"grapple": 8,
+"saves": {
+"str": 8,
+"dex": 6,
+"con": 14,
+"int": 0,
+"wis": 7,
+"cha": 8
+},
+"stealth": 6,
+"perception": 13,
+"abilities": {
+"str": 26,
+"dex": 10,
+"con": 26,
+"int": 10,
+"wis": 13,
+"cha": 14
+},
+"cr": 20,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 14,
+"damage": 28,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 14,
+"damage": 28,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 14,
+"damage": 28,
+"type": "piercing"
+}
+]
+},
+"androsphinx": {
+"ac": 17,
+"hp": 199,
+"initiative": 0,
+"grapple": 6,
+"saves": {
+"str": 6,
+"dex": 6,
+"con": 11,
+"int": 9,
+"wis": 10,
+"cha": 6
+},
+"stealth": 0,
+"perception": 10,
+"abilities": {
+"str": 22,
+"dex": 10,
+"con": 20,
+"int": 16,
+"wis": 18,
+"cha": 23
+},
+"cr": 17,
+"attacks": [
+{
+"name": "claw",
+"verb": "rakes",
+"to_hit": 12,
+"damage": 17,
+"type": "slashing"
+},
+{
+"name": "claw",
+"verb": "rakes",
+"to_hit": 12,
+"damage": 17,
+"type": "slashing"
+}
+]
+},
+"animated armor": {
+"ac": 18,
+"hp": 33,
+"initiative": 0,
+"grapple": 2,
+"saves": {
+"str": 2,
+"dex": 0,
+"con": 1,
+"int": -5,
+"wis": -4,
+"cha": -5
+},
+"stealth": 0,
+"perception": -4,
+"abilities": {
+"str": 14,
+"dex": 11,
+"con": 13,
+"int": 1,
+"wis": 3,
+"cha": 1
+},
+"cr": 1,
+"attacks": [
+{
+"name": "slam",
+"verb": "slams",
+"to_hit": 4,
+"damage": 5,
+"type": "bludgeoning"
+},
+{
+"name": "slam",
+"verb": "slams",
+"to_hit": 4,
+"damage": 5,
+"type": "bludgeoning"
+}
+]
+},
+"ankheg": {
+"ac": 14,
+"hp": 39,
+"initiative": 0,
+"grapple": 3,
+"saves": {
+"str": 3,
+"dex": 0,
+"con": 1,
+"int": -5,
+"wis": 1,
+"cha": -2
+},
+"stealth": 0,
+"perception": 1,
+"abilities": {
+"str": 17,
+"dex": 11,
+"con": 13,
+"int": 1,
+"wis": 13,
+"cha": 6
+},
+"cr": 2,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 5,
+"damage": 13,
+"type": "slashing"
+}
+]
+},
+"ape": {
+"ac": 12,
+"hp": 19,
+"initiative": 2,
+"grapple": 5,
+"saves": {
+"str": 3,
+"dex": 2,
+"con": 2,
+"int": -2,
+"wis": 1,
+"cha": -2
+},
+"stealth": 2,
+"perception": 3,
+"abilities": {
+"str": 16,
+"dex": 14,
+"con": 14,
+"int": 6,
+"wis": 12,
+"cha": 7
+},
+"cr": 0.5,
+"attacks": [
+{
+"name": "fist",
+"verb": "punches",
+"to_hit": 5,
+"damage": 6,
+"type": "bludgeoning"
+},
+{
+"name": "fist",
+"verb": "punches",
+"to_hit": 5,
+"damage": 6,
+"type": "bludgeoning"
+}
+]
+},
+"archmage": {
+"ac": 12,
+"hp": 99,
+"initiative": 2,
+"grapple": 0,
+"saves": {
+"str": 0,
+"dex": 2,
+"con": 1,
+"int": 9,
+"wis": 6,
+"cha": 3
+},
+"stealth": 2,
+"perception": 2,
+"abilities": {
+"str": 10,
+"dex": 14,
+"con": 12,
+"int": 20,
+"wis": 15,
+"cha": 16
+},
+"cr": 12,
+"attacks": [
+{
+"name": "dagger",
+"verb": "stabs",
+"to_hit": 6,
+"damage": 4,
+"type": "piercing"
+}
+],
+"npc_role": true
+},
+"assassin": {
+"ac": 15,
+"hp": 78,
+"initiative": 3,
+"grapple": 0,
+"saves": {
+"str": 0,
+"dex": 6,
+"con": 2,
+"int": 4,
+"wis": 0,
+"cha": 0
+},
+"stealth": 9,
+"perception": 3,
+"abilities": {
+"str": 11,
+"dex": 16,
+"con": 14,
+"int": 13,
+"wis": 11,
+"cha": 10
+},
+"cr": 8,
+"attacks": [
+{
+"name": "light crossbow",
+"verb": "stabs",
+"to_hit": 6,
+"damage": 31,
+"type": "piercing"
+},
+{
+"name": "light crossbow",
+"verb": "stabs",
+"to_hit": 6,
+"damage": 31,
+"type": "piercing"
+}
+],
+"npc_role": true
+},
+"awakened shrub": {
+"ac": 9,
+"hp": 10,
+"initiative": -1,
+"grapple": -4,
+"saves": {
+"str": -4,
+"dex": -1,
+"con": 0,
+"int": 0,
+"wis": 0,
+"cha": -2
+},
+"stealth": -1,
+"perception": 0,
+"abilities": {
+"str": 3,
+"dex": 8,
+"con": 11,
+"int": 10,
+"wis": 10,
+"cha": 6
+},
+"cr": 0,
+"attacks": [
+{
+"name": "rake",
+"verb": "cuts",
+"to_hit": 1,
+"damage": 1,
+"type": "slashing"
+}
+]
+},
+"awakened tree": {
+"ac": 13,
+"hp": 59,
+"initiative": -2,
+"grapple": 4,
+"saves": {
+"str": 4,
+"dex": -2,
+"con": 2,
+"int": 0,
+"wis": 0,
+"cha": -2
+},
+"stealth": -2,
+"perception": 0,
+"abilities": {
+"str": 19,
+"dex": 6,
+"con": 15,
+"int": 10,
+"wis": 10,
+"cha": 7
+},
+"cr": 2,
+"attacks": [
+{
+"name": "slam",
+"verb": "slams",
+"to_hit": 6,
+"damage": 14,
+"type": "bludgeoning"
+}
+]
+},
+"axe beak": {
+"ac": 11,
+"hp": 19,
+"initiative": 1,
+"grapple": 2,
+"saves": {
+"str": 2,
+"dex": 1,
+"con": 1,
+"int": -4,
+"wis": 0,
+"cha": -3
+},
+"stealth": 1,
+"perception": 0,
+"abilities": {
+"str": 14,
+"dex": 12,
+"con": 12,
+"int": 2,
+"wis": 10,
+"cha": 5
+},
+"cr": 0.25,
+"attacks": [
+{
+"name": "beak",
+"verb": "pecks",
+"to_hit": 4,
+"damage": 6,
+"type": "slashing"
+}
+]
+},
+"azer": {
+"ac": 15,
+"hp": 39,
+"initiative": 1,
+"grapple": 3,
+"saves": {
+"str": 3,
+"dex": 1,
+"con": 4,
+"int": 1,
+"wis": 1,
+"cha": 0
+},
+"stealth": 1,
+"perception": 1,
+"abilities": {
+"str": 17,
+"dex": 12,
+"con": 15,
+"int": 12,
+"wis": 13,
+"cha": 10
+},
+"cr": 2,
+"attacks": [
+{
+"name": "warhammer",
+"verb": "strikes",
+"to_hit": 5,
+"damage": 10,
+"type": "bludgeoning"
+}
+]
+},
+"baboon": {
+"ac": 12,
+"hp": 3,
+"initiative": 2,
+"grapple": -1,
+"saves": {
+"str": -1,
+"dex": 2,
+"con": 0,
+"int": -3,
+"wis": 1,
+"cha": -2
+},
+"stealth": 2,
+"perception": 1,
+"abilities": {
+"str": 8,
+"dex": 14,
+"con": 11,
+"int": 4,
+"wis": 12,
+"cha": 6
+},
+"cr": 0,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 1,
+"damage": 1,
+"type": "piercing"
+}
+]
+},
+"badger": {
+"ac": 10,
+"hp": 3,
+"initiative": 0,
+"grapple": -3,
+"saves": {
+"str": -3,
+"dex": 0,
+"con": 1,
+"int": -4,
+"wis": 1,
+"cha": -3
+},
+"stealth": 0,
+"perception": 1,
+"abilities": {
+"str": 4,
+"dex": 11,
+"con": 12,
+"int": 2,
+"wis": 12,
+"cha": 5
+},
+"cr": 0,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 2,
+"damage": 1,
+"type": "piercing"
+}
+]
+},
+"balor": {
+"ac": 19,
+"hp": 262,
+"initiative": 2,
+"grapple": 8,
+"saves": {
+"str": 14,
+"dex": 2,
+"con": 12,
+"int": 5,
+"wis": 9,
+"cha": 12
+},
+"stealth": 2,
+"perception": 3,
+"abilities": {
+"str": 26,
+"dex": 15,
+"con": 22,
+"int": 20,
+"wis": 16,
+"cha": 22
+},
+"cr": 19,
+"attacks": [
+{
+"name": "longsword",
+"verb": "cuts",
+"to_hit": 14,
+"damage": 34,
+"type": "slashing"
+},
+{
+"name": "longsword",
+"verb": "cuts",
+"to_hit": 14,
+"damage": 34,
+"type": "slashing"
+}
+]
+},
+"bandit": {
+"ac": 12,
+"hp": 11,
+"initiative": 1,
+"grapple": 0,
+"saves": {
+"str": 0,
+"dex": 1,
+"con": 1,
+"int": 0,
+"wis": 0,
+"cha": 0
+},
+"stealth": 1,
+"perception": 0,
+"abilities": {
+"str": 11,
+"dex": 12,
+"con": 12,
+"int": 10,
+"wis": 10,
+"cha": 10
+},
+"cr": 0.125,
+"attacks": [
+{
+"name": "light crossbow",
+"verb": "stabs",
+"to_hit": 3,
+"damage": 5,
+"type": "piercing"
+}
+],
+"npc_role": true
+},
+"bandit captain": {
+"ac": 15,
+"hp": 65,
+"initiative": 3,
+"grapple": 4,
+"saves": {
+"str": 4,
+"dex": 5,
+"con": 2,
+"int": 2,
+"wis": 2,
+"cha": 2
+},
+"stealth": 3,
+"perception": 0,
+"abilities": {
+"str": 15,
+"dex": 16,
+"con": 14,
+"int": 14,
+"wis": 11,
+"cha": 14
+},
+"cr": 2,
+"attacks": [
+{
+"name": "scimitar",
+"verb": "cuts",
+"to_hit": 5,
+"damage": 6,
+"type": "slashing"
+},
+{
+"name": "scimitar",
+"verb": "cuts",
+"to_hit": 5,
+"damage": 6,
+"type": "slashing"
+},
+{
+"name": "scimitar",
+"verb": "cuts",
+"to_hit": 5,
+"damage": 6,
+"type": "slashing"
+}
+],
+"npc_role": true
+},
+"barbed devil": {
+"ac": 15,
+"hp": 110,
+"initiative": 3,
+"grapple": 3,
+"saves": {
+"str": 6,
+"dex": 3,
+"con": 7,
+"int": 1,
+"wis": 5,
+"cha": 5
+},
+"stealth": 3,
+"perception": 8,
+"abilities": {
+"str": 16,
+"dex": 17,
+"con": 18,
+"int": 12,
+"wis": 14,
+"cha": 14
+},
+"cr": 5,
+"attacks": [
+{
+"name": "tail",
+"verb": "lashes",
+"to_hit": 6,
+"damage": 10,
+"type": "piercing"
+},
+{
+"name": "tail",
+"verb": "lashes",
+"to_hit": 6,
+"damage": 10,
+"type": "piercing"
+},
+{
+"name": "tail",
+"verb": "lashes",
+"to_hit": 6,
+"damage": 10,
+"type": "piercing"
+}
+]
+},
+"basilisk": {
+"ac": 12,
+"hp": 52,
+"initiative": -1,
+"grapple": 3,
+"saves": {
+"str": 3,
+"dex": -1,
+"con": 2,
+"int": -4,
+"wis": -1,
+"cha": -2
+},
+"stealth": -1,
+"perception": -1,
+"abilities": {
+"str": 16,
+"dex": 8,
+"con": 15,
+"int": 2,
+"wis": 8,
+"cha": 7
+},
+"cr": 3,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 5,
+"damage": 17,
+"type": "piercing"
+}
+]
+},
+"bat": {
+"ac": 12,
+"hp": 1,
+"initiative": 2,
+"grapple": -4,
+"saves": {
+"str": -4,
+"dex": 2,
+"con": -1,
+"int": -4,
+"wis": 1,
+"cha": -3
+},
+"stealth": 2,
+"perception": 1,
+"abilities": {
+"str": 2,
+"dex": 15,
+"con": 8,
+"int": 2,
+"wis": 12,
+"cha": 4
+},
+"cr": 0,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 0,
+"damage": 1,
+"type": "piercing"
+}
+]
+},
+"bearded devil": {
+"ac": 13,
+"hp": 52,
+"initiative": 2,
+"grapple": 3,
+"saves": {
+"str": 5,
+"dex": 2,
+"con": 4,
+"int": -1,
+"wis": 2,
+"cha": 0
+},
+"stealth": 2,
+"perception": 0,
+"abilities": {
+"str": 16,
+"dex": 15,
+"con": 15,
+"int": 9,
+"wis": 11,
+"cha": 11
+},
+"cr": 3,
+"attacks": [
+{
+"name": "glaive",
+"verb": "cuts",
+"to_hit": 5,
+"damage": 8,
+"type": "slashing"
+},
+{
+"name": "glaive",
+"verb": "cuts",
+"to_hit": 5,
+"damage": 8,
+"type": "slashing"
+}
+]
+},
+"behir": {
+"ac": 17,
+"hp": 168,
+"initiative": 3,
+"grapple": 6,
+"saves": {
+"str": 6,
+"dex": 3,
+"con": 4,
+"int": -2,
+"wis": 2,
+"cha": 1
+},
+"stealth": 7,
+"perception": 6,
+"abilities": {
+"str": 23,
+"dex": 16,
+"con": 18,
+"int": 7,
+"wis": 14,
+"cha": 12
+},
+"cr": 11,
+"attacks": [
+{
+"name": "constrict",
+"verb": "strikes",
+"to_hit": 10,
+"damage": 34,
+"type": "bludgeoning"
+},
+{
+"name": "constrict",
+"verb": "strikes",
+"to_hit": 10,
+"damage": 34,
+"type": "bludgeoning"
+}
+]
+},
+"berserker": {
+"ac": 13,
+"hp": 67,
+"initiative": 1,
+"grapple": 3,
+"saves": {
+"str": 3,
+"dex": 1,
+"con": 3,
+"int": -1,
+"wis": 0,
+"cha": -1
+},
+"stealth": 1,
+"perception": 0,
+"abilities": {
+"str": 16,
+"dex": 12,
+"con": 17,
+"int": 9,
+"wis": 11,
+"cha": 9
+},
+"cr": 2,
+"attacks": [
+{
+"name": "greataxe",
+"verb": "cuts",
+"to_hit": 5,
+"damage": 9,
+"type": "slashing"
+}
+],
+"npc_role": true
+},
+"black bear": {
+"ac": 11,
+"hp": 19,
+"initiative": 0,
+"grapple": 2,
+"saves": {
+"str": 2,
+"dex": 0,
+"con": 2,
+"int": -4,
+"wis": 1,
+"cha": -2
+},
+"stealth": 0,
+"perception": 1,
+"abilities": {
+"str": 15,
+"dex": 10,
+"con": 14,
+"int": 2,
+"wis": 12,
+"cha": 7
+},
+"cr": 0.5,
+"attacks": [
+{
+"name": "claws",
+"verb": "rakes",
+"to_hit": 3,
+"damage": 7,
+"type": "slashing"
+},
+{
+"name": "claws",
+"verb": "rakes",
+"to_hit": 3,
+"damage": 7,
+"type": "slashing"
+}
+]
+},
+"black dragon wyrmling": {
+"ac": 17,
+"hp": 33,
+"initiative": 2,
+"grapple": 2,
+"saves": {
+"str": 2,
+"dex": 4,
+"con": 3,
+"int": 0,
+"wis": 2,
+"cha": 3
+},
+"stealth": 4,
+"perception": 4,
+"abilities": {
+"str": 15,
+"dex": 14,
+"con": 13,
+"int": 10,
+"wis": 11,
+"cha": 13
+},
+"cr": 2,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 4,
+"damage": 9,
+"type": "piercing"
+}
+]
+},
+"black pudding": {
+"ac": 7,
+"hp": 85,
+"initiative": -3,
+"grapple": 3,
+"saves": {
+"str": 3,
+"dex": -3,
+"con": 3,
+"int": -5,
+"wis": -2,
+"cha": -5
+},
+"stealth": -3,
+"perception": -2,
+"abilities": {
+"str": 16,
+"dex": 5,
+"con": 16,
+"int": 1,
+"wis": 6,
+"cha": 1
+},
+"cr": 4,
+"attacks": [
+{
+"name": "pseudopod",
+"verb": "strikes",
+"to_hit": 5,
+"damage": 24,
+"type": "bludgeoning"
+}
+]
+},
+"blink dog": {
+"ac": 13,
+"hp": 22,
+"initiative": 3,
+"grapple": 1,
+"saves": {
+"str": 1,
+"dex": 3,
+"con": 1,
+"int": 0,
+"wis": 1,
+"cha": 0
+},
+"stealth": 5,
+"perception": 3,
+"abilities": {
+"str": 12,
+"dex": 17,
+"con": 12,
+"int": 10,
+"wis": 13,
+"cha": 11
+},
+"cr": 0.25,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 3,
+"damage": 4,
+"type": "piercing"
+}
+]
+},
+"blood hawk": {
+"ac": 12,
+"hp": 7,
+"initiative": 2,
+"grapple": -2,
+"saves": {
+"str": -2,
+"dex": 2,
+"con": 0,
+"int": -4,
+"wis": 2,
+"cha": -3
+},
+"stealth": 2,
+"perception": 4,
+"abilities": {
+"str": 6,
+"dex": 14,
+"con": 10,
+"int": 3,
+"wis": 14,
+"cha": 5
+},
+"cr": 0.125,
+"attacks": [
+{
+"name": "beak",
+"verb": "pecks",
+"to_hit": 4,
+"damage": 4,
+"type": "piercing"
+}
+]
+},
+"blue dragon wyrmling": {
+"ac": 17,
+"hp": 52,
+"initiative": 0,
+"grapple": 3,
+"saves": {
+"str": 3,
+"dex": 2,
+"con": 4,
+"int": 1,
+"wis": 2,
+"cha": 4
+},
+"stealth": 2,
+"perception": 4,
+"abilities": {
+"str": 17,
+"dex": 10,
+"con": 15,
+"int": 12,
+"wis": 11,
+"cha": 15
+},
+"cr": 3,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 5,
+"damage": 11,
+"type": "piercing"
+}
+]
+},
+"boar": {
+"ac": 11,
+"hp": 11,
+"initiative": 0,
+"grapple": 1,
+"saves": {
+"str": 1,
+"dex": 0,
+"con": 1,
+"int": -4,
+"wis": -1,
+"cha": -3
+},
+"stealth": 0,
+"perception": -1,
+"abilities": {
+"str": 13,
+"dex": 11,
+"con": 12,
+"int": 2,
+"wis": 9,
+"cha": 5
+},
+"cr": 0.25,
+"attacks": [
+{
+"name": "tusk",
+"verb": "cuts",
+"to_hit": 3,
+"damage": 4,
+"type": "slashing"
+}
+]
+},
+"bone devil": {
+"ac": 19,
+"hp": 142,
+"initiative": 3,
+"grapple": 4,
+"saves": {
+"str": 4,
+"dex": 3,
+"con": 4,
+"int": 5,
+"wis": 6,
+"cha": 7
+},
+"stealth": 3,
+"perception": 2,
+"abilities": {
+"str": 18,
+"dex": 16,
+"con": 18,
+"int": 13,
+"wis": 14,
+"cha": 16
+},
+"cr": 9,
+"attacks": [
+{
+"name": "sting",
+"verb": "stings",
+"to_hit": 8,
+"damage": 30,
+"type": "piercing"
+},
+{
+"name": "sting",
+"verb": "stings",
+"to_hit": 8,
+"damage": 30,
+"type": "piercing"
+},
+{
+"name": "sting",
+"verb": "stings",
+"to_hit": 8,
+"damage": 30,
+"type": "piercing"
+}
+]
+},
+"brass dragon wyrmling": {
+"ac": 16,
+"hp": 16,
+"initiative": 0,
+"grapple": 2,
+"saves": {
+"str": 2,
+"dex": 2,
+"con": 3,
+"int": 0,
+"wis": 2,
+"cha": 3
+},
+"stealth": 2,
+"perception": 4,
+"abilities": {
+"str": 15,
+"dex": 10,
+"con": 13,
+"int": 10,
+"wis": 11,
+"cha": 13
+},
+"cr": 1,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 4,
+"damage": 7,
+"type": "piercing"
+}
+]
+},
+"bronze dragon wyrmling": {
+"ac": 17,
+"hp": 32,
+"initiative": 0,
+"grapple": 3,
+"saves": {
+"str": 3,
+"dex": 2,
+"con": 4,
+"int": 1,
+"wis": 2,
+"cha": 4
+},
+"stealth": 2,
+"perception": 4,
+"abilities": {
+"str": 17,
+"dex": 10,
+"con": 15,
+"int": 12,
+"wis": 11,
+"cha": 15
+},
+"cr": 2,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 5,
+"damage": 8,
+"type": "piercing"
+}
+]
+},
+"brown bear": {
+"ac": 11,
+"hp": 34,
+"initiative": 0,
+"grapple": 4,
+"saves": {
+"str": 4,
+"dex": 0,
+"con": 3,
+"int": -4,
+"wis": 1,
+"cha": -2
+},
+"stealth": 0,
+"perception": 3,
+"abilities": {
+"str": 19,
+"dex": 10,
+"con": 16,
+"int": 2,
+"wis": 13,
+"cha": 7
+},
+"cr": 1,
+"attacks": [
+{
+"name": "claws",
+"verb": "rakes",
+"to_hit": 5,
+"damage": 11,
+"type": "slashing"
+},
+{
+"name": "claws",
+"verb": "rakes",
+"to_hit": 5,
+"damage": 11,
+"type": "slashing"
+}
+]
+},
+"bugbear": {
+"ac": 16,
+"hp": 27,
+"initiative": 2,
+"grapple": 2,
+"saves": {
+"str": 2,
+"dex": 2,
+"con": 1,
+"int": -1,
+"wis": 0,
+"cha": -1
+},
+"stealth": 6,
+"perception": 0,
+"abilities": {
+"str": 15,
+"dex": 14,
+"con": 13,
+"int": 8,
+"wis": 11,
+"cha": 9
+},
+"cr": 1,
+"attacks": [
+{
+"name": "morningstar",
+"verb": "stabs",
+"to_hit": 4,
+"damage": 11,
+"type": "piercing"
+}
+]
+},
+"bulette": {
+"ac": 17,
+"hp": 94,
+"initiative": 0,
+"grapple": 4,
+"saves": {
+"str": 4,
+"dex": 0,
+"con": 5,
+"int": -4,
+"wis": 0,
+"cha": -3
+},
+"stealth": 0,
+"perception": 6,
+"abilities": {
+"str": 19,
+"dex": 11,
+"con": 21,
+"int": 2,
+"wis": 10,
+"cha": 5
+},
+"cr": 5,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 7,
+"damage": 30,
+"type": "piercing"
+}
+]
+},
+"camel": {
+"ac": 9,
+"hp": 15,
+"initiative": -1,
+"grapple": 3,
+"saves": {
+"str": 3,
+"dex": -1,
+"con": 2,
+"int": -4,
+"wis": -1,
+"cha": -3
+},
+"stealth": -1,
+"perception": -1,
+"abilities": {
+"str": 16,
+"dex": 8,
+"con": 14,
+"int": 2,
+"wis": 8,
+"cha": 5
+},
+"cr": 0.125,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 5,
+"damage": 2,
+"type": "bludgeoning"
+}
+]
+},
+"cat": {
+"ac": 12,
+"hp": 2,
+"initiative": 2,
+"grapple": -4,
+"saves": {
+"str": -4,
+"dex": 2,
+"con": 0,
+"int": -4,
+"wis": 1,
+"cha": -2
+},
+"stealth": 4,
+"perception": 3,
+"abilities": {
+"str": 3,
+"dex": 15,
+"con": 10,
+"int": 3,
+"wis": 12,
+"cha": 7
+},
+"cr": 0,
+"attacks": [
+{
+"name": "claws",
+"verb": "rakes",
+"to_hit": 0,
+"damage": 1,
+"type": "slashing"
+}
+]
+},
+"centaur": {
+"ac": 12,
+"hp": 45,
+"initiative": 2,
+"grapple": 6,
+"saves": {
+"str": 4,
+"dex": 2,
+"con": 2,
+"int": -1,
+"wis": 1,
+"cha": 0
+},
+"stealth": 2,
+"perception": 3,
+"abilities": {
+"str": 18,
+"dex": 14,
+"con": 14,
+"int": 9,
+"wis": 13,
+"cha": 11
+},
+"cr": 2,
+"attacks": [
+{
+"name": "hooves",
+"verb": "kicks",
+"to_hit": 6,
+"damage": 11,
+"type": "bludgeoning"
+},
+{
+"name": "hooves",
+"verb": "kicks",
+"to_hit": 6,
+"damage": 11,
+"type": "bludgeoning"
+}
+]
+},
+"chain devil": {
+"ac": 16,
+"hp": 85,
+"initiative": 2,
+"grapple": 4,
+"saves": {
+"str": 4,
+"dex": 2,
+"con": 7,
+"int": 0,
+"wis": 4,
+"cha": 5
+},
+"stealth": 2,
+"perception": 1,
+"abilities": {
+"str": 18,
+"dex": 15,
+"con": 18,
+"int": 11,
+"wis": 12,
+"cha": 14
+},
+"cr": 8,
+"attacks": [
+{
+"name": "chain",
+"verb": "cuts",
+"to_hit": 8,
+"damage": 11,
+"type": "slashing"
+},
+{
+"name": "chain",
+"verb": "cuts",
+"to_hit": 8,
+"damage": 11,
+"type": "slashing"
+}
+]
+},
+"chimera": {
+"ac": 14,
+"hp": 114,
+"initiative": 0,
+"grapple": 4,
+"saves": {
+"str": 4,
+"dex": 0,
+"con": 4,
+"int": -4,
+"wis": 2,
+"cha": 0
+},
+"stealth": 0,
+"perception": 8,
+"abilities": {
+"str": 19,
+"dex": 11,
+"con": 19,
+"int": 3,
+"wis": 14,
+"cha": 10
+},
+"cr": 6,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 7,
+"damage": 11,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 7,
+"damage": 11,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 7,
+"damage": 11,
+"type": "piercing"
+}
+]
+},
+"chuul": {
+"ac": 16,
+"hp": 93,
+"initiative": 0,
+"grapple": 4,
+"saves": {
+"str": 4,
+"dex": 0,
+"con": 3,
+"int": -3,
+"wis": 0,
+"cha": -3
+},
+"stealth": 0,
+"perception": 4,
+"abilities": {
+"str": 19,
+"dex": 10,
+"con": 16,
+"int": 5,
+"wis": 11,
+"cha": 5
+},
+"cr": 4,
+"attacks": [
+{
+"name": "pincer",
+"verb": "strikes",
+"to_hit": 6,
+"damage": 11,
+"type": "bludgeoning"
+},
+{
+"name": "pincer",
+"verb": "strikes",
+"to_hit": 6,
+"damage": 11,
+"type": "bludgeoning"
+}
+]
+},
+"clay golem": {
+"ac": 14,
+"hp": 133,
+"initiative": -1,
+"grapple": 5,
+"saves": {
+"str": 5,
+"dex": -1,
+"con": 4,
+"int": -4,
+"wis": -1,
+"cha": -5
+},
+"stealth": -1,
+"perception": -1,
+"abilities": {
+"str": 20,
+"dex": 9,
+"con": 18,
+"int": 3,
+"wis": 8,
+"cha": 1
+},
+"cr": 9,
+"attacks": [
+{
+"name": "slam",
+"verb": "slams",
+"to_hit": 8,
+"damage": 16,
+"type": "bludgeoning"
+},
+{
+"name": "slam",
+"verb": "slams",
+"to_hit": 8,
+"damage": 16,
+"type": "bludgeoning"
+}
+]
+},
+"cloaker": {
+"ac": 14,
+"hp": 78,
+"initiative": 2,
+"grapple": 3,
+"saves": {
+"str": 3,
+"dex": 2,
+"con": 1,
+"int": 1,
+"wis": 1,
+"cha": 2
+},
+"stealth": 5,
+"perception": 1,
+"abilities": {
+"str": 17,
+"dex": 15,
+"con": 12,
+"int": 13,
+"wis": 12,
+"cha": 14
+},
+"cr": 8,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 6,
+"damage": 10,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 6,
+"damage": 10,
+"type": "piercing"
+}
+]
+},
+"cloud giant": {
+"ac": 14,
+"hp": 200,
+"initiative": 0,
+"grapple": 8,
+"saves": {
+"str": 8,
+"dex": 0,
+"con": 10,
+"int": 1,
+"wis": 7,
+"cha": 7
+},
+"stealth": 0,
+"perception": 7,
+"abilities": {
+"str": 27,
+"dex": 10,
+"con": 22,
+"int": 12,
+"wis": 16,
+"cha": 16
+},
+"cr": 9,
+"attacks": [
+{
+"name": "rock",
+"verb": "strikes",
+"to_hit": 12,
+"damage": 30,
+"type": "bludgeoning"
+},
+{
+"name": "rock",
+"verb": "strikes",
+"to_hit": 12,
+"damage": 30,
+"type": "bludgeoning"
+}
+]
+},
+"cockatrice": {
+"ac": 11,
+"hp": 27,
+"initiative": 1,
+"grapple": -2,
+"saves": {
+"str": -2,
+"dex": 1,
+"con": 1,
+"int": -4,
+"wis": 1,
+"cha": -3
+},
+"stealth": 1,
+"perception": 1,
+"abilities": {
+"str": 6,
+"dex": 12,
+"con": 12,
+"int": 2,
+"wis": 13,
+"cha": 5
+},
+"cr": 0.5,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 3,
+"damage": 3,
+"type": "piercing"
+}
+]
+},
+"commoner": {
+"ac": 10,
+"hp": 4,
+"initiative": 0,
+"grapple": 0,
+"saves": {
+"str": 0,
+"dex": 0,
+"con": 0,
+"int": 0,
+"wis": 0,
+"cha": 0
+},
+"stealth": 0,
+"perception": 0,
+"abilities": {
+"str": 10,
+"dex": 10,
+"con": 10,
+"int": 10,
+"wis": 10,
+"cha": 10
+},
+"cr": 0,
+"attacks": [
+{
+"name": "club",
+"verb": "strikes",
+"to_hit": 2,
+"damage": 2,
+"type": "bludgeoning"
+}
+],
+"npc_role": true
+},
+"constrictor snake": {
+"ac": 12,
+"hp": 13,
+"initiative": 2,
+"grapple": 2,
+"saves": {
+"str": 2,
+"dex": 2,
+"con": 1,
+"int": -5,
+"wis": 0,
+"cha": -4
+},
+"stealth": 2,
+"perception": 0,
+"abilities": {
+"str": 15,
+"dex": 14,
+"con": 12,
+"int": 1,
+"wis": 10,
+"cha": 3
+},
+"cr": 0.25,
+"attacks": [
+{
+"name": "constrict",
+"verb": "strikes",
+"to_hit": 4,
+"damage": 6,
+"type": "bludgeoning"
+}
+]
+},
+"copper dragon wyrmling": {
+"ac": 16,
+"hp": 22,
+"initiative": 1,
+"grapple": 2,
+"saves": {
+"str": 2,
+"dex": 3,
+"con": 3,
+"int": 2,
+"wis": 2,
+"cha": 3
+},
+"stealth": 3,
+"perception": 4,
+"abilities": {
+"str": 15,
+"dex": 12,
+"con": 13,
+"int": 14,
+"wis": 11,
+"cha": 13
+},
+"cr": 1,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 4,
+"damage": 7,
+"type": "piercing"
+}
+]
+},
+"couatl": {
+"ac": 19,
+"hp": 97,
+"initiative": 5,
+"grapple": 3,
+"saves": {
+"str": 3,
+"dex": 5,
+"con": 5,
+"int": 4,
+"wis": 7,
+"cha": 6
+},
+"stealth": 5,
+"perception": 5,
+"abilities": {
+"str": 16,
+"dex": 20,
+"con": 17,
+"int": 18,
+"wis": 20,
+"cha": 18
+},
+"cr": 4,
+"attacks": [
+{
+"name": "constrict",
+"verb": "strikes",
+"to_hit": 6,
+"damage": 10,
+"type": "bludgeoning"
+}
+]
+},
+"crab": {
+"ac": 11,
+"hp": 2,
+"initiative": 0,
+"grapple": -4,
+"saves": {
+"str": -4,
+"dex": 0,
+"con": 0,
+"int": -5,
+"wis": -1,
+"cha": -4
+},
+"stealth": 2,
+"perception": -1,
+"abilities": {
+"str": 2,
+"dex": 11,
+"con": 10,
+"int": 1,
+"wis": 8,
+"cha": 2
+},
+"cr": 0,
+"attacks": [
+{
+"name": "claw",
+"verb": "rakes",
+"to_hit": 0,
+"damage": 1,
+"type": "bludgeoning"
+}
+]
+},
+"crocodile": {
+"ac": 12,
+"hp": 19,
+"initiative": 0,
+"grapple": 2,
+"saves": {
+"str": 2,
+"dex": 0,
+"con": 1,
+"int": -4,
+"wis": 0,
+"cha": -3
+},
+"stealth": 2,
+"perception": 0,
+"abilities": {
+"str": 15,
+"dex": 10,
+"con": 13,
+"int": 2,
+"wis": 10,
+"cha": 5
+},
+"cr": 0.5,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 4,
+"damage": 7,
+"type": "piercing"
+}
+]
+},
+"cult fanatic": {
+"ac": 13,
+"hp": 22,
+"initiative": 2,
+"grapple": 0,
+"saves": {
+"str": 0,
+"dex": 2,
+"con": 1,
+"int": 0,
+"wis": 1,
+"cha": 2
+},
+"stealth": 2,
+"perception": 1,
+"abilities": {
+"str": 11,
+"dex": 14,
+"con": 12,
+"int": 10,
+"wis": 13,
+"cha": 14
+},
+"cr": 2,
+"attacks": [
+{
+"name": "dagger",
+"verb": "stabs",
+"to_hit": 4,
+"damage": 4,
+"type": "piercing"
+},
+{
+"name": "dagger",
+"verb": "stabs",
+"to_hit": 4,
+"damage": 4,
+"type": "piercing"
+}
+],
+"npc_role": true
+},
+"cultist": {
+"ac": 12,
+"hp": 9,
+"initiative": 1,
+"grapple": 0,
+"saves": {
+"str": 0,
+"dex": 1,
+"con": 0,
+"int": 0,
+"wis": 0,
+"cha": 0
+},
+"stealth": 1,
+"perception": 0,
+"abilities": {
+"str": 11,
+"dex": 12,
+"con": 10,
+"int": 10,
+"wis": 11,
+"cha": 10
+},
+"cr": 0.125,
+"attacks": [
+{
+"name": "scimitar",
+"verb": "cuts",
+"to_hit": 3,
+"damage": 4,
+"type": "slashing"
+}
+],
+"npc_role": true
+},
+"darkmantle": {
+"ac": 11,
+"hp": 22,
+"initiative": 1,
+"grapple": 3,
+"saves": {
+"str": 3,
+"dex": 1,
+"con": 1,
+"int": -4,
+"wis": 0,
+"cha": -3
+},
+"stealth": 3,
+"perception": 0,
+"abilities": {
+"str": 16,
+"dex": 12,
+"con": 13,
+"int": 2,
+"wis": 10,
+"cha": 5
+},
+"cr": 0.5,
+"attacks": [
+{
+"name": "crush",
+"verb": "strikes",
+"to_hit": 5,
+"damage": 6,
+"type": "bludgeoning"
+}
+]
+},
+"death dog": {
+"ac": 12,
+"hp": 39,
+"initiative": 2,
+"grapple": 2,
+"saves": {
+"str": 2,
+"dex": 2,
+"con": 2,
+"int": -4,
+"wis": 1,
+"cha": -2
+},
+"stealth": 4,
+"perception": 5,
+"abilities": {
+"str": 15,
+"dex": 14,
+"con": 14,
+"int": 3,
+"wis": 13,
+"cha": 6
+},
+"cr": 1,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 4,
+"damage": 5,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 4,
+"damage": 5,
+"type": "piercing"
+}
+]
+},
+"deep gnome (svirfneblin)": {
+"ac": 15,
+"hp": 16,
+"initiative": 2,
+"grapple": 2,
+"saves": {
+"str": 2,
+"dex": 2,
+"con": 2,
+"int": 1,
+"wis": 0,
+"cha": -1
+},
+"stealth": 4,
+"perception": 2,
+"abilities": {
+"str": 15,
+"dex": 14,
+"con": 14,
+"int": 12,
+"wis": 10,
+"cha": 9
+},
+"cr": 0.5,
+"attacks": [
+{
+"name": "war pick",
+"verb": "stabs",
+"to_hit": 4,
+"damage": 6,
+"type": "piercing"
+}
+]
+},
+"deer": {
+"ac": 13,
+"hp": 4,
+"initiative": 3,
+"grapple": 0,
+"saves": {
+"str": 0,
+"dex": 3,
+"con": 0,
+"int": -4,
+"wis": 2,
+"cha": -3
+},
+"stealth": 3,
+"perception": 2,
+"abilities": {
+"str": 11,
+"dex": 16,
+"con": 11,
+"int": 2,
+"wis": 14,
+"cha": 5
+},
+"cr": 0,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 2,
+"damage": 2,
+"type": "piercing"
+}
+]
+},
+"deva": {
+"ac": 17,
+"hp": 136,
+"initiative": 4,
+"grapple": 4,
+"saves": {
+"str": 4,
+"dex": 4,
+"con": 4,
+"int": 3,
+"wis": 9,
+"cha": 9
+},
+"stealth": 4,
+"perception": 9,
+"abilities": {
+"str": 18,
+"dex": 18,
+"con": 18,
+"int": 17,
+"wis": 20,
+"cha": 20
+},
+"cr": 10,
+"attacks": [
+{
+"name": "mace",
+"verb": "strikes",
+"to_hit": 8,
+"damage": 25,
+"type": "bludgeoning"
+},
+{
+"name": "mace",
+"verb": "strikes",
+"to_hit": 8,
+"damage": 25,
+"type": "bludgeoning"
+}
+]
+},
+"dire wolf": {
+"ac": 14,
+"hp": 37,
+"initiative": 2,
+"grapple": 3,
+"saves": {
+"str": 3,
+"dex": 2,
+"con": 2,
+"int": -4,
+"wis": 1,
+"cha": -2
+},
+"stealth": 4,
+"perception": 3,
+"abilities": {
+"str": 17,
+"dex": 15,
+"con": 15,
+"int": 3,
+"wis": 12,
+"cha": 7
+},
+"cr": 1,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 5,
+"damage": 10,
+"type": "piercing"
+}
+]
+},
+"djinni": {
+"ac": 17,
+"hp": 161,
+"initiative": 2,
+"grapple": 5,
+"saves": {
+"str": 5,
+"dex": 6,
+"con": 6,
+"int": 2,
+"wis": 7,
+"cha": 9
+},
+"stealth": 2,
+"perception": 3,
+"abilities": {
+"str": 21,
+"dex": 15,
+"con": 22,
+"int": 15,
+"wis": 16,
+"cha": 20
+},
+"cr": 11,
+"attacks": [
+{
+"name": "scimitar",
+"verb": "cuts",
+"to_hit": 9,
+"damage": 15,
+"type": "slashing"
+},
+{
+"name": "scimitar",
+"verb": "cuts",
+"to_hit": 9,
+"damage": 15,
+"type": "slashing"
+},
+{
+"name": "scimitar",
+"verb": "cuts",
+"to_hit": 9,
+"damage": 15,
+"type": "slashing"
+}
+]
+},
+"doppelganger": {
+"ac": 14,
+"hp": 52,
+"initiative": 4,
+"grapple": 0,
+"saves": {
+"str": 0,
+"dex": 4,
+"con": 2,
+"int": 0,
+"wis": 1,
+"cha": 2
+},
+"stealth": 4,
+"perception": 1,
+"abilities": {
+"str": 11,
+"dex": 18,
+"con": 14,
+"int": 11,
+"wis": 12,
+"cha": 14
+},
+"cr": 3,
+"attacks": [
+{
+"name": "slam",
+"verb": "slams",
+"to_hit": 6,
+"damage": 7,
+"type": "bludgeoning"
+},
+{
+"name": "slam",
+"verb": "slams",
+"to_hit": 6,
+"damage": 7,
+"type": "bludgeoning"
+}
+]
+},
+"draft horse": {
+"ac": 10,
+"hp": 19,
+"initiative": 0,
+"grapple": 4,
+"saves": {
+"str": 4,
+"dex": 0,
+"con": 1,
+"int": -4,
+"wis": 0,
+"cha": -2
+},
+"stealth": 0,
+"perception": 0,
+"abilities": {
+"str": 18,
+"dex": 10,
+"con": 12,
+"int": 2,
+"wis": 11,
+"cha": 7
+},
+"cr": 0.25,
+"attacks": [
+{
+"name": "hooves",
+"verb": "kicks",
+"to_hit": 6,
+"damage": 9,
+"type": "bludgeoning"
+}
+]
+},
+"dragon turtle": {
+"ac": 20,
+"hp": 341,
+"initiative": 0,
+"grapple": 7,
+"saves": {
+"str": 7,
+"dex": 6,
+"con": 11,
+"int": 0,
+"wis": 7,
+"cha": 1
+},
+"stealth": 0,
+"perception": 1,
+"abilities": {
+"str": 25,
+"dex": 10,
+"con": 20,
+"int": 10,
+"wis": 12,
+"cha": 12
+},
+"cr": 17,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 13,
+"damage": 26,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 13,
+"damage": 26,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 13,
+"damage": 26,
+"type": "piercing"
+}
+]
+},
+"dretch": {
+"ac": 11,
+"hp": 18,
+"initiative": 0,
+"grapple": 0,
+"saves": {
+"str": 0,
+"dex": 0,
+"con": 1,
+"int": -3,
+"wis": -1,
+"cha": -4
+},
+"stealth": 0,
+"perception": -1,
+"abilities": {
+"str": 11,
+"dex": 11,
+"con": 12,
+"int": 5,
+"wis": 8,
+"cha": 3
+},
+"cr": 0.25,
+"attacks": [
+{
+"name": "claws",
+"verb": "rakes",
+"to_hit": 2,
+"damage": 5,
+"type": "slashing"
+},
+{
+"name": "claws",
+"verb": "rakes",
+"to_hit": 2,
+"damage": 5,
+"type": "slashing"
+}
+]
+},
+"drider": {
+"ac": 19,
+"hp": 123,
+"initiative": 3,
+"grapple": 3,
+"saves": {
+"str": 3,
+"dex": 3,
+"con": 4,
+"int": 1,
+"wis": 2,
+"cha": 1
+},
+"stealth": 9,
+"perception": 5,
+"abilities": {
+"str": 16,
+"dex": 16,
+"con": 18,
+"int": 13,
+"wis": 14,
+"cha": 12
+},
+"cr": 6,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 6,
+"damage": 11,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 6,
+"damage": 11,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 6,
+"damage": 11,
+"type": "piercing"
+}
+]
+},
+"drow": {
+"ac": 15,
+"hp": 13,
+"initiative": 2,
+"grapple": 0,
+"saves": {
+"str": 0,
+"dex": 2,
+"con": 0,
+"int": 0,
+"wis": 0,
+"cha": 1
+},
+"stealth": 4,
+"perception": 2,
+"abilities": {
+"str": 10,
+"dex": 14,
+"con": 10,
+"int": 11,
+"wis": 11,
+"cha": 12
+},
+"cr": 0.25,
+"attacks": [
+{
+"name": "shortsword",
+"verb": "stabs",
+"to_hit": 4,
+"damage": 5,
+"type": "piercing"
+}
+]
+},
+"druid": {
+"ac": 11,
+"hp": 27,
+"initiative": 1,
+"grapple": 0,
+"saves": {
+"str": 0,
+"dex": 1,
+"con": 1,
+"int": 1,
+"wis": 2,
+"cha": 0
+},
+"stealth": 1,
+"perception": 4,
+"abilities": {
+"str": 10,
+"dex": 12,
+"con": 13,
+"int": 12,
+"wis": 15,
+"cha": 11
+},
+"cr": 2,
+"attacks": [
+{
+"name": "quarterstaff",
+"verb": "strikes",
+"to_hit": 2,
+"damage": 3,
+"type": "bludgeoning"
+}
+],
+"npc_role": true
+},
+"dryad": {
+"ac": 11,
+"hp": 22,
+"initiative": 1,
+"grapple": 0,
+"saves": {
+"str": 0,
+"dex": 1,
+"con": 0,
+"int": 2,
+"wis": 2,
+"cha": 4
+},
+"stealth": 5,
+"perception": 4,
+"abilities": {
+"str": 10,
+"dex": 12,
+"con": 11,
+"int": 14,
+"wis": 15,
+"cha": 18
+},
+"cr": 1,
+"attacks": [
+{
+"name": "club",
+"verb": "strikes",
+"to_hit": 2,
+"damage": 2,
+"type": "bludgeoning"
+}
+]
+},
+"duergar": {
+"ac": 16,
+"hp": 26,
+"initiative": 0,
+"grapple": 2,
+"saves": {
+"str": 2,
+"dex": 0,
+"con": 2,
+"int": 0,
+"wis": 0,
+"cha": -1
+},
+"stealth": 0,
+"perception": 0,
+"abilities": {
+"str": 14,
+"dex": 11,
+"con": 14,
+"int": 11,
+"wis": 10,
+"cha": 9
+},
+"cr": 1,
+"attacks": [
+{
+"name": "war pick",
+"verb": "stabs",
+"to_hit": 4,
+"damage": 6,
+"type": "piercing"
+}
+]
+},
+"dust mephit": {
+"ac": 12,
+"hp": 17,
+"initiative": 2,
+"grapple": -3,
+"saves": {
+"str": -3,
+"dex": 2,
+"con": 0,
+"int": -1,
+"wis": 0,
+"cha": 0
+},
+"stealth": 4,
+"perception": 2,
+"abilities": {
+"str": 5,
+"dex": 14,
+"con": 10,
+"int": 9,
+"wis": 11,
+"cha": 10
+},
+"cr": 0.5,
+"attacks": [
+{
+"name": "claws",
+"verb": "rakes",
+"to_hit": 4,
+"damage": 4,
+"type": "slashing"
+}
+]
+},
+"eagle": {
+"ac": 12,
+"hp": 3,
+"initiative": 2,
+"grapple": -2,
+"saves": {
+"str": -2,
+"dex": 2,
+"con": 0,
+"int": -4,
+"wis": 2,
+"cha": -2
+},
+"stealth": 2,
+"perception": 4,
+"abilities": {
+"str": 6,
+"dex": 15,
+"con": 10,
+"int": 2,
+"wis": 14,
+"cha": 7
+},
+"cr": 0,
+"attacks": [
+{
+"name": "talons",
+"verb": "rakes",
+"to_hit": 4,
+"damage": 4,
+"type": "slashing"
+}
+]
+},
+"earth elemental": {
+"ac": 17,
+"hp": 126,
+"initiative": -1,
+"grapple": 5,
+"saves": {
+"str": 5,
+"dex": -1,
+"con": 5,
+"int": -3,
+"wis": 0,
+"cha": -3
+},
+"stealth": -1,
+"perception": 0,
+"abilities": {
+"str": 20,
+"dex": 8,
+"con": 20,
+"int": 5,
+"wis": 10,
+"cha": 5
+},
+"cr": 5,
+"attacks": [
+{
+"name": "slam",
+"verb": "slams",
+"to_hit": 8,
+"damage": 14,
+"type": "bludgeoning"
+},
+{
+"name": "slam",
+"verb": "slams",
+"to_hit": 8,
+"damage": 14,
+"type": "bludgeoning"
+}
+]
+},
+"efreeti": {
+"ac": 17,
+"hp": 200,
+"initiative": 1,
+"grapple": 6,
+"saves": {
+"str": 6,
+"dex": 1,
+"con": 7,
+"int": 7,
+"wis": 6,
+"cha": 7
+},
+"stealth": 1,
+"perception": 2,
+"abilities": {
+"str": 22,
+"dex": 12,
+"con": 24,
+"int": 16,
+"wis": 15,
+"cha": 16
+},
+"cr": 11,
+"attacks": [
+{
+"name": "scimitar",
+"verb": "cuts",
+"to_hit": 10,
+"damage": 20,
+"type": "slashing"
+},
+{
+"name": "scimitar",
+"verb": "cuts",
+"to_hit": 10,
+"damage": 20,
+"type": "slashing"
+}
+]
+},
+"elephant": {
+"ac": 12,
+"hp": 76,
+"initiative": -1,
+"grapple": 6,
+"saves": {
+"str": 6,
+"dex": -1,
+"con": 3,
+"int": -4,
+"wis": 0,
+"cha": -2
+},
+"stealth": -1,
+"perception": 0,
+"abilities": {
+"str": 22,
+"dex": 9,
+"con": 17,
+"int": 3,
+"wis": 11,
+"cha": 6
+},
+"cr": 4,
+"attacks": [
+{
+"name": "stomp",
+"verb": "strikes",
+"to_hit": 8,
+"damage": 22,
+"type": "bludgeoning"
+}
+]
+},
+"elk": {
+"ac": 10,
+"hp": 13,
+"initiative": 0,
+"grapple": 3,
+"saves": {
+"str": 3,
+"dex": 0,
+"con": 1,
+"int": -4,
+"wis": 0,
+"cha": -2
+},
+"stealth": 0,
+"perception": 0,
+"abilities": {
+"str": 16,
+"dex": 10,
+"con": 12,
+"int": 2,
+"wis": 10,
+"cha": 6
+},
+"cr": 0.25,
+"attacks": [
+{
+"name": "hooves",
+"verb": "kicks",
+"to_hit": 5,
+"damage": 8,
+"type": "bludgeoning"
+}
+]
+},
+"erinyes": {
+"ac": 18,
+"hp": 153,
+"initiative": 3,
+"grapple": 4,
+"saves": {
+"str": 4,
+"dex": 7,
+"con": 8,
+"int": 2,
+"wis": 6,
+"cha": 8
+},
+"stealth": 3,
+"perception": 2,
+"abilities": {
+"str": 18,
+"dex": 16,
+"con": 18,
+"int": 14,
+"wis": 14,
+"cha": 18
+},
+"cr": 12,
+"attacks": [
+{
+"name": "longsword",
+"verb": "cuts",
+"to_hit": 8,
+"damage": 21,
+"type": "slashing"
+},
+{
+"name": "longsword",
+"verb": "cuts",
+"to_hit": 8,
+"damage": 21,
+"type": "slashing"
+},
+{
+"name": "longsword",
+"verb": "cuts",
+"to_hit": 8,
+"damage": 21,
+"type": "slashing"
+}
+]
+},
+"ettercap": {
+"ac": 13,
+"hp": 44,
+"initiative": 2,
+"grapple": 2,
+"saves": {
+"str": 2,
+"dex": 2,
+"con": 1,
+"int": -2,
+"wis": 1,
+"cha": -1
+},
+"stealth": 4,
+"perception": 3,
+"abilities": {
+"str": 14,
+"dex": 15,
+"con": 13,
+"int": 7,
+"wis": 12,
+"cha": 8
+},
+"cr": 2,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 4,
+"damage": 10,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 4,
+"damage": 10,
+"type": "piercing"
+}
+]
+},
+"ettin": {
+"ac": 12,
+"hp": 85,
+"initiative": -1,
+"grapple": 5,
+"saves": {
+"str": 5,
+"dex": -1,
+"con": 3,
+"int": -2,
+"wis": 0,
+"cha": -1
+},
+"stealth": -1,
+"perception": 4,
+"abilities": {
+"str": 21,
+"dex": 8,
+"con": 17,
+"int": 6,
+"wis": 10,
+"cha": 8
+},
+"cr": 4,
+"attacks": [
+{
+"name": "battleaxe",
+"verb": "cuts",
+"to_hit": 7,
+"damage": 14,
+"type": "slashing"
+},
+{
+"name": "battleaxe",
+"verb": "cuts",
+"to_hit": 7,
+"damage": 14,
+"type": "slashing"
+}
+]
+},
+"fire elemental": {
+"ac": 13,
+"hp": 102,
+"initiative": 3,
+"grapple": 0,
+"saves": {
+"str": 0,
+"dex": 3,
+"con": 3,
+"int": -2,
+"wis": 0,
+"cha": -2
+},
+"stealth": 3,
+"perception": 0,
+"abilities": {
+"str": 10,
+"dex": 17,
+"con": 16,
+"int": 6,
+"wis": 10,
+"cha": 7
+},
+"cr": 5,
+"attacks": [
+{
+"name": "touch",
+"verb": "hits",
+"to_hit": 6,
+"damage": 10,
+"type": "fire"
+},
+{
+"name": "touch",
+"verb": "hits",
+"to_hit": 6,
+"damage": 10,
+"type": "fire"
+}
+]
+},
+"fire giant": {
+"ac": 18,
+"hp": 162,
+"initiative": -1,
+"grapple": 11,
+"saves": {
+"str": 7,
+"dex": 3,
+"con": 10,
+"int": 0,
+"wis": 2,
+"cha": 5
+},
+"stealth": -1,
+"perception": 6,
+"abilities": {
+"str": 25,
+"dex": 9,
+"con": 23,
+"int": 10,
+"wis": 14,
+"cha": 13
+},
+"cr": 9,
+"attacks": [
+{
+"name": "rock",
+"verb": "strikes",
+"to_hit": 11,
+"damage": 29,
+"type": "bludgeoning"
+},
+{
+"name": "rock",
+"verb": "strikes",
+"to_hit": 11,
+"damage": 29,
+"type": "bludgeoning"
+}
+]
+},
+"flesh golem": {
+"ac": 9,
+"hp": 93,
+"initiative": -1,
+"grapple": 4,
+"saves": {
+"str": 4,
+"dex": -1,
+"con": 4,
+"int": -2,
+"wis": 0,
+"cha": -3
+},
+"stealth": -1,
+"perception": 0,
+"abilities": {
+"str": 19,
+"dex": 9,
+"con": 18,
+"int": 6,
+"wis": 10,
+"cha": 5
+},
+"cr": 5,
+"attacks": [
+{
+"name": "slam",
+"verb": "slams",
+"to_hit": 7,
+"damage": 13,
+"type": "bludgeoning"
+},
+{
+"name": "slam",
+"verb": "slams",
+"to_hit": 7,
+"damage": 13,
+"type": "bludgeoning"
+}
+]
+},
+"flying snake": {
+"ac": 14,
+"hp": 5,
+"initiative": 4,
+"grapple": -3,
+"saves": {
+"str": -3,
+"dex": 4,
+"con": 0,
+"int": -4,
+"wis": 1,
+"cha": -3
+},
+"stealth": 4,
+"perception": 1,
+"abilities": {
+"str": 4,
+"dex": 18,
+"con": 11,
+"int": 2,
+"wis": 12,
+"cha": 5
+},
+"cr": 0.125,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 6,
+"damage": 8,
+"type": "piercing"
+}
+]
+},
+"flying sword": {
+"ac": 17,
+"hp": 17,
+"initiative": 2,
+"grapple": 1,
+"saves": {
+"str": 1,
+"dex": 4,
+"con": 0,
+"int": -5,
+"wis": -3,
+"cha": -5
+},
+"stealth": 2,
+"perception": -3,
+"abilities": {
+"str": 12,
+"dex": 15,
+"con": 11,
+"int": 1,
+"wis": 5,
+"cha": 1
+},
+"cr": 0.25,
+"attacks": [
+{
+"name": "longsword",
+"verb": "cuts",
+"to_hit": 3,
+"damage": 5,
+"type": "slashing"
+}
+]
+},
+"frost giant": {
+"ac": 15,
+"hp": 138,
+"initiative": -1,
+"grapple": 9,
+"saves": {
+"str": 6,
+"dex": -1,
+"con": 8,
+"int": -1,
+"wis": 3,
+"cha": 4
+},
+"stealth": -1,
+"perception": 3,
+"abilities": {
+"str": 23,
+"dex": 9,
+"con": 21,
+"int": 9,
+"wis": 10,
+"cha": 12
+},
+"cr": 8,
+"attacks": [
+{
+"name": "rock",
+"verb": "strikes",
+"to_hit": 9,
+"damage": 28,
+"type": "bludgeoning"
+},
+{
+"name": "rock",
+"verb": "strikes",
+"to_hit": 9,
+"damage": 28,
+"type": "bludgeoning"
+}
+]
+},
+"gargoyle": {
+"ac": 15,
+"hp": 52,
+"initiative": 0,
+"grapple": 2,
+"saves": {
+"str": 2,
+"dex": 0,
+"con": 3,
+"int": -2,
+"wis": 0,
+"cha": -2
+},
+"stealth": 0,
+"perception": 0,
+"abilities": {
+"str": 15,
+"dex": 11,
+"con": 16,
+"int": 6,
+"wis": 11,
+"cha": 7
+},
+"cr": 2,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 4,
+"damage": 5,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 4,
+"damage": 5,
+"type": "piercing"
+}
+]
+},
+"gelatinous cube": {
+"ac": 6,
+"hp": 84,
+"initiative": -4,
+"grapple": 2,
+"saves": {
+"str": 2,
+"dex": -4,
+"con": 5,
+"int": -5,
+"wis": -2,
+"cha": -5
+},
+"stealth": -4,
+"perception": -2,
+"abilities": {
+"str": 14,
+"dex": 3,
+"con": 20,
+"int": 1,
+"wis": 6,
+"cha": 1
+},
+"cr": 2,
+"attacks": [
+{
+"name": "pseudopod",
+"verb": "hits",
+"to_hit": 4,
+"damage": 10,
+"type": "acid"
+}
+]
+},
+"ghast": {
+"ac": 13,
+"hp": 36,
+"initiative": 3,
+"grapple": 3,
+"saves": {
+"str": 3,
+"dex": 3,
+"con": 0,
+"int": 0,
+"wis": 0,
+"cha": -1
+},
+"stealth": 3,
+"perception": 0,
+"abilities": {
+"str": 16,
+"dex": 17,
+"con": 10,
+"int": 11,
+"wis": 10,
+"cha": 8
+},
+"cr": 2,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 3,
+"damage": 12,
+"type": "piercing"
+}
+]
+},
+"ghost": {
+"ac": 11,
+"hp": 45,
+"initiative": 1,
+"grapple": -2,
+"saves": {
+"str": -2,
+"dex": 1,
+"con": 0,
+"int": 0,
+"wis": 1,
+"cha": 3
+},
+"stealth": 1,
+"perception": 1,
+"abilities": {
+"str": 7,
+"dex": 13,
+"con": 10,
+"int": 10,
+"wis": 12,
+"cha": 17
+},
+"cr": 4,
+"attacks": [
+{
+"name": "withering touch",
+"verb": "hits",
+"to_hit": 5,
+"damage": 17,
+"type": "necrotic"
+}
+]
+},
+"ghoul": {
+"ac": 12,
+"hp": 22,
+"initiative": 2,
+"grapple": 1,
+"saves": {
+"str": 1,
+"dex": 2,
+"con": 0,
+"int": -2,
+"wis": 0,
+"cha": -2
+},
+"stealth": 2,
+"perception": 0,
+"abilities": {
+"str": 13,
+"dex": 15,
+"con": 10,
+"int": 7,
+"wis": 10,
+"cha": 6
+},
+"cr": 1,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 2,
+"damage": 9,
+"type": "piercing"
+}
+]
+},
+"giant ape": {
+"ac": 12,
+"hp": 157,
+"initiative": 2,
+"grapple": 9,
+"saves": {
+"str": 6,
+"dex": 2,
+"con": 4,
+"int": -2,
+"wis": 1,
+"cha": -2
+},
+"stealth": 2,
+"perception": 4,
+"abilities": {
+"str": 23,
+"dex": 14,
+"con": 18,
+"int": 7,
+"wis": 12,
+"cha": 7
+},
+"cr": 7,
+"attacks": [
+{
+"name": "rock",
+"verb": "strikes",
+"to_hit": 9,
+"damage": 30,
+"type": "bludgeoning"
+},
+{
+"name": "rock",
+"verb": "strikes",
+"to_hit": 9,
+"damage": 30,
+"type": "bludgeoning"
+}
+]
+},
+"giant badger": {
+"ac": 10,
+"hp": 13,
+"initiative": 0,
+"grapple": 1,
+"saves": {
+"str": 1,
+"dex": 0,
+"con": 2,
+"int": -4,
+"wis": 1,
+"cha": -3
+},
+"stealth": 0,
+"perception": 1,
+"abilities": {
+"str": 13,
+"dex": 10,
+"con": 15,
+"int": 2,
+"wis": 12,
+"cha": 5
+},
+"cr": 0.25,
+"attacks": [
+{
+"name": "claws",
+"verb": "rakes",
+"to_hit": 3,
+"damage": 6,
+"type": "slashing"
+},
+{
+"name": "claws",
+"verb": "rakes",
+"to_hit": 3,
+"damage": 6,
+"type": "slashing"
+}
+]
+},
+"giant bat": {
+"ac": 13,
+"hp": 22,
+"initiative": 3,
+"grapple": 2,
+"saves": {
+"str": 2,
+"dex": 3,
+"con": 0,
+"int": -4,
+"wis": 1,
+"cha": -2
+},
+"stealth": 3,
+"perception": 1,
+"abilities": {
+"str": 15,
+"dex": 16,
+"con": 11,
+"int": 2,
+"wis": 12,
+"cha": 6
+},
+"cr": 0.25,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 4,
+"damage": 5,
+"type": "piercing"
+}
+]
+},
+"giant boar": {
+"ac": 12,
+"hp": 42,
+"initiative": 0,
+"grapple": 3,
+"saves": {
+"str": 3,
+"dex": 0,
+"con": 3,
+"int": -4,
+"wis": -2,
+"cha": -3
+},
+"stealth": 0,
+"perception": -2,
+"abilities": {
+"str": 17,
+"dex": 10,
+"con": 16,
+"int": 2,
+"wis": 7,
+"cha": 5
+},
+"cr": 2,
+"attacks": [
+{
+"name": "tusk",
+"verb": "cuts",
+"to_hit": 5,
+"damage": 10,
+"type": "slashing"
+}
+]
+},
+"giant centipede": {
+"ac": 13,
+"hp": 4,
+"initiative": 2,
+"grapple": -3,
+"saves": {
+"str": -3,
+"dex": 2,
+"con": 1,
+"int": -5,
+"wis": -2,
+"cha": -4
+},
+"stealth": 2,
+"perception": -2,
+"abilities": {
+"str": 5,
+"dex": 14,
+"con": 12,
+"int": 1,
+"wis": 7,
+"cha": 3
+},
+"cr": 0.25,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 4,
+"damage": 4,
+"type": "piercing"
+}
+]
+},
+"giant constrictor snake": {
+"ac": 12,
+"hp": 60,
+"initiative": 2,
+"grapple": 4,
+"saves": {
+"str": 4,
+"dex": 2,
+"con": 1,
+"int": -5,
+"wis": 0,
+"cha": -4
+},
+"stealth": 2,
+"perception": 2,
+"abilities": {
+"str": 19,
+"dex": 14,
+"con": 12,
+"int": 1,
+"wis": 10,
+"cha": 3
+},
+"cr": 2,
+"attacks": [
+{
+"name": "constrict",
+"verb": "strikes",
+"to_hit": 6,
+"damage": 13,
+"type": "bludgeoning"
+}
+]
+},
+"giant crab": {
+"ac": 15,
+"hp": 13,
+"initiative": 2,
+"grapple": 1,
+"saves": {
+"str": 1,
+"dex": 2,
+"con": 0,
+"int": -5,
+"wis": -1,
+"cha": -4
+},
+"stealth": 4,
+"perception": -1,
+"abilities": {
+"str": 13,
+"dex": 15,
+"con": 11,
+"int": 1,
+"wis": 9,
+"cha": 3
+},
+"cr": 0.125,
+"attacks": [
+{
+"name": "claw",
+"verb": "rakes",
+"to_hit": 3,
+"damage": 4,
+"type": "bludgeoning"
+}
+]
+},
+"giant crocodile": {
+"ac": 14,
+"hp": 85,
+"initiative": -1,
+"grapple": 5,
+"saves": {
+"str": 5,
+"dex": -1,
+"con": 3,
+"int": -4,
+"wis": 0,
+"cha": -2
+},
+"stealth": 5,
+"perception": 0,
+"abilities": {
+"str": 21,
+"dex": 9,
+"con": 17,
+"int": 2,
+"wis": 10,
+"cha": 7
+},
+"cr": 5,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 8,
+"damage": 21,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 8,
+"damage": 21,
+"type": "piercing"
+}
+]
+},
+"giant eagle": {
+"ac": 13,
+"hp": 26,
+"initiative": 3,
+"grapple": 3,
+"saves": {
+"str": 3,
+"dex": 3,
+"con": 1,
+"int": -1,
+"wis": 2,
+"cha": 0
+},
+"stealth": 3,
+"perception": 4,
+"abilities": {
+"str": 16,
+"dex": 17,
+"con": 13,
+"int": 8,
+"wis": 14,
+"cha": 10
+},
+"cr": 1,
+"attacks": [
+{
+"name": "talons",
+"verb": "rakes",
+"to_hit": 5,
+"damage": 10,
+"type": "slashing"
+},
+{
+"name": "talons",
+"verb": "rakes",
+"to_hit": 5,
+"damage": 10,
+"type": "slashing"
+}
+]
+},
+"giant elk": {
+"ac": 14,
+"hp": 42,
+"initiative": 3,
+"grapple": 4,
+"saves": {
+"str": 4,
+"dex": 3,
+"con": 2,
+"int": -2,
+"wis": 2,
+"cha": 0
+},
+"stealth": 3,
+"perception": 4,
+"abilities": {
+"str": 19,
+"dex": 16,
+"con": 14,
+"int": 7,
+"wis": 14,
+"cha": 10
+},
+"cr": 2,
+"attacks": [
+{
+"name": "hooves",
+"verb": "kicks",
+"to_hit": 6,
+"damage": 22,
+"type": "bludgeoning"
+}
+]
+},
+"giant fire beetle": {
+"ac": 13,
+"hp": 4,
+"initiative": 0,
+"grapple": -1,
+"saves": {
+"str": -1,
+"dex": 0,
+"con": 1,
+"int": -5,
+"wis": -2,
+"cha": -4
+},
+"stealth": 0,
+"perception": -2,
+"abilities": {
+"str": 8,
+"dex": 10,
+"con": 12,
+"int": 1,
+"wis": 7,
+"cha": 3
+},
+"cr": 0,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 1,
+"damage": 2,
+"type": "slashing"
+}
+]
+},
+"giant frog": {
+"ac": 11,
+"hp": 18,
+"initiative": 1,
+"grapple": 1,
+"saves": {
+"str": 1,
+"dex": 1,
+"con": 0,
+"int": -4,
+"wis": 0,
+"cha": -4
+},
+"stealth": 3,
+"perception": 2,
+"abilities": {
+"str": 12,
+"dex": 13,
+"con": 11,
+"int": 2,
+"wis": 10,
+"cha": 3
+},
+"cr": 0.25,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 3,
+"damage": 4,
+"type": "piercing"
+}
+]
+},
+"giant goat": {
+"ac": 11,
+"hp": 19,
+"initiative": 0,
+"grapple": 3,
+"saves": {
+"str": 3,
+"dex": 0,
+"con": 1,
+"int": -4,
+"wis": 1,
+"cha": -2
+},
+"stealth": 0,
+"perception": 1,
+"abilities": {
+"str": 17,
+"dex": 11,
+"con": 12,
+"int": 3,
+"wis": 12,
+"cha": 6
+},
+"cr": 0.5,
+"attacks": [
+{
+"name": "ram",
+"verb": "rams",
+"to_hit": 5,
+"damage": 8,
+"type": "bludgeoning"
+}
+]
+},
+"giant hyena": {
+"ac": 12,
+"hp": 45,
+"initiative": 2,
+"grapple": 3,
+"saves": {
+"str": 3,
+"dex": 2,
+"con": 2,
+"int": -4,
+"wis": 1,
+"cha": -2
+},
+"stealth": 2,
+"perception": 3,
+"abilities": {
+"str": 16,
+"dex": 14,
+"con": 14,
+"int": 2,
+"wis": 12,
+"cha": 7
+},
+"cr": 1,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 5,
+"damage": 10,
+"type": "piercing"
+}
+]
+},
+"giant lizard": {
+"ac": 12,
+"hp": 19,
+"initiative": 1,
+"grapple": 2,
+"saves": {
+"str": 2,
+"dex": 1,
+"con": 1,
+"int": -4,
+"wis": 0,
+"cha": -3
+},
+"stealth": 1,
+"perception": 0,
+"abilities": {
+"str": 15,
+"dex": 12,
+"con": 13,
+"int": 2,
+"wis": 10,
+"cha": 5
+},
+"cr": 0.25,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 4,
+"damage": 6,
+"type": "piercing"
+}
+]
+},
+"giant octopus": {
+"ac": 11,
+"hp": 52,
+"initiative": 1,
+"grapple": 3,
+"saves": {
+"str": 3,
+"dex": 1,
+"con": 1,
+"int": -3,
+"wis": 0,
+"cha": -3
+},
+"stealth": 5,
+"perception": 4,
+"abilities": {
+"str": 17,
+"dex": 13,
+"con": 13,
+"int": 4,
+"wis": 10,
+"cha": 4
+},
+"cr": 1,
+"attacks": [
+{
+"name": "tentacles",
+"verb": "lashes",
+"to_hit": 5,
+"damage": 10,
+"type": "bludgeoning"
+}
+]
+},
+"giant owl": {
+"ac": 12,
+"hp": 19,
+"initiative": 2,
+"grapple": 1,
+"saves": {
+"str": 1,
+"dex": 2,
+"con": 1,
+"int": -1,
+"wis": 1,
+"cha": 0
+},
+"stealth": 4,
+"perception": 5,
+"abilities": {
+"str": 13,
+"dex": 15,
+"con": 12,
+"int": 8,
+"wis": 13,
+"cha": 10
+},
+"cr": 0.25,
+"attacks": [
+{
+"name": "talons",
+"verb": "rakes",
+"to_hit": 3,
+"damage": 8,
+"type": "slashing"
+}
+]
+},
+"giant poisonous snake": {
+"ac": 14,
+"hp": 11,
+"initiative": 4,
+"grapple": 0,
+"saves": {
+"str": 0,
+"dex": 4,
+"con": 1,
+"int": -4,
+"wis": 0,
+"cha": -4
+},
+"stealth": 4,
+"perception": 2,
+"abilities": {
+"str": 10,
+"dex": 18,
+"con": 13,
+"int": 2,
+"wis": 10,
+"cha": 3
+},
+"cr": 0.25,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 6,
+"damage": 6,
+"type": "piercing"
+}
+]
+},
+"giant rat": {
+"ac": 12,
+"hp": 7,
+"initiative": 2,
+"grapple": -2,
+"saves": {
+"str": -2,
+"dex": 2,
+"con": 0,
+"int": -4,
+"wis": 0,
+"cha": -3
+},
+"stealth": 2,
+"perception": 0,
+"abilities": {
+"str": 7,
+"dex": 15,
+"con": 11,
+"int": 2,
+"wis": 10,
+"cha": 4
+},
+"cr": 0.125,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 4,
+"damage": 4,
+"type": "piercing"
+}
+]
+},
+"giant rat (diseased)": {
+"ac": 12,
+"hp": 7,
+"initiative": 2,
+"grapple": -2,
+"saves": {
+"str": -2,
+"dex": 2,
+"con": 0,
+"int": -4,
+"wis": 0,
+"cha": -3
+},
+"stealth": 2,
+"perception": 0,
+"abilities": {
+"str": 7,
+"dex": 15,
+"con": 11,
+"int": 2,
+"wis": 10,
+"cha": 4
+},
+"cr": 0.125,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 4,
+"damage": 4,
+"type": "piercing"
+}
+]
+},
+"giant scorpion": {
+"ac": 15,
+"hp": 52,
+"initiative": 1,
+"grapple": 2,
+"saves": {
+"str": 2,
+"dex": 1,
+"con": 2,
+"int": -5,
+"wis": -1,
+"cha": -4
+},
+"stealth": 1,
+"perception": -1,
+"abilities": {
+"str": 15,
+"dex": 13,
+"con": 15,
+"int": 1,
+"wis": 9,
+"cha": 3
+},
+"cr": 3,
+"attacks": [
+{
+"name": "sting",
+"verb": "stings",
+"to_hit": 4,
+"damage": 7,
+"type": "piercing"
+},
+{
+"name": "sting",
+"verb": "stings",
+"to_hit": 4,
+"damage": 7,
+"type": "piercing"
+},
+{
+"name": "sting",
+"verb": "stings",
+"to_hit": 4,
+"damage": 7,
+"type": "piercing"
+}
+]
+},
+"giant sea horse": {
+"ac": 13,
+"hp": 16,
+"initiative": 2,
+"grapple": 1,
+"saves": {
+"str": 1,
+"dex": 2,
+"con": 0,
+"int": -4,
+"wis": 1,
+"cha": -3
+},
+"stealth": 2,
+"perception": 1,
+"abilities": {
+"str": 12,
+"dex": 15,
+"con": 11,
+"int": 2,
+"wis": 12,
+"cha": 5
+},
+"cr": 0.5,
+"attacks": [
+{
+"name": "ram",
+"verb": "rams",
+"to_hit": 3,
+"damage": 4,
+"type": "bludgeoning"
+}
+]
+},
+"giant shark": {
+"ac": 13,
+"hp": 126,
+"initiative": 0,
+"grapple": 6,
+"saves": {
+"str": 6,
+"dex": 0,
+"con": 5,
+"int": -5,
+"wis": 0,
+"cha": -3
+},
+"stealth": 0,
+"perception": 3,
+"abilities": {
+"str": 23,
+"dex": 11,
+"con": 21,
+"int": 1,
+"wis": 10,
+"cha": 5
+},
+"cr": 5,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 9,
+"damage": 22,
+"type": "piercing"
+}
+]
+},
+"giant spider": {
+"ac": 14,
+"hp": 26,
+"initiative": 3,
+"grapple": 2,
+"saves": {
+"str": 2,
+"dex": 3,
+"con": 1,
+"int": -4,
+"wis": 0,
+"cha": -3
+},
+"stealth": 7,
+"perception": 0,
+"abilities": {
+"str": 14,
+"dex": 16,
+"con": 12,
+"int": 2,
+"wis": 11,
+"cha": 4
+},
+"cr": 1,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 5,
+"damage": 7,
+"type": "piercing"
+}
+]
+},
+"giant toad": {
+"ac": 11,
+"hp": 39,
+"initiative": 1,
+"grapple": 2,
+"saves": {
+"str": 2,
+"dex": 1,
+"con": 1,
+"int": -4,
+"wis": 0,
+"cha": -4
+},
+"stealth": 1,
+"perception": 0,
+"abilities": {
+"str": 15,
+"dex": 13,
+"con": 13,
+"int": 2,
+"wis": 10,
+"cha": 3
+},
+"cr": 1,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 4,
+"damage": 12,
+"type": "piercing"
+}
+]
+},
+"giant vulture": {
+"ac": 10,
+"hp": 22,
+"initiative": 0,
+"grapple": 2,
+"saves": {
+"str": 2,
+"dex": 0,
+"con": 2,
+"int": -2,
+"wis": 1,
+"cha": -2
+},
+"stealth": 0,
+"perception": 3,
+"abilities": {
+"str": 15,
+"dex": 10,
+"con": 15,
+"int": 6,
+"wis": 12,
+"cha": 7
+},
+"cr": 1,
+"attacks": [
+{
+"name": "talons",
+"verb": "rakes",
+"to_hit": 4,
+"damage": 9,
+"type": "slashing"
+},
+{
+"name": "talons",
+"verb": "rakes",
+"to_hit": 4,
+"damage": 9,
+"type": "slashing"
+}
+]
+},
+"giant wasp": {
+"ac": 12,
+"hp": 13,
+"initiative": 2,
+"grapple": 0,
+"saves": {
+"str": 0,
+"dex": 2,
+"con": 0,
+"int": -5,
+"wis": 0,
+"cha": -4
+},
+"stealth": 2,
+"perception": 0,
+"abilities": {
+"str": 10,
+"dex": 14,
+"con": 10,
+"int": 1,
+"wis": 10,
+"cha": 3
+},
+"cr": 0.5,
+"attacks": [
+{
+"name": "sting",
+"verb": "stings",
+"to_hit": 4,
+"damage": 5,
+"type": "piercing"
+}
+]
+},
+"giant weasel": {
+"ac": 13,
+"hp": 9,
+"initiative": 3,
+"grapple": 0,
+"saves": {
+"str": 0,
+"dex": 3,
+"con": 0,
+"int": -3,
+"wis": 1,
+"cha": -3
+},
+"stealth": 5,
+"perception": 3,
+"abilities": {
+"str": 11,
+"dex": 16,
+"con": 10,
+"int": 4,
+"wis": 12,
+"cha": 5
+},
+"cr": 0.125,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 5,
+"damage": 5,
+"type": "piercing"
+}
+]
+},
+"giant wolf spider": {
+"ac": 13,
+"hp": 11,
+"initiative": 3,
+"grapple": 1,
+"saves": {
+"str": 1,
+"dex": 3,
+"con": 1,
+"int": -4,
+"wis": 1,
+"cha": -3
+},
+"stealth": 7,
+"perception": 3,
+"abilities": {
+"str": 12,
+"dex": 16,
+"con": 13,
+"int": 3,
+"wis": 12,
+"cha": 4
+},
+"cr": 0.25,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 3,
+"damage": 4,
+"type": "piercing"
+}
+]
+},
+"gibbering mouther": {
+"ac": 9,
+"hp": 67,
+"initiative": -1,
+"grapple": 0,
+"saves": {
+"str": 0,
+"dex": -1,
+"con": 3,
+"int": -4,
+"wis": 0,
+"cha": -2
+},
+"stealth": -1,
+"perception": 0,
+"abilities": {
+"str": 10,
+"dex": 8,
+"con": 16,
+"int": 3,
+"wis": 10,
+"cha": 6
+},
+"cr": 2,
+"attacks": [
+{
+"name": "bites",
+"verb": "stabs",
+"to_hit": 2,
+"damage": 17,
+"type": "piercing"
+}
+]
+},
+"glabrezu": {
+"ac": 17,
+"hp": 157,
+"initiative": 2,
+"grapple": 5,
+"saves": {
+"str": 9,
+"dex": 2,
+"con": 9,
+"int": 4,
+"wis": 7,
+"cha": 7
+},
+"stealth": 2,
+"perception": 3,
+"abilities": {
+"str": 20,
+"dex": 15,
+"con": 21,
+"int": 19,
+"wis": 17,
+"cha": 16
+},
+"cr": 9,
+"attacks": [
+{
+"name": "pincer",
+"verb": "strikes",
+"to_hit": 9,
+"damage": 16,
+"type": "bludgeoning"
+},
+{
+"name": "pincer",
+"verb": "strikes",
+"to_hit": 9,
+"damage": 16,
+"type": "bludgeoning"
+},
+{
+"name": "pincer",
+"verb": "strikes",
+"to_hit": 9,
+"damage": 16,
+"type": "bludgeoning"
+},
+{
+"name": "pincer",
+"verb": "strikes",
+"to_hit": 9,
+"damage": 16,
+"type": "bludgeoning"
+}
+]
+},
+"gladiator": {
+"ac": 16,
+"hp": 112,
+"initiative": 2,
+"grapple": 10,
+"saves": {
+"str": 7,
+"dex": 5,
+"con": 6,
+"int": 0,
+"wis": 1,
+"cha": 2
+},
+"stealth": 2,
+"perception": 1,
+"abilities": {
+"str": 18,
+"dex": 15,
+"con": 16,
+"int": 10,
+"wis": 12,
+"cha": 15
+},
+"cr": 5,
+"attacks": [
+{
+"name": "spear",
+"verb": "stabs",
+"to_hit": 7,
+"damage": 11,
+"type": "piercing"
+},
+{
+"name": "spear",
+"verb": "stabs",
+"to_hit": 7,
+"damage": 11,
+"type": "piercing"
+},
+{
+"name": "spear",
+"verb": "stabs",
+"to_hit": 7,
+"damage": 11,
+"type": "piercing"
+}
+],
+"npc_role": true
+},
+"gnoll": {
+"ac": 15,
+"hp": 22,
+"initiative": 1,
+"grapple": 2,
+"saves": {
+"str": 2,
+"dex": 1,
+"con": 0,
+"int": -2,
+"wis": 0,
+"cha": -2
+},
+"stealth": 1,
+"perception": 0,
+"abilities": {
+"str": 14,
+"dex": 12,
+"con": 11,
+"int": 6,
+"wis": 10,
+"cha": 7
+},
+"cr": 0.5,
+"attacks": [
+{
+"name": "spear",
+"verb": "stabs",
+"to_hit": 4,
+"damage": 5,
+"type": "piercing"
+}
+]
+},
+"goat": {
+"ac": 10,
+"hp": 4,
+"initiative": 0,
+"grapple": 1,
+"saves": {
+"str": 1,
+"dex": 0,
+"con": 0,
+"int": -4,
+"wis": 0,
+"cha": -3
+},
+"stealth": 0,
+"perception": 0,
+"abilities": {
+"str": 12,
+"dex": 10,
+"con": 11,
+"int": 2,
+"wis": 10,
+"cha": 5
+},
+"cr": 0,
+"attacks": [
+{
+"name": "ram",
+"verb": "rams",
+"to_hit": 3,
+"damage": 3,
+"type": "bludgeoning"
+}
+]
+},
+"goblin": {
+"ac": 15,
+"hp": 7,
+"initiative": 2,
+"grapple": -1,
+"saves": {
+"str": -1,
+"dex": 2,
+"con": 0,
+"int": 0,
+"wis": -1,
+"cha": -1
+},
+"stealth": 6,
+"perception": -1,
+"abilities": {
+"str": 8,
+"dex": 14,
+"con": 10,
+"int": 10,
+"wis": 8,
+"cha": 8
+},
+"cr": 0.25,
+"attacks": [
+{
+"name": "scimitar",
+"verb": "cuts",
+"to_hit": 4,
+"damage": 5,
+"type": "slashing"
+}
+]
+},
+"gold dragon wyrmling": {
+"ac": 17,
+"hp": 60,
+"initiative": 2,
+"grapple": 4,
+"saves": {
+"str": 4,
+"dex": 4,
+"con": 5,
+"int": 2,
+"wis": 2,
+"cha": 5
+},
+"stealth": 4,
+"perception": 4,
+"abilities": {
+"str": 19,
+"dex": 14,
+"con": 17,
+"int": 14,
+"wis": 11,
+"cha": 16
+},
+"cr": 3,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 6,
+"damage": 9,
+"type": "piercing"
+}
+]
+},
+"gorgon": {
+"ac": 19,
+"hp": 114,
+"initiative": 0,
+"grapple": 5,
+"saves": {
+"str": 5,
+"dex": 0,
+"con": 4,
+"int": -4,
+"wis": 1,
+"cha": -2
+},
+"stealth": 0,
+"perception": 4,
+"abilities": {
+"str": 20,
+"dex": 11,
+"con": 18,
+"int": 2,
+"wis": 12,
+"cha": 7
+},
+"cr": 5,
+"attacks": [
+{
+"name": "gore",
+"verb": "gores",
+"to_hit": 8,
+"damage": 18,
+"type": "piercing"
+}
+]
+},
+"gray ooze": {
+"ac": 8,
+"hp": 22,
+"initiative": -2,
+"grapple": 1,
+"saves": {
+"str": 1,
+"dex": -2,
+"con": 3,
+"int": -5,
+"wis": -2,
+"cha": -4
+},
+"stealth": 2,
+"perception": -2,
+"abilities": {
+"str": 12,
+"dex": 6,
+"con": 16,
+"int": 1,
+"wis": 6,
+"cha": 2
+},
+"cr": 0.5,
+"attacks": [
+{
+"name": "pseudopod",
+"verb": "strikes",
+"to_hit": 3,
+"damage": 11,
+"type": "bludgeoning"
+}
+]
+},
+"green dragon wyrmling": {
+"ac": 17,
+"hp": 38,
+"initiative": 1,
+"grapple": 2,
+"saves": {
+"str": 2,
+"dex": 3,
+"con": 3,
+"int": 2,
+"wis": 2,
+"cha": 3
+},
+"stealth": 3,
+"perception": 4,
+"abilities": {
+"str": 15,
+"dex": 12,
+"con": 13,
+"int": 14,
+"wis": 11,
+"cha": 13
+},
+"cr": 2,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 4,
+"damage": 10,
+"type": "piercing"
+}
+]
+},
+"green hag": {
+"ac": 17,
+"hp": 82,
+"initiative": 1,
+"grapple": 4,
+"saves": {
+"str": 4,
+"dex": 1,
+"con": 3,
+"int": 1,
+"wis": 2,
+"cha": 2
+},
+"stealth": 3,
+"perception": 4,
+"abilities": {
+"str": 18,
+"dex": 12,
+"con": 16,
+"int": 13,
+"wis": 14,
+"cha": 14
+},
+"cr": 3,
+"attacks": [
+{
+"name": "claws",
+"verb": "rakes",
+"to_hit": 6,
+"damage": 13,
+"type": "slashing"
+}
+]
+},
+"grick": {
+"ac": 14,
+"hp": 27,
+"initiative": 2,
+"grapple": 2,
+"saves": {
+"str": 2,
+"dex": 2,
+"con": 0,
+"int": -4,
+"wis": 2,
+"cha": -3
+},
+"stealth": 2,
+"perception": 2,
+"abilities": {
+"str": 14,
+"dex": 14,
+"con": 11,
+"int": 3,
+"wis": 14,
+"cha": 5
+},
+"cr": 2,
+"attacks": [
+{
+"name": "tentacles",
+"verb": "lashes",
+"to_hit": 4,
+"damage": 9,
+"type": "slashing"
+}
+]
+},
+"griffon": {
+"ac": 12,
+"hp": 59,
+"initiative": 2,
+"grapple": 4,
+"saves": {
+"str": 4,
+"dex": 2,
+"con": 3,
+"int": -4,
+"wis": 1,
+"cha": -1
+},
+"stealth": 2,
+"perception": 5,
+"abilities": {
+"str": 18,
+"dex": 15,
+"con": 16,
+"int": 2,
+"wis": 13,
+"cha": 8
+},
+"cr": 2,
+"attacks": [
+{
+"name": "claws",
+"verb": "rakes",
+"to_hit": 6,
+"damage": 11,
+"type": "slashing"
+},
+{
+"name": "claws",
+"verb": "rakes",
+"to_hit": 6,
+"damage": 11,
+"type": "slashing"
+}
+]
+},
+"grimlock": {
+"ac": 11,
+"hp": 11,
+"initiative": 1,
+"grapple": 5,
+"saves": {
+"str": 3,
+"dex": 1,
+"con": 1,
+"int": -1,
+"wis": -1,
+"cha": -2
+},
+"stealth": 3,
+"perception": 3,
+"abilities": {
+"str": 16,
+"dex": 12,
+"con": 12,
+"int": 9,
+"wis": 8,
+"cha": 6
+},
+"cr": 0.25,
+"attacks": [
+{
+"name": "spiked bone club",
+"verb": "strikes",
+"to_hit": 5,
+"damage": 7,
+"type": "bludgeoning"
+}
+]
+},
+"guard": {
+"ac": 16,
+"hp": 11,
+"initiative": 1,
+"grapple": 1,
+"saves": {
+"str": 1,
+"dex": 1,
+"con": 1,
+"int": 0,
+"wis": 0,
+"cha": 0
+},
+"stealth": 1,
+"perception": 2,
+"abilities": {
+"str": 13,
+"dex": 12,
+"con": 12,
+"int": 10,
+"wis": 11,
+"cha": 10
+},
+"cr": 0.125,
+"attacks": [
+{
+"name": "spear",
+"verb": "stabs",
+"to_hit": 3,
+"damage": 4,
+"type": "piercing"
+}
+],
+"npc_role": true
+},
+"guardian naga": {
+"ac": 18,
+"hp": 127,
+"initiative": 4,
+"grapple": 4,
+"saves": {
+"str": 4,
+"dex": 8,
+"con": 7,
+"int": 7,
+"wis": 8,
+"cha": 8
+},
+"stealth": 4,
+"perception": 4,
+"abilities": {
+"str": 19,
+"dex": 18,
+"con": 16,
+"int": 16,
+"wis": 19,
+"cha": 18
+},
+"cr": 10,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 8,
+"damage": 8,
+"type": "piercing"
+}
+]
+},
+"gynosphinx": {
+"ac": 17,
+"hp": 136,
+"initiative": 2,
+"grapple": 4,
+"saves": {
+"str": 4,
+"dex": 2,
+"con": 3,
+"int": 4,
+"wis": 4,
+"cha": 4
+},
+"stealth": 2,
+"perception": 8,
+"abilities": {
+"str": 18,
+"dex": 15,
+"con": 16,
+"int": 18,
+"wis": 18,
+"cha": 18
+},
+"cr": 11,
+"attacks": [
+{
+"name": "claw",
+"verb": "rakes",
+"to_hit": 9,
+"damage": 13,
+"type": "slashing"
+},
+{
+"name": "claw",
+"verb": "rakes",
+"to_hit": 9,
+"damage": 13,
+"type": "slashing"
+}
+]
+},
+"half-red dragon veteran": {
+"ac": 18,
+"hp": 65,
+"initiative": 1,
+"grapple": 3,
+"saves": {
+"str": 3,
+"dex": 1,
+"con": 2,
+"int": 0,
+"wis": 0,
+"cha": 0
+},
+"stealth": 1,
+"perception": 0,
+"abilities": {
+"str": 16,
+"dex": 13,
+"con": 14,
+"int": 10,
+"wis": 11,
+"cha": 10
+},
+"cr": 5,
+"attacks": [
+{
+"name": "longsword",
+"verb": "cuts",
+"to_hit": 5,
+"damage": 7,
+"type": "slashing"
+},
+{
+"name": "longsword",
+"verb": "cuts",
+"to_hit": 5,
+"damage": 7,
+"type": "slashing"
+}
+]
+},
+"harpy": {
+"ac": 11,
+"hp": 38,
+"initiative": 1,
+"grapple": 1,
+"saves": {
+"str": 1,
+"dex": 1,
+"con": 1,
+"int": -2,
+"wis": 0,
+"cha": 1
+},
+"stealth": 1,
+"perception": 0,
+"abilities": {
+"str": 12,
+"dex": 13,
+"con": 12,
+"int": 7,
+"wis": 10,
+"cha": 13
+},
+"cr": 1,
+"attacks": [
+{
+"name": "claws",
+"verb": "rakes",
+"to_hit": 3,
+"damage": 6,
+"type": "slashing"
+},
+{
+"name": "claws",
+"verb": "rakes",
+"to_hit": 3,
+"damage": 6,
+"type": "slashing"
+}
+]
+},
+"hawk": {
+"ac": 13,
+"hp": 1,
+"initiative": 3,
+"grapple": -3,
+"saves": {
+"str": -3,
+"dex": 3,
+"con": -1,
+"int": -4,
+"wis": 2,
+"cha": -2
+},
+"stealth": 3,
+"perception": 4,
+"abilities": {
+"str": 5,
+"dex": 16,
+"con": 8,
+"int": 2,
+"wis": 14,
+"cha": 6
+},
+"cr": 0,
+"attacks": [
+{
+"name": "talons",
+"verb": "rakes",
+"to_hit": 5,
+"damage": 1,
+"type": "slashing"
+}
+]
+},
+"hell hound": {
+"ac": 15,
+"hp": 45,
+"initiative": 1,
+"grapple": 3,
+"saves": {
+"str": 3,
+"dex": 1,
+"con": 2,
+"int": -2,
+"wis": 1,
+"cha": -2
+},
+"stealth": 1,
+"perception": 5,
+"abilities": {
+"str": 17,
+"dex": 12,
+"con": 14,
+"int": 6,
+"wis": 13,
+"cha": 6
+},
+"cr": 3,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 5,
+"damage": 14,
+"type": "piercing"
+}
+]
+},
+"hezrou": {
+"ac": 16,
+"hp": 136,
+"initiative": 3,
+"grapple": 4,
+"saves": {
+"str": 7,
+"dex": 3,
+"con": 8,
+"int": -3,
+"wis": 4,
+"cha": 1
+},
+"stealth": 3,
+"perception": 1,
+"abilities": {
+"str": 19,
+"dex": 17,
+"con": 20,
+"int": 5,
+"wis": 12,
+"cha": 13
+},
+"cr": 8,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 7,
+"damage": 15,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 7,
+"damage": 15,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 7,
+"damage": 15,
+"type": "piercing"
+}
+]
+},
+"hill giant": {
+"ac": 13,
+"hp": 105,
+"initiative": -1,
+"grapple": 5,
+"saves": {
+"str": 5,
+"dex": -1,
+"con": 4,
+"int": -3,
+"wis": -1,
+"cha": -2
+},
+"stealth": -1,
+"perception": 2,
+"abilities": {
+"str": 21,
+"dex": 8,
+"con": 19,
+"int": 5,
+"wis": 9,
+"cha": 6
+},
+"cr": 5,
+"attacks": [
+{
+"name": "rock",
+"verb": "strikes",
+"to_hit": 8,
+"damage": 21,
+"type": "bludgeoning"
+},
+{
+"name": "rock",
+"verb": "strikes",
+"to_hit": 8,
+"damage": 21,
+"type": "bludgeoning"
+}
+]
+},
+"hippogriff": {
+"ac": 11,
+"hp": 19,
+"initiative": 1,
+"grapple": 3,
+"saves": {
+"str": 3,
+"dex": 1,
+"con": 1,
+"int": -4,
+"wis": 1,
+"cha": -1
+},
+"stealth": 1,
+"perception": 5,
+"abilities": {
+"str": 17,
+"dex": 13,
+"con": 13,
+"int": 2,
+"wis": 12,
+"cha": 8
+},
+"cr": 1,
+"attacks": [
+{
+"name": "claws",
+"verb": "rakes",
+"to_hit": 5,
+"damage": 10,
+"type": "slashing"
+},
+{
+"name": "claws",
+"verb": "rakes",
+"to_hit": 5,
+"damage": 10,
+"type": "slashing"
+}
+]
+},
+"hobgoblin": {
+"ac": 18,
+"hp": 11,
+"initiative": 1,
+"grapple": 1,
+"saves": {
+"str": 1,
+"dex": 1,
+"con": 1,
+"int": 0,
+"wis": 0,
+"cha": -1
+},
+"stealth": 1,
+"perception": 0,
+"abilities": {
+"str": 13,
+"dex": 12,
+"con": 12,
+"int": 10,
+"wis": 10,
+"cha": 9
+},
+"cr": 0.5,
+"attacks": [
+{
+"name": "longsword",
+"verb": "cuts",
+"to_hit": 3,
+"damage": 5,
+"type": "slashing"
+}
+]
+},
+"homunculus": {
+"ac": 13,
+"hp": 5,
+"initiative": 2,
+"grapple": -3,
+"saves": {
+"str": -3,
+"dex": 2,
+"con": 0,
+"int": 0,
+"wis": 0,
+"cha": -2
+},
+"stealth": 2,
+"perception": 0,
+"abilities": {
+"str": 4,
+"dex": 15,
+"con": 11,
+"int": 10,
+"wis": 10,
+"cha": 7
+},
+"cr": 0,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 4,
+"damage": 1,
+"type": "piercing"
+}
+]
+},
+"horned devil": {
+"ac": 18,
+"hp": 178,
+"initiative": 3,
+"grapple": 6,
+"saves": {
+"str": 10,
+"dex": 7,
+"con": 5,
+"int": 1,
+"wis": 7,
+"cha": 7
+},
+"stealth": 3,
+"perception": 3,
+"abilities": {
+"str": 22,
+"dex": 17,
+"con": 21,
+"int": 12,
+"wis": 16,
+"cha": 17
+},
+"cr": 11,
+"attacks": [
+{
+"name": "fork",
+"verb": "stabs",
+"to_hit": 10,
+"damage": 15,
+"type": "piercing"
+},
+{
+"name": "fork",
+"verb": "stabs",
+"to_hit": 10,
+"damage": 15,
+"type": "piercing"
+},
+{
+"name": "fork",
+"verb": "stabs",
+"to_hit": 10,
+"damage": 15,
+"type": "piercing"
+}
+]
+},
+"hunter shark": {
+"ac": 12,
+"hp": 45,
+"initiative": 1,
+"grapple": 4,
+"saves": {
+"str": 4,
+"dex": 1,
+"con": 2,
+"int": -5,
+"wis": 0,
+"cha": -3
+},
+"stealth": 1,
+"perception": 2,
+"abilities": {
+"str": 18,
+"dex": 13,
+"con": 15,
+"int": 1,
+"wis": 10,
+"cha": 4
+},
+"cr": 2,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 6,
+"damage": 13,
+"type": "piercing"
+}
+]
+},
+"hydra": {
+"ac": 15,
+"hp": 172,
+"initiative": 1,
+"grapple": 5,
+"saves": {
+"str": 5,
+"dex": 1,
+"con": 5,
+"int": -4,
+"wis": 0,
+"cha": -2
+},
+"stealth": 1,
+"perception": 6,
+"abilities": {
+"str": 20,
+"dex": 12,
+"con": 20,
+"int": 2,
+"wis": 10,
+"cha": 7
+},
+"cr": 8,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 8,
+"damage": 10,
+"type": "piercing"
+}
+]
+},
+"hyena": {
+"ac": 11,
+"hp": 5,
+"initiative": 1,
+"grapple": 0,
+"saves": {
+"str": 0,
+"dex": 1,
+"con": 1,
+"int": -4,
+"wis": 1,
+"cha": -3
+},
+"stealth": 1,
+"perception": 3,
+"abilities": {
+"str": 11,
+"dex": 13,
+"con": 12,
+"int": 2,
+"wis": 12,
+"cha": 5
+},
+"cr": 0,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 2,
+"damage": 3,
+"type": "piercing"
+}
+]
+},
+"ice devil": {
+"ac": 18,
+"hp": 180,
+"initiative": 2,
+"grapple": 5,
+"saves": {
+"str": 5,
+"dex": 7,
+"con": 9,
+"int": 4,
+"wis": 7,
+"cha": 9
+},
+"stealth": 2,
+"perception": 2,
+"abilities": {
+"str": 21,
+"dex": 14,
+"con": 18,
+"int": 18,
+"wis": 15,
+"cha": 18
+},
+"cr": 14,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 10,
+"damage": 22,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 10,
+"damage": 22,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 10,
+"damage": 22,
+"type": "piercing"
+}
+]
+},
+"ice mephit": {
+"ac": 11,
+"hp": 21,
+"initiative": 1,
+"grapple": -2,
+"saves": {
+"str": -2,
+"dex": 1,
+"con": 0,
+"int": -1,
+"wis": 0,
+"cha": 1
+},
+"stealth": 3,
+"perception": 2,
+"abilities": {
+"str": 7,
+"dex": 13,
+"con": 10,
+"int": 9,
+"wis": 11,
+"cha": 12
+},
+"cr": 0.5,
+"attacks": [
+{
+"name": "claws",
+"verb": "rakes",
+"to_hit": 3,
+"damage": 5,
+"type": "slashing"
+}
+]
+},
+"imp": {
+"ac": 13,
+"hp": 10,
+"initiative": 3,
+"grapple": -2,
+"saves": {
+"str": -2,
+"dex": 3,
+"con": 1,
+"int": 0,
+"wis": 1,
+"cha": 2
+},
+"stealth": 5,
+"perception": 1,
+"abilities": {
+"str": 6,
+"dex": 17,
+"con": 13,
+"int": 11,
+"wis": 12,
+"cha": 14
+},
+"cr": 1,
+"attacks": [
+{
+"name": "sting",
+"verb": "stings",
+"to_hit": 5,
+"damage": 5,
+"type": "piercing"
+}
+]
+},
+"invisible stalker": {
+"ac": 14,
+"hp": 104,
+"initiative": 4,
+"grapple": 3,
+"saves": {
+"str": 3,
+"dex": 4,
+"con": 2,
+"int": 0,
+"wis": 2,
+"cha": 0
+},
+"stealth": 10,
+"perception": 8,
+"abilities": {
+"str": 16,
+"dex": 19,
+"con": 14,
+"int": 10,
+"wis": 15,
+"cha": 11
+},
+"cr": 6,
+"attacks": [
+{
+"name": "slam",
+"verb": "slams",
+"to_hit": 6,
+"damage": 10,
+"type": "bludgeoning"
+},
+{
+"name": "slam",
+"verb": "slams",
+"to_hit": 6,
+"damage": 10,
+"type": "bludgeoning"
+}
+]
+},
+"iron golem": {
+"ac": 20,
+"hp": 210,
+"initiative": -1,
+"grapple": 7,
+"saves": {
+"str": 7,
+"dex": -1,
+"con": 5,
+"int": -4,
+"wis": 0,
+"cha": -5
+},
+"stealth": -1,
+"perception": 0,
+"abilities": {
+"str": 24,
+"dex": 9,
+"con": 20,
+"int": 3,
+"wis": 11,
+"cha": 1
+},
+"cr": 16,
+"attacks": [
+{
+"name": "sword",
+"verb": "cuts",
+"to_hit": 13,
+"damage": 23,
+"type": "slashing"
+},
+{
+"name": "sword",
+"verb": "cuts",
+"to_hit": 13,
+"damage": 23,
+"type": "slashing"
+}
+]
+},
+"jackal": {
+"ac": 12,
+"hp": 3,
+"initiative": 2,
+"grapple": -1,
+"saves": {
+"str": -1,
+"dex": 2,
+"con": 0,
+"int": -4,
+"wis": 1,
+"cha": -2
+},
+"stealth": 2,
+"perception": 3,
+"abilities": {
+"str": 8,
+"dex": 15,
+"con": 11,
+"int": 3,
+"wis": 12,
+"cha": 6
+},
+"cr": 0,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 1,
+"damage": 1,
+"type": "piercing"
+}
+]
+},
+"killer whale": {
+"ac": 12,
+"hp": 90,
+"initiative": 0,
+"grapple": 4,
+"saves": {
+"str": 4,
+"dex": 0,
+"con": 1,
+"int": -4,
+"wis": 1,
+"cha": -2
+},
+"stealth": 0,
+"perception": 3,
+"abilities": {
+"str": 19,
+"dex": 10,
+"con": 13,
+"int": 3,
+"wis": 12,
+"cha": 7
+},
+"cr": 3,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 6,
+"damage": 21,
+"type": "piercing"
+}
+]
+},
+"knight": {
+"ac": 18,
+"hp": 52,
+"initiative": 0,
+"grapple": 3,
+"saves": {
+"str": 3,
+"dex": 0,
+"con": 4,
+"int": 0,
+"wis": 2,
+"cha": 2
+},
+"stealth": 0,
+"perception": 0,
+"abilities": {
+"str": 16,
+"dex": 11,
+"con": 14,
+"int": 11,
+"wis": 11,
+"cha": 15
+},
+"cr": 3,
+"attacks": [
+{
+"name": "greatsword",
+"verb": "cuts",
+"to_hit": 5,
+"damage": 10,
+"type": "slashing"
+},
+{
+"name": "greatsword",
+"verb": "cuts",
+"to_hit": 5,
+"damage": 10,
+"type": "slashing"
+}
+],
+"npc_role": true
+},
+"kobold": {
+"ac": 12,
+"hp": 5,
+"initiative": 2,
+"grapple": -2,
+"saves": {
+"str": -2,
+"dex": 2,
+"con": -1,
+"int": -1,
+"wis": -2,
+"cha": -1
+},
+"stealth": 2,
+"perception": -2,
+"abilities": {
+"str": 7,
+"dex": 15,
+"con": 9,
+"int": 8,
+"wis": 7,
+"cha": 8
+},
+"cr": 0.125,
+"attacks": [
+{
+"name": "dagger",
+"verb": "stabs",
+"to_hit": 4,
+"damage": 4,
+"type": "piercing"
+}
+]
+},
+"kraken": {
+"ac": 18,
+"hp": 472,
+"initiative": 0,
+"grapple": 10,
+"saves": {
+"str": 17,
+"dex": 7,
+"con": 14,
+"int": 13,
+"wis": 11,
+"cha": 5
+},
+"stealth": 0,
+"perception": 4,
+"abilities": {
+"str": 30,
+"dex": 11,
+"con": 25,
+"int": 22,
+"wis": 18,
+"cha": 20
+},
+"cr": 23,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 7,
+"damage": 23,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 7,
+"damage": 23,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 7,
+"damage": 23,
+"type": "piercing"
+}
+]
+},
+"lamia": {
+"ac": 13,
+"hp": 97,
+"initiative": 1,
+"grapple": 3,
+"saves": {
+"str": 3,
+"dex": 1,
+"con": 2,
+"int": 2,
+"wis": 2,
+"cha": 3
+},
+"stealth": 3,
+"perception": 2,
+"abilities": {
+"str": 16,
+"dex": 13,
+"con": 15,
+"int": 14,
+"wis": 15,
+"cha": 16
+},
+"cr": 4,
+"attacks": [
+{
+"name": "claws",
+"verb": "rakes",
+"to_hit": 5,
+"damage": 14,
+"type": "slashing"
+},
+{
+"name": "claws",
+"verb": "rakes",
+"to_hit": 5,
+"damage": 14,
+"type": "slashing"
+}
+]
+},
+"lemure": {
+"ac": 7,
+"hp": 13,
+"initiative": -3,
+"grapple": 0,
+"saves": {
+"str": 0,
+"dex": -3,
+"con": 0,
+"int": -5,
+"wis": 0,
+"cha": -4
+},
+"stealth": -3,
+"perception": 0,
+"abilities": {
+"str": 10,
+"dex": 5,
+"con": 11,
+"int": 1,
+"wis": 11,
+"cha": 3
+},
+"cr": 0,
+"attacks": [
+{
+"name": "fist",
+"verb": "punches",
+"to_hit": 3,
+"damage": 2,
+"type": "bludgeoning"
+}
+]
+},
+"lich": {
+"ac": 17,
+"hp": 135,
+"initiative": 3,
+"grapple": 0,
+"saves": {
+"str": 0,
+"dex": 3,
+"con": 10,
+"int": 12,
+"wis": 9,
+"cha": 3
+},
+"stealth": 3,
+"perception": 9,
+"abilities": {
+"str": 11,
+"dex": 16,
+"con": 16,
+"int": 20,
+"wis": 14,
+"cha": 16
+},
+"cr": 21,
+"attacks": [
+{
+"name": "paralyzing touch",
+"verb": "hits",
+"to_hit": 12,
+"damage": 10,
+"type": "cold"
+}
+]
+},
+"lion": {
+"ac": 12,
+"hp": 26,
+"initiative": 2,
+"grapple": 3,
+"saves": {
+"str": 3,
+"dex": 2,
+"con": 1,
+"int": -4,
+"wis": 1,
+"cha": -1
+},
+"stealth": 6,
+"perception": 3,
+"abilities": {
+"str": 17,
+"dex": 15,
+"con": 13,
+"int": 3,
+"wis": 12,
+"cha": 8
+},
+"cr": 1,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 5,
+"damage": 7,
+"type": "piercing"
+}
+]
+},
+"lizard": {
+"ac": 10,
+"hp": 2,
+"initiative": 0,
+"grapple": -4,
+"saves": {
+"str": -4,
+"dex": 0,
+"con": 0,
+"int": -5,
+"wis": -1,
+"cha": -4
+},
+"stealth": 0,
+"perception": -1,
+"abilities": {
+"str": 2,
+"dex": 11,
+"con": 10,
+"int": 1,
+"wis": 8,
+"cha": 3
+},
+"cr": 0,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 0,
+"damage": 1,
+"type": "piercing"
+}
+]
+},
+"lizardfolk": {
+"ac": 13,
+"hp": 22,
+"initiative": 0,
+"grapple": 2,
+"saves": {
+"str": 2,
+"dex": 0,
+"con": 1,
+"int": -2,
+"wis": 1,
+"cha": -2
+},
+"stealth": 4,
+"perception": 3,
+"abilities": {
+"str": 15,
+"dex": 10,
+"con": 13,
+"int": 7,
+"wis": 12,
+"cha": 7
+},
+"cr": 0.5,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 4,
+"damage": 5,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 4,
+"damage": 5,
+"type": "piercing"
+}
+]
+},
+"mage": {
+"ac": 12,
+"hp": 40,
+"initiative": 2,
+"grapple": -1,
+"saves": {
+"str": -1,
+"dex": 2,
+"con": 0,
+"int": 6,
+"wis": 4,
+"cha": 0
+},
+"stealth": 2,
+"perception": 1,
+"abilities": {
+"str": 9,
+"dex": 14,
+"con": 11,
+"int": 17,
+"wis": 12,
+"cha": 11
+},
+"cr": 6,
+"attacks": [
+{
+"name": "dagger",
+"verb": "stabs",
+"to_hit": 5,
+"damage": 4,
+"type": "piercing"
+}
+],
+"npc_role": true
+},
+"magma mephit": {
+"ac": 11,
+"hp": 22,
+"initiative": 1,
+"grapple": -1,
+"saves": {
+"str": -1,
+"dex": 1,
+"con": 1,
+"int": -2,
+"wis": 0,
+"cha": 0
+},
+"stealth": 3,
+"perception": 0,
+"abilities": {
+"str": 8,
+"dex": 12,
+"con": 12,
+"int": 7,
+"wis": 10,
+"cha": 10
+},
+"cr": 0.5,
+"attacks": [
+{
+"name": "claws",
+"verb": "rakes",
+"to_hit": 3,
+"damage": 5,
+"type": "slashing"
+}
+]
+},
+"magmin": {
+"ac": 14,
+"hp": 9,
+"initiative": 2,
+"grapple": -2,
+"saves": {
+"str": -2,
+"dex": 2,
+"con": 1,
+"int": -1,
+"wis": 0,
+"cha": 0
+},
+"stealth": 2,
+"perception": 0,
+"abilities": {
+"str": 7,
+"dex": 15,
+"con": 12,
+"int": 8,
+"wis": 11,
+"cha": 10
+},
+"cr": 0.5,
+"attacks": [
+{
+"name": "touch",
+"verb": "hits",
+"to_hit": 4,
+"damage": 7,
+"type": "fire"
+}
+]
+},
+"mammoth": {
+"ac": 13,
+"hp": 126,
+"initiative": -1,
+"grapple": 7,
+"saves": {
+"str": 7,
+"dex": -1,
+"con": 5,
+"int": -4,
+"wis": 0,
+"cha": -2
+},
+"stealth": -1,
+"perception": 0,
+"abilities": {
+"str": 24,
+"dex": 9,
+"con": 21,
+"int": 3,
+"wis": 11,
+"cha": 6
+},
+"cr": 6,
+"attacks": [
+{
+"name": "stomp",
+"verb": "strikes",
+"to_hit": 10,
+"damage": 29,
+"type": "bludgeoning"
+}
+]
+},
+"manticore": {
+"ac": 14,
+"hp": 68,
+"initiative": 3,
+"grapple": 3,
+"saves": {
+"str": 3,
+"dex": 3,
+"con": 3,
+"int": -2,
+"wis": 1,
+"cha": -1
+},
+"stealth": 3,
+"perception": 1,
+"abilities": {
+"str": 17,
+"dex": 16,
+"con": 17,
+"int": 7,
+"wis": 12,
+"cha": 8
+},
+"cr": 3,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 5,
+"damage": 7,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 5,
+"damage": 7,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 5,
+"damage": 7,
+"type": "piercing"
+}
+]
+},
+"marilith": {
+"ac": 18,
+"hp": 189,
+"initiative": 5,
+"grapple": 4,
+"saves": {
+"str": 9,
+"dex": 5,
+"con": 10,
+"int": 4,
+"wis": 8,
+"cha": 10
+},
+"stealth": 5,
+"perception": 3,
+"abilities": {
+"str": 18,
+"dex": 20,
+"con": 20,
+"int": 18,
+"wis": 16,
+"cha": 20
+},
+"cr": 16,
+"attacks": [
+{
+"name": "tail",
+"verb": "lashes",
+"to_hit": 9,
+"damage": 15,
+"type": "bludgeoning"
+}
+]
+},
+"mastiff": {
+"ac": 12,
+"hp": 5,
+"initiative": 2,
+"grapple": 1,
+"saves": {
+"str": 1,
+"dex": 2,
+"con": 1,
+"int": -4,
+"wis": 1,
+"cha": -2
+},
+"stealth": 2,
+"perception": 3,
+"abilities": {
+"str": 13,
+"dex": 14,
+"con": 12,
+"int": 3,
+"wis": 12,
+"cha": 7
+},
+"cr": 0.125,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 3,
+"damage": 4,
+"type": "piercing"
+}
+]
+},
+"medusa": {
+"ac": 15,
+"hp": 127,
+"initiative": 2,
+"grapple": 0,
+"saves": {
+"str": 0,
+"dex": 2,
+"con": 3,
+"int": 1,
+"wis": 1,
+"cha": 2
+},
+"stealth": 5,
+"perception": 4,
+"abilities": {
+"str": 10,
+"dex": 15,
+"con": 16,
+"int": 12,
+"wis": 13,
+"cha": 15
+},
+"cr": 6,
+"attacks": [
+{
+"name": "snake hair",
+"verb": "stabs",
+"to_hit": 5,
+"damage": 18,
+"type": "piercing"
+}
+]
+},
+"merfolk": {
+"ac": 11,
+"hp": 11,
+"initiative": 1,
+"grapple": 0,
+"saves": {
+"str": 0,
+"dex": 1,
+"con": 1,
+"int": 0,
+"wis": 0,
+"cha": 1
+},
+"stealth": 1,
+"perception": 2,
+"abilities": {
+"str": 10,
+"dex": 13,
+"con": 12,
+"int": 11,
+"wis": 11,
+"cha": 12
+},
+"cr": 0.125,
+"attacks": [
+{
+"name": "spear",
+"verb": "stabs",
+"to_hit": 2,
+"damage": 3,
+"type": "piercing"
+}
+]
+},
+"merrow": {
+"ac": 13,
+"hp": 45,
+"initiative": 0,
+"grapple": 4,
+"saves": {
+"str": 4,
+"dex": 0,
+"con": 2,
+"int": -1,
+"wis": 0,
+"cha": -1
+},
+"stealth": 0,
+"perception": 0,
+"abilities": {
+"str": 18,
+"dex": 10,
+"con": 15,
+"int": 8,
+"wis": 10,
+"cha": 9
+},
+"cr": 2,
+"attacks": [
+{
+"name": "harpoon",
+"verb": "stabs",
+"to_hit": 6,
+"damage": 11,
+"type": "piercing"
+},
+{
+"name": "harpoon",
+"verb": "stabs",
+"to_hit": 6,
+"damage": 11,
+"type": "piercing"
+}
+]
+},
+"mimic": {
+"ac": 12,
+"hp": 58,
+"initiative": 1,
+"grapple": 3,
+"saves": {
+"str": 3,
+"dex": 1,
+"con": 2,
+"int": -3,
+"wis": 1,
+"cha": -1
+},
+"stealth": 5,
+"perception": 1,
+"abilities": {
+"str": 17,
+"dex": 12,
+"con": 15,
+"int": 5,
+"wis": 13,
+"cha": 8
+},
+"cr": 2,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 5,
+"damage": 11,
+"type": "piercing"
+}
+]
+},
+"minotaur": {
+"ac": 14,
+"hp": 76,
+"initiative": 0,
+"grapple": 4,
+"saves": {
+"str": 4,
+"dex": 0,
+"con": 3,
+"int": -2,
+"wis": 3,
+"cha": -1
+},
+"stealth": 0,
+"perception": 7,
+"abilities": {
+"str": 18,
+"dex": 11,
+"con": 16,
+"int": 6,
+"wis": 16,
+"cha": 9
+},
+"cr": 3,
+"attacks": [
+{
+"name": "greataxe",
+"verb": "cuts",
+"to_hit": 6,
+"damage": 17,
+"type": "slashing"
+}
+]
+},
+"minotaur skeleton": {
+"ac": 12,
+"hp": 67,
+"initiative": 0,
+"grapple": 4,
+"saves": {
+"str": 4,
+"dex": 0,
+"con": 2,
+"int": -2,
+"wis": -1,
+"cha": -3
+},
+"stealth": 0,
+"perception": -1,
+"abilities": {
+"str": 18,
+"dex": 11,
+"con": 15,
+"int": 6,
+"wis": 8,
+"cha": 5
+},
+"cr": 2,
+"attacks": [
+{
+"name": "greataxe",
+"verb": "cuts",
+"to_hit": 6,
+"damage": 17,
+"type": "slashing"
+}
+]
+},
+"mule": {
+"ac": 10,
+"hp": 11,
+"initiative": 0,
+"grapple": 2,
+"saves": {
+"str": 2,
+"dex": 0,
+"con": 1,
+"int": -4,
+"wis": 0,
+"cha": -3
+},
+"stealth": 0,
+"perception": 0,
+"abilities": {
+"str": 14,
+"dex": 10,
+"con": 13,
+"int": 2,
+"wis": 10,
+"cha": 5
+},
+"cr": 0.125,
+"attacks": [
+{
+"name": "hooves",
+"verb": "kicks",
+"to_hit": 2,
+"damage": 4,
+"type": "bludgeoning"
+}
+]
+},
+"mummy": {
+"ac": 11,
+"hp": 58,
+"initiative": -1,
+"grapple": 3,
+"saves": {
+"str": 3,
+"dex": -1,
+"con": 2,
+"int": -2,
+"wis": 2,
+"cha": 1
+},
+"stealth": -1,
+"perception": 0,
+"abilities": {
+"str": 16,
+"dex": 8,
+"con": 15,
+"int": 6,
+"wis": 10,
+"cha": 12
+},
+"cr": 3,
+"attacks": [
+{
+"name": "rotting fist",
+"verb": "strikes",
+"to_hit": 5,
+"damage": 20,
+"type": "bludgeoning"
+}
+]
+},
+"mummy lord": {
+"ac": 17,
+"hp": 97,
+"initiative": 0,
+"grapple": 4,
+"saves": {
+"str": 4,
+"dex": 0,
+"con": 8,
+"int": 5,
+"wis": 9,
+"cha": 8
+},
+"stealth": 0,
+"perception": 4,
+"abilities": {
+"str": 18,
+"dex": 10,
+"con": 17,
+"int": 11,
+"wis": 18,
+"cha": 16
+},
+"cr": 15,
+"attacks": [
+{
+"name": "rotting fist",
+"verb": "strikes",
+"to_hit": 9,
+"damage": 35,
+"type": "bludgeoning"
+}
+]
+},
+"nalfeshnee": {
+"ac": 18,
+"hp": 184,
+"initiative": 0,
+"grapple": 5,
+"saves": {
+"str": 5,
+"dex": 0,
+"con": 11,
+"int": 9,
+"wis": 6,
+"cha": 7
+},
+"stealth": 0,
+"perception": 1,
+"abilities": {
+"str": 21,
+"dex": 10,
+"con": 22,
+"int": 19,
+"wis": 12,
+"cha": 15
+},
+"cr": 13,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 10,
+"damage": 32,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 10,
+"damage": 32,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 10,
+"damage": 32,
+"type": "piercing"
+}
+]
+},
+"night hag": {
+"ac": 17,
+"hp": 112,
+"initiative": 2,
+"grapple": 4,
+"saves": {
+"str": 4,
+"dex": 2,
+"con": 3,
+"int": 3,
+"wis": 2,
+"cha": 3
+},
+"stealth": 6,
+"perception": 6,
+"abilities": {
+"str": 18,
+"dex": 15,
+"con": 16,
+"int": 16,
+"wis": 14,
+"cha": 16
+},
+"cr": 5,
+"attacks": [
+{
+"name": "claws",
+"verb": "rakes",
+"to_hit": 7,
+"damage": 13,
+"type": "slashing"
+}
+]
+},
+"nightmare": {
+"ac": 13,
+"hp": 68,
+"initiative": 2,
+"grapple": 4,
+"saves": {
+"str": 4,
+"dex": 2,
+"con": 3,
+"int": 0,
+"wis": 1,
+"cha": 2
+},
+"stealth": 2,
+"perception": 1,
+"abilities": {
+"str": 18,
+"dex": 15,
+"con": 16,
+"int": 10,
+"wis": 13,
+"cha": 15
+},
+"cr": 3,
+"attacks": [
+{
+"name": "hooves",
+"verb": "kicks",
+"to_hit": 6,
+"damage": 20,
+"type": "bludgeoning"
+}
+]
+},
+"noble": {
+"ac": 15,
+"hp": 9,
+"initiative": 1,
+"grapple": 0,
+"saves": {
+"str": 0,
+"dex": 1,
+"con": 0,
+"int": 1,
+"wis": 2,
+"cha": 3
+},
+"stealth": 1,
+"perception": 2,
+"abilities": {
+"str": 11,
+"dex": 12,
+"con": 11,
+"int": 12,
+"wis": 14,
+"cha": 16
+},
+"cr": 0.125,
+"attacks": [
+{
+"name": "rapier",
+"verb": "stabs",
+"to_hit": 3,
+"damage": 5,
+"type": "piercing"
+}
+],
+"npc_role": true
+},
+"ochre jelly": {
+"ac": 8,
+"hp": 45,
+"initiative": -2,
+"grapple": 2,
+"saves": {
+"str": 2,
+"dex": -2,
+"con": 2,
+"int": -4,
+"wis": -2,
+"cha": -5
+},
+"stealth": -2,
+"perception": -2,
+"abilities": {
+"str": 15,
+"dex": 6,
+"con": 14,
+"int": 2,
+"wis": 6,
+"cha": 1
+},
+"cr": 2,
+"attacks": [
+{
+"name": "pseudopod",
+"verb": "strikes",
+"to_hit": 4,
+"damage": 12,
+"type": "bludgeoning"
+}
+]
+},
+"octopus": {
+"ac": 12,
+"hp": 3,
+"initiative": 2,
+"grapple": -3,
+"saves": {
+"str": -3,
+"dex": 2,
+"con": 0,
+"int": -4,
+"wis": 0,
+"cha": -3
+},
+"stealth": 4,
+"perception": 2,
+"abilities": {
+"str": 4,
+"dex": 15,
+"con": 11,
+"int": 3,
+"wis": 10,
+"cha": 4
+},
+"cr": 0,
+"attacks": [
+{
+"name": "tentacles",
+"verb": "lashes",
+"to_hit": 4,
+"damage": 1,
+"type": "bludgeoning"
+}
+]
+},
+"ogre": {
+"ac": 11,
+"hp": 59,
+"initiative": -1,
+"grapple": 4,
+"saves": {
+"str": 4,
+"dex": -1,
+"con": 3,
+"int": -3,
+"wis": -2,
+"cha": -2
+},
+"stealth": -1,
+"perception": -2,
+"abilities": {
+"str": 19,
+"dex": 8,
+"con": 16,
+"int": 5,
+"wis": 7,
+"cha": 7
+},
+"cr": 2,
+"attacks": [
+{
+"name": "greatclub",
+"verb": "strikes",
+"to_hit": 6,
+"damage": 13,
+"type": "bludgeoning"
+}
+]
+},
+"ogre zombie": {
+"ac": 8,
+"hp": 85,
+"initiative": -2,
+"grapple": 4,
+"saves": {
+"str": 4,
+"dex": -2,
+"con": 4,
+"int": -4,
+"wis": 0,
+"cha": -3
+},
+"stealth": -2,
+"perception": -2,
+"abilities": {
+"str": 19,
+"dex": 6,
+"con": 18,
+"int": 3,
+"wis": 6,
+"cha": 5
+},
+"cr": 2,
+"attacks": [
+{
+"name": "morningstar",
+"verb": "strikes",
+"to_hit": 6,
+"damage": 13,
+"type": "bludgeoning"
+}
+]
+},
+"oni": {
+"ac": 16,
+"hp": 110,
+"initiative": 0,
+"grapple": 4,
+"saves": {
+"str": 4,
+"dex": 3,
+"con": 6,
+"int": 2,
+"wis": 4,
+"cha": 5
+},
+"stealth": 0,
+"perception": 4,
+"abilities": {
+"str": 19,
+"dex": 11,
+"con": 16,
+"int": 14,
+"wis": 12,
+"cha": 15
+},
+"cr": 7,
+"attacks": [
+{
+"name": "glaive",
+"verb": "cuts",
+"to_hit": 7,
+"damage": 15,
+"type": "slashing"
+},
+{
+"name": "glaive",
+"verb": "cuts",
+"to_hit": 7,
+"damage": 15,
+"type": "slashing"
+}
+]
+},
+"orc": {
+"ac": 13,
+"hp": 15,
+"initiative": 1,
+"grapple": 3,
+"saves": {
+"str": 3,
+"dex": 1,
+"con": 3,
+"int": -2,
+"wis": 0,
+"cha": 0
+},
+"stealth": 1,
+"perception": 0,
+"abilities": {
+"str": 16,
+"dex": 12,
+"con": 16,
+"int": 7,
+"wis": 11,
+"cha": 10
+},
+"cr": 0.5,
+"attacks": [
+{
+"name": "greataxe",
+"verb": "cuts",
+"to_hit": 5,
+"damage": 9,
+"type": "slashing"
+}
+]
+},
+"otyugh": {
+"ac": 14,
+"hp": 114,
+"initiative": 0,
+"grapple": 3,
+"saves": {
+"str": 3,
+"dex": 0,
+"con": 7,
+"int": -2,
+"wis": 1,
+"cha": -2
+},
+"stealth": 0,
+"perception": 1,
+"abilities": {
+"str": 16,
+"dex": 11,
+"con": 19,
+"int": 6,
+"wis": 13,
+"cha": 6
+},
+"cr": 5,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 6,
+"damage": 12,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 6,
+"damage": 12,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 6,
+"damage": 12,
+"type": "piercing"
+}
+]
+},
+"owl": {
+"ac": 11,
+"hp": 1,
+"initiative": 1,
+"grapple": -4,
+"saves": {
+"str": -4,
+"dex": 1,
+"con": -1,
+"int": -4,
+"wis": 1,
+"cha": -2
+},
+"stealth": 3,
+"perception": 3,
+"abilities": {
+"str": 3,
+"dex": 13,
+"con": 8,
+"int": 2,
+"wis": 12,
+"cha": 7
+},
+"cr": 0,
+"attacks": [
+{
+"name": "talons",
+"verb": "rakes",
+"to_hit": 3,
+"damage": 1,
+"type": "slashing"
+}
+]
+},
+"owlbear": {
+"ac": 13,
+"hp": 59,
+"initiative": 1,
+"grapple": 5,
+"saves": {
+"str": 5,
+"dex": 1,
+"con": 3,
+"int": -4,
+"wis": 1,
+"cha": -2
+},
+"stealth": 1,
+"perception": 3,
+"abilities": {
+"str": 20,
+"dex": 12,
+"con": 17,
+"int": 3,
+"wis": 12,
+"cha": 7
+},
+"cr": 3,
+"attacks": [
+{
+"name": "claws",
+"verb": "rakes",
+"to_hit": 7,
+"damage": 14,
+"type": "slashing"
+},
+{
+"name": "claws",
+"verb": "rakes",
+"to_hit": 7,
+"damage": 14,
+"type": "slashing"
+}
+]
+},
+"panther": {
+"ac": 12,
+"hp": 13,
+"initiative": 2,
+"grapple": 2,
+"saves": {
+"str": 2,
+"dex": 2,
+"con": 0,
+"int": -4,
+"wis": 2,
+"cha": -2
+},
+"stealth": 6,
+"perception": 4,
+"abilities": {
+"str": 14,
+"dex": 15,
+"con": 10,
+"int": 3,
+"wis": 14,
+"cha": 7
+},
+"cr": 0.25,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 4,
+"damage": 5,
+"type": "piercing"
+}
+]
+},
+"pegasus": {
+"ac": 12,
+"hp": 59,
+"initiative": 2,
+"grapple": 4,
+"saves": {
+"str": 4,
+"dex": 4,
+"con": 3,
+"int": 0,
+"wis": 4,
+"cha": 3
+},
+"stealth": 2,
+"perception": 6,
+"abilities": {
+"str": 18,
+"dex": 15,
+"con": 16,
+"int": 10,
+"wis": 15,
+"cha": 13
+},
+"cr": 2,
+"attacks": [
+{
+"name": "hooves",
+"verb": "kicks",
+"to_hit": 6,
+"damage": 11,
+"type": "bludgeoning"
+}
+]
+},
+"phase spider": {
+"ac": 13,
+"hp": 32,
+"initiative": 2,
+"grapple": 2,
+"saves": {
+"str": 2,
+"dex": 2,
+"con": 1,
+"int": -2,
+"wis": 0,
+"cha": -2
+},
+"stealth": 6,
+"perception": 0,
+"abilities": {
+"str": 15,
+"dex": 15,
+"con": 12,
+"int": 6,
+"wis": 10,
+"cha": 6
+},
+"cr": 3,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 4,
+"damage": 7,
+"type": "piercing"
+}
+]
+},
+"pit fiend": {
+"ac": 19,
+"hp": 300,
+"initiative": 2,
+"grapple": 8,
+"saves": {
+"str": 8,
+"dex": 8,
+"con": 13,
+"int": 6,
+"wis": 10,
+"cha": 7
+},
+"stealth": 2,
+"perception": 4,
+"abilities": {
+"str": 26,
+"dex": 14,
+"con": 24,
+"int": 22,
+"wis": 18,
+"cha": 24
+},
+"cr": 20,
+"attacks": [
+{
+"name": "tail",
+"verb": "lashes",
+"to_hit": 14,
+"damage": 24,
+"type": "bludgeoning"
+},
+{
+"name": "tail",
+"verb": "lashes",
+"to_hit": 14,
+"damage": 24,
+"type": "bludgeoning"
+},
+{
+"name": "tail",
+"verb": "lashes",
+"to_hit": 14,
+"damage": 24,
+"type": "bludgeoning"
+},
+{
+"name": "tail",
+"verb": "lashes",
+"to_hit": 14,
+"damage": 24,
+"type": "bludgeoning"
+}
+]
+},
+"planetar": {
+"ac": 19,
+"hp": 200,
+"initiative": 5,
+"grapple": 7,
+"saves": {
+"str": 7,
+"dex": 5,
+"con": 12,
+"int": 4,
+"wis": 11,
+"cha": 12
+},
+"stealth": 5,
+"perception": 11,
+"abilities": {
+"str": 24,
+"dex": 20,
+"con": 24,
+"int": 19,
+"wis": 22,
+"cha": 25
+},
+"cr": 16,
+"attacks": [
+{
+"name": "greatsword",
+"verb": "cuts",
+"to_hit": 12,
+"damage": 43,
+"type": "slashing"
+},
+{
+"name": "greatsword",
+"verb": "cuts",
+"to_hit": 12,
+"damage": 43,
+"type": "slashing"
+}
+]
+},
+"plesiosaurus": {
+"ac": 13,
+"hp": 68,
+"initiative": 2,
+"grapple": 4,
+"saves": {
+"str": 4,
+"dex": 2,
+"con": 3,
+"int": -4,
+"wis": 1,
+"cha": -3
+},
+"stealth": 4,
+"perception": 3,
+"abilities": {
+"str": 18,
+"dex": 15,
+"con": 16,
+"int": 2,
+"wis": 12,
+"cha": 5
+},
+"cr": 2,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 6,
+"damage": 14,
+"type": "piercing"
+}
+]
+},
+"poisonous snake": {
+"ac": 13,
+"hp": 2,
+"initiative": 3,
+"grapple": -4,
+"saves": {
+"str": -4,
+"dex": 3,
+"con": 0,
+"int": -5,
+"wis": 0,
+"cha": -4
+},
+"stealth": 3,
+"perception": 0,
+"abilities": {
+"str": 2,
+"dex": 16,
+"con": 11,
+"int": 1,
+"wis": 10,
+"cha": 3
+},
+"cr": 0.125,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 5,
+"damage": 1,
+"type": "piercing"
+}
+]
+},
+"polar bear": {
+"ac": 12,
+"hp": 42,
+"initiative": 0,
+"grapple": 5,
+"saves": {
+"str": 5,
+"dex": 0,
+"con": 3,
+"int": -4,
+"wis": 1,
+"cha": -2
+},
+"stealth": 0,
+"perception": 3,
+"abilities": {
+"str": 20,
+"dex": 10,
+"con": 16,
+"int": 2,
+"wis": 13,
+"cha": 7
+},
+"cr": 2,
+"attacks": [
+{
+"name": "claws",
+"verb": "rakes",
+"to_hit": 7,
+"damage": 12,
+"type": "slashing"
+},
+{
+"name": "claws",
+"verb": "rakes",
+"to_hit": 7,
+"damage": 12,
+"type": "slashing"
+}
+]
+},
+"pony": {
+"ac": 10,
+"hp": 11,
+"initiative": 0,
+"grapple": 2,
+"saves": {
+"str": 2,
+"dex": 0,
+"con": 1,
+"int": -4,
+"wis": 0,
+"cha": -2
+},
+"stealth": 0,
+"perception": 0,
+"abilities": {
+"str": 15,
+"dex": 10,
+"con": 13,
+"int": 2,
+"wis": 11,
+"cha": 7
+},
+"cr": 0.125,
+"attacks": [
+{
+"name": "hooves",
+"verb": "kicks",
+"to_hit": 4,
+"damage": 7,
+"type": "bludgeoning"
+}
+]
+},
+"priest": {
+"ac": 13,
+"hp": 27,
+"initiative": 0,
+"grapple": 0,
+"saves": {
+"str": 0,
+"dex": 0,
+"con": 1,
+"int": 1,
+"wis": 3,
+"cha": 1
+},
+"stealth": 0,
+"perception": 3,
+"abilities": {
+"str": 10,
+"dex": 10,
+"con": 12,
+"int": 13,
+"wis": 16,
+"cha": 13
+},
+"cr": 2,
+"attacks": [
+{
+"name": "mace",
+"verb": "strikes",
+"to_hit": 2,
+"damage": 3,
+"type": "bludgeoning"
+}
+],
+"npc_role": true
+},
+"pseudodragon": {
+"ac": 13,
+"hp": 7,
+"initiative": 2,
+"grapple": -2,
+"saves": {
+"str": -2,
+"dex": 2,
+"con": 1,
+"int": 0,
+"wis": 1,
+"cha": 0
+},
+"stealth": 4,
+"perception": 3,
+"abilities": {
+"str": 6,
+"dex": 15,
+"con": 13,
+"int": 10,
+"wis": 12,
+"cha": 10
+},
+"cr": 0.25,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 4,
+"damage": 4,
+"type": "piercing"
+}
+]
+},
+"purple worm": {
+"ac": 18,
+"hp": 247,
+"initiative": -2,
+"grapple": 9,
+"saves": {
+"str": 9,
+"dex": -2,
+"con": 11,
+"int": -5,
+"wis": 4,
+"cha": -3
+},
+"stealth": -2,
+"perception": -1,
+"abilities": {
+"str": 28,
+"dex": 7,
+"con": 22,
+"int": 1,
+"wis": 8,
+"cha": 4
+},
+"cr": 15,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 9,
+"damage": 22,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 9,
+"damage": 22,
+"type": "piercing"
+}
+]
+},
+"quasit": {
+"ac": 13,
+"hp": 7,
+"initiative": 3,
+"grapple": -3,
+"saves": {
+"str": -3,
+"dex": 3,
+"con": 0,
+"int": -2,
+"wis": 0,
+"cha": 0
+},
+"stealth": 5,
+"perception": 0,
+"abilities": {
+"str": 5,
+"dex": 17,
+"con": 10,
+"int": 7,
+"wis": 10,
+"cha": 10
+},
+"cr": 1,
+"attacks": [
+{
+"name": "claw",
+"verb": "rakes",
+"to_hit": 4,
+"damage": 5,
+"type": "piercing"
+}
+]
+},
+"quipper": {
+"ac": 13,
+"hp": 1,
+"initiative": 3,
+"grapple": -4,
+"saves": {
+"str": -4,
+"dex": 3,
+"con": -1,
+"int": -5,
+"wis": -2,
+"cha": -4
+},
+"stealth": 3,
+"perception": -2,
+"abilities": {
+"str": 2,
+"dex": 16,
+"con": 9,
+"int": 1,
+"wis": 7,
+"cha": 2
+},
+"cr": 0,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 5,
+"damage": 1,
+"type": "piercing"
+}
+]
+},
+"rakshasa": {
+"ac": 16,
+"hp": 110,
+"initiative": 3,
+"grapple": 2,
+"saves": {
+"str": 2,
+"dex": 3,
+"con": 4,
+"int": 1,
+"wis": 3,
+"cha": 5
+},
+"stealth": 3,
+"perception": 3,
+"abilities": {
+"str": 14,
+"dex": 17,
+"con": 18,
+"int": 13,
+"wis": 16,
+"cha": 20
+},
+"cr": 13,
+"attacks": [
+{
+"name": "claw",
+"verb": "rakes",
+"to_hit": 7,
+"damage": 9,
+"type": "slashing"
+},
+{
+"name": "claw",
+"verb": "rakes",
+"to_hit": 7,
+"damage": 9,
+"type": "slashing"
+}
+]
+},
+"rat": {
+"ac": 10,
+"hp": 1,
+"initiative": 0,
+"grapple": -4,
+"saves": {
+"str": -4,
+"dex": 0,
+"con": -1,
+"int": -4,
+"wis": 0,
+"cha": -3
+},
+"stealth": 0,
+"perception": 0,
+"abilities": {
+"str": 2,
+"dex": 11,
+"con": 9,
+"int": 2,
+"wis": 10,
+"cha": 4
+},
+"cr": 0,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 0,
+"damage": 1,
+"type": "piercing"
+}
+]
+},
+"raven": {
+"ac": 12,
+"hp": 1,
+"initiative": 2,
+"grapple": -4,
+"saves": {
+"str": -4,
+"dex": 2,
+"con": -1,
+"int": -4,
+"wis": 1,
+"cha": -2
+},
+"stealth": 2,
+"perception": 3,
+"abilities": {
+"str": 2,
+"dex": 14,
+"con": 8,
+"int": 2,
+"wis": 12,
+"cha": 6
+},
+"cr": 0,
+"attacks": [
+{
+"name": "beak",
+"verb": "pecks",
+"to_hit": 4,
+"damage": 1,
+"type": "piercing"
+}
+]
+},
+"red dragon wyrmling": {
+"ac": 17,
+"hp": 75,
+"initiative": 0,
+"grapple": 4,
+"saves": {
+"str": 4,
+"dex": 2,
+"con": 5,
+"int": 1,
+"wis": 2,
+"cha": 4
+},
+"stealth": 2,
+"perception": 4,
+"abilities": {
+"str": 19,
+"dex": 10,
+"con": 17,
+"int": 12,
+"wis": 11,
+"cha": 15
+},
+"cr": 4,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 6,
+"damage": 12,
+"type": "piercing"
+}
+]
+},
+"reef shark": {
+"ac": 12,
+"hp": 22,
+"initiative": 1,
+"grapple": 2,
+"saves": {
+"str": 2,
+"dex": 1,
+"con": 1,
+"int": -5,
+"wis": 0,
+"cha": -3
+},
+"stealth": 1,
+"perception": 2,
+"abilities": {
+"str": 14,
+"dex": 13,
+"con": 13,
+"int": 1,
+"wis": 10,
+"cha": 4
+},
+"cr": 0.5,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 4,
+"damage": 6,
+"type": "piercing"
+}
+]
+},
+"remorhaz": {
+"ac": 17,
+"hp": 195,
+"initiative": 1,
+"grapple": 7,
+"saves": {
+"str": 7,
+"dex": 1,
+"con": 5,
+"int": -3,
+"wis": 0,
+"cha": -3
+},
+"stealth": 1,
+"perception": 0,
+"abilities": {
+"str": 24,
+"dex": 13,
+"con": 21,
+"int": 4,
+"wis": 10,
+"cha": 5
+},
+"cr": 11,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 11,
+"damage": 50,
+"type": "piercing"
+}
+]
+},
+"rhinoceros": {
+"ac": 11,
+"hp": 45,
+"initiative": -1,
+"grapple": 5,
+"saves": {
+"str": 5,
+"dex": -1,
+"con": 2,
+"int": -4,
+"wis": 1,
+"cha": -2
+},
+"stealth": -1,
+"perception": 1,
+"abilities": {
+"str": 21,
+"dex": 8,
+"con": 15,
+"int": 2,
+"wis": 12,
+"cha": 6
+},
+"cr": 2,
+"attacks": [
+{
+"name": "gore",
+"verb": "gores",
+"to_hit": 7,
+"damage": 14,
+"type": "bludgeoning"
+}
+]
+},
+"riding horse": {
+"ac": 10,
+"hp": 13,
+"initiative": 0,
+"grapple": 3,
+"saves": {
+"str": 3,
+"dex": 0,
+"con": 1,
+"int": -4,
+"wis": 0,
+"cha": -2
+},
+"stealth": 0,
+"perception": 0,
+"abilities": {
+"str": 16,
+"dex": 10,
+"con": 12,
+"int": 2,
+"wis": 11,
+"cha": 7
+},
+"cr": 0.25,
+"attacks": [
+{
+"name": "hooves",
+"verb": "kicks",
+"to_hit": 5,
+"damage": 8,
+"type": "bludgeoning"
+}
+]
+},
+"roc": {
+"ac": 15,
+"hp": 248,
+"initiative": 0,
+"grapple": 9,
+"saves": {
+"str": 9,
+"dex": 4,
+"con": 9,
+"int": -4,
+"wis": 4,
+"cha": 3
+},
+"stealth": 0,
+"perception": 4,
+"abilities": {
+"str": 28,
+"dex": 10,
+"con": 20,
+"int": 3,
+"wis": 10,
+"cha": 9
+},
+"cr": 11,
+"attacks": [
+{
+"name": "beak",
+"verb": "pecks",
+"to_hit": 13,
+"damage": 27,
+"type": "piercing"
+},
+{
+"name": "beak",
+"verb": "pecks",
+"to_hit": 13,
+"damage": 27,
+"type": "piercing"
+}
+]
+},
+"roper": {
+"ac": 20,
+"hp": 93,
+"initiative": -1,
+"grapple": 4,
+"saves": {
+"str": 4,
+"dex": -1,
+"con": 3,
+"int": -2,
+"wis": 3,
+"cha": -2
+},
+"stealth": 5,
+"perception": 6,
+"abilities": {
+"str": 18,
+"dex": 8,
+"con": 17,
+"int": 7,
+"wis": 16,
+"cha": 6
+},
+"cr": 5,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 7,
+"damage": 22,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 7,
+"damage": 22,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 7,
+"damage": 22,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 7,
+"damage": 22,
+"type": "piercing"
+}
+]
+},
+"rust monster": {
+"ac": 14,
+"hp": 27,
+"initiative": 1,
+"grapple": 1,
+"saves": {
+"str": 1,
+"dex": 1,
+"con": 1,
+"int": -4,
+"wis": 1,
+"cha": -2
+},
+"stealth": 1,
+"perception": 1,
+"abilities": {
+"str": 13,
+"dex": 12,
+"con": 13,
+"int": 2,
+"wis": 13,
+"cha": 6
+},
+"cr": 0.5,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 3,
+"damage": 5,
+"type": "piercing"
+}
+]
+},
+"saber-toothed tiger": {
+"ac": 12,
+"hp": 52,
+"initiative": 2,
+"grapple": 4,
+"saves": {
+"str": 4,
+"dex": 2,
+"con": 2,
+"int": -4,
+"wis": 1,
+"cha": -1
+},
+"stealth": 6,
+"perception": 3,
+"abilities": {
+"str": 18,
+"dex": 14,
+"con": 15,
+"int": 3,
+"wis": 12,
+"cha": 8
+},
+"cr": 2,
+"attacks": [
+{
+"name": "claw",
+"verb": "rakes",
+"to_hit": 6,
+"damage": 12,
+"type": "slashing"
+}
+]
+},
+"sahuagin": {
+"ac": 12,
+"hp": 22,
+"initiative": 0,
+"grapple": 1,
+"saves": {
+"str": 1,
+"dex": 0,
+"con": 1,
+"int": 1,
+"wis": 1,
+"cha": -1
+},
+"stealth": 0,
+"perception": 5,
+"abilities": {
+"str": 13,
+"dex": 11,
+"con": 12,
+"int": 12,
+"wis": 13,
+"cha": 9
+},
+"cr": 0.5,
+"attacks": [
+{
+"name": "spear",
+"verb": "stabs",
+"to_hit": 3,
+"damage": 4,
+"type": "piercing"
+},
+{
+"name": "spear",
+"verb": "stabs",
+"to_hit": 3,
+"damage": 4,
+"type": "piercing"
+}
+]
+},
+"salamander": {
+"ac": 15,
+"hp": 90,
+"initiative": 2,
+"grapple": 4,
+"saves": {
+"str": 4,
+"dex": 2,
+"con": 2,
+"int": 0,
+"wis": 0,
+"cha": 1
+},
+"stealth": 2,
+"perception": 0,
+"abilities": {
+"str": 18,
+"dex": 14,
+"con": 15,
+"int": 11,
+"wis": 10,
+"cha": 12
+},
+"cr": 5,
+"attacks": [
+{
+"name": "tail",
+"verb": "lashes",
+"to_hit": 7,
+"damage": 18,
+"type": "bludgeoning"
+},
+{
+"name": "tail",
+"verb": "lashes",
+"to_hit": 7,
+"damage": 18,
+"type": "bludgeoning"
+}
+]
+},
+"satyr": {
+"ac": 14,
+"hp": 31,
+"initiative": 3,
+"grapple": 1,
+"saves": {
+"str": 1,
+"dex": 3,
+"con": 0,
+"int": 1,
+"wis": 0,
+"cha": 2
+},
+"stealth": 5,
+"perception": 2,
+"abilities": {
+"str": 12,
+"dex": 16,
+"con": 11,
+"int": 12,
+"wis": 10,
+"cha": 14
+},
+"cr": 0.5,
+"attacks": [
+{
+"name": "shortsword",
+"verb": "stabs",
+"to_hit": 5,
+"damage": 6,
+"type": "piercing"
+}
+]
+},
+"scorpion": {
+"ac": 11,
+"hp": 1,
+"initiative": 0,
+"grapple": -4,
+"saves": {
+"str": -4,
+"dex": 0,
+"con": -1,
+"int": -5,
+"wis": -1,
+"cha": -4
+},
+"stealth": 0,
+"perception": -1,
+"abilities": {
+"str": 2,
+"dex": 11,
+"con": 8,
+"int": 1,
+"wis": 8,
+"cha": 2
+},
+"cr": 0,
+"attacks": [
+{
+"name": "sting",
+"verb": "stings",
+"to_hit": 2,
+"damage": 1,
+"type": "piercing"
+}
+]
+},
+"scout": {
+"ac": 13,
+"hp": 16,
+"initiative": 2,
+"grapple": 0,
+"saves": {
+"str": 0,
+"dex": 2,
+"con": 1,
+"int": 0,
+"wis": 1,
+"cha": 0
+},
+"stealth": 6,
+"perception": 5,
+"abilities": {
+"str": 11,
+"dex": 14,
+"con": 12,
+"int": 11,
+"wis": 13,
+"cha": 11
+},
+"cr": 0.5,
+"attacks": [
+{
+"name": "longbow",
+"verb": "stabs",
+"to_hit": 4,
+"damage": 6,
+"type": "piercing"
+},
+{
+"name": "longbow",
+"verb": "stabs",
+"to_hit": 4,
+"damage": 6,
+"type": "piercing"
+}
+],
+"npc_role": true
+},
+"sea hag": {
+"ac": 14,
+"hp": 52,
+"initiative": 1,
+"grapple": 3,
+"saves": {
+"str": 3,
+"dex": 1,
+"con": 3,
+"int": 1,
+"wis": 1,
+"cha": 1
+},
+"stealth": 1,
+"perception": 1,
+"abilities": {
+"str": 16,
+"dex": 13,
+"con": 16,
+"int": 12,
+"wis": 12,
+"cha": 13
+},
+"cr": 2,
+"attacks": [
+{
+"name": "claws",
+"verb": "rakes",
+"to_hit": 5,
+"damage": 10,
+"type": "slashing"
+}
+]
+},
+"shadow": {
+"ac": 12,
+"hp": 16,
+"initiative": 2,
+"grapple": -2,
+"saves": {
+"str": -2,
+"dex": 2,
+"con": 1,
+"int": -2,
+"wis": 0,
+"cha": -1
+},
+"stealth": 4,
+"perception": 0,
+"abilities": {
+"str": 6,
+"dex": 14,
+"con": 13,
+"int": 6,
+"wis": 10,
+"cha": 8
+},
+"cr": 0.5,
+"attacks": [
+{
+"name": "strength drain",
+"verb": "hits",
+"to_hit": 4,
+"damage": 9,
+"type": "necrotic"
+}
+]
+},
+"shambling mound": {
+"ac": 15,
+"hp": 136,
+"initiative": -1,
+"grapple": 4,
+"saves": {
+"str": 4,
+"dex": -1,
+"con": 3,
+"int": -3,
+"wis": 0,
+"cha": -3
+},
+"stealth": 2,
+"perception": 0,
+"abilities": {
+"str": 18,
+"dex": 8,
+"con": 16,
+"int": 5,
+"wis": 10,
+"cha": 5
+},
+"cr": 5,
+"attacks": [
+{
+"name": "slam",
+"verb": "slams",
+"to_hit": 7,
+"damage": 13,
+"type": "bludgeoning"
+},
+{
+"name": "slam",
+"verb": "slams",
+"to_hit": 7,
+"damage": 13,
+"type": "bludgeoning"
+}
+]
+},
+"shield guardian": {
+"ac": 17,
+"hp": 142,
+"initiative": -1,
+"grapple": 4,
+"saves": {
+"str": 4,
+"dex": -1,
+"con": 4,
+"int": -2,
+"wis": 0,
+"cha": -4
+},
+"stealth": -1,
+"perception": 0,
+"abilities": {
+"str": 18,
+"dex": 8,
+"con": 18,
+"int": 7,
+"wis": 10,
+"cha": 3
+},
+"cr": 7,
+"attacks": [
+{
+"name": "fist",
+"verb": "punches",
+"to_hit": 7,
+"damage": 11,
+"type": "bludgeoning"
+},
+{
+"name": "fist",
+"verb": "punches",
+"to_hit": 7,
+"damage": 11,
+"type": "bludgeoning"
+}
+]
+},
+"silver dragon wyrmling": {
+"ac": 17,
+"hp": 45,
+"initiative": 0,
+"grapple": 4,
+"saves": {
+"str": 4,
+"dex": 2,
+"con": 5,
+"int": 1,
+"wis": 2,
+"cha": 4
+},
+"stealth": 2,
+"perception": 4,
+"abilities": {
+"str": 19,
+"dex": 10,
+"con": 17,
+"int": 12,
+"wis": 11,
+"cha": 15
+},
+"cr": 2,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 6,
+"damage": 9,
+"type": "piercing"
+}
+]
+},
+"skeleton": {
+"ac": 13,
+"hp": 13,
+"initiative": 2,
+"grapple": 0,
+"saves": {
+"str": 0,
+"dex": 2,
+"con": 2,
+"int": -2,
+"wis": -1,
+"cha": -3
+},
+"stealth": 2,
+"perception": -1,
+"abilities": {
+"str": 10,
+"dex": 14,
+"con": 15,
+"int": 6,
+"wis": 8,
+"cha": 5
+},
+"cr": 0.25,
+"attacks": [
+{
+"name": "shortsword",
+"verb": "stabs",
+"to_hit": 4,
+"damage": 5,
+"type": "piercing"
+}
+]
+},
+"solar": {
+"ac": 21,
+"hp": 243,
+"initiative": 6,
+"grapple": 8,
+"saves": {
+"str": 8,
+"dex": 6,
+"con": 8,
+"int": 14,
+"wis": 14,
+"cha": 17
+},
+"stealth": 6,
+"perception": 14,
+"abilities": {
+"str": 26,
+"dex": 22,
+"con": 26,
+"int": 25,
+"wis": 25,
+"cha": 30
+},
+"cr": 21,
+"attacks": [
+{
+"name": "greatsword",
+"verb": "cuts",
+"to_hit": 15,
+"damage": 49,
+"type": "slashing"
+},
+{
+"name": "greatsword",
+"verb": "cuts",
+"to_hit": 15,
+"damage": 49,
+"type": "slashing"
+}
+]
+},
+"specter": {
+"ac": 12,
+"hp": 22,
+"initiative": 2,
+"grapple": -5,
+"saves": {
+"str": -5,
+"dex": 2,
+"con": 0,
+"int": 0,
+"wis": 0,
+"cha": 0
+},
+"stealth": 2,
+"perception": 0,
+"abilities": {
+"str": 1,
+"dex": 14,
+"con": 11,
+"int": 10,
+"wis": 10,
+"cha": 11
+},
+"cr": 1,
+"attacks": [
+{
+"name": "life drain",
+"verb": "hits",
+"to_hit": 4,
+"damage": 10,
+"type": "necrotic"
+}
+]
+},
+"spider": {
+"ac": 12,
+"hp": 1,
+"initiative": 2,
+"grapple": -4,
+"saves": {
+"str": -4,
+"dex": 2,
+"con": -1,
+"int": -5,
+"wis": 0,
+"cha": -4
+},
+"stealth": 4,
+"perception": 0,
+"abilities": {
+"str": 2,
+"dex": 14,
+"con": 8,
+"int": 1,
+"wis": 10,
+"cha": 2
+},
+"cr": 0,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 4,
+"damage": 1,
+"type": "piercing"
+}
+]
+},
+"spirit naga": {
+"ac": 15,
+"hp": 75,
+"initiative": 3,
+"grapple": 4,
+"saves": {
+"str": 4,
+"dex": 6,
+"con": 5,
+"int": 3,
+"wis": 5,
+"cha": 6
+},
+"stealth": 3,
+"perception": 2,
+"abilities": {
+"str": 18,
+"dex": 17,
+"con": 14,
+"int": 16,
+"wis": 15,
+"cha": 16
+},
+"cr": 8,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 7,
+"damage": 7,
+"type": "piercing"
+}
+]
+},
+"sprite": {
+"ac": 15,
+"hp": 2,
+"initiative": 4,
+"grapple": -4,
+"saves": {
+"str": -4,
+"dex": 4,
+"con": 0,
+"int": 2,
+"wis": 1,
+"cha": 0
+},
+"stealth": 8,
+"perception": 3,
+"abilities": {
+"str": 3,
+"dex": 18,
+"con": 10,
+"int": 14,
+"wis": 13,
+"cha": 11
+},
+"cr": 0.25,
+"attacks": [
+{
+"name": "shortbow",
+"verb": "stabs",
+"to_hit": 6,
+"damage": 1,
+"type": "piercing"
+}
+]
+},
+"spy": {
+"ac": 12,
+"hp": 27,
+"initiative": 2,
+"grapple": 0,
+"saves": {
+"str": 0,
+"dex": 2,
+"con": 0,
+"int": 1,
+"wis": 2,
+"cha": 3
+},
+"stealth": 4,
+"perception": 6,
+"abilities": {
+"str": 10,
+"dex": 15,
+"con": 10,
+"int": 12,
+"wis": 14,
+"cha": 16
+},
+"cr": 1,
+"attacks": [
+{
+"name": "shortsword",
+"verb": "stabs",
+"to_hit": 4,
+"damage": 5,
+"type": "piercing"
+},
+{
+"name": "shortsword",
+"verb": "stabs",
+"to_hit": 4,
+"damage": 5,
+"type": "piercing"
+}
+],
+"npc_role": true
+},
+"steam mephit": {
+"ac": 10,
+"hp": 21,
+"initiative": 0,
+"grapple": -3,
+"saves": {
+"str": -3,
+"dex": 0,
+"con": 0,
+"int": 0,
+"wis": 0,
+"cha": 1
+},
+"stealth": 0,
+"perception": 0,
+"abilities": {
+"str": 5,
+"dex": 11,
+"con": 10,
+"int": 11,
+"wis": 10,
+"cha": 12
+},
+"cr": 0.25,
+"attacks": [
+{
+"name": "claws",
+"verb": "rakes",
+"to_hit": 2,
+"damage": 4,
+"type": "slashing"
+}
+]
+},
+"stirge": {
+"ac": 14,
+"hp": 2,
+"initiative": 3,
+"grapple": -3,
+"saves": {
+"str": -3,
+"dex": 3,
+"con": 0,
+"int": -4,
+"wis": -1,
+"cha": -2
+},
+"stealth": 3,
+"perception": -1,
+"abilities": {
+"str": 4,
+"dex": 16,
+"con": 11,
+"int": 2,
+"wis": 8,
+"cha": 6
+},
+"cr": 0.125,
+"attacks": [
+{
+"name": "blood drain",
+"verb": "stabs",
+"to_hit": 5,
+"damage": 5,
+"type": "piercing"
+}
+]
+},
+"stone giant": {
+"ac": 17,
+"hp": 126,
+"initiative": 2,
+"grapple": 12,
+"saves": {
+"str": 6,
+"dex": 5,
+"con": 8,
+"int": 0,
+"wis": 4,
+"cha": -1
+},
+"stealth": 2,
+"perception": 4,
+"abilities": {
+"str": 23,
+"dex": 15,
+"con": 20,
+"int": 10,
+"wis": 12,
+"cha": 9
+},
+"cr": 7,
+"attacks": [
+{
+"name": "rock",
+"verb": "strikes",
+"to_hit": 9,
+"damage": 28,
+"type": "bludgeoning"
+},
+{
+"name": "rock",
+"verb": "strikes",
+"to_hit": 9,
+"damage": 28,
+"type": "bludgeoning"
+}
+]
+},
+"stone golem": {
+"ac": 17,
+"hp": 178,
+"initiative": -1,
+"grapple": 6,
+"saves": {
+"str": 6,
+"dex": -1,
+"con": 5,
+"int": -4,
+"wis": 0,
+"cha": -5
+},
+"stealth": -1,
+"perception": 0,
+"abilities": {
+"str": 22,
+"dex": 9,
+"con": 20,
+"int": 3,
+"wis": 11,
+"cha": 1
+},
+"cr": 10,
+"attacks": [
+{
+"name": "slam",
+"verb": "slams",
+"to_hit": 10,
+"damage": 19,
+"type": "bludgeoning"
+},
+{
+"name": "slam",
+"verb": "slams",
+"to_hit": 10,
+"damage": 19,
+"type": "bludgeoning"
+}
+]
+},
+"storm giant": {
+"ac": 16,
+"hp": 230,
+"initiative": 2,
+"grapple": 14,
+"saves": {
+"str": 14,
+"dex": 2,
+"con": 10,
+"int": 3,
+"wis": 9,
+"cha": 9
+},
+"stealth": 2,
+"perception": 9,
+"abilities": {
+"str": 29,
+"dex": 14,
+"con": 20,
+"int": 16,
+"wis": 18,
+"cha": 18
+},
+"cr": 13,
+"attacks": [
+{
+"name": "rock",
+"verb": "strikes",
+"to_hit": 14,
+"damage": 35,
+"type": "bludgeoning"
+},
+{
+"name": "rock",
+"verb": "strikes",
+"to_hit": 14,
+"damage": 35,
+"type": "bludgeoning"
+}
+]
+},
+"succubus/incubus": {
+"ac": 15,
+"hp": 66,
+"initiative": 3,
+"grapple": -1,
+"saves": {
+"str": -1,
+"dex": 3,
+"con": 1,
+"int": 2,
+"wis": 1,
+"cha": 5
+},
+"stealth": 7,
+"perception": 5,
+"abilities": {
+"str": 8,
+"dex": 17,
+"con": 13,
+"int": 15,
+"wis": 12,
+"cha": 20
+},
+"cr": 4,
+"attacks": [
+{
+"name": "claw",
+"verb": "rakes",
+"to_hit": 5,
+"damage": 6,
+"type": "slashing"
+}
+]
+},
+"swarm of bats": {
+"ac": 12,
+"hp": 22,
+"initiative": 2,
+"grapple": -3,
+"saves": {
+"str": -3,
+"dex": 2,
+"con": 0,
+"int": -4,
+"wis": 1,
+"cha": -3
+},
+"stealth": 2,
+"perception": 1,
+"abilities": {
+"str": 5,
+"dex": 15,
+"con": 10,
+"int": 2,
+"wis": 12,
+"cha": 4
+},
+"cr": 0.25,
+"attacks": [
+{
+"name": "bites",
+"verb": "stabs",
+"to_hit": 4,
+"damage": 5,
+"type": "piercing"
+}
+]
+},
+"swarm of beetles": {
+"ac": 12,
+"hp": 22,
+"initiative": 1,
+"grapple": -4,
+"saves": {
+"str": -4,
+"dex": 1,
+"con": 0,
+"int": -5,
+"wis": -2,
+"cha": -5
+},
+"stealth": 1,
+"perception": -2,
+"abilities": {
+"str": 3,
+"dex": 13,
+"con": 10,
+"int": 1,
+"wis": 7,
+"cha": 1
+},
+"cr": 0.5,
+"attacks": [
+{
+"name": "bites",
+"verb": "stabs",
+"to_hit": 3,
+"damage": 10,
+"type": "piercing"
+}
+]
+},
+"swarm of centipedes": {
+"ac": 12,
+"hp": 22,
+"initiative": 1,
+"grapple": -4,
+"saves": {
+"str": -4,
+"dex": 1,
+"con": 0,
+"int": -5,
+"wis": -2,
+"cha": -5
+},
+"stealth": 1,
+"perception": -2,
+"abilities": {
+"str": 3,
+"dex": 13,
+"con": 10,
+"int": 1,
+"wis": 7,
+"cha": 1
+},
+"cr": 0.5,
+"attacks": [
+{
+"name": "bites",
+"verb": "stabs",
+"to_hit": 3,
+"damage": 10,
+"type": "piercing"
+}
+]
+},
+"swarm of insects": {
+"ac": 12,
+"hp": 22,
+"initiative": 1,
+"grapple": -4,
+"saves": {
+"str": -4,
+"dex": 1,
+"con": 0,
+"int": -5,
+"wis": -2,
+"cha": -5
+},
+"stealth": 1,
+"perception": -2,
+"abilities": {
+"str": 3,
+"dex": 13,
+"con": 10,
+"int": 1,
+"wis": 7,
+"cha": 1
+},
+"cr": 0.5,
+"attacks": [
+{
+"name": "bites",
+"verb": "stabs",
+"to_hit": 3,
+"damage": 10,
+"type": "piercing"
+}
+]
+},
+"swarm of poisonous snakes": {
+"ac": 14,
+"hp": 36,
+"initiative": 4,
+"grapple": -1,
+"saves": {
+"str": -1,
+"dex": 4,
+"con": 0,
+"int": -5,
+"wis": 0,
+"cha": -4
+},
+"stealth": 4,
+"perception": 0,
+"abilities": {
+"str": 8,
+"dex": 18,
+"con": 11,
+"int": 1,
+"wis": 10,
+"cha": 3
+},
+"cr": 2,
+"attacks": [
+{
+"name": "bites",
+"verb": "stabs",
+"to_hit": 6,
+"damage": 7,
+"type": "piercing"
+}
+]
+},
+"swarm of quippers": {
+"ac": 13,
+"hp": 28,
+"initiative": 3,
+"grapple": 1,
+"saves": {
+"str": 1,
+"dex": 3,
+"con": -1,
+"int": -5,
+"wis": -2,
+"cha": -4
+},
+"stealth": 3,
+"perception": -2,
+"abilities": {
+"str": 13,
+"dex": 16,
+"con": 9,
+"int": 1,
+"wis": 7,
+"cha": 2
+},
+"cr": 1,
+"attacks": [
+{
+"name": "bites",
+"verb": "stabs",
+"to_hit": 5,
+"damage": 14,
+"type": "piercing"
+}
+]
+},
+"swarm of rats": {
+"ac": 10,
+"hp": 24,
+"initiative": 0,
+"grapple": -1,
+"saves": {
+"str": -1,
+"dex": 0,
+"con": -1,
+"int": -4,
+"wis": 0,
+"cha": -4
+},
+"stealth": 0,
+"perception": 0,
+"abilities": {
+"str": 9,
+"dex": 11,
+"con": 9,
+"int": 2,
+"wis": 10,
+"cha": 3
+},
+"cr": 0.25,
+"attacks": [
+{
+"name": "bites",
+"verb": "stabs",
+"to_hit": 2,
+"damage": 7,
+"type": "piercing"
+}
+]
+},
+"swarm of ravens": {
+"ac": 12,
+"hp": 24,
+"initiative": 2,
+"grapple": -2,
+"saves": {
+"str": -2,
+"dex": 2,
+"con": -1,
+"int": -4,
+"wis": 1,
+"cha": -2
+},
+"stealth": 2,
+"perception": 1,
+"abilities": {
+"str": 6,
+"dex": 14,
+"con": 8,
+"int": 3,
+"wis": 12,
+"cha": 6
+},
+"cr": 0.25,
+"attacks": [
+{
+"name": "beaks",
+"verb": "stabs",
+"to_hit": 4,
+"damage": 7,
+"type": "piercing"
+}
+]
+},
+"swarm of spiders": {
+"ac": 12,
+"hp": 22,
+"initiative": 1,
+"grapple": -4,
+"saves": {
+"str": -4,
+"dex": 1,
+"con": 0,
+"int": -5,
+"wis": -2,
+"cha": -5
+},
+"stealth": 1,
+"perception": -2,
+"abilities": {
+"str": 3,
+"dex": 13,
+"con": 10,
+"int": 1,
+"wis": 7,
+"cha": 1
+},
+"cr": 0.5,
+"attacks": [
+{
+"name": "bites",
+"verb": "stabs",
+"to_hit": 3,
+"damage": 10,
+"type": "piercing"
+}
+]
+},
+"swarm of wasps": {
+"ac": 12,
+"hp": 22,
+"initiative": 1,
+"grapple": -4,
+"saves": {
+"str": -4,
+"dex": 1,
+"con": 0,
+"int": -5,
+"wis": -2,
+"cha": -5
+},
+"stealth": 1,
+"perception": -2,
+"abilities": {
+"str": 3,
+"dex": 13,
+"con": 10,
+"int": 1,
+"wis": 7,
+"cha": 1
+},
+"cr": 0.5,
+"attacks": [
+{
+"name": "bites",
+"verb": "stabs",
+"to_hit": 3,
+"damage": 10,
+"type": "piercing"
+}
+]
+},
+"tarrasque": {
+"ac": 25,
+"hp": 676,
+"initiative": 0,
+"grapple": 10,
+"saves": {
+"str": 10,
+"dex": 0,
+"con": 10,
+"int": 5,
+"wis": 9,
+"cha": 9
+},
+"stealth": 0,
+"perception": 0,
+"abilities": {
+"str": 30,
+"dex": 11,
+"con": 30,
+"int": 3,
+"wis": 11,
+"cha": 11
+},
+"cr": 30,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 19,
+"damage": 36,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 19,
+"damage": 36,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 19,
+"damage": 36,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 19,
+"damage": 36,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 19,
+"damage": 36,
+"type": "piercing"
+}
+]
+},
+"thug": {
+"ac": 11,
+"hp": 32,
+"initiative": 0,
+"grapple": 2,
+"saves": {
+"str": 2,
+"dex": 0,
+"con": 2,
+"int": 0,
+"wis": 0,
+"cha": 0
+},
+"stealth": 0,
+"perception": 0,
+"abilities": {
+"str": 15,
+"dex": 11,
+"con": 14,
+"int": 10,
+"wis": 10,
+"cha": 11
+},
+"cr": 0.5,
+"attacks": [
+{
+"name": "mace",
+"verb": "strikes",
+"to_hit": 4,
+"damage": 5,
+"type": "bludgeoning"
+},
+{
+"name": "mace",
+"verb": "strikes",
+"to_hit": 4,
+"damage": 5,
+"type": "bludgeoning"
+}
+],
+"npc_role": true
+},
+"tiger": {
+"ac": 12,
+"hp": 37,
+"initiative": 2,
+"grapple": 3,
+"saves": {
+"str": 3,
+"dex": 2,
+"con": 2,
+"int": -4,
+"wis": 1,
+"cha": -1
+},
+"stealth": 6,
+"perception": 3,
+"abilities": {
+"str": 17,
+"dex": 15,
+"con": 14,
+"int": 3,
+"wis": 12,
+"cha": 8
+},
+"cr": 1,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 5,
+"damage": 8,
+"type": "piercing"
+}
+]
+},
+"treant": {
+"ac": 16,
+"hp": 138,
+"initiative": -1,
+"grapple": 6,
+"saves": {
+"str": 6,
+"dex": -1,
+"con": 5,
+"int": 1,
+"wis": 3,
+"cha": 1
+},
+"stealth": -1,
+"perception": 3,
+"abilities": {
+"str": 23,
+"dex": 8,
+"con": 21,
+"int": 12,
+"wis": 16,
+"cha": 12
+},
+"cr": 9,
+"attacks": [
+{
+"name": "rock",
+"verb": "strikes",
+"to_hit": 10,
+"damage": 28,
+"type": "bludgeoning"
+},
+{
+"name": "rock",
+"verb": "strikes",
+"to_hit": 10,
+"damage": 28,
+"type": "bludgeoning"
+}
+]
+},
+"tribal warrior": {
+"ac": 12,
+"hp": 11,
+"initiative": 0,
+"grapple": 1,
+"saves": {
+"str": 1,
+"dex": 0,
+"con": 1,
+"int": -1,
+"wis": 0,
+"cha": -1
+},
+"stealth": 0,
+"perception": 0,
+"abilities": {
+"str": 13,
+"dex": 11,
+"con": 12,
+"int": 8,
+"wis": 11,
+"cha": 8
+},
+"cr": 0.125,
+"attacks": [
+{
+"name": "spear",
+"verb": "stabs",
+"to_hit": 3,
+"damage": 4,
+"type": "piercing"
+}
+],
+"npc_role": true
+},
+"triceratops": {
+"ac": 13,
+"hp": 95,
+"initiative": -1,
+"grapple": 6,
+"saves": {
+"str": 6,
+"dex": -1,
+"con": 3,
+"int": -4,
+"wis": 0,
+"cha": -3
+},
+"stealth": -1,
+"perception": 0,
+"abilities": {
+"str": 22,
+"dex": 9,
+"con": 17,
+"int": 2,
+"wis": 11,
+"cha": 5
+},
+"cr": 5,
+"attacks": [
+{
+"name": "gore",
+"verb": "gores",
+"to_hit": 9,
+"damage": 24,
+"type": "piercing"
+}
+]
+},
+"troll": {
+"ac": 15,
+"hp": 84,
+"initiative": 1,
+"grapple": 4,
+"saves": {
+"str": 4,
+"dex": 1,
+"con": 5,
+"int": -2,
+"wis": -1,
+"cha": -2
+},
+"stealth": 1,
+"perception": 2,
+"abilities": {
+"str": 18,
+"dex": 13,
+"con": 20,
+"int": 7,
+"wis": 9,
+"cha": 7
+},
+"cr": 5,
+"attacks": [
+{
+"name": "claw",
+"verb": "rakes",
+"to_hit": 7,
+"damage": 11,
+"type": "slashing"
+},
+{
+"name": "claw",
+"verb": "rakes",
+"to_hit": 7,
+"damage": 11,
+"type": "slashing"
+},
+{
+"name": "claw",
+"verb": "rakes",
+"to_hit": 7,
+"damage": 11,
+"type": "slashing"
+}
+]
+},
+"tyrannosaurus rex": {
+"ac": 13,
+"hp": 136,
+"initiative": 0,
+"grapple": 7,
+"saves": {
+"str": 7,
+"dex": 0,
+"con": 4,
+"int": -4,
+"wis": 1,
+"cha": -1
+},
+"stealth": 0,
+"perception": 4,
+"abilities": {
+"str": 25,
+"dex": 10,
+"con": 19,
+"int": 2,
+"wis": 12,
+"cha": 9
+},
+"cr": 8,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 10,
+"damage": 33,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 10,
+"damage": 33,
+"type": "piercing"
+}
+]
+},
+"unicorn": {
+"ac": 12,
+"hp": 67,
+"initiative": 2,
+"grapple": 4,
+"saves": {
+"str": 4,
+"dex": 2,
+"con": 2,
+"int": 0,
+"wis": 3,
+"cha": 3
+},
+"stealth": 2,
+"perception": 3,
+"abilities": {
+"str": 18,
+"dex": 14,
+"con": 15,
+"int": 11,
+"wis": 17,
+"cha": 16
+},
+"cr": 5,
+"attacks": [
+{
+"name": "hooves",
+"verb": "kicks",
+"to_hit": 7,
+"damage": 11,
+"type": "bludgeoning"
+},
+{
+"name": "hooves",
+"verb": "kicks",
+"to_hit": 7,
+"damage": 11,
+"type": "bludgeoning"
+}
+]
+},
+"vampire spawn": {
+"ac": 15,
+"hp": 82,
+"initiative": 3,
+"grapple": 3,
+"saves": {
+"str": 3,
+"dex": 6,
+"con": 3,
+"int": 0,
+"wis": 3,
+"cha": 1
+},
+"stealth": 6,
+"perception": 3,
+"abilities": {
+"str": 16,
+"dex": 16,
+"con": 16,
+"int": 11,
+"wis": 10,
+"cha": 12
+},
+"cr": 5,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 6,
+"damage": 13,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 6,
+"damage": 13,
+"type": "piercing"
+}
+]
+},
+"vampire, bat form": {
+"ac": 16,
+"hp": 144,
+"initiative": 4,
+"grapple": 4,
+"saves": {
+"str": 4,
+"dex": 9,
+"con": 4,
+"int": 3,
+"wis": 7,
+"cha": 9
+},
+"stealth": 9,
+"perception": 7,
+"abilities": {
+"str": 18,
+"dex": 18,
+"con": 18,
+"int": 17,
+"wis": 15,
+"cha": 18
+},
+"cr": 13,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 9,
+"damage": 17,
+"type": "piercing"
+}
+]
+},
+"vampire, vampire form": {
+"ac": 16,
+"hp": 144,
+"initiative": 4,
+"grapple": 4,
+"saves": {
+"str": 4,
+"dex": 9,
+"con": 4,
+"int": 3,
+"wis": 7,
+"cha": 9
+},
+"stealth": 9,
+"perception": 7,
+"abilities": {
+"str": 18,
+"dex": 18,
+"con": 18,
+"int": 17,
+"wis": 15,
+"cha": 18
+},
+"cr": 13,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 9,
+"damage": 17,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 9,
+"damage": 17,
+"type": "piercing"
+}
+]
+},
+"veteran": {
+"ac": 17,
+"hp": 58,
+"initiative": 1,
+"grapple": 5,
+"saves": {
+"str": 3,
+"dex": 1,
+"con": 2,
+"int": 0,
+"wis": 0,
+"cha": 0
+},
+"stealth": 1,
+"perception": 2,
+"abilities": {
+"str": 16,
+"dex": 13,
+"con": 14,
+"int": 10,
+"wis": 11,
+"cha": 10
+},
+"cr": 3,
+"attacks": [
+{
+"name": "longsword",
+"verb": "cuts",
+"to_hit": 5,
+"damage": 7,
+"type": "slashing"
+},
+{
+"name": "longsword",
+"verb": "cuts",
+"to_hit": 5,
+"damage": 7,
+"type": "slashing"
+}
+],
+"npc_role": true
+},
+"violet fungus": {
+"ac": 5,
+"hp": 18,
+"initiative": -5,
+"grapple": -4,
+"saves": {
+"str": -4,
+"dex": -5,
+"con": 0,
+"int": -5,
+"wis": -4,
+"cha": -5
+},
+"stealth": -5,
+"perception": -4,
+"abilities": {
+"str": 3,
+"dex": 1,
+"con": 10,
+"int": 1,
+"wis": 3,
+"cha": 1
+},
+"cr": 0.25,
+"attacks": [
+{
+"name": "rotting touch",
+"verb": "hits",
+"to_hit": 2,
+"damage": 4,
+"type": "necrotic"
+}
+]
+},
+"vrock": {
+"ac": 15,
+"hp": 104,
+"initiative": 2,
+"grapple": 3,
+"saves": {
+"str": 3,
+"dex": 5,
+"con": 4,
+"int": -1,
+"wis": 4,
+"cha": 2
+},
+"stealth": 2,
+"perception": 1,
+"abilities": {
+"str": 17,
+"dex": 15,
+"con": 18,
+"int": 8,
+"wis": 13,
+"cha": 8
+},
+"cr": 6,
+"attacks": [
+{
+"name": "talons",
+"verb": "rakes",
+"to_hit": 6,
+"damage": 14,
+"type": "slashing"
+},
+{
+"name": "talons",
+"verb": "rakes",
+"to_hit": 6,
+"damage": 14,
+"type": "slashing"
+}
+]
+},
+"vulture": {
+"ac": 10,
+"hp": 5,
+"initiative": 0,
+"grapple": -2,
+"saves": {
+"str": -2,
+"dex": 0,
+"con": 1,
+"int": -4,
+"wis": 1,
+"cha": -3
+},
+"stealth": 0,
+"perception": 3,
+"abilities": {
+"str": 7,
+"dex": 10,
+"con": 13,
+"int": 2,
+"wis": 12,
+"cha": 4
+},
+"cr": 0,
+"attacks": [
+{
+"name": "beak",
+"verb": "pecks",
+"to_hit": 2,
+"damage": 2,
+"type": "piercing"
+}
+]
+},
+"warhorse": {
+"ac": 11,
+"hp": 19,
+"initiative": 1,
+"grapple": 4,
+"saves": {
+"str": 4,
+"dex": 1,
+"con": 1,
+"int": -4,
+"wis": 1,
+"cha": -2
+},
+"stealth": 1,
+"perception": 1,
+"abilities": {
+"str": 18,
+"dex": 12,
+"con": 13,
+"int": 2,
+"wis": 12,
+"cha": 7
+},
+"cr": 0.5,
+"attacks": [
+{
+"name": "hooves",
+"verb": "kicks",
+"to_hit": 6,
+"damage": 11,
+"type": "bludgeoning"
+}
+]
+},
+"warhorse skeleton": {
+"ac": 13,
+"hp": 22,
+"initiative": 1,
+"grapple": 4,
+"saves": {
+"str": 4,
+"dex": 1,
+"con": 2,
+"int": -4,
+"wis": -1,
+"cha": -3
+},
+"stealth": 1,
+"perception": -1,
+"abilities": {
+"str": 18,
+"dex": 12,
+"con": 15,
+"int": 2,
+"wis": 8,
+"cha": 5
+},
+"cr": 0.5,
+"attacks": [
+{
+"name": "hooves",
+"verb": "kicks",
+"to_hit": 6,
+"damage": 11,
+"type": "bludgeoning"
+}
+]
+},
+"water elemental": {
+"ac": 14,
+"hp": 114,
+"initiative": 2,
+"grapple": 4,
+"saves": {
+"str": 4,
+"dex": 2,
+"con": 4,
+"int": -3,
+"wis": 0,
+"cha": -1
+},
+"stealth": 2,
+"perception": 0,
+"abilities": {
+"str": 18,
+"dex": 14,
+"con": 18,
+"int": 5,
+"wis": 10,
+"cha": 8
+},
+"cr": 5,
+"attacks": [
+{
+"name": "slam",
+"verb": "slams",
+"to_hit": 7,
+"damage": 13,
+"type": "bludgeoning"
+},
+{
+"name": "slam",
+"verb": "slams",
+"to_hit": 7,
+"damage": 13,
+"type": "bludgeoning"
+}
+]
+},
+"weasel": {
+"ac": 13,
+"hp": 1,
+"initiative": 3,
+"grapple": -4,
+"saves": {
+"str": -4,
+"dex": 3,
+"con": -1,
+"int": -4,
+"wis": 1,
+"cha": -4
+},
+"stealth": 5,
+"perception": 3,
+"abilities": {
+"str": 3,
+"dex": 16,
+"con": 8,
+"int": 2,
+"wis": 12,
+"cha": 3
+},
+"cr": 0,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 5,
+"damage": 1,
+"type": "piercing"
+}
+]
+},
+"werebear, bear form": {
+"ac": 11,
+"hp": 135,
+"initiative": 0,
+"grapple": 4,
+"saves": {
+"str": 4,
+"dex": 0,
+"con": 3,
+"int": 0,
+"wis": 1,
+"cha": 1
+},
+"stealth": 0,
+"perception": 7,
+"abilities": {
+"str": 19,
+"dex": 10,
+"con": 17,
+"int": 11,
+"wis": 12,
+"cha": 12
+},
+"cr": 5,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 7,
+"damage": 15,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 7,
+"damage": 15,
+"type": "piercing"
+}
+]
+},
+"werebear, human form": {
+"ac": 10,
+"hp": 135,
+"initiative": 0,
+"grapple": 4,
+"saves": {
+"str": 4,
+"dex": 0,
+"con": 3,
+"int": 0,
+"wis": 1,
+"cha": 1
+},
+"stealth": 0,
+"perception": 7,
+"abilities": {
+"str": 19,
+"dex": 10,
+"con": 17,
+"int": 11,
+"wis": 12,
+"cha": 12
+},
+"cr": 5,
+"attacks": [
+{
+"name": "greataxe",
+"verb": "cuts",
+"to_hit": 7,
+"damage": 10,
+"type": "slashing"
+},
+{
+"name": "greataxe",
+"verb": "cuts",
+"to_hit": 7,
+"damage": 10,
+"type": "slashing"
+}
+]
+},
+"werebear, hybrid form": {
+"ac": 11,
+"hp": 135,
+"initiative": 0,
+"grapple": 4,
+"saves": {
+"str": 4,
+"dex": 0,
+"con": 3,
+"int": 0,
+"wis": 1,
+"cha": 1
+},
+"stealth": 0,
+"perception": 7,
+"abilities": {
+"str": 19,
+"dex": 10,
+"con": 17,
+"int": 11,
+"wis": 12,
+"cha": 12
+},
+"cr": 5,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 7,
+"damage": 15,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 7,
+"damage": 15,
+"type": "piercing"
+}
+]
+},
+"wereboar, boar form": {
+"ac": 11,
+"hp": 78,
+"initiative": 0,
+"grapple": 3,
+"saves": {
+"str": 3,
+"dex": 0,
+"con": 2,
+"int": 0,
+"wis": 0,
+"cha": -1
+},
+"stealth": 0,
+"perception": 2,
+"abilities": {
+"str": 17,
+"dex": 10,
+"con": 15,
+"int": 10,
+"wis": 11,
+"cha": 8
+},
+"cr": 4,
+"attacks": [
+{
+"name": "tusks",
+"verb": "cuts",
+"to_hit": 5,
+"damage": 10,
+"type": "slashing"
+}
+]
+},
+"wereboar, human form": {
+"ac": 10,
+"hp": 78,
+"initiative": 0,
+"grapple": 3,
+"saves": {
+"str": 3,
+"dex": 0,
+"con": 2,
+"int": 0,
+"wis": 0,
+"cha": -1
+},
+"stealth": 0,
+"perception": 2,
+"abilities": {
+"str": 17,
+"dex": 10,
+"con": 15,
+"int": 10,
+"wis": 11,
+"cha": 8
+},
+"cr": 4,
+"attacks": [
+{
+"name": "maul",
+"verb": "strikes",
+"to_hit": 5,
+"damage": 10,
+"type": "bludgeoning"
+},
+{
+"name": "maul",
+"verb": "strikes",
+"to_hit": 5,
+"damage": 10,
+"type": "bludgeoning"
+}
+]
+},
+"wereboar, hybrid form": {
+"ac": 11,
+"hp": 78,
+"initiative": 0,
+"grapple": 3,
+"saves": {
+"str": 3,
+"dex": 0,
+"con": 2,
+"int": 0,
+"wis": 0,
+"cha": -1
+},
+"stealth": 0,
+"perception": 2,
+"abilities": {
+"str": 17,
+"dex": 10,
+"con": 15,
+"int": 10,
+"wis": 11,
+"cha": 8
+},
+"cr": 4,
+"attacks": [
+{
+"name": "maul",
+"verb": "strikes",
+"to_hit": 5,
+"damage": 10,
+"type": "bludgeoning"
+},
+{
+"name": "maul",
+"verb": "strikes",
+"to_hit": 5,
+"damage": 10,
+"type": "bludgeoning"
+}
+]
+},
+"wererat, human form": {
+"ac": 12,
+"hp": 33,
+"initiative": 2,
+"grapple": 0,
+"saves": {
+"str": 0,
+"dex": 2,
+"con": 1,
+"int": 0,
+"wis": 0,
+"cha": -1
+},
+"stealth": 4,
+"perception": 2,
+"abilities": {
+"str": 10,
+"dex": 15,
+"con": 12,
+"int": 11,
+"wis": 10,
+"cha": 8
+},
+"cr": 2,
+"attacks": [
+{
+"name": "shortsword",
+"verb": "stabs",
+"to_hit": 4,
+"damage": 5,
+"type": "piercing"
+},
+{
+"name": "shortsword",
+"verb": "stabs",
+"to_hit": 4,
+"damage": 5,
+"type": "piercing"
+}
+]
+},
+"wererat, hybrid form": {
+"ac": 12,
+"hp": 33,
+"initiative": 2,
+"grapple": 0,
+"saves": {
+"str": 0,
+"dex": 2,
+"con": 1,
+"int": 0,
+"wis": 0,
+"cha": -1
+},
+"stealth": 4,
+"perception": 2,
+"abilities": {
+"str": 10,
+"dex": 15,
+"con": 12,
+"int": 11,
+"wis": 10,
+"cha": 8
+},
+"cr": 2,
+"attacks": [
+{
+"name": "shortsword",
+"verb": "stabs",
+"to_hit": 4,
+"damage": 5,
+"type": "piercing"
+},
+{
+"name": "shortsword",
+"verb": "stabs",
+"to_hit": 4,
+"damage": 5,
+"type": "piercing"
+}
+]
+},
+"wererat, rat form": {
+"ac": 12,
+"hp": 33,
+"initiative": 2,
+"grapple": 0,
+"saves": {
+"str": 0,
+"dex": 2,
+"con": 1,
+"int": 0,
+"wis": 0,
+"cha": -1
+},
+"stealth": 4,
+"perception": 2,
+"abilities": {
+"str": 10,
+"dex": 15,
+"con": 12,
+"int": 11,
+"wis": 10,
+"cha": 8
+},
+"cr": 2,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 4,
+"damage": 4,
+"type": "piercing"
+}
+]
+},
+"weretiger, human form": {
+"ac": 12,
+"hp": 120,
+"initiative": 2,
+"grapple": 3,
+"saves": {
+"str": 3,
+"dex": 2,
+"con": 3,
+"int": 0,
+"wis": 1,
+"cha": 0
+},
+"stealth": 4,
+"perception": 5,
+"abilities": {
+"str": 17,
+"dex": 15,
+"con": 16,
+"int": 10,
+"wis": 13,
+"cha": 11
+},
+"cr": 4,
+"attacks": [
+{
+"name": "scimitar",
+"verb": "cuts",
+"to_hit": 5,
+"damage": 6,
+"type": "slashing"
+},
+{
+"name": "scimitar",
+"verb": "cuts",
+"to_hit": 5,
+"damage": 6,
+"type": "slashing"
+}
+]
+},
+"weretiger, hybrid form": {
+"ac": 12,
+"hp": 120,
+"initiative": 2,
+"grapple": 3,
+"saves": {
+"str": 3,
+"dex": 2,
+"con": 3,
+"int": 0,
+"wis": 1,
+"cha": 0
+},
+"stealth": 4,
+"perception": 5,
+"abilities": {
+"str": 17,
+"dex": 15,
+"con": 16,
+"int": 10,
+"wis": 13,
+"cha": 11
+},
+"cr": 4,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 5,
+"damage": 8,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 5,
+"damage": 8,
+"type": "piercing"
+}
+]
+},
+"weretiger, tiger form": {
+"ac": 12,
+"hp": 120,
+"initiative": 2,
+"grapple": 3,
+"saves": {
+"str": 3,
+"dex": 2,
+"con": 3,
+"int": 0,
+"wis": 1,
+"cha": 0
+},
+"stealth": 4,
+"perception": 5,
+"abilities": {
+"str": 17,
+"dex": 15,
+"con": 16,
+"int": 10,
+"wis": 13,
+"cha": 11
+},
+"cr": 4,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 5,
+"damage": 8,
+"type": "piercing"
+}
+]
+},
+"werewolf, human form": {
+"ac": 11,
+"hp": 58,
+"initiative": 1,
+"grapple": 2,
+"saves": {
+"str": 2,
+"dex": 1,
+"con": 2,
+"int": 0,
+"wis": 0,
+"cha": 0
+},
+"stealth": 1,
+"perception": 4,
+"abilities": {
+"str": 15,
+"dex": 13,
+"con": 14,
+"int": 10,
+"wis": 11,
+"cha": 10
+},
+"cr": 3,
+"attacks": [
+{
+"name": "spear",
+"verb": "stabs",
+"to_hit": 4,
+"damage": 5,
+"type": "piercing"
+},
+{
+"name": "spear",
+"verb": "stabs",
+"to_hit": 4,
+"damage": 5,
+"type": "piercing"
+}
+]
+},
+"werewolf, hybrid form": {
+"ac": 12,
+"hp": 58,
+"initiative": 1,
+"grapple": 2,
+"saves": {
+"str": 2,
+"dex": 1,
+"con": 2,
+"int": 0,
+"wis": 0,
+"cha": 0
+},
+"stealth": 1,
+"perception": 4,
+"abilities": {
+"str": 15,
+"dex": 13,
+"con": 14,
+"int": 10,
+"wis": 11,
+"cha": 10
+},
+"cr": 3,
+"attacks": [
+{
+"name": "claws",
+"verb": "rakes",
+"to_hit": 4,
+"damage": 7,
+"type": "slashing"
+},
+{
+"name": "claws",
+"verb": "rakes",
+"to_hit": 4,
+"damage": 7,
+"type": "slashing"
+}
+]
+},
+"werewolf, wolf form": {
+"ac": 12,
+"hp": 58,
+"initiative": 1,
+"grapple": 2,
+"saves": {
+"str": 2,
+"dex": 1,
+"con": 2,
+"int": 0,
+"wis": 0,
+"cha": 0
+},
+"stealth": 1,
+"perception": 4,
+"abilities": {
+"str": 15,
+"dex": 13,
+"con": 14,
+"int": 10,
+"wis": 11,
+"cha": 10
+},
+"cr": 3,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 4,
+"damage": 6,
+"type": "piercing"
+}
+]
+},
+"white dragon wyrmling": {
+"ac": 16,
+"hp": 32,
+"initiative": 0,
+"grapple": 2,
+"saves": {
+"str": 2,
+"dex": 2,
+"con": 4,
+"int": -3,
+"wis": 2,
+"cha": 2
+},
+"stealth": 2,
+"perception": 4,
+"abilities": {
+"str": 14,
+"dex": 10,
+"con": 14,
+"int": 5,
+"wis": 10,
+"cha": 11
+},
+"cr": 2,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 4,
+"damage": 9,
+"type": "piercing"
+}
+]
+},
+"wight": {
+"ac": 14,
+"hp": 45,
+"initiative": 2,
+"grapple": 2,
+"saves": {
+"str": 2,
+"dex": 2,
+"con": 3,
+"int": 0,
+"wis": 1,
+"cha": 2
+},
+"stealth": 4,
+"perception": 3,
+"abilities": {
+"str": 15,
+"dex": 14,
+"con": 16,
+"int": 10,
+"wis": 13,
+"cha": 15
+},
+"cr": 3,
+"attacks": [
+{
+"name": "longsword",
+"verb": "cuts",
+"to_hit": 4,
+"damage": 6,
+"type": "slashing"
+},
+{
+"name": "longsword",
+"verb": "cuts",
+"to_hit": 4,
+"damage": 6,
+"type": "slashing"
+}
+]
+},
+"will-o'-wisp": {
+"ac": 19,
+"hp": 22,
+"initiative": 9,
+"grapple": -5,
+"saves": {
+"str": -5,
+"dex": 9,
+"con": 0,
+"int": 1,
+"wis": 2,
+"cha": 0
+},
+"stealth": 9,
+"perception": 2,
+"abilities": {
+"str": 1,
+"dex": 28,
+"con": 10,
+"int": 13,
+"wis": 14,
+"cha": 11
+},
+"cr": 2,
+"attacks": [
+{
+"name": "shock",
+"verb": "hits",
+"to_hit": 4,
+"damage": 9,
+"type": "lightning"
+}
+]
+},
+"winter wolf": {
+"ac": 13,
+"hp": 75,
+"initiative": 1,
+"grapple": 4,
+"saves": {
+"str": 4,
+"dex": 1,
+"con": 2,
+"int": -2,
+"wis": 1,
+"cha": -1
+},
+"stealth": 3,
+"perception": 5,
+"abilities": {
+"str": 18,
+"dex": 13,
+"con": 14,
+"int": 7,
+"wis": 12,
+"cha": 8
+},
+"cr": 3,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 6,
+"damage": 11,
+"type": "piercing"
+}
+]
+},
+"wolf": {
+"ac": 13,
+"hp": 11,
+"initiative": 2,
+"grapple": 1,
+"saves": {
+"str": 1,
+"dex": 2,
+"con": 1,
+"int": -4,
+"wis": 1,
+"cha": -2
+},
+"stealth": 4,
+"perception": 3,
+"abilities": {
+"str": 12,
+"dex": 15,
+"con": 12,
+"int": 3,
+"wis": 12,
+"cha": 6
+},
+"cr": 0.25,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 4,
+"damage": 7,
+"type": "piercing"
+}
+]
+},
+"worg": {
+"ac": 13,
+"hp": 26,
+"initiative": 1,
+"grapple": 3,
+"saves": {
+"str": 3,
+"dex": 1,
+"con": 1,
+"int": -2,
+"wis": 0,
+"cha": -1
+},
+"stealth": 1,
+"perception": 4,
+"abilities": {
+"str": 16,
+"dex": 13,
+"con": 13,
+"int": 7,
+"wis": 11,
+"cha": 8
+},
+"cr": 0.5,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 5,
+"damage": 10,
+"type": "piercing"
+}
+]
+},
+"wraith": {
+"ac": 13,
+"hp": 67,
+"initiative": 3,
+"grapple": -2,
+"saves": {
+"str": -2,
+"dex": 3,
+"con": 3,
+"int": 1,
+"wis": 2,
+"cha": 2
+},
+"stealth": 3,
+"perception": 2,
+"abilities": {
+"str": 6,
+"dex": 16,
+"con": 16,
+"int": 12,
+"wis": 14,
+"cha": 15
+},
+"cr": 5,
+"attacks": [
+{
+"name": "life drain",
+"verb": "hits",
+"to_hit": 6,
+"damage": 21,
+"type": "necrotic"
+}
+]
+},
+"wyvern": {
+"ac": 13,
+"hp": 110,
+"initiative": 0,
+"grapple": 4,
+"saves": {
+"str": 4,
+"dex": 0,
+"con": 3,
+"int": -3,
+"wis": 1,
+"cha": -2
+},
+"stealth": 0,
+"perception": 4,
+"abilities": {
+"str": 19,
+"dex": 10,
+"con": 16,
+"int": 5,
+"wis": 12,
+"cha": 6
+},
+"cr": 6,
+"attacks": [
+{
+"name": "claws",
+"verb": "rakes",
+"to_hit": 7,
+"damage": 13,
+"type": "slashing"
+},
+{
+"name": "claws",
+"verb": "rakes",
+"to_hit": 7,
+"damage": 13,
+"type": "slashing"
+}
+]
+},
+"xorn": {
+"ac": 19,
+"hp": 73,
+"initiative": 0,
+"grapple": 3,
+"saves": {
+"str": 3,
+"dex": 0,
+"con": 6,
+"int": 0,
+"wis": 0,
+"cha": 0
+},
+"stealth": 3,
+"perception": 6,
+"abilities": {
+"str": 17,
+"dex": 10,
+"con": 22,
+"int": 11,
+"wis": 10,
+"cha": 11
+},
+"cr": 5,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 6,
+"damage": 13,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 6,
+"damage": 13,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 6,
+"damage": 13,
+"type": "piercing"
+}
+]
+},
+"young black dragon": {
+"ac": 18,
+"hp": 127,
+"initiative": 2,
+"grapple": 4,
+"saves": {
+"str": 4,
+"dex": 5,
+"con": 6,
+"int": 1,
+"wis": 3,
+"cha": 5
+},
+"stealth": 5,
+"perception": 6,
+"abilities": {
+"str": 19,
+"dex": 14,
+"con": 17,
+"int": 12,
+"wis": 11,
+"cha": 15
+},
+"cr": 7,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 7,
+"damage": 19,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 7,
+"damage": 19,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 7,
+"damage": 19,
+"type": "piercing"
+}
+]
+},
+"young blue dragon": {
+"ac": 18,
+"hp": 152,
+"initiative": 0,
+"grapple": 5,
+"saves": {
+"str": 5,
+"dex": 4,
+"con": 8,
+"int": 2,
+"wis": 5,
+"cha": 7
+},
+"stealth": 4,
+"perception": 9,
+"abilities": {
+"str": 21,
+"dex": 10,
+"con": 19,
+"int": 14,
+"wis": 13,
+"cha": 17
+},
+"cr": 9,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 9,
+"damage": 21,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 9,
+"damage": 21,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 9,
+"damage": 21,
+"type": "piercing"
+}
+]
+},
+"young brass dragon": {
+"ac": 17,
+"hp": 110,
+"initiative": 0,
+"grapple": 4,
+"saves": {
+"str": 4,
+"dex": 3,
+"con": 6,
+"int": 1,
+"wis": 3,
+"cha": 5
+},
+"stealth": 3,
+"perception": 6,
+"abilities": {
+"str": 19,
+"dex": 10,
+"con": 17,
+"int": 12,
+"wis": 11,
+"cha": 15
+},
+"cr": 6,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 7,
+"damage": 15,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 7,
+"damage": 15,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 7,
+"damage": 15,
+"type": "piercing"
+}
+]
+},
+"young bronze dragon": {
+"ac": 18,
+"hp": 142,
+"initiative": 0,
+"grapple": 5,
+"saves": {
+"str": 5,
+"dex": 3,
+"con": 7,
+"int": 2,
+"wis": 4,
+"cha": 6
+},
+"stealth": 3,
+"perception": 7,
+"abilities": {
+"str": 21,
+"dex": 10,
+"con": 19,
+"int": 14,
+"wis": 13,
+"cha": 17
+},
+"cr": 8,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 8,
+"damage": 16,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 8,
+"damage": 16,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 8,
+"damage": 16,
+"type": "piercing"
+}
+]
+},
+"young copper dragon": {
+"ac": 17,
+"hp": 119,
+"initiative": 1,
+"grapple": 4,
+"saves": {
+"str": 4,
+"dex": 4,
+"con": 6,
+"int": 3,
+"wis": 4,
+"cha": 5
+},
+"stealth": 4,
+"perception": 7,
+"abilities": {
+"str": 19,
+"dex": 12,
+"con": 17,
+"int": 16,
+"wis": 13,
+"cha": 15
+},
+"cr": 7,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 7,
+"damage": 15,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 7,
+"damage": 15,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 7,
+"damage": 15,
+"type": "piercing"
+}
+]
+},
+"young gold dragon": {
+"ac": 18,
+"hp": 178,
+"initiative": 2,
+"grapple": 6,
+"saves": {
+"str": 6,
+"dex": 6,
+"con": 9,
+"int": 3,
+"wis": 5,
+"cha": 9
+},
+"stealth": 6,
+"perception": 9,
+"abilities": {
+"str": 23,
+"dex": 14,
+"con": 21,
+"int": 16,
+"wis": 13,
+"cha": 20
+},
+"cr": 10,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 10,
+"damage": 17,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 10,
+"damage": 17,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 10,
+"damage": 17,
+"type": "piercing"
+}
+]
+},
+"young green dragon": {
+"ac": 18,
+"hp": 136,
+"initiative": 1,
+"grapple": 4,
+"saves": {
+"str": 4,
+"dex": 4,
+"con": 6,
+"int": 3,
+"wis": 4,
+"cha": 5
+},
+"stealth": 4,
+"perception": 7,
+"abilities": {
+"str": 19,
+"dex": 12,
+"con": 17,
+"int": 16,
+"wis": 13,
+"cha": 15
+},
+"cr": 8,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 7,
+"damage": 22,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 7,
+"damage": 22,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 7,
+"damage": 22,
+"type": "piercing"
+}
+]
+},
+"young red dragon": {
+"ac": 18,
+"hp": 178,
+"initiative": 0,
+"grapple": 6,
+"saves": {
+"str": 6,
+"dex": 4,
+"con": 9,
+"int": 2,
+"wis": 4,
+"cha": 8
+},
+"stealth": 4,
+"perception": 8,
+"abilities": {
+"str": 23,
+"dex": 10,
+"con": 21,
+"int": 14,
+"wis": 11,
+"cha": 19
+},
+"cr": 10,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 10,
+"damage": 20,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 10,
+"damage": 20,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 10,
+"damage": 20,
+"type": "piercing"
+}
+]
+},
+"young silver dragon": {
+"ac": 18,
+"hp": 168,
+"initiative": 0,
+"grapple": 6,
+"saves": {
+"str": 6,
+"dex": 4,
+"con": 9,
+"int": 2,
+"wis": 4,
+"cha": 8
+},
+"stealth": 4,
+"perception": 8,
+"abilities": {
+"str": 23,
+"dex": 10,
+"con": 21,
+"int": 14,
+"wis": 11,
+"cha": 19
+},
+"cr": 9,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 10,
+"damage": 17,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 10,
+"damage": 17,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 10,
+"damage": 17,
+"type": "piercing"
+}
+]
+},
+"young white dragon": {
+"ac": 17,
+"hp": 133,
+"initiative": 0,
+"grapple": 4,
+"saves": {
+"str": 4,
+"dex": 3,
+"con": 7,
+"int": -2,
+"wis": 3,
+"cha": 4
+},
+"stealth": 3,
+"perception": 6,
+"abilities": {
+"str": 18,
+"dex": 10,
+"con": 18,
+"int": 6,
+"wis": 11,
+"cha": 12
+},
+"cr": 6,
+"attacks": [
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 7,
+"damage": 19,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 7,
+"damage": 19,
+"type": "piercing"
+},
+{
+"name": "bite",
+"verb": "bites",
+"to_hit": 7,
+"damage": 19,
+"type": "piercing"
+}
+]
+},
+"zombie": {
+"ac": 8,
+"hp": 22,
+"initiative": -2,
+"grapple": 1,
+"saves": {
+"str": 1,
+"dex": -2,
+"con": 3,
+"int": -4,
+"wis": 0,
+"cha": -3
+},
+"stealth": -2,
+"perception": -2,
+"abilities": {
+"str": 13,
+"dex": 6,
+"con": 16,
+"int": 3,
+"wis": 6,
+"cha": 5
+},
+"cr": 0.25,
+"attacks": [
+{
+"name": "slam",
+"verb": "slams",
+"to_hit": 3,
+"damage": 4,
+"type": "bludgeoning"
+}
+]
+}
+}
+}

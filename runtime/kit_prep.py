@@ -27,8 +27,8 @@ def cache_root(explicit=None):
 
 def _entry_name(sha):
     """Cache entry for one book read by one reader: a prep made by another reader is not reused."""
-    from . import kit_readers
-    return '%s-%s' % (sha, kit_readers.cache_tag())
+    from . import kit_readers, srd_creatures
+    return '%s-%s-srd%d' % (sha, kit_readers.cache_tag(), srd_creatures.SRD_REVISION)
 
 
 def book_sha(pdf):
