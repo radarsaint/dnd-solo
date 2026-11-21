@@ -1202,11 +1202,24 @@ def parse_stat_block(text, entry):
             'attacks': [dict(attack) for attack, _ in attacks]}, prov, problems + unsupported
 
 
+def _plural_re(name):
+    """A creature name or its plural: -s/-es, and the f/fe -> ves and consonant-y -> ies forms
+    ("wolves", "harpies") the plain -s rule missed."""
+    forms = [re.escape(name) + '(?:e?s)?']
+    if name.endswith('fe'):
+        forms.append(re.escape(name[:-2]) + 'ves')
+    elif name.endswith('f'):
+        forms.append(re.escape(name[:-1]) + 'ves')
+    elif len(name) > 2 and name.endswith('y') and name[-2] not in 'aeiou':
+        forms.append(re.escape(name[:-1]) + 'ies')
+    return '(?:' + '|'.join(forms) + ')'
+
+
 def _present(span, name):
     """(count, offset) of the first mention that puts the creature here: a count or article
     before it ("two bandits", "a reed lurker"), or a "(see ...)" right after it. A passing
     mention ("someone called the Lantern Wight") is not a creature present."""
-    pattern = rf'\b(?:(a|an|one|two|three|four|five|six|\d)\s+)?(?:the\s+)?({re.escape(name)}(?:e?s)?)\b(\s*\(see)?'
+    pattern = rf'\b(?:(a|an|one|two|three|four|five|six|\d)\s+)?(?:the\s+)?({_plural_re(name)})\b(\s*\(see)?'
     for m in re.finditer(pattern, span, re.I):
         if m.group(1) or m.group(3):
             word = (m.group(1) or 'one').lower()
@@ -1218,12 +1231,12 @@ def _present(span, name):
 def _creatures(span, base, stat_blocks):
     """Creature references and how each resolves: the book's own stat block, then SRD 5.1,
     else ask the player. Never a made-up stat line."""
-    from .srd_creatures import CREATURES
+    from .srd_creatures import CREATURES, DETECT
     found = {}
-    names = set(stat_blocks) | set(CREATURES)
+    names = set(stat_blocks) | set(DETECT)
     claimed = []
     for name in sorted(names, key=len, reverse=True):
-        for m in re.finditer(rf'\b{re.escape(name)}(?:e?s)?\b', span, re.I):
+        for m in re.finditer(rf'\b(?:{_plural_re(name)})\b', span, re.I):
             if any(a <= m.start() < b for a, b in claimed):
                 continue
             claimed.append((m.start(), m.end()))

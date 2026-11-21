@@ -2678,7 +2678,7 @@ def _stamp_beat(room_path, beat):
 def _cast_people(room_path, text):
     """People, greeters, and creatures in this span become actors on the room."""
     from .kit_adventure import _GREET, _creatures, _introduced_names, _slug
-    from .srd_creatures import CREATURES
+    from .srd_creatures import DETECT
     path = Path(room_path) if room_path else None
     if path is None or not path.is_file() or not text:
         return
@@ -2734,7 +2734,7 @@ def _cast_people(room_path, text):
         if any(name.casefold() in (actor.get('name') or '').casefold()
                for actor in actors.values() if isinstance(actor, dict)):
             continue
-        if key not in actors and name.casefold() in CREATURES:
+        if key not in actors and name.casefold() in DETECT:
             actors[key] = {
                 'name': name.title(), 'location': here, 'status': 'hidden', 'visible': False,
                 'stat_block': {'srd': name.casefold()},

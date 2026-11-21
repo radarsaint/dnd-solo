@@ -213,7 +213,7 @@ def fighter_problems(source):
         if srd_creatures.stat_block(actor.get('stat_block')) is None:
             problems.append(f'actor {key} can fight but has no usable stat_block: give one inline '
                             f'(ac, hp, attacks) or cite an SRD creature, e.g. {{"srd": "Guard"}} '
-                            f'(known: {", ".join(sorted(srd_creatures.CREATURES))})')
+                            '(known: any SRD 5.1 creature by name)')
         guards = actor.get('guards')
         if guards is not None and not (isinstance(guards, list) and all(g in (source.get('exits') or {}) for g in guards)):
             problems.append(f'actor {key} guards must list exit ids')
