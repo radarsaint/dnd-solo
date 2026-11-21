@@ -2,16 +2,16 @@
   "schema": "kit_project_gardener_state/v1",
   "purpose": "RESUMABILITY_CURSOR_NOT_KNOWLEDGE_STORE",
   "canonical_location": "radarsaint/dnd-solo/coordination/context_state.json",
-  "state_revision": 69,
+  "state_revision": 70,
   "semantic_brain": {
     "repo": "radarsaint/dnd-solo",
     "path": "docs/PROJECT_UNDERSTANDING.md",
-    "last_semantic_commit": "41be45a112edc602211053da0b4a24d1e1dfcd39",
+    "last_semantic_commit": "e88a6c59fbd01a485ae4e2f68a8961d23339ecd8",
     "last_reviewed_on": "2026-11-21"
   },
   "checkpoint": {
     "reviewed_against_main": {
-      "radarsaint/dnd-solo": "41be45a112edc602211053da0b4a24d1e1dfcd39",
+      "radarsaint/dnd-solo": "e88a6c59fbd01a485ae4e2f68a8961d23339ecd8",
       "radarsaint/bfdm-corpus": "66f3c62fb87976224174180db0a57e50d129587e"
     },
     "context_inbox": {
@@ -25,9 +25,9 @@
   "last_completed_pass": {
     "kind": "BOUNDED_SEMANTIC_RECONCILIATION",
     "completed_on": "2026-11-21",
-    "scope": "Reviewed dnd-solo main after #214 merge (fd64e4fe / c97b387c); no new #115 comments beyond 6598407850. bfdm-corpus main unchanged.",
-    "result": "Accept: #214 lands pdfplumber as first optional adventure PDF layout reader (word positions/fonts; kit_readers owns column order and read-aloud marking; fallback to stdlib/host tools; prep cache by book+reader). Scan-for-watchers routes as look/Perception. Suite 2323 tests. Brain updated on main. No bfdm-corpus control edit. Unresolved items unchanged.",
-    "resulting_brain_commit": "41be45a112edc602211053da0b4a24d1e1dfcd39",
+    "scope": "Reviewed dnd-solo main after #215 merge (5d0a6ce0); no new #115 comments beyond 6598407850. bfdm-corpus main unchanged.",
+    "result": "Accept: #215 removes dead runtime code never reached by the live host path and the area-6c batch harness. Player-visible behavior unchanged. Suite 2317 tests. Brain updated on main. No bfdm-corpus control edit. Unresolved items unchanged.",
+    "resulting_brain_commit": "e88a6c59fbd01a485ae4e2f68a8961d23339ecd8",
     "reconciled_comment_id": 6598407850
   },
   "active_pass": null,
