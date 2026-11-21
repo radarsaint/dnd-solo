@@ -140,6 +140,14 @@ def stated_intent_skill(action):
     return None
 
 
+def matched_skill(text):
+    """The first skill row whose words the line uses, or None (no fallback)."""
+    for skill, _use, pattern in _COMPILED:
+        if pattern.search(text or ''):
+            return skill
+    return None
+
+
 def skill_for_intent(action, stated=None):
     """The skill that fits this action or question. Investigation if none fits better.
 

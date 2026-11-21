@@ -67,6 +67,12 @@ def _plain(text):
     return _Q.sub("'", str(text or '')).strip()
 
 
+def _read(text):
+    """The line as the move and skill readers see it: typos repaired (runtime/kit_lexicon.py)."""
+    from . import kit_lexicon
+    return _plain(kit_lexicon.normalize(_plain(text)))
+
+
 # Looking FOR something that may be hidden, or watching a place for what moves in it.
 # Object-led ("for anyone hiding", "for an ambush") so "I hide behind the crates" stays Stealth.
 _NOTICE_VERB = (r"scan\w*|watch\w*|survey\w*|sweep\w*|peer\w*|squint\w*|listen\w*|"
@@ -96,7 +102,7 @@ _SEARCH_OBJECT_RE = _lazy.regex(r"(?i)\b(?:search|rummage|go through|pat down|ex
 
 def notice_intent(action):
     """True when the act looks or listens for something that may be hidden."""
-    text = _plain(action)
+    text = _read(action)
     if not text or _RECALL_RE.search(text):
         return False
     if _SEARCH_OBJECT_RE.search(text) and not NOTICE_OBJECT_RE.search(text):
@@ -143,7 +149,7 @@ _TALK_RE = _lazy.regex(r"(?i)[\"\u201c]|\b(?:i (?:say|ask|tell|call out|shout|gr
 _USE_RE = _lazy.regex(r"(?i)\b(?:cast\w*|drink\w*|use\w*|light\w* (?:a|my|the) (?:torch|lantern)|"
                      r"read\w* the scroll|open\w* (?:the|my)|unlock\w*|pick\w* the lock|put on|draw\w* my)\b")
 _ASK_DM_RE = _lazy.regex(r"(?i)^\s*(?:\(|ooc\b|kit,|q:)|\b(?:shouldn'?t|wouldn'?t|isn'?t|is) (?:th(?:is|at|e)|it|"
-                        r"\w+ing(?: \w+){0,3}) (?:not )?(?:be |an? )?(?:" + '|'.join(s.replace('_', ' ') for s in SKILLS) +
+                        r"\w+ing(?: \w+){0,3}) (?:not )?(?:be )?(?:an? )?(?:" + '|'.join(s.replace('_', ' ') for s in SKILLS) +
                         r")\b|\bhow does (?:that|this|\w+) work\b|\bwhat(?:'s| is) the rule\b"
                         r"|\bcan i (?:use|take|spend) (?:my |a |an )?(?:bonus action|reaction|action|movement)\b"
                         r"|\bdoes (?:that|this|it) (?:provoke|count as|use|take) |\bhow (?:far|many feet) can i\b"
@@ -153,7 +159,7 @@ _ASK_DM_RE = _lazy.regex(r"(?i)^\s*(?:\(|ooc\b|kit,|q:)|\b(?:shouldn'?t|wouldn'?
 # A question put as a rules question ("Can I stay hidden if I use my bonus action?", "Does
 # hiding end when I cast?") asks the DM, whatever the stance in it.
 _RULES_QUESTION_RE = _lazy.regex(
-    r"(?i)(?:^|[.!]\s+)(?:can|could|do|does|did|is|am|are|would|will|should|if|how|when|what)\b[^.!?]*\b(?:"
+    r"(?i)(?:^|[.!,]\s+)(?:can|could|do|does|did|is|am|are|would|will|should|if|how|when|what)\b[^.!?]*\b(?:"
     r"bonus action|reaction|(?:an |my |the )action|advantage|disadvantage|stay hidden|still hidden|"
     r"remain hidden|stealth|dc|saving throw|save|spell slot|concentration|opportunity attack|movement|cover|"
     r"prone|surprised?|initiative|ability check|proficien\w*|rule)\b[^?]*\?")
@@ -187,7 +193,7 @@ def object_acts(action):
 
 def classify(action):
     """The move a message most plausibly is (the deterministic default; a host declaration wins)."""
-    text = _plain(action)
+    text = _read(action)
     if not text:
         return 'look'
     if _ASK_DM_RE.search(text) or _RULES_QUESTION_RE.search(text):
@@ -198,12 +204,20 @@ def classify(action):
         return 'rest'
     if object_act(text):
         return 'use'
-    if _FIGHT_RE.search(text):
+    if _FIGHT_RE.search(text) or _HARM_RE.search(text):
         return 'fight'
     if _TALK_RE.search(text):
         return 'talk'
     if notice_intent(text):
         return 'look'
+    # The skill the act calls for says what kind of move it is: reading or swaying a person is
+    # talk; climbing, tumbling or sneaking is moving (runtime/kit_skills.py rows, not new words).
+    from . import kit_skills
+    skill = kit_skills.matched_skill(text)
+    if skill in ('insight', 'persuasion', 'deception', 'intimidation'):
+        return 'talk'
+    if skill in ('athletics', 'acrobatics', 'stealth'):
+        return 'move'
     if _MOVE_RE.search(text) or stance_of(text) in ('advance', 'withdraw') or re.search(r"(?i)\b(?:hide|hiding|sneak\w*|creep\w*|slip away)\b", text):
         return 'move'
     if _USE_RE.search(text):
@@ -245,7 +259,7 @@ def pick_skill(action, kind=None, stated=None):
     kind = kind or classify(action)
     if kind != 'recall' and notice_intent(action):
         return 'perception', 'looking for something that may be hidden is Perception'
-    skill = kit_skills.skill_for_intent(action)
+    skill = kit_skills.skill_for_intent(_read(action))
     return skill, 'intent map'
 
 
