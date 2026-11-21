@@ -2,16 +2,16 @@
   "schema": "kit_project_gardener_state/v1",
   "purpose": "RESUMABILITY_CURSOR_NOT_KNOWLEDGE_STORE",
   "canonical_location": "radarsaint/dnd-solo/coordination/context_state.json",
-  "state_revision": 70,
+  "state_revision": 71,
   "semantic_brain": {
     "repo": "radarsaint/dnd-solo",
     "path": "docs/PROJECT_UNDERSTANDING.md",
-    "last_semantic_commit": "e88a6c59fbd01a485ae4e2f68a8961d23339ecd8",
+    "last_semantic_commit": "746cee5a99b4aeb007a65680159ef0d02783ab20",
     "last_reviewed_on": "2026-11-21"
   },
   "checkpoint": {
     "reviewed_against_main": {
-      "radarsaint/dnd-solo": "e88a6c59fbd01a485ae4e2f68a8961d23339ecd8",
+      "radarsaint/dnd-solo": "746cee5a99b4aeb007a65680159ef0d02783ab20",
       "radarsaint/bfdm-corpus": "66f3c62fb87976224174180db0a57e50d129587e"
     },
     "context_inbox": {
@@ -25,9 +25,9 @@
   "last_completed_pass": {
     "kind": "BOUNDED_SEMANTIC_RECONCILIATION",
     "completed_on": "2026-11-21",
-    "scope": "Reviewed dnd-solo main after #215 merge (5d0a6ce0); no new #115 comments beyond 6598407850. bfdm-corpus main unchanged.",
-    "result": "Accept: #215 removes dead runtime code never reached by the live host path and the area-6c batch harness. Player-visible behavior unchanged. Suite 2317 tests. Brain updated on main. No bfdm-corpus control edit. Unresolved items unchanged.",
-    "resulting_brain_commit": "e88a6c59fbd01a485ae4e2f68a8961d23339ecd8",
+    "scope": "Reviewed dnd-solo main after #216 merge (e4355041); no new #115 comments beyond 6598407850. bfdm-corpus main unchanged.",
+    "result": "Accept: #216 removes the 6c card-table/toll second play path never reached by ingested modules or the live PDF path. Player-visible behavior unchanged. Brain updated on main. No bfdm-corpus control edit. Unresolved items unchanged.",
+    "resulting_brain_commit": "746cee5a99b4aeb007a65680159ef0d02783ab20",
     "reconciled_comment_id": 6598407850
   },
   "active_pass": null,
