@@ -7,6 +7,7 @@ Run: python3 scripts/build_kit_portable.py [--check]
 """
 import re, sys
 from pathlib import Path
+from _foundry_publish import atomic_write_text
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / 'KIT_PORTABLE.md'
@@ -80,9 +81,15 @@ def render():
         parts.append(re.sub(r'^## ', '### ', body, flags=re.M) + '\n')
     return ''.join(parts)
 
-if __name__ == '__main__':
+def publish(path=OUT):
+    """Publish only after the complete portable persona has been rendered."""
     text = render()
+    atomic_write_text(path, text)
+    return len(text.encode('utf-8'))
+
+
+if __name__ == '__main__':
     if '--check' in sys.argv:
+        text = render()
         sys.exit(0 if OUT.exists() and OUT.read_text(encoding='utf-8') == text else 'KIT_PORTABLE.md is stale')
-    OUT.write_text(text, encoding='utf-8')
-    print(len(text.encode()), 'bytes')
+    print(publish(), 'bytes')
