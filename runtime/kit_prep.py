@@ -18,6 +18,8 @@ from pathlib import Path
 from . import kit_adventure
 
 META = 'prep_cache.json'
+# Discard legacy entries whose mutable JSON may have been shared between saves.
+PREP_REVISION = 2
 
 
 def cache_root(explicit=None):
@@ -25,10 +27,13 @@ def cache_root(explicit=None):
     return Path(root)
 
 
-def _entry_name(sha):
+def _entry_name(sha, reader='auto'):
     """Cache entry for one book read by one reader: a prep made by another reader is not reused."""
     from . import kit_readers, srd_creatures
-    return '%s-%s-srd%d' % (sha, kit_readers.cache_tag(), srd_creatures.SRD_REVISION)
+    selection = kit_readers.cache_tag() if reader == 'auto' else '%s-r%d' % (
+        reader, kit_readers.READER_REVISION)
+    return '%s-prep%d-%s-%s-srd%d' % (
+        sha, PREP_REVISION, reader, selection, srd_creatures.SRD_REVISION)
 
 
 def book_sha(pdf):
@@ -60,14 +65,20 @@ def _rewrite(folder, old_folder, new_folder, old_db, new_db):
 
 def _copy(src, dst):
     def link_or_copy(a, b):
-        try:
-            os.link(a, b)  # the retained PDF is immutable; a hard link costs nothing
-        except OSError:
-            shutil.copy2(a, b)
+        # Only the content-addressed PDF is immutable. JSON contains session paths
+        # and cursors: hard-linking it lets restore/reset mutate the cache and other saves.
+        source = Path(a)
+        if source.parent.name == 'pdf_sources' and source.suffix == '.pdf':
+            try:
+                os.link(a, b)
+                return
+            except OSError:
+                pass
+        shutil.copy2(a, b)
     shutil.copytree(str(src), str(dst), copy_function=link_or_copy)
 
 
-def save(db, stage, root=None):
+def save(db, stage, root=None, reader=None):
     """Keep this save's preparation for its book hash. Returns the cache entry or None."""
     folder = kit_adventure.folder_for(db)
     receipt = folder / 'source.pdf.json'
@@ -76,8 +87,11 @@ def save(db, stage, root=None):
     sha = json.loads(receipt.read_text(encoding='utf-8')).get('sha256')
     meta_here = folder / META
     if meta_here.is_file():
-        root = root or json.loads(meta_here.read_text(encoding='utf-8')).get('root')
-    entry = cache_root(root) / _entry_name(sha)
+        prior = json.loads(meta_here.read_text(encoding='utf-8'))
+        root = root or prior.get('root')
+        reader = reader or prior.get('reader')
+    reader = reader or 'auto'
+    entry = cache_root(root) / _entry_name(sha, reader)
     tmp = entry.with_name(sha + '.tmp-%d' % os.getpid())
     try:
         if tmp.exists():
@@ -93,14 +107,15 @@ def save(db, stage, root=None):
     except OSError:
         shutil.rmtree(str(tmp), ignore_errors=True)
         return None
-    (folder / META).write_text(json.dumps({'root': str(cache_root(root)), 'sha256': sha, 'stage': stage}),
+    (folder / META).write_text(json.dumps({'root': str(cache_root(root)), 'sha256': sha,
+                                         'stage': stage, 'reader': reader}),
                                encoding='utf-8')
     return entry
 
 
-def restore(db, sha, root=None):
+def restore(db, sha, root=None, reader='auto'):
     """Restore a cached preparation into a fresh save. Returns the cached stage or None."""
-    entry = cache_root(root) / _entry_name(sha)
+    entry = cache_root(root) / _entry_name(sha, reader)
     meta_path = entry / 'meta.json'
     folder = kit_adventure.folder_for(db)
     if not meta_path.is_file() or folder.exists():
@@ -113,7 +128,7 @@ def restore(db, sha, root=None):
         return None
     _rewrite(folder, meta.get('folder'), folder.resolve(), meta.get('db'), Path(db).resolve())
     (folder / META).write_text(json.dumps({'root': str(cache_root(root)), 'sha256': sha,
-                                           'stage': meta.get('stage')}), encoding='utf-8')
+                                           'stage': meta.get('stage'), 'reader': reader}), encoding='utf-8')
     _fresh_session(db)
     return meta.get('stage')
 
@@ -149,7 +164,7 @@ def prepare(db, pdf, reader='auto', root=None):
     sha = book_sha(pdf)
     steps['hash_ms'] = round((time.perf_counter() - clock) * 1000, 1)
     tick = time.perf_counter()
-    stage = restore(db, sha, root)
+    stage = restore(db, sha, root, reader=reader)
     steps['cache_ms'] = round((time.perf_counter() - tick) * 1000, 1)
     if stage:
         readiness = kit_adventure.readiness(db)
@@ -178,7 +193,7 @@ def prepare(db, pdf, reader='auto', root=None):
     request = kit_skim.request_for(db)
     steps['skim_request_ms'] = round((time.perf_counter() - tick) * 1000, 1)
     tick = time.perf_counter()
-    saved = save(db, 'indexed', root)
+    saved = save(db, 'indexed', root, reader=reader)
     steps['cache_save_ms'] = round((time.perf_counter() - tick) * 1000, 1)
     return {
         'stage': 'adventure_prepared', 'cached': False, 'source_pdf_sha256': sha,
