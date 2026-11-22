@@ -18,6 +18,11 @@ class PortablePublicationTests(unittest.TestCase):
             self.assertEqual(target.read_text(encoding="utf-8"), portable.render())
             self.assertEqual(size, len(target.read_bytes()))
 
+    def test_module_import_keeps_working(self):
+        import importlib
+        module = importlib.import_module("scripts.build_kit_portable")
+        self.assertEqual(module.render(), portable.render())
+
     def test_failed_write_cannot_truncate_previous_portable_persona(self):
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "KIT_PORTABLE.md"
