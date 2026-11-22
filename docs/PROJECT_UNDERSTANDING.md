@@ -28,6 +28,9 @@ If those sources change the meaning of this document, this document should be **
 
 ## 1.1 What we are building
 
+**2026-11-13 character-creation scope (Brendon: remove the SRD boundary):**
+Character-building requests no longer refuse later published, third-party, or homebrew options merely because they are outside SRD 5.1. The router gives the same source-checking guidance for all options; recognized names are request hints, not claims of missing source text. Kit uses available sources or supplied rules/sheets, asks for missing text only when she cannot verify a rule, and keeps 2014/2024 versions distinct. This removes an eligibility restriction; it does not import the private HTML library, provide a complete option catalog, or implement every option's mechanics. Source accuracy and runtime capability remain separate requirements.
+
 The project is building **Kitiara ("Kit", "DM Kit")**, a persistent AI Dungeon Master and creative partner.
 
 **KRABS v0.2.2 (`docs/architecture/KRABS.md` on current `dnd-solo/main`) is the canonical long-term Kit Reference Architecture & Behavioral Specification.** It defines what Kit is supposed to become and the contracts implementations must satisfy. Current runtime code may implement only part of KRABS, and later evidence may justify revising KRABS itself, but the runtime does not supersede KRABS merely by evolving beyond an early prototype.
