@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#14110e">
+  <title>Kit</title>
+  <link rel="stylesheet" href="/app.css">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/icon.svg">
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div class="mark" aria-hidden="true"></div>
+      <div>
+        <h1>Kit</h1>
+        <p id="area-line">No scene open</p>
+      </div>
+      <div class="grow"></div>
+      <span class="pill" id="state-pill">…</span>
+      <span class="pill" id="model-pill">voice</span>
+    </header>
+    <aside class="drawer">
+      <details id="tools">
+        <summary>Campaign and voice</summary>
+      <h2>Campaign</h2>
+      <p class="hint" id="adventure-line">No adventure imported</p>
+      <p class="hint" id="character-line">No character sheet</p>
+      <label class="field">
+        <span>Adventure text</span>
+        <textarea id="adventure" rows="5" placeholder="Paste the module. Page breaks can be blank lines. Boxed read-aloud keeps a leading > ."></textarea>
+      </label>
+      <div class="row">
+        <button class="secondary" id="import-text" type="button">Import text</button>
+        <label class="secondary" role="button" style="display:inline-flex;align-items:center;min-height:48px;padding:0 16px;border:1px solid var(--line);border-radius:12px;background:var(--raised);">
+          File
+          <input id="adventure-file" type="file" accept=".txt,.md,.pdf,text/plain,application/pdf" hidden>
+        </label>
+      </div>
+      <label class="field">
+        <span>Character sheet JSON</span>
+        <input id="sheet-file" type="file" accept="application/json,.json">
+      </label>
+      <div class="row">
+        <button class="primary" id="begin" type="button">Begin</button>
+        <button class="secondary" id="save" type="button">Save</button>
+        <button class="quiet" id="abandon" type="button">Drop unfinished turn</button>
+        <button class="quiet" id="fresh" type="button">New campaign</button>
+      </div>
+      <h2>Voice</h2>
+      <p class="hint">The engine on this tablet is not the voice. A model is optional and separate. Nothing here calls the paid play command, and the ChatGPT app is not a model connection.</p>
+      <form id="settings">
+        <label class="field"><span>OpenAI-compatible base URL</span>
+          <input id="base-url" type="url" inputmode="url" placeholder="https://generativelanguage.googleapis.com/v1beta/openai" autocomplete="off">
+        </label>
+        <label class="field"><span>Model name</span>
+          <input id="model-name" type="text" placeholder="gemini-3.8-flash" autocomplete="off">
+        </label>
+        <label class="field"><span>Key, if the endpoint requires one</span>
+          <input id="api-key" type="password" autocomplete="off">
+        </label>
+        <p class="hint" id="model-warning"></p>
+        <div class="row">
+          <button class="secondary" type="submit">Save voice</button>
+          <button class="quiet" id="clear-key" type="button">Remove key</button>
+        </div>
+      </form>
+      <p class="hint">A free Gemini key from Google AI Studio can be the voice. The private packet, including hidden facts, is sent to Google. A local llama-server on this tablet can be pointed at http://127.0.0.1:8088/v1, and it is not a satisfactory Dungeon Master on a Tab S7+.</p>
+      </details>
+    </aside>
+    <main class="stage">
+      <div class="banner" id="banner" hidden></div>
+      <div class="log" id="log" aria-live="polite"></div>
+    </main>
+    <form class="composer" id="composer">
+      <label class="check"><input id="table-talk" type="checkbox"> Table talk</label>
+      <textarea id="line" rows="2" placeholder="What do you do?"></textarea>
+      <button class="primary" type="submit">Send</button>
+    </form>
+  </div>
+  <script src="/app.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(function () {});
+    }
+  </script>
+</body>
+</html>
