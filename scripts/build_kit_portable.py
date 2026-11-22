@@ -7,7 +7,10 @@ Run: python3 scripts/build_kit_portable.py [--check]
 """
 import re, sys
 from pathlib import Path
-from _foundry_publish import atomic_write_text
+if __package__:
+    from ._foundry_publish import atomic_write_text
+else:
+    from _foundry_publish import atomic_write_text
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / 'KIT_PORTABLE.md'
