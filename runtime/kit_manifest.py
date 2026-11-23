@@ -106,8 +106,10 @@ def manifest_cache(recent):
     return {'session': [], 'rooms': {}, 'rule': False, 'loaded': []}
 
 
-def remember_cache(cache, session=None, room_id=None, room_hash=None, area=None, rule=False, loaded=None):
-    rooms = {key: {'hash': value.get('hash'), 'areas': list(value.get('areas') or [])}
+def remember_cache(cache, session=None, room_id=None, room_hash=None, area=None, rule=False, loaded=None,
+                   source_hash=None):
+    rooms = {key: {'hash': value.get('hash'), 'areas': list(value.get('areas') or []),
+                   **({'source_hash': value['source_hash']} if 'source_hash' in value else {})}
              for key, value in (cache.get('rooms') or {}).items() if isinstance(value, dict)}
     out = {'session': list(cache.get('session') or []), 'rooms': rooms,
            'rule': bool(cache.get('rule')), 'loaded': list(cache.get('loaded') or [])}
@@ -115,8 +117,10 @@ def remember_cache(cache, session=None, room_id=None, room_hash=None, area=None,
         out['session'].append(session)
     if room_id and room_hash:
         entry = rooms.get(str(room_id))
-        if entry is None or entry['hash'] != room_hash:
+        if entry is None or entry['hash'] != room_hash or source_hash is not None and entry.get('source_hash') != source_hash:
             entry = rooms[str(room_id)] = {'hash': room_hash, 'areas': []}
+        if source_hash is not None:
+            entry['source_hash'] = source_hash
         if area and area not in entry['areas']:
             entry['areas'].append(area)
     if rule:

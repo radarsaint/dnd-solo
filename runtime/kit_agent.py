@@ -8205,10 +8205,16 @@ class KitChatBridge:
         area_id = (((delta.get('input') or {}).get('private') or {}).get('dm_context') or {}).get(
             'scene', {}).get('current_area')
         known = (cache.get('rooms') or {}).get(room_id) if room_id else None
+        # Current-area actors and unrevealed facts change during ordinary play.
+        # They are deltas, not new authored source generations. Invalidate on
+        # source/interpretation or packet-contract changes, retaining area reuse.
+        source_hash = kit_manifest.digest({'source': self.runtime.source(),
+            'contract': {k: v for k, v in room.items() if k not in ('dm_only', 'far_facts_withheld')},
+            'compact': self.compact})
         room_hash = kit_manifest.digest(room)
         send_area = None
-        if known and known.get('hash') == room_hash:
-            # Reuse only the exact body the host already has, even when the id is unchanged.
+        if known and known.get('source_hash') == source_hash:
+            room_hash = known['hash']
             cached_room = True
             if area_id and area_id not in (known.get('areas') or []):
                 send_area = {'id': area_id, 'dm_only': room.get('dm_only') or {}}
@@ -8239,7 +8245,7 @@ class KitChatBridge:
         new_cache = kit_manifest.remember_cache(
             cache, session=None if cached_session else session_hash,
             room_id=room_id or None, room_hash=room_hash, area=area_id,
-            rule=True, loaded=loaded_id)
+            rule=True, loaded=loaded_id, source_hash=source_hash)
         return layered, {'manifest': {**hashes, 'sent': [layer for layer, cached in (
                              ('session', cached_session), ('room', cached_room)) if not cached]},
                          'manifest_cache': new_cache,

@@ -86,6 +86,22 @@ class StableFirst(Layers):
 
 
 class EchoOrRehydrate(Layers):
+    def test_same_id_source_reload_refreshes_hidden_source_content(self):
+        full = KitChatBridge(self.runtime).prepare(opening=True, one_pass=True, turn_id='source')
+        first, timing = self.bridge._layer('before-reload', full)
+        self.runtime.record_kit_timing('before-reload', **timing)
+        self.bridge.abandon('source')
+        source = self.runtime.source()
+        source['facts']['new_source_fact'] = {'area': self.runtime.load()[1]['area'],
+            'visible': False, 'text': 'A newly verified source condition.'}
+        self.runtime.reload_room(source)
+        changed = copy.deepcopy(full)
+        changed['input']['private']['dm_context'] = self.runtime.context()['dm_context']
+        second, _ = self.bridge._layer('after-reload', changed)
+        self.assertIn('body', second['room_manifest'])
+        self.assertNotEqual(first['room_manifest']['hash'], second['room_manifest']['hash'])
+        self.assertIn('new_source_fact', second['room_manifest']['body']['dm_only']['unrevealed_facts'])
+
     def test_same_id_changed_room_is_sent_and_rehydrated_then_cached(self):
         full = KitChatBridge(self.runtime).prepare(opening=True, one_pass=True, turn_id='source')
         first, timing = self.bridge._layer('before', full)

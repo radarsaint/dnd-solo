@@ -1,6 +1,7 @@
 """Opt-in host judgment over existing actors; native effects, no fabricated stats."""
 import copy
-from . import kit_combat
+from . import _lazy
+kit_combat = _lazy.module('.kit_combat', __package__)
 from .state_context import require, in_combat
 
 SCHEMA = {'type': 'object', 'additionalProperties': False,
