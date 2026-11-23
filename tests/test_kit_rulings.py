@@ -196,6 +196,7 @@ class PreparePacketCarriesBookRuling(unittest.TestCase):
         self.assertEqual(done.get('stage'), 'skim_accepted', done)
         start_session(str(self.db), str(NIK), room=done.get('room'))
         runtime = Runtime(str(self.db))
+        self.addCleanup(runtime.close)
         self.bridge = KitChatBridge(runtime, RoomAdjudicator())
         opened = self.bridge.try_prepare('Yes.', one_pass=True)
         self.assertTrue(opened.get('committed') or opened.get('stage') == 'opening_committed', opened)

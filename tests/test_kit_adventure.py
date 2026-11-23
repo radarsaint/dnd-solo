@@ -6,6 +6,7 @@ compiled location 1, walk to location 2, and location 2 mounts from its just-in-
 room with no host step; back to 1, then to location 4, compiled on demand by the loader."""
 import json
 import shutil
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -238,7 +239,7 @@ class Transition(Base):
     def test_a_to_b_and_on(self):
         kit_adventure.compile_location(self.db, '1')
         self.assertEqual(kit_lifecycle.status(self.db)['next_command'].split(' --room ')[0],
-                         f'python3 -m runtime.kit_agent start --db {self.db}')
+                         f'python3 -m runtime.kit_agent start --db {shlex.quote(str(self.db))}')
         started = start_session(self.db, NIK, room=kit_adventure.room_file(self.db, '1'))
         runtime = Runtime(self.db)
         self.addCleanup(runtime.close)

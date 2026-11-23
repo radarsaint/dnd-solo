@@ -114,7 +114,9 @@ def remember_cache(cache, session=None, room_id=None, room_hash=None, area=None,
     if session and session not in out['session']:
         out['session'].append(session)
     if room_id and room_hash:
-        entry = rooms.setdefault(str(room_id), {'hash': room_hash, 'areas': []})
+        entry = rooms.get(str(room_id))
+        if entry is None or entry['hash'] != room_hash:
+            entry = rooms[str(room_id)] = {'hash': room_hash, 'areas': []}
         if area and area not in entry['areas']:
             entry['areas'].append(area)
     if rule:

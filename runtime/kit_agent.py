@@ -19,6 +19,7 @@ if __name__ == '__main__' and not __package__:
     raise SystemExit(0)
 import argparse
 import contextlib
+import hashlib
 import copy
 import dataclasses
 import json
@@ -62,7 +63,7 @@ from . import kit_lifecycle
 from . import kit_claims
 from . import kit_manifest
 from . import kit_router
-from . import kit_agenda, kit_plan, kit_threads, pc_sheet
+from . import kit_agenda, kit_plan, kit_threads, pc_sheet, kit_world_response
 from . import kit_detail
 from . import kit_judgment
 from . import kit_prices
@@ -3374,6 +3375,7 @@ PLAN_SCHEMA = {
         'open_threads': kit_threads.OPEN_THREADS_SCHEMA,
         # The player's move as Kit read it (runtime/kit_moves.py), when it differs from the
         # engine's turn_spine read or adds the target. Optional.
+        'world_response': kit_world_response.SCHEMA,
         'player_move': {
             'type': 'object', 'additionalProperties': False, 'required': ['kind'],
             'properties': {
@@ -3391,11 +3393,11 @@ PLAN_SCHEMA = {
 # The strict API schema needs every property required.
 API_PLAN_SCHEMA = json.loads(json.dumps(PLAN_SCHEMA))
 OPTIONAL_PLAN_KEYS = ('claims', 'agenda', 'salience', 'roll_call', 'pc_state', 'pc_oddity', 'ask_player', 'risk_confirm', 'plan',
-                      'open_threads', 'observed_event', 'detail', 'reveal_entry', 'player_move') + tuple(kit_acts.SCHEMAS)  # the engine fills these when left out (PR3 a, c)
+                      'open_threads', 'observed_event', 'detail', 'reveal_entry', 'player_move', 'world_response') + tuple(kit_acts.SCHEMAS)  # the engine fills these when left out (PR3 a, c)
 # Strict mode cannot leave an object out, so the chat-only paths (a PC state change, an
 # oddity reaction, a question to the player) are not offered to the API model at all.
 CHAT_ONLY_PLAN_KEYS = ('pc_state', 'pc_oddity', 'ask_player', 'risk_confirm', 'plan', 'open_threads', 'reveal_entry',
-                       'player_move')
+                       'player_move', 'world_response')
 for _key in CHAT_ONLY_PLAN_KEYS:
     API_PLAN_SCHEMA['properties'].pop(_key)
 # Strict mode: handles always carries reason ("none" on a declaration; kit_acts.NONE_REASONS on none).
@@ -5379,6 +5381,7 @@ def check_decision(runtime, plan, memory, body):
     if (body.get('compute') or {}).get('tier') == 'routine':
         kit_router.fill_routine(plan, kit_voice.mode_hint(body['kind'], is_ooc(body.get('action') or ''))
                                 or 'description')
+    kit_world_response.check(plan.get('world_response'), body.get('world_response'), plan)
     problems = DecisionProblems()
     check_plan(plan, memory['episodes'], body['public_event'], body['kind'],
                body['discernment_candidates'], body['action'],
@@ -6282,7 +6285,7 @@ def mains_if_undeclared(body, plan):
     return exc
 
 
-def declare(runtime, adjudicator, body, plan):
+def _declare_existing(runtime, adjudicator, body, plan):
     """``body`` plus the engine's outcome of the acts Kit declared (runtime/kit_acts.py): the
     handled feature's line, what it holds, the trigger it sets off; the downed PC's foes'
     turns on her call. Resolved on the state after this turn's adjudicated events, with this
@@ -6323,6 +6326,17 @@ def declare(runtime, adjudicator, body, plan):
             'hidden_facts': hidden_fact_words(runtime.source(), final, body),
             'declared': {'acts': shown, 'events': list(result.events), 'public': result.public_event,
                          'kind': result.kind, 'handoff': result.handoff}}
+
+
+def declare(runtime, adjudicator, body, plan):
+    body = _declare_existing(runtime, adjudicator, body, plan)
+    result = kit_world_response.apply(runtime, adjudicator, body, plan)
+    if result is not body:
+        revision, _ = runtime.load()
+        after = runtime.preview_state(revision, list(result['events']) + result['declared']['events'])
+        result = {**result, 'hidden_actors': hidden_actor_words(runtime.source(), after, result),
+                  'hidden_facts': hidden_fact_words(runtime.source(), after, result)}
+    return result
 
 
 # B-triple-prime (#97 review at 304ef62): a positive, state-based guard. A watched feature whose
@@ -7413,12 +7427,13 @@ def window_scene(runtime, state):
 
 class KitChatBridge:
     """Host this model loop in an assistant chat, with no API credential in Python."""
-    def __init__(self, runtime, adjudicator=None, manifests=False, compact=None):
+    def __init__(self, runtime, adjudicator=None, manifests=False, compact=None, world_response=False):
         """``manifests``: send one-pass packets in three layers (kit_manifest; the live CLI
         does). Off by default, so staged evals and the Python API see the full packet.
         ``compact``: layered packets in compact mode (kit_telemetry); None reads the mode
         recorded in the save (start --compact), which defaults to full."""
         self.runtime = runtime
+        self.world_response = world_response
         self.adjudicator = adjudicator or RoomAdjudicator()
         self.manifests = manifests
         self.compact = (kit_telemetry.packet_mode(runtime.db) == 'compact') if compact is None else bool(compact)
@@ -7469,6 +7484,11 @@ class KitChatBridge:
         held = self._turn_waiting(turn_id, action)
         if held is not None:
             return held
+        if self.world_response and not table_talk:
+            from . import kit_situation
+            situation = kit_situation.prepare(self.runtime, action, turn_id, one_pass=one_pass, entry=opening)
+            if situation is not None:
+                return situation
         from . import kit_skim
         pushed = self._open_ask_pushback(action)
         if pushed is not None:
@@ -7648,6 +7668,10 @@ class KitChatBridge:
             return None
         if is_knowledge_roll(pending):
             return self._resolve_knowledge_recall(action, total, pending, revision)
+        if not pending and (state.get('combat') or {}).get('status') == 'awaiting_initiative':
+            # The native Fight owns this roll. Do not consume it as an unassigned
+            # number before the normal adjudicator can advance the encounter.
+            return None
         if not pending and state_context.combat_view(state).get('initiative_pending') and \
                 not (state.get('combat') or {}).get('status'):
             # The fight is on (a recorded encounter) and initiative is owed: the number is it.
@@ -7929,6 +7953,24 @@ class KitChatBridge:
 
     def _stage(self, turn_id, revision, body, planning_input, one_pass, performance_variant, started, clock, stamps):
         """Stage a prepared turn and build its model packet."""
+        _revision, situation_state = self.runtime.load()
+        from . import kit_timed_procedures
+        warnings=kit_timed_procedures.warnings_here(situation_state,self.runtime.source().get('id'))
+        if warnings:
+            planning_input['source_warnings']={'warnings':warnings,
+                'authority':'A source-prescribed warning occurred. Determine recipient actions from their source and current state; do not invent them.'}
+        if situation_state.get('source_situation'):
+            planning_input['source_situation'] = {
+                'identity': situation_state.get('situation_identity'),
+                'compiler_limits': (situation_state.get('situation_identity') or {}).get('compiler_limits',[]),
+                'reading': situation_state['source_situation'],
+                'authority': 'Source quotations attested; inferred goals remain host interpretation, not published facts.'}
+        if self.world_response and not body.get('window_stage'):
+            revision, _ = self.runtime.load()
+            after = self.runtime.preview_state(revision, body['events'])
+            offered = kit_world_response.offer(self.runtime.source(), after, body)
+            if offered:
+                body['world_response'] = planning_input['world_response'] = offered
         assign_roll_call_policy(body, self.runtime.source())
         body['host_mode'] = 'one_pass' if one_pass else 'staged'
         if one_pass:
@@ -8163,15 +8205,14 @@ class KitChatBridge:
         area_id = (((delta.get('input') or {}).get('private') or {}).get('dm_context') or {}).get(
             'scene', {}).get('current_area')
         known = (cache.get('rooms') or {}).get(room_id) if room_id else None
+        room_hash = kit_manifest.digest(room)
         send_area = None
-        if known:
-            # The opening room manifest stays cached across areas. Only the new area is added.
-            room_hash = known['hash']
+        if known and known.get('hash') == room_hash:
+            # Reuse only the exact body the host already has, even when the id is unchanged.
             cached_room = True
             if area_id and area_id not in (known.get('areas') or []):
                 send_area = {'id': area_id, 'dm_only': room.get('dm_only') or {}}
         else:
-            room_hash = kit_manifest.digest(room)
             cached_room = False
         cached_session = session_hash in set(cache.get('session') or [])
         if cached_session:
@@ -8354,7 +8395,9 @@ class KitChatBridge:
         except HostSequenceError as exc:
             committed = self.runtime.committed_kit_turn(turn_id)
             spoken = _spoken_lines(speech)
-            if (committed and spoken and committed['spoken'].endswith(spoken) and
+            submitted = hashlib.sha256(encode({'decision': decision, 'performance': speech}).encode()).hexdigest()
+            exact_response = committed and committed.get('submitted_output_sha256') == submitted
+            if exact_response or (committed and spoken and committed['spoken'].endswith(spoken) and
                     (decision is None or same_decision(committed['trace'], decision))):
                 return {'already_committed': True, 'revision': committed['revision'],
                         'turn_id': turn_id, 'public_event': committed['public_event'],
@@ -8543,8 +8586,16 @@ class KitChatBridge:
         return copy.deepcopy(stored) if encode(trial) == encode(stored) else plan
 
     def _complete(self, turn_id, output, degraded=False):
+        from . import kit_situation
+        situation = kit_situation.complete(self.runtime, turn_id, output)
+        if situation is not None:
+            return situation
         require(isinstance(output, dict) and set(output) == {'decision', 'performance'},
                 'Expected a decision and performance')
+        response_submission = None
+        if output['decision'].get('world_response') is not None:
+            response_submission = hashlib.sha256(encode(output).encode()).hexdigest()
+            output = copy.deepcopy(output)
         pending = self._pending_or_replay(turn_id, speech=output['performance'],
                                           decision=output['decision'])
         if 'already_committed' in pending:
@@ -8589,15 +8640,34 @@ class KitChatBridge:
         variant = body.get('performance_variant', 'current')
         record = self._checked_or_log(turn_id, body, plan, output['performance'], variant, degraded)
         from . import kit_opening
-        record['spoken'] = kit_opening.guard_runtime(self.runtime, record.get('spoken') or '')
-        record['public_event'] = kit_opening.guard_runtime(self.runtime, record.get('public_event') or '')
-        _remember_npc_replies(self.runtime, record.get('spoken') or '')
+        response = (body.get('declared') or {})
+        native = response.get('public') if 'world_response' in response.get('acts', {}) else None
+        if native:
+            suffix = 'Narrator: ' + native
+            spoken = record.get('spoken') or ''
+            require(spoken.endswith(suffix), 'Native world response must close the turn')
+            record['spoken'] = kit_opening.guard_runtime(self.runtime, spoken[:-len(suffix)].rstrip()) + '\n' + suffix
+            public = record.get('public_event') or ''
+            require(public.endswith(native), 'Native world response must close the public event')
+            record['public_event'] = kit_opening.guard_runtime(self.runtime, public[:-len(native)].rstrip()) + ' ' + native
+        else:
+            record['spoken'] = kit_opening.guard_runtime(self.runtime, record.get('spoken') or '')
+            record['public_event'] = kit_opening.guard_runtime(self.runtime, record.get('public_event') or '')
         record.update(kit_interstitial.describe(record['trace'], turn_id))
         if record.get('engine_interstitial'):
             record.update(turn_role='interstitial', interstitial=record['engine_interstitial'])
+        if response_submission:
+            record['submitted_output_sha256'] = response_submission
         next_revision = self.runtime.commit_kit_turn(
             turn_id, revision, turn_events(self.runtime, body, plan, turn_id, record), record,
             consume_pending=True)
+        # This file is a derived memory projection. Never write it before the
+        # authoritative turn commits, and never turn a committed game into a
+        # failed result merely because its projection could not be written.
+        try:
+            _remember_npc_replies(self.runtime, record.get('spoken') or '')
+        except OSError:
+            self.runtime.record_kit_timing(turn_id, memory_projection_pending=True)
         return self._committed_result(turn_id, next_revision, body, record, variant)
 
 
@@ -8653,7 +8723,7 @@ def read_character_sheet(path):
 
 
 def start_session(db, sheet_path=None, runtime=None, room=None, area=None, manifests=False, campaign=None,
-                  intent=None, table=None, modules=None, restore=None, compact=False):
+                  intent=None, table=None, modules=None, restore=None, compact=False, world_response=False):
     """Bootstrap for a host.
 
     No room and no campaign: a greeting. Nothing is mounted. Mad Mage is not assumed.
@@ -8673,7 +8743,7 @@ def start_session(db, sheet_path=None, runtime=None, room=None, area=None, manif
     # A character on the sheet is not an opening. DM text never becomes the Narrator.
     if str(source.get('id') or '').startswith('adv-'):
         from . import kit_skim
-        if kit_skim.opening_screen(db, source):
+        if not world_response and kit_skim.opening_screen(db, source):
             return kit_skim.refused_start(db)
     if area is not None and area not in source['areas']:
         raise kit_rooms.RoomMountError(room, [f'no area {area!r} in this room'])
@@ -8691,6 +8761,8 @@ def start_session(db, sheet_path=None, runtime=None, room=None, area=None, manif
         # The sheet is read before anything is written: a bad sheet never half-mounts a game.
         path = Path(sheet_path) if sheet_path else EXAMPLE_SHEET
         sheet = read_character_sheet(path)
+        if world_response:
+            pc_sheet.check_sheet(sheet)  # no half-initialized opt-in source session
         try:
             runtime.initialize(source, area or source['starting_area'], room_path=room)
         except InvalidChange as exc:
@@ -8702,7 +8774,9 @@ def start_session(db, sheet_path=None, runtime=None, room=None, area=None, manif
                                      restore.get('party'), restore.get('places'))
         if compact:
             kit_telemetry.set_packet_mode(runtime.path, 'compact')
-        bridge = KitChatBridge(runtime, RoomAdjudicator(), manifests=manifests)
+        bridge = KitChatBridge(runtime, RoomAdjudicator(), manifests=manifests, world_response=world_response)
+        if world_response and str(source.get('id', '')).startswith('adv-') and not source.get('_opening_verified'):
+            return bridge.prepare(one_pass=True, opening=True)
         prepared = bridge.prepare(opening=True, one_pass=True)
         turn = prepared['turn_id']
         opened = {
@@ -9151,6 +9225,7 @@ def _main():
     parser.add_argument('--full', action='store_true',
                         help='prepare --one-pass/start: send the whole packet, not the three layers '
                              '(docs/architecture/MANIFESTS.md)')
+    parser.add_argument('--world-response', action='store_true', help='prepare: offer existing NPC responses (opt-in)')
     parser.add_argument('--compact', action='store_true',
                         help='start: record compact packets for this save; prepare: this turn compact '
                              '(docs/latency/experiment-protocol.md). Default: full')
@@ -9224,7 +9299,7 @@ def _main():
             result = start_session(args.db, args.sheet, room=args.room, area=args.area,
                                    manifests=not args.full, campaign=args.campaign,
                                    intent=args.intent, table=args.table, modules=args.modules,
-                                   compact=args.compact)
+                                   compact=args.compact, world_response=args.world_response)
             if args.room and args.table and isinstance(result, dict):
                 kit_campaign.record_table_mode(args.db, args.table)
                 result['table_mode'] = args.table
@@ -9338,6 +9413,7 @@ def _main():
             bridge = KitChatBridge(runtime, RoomAdjudicator(args.perception, args.insight,
                                                              sleight_of_hand=args.sleight_of_hand),
                                    manifests=not args.full, compact=True if args.compact else None)
+            bridge.world_response = args.world_response
             try:
                 if args.command == 'abandon':
                     if not args.turn_id:

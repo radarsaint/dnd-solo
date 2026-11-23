@@ -103,7 +103,7 @@ CANON_SLOT = re.compile(r'^[a-z0-9_:]+(/[a-z0-9_]+){1,3}$')
 # Events a Kit turn may add at commit, after the adjudicated batch it was prepared with:
 # the decision's canon entries, the oracle deal it consumed, and procedure state.
 # Host bookkeeping, not a turn taken in the room (kit_rooms.stage counts the others).
-BOOKKEEPING_EVENTS = ('party_roster', 'player_sheet', 'player_character', 'player_note', 'pc_state', 'kit_plan', 'rest',
+BOOKKEEPING_EVENTS = ('source_situation', 'party_roster', 'player_sheet', 'player_character', 'player_note', 'pc_state', 'kit_plan', 'rest',
                       'campaign_restore', 'campaign_facts', 'judgment_state', 'prepared_roll')
 # A refused attempt changed nothing in the world, so it does not use up the check Kit just
 # called (PR 145 playtest: one refused line, then every roll was refused).
@@ -490,7 +490,15 @@ class Runtime:
     def source(self):
         row = self.db.execute('SELECT body FROM source WHERE id=1').fetchone()
         require(row is not None, 'Initialize a session first')
-        return json.loads(row[0])
+        source = json.loads(row[0])
+        snapshot = self.db.execute('SELECT body FROM snapshots ORDER BY revision DESC LIMIT 1').fetchone()
+        reading = json.loads(snapshot[0]).get('source_situation') if snapshot else None
+        if reading:
+            from . import kit_situation
+            require(set(reading['actors']) == set(source['actors']) and set(reading['facts']) == set(source['facts']),
+                    'Situation projection is stale; explicit source reconciliation required')
+            source = kit_situation.project(source, reading)
+        return source
 
     def load(self):
         row = self.db.execute('SELECT revision, body FROM snapshots ORDER BY revision DESC LIMIT 1').fetchone()
@@ -671,7 +679,15 @@ class Runtime:
             revision, state = self.load()
             if revision != expected_revision:
                 raise StaleTurn(f'Expected revision {expected_revision}; current is {revision}')
-            if consume_pending:
+            if consume_pending and kit_record is None:
+                pending = self.db.execute('SELECT revision, body FROM kit_pending WHERE turn_id=?', (turn_id,)).fetchone()
+                require(pending is not None and pending[0] == expected_revision, 'Situation pending revision changed')
+                staged = json.loads(pending[1])
+                require(staged.get('situation_stage') and len(events) == 1 and events[0].get('type') == 'source_situation'
+                        and events[0].get('action') == staged.get('action') and events[0].get('entry') == staged.get('entry')
+                        and events[0]['reading']['request_hash'] == staged['request']['request_hash'],
+                        'Situation completion differs from its pending request')
+            elif consume_pending:
                 pending = self.db.execute('SELECT revision, body, plan FROM kit_pending WHERE turn_id=?',
                                           (turn_id,)).fetchone()
                 require(pending is not None and pending[0] == expected_revision and
@@ -744,6 +760,8 @@ class Runtime:
                     self._add_player_note(state, f'n{next_revision}', 'observed', note['note'],
                                           evidence, note.get('replaces', 'none'),
                                           current_turn=turn_id)
+            if kit_record is not None:
+                state.pop('situation_resume', None)
             # Arriving in an area linked to another room file mounts that room in this same
             # commit (docs/architecture/ROOM_LOADER.md): no host step, and a room that cannot
             # mount rejects the whole turn, so the session stays where it was. After Kit's episode:
@@ -1024,7 +1042,10 @@ class Runtime:
         require(isinstance(event.get('evidence'), str) and bool(event['evidence'].strip()),
                 'Record the adjudication or evidence for each event')
         kind = event.get('type')
-        if kind == 'reveal_fact':
+        if kind == 'source_situation':
+            from . import kit_situation
+            kit_situation.apply_event(self, state, source, event)
+        elif kind == 'reveal_fact':
             key = event.get('fact')
             require(key in source['facts'], 'Unknown fact')
             require(source['facts'][key]['area'] == state['area'], 'Remote reveal unsupported')
@@ -1071,6 +1092,9 @@ class Runtime:
                     actor['visible'] = False
             else:
                 actor['status'] = status
+            if reveal:
+                # Alive-but-invisible actors need the same explicit reveal as status=hidden.
+                reveal_actor(actor,(source.get('actors') or {}).get(key))
             from . import kit_scenes
             if status == 'dead':
                 kit_scenes.log_change(state, source.get('id'), 'dead', actor.get('name') or key, 'stays dead')
@@ -1329,6 +1353,8 @@ class Runtime:
         elif kind == 'combat_state':
             from . import kit_combat
             kit_combat.check_fight(event.get('state'))
+            from . import kit_timed_procedures
+            kit_timed_procedures.synchronize(state,source,event['state'])
             state['combat'] = copy.deepcopy(event['state'])
             if event['state'].get('status') not in FIGHT_ON:
                 state.pop('encounter', None)  # the fight ended: combat is off, one state

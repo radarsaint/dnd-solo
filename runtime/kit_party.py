@@ -137,13 +137,14 @@ def injury(hp, max_hp):
 # -- the observation view: what a companion knows ------------------------------------------
 def observe(fight, key):
     """The decision input. Built from the fight, but only of things the party can see."""
+    from . import kit_combat
     me = fight.party[key]
     sheet = me['sheet']
     combat = fight.fight
     foes = []
     for foe in fight.hostiles():  # active: present, alive, revealed (hidden actors are not)
         actor = fight.state['actors'][foe]
-        if actor.get('visible') is False or foe not in combat['hp']:
+        if not kit_combat.perceived(fight.source,fight.state,foe) or foe not in combat['hp']:
             continue
         foes.append({'id': foe, 'name': fight.labels.get(foe, foe),
                      'injury': injury(combat['hp'][foe], combat['max_hp'][foe]),
@@ -464,7 +465,7 @@ def foe_attacks_companion(fight, foe, key):
     """The foe's attacks at a companion: Kit's d20 against the companion's AC, average damage."""
     entry = fight.party[key]
     name = entry['sheet']['name']
-    who = fight.labels.get(foe, foe).lower()
+    who = fight.label(foe)
     for index, attack in enumerate(fight.stats(foe).get('attacks') or []):
         if entry['status'] != 'standing':
             break

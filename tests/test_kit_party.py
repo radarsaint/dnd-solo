@@ -191,13 +191,17 @@ class Fake:
     def __init__(self, party, foes=(), d20=10):
         self.party = party
         self.fight = {'round': 1, 'hp': {f: 20 for f in foes}, 'max_hp': {f: 20 for f in foes}, 'pc_damage': 0}
-        self.state = {'actors': {f: {'visible': True} for f in foes}}
+        self.state = {'area':'here','actors': {f: {'visible': True,'location':'here'} for f in foes}}
+        self.source = {'actors':{f:{'name':f.title()} for f in foes}}
         self.labels = {f: f.title() for f in foes}
         self.lines, self.trace, self.sheet, self.conditions, self.healed = [], [], {'name': 'Nik'}, [], []
         self.foes, self.d20, self.damage = list(foes), d20, []
 
     def hostiles(self):
         return [f for f in self.foes if self.fight['hp'][f] > 0]
+
+    def label(self,key):
+        return kit_combat.Fight.label(self,key)
 
     def stats(self, key):
         return {'ac': 12, 'hp': 20, 'saves': {}, 'attacks': [{'name': 'claw', 'to_hit': 4, 'damage': 30, 'type': 'x'}]}

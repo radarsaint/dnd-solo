@@ -52,7 +52,7 @@ STAGES = ('approach', 'first_look', 'explore', 'resolution')
 SESSION_KEYS = ('schema_version', 'kit', 'player_character', 'player_sheet', 'pc_state', 'roll_seed',
                 'elapsed_seconds', 'rooms', 'carried', 'scene_id', 'scenes_closed', 'memory_trimmed',
                 'pc_conditions', 'pc_condition_terms', 'campaign_log', 'pc_resources',
-                'sheet_import', 'long_rests', 'party', 'places')
+                'sheet_import', 'long_rests', 'party', 'places', 'source_warnings')
 
 
 class RoomMountError(InvalidChange):
@@ -465,7 +465,8 @@ def load_link(link):
         from .kit_adventure import ensure_compiled
         ensure_compiled(link)
     source = load_room(link['room'])
-    if link['area'] not in source['areas']:
+    from .kit_adventure import resolved_arrival
+    if resolved_arrival(link,source) not in source['areas']:
         raise RoomMountError(link['room'], [f"room_link area {link['area']!r} is not one of its areas"])
     return source
 
@@ -483,7 +484,12 @@ def arrive(old_source, state, link):
     if source.get('id') == old_source.get('id') or seen and _same_file(seen, link['room']) is False:
         # Room ids key the archive: a second file with the same id would overwrite a room left.
         raise RoomMountError(link['room'], [f"room id {source.get('id')!r} is already used by another room file"])
-    new = mounted_state(old_source, state, source, link['area'], link['room'])
+    from .kit_adventure import resolved_arrival
+    arrival=resolved_arrival(link,source)
+    new = mounted_state(old_source, state, source, arrival, link['room'])
+    if arrival!=link['area']:
+        new['room']['arrival_compatibility']={'requested':link['area'],'resolved':arrival,
+            'basis':'Pinned indexed one-way connection; legacy reciprocal anchor absent.'}
     Runtime._observe(new, source)
     check_context(source, new, ref=link['room'])
     return source, new

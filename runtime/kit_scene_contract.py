@@ -9,6 +9,7 @@ Inferred motives and prospective pressure remain private, nonbinding readings.
 The authoritative state and action results belong to the existing Kit engine.
 """
 import json
+import copy
 import re
 import unicodedata
 
@@ -21,6 +22,83 @@ KINDS = ('person', 'creature')
 PRESSURE_KINDS = ('ambush', 'conversation', 'hazard', 'none')
 ACTIVATIONS = ('entry', 'disturb', 'deferred', 'failed_notice')
 _ID = re.compile(r'^[a-z][a-z0-9_]{0,30}$')
+
+
+def check_statistics(stats, name, check_claim):
+    from . import srd_creatures
+    from .state_context import require
+    require(isinstance(stats,dict) and {'srd','evidence'}<=set(stats)<={'srd','hp','evidence'},
+            'Statistics need a sourced SRD base and supported overrides')
+    require(isinstance(stats['srd'],str) and srd_creatures.stat_block({'srd':stats['srd']}) is not None,
+            'Unknown SRD base')
+    require(isinstance(stats['evidence'],list) and 1<=len(stats['evidence'])<=8,
+            'Statistics require bounded source evidence')
+    for claim in stats['evidence']:check_claim(claim)
+    quotes=[_norm(c['quote']) for c in stats['evidence']]
+    require(any(re.search(r'\b'+re.escape(_norm(name))+r'\b',q) and
+                re.search(r'\b'+re.escape(_norm(stats['srd']))+r'\b',q) for q in quotes),
+            'Statistics evidence must bind this actor to the SRD base')
+    if 'hp' in stats:
+        hp=stats['hp']
+        require(type(hp) is int and 1<=hp<=1000000,'Invalid authored maximum HP')
+        pattern=r'(?<!\d)'+str(hp)+r'\s+(?:hit points|hp)\b|\b(?:hit points|hp)\s*[:=]?\s*'+str(hp)+r'(?!\d)'
+        require(any(re.search(pattern,q) and re.search(r'\b'+re.escape(_norm(name))+r'\b',q)
+                    for q in quotes),'Authored HP must be explicit in evidence naming this actor')
+
+def resolve_statistics(stats):
+    """Resolve a validated SRD base plus supported authored overrides."""
+    from . import srd_creatures
+    block=srd_creatures.stat_block({'srd':stats['srd']})
+    if 'hp' in stats:block['hp']=stats['hp']
+    return block
+
+
+def bind_people(actors, people, here, verified):
+    """Bind already-attested people without writing files or inventing combat stats.
+
+    Returns a new actor map, kept ids and pressure bindings. The caller owns
+    evidence validation, pruning and committing. Shared with later interpretation.
+    """
+    actors = copy.deepcopy(actors)
+    ids, bound = [], {}
+    def stem(value):
+        value = re.sub(r'\s+\d+$', '', str(value or '').casefold())
+        value = re.sub(r'[^a-z0-9]+', '_', value).strip('_')
+        return value[:-1] if value.endswith('s') else value
+    for person in people:
+        pid = person.get('id')
+        if not pid:
+            continue
+        matches = ([key for key, actor in actors.items()
+                    if key == pid or (verified and stem(actor.get('name')) == stem(person.get('name')))]
+                   if verified else [pid] if pid in actors else [])
+        if verified and not matches:
+            role = 'speaker' if person.get('kind') in ('speaker', 'person', 'npc') else 'creature'
+            actors[pid] = {'name': person.get('name') or pid, 'location': here,
+                           'status': 'hidden' if person.get('hidden') else 'alive',
+                           'visible': not person.get('hidden'), 'role': role}
+            matches = [pid]
+        if verified:
+            bound[pid] = list(matches)
+        for key in matches:
+            if key not in ids:
+                ids.append(key)
+            actor = actors.get(key)
+            if not isinstance(actor, dict):
+                continue
+            if verified and actor.get('status') in ('alive', 'hidden'):
+                actor['status'] = 'hidden' if person.get('hidden') else 'alive'
+                actor['visible'] = not person.get('hidden')
+            if person.get('goal'):
+                actor['immediate_goal'] = person['goal']
+                actor['motive'] = person.get('motive') or person['goal']
+            if verified and 'source_name' in person:
+                actor['name'] = person['source_name']
+                actor['identity_evidence'] = copy.deepcopy(person['identity_evidence'])
+            if verified and 'statistics' in person:
+                actor['stat_block'] = resolve_statistics(person['statistics'])
+                actor['statistics_provenance'] = copy.deepcopy(person['statistics'])
+    return actors, ids, bound
 
 
 def _norm(text):
@@ -121,7 +199,8 @@ def validate(scene, raw_span, read_aloud, layout_span=None):
     for i, person in enumerate(people):
         label = 'people[%d]' % i
         fields = {'id', 'name', 'quote', 'visibility', 'kind', 'goal', 'knowledge'}
-        if not isinstance(person, dict) or set(person) != fields:
+        optional = {'statistics', 'source_name', 'identity_evidence'}
+        if not isinstance(person, dict) or not fields <= set(person) <= fields | optional:
             problems.append('%s has invalid fields' % label)
             continue
         identity = person.get('id')
@@ -156,6 +235,33 @@ def validate(scene, raw_span, read_aloud, layout_span=None):
                     problems.append('%s staged actor needs later marked player read-aloud' % label)
         if person.get('kind') not in KINDS:
             problems.append('%s kind is invalid' % label)
+        def check_claim(claim):
+            from .state_context import InvalidChange
+            errors = []
+            valid = _evidence(claim, label + '.evidence', sources, ('quote', 'status'), errors)
+            if not valid or claim.get('status') != 'established':
+                raise InvalidChange('; '.join(errors) or 'Statistics and identity need established source evidence')
+        if 'source_name' in person or 'identity_evidence' in person:
+            alias = person.get('source_name')
+            claims = person.get('identity_evidence')
+            try:
+                from .state_context import require, InvalidChange
+                require(isinstance(alias, str) and 1 <= len(alias.strip()) <= 80 and
+                        isinstance(claims, list) and 1 <= len(claims) <= 4,
+                        'Source name correction requires bounded identity evidence')
+                for claim in claims:
+                    check_claim(claim)
+                require(any(all(re.search(r'\b' + re.escape(_norm(n)) + r'\b', _norm(c['quote']))
+                                for n in (name, alias)) for c in claims),
+                        'Identity evidence must name both identities together')
+            except InvalidChange as exc:
+                problems.append('%s: %s' % (label, exc))
+        if 'statistics' in person:
+            from .state_context import InvalidChange
+            try:
+                check_statistics(person['statistics'], person.get('source_name') or name, check_claim)
+            except InvalidChange as exc:
+                problems.append('%s: %s' % (label, exc))
         goal = person.get('goal')
         if goal is not None:
             _evidence(goal, label + '.goal', sources, ('quote', 'status'), problems)
@@ -237,6 +343,8 @@ def build_beat(scene, burst, place_heading, fiction=None):
             'quote': quote, 'visible_state': quote,
             'goal': accepted_goal, 'motive': accepted_goal,
             'knowledge_evidence': person['knowledge'],
+            **{key: copy.deepcopy(person[key]) for key in
+               ('statistics', 'source_name', 'identity_evidence') if key in person},
         })
     goals = [p.get('goal') for p in people if p.get('goal')]
     ambush = any(p['kind'] == 'ambush' and p['status'] != 'unsupported'

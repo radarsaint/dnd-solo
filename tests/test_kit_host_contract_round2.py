@@ -6,6 +6,7 @@ start -> prepare -> complete -> bare-roll prepare through Kit's own CLI.
 """
 import json
 import copy
+from contextlib import ExitStack
 import subprocess
 import sys
 import tempfile
@@ -209,7 +210,7 @@ class StagedSceneTests(unittest.TestCase):
         from runtime import kit_adventure, kit_skim
         from runtime.kit_agent import KitChatBridge, RoomAdjudicator, start_session
         from runtime.state_context import Runtime
-        with tempfile.TemporaryDirectory() as temporary:
+        with tempfile.TemporaryDirectory() as temporary, ExitStack() as cleanup:
             db = Path(temporary) / 'stage.sqlite'
             intro = 'The caravan halts on the road beneath a leaning pine.'
             next_line = 'Captain Mara steps onto the road and hails the caravan.'
@@ -233,7 +234,7 @@ class StagedSceneTests(unittest.TestCase):
             self.assertEqual(accepted['stage'], 'skim_accepted', accepted)
             start_session(str(db), str(SHEET))
             runtime = Runtime(str(db))
-            self.addCleanup(runtime.close)
+            cleanup.callback(runtime.close)
             bridge = KitChatBridge(runtime, RoomAdjudicator())
             first = bridge.prepare('Yes.')
             self.assertIn(intro, first.get('spoken') or '')

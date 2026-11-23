@@ -219,6 +219,11 @@ INSTRUCTIONS = (
     '"knowledge":[]}],"discoveries":[],"pressures":[]}. '
     'A staged person is first named in a later marked read-aloud line (Go on), not the first burst. '
     'Each quote must be contiguous within this opening, not the book setup or later room. '
+    'A person may include statistics:{"srd":published_base,"hp":authored_maximum_hp,'
+    '"evidence":[{"quote":whole_source_sentence,"status":"established"}]}; hp is optional. '
+    'Evidence must name the actor and base, and explicitly state any HP override. '
+    'For a compiled generic identity, source_name plus identity_evidence may supply the authored '
+    'name; the whole supporting sentence must name both identities. Never invent statistics. '
     'For a pressure use {"kind":"ambush|conversation|hazard|none",'
     '"quote":verbatim_encounter,"status":"conditional|established|inferred",'
     '"actors":[person_id],"activation":"entry|disturb|deferred|failed_notice"}. For failed_notice, quote the whole explicit source condition saying the threats attack if not noticed. Do not invent a fight from a failed check alone. Do not choose DCs, damage, surprise, initiative, '
@@ -2546,47 +2551,15 @@ def _stamp_beat(room_path, beat):
     here = room.get('starting_area') or 'here'
     if noun and noun != 'room' and isinstance(areas.get(here), dict):
         areas[here]['called'] = 'the ' + noun
-    actors = room.setdefault('actors', {})
-    ids = []
+    from .kit_scene_contract import bind_people
     verified = bool(beat.get('source_verified'))
-    def stem(value):
-        value = re.sub(r'\s+\d+$', '', str(value or '').casefold())
-        value = re.sub(r'[^a-z0-9]+', '_', value).strip('_')
-        return value[:-1] if value.endswith('s') else value
+    actors, ids, bound_actor_ids = bind_people(
+        room.get('actors') or {}, beat.get('people') or [], here, verified)
+    room['actors'] = actors
+    for key, actor in actors.items():
+        if actor.get('statistics_provenance') and key in (room.get('combat') or {}).get('actors', {}):
+            room['combat']['actors'][key] = dict(actor['stat_block'])
     unresolved = []
-    bound_actor_ids = {}
-    for person in beat.get('people') or []:
-        pid = person.get('id')
-        if not pid:
-            continue
-        matches = ([key for key, actor in actors.items()
-                    if key == pid or (verified and stem(actor.get('name')) == stem(person.get('name')))]
-                   if verified else [pid] if pid in actors else [])
-        # Source-attested people may be present without a combat stat block.
-        # Presence-only: no invented stats, damage, or combat abilities.
-        if verified and not matches:
-            kind = str(person.get('kind') or '')
-            role = 'speaker' if kind in ('speaker', 'person', 'npc') else 'creature'
-            actors[pid] = {
-                'name': person.get('name') or pid, 'location': here,
-                'status': 'hidden' if person.get('hidden') else 'alive',
-                'visible': not person.get('hidden'), 'role': role,
-            }
-            matches = [pid]
-        if verified:
-            bound_actor_ids[pid] = list(matches)
-        for key in matches:
-            if key not in ids:
-                ids.append(key)
-            actor = actors.get(key)
-            if not isinstance(actor, dict):
-                continue
-            if verified and actor.get('status') in ('alive', 'hidden'):
-                actor['status'] = 'hidden' if person.get('hidden') else 'alive'
-                actor['visible'] = not person.get('hidden')
-            if person.get('goal'):
-                actor['immediate_goal'] = person['goal']
-                actor['motive'] = person.get('motive') or person['goal']
     room['_opening_people'] = ids
     if verified:
         room['_opening_unresolved_people'] = unresolved
