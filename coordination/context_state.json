@@ -2,16 +2,16 @@
   "schema": "kit_project_gardener_state/v1",
   "purpose": "RESUMABILITY_CURSOR_NOT_KNOWLEDGE_STORE",
   "canonical_location": "radarsaint/dnd-solo/coordination/context_state.json",
-  "state_revision": 74,
+  "state_revision": 75,
   "semantic_brain": {
     "repo": "radarsaint/dnd-solo",
     "path": "docs/PROJECT_UNDERSTANDING.md",
-    "last_semantic_commit": "f633d04e7488cb36bb5620db571154bb8e31041a",
-    "last_reviewed_on": "2026-11-22"
+    "last_semantic_commit": "0c634f9396c7d56ffd78f9cbf30a14909640c9e1",
+    "last_reviewed_on": "2026-11-23"
   },
   "checkpoint": {
     "reviewed_against_main": {
-      "radarsaint/dnd-solo": "f633d04e7488cb36bb5620db571154bb8e31041a",
+      "radarsaint/dnd-solo": "0c634f9396c7d56ffd78f9cbf30a14909640c9e1",
       "radarsaint/bfdm-corpus": "f672fd8b65c64fc2c375b84af3331ee32ac5658d"
     },
     "context_inbox": {
@@ -24,10 +24,10 @@
   },
   "last_completed_pass": {
     "kind": "BOUNDED_SEMANTIC_RECONCILIATION",
-    "completed_on": "2026-11-22",
-    "scope": "Reviewed bfdm-corpus main after #62 merge (d2651cb / f672fd8b); no new #115 comments beyond 6598407850. dnd-solo main brain updated.",
-    "result": "Accept narrow: Discord model projection export now uses staged Foundry publisher to preserve last-good projection and independent sidecars on failure. Canonical SQLite and evidence authority unchanged. Brain updated on main. No bfdm-corpus control edit required (existing completeness claim still holds). Unresolved items unchanged.",
-    "resulting_brain_commit": "f633d04e7488cb36bb5620db571154bb8e31041a",
+    "completed_on": "2026-11-23",
+    "scope": "Reviewed dnd-solo main after #221 merge (0a00f41a / 836c09a8); no new #115 comments beyond 6598407850. Restored full Project Brain and recorded v0.17.0 source-grounded encounter continuity.",
+    "result": "Accept: v0.17.0 integrates source-backed encounter interpretation with native runtime state, shares actor/statistics handling, preserves source offsets, secrecy, and manifest invalidation. Later-room interpretation remains opt-in via --world-response. Brain restored from prior full version and updated on main. No bfdm-corpus control edit required. Unresolved items unchanged.",
+    "resulting_brain_commit": "0c634f9396c7d56ffd78f9cbf30a14909640c9e1",
     "reconciled_comment_id": 6598407850
   },
   "active_pass": null,
