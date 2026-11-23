@@ -106,7 +106,7 @@ class RevealAndPresence(unittest.TestCase):
         self.assertIn('stalker', seen.adjudicator._present_actors(seen.state))
         self.assertIn('Invisible stalker', kit_agent.turn_speakers(seen.runtime, {})['speakers'])
 
-    def test_an_alive_unseen_creature_is_not_in_the_fight(self):
+    def test_an_alive_unseen_creature_stays_private_in_the_fight(self):
         source = crypt()
         source['actors']['skeleton'].update(status='alive', visible=False)
         room = Room(self, source=source)
@@ -114,7 +114,11 @@ class RevealAndPresence(unittest.TestCase):
         room.act('I push it open.', {'target': 'sarcophagus', 'act': 'push'})
         hp = room.state['combat']['hp']
         self.assertIn('ghoul', hp)
-        self.assertNotIn('skeleton', hp, 'a creature he cannot perceive is not on the roster')
+        self.assertIn('skeleton', hp, 'visibility must not remove an active enemy from native combat')
+        from runtime import kit_combat, kit_combat_acts
+        import json
+        self.assertNotIn('skeleton', json.dumps(kit_combat.public_view(room.runtime.source(), room.state)).lower())
+        self.assertNotIn('skeleton', kit_combat_acts.offer(room.runtime.source(), room.state)['targets'])
 
 
 if __name__ == '__main__':

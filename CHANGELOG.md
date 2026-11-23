@@ -10,6 +10,15 @@ Versioning rule:
 
 The current version is in `VERSION`.
 
+## v0.17.0
+
+- Source-attested encounter interpretation at later imported locations: restore omitted people, distinguish remote mentions, preserve inferred motives as interpretations, and retain full governing conditions and compiler limitations in Kit's private turn context.
+- Opening and later-room interpretation share actor binding and SRD statistics resolution. A source-explicit maximum-HP override and authored name reach native combat without changing actor identity or inventing abilities; unconscious noncombatants remain representable without fabricated combat statistics.
+- NPC response declarations connect to native combat and existing state transactions. Source-backed warning/departure/return procedures survive room transitions and restart. One-way arrivals no longer require an invented reciprocal exit.
+- Keep unseen combatants mechanically active without disclosing their identity in initiative, wound summaries or target offers. Reject self-attested rulings and preserve quoted source offsets in prefetch records.
+- Refresh room manifests when their body changes under the same ID, replace stale cache generations, and preserve rehydration and reuse of unchanged bodies.
+- Verification uses synthetic source, native combat, replay/restart and private later-encounter traces. This release does not establish autonomous whole-module DM quality. Unsupported mechanics remain explicit limitations; source interpretation still requires semantic judgment from the host.
+
 ## v0.16.0
 
 - A labelled set of 174 synthetic player lines (`tests/fixtures/moves/labelled_moves.tsv`: look/scan, search, talk, recall, move, use, fight, rest, ask the DM, and the skill each check calls for, with typos, slang and run-ons) and a scorer (`tools/eval_moves.py`). Kit's move reader went from 121/160 (75.6%) to 145/160 (90.6%); its skill picker from 79/92 (85.9%) to 80/92 (87.0%). A test holds the floor.

@@ -354,7 +354,17 @@ def check_fight(body):
 def present(source, state):
     """Actor ids in this area who can still act (not fled, down, or dead)."""
     return [key for key, actor in (state.get('actors') or {}).items()
-            if actor.get('location') == state.get('area') and actor.get('status') in ACTIVE_STATUSES]
+            if actor.get('location') == state.get('area') and actor.get('status') in ACTIVE_STATUSES
+            and perceived(source,state,key)]
+
+
+def perceived(source,state,key):
+    """Public identity requires current observation, independently of private participation."""
+    if key=='pc' or key in (state.get('party') or {}):
+        return True
+    actor=(state.get('actors') or {}).get(key)
+    return bool(actor and actor.get('location')==state.get('area') and
+                kit_names.perceivable({**((source.get('actors') or {}).get(key) or {}),**actor}))
 
 
 def labels(source):
@@ -1058,6 +1068,12 @@ class Fight:
 
     # -- helpers ---------------------------------------------------------------------
     def label(self, key):
+        from . import kit_timed_procedures
+        actor=self.state['actors'].get(key) or {}
+        returned_here=kit_timed_procedures.actor_here(self.fight,key,actor,self.state.get('area')) and \
+            kit_names.perceivable({**((self.source.get('actors') or {}).get(key) or {}),**actor})
+        if not perceived(self.source,self.state,key) and not returned_here:
+            return 'unseen opponent'
         return self.labels.get(key, key).lower()
 
     def die(self, tag):
@@ -1073,10 +1089,12 @@ class Fight:
         if key in self.party:
             return self.party[key]['status'] == 'standing'
         actor = self.state['actors'][key]
-        return actor.get('location') == self.state.get('area') and self.status(key) in ACTIVE_STATUSES
+        from . import kit_timed_procedures
+        return kit_timed_procedures.actor_here(self.fight,key,actor,self.state.get('area')) and self.status(key) in ACTIVE_STATUSES
 
     def hostiles(self):
-        return [key for key in self.config.get('actors', {}) if key in self.state['actors'] and self.active(key)]
+        return [key for key in self.config.get('actors', {}) if key in self.state['actors'] and self.active(key)
+                and (not self.fight or 'participants' not in self.fight or key in self.fight['participants'])]
 
     def stats(self, key):
         return self.config['actors'][key]
@@ -1085,14 +1103,16 @@ class Fight:
         if self.fight and self.fight.get('status') != 'over':
             return False
         hp = {key: self.stats(key)['hp'] for key in self.config['actors']
-              if key in self.state['actors'] and not state_context.unperceived(
-                  {**((self.source.get('actors') or {}).get(key) or {}), **self.state['actors'][key]})}
+              if key in self.state['actors'] and self.state['actors'][key].get('location')==self.state.get('area')
+              and self.state['actors'][key].get('status') in ACTIVE_STATUSES}
         self.fight = {'status': 'awaiting_initiative', 'round': 1, 'order': [], 'next': 0,
                       'pc_initiative': None, 'surprised': list(self.surprised()), 'hp': hp, 'max_hp': dict(hp),
                       'pc_damage': 0, 'pending': None, 'opener_spent': False, 'started_by': started_by,
                       'last_target': None, 'engaged': []}
         self.trace.append(f'fight starts ({started_by}); surprised: {self.fight["surprised"] or "nobody"}')
         self.scene['pc_hidden'] = False  # the first blow gives the PC away
+        from . import kit_timed_procedures
+        kit_timed_procedures.start(self)
         return True
 
     def start_by_trigger(self, trigger, pc_surprised, trace, waking=None):
@@ -2262,7 +2282,9 @@ class Fight:
 
     def set_order(self, pc_init):
         entries = [('pc', pc_init, 99)]
-        for key in self.hostiles():
+        from . import kit_timed_procedures
+        waiting=[p['actor'] for p in kit_timed_procedures.pending(self.fight)]
+        for key in dict.fromkeys(self.hostiles()+waiting):
             bonus = self.stats(key).get('initiative', 0)
             entries.append((key, 10 + bonus, bonus))
         for key, entry in self.party.items():
@@ -2273,7 +2295,7 @@ class Fight:
                           round=1, next=0)
         self.trace.append('initiative: ' + ', '.join(f'{k} {v}' for k, v, _ in entries))
         order_text = ', '.join('you' if k == 'pc' else self.labels[k] if k in self.party else f'the {self.label(k)}'
-                               for k, _, _ in entries)
+                               for k, _, _ in entries if k not in waiting and perceived(self.source,self.state,k))
         self.lines.append(f'Turn order: {order_text}.')
         if self.fight['opener_spent']:
             # The blow declared before initiative was the PC's first action this round.
@@ -2297,6 +2319,8 @@ class Fight:
         if self.fight['next'] >= len(order):
             self.fight['next'] = 0
             self.fight['round'] += 1
+            from . import kit_timed_procedures
+            kit_timed_procedures.advance(self)
 
     def run_npcs(self):
         """Every turn up to the PC's. A surprised PC's round-one turn passes; a save the
@@ -2684,7 +2708,8 @@ class Fight:
             self.run_npcs()
 
     def check_over(self):
-        if self.fight and self.fight['status'] != 'over' and not self.hostiles():
+        from . import kit_timed_procedures
+        if self.fight and self.fight['status'] != 'over' and not self.hostiles() and not kit_timed_procedures.pending(self.fight):
             self.fight['status'] = 'over'
             self.lines.append('Nobody is left in the room to fight you.')
             self.trace.append('fight over')
@@ -3434,6 +3459,8 @@ def public_view(source, state):
         lab = labels(source)
         wounds = {}
         for key, hp in (current.get('hp') or {}).items():
+            if not perceived(source,state,key):
+                continue
             actor = (state.get('actors') or {}).get(key) or {}
             if actor.get('status') in ('fled',):
                 wounds[lab.get(key, key)] = 'fled'
@@ -3444,7 +3471,7 @@ def public_view(source, state):
                 wounds[lab.get(key, key)] = 'unhurt' if hp >= full else 'badly hurt' if hp <= full // 2 else 'hurt'
         order = current.get('order') or []
         out['fight'] = {'status': current['status'], 'round': current.get('round'),
-                        'order': ['you' if k == 'pc' else lab.get(k, k) for k in order],
+                        'order': ['you' if k == 'pc' else lab.get(k, k) for k in order if perceived(source,state,k)],
                         'whose_turn': ('you' if order and order[current.get('next', 0) % len(order)] == 'pc' else None)
                         if current['status'] == 'running' else None,
                         'wounds': wounds, 'damage_you_took': current.get('pc_damage', 0)}
@@ -3456,7 +3483,7 @@ def public_view(source, state):
             out['fight']['party'] = {e['sheet']['name']: kit_party.injury(e['hp'], e['max_hp'])
                                      if e['status'] == 'standing' else e['status'] for e in state['party'].values()}
             lab = {**lab, **{k: e['sheet']['name'] for k, e in state['party'].items()}}
-            out['fight']['order'] = ['you' if k == 'pc' else lab.get(k, k) for k in order]
+            out['fight']['order'] = ['you' if k == 'pc' else lab.get(k, k) for k in order if perceived(source,state,k)]
         if current.get('pc_dead'):
             out['fight']['you_are'] = 'dead'
         elif current.get('pc_down'):

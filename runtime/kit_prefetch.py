@@ -50,6 +50,7 @@ def prepare_next(db, scene_key=None, beat=None):
             'outcome': ruling.get('outcome') or '',
             'quote': ruling.get('quote') or '',
             'span': ruling.get('span'),
+            'offset': ruling.get('offset'),
             'trigger_kind': ruling.get('trigger_kind') or '',
             'has_mechanics': bool(ruling.get('has_mechanics')),
         })

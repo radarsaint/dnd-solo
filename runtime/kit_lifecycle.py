@@ -96,6 +96,11 @@ def state_of(con):
         turn_id, opening = waiting
         return {'state': 'ready' if opening else 'awaiting_completion', 'pending_turn_id': turn_id,
                 'pending_kind': 'opening' if opening else 'turn', 'committed_turns': committed}
+    snapshot = con.execute('SELECT body FROM snapshots ORDER BY revision DESC LIMIT 1').fetchone()
+    resume = (json.loads(snapshot[0]).get('situation_resume') or {}) if snapshot else {}
+    if resume:
+        return {'state': 'situation_ready', 'committed_turns': committed,
+                'resume_action': resume.get('action'), 'resume_entry': bool(resume.get('entry'))}
     return {'state': 'playing' if committed else 'mounted', 'committed_turns': committed}
 
 
@@ -116,6 +121,9 @@ def status(db):
     state = found['state']
     if state == 'unmounted':
         nxt = f'python3 -m runtime.kit_agent start --db {q}'
+    elif state == 'situation_ready':
+        nxt = f'python3 -m runtime.kit_agent prepare --one-pass --world-response --db {q}'
+        nxt += ' --opening' if found['resume_entry'] else ' --action-file a.txt'
     elif state == 'mounted':
         nxt = f'python3 -m runtime.kit_agent prepare --one-pass --opening --db {q}'
     elif state in ('ready', 'awaiting_completion'):

@@ -9,7 +9,7 @@ or a bonus.
 """
 import re
 
-from .kit_links import CONFIRMED, LIKELY, section_key, valid_quote, links_from, _recorded_span
+from .kit_links import CONFIRMED, LIKELY, section_key, links_from, _recorded_span
 
 _IF = re.compile(
     r'(?is)(?P<full>'
@@ -196,9 +196,19 @@ def for_action(db, action, scene_key=None):
     hit = stash_hit if stash_hit is not None else match_action(action, rulings_from(index, key))
     if hit is None:
         return None
-    span = _span_text(text, hit.get('span'))
-    quote = hit.get('quote') or ''
-    if not quote or not valid_quote(span or quote, quote):
+    bounds = hit.get('span')
+    # Missing evidence is not its own source. Reject malformed offsets rather
+    # than coercing strings, booleans or floats into a plausible location.
+    if (not isinstance(bounds, (list, tuple)) or len(bounds) != 2 or
+            any(type(n) is not int for n in bounds) or
+            type(hit.get('offset')) is not int or hit['offset'] != bounds[0]):
+        return None
+    span = _span_text(text, bounds)
+    quote = hit.get('quote')
+    if not span or not isinstance(quote, str) or not quote.strip():
+        return None
+    # Wrapped whitespace is representation; changed/reordered words are not.
+    if re.sub(r'\s+', ' ', span).strip() != re.sub(r'\s+', ' ', quote).strip():
         return None
     kind = hit.get('trigger_kind') or ''
     if not kind:

@@ -615,6 +615,27 @@ def _load(runtime):
     beat = data.get('beat')
     if not isinstance(beat, dict):
         return data, None
+    if beat.get('source_verified'):
+        # Visibility belongs to committed runtime state, not a cached opening.
+        # Work on a copy: reading the projection must never write the sidecar.
+        import copy
+        beat = copy.deepcopy(beat)
+        _revision, state = runtime.load()
+        source = runtime.source()
+        def stem(name):
+            return re.sub(r'[^a-z]', '', str(name).casefold()).rstrip('s')
+        for person in beat.get('people') or ():
+            candidates = [key for key in source.get('_opening_people') or ()
+                          if key == person.get('id') or
+                          stem((source.get('actors', {}).get(key) or {}).get('name')) == stem(person.get('name'))]
+            known = candidates and all((state.get('actors', {}).get(key) or {}).get('visible') and
+                                      (state.get('actors', {}).get(key) or {}).get('status') != 'hidden'
+                                      for key in candidates)
+            if known:
+                person.update(hidden=False, revealed=True, addressable=True)
+                seen = beat.setdefault('observed', {}).setdefault('seen', [])
+                if person['id'] not in seen:
+                    seen.append(person['id'])
     return data, beat
 
 

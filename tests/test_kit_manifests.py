@@ -2,6 +2,7 @@
 TurnDelta, stable first and content-hashed. Kit echoes the hashes or rehydrates. Nothing is
 trimmed: the layers join back to the full packet. Watchroom fixture; no model."""
 import json
+import copy
 import unittest
 
 from runtime import kit_manifest
@@ -85,6 +86,40 @@ class StableFirst(Layers):
 
 
 class EchoOrRehydrate(Layers):
+    def test_same_id_source_reload_refreshes_hidden_source_content(self):
+        full = KitChatBridge(self.runtime).prepare(opening=True, one_pass=True, turn_id='source')
+        first, timing = self.bridge._layer('before-reload', full)
+        self.runtime.record_kit_timing('before-reload', **timing)
+        self.bridge.abandon('source')
+        source = self.runtime.source()
+        source['facts']['new_source_fact'] = {'area': self.runtime.load()[1]['area'],
+            'visible': False, 'text': 'A newly verified source condition.'}
+        self.runtime.reload_room(source)
+        changed = copy.deepcopy(full)
+        changed['input']['private']['dm_context'] = self.runtime.context()['dm_context']
+        second, _ = self.bridge._layer('after-reload', changed)
+        self.assertIn('body', second['room_manifest'])
+        self.assertNotEqual(first['room_manifest']['hash'], second['room_manifest']['hash'])
+        self.assertIn('new_source_fact', second['room_manifest']['body']['dm_only']['unrevealed_facts'])
+
+    def test_same_id_changed_room_is_sent_and_rehydrated_then_cached(self):
+        full = KitChatBridge(self.runtime).prepare(opening=True, one_pass=True, turn_id='source')
+        first, timing = self.bridge._layer('before', full)
+        self.runtime.record_kit_timing('before', **timing)
+        changed = copy.deepcopy(full)
+        changed['input']['private']['dm_context']['constraints'] = ['A newly verified source condition.']
+        second, timing = self.bridge._layer('after', changed)
+        self.runtime.record_kit_timing('after', **timing)
+        self.assertNotEqual(first['room_manifest']['hash'], second['room_manifest']['hash'])
+        self.assertIn('body', second['room_manifest'])
+        self.assertEqual(second['room_manifest']['body']['constraints'],
+                         ['A newly verified source condition.'])
+        restored = self.bridge.rehydrate('after')
+        self.assertEqual(restored['room_manifest'], second['room_manifest'])
+        third, _ = self.bridge._layer('unchanged', changed)
+        self.assertEqual(third['room_manifest'],
+                         {'hash': second['room_manifest']['hash'], 'cached': True})
+
     def test_the_output_must_echo_the_hashes(self):
         packet, output = self.open_room(echo=False)
         with self.assertRaisesRegex(InvalidChange, 'rehydrate'):
@@ -191,6 +226,16 @@ class LiveCli(unittest.TestCase):
         full = cli('rehydrate', '--turn-id', 'w')
         self.assertEqual(full['session_manifest']['hash'], later['session_manifest']['hash'])
         self.assertEqual(kit_manifest.digest(full['session_manifest']['body']), full['session_manifest']['hash'])
+
+
+class CacheGenerations(unittest.TestCase):
+    def test_changed_body_replaces_hash_and_resets_areas_without_mutating_old_cache(self):
+        old = kit_manifest.remember_cache({}, room_id='same', room_hash='old', area='a')
+        new = kit_manifest.remember_cache(old, room_id='same', room_hash='new', area='b')
+        self.assertEqual(old['rooms']['same'], {'hash': 'old', 'areas': ['a']})
+        self.assertEqual(new['rooms']['same'], {'hash': 'new', 'areas': ['b']})
+        repeat = kit_manifest.remember_cache(new, room_id='same', room_hash='new', area='c')
+        self.assertEqual(repeat['rooms']['same'], {'hash': 'new', 'areas': ['b', 'c']})
 
 
 if __name__ == '__main__':

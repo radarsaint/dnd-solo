@@ -78,7 +78,11 @@ class HostBundleTests(unittest.TestCase):
         tracked = set(self.git('ls-files').splitlines())
         self.assertEqual(report['verified_files'], len(tracked))
         for name in tracked:
-            self.assertEqual((root / name).read_bytes(), (self.repo / name).read_bytes())
+            # The archive promises committed bytes, not a checkout transformed
+            # by the user's Git line-ending settings on Windows.
+            expected = subprocess.check_output(['git', '-C', str(self.repo), 'show',
+                                                f'{self.commit}:{name}'])
+            self.assertEqual((root / name).read_bytes(), expected)
         self.assertFalse((root / 'kit.sqlite').exists())
         self.assertFalse(report['game_started'])
         self.assertFalse(report['host_context_read'])

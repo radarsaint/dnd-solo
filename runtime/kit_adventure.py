@@ -1571,9 +1571,10 @@ def draft_room(db, key, index, text, span=None):
             continue
         seen_to.add(c['to'])
         other = index['locations'][c['to']]
+        arrival = f'to_{_slug(key)}' if any(back['to']==key for back in other['connections']) else 'here'
         side = f'to_{_slug(c["to"])}'
         areas[side] = {'name': f'Outside {loc["name"]}', 'outside': True, 'beyond': True,
-                       'room_link': {'room': str(room_file(db, c['to'], index['sha256'])), 'area': f'to_{_slug(key)}',
+                       'room_link': {'room': str(room_file(db, c['to'], index['sha256'])), 'area': arrival,
                                      'adventure': {'db': str(db), 'location': c['to'],
                                                    'source_sha256': index['sha256']}}}
         here_words = set(re.findall(r'[a-z0-9]+', loc['name'].casefold()))
@@ -2320,6 +2321,31 @@ def _choose_start(db, token=None):
     compiled['line'] = next((item.get('line') for item in starts if item.get('id') == key), None)
     compiled['starts'] = starts
     return compiled
+
+
+def resolved_arrival(link,source):
+    """Recognize old generated one-way arrival anchors without inventing reverse exits.
+
+    Cached saves retain their bytes. Only the exact pinned indexed connection and
+    canonical destination path can resolve a legacy to_<origin> anchor to here.
+    """
+    requested=link.get('area')
+    if requested in source['areas']:
+        return requested
+    meta=link.get('adventure') or {}
+    try:
+        sha=meta['source_sha256'];target=meta['location']
+        index,_text=_load(meta['db'],sha)
+        if source.get('id')!='adv-'+sha[:8]+'-'+_slug(target) or 'here' not in source['areas'] or \
+                Path(link['room']).resolve()!=room_file(meta['db'],target,sha).resolve():
+            return requested
+        origins=[key for key,loc in index['locations'].items() if requested=='to_'+_slug(key) and
+                 any(c['to']==target for c in loc['connections'])]
+        if len(origins)==1 and not any(c['to']==origins[0] for c in index['locations'][target]['connections']):
+            return 'here'
+    except (IngestError,OSError,KeyError,TypeError):
+        pass
+    return requested
 
 
 def ensure_compiled(link):

@@ -1,0 +1,17 @@
+# Source-attested warning and return
+
+The opt-in later-location path previously retained governing instructions only as prose. A guard could be understood as present, but a source instruction to warn a different room and return after two rounds had no executable representation.
+
+`decision.situation.timed_procedures` now accepts bounded `warn_and_return` declarations: an existing present actor, indexed dependency unit and matching destination room ID, one to twenty combat rounds, and exact full-sentence evidence already retained in `conditions`. This is an explicit host interpretation. Python checks identities, evidence and bounds; it does not prove semantic entailment. Other kinds remain unsupported.
+
+At native combat start, the actor departs and the combat snapshot records its origin, destination, due round and status. Its state location becomes `away:<destination room ID>`. It is excluded from local perception, target offers and active attacks. Its native initiative slot is retained and skipped while absent. Two rounds means departure in round one and return at the start of round three. The round counter, rather than elapsed wall time or model calls, drives return. Reaction and roll pauses do not independently advance that counter.
+
+The native combat event atomically records departure and a session-level warning. Warning communication is abstracted at the source-prescribed departure; this implementation does not model travel time, a route, recipient actions or automatic changes to their tactics. Destination warning records are private host input and survive normal room-state transforms and revisits. They do not edit source files or replace destination play history.
+
+Pending returns keep an encounter open if other opponents are gone. Return is cancelled for a dead, fled or relocated actor, and cannot restore that actor. Execution records are checked against the accepted source declaration, with duplicate IDs and premature returns rejected. Existing commit/replay machinery makes the combined events atomic and idempotent. There is no wall-clock service or background worker.
+
+Verification: nine synthetic procedure tests cover deadline, restart, replay, interruption rollback, target exclusion, pending-opponent combat continuation, cancellation and room-state warning persistence. Broader selected suite: 194 run, 192 passed, two skipped. Separate agent/lifecycle suite: 74 passed. Python 3.8 syntax parsing passed; no 3.8 interpreter execution or Samsung deployment is claimed.
+
+A private second-location trace used the public start/prepare/complete bridge, source interpretation, native fight start, initiative, two Dodge actions, process-style database reopening and replay. It verified absence in rounds one and two, return in round three, restored target availability and exactly one warning. Codex authored the host decisions; NPC d20s were pinned to one to isolate scheduling. This establishes execution of the interpreted procedure, not autonomous DM quality. Published source content and private traces are excluded from this repository.
+
+Adding dependency room IDs changes the request hash for earlier interpretation packets containing links. Existing accepted readings are not silently migrated; source reconciliation or a fresh isolated run is required. The private acceptance used a fresh run. The path remains opt-in through `--world-response` and is not deployed.
