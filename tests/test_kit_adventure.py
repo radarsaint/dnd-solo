@@ -240,11 +240,12 @@ class Transition(Base):
         kit_adventure.compile_location(self.db, '1')
         self.assertEqual(kit_lifecycle.status(self.db)['next_command'].split(' --room ')[0],
                          f'python3 -m runtime.kit_agent start --db {shlex.quote(str(self.db))}')
-        started = start_session(self.db, NIK, room=kit_adventure.room_file(self.db, '1'))
+        # Compiler/engine fixture; normal host interpretation is covered separately.
+        started = start_session(self.db, NIK, room=kit_adventure.room_file(self.db, '1'), world_response=False)
         runtime = Runtime(self.db)
         self.addCleanup(runtime.close)
         adjudicator = RoomAdjudicator(roll=lambda: 10, npc_roll=lambda: 10)
-        bridge = KitChatBridge(runtime, adjudicator)
+        bridge = KitChatBridge(runtime, adjudicator, world_response=False)
         if not started.get('committed'):
             bridge.abandon(started['prepared']['turn_id'])
         self.assertEqual(kit_lifecycle.status(self.db)['adventure']['adventure_readiness'], 'campaign_playable')
@@ -334,7 +335,7 @@ class Combatants(Base):
 
     def _session(self, key):
         kit_adventure.compile_location(self.db, key, neighbours=False)
-        started = start_session(self.db, NIK, room=kit_adventure.room_file(self.db, key))
+        started = start_session(self.db, NIK, room=kit_adventure.room_file(self.db, key), world_response=False)
         runtime = Runtime(self.db)
         self.addCleanup(runtime.close)
         adjudicator = RoomAdjudicator(roll=lambda: 10, npc_roll=lambda: 10, source=runtime.source())

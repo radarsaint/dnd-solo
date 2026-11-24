@@ -492,9 +492,12 @@ class Runtime:
         require(row is not None, 'Initialize a session first')
         source = json.loads(row[0])
         snapshot = self.db.execute('SELECT body FROM snapshots ORDER BY revision DESC LIMIT 1').fetchone()
-        reading = json.loads(snapshot[0]).get('source_situation') if snapshot else None
+        stored = json.loads(snapshot[0]) if snapshot else {}
+        reading = stored.get('source_situation')
         if reading:
             from . import kit_situation
+            require((stored.get('situation_identity') or {}).get('authority_version')==kit_situation.VERSION,
+                    'Source interpretation predates the authority repair; explicit reconciliation is required')
             require(set(reading['actors']) == set(source['actors']) and set(reading['facts']) == set(source['facts']),
                     'Situation projection is stale; explicit source reconciliation required')
             source = kit_situation.project(source, reading)

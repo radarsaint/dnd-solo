@@ -9,13 +9,23 @@ from unittest.mock import patch
 from runtime import kit_adventure, kit_combat, kit_situation
 from runtime.kit_agent import KitChatBridge, RoomAdjudicator, start_session
 from runtime.state_context import Runtime, InvalidChange
-from test_kit_later_situation import LaterSituation, SOURCE, CONDITION
+from test_kit_later_situation import SOURCE, CONDITION
+import test_kit_later_situation as helpers
 
 CAPTIVE = 'Mara is unconscious and bound beside the wolf Ash in this chamber.'
 STATS = 'Ash uses wolf statistics but has 18 hit points.'
 
 
-class Inventory(LaterSituation):
+class Inventory(unittest.TestCase):
+    quote=helpers.LaterSituation.quote
+    output=helpers.LaterSituation.output
+
+    def reading(self):
+        reading=helpers.LaterSituation.reading(self)
+        reading['actors']['ash']={'presence':'present','goal':'','basis':'unknown',
+            'evidence':[self.quote(self.packet['input'],STATS)]}
+        return reading
+
     def setUp(self):
         folder=tempfile.TemporaryDirectory();self.addCleanup(folder.cleanup)
         self.db=Path(folder.name)/'kit.sqlite'
@@ -28,6 +38,8 @@ class Inventory(LaterSituation):
         for trigger in room.get('triggers',[]):
             trigger['actors']=[k for k in trigger['actors'] if k in room['actors']]
         room['triggers']=[t for t in room.get('triggers',[]) if t['actors']]
+        room['actors']['ash']={'name':'Wolf','location':room['starting_area'],'status':'alive',
+            'visible':True,'stat_block':{'srd':'wolf'}}
         Path(self.room).write_text(json.dumps(room),encoding='utf-8')
         self.before=Path(self.room).read_bytes()
         self.packet=start_session(str(self.db),'tests/fixtures/characters/nik.json',room=self.room,world_response=True)
@@ -37,11 +49,12 @@ class Inventory(LaterSituation):
     def inventory(self):
         reading=self.reading();req=self.packet['input']
         reading['additions']={}
-        for key,name,kind in [('mara','Mara','person'),('ash','Ash','creature')]:
+        for key,name,kind in [('mara','Mara','person')]:
             reading['additions'][key]={'name':name,'kind':kind,'presence':'present','goal':'','basis':'unknown',
                 'evidence':[self.quote(req,CAPTIVE)],'visibility':'visible',
                 'visibility_evidence':[self.quote(req,CAPTIVE)]}
-        reading['additions']['ash']['statistics']={'srd':'wolf','hp':18,'evidence':[self.quote(req,STATS)]}
+        reading['actors']['ash'].update(source_name='Ash',identity_evidence=[self.quote(req,STATS)],
+            statistics={'srd':'wolf','hp':18,'evidence':[self.quote(req,STATS)]})
         reading['additions']['mara']['status']='unconscious'
         return reading
 
@@ -50,8 +63,8 @@ class Inventory(LaterSituation):
         result=self.bridge.complete(self.packet['turn_id'],output)
         source=self.runtime.source();state=self.runtime.load()[1]
         self.assertEqual(set(source['actors']),set(state['actors']))
-        self.assertIn('mara',state['actors'])
-        self.assertEqual(state['actors']['mara']['status'],'unconscious')
+        self.assertNotIn('mara',state['actors'])
+        self.assertEqual(source['_proposed_actors']['mara']['reading']['status'],'unconscious')
         self.assertNotIn('mara',kit_combat.config(source)['actors'])
         self.assertEqual(kit_combat.config(source)['actors']['ash']['hp'],18)
         self.assertEqual(state['actors']['ash']['statistics_provenance']['srd'],'wolf')
@@ -79,7 +92,7 @@ class Inventory(LaterSituation):
 
     def test_bad_inventory_or_stat_evidence_cannot_commit(self):
         for fault in ['id','name','offset','remote','hp','boolean','base','collision','alias','status']:
-            reading=self.inventory();mara=reading['additions']['mara'];ash=reading['additions']['ash']
+            reading=self.inventory();mara=reading['additions']['mara'];ash=reading['actors']['ash']
             if fault=='id':reading['additions']['Bad ID']=reading['additions'].pop('mara')
             if fault=='name':mara['name']='Invented Person'
             if fault=='offset':mara['evidence'][0]['offset']+=1
@@ -105,13 +118,11 @@ class Inventory(LaterSituation):
         self.assertEqual(self.runtime.load(),before)
 
     def test_source_named_alias_preserves_identity_and_statistics(self):
-        reading=self.inventory();ash=reading['additions'].pop('ash')
-        ash.update(name='wolf',source_name='Ash',identity_evidence=[self.quote(self.packet['input'],STATS)])
-        reading['additions']['wolf_identity']=ash
+        reading=self.inventory()
         self.bridge.complete(self.packet['turn_id'],self.output(reading))
         source=self.runtime.source()
-        self.assertEqual(source['actors']['wolf_identity']['name'],'Ash')
-        self.assertEqual(kit_combat.config(source)['actors']['wolf_identity']['hp'],18)
+        self.assertEqual(source['actors']['ash']['name'],'Ash')
+        self.assertEqual(kit_combat.config(source)['actors']['ash']['hp'],18)
 
     def test_pinned_compiler_limits_reach_the_private_turn_packet(self):
         original=kit_adventure.draft_room

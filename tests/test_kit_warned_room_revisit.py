@@ -22,7 +22,8 @@ class WarnedRevisit(unittest.TestCase):
             req=packet['input'];self.assertFalse(req['actors'])
             self.assertEqual(len(req['established_warnings']),1)
             reading={'request_hash':req['request_hash'],'actors':{},
-                'facts':{k:'visible' for k in req['facts']},'conditions':[],'unresolved':[]}
+                'facts':{k:'visible' if f.get('visible') else 'private' for k,f in req['facts'].items()},
+                'conditions':[],'unresolved':[]}
             bridge.complete(packet['turn_id'],{'decision':{'situation':reading},'performance':{'segments':[]}})
             packet=bridge.prepare(action,one_pass=True)
         self.assertEqual(packet['stage'],'one_pass')

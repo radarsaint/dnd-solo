@@ -6522,6 +6522,11 @@ def hidden_actor_words(source, state, body=None):
     seen = ' '.join(_word_list(json.dumps((body or {}).get('public_view') or {})) +
                     _word_list((body or {}).get('action') or ''))
     nouns, runs = set(), set()
+    for candidate in (source.get('_proposed_actors') or {}).values():
+        item=candidate.get('reading') or {}
+        for name in (item.get('name'),item.get('source_name')):
+            if name:
+                runs.add(' '.join(_word_list(name)))
     for key, actor in (state.get('actors') or {}).items():
         spec = ((source.get('actors') or {}).get(key) or {})
         if not state_context.unperceived({**spec, **actor}):
@@ -7427,12 +7432,15 @@ def window_scene(runtime, state):
 
 class KitChatBridge:
     """Host this model loop in an assistant chat, with no API credential in Python."""
-    def __init__(self, runtime, adjudicator=None, manifests=False, compact=None, world_response=False):
+    def __init__(self, runtime, adjudicator=None, manifests=False, compact=None, world_response=None):
         """``manifests``: send one-pass packets in three layers (kit_manifest; the live CLI
         does). Off by default, so staged evals and the Python API see the full packet.
         ``compact``: layered packets in compact mode (kit_telemetry); None reads the mode
         recorded in the save (start --compact), which defaults to full."""
         self.runtime = runtime
+        if world_response is None:
+            row=runtime.db.execute('SELECT body FROM source WHERE id=1').fetchone()
+            world_response=bool(row and str(json.loads(row[0]).get('id','')).startswith('adv-'))
         self.world_response = world_response
         self.adjudicator = adjudicator or RoomAdjudicator()
         self.manifests = manifests
@@ -7964,7 +7972,7 @@ class KitChatBridge:
                 'identity': situation_state.get('situation_identity'),
                 'compiler_limits': (situation_state.get('situation_identity') or {}).get('compiler_limits',[]),
                 'reading': situation_state['source_situation'],
-                'authority': 'Source quotations attested; inferred goals remain host interpretation, not published facts.'}
+                'authority': 'Quotes are attested, not their semantic conclusions. Additions are private PROPOSED candidates, not present actors or speakers; do not narrate them as present. Preparation grants no player discovery. Inferred goals remain interpretation.'}
         if self.world_response and not body.get('window_stage'):
             revision, _ = self.runtime.load()
             after = self.runtime.preview_state(revision, body['events'])
@@ -8729,7 +8737,7 @@ def read_character_sheet(path):
 
 
 def start_session(db, sheet_path=None, runtime=None, room=None, area=None, manifests=False, campaign=None,
-                  intent=None, table=None, modules=None, restore=None, compact=False, world_response=False):
+                  intent=None, table=None, modules=None, restore=None, compact=False, world_response=None):
     """Bootstrap for a host.
 
     No room and no campaign: a greeting. Nothing is mounted. Mad Mage is not assumed.
@@ -8743,6 +8751,8 @@ def start_session(db, sheet_path=None, runtime=None, room=None, area=None, manif
             kit_telemetry.set_packet_mode(db, 'compact')  # resuming a save: compact from here on
         return entry
     source = kit_rooms.load_room(room)
+    if world_response is None:
+        world_response=str(source.get('id','')).startswith('adv-')
     from . import kit_adventure
     if kit_adventure.room_is_empty(source):
         return kit_campaign.place_picker(db)
@@ -9231,7 +9241,8 @@ def _main():
     parser.add_argument('--full', action='store_true',
                         help='prepare --one-pass/start: send the whole packet, not the three layers '
                              '(docs/architecture/MANIFESTS.md)')
-    parser.add_argument('--world-response', action='store_true', help='prepare: offer existing NPC responses (opt-in)')
+    parser.add_argument('--world-response', action='store_true', default=None,
+                        help='offer existing NPC responses (automatic for imported adventures)')
     parser.add_argument('--compact', action='store_true',
                         help='start: record compact packets for this save; prepare: this turn compact '
                              '(docs/latency/experiment-protocol.md). Default: full')
@@ -9419,7 +9430,8 @@ def _main():
             bridge = KitChatBridge(runtime, RoomAdjudicator(args.perception, args.insight,
                                                              sleight_of_hand=args.sleight_of_hand),
                                    manifests=not args.full, compact=True if args.compact else None)
-            bridge.world_response = args.world_response
+            if args.world_response is not None:
+                bridge.world_response = args.world_response
             try:
                 if args.command == 'abandon':
                     if not args.turn_id:

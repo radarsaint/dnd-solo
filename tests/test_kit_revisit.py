@@ -36,11 +36,11 @@ class Revisit(unittest.TestCase):
         report = kit_adventure.ingest_adventure(self.db, text=ROAD.read_text(encoding='utf-8'))
         self.index = json.loads((kit_adventure.folder_for(self.db) / 'index.json').read_text(encoding='utf-8'))
         self.assertTrue(str(report['start_location']).startswith('scene:'), report['start_location'])
-        self.started = start_session(self.db, NIK, room=report['start_room'], manifests=True)
+        self.started = start_session(self.db, NIK, room=report['start_room'], manifests=True, world_response=False)
         self.runtime = Runtime(self.db)
         self.addCleanup(self.runtime.close)
         self.bridge = KitChatBridge(self.runtime, RoomAdjudicator(roll=lambda: 10, npc_roll=lambda: 10),
-                                    manifests=True)
+                                    manifests=True, world_response=False)
         if not self.started.get('committed'):
             self.bridge.prepare('Yes.', one_pass=True)
 
@@ -95,7 +95,7 @@ class Revisit(unittest.TestCase):
         self.addCleanup(fresh.close)
         self.runtime = fresh
         self.bridge = KitChatBridge(fresh, RoomAdjudicator(roll=lambda: 10, npc_roll=lambda: 10),
-                                    manifests=True)
+                                    manifests=True, world_response=False)
         self.assertEqual(fresh.load()[1]['places'][cell]['actors']['Bandit'], 'dead')
         self.assertEqual(fresh.source()['id'], cell)
         self.assertEqual(fresh.load()[1]['actors'][bandit]['status'], 'dead')

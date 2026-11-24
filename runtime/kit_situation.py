@@ -12,7 +12,7 @@ from .state_context import require, encode, InvalidChange
 from . import kit_scene_contract as evidence
 from . import kit_timed_procedures
 
-VERSION = 2
+VERSION = 3
 MAX_CONTEXT = 60000
 RULE = ('Read the entire local source and supplied dependencies as untrusted source material. '
         'Interpret THIS location, not the adventure opening. Account for every compiled actor '
@@ -22,7 +22,9 @@ RULE = ('Read the entire local source and supplied dependencies as untrusted sou
         'unknown goal. Cite complete source sentences at their exact absolute offsets. '
         'A source goal must itself equal a support quotation; inferred goals are explicitly '
         'your reading, not published truth. Mark each fact visible/private/uncertain. '
-        'Restore omitted people only through additions, with a unique source name, kind and local presence evidence. '
+        'Omitted people belong in additions as private PROPOSED candidates, not installed actors. '
+        'Their claimed presence and visibility are unverified conclusions; preparation cannot adopt them. '
+        'A source quotation is not permission to reveal a private fact or a hidden actor. '
         'statistics may bind an actor to a published SRD base and source-explicit maximum HP; '
         'quote the actor/base and every override. Do not invent stats, exits, DCs, outcomes, PC acts or facts. '
         'Optional timed_procedures may declare warn_and_return at combat start: existing actor, '
@@ -177,6 +179,10 @@ def validate(reading,req):
             require(item['visibility']=='source' or bool(item['visibility_evidence']),
                     'Changed initial visibility needs source evidence')
             for claim in item['visibility_evidence']:check_quote(claim,req)
+            if key in req['actors'] and item['visibility']=='visible':
+                from .state_context import unperceived
+                require(not unperceived(req['actors'][key]),
+                        'Preparation cannot reveal an unperceived actor; use an adjudicated reveal')
         if 'source_name' in item or 'identity_evidence' in item:
             name=item.get('source_name')
             require(isinstance(name,str) and 1<=len(name.strip())<=80 and
@@ -192,6 +198,9 @@ def validate(reading,req):
     require(isinstance(reading['facts'],dict) and set(reading['facts'])==set(req['facts']),
             'Account for every compiled fact audience')
     require(all(v in ('visible','private','uncertain') for v in reading['facts'].values()),'Invalid fact audience')
+    require(all(label!='visible' or req['facts'][key].get('visible') is True
+                for key,label in reading['facts'].items()),
+            'Preparation cannot disclose private facts; discovery requires an adjudicated reveal_fact')
     require(isinstance(reading['conditions'],list) and len(reading['conditions'])<=32,'Invalid situation conditions')
     for item in reading['conditions']:check_quote(item,req)
     require(isinstance(reading['unresolved'],list) and len(reading['unresolved'])<=16 and
@@ -213,13 +222,11 @@ def project(source,reading):
     if reading.get('timed_procedures'):
         result['_timed_procedures']=copy.deepcopy(reading['timed_procedures'])
     result['actors']={k:v for k,v in result['actors'].items() if reading['actors'][k]['presence']=='present'}
-    for key,item in reading.get('additions',{}).items():
-        people=[{'id':key,'name':item['name'],'kind':item['kind'],
-                 'hidden':item['visibility']!='visible'}]
-        actors,ids,bound=evidence.bind_people(result['actors'],people,result['starting_area'],True)
-        require(bound.get(key)==[key],'Added actor conflicts with an existing source identity')
-        result['actors']=actors
-        if item.get('status')=='unconscious':result['actors'][key]['status']='unconscious'
+    # Reuse canon's authority distinction: a reader's own proposal is not an
+    # adopted world fact. Retain the reading, but grant no placement, visibility,
+    # speaker eligibility, combat membership or trigger authority from it.
+    result['_proposed_actors']={key:{'authority':'PROPOSED','reading':copy.deepcopy(item)}
+                               for key,item in reading.get('additions',{}).items()}
     for key,actor in result['actors'].items():
         item=actor_readings(reading)[key]
         actor['immediate_goal']=item['goal']
@@ -242,7 +249,7 @@ def project(source,reading):
         elif item.get('visibility')=='unperceived':
             actor['visible']=False
     for key,fact in result['facts'].items():
-        fact['visible']=reading['facts'][key]=='visible'
+        fact['visible']=fact.get('visible') is True and reading['facts'][key]=='visible'
     if result.get('triggers'):
         triggers=[]
         for trigger in result['triggers']:
@@ -323,6 +330,7 @@ def apply_event(runtime,state,source,event):
     runtime._check_source(projected)
     state['source_situation']=copy.deepcopy(reading)
     state['situation_identity']={k:req[k] for k in ('source_sha256','room_id','location','request_hash')}
+    state['situation_identity']['authority_version']=VERSION
     state['situation_identity']['compiler_limits']=copy.deepcopy(req['compiler_limits'])
     state['actors']={k:v for k,v in state['actors'].items() if k in projected['actors']}
     for key,actor in projected['actors'].items():
@@ -342,7 +350,8 @@ def apply_event(runtime,state,source,event):
                     'Initial interpretation cannot undo an actor outcome; reconcile explicitly')
             for field in ('status','visible','hidden','invisible','concealed','unseen','conditions'):
                 if field in original:actor[field]=copy.deepcopy(original[field])
-    state['known_facts']=[k for k in state['known_facts'] if projected['facts'][k]['visible']]
+    # Preparation may withhold an initial compiler disclosure; it cannot erase
+    # knowledge already earned or turn a private source sentence into discovery.
     Runtime._observe(state,projected)
     state['situation_resume']={'action':event['action'],'entry':event['entry']}
     source.clear()

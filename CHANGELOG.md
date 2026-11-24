@@ -10,6 +10,12 @@ Versioning rule:
 
 The current version is in `VERSION`.
 
+## v0.18.0
+
+- Repair source interpretation authority: preparation cannot disclose private facts, reveal hidden actors or retract known facts. Opening and later-room unmatched people remain private proposals, not installed entities.
+- Prefer stable actor IDs and refuse ambiguous individual identity/statistics corrections; verify isolation through a committed opening.
+- Enable interpretation automatically for imported adventures on the ordinary host path. Older interpretations require explicit reconciliation; general semantic admission and save migration remain unimplemented. See docs/INTERPRETATION_AUTHORITY.md.
+
 ## v0.17.0
 
 - Source-attested encounter interpretation at later imported locations: restore omitted people, distinguish remote mentions, preserve inferred motives as interpretations, and retain full governing conditions and compiler limitations in Kit's private turn context.
