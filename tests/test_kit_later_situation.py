@@ -120,18 +120,18 @@ class LaterSituation(unittest.TestCase):
         self.assertEqual(request['request_hash'],kit_situation.request(self.runtime)['request_hash'])
         self.assertEqual(Path(self.room).read_bytes(),self.before)
 
-    def test_initial_visibility_corrections_require_evidence_and_persist(self):
+    def test_preparation_visibility_restrictions_persist_without_discovery(self):
         reading=self.reading();guards=[k for k in reading['actors'] if 'goblin' in k]
-        for key,visibility in zip(guards,('unperceived','visible')):
+        for key,visibility in zip(guards,('unperceived','source')):
             reading['actors'][key].update(visibility=visibility,visibility_evidence=[self.quote(self.packet['input'],LOCAL)])
         self.bridge.complete(self.packet['turn_id'],self.output(reading))
         state=self.runtime.load()[1]
         self.assertFalse(state['actors'][guards[0]]['visible'])
-        self.assertTrue(state['actors'][guards[1]]['visible'])
-        self.assertEqual(state['actors'][guards[1]]['status'],'alive')
+        self.assertFalse(state['actors'][guards[1]]['visible'])
+        self.assertEqual(state['actors'][guards[1]]['status'],'hidden')
         self.runtime.close();self.runtime=Runtime(self.db);self.addCleanup(self.runtime.close)
         self.assertFalse(self.runtime.source()['actors'][guards[0]]['visible'])
-        self.assertTrue(self.runtime.load()[1]['actors'][guards[1]]['visible'])
+        self.assertFalse(self.runtime.load()[1]['actors'][guards[1]]['visible'])
         self.assertEqual(Path(self.room).read_bytes(),self.before)
 
     def test_unsupported_or_unattested_visibility_is_rejected(self):

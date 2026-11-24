@@ -69,15 +69,22 @@ def bind_people(actors, people, here, verified):
         pid = person.get('id')
         if not pid:
             continue
-        matches = ([key for key, actor in actors.items()
-                    if key == pid or (verified and stem(actor.get('name')) == stem(person.get('name')))]
-                   if verified else [pid] if pid in actors else [])
+        # A stable id is an individual target, never a request to expand a group.
+        matches = [pid] if pid in actors else []
         if verified and not matches:
-            role = 'speaker' if person.get('kind') in ('speaker', 'person', 'npc') else 'creature'
-            actors[pid] = {'name': person.get('name') or pid, 'location': here,
-                           'status': 'hidden' if person.get('hidden') else 'alive',
-                           'visible': not person.get('hidden'), 'role': role}
-            matches = [pid]
+            matches = [key for key, actor in actors.items()
+                       if _norm(actor.get('name')) == _norm(person.get('name'))]
+            if not matches:
+                matches = [key for key, actor in actors.items()
+                           if stem(actor.get('name')) == stem(person.get('name'))]
+        if len(matches) > 1 and any(field in person for field in ('statistics', 'source_name', 'identity_evidence')):
+            from .state_context import InvalidChange
+            raise InvalidChange('Identity/statistics correction requires one unambiguous actor id')
+        if verified and not matches:
+            # A matching quotation is not an admission of a new world entity.
+            # The caller retains unmatched people as private proposals.
+            bound[pid] = []
+            continue
         if verified:
             bound[pid] = list(matches)
         for key in matches:
@@ -87,8 +94,13 @@ def bind_people(actors, people, here, verified):
             if not isinstance(actor, dict):
                 continue
             if verified and actor.get('status') in ('alive', 'hidden'):
-                actor['status'] = 'hidden' if person.get('hidden') else 'alive'
-                actor['visible'] = not person.get('hidden')
+                from .state_context import unperceived
+                if person.get('hidden'):
+                    actor['status'] = 'hidden'
+                    actor['visible'] = False
+                elif not unperceived(actor):
+                    actor['status'] = 'alive'
+                    actor['visible'] = True
             if person.get('goal'):
                 actor['immediate_goal'] = person['goal']
                 actor['motive'] = person.get('motive') or person['goal']

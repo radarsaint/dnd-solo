@@ -2556,6 +2556,15 @@ def _stamp_beat(room_path, beat):
     actors, ids, bound_actor_ids = bind_people(
         room.get('actors') or {}, beat.get('people') or [], here, verified)
     room['actors'] = actors
+    if verified:
+        proposed=[p for p in beat.get('people') or [] if not bound_actor_ids.get(p.get('id'))]
+        room['_proposed_actors']={p['id']:{'authority':'PROPOSED','reading':dict(p)} for p in proposed}
+        beat['proposed_people']=list(proposed)
+        beat['people']=[p for p in beat.get('people') or [] if bound_actor_ids.get(p.get('id'))]
+        from .state_context import unperceived
+        for person in beat['people']:
+            if all(unperceived(actors[key]) for key in bound_actor_ids[person['id']]):
+                person.update(hidden=True,revealed=False,addressable=False)
     for key, actor in actors.items():
         if actor.get('statistics_provenance') and key in (room.get('combat') or {}).get('actors', {}):
             room['combat']['actors'][key] = dict(actor['stat_block'])
@@ -2744,6 +2753,10 @@ def _cast_people(room_path, text):
 def _note_people(runtime, chunk):
     """A person named in the chunk just spoken is on stage for the next line."""
     data = _read(runtime.path)
+    if (data.get('beat') or {}).get('source_verified'):
+        # Verified preparation has its own bounded actor inventory. A later
+        # narrative sentence must not bypass proposal/admission via this cache.
+        return
     _cast_people(data.get('room'), chunk)
     from .kit_adventure import _introduced_names, _slug
     try:
